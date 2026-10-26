@@ -43,10 +43,22 @@ namespace Punchy.Terrain
         [Tooltip("How much rain this biome contributes to rivers (0 = none, 1 = lush).")]
         [Range(0f, 1f)] public float Rainfall = 0.5f;
 
+        [Header("Weather")]
+        [Tooltip("Overrides how likely each weather is here. Presets not listed keep their own Chance, unless they're " +
+                 "marked Only In Listed Biomes, in which case they never happen here.")]
+        public List<BiomeWeather> Weather = new List<BiomeWeather>();
+
         [Header("Surfaces")]
         public TerrainSurface BaseSurface;
         [Tooltip("Painted over the base in order; later layers cover earlier ones.")]
         public List<SurfaceLayer> Layers = new List<SurfaceLayer>();
+    }
+
+    [Serializable]
+    public class BiomeWeather
+    {
+        public Weather.WeatherPreset Preset;
+        [Min(0f)] public float Chance = 1f;
     }
 
     /// <summary>A surface painted where its rules match. All enabled rules must match (they multiply).</summary>

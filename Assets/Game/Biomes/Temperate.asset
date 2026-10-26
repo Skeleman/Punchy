@@ -23,6 +23,9 @@ MonoBehaviour:
   TerraceSteps: 0
   WindDirection: 60
   Rainfall: 0.7
+  Weather:
+  - Preset: {fileID: 11400000, guid: 7771effdbe3750c469548baca5cddc21, type: 2}
+    Chance: 2
   BaseSurface: {fileID: 11400000, guid: be5b1eae4bf62554b845de2587eb0d65, type: 2}
   Layers:
   - Surface: {fileID: 11400000, guid: f397da19159900045997c350ec927c49, type: 2}

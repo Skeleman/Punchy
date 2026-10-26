@@ -120,6 +120,7 @@ namespace Punchy.Terrain
                 }
                 if (palette.Count == 0)
                     Debug.LogWarning("Terrain has no biomes assigned; it will be flat and grey.", authoring);
+                AddComponentObject(entity, new BiomePalette { Biomes = palette.ToArray() });
 
                 var heightmap = default(BlobAssetReference<HeightmapBlob>);
                 if (authoring.HeightSource == HeightSourceKind.Heightmap)

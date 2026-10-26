@@ -23,6 +23,7 @@ MonoBehaviour:
   TerraceSteps: 0
   WindDirection: 60
   Rainfall: 0
+  Weather: []
   BaseSurface: {fileID: 11400000, guid: 52309ffcc63888a4fa04169f80fd4edb, type: 2}
   Layers:
   - Surface: {fileID: 11400000, guid: c86a9db717947c9478db4874e4fcfd3e, type: 2}

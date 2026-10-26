@@ -23,10 +23,22 @@ namespace Punchy.Weather
         [Header("Precipitation")]
         [Tooltip("Rain (or snow on snowy/high ground). Scaled down where the local biome is dry.")]
         [Range(0f, 1f)] public float Precipitation;
+        [Tooltip("Precipitation always falls as snow (blizzards).")]
+        public bool AlwaysSnow;
+
+        [Header("Dust")]
+        [Tooltip("Airborne dust or sand: tints the sky and fog and blows sand past the camera.")]
+        [Range(0f, 1f)] public float Dust;
+        public Color DustColor = new Color(0.78f, 0.62f, 0.42f);
+
+        [Header("Lightning")]
+        [Min(0f)] public float LightningPerMinute;
 
         [Header("Scheduling")]
-        [Tooltip("Relative chance of this weather being picked next.")]
+        [Tooltip("Relative chance of this weather being picked next, in biomes that don't set their own chance for it.")]
         [Min(0f)] public float Chance = 1f;
+        [Tooltip("Only happens in biomes that list this preset in their Weather section (e.g. sandstorms in deserts).")]
+        public bool OnlyInListedBiomes;
         [Tooltip("How long this weather lasts once it arrives, in seconds (random between min and max).")]
         public Vector2 Duration = new Vector2(120f, 300f);
     }

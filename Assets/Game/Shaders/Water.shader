@@ -181,7 +181,7 @@ Shader "Punchy/Water"
 
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
-                half shadow = light.shadowAttenuation;
+                half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
                 half3 ambient = SampleSH(n);
 
                 half3 waterColor = lerp(_DeepColor.rgb, _ShallowColor.rgb, exp(-thickness * _Absorption));
@@ -200,7 +200,7 @@ Shader "Punchy/Water"
                 half alpha = saturate(1 - exp(-thickness * _Opacity) + fresnel + glint);
 
                 // Broken foam line where the water thins out against the shore.
-                half foamNoise = 0.5 + 0.5 * sin(dot(p, float2(1.3, 0.7)) * 1.7 + t * 1.1) * sin(dot(p, float2(-0.6, 1.1)) * 2.3 - t * 1.4);
+                half foamNoise = PunchyValueNoise(p * 0.9 + float2(t * 0.25, -t * 0.18)) * 0.6 + PunchyValueNoise(p * 2.7 - t * 0.4) * 0.4;
                 half foam = smoothstep(foamNoise * 0.7, 1, saturate(1 - thickness / _FoamDistance));
                 // White water: the churned (steepest) parts of the flowing ripples turn to foam on rapids.
                 foam = max(foam, rapids * smoothstep(0.25, 0.6, length(flowingSlope)));

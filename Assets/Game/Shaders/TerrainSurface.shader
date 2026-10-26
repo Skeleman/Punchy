@@ -39,6 +39,7 @@ Shader "Punchy/Terrain Surface"
             #define _ENVIRONMENTREFLECTIONS_OFF
             #include "TerrainSurface.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "Sky.hlsl"
 
             struct Varyings
             {
@@ -96,6 +97,17 @@ Shader "Punchy/Terrain Surface"
                 surface.alpha = 1;
 
                 half4 color = UniversalFragmentPBR(inputData, surface);
+
+                // Cloud shadows: dim the share of the light that comes straight from the sun.
+                half cloudShadow = PunchyCloudShadow(input.positionWS + float3(0, input.extra.w, 0));
+                if (cloudShadow > 0)
+                {
+                    Light mainLight = GetMainLight(inputData.shadowCoord);
+                    half direct = Luminance(mainLight.color) * saturate(dot(inputData.normalWS, mainLight.direction)) * mainLight.shadowAttenuation;
+                    half ambient = Luminance(inputData.bakedGI);
+                    color.rgb *= 1 - cloudShadow * direct / max(direct + ambient, 1e-3);
+                }
+
                 color.rgb = MixFog(color.rgb, inputData.fogCoord);
                 return color;
             }

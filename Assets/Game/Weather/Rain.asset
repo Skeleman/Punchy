@@ -19,5 +19,10 @@ MonoBehaviour:
   Fog: 2
   Wind: 0.55
   Precipitation: 0.6
+  AlwaysSnow: 0
+  Dust: 0
+  DustColor: {r: 0.78, g: 0.62, b: 0.42, a: 1}
+  LightningPerMinute: 0.4
   Chance: 1.5
+  OnlyInListedBiomes: 0
   Duration: {x: 120, y: 300}
