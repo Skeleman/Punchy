@@ -66,6 +66,10 @@ namespace Punchy.Terrain
         [Header("Flora")]
         [Tooltip("Plants that grow here (drawn by the flora system). Changing these doesn't re-bake the terrain.")]
         public List<Punchy.Flora.BiomeFlora> Flora = new List<Punchy.Flora.BiomeFlora>();
+
+        [Header("Fauna")]
+        [Tooltip("Animals that live here (spawned around the player by FaunaDirector).")]
+        public List<Punchy.Fauna.BiomeFauna> Fauna = new List<Punchy.Fauna.BiomeFauna>();
     }
 
     [Serializable]
