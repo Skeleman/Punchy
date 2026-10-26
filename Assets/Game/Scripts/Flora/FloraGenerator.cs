@@ -55,6 +55,10 @@ namespace Punchy.Flora
                     case FloraForm.Ocotillo: Ocotillo(g); break;
                     case FloraForm.Mushroom: Mushroom(g); break;
                     case FloraForm.Bones: Bones(g); break;
+                    case FloraForm.Boulder: Boulder(g); break;
+                    case FloraForm.Spire: Spire(g); break;
+                    case FloraForm.Crystal: Crystal(g); break;
+                    case FloraForm.Den: Den(g); break;
                 }
                 if (lod == 0)
                 {
@@ -1074,6 +1078,162 @@ namespace Punchy.Flora
                 b.Diamond(c, r * 0.9f, aged, FloraPart.Bark);
             }
             b.Occlude(first, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(p.y / Mathf.Max(size * 0.15f, 0.05f))) * Mathf.Lerp(0.8f, 1f, Mathf.Clamp01(n.y + 0.5f)));
+        }
+
+        // ------------------------------------------------------------------------------------------- rocks
+
+        /// <summary>Moss or lichen on upward-facing rock, in noisy patches (the species' accent).</summary>
+        static void Moss(Grower g, int first)
+        {
+            if (!g.HasAccent)
+                return;
+            var moss = g.Accent;
+            var amount = g.S.AccentAmount;
+            var seed = g.Variant * 7.3f;
+            g.B.Recolor(first, (p, n, c) =>
+            {
+                var patch = Mathf.PerlinNoise(p.x * 1.3f + seed, p.z * 1.3f + p.y * 0.7f) - 0.5f;
+                var cover = FloraMeshBuilder.Smooth(0.75f - amount * 0.6f, 0.95f - amount * 0.6f, n.y + patch * 0.6f);
+                return Color.Lerp(c, moss, cover);
+            });
+        }
+
+        static void Boulder(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var width = height * s.Spread * 2f;
+            g.Height = height;
+            g.Width = width;
+            g.TrunkRadius = width * 0.42f;
+            var detail = g.Sides(3, 2, 1);
+
+            var first = b.VertexCount;
+            var count = g.Count(s.Branches);
+            for (int i = 0; i < count; i++)
+            {
+                // The main rock in the middle, smaller ones leaning against and around it.
+                var size = i == 0 ? 1f : g.Range(0.2f, 0.5f);
+                var at = i == 0 ? Vector3.zero : g.Flat(g.R() * 6.28f) * width * g.Range(0.45f, 0.8f);
+                var radii = new Vector3(width * 0.5f, height * 0.62f, width * 0.5f * g.Range(0.65f, 1f)) * size;
+                var rotation = Quaternion.Euler(g.Range(-12f, 12f), g.R() * 360f, g.Range(-12f, 12f));
+                var color = Color.Lerp(g.Bark, g.Bark * 0.78f, g.R());
+                b.Blob(at + Vector3.up * radii.y * 0.55f, radii, rotation, i == 0 ? detail : Mathf.Max(0, detail - 1), 0.24f, g.R() * 100f, color, FloraPart.Bark);
+            }
+            b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.25f) * Mathf.Lerp(0.75f, 1f, Mathf.Clamp01(n.y + 0.6f)));
+            Moss(g, first);
+        }
+
+        static void Spire(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var radius = height * s.Thickness;
+            var blocks = g.Count(s.Branches);
+            var capScale = 1f + s.TrunkFraction * 2.5f;
+            var yaw = Quaternion.Euler(0f, g.R() * 360f, 0f);
+            var lean = g.Flat(g.R() * 6.28f) * g.Range(0f, 0.05f);
+            var detail = g.Sides(2, 2, 1);
+            var bands = s.Foliage.linear;
+
+            var first = b.VertexCount;
+            var y = -radius * 0.2f;
+            var offset = Vector3.zero;
+            for (int i = 0; i < blocks; i++)
+            {
+                var t = blocks > 1 ? i / (blocks - 1f) : 0f;
+                var blockHeight = height / blocks * g.Range(0.8f, 1.2f);
+                var r = radius * g.Range(0.85f, 1.1f);
+                if (blocks > 1)
+                    r *= Mathf.Lerp(1.35f, 1f, t);   // wider at the foot
+                var cap = blocks > 1 && i == blocks - 1 && s.TrunkFraction > 0f;
+                if (cap)
+                {
+                    r = radius * capScale;
+                    blockHeight *= 0.6f;
+                }
+                var radii = new Vector3(r, blockHeight * 0.62f, r * s.Spread);
+                var centre = offset + lean * y + Vector3.up * (y + blockHeight * 0.5f);
+                var rotation = yaw * Quaternion.Euler(g.Range(-5f, 5f), g.Range(-25f, 25f), g.Range(-5f, 5f));
+                var color = Color.Lerp(g.Bark, bands, g.R());
+                b.Blob(centre, radii, rotation, detail, cap ? 0.1f : 0.16f, g.R() * 100f, color, FloraPart.Bark);
+                y += blockHeight * 0.88f;
+                offset += g.Flat(g.R() * 6.28f) * r * g.Range(0f, 0.12f);
+            }
+            g.Height = y;
+            g.Width = radius * 2f * Mathf.Max(capScale, 1.35f);
+            g.TrunkRadius = radius * (blocks > 1 ? 1.2f : Mathf.Lerp(s.Spread, 1f, 0.5f));
+            b.Occlude(first, (p, n) => GroundOcclusion(p, radius * 2f) * Mathf.Lerp(0.7f, 1f, Mathf.Clamp01(n.y + 0.7f)));
+            Moss(g, first);
+        }
+
+        static void Crystal(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            g.Height = height;
+            g.Width = height * s.Spread;
+            g.TrunkRadius = height * s.Thickness * 1.5f;
+
+            // A rough rocky base the crystals grow out of.
+            var baseRadius = height * Mathf.Max(s.Spread * 0.35f, s.Thickness * 1.6f);
+            var firstRock = b.VertexCount;
+            b.Blob(Vector3.up * baseRadius * 0.1f, new Vector3(baseRadius, baseRadius * 0.45f, baseRadius * 0.85f), Quaternion.Euler(0f, g.R() * 360f, 0f),
+                   g.Sides(2, 1, 0), 0.3f, g.R() * 100f, g.Bark, FloraPart.Bark);
+            b.Occlude(firstRock, (p, n) => GroundOcclusion(p, baseRadius));
+
+            var count = g.Count(s.Branches);
+            for (int i = 0; i < count; i++)
+            {
+                var main = i == 0;
+                var tiltAxis = g.Flat(g.R() * 6.28f);
+                var dir = Quaternion.AngleAxis(main ? g.Range(0f, 8f) : g.Range(15f, 50f), tiltAxis) * Vector3.up;
+                var length = height * (main ? 1f : g.Range(0.3f, 0.75f));
+                var r = length * s.Thickness * g.Range(0.8f, 1.2f);
+                var root = main ? Vector3.zero : new Vector3(tiltAxis.z, 0f, -tiltAxis.x) * baseRadius * g.Range(-0.6f, 0.6f) - tiltAxis * baseRadius * g.Range(0f, 0.4f);
+                root.y = -r * 0.5f;
+                var color = g.FoliageColor();
+                var path = new List<Vector3> { root, root + dir * length * 0.78f, root + dir * length };
+                var radii = new List<float> { r, r * 0.92f, 0.002f };
+                b.Tube(path, radii, 6, color, FloraPart.Foliage);
+            }
+        }
+
+        static void Den(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var radii = new Vector3(height * s.Spread, height, height * s.Spread * 0.85f);
+            g.Height = height;
+            g.Width = radii.x * 2f;
+            g.TrunkRadius = radii.x * 0.75f;
+            var detail = g.Sides(3, 2, 1);
+
+            // The hump, sunk so its widest part is near the ground.
+            var first = b.VertexCount;
+            var rotation = Quaternion.Euler(0f, g.Range(-15f, 15f), 0f);
+            b.Blob(Vector3.up * radii.y * 0.15f, radii, rotation, detail, 0.2f, g.R() * 100f, g.Bark, FloraPart.Bark);
+
+            // Rocks framing the mouth, which faces +Z.
+            var mouth = new Vector3(0f, height * 0.32f, radii.z * 0.9f);
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var at = mouth + new Vector3(side * height * 0.55f, -height * 0.15f, -height * 0.05f);
+                b.Blob(at, Vector3.one * height * g.Range(0.22f, 0.32f), Quaternion.Euler(0f, g.R() * 360f, 0f), Mathf.Max(0, detail - 1), 0.25f,
+                       g.R() * 100f, g.Bark * 0.85f, FloraPart.Bark);
+            }
+            b.Blob(mouth + new Vector3(0f, height * 0.42f, -height * 0.02f), new Vector3(height * 0.62f, height * 0.18f, height * 0.28f), Quaternion.identity,
+                   Mathf.Max(0, detail - 1), 0.2f, g.R() * 100f, g.Bark * 0.9f, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.4f) * Mathf.Lerp(0.7f, 1f, Mathf.Clamp01(n.y + 0.6f)));
+            Moss(g, first);
+
+            // The opening: a dark, flattened disc set into the face.
+            b.Blob(mouth, new Vector3(height * 0.45f, height * 0.4f, height * 0.12f), Quaternion.identity, Mathf.Max(0, detail - 1), 0.08f,
+                   g.R() * 100f, new Color(0.012f, 0.01f, 0.009f), FloraPart.Bark, 0.2f);
         }
     }
 }

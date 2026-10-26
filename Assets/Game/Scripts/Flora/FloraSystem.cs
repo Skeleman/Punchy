@@ -24,6 +24,9 @@ namespace Punchy.Flora
     /// Drawing is GPU-driven: all of a layer's plants live in one buffer, and every frame a compute shader culls them
     /// to the camera, picks each one's level of detail (dithering across the change) and fills indirect draw
     /// arguments, so each variant and LOD is a single instanced draw however many plants there are.
+    ///
+    /// Landmarks clear the biome's plants from their middles and place their own props (trees, boulders, spires,
+    /// crystals, dens) on the same grids, so props never overlap plants either.
     /// </summary>
     [DefaultExecutionOrder(1000)]   // after the camera has moved this frame
     public class FloraSystem : MonoBehaviour
@@ -86,6 +89,15 @@ namespace Punchy.Flora
             public float Density;
         }
 
+        /// <summary>A landmark prop, flattened for Burst.</summary>
+        struct PropEntry
+        {
+            public int Species;
+            public float Density;
+            public float2 Ring, Scale;
+            public int Centrepiece;
+        }
+
         class Layer
         {
             public LayerSettings Settings;
@@ -127,7 +139,9 @@ namespace Punchy.Flora
         NativeArray<SpeciesRules> rules;
         NativeArray<BiomeEntry> entries;
         NativeArray<int2> ranges;   // per biome × layer: (first entry, count)
-        int biomeCount;
+        NativeArray<PropEntry> props;
+        NativeArray<int2> propRanges;   // per landmark type × layer
+        int biomeCount, landmarkTypeCount;
         bool built;
         TerrainSource lastSource;
         string configHash;
@@ -182,6 +196,8 @@ namespace Punchy.Flora
             if (rules.IsCreated) rules.Dispose();
             if (entries.IsCreated) entries.Dispose();
             if (ranges.IsCreated) ranges.Dispose();
+            if (props.IsCreated) props.Dispose();
+            if (propRanges.IsCreated) propRanges.Dispose();
             built = false;
         }
 
@@ -245,6 +261,14 @@ namespace Punchy.Flora
                         text.Append(f.Density).Append(JsonUtility.ToJson(f.Species));
                 text.Append('|');
             }
+            foreach (var landmark in palette.Landmarks ?? Array.Empty<LandmarkType>())
+            {
+                if (landmark == null) continue;
+                foreach (var p in landmark.Props)
+                    if (p.Species != null)
+                        text.Append(JsonUtility.ToJson(p)).Append(JsonUtility.ToJson(p.Species));
+                text.Append('|');
+            }
             return text.ToString();
         }
 
@@ -265,6 +289,12 @@ namespace Punchy.Flora
                     foreach (var f in biome.Flora)
                         if (f.Species != null)
                             found.Add(f.Species);
+            var landmarks = palette.Landmarks ?? Array.Empty<LandmarkType>();
+            foreach (var landmark in landmarks)
+                if (landmark != null)
+                    foreach (var p in landmark.Props)
+                        if (p.Species != null)
+                            found.Add(p.Species);
             species.AddRange(found);
             species.Sort((a, b) => a.Layer != b.Layer ? a.Layer.CompareTo(b.Layer) : string.CompareOrdinal(a.name, b.name));
 
@@ -306,6 +336,28 @@ namespace Punchy.Flora
                 ranges[b * 3 + layer] = new int2(start, list.Count - start);
             }
             entries = new NativeArray<BiomeEntry>(list.ToArray(), Allocator.Persistent);
+
+            landmarkTypeCount = landmarks.Length;
+            var propList = new List<PropEntry>();
+            propRanges = new NativeArray<int2>(math.max(1, landmarkTypeCount * 3), Allocator.Persistent);
+            for (int t = 0; t < landmarkTypeCount; t++)
+            for (int layer = 0; layer < 3; layer++)
+            {
+                var start = propList.Count;
+                if (landmarks[t] != null)
+                    foreach (var p in landmarks[t].Props)
+                        if (p.Species != null && (int)p.Species.Layer == layer && (p.Density > 0f || p.Centrepiece))
+                            propList.Add(new PropEntry
+                            {
+                                Species = species.IndexOf(p.Species),
+                                Density = p.Density,
+                                Ring = p.Ring,
+                                Scale = p.Scale,
+                                Centrepiece = p.Centrepiece ? 1 : 0
+                            });
+                propRanges[t * 3 + layer] = new int2(start, propList.Count - start);
+            }
+            props = new NativeArray<PropEntry>(propList.ToArray(), Allocator.Persistent);
 
             var settings = new[] { Ground, Shrubs, Trees };
             for (int i = 0; i < 3; i++)
@@ -435,6 +487,9 @@ namespace Punchy.Flora
                     Entries = entries,
                     Ranges = ranges,
                     BiomeCount = biomeCount,
+                    Props = props,
+                    PropRanges = propRanges,
+                    LandmarkTypeCount = landmarkTypeCount,
                     Output = l.PlacingOutput
                 }.Schedule(l.PlacingOutput.Length, 64);
             }
@@ -658,6 +713,9 @@ namespace Punchy.Flora
             [ReadOnly] public NativeArray<BiomeEntry> Entries;
             [ReadOnly] public NativeArray<int2> Ranges;
             public int BiomeCount;
+            [ReadOnly] public NativeArray<PropEntry> Props;
+            [ReadOnly] public NativeArray<int2> PropRanges;
+            public int LandmarkTypeCount;
             [WriteOnly] public NativeArray<FloraInstance> Output;
 
             public void Execute(int i)
@@ -670,13 +728,54 @@ namespace Punchy.Flora
                 var rng = new Random(math.hash(new int3(cell, Layer * 7919 + 13)) | 1u);
                 var xz = ((float2)cell + rng.NextFloat2()) * CellSize;
                 var roll = rng.NextFloat();
+                var area = CellSize * CellSize / 100f;
+                var candidates = new FixedList64Bytes<int>();   // species index, or -(prop entry + 1)
+                var weights = new FixedList64Bytes<float>();
+                var bound = 0f;
+
+                // Inside a landmark: its centrepiece takes the cell holding the centre, the biome's plants thin out
+                // towards the middle, and its props join the candidates.
+                var keep = 1f;
+                if (Source.Landmarks.IsCreated && LandmarkSampling.Find(ref Source.Landmarks.Value, xz, out var landmark) && landmark.Type < LandmarkTypeCount)
+                {
+                    ref var set = ref Source.Landmarks.Value;
+                    var clear = set.Types[landmark.Type].ClearRadius;
+                    keep = clear > 0f ? math.smoothstep(clear * 0.8f, clear, landmark.Distance) : 1f;
+                    var propRange = PropRanges[landmark.Type * 3 + Layer];
+                    for (int e = propRange.x; e < propRange.x + propRange.y; e++)
+                    {
+                        var prop = Props[e];
+                        if (prop.Centrepiece != 0)
+                        {
+                            var centre = set.Instances[landmark.Instance].Position;
+                            if (math.all((int2)math.floor(centre / CellSize) == cell))
+                            {
+                                var centreRule = Rules[prop.Species];
+                                Output[i] = new FloraInstance
+                                {
+                                    Position = new float3(centre.x, Source.SampleHeight(centre), centre.y),
+                                    Yaw = rng.NextFloat(math.PI * 2f),
+                                    Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
+                                    Model = centreRule.FirstModel + rng.NextInt(centreRule.Variants),
+                                    Random = rng.NextFloat()
+                                };
+                                return;
+                            }
+                            continue;
+                        }
+                        var ring = math.smoothstep(prop.Ring.x - 0.05f, prop.Ring.x, landmark.Distance) *
+                                   (1f - math.smoothstep(prop.Ring.y, prop.Ring.y + 0.05f, landmark.Distance));
+                        var d = prop.Density * area * ring;
+                        if (d <= 0f || candidates.Length >= candidates.Capacity)
+                            continue;
+                        candidates.Add(-(e + 1));
+                        weights.Add(d);
+                        bound += d;
+                    }
+                }
 
                 // Cheap first pass: which species could grow here, at most how likely.
                 Source.SampleBiomes(xz, out var biomes, out _);
-                var area = CellSize * CellSize / 100f;
-                var candidates = new FixedList64Bytes<int>();
-                var weights = new FixedList64Bytes<float>();
-                var bound = 0f;
                 for (int b = 0; b < 4; b++)
                 {
                     var w = biomes.Weights[b];
@@ -686,7 +785,9 @@ namespace Punchy.Flora
                     for (int e = range.x; e < range.x + range.y; e++)
                     {
                         var entry = Entries[e];
-                        var d = entry.Density * w * area;
+                        var d = entry.Density * w * area * keep;
+                        if (d <= 0f)
+                            continue;
                         var at = candidates.IndexOf(entry.Species);
                         if (at < 0)
                         {
@@ -718,6 +819,13 @@ namespace Punchy.Flora
                 var shrink = new FixedList64Bytes<float>();
                 for (int c = 0; c < candidates.Length; c++)
                 {
+                    // Props go where the landmark puts them, whatever the ground.
+                    if (candidates[c] < 0)
+                    {
+                        shrink.Add(1f);
+                        total += weights[c];
+                        continue;
+                    }
                     var r = Rules[candidates[c]];
                     var f = weights[c] * dry;
                     f *= 1f - math.smoothstep(r.MaxSlope - 4f, r.MaxSlope, slope);
@@ -743,13 +851,21 @@ namespace Punchy.Flora
 
                 var pick = 0;
                 for (var cumulative = weights[0]; pick < candidates.Length - 1 && roll >= cumulative; cumulative += weights[++pick]) { }
-                var rule = Rules[candidates[pick]];
+                var scale = rng.NextFloat(0.85f, 1.15f);
+                var picked = candidates[pick];
+                if (picked < 0)
+                {
+                    var prop = Props[-picked - 1];
+                    picked = prop.Species;
+                    scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y));
+                }
+                var rule = Rules[picked];
                 Output[i] = new FloraInstance
                 {
                     Position = new float3(xz.x, ground.Height, xz.y),
                     Yaw = rng.NextFloat(math.PI * 2f),
                     // Plants grow smaller towards the top of their range (a tree line).
-                    Scale = rng.NextFloat(0.85f, 1.15f) * (0.55f + 0.45f * shrink[pick]),
+                    Scale = scale * (0.55f + 0.45f * shrink[pick]),
                     Model = rule.FirstModel + rng.NextInt(rule.Variants),
                     Random = rng.NextFloat(),
                     Snow = surface.Snow

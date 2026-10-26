@@ -17,7 +17,7 @@ namespace Punchy.Debugging
     /// <summary>
     /// Development helpers for looking at the world under different conditions, with a small on-screen readout:
     ///  N / Shift+N  jump to the next / previous preset location (one deep in each biome, a summit, a lake shore,
-    ///               a river, a beach; found automatically from the terrain);
+    ///               a river, a beach, and one of each landmark type; found automatically from the terrain);
     ///  B            next day type (sunny, partly cloudy, changeable, overcast, stormy), replacing today's weather;
     ///  Y            advance the clock two hours;  T  toggle fast time (DayNightCycle);
     ///  ] / [        force the next weather over the player / clear it (WeatherSystem);
@@ -187,6 +187,26 @@ namespace Punchy.Debugging
                 {
                     locations.Add(new Location { Name = "Beach", Position = p, Yaw = Yaw(p) });
                     break;
+                }
+            }
+
+            // The landmark of each type nearest the start, seen from just outside it (from the low side of a cliff).
+            if (source.Landmarks.IsCreated && palette.Landmarks != null)
+            {
+                ref var set = ref source.Landmarks.Value;
+                for (int t = 0; t < palette.Landmarks.Length; t++)
+                {
+                    var best = -1;
+                    for (int i = 0; i < set.Instances.Length; i++)
+                        if (set.Instances[i].Type == t && (best < 0 || math.lengthsq(set.Instances[i].Position) < math.lengthsq(set.Instances[best].Position)))
+                            best = i;
+                    if (best < 0)
+                        continue;
+                    ref var inst = ref set.Instances[best];
+                    var radius = set.Types[t].Radius * inst.Scale;
+                    var away = set.Types[t].Shape == LandmarkShape.Cliff ? -inst.Facing : math.normalizesafe(inst.Position, new float2(1f, 0f));
+                    var at = inst.Position + away * radius * 1.1f;
+                    locations.Add(new Location { Name = palette.Landmarks[t].name, Position = at, Yaw = Yaw(inst.Position - at) });
                 }
             }
         }

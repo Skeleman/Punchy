@@ -1,0 +1,52 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a5407ac3b5877da49af18e077398168c, type: 3}
+  m_Name: WolfDen
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.LandmarkType
+  Radius: 25
+  Scale: {x: 0.85, y: 1.15}
+  MaxRelief: 15
+  Elevation: {x: 3, y: 10000}
+  Shape: 1
+  Height: 2.5
+  ShapeRadius: 0.5
+  Edge: 0.2
+  Flatten: 0.5
+  Roughness: 0
+  Pools: []
+  OverrideWater: 0
+  WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
+  WaterMurk: 0.3
+  WaterGlow: 0
+  Ground: {fileID: 11400000, guid: f397da19159900045997c350ec927c49, type: 2}
+  GroundRadius: 0.4
+  ClearRadius: 0.6
+  Props:
+  - Species: {fileID: 11400000, guid: b82cbb841a3543949beab0acd8089b8b, type: 2}
+    Density: 5
+    Ring: {x: 0, y: 1}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 1
+  - Species: {fileID: 11400000, guid: 86ecf3f6d6439604dbcad59755eb6017, type: 2}
+    Density: 2
+    Ring: {x: 0.3, y: 0.8}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+  - Species: {fileID: 11400000, guid: 90e4d6538ba5cd247827ce6479ed4075, type: 2}
+    Density: 4
+    Ring: {x: 0.2, y: 0.6}
+    Scale: {x: 0.4, y: 0.6}
+    Centrepiece: 0
+  Effects: []
+  Residents:
+  - Species: {fileID: 11400000, guid: 2ba8f1aa663ffe446aee91e9ff93b88d, type: 2}
+    Count: {x: 2, y: 4}

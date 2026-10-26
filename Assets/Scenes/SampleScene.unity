@@ -181,6 +181,7 @@ GameObject:
   - component: {fileID: 233277106}
   - component: {fileID: 233277105}
   - component: {fileID: 233277108}
+  - component: {fileID: 233277109}
   m_Layer: 0
   m_Name: Ambience
   m_TagString: Untagged
@@ -258,6 +259,21 @@ MonoBehaviour:
   MistMaterial: {fileID: 2100000, guid: e9c919a495005244cbc1f5350164f4c5, type: 2}
   TileSize: 24
   MaxDensity: 60
+--- !u!114 &233277109
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 233277104}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9e3d7d356c4d8e44b9feb40a7a0a319a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Ambience.LandmarkEffectSystem
+  PlumeMaterial: {fileID: 2100000, guid: 434032e05e0f19d49bcd568db496944f, type: 2}
+  WaterfallMaterial: {fileID: 2100000, guid: 21076a954b94f5844bcee518fb0d76a2, type: 2}
+  Range: 700
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0

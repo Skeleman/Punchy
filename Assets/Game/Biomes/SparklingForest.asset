@@ -91,6 +91,11 @@ MonoBehaviour:
     Density: 10
   - Species: {fileID: 11400000, guid: 17cfe4343a148844db935df7595a8316, type: 2}
     Density: 4
+  Landmarks:
+  - Type: {fileID: 11400000, guid: 9a5164d61f0b1f94d9020aaf6f287905, type: 2}
+    Density: 2.4
+  - Type: {fileID: 11400000, guid: 121a682d525071b498005e6148346da9, type: 2}
+    Density: 3.2
   Fauna:
   - Species: {fileID: 11400000, guid: e112520915f6d014b9b6ec86042081a8, type: 2}
     Density: 0.4

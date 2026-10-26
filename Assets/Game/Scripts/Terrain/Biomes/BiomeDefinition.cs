@@ -75,6 +75,10 @@ namespace Punchy.Terrain
         [Tooltip("Plants that grow here (drawn by the flora system). Changing these doesn't re-bake the terrain.")]
         public List<Punchy.Flora.BiomeFlora> Flora = new List<Punchy.Flora.BiomeFlora>();
 
+        [Header("Landmarks")]
+        [Tooltip("Natural landmarks that appear here (oases, rock formations, dens…). Baked into the terrain.")]
+        public List<BiomeLandmark> Landmarks = new List<BiomeLandmark>();
+
         [Header("Fauna")]
         [Tooltip("Animals that live here (spawned around the player by FaunaDirector).")]
         public List<Punchy.Fauna.BiomeFauna> Fauna = new List<Punchy.Fauna.BiomeFauna>();

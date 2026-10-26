@@ -18,7 +18,15 @@ namespace Punchy.Flora
         [Tooltip("A fan of long thin canes with red tips.")] Ocotillo,
         [Tooltip("A cluster of mushrooms: stems with domed caps (Foliage colours the caps, Bark the stems).")] Mushroom,
         [Tooltip("Bleached remains: a spine with arching ribs and a skull, from a small carcass up to giant rib " +
-                 "arches. Bark is the bone colour; Branches sets the rib pairs; Fullness how complete it is.")] Bones
+                 "arches. Bark is the bone colour; Branches sets the rib pairs; Fullness how complete it is.")] Bones,
+        [Tooltip("A lumpy rock, with smaller ones around it (Branches = rocks in the group). Bark is the rock " +
+                 "colour; accents are moss or lichen on top.")] Boulder,
+        [Tooltip("Stacked stones: a standing stone (1 block), a tor or a hoodoo. Thickness sets the block width, " +
+                 "Spread how flat (slab-like) they are, Trunk Fraction a wide cap stone; blocks are banded between " +
+                 "Bark and Foliage.")] Spire,
+        [Tooltip("A cluster of pointed crystals from a rocky base (Foliage colours them; Finish makes them metallic " +
+                 "or glowing). Branches = crystals.")] Crystal,
+        [Tooltip("A rocky or earthen hump with a dark opening: a den, burrow or cave mouth. Bark is the rock.")] Den
     }
 
     public enum FoliageFinish : byte

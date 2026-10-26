@@ -45,6 +45,10 @@ namespace Punchy.Terrain
         [Header("Rivers")]
         public RiverSettings Rivers = RiverSettings.Default;
 
+        [Header("Landmarks")]
+        [Tooltip("Landmarks placed by hand. Biomes also scatter their own (see each biome's Landmarks).")]
+        public List<PlacedLandmark> PlacedLandmarks = new List<PlacedLandmark>();
+
         [Header("Heights")]
         [FormerlySerializedAs("Source")]
         [Tooltip("Noise: heights come from the biomes' shapes. Heightmap: heights come from an image.")]
@@ -62,6 +66,9 @@ namespace Punchy.Terrain
 
         /// <summary>All biomes in id order: land biomes (empty slots removed), then the ocean.</summary>
         public List<BiomeDefinition> Palette() => BiomeBaking.Palette(Biomes, OceanBiome);
+
+        /// <summary>All landmark types in use, in the landmark blob's order.</summary>
+        public List<LandmarkType> LandmarkTypes() => LandmarkBaking.Types(Palette(), PlacedLandmarks);
 
         /// <summary>
         /// Builds the runtime TerrainSource (and its blobs) from these settings. Shared by the baker and the
@@ -87,6 +94,8 @@ namespace Punchy.Terrain
                 source.Biomes = BiomeBaking.BuildBiomeSet(palette, OceanBiome != null, World.Seed, allocator);
             if (Rivers.Enabled && palette.Count > 0)
                 source.Rivers = RiverBaking.Build(source, Rivers, allocator);
+            if (palette.Count > 0)
+                source.Landmarks = LandmarkBaking.Build(source, palette, LandmarkTypes(), PlacedLandmarks, allocator);
             return source;
         }
 
@@ -118,9 +127,15 @@ namespace Punchy.Terrain
                     foreach (var layer in biome.Layers)
                         DependsOn(layer.Surface);
                 }
+                var landmarks = authoring.LandmarkTypes();
+                foreach (var type in landmarks)
+                {
+                    DependsOn(type);
+                    DependsOn(type.Ground);
+                }
                 if (palette.Count == 0)
                     Debug.LogWarning("Terrain has no biomes assigned; it will be flat and grey.", authoring);
-                AddComponentObject(entity, new BiomePalette { Biomes = palette.ToArray() });
+                AddComponentObject(entity, new BiomePalette { Biomes = palette.ToArray(), Landmarks = landmarks.ToArray() });
 
                 var heightmap = default(BlobAssetReference<HeightmapBlob>);
                 if (authoring.HeightSource == HeightSourceKind.Heightmap)
@@ -143,6 +158,7 @@ namespace Punchy.Terrain
                 if (source.BiomeMap.IsCreated) AddBlobAsset(ref source.BiomeMap, out _);
                 if (source.Biomes.IsCreated) AddBlobAsset(ref source.Biomes, out _);
                 if (source.Rivers.IsCreated) AddBlobAsset(ref source.Rivers, out _);
+                if (source.Landmarks.IsCreated) AddBlobAsset(ref source.Landmarks, out _);
                 AddComponent(entity, source);
             }
 

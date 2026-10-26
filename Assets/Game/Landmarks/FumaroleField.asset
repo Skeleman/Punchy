@@ -1,0 +1,102 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a5407ac3b5877da49af18e077398168c, type: 3}
+  m_Name: FumaroleField
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.LandmarkType
+  Radius: 45
+  Scale: {x: 0.85, y: 1.15}
+  MaxRelief: 16
+  Elevation: {x: 3, y: 10000}
+  Shape: 1
+  Height: 2
+  ShapeRadius: 0.9
+  Edge: 0.2
+  Flatten: 0.4
+  Roughness: 1.2
+  Pools: []
+  OverrideWater: 0
+  WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
+  WaterMurk: 0.3
+  WaterGlow: 0
+  Ground: {fileID: 11400000, guid: 87e4552f42a54cf458915cd0d41df111, type: 2}
+  GroundRadius: 0.8
+  ClearRadius: 0.8
+  Props:
+  - Species: {fileID: 11400000, guid: b6d022bd9487a0744bddd69571f71986, type: 2}
+    Density: 2
+    Ring: {x: 0, y: 1}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+  Effects:
+  - Kind: 0
+    Offset: {x: 0, y: 0}
+    Height: 16
+    Width: 3
+    Size: 3
+    Particles: 45
+    Lifetime: 7
+    Color: {r: 0.3, g: 0.29, b: 0.28, a: 1}
+    Opacity: 0.5
+    Glow: 0
+    Period: 0
+    Duty: 0.25
+  - Kind: 0
+    Offset: {x: 0.45, y: 0.2}
+    Height: 11
+    Width: 2.5
+    Size: 2.5
+    Particles: 35
+    Lifetime: 6
+    Color: {r: 0.3, g: 0.29, b: 0.28, a: 1}
+    Opacity: 0.45
+    Glow: 0
+    Period: 0
+    Duty: 0.25
+  - Kind: 0
+    Offset: {x: -0.3, y: 0.45}
+    Height: 12
+    Width: 2.5
+    Size: 2.5
+    Particles: 35
+    Lifetime: 6
+    Color: {r: 0.3, g: 0.29, b: 0.28, a: 1}
+    Opacity: 0.45
+    Glow: 0
+    Period: 0
+    Duty: 0.25
+  - Kind: 0
+    Offset: {x: -0.4, y: -0.35}
+    Height: 10
+    Width: 2
+    Size: 2.5
+    Particles: 30
+    Lifetime: 6
+    Color: {r: 0.3, g: 0.29, b: 0.28, a: 1}
+    Opacity: 0.45
+    Glow: 0
+    Period: 0
+    Duty: 0.25
+  - Kind: 0
+    Offset: {x: 0, y: 0}
+    Height: 7
+    Width: 3
+    Size: 0.12
+    Particles: 60
+    Lifetime: 3
+    Color: {r: 1, g: 0.45, b: 0.12, a: 1}
+    Opacity: 0.9
+    Glow: 4
+    Period: 0
+    Duty: 0.25
+  Residents:
+  - Species: {fileID: 11400000, guid: bc353cd601f4d1c4ea6e00a030c61494, type: 2}
+    Count: {x: 2, y: 3}

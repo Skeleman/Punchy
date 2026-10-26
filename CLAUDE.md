@@ -20,6 +20,13 @@ Input System. Windows is the only build target so far.
 - **Plants and animals are procedural, not models.** `FloraGenerator` grows every plant species in a few seeded
   variants at three LODs; creatures are assemblies of `LimbType` parts drawn as instanced tapered capsules. There
   are no imported meshes for either.
+- **Landmarks** (`LandmarkType` assets in `Assets/Game/Landmarks`: oases, geysers, waterfalls, dens, rock
+  formations…) are small places that combine a terrain stamp (dome, mesa, cliff, levelling, bumps), pools with
+  their own water look, a ground surface, plants and rocks, effects (plumes, waterfall curtains) and resident
+  animals. Biomes list them with a density per km²; `TerrainAuthoring.PlacedLandmarks` takes hand-placed ones.
+  `LandmarkBaking` places them after rivers (well inside one biome, dry, not too uneven; every listed type at least
+  once if anywhere suits it), and `TerrainSource` applies them, so everything that samples the ground sees them.
+  This stamp-plus-contents model is meant to grow into hand-made content (settlements, roads, caves).
 - **Plants, animals and particles are not baked:** editing their assets in Play mode applies live within about a
   second (the systems hash their config and rebuild).
 
@@ -33,10 +40,14 @@ Input System. Windows is the only build target so far.
 - `Fauna/` — `LimbType` (segments plus seven key poses), `CreatureSpecies` (body plus slots; can be a recoloured
   variant of another species, with weighted coats). ECS entities; `CreatureBrainSystem` (behaviour) and
   `CreatureRenderSystem` (posing, one instanced draw) are Burst jobs. `FaunaDirector` spawns per biome density.
-- `Ambience/` — heat haze, breath and snow puffs, fireflies and butterflies, and shared `AmbientParticleType`
-  assets (sparkles, spores, embers, ash, fog wisps) that biomes list.
+- `Ambience/` — heat haze, breath and snow puffs, fireflies and butterflies, shared `AmbientParticleType`
+  assets (sparkles, spores, embers, ash, fog wisps) that biomes list, and `LandmarkEffectSystem` (landmark plumes
+  and waterfalls, animated entirely in the shaders).
+- `Terrain/Landmarks/` — landmark assets, placement and terrain stamping. Landmark props are drawn by the flora
+  system (rock forms `Boulder`, `Spire`, `Crystal`, `Den` are flora forms); residents are spawned by
+  `FaunaDirector` when the player comes near.
 - `Debugging/DebugControls` — in-game keys: N / Shift+N jump between auto-found places (one per biome, summit,
-  lake, river, beach), B day type, Y +2 h, T fast time, ] / [ force / clear weather, F1 hide the panel.
+  lake, river, beach, one of each landmark type), B day type, Y +2 h, T fast time, ] / [ force / clear weather, F1 hide the panel.
 
 ## Animation conventions (Fauna)
 
@@ -64,6 +75,8 @@ Input System. Windows is the only build target so far.
 - Serialized values in scenes and assets override code defaults: changing a default in code doesn't change
   existing assets.
 - Joint angles accumulate along chains: a snake or tail ripple needs small per-joint angles (about 10–15°).
+- `MaterialPropertyBlock.SetInt` stores a float; use `SetInteger` for `int`/`uint` shader properties.
+- Editing a landmark type re-bakes the terrain (its shape is baked), unlike plant and animal assets.
 
 ## Building and releasing
 

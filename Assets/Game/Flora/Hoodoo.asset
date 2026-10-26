@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be30a536c49003f42bba655b0fd41247, type: 3}
+  m_Name: Hoodoo
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
+  Form: 13
+  Layer: 2
+  Height: {x: 6, y: 12}
+  Spread: 0.9
+  TrunkFraction: 0.35
+  Thickness: 0.1
+  Fullness: 0.7
+  Branches: {x: 3, y: 6}
+  Flexibility: 0
+  FlowerHead: 0
+  Bark: {r: 0.66, g: 0.38, b: 0.25, a: 1}
+  Foliage: {r: 0.82, g: 0.64, b: 0.48, a: 1}
+  FoliageVariation: {r: 0.3, g: 0.45, b: 0.16, a: 1}
+  Accents: []
+  AccentAmount: 0.3
+  ColorVariation: 0.08
+  Finish: 0
+  GlowingAccents: 0
+  MaxSlope: 60
+  Elevation: {x: 0.5, y: 10000}
+  GrassAffinity: 0.5
+  ToleratesSnow: 0
+  PatchSize: 60
+  PatchCoverage: 1
+  NearWater: 1
+  OnlyNearWater: 0
+  Solid: 1
+  Variants: 4
+  Seed: 75

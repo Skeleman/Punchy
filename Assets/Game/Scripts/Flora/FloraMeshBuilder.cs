@@ -114,6 +114,13 @@ namespace Punchy.Flora
                 colors[v] = tint(positions[v], colors[v]);
         }
 
+        /// <summary>Recolours vertices by position and normal (moss on the tops of rocks).</summary>
+        public void Recolor(int firstVertex, Func<Vector3, Vector3, Color, Color> tint)
+        {
+            for (int v = firstVertex; v < positions.Count; v++)
+                colors[v] = tint(positions[v], normals[v], colors[v]);
+        }
+
         // ------------------------------------------------------------------------------------------- primitives
 
         /// <summary>

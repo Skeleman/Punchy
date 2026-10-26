@@ -110,30 +110,33 @@ namespace Punchy.Terrain
 
             var surfaceArray = builder.Allocate(ref root.Surfaces, surfaces.Count);
             for (int i = 0; i < surfaces.Count; i++)
-            {
-                var s = surfaces[i];
-                var albedo = s.Albedo.linear;
-                var emission = s.Emission.linear;
-                surfaceArray[i] = new SurfaceBlobData
-                {
-                    Props = new SurfaceProps
-                    {
-                        Albedo = new float3(albedo.r, albedo.g, albedo.b),
-                        Smoothness = s.Smoothness,
-                        Metallic = s.Metallic,
-                        Emission = new float3(emission.r, emission.g, emission.b),
-                        Grass = s.GrassDensity,
-                        Bump = s.Bumpiness,
-                        Pebbles = s.Pebbles,
-                        Snow = s.SnowDepth
-                    },
-                    ColorVariation = s.ColorVariation
-                };
-            }
+                surfaceArray[i] = SurfaceData(surfaces[i]);
 
             var blob = builder.CreateBlobAssetReference<BiomeSetBlob>(allocator);
             builder.Dispose();
             return blob;
+        }
+
+        /// <summary>A surface asset's look and features, for blobs.</summary>
+        public static SurfaceBlobData SurfaceData(TerrainSurface s)
+        {
+            var albedo = s.Albedo.linear;
+            var emission = s.Emission.linear;
+            return new SurfaceBlobData
+            {
+                Props = new SurfaceProps
+                {
+                    Albedo = new float3(albedo.r, albedo.g, albedo.b),
+                    Smoothness = s.Smoothness,
+                    Metallic = s.Metallic,
+                    Emission = new float3(emission.r, emission.g, emission.b),
+                    Grass = s.GrassDensity,
+                    Bump = s.Bumpiness,
+                    Pebbles = s.Pebbles,
+                    Snow = s.SnowDepth
+                },
+                ColorVariation = s.ColorVariation
+            };
         }
 
         /// <summary>Encodes biome indices as an RGB PNG using each biome's MapColor.</summary>

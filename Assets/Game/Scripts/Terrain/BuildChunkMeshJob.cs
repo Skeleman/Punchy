@@ -124,7 +124,7 @@ namespace Punchy.Terrain
                 verts[z * v + x] = vertex;
                 water[z * v + x] = new float4(ground.WaterSurface, ground.Flow, h);
                 rapids[z * v + x] = ground.Rapids;
-                looks[z * v + x] = Source.WaterLook(ground.Biomes, out var glow);
+                looks[z * v + x] = Source.WaterLook(world, ground.Biomes, out var glow);
                 glows[z * v + x] = glow;
             }
 

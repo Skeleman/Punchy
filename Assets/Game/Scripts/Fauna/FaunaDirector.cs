@@ -12,7 +12,8 @@ namespace Punchy.Fauna
     /// <summary>
     /// Keeps the land around the player populated with the animals each biome lists in its Fauna: spawns groups out
     /// of sight-range (between Min Spawn Distance and Radius) wherever a species is below its biome's density, and
-    /// removes animals that end up far behind. Builds each species' runtime data and the shared capsule mesh.
+    /// removes animals that end up far behind. Landmarks' residents appear at their landmark when the player comes
+    /// within Radius of it. Builds each species' runtime data and the shared capsule mesh.
     /// </summary>
     public class FaunaDirector : MonoBehaviour
     {
@@ -30,6 +31,11 @@ namespace Punchy.Fauna
         readonly List<CreatureSpecies> species = new List<CreatureSpecies>();
         readonly List<BlobAssetReference<CreatureBlob>> blobs = new List<BlobAssetReference<CreatureBlob>>();
         BiomeDefinition[] biomes;
+        LandmarkType[] landmarks;
+        /// <summary>Landmarks whose residents are out; forgotten once the player is far enough away for them to be gone.</summary>
+        readonly HashSet<int> occupied = new HashSet<int>();
+        readonly List<int> scratch = new List<int>();
+        float nextResidentCheck;
         World queryWorld;
         EntityQuery terrainQuery, paletteQuery, playerQuery, creatureQuery;
         Entity settingsEntity;
@@ -58,6 +64,7 @@ namespace Punchy.Fauna
                 if (b.IsCreated) b.Dispose();
             blobs.Clear();
             species.Clear();
+            occupied.Clear();
             if (capsule != null) Destroy(capsule);
             capsule = null;
             built = false;
@@ -74,6 +81,11 @@ namespace Punchy.Fauna
                 Build(source, palette);
 
             Despawn(playerPos.xz);
+            if (Time.time >= nextResidentCheck)
+            {
+                nextResidentCheck = Time.time + 0.5f;
+                SpawnResidents(source, playerPos.xz);
+            }
             spawnBudget = math.min(spawnBudget + SpawnRate * Time.deltaTime, 3f);
             while (spawnBudget >= 1f)
             {
@@ -115,6 +127,12 @@ namespace Punchy.Fauna
                     foreach (var f in biome.Fauna)
                         if (f.Species != null && !species.Contains(f.Species))
                             species.Add(f.Species);
+            landmarks = palette.Landmarks ?? System.Array.Empty<LandmarkType>();
+            foreach (var landmark in landmarks)
+                if (landmark != null)
+                    foreach (var r in landmark.Residents)
+                        if (r.Species != null && !species.Contains(r.Species))
+                            species.Add(r.Species);
             foreach (var s in species)
                 blobs.Add(CreatureBlobBuilder.Build(s));
             counts = new int[species.Count];
@@ -224,6 +242,43 @@ namespace Punchy.Fauna
                     Spawn(best, new float3(p.x, g.Height, p.y));
             }
             counts[best] += group;
+        }
+
+        void SpawnResidents(in TerrainSource source, float2 player)
+        {
+            if (!source.Landmarks.IsCreated)
+                return;
+            ref var set = ref source.Landmarks.Value;
+            scratch.Clear();
+            foreach (var i in occupied)
+                if (math.distance(set.Instances[i].Position, player) > DespawnDistance + 20f)
+                    scratch.Add(i);
+            foreach (var i in scratch)
+                occupied.Remove(i);
+
+            for (int i = 0; i < set.Instances.Length; i++)
+            {
+                ref var inst = ref set.Instances[i];
+                if (inst.Type >= landmarks.Length || landmarks[inst.Type] == null || occupied.Contains(i) ||
+                    math.distance(inst.Position, player) > Radius)
+                    continue;
+                occupied.Add(i);
+                var radius = set.Types[inst.Type].Radius * inst.Scale;
+                foreach (var r in landmarks[inst.Type].Residents)
+                {
+                    var index = r.Species != null ? species.IndexOf(r.Species) : -1;
+                    if (index < 0)
+                        continue;
+                    var count = rng.NextInt(math.max(0, r.Count.x), math.max(r.Count.x, r.Count.y) + 1);
+                    for (int k = 0; k < count; k++)
+                    {
+                        var p = inst.Position + rng.NextFloat2Direction() * rng.NextFloat(0.1f, 0.45f) * radius;
+                        var g = source.SampleGround(p);
+                        if (!(g.HasWater && g.WaterSurface > g.Height))
+                            Spawn(index, new float3(p.x, g.Height, p.y));
+                    }
+                }
+            }
         }
 
         /// <summary>Creates one animal of a species (by index) at a point. Also handy for testing.</summary>

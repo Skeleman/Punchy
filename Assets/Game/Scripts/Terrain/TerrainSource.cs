@@ -110,6 +110,9 @@ namespace Punchy.Terrain
         public RiverSettings RiverSettings;
         public BlobAssetReference<RiverMapBlob> Rivers;
 
+        /// <summary>Natural landmarks (oases, geysers, waterfalls…): baked after rivers, applied on top of them.</summary>
+        public BlobAssetReference<LandmarkSetBlob> Landmarks;
+
         bool HasBiomes => Biomes.IsCreated && Biomes.Value.Biomes.Length > 0;
         bool UsesBiomeMap => BiomeKind == BiomeSourceKind.Map && BiomeMap.IsCreated;
         bool UsesHeightmap => HeightKind == HeightSourceKind.Heightmap && Heightmap.IsCreated;
@@ -158,6 +161,14 @@ namespace Punchy.Terrain
         /// The look of the water here, blended from the biomes: rgb colour (weighted by murk, so clear-water biomes
         /// don't dilute a swamp's colour), a = murk 0..1; glow in the out parameter.
         /// </summary>
+        public float4 WaterLook(float2 xz, in BiomeWeights biomes, out float glow)
+        {
+            var look = WaterLook(biomes, out glow);
+            if (Landmarks.IsCreated)
+                LandmarkSampling.WaterLook(ref Landmarks.Value, xz, ref look, ref glow);
+            return look;
+        }
+
         public float4 WaterLook(in BiomeWeights biomes, out float glow)
         {
             glow = 0f;
@@ -225,12 +236,15 @@ namespace Punchy.Terrain
 
         public float SampleHeight(float2 xz)
         {
+            // A loaded heightmap already contains carved channels and landmark shapes.
             if (UsesHeightmap)
                 return Heightmap.Value.Sample(xz);
             SampleBiomes(xz, out _, out var shape);
             var h = ShapeHeight(xz, shape);
             if (Rivers.IsCreated)
                 h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz), RiverSettings, h);
+            if (Landmarks.IsCreated)
+                h = LandmarkSampling.Shape(ref Landmarks.Value, xz, h);
             return h;
         }
 
@@ -292,6 +306,24 @@ namespace Punchy.Terrain
                 g.River *= 1f - math.saturate(lake * 2f);
             }
 
+            if (Landmarks.IsCreated)
+            {
+                ref var landmarks = ref Landmarks.Value;
+                if (!UsesHeightmap)
+                    g.Height = LandmarkSampling.Shape(ref landmarks, xz, g.Height);
+                var pool = LandmarkSampling.PoolWater(ref landmarks, xz, out var claim);
+                if (claim > 0f)
+                {
+                    if (pool > water)
+                    {
+                        water = pool;
+                        flow = float2.zero;
+                        g.Rapids = 0f;
+                    }
+                    ruleDepth = math.max(ruleDepth, math.lerp(farAbove, pool - g.Height, claim));
+                }
+            }
+
             g.WaterSurface = water;
             g.Flow = flow;
             g.WaterDepth = ruleDepth;
@@ -336,12 +368,14 @@ namespace Punchy.Terrain
                 if (w > 0f)
                     result.AddScaled(BiomeSampling.EvaluateBiome(ref set, ground.Biomes.Ids[i], context), w);
             }
+            if (Landmarks.IsCreated)
+                LandmarkSampling.Ground(ref Landmarks.Value, xz, context.EdgeNoise, context.ColorNoise, ref result);
             return result;
         }
 
         public bool Equals(TerrainSource o) =>
             World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes &&
-            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers;
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks;
     }
 }

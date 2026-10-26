@@ -1,0 +1,52 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a5407ac3b5877da49af18e077398168c, type: 3}
+  m_Name: BearCave
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.LandmarkType
+  Radius: 30
+  Scale: {x: 0.85, y: 1.15}
+  MaxRelief: 25
+  Elevation: {x: 3, y: 10000}
+  Shape: 1
+  Height: 6
+  ShapeRadius: 0.7
+  Edge: 0.2
+  Flatten: 0.5
+  Roughness: 1
+  Pools: []
+  OverrideWater: 0
+  WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
+  WaterMurk: 0.3
+  WaterGlow: 0
+  Ground: {fileID: 11400000, guid: 1753ba8fc7f960b43a8b3d37e34c11a4, type: 2}
+  GroundRadius: 0.45
+  ClearRadius: 0.6
+  Props:
+  - Species: {fileID: 11400000, guid: 63f8bbfaed9385849a29c450d28dfd42, type: 2}
+    Density: 5
+    Ring: {x: 0, y: 1}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 1
+  - Species: {fileID: 11400000, guid: 86ecf3f6d6439604dbcad59755eb6017, type: 2}
+    Density: 2
+    Ring: {x: 0.4, y: 1}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+  - Species: {fileID: 11400000, guid: 28a71e688d796f14b9919018c61ac083, type: 2}
+    Density: 3
+    Ring: {x: 0.3, y: 1}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+  Effects: []
+  Residents:
+  - Species: {fileID: 11400000, guid: 1311770de2f621b4dbded83c2fd71b0a, type: 2}
+    Count: {x: 1, y: 1}
