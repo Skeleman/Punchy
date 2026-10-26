@@ -1,0 +1,928 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace Punchy.Flora
+{
+    /// <summary>One grown variant of a species, at three levels of detail.</summary>
+    public class FloraModel
+    {
+        public FloraSpecies Species;
+        public readonly Mesh[] Lods = new Mesh[3];
+        /// <summary>Bounding sphere centre height and radius (unscaled).</summary>
+        public float CentreY, Radius;
+        /// <summary>Radius of the trunk / stem at the ground, for collisions.</summary>
+        public float TrunkRadius;
+        public float Height;
+
+        public void Destroy()
+        {
+            foreach (var m in Lods)
+                if (m != null)
+                    Object.Destroy(m);
+        }
+    }
+
+    /// <summary>
+    /// Grows plants. Each variant is decided by a seeded random sequence (its skeleton: trunk, limbs, clumps, arms,
+    /// pads, petals), then emitted at three levels of detail. Every level replays the same sequence, so they share
+    /// one silhouette and only differ in how finely it is built.
+    /// </summary>
+    public static class FloraGenerator
+    {
+        public static FloraModel Grow(FloraSpecies species, int variant)
+        {
+            var model = new FloraModel { Species = species };
+            var builder = new FloraMeshBuilder();
+            var seed = (int)Hash((uint)species.Seed, (uint)variant, StableHash(species.name));
+            for (int lod = 0; lod < 3; lod++)
+            {
+                builder.Clear();
+                var g = new Grower(species, variant, lod, seed, builder);
+                switch (species.Form)
+                {
+                    case FloraForm.BroadleafTree: Broadleaf(g); break;
+                    case FloraForm.Conifer: Conifer(g); break;
+                    case FloraForm.Palm: Palm(g); break;
+                    case FloraForm.Shrub: Shrub(g); break;
+                    case FloraForm.DryBush: DryBush(g); break;
+                    case FloraForm.Flowers: Flowers(g); break;
+                    case FloraForm.Saguaro: Saguaro(g); break;
+                    case FloraForm.BarrelCactus: BarrelCactus(g); break;
+                    case FloraForm.PricklyPear: PricklyPear(g); break;
+                    case FloraForm.Ocotillo: Ocotillo(g); break;
+                }
+                if (lod == 0)
+                {
+                    builder.Bounds(out model.CentreY, out model.Radius);
+                    model.TrunkRadius = g.TrunkRadius;
+                    model.Height = g.Height;
+                }
+                model.Lods[lod] = builder.ToMesh($"{species.name} {variant} LOD{lod}", g.Height, g.Width, species.Flexibility);
+            }
+            return model;
+        }
+
+        static uint StableHash(string text)
+        {
+            var h = 2166136261u;
+            foreach (var ch in text)
+                h = (h ^ ch) * 16777619u;
+            return h;
+        }
+
+        static uint Hash(uint a, uint b, uint c)
+        {
+            var h = a * 0x9E3779B1u ^ (b + 0x7F4A7C15u) * 0x85EBCA77u ^ c * 0xC2B2AE3Du;
+            h ^= h >> 15;
+            h *= 0x2C1B3C6Du;
+            h ^= h >> 12;
+            return h;
+        }
+
+        /// <summary>Random sequences and shared settings for growing one variant at one level of detail.</summary>
+        class Grower
+        {
+            public readonly FloraSpecies S;
+            public readonly int Variant, Lod;
+            public readonly FloraMeshBuilder B;
+            /// <summary>Shape decisions: consumed identically at every level of detail.</summary>
+            readonly System.Random rng;
+            /// <summary>Fine detail that only some levels draw (loose leaves, florets).</summary>
+            public readonly System.Random Detail;
+            public float Height, Width, TrunkRadius;
+
+            public Grower(FloraSpecies s, int variant, int lod, int seed, FloraMeshBuilder b)
+            {
+                S = s;
+                Variant = variant;
+                Lod = lod;
+                B = b;
+                rng = new System.Random(seed);
+                Detail = new System.Random(seed ^ 0x5BD1E995);
+            }
+
+            public float R() => (float)rng.NextDouble();
+            public float Range(float a, float b) => a + (b - a) * R();
+            public float Range(Vector2 v) => Range(v.x, v.y);
+            public int Count(Vector2Int v) => rng.Next(Mathf.Min(v.x, v.y), Mathf.Max(v.x, v.y) + 1);
+            public Vector3 Direction() => FloraMeshBuilder.RandomDirection(rng);
+            public Vector3 Flat(float angle) => new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+
+            public Color Bark => S.Bark.linear;
+            public Color FoliageColor() => Color.Lerp(S.Foliage, S.FoliageVariation, R()).linear;
+            public bool HasAccent => S.Accents.Count > 0 && S.AccentAmount > 0f;
+            public Color Accent => S.Accents.Count > 0 ? S.Accents[Variant % S.Accents.Count].linear : Color.white;
+            public int Sides(int lod0, int lod1, int lod2) => Lod == 0 ? lod0 : Lod == 1 ? lod1 : lod2;
+        }
+
+        // ------------------------------------------------------------------------------------------- helpers
+
+        /// <summary>Darker deep inside and underneath a crown, lit on top and at the edges.</summary>
+        static float CrownOcclusion(Vector3 p, Vector3 centre, Vector3 radii)
+        {
+            var rel = new Vector3((p.x - centre.x) / radii.x, (p.y - centre.y) / radii.y, (p.z - centre.z) / radii.z);
+            return Mathf.Lerp(0.3f, 1f, Mathf.Clamp01(rel.magnitude * 0.75f + rel.y * 0.3f + 0.15f));
+        }
+
+        /// <summary>Darker where the plant meets the ground.</summary>
+        static float GroundOcclusion(Vector3 p, float height) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(p.y / Mathf.Max(height, 0.05f)));
+
+        /// <summary>Distance from a point inside an ellipsoid to its surface along a direction.</summary>
+        static float ExitDistance(Vector3 centre, Vector3 radii, Vector3 from, Vector3 dir)
+        {
+            for (float d = 0.1f; d < 200f; d += 0.1f)
+            {
+                var p = from + dir * d - centre;
+                if (p.x * p.x / (radii.x * radii.x) + p.y * p.y / (radii.y * radii.y) + p.z * p.z / (radii.z * radii.z) > 1f)
+                    return d;
+            }
+            return 200f;
+        }
+
+        static Vector3 PointOnPath(List<Vector3> path, float y)
+        {
+            for (int i = 0; i < path.Count - 1; i++)
+                if (y <= path[i + 1].y)
+                    return Vector3.Lerp(path[i], path[i + 1], Mathf.InverseLerp(path[i].y, path[i + 1].y, y));
+            return path[path.Count - 1];
+        }
+
+        static Vector3 Bezier(Vector3 a, Vector3 b, Vector3 c, float t) => Vector3.Lerp(Vector3.Lerp(a, b, t), Vector3.Lerp(b, c, t), t);
+
+        // ------------------------------------------------------------------------------------------- forms
+
+        static void Broadleaf(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var width = height * s.Spread;
+            var crownBase = height * s.TrunkFraction;
+            var r0 = height * s.Thickness;
+            g.Height = height;
+            g.Width = width;
+            g.TrunkRadius = r0;
+
+            // Trunk: a gently leaning, wiggling column with a flared base.
+            var lean = g.Flat(g.R() * Mathf.PI * 2f) * g.Range(0f, 0.07f) * height;
+            var top = height * g.Range(0.74f, 0.86f);
+            var trunk = new List<Vector3>();
+            var trunkRadii = new List<float>();
+            for (int i = 0; i <= 6; i++)
+            {
+                var t = i / 6f;
+                var wiggle = g.Direction() * r0 * 0.6f;
+                wiggle.y = 0f;
+                trunk.Add(new Vector3(0f, Mathf.Lerp(-0.6f, top, t), 0f) + lean * (t * t) + (i > 0 ? wiggle : Vector3.zero));
+                trunkRadii.Add(r0 * Mathf.Lerp(1f, 0.3f, t) * (i == 0 ? 1.45f : i == 1 ? 1.1f : 1f));
+            }
+
+            var crownCentre = new Vector3(lean.x * 0.6f, (crownBase + height) * 0.5f, lean.z * 0.6f);
+            var crownRadii = new Vector3(width * 0.5f, (height - crownBase) * 0.5f, width * 0.5f);
+            var fullness = Mathf.Lerp(0.5f, 1.1f, s.Fullness);   // sparse crowns: smaller clumps, more branch showing
+
+            var limbs = new List<(List<Vector3> path, List<float> radii)>();
+            var twigs = new List<(List<Vector3> path, List<float> radii)>();
+            var clumps = new List<(Vector3 centre, float radius, Color color, float seed)>();
+
+            var count = g.Count(s.Branches);
+            for (int i = 0; i < count; i++)
+            {
+                var azimuth = (i + g.Range(-0.3f, 0.3f)) / count * Mathf.PI * 2f;
+                var startY = Mathf.Lerp(crownBase * 0.92f, top * 0.92f, g.Range(0f, 0.65f));
+                var start = PointOnPath(trunk, startY);
+                var elevation = g.Range(22f, 58f) * Mathf.Deg2Rad;
+                var dir = g.Flat(azimuth) * Mathf.Cos(elevation) + Vector3.up * Mathf.Sin(elevation);
+                var length = ExitDistance(crownCentre, crownRadii, start, dir) * g.Range(0.7f, 0.88f);
+                var path = new List<Vector3>();
+                var radii = new List<float>();
+                for (int k = 0; k <= 3; k++)
+                {
+                    var t = k / 3f;
+                    path.Add(start + dir * length * t + Vector3.up * length * 0.15f * t * t + (k > 0 ? g.Direction() * length * 0.05f : Vector3.zero));
+                    radii.Add(r0 * 0.55f * (1f - 0.75f * t));
+                }
+                limbs.Add((path, radii));
+                clumps.Add((path[3], width * g.Range(0.17f, 0.24f) * fullness, g.FoliageColor(), g.R() * 100f));
+
+                for (int k = 0; k < 2; k++)
+                {
+                    var from = Vector3.Lerp(path[1], path[2], g.R());
+                    var twigDir = (dir + g.Direction() * 0.8f + Vector3.up * 0.3f).normalized;
+                    var twigLength = length * g.Range(0.32f, 0.48f);
+                    var end = from + twigDir * twigLength;
+                    twigs.Add((new List<Vector3> { from, Vector3.Lerp(from, end, 0.5f) + Vector3.up * twigLength * 0.06f, end },
+                               new List<float> { r0 * 0.2f, r0 * 0.12f, r0 * 0.05f }));
+                    clumps.Add((end, width * g.Range(0.13f, 0.19f) * fullness, g.FoliageColor(), g.R() * 100f));
+                }
+            }
+            clumps.Add((trunk[6] + Vector3.up * width * 0.05f, width * g.Range(0.2f, 0.25f) * fullness, g.FoliageColor(), g.R() * 100f));
+            var fill = Mathf.RoundToInt(1f + s.Fullness * 4f);
+            for (int i = 0; i < fill; i++)
+            {
+                var p = crownCentre + Vector3.Scale(g.Direction() * g.Range(0.1f, 0.5f), crownRadii);
+                clumps.Add((p, width * g.Range(0.17f, 0.24f) * fullness, g.FoliageColor(), g.R() * 100f));
+            }
+
+            // Emit.
+            var sides = g.Sides(8, 5, 4);
+            var firstBark = b.VertexCount;
+            if (g.Lod == 2)
+            {
+                b.Tube(trunk.GetRange(0, 5), trunkRadii.GetRange(0, 5), sides, g.Bark, FloraPart.Bark);
+            }
+            else
+            {
+                b.Tube(trunk, trunkRadii, sides, g.Bark, FloraPart.Bark, cap: true);
+                foreach (var limb in limbs)
+                    b.Tube(limb.path, limb.radii, sides - 2, g.Bark, FloraPart.Bark, cap: true);
+                if (g.Lod == 0)
+                    foreach (var twig in twigs)
+                        b.Tube(twig.path, twig.radii, 3, g.Bark, FloraPart.Bark);
+            }
+            b.Occlude(firstBark, (p, n) => GroundOcclusion(p, height * 0.15f) * (p.y > crownBase ? 0.7f : 1f));
+
+            var firstLeaf = b.VertexCount;
+            if (g.Lod == 2)
+            {
+                var avg = Color.Lerp(s.Foliage, s.FoliageVariation, 0.5f).linear;
+                b.Blob(crownCentre, crownRadii * 1.02f, Quaternion.identity, 1, 0.22f, g.Variant * 3.7f, avg, FloraPart.Foliage);
+            }
+            else
+            {
+                foreach (var c in clumps)
+                {
+                    var radii = new Vector3(c.radius, c.radius * 0.78f, c.radius);
+                    var first = b.Blob(c.centre, radii, Quaternion.identity, g.Lod == 0 ? 2 : 1, 0.22f, c.seed, c.color, FloraPart.Foliage);
+                    b.BlendNormalsFrom(first, crownCentre, crownRadii, 0.55f);
+                    if (g.Lod == 0)
+                        b.Leaves(c.centre, radii, (int)(16 + 26 * s.Fullness), c.radius * 0.3f, g.Detail, c.color, c.color * 1.15f);
+                }
+            }
+            b.Occlude(firstLeaf, (p, n) => CrownOcclusion(p, crownCentre, crownRadii));
+        }
+
+        static void Conifer(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var crownBase = height * s.TrunkFraction;
+            var r0 = height * s.Thickness;
+            var maxRadius = height * s.Spread * 0.5f;
+            g.Height = height;
+            g.Width = maxRadius * 2f;
+            g.TrunkRadius = r0;
+
+            var lean = g.Flat(g.R() * Mathf.PI * 2f) * g.Range(0f, 0.03f) * height;
+            Vector3 Axis(float y) => lean * Mathf.Clamp01(y / height);
+
+            var tierCount = Mathf.RoundToInt(Mathf.Lerp(5f, 11f, s.Fullness));
+            var tiers = new List<(float y, float radius, float tierHeight, float twist, Color color, float[] jitter)>();
+            for (int i = 0; i < tierCount; i++)
+            {
+                var f = i / (float)tierCount;
+                var y = crownBase + (height * 0.9f - crownBase) * f;
+                var radius = maxRadius * Mathf.Pow(1f - f, 0.85f) * g.Range(0.85f, 1.1f);
+                var jitter = new float[24];
+                for (int j = 0; j < jitter.Length; j++)
+                    jitter[j] = g.R();
+                tiers.Add((y, radius, (height - crownBase) / tierCount * g.Range(1.5f, 1.9f), g.R() * Mathf.PI * 2f, g.FoliageColor(), jitter));
+            }
+
+            var firstBark = b.VertexCount;
+            b.Tube(new List<Vector3> { new Vector3(0f, -0.6f, 0f), Axis(height * 0.5f) + Vector3.up * height * 0.5f, Axis(height) + Vector3.up * height * 0.97f },
+                   new List<float> { r0 * 1.35f, r0 * 0.6f, r0 * 0.12f }, g.Sides(7, 5, 4), g.Bark, FloraPart.Bark);
+            b.Occlude(firstBark, (p, n) => GroundOcclusion(p, height * 0.1f) * (p.y > crownBase ? 0.6f : 1f));
+
+            // Each tier is a drooping, jagged skirt of needles: a cone from near the trunk out to spiky tips, folding
+            // back underneath to the trunk.
+            var n = g.Sides(11, 7, 5);
+            void Tier(Vector3 axis, float radius, float tierHeight, float twist, Color color, float[] jitter, float shade)
+            {
+                var droop = radius * 0.3f;
+                var rings = new List<Vector3[]>();
+                var colors = new List<Color[]>();
+                var ao = new List<float[]>();
+                var count = n * 2;
+                var tip = color * 1.2f;
+                for (int k = 0; k < 4; k++)
+                {
+                    var ring = new Vector3[count];
+                    var ringColors = new Color[count];
+                    var ringAo = new float[count];
+                    for (int j = 0; j < count; j++)
+                    {
+                        var spike = j % 2 == 0;
+                        var a = twist + j / (float)count * Mathf.PI * 2f;
+                        var rand = jitter[j % jitter.Length];
+                        float r, y, o;
+                        Color c = color;
+                        switch (k)
+                        {
+                            case 0: r = radius * 0.16f; y = tierHeight; o = 0.8f; break;
+                            case 1: r = radius * (spike ? 0.62f : 0.55f); y = tierHeight * 0.35f - droop * 0.2f; o = 0.95f; break;
+                            case 2:
+                                r = radius * (spike ? 0.92f + 0.18f * rand : 0.7f);
+                                y = -droop * (spike ? 1f : 0.45f) - rand * droop * 0.3f;
+                                o = spike ? 1f : 0.8f;
+                                if (spike) c = tip;
+                                break;
+                            default: r = radius * 0.12f; y = -droop * 0.15f + tierHeight * 0.1f; o = 0.3f; break;
+                        }
+                        ring[j] = axis + new Vector3(Mathf.Cos(a) * r, y, Mathf.Sin(a) * r);
+                        ringColors[j] = c;
+                        ringAo[j] = o * shade;
+                    }
+                    rings.Add(ring);
+                    colors.Add(ringColors);
+                    ao.Add(ringAo);
+                }
+                var first = b.Rings(rings, colors, ao, FloraPart.Foliage);
+                b.BlendNormalsFrom(first, axis + Vector3.up * tierHeight * 0.2f, new Vector3(radius, tierHeight * 1.5f, radius), 0.5f);
+            }
+
+            if (g.Lod == 2)
+            {
+                // Three broad cones spanning the crown.
+                for (int i = 0; i < 3; i++)
+                {
+                    var t = tiers[Mathf.Min(i * tierCount / 3, tierCount - 1)];
+                    var tierHeight = (height - crownBase) * (i == 2 ? 0.55f : 0.45f);
+                    Tier(Axis(t.y) + Vector3.up * t.y, t.radius, tierHeight, t.twist, t.color, t.jitter, Mathf.Lerp(0.75f, 1f, i / 2f));
+                }
+            }
+            else
+            {
+                for (int i = 0; i < tiers.Count; i++)
+                {
+                    var t = tiers[i];
+                    Tier(Axis(t.y) + Vector3.up * t.y, t.radius, t.tierHeight, t.twist, t.color, t.jitter, Mathf.Lerp(0.7f, 1f, i / (float)tierCount));
+                }
+            }
+            // A pointed leader.
+            var last = tiers[tiers.Count - 1];
+            var leaderBase = Axis(last.y) + Vector3.up * last.y;
+            var firstTop = b.VertexCount;
+            b.Tube(new List<Vector3> { leaderBase, Axis(height) + Vector3.up * height },
+                   new List<float> { Mathf.Max(last.radius * 0.45f, r0), 0.02f }, g.Sides(7, 5, 4), last.color, FloraPart.Foliage);
+            b.Occlude(firstTop, (p, nn) => 0.9f);
+        }
+
+        static void Palm(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var r0 = height * s.Thickness;
+            g.Height = height;
+            g.Width = height * s.Spread;
+            g.TrunkRadius = r0;
+
+            // A trunk that curves away and back up, with ring scars.
+            var bendDir = g.Flat(g.R() * Mathf.PI * 2f);
+            var bend = g.Range(0.08f, 0.25f) * height;
+            Vector3 TrunkAt(float t) => bendDir * bend * Mathf.Sin(t * Mathf.PI * 0.8f) + Vector3.up * Mathf.Lerp(-0.5f, height * 0.94f, t);
+            var top = TrunkAt(1f);
+
+            var frondCount = g.Count(s.Branches);
+            var fronds = new List<(Vector3 dir, float elevation, float length, Color color, float droop)>();
+            for (int i = 0; i < frondCount; i++)
+            {
+                var azimuth = (i + g.Range(-0.25f, 0.25f)) / frondCount * Mathf.PI * 2f;
+                var dead = i < 2 && g.R() < 0.6f;
+                fronds.Add((g.Flat(azimuth), dead ? -50f : g.Range(5f, 50f), height * s.Spread * g.Range(0.4f, 0.55f),
+                            dead ? Color.Lerp(s.Bark, s.FoliageVariation, 0.3f).linear : g.FoliageColor(), g.Range(0.45f, 0.7f)));
+            }
+            var nuts = new List<Vector3>();
+            for (int i = 0; i < 4; i++)
+                nuts.Add(top + g.Flat(g.R() * 6.28f) * r0 * 1.2f + Vector3.down * g.Range(0.1f, 0.35f));
+
+            var path = new List<Vector3>();
+            var radii = new List<float>();
+            var rings = g.Lod == 0 ? 22 : g.Lod == 1 ? 8 : 4;
+            for (int i = 0; i <= rings; i++)
+            {
+                var t = i / (float)rings;
+                path.Add(TrunkAt(t));
+                radii.Add(r0 * Mathf.Lerp(1.4f, 0.8f, Mathf.Sqrt(t)) * (g.Lod == 0 ? (i % 2 == 0 ? 1.06f : 0.95f) : 1f));
+            }
+            var firstBark = b.VertexCount;
+            b.Tube(path, radii, g.Sides(8, 6, 4), g.Bark, FloraPart.Bark);
+            b.Blob(top, Vector3.one * r0 * 1.5f, Quaternion.identity, g.Lod == 0 ? 1 : 0, 0.3f, g.Variant, (g.Bark * 0.8f), FloraPart.Bark);
+            b.Occlude(firstBark, (p, n) => GroundOcclusion(p, 0.6f));
+            if (g.Lod < 2 && g.HasAccent)
+                foreach (var nut in nuts)
+                    b.Blob(nut, Vector3.one * r0 * 0.6f, Quaternion.identity, 0, 0.1f, 0f, g.Accent, FloraPart.Bark, 0.6f);
+
+            // Fronds: an arching spine with leaflets angled down either side (a serrated V).
+            var segments = g.Sides(12, 6, 3);
+            foreach (var f in fronds)
+            {
+                var e = f.elevation * Mathf.Deg2Rad;
+                var start = f.dir * Mathf.Cos(e) + Vector3.up * Mathf.Sin(e);
+                var across = Vector3.Cross(Vector3.up, f.dir).normalized;
+                Vector3 Spine(float t) => top + start * f.length * t + Vector3.down * f.length * f.droop * t * t;
+                for (int k = 0; k < segments; k++)
+                {
+                    float t0 = k / (float)segments, t1 = (k + 1f) / segments;
+                    Vector3 a = Spine(t0), c = Spine(t1);
+                    var along = (c - a).normalized;
+                    var w = f.length * 0.2f * Mathf.Pow(Mathf.Sin(Mathf.PI * Mathf.Lerp(t0, t1, 0.5f)), 0.6f) + 0.02f;
+                    var ao = Mathf.Lerp(0.6f, 1f, t1);
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        var leafTip = Vector3.Lerp(a, c, 0.8f) + across * side * w + Vector3.down * w * 0.45f + along * w * 0.4f;
+                        var normal = (Vector3.up * 0.8f + across * side * 0.3f).normalized;
+                        int v0 = b.Vertex(a, normal, f.color, FloraPart.Foliage, ao);
+                        int v1 = b.Vertex(c, normal, f.color, FloraPart.Foliage, ao);
+                        int v2 = b.Vertex(leafTip, normal, f.color * 1.1f, FloraPart.Foliage, ao);
+                        b.Triangle(v0, v1, v2);
+                    }
+                }
+            }
+        }
+
+        static void Shrub(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var width = height * s.Spread;
+            g.Height = height;
+            g.Width = width;
+            g.TrunkRadius = Mathf.Min(width, height) * 0.3f;
+
+            // A dome sitting on (and a little into) the ground. Full shrubs are a few big overlapping clumps; sparse
+            // ones many small clumps with gaps, showing the stems that hold them up.
+            var domeCentre = new Vector3(0f, height * 0.36f, 0f);
+            var domeRadii = new Vector3(width * 0.5f, height * 0.64f, width * 0.5f);
+            var clumpCount = Mathf.RoundToInt(Mathf.Lerp(11f, 6f, s.Fullness));
+            var clumpSize = Mathf.Lerp(0.24f, 0.46f, s.Fullness);
+            var clumps = new List<(Vector3 centre, float radius, Color color, float seed)>();
+            for (int i = 0; i < clumpCount; i++)
+            {
+                var u = g.Direction();
+                u.y = Mathf.Lerp(-0.15f, 1f, Mathf.Abs(u.y));
+                var r = Mathf.Max(domeRadii.x, domeRadii.y) * clumpSize * g.Range(0.8f, 1.15f);
+                var centre = domeCentre + Vector3.Scale(u.normalized * g.Range(0.35f, 0.62f), domeRadii);
+                centre.y = Mathf.Max(centre.y, r * 0.55f);
+                clumps.Add((centre, r, g.FoliageColor(), g.R() * 100f));
+            }
+            var stems = new List<(Vector3 from, int clump)>();
+            var stemCount = g.Count(s.Branches);
+            for (int i = 0; i < stemCount; i++)
+                stems.Add((g.Flat(g.R() * 6.28f) * width * 0.06f + Vector3.down * 0.1f, i % clumpCount));
+
+            if (g.Lod < 2 && s.Fullness < 0.6f || g.Lod == 0)
+                foreach (var stem in stems)
+                {
+                    var to = clumps[stem.clump].centre;
+                    var radius = Mathf.Max(height * s.Thickness, 0.008f);
+                    b.Tube(new List<Vector3> { stem.from, Vector3.Lerp(stem.from, to, 0.5f) + Vector3.up * height * 0.05f, to },
+                           new List<float> { radius, radius * 0.7f, radius * 0.4f }, 3, g.Bark, FloraPart.Bark, ao: 0.85f);
+                }
+
+            var firstLeaf = b.VertexCount;
+            if (g.Lod == 2 && s.Fullness >= 0.6f)
+            {
+                var avg = Color.Lerp(s.Foliage, s.FoliageVariation, 0.5f).linear;
+                b.Blob(domeCentre, domeRadii * 0.92f, Quaternion.identity, 1, 0.25f, g.Variant * 2.3f, avg, FloraPart.Foliage);
+            }
+            else
+            {
+                foreach (var c in clumps)
+                {
+                    var radii = new Vector3(c.radius, c.radius * 0.8f, c.radius);
+                    var first = b.Blob(c.centre, radii, Quaternion.identity, g.Lod == 0 ? 2 : g.Lod == 1 ? 1 : 0, 0.25f, c.seed, c.color, FloraPart.Foliage);
+                    b.BlendNormalsFrom(first, domeCentre, domeRadii, 0.5f);
+                    if (g.Lod == 0)
+                    {
+                        b.Leaves(c.centre, radii, (int)(10 + 16 * s.Fullness), c.radius * 0.35f, g.Detail, c.color, c.color * 1.15f);
+                        if (g.HasAccent)
+                            for (int k = 0; k < Mathf.RoundToInt(s.AccentAmount * 10f); k++)
+                            {
+                                var u = FloraMeshBuilder.RandomDirection(g.Detail);
+                                u.y = Mathf.Abs(u.y);
+                                b.Diamond(c.centre + Vector3.Scale(u, radii) * 1.02f, Mathf.Max(height * 0.025f, 0.015f), g.Accent, FloraPart.Petal);
+                            }
+                    }
+                }
+            }
+            // Flowers or berries also speckle the clumps themselves, so they still show from a distance.
+            if (g.HasAccent)
+            {
+                var accent = g.Accent;
+                var threshold = 1f - s.AccentAmount * 0.7f;
+                var frequency = 6f / Mathf.Max(height, 0.3f);
+                b.Recolor(firstLeaf, (p, c) =>
+                {
+                    var n = Unity.Mathematics.noise.snoise(new Unity.Mathematics.float3(p.x, p.y, p.z) * frequency) * 0.5f + 0.5f;
+                    return Color.Lerp(c, accent, FloraMeshBuilder.Smooth(threshold - 0.05f, threshold + 0.05f, n) * 0.85f);
+                });
+            }
+            b.Occlude(firstLeaf, (p, n) => CrownOcclusion(p, domeCentre, domeRadii) * GroundOcclusion(p, height * 0.25f));
+        }
+
+        static void DryBush(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            g.Height = height;
+            g.Width = height * s.Spread;
+            g.TrunkRadius = height * 0.2f;
+
+            var twigs = new List<(List<Vector3> path, float radius, int depth)>();
+            void Twig(Vector3 start, Vector3 dir, float length, float radius, int depth)
+            {
+                var bendA = g.Direction() * length * 0.12f;
+                var end = start + dir * length + g.Direction() * length * 0.1f;
+                twigs.Add((new List<Vector3> { start, Vector3.Lerp(start, end, 0.5f) + bendA, end }, radius, depth));
+                if (depth >= 2)
+                    return;
+                var children = 2 + (g.R() < 0.5f ? 1 : 0);
+                for (int i = 0; i < children; i++)
+                {
+                    var from = Vector3.Lerp(start, end, g.Range(0.45f, 0.9f));
+                    var childDir = (dir + g.Direction() * 0.9f + Vector3.up * 0.2f).normalized;
+                    Twig(from, childDir, length * g.Range(0.45f, 0.65f), radius * 0.6f, depth + 1);
+                }
+            }
+            var stems = g.Count(s.Branches);
+            for (int i = 0; i < stems; i++)
+            {
+                var elevation = g.Range(25f, 75f) * Mathf.Deg2Rad;
+                var dir = g.Flat(g.R() * 6.28f) * Mathf.Cos(elevation) + Vector3.up * Mathf.Sin(elevation);
+                Twig(Vector3.down * 0.05f, dir, height * g.Range(0.55f, 0.85f) / Mathf.Max(Mathf.Sin(elevation), 0.5f) * Mathf.Min(1f, s.Spread), height * s.Thickness, 0);
+            }
+
+            var maxDepth = g.Sides(2, 1, 0);
+            var first = b.VertexCount;
+            foreach (var t in twigs)
+            {
+                if (t.depth > maxDepth)
+                    continue;
+                var radius = Mathf.Max(t.radius, 0.004f) * (g.Lod == 2 ? 1.6f : 1f);
+                b.Tube(t.path, new List<float> { radius, radius * 0.75f, radius * 0.45f }, 3, g.Bark, FloraPart.Bark);
+                if (g.Lod == 0 && t.depth == 2 && s.Fullness > 0.05f)
+                    b.Leaves(t.path[2], Vector3.one * height * 0.06f, Mathf.RoundToInt(5f * s.Fullness), height * 0.05f, g.Detail,
+                             s.Foliage.linear, s.FoliageVariation.linear);
+            }
+            b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.4f));
+        }
+
+        static void Flowers(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            g.Height = height;
+            g.Width = height * s.Spread;
+            g.TrunkRadius = 0f;
+
+            var head = g.Accent;
+            var centreColor = s.FlowerHead == FlowerHead.Cup ? new Color(0.08f, 0.06f, 0.04f).linear : new Color(1f, 0.78f, 0.15f).linear;
+            var stemColor = s.Foliage.linear;
+            var stemRadius = Mathf.Clamp(height * 0.018f, 0.003f, 0.012f);
+
+            var count = g.Count(s.Branches);
+            for (int f = 0; f < count; f++)
+            {
+                var offset = f == 0 ? Vector3.zero : g.Flat(g.R() * 6.28f) * height * s.Spread * g.Range(0.15f, 0.5f);
+                var h = height * g.Range(0.6f, 1f);
+                var lean = g.Flat(g.R() * 6.28f) * g.Range(0.05f, 0.25f);
+                var top = offset + lean * h + Vector3.up * h;
+                var facing = (Vector3.up + lean * 2.5f).normalized;
+                var size = height * (s.FlowerHead == FlowerHead.Spike ? 0.06f : s.FlowerHead == FlowerHead.Cup ? 0.13f : 0.16f) * g.Range(0.8f, 1.2f);
+                var petalCount = s.FlowerHead == FlowerHead.Cup ? 5 + (g.R() < 0.5f ? 1 : 0) : 9 + (int)(g.R() * 5f);
+                var twist = g.R() * 6.28f;
+                var tint = Color.Lerp(head, head * g.Range(0.8f, 1.2f), 0.5f);
+
+                // Stem.
+                var stem = g.Lod == 0
+                    ? new List<Vector3> { offset + Vector3.down * 0.02f, offset + lean * h * 0.35f + Vector3.up * h * 0.55f, top }
+                    : new List<Vector3> { offset + Vector3.down * 0.02f, top };
+                var stemRadii = g.Lod == 0 ? new List<float> { stemRadius, stemRadius * 0.85f, stemRadius * 0.7f } : new List<float> { stemRadius * 1.3f, stemRadius };
+                b.Tube(stem, stemRadii, 3, stemColor, FloraPart.Foliage, ao: 0.8f);
+
+                // Head, in a frame facing up-ish.
+                var right = Vector3.Cross(facing, Vector3.forward).normalized;
+                var forward = Vector3.Cross(right, facing);
+                Vector3 Head(float angle, float radius, float up) =>
+                    top + (right * Mathf.Cos(angle + twist) + forward * Mathf.Sin(angle + twist)) * radius + facing * up;
+
+                switch (s.FlowerHead)
+                {
+                    case FlowerHead.Daisy:
+                    {
+                        var centre = b.Vertex(top + facing * size * 0.12f, facing, centreColor, FloraPart.Petal, 1f);
+                        for (int p = 0; p < petalCount; p++)
+                        {
+                            var a = p / (float)petalCount * Mathf.PI * 2f;
+                            var w = Mathf.PI / petalCount * 0.8f;
+                            var normal = facing;
+                            if (g.Lod == 0)
+                            {
+                                int v0 = b.Vertex(Head(a - w * 0.5f, size * 0.22f, 0.03f * size), normal, tint, FloraPart.Petal, 0.9f);
+                                int v1 = b.Vertex(Head(a + w * 0.5f, size * 0.22f, 0.03f * size), normal, tint, FloraPart.Petal, 0.9f);
+                                int v2 = b.Vertex(Head(a - w * 0.25f, size, 0.12f * size), normal, tint, FloraPart.Petal, 1f);
+                                int v3 = b.Vertex(Head(a + w * 0.25f, size, 0.12f * size), normal, tint, FloraPart.Petal, 1f);
+                                b.Triangle(v0, v2, v1);
+                                b.Triangle(v1, v2, v3);
+                                int c0 = b.Vertex(Head(a, size * 0.22f, 0.08f * size), facing, centreColor, FloraPart.Petal, 1f);
+                                int c1 = b.Vertex(Head(a + Mathf.PI * 2f / petalCount, size * 0.22f, 0.08f * size), facing, centreColor, FloraPart.Petal, 1f);
+                                b.Triangle(centre, c0, c1);
+                            }
+                            else if (p % 2 == 0)
+                            {
+                                int v0 = b.Vertex(Head(a - w, size * 0.1f, 0f), normal, tint, FloraPart.Petal, 1f);
+                                int v1 = b.Vertex(Head(a + w, size * 0.1f, 0f), normal, tint, FloraPart.Petal, 1f);
+                                int v2 = b.Vertex(Head(a, size, 0.1f * size), normal, tint, FloraPart.Petal, 1f);
+                                b.Triangle(v0, v2, v1);
+                            }
+                        }
+                        break;
+                    }
+                    case FlowerHead.Cup:
+                    {
+                        for (int p = 0; p < petalCount; p++)
+                        {
+                            var a = p / (float)petalCount * Mathf.PI * 2f;
+                            var w = Mathf.PI * 2f / petalCount * 0.75f;
+                            var outward = (Head(a, 1f, 0f) - top).normalized;
+                            var normal = (outward + facing).normalized;
+                            if (g.Lod == 0)
+                            {
+                                int v0 = b.Vertex(Head(a, size * 0.08f, 0f), normal, centreColor, FloraPart.Petal, 0.6f);
+                                int v1 = b.Vertex(Head(a - w * 0.5f, size * 0.45f, size * 0.4f), normal, tint, FloraPart.Petal, 0.9f);
+                                int v2 = b.Vertex(Head(a + w * 0.5f, size * 0.45f, size * 0.4f), normal, tint, FloraPart.Petal, 0.9f);
+                                int v3 = b.Vertex(Head(a - w * 0.35f, size * 0.62f, size * 0.95f), normal, tint * 1.1f, FloraPart.Petal, 1f);
+                                int v4 = b.Vertex(Head(a + w * 0.35f, size * 0.62f, size * 0.95f), normal, tint * 1.1f, FloraPart.Petal, 1f);
+                                b.Triangle(v0, v1, v2);
+                                b.Triangle(v1, v3, v2);
+                                b.Triangle(v2, v3, v4);
+                            }
+                            else
+                            {
+                                int v0 = b.Vertex(Head(a, size * 0.05f, 0f), normal, tint, FloraPart.Petal, 0.8f);
+                                int v1 = b.Vertex(Head(a - w * 0.5f, size * 0.6f, size * 0.8f), normal, tint, FloraPart.Petal, 1f);
+                                int v2 = b.Vertex(Head(a + w * 0.5f, size * 0.6f, size * 0.8f), normal, tint, FloraPart.Petal, 1f);
+                                b.Triangle(v0, v1, v2);
+                            }
+                        }
+                        break;
+                    }
+                    default:
+                    {
+                        // Florets climbing the top of the stem, smaller towards the tip.
+                        var florets = g.Lod == 0 ? 10 : 4;
+                        for (int k = 0; k < florets; k++)
+                        {
+                            var t = k / (float)(florets - 1);
+                            var p = Vector3.Lerp(offset + lean * h * 0.6f + Vector3.up * h * 0.62f, top + facing * size * 1.5f, t);
+                            var r = size * Mathf.Lerp(1f, 0.45f, t) * (g.Lod == 0 ? 1f : 1.5f);
+                            b.Diamond(p + Head(k * 2.4f, r * 0.6f, 0f) - top, r, Color.Lerp(tint, tint * 1.3f, t), FloraPart.Petal);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Leaves at the base.
+            var leafCount = 2 + (int)(g.R() * 3f);
+            for (int i = 0; i < leafCount; i++)
+            {
+                var dir = g.Flat(g.R() * 6.28f);
+                var length = height * g.Range(0.3f, 0.5f);
+                var across = Vector3.Cross(Vector3.up, dir);
+                var rise = g.Range(0.3f, 0.7f);
+                if (g.Lod == 0)
+                {
+                    var spine = new List<Vector3>();
+                    var widths = new List<float>();
+                    for (int k = 0; k <= 3; k++)
+                    {
+                        var t = k / 3f;
+                        spine.Add(dir * length * t + Vector3.up * length * rise * Mathf.Sin(t * Mathf.PI * 0.7f));
+                        widths.Add(length * 0.16f * Mathf.Sin(Mathf.Lerp(0.15f, 1f, t) * Mathf.PI));
+                    }
+                    b.Strip(spine, widths, across, stemColor, FloraPart.Foliage, 0.7f, Vector3.up);
+                }
+                else
+                {
+                    int v0 = b.Vertex(-across * length * 0.08f, Vector3.up, stemColor, FloraPart.Foliage, 0.7f);
+                    int v1 = b.Vertex(across * length * 0.08f, Vector3.up, stemColor, FloraPart.Foliage, 0.7f);
+                    int v2 = b.Vertex(dir * length + Vector3.up * length * rise * 0.5f, Vector3.up, stemColor, FloraPart.Foliage, 0.9f);
+                    b.Triangle(v0, v2, v1);
+                }
+            }
+        }
+
+        static void Saguaro(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var r = Mathf.Max(height * s.Thickness, 0.16f);
+            g.Height = height;
+            g.Width = r * 2f;
+            g.TrunkRadius = r;
+            var green = g.FoliageColor();
+
+            var lean = g.Flat(g.R() * 6.28f) * g.Range(0f, 0.03f) * height;
+            var trunk = new List<Vector3>();
+            var radii = new List<float>();
+            for (int i = 0; i <= 7; i++)
+            {
+                var t = i / 7f;
+                trunk.Add(Vector3.up * Mathf.Lerp(-0.5f, height - r * 0.9f, t) + lean * t);
+                radii.Add(r * (0.88f + 0.12f * FloraMeshBuilder.Smooth(0f, 0.25f, t)) * (1f + 0.04f * Mathf.Sin(t * 9f + g.Variant)));
+            }
+
+            var armCount = g.Count(s.Branches);
+            if (height < 3.5f) armCount = 0;
+            else if (height < 5f) armCount = Mathf.Min(armCount, 1);
+            var arms = new List<(List<Vector3> path, float radius)>();
+            for (int i = 0; i < armCount; i++)
+            {
+                var dir = g.Flat((i + g.Range(-0.2f, 0.2f)) / Mathf.Max(armCount, 1) * 6.28f + g.Variant);
+                var y0 = height * g.Range(0.3f, 0.55f);
+                var outward = r * g.Range(1.6f, 2.8f);
+                var rise = Mathf.Min(height * g.Range(0.18f, 0.4f), height * 0.92f - y0);
+                var p0 = PointOnPath(trunk, y0);
+                var elbow = p0 + dir * outward + Vector3.up * r * 1.1f;
+                var path = new List<Vector3>();
+                for (int k = 0; k <= 4; k++)
+                    path.Add(Bezier(p0, p0 + dir * outward * 1.05f, elbow, k / 4f));
+                path.Add(elbow + Vector3.up * rise * 0.5f + dir * r * 0.15f);
+                path.Add(elbow + Vector3.up * rise + dir * r * 0.25f);
+                arms.Add((path, r * g.Range(0.65f, 0.8f)));
+            }
+            var blooms = g.HasAccent && g.Variant % 2 == 0;
+            var bloomSpots = new List<Vector3>();
+            for (int i = 0; i < 6; i++)
+                bloomSpots.Add(g.Flat(g.R() * 6.28f) * g.Range(0.2f, 0.6f));
+
+            var sides = g.Sides(24, 12, 6);
+            var ribs = g.Sides(12, 6, 0);
+            var first = b.VertexCount;
+            b.Tube(trunk, radii, sides, green, FloraPart.Cactus, cap: true, ribs: ribs, ribDepth: 0.1f);
+            foreach (var arm in arms)
+            {
+                var armRadii = new List<float>();
+                for (int k = 0; k < arm.path.Count; k++)
+                    armRadii.Add(arm.radius * (k == 0 ? 0.9f : 1f));
+                b.Tube(arm.path, armRadii, g.Sides(16, 8, 5), green, FloraPart.Cactus, cap: true, ribs: g.Sides(8, 4, 0), ribDepth: 0.1f);
+            }
+            b.Occlude(first, (p, n) => GroundOcclusion(p, 0.8f) * Mathf.Lerp(0.8f, 1f, Mathf.Clamp01(n.y + 0.5f)));
+            if (blooms && g.Lod == 0)
+            {
+                var crown = trunk[trunk.Count - 1] + Vector3.up * r * 0.7f;
+                foreach (var spot in bloomSpots)
+                    b.Diamond(crown + spot * r, r * 0.22f, g.Accent, FloraPart.Petal);
+            }
+        }
+
+        static void BarrelCactus(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var radius = height * s.Spread * 0.5f;
+            g.Height = height;
+            g.Width = radius * 2f;
+            g.TrunkRadius = radius;
+            var green = g.FoliageColor();
+            var tilt = Quaternion.AngleAxis(g.Range(0f, 14f), g.Flat(g.R() * 6.28f));
+            var flowers = new List<Vector3>();
+            for (int i = 0; i < 9; i++)
+                flowers.Add(g.Flat(i / 9f * 6.28f + g.Range(-0.2f, 0.2f)) * radius * g.Range(0.25f, 0.45f));
+
+            var path = new List<Vector3>();
+            var radii = new List<float>();
+            for (int i = 0; i <= 5; i++)
+            {
+                var t = i / 5f;
+                path.Add(tilt * (Vector3.up * Mathf.Lerp(-0.1f, height - radius * 0.75f, t)));
+                radii.Add(radius * (0.84f + 0.16f * Mathf.Sin(Mathf.PI * Mathf.Min(1f, t * 1.2f))));
+            }
+            var first = b.VertexCount;
+            b.Tube(path, radii, g.Sides(36, 16, 8), green, FloraPart.Cactus, cap: true, ribs: g.Sides(18, 8, 0), ribDepth: 0.16f);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, radius));
+
+            if (g.HasAccent)
+            {
+                var crown = path[path.Count - 1] + tilt * Vector3.up * radius * 0.7f;
+                if (g.Lod == 0)
+                {
+                    foreach (var f in flowers)
+                        b.Diamond(crown + tilt * f, radius * 0.12f, g.Accent, FloraPart.Petal);
+                }
+                else
+                {
+                    var accent = g.Accent;
+                    var crownY = crown.y - radius * 0.35f;
+                    b.Recolor(first, (p, c) => p.y > crownY ? Color.Lerp(c, accent, 0.7f) : c);
+                }
+            }
+        }
+
+        static void PricklyPear(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            g.Height = height;
+            g.Width = height * s.Spread;
+            g.TrunkRadius = height * 0.25f;
+
+            var pads = new List<(Vector3 centre, Vector3 radii, Quaternion rotation, Color color, float seed, int level)>();
+            var fruit = new List<Vector3>();
+            void Pad(Vector3 attach, Vector3 axis, float padHeight, int level)
+            {
+                var facing = Vector3.Cross(axis, g.Flat(g.R() * 6.28f)).normalized;
+                var rotation = Quaternion.LookRotation(facing, axis);
+                var radii = new Vector3(padHeight * 0.36f, padHeight * 0.5f, padHeight * 0.075f);
+                var centre = attach + axis * padHeight * 0.46f;
+                pads.Add((centre, radii, rotation, g.FoliageColor(), g.R() * 100f, level));
+                var children = g.R() < s.Fullness ? 2 : 1;
+                for (int i = 0; i < children; i++)
+                {
+                    var rim = centre + rotation * new Vector3(g.Range(-0.5f, 0.5f) * radii.x, radii.y * 0.85f, 0f);
+                    var childAxis = Quaternion.AngleAxis(g.Range(-30f, 30f), Vector3.up) * (Quaternion.AngleAxis(g.Range(-45f, 45f), facing) * axis);
+                    childAxis.y = Mathf.Max(childAxis.y, 0.3f);
+                    if (level < 2)
+                        Pad(rim, childAxis.normalized, padHeight * g.Range(0.8f, 0.95f), level + 1);
+                    else if (g.R() < s.AccentAmount)
+                        fruit.Add(rim);
+                }
+            }
+            var baseCount = g.Count(s.Branches);
+            for (int i = 0; i < baseCount; i++)
+            {
+                var axis = (Vector3.up + g.Flat(g.R() * 6.28f) * g.Range(0.1f, 0.6f)).normalized;
+                Pad(g.Flat(g.R() * 6.28f) * height * 0.15f + Vector3.down * 0.05f, axis, height * 0.4f, 0);
+            }
+
+            var first = b.VertexCount;
+            foreach (var p in pads)
+                if (g.Lod < 2 || p.level < 2)
+                    b.Blob(p.centre, p.radii, p.rotation, g.Lod == 0 ? 1 : 0, 0.08f, p.seed, p.color, FloraPart.Cactus);
+            // Pale specks where the spines grow.
+            var specks = s.Bark.linear;
+            b.Recolor(first, (p, c) =>
+            {
+                var n = Unity.Mathematics.noise.snoise(new Unity.Mathematics.float3(p.x, p.y, p.z) * 28f);
+                return n > 0.55f ? Color.Lerp(c, specks, 0.5f) : c;
+            });
+            b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.4f));
+            if (g.HasAccent && g.Lod < 2)
+                foreach (var f in fruit)
+                    b.Blob(f + Vector3.up * height * 0.03f, new Vector3(0.6f, 1f, 0.6f) * height * 0.045f, Quaternion.identity, 0, 0.05f, 0f, g.Accent, FloraPart.Cactus);
+        }
+
+        static void Ocotillo(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            g.Height = height;
+            g.Width = height * s.Spread;
+            g.TrunkRadius = height * 0.04f;
+
+            var canes = new List<List<Vector3>>();
+            var count = g.Count(s.Branches);
+            for (int i = 0; i < count; i++)
+            {
+                var tilt = g.Range(4f, 28f) * Mathf.Deg2Rad;
+                var outward = g.Flat(g.R() * 6.28f);
+                var length = height * g.Range(0.7f, 1f);
+                var basePoint = outward * height * 0.02f + Vector3.down * 0.1f;
+                var path = new List<Vector3>();
+                for (int k = 0; k <= 4; k++)
+                {
+                    var t = k / 4f;
+                    var bend = Mathf.Sin(tilt) * (1f + 0.4f * t);
+                    path.Add(basePoint + (outward * bend + Vector3.up * Mathf.Cos(tilt)).normalized * length * t + g.Direction() * length * 0.012f * k);
+                }
+                canes.Add(path);
+            }
+
+            var r = height * s.Thickness;
+            var first = b.VertexCount;
+            for (int i = 0; i < canes.Count; i++)
+            {
+                if (g.Lod == 2 && i % 2 == 1)
+                    continue;
+                b.Tube(canes[i], new List<float> { r, r * 0.85f, r * 0.7f, r * 0.5f, r * 0.3f }, g.Sides(4, 3, 3), g.Bark, FloraPart.Bark,
+                       tipColor: g.HasAccent ? g.Accent : (Color?)null);
+                if (g.Lod == 0 && s.Fullness > 0.05f)
+                    for (int k = 1; k < 4; k++)
+                        b.Leaves(canes[i][k], Vector3.one * r * 1.2f, Mathf.RoundToInt(6f * s.Fullness), height * 0.025f, g.Detail,
+                                 s.Foliage.linear, s.FoliageVariation.linear);
+            }
+            b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.15f));
+        }
+    }
+}

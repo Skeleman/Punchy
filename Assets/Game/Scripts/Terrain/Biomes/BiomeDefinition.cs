@@ -52,6 +52,10 @@ namespace Punchy.Terrain
         public TerrainSurface BaseSurface;
         [Tooltip("Painted over the base in order; later layers cover earlier ones.")]
         public List<SurfaceLayer> Layers = new List<SurfaceLayer>();
+
+        [Header("Flora")]
+        [Tooltip("Plants that grow here (drawn by the flora system). Changing these doesn't re-bake the terrain.")]
+        public List<Punchy.Flora.BiomeFlora> Flora = new List<Punchy.Flora.BiomeFlora>();
     }
 
     [Serializable]

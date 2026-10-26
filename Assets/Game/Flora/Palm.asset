@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be30a536c49003f42bba655b0fd41247, type: 3}
+  m_Name: Palm
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
+  Form: 2
+  Layer: 2
+  Height: {x: 6, y: 11}
+  Spread: 0.7
+  TrunkFraction: 0.35
+  Thickness: 0.03
+  Fullness: 0.7
+  Branches: {x: 9, y: 13}
+  Flexibility: 0.5
+  FlowerHead: 0
+  Bark: {r: 0.48, g: 0.38, b: 0.27, a: 1}
+  Foliage: {r: 0.24, g: 0.4, b: 0.13, a: 1}
+  FoliageVariation: {r: 0.36, g: 0.46, b: 0.15, a: 1}
+  Accents:
+  - {r: 0.35, g: 0.25, b: 0.12, a: 1}
+  AccentAmount: 0.5
+  ColorVariation: 0.12
+  MaxSlope: 25
+  Elevation: {x: 0.5, y: 10000}
+  GrassAffinity: 0
+  ToleratesSnow: 0
+  PatchSize: 60
+  PatchCoverage: 1
+  NearWater: 4
+  OnlyNearWater: 1
+  Solid: 1
+  Variants: 4
+  Seed: 35

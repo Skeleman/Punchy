@@ -118,3 +118,14 @@ MonoBehaviour:
     PatchCoverage: 0.4
     EdgeNoise: 0
     Opacity: 1
+  Flora:
+  - Species: {fileID: 11400000, guid: cab7e5009cce5b74bbc60ccebaba4b47, type: 2}
+    Density: 0.6
+  - Species: {fileID: 11400000, guid: 7f3dc6bccf0bcb4418ab724cbd49ddc4, type: 2}
+    Density: 4
+  - Species: {fileID: 11400000, guid: 406e79652dd1e6940820dc7e42337c3d, type: 2}
+    Density: 0.8
+  - Species: {fileID: 11400000, guid: 122e9fd75f12e72438c951c9f6f69056, type: 2}
+    Density: 25
+  - Species: {fileID: 11400000, guid: cc6b38dc8adfa7c4a881ca7387215d6d, type: 2}
+    Density: 8

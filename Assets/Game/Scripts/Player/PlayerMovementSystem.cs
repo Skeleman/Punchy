@@ -1,3 +1,4 @@
+using Punchy.Flora;
 using Punchy.Terrain;
 using Unity.Burst;
 using Unity.Entities;
@@ -29,6 +30,7 @@ namespace Punchy.Player
             var dt = SystemAPI.Time.DeltaTime;
             var input = SystemAPI.GetSingleton<PlayerInput>();
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
+            SystemAPI.TryGetSingletonBuffer<FloraObstacle>(out var obstacles, true);
 
             foreach (var (transform, motor, motion) in
                      SystemAPI.Query<RefRW<LocalTransform>, RefRO<PlayerMotor>, RefRW<PlayerMotion>>().WithAll<PlayerTag>())
@@ -42,6 +44,8 @@ namespace Punchy.Player
                 var speed = settings.WalkSpeed * (input.Sprint ? settings.SprintMultiplier : 1f) *
                             (swimming ? settings.SwimSpeedMultiplier : 1f);
                 position.xz += input.MoveDirection * speed * dt;
+                if (obstacles.IsCreated)
+                    position.xz = SlideAroundObstacles(obstacles, position, settings.Radius);
 
                 if (m.Grounded && input.JumpPressed)
                 {
@@ -77,6 +81,24 @@ namespace Punchy.Player
                     t.Rotation = math.slerp(t.Rotation, target, 1f - math.exp(-settings.TurnSharpness * dt));
                 }
             }
+        }
+
+        /// <summary>Pushes the player out of any trunk or cactus they walked into, so they slide around it.</summary>
+        static float2 SlideAroundObstacles(in DynamicBuffer<FloraObstacle> obstacles, float3 position, float radius)
+        {
+            var xz = position.xz;
+            for (int i = 0; i < obstacles.Length; i++)
+            {
+                var o = obstacles[i];
+                if (position.y > o.Position.y + o.Height || position.y + 1.8f < o.Position.y)
+                    continue;
+                var away = xz - o.Position.xz;
+                var minDistance = o.Radius + radius;
+                var distanceSq = math.lengthsq(away);
+                if (distanceSq < minDistance * minDistance)
+                    xz = o.Position.xz + (distanceSq > 1e-8f ? away * math.rsqrt(distanceSq) : new float2(1f, 0f)) * minDistance;
+            }
+            return xz;
         }
 
         /// <summary>

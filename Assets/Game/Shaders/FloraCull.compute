@@ -1,0 +1,95 @@
+// GPU culling and level-of-detail selection for FloraSystem. For every plant in a layer: skip it if it's outside
+// the view (with a margin near the camera so off-screen plants still cast shadows), pick its LOD by distance, and
+// append it to that variant/LOD's list, bumping the instance count in the indirect draw arguments. Across each LOD
+// change (and the fade-out at the layer's radius) a plant is appended to both levels with a dither fade:
+//   fade  t >= 0  draw where dither <  t
+//   fade -t <  0  draw where dither >= t        (the two halves of a crossfade never overlap)
+
+#pragma kernel Clear
+#pragma kernel Cull
+
+struct FloraInstance
+{
+    float3 position;
+    float yaw;
+    float scale;
+    int model;
+    float random;
+    float snow;
+};
+
+StructuredBuffer<FloraInstance> _FloraInstances;
+StructuredBuffer<float2> _ModelBounds;   // radius, centre height (unscaled), per variant in this layer
+StructuredBuffer<uint> _Regions;         // output offset per variant × LOD
+RWStructuredBuffer<uint2> _FloraVisible; // instance index, asuint(fade)
+RWByteAddressBuffer _Args;               // IndirectDrawIndexedArgs per variant × LOD (5 uints)
+
+uint _Count;
+uint _DrawCount;
+int _ModelBase;
+float4 _Planes[6];
+float3 _CameraPosition;
+float4 _Lod;      // x LOD1 distance, y LOD2 distance, z radius
+float4 _Shadow;   // x shadow distance, y margin
+
+[numthreads(64, 1, 1)]
+void Clear(uint id : SV_DispatchThreadID)
+{
+    if (id < _DrawCount)
+        _Args.Store((id * 5 + 1) * 4, 0);
+}
+
+void Append(uint instance, uint local, uint lod, float fade)
+{
+    uint draw = local * 3 + lod;
+    uint slot;
+    _Args.InterlockedAdd((draw * 5 + 1) * 4, 1, slot);
+    _FloraVisible[_Regions[draw] + slot] = uint2(instance, asuint(fade));
+}
+
+[numthreads(64, 1, 1)]
+void Cull(uint id : SV_DispatchThreadID)
+{
+    if (id >= _Count)
+        return;
+    FloraInstance plant = _FloraInstances[id];
+    uint local = (uint)(plant.model - _ModelBase);
+    float2 bounds = _ModelBounds[local];
+    float radius = bounds.x * plant.scale;
+    float3 centre = plant.position + float3(0, bounds.y * plant.scale, 0);
+    float distance = length(centre - _CameraPosition);
+    if (distance - radius > _Lod.z)
+        return;
+
+    float margin = distance < _Shadow.x ? _Shadow.y : 0;
+    [unroll]
+    for (int p = 0; p < 6; p++)
+        if (dot(_Planes[p].xyz, centre) + _Planes[p].w < -(radius + margin))
+            return;
+
+    // Distance to the plant's base on the ground plane suits LOD better than to its centre (tall trees).
+    float d = length(plant.position.xz - _CameraPosition.xz);
+    float keep = 1 - smoothstep(_Lod.z * 0.88, _Lod.z, d);
+    if (keep <= 0)
+        return;
+
+    float band1 = _Lod.x * 0.15, band2 = _Lod.y * 0.15;
+    float t1 = saturate((d - (_Lod.x - band1 * 0.5)) / band1);
+    float t2 = saturate((d - (_Lod.y - band2 * 0.5)) / band2);
+    if (t1 <= 0)
+        Append(id, local, 0, keep);
+    else if (t1 < 1)
+    {
+        Append(id, local, 0, -t1);
+        Append(id, local, 1, t1);
+    }
+    else if (t2 <= 0)
+        Append(id, local, 1, keep);
+    else if (t2 < 1)
+    {
+        Append(id, local, 1, -t2);
+        Append(id, local, 2, t2);
+    }
+    else
+        Append(id, local, 2, keep);
+}
