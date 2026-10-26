@@ -444,9 +444,12 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 2fefebb67f2c6234f8ed2a4d78ebd50b, type: 2}
   - {fileID: 11400000, guid: 1c87395cb6a85e54ba6432f7841b5b21, type: 2}
   - {fileID: 11400000, guid: fc0d48c1d1e5e2a47a7158bedc4b2a0a, type: 2}
-  TransitionSeconds: 45
   Sun: {fileID: 410087040}
   Cycle: {fileID: 655229951}
+  MaxCells: 14
+  SpawnAttemptsPerMinute: 8
+  WeatherAreaSize: 16384
+  WindVeer: 6
   ClearZenith: {r: 0.2, g: 0.42, b: 0.85, a: 1}
   ClearHorizon: {r: 0.7, g: 0.8, b: 0.93, a: 1}
   GroundColor: {r: 0.36, g: 0.37, b: 0.39, a: 1}

@@ -39,14 +39,37 @@ half   _PunchyNight;           // 0 day … 1 night
 float4 _PunchyLightning;       // xyz towards the strike, w flash brightness as seen from the camera
 float4 _PunchyLightningPos;    // xyz strike position in the cloud, w raw flash brightness
 
+float4 _PunchyClimate;         // map-wide average: coverage, darkness, cloud base / 4000, thickness / 9000
+
 float2 PunchyMapUV(float2 worldXZ) { return (worldXZ - _PunchyWeatherRect.xy) * _PunchyWeatherRect.zw; }
-half4 PunchyWeatherAt(float2 xz) { return SAMPLE_TEXTURE2D_LOD(_PunchyWeatherMap, sampler_PunchyWeatherMap, PunchyMapUV(xz), 0); }
-half2 PunchyWetnessAt(float2 xz) { return SAMPLE_TEXTURE2D_LOD(_PunchyWetnessMap, sampler_PunchyWetnessMap, PunchyMapUV(xz), 0).rg; }
+
+// 1 well inside the weather maps, fading to 0 over their outer 15%. Beyond the maps the weather is the generic
+// map-wide average, rather than the edge pixels smeared out to the horizon.
+float PunchyMapInside(float2 uv)
+{
+    float2 edge = min(uv, 1 - uv);
+    return smoothstep(0.0, 0.15, min(edge.x, edge.y));
+}
+
+half4 PunchyWeatherAt(float2 xz)
+{
+    float2 uv = PunchyMapUV(xz);
+    half4 local = SAMPLE_TEXTURE2D_LOD(_PunchyWeatherMap, sampler_PunchyWeatherMap, uv, 0);
+    return lerp(half4(_PunchyClimate.xy, 0, 0), local, PunchyMapInside(uv));
+}
+
+half2 PunchyWetnessAt(float2 xz)
+{
+    float2 uv = PunchyMapUV(xz);
+    return SAMPLE_TEXTURE2D_LOD(_PunchyWetnessMap, sampler_PunchyWetnessMap, uv, 0).rg * PunchyMapInside(uv);
+}
 
 // Cloud shape at a world position: base (m), thickness (m), anvil strength (0..1), anvil top (m).
 float4 PunchyCloudShapeAt(float2 xz)
 {
-    return SAMPLE_TEXTURE2D_LOD(_PunchyCloudMap, sampler_PunchyCloudMap, PunchyMapUV(xz), 0) * float4(4000, 9000, 1, 12000);
+    float2 uv = PunchyMapUV(xz);
+    float4 local = SAMPLE_TEXTURE2D_LOD(_PunchyCloudMap, sampler_PunchyCloudMap, uv, 0);
+    return lerp(float4(_PunchyClimate.zw, 0, 0), local, PunchyMapInside(uv)) * float4(4000, 9000, 1, 12000);
 }
 
 #define PUNCHY_ANVIL_DEPTH 900.0
@@ -108,9 +131,14 @@ float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
     float h = saturate((p.y - shape.x) / max(shape.y, 1));
 
     float3 drift = float3(_PunchyCloudOffset.x, 0, _PunchyCloudOffset.y) * PUNCHY_CLOUD_FEATURE;
-    float3 uvw = (p - drift) / PUNCHY_CLOUD_NOISE_SCALE;
+    float3 q = p - drift;
+    // Sample the tiling noise off the world axes and at two unrelated scales, so its repeat never lines up into
+    // a visible grid (the combined pattern only repeats after hundreds of kilometres).
+    float3 uvw = float3(q.x * 0.8 - q.z * 0.6, q.y, q.x * 0.6 + q.z * 0.8) / PUNCHY_CLOUD_NOISE_SCALE;
     uvw.xz += h * 0.06;   // tops lean downwind a little
-    float shapeNoise = SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvw, 0).r;
+    float3 uvwLarge = float3(q.x * 0.28 + q.z * 0.96, q.y * 0.6, -q.x * 0.96 + q.z * 0.28) / (PUNCHY_CLOUD_NOISE_SCALE * 2.73) + 0.37;
+    float shapeNoise = lerp(SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvw, 0).r,
+                            SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvwLarge, 0).r, 0.4);
     float coverage = saturate(weather.r * 1.05);
 
     // The cloud body: flat-ish base, rounded top; tall cumulonimbus towers narrow slightly as they climb and are
@@ -164,6 +192,35 @@ void PunchyCloudLight(out float3 direction, out half3 color)
     color = sunUp ? _PunchySunColor : half3(0.16, 0.19, 0.27) * _PunchyNight;
 }
 
+#define PUNCHY_FAR_START 15000.0
+#define PUNCHY_FAR_END 22000.0
+
+// The generic far cloud layer: a flat sheet at the average cloud height with the average coverage, shown only
+// where the view ray reaches it beyond PUNCHY_FAR_START (it fades in as the volumetric clouds fade out).
+half3 PunchyFarClouds(half3 background, float3 dir)
+{
+    float3 camera = _WorldSpaceCameraPos;
+    float height = _PunchyClimate.z * 4000 + _PunchyClimate.w * 9000 * 0.4;
+    if (dir.y <= 0.002 || camera.y >= height)
+        return background;
+    float distance = (height - camera.y) / dir.y;
+    float fadeIn = smoothstep(PUNCHY_FAR_START, PUNCHY_FAR_END, distance);
+    if (fadeIn <= 0)
+        return background;
+
+    float2 hit = camera.xz + dir.xz * min(distance, 120000) - _PunchyCloudOffset * PUNCHY_CLOUD_FEATURE;
+    float2 uv = float2(hit.x * 0.8 - hit.y * 0.6, hit.x * 0.6 + hit.y * 0.8) / 3500;   // off-axis, no grid
+    float threshold = lerp(0.72, 0.26, _PunchyClimate.x);
+    float cover = smoothstep(threshold, threshold + 0.22, PunchyFbm(uv, 4)) * fadeIn;
+
+    half daylight = saturate(dot(_PunchySkyHorizon, half3(0.3, 0.5, 0.2)) * 1.6);
+    half3 color = lerp(half3(0.92, 0.93, 0.96), half3(0.3, 0.31, 0.34), _PunchyClimate.y) * daylight
+                + _PunchySunColor * pow(saturate(dot(dir, _PunchySunDirection)), 6) * 0.3;
+    // Very distant: mostly horizon haze.
+    color = lerp(color, _PunchySkyHorizon, saturate(distance / 60000));
+    return lerp(background, color, cover);
+}
+
 // Marches the view ray through the cloud volume and composites the clouds over `background`.
 half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
 {
@@ -172,7 +229,10 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
     if (dir.y <= 0.003)
         return background;
     float t0 = max(0, (bottom - camera.y) / dir.y);
-    float t1 = min((top - camera.y) / dir.y, 40000);
+    // Beyond ~15–22 km the clouds hand over to a generic flat layer with the map-wide average weather: far cheaper,
+    // and local weather that far away is invisible detail anyway.
+    background = PunchyFarClouds(background, dir);
+    float t1 = min((top - camera.y) / dir.y, PUNCHY_FAR_END);
     if (t0 >= t1)
         return background;
 
@@ -201,7 +261,7 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
         float4 shape = PunchyCloudShapeAt(p.xz);
         float detail = saturate(1.2 - t / 20000);
         float density = ((weather.r > 0.03 || shape.z > 0.02) && PunchyInCloudLayer(p.y, shape))
-            ? PunchyCloudDensity(p, weather, shape, detail) : 0;
+            ? PunchyCloudDensity(p, weather, shape, detail) * (1 - smoothstep(PUNCHY_FAR_START, PUNCHY_FAR_END, t)) : 0;
 
         if (density > 0.004)
         {

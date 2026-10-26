@@ -175,12 +175,16 @@ namespace Punchy.Weather
             CloudMap = CreateMap("CloudMap");
             Ready = true;
 
+            // A different pressure pattern every session.
+            pressureTime = Random.Range(0f, 100000f);
+            pressureOffset = Random.insideUnitCircle * 50000f;
+
             // Start with weather already in the world rather than an empty sky.
-            for (int i = 0; i < 40 && cells.Count < MaxCellsHint; i++)
+            for (int i = 0; i < 25 && cells.Count < MaxCellsHint; i++)
                 TrySpawn(Random.Range(0f, 600f));
         }
 
-        public int MaxCellsHint = 24;
+        public int MaxCellsHint = 14;
 
         static Texture2D CreateMap(string name)
         {
@@ -227,10 +231,16 @@ namespace Punchy.Weather
                 return;
             MaxCellsHint = maxCells;
 
+            // The pressure pattern drifts with the wind (slower than the cells themselves) and slowly evolves.
+            pressureTime += dt;
+            pressureOffset += windDirection * 2f * dt;
+
             for (int i = cells.Count - 1; i >= 0; i--)
             {
                 var c = cells[i];
-                c.Age += dt;
+                // Cloudy weather dies away quickly once it drifts under high pressure.
+                var support = PressureSupport(presets[c.Preset].CloudCoverage, Lowness(c.Position, pressureOffset, pressureTime));
+                c.Age += dt * (support < 0.15f && c.Age > c.Grow ? 4f : 1f);
                 var speed = 3f + 9f * presets[c.Preset].Wind;
                 c.Position += (windDirection * speed + c.Drift) * dt;
                 var outside = Mathf.Abs(c.Position.x) > mapSize * 0.55f || Mathf.Abs(c.Position.y) > mapSize * 0.55f;
@@ -252,25 +262,57 @@ namespace Punchy.Weather
         }
 
         float redrawTimer, pendingDt;
+        int climateCountdown;
+        float pressureTime;
+        Vector2 pressureOffset;
 
-        /// <summary>Picks a random place and lets the local biome odds decide what (if anything) forms there.</summary>
+        /// <summary>Width of a typical high- or low-pressure region, in metres.</summary>
+        public const float PressureScale = 7000f;
+
+        /// <summary>
+        /// 0..1: how deep in a low-pressure area a point is (1 = stormy low, 0 = settled high). A large, slowly
+        /// evolving noise field, so weather clusters into regions: continuous cloud in some, clear skies in others.
+        /// </summary>
+        public static float Lowness(float2 xz, float2 offset, float time)
+        {
+            var p = (xz - offset) / PressureScale;
+            var n = noise.snoise(new float3(p, time / 900f)) * 0.7f + noise.snoise(new float3(p * 2.3f + 7.1f, time / 600f)) * 0.3f;
+            // Skewed so settled weather is the norm and well-developed lows are the exception.
+            return math.smoothstep(-0.25f, 0.75f, -n);
+        }
+
+        /// <summary>How well a preset with the given cloud cover suits a place's pressure (fair weather suits highs).</summary>
+        public static float PressureSupport(float cloudCoverage, float lowness)
+        {
+            var s = math.lerp(1f - cloudCoverage, cloudCoverage, lowness);
+            return s * s * s;
+        }
+
+        public float LownessAt(Vector2 xz) => Lowness(xz, pressureOffset, pressureTime);
+
+        /// <summary>Picks a random place and lets the local biome odds (and pressure) decide what, if anything, forms there.</summary>
         void TrySpawn(float age)
         {
             var x = Random.Range(Resolution / 8, Resolution * 7 / 8);
             var y = Random.Range(Resolution / 8, Resolution * 7 / 8);
             var t = y * Resolution + x;
+            var lowness = Lowness((float2)origin + (new float2(x, y) + 0.5f) * texel, pressureOffset, pressureTime);
 
             // The fair-weather background (preset 0) competes too: picking it means nothing forms this time.
+            var weights = new float[presets.Count];
             float total = 0f;
             for (int p = 0; p < presets.Count; p++)
-                total += chance[p][t];
+            {
+                weights[p] = chance[p][t] * PressureSupport(presets[p].CloudCoverage, lowness);
+                total += weights[p];
+            }
             if (total <= 0f)
                 return;
             var pick = Random.value * total;
             var chosen = 0;
             for (int p = 0; p < presets.Count; p++)
             {
-                pick -= chance[p][t];
+                pick -= weights[p];
                 if (pick <= 0f) { chosen = p; break; }
             }
             if (chosen == 0)
@@ -338,10 +380,12 @@ namespace Punchy.Weather
                 return default;
             var background = WeatherValues.From(presets[0]);
             var oro = Bilinear(orography, xz);
-            background.Coverage = math.min(1f, background.Coverage + oro * 0.35f);
-            background.Darkness += oro * 0.15f;
-            background.CloudBase -= oro * 250f;
-            background.CloudThickness += oro * 500f;
+            var bg = ApplyBackground(new float4(background.Coverage, background.Darkness, 0f, 0f),
+                                     new float2(background.CloudBase, background.CloudThickness), oro, LownessAt(xz), out var bgCloud);
+            background.Coverage = bg.x;
+            background.Darkness = bg.y;
+            background.CloudBase = bgCloud.x;
+            background.CloudThickness = bgCloud.y;
 
             var sum = default(WeatherValues);
             float total = 0f;
@@ -361,6 +405,24 @@ namespace Punchy.Weather
             average.AddScaled(sum, 1f / total);
             return WeatherValues.Lerp(background, average, k);
         }
+
+        /// <summary>
+        /// The fair-weather background at a point: nearly clear under high pressure, a near-continuous cloud deck in
+        /// deep lows; mountains add lower, thicker cloud.
+        /// </summary>
+        static float4 ApplyBackground(float4 look, float2 cloud, float orography, float lowness, out float2 cloudShape)
+        {
+            // Highs are nearly clear, neutral areas partly cloudy, and the cores of lows carry a near-continuous deck.
+            var core = lowness * lowness;
+            look.x = math.lerp(look.x * 0.2f, math.min(1f, look.x + 0.6f), math.smoothstep(0.15f, 0.95f, lowness));
+            look.x = math.min(1f, look.x + orography * 0.3f * (0.4f + 0.6f * lowness));
+            look.y += orography * 0.15f + core * 0.15f;
+            cloudShape = cloud + new float2(-250f, 500f) * orography + new float2(-200f, 500f) * core;
+            return look;
+        }
+
+        /// <summary>Average weather over the whole map (coverage, darkness, cloud base, thickness), for the far sky.</summary>
+        public Vector4 Climate { get; private set; }
 
         /// <summary>The live cells, for debug views and minimaps.</summary>
         public IEnumerable<(WeatherPreset preset, Vector2 position, float radius, float intensity)> Cells()
@@ -406,6 +468,7 @@ namespace Punchy.Weather
                 Orography = orographyNative, RainFraction = rainFractionNative, Wetness = wetness,
                 Background = new float4(background.Coverage, background.Darkness, background.Haze, background.Dust),
                 BackgroundCloud = new float2(background.CloudBase, background.CloudThickness),
+                PressureOffset = pressureOffset, PressureTime = pressureTime,
                 Resolution = Resolution, Origin = origin, Texel = texel,
                 SoakRate = 1f / math.max(soakSeconds, 0.1f), DryRate = 1f / math.max(drySeconds, 0.1f), Dt = dt,
                 WeatherPixels = weatherPixels, WetnessPixels = wetnessPixels, CloudPixels = cloudPixels
@@ -418,6 +481,20 @@ namespace Punchy.Weather
             WetnessMap.Apply(false);
             CloudMap.SetPixelData(cloudPixels, 0);
             CloudMap.Apply(false);
+
+            // Every couple of seconds, refresh the map-wide average used for the far sky.
+            if (--climateCountdown <= 0)
+            {
+                climateCountdown = 20;
+                double cover = 0, dark = 0, cloudBase = 0, thickness = 0;
+                for (int i = 0; i < weatherPixels.Length; i += 7)
+                {
+                    cover += weatherPixels[i].r; dark += weatherPixels[i].g;
+                    cloudBase += cloudPixels[i].r; thickness += cloudPixels[i].g;
+                }
+                var samples = (weatherPixels.Length + 6) / 7 * 255.0;
+                Climate = new Vector4((float)(cover / samples), (float)(dark / samples), (float)(cloudBase / samples), (float)(thickness / samples));
+            }
         }
 
         struct CellData
@@ -441,6 +518,8 @@ namespace Punchy.Weather
             public NativeArray<float> Wetness;
             public float4 Background;
             public float2 BackgroundCloud;
+            public float2 PressureOffset;
+            public float PressureTime;
             public int Resolution;
             public float2 Origin;
             public float Texel;
@@ -452,12 +531,8 @@ namespace Punchy.Weather
             public void Execute(int t)
             {
                 var xz = Origin + (new float2(t % Resolution, t / Resolution) + 0.5f) * Texel;
-                var background = Background;
-                var oro = Orography[t];
-                background.x = math.min(1f, background.x + oro * 0.35f);
-                background.y += oro * 0.15f;
-                // Mountains hold lower, thicker cloud.
-                var backgroundCloud = BackgroundCloud + new float2(-250f, 500f) * oro;
+                var background = ApplyBackground(Background, BackgroundCloud, Orography[t],
+                                                 Lowness(xz, PressureOffset, PressureTime), out var backgroundCloud);
 
                 float4 look = 0f;
                 float2 cloud = 0f;

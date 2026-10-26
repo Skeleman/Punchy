@@ -30,7 +30,7 @@ namespace Punchy.Weather
 
         [Header("World weather")]
         [Tooltip("Most weather cells alive at once across the world.")]
-        public int MaxCells = 24;
+        public int MaxCells = 14;
         [Tooltip("How often a new cell may try to form somewhere (the biome odds decide what, if anything).")]
         public float SpawnAttemptsPerMinute = 10f;
         [Tooltip("Width of the square the weather covers, centred on the world origin, in metres.")]
@@ -71,6 +71,7 @@ namespace Punchy.Weather
         static readonly int WetnessMapId = Shader.PropertyToID("_PunchyWetnessMap");
         static readonly int WeatherRectId = Shader.PropertyToID("_PunchyWeatherRect");
         static readonly int CloudMapId = Shader.PropertyToID("_PunchyCloudMap");
+        static readonly int ClimateId = Shader.PropertyToID("_PunchyClimate");
         static readonly int CloudNoiseId = Shader.PropertyToID("_PunchyCloudNoise");
         static readonly int LightningPosId = Shader.PropertyToID("_PunchyLightningPos");
         static readonly int DustColorId = Shader.PropertyToID("_PunchyDustColor");
@@ -189,6 +190,7 @@ namespace Punchy.Weather
                 Shader.SetGlobalTexture(WetnessMapId, field.WetnessMap);
                 Shader.SetGlobalTexture(CloudMapId, field.CloudMap);
                 Shader.SetGlobalVector(WeatherRectId, field.MapRect);
+                Shader.SetGlobalVector(ClimateId, field.Climate);
             }
             else
                 PublishFallbackMaps(Local);
@@ -335,6 +337,8 @@ namespace Punchy.Weather
             Shader.SetGlobalTexture(WeatherMapId, fallbackWeather);
             Shader.SetGlobalTexture(WetnessMapId, fallbackWetness);
             Shader.SetGlobalTexture(CloudMapId, fallbackCloud);
+            Shader.SetGlobalVector(ClimateId, new Vector4(s.Coverage, s.Darkness,
+                s.CloudBase / WeatherValues.MaxCloudBase, s.CloudThickness / WeatherValues.MaxCloudThickness));
             if (cloudNoise != null)
                 Shader.SetGlobalTexture(CloudNoiseId, cloudNoise);
             Shader.SetGlobalVector(WeatherRectId, new Vector4(0f, 0f, 1f, 1f));
