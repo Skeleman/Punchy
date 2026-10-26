@@ -65,6 +65,24 @@ namespace Punchy.Fauna
         [Tooltip("Only appears close to rivers, lakes and the sea (frogs).")]
         public bool NearWater;
 
+        [Header("Activities (each species' own, variants included)")]
+        [Tooltip("When it's awake: it sleeps through the rest of the day. Always = naps now and then.")]
+        public ActiveTime Active = ActiveTime.Day;
+        [Tooltip("How much of its time it spends head-down feeding (grazing, pecking, foraging).")]
+        [Range(0f, 1f)] public float Grazing;
+        [Tooltip("How often it walks to nearby water to drink.")]
+        [Range(0f, 1f)] public float Thirst = 0.3f;
+        [Tooltip("How keen it is to play chase with others of its kind.")]
+        [Range(0f, 1f)] public float Playfulness;
+        [Tooltip("How often it lies down to rest.")]
+        [Range(0f, 1f)] public float Laziness = 0.25f;
+        [Tooltip("Animals it chases (any variant of a listed species counts).")]
+        public List<CreatureSpecies> Hunts = new List<CreatureSpecies>();
+        [Tooltip("How keen it is to hunt when prey is about.")]
+        [Range(0f, 1f)] public float Hunger = 0.3f;
+        [Tooltip("Seconds it keeps up a chase before giving up.")]
+        [Min(1f)] public float ChaseTime = 10f;
+
         /// <summary>The species whose body, gait and behaviour this one uses (itself unless it's a variant).</summary>
         public CreatureSpecies Body
         {
@@ -76,6 +94,13 @@ namespace Punchy.Fauna
                 return s;
             }
         }
+    }
+
+    public enum ActiveTime : byte
+    {
+        [Tooltip("Sleeps at night.")] Day,
+        [Tooltip("Sleeps by day.")] Night,
+        [Tooltip("Awake at all hours, taking naps.")] Always
     }
 
     [Serializable]

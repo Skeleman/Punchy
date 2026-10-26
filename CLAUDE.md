@@ -40,6 +40,10 @@ Input System. Windows is the only build target so far.
 - `Fauna/` — `LimbType` (segments plus seven key poses), `CreatureSpecies` (body plus slots; can be a recoloured
   variant of another species, with weighted coats). ECS entities; `CreatureBrainSystem` (behaviour) and
   `CreatureRenderSystem` (posing, one instanced draw) are Burst jobs. `FaunaDirector` spawns per biome density.
+  Behaviour: each species' Activities (active by day/night, grazing, thirst, playfulness, laziness, what it hunts)
+  weight what it does next: graze, drink at the water's edge, rest, sleep, play chase with its own kind, hunt;
+  prey flee predators. Animals see each other through a per-frame snapshot grid. Activities set posture weights
+  (lie, head down, play bow, curl) that `CreatureAnimator` applies procedurally, so no extra poses are authored.
 - `Ambience/` — heat haze, breath and snow puffs, fireflies and butterflies, shared `AmbientParticleType`
   assets (sparkles, spores, embers, ash, fog wisps) that biomes list, and `LandmarkEffectSystem` (landmark plumes
   and waterfalls, animated entirely in the shaders).

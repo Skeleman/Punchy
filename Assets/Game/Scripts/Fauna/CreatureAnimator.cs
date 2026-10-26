@@ -11,7 +11,10 @@ namespace Punchy.Fauna
     ///  2. body: stands at the height its legs give it, follows the slope of the ground, bobs with each step and
     ///     rocks when bounding;
     ///  3. secondary motion: tails and ears swing out of turns on a spring; the head turns to look;
-    ///  4. feet: legs are bent with two-bone IK so their feet meet the actual ground rather than a flat plane;
+    ///  4. posture (from the activity): lying down lowers the body to the ground and folds legs that hang beneath
+    ///     it; head-down bends the neck and head to the ground, chewing; a play bow drops the chest; curling up to
+    ///     sleep wraps the tail round and lays the ears back; resting animals breathe;
+    ///  5. feet: legs are bent with two-bone IK so their feet meet the actual ground rather than a flat plane;
     ///     chains marked Follow Ground (snake bodies, dragging tails) lie along the terrain segment by segment.
     /// </summary>
     public static class CreatureAnimator
@@ -38,8 +41,17 @@ namespace Punchy.Fauna
             var bob = math.lerp(b.Bob.x, b.Bob.y, run) * move * scale * (0.5f - 0.5f * math.cos(2f * math.PI * bobs * s.Phase));
             pitch += b.RunRock * run * move * math.sin(2f * math.PI * s.Phase);
 
+            // Posture: lying lowers the body onto its belly; a bow or a lowered head tips the chest down.
+            var lying = math.min(b.StandHeight, b.FrontRadius * b.BodyFlatten * 0.9f);
+            var height = math.lerp(b.StandHeight, lying, s.Lie) * scale;
+            var lowered = b.StandHeight * scale - height;
+            pitch += s.Bow * 0.3f + s.HeadDown * 0.1f * (1f - s.Lie);
+            var still = 1f - move;
+            var breath = 0.5f + 0.5f * math.sin(s.Clock * (s.Curl > 0.5f ? 1.3f : 2.2f));
+            height += breath * 0.01f * scale * still * (0.3f + s.Lie);
+
             var rootRot = math.mul(quaternion.RotateY(s.Yaw), quaternion.RotateX(pitch));
-            var rootPos = new float3(s.Position.x, ground + b.StandHeight * scale - bob, s.Position.z);
+            var rootPos = new float3(s.Position.x, ground + height - bob, s.Position.z);
 
             // Body.
             ref var body = ref b.Segments[0];
@@ -61,11 +73,20 @@ namespace Punchy.Fauna
                 var rot = math.mul(parentRot, part.Rest);
                 var phase = math.frac(s.Phase + part.Phase);
 
+                // Legs hanging beneath the body fold up when it lies down (front legs half-fold for a play bow);
+                // splayed legs (lizards, spiders) keep their feet planted and bend at the knees instead.
+                var fold = 0f;
+                var folds = part.Role == LimbRole.Leg && part.Parent < 0 && math.mul(part.Rest, new float3(0f, 0f, 1f)).y < -0.7f;
+                if (folds)
+                    fold = math.max(s.Lie, part.Socket.z > 0f ? s.Bow * 0.5f : 0f);
+
                 for (int j = 0; j < part.SegmentCount; j++)
                 {
                     var seg = part.FirstSegment + j;
                     var a = b.Angles(seg, math.frac(phase - j * part.JointPhaseStep), move, run);
                     a += Secondary(ref part, in s, j, run);
+                    if (fold > 0f)
+                        a.x += Fold(j, part.SegmentCount) * fold;
                     rot = math.mul(rot, quaternion.EulerZXY(a));
                     if (part.FollowGround)
                         rot = LieOnGround(in terrain, pos, rot, b.Segments[seg].Length * scale, b.Segments[seg].RadiusEnd * b.Segments[seg].Flatten * scale);
@@ -87,7 +108,8 @@ namespace Punchy.Fauna
                     var reach = 0f;
                     for (int j = 0; j < part.SegmentCount; j++)
                         reach += b.Segments[part.FirstSegment + j].Length * scale;
-                    var correction = math.clamp(actual - nominal, -0.45f * reach, 0.45f * reach);
+                    var correction = (actual - nominal) * (1f - fold) + (folds ? 0f : lowered);
+                    correction = math.clamp(correction, -0.45f * reach, 0.45f * reach);
                     pos += PlaceFoot(ref b, ref part, ref segPos, ref segRot, new float3(0f, correction, 0f), scale);
                 }
 
@@ -115,19 +137,37 @@ namespace Punchy.Fauna
             return math.mul(FromTo(dir, wanted / length), rot);
         }
 
-        /// <summary>Spring and look offsets added to a part's joint angles.</summary>
+        /// <summary>
+        /// A folded leg's extra pitch per joint: the thigh swings back, the shin folds forward under it, the foot
+        /// tucks back (positive pitch swings a leg backwards).
+        /// </summary>
+        static float Fold(int joint, int count)
+        {
+            if (count == 1)
+                return 0.9f;
+            if (count == 2)
+                return joint == 0 ? 1.1f : -2.2f;
+            return joint == 0 ? 1f : joint == 1 ? -2.1f : joint == 2 ? 1.4f : 0f;
+        }
+
+        /// <summary>Spring, look and posture offsets added to a part's joint angles.</summary>
         static float3 Secondary(ref CreaturePart part, in CreatureState s, int joint, float run)
         {
+            // Chewing or lapping while the head is down.
+            var chew = math.sin(s.Clock * 7f) * 0.06f * s.HeadDown * (1f - s.Curl);
             switch (part.Role)
             {
                 case LimbRole.Tail:
-                    // Each joint swings a little more than the last, so the tail curls out of the turn.
-                    return new float3(0f, s.Sway * part.Spring * (1f + joint * 0.5f), 0f);
+                    // Each joint swings a little more than the last, so the tail curls out of the turn; asleep, it
+                    // wraps round the body.
+                    return new float3(s.Curl * 0.1f, (s.Sway * part.Spring + s.Curl * 0.3f) * (1f + joint * 0.5f), 0f);
                 case LimbRole.Ear:
-                    return new float3(-0.5f * run * part.Spring, s.Sway * part.Spring * 0.5f * part.Side, 0f);
+                    return new float3(-0.5f * run * part.Spring - s.Curl * 0.6f, s.Sway * part.Spring * 0.5f * part.Side, 0f);
                 case LimbRole.Head:
+                    return new float3(s.HeadDown * 0.5f + chew, s.Look * 0.6f, 0f);
                 case LimbRole.Neck:
-                    return new float3(0f, s.Look * (part.Role == LimbRole.Head ? 0.6f : 0.4f / math.max(part.SegmentCount, 1)), 0f);
+                    var n = math.max(part.SegmentCount, 1);
+                    return new float3(s.HeadDown * 1.5f / n, s.Look * 0.4f / n, 0f);
                 default:
                     return float3.zero;
             }

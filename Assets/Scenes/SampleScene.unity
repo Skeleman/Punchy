@@ -149,6 +149,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.FaunaDirector
   Material: {fileID: 2100000, guid: 321d6d2595b3560499153a19f64aba0c, type: 2}
+  Cycle: {fileID: 655229951}
   Radius: 120
   MinSpawnDistance: 40
   DespawnDistance: 170

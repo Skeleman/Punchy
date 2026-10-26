@@ -18,6 +18,8 @@ namespace Punchy.Fauna
     public class FaunaDirector : MonoBehaviour
     {
         public Material Material;
+        [Tooltip("Tells animals whether it's day or night (when they sleep).")]
+        public Punchy.Weather.DayNightCycle Cycle;
         [Tooltip("Animals are kept within this distance of the player.")]
         public float Radius = 120f;
         [Tooltip("New animals appear at least this far away.")]
@@ -80,6 +82,7 @@ namespace Punchy.Fauna
             if (!built)
                 Build(source, palette);
 
+            queryWorld.EntityManager.SetComponentData(settingsEntity, new FaunaClock { Night = Cycle != null ? Cycle.Night : 0f });
             Despawn(playerPos.xz);
             if (Time.time >= nextResidentCheck)
             {
@@ -133,8 +136,21 @@ namespace Punchy.Fauna
                     foreach (var r in landmark.Residents)
                         if (r.Species != null && !species.Contains(r.Species))
                             species.Add(r.Species);
-            foreach (var s in species)
-                blobs.Add(CreatureBlobBuilder.Build(s));
+            // Who hunts whom: a listed species covers its variants too.
+            var hunted = new bool[species.Count];
+            var preyLists = new List<int>[species.Count];
+            for (int i = 0; i < species.Count; i++)
+            {
+                preyLists[i] = new List<int>();
+                for (int j = 0; j < species.Count; j++)
+                    if (j != i && (species[i].Hunts.Contains(species[j]) || species[i].Hunts.Contains(species[j].Body)))
+                    {
+                        preyLists[i].Add(j);
+                        hunted[j] = true;
+                    }
+            }
+            for (int i = 0; i < species.Count; i++)
+                blobs.Add(CreatureBlobBuilder.Build(species[i], preyLists[i], hunted[i]));
             counts = new int[species.Count];
 
             capsule = BuildCapsule(12, 6, 4);
@@ -142,6 +158,7 @@ namespace Punchy.Fauna
             settingsEntity = em.CreateEntity();
             em.SetName(settingsEntity, "Fauna Render Settings");
             em.AddComponentObject(settingsEntity, new FaunaRenderSettings { Material = Material, Capsule = capsule });
+            em.AddComponentData(settingsEntity, new FaunaClock());
             lastSource = source;
             configHash = ConfigHash();
             built = true;
@@ -157,6 +174,9 @@ namespace Punchy.Fauna
                 foreach (var slot in s.Parts)
                     if (slot.Limb != null)
                         text.Append(JsonUtility.ToJson(slot.Limb));
+                foreach (var prey in variant.Hunts)
+                    if (prey != null)
+                        text.Append(prey.name);
             }
             return text.ToString();
         }

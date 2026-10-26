@@ -26,6 +26,12 @@ namespace Punchy.Fauna
         public float RunRock;
         public float WanderRadius, FleeDistance, TurnRate;
         public float2 IdleTime, Size;
+        public ActiveTime Active;
+        public float Grazing, Thirst, Playfulness, Laziness, Hunger, ChaseTime;
+        /// <summary>Species (FaunaDirector indices) it hunts.</summary>
+        public BlobArray<int> Prey;
+        /// <summary>Whether anything hunts it (so it needs to watch out for predators).</summary>
+        public bool Hunted;
 
         public BlobArray<CreaturePart> Parts;
         public BlobArray<CreatureSegment> Segments;
@@ -136,7 +142,26 @@ namespace Punchy.Fauna
         Wander,
         Flee,
         /// <summary>Under outside control: keeps its heading and speed, ignores the player (scripts, tests).</summary>
-        Puppet
+        Puppet,
+        /// <summary>Head down, feeding on the spot.</summary>
+        Graze,
+        /// <summary>Walks to the water's edge (stage 0), then drinks (stage 1).</summary>
+        Drink,
+        /// <summary>Lying down, awake.</summary>
+        Rest,
+        /// <summary>Lying curled up, head down; slow to notice danger.</summary>
+        Sleep,
+        /// <summary>Chase with another of its kind (Partner): stage 0 chasing, stage 1 running away; a tag swaps them.</summary>
+        Play,
+        /// <summary>Chasing prey (Partner): stalking low, then sprinting.</summary>
+        Hunt
+    }
+
+    /// <summary>World conditions animals react to (set by FaunaDirector).</summary>
+    public struct FaunaClock : IComponentData
+    {
+        /// <summary>0 by day, 1 at night.</summary>
+        public float Night;
     }
 
     /// <summary>A creature's position, heading, gait and what it's up to.</summary>
@@ -157,6 +182,26 @@ namespace Punchy.Fauna
         public float Timer;
         public CreatureMode Mode;
         public uint Seed;
+
+        /// <summary>The other animal in a game of chase or a hunt.</summary>
+        public Entity Partner;
+        /// <summary>What it's paying attention to: the threat it flees, the water it drinks from.</summary>
+        public float2 Focus;
+        public byte Stage;
+        /// <summary>Seconds in the current mode and stage.</summary>
+        public float ModeTime, StageTime;
+        /// <summary>Seconds alive, for breathing and chewing.</summary>
+        public float Clock;
+
+        // Posture, 0..1, eased towards what the current activity wants (read by CreatureAnimator).
+        /// <summary>Lying down: body on the ground, legs folded.</summary>
+        public float Lie;
+        /// <summary>Head lowered to the ground (grazing, drinking, sleeping).</summary>
+        public float HeadDown;
+        /// <summary>Play bow: chest down, rump up.</summary>
+        public float Bow;
+        /// <summary>Curled up asleep: tail wrapped round, ears back.</summary>
+        public float Curl;
     }
 
     /// <summary>One segment as the creature shader draws it (a tapered capsule). Must match Creature.shader.</summary>
@@ -190,7 +235,9 @@ namespace Punchy.Fauna
         /// Builds a species. A variant takes its body, parts, gait and behaviour from the species it is a variant
         /// of, and only its own colours and size.
         /// </summary>
-        public static BlobAssetReference<CreatureBlob> Build(CreatureSpecies variant)
+        /// <param name="prey">Indices of the species it hunts.</param>
+        /// <param name="hunted">Whether any species hunts it.</param>
+        public static BlobAssetReference<CreatureBlob> Build(CreatureSpecies variant, IReadOnlyList<int> prey = null, bool hunted = false)
         {
             var species = variant.Body;
             // Expand slots: mirrored slots become left and right copies; children follow every copy of their parent.
@@ -238,6 +285,17 @@ namespace Punchy.Fauna
             root.IdleTime = new float2(species.IdleTime.x, species.IdleTime.y);
             var sizeScale = variant != species ? variant.VariantScale : 1f;
             root.Size = new float2(species.Size.x, species.Size.y) * sizeScale;
+            root.Active = variant.Active;
+            root.Grazing = variant.Grazing;
+            root.Thirst = variant.Thirst;
+            root.Playfulness = variant.Playfulness;
+            root.Laziness = variant.Laziness;
+            root.Hunger = variant.Hunger;
+            root.ChaseTime = variant.ChaseTime;
+            root.Hunted = hunted;
+            var preyArray = builder.Allocate(ref root.Prey, prey?.Count ?? 0);
+            for (int i = 0; i < preyArray.Length; i++)
+                preyArray[i] = prey[i];
 
             var partArray = builder.Allocate(ref root.Parts, parts.Count);
             var segArray = builder.Allocate(ref root.Segments, segmentCount);
