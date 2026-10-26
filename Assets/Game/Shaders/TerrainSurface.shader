@@ -88,7 +88,7 @@ Shader "Punchy/Terrain Surface"
 
                 SurfaceData surface = (SurfaceData)0;
                 // Rain darkens and glosses the ground (wet soil and rock), but not snow.
-                half wet = _PunchyWetness * (1 - saturate(input.extra.z * 2));
+                half wet = PunchyWetnessAt(input.positionWS.xz).r * (1 - saturate(input.extra.z * 2));
                 surface.albedo = input.surface.rgb * lerp(1, 0.65, wet);
                 surface.smoothness = lerp(input.surface.a, 0.65, wet * 0.8);
                 surface.metallic = input.extra.x;
@@ -108,7 +108,7 @@ Shader "Punchy/Terrain Surface"
                     color.rgb *= 1 - cloudShadow * direct / max(direct + ambient, 1e-3);
                 }
 
-                color.rgb = MixFog(color.rgb, inputData.fogCoord);
+                color.rgb = PunchyAtmosphere(color.rgb, input.positionWS);
                 return color;
             }
             ENDHLSL

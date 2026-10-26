@@ -16,8 +16,6 @@ CBUFFER_END
 
 // Set every frame by TerrainStreamingSystem: xy = world XZ that chunk LODs are chosen around.
 float4 _TerrainFocus;
-// Set by WeatherSystem: 0..1 how rain-soaked exposed ground is.
-half _PunchyWetness;
 
 struct TerrainAttributes
 {

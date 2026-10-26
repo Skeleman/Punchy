@@ -12,23 +12,31 @@ using Random = UnityEngine.Random;
 namespace Punchy.Weather
 {
     /// <summary>
-    /// Drives sky, fog, sun/moon light, ambient light, wind, wetness, precipitation, dust and lightning from the
-    /// time of day (DayNightCycle, if present) and a list of weather presets, drifting from one preset to the next.
-    /// Weather is regional: the next preset is picked using the odds of the biome the player is in, and weather
-    /// that can't happen there (a sandstorm outside the desert) clears away. Everything that reads the weather (sky,
-    /// water and terrain shaders) gets it through shader globals set here, so they always agree. Fog never thins
-    /// below what's needed to hide the edge of the streamed terrain, and its colour is the sky's horizon colour.
-    /// Press [ and ] to step through the presets.
+    /// Runs the world's weather and applies it. The weather itself lives in the world as a WeatherField (cells
+    /// that form by biome odds and drift with the wind); this component steps it, publishes its maps to the shaders
+    /// (clouds, cloud shadows, distant dust and rain, wetness), and handles everything tied to the camera's own
+    /// location: sky tint, sun/moon light, ambient light, precipitation and dust particles, and lightning with
+    /// thunder from nearby storm cells. Time of day comes from DayNightCycle, if present.
+    /// Press ] to spawn the next preset as a cell over the player, [ to clear the weather around them.
     /// </summary>
     [ExecuteAlways]
     public class WeatherSystem : MonoBehaviour
     {
+        [Tooltip("The first preset is the fair-weather background between cells.")]
         public List<WeatherPreset> Presets = new List<WeatherPreset>();
-        [Tooltip("How long one weather takes to blend into the next, in seconds.")]
-        public float TransitionSeconds = 45f;
         public Light Sun;
         [Tooltip("Optional. Without it the sky stays at fixed daytime colours.")]
         public DayNightCycle Cycle;
+
+        [Header("World weather")]
+        [Tooltip("Most weather cells alive at once across the world.")]
+        public int MaxCells = 24;
+        [Tooltip("How often a new cell may try to form somewhere (the biome odds decide what, if anything).")]
+        public float SpawnAttemptsPerMinute = 10f;
+        [Tooltip("Width of the square the weather covers, centred on the world origin, in metres.")]
+        public float WeatherAreaSize = 16384f;
+        [Tooltip("How quickly the prevailing wind direction wanders, in degrees per minute.")]
+        public float WindVeer = 6f;
 
         [Header("Sky colours (used without a DayNightCycle)")]
         public Color ClearZenith = new Color(0.20f, 0.42f, 0.85f);
@@ -58,78 +66,47 @@ namespace Punchy.Weather
         static readonly int CloudOffsetId = Shader.PropertyToID("_PunchyCloudOffset");
         static readonly int NightId = Shader.PropertyToID("_PunchyNight");
         static readonly int LightningId = Shader.PropertyToID("_PunchyLightning");
-        static readonly int RainId = Shader.PropertyToID("_PunchyRain");
         static readonly int WindId = Shader.PropertyToID("_PunchyWind");
-        static readonly int WetnessId = Shader.PropertyToID("_PunchyWetness");
+        static readonly int WeatherMapId = Shader.PropertyToID("_PunchyWeatherMap");
+        static readonly int WetnessMapId = Shader.PropertyToID("_PunchyWetnessMap");
+        static readonly int WeatherRectId = Shader.PropertyToID("_PunchyWeatherRect");
+        static readonly int DustColorId = Shader.PropertyToID("_PunchyDustColor");
+        static readonly int HazeDensityId = Shader.PropertyToID("_PunchyHazeDensity");
 
-        struct State
-        {
-            public float Coverage, Darkness, Overcast, Sunlight, Fog, Wind, Precipitation, AlwaysSnow, Dust, Lightning;
-            public Color DustColor;
-
-            public static State From(WeatherPreset p) => new State
-            {
-                Coverage = p.CloudCoverage, Darkness = p.CloudDarkness, Overcast = p.Overcast, Sunlight = p.Sunlight,
-                Fog = p.Fog, Wind = p.Wind, Precipitation = p.Precipitation, AlwaysSnow = p.AlwaysSnow ? 1f : 0f,
-                Dust = p.Dust, DustColor = p.DustColor, Lightning = p.LightningPerMinute
-            };
-
-            public static State Lerp(in State a, in State b, float t) => new State
-            {
-                Coverage = math.lerp(a.Coverage, b.Coverage, t), Darkness = math.lerp(a.Darkness, b.Darkness, t),
-                Overcast = math.lerp(a.Overcast, b.Overcast, t), Sunlight = math.lerp(a.Sunlight, b.Sunlight, t),
-                Fog = math.lerp(a.Fog, b.Fog, t), Wind = math.lerp(a.Wind, b.Wind, t),
-                Precipitation = math.lerp(a.Precipitation, b.Precipitation, t), AlwaysSnow = math.lerp(a.AlwaysSnow, b.AlwaysSnow, t),
-                Dust = math.lerp(a.Dust, b.Dust, t), DustColor = Color.Lerp(a.DustColor, b.DustColor, t),
-                Lightning = math.lerp(a.Lightning, b.Lightning, t)
-            };
-        }
-
-        /// <summary>Final colours for this frame, after time of day and weather.</summary>
+        /// <summary>Final sky colours for this frame, after time of day and the weather overhead.</summary>
         struct Sky
         {
             public Color Zenith, Horizon, Ground;
-            public float Daylight;
         }
 
-        State from, to, current;
-        float blend = 1f, blendSeconds = 1f, timeLeft, regionCheck;
-        int index;
-        float wetness;
+        readonly WeatherField field = new WeatherField();
+        int forcedPreset;
+        float windAngle = 37f;
         Vector2 cloudOffset;
         float baseSunIntensity = -1f;
         ParticleSystem rain, snow, sand;
         Light lightning;
         AudioSource thunder;
         AudioClip[] thunderClips;
-        float nextStrike, strikeTime = -10f;
+        float strikeTime = -10f, strikeBrightness;
         Vector3 strikeDirection;
+        Texture2D fallbackWeather, fallbackWetness;
         EntityQuery playerQuery, terrainQuery, configQuery, paletteQuery;
         World queryWorld;
 
-        public WeatherPreset Current => Presets.Count > 0 ? Presets[index] : null;
-
-        /// <summary>Starts blending to the given preset.</summary>
-        public void SetWeather(int presetIndex, float seconds)
-        {
-            if (Presets.Count == 0)
-                return;
-            index = (presetIndex % Presets.Count + Presets.Count) % Presets.Count;
-            from = current;
-            to = State.From(Presets[index]);
-            blend = 0f;
-            blendSeconds = math.max(seconds, 0.01f);
-            var d = Presets[index].Duration;
-            timeLeft = seconds + Random.Range(d.x, math.max(d.x, d.y));
-        }
+        /// <summary>The world's weather (cells, maps, sampling).</summary>
+        public WeatherField Field => field;
+        /// <summary>Weather at the camera this frame.</summary>
+        public WeatherValues Local { get; private set; }
+        public Vector2 WindDirection => new Vector2(Mathf.Cos(windAngle * Mathf.Deg2Rad), Mathf.Sin(windAngle * Mathf.Deg2Rad));
 
         void OnEnable()
         {
-            if (Presets.Count > 0 && Presets[0] != null)
-                current = from = to = State.From(Presets[0]);
             if (Cycle == null)
                 Cycle = GetComponent<DayNightCycle>();
         }
+
+        void OnDisable() => field.Dispose();
 
         void Start()
         {
@@ -158,8 +135,6 @@ namespace Punchy.Weather
             thunder.playOnAwake = false;
             thunder.spatialBlend = 0f;
             thunderClips = new[] { MakeThunder(1), MakeThunder(2), MakeThunder(3) };
-
-            SetWeather(0, 0.01f);
         }
 
         void Update()
@@ -167,127 +142,83 @@ namespace Punchy.Weather
             if (Presets.Count == 0 || Presets[0] == null)
                 return;
 
+            var cameraXZ = Vector2.zero;
+            var cam = Camera.main;
+            if (cam != null)
+                cameraXZ = new Vector2(cam.transform.position.x, cam.transform.position.z);
+
             if (!Application.isPlaying)
             {
-                // In the editor just show the first preset at the cycle's time, so the sky isn't black while building scenes.
-                current = State.From(Presets[0]);
+                // In the editor just show fair weather at the cycle's time, so the sky isn't black while building scenes.
                 if (Cycle != null)
                     Cycle.Evaluate();
-                ApplyShaderGlobals(current, ComputeSky(current), 0f, 0f, 0f);
+                Local = WeatherValues.From(Presets[0]);
+                PublishFallbackMaps(Local);
+                ApplyShaderGlobals(Local, ComputeSky(Local), 1f / 1500f);
                 return;
             }
 
             var dt = Time.deltaTime;
+            if (!field.Ready)
+                TryInitializeField();
             HandleDebugKeys();
-            var hasGround = TryGetPlayerGround(out var source, out var playerXZ, out var ground);
 
-            timeLeft -= dt;
-            regionCheck -= dt;
-            if (timeLeft <= 0f)
-                SetWeather(PickNext(hasGround, ground), TransitionSeconds);
-            else if (regionCheck <= 0f && hasGround)
+            windAngle += (Mathf.PerlinNoise(Time.time * 0.01f, 3.7f) - 0.5f) * 2f * WindVeer / 60f * dt;
+            field.Step(dt, WindDirection, SpawnAttemptsPerMinute, MaxCells, SoakSeconds, DrySeconds);
+            Local = field.Ready ? field.Sample(cameraXZ) : WeatherValues.From(Presets[0]);
+
+            if (field.Ready)
             {
-                // Regional weather: if the player has walked somewhere this weather can't happen, it clears away.
-                regionCheck = 1f;
-                if (blend >= 1f && LocalChance(Presets[index], ground) <= 0.001f)
-                    SetWeather(PickNext(true, ground), TransitionSeconds * 0.5f);
+                Shader.SetGlobalTexture(WeatherMapId, field.WeatherMap);
+                Shader.SetGlobalTexture(WetnessMapId, field.WetnessMap);
+                Shader.SetGlobalVector(WeatherRectId, field.MapRect);
             }
+            else
+                PublishFallbackMaps(Local);
 
-            blend = math.min(1f, blend + dt / blendSeconds);
-            current = State.Lerp(from, to, math.smoothstep(0f, 1f, blend));
+            // Clouds drift with the wind (metres per second, converted to the shader's cloud-layer units).
+            cloudOffset += WindDirection * (4f + 18f * Local.Wind) * dt / 1800f;
 
-            // Local conditions: dry biomes get less of the precipitation; high or snowy ground gets snow, not rain.
-            var rainfall = 1f;
-            var snowiness = current.AlwaysSnow;
-            if (hasGround)
-            {
-                rainfall = math.saturate(source.Rainfall(playerXZ) * 1.6f);
-                var surfaceSnow = source.SampleSurface(playerXZ, ground, new float3(0f, 1f, 0f)).Snow;
-                snowiness = math.max(snowiness, math.max(math.saturate((ground.Height - source.World.SeaLevel - SnowLine) / 40f), math.saturate(surfaceSnow * 2f)));
-                if (current.AlwaysSnow > 0.5f)
-                    rainfall = 1f;
-            }
-            var precipitation = current.Precipitation * rainfall;
-            var rainAmount = precipitation * (1f - snowiness);
+            var drawDistance = 1500f;
+            if (EnsureQueries() && configQuery.TryGetSingleton<TerrainConfig>(out var config))
+                drawDistance = config.ViewRadiusChunks * config.ChunkSize;
+            // Exponential-squared haze reaching ~98% at the edge of the streamed terrain, so it's never visible.
+            var hazeDensity = 1.98f / drawDistance;
 
-            var wetTarget = rainAmount > 0.05f ? 1f : 0f;
-            var rate = wetTarget > wetness ? rainAmount / math.max(SoakSeconds, 0.1f) : 1f / math.max(DrySeconds, 0.1f);
-            wetness = Mathf.MoveTowards(wetness, wetTarget, rate * dt);
+            var sky = ComputeSky(Local);
+            UpdateLightning(dt, cam);
+            ApplyShaderGlobals(Local, sky, hazeDensity);
+            ApplyLighting(Local, sky, hazeDensity);
+            var snowiness = math.max(Local.AlwaysSnow, 1f - field.RainFraction(cameraXZ));
+            ApplyParticles(cam, Local.Precipitation * (1f - snowiness), Local.Precipitation * snowiness, Local.Dust, Local.Wind);
+        }
 
-            var windDirection = new Vector2(0.8f, 0.6f);
-            // Cloud layer drift in metres per second, converted to the shader's cloud-layer units.
-            cloudOffset += windDirection * (4f + 18f * current.Wind) * dt / 1800f;
-
-            var sky = ComputeSky(current);
-            UpdateLightning(dt, current.Lightning);
-            ApplyShaderGlobals(current, sky, rainAmount, current.Wind, wetness);
-            ApplyLightingAndFog(current, sky);
-            ApplyParticles(rainAmount, precipitation * snowiness, current.Dust, windDirection, current.Wind);
+        void TryInitializeField()
+        {
+            if (!EnsureQueries() || !terrainQuery.TryGetSingleton<TerrainSource>(out var source) || !TryGetPalette(out var palette))
+                return;
+            field.Initialize(source, palette.Biomes, Presets, SnowLine, WeatherAreaSize);
         }
 
         void HandleDebugKeys()
         {
             var keyboard = Keyboard.current;
-            if (keyboard == null)
+            if (keyboard == null || !field.Ready || !TryGetPlayerXZ(out var player))
                 return;
             if (keyboard.rightBracketKey.wasPressedThisFrame)
-                SetWeather(index + 1, 3f);
+            {
+                forcedPreset = forcedPreset % (Presets.Count - 1) + 1;
+                field.Clear(player, 300f);
+                field.ForceCell(forcedPreset, player, 1500f);
+                Debug.Log($"Weather: forced {Presets[forcedPreset].name} over the player");
+            }
             else if (keyboard.leftBracketKey.wasPressedThisFrame)
-                SetWeather(index - 1, 3f);
-        }
-
-        // ---------------------------------------------------------------- choosing weather
-
-        /// <summary>How likely a preset is at the player's location: the biome odds, blended by biome weight.</summary>
-        float LocalChance(WeatherPreset preset, in GroundSample ground)
-        {
-            if (!TryGetPalette(out var palette))
-                return preset.OnlyInListedBiomes ? 0f : preset.Chance;
-            float chance = 0f;
-            for (int i = 0; i < 4; i++)
-            {
-                var w = ground.Biomes.Weights[i];
-                var id = ground.Biomes.Ids[i];
-                if (w > 0f && id < palette.Biomes.Length)
-                    chance += w * ChanceIn(preset, palette.Biomes[id]);
-            }
-            return chance;
-        }
-
-        static float ChanceIn(WeatherPreset preset, BiomeDefinition biome)
-        {
-            if (biome != null)
-                foreach (var entry in biome.Weather)
-                    if (entry.Preset == preset)
-                        return entry.Chance;
-            return preset.OnlyInListedBiomes ? 0f : preset.Chance;
-        }
-
-        int PickNext(bool hasGround, in GroundSample ground)
-        {
-            var chances = new float[Presets.Count];
-            float total = 0f;
-            for (int i = 0; i < Presets.Count; i++)
-            {
-                if (i == index) continue;
-                chances[i] = hasGround ? LocalChance(Presets[i], ground) : (Presets[i].OnlyInListedBiomes ? 0f : Presets[i].Chance);
-                total += chances[i];
-            }
-            if (total <= 0f)
-                return index;
-            var pick = Random.value * total;
-            for (int i = 0; i < Presets.Count; i++)
-            {
-                pick -= chances[i];
-                if (chances[i] > 0f && pick <= 0f)
-                    return i;
-            }
-            return index;
+                field.Clear(player, 2000f);
         }
 
         // ---------------------------------------------------------------- applying
 
-        Sky ComputeSky(in State s)
+        Sky ComputeSky(in WeatherValues s)
         {
             var clearZenith = Cycle != null ? Cycle.ClearZenith : ClearZenith;
             var clearHorizon = Cycle != null ? Cycle.ClearHorizon : ClearHorizon;
@@ -298,22 +229,16 @@ namespace Punchy.Weather
             var zenith = Color.Lerp(clearZenith, greyHorizon * 0.78f, s.Overcast) * (1f - 0.45f * s.Darkness);
             var horizon = Color.Lerp(clearHorizon, greyHorizon, s.Overcast) * (1f - 0.35f * s.Darkness);
 
-            // Dust and sand turn the whole sky the colour of the dust.
-            var dust = s.DustColor * (horizon.grayscale * 1.3f + 0.02f);
-            horizon = Color.Lerp(horizon, dust, s.Dust);
-            zenith = Color.Lerp(zenith, dust * 0.85f, s.Dust * 0.9f);
-
             var daylight = math.saturate(brightness / 0.8f);
             return new Sky
             {
                 Zenith = zenith,
                 Horizon = horizon,
-                Ground = GroundColor * (daylight * (1f - 0.4f * s.Darkness)),
-                Daylight = daylight
+                Ground = GroundColor * (daylight * (1f - 0.4f * s.Darkness))
             };
         }
 
-        void ApplyShaderGlobals(in State s, in Sky sky, float rainAmount, float wind, float wet)
+        void ApplyShaderGlobals(in WeatherValues s, in Sky sky, float hazeDensity)
         {
             var sun = Sun != null ? Sun : RenderSettings.sun;
             var sunDirection = Cycle != null ? Cycle.SunDirection : (sun != null ? -sun.transform.forward : Vector3.up);
@@ -322,32 +247,30 @@ namespace Punchy.Weather
 
             Shader.SetGlobalVector(SunDirectionId, sunDirection);
             Shader.SetGlobalVector(MoonDirectionId, moonDirection);
-            Shader.SetGlobalColor(SunColorId, discColor * math.saturate(s.Sunlight) * (1f - 0.8f * s.Dust));
+            Shader.SetGlobalColor(SunColorId, discColor * (1f - 0.8f * s.Dust));
             Shader.SetGlobalColor(ZenithId, sky.Zenith);
             Shader.SetGlobalColor(HorizonId, sky.Horizon);
             Shader.SetGlobalColor(GroundId, sky.Ground);
-            Shader.SetGlobalVector(CloudsId, new Vector4(s.Coverage, s.Darkness, 1f, 0f));
+            Shader.SetGlobalColor(DustColorId, DustColor());
+            Shader.SetGlobalFloat(HazeDensityId, hazeDensity);
+            Shader.SetGlobalVector(CloudsId, new Vector4(s.Coverage, 0f, 1f, 0f));
             Shader.SetGlobalVector(CloudOffsetId, cloudOffset);
-            Shader.SetGlobalFloat(NightId, Cycle != null ? Cycle.Night * (1f - s.Dust) : 0f);
-            Shader.SetGlobalVector(LightningId, new Vector4(strikeDirection.x, strikeDirection.y, strikeDirection.z, FlashBrightness()));
-            Shader.SetGlobalFloat(RainId, rainAmount);
-            Shader.SetGlobalFloat(WindId, wind);
-            Shader.SetGlobalFloat(WetnessId, wet);
+            Shader.SetGlobalFloat(NightId, Cycle != null ? Cycle.Night : 0f);
+            Shader.SetGlobalVector(LightningId, new Vector4(strikeDirection.x, strikeDirection.y, strikeDirection.z, FlashBrightness() * strikeBrightness));
+            Shader.SetGlobalFloat(WindId, s.Wind);
         }
 
-        void ApplyLightingAndFog(in State s, in Sky sky)
+        void ApplyLighting(in WeatherValues s, in Sky sky, float hazeDensity)
         {
-            // Exponential-squared fog reaching ~98% at the edge of the streamed terrain, so it's never visible.
-            var drawDistance = 1500f;
-            if (EnsureQueries() && configQuery.TryGetSingleton<TerrainConfig>(out var config))
-                drawDistance = config.ViewRadiusChunks * config.ChunkSize;
+            // Unity's own fog only affects standard materials (e.g. the player); the terrain, water and sky do
+            // their own atmosphere from the weather map. Match it roughly: base haze plus the local dust and rain.
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogColor = sky.Horizon;
-            RenderSettings.fogDensity = 1.98f / drawDistance * s.Fog;
+            RenderSettings.fogColor = Color.Lerp(sky.Horizon, DustColor() * (sky.Horizon.grayscale * 1.4f + 0.03f), s.Dust);
+            RenderSettings.fogDensity = hazeDensity + s.Dust * 0.012f + s.Haze * 0.0012f;
 
-            // Under cloud the sky's share of the light grows as the sun's shrinks. Moonlight keeps nights from going
-            // pitch black.
+            // Under cloud the sky's share of the light grows as the sun's shrinks (cloud shadows dim the direct
+            // light where the clouds actually are). Moonlight keeps nights from going pitch black.
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
             var ambientScale = math.lerp(0.9f, 1.15f, s.Overcast) * (1f - 0.35f * s.Darkness);
             var moonFloor = new Color(0.025f, 0.03f, 0.05f) * (Cycle != null ? Cycle.Night : 0f);
@@ -361,46 +284,63 @@ namespace Punchy.Weather
                 if (Cycle != null)
                 {
                     Sun.transform.rotation = Quaternion.LookRotation(-Cycle.LightDirection);
-                    Sun.color = Color.Lerp(Cycle.LightColor, s.DustColor, s.Dust * 0.6f);
+                    Sun.color = Color.Lerp(Cycle.LightColor, DustColor(), s.Dust * 0.6f);
                 }
-                Sun.intensity = baseSunIntensity * strength * s.Sunlight * (1f - 0.7f * s.Dust);
-                Sun.shadowStrength = math.lerp(0.2f, 1f, math.saturate(s.Sunlight)) * (1f - 0.6f * s.Dust);
+                Sun.intensity = baseSunIntensity * strength * (1f - 0.7f * s.Dust);
+                Sun.shadowStrength = math.lerp(0.25f, 1f, 1f - s.Coverage * 0.6f) * (1f - 0.6f * s.Dust);
             }
+        }
+
+        Color DustColor()
+        {
+            foreach (var p in Presets)
+                if (p != null && p.Dust > 0f)
+                    return p.DustColor;
+            return new Color(0.78f, 0.6f, 0.4f);
+        }
+
+        /// <summary>A 1×1 fair-weather map, so shaders have something sensible before the field is ready.</summary>
+        void PublishFallbackMaps(in WeatherValues s)
+        {
+            if (fallbackWeather == null)
+            {
+                fallbackWeather = new Texture2D(1, 1, TextureFormat.RGBA32, false, true) { hideFlags = HideFlags.HideAndDontSave };
+                fallbackWetness = new Texture2D(1, 1, TextureFormat.RGBA32, false, true) { hideFlags = HideFlags.HideAndDontSave };
+                fallbackWetness.SetPixel(0, 0, new Color(0f, 0f, 0f, 1f));
+                fallbackWetness.Apply();
+            }
+            fallbackWeather.SetPixel(0, 0, new Color(s.Coverage, s.Darkness, s.Haze, s.Dust));
+            fallbackWeather.Apply();
+            Shader.SetGlobalTexture(WeatherMapId, fallbackWeather);
+            Shader.SetGlobalTexture(WetnessMapId, fallbackWetness);
+            Shader.SetGlobalVector(WeatherRectId, new Vector4(0f, 0f, 1f, 1f));
         }
 
         // ---------------------------------------------------------------- lightning & thunder
 
-        void UpdateLightning(float dt, float strikesPerMinute)
+        void UpdateLightning(float dt, Camera cam)
         {
-            if (lightning == null)
+            if (lightning == null || cam == null)
                 return;
-            if (strikesPerMinute > 0.01f)
+            if (field.TryStrike(dt, out var strike))
             {
-                nextStrike -= dt;
-                if (nextStrike <= 0f)
+                var camPos = cam.transform.position;
+                var offset = new Vector3(strike.x - camPos.x, 0f, strike.z - camPos.z);
+                var distance = offset.magnitude;
+                if (distance < 12000f)
                 {
-                    Strike();
-                    // Random gaps (exponentially distributed) around the average rate.
-                    nextStrike = -Mathf.Log(Mathf.Max(Random.value, 1e-4f)) * 60f / strikesPerMinute;
+                    strikeTime = Time.time;
+                    // Flashes fade with distance; the glow sits low over the storm, high when it's overhead.
+                    strikeBrightness = 1f / (1f + (distance / 1500f) * (distance / 1500f));
+                    var horizontal = distance > 1f ? offset / distance : Vector3.forward;
+                    strikeDirection = (horizontal * distance + Vector3.up * 1200f).normalized;
+                    lightning.transform.rotation = Quaternion.LookRotation(-(Vector3.up + horizontal * 0.4f).normalized);
+                    // Thunder arrives after the light: ~3 s per kilometre.
+                    if (distance < 9000f)
+                        StartCoroutine(PlayThunder(distance / 343f, math.lerp(1f, 0.15f, distance / 9000f)));
                 }
             }
-            else
-                nextStrike = Random.Range(2f, 8f);
-
-            lightning.intensity = FlashBrightness() * 2.2f;
-        }
-
-        void Strike()
-        {
-            strikeTime = Time.time;
-            var azimuth = Random.Range(0f, Mathf.PI * 2f);
-            var elevation = Random.Range(0.1f, 0.5f);
-            strikeDirection = new Vector3(Mathf.Cos(azimuth) * Mathf.Cos(elevation), Mathf.Sin(elevation), Mathf.Sin(azimuth) * Mathf.Cos(elevation));
-            lightning.transform.rotation = Quaternion.LookRotation(-new Vector3(strikeDirection.x * 0.4f, 1f, strikeDirection.z * 0.4f));
-
-            // Thunder arrives after the light: ~3 s per kilometre.
-            var distance = Random.Range(300f, 4000f);
-            StartCoroutine(PlayThunder(distance / 343f, math.lerp(1f, 0.25f, distance / 4000f)));
+            lightning.intensity = FlashBrightness() * strikeBrightness * 2.2f;
         }
 
         IEnumerator PlayThunder(float delay, float volume)
@@ -450,17 +390,16 @@ namespace Punchy.Weather
 
         // ---------------------------------------------------------------- particles
 
-        void ApplyParticles(float rainAmount, float snowAmount, float dust, Vector2 windDirection, float wind)
+        void ApplyParticles(Camera cam, float rainAmount, float snowAmount, float dust, float wind)
         {
-            var cam = Camera.main;
             if (cam == null || rain == null)
                 return;
             var position = cam.transform.position;
-            var drift = windDirection * wind * 6f;
+            var drift = WindDirection * wind * 6f;
             UpdateEmitter(rain, rainAmount * RainParticlesPerSecond, position + Vector3.up * 14f, new Vector3(drift.x, -17f, drift.y));
             UpdateEmitter(snow, snowAmount * SnowParticlesPerSecond, position + Vector3.up * 10f, new Vector3(drift.x * 0.4f, -1.4f, drift.y * 0.4f));
             // Sand blows sideways past the camera, entering from upwind.
-            var gust = windDirection * (12f + 18f * wind);
+            var gust = WindDirection * (12f + 18f * wind);
             UpdateEmitter(sand, dust * SandParticlesPerSecond, position - new Vector3(gust.x, 0f, gust.y) * 0.6f + Vector3.up * 2f, new Vector3(gust.x, -0.5f, gust.y));
         }
 
@@ -538,15 +477,12 @@ namespace Punchy.Weather
             return true;
         }
 
-        bool TryGetPlayerGround(out TerrainSource source, out float2 xz, out GroundSample ground)
+        bool TryGetPlayerXZ(out Vector2 xz)
         {
-            source = default;
             xz = default;
-            ground = default;
-            if (!EnsureQueries() || !terrainQuery.TryGetSingleton(out source) || !playerQuery.TryGetSingleton<LocalTransform>(out var player))
+            if (!EnsureQueries() || !playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return false;
-            xz = player.Position.xz;
-            ground = source.SampleGround(xz);
+            xz = new Vector2(player.Position.x, player.Position.z);
             return true;
         }
 

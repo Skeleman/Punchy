@@ -28,7 +28,10 @@ Shader "Punchy/Sky"
 
             half4 Frag(Varyings input) : SV_Target
             {
-                return half4(PunchySkyColor(input.direction, true), 1);
+                // Distant sandstorms and rain curtains show against the sky too.
+                float3 dir = normalize(input.direction);
+                half3 sky = PunchySkyColor(dir, true);
+                return half4(PunchyWeatherVolumes(sky, _WorldSpaceCameraPos, dir, 8000, 12), 1);
             }
             ENDHLSL
         }

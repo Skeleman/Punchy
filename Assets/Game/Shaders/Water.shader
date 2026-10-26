@@ -48,8 +48,7 @@ Shader "Punchy/Water"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
             #include "Sky.hlsl"
 
-            // Weather globals (WeatherSystem): 0..1 rain intensity and wind strength.
-            half _PunchyRain;
+            // Weather global (WeatherSystem): 0..1 wind strength at the camera.
             half _PunchyWind;
 
             CBUFFER_START(UnityPerMaterial)
@@ -167,7 +166,8 @@ Shader "Punchy/Water"
                 float2 slope = lerp(WaveSlope(p, t), flowingSlope, flowAmount);
                 // Calm ripples with distance: far away they'd only shimmer and alias.
                 float distanceFade = saturate(1 - distance(input.positionWS, GetCameraPositionWS()) / 350);
-                slope += RainRipples(p, t) * _PunchyRain * distanceFade * 0.8;
+                // Rain rings only where it's actually raining (from the world weather map).
+                slope += RainRipples(p, t) * PunchyWetnessAt(p).g * distanceFade * 0.8;
                 float strength = _WaveStrength * (0.5 + _PunchyWind) * (0.25 + 0.75 * distanceFade);
                 float3 n = normalize(float3(-slope.x * strength, 1, -slope.y * strength));
                 if (!frontFace)
@@ -208,7 +208,7 @@ Shader "Punchy/Water"
                 color = lerp(color, foamLit, foam);
                 alpha = max(alpha, foam);
 
-                color = MixFog(color, input.fogFactor);
+                color = PunchyAtmosphere(color, input.positionWS);
                 return half4(color, alpha);
             }
             ENDHLSL

@@ -2,7 +2,11 @@ using UnityEngine;
 
 namespace Punchy.Weather
 {
-    /// <summary>One kind of weather. WeatherSystem drifts between presets, blending every value.</summary>
+    /// <summary>
+    /// One kind of weather. In the world it appears as cells (a rain cell, a sandstorm…) that form where the biome
+    /// odds allow, drift with the wind, then fade. The first preset in WeatherSystem's list is the fair-weather
+    /// background between cells.
+    /// </summary>
     [CreateAssetMenu(menuName = "Punchy/Weather Preset", fileName = "Weather")]
     public class WeatherPreset : ScriptableObject
     {
@@ -39,7 +43,9 @@ namespace Punchy.Weather
         [Min(0f)] public float Chance = 1f;
         [Tooltip("Only happens in biomes that list this preset in their Weather section (e.g. sandstorms in deserts).")]
         public bool OnlyInListedBiomes;
-        [Tooltip("How long this weather lasts once it arrives, in seconds (random between min and max).")]
+        [Tooltip("How long a cell of this weather lingers at full strength, in seconds (random between min and max).")]
         public Vector2 Duration = new Vector2(120f, 300f);
+        [Tooltip("Radius of a cell of this weather, in metres (random between min and max).")]
+        public Vector2 Size = new Vector2(800f, 1600f);
     }
 }

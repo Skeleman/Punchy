@@ -25,4 +25,5 @@ MonoBehaviour:
   LightningPerMinute: 0.4
   Chance: 1.5
   OnlyInListedBiomes: 0
-  Duration: {x: 120, y: 300}
+  Duration: {x: 180, y: 420}
+  Size: {x: 700, y: 1400}
