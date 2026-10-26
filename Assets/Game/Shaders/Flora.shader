@@ -50,7 +50,8 @@ Shader "Punchy/Flora"
             {
                 FloraDither(input.positionCS, input.extra.y, input.positionWS);
                 int part = (int)round(input.extra.x);
-                bool leafy = part == 1 || part == 2;
+                bool leafy = part == 1 || part == 2 || part == 5;
+                bool metal = part == 4;
                 half3 n = normalize(input.normalWS);
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
 
@@ -74,7 +75,28 @@ Shader "Punchy/Flora"
                 half through = leafy ? pow(saturate(dot(-v, light.direction)), 4) * 0.55 : 0;
                 half ao = input.color.a;
 
-                half3 color = albedo * (light.color * shadow * (diffuse + through) * lerp(0.6, 1, ao) + SampleSH(n) * ao);
+                // Metal leaves: dim diffuse, the colour mostly comes from tinted reflections.
+                half3 color = albedo * (light.color * shadow * (diffuse + through) * lerp(0.6, 1, ao) + SampleSH(n) * ao) * (metal ? 0.45 : 1);
+                if (metal)
+                {
+                    // Tinted reflections of the sky, a sharp sun highlight, and glints that twinkle as the leaves move
+                    // and the view changes.
+                    half3 h = normalize(light.direction + v);
+                    float3 r3 = reflect(-v, n);
+                    r3.y = max(r3.y, 0.05);
+                    color += albedo * PunchySkyColor(r3, false, true) * 0.35 * ao;
+                    color += albedo * light.color * shadow * pow(saturate(dot(n, h)), 90) * 3;
+                    float3 cell = floor(input.positionWS * 7);
+                    float sparkle = frac(sin(dot(cell, float3(12.9898, 78.233, 37.719))) * 43758.5453);
+                    float facing = pow(saturate(dot(normalize(n + (sparkle - 0.5) * 0.9), h)), 400);
+                    color += light.color * shadow * facing * 14 * step(0.55, sparkle);
+                }
+                // Glowing parts shine by themselves with a slow, uneven pulse (bright enough to bloom at night).
+                if (part == 5)
+                {
+                    float pulse = 0.75 + 0.25 * sin(_Time.y * 1.3 + r * 40 + input.positionWS.y * 2);
+                    color += albedo * 1.6 * pulse;
+                }
 
                 // A waxy sheen on cacti (and on anything wet).
                 half gloss = part == 3 ? 0.35 : wet * 0.5;

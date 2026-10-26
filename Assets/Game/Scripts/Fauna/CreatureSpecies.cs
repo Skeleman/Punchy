@@ -28,6 +28,8 @@ namespace Punchy.Fauna
         [Range(0.2f, 3f)] public float BodyFlatten = 1.1f;
         public Color Base = new Color(0.55f, 0.4f, 0.25f);
         public Color Accent = new Color(0.9f, 0.85f, 0.75f);
+        [Tooltip("How much the accent-coloured parts glow when no Coats are listed.")]
+        [Range(0f, 1f)] public float AccentGlow;
         [Tooltip("Alternative colourings; each animal picks one (by weight). Empty = everyone uses Base and Accent.")]
         public List<CreatureCoat> Coats = new List<CreatureCoat>();
         [Tooltip("Random size of individuals.")]
@@ -82,6 +84,8 @@ namespace Punchy.Fauna
         public string Name = "Coat";
         public Color Base = new Color(0.55f, 0.4f, 0.25f);
         public Color Accent = new Color(0.9f, 0.85f, 0.75f);
+        [Tooltip("How much the accent-coloured parts glow (embers, toxic markings).")]
+        [Range(0f, 1f)] public float AccentGlow;
         [Min(0f)] public float Weight = 1f;
     }
 

@@ -15,7 +15,17 @@ namespace Punchy.Flora
         [Tooltip("A tall ribbed column with upturned arms.")] Saguaro,
         [Tooltip("A squat ribbed barrel with a crown of flowers.")] BarrelCactus,
         [Tooltip("Flat oval pads growing from each other's rims.")] PricklyPear,
-        [Tooltip("A fan of long thin canes with red tips.")] Ocotillo
+        [Tooltip("A fan of long thin canes with red tips.")] Ocotillo,
+        [Tooltip("A cluster of mushrooms: stems with domed caps (Foliage colours the caps, Bark the stems).")] Mushroom,
+        [Tooltip("Bleached remains: a spine with arching ribs and a skull, from a small carcass up to giant rib " +
+                 "arches. Bark is the bone colour; Branches sets the rib pairs; Fullness how complete it is.")] Bones
+    }
+
+    public enum FoliageFinish : byte
+    {
+        [Tooltip("Ordinary leaves.")] Matte,
+        [Tooltip("Polished metal: sharp highlights and glittering glints.")] Metallic,
+        [Tooltip("Shines by itself, gently pulsing; visible at night.")] Glowing
     }
 
     public enum FlowerHead : byte
@@ -76,6 +86,10 @@ namespace Punchy.Flora
         [Range(0f, 1f)] public float AccentAmount = 0.3f;
         [Tooltip("Random tint per plant.")]
         [Range(0f, 0.5f)] public float ColorVariation = 0.12f;
+        [Tooltip("Surface of the leaves, needles or caps.")]
+        public FoliageFinish Finish = FoliageFinish.Matte;
+        [Tooltip("Flowers, berries and fruit glow by themselves.")]
+        public bool GlowingAccents;
 
         [Header("Placement")]
         [Tooltip("Steepest ground it grows on, in degrees.")]

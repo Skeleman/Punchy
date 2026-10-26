@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1d21f5df55fc2bc4c8895177bbf0ebab, type: 3}
+  m_Name: AshStorm
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Weather.WeatherPreset
+  CloudCoverage: 0.95
+  CloudDarkness: 0.75
+  Overcast: 0.85
+  Sunlight: 0.3
+  CloudBase: 900
+  CloudThickness: 4500
+  Fog: 2.5
+  Wind: 0.8
+  Precipitation: 0.6
+  AlwaysSnow: 1
+  Hail: 0
+  PrecipitationColor: {r: 0.36, g: 0.35, b: 0.34, a: 1}
+  PrecipitationGlow: 0
+  DryPrecipitation: 1
+  Dust: 0.8
+  DustColor: {r: 0.3, g: 0.29, b: 0.28, a: 1}
+  LightningPerMinute: 2.5
+  Chance: 1
+  OnlyInListedBiomes: 1
+  Duration: {x: 150, y: 320}
+  Size: {x: 900, y: 1700}

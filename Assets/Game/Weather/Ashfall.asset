@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1d21f5df55fc2bc4c8895177bbf0ebab, type: 3}
+  m_Name: Ashfall
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Weather.WeatherPreset
+  CloudCoverage: 0.75
+  CloudDarkness: 0.4
+  Overcast: 0.55
+  Sunlight: 0.65
+  CloudBase: 1200
+  CloudThickness: 1200
+  Fog: 1.6
+  Wind: 0.3
+  Precipitation: 0.35
+  AlwaysSnow: 1
+  Hail: 0
+  PrecipitationColor: {r: 0.42, g: 0.41, b: 0.4, a: 1}
+  PrecipitationGlow: 0
+  DryPrecipitation: 1
+  Dust: 0.2
+  DustColor: {r: 0.34, g: 0.33, b: 0.32, a: 1}
+  LightningPerMinute: 0
+  Chance: 1
+  OnlyInListedBiomes: 1
+  Duration: {x: 200, y: 420}
+  Size: {x: 1000, y: 2000}

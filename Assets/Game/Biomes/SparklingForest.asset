@@ -1,0 +1,102 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6eba43088e24ee94090ce3f49291f267, type: 3}
+  m_Name: SparklingForest
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.BiomeDefinition
+  MapColor: {r: 0.6, g: 0.75, b: 0.85, a: 1}
+  Frequency: 0.8
+  BaseElevation: 24
+  Shape: 0
+  Relief: 50
+  FeatureSize: 420
+  Octaves: 5
+  Sharpness: 1.5
+  TerraceSteps: 0
+  WindDirection: 60
+  Rainfall: 0.7
+  WaterMurk: 0
+  WaterColor: {r: 0.2, g: 0.35, b: 0.2, a: 1}
+  WaterGlow: 0
+  Weather:
+  - Preset: {fileID: 11400000, guid: c387c3aae44eb0a4696f7e8a0739110d, type: 2}
+    Chance: 2
+  - Preset: {fileID: 11400000, guid: 6518599f8e7a885409916976155ada3e, type: 2}
+    Chance: 2
+  - Preset: {fileID: 11400000, guid: 28af6bbd1c228fc409ad3b95dd96369f, type: 2}
+    Chance: 0.8
+  - Preset: {fileID: 11400000, guid: 7771effdbe3750c469548baca5cddc21, type: 2}
+    Chance: 0.5
+  - Preset: {fileID: 11400000, guid: 2fefebb67f2c6234f8ed2a4d78ebd50b, type: 2}
+    Chance: 0.1
+  - Preset: {fileID: 11400000, guid: e900e831a2c640e40b6f7017db3a039d, type: 2}
+    Chance: 1.5
+  BaseSurface: {fileID: 11400000, guid: dbf574d429d0988438ce7ac6a796029b, type: 2}
+  Layers:
+  - Surface: {fileID: 11400000, guid: 45821a0d54386a94fb374e571c4ed5b1, type: 2}
+    UseSlope: 1
+    SlopeRange: {x: 28, y: 90}
+    SlopeBlend: 5
+    UseHeight: 0
+    HeightRange: {x: 80, y: 10000}
+    HeightBlend: 8
+    UseWaterDepth: 0
+    WaterDepthRange: {x: -2, y: 10000}
+    WaterDepthBlend: 1
+    OnlyInRivers: 0
+    UsePatches: 0
+    PatchSize: 40
+    PatchCoverage: 0.4
+    EdgeNoise: 0.6
+    Opacity: 1
+  - Surface: {fileID: 11400000, guid: f8a191d68c1653d45b1755df56dc4cbc, type: 2}
+    UseSlope: 0
+    SlopeRange: {x: 35, y: 90}
+    SlopeBlend: 5
+    UseHeight: 0
+    HeightRange: {x: 80, y: 10000}
+    HeightBlend: 8
+    UseWaterDepth: 0
+    WaterDepthRange: {x: -2, y: 10000}
+    WaterDepthBlend: 1
+    OnlyInRivers: 1
+    UsePatches: 0
+    PatchSize: 40
+    PatchCoverage: 0.4
+    EdgeNoise: 0
+    Opacity: 1
+  Heat: 0
+  Cold: 0
+  Fireflies: 3
+  Butterflies: 2
+  Particles:
+  - Type: {fileID: 11400000, guid: 77e8d1d8ea738fc4480ba5b7e8f07230, type: 2}
+    Density: 25
+  Flora:
+  - Species: {fileID: 11400000, guid: ad584df5993190d4895211b957b4d9ff, type: 2}
+    Density: 1.5
+  - Species: {fileID: 11400000, guid: d64f8e525fe2c0147bf884835d50180a, type: 2}
+    Density: 0.8
+  - Species: {fileID: 11400000, guid: bd90b320c48ad414fb08251e98e241d1, type: 2}
+    Density: 2
+  - Species: {fileID: 11400000, guid: 50cec33f99fe81f40b44c329d3647ede, type: 2}
+    Density: 10
+  - Species: {fileID: 11400000, guid: 17cfe4343a148844db935df7595a8316, type: 2}
+    Density: 4
+  Fauna:
+  - Species: {fileID: 11400000, guid: e112520915f6d014b9b6ec86042081a8, type: 2}
+    Density: 0.4
+  - Species: {fileID: 11400000, guid: d5156d95a1b74564684c279c9aa788e9, type: 2}
+    Density: 1.5
+  - Species: {fileID: 11400000, guid: dd4bde564fc47f54e93889002b012bdd, type: 2}
+    Density: 1
+  - Species: {fileID: 11400000, guid: 7bfe1e836abed0c4c899d5d08bd4f2e4, type: 2}
+    Density: 1.5

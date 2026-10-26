@@ -73,6 +73,8 @@ namespace Punchy.Terrain
                     TerraceSteps = b.TerraceSteps,
                     Wind = new float2(math.sin(wind), math.cos(wind)),
                     Rainfall = b.Rainfall,
+                    Water = new float4(b.WaterColor.linear.r, b.WaterColor.linear.g, b.WaterColor.linear.b, b.WaterMurk),
+                    WaterGlow = b.WaterGlow,
                     // Each biome reads a different region of the noise field.
                     NoiseOffset = new float2(offsetHash & 0xFFFF, offsetHash >> 16) / 65535f * 500f,
                     BaseSurface = Index(b.BaseSurface),

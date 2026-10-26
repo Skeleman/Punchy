@@ -36,11 +36,12 @@ namespace Punchy.Fauna
         /// <summary>A segment's colour in one of the coats.</summary>
         public float4 SegmentColor(int segment, int coat)
         {
+            // Alpha carries how much the segment glows.
             ref var seg = ref Segments[segment];
-            if (seg.Fixed != 0)
-                return seg.FixedColor;
             ref var c = ref Coats[math.clamp(coat, 0, Coats.Length - 1)];
-            return math.lerp(c.Base, c.Accent, seg.Accent);
+            var glow = seg.Glow + (seg.Fixed != 0 ? 0f : c.AccentGlow * seg.Accent);
+            var rgb = seg.Fixed != 0 ? seg.FixedColor.xyz : math.lerp(c.Base.xyz, c.Accent.xyz, seg.Accent);
+            return new float4(rgb, math.saturate(glow));
         }
 
         /// <summary>Picks a coat by weight from a random number in 0..1.</summary>
@@ -109,11 +110,13 @@ namespace Punchy.Fauna
         /// <summary>Non-zero: always FixedColor, whatever the coat (hooves, eyes, beaks).</summary>
         public int Fixed;
         public float4 FixedColor;   // linear
+        public float Glow;
     }
 
     public struct CreatureCoatData
     {
         public float4 Base, Accent;   // linear
+        public float AccentGlow;
         public float Weight;
     }
 
@@ -243,13 +246,14 @@ namespace Punchy.Fauna
             // Coats come from the variant (or the species itself): its listed coats, or just Base and Accent.
             var coats = new List<CreatureCoat>(variant.Coats);
             if (coats.Count == 0)
-                coats.Add(new CreatureCoat { Base = variant.Base, Accent = variant.Accent, Weight = 1f });
+                coats.Add(new CreatureCoat { Base = variant.Base, Accent = variant.Accent, AccentGlow = variant.AccentGlow, Weight = 1f });
             var coatArray = builder.Allocate(ref root.Coats, coats.Count);
             for (int i = 0; i < coats.Count; i++)
                 coatArray[i] = new CreatureCoatData
                 {
                     Base = (Vector4)coats[i].Base.linear,
                     Accent = (Vector4)coats[i].Accent.linear,
+                    AccentGlow = coats[i].AccentGlow,
                     Weight = math.max(coats[i].Weight, 0.0001f)
                 };
 
@@ -304,7 +308,8 @@ namespace Punchy.Fauna
                         Flatten = seg.Flatten,
                         Accent = seg.Accent,
                         Fixed = seg.UseFixedColor ? 1 : 0,
-                        FixedColor = (Vector4)seg.FixedColor.linear
+                        FixedColor = (Vector4)seg.FixedColor.linear,
+                        Glow = seg.Glow
                     };
                     for (int k = 0; k < CreatureBlob.PoseCount; k++)
                     {

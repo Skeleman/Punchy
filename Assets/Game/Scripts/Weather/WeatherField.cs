@@ -14,9 +14,20 @@ namespace Punchy.Weather
     {
         public float Coverage, Darkness, Overcast, Sunlight, Fog, Wind, Precipitation, AlwaysSnow, Dust, Lightning;
         public float CloudBase, CloudThickness, Hail;
+        /// <summary>Dust colour × Dust, precipitation colour × Precipitation, glow × Precipitation: weighted by how much
+        /// there is, so blending with clear weather doesn't wash the colours out. Divide to get the colour back.</summary>
+        public float3 DustTint, PrecipitationTint;
+        public float Glow;
+
+        public float3 DustColor(float3 fallback) => Dust > 1e-3f ? DustTint / Dust : fallback;
+        public float3 PrecipitationColor => Precipitation > 1e-3f ? PrecipitationTint / Precipitation : new float3(1f);
+        public float PrecipitationGlow => Precipitation > 1e-3f ? Glow / Precipitation : 0f;
 
         public static WeatherValues From(WeatherPreset p) => new WeatherValues
         {
+            DustTint = new float3(p.DustColor.r, p.DustColor.g, p.DustColor.b) * p.Dust,
+            PrecipitationTint = new float3(p.PrecipitationColor.r, p.PrecipitationColor.g, p.PrecipitationColor.b) * p.Precipitation,
+            Glow = p.PrecipitationGlow * p.Precipitation,
             Coverage = p.CloudCoverage, Darkness = p.CloudDarkness, Overcast = p.Overcast, Sunlight = p.Sunlight,
             Fog = p.Fog, Wind = p.Wind, Precipitation = p.Precipitation, AlwaysSnow = p.AlwaysSnow ? 1f : 0f,
             Dust = p.Dust, Lightning = p.LightningPerMinute, CloudBase = p.CloudBase, CloudThickness = p.CloudThickness,
@@ -31,7 +42,9 @@ namespace Punchy.Weather
             Precipitation = math.lerp(a.Precipitation, b.Precipitation, t), AlwaysSnow = math.lerp(a.AlwaysSnow, b.AlwaysSnow, t),
             Dust = math.lerp(a.Dust, b.Dust, t), Lightning = math.lerp(a.Lightning, b.Lightning, t),
             CloudBase = math.lerp(a.CloudBase, b.CloudBase, t), CloudThickness = math.lerp(a.CloudThickness, b.CloudThickness, t),
-            Hail = math.lerp(a.Hail, b.Hail, t)
+            Hail = math.lerp(a.Hail, b.Hail, t),
+            DustTint = math.lerp(a.DustTint, b.DustTint, t), PrecipitationTint = math.lerp(a.PrecipitationTint, b.PrecipitationTint, t),
+            Glow = math.lerp(a.Glow, b.Glow, t)
         };
 
         public void AddScaled(in WeatherValues v, float w)
@@ -40,6 +53,7 @@ namespace Punchy.Weather
             Fog += v.Fog * w; Wind += v.Wind * w; Precipitation += v.Precipitation * w; AlwaysSnow += v.AlwaysSnow * w;
             Dust += v.Dust * w; Lightning += v.Lightning * w; CloudBase += v.CloudBase * w; CloudThickness += v.CloudThickness * w;
             Hail += v.Hail * w;
+            DustTint += v.DustTint * w; PrecipitationTint += v.PrecipitationTint * w; Glow += v.Glow * w;
         }
 
         /// <summary>Encoding of cloud base and thickness in the cloud map (must match Sky.hlsl).</summary>
@@ -163,7 +177,8 @@ namespace Punchy.Weather
             {
                 var v = WeatherValues.From(presets[p]);
                 presetLook[p] = new float4(v.Coverage, v.Darkness, v.Haze, v.Dust);
-                presetPrecip[p] = v.Precipitation;
+                // Dry precipitation (ash, sparks) never wets the ground.
+                presetPrecip[p] = presets[p].DryPrecipitation ? 0f : v.Precipitation;
                 presetCloud[p] = new float2(v.CloudBase, v.CloudThickness);
             }
             orographyNative = new NativeArray<float>(orography, Allocator.Persistent);

@@ -4,6 +4,7 @@ Shader "Punchy/Precipitation"
     Properties
     {
         [Enum(Snow, 0, Rain, 1, Veil, 2)] _Shape("Shape", Float) = 1
+        _Glow("Glow", Range(0, 1)) = 0
     }
 
     SubShader
@@ -24,6 +25,7 @@ Shader "Punchy/Precipitation"
 
             CBUFFER_START(UnityPerMaterial)
                 half _Shape;
+                half _Glow;
             CBUFFER_END
 
             struct Attributes { float4 positionOS : POSITION; half4 color : COLOR; float2 uv : TEXCOORD0; };
@@ -49,6 +51,8 @@ Shader "Punchy/Precipitation"
                         : smoothstep(0.5, 0.15, length(c));                                     // flake / stone
                 // Lit roughly like the sky around it, so drops/flakes darken under storm clouds.
                 half3 color = input.color.rgb * (0.35 + 0.65 * _PunchySkyHorizon);
+                // Glowing flakes (sparks, embers) shine by themselves, bright enough to bloom.
+                color = lerp(color, input.color.rgb * 2.5, _Glow);
                 color = MixFog(color, input.fog);
                 return half4(color, alpha * input.color.a);
             }

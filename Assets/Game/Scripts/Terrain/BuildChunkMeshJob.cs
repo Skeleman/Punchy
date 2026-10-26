@@ -43,11 +43,15 @@ namespace Punchy.Terrain
     {
         public float3 Position;
         public float4 Data;     // flow direction xz, depth below the surface, rapids 0..1
+        public float4 Look;     // biome water colour rgb (linear), murk 0..1
+        public float Glow;
 
         public static readonly VertexAttributeDescriptor[] Layout =
         {
             new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3),
-            new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 4)
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 4),
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 4),
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.Float32, 1)
         };
     }
 
@@ -98,6 +102,8 @@ namespace Punchy.Terrain
             float minY = float.MaxValue, maxY = float.MinValue;
             var water = new NativeArray<float4>(v * v, Allocator.Temp);   // surface, flow xz, terrain height
             var rapids = new NativeArray<float>(v * v, Allocator.Temp);
+            var looks = new NativeArray<float4>(v * v, Allocator.Temp);   // water colour + murk, glow in a separate array
+            var glows = new NativeArray<float>(v * v, Allocator.Temp);
 
             for (int z = 0; z < v; z++)
             for (int x = 0; x < v; x++)
@@ -118,6 +124,8 @@ namespace Punchy.Terrain
                 verts[z * v + x] = vertex;
                 water[z * v + x] = new float4(ground.WaterSurface, ground.Flow, h);
                 rapids[z * v + x] = ground.Rapids;
+                looks[z * v + x] = Source.WaterLook(ground.Biomes, out var glow);
+                glows[z * v + x] = glow;
             }
 
             if (request.CanMorph)
@@ -163,9 +171,11 @@ namespace Punchy.Terrain
             }
 
             HeightRanges[index] = new float2(minY - depth, maxY);
-            WaterRanges[index] = BuildWater(Meshes[Requests.Length + index], water, rapids, q, step);
+            WaterRanges[index] = BuildWater(Meshes[Requests.Length + index], water, rapids, looks, glows, q, step);
             water.Dispose();
             rapids.Dispose();
+            looks.Dispose();
+            glows.Dispose();
         }
 
         /// <summary>
@@ -200,7 +210,8 @@ namespace Punchy.Terrain
         static float H(NativeArray<TerrainVertex> verts, int v, int x, int z) => verts[z * v + x].Position.y;
 
         /// <summary>Builds the water sheet; returns its (min, max) height, or (1, 0) when the chunk is dry.</summary>
-        float2 BuildWater(Mesh.MeshData mesh, NativeArray<float4> water, NativeArray<float> rapids, int q, float step)
+        float2 BuildWater(Mesh.MeshData mesh, NativeArray<float4> water, NativeArray<float> rapids,
+                          NativeArray<float4> looks, NativeArray<float> glows, int q, float step)
         {
             int v = q + 1;
 
@@ -272,7 +283,9 @@ namespace Punchy.Terrain
                     verts[i] = new WaterVertex
                     {
                         Position = new float3(x * step, y, z * step),
-                        Data = new float4(flow[i], y - water[i].w, rapids[i])
+                        Data = new float4(flow[i], y - water[i].w, rapids[i]),
+                        Look = looks[i],
+                        Glow = glows[i]
                     };
                     range = new float2(math.min(range.x, y), math.max(range.y, y));
                 }

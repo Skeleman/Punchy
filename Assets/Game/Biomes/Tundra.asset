@@ -23,6 +23,9 @@ MonoBehaviour:
   TerraceSteps: 0
   WindDirection: 60
   Rainfall: 0.35
+  WaterMurk: 0
+  WaterColor: {r: 0.2, g: 0.35, b: 0.2, a: 1}
+  WaterGlow: 0
   Weather:
   - Preset: {fileID: 11400000, guid: c387c3aae44eb0a4696f7e8a0739110d, type: 2}
     Chance: 1.5
@@ -36,6 +39,8 @@ MonoBehaviour:
     Chance: 1.5
   - Preset: {fileID: 11400000, guid: a4caf408c1a9d1542b1780825fb488c9, type: 2}
     Chance: 2
+  - Preset: {fileID: 11400000, guid: b286ddfaf2340f145a3f219b8b4f7a57, type: 2}
+    Chance: 0.6
   BaseSurface: {fileID: 11400000, guid: 52978979fde4c9a4497c8da1b03817f5, type: 2}
   Layers:
   - Surface: {fileID: 11400000, guid: 1753ba8fc7f960b43a8b3d37e34c11a4, type: 2}
@@ -122,6 +127,9 @@ MonoBehaviour:
   Cold: 0.8
   Fireflies: 0
   Butterflies: 0.1
+  Particles:
+  - Type: {fileID: 11400000, guid: 27a1ceebb4c0878498b62c3d35774e37, type: 2}
+    Density: 1.5
   Flora:
   - Species: {fileID: 11400000, guid: cab7e5009cce5b74bbc60ccebaba4b47, type: 2}
     Density: 0.6

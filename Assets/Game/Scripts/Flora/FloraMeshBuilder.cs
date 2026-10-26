@@ -13,7 +13,9 @@ namespace Punchy.Flora
         Bark = 0,
         Foliage = 1,
         Petal = 2,
-        Cactus = 3
+        Cactus = 3,
+        Metal = 4,
+        Glow = 5
     }
 
     /// <summary>
@@ -28,6 +30,9 @@ namespace Punchy.Flora
         readonly List<Color> colors = new List<Color>();   // linear
         readonly List<Vector4> data = new List<Vector4>();
         readonly List<int> indices = new List<int>();
+
+        /// <summary>What foliage and petals are drawn as (a species' finish: metallic or glowing leaves).</summary>
+        public FloraPart FoliageAs = FloraPart.Foliage, PetalAs = FloraPart.Petal;
 
         public int VertexCount => positions.Count;
         public int IndexCount => indices.Count;
@@ -45,6 +50,8 @@ namespace Punchy.Flora
         {
             if (flutter < 0f)
                 flutter = part == FloraPart.Foliage || part == FloraPart.Petal ? 1f : 0f;
+            if (part == FloraPart.Foliage) part = FoliageAs;
+            else if (part == FloraPart.Petal) part = PetalAs;
             positions.Add(p);
             normals.Add(n);
             colors.Add(c);

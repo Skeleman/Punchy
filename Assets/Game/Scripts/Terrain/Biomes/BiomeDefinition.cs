@@ -42,6 +42,12 @@ namespace Punchy.Terrain
         [Header("Water")]
         [Tooltip("How much rain this biome contributes to rivers (0 = none, 1 = lush).")]
         [Range(0f, 1f)] public float Rainfall = 0.5f;
+        [Tooltip("How murky and thick this biome's lakes, pools and rivers are (0 = ordinary clear water, 1 = opaque " +
+                 "sludge). Murky water takes on Water Color, barely ripples and bubbles.")]
+        [Range(0f, 1f)] public float WaterMurk;
+        public Color WaterColor = new Color(0.2f, 0.35f, 0.2f);
+        [Tooltip("How much the water glows by itself (toxic pools).")]
+        [Range(0f, 1f)] public float WaterGlow;
 
         [Header("Weather")]
         [Tooltip("Overrides how likely each weather is here. Presets not listed keep their own Chance, unless they're " +
@@ -62,6 +68,8 @@ namespace Punchy.Terrain
         [Min(0f)] public float Fireflies;
         [Tooltip("Butterflies per 100 m² on fair days.")]
         [Min(0f)] public float Butterflies;
+        [Tooltip("Particles hanging in the air here: sparkles, spores, embers, ash, fog wisps (shared types).")]
+        public List<Punchy.Ambience.BiomeParticles> Particles = new List<Punchy.Ambience.BiomeParticles>();
 
         [Header("Flora")]
         [Tooltip("Plants that grow here (drawn by the flora system). Changing these doesn't re-bake the terrain.")]

@@ -99,6 +99,8 @@ Shader "Punchy/Creature"
                 // A little soft sheen at the silhouette, like fur or feathers catching the light.
                 half rim = pow(1 - saturate(dot(n, v)), 3) * 0.25;
                 half3 color = albedo * (light.color * shadow * diffuse + SampleSH(n) * (1 + rim));
+                // Glowing parts (alpha): embers, toxic markings, eye sockets. Bright enough to bloom.
+                color += input.color.rgb * input.color.a * (2.2 + 0.4 * sin(_Time.y * 2.1 + input.positionWS.x * 3.0));
                 return half4(PunchyAtmosphere(color, input.positionWS), 1);
             }
             ENDHLSL

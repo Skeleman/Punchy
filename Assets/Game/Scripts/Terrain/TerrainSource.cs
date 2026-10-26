@@ -154,6 +154,31 @@ namespace Punchy.Terrain
             shape = BiomeSampling.WithOcean(BiomeSampling.Weights(cells, BiomeNoise.ShapeBlendDistance, BiomeNoise.CellSize), ocean, set.OceanIndex);
         }
 
+        /// <summary>
+        /// The look of the water here, blended from the biomes: rgb colour (weighted by murk, so clear-water biomes
+        /// don't dilute a swamp's colour), a = murk 0..1; glow in the out parameter.
+        /// </summary>
+        public float4 WaterLook(in BiomeWeights biomes, out float glow)
+        {
+            glow = 0f;
+            if (!HasBiomes)
+                return float4.zero;
+            ref var set = ref Biomes.Value;
+            float3 color = 0f;
+            float murk = 0f;
+            for (int i = 0; i < 4; i++)
+            {
+                var w = biomes.Weights[i];
+                if (w <= 0f)
+                    continue;
+                ref var b = ref set.Biomes[biomes.Ids[i]];
+                color += b.Water.xyz * b.Water.w * w;
+                murk += b.Water.w * w;
+                glow += b.WaterGlow * w;
+            }
+            return new float4(murk > 1e-4f ? color / murk : float3.zero, murk);
+        }
+
         /// <summary>How much rain falls here (0..1), for river generation.</summary>
         public float Rainfall(float2 xz)
         {

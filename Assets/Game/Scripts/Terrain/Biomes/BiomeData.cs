@@ -86,6 +86,9 @@ namespace Punchy.Terrain
         public int TerraceSteps;
         public float2 Wind;
         public float Rainfall;
+        /// <summary>Water look: rgb colour (linear), a murk 0..1; plus glow.</summary>
+        public float4 Water;
+        public float WaterGlow;
         public float2 NoiseOffset;
         public int BaseSurface;
         public int FirstLayer;

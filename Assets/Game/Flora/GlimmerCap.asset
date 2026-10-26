@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be30a536c49003f42bba655b0fd41247, type: 3}
+  m_Name: GlimmerCap
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
+  Form: 10
+  Layer: 0
+  Height: {x: 0.08, y: 0.2}
+  Spread: 1.1
+  TrunkFraction: 0.35
+  Thickness: 0.08
+  Fullness: 0.7
+  Branches: {x: 3, y: 7}
+  Flexibility: 0
+  FlowerHead: 0
+  Bark: {r: 0.75, g: 0.78, b: 0.82, a: 1}
+  Foliage: {r: 0.35, g: 0.65, b: 1, a: 1}
+  FoliageVariation: {r: 0.55, g: 0.45, b: 1, a: 1}
+  Accents: []
+  AccentAmount: 0.3
+  ColorVariation: 0.12
+  Finish: 2
+  GlowingAccents: 0
+  MaxSlope: 25
+  Elevation: {x: 0.5, y: 10000}
+  GrassAffinity: 0.3
+  ToleratesSnow: 0
+  PatchSize: 15
+  PatchCoverage: 0.35
+  NearWater: 1
+  OnlyNearWater: 0
+  Solid: 0
+  Variants: 4
+  Seed: 53

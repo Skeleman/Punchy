@@ -36,9 +36,15 @@ namespace Punchy.Weather
         public bool AlwaysSnow;
         [Tooltip("Hailstones mixed into the precipitation (0..1).")]
         [Range(0f, 1f)] public float Hail;
+        [Tooltip("Tint of the falling rain or flakes (white = ordinary rain and snow; grey for ash).")]
+        public Color PrecipitationColor = Color.white;
+        [Tooltip("How much the falling flakes glow by themselves (0 = lit like the sky; 1 = shining sparks).")]
+        [Range(0f, 1f)] public float PrecipitationGlow;
+        [Tooltip("What falls doesn't wet the ground (ash, sparks). Use with Always Snow for slowly drifting flakes.")]
+        public bool DryPrecipitation;
 
         [Header("Dust")]
-        [Tooltip("Airborne dust or sand: tints the sky and fog and blows sand past the camera.")]
+        [Tooltip("Airborne dust, sand, ash or spores: tints the sky and fog, and rolls veils of it past the camera.")]
         [Range(0f, 1f)] public float Dust;
         public Color DustColor = new Color(0.78f, 0.62f, 0.42f);
 

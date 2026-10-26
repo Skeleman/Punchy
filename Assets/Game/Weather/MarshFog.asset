@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1d21f5df55fc2bc4c8895177bbf0ebab, type: 3}
+  m_Name: MarshFog
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Weather.WeatherPreset
+  CloudCoverage: 0.95
+  CloudDarkness: 0.2
+  Overcast: 0.9
+  Sunlight: 0.5
+  CloudBase: 300
+  CloudThickness: 500
+  Fog: 4
+  Wind: 0.05
+  Precipitation: 0
+  AlwaysSnow: 0
+  Hail: 0
+  PrecipitationColor: {r: 1, g: 1, b: 1, a: 1}
+  PrecipitationGlow: 0
+  DryPrecipitation: 0
+  Dust: 0.45
+  DustColor: {r: 0.74, g: 0.77, b: 0.73, a: 1}
+  LightningPerMinute: 0
+  Chance: 1
+  OnlyInListedBiomes: 1
+  Duration: {x: 240, y: 520}
+  Size: {x: 900, y: 1800}

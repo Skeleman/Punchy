@@ -80,6 +80,7 @@ namespace Punchy.Weather
         static readonly int CloudNoiseId = Shader.PropertyToID("_PunchyCloudNoise");
         static readonly int LightningPosId = Shader.PropertyToID("_PunchyLightningPos");
         static readonly int DustColorId = Shader.PropertyToID("_PunchyDustColor");
+        static readonly int GlowId = Shader.PropertyToID("_Glow");
         static readonly int HazeDensityId = Shader.PropertyToID("_PunchyHazeDensity");
 
         /// <summary>Final sky colours for this frame, after time of day and the weather overhead.</summary>
@@ -383,12 +384,21 @@ namespace Punchy.Weather
             }
         }
 
+        /// <summary>
+        /// Colour of the airborne dust: whatever dust is around the camera (sand, ash, spores…), or failing that the
+        /// first dusty preset's, for distant dust seen from clear air.
+        /// </summary>
         Color DustColor()
         {
+            var fallback = new Color(0.78f, 0.6f, 0.4f);
             foreach (var p in Presets)
                 if (p != null && p.Dust > 0f)
-                    return p.DustColor;
-            return new Color(0.78f, 0.6f, 0.4f);
+                {
+                    fallback = p.DustColor;
+                    break;
+                }
+            var c = Local.DustColor(new float3(fallback.r, fallback.g, fallback.b));
+            return new Color(c.x, c.y, c.z);
         }
 
         /// <summary>A 1×1 fair-weather map, so shaders have something sensible before the field is ready.</summary>
@@ -505,6 +515,16 @@ namespace Punchy.Weather
             UpdateEmitter(dust, dustAmount * DustVeilsPerSecond, position - new Vector3(gust.x, 0f, gust.y) * 2.5f + Vector3.up * 3f, new Vector3(gust.x, 0.3f, gust.y));
             var main = dust.main;
             main.startColor = DustColor() * new Color(1f, 1f, 1f, 0.16f);
+
+            // Tinted and glowing precipitation (falling ash, sparks).
+            var tint = Local.PrecipitationColor;
+            var glow = Local.PrecipitationGlow;
+            foreach (var ps in new[] { rain, snow })
+            {
+                var m = ps.main;
+                m.startColor = ps == rain ? new Color(tint.x * 0.85f, tint.y * 0.9f, tint.z, 0.4f) : new Color(tint.x, tint.y, tint.z, 0.9f);
+                ps.GetComponent<ParticleSystemRenderer>().sharedMaterial.SetFloat(GlowId, glow);
+            }
         }
 
         void CreateHail()

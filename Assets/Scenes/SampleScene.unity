@@ -180,6 +180,7 @@ GameObject:
   - component: {fileID: 233277107}
   - component: {fileID: 233277106}
   - component: {fileID: 233277105}
+  - component: {fileID: 233277108}
   m_Layer: 0
   m_Name: Ambience
   m_TagString: Untagged
@@ -240,6 +241,23 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &233277108
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 233277104}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d9b814c7280d4d1479533b9e95e7de80, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Ambience.AmbientParticleSystem
+  Ambience: {fileID: 233277106}
+  GlowMaterial: {fileID: 2100000, guid: 4ca3e0594294dc543bb8b5c6b65ecbed, type: 2}
+  MistMaterial: {fileID: 2100000, guid: e9c919a495005244cbc1f5350164f4c5, type: 2}
+  TileSize: 24
+  MaxDensity: 60
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0
@@ -568,6 +586,11 @@ MonoBehaviour:
   - {fileID: 11400000, guid: fc0d48c1d1e5e2a47a7158bedc4b2a0a, type: 2}
   - {fileID: 11400000, guid: a4caf408c1a9d1542b1780825fb488c9, type: 2}
   - {fileID: 11400000, guid: 4575ea1c6985309479792514e54e704a, type: 2}
+  - {fileID: 11400000, guid: cc566e6c03ef6e9468c17b2e49f13bc1, type: 2}
+  - {fileID: 11400000, guid: 9b195f280b1be1e4f9e7360d94a4abf1, type: 2}
+  - {fileID: 11400000, guid: e71909f439629e445829c7c028d63a70, type: 2}
+  - {fileID: 11400000, guid: b286ddfaf2340f145a3f219b8b4f7a57, type: 2}
+  - {fileID: 11400000, guid: e900e831a2c640e40b6f7017db3a039d, type: 2}
   Sun: {fileID: 410087040}
   PrecipitationShader: {fileID: 4800000, guid: 842f5ad74756902438673274ff63562c, type: 3}
   Cycle: {fileID: 655229951}

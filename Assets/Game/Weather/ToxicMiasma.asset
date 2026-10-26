@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1d21f5df55fc2bc4c8895177bbf0ebab, type: 3}
+  m_Name: ToxicMiasma
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Weather.WeatherPreset
+  CloudCoverage: 0.6
+  CloudDarkness: 0.3
+  Overcast: 0.5
+  Sunlight: 0.7
+  CloudBase: 800
+  CloudThickness: 900
+  Fog: 2.5
+  Wind: 0.08
+  Precipitation: 0
+  AlwaysSnow: 0
+  Hail: 0
+  PrecipitationColor: {r: 1, g: 1, b: 1, a: 1}
+  PrecipitationGlow: 0
+  DryPrecipitation: 0
+  Dust: 0.55
+  DustColor: {r: 0.36, g: 0.48, b: 0.22, a: 1}
+  LightningPerMinute: 0
+  Chance: 1
+  OnlyInListedBiomes: 1
+  Duration: {x: 200, y: 420}
+  Size: {x: 700, y: 1400}

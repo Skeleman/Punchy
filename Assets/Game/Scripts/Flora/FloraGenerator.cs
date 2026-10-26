@@ -37,6 +37,9 @@ namespace Punchy.Flora
             for (int lod = 0; lod < 3; lod++)
             {
                 builder.Clear();
+                builder.FoliageAs = species.Finish == FoliageFinish.Metallic ? FloraPart.Metal
+                                  : species.Finish == FoliageFinish.Glowing ? FloraPart.Glow : FloraPart.Foliage;
+                builder.PetalAs = species.GlowingAccents ? FloraPart.Glow : FloraPart.Petal;
                 var g = new Grower(species, variant, lod, seed, builder);
                 switch (species.Form)
                 {
@@ -50,6 +53,8 @@ namespace Punchy.Flora
                     case FloraForm.BarrelCactus: BarrelCactus(g); break;
                     case FloraForm.PricklyPear: PricklyPear(g); break;
                     case FloraForm.Ocotillo: Ocotillo(g); break;
+                    case FloraForm.Mushroom: Mushroom(g); break;
+                    case FloraForm.Bones: Bones(g); break;
                 }
                 if (lod == 0)
                 {
@@ -180,6 +185,11 @@ namespace Punchy.Flora
             var crownCentre = new Vector3(lean.x * 0.6f, (crownBase + height) * 0.5f, lean.z * 0.6f);
             var crownRadii = new Vector3(width * 0.5f, (height - crownBase) * 0.5f, width * 0.5f);
             var fullness = Mathf.Lerp(0.5f, 1.1f, s.Fullness);   // sparse crowns: smaller clumps, more branch showing
+            // Clumps never get much deeper than the crown, so wide, flat crowns (canopy trees) are built from many
+            // small clumps rather than a few huge ones hanging down to the ground.
+            var clumpCap = Mathf.Max((height - crownBase) * 0.6f, 0.3f);
+            float Clump(float min, float max) => Mathf.Min(width * g.Range(min, max) * fullness, clumpCap);
+            var spreadRatio = Mathf.Clamp(Mathf.Pow(width / (clumpCap * 2.5f), 2f), 1f, 10f);
 
             var limbs = new List<(List<Vector3> path, List<float> radii)>();
             var twigs = new List<(List<Vector3> path, List<float> radii)>();
@@ -203,7 +213,7 @@ namespace Punchy.Flora
                     radii.Add(r0 * 0.55f * (1f - 0.75f * t));
                 }
                 limbs.Add((path, radii));
-                clumps.Add((path[3], width * g.Range(0.17f, 0.24f) * fullness, g.FoliageColor(), g.R() * 100f));
+                clumps.Add((path[3], Clump(0.17f, 0.24f), g.FoliageColor(), g.R() * 100f));
 
                 for (int k = 0; k < 2; k++)
                 {
@@ -213,15 +223,19 @@ namespace Punchy.Flora
                     var end = from + twigDir * twigLength;
                     twigs.Add((new List<Vector3> { from, Vector3.Lerp(from, end, 0.5f) + Vector3.up * twigLength * 0.06f, end },
                                new List<float> { r0 * 0.2f, r0 * 0.12f, r0 * 0.05f }));
-                    clumps.Add((end, width * g.Range(0.13f, 0.19f) * fullness, g.FoliageColor(), g.R() * 100f));
+                    clumps.Add((end, Clump(0.13f, 0.19f), g.FoliageColor(), g.R() * 100f));
                 }
             }
-            clumps.Add((trunk[6] + Vector3.up * width * 0.05f, width * g.Range(0.2f, 0.25f) * fullness, g.FoliageColor(), g.R() * 100f));
-            var fill = Mathf.RoundToInt(1f + s.Fullness * 4f);
+            clumps.Add((trunk[6] + Vector3.up * Mathf.Min(width * 0.05f, clumpCap * 0.3f), Clump(0.2f, 0.25f), g.FoliageColor(), g.R() * 100f));
+            var fill = Mathf.Min(Mathf.RoundToInt((1f + s.Fullness * 4f) * spreadRatio), 40);
+            var fillReach = spreadRatio > 1.5f ? 0.85f : 0.5f;
             for (int i = 0; i < fill; i++)
             {
-                var p = crownCentre + Vector3.Scale(g.Direction() * g.Range(0.1f, 0.5f), crownRadii);
-                clumps.Add((p, width * g.Range(0.17f, 0.24f) * fullness, g.FoliageColor(), g.R() * 100f));
+                var u = g.Direction();
+                if (spreadRatio > 1.5f)
+                    u.y *= 0.5f;
+                var p = crownCentre + Vector3.Scale(u * g.Range(0.1f, fillReach), crownRadii);
+                clumps.Add((p, Clump(0.17f, 0.24f), g.FoliageColor(), g.R() * 100f));
             }
 
             // Emit.
@@ -253,7 +267,10 @@ namespace Punchy.Flora
                 foreach (var c in clumps)
                 {
                     var radii = new Vector3(c.radius, c.radius * 0.78f, c.radius);
-                    var first = b.Blob(c.centre, radii, Quaternion.identity, g.Lod == 0 ? 2 : 1, 0.22f, c.seed, c.color, FloraPart.Foliage);
+                    // Crowns made of many clumps (wide canopies) use simpler clumps; the silhouette carries them.
+                    var many = clumps.Count > 20;
+                    var detail = g.Lod == 0 ? (many ? 1 : 2) : (many ? 0 : 1);
+                    var first = b.Blob(c.centre, radii, Quaternion.identity, detail, 0.22f, c.seed, c.color, FloraPart.Foliage);
                     b.BlendNormalsFrom(first, crownCentre, crownRadii, 0.55f);
                     if (g.Lod == 0)
                         b.Leaves(c.centre, radii, (int)(16 + 26 * s.Fullness), c.radius * 0.3f, g.Detail, c.color, c.color * 1.15f);
@@ -923,6 +940,140 @@ namespace Punchy.Flora
                                  s.Foliage.linear, s.FoliageVariation.linear);
             }
             b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.15f));
+        }
+
+        static void Mushroom(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            g.Height = height;
+            g.Width = height * s.Spread;
+            g.TrunkRadius = 0f;
+
+            var count = g.Count(s.Branches);
+            for (int i = 0; i < count; i++)
+            {
+                var offset = i == 0 ? Vector3.zero : g.Flat(g.R() * 6.28f) * height * s.Spread * g.Range(0.25f, 0.7f);
+                var h = height * (i == 0 ? 1f : g.Range(0.4f, 0.85f));
+                var lean = g.Flat(g.R() * 6.28f) * g.Range(0f, 0.25f);
+                var capRadius = h * s.Spread * g.Range(0.35f, 0.55f);
+                var capHeight = capRadius * g.Range(0.4f, 0.65f);
+                var stemRadius = Mathf.Max(h * s.Thickness, 0.004f);
+                var color = g.FoliageColor();
+                var seed = g.R() * 100f;
+                var top = offset + lean * h + Vector3.up * h;
+                var tilt = Quaternion.FromToRotation(Vector3.up, (Vector3.up + lean).normalized);
+
+                var firstStem = b.VertexCount;
+                b.Tube(new List<Vector3> { offset + Vector3.down * 0.02f, offset + lean * h * 0.45f + Vector3.up * h * 0.55f, top },
+                       new List<float> { stemRadius * 1.25f, stemRadius, stemRadius * 0.9f }, g.Sides(7, 5, 3), g.Bark, FloraPart.Bark);
+                b.Occlude(firstStem, (p, n) => GroundOcclusion(p, h * 0.3f) * 0.9f);
+
+                // The cap, and darker gills underneath it.
+                var cap = b.Blob(top + tilt * Vector3.up * capHeight * 0.25f, new Vector3(capRadius, capHeight, capRadius), tilt,
+                                 g.Lod == 0 ? 2 : g.Lod == 1 ? 1 : 0, 0.06f, seed, color, FloraPart.Foliage);
+                b.Occlude(cap, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.3f)));
+                if (g.Lod < 2)
+                    b.Blob(top - tilt * Vector3.up * capHeight * 0.05f, new Vector3(capRadius * 0.92f, capHeight * 0.18f, capRadius * 0.92f), tilt,
+                           0, 0f, seed, color * 0.45f, FloraPart.Foliage, 0.45f);
+                // Spots on the cap.
+                if (g.HasAccent && g.Lod == 0)
+                    for (int k = 0; k < Mathf.RoundToInt(s.AccentAmount * 12f); k++)
+                    {
+                        var u = FloraMeshBuilder.RandomDirection(g.Detail);
+                        u.y = Mathf.Abs(u.y) * 0.8f + 0.2f;
+                        var spot = top + tilt * (Vector3.up * capHeight * 0.25f + Vector3.Scale(u.normalized, new Vector3(capRadius, capHeight, capRadius)) * 1.01f);
+                        b.Diamond(spot, capRadius * 0.12f, g.Accent, FloraPart.Petal);
+                    }
+            }
+        }
+
+        static void Bones(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var size = g.Range(s.Height);   // overall length of the skeleton
+            g.Height = size * 0.45f;
+            g.Width = size;
+            g.TrunkRadius = 0f;
+
+            var bone = s.Bark.linear;
+            var aged = Color.Lerp(bone, bone * 0.75f, g.R());
+            var heading = g.Flat(g.R() * 6.28f);
+            var across = Vector3.Cross(Vector3.up, heading).normalized * (g.R() < 0.5f ? 1f : -1f);
+            var r = size * s.Thickness;
+            var sides = g.Sides(6, 4, 3);
+
+            // The spine lies along the ground, half buried, with a gentle sideways bend.
+            var bend = g.Range(-0.12f, 0.12f) * size;
+            Vector3 Spine(float t) => heading * (t - 0.5f) * size + across * bend * Mathf.Sin(t * Mathf.PI) + Vector3.down * r * 0.4f;
+            var spine = new List<Vector3>();
+            var spineRadii = new List<float>();
+            for (int i = 0; i <= 6; i++)
+            {
+                var t = i / 6f;
+                spine.Add(Spine(t));
+                spineRadii.Add(r * Mathf.Lerp(1f, 0.45f, t));
+            }
+            var first = b.VertexCount;
+            b.Tube(spine, spineRadii, sides, aged, FloraPart.Bark, cap: true);
+            if (g.Lod == 0)
+                for (int i = 1; i < 14; i++)
+                    b.Diamond(Spine(i / 14f) + Vector3.up * r * 0.8f, r * 1.4f * Mathf.Lerp(1f, 0.5f, i / 14f), aged, FloraPart.Bark);
+
+            // Ribs arch up and over from the spine to the ground beside it (the animal lies on its side). Incomplete
+            // skeletons are missing some, and some are broken off part-way.
+            var ribCount = g.Count(s.Branches);
+            for (int k = 0; k < ribCount; k++)
+            {
+                var t = Mathf.Lerp(0.22f, 0.62f, ribCount > 1 ? k / (ribCount - 1f) : 0.5f);
+                var present = g.R() < 0.45f + 0.55f * s.Fullness;
+                var reach = g.R() < s.Fullness ? 1f : g.Range(0.45f, 0.85f);
+                var sizeAlong = Mathf.Sin(Mathf.Lerp(0.25f, 0.95f, (t - 0.22f) / 0.4f) * Mathf.PI);
+                var ribWidth = size * 0.28f * (0.6f + 0.4f * sizeAlong);
+                var ribHeight = size * 0.3f * (0.6f + 0.4f * sizeAlong);
+                if (!present)
+                    continue;
+                var path = new List<Vector3>();
+                var radii = new List<float>();
+                var steps = g.Lod == 0 ? 8 : 4;
+                var root = Spine(t);
+                for (int j = 0; j <= steps; j++)
+                {
+                    var a = j / (float)steps * Mathf.PI * reach;
+                    path.Add(root + across * ribWidth * (1f - Mathf.Cos(a)) * 0.5f + Vector3.up * ribHeight * Mathf.Sin(a) - heading * size * 0.03f * Mathf.Sin(a));
+                    radii.Add(r * 0.55f * Mathf.Lerp(1f, 0.6f, j / (float)steps));
+                }
+                b.Tube(path, radii, Mathf.Max(3, sides - 2), aged, FloraPart.Bark, cap: true);
+            }
+
+            // Skull at the front, with dark eye sockets.
+            var look = Quaternion.LookRotation((heading + Vector3.down * 0.2f).normalized, Vector3.up);
+            var skull = Spine(0f) - heading * size * 0.06f + Vector3.up * r * 1.5f;
+            var skullRadii = new Vector3(size * 0.06f, size * 0.05f, size * 0.1f);
+            b.Blob(skull, skullRadii, look, g.Lod == 0 ? 1 : 0, 0.12f, g.Variant * 5.1f, aged, FloraPart.Bark);
+            if (g.Lod < 2)
+                for (int side = -1; side <= 1; side += 2)
+                    b.Blob(skull + look * new Vector3(side * skullRadii.x * 0.75f, skullRadii.y * 0.35f, -skullRadii.z * 0.2f),
+                           Vector3.one * skullRadii.x * 0.32f, look, 0, 0f, 0f, new Color(0.05f, 0.04f, 0.035f), FloraPart.Bark, 0.4f);
+
+            // A few long bones scattered nearby.
+            var scattered = 2 + (int)(g.R() * 3f);
+            for (int i = 0; i < scattered; i++)
+            {
+                var at = g.Flat(g.R() * 6.28f) * size * g.Range(0.35f, 0.7f);
+                var dir = g.Flat(g.R() * 6.28f);
+                var length = size * g.Range(0.12f, 0.22f);
+                if (g.Lod == 2)
+                    continue;
+                var a = at - dir * length * 0.5f + Vector3.up * r * 0.2f;
+                var c = at + dir * length * 0.5f + Vector3.up * r * 0.2f;
+                b.Tube(new List<Vector3> { a, c }, new List<float> { r * 0.45f, r * 0.45f }, 4, aged, FloraPart.Bark);
+                b.Diamond(a, r * 0.9f, aged, FloraPart.Bark);
+                b.Diamond(c, r * 0.9f, aged, FloraPart.Bark);
+            }
+            b.Occlude(first, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(p.y / Mathf.Max(size * 0.15f, 0.05f))) * Mathf.Lerp(0.8f, 1f, Mathf.Clamp01(n.y + 0.5f)));
         }
     }
 }

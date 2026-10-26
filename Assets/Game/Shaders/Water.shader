@@ -70,6 +70,8 @@ Shader "Punchy/Water"
             {
                 float3 positionOS : POSITION;
                 float4 data       : TEXCOORD0;   // flow direction xz, depth below the surface, rapids 0..1
+                float4 look       : TEXCOORD1;   // biome water colour rgb, murk 0..1
+                float  glow       : TEXCOORD2;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -79,6 +81,8 @@ Shader "Punchy/Water"
                 float3 positionWS : TEXCOORD0;
                 float4 data       : TEXCOORD1;
                 half   fogFactor  : TEXCOORD2;
+                float4 look       : TEXCOORD3;
+                float  glow       : TEXCOORD4;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -91,6 +95,8 @@ Shader "Punchy/Water"
                 o.positionCS = pos.positionCS;
                 o.positionWS = pos.positionWS;
                 o.data = input.data;
+                o.look = input.look;
+                o.glow = input.glow;
                 o.fogFactor = ComputeFogFactor(pos.positionCS.z);
                 return o;
             }
@@ -168,6 +174,9 @@ Shader "Punchy/Water"
                 float distanceFade = saturate(1 - distance(input.positionWS, GetCameraPositionWS()) / 350);
                 // Rain rings only where it's actually raining (from the world weather map).
                 slope += RainRipples(p, t) * PunchyWetnessAt(p).g * distanceFade * 0.8;
+                // Murky biome water (swamps, bogs) is thick: it barely ripples, but bubbles slowly.
+                float murk = saturate(input.look.a);
+                slope = slope * (1 - 0.75 * murk) + RainRipples(p * 0.45 + 13.7, t * 0.25) * murk * distanceFade * 0.6;
                 float strength = _WaveStrength * (0.5 + _PunchyWind) * (0.25 + 0.75 * distanceFade);
                 float3 n = normalize(float3(-slope.x * strength, 1, -slope.y * strength));
                 if (!frontFace)
@@ -184,7 +193,12 @@ Shader "Punchy/Water"
                 half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
                 half3 ambient = SampleSH(n);
 
-                half3 waterColor = lerp(_DeepColor.rgb, _ShallowColor.rgb, exp(-thickness * _Absorption));
+                // Glowing (toxic) water swirls between its colour and a shifted hue in slow-moving patches.
+                half swirl = smoothstep(0.35, 0.65, PunchyValueNoise(p * 0.06 + float2(t * 0.01, -t * 0.013)) * 0.7 + PunchyValueNoise(p * 0.21) * 0.3);
+                input.look.rgb = lerp(input.look.rgb, input.look.rbg, swirl * saturate(input.glow * 3));
+                half3 shallowColor = lerp(_ShallowColor.rgb, input.look.rgb, saturate(murk * 1.5));
+                half3 deepColor = lerp(_DeepColor.rgb, input.look.rgb * 0.2, saturate(murk * 1.5));
+                half3 waterColor = lerp(deepColor, shallowColor, exp(-thickness * _Absorption * (1 + murk * 8)));
                 half3 body = waterColor * (ambient + light.color * saturate(dot(n, light.direction)) * shadow * 0.6);
 
                 half fresnel = 0.02 + 0.98 * pow(1 - saturate(dot(n, v)), 5);
@@ -196,8 +210,11 @@ Shader "Punchy/Water"
                 float3 h = normalize(light.direction + v);
                 half glint = pow(saturate(dot(n, h)), exp2(10 * _Smoothness + 1)) * shadow;
 
-                half3 color = lerp(body, reflection, fresnel) + light.color * glint * 4;
-                half alpha = saturate(1 - exp(-thickness * _Opacity) + fresnel + glint);
+                fresnel *= 1 - 0.5 * murk;
+                half3 color = lerp(body, reflection, fresnel) + light.color * glint * 4 * (1 - 0.6 * murk);
+                // Toxic pools glow from within, pulsing slowly in patches.
+                color += input.look.rgb * input.glow * (0.7 + 0.3 * sin(t * 0.6 + PunchyValueNoise(p * 0.08) * 6.28)) * 1.5;
+                half alpha = saturate(1 - exp(-thickness * _Opacity * (1 + murk * 12)) + fresnel + glint);
 
                 // Broken foam line where the water thins out against the shore.
                 half foamNoise = PunchyValueNoise(p * 0.9 + float2(t * 0.25, -t * 0.18)) * 0.6 + PunchyValueNoise(p * 2.7 - t * 0.4) * 0.4;

@@ -1,0 +1,120 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6eba43088e24ee94090ce3f49291f267, type: 3}
+  m_Name: PoisonSwamp
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.BiomeDefinition
+  MapColor: {r: 0.45, g: 0.25, b: 0.5, a: 1}
+  Frequency: 0.7
+  BaseElevation: 0.6
+  Shape: 0
+  Relief: 2.5
+  FeatureSize: 80
+  Octaves: 4
+  Sharpness: 1
+  TerraceSteps: 0
+  WindDirection: 60
+  Rainfall: 0.9
+  WaterMurk: 0.9
+  WaterColor: {r: 0.32, g: 0.55, b: 0.18, a: 1}
+  WaterGlow: 0.35
+  Weather:
+  - Preset: {fileID: 11400000, guid: c387c3aae44eb0a4696f7e8a0739110d, type: 2}
+    Chance: 0.5
+  - Preset: {fileID: 11400000, guid: 6518599f8e7a885409916976155ada3e, type: 2}
+    Chance: 1
+  - Preset: {fileID: 11400000, guid: 28af6bbd1c228fc409ad3b95dd96369f, type: 2}
+    Chance: 2
+  - Preset: {fileID: 11400000, guid: 7771effdbe3750c469548baca5cddc21, type: 2}
+    Chance: 1.5
+  - Preset: {fileID: 11400000, guid: 2fefebb67f2c6234f8ed2a4d78ebd50b, type: 2}
+    Chance: 0.3
+  - Preset: {fileID: 11400000, guid: e71909f439629e445829c7c028d63a70, type: 2}
+    Chance: 4
+  - Preset: {fileID: 11400000, guid: b286ddfaf2340f145a3f219b8b4f7a57, type: 2}
+    Chance: 1
+  BaseSurface: {fileID: 11400000, guid: 5f0156ab7976d5d41831e50fd5b9fefc, type: 2}
+  Layers:
+  - Surface: {fileID: 11400000, guid: 09647a6a069e9e64fada87a0458efc78, type: 2}
+    UseSlope: 0
+    SlopeRange: {x: 35, y: 90}
+    SlopeBlend: 5
+    UseHeight: 0
+    HeightRange: {x: 80, y: 10000}
+    HeightBlend: 8
+    UseWaterDepth: 0
+    WaterDepthRange: {x: -2, y: 10000}
+    WaterDepthBlend: 1
+    OnlyInRivers: 0
+    UsePatches: 1
+    PatchSize: 30
+    PatchCoverage: 0.5
+    EdgeNoise: 0.5
+    Opacity: 1
+  - Surface: {fileID: 11400000, guid: 5f0156ab7976d5d41831e50fd5b9fefc, type: 2}
+    UseSlope: 0
+    SlopeRange: {x: 35, y: 90}
+    SlopeBlend: 5
+    UseHeight: 0
+    HeightRange: {x: 80, y: 10000}
+    HeightBlend: 8
+    UseWaterDepth: 1
+    WaterDepthRange: {x: -0.8, y: 10000}
+    WaterDepthBlend: 0.6
+    OnlyInRivers: 0
+    UsePatches: 0
+    PatchSize: 40
+    PatchCoverage: 0.4
+    EdgeNoise: 0.4
+    Opacity: 1
+  - Surface: {fileID: 11400000, guid: 52309ffcc63888a4fa04169f80fd4edb, type: 2}
+    UseSlope: 0
+    SlopeRange: {x: 35, y: 90}
+    SlopeBlend: 5
+    UseHeight: 0
+    HeightRange: {x: 80, y: 10000}
+    HeightBlend: 8
+    UseWaterDepth: 0
+    WaterDepthRange: {x: -2, y: 10000}
+    WaterDepthBlend: 1
+    OnlyInRivers: 1
+    UsePatches: 0
+    PatchSize: 40
+    PatchCoverage: 0.4
+    EdgeNoise: 0
+    Opacity: 1
+  Heat: 0
+  Cold: 0
+  Fireflies: 2
+  Butterflies: 0
+  Particles:
+  - Type: {fileID: 11400000, guid: 4ebce0ad685efc54890f0e9bcc87e5ff, type: 2}
+    Density: 20
+  - Type: {fileID: 11400000, guid: 374f46e9b47583b43a4c39920559091d, type: 2}
+    Density: 1.5
+  Flora:
+  - Species: {fileID: 11400000, guid: e8772a9d62ea3cb4faae30254ce1f08f, type: 2}
+    Density: 1.2
+  - Species: {fileID: 11400000, guid: a9cbbae6f97c066488f4202fc7884908, type: 2}
+    Density: 6
+  - Species: {fileID: 11400000, guid: 954e61bf4f93aad4eb2f1d90d7a6feb0, type: 2}
+    Density: 15
+  - Species: {fileID: 11400000, guid: d1a7d998e5eb2d347abf75442b5da25b, type: 2}
+    Density: 1.5
+  Fauna:
+  - Species: {fileID: 11400000, guid: fca4f55d640254e4e97540affd4d800d, type: 2}
+    Density: 0.4
+  - Species: {fileID: 11400000, guid: d9b8e39f7dbafe546bf70c1f924ea9bc, type: 2}
+    Density: 0.25
+  - Species: {fileID: 11400000, guid: 0eb10a11a79356f47bef533a01df02c4, type: 2}
+    Density: 1.5
+  - Species: {fileID: 11400000, guid: ea3b1d325a970834bb97ef8d83d14ff0, type: 2}
+    Density: 3

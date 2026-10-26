@@ -47,6 +47,10 @@ namespace Punchy.Ambience
         public float Cold { get; private set; }
         public float Fireflies { get; private set; }
         public float Butterflies { get; private set; }
+        /// <summary>0..1 how much of each condition ambient particles can depend on.</summary>
+        public float Night { get; private set; }
+        public float Fog { get; private set; }
+        public float Dust { get; private set; }
 
         static readonly int HeatId = Shader.PropertyToID("_PunchyHeat");
         static readonly int HeatMapId = Shader.PropertyToID("_PunchyHeatMap");
@@ -240,6 +244,9 @@ namespace Punchy.Ambience
 
             var w = Weather != null ? Weather.Local : default;
             var night = Cycle != null ? Cycle.Night : 0f;
+            Night = night;
+            Fog = math.saturate((w.Fog - 1.5f) / 2f);
+            Dust = math.saturate(w.Dust * 1.5f);
             var sunHeight = Cycle != null ? Cycle.SunDirection.y : 0.7f;
             var dry = 1f - math.saturate(w.Precipitation * 2f);
             var calm = 1f - math.smoothstep(0.45f, 0.85f, w.Wind);
