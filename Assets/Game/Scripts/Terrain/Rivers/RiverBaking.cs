@@ -8,11 +8,16 @@ namespace Punchy.Terrain
 {
     /// <summary>
     /// Builds rivers by simulating drainage over the whole world on a coarse grid:
-    ///  1. sample ground height and rainfall per cell;
+    ///  1. sample ground height and precipitation per cell (wetter uphill, plus snowmelt);
     ///  2. priority-flood from the sea inwards: every cell gets a downstream neighbour and a drainage level that
-    ///     never rises downstream (dips are filled — future lakes);
-    ///  3. accumulate rain down the drainage tree; cells with enough upstream rain become river;
-    ///  4. index which river segments are near each cell, so terrain sampling only checks a handful.
+    ///     never rises downstream (hollows are filled);
+    ///  3. accumulate water down the drainage tree; cells with enough upstream water become river;
+    ///  4. keep the big, deep filled hollows as lakes; find each cell's base level (the first lake downstream, or
+    ///     the sea) — nothing can drain below it, so hollows dipping below their base level become ponds;
+    ///  5. set each river's bed: the lowest ground across its width, then forced downhill from source to sea so
+    ///     where the path crosses a hollow's rim the river cuts through it (never below the base level), with
+    ///     over-steep drops spread into gorges; then water levels that never rise downstream;
+    ///  6. index which river segments are near each cell, so terrain sampling only checks a handful.
     /// </summary>
     public static class RiverBaking
     {
@@ -31,6 +36,11 @@ namespace Punchy.Terrain
             var down = new NativeArray<int>(count, Allocator.TempJob);
             var order = new NativeList<int>(count, Allocator.TempJob);
             var width = new NativeArray<float>(count, Allocator.TempJob);
+            var lakes = new NativeArray<float>(count, Allocator.TempJob);
+            var bed = new NativeArray<float>(count, Allocator.TempJob);
+            var water = new NativeArray<float>(count, Allocator.TempJob);
+            var lakeLevel = new NativeArray<float>(count, Allocator.TempJob);
+            var floor = new NativeArray<float>(count, Allocator.TempJob);
             var nearest = new NativeArray<int2>(count, Allocator.TempJob);
             var seed = source.World.Seed;
 
@@ -38,7 +48,7 @@ namespace Punchy.Terrain
             {
                 var sample = new SampleCellsJob
                 {
-                    Source = source, Origin = origin, CellSize = cellSize, Resolution = resolution,
+                    Source = source, Settings = settings, Origin = origin, CellSize = cellSize, Resolution = resolution,
                     Elevation = elevation, Rain = rain
                 }.Schedule(count, 256);
 
@@ -54,12 +64,42 @@ namespace Punchy.Terrain
                     Elevation = elevation, Rain = rain, Down = down, Order = order, Width = width
                 }.Schedule(flood);
 
+                var lake = new LakeJob
+                {
+                    Resolution = resolution, SeaLevel = source.World.SeaLevel,
+                    MinCells = (int)math.ceil(settings.MinLakeArea * 1e6f / (cellSize * cellSize)),
+                    MinDepth = settings.MinLakeDepth,
+                    Elevation = elevation, Level = level, LakeDepth = lakes
+                }.Schedule(flow);
+
+                var floors = new BaseLevelJob
+                {
+                    SeaLevel = source.World.SeaLevel,
+                    Elevation = elevation, Level = level, Down = down, Order = order,
+                    LakeDepth = lakes, LakeLevel = lakeLevel, Floor = floor
+                }.Schedule(lake);
+
+                var bedStart = new BedStartJob
+                {
+                    Source = source, Resolution = resolution, Origin = origin, CellSize = cellSize,
+                    Meander = settings.Meander, Seed = seed,
+                    Elevation = elevation, LakeLevel = lakeLevel, Width = width, LakeDepth = lakes, Bed = bed
+                }.Schedule(count, 256, floors);
+
+                var bedDownhill = new BedDownhillJob
+                {
+                    Settings = settings, MinimumDrop = cellSize * 0.0005f, SeaLevel = source.World.SeaLevel,
+                    Resolution = resolution, Origin = origin, CellSize = cellSize, Seed = seed,
+                    Down = down, Order = order, LakeDepth = lakes, LakeLevel = lakeLevel, Floor = floor,
+                    Width = width, Bed = bed, WaterLevel = water
+                }.Schedule(bedStart);
+
                 new NearestSegmentsJob
                 {
                     Resolution = resolution, Origin = origin, CellSize = cellSize, Meander = settings.Meander, Seed = seed,
                     MaxDistance = settings.MaxCarveDistance + cellSize * 1.5f,
                     Down = down, Width = width, Nearest = nearest
-                }.Schedule(flow).Complete();
+                }.Schedule(bedDownhill).Complete();
 
                 var builder = new BlobBuilder(Allocator.Temp);
                 ref var root = ref builder.ConstructRoot<RiverMapBlob>();
@@ -68,20 +108,13 @@ namespace Punchy.Terrain
                 root.CellSize = cellSize;
                 root.Meander = settings.Meander;
                 root.Seed = seed;
-                Copy(ref builder, ref root.Level, level);
+                Copy(ref builder, ref root.LakeLevel, lakeLevel);
+                Copy(ref builder, ref root.Bed, bed);
+                Copy(ref builder, ref root.WaterLevel, water);
                 Copy(ref builder, ref root.Down, down);
                 Copy(ref builder, ref root.Width, width);
                 Copy(ref builder, ref root.Nearest, nearest);
-                var lakes = new NativeArray<float>(count, Allocator.TempJob);
-                new LakeJob
-                {
-                    Resolution = resolution, SeaLevel = source.World.SeaLevel,
-                    MinCells = (int)math.ceil(settings.MinLakeArea * 1e6f / (cellSize * cellSize)),
-                    MinDepth = settings.MinLakeDepth,
-                    Elevation = elevation, Level = level, LakeDepth = lakes
-                }.Run();
                 Copy(ref builder, ref root.LakeDepth, lakes);
-                lakes.Dispose();
                 var blob = builder.CreateBlobAssetReference<RiverMapBlob>(allocator);
                 builder.Dispose();
                 return blob;
@@ -94,6 +127,11 @@ namespace Punchy.Terrain
                 down.Dispose();
                 order.Dispose();
                 width.Dispose();
+                lakes.Dispose();
+                bed.Dispose();
+                water.Dispose();
+                lakeLevel.Dispose();
+                floor.Dispose();
                 nearest.Dispose();
             }
         }
@@ -109,6 +147,7 @@ namespace Punchy.Terrain
         struct SampleCellsJob : IJobParallelFor
         {
             public TerrainSource Source;
+            public RiverSettings Settings;
             public float2 Origin;
             public float CellSize;
             public int Resolution;
@@ -118,9 +157,167 @@ namespace Punchy.Terrain
             public void Execute(int i)
             {
                 var xz = Origin + (new float2(i % Resolution, i / Resolution) + 0.5f) * CellSize;
-                Elevation[i] = Source.BaseHeight(xz);
-                Rain[i] = Source.Rainfall(xz);
+                var ground = Source.SampleGround(xz);
+                Elevation[i] = ground.Height;
+
+                // Biome rainfall, scaled up over high ground (air cools and drops its moisture as it rises), plus
+                // meltwater from snow-covered surfaces. Rivers therefore tend to rise in mountains and snowfields.
+                var altitude = math.saturate((ground.Height - Source.World.SeaLevel) / math.max(Settings.HighlandHeight, 1f));
+                var orographic = math.lerp(Settings.LowlandRain, Settings.HighlandRain, altitude);
+                var snow = Source.SampleSurface(xz, ground, Source.SampleNormal(xz, CellSize * 0.5f)).Snow;
+                Rain[i] = Source.Rainfall(xz) * orographic + snow * Settings.Snowmelt;
             }
+        }
+
+        /// <summary>
+        /// Base level per cell: the surface of the first lake its water reaches, or the sea. A river can never cut
+        /// below it. Filled hollows whose ground lies below their base level can't be drained by cutting a rim, so
+        /// they hold water up to it: they become ponds (marked as lakes at the base level).
+        /// </summary>
+        [BurstCompile]
+        struct BaseLevelJob : IJob
+        {
+            public float SeaLevel;
+            [ReadOnly] public NativeArray<float> Elevation;
+            [ReadOnly] public NativeArray<float> Level;
+            [ReadOnly] public NativeArray<int> Down;
+            [ReadOnly] public NativeList<int> Order;
+            public NativeArray<float> LakeDepth;
+            public NativeArray<float> LakeLevel;
+            public NativeArray<float> Floor;
+
+            public void Execute()
+            {
+                // Downstream cells first, so each cell inherits its outlet's base level.
+                for (int k = 0; k < Order.Length; k++)
+                {
+                    var c = Order[k];
+                    var d = Down[c];
+                    if (LakeDepth[c] > 0f)
+                        LakeLevel[c] = Floor[c] = Level[c];
+                    else
+                    {
+                        Floor[c] = d >= 0 ? Floor[d] : SeaLevel;
+                        var inHollow = Level[c] - Elevation[c] > 0.3f;
+                        if (inHollow && Elevation[c] >= SeaLevel && Elevation[c] < Floor[c] - 0.3f)
+                        {
+                            LakeDepth[c] = Floor[c] - Elevation[c];
+                            LakeLevel[c] = Floor[c];
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Starting bed level per cell. River cells take the lowest ground across their channel and banks (so the
+        /// water can't spill over a low bank); lake cells take the lake surface; everything else its own height.
+        /// </summary>
+        [BurstCompile]
+        struct BedStartJob : IJobParallelFor
+        {
+            public TerrainSource Source;
+            public int Resolution;
+            public float2 Origin;
+            public float CellSize;
+            public float Meander;
+            public uint Seed;
+            [ReadOnly] public NativeArray<float> Elevation;
+            [ReadOnly] public NativeArray<float> LakeLevel;
+            [ReadOnly] public NativeArray<float> Width;
+            [ReadOnly] public NativeArray<float> LakeDepth;
+            [WriteOnly] public NativeArray<float> Bed;
+
+            public void Execute(int i)
+            {
+                if (LakeDepth[i] > 0f)
+                {
+                    Bed[i] = LakeLevel[i];
+                    return;
+                }
+                if (Width[i] <= 0f)
+                {
+                    Bed[i] = Elevation[i];
+                    return;
+                }
+
+                var centre = RiverMapBlob.JitteredPoint(i, Resolution, Origin, CellSize, Meander, Seed);
+                var radius = math.max(Width[i] * 0.5f + 3f, CellSize * 0.6f);
+                var lowest = Source.BaseHeight(centre);
+                for (int k = 0; k < 8; k++)
+                {
+                    math.sincos(k * math.PI / 4f, out var s, out var c);
+                    lowest = math.min(lowest, Source.BaseHeight(centre + new float2(c, s) * radius));
+                    lowest = math.min(lowest, Source.BaseHeight(centre + new float2(c, s) * radius * 0.5f));
+                }
+                Bed[i] = math.min(lowest, Elevation[i]);
+            }
+        }
+
+        /// <summary>
+        /// Shapes river beds and water levels along the drainage tree:
+        ///  1. upstream-first, each cell's downstream neighbour may be no higher than it (minus a tiny drop): a rise
+        ///     along the path — a hollow's rim — is cut down to the level upstream of it;
+        ///  2. downstream-first, a river cell may be no more than MaxGradient above the cell it drains into: falls
+        ///     steeper than that are spread out by cutting a gorge back upstream;
+        ///  3. water sits a quarter of the channel depth below the banks (lakes at their surface), then downstream-first
+        ///     no river's water may be lower than the water it flows into, so it backs up to a lake's level ahead.
+        /// </summary>
+        [BurstCompile]
+        struct BedDownhillJob : IJob
+        {
+            public RiverSettings Settings;
+            public float MinimumDrop;
+            public float SeaLevel;
+            public int Resolution;
+            public float2 Origin;
+            public float CellSize;
+            public uint Seed;
+            [ReadOnly] public NativeArray<int> Down;
+            [ReadOnly] public NativeList<int> Order;
+            [ReadOnly] public NativeArray<float> LakeDepth;
+            [ReadOnly] public NativeArray<float> LakeLevel;
+            [ReadOnly] public NativeArray<float> Floor;
+            [ReadOnly] public NativeArray<float> Width;
+            public NativeArray<float> Bed;
+            public NativeArray<float> WaterLevel;
+
+            public void Execute()
+            {
+                for (int k = Order.Length - 1; k >= 0; k--)
+                {
+                    var c = Order[k];
+                    var d = Down[c];
+                    // Lakes stay flat at their surface; whatever drains out of them is cut to that level, and no cut
+                    // goes below the base level the water ultimately drains to.
+                    if (d < 0 || LakeDepth[d] > 0f)
+                        continue;
+                    Bed[d] = math.min(Bed[d], math.max(Bed[c] - MinimumDrop, Floor[d]));
+                }
+
+                for (int k = 0; k < Order.Length; k++)
+                {
+                    var c = Order[k];
+                    var d = Down[c];
+                    if (d < 0 || Width[c] <= 0f || LakeDepth[c] > 0f)
+                        continue;
+                    var length = math.distance(Point(c), Point(d));
+                    Bed[c] = math.min(Bed[c], Bed[d] + Settings.MaxGradient * length);
+                }
+
+                for (int k = 0; k < Order.Length; k++)
+                {
+                    var c = Order[k];
+                    WaterLevel[c] = LakeDepth[c] > 0f ? LakeLevel[c]
+                        : Bed[c] < SeaLevel ? SeaLevel
+                        : Bed[c] - RiverSampling.Depth(Width[c], Settings) * 0.25f;
+                    var d = Down[c];
+                    if (d >= 0 && Width[c] > 0f)
+                        WaterLevel[c] = math.max(WaterLevel[c], WaterLevel[d]);
+                }
+            }
+
+            float2 Point(int index) => RiverMapBlob.JitteredPoint(index, Resolution, Origin, CellSize, Settings.Meander, Seed);
         }
 
         [BurstCompile]
@@ -288,14 +485,7 @@ namespace Punchy.Terrain
                 distances.Dispose();
             }
 
-            // Must match RiverMapBlob.Point.
-            float2 Point(int index)
-            {
-                var cell = new int2(index % Resolution, index / Resolution);
-                var h = math.hash(new int2(index, (int)Seed));
-                var jitter = new float2(h & 0xFFFF, h >> 16) / 65535f - 0.5f;
-                return Origin + ((float2)cell + 0.5f + jitter * Meander) * CellSize;
-            }
+            float2 Point(int index) => RiverMapBlob.JitteredPoint(index, Resolution, Origin, CellSize, Meander, Seed);
         }
 
         /// <summary>Finds the hollows the flood filled, and keeps the ones big and deep enough to be lakes.</summary>

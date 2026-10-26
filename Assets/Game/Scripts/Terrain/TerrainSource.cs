@@ -81,6 +81,8 @@ namespace Punchy.Terrain
         public float WaterSurface;
         /// <summary>Direction river water flows here (unit length in rivers, zero in still water).</summary>
         public float2 Flow;
+        /// <summary>0..1: how steep the river is here (white water at 1).</summary>
+        public float Rapids;
 
         public const float NoWater = -1e6f;
         public bool HasWater => WaterSurface > NoWater * 0.5f;
@@ -239,11 +241,12 @@ namespace Punchy.Terrain
                 var edge = river.Width * 0.5f + RiverSampling.SurfaceMargin;
                 if (river.Found && river.Distance < edge)
                 {
-                    var surfaceLevel = RiverSampling.WaterSurface(river, RiverSettings);
+                    var surfaceLevel = RiverSampling.WaterSurface(river);
                     if (surfaceLevel > water)
                     {
                         water = surfaceLevel;
                         flow = river.Flow;
+                        g.Rapids = math.smoothstep(0.015f, 0.08f, river.Gradient);
                     }
                     var fade = 1f - math.smoothstep(edge - RiverSampling.SurfaceMargin * 0.5f, edge, river.Distance);
                     ruleDepth = math.max(ruleDepth, math.lerp(farAbove, surfaceLevel - g.Height, fade));
@@ -256,6 +259,7 @@ namespace Punchy.Terrain
                     {
                         water = lakeSurface;
                         flow = float2.zero;
+                        g.Rapids = 0f;
                     }
                     ruleDepth = math.max(ruleDepth, math.lerp(farAbove, lakeSurface - g.Height, math.smoothstep(0f, 0.4f, lake)));
                 }

@@ -65,7 +65,7 @@ Shader "Punchy/Water"
             struct WaterAttributes
             {
                 float3 positionOS : POSITION;
-                float4 data       : TEXCOORD0;   // flow direction xz, depth below the surface, unused
+                float4 data       : TEXCOORD0;   // flow direction xz, depth below the surface, rapids 0..1
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -117,13 +117,13 @@ Shader "Punchy/Water"
 
             // Rivers: the wave pattern is carried downstream. Two copies offset by half a cycle cross-fade so the
             // pattern never stretches indefinitely (the standard flow-map technique).
-            float2 FlowingSlope(float2 p, float2 flow, float t)
+            float2 FlowingSlope(float2 p, float2 flow, float speed, float t)
             {
                 const float cycle = 3.0;
                 float phase0 = frac(t / cycle);
                 float phase1 = frac(t / cycle + 0.5);
                 float w0 = 1 - abs(1 - 2 * phase0);
-                float2 offset = flow * _FlowSpeed * cycle;
+                float2 offset = flow * speed * cycle;
                 return WaveSlope(p - offset * phase0, t * 0.3) * w0 +
                        WaveSlope(p - offset * phase1 + 7.3, t * 0.3) * (1 - w0);
             }
@@ -135,8 +135,11 @@ Shader "Punchy/Water"
                 float2 p = input.positionWS.xz;
                 float2 flow = input.data.xy;
                 float flowAmount = saturate(length(flow));
+                float rapids = input.data.w;
 
-                float2 slope = lerp(WaveSlope(p, t), FlowingSlope(p, flow / max(flowAmount, 1e-3), t), flowAmount);
+                // Steep stretches run faster and choppier.
+                float2 flowingSlope = FlowingSlope(p, flow / max(flowAmount, 1e-3), _FlowSpeed * (1 + 2.5 * rapids), t) * (1 + 0.7 * rapids);
+                float2 slope = lerp(WaveSlope(p, t), flowingSlope, flowAmount);
                 // Calm ripples with distance: far away they'd only shimmer and alias.
                 float distanceFade = saturate(1 - distance(input.positionWS, GetCameraPositionWS()) / 350);
                 float strength = _WaveStrength * (0.25 + 0.75 * distanceFade);
@@ -172,6 +175,8 @@ Shader "Punchy/Water"
                 // Broken foam line where the water thins out against the shore.
                 half foamNoise = 0.5 + 0.5 * sin(dot(p, float2(1.3, 0.7)) * 1.7 + t * 1.1) * sin(dot(p, float2(-0.6, 1.1)) * 2.3 - t * 1.4);
                 half foam = smoothstep(foamNoise * 0.7, 1, saturate(1 - thickness / _FoamDistance));
+                // White water: the churned (steepest) parts of the flowing ripples turn to foam on rapids.
+                foam = max(foam, rapids * smoothstep(0.25, 0.6, length(flowingSlope)));
                 half3 foamLit = _FoamColor.rgb * (ambient + light.color * shadow * saturate(light.direction.y));
                 color = lerp(color, foamLit, foam);
                 alpha = max(alpha, foam);

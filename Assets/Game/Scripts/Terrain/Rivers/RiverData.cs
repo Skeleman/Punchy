@@ -20,14 +20,26 @@ namespace Punchy.Terrain
         public float ChannelDepth;
         [UnityEngine.Tooltip("Steepness of the valley walls the river cuts (rise per metre). Lower = wider, gentler valleys.")]
         public float BankSlope;
+        [UnityEngine.Tooltip("Steepest a riverbed may run (drop per metre). Where the land falls faster, the river " +
+                             "cuts a gorge back upstream to spread the drop out.")]
+        public float MaxGradient;
         [UnityEngine.Tooltip("How far the river wanders off the simulation grid, as a fraction of a cell.")]
         [UnityEngine.Range(0f, 0.9f)] public float Meander;
         [UnityEngine.Tooltip("Rivers never reshape terrain farther away than this, in metres.")]
         public float MaxCarveDistance;
         [UnityEngine.Tooltip("Hollows the drainage fills become lakes only if at least this big (km²)…")]
         public float MinLakeArea;
-        [UnityEngine.Tooltip("…and at least this deep (metres). Smaller hollows stay dry.")]
+        [UnityEngine.Tooltip("…and at least this deep (metres). Smaller hollows stay dry and rivers cut through their rims.")]
         public float MinLakeDepth;
+
+        [UnityEngine.Header("Precipitation")]
+        [UnityEngine.Tooltip("Rain multiplier at sea level. Below 1 = dry lowlands, so rivers rarely start there.")]
+        public float LowlandRain;
+        [UnityEngine.Tooltip("Rain multiplier at Highland Height and above (moist air rising over high ground).")]
+        public float HighlandRain;
+        public float HighlandHeight;
+        [UnityEngine.Tooltip("Extra water from snow-covered ground (meltwater), added at full snow depth.")]
+        public float Snowmelt;
 
         public static RiverSettings Default => new RiverSettings
         {
@@ -39,17 +51,24 @@ namespace Punchy.Terrain
             MaxWidth = 34f,
             ChannelDepth = 1.6f,
             BankSlope = 0.55f,
+            MaxGradient = 0.12f,
             Meander = 0.7f,
             MaxCarveDistance = 110f,
             MinLakeArea = 0.15f,
-            MinLakeDepth = 5f
+            MinLakeDepth = 5f,
+            LowlandRain = 0.35f,
+            HighlandRain = 2.5f,
+            HighlandHeight = 180f,
+            Snowmelt = 3f
         };
 
         public bool Equals(RiverSettings o) =>
             Enabled == o.Enabled && CellSize == o.CellSize && SourceCatchment == o.SourceCatchment &&
             FullCatchment == o.FullCatchment && MinWidth == o.MinWidth && MaxWidth == o.MaxWidth &&
-            ChannelDepth == o.ChannelDepth && BankSlope == o.BankSlope && Meander == o.Meander &&
-            MaxCarveDistance == o.MaxCarveDistance && MinLakeArea == o.MinLakeArea && MinLakeDepth == o.MinLakeDepth;
+            ChannelDepth == o.ChannelDepth && BankSlope == o.BankSlope && MaxGradient == o.MaxGradient && Meander == o.Meander &&
+            MaxCarveDistance == o.MaxCarveDistance && MinLakeArea == o.MinLakeArea && MinLakeDepth == o.MinLakeDepth &&
+            LowlandRain == o.LowlandRain && HighlandRain == o.HighlandRain && HighlandHeight == o.HighlandHeight &&
+            Snowmelt == o.Snowmelt;
     }
 
     /// <summary>
@@ -63,8 +82,15 @@ namespace Punchy.Terrain
         public float CellSize;
         public float Meander;
         public uint Seed;
-        /// <summary>Drainage level: elevation with every dip filled, so it never rises downstream.</summary>
-        public BlobArray<float> Level;
+        /// <summary>Surface height of the lake or pond covering each cell (only meaningful where LakeDepth &gt; 0).</summary>
+        public BlobArray<float> LakeLevel;
+        /// <summary>
+        /// River bank level: follows the ground down, never rising downstream; where the ground rises across the
+        /// path (a hollow's rim) the river cuts through it instead. Equals the lake surface inside lakes.
+        /// </summary>
+        public BlobArray<float> Bed;
+        /// <summary>Water surface per river cell: never rises downstream, and backs up to the level of a lake ahead.</summary>
+        public BlobArray<float> WaterLevel;
         public BlobArray<int> Down;
         /// <summary>River width at each cell, 0 = no river.</summary>
         public BlobArray<float> Width;
@@ -73,12 +99,15 @@ namespace Punchy.Terrain
         /// <summary>Depth of the lake covering this cell (metres); 0 = no lake. Only hollows big and deep enough count.</summary>
         public BlobArray<float> LakeDepth;
 
-        public float2 Point(int index)
+        public float2 Point(int index) => JitteredPoint(index, Resolution, Origin, CellSize, Meander, Seed);
+
+        /// <summary>Where a cell's river segment starts: its centre, nudged by a per-cell random offset so rivers meander.</summary>
+        public static float2 JitteredPoint(int index, int resolution, float2 origin, float cellSize, float meander, uint seed)
         {
-            var cell = new int2(index % Resolution, index / Resolution);
-            var h = math.hash(new int2(index, (int)Seed));
+            var cell = new int2(index % resolution, index / resolution);
+            var h = math.hash(new int2(index, (int)seed));
             var jitter = new float2(h & 0xFFFF, h >> 16) / 65535f - 0.5f;
-            return Origin + ((float2)cell + 0.5f + jitter * Meander) * CellSize;
+            return origin + ((float2)cell + 0.5f + jitter * meander) * cellSize;
         }
     }
 
@@ -89,7 +118,9 @@ namespace Punchy.Terrain
         public float Level;      // bank level of the river at its closest point
         public float Width;
         public float Carve;      // lowest carved height among nearby rivers (handles confluences)
+        public float Water;      // water surface of the river that carved the ground lowest here
         public float2 Flow;      // downstream direction at the closest point
+        public float Gradient;   // drop per metre of the riverbed at the closest point
     }
 
     public static class RiverSampling
@@ -123,14 +154,18 @@ namespace Punchy.Terrain
             var t = math.saturate(math.dot(xz - a, ab) / math.max(math.dot(ab, ab), 1e-6f));
             var distance = math.distance(xz, a + ab * t);
 
-            var endLevel = down >= 0 ? map.Level[down] : map.Level[start];
+            var endLevel = down >= 0 ? map.Bed[down] : map.Bed[start];
             var endWidth = down >= 0 && map.Width[down] > 0f ? map.Width[down] : map.Width[start];
-            var level = math.lerp(map.Level[start], endLevel, t);
+            var level = math.lerp(map.Bed[start], endLevel, t);
             var width = math.lerp(map.Width[start], endWidth, t);
             var carve = Profile(distance, level, width, s);
 
+            // The water here belongs to whichever river shaped the ground lowest, so water and banks always agree.
             if (carve < q.Carve)
+            {
                 q.Carve = carve;
+                q.Water = math.lerp(map.WaterLevel[start], down >= 0 ? map.WaterLevel[down] : map.WaterLevel[start], t);
+            }
             if (distance - width * 0.5f < q.Distance - q.Width * 0.5f)
             {
                 q.Found = true;
@@ -138,6 +173,7 @@ namespace Punchy.Terrain
                 q.Level = level;
                 q.Width = width;
                 q.Flow = math.normalizesafe(ab);
+                q.Gradient = (map.Bed[start] - endLevel) / math.max(math.length(ab), 1e-3f);
             }
         }
 
@@ -153,7 +189,7 @@ namespace Punchy.Terrain
             return level + (distance - half) * s.BankSlope;
         }
 
-        static float Depth(float width, in RiverSettings s) => s.ChannelDepth + width * 0.04f;
+        public static float Depth(float width, in RiverSettings s) => s.ChannelDepth + width * 0.04f;
 
         /// <summary>Lowers terrain into the nearby river's channel and valley; fades out by MaxCarveDistance.</summary>
         public static float Carve(in RiverQuery q, in RiverSettings s, float height)
@@ -175,8 +211,8 @@ namespace Punchy.Terrain
         public static float ChannelMask(in RiverQuery q) =>
             q.Found ? 1f - math.smoothstep(q.Width * 0.5f, q.Width * 0.5f + 2f, q.Distance) : 0f;
 
-        /// <summary>Where the water surface will sit in this channel (a little below the banks).</summary>
-        public static float WaterSurface(in RiverQuery q, in RiverSettings s) => q.Level - Depth(q.Width, s) * 0.25f;
+        /// <summary>Where the water surface sits in this channel (a little below the banks, or a lake's level ahead).</summary>
+        public static float WaterSurface(in RiverQuery q) => q.Water;
 
         /// <summary>
         /// Lakes are the dips the drainage simulation filled; their surface is the fill level.
@@ -197,7 +233,7 @@ namespace Punchy.Terrain
             {
                 var isLake = map.LakeDepth[idx[k]] > 0.3f ? 1f : 0f;
                 coverage += w[k] * isLake;
-                level += w[k] * isLake * map.Level[idx[k]];
+                level += w[k] * isLake * map.LakeLevel[idx[k]];
                 levelWeight += w[k] * isLake;
             }
             surface = levelWeight > 0f ? level / levelWeight : float.MinValue;

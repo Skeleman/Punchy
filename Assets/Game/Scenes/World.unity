@@ -321,7 +321,7 @@ MonoBehaviour:
     BlendDistance: 120
     ShapeBlendDistance: 450
     WarpStrength: 350
-  BiomeMap: {fileID: 11400000, guid: d6cd8819de9012e45a7b2476695718b0, type: 2}
+  BiomeMap: {fileID: 11400000, guid: 8cb615cae7d51ee4dbbedac337765658, type: 2}
   Rivers:
     Enabled: 1
     CellSize: 16
@@ -331,12 +331,17 @@ MonoBehaviour:
     MaxWidth: 34
     ChannelDepth: 1.6
     BankSlope: 0.55
+    MaxGradient: 0.12
     Meander: 0.7
     MaxCarveDistance: 110
     MinLakeArea: 0.15
     MinLakeDepth: 5
+    LowlandRain: 0.35
+    HighlandRain: 2.5
+    HighlandHeight: 180
+    Snowmelt: 3
   HeightSource: 0
-  Heightmap: {fileID: 11400000, guid: 54dff6bb045c3c84ea7f2ded5e42b690, type: 2}
+  Heightmap: {fileID: 11400000, guid: 939ef45b694c2464990fd455c490f3b7, type: 2}
   ExportResolution: 4097
   ExportBiomeResolution: 513
   ExportWorldSize: 9216

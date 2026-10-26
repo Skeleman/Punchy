@@ -42,7 +42,7 @@ namespace Punchy.Terrain
     struct WaterVertex
     {
         public float3 Position;
-        public float4 Data;     // flow direction xz, depth below the surface, unused
+        public float4 Data;     // flow direction xz, depth below the surface, rapids 0..1
 
         public static readonly VertexAttributeDescriptor[] Layout =
         {
@@ -97,6 +97,7 @@ namespace Punchy.Terrain
             float step = ChunkSize / q;
             float minY = float.MaxValue, maxY = float.MinValue;
             var water = new NativeArray<float4>(v * v, Allocator.Temp);   // surface, flow xz, terrain height
+            var rapids = new NativeArray<float>(v * v, Allocator.Temp);
 
             for (int z = 0; z < v; z++)
             for (int x = 0; x < v; x++)
@@ -115,6 +116,7 @@ namespace Punchy.Terrain
                 vertex.Morph = request.MorphRange;
                 verts[z * v + x] = vertex;
                 water[z * v + x] = new float4(ground.WaterSurface, ground.Flow, h);
+                rapids[z * v + x] = ground.Rapids;
             }
 
             if (request.CanMorph)
@@ -160,8 +162,9 @@ namespace Punchy.Terrain
             }
 
             HeightRanges[index] = new float2(minY - depth, maxY);
-            WaterRanges[index] = BuildWater(Meshes[Requests.Length + index], water, q, step);
+            WaterRanges[index] = BuildWater(Meshes[Requests.Length + index], water, rapids, q, step);
             water.Dispose();
+            rapids.Dispose();
         }
 
         /// <summary>
@@ -196,7 +199,7 @@ namespace Punchy.Terrain
         static float H(NativeArray<TerrainVertex> verts, int v, int x, int z) => verts[z * v + x].Position.y;
 
         /// <summary>Builds the water sheet; returns its (min, max) height, or (1, 0) when the chunk is dry.</summary>
-        float2 BuildWater(Mesh.MeshData mesh, NativeArray<float4> water, int q, float step)
+        float2 BuildWater(Mesh.MeshData mesh, NativeArray<float4> water, NativeArray<float> rapids, int q, float step)
         {
             int v = q + 1;
 
@@ -268,7 +271,7 @@ namespace Punchy.Terrain
                     verts[i] = new WaterVertex
                     {
                         Position = new float3(x * step, y, z * step),
-                        Data = new float4(flow[i], y - water[i].w, 0f)
+                        Data = new float4(flow[i], y - water[i].w, rapids[i])
                     };
                     range = new float2(math.min(range.x, y), math.max(range.y, y));
                 }
