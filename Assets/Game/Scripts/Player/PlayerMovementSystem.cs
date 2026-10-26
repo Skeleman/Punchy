@@ -37,8 +37,10 @@ namespace Punchy.Player
                 ref var m = ref motion.ValueRW;
                 var settings = motor.ValueRO;
 
-                var speed = settings.WalkSpeed * (input.Sprint ? settings.SprintMultiplier : 1f);
                 var position = t.Position;
+                var swimming = Floor(terrain, position.xz, settings.SwimDepth, out _);
+                var speed = settings.WalkSpeed * (input.Sprint ? settings.SprintMultiplier : 1f) *
+                            (swimming ? settings.SwimSpeedMultiplier : 1f);
                 position.xz += input.MoveDirection * speed * dt;
 
                 if (m.Grounded && input.JumpPressed)
@@ -47,7 +49,7 @@ namespace Punchy.Player
                     m.Grounded = false;
                 }
 
-                var ground = terrain.SampleHeight(position.xz);
+                Floor(terrain, position.xz, settings.SwimDepth, out var ground);
                 if (m.Grounded && position.y - ground <= settings.GroundSnapDistance + speed * dt)
                 {
                     // Walking: follow the ground up and down slopes.
@@ -75,6 +77,20 @@ namespace Punchy.Player
                     t.Rotation = math.slerp(t.Rotation, target, 1f - math.exp(-settings.TurnSharpness * dt));
                 }
             }
+        }
+
+        /// <summary>
+        /// What the player stands on: the ground, or in water deeper than SwimDepth, a point SwimDepth below the
+        /// surface (so they swim with their head above water). Returns whether they're swimming.
+        /// </summary>
+        static bool Floor(in TerrainSource terrain, float2 xz, float swimDepth, out float floor)
+        {
+            var ground = terrain.SampleGround(xz);
+            floor = ground.Height;
+            if (!ground.HasWater || ground.WaterSurface - swimDepth <= ground.Height)
+                return false;
+            floor = ground.WaterSurface - swimDepth;
+            return true;
         }
     }
 }

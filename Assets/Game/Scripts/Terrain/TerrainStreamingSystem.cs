@@ -16,7 +16,8 @@ namespace Punchy.Terrain
     /// <summary>
     /// Keeps a disc of terrain chunks loaded around the TerrainFocus entity. Each frame it unloads
     /// chunks that fell out of range, then builds (or re-LODs) the nearest chunks that need it,
-    /// up to MaxBuildsPerFrame. Chunk meshes are built in parallel Burst jobs and drawn by Entities Graphics.
+    /// up to MaxBuildsPerFrame. Each chunk has a terrain mesh and, where there is water, a water mesh;
+    /// both are built in parallel Burst jobs and drawn by Entities Graphics.
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateBefore(typeof(TransformSystemGroup))]
@@ -28,6 +29,9 @@ namespace Punchy.Terrain
             public int Lod;
             public Mesh Mesh;
             public BatchMeshID MeshId;
+            public Entity WaterEntity;   // Entity.Null when the chunk is dry
+            public Mesh WaterMesh;
+            public BatchMeshID WaterMeshId;
         }
 
         struct BuildItem
@@ -36,6 +40,8 @@ namespace Punchy.Terrain
             public int Lod;
             public float Distance;
         }
+
+        static readonly int TerrainFocusId = Shader.PropertyToID("_TerrainFocus");
 
         readonly Dictionary<int2, LoadedChunk> loaded = new Dictionary<int2, LoadedChunk>();
         readonly Stack<(Mesh mesh, BatchMeshID id)> meshPool = new Stack<(Mesh, BatchMeshID)>();
@@ -46,12 +52,14 @@ namespace Punchy.Terrain
 
         EntitiesGraphicsSystem graphics;
         BatchMaterialID materialId;
+        BatchMaterialID waterMaterialId;
         TerrainConfig lastConfig;
         TerrainSource lastSource;
         bool initialized;
         EntityQuery focusQuery;
 
-        static readonly RenderMeshDescription RenderDesc = new RenderMeshDescription(ShadowCastingMode.On, receiveShadows: true);
+        static readonly RenderMeshDescription TerrainDesc = new RenderMeshDescription(ShadowCastingMode.On, receiveShadows: true);
+        static readonly RenderMeshDescription WaterDesc = new RenderMeshDescription(ShadowCastingMode.Off, receiveShadows: true);
 
         protected override void OnCreate()
         {
@@ -63,7 +71,10 @@ namespace Punchy.Terrain
         protected override void OnDestroy()
         {
             foreach (var chunk in loaded.Values)
+            {
                 Object.Destroy(chunk.Mesh);
+                Object.Destroy(chunk.WaterMesh);
+            }
             foreach (var pooled in meshPool)
                 Object.Destroy(pooled.mesh);
             loaded.Clear();
@@ -85,6 +96,8 @@ namespace Punchy.Terrain
             var focus = focusQuery.TryGetSingleton<LocalTransform>(out var focusTransform)
                 ? focusTransform.Position.xz
                 : float2.zero;
+            // The terrain shader geomorphs vertices by their distance from this same point.
+            Shader.SetGlobalVector(TerrainFocusId, new Vector4(focus.x, focus.y, 0f, 0f));
 
             UnloadDistantChunks(config, focus);
             CollectWantedChunks(config, focus);
@@ -105,6 +118,8 @@ namespace Punchy.Terrain
                 materialId = material != null ? graphics.RegisterMaterial(material) : BatchMaterialID.Null;
                 if (material == null)
                     Debug.LogWarning("TerrainAuthoring has no Material assigned; terrain will not render.");
+                var waterMaterial = config.WaterMaterial.Value;
+                waterMaterialId = waterMaterial != null ? graphics.RegisterMaterial(waterMaterial) : BatchMaterialID.Null;
             }
             else if (!source.Equals(lastSource))
             {
@@ -167,10 +182,13 @@ namespace Punchy.Terrain
 
         void BuildChunks(in TerrainConfig config, in TerrainSource source, int count)
         {
-            var meshData = Mesh.AllocateWritableMeshData(count);
+            // Terrain meshes at [0, count), water meshes at [count, 2·count).
+            var meshData = Mesh.AllocateWritableMeshData(count * 2);
             var requests = new NativeArray<ChunkBuildRequest>(count, Allocator.TempJob);
             var ranges = new NativeArray<float2>(count, Allocator.TempJob);
+            var waterRanges = new NativeArray<float2>(count, Allocator.TempJob);
             var layout = new NativeArray<VertexAttributeDescriptor>(TerrainVertex.Layout, Allocator.Temp);
+            var waterLayout = new NativeArray<VertexAttributeDescriptor>(WaterVertex.Layout, Allocator.TempJob);
             const MeshUpdateFlags flags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices;
 
             for (int i = 0; i < count; i++)
@@ -178,7 +196,14 @@ namespace Punchy.Terrain
                 var item = wanted[i];
                 var quads = config.QuadsForLod(item.Lod);
                 var indexCount = BuildChunkMeshJob.IndexCount(quads);
-                requests[i] = new ChunkBuildRequest { Origin = (float2)item.Coord * config.ChunkSize, Quads = quads, Lod = item.Lod };
+                requests[i] = new ChunkBuildRequest
+                {
+                    Origin = (float2)item.Coord * config.ChunkSize,
+                    Quads = quads,
+                    Lod = item.Lod,
+                    CanMorph = item.Lod < config.LodLevels - 1 && quads > 1,
+                    MorphRange = config.MorphRange(item.Lod)
+                };
 
                 var data = meshData[i];
                 data.SetVertexBufferParams(BuildChunkMeshJob.VertexCount(quads), layout);
@@ -191,21 +216,24 @@ namespace Punchy.Terrain
             {
                 Meshes = meshData,
                 Requests = requests,
+                WaterLayout = waterLayout,
                 Source = source,
                 ChunkSize = config.ChunkSize,
                 NormalEpsilon = config.ChunkSize / config.Lod0Quads,
                 SkirtDepth = config.SkirtDepth,
-                HeightRanges = ranges
+                HeightRanges = ranges,
+                WaterRanges = waterRanges
             };
             IJobParallelForExtensions.Schedule(job, count, 1).Complete();
 
-            // Rebuilt chunks reuse their own mesh; new chunks take one from the pool.
+            // Rebuilt chunks reuse their own meshes; new chunks take them from the pool.
             buildMeshes.Clear();
             buildMeshIds.Clear();
+            for (int pass = 0; pass < 2; pass++)
             for (int i = 0; i < count; i++)
             {
                 var (mesh, id) = loaded.TryGetValue(wanted[i].Coord, out var existing)
-                    ? (existing.Mesh, existing.MeshId)
+                    ? pass == 0 ? (existing.Mesh, existing.MeshId) : (existing.WaterMesh, existing.WaterMeshId)
                     : RentMesh();
                 buildMeshes.Add(mesh);
                 buildMeshIds.Add(id);
@@ -215,37 +243,60 @@ namespace Punchy.Terrain
             for (int i = 0; i < count; i++)
             {
                 var item = wanted[i];
-                var mesh = buildMeshes[i];
-                var range = ranges[i];
-                var size = config.ChunkSize;
-                var aabb = new AABB
-                {
-                    Center = new float3(size * 0.5f, (range.x + range.y) * 0.5f, size * 0.5f),
-                    Extents = new float3(size * 0.5f, math.max((range.y - range.x) * 0.5f, 0.01f), size * 0.5f)
-                };
-                mesh.bounds = new Bounds(aabb.Center, aabb.Extents * 2f);
+                var origin = requests[i].Origin;
+                var terrainBounds = SetBounds(buildMeshes[i], ranges[i], config.ChunkSize);
+                var hasWater = waterRanges[i].x <= waterRanges[i].y;
+                var waterBounds = hasWater ? SetBounds(buildMeshes[count + i], waterRanges[i], config.ChunkSize) : default;
 
-                if (loaded.TryGetValue(item.Coord, out var chunk))
+                if (!loaded.TryGetValue(item.Coord, out var chunk))
                 {
-                    chunk.Lod = item.Lod;
-                    loaded[item.Coord] = chunk;
-                    EntityManager.SetComponentData(chunk.Entity, new TerrainChunk { Coord = item.Coord, Lod = item.Lod });
-                    EntityManager.SetComponentData(chunk.Entity, new RenderBounds { Value = aabb });
+                    chunk = new LoadedChunk
+                    {
+                        Entity = CreateRenderEntity(item.Coord, origin, TerrainDesc, materialId, buildMeshIds[i], "TerrainChunk"),
+                        Mesh = buildMeshes[i],
+                        MeshId = buildMeshIds[i],
+                        WaterMesh = buildMeshes[count + i],
+                        WaterMeshId = buildMeshIds[count + i]
+                    };
+                    EntityManager.AddComponentData(chunk.Entity, new TerrainChunk { Coord = item.Coord, Lod = item.Lod });
                 }
                 else
                 {
-                    loaded[item.Coord] = new LoadedChunk
-                    {
-                        Entity = CreateChunkEntity(item.Coord, item.Lod, requests[i].Origin, buildMeshIds[i]),
-                        Lod = item.Lod,
-                        Mesh = mesh,
-                        MeshId = buildMeshIds[i]
-                    };
+                    EntityManager.SetComponentData(chunk.Entity, new TerrainChunk { Coord = item.Coord, Lod = item.Lod });
+                    EntityManager.SetComponentData(chunk.Entity, new RenderBounds { Value = terrainBounds });
                 }
+                chunk.Lod = item.Lod;
+
+                // Water entities come and go as a chunk's water appears or disappears.
+                var canDrawWater = hasWater && waterMaterialId != BatchMaterialID.Null;
+                if (canDrawWater && chunk.WaterEntity == Entity.Null)
+                    chunk.WaterEntity = CreateRenderEntity(item.Coord, origin, WaterDesc, waterMaterialId, chunk.WaterMeshId, "WaterChunk");
+                else if (canDrawWater)
+                    EntityManager.SetComponentData(chunk.WaterEntity, new RenderBounds { Value = waterBounds });
+                else if (chunk.WaterEntity != Entity.Null)
+                {
+                    EntityManager.DestroyEntity(chunk.WaterEntity);
+                    chunk.WaterEntity = Entity.Null;
+                }
+
+                loaded[item.Coord] = chunk;
             }
 
             requests.Dispose();
             ranges.Dispose();
+            waterRanges.Dispose();
+            waterLayout.Dispose();
+        }
+
+        static AABB SetBounds(Mesh mesh, float2 heightRange, float size)
+        {
+            var aabb = new AABB
+            {
+                Center = new float3(size * 0.5f, (heightRange.x + heightRange.y) * 0.5f, size * 0.5f),
+                Extents = new float3(size * 0.5f, math.max((heightRange.y - heightRange.x) * 0.5f, 0.5f), size * 0.5f)
+            };
+            mesh.bounds = new Bounds(aabb.Center, aabb.Extents * 2f);
+            return aabb;
         }
 
         (Mesh mesh, BatchMeshID id) RentMesh()
@@ -258,16 +309,15 @@ namespace Punchy.Terrain
             return (mesh, graphics.RegisterMesh(mesh));
         }
 
-        Entity CreateChunkEntity(int2 coord, int lod, float2 origin, BatchMeshID meshId)
+        Entity CreateRenderEntity(int2 coord, float2 origin, in RenderMeshDescription desc, BatchMaterialID material, BatchMeshID mesh, string name)
         {
             var transform = LocalTransform.FromPosition(origin.x, 0f, origin.y);
             var entity = EntityManager.CreateEntity();
-            EntityManager.AddComponentData(entity, new TerrainChunk { Coord = coord, Lod = lod });
             EntityManager.AddComponentData(entity, transform);
             EntityManager.AddComponentData(entity, new LocalToWorld { Value = transform.ToMatrix() });
-            RenderMeshUtility.AddComponents(entity, EntityManager, RenderDesc, new MaterialMeshInfo(materialId, meshId));
+            RenderMeshUtility.AddComponents(entity, EntityManager, desc, new MaterialMeshInfo(material, mesh));
 #if UNITY_EDITOR
-            EntityManager.SetName(entity, $"TerrainChunk {coord.x},{coord.y}");
+            EntityManager.SetName(entity, $"{name} {coord.x},{coord.y}");
 #endif
             return entity;
         }
@@ -276,7 +326,10 @@ namespace Punchy.Terrain
         {
             var chunk = loaded[coord];
             EntityManager.DestroyEntity(chunk.Entity);
+            if (chunk.WaterEntity != Entity.Null)
+                EntityManager.DestroyEntity(chunk.WaterEntity);
             meshPool.Push((chunk.Mesh, chunk.MeshId));
+            meshPool.Push((chunk.WaterMesh, chunk.WaterMeshId));
             loaded.Remove(coord);
         }
 

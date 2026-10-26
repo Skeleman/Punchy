@@ -15,6 +15,9 @@ namespace Punchy.Player
         public float TurnSharpness;
         /// <summary>Max drop per frame that still counts as walking downhill instead of falling.</summary>
         public float GroundSnapDistance;
+        /// <summary>How far below the water surface the feet are while swimming.</summary>
+        public float SwimDepth;
+        public float SwimSpeedMultiplier;
     }
 
     /// <summary>Per-frame movement state.</summary>

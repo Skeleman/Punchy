@@ -244,6 +244,8 @@ MonoBehaviour:
   Gravity: 25
   TurnSharpness: 12
   GroundSnapDistance: 0.6
+  SwimDepth: 1.3
+  SwimSpeedMultiplier: 0.45
 --- !u!4 &1276947472
 Transform:
   m_ObjectHideFlags: 0
@@ -291,10 +293,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.TerrainAuthoring
   Material: {fileID: 2100000, guid: 4633336cf1eda954aba2acc8de1e12bd, type: 2}
+  WaterMaterial: {fileID: 2100000, guid: ad04fae484d7e834bb2c02fa8403258e, type: 2}
   ChunkSize: 64
   Lod0Quads: 64
   LodLevels: 4
-  Lod0Distance: 96
+  Lod0Distance: 160
   ViewRadiusChunks: 12
   MaxBuildsPerFrame: 12
   SkirtDepth: 6
@@ -318,7 +321,7 @@ MonoBehaviour:
     BlendDistance: 120
     ShapeBlendDistance: 450
     WarpStrength: 350
-  BiomeMap: {fileID: 11400000, guid: 2549cc5cb52be5040ba5c201868ae45f, type: 2}
+  BiomeMap: {fileID: 11400000, guid: d6cd8819de9012e45a7b2476695718b0, type: 2}
   Rivers:
     Enabled: 1
     CellSize: 16
@@ -333,8 +336,8 @@ MonoBehaviour:
     MinLakeArea: 0.15
     MinLakeDepth: 5
   HeightSource: 0
-  Heightmap: {fileID: 11400000, guid: cf11acdbea53b454e8ec76bae40df393, type: 2}
-  ExportResolution: 2049
+  Heightmap: {fileID: 11400000, guid: 54dff6bb045c3c84ea7f2ded5e42b690, type: 2}
+  ExportResolution: 4097
   ExportBiomeResolution: 513
   ExportWorldSize: 9216
 --- !u!4 &1384051219

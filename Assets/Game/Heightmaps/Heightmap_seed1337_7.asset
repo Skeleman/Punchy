@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 39ef2c49f7db824448b9bceff9ec9a51, type: 3}
   m_Name: Heightmap_seed1337_7
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.HeightmapAsset
-  Image: {fileID: 2800000, guid: c58cc3cdd55c1d740ab7c5a8537853b3, type: 3}
+  Image: {fileID: 2800000, guid: 3dda3abfa56a5d348b132d4210686fab, type: 3}
   Origin:
     x: -4608
     y: -4608
   WorldSize: 9216
   MinHeight: -70
-  MaxHeight: 312
+  MaxHeight: 314

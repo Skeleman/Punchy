@@ -17,6 +17,9 @@ namespace Punchy.Player
         [Tooltip("How quickly the character turns to face its movement direction.")]
         public float TurnSharpness = 12f;
         public float GroundSnapDistance = 0.6f;
+        [Tooltip("In water deeper than this the player swims, feet this far below the surface.")]
+        public float SwimDepth = 1.3f;
+        public float SwimSpeedMultiplier = 0.45f;
 
         class Baker : Baker<PlayerAuthoring>
         {
@@ -32,7 +35,9 @@ namespace Punchy.Player
                     JumpSpeed = authoring.JumpSpeed,
                     Gravity = authoring.Gravity,
                     TurnSharpness = authoring.TurnSharpness,
-                    GroundSnapDistance = authoring.GroundSnapDistance
+                    GroundSnapDistance = authoring.GroundSnapDistance,
+                    SwimDepth = authoring.SwimDepth,
+                    SwimSpeedMultiplier = authoring.SwimSpeedMultiplier
                 });
                 AddComponent(entity, new PlayerMotion { Grounded = false });
             }

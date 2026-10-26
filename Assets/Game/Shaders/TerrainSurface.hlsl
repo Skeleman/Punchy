@@ -4,7 +4,8 @@
 // Terrain vertices carry fully blended surface properties, evaluated on the CPU from the biome rules:
 //   COLOR      rgb = albedo,     a = smoothness
 //   TEXCOORD0  x = metallic,     y = grass density, z = snow depth, w = skirt drop (metres; 0 on the surface)
-//   TEXCOORD1  rgb = emission (HDR), w = unused
+//   TEXCOORD1  rgb = emission (HDR), w = geomorph offset (coarse-LOD height − height)
+//   TEXCOORD2  distance from the terrain focus where the geomorph starts / completes
 // Grass density and snow depth are read by the (future) grass and snow-trail systems, not by this shader.
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
@@ -13,6 +14,9 @@ CBUFFER_START(UnityPerMaterial)
     half _EmissionScale;
 CBUFFER_END
 
+// Set every frame by TerrainStreamingSystem: xy = world XZ that chunk LODs are chosen around.
+float4 _TerrainFocus;
+
 struct TerrainAttributes
 {
     float3 positionOS : POSITION;
@@ -20,7 +24,19 @@ struct TerrainAttributes
     half4  surface    : COLOR;
     half4  extra      : TEXCOORD0;
     half4  emission   : TEXCOORD1;
+    float2 morph      : TEXCOORD2;
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
+
+// Geomorphing: vertices slide onto the next-coarser LOD's surface as they approach the distance where their
+// chunk switches LOD, so the switch itself changes nothing on screen. Every pass must use this.
+float3 TerrainPositionOS(TerrainAttributes input)
+{
+    float3 positionOS = input.positionOS;
+    float3 positionWS = TransformObjectToWorld(positionOS);
+    float t = smoothstep(input.morph.x, input.morph.y, distance(positionWS.xz, _TerrainFocus.xy));
+    positionOS.y += input.emission.w * t;
+    return positionOS;
+}
 
 #endif

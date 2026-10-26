@@ -55,7 +55,7 @@ Shader "Punchy/Terrain Surface"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_TRANSFER_INSTANCE_ID(input, o);
 
-                VertexPositionInputs pos = GetVertexPositionInputs(input.positionOS);
+                VertexPositionInputs pos = GetVertexPositionInputs(TerrainPositionOS(input));
                 o.positionCS = pos.positionCS;
                 o.positionWS = pos.positionWS;
                 o.normalWS = TransformObjectToWorldNormal(input.normalOS);
@@ -132,7 +132,7 @@ Shader "Punchy/Terrain Surface"
                 UNITY_TRANSFER_INSTANCE_ID(input, o);
 
                 // Collapse skirts onto their top edge so they cast no shadow.
-                float3 positionWS = TransformObjectToWorld(input.positionOS + float3(0, input.extra.w, 0));
+                float3 positionWS = TransformObjectToWorld(TerrainPositionOS(input) + float3(0, input.extra.w, 0));
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
             #if _CASTING_PUNCTUAL_LIGHT_SHADOW
                 float3 lightDirectionWS = normalize(_LightPosition - positionWS);
@@ -174,7 +174,7 @@ Shader "Punchy/Terrain Surface"
                 Varyings o = (Varyings)0;
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_TRANSFER_INSTANCE_ID(input, o);
-                o.positionCS = TransformObjectToHClip(input.positionOS);
+                o.positionCS = TransformObjectToHClip(TerrainPositionOS(input));
                 return o;
             }
 
@@ -210,7 +210,7 @@ Shader "Punchy/Terrain Surface"
                 Varyings o = (Varyings)0;
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_TRANSFER_INSTANCE_ID(input, o);
-                o.positionCS = TransformObjectToHClip(input.positionOS);
+                o.positionCS = TransformObjectToHClip(TerrainPositionOS(input));
                 o.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 return o;
             }

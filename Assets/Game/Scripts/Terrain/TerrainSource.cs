@@ -38,13 +38,18 @@ namespace Punchy.Terrain
             CoastWidth == o.CoastWidth && CoastlineRoughness == o.CoastlineRoughness;
     }
 
-    /// <summary>A baked grid of heights covering a square region of the world. Sampled bilinearly, clamped at the edges.</summary>
+    /// <summary>
+    /// A baked grid of heights covering a square region of the world, stored as 16-bit values between MinHeight
+    /// and MaxHeight (half the memory of floats; a 4097² map is 32 MB). Sampled bilinearly, clamped at the edges.
+    /// </summary>
     public struct HeightmapBlob
     {
         public int Resolution;
         public float2 Origin;
         public float WorldSize;
-        public BlobArray<float> Heights;
+        public float MinHeight;
+        public float HeightStep;   // metres per 16-bit step
+        public BlobArray<ushort> Heights;
 
         public float Sample(float2 xz)
         {
@@ -57,7 +62,7 @@ namespace Punchy.Terrain
             var row1 = row0 + Resolution;
             var bottom = math.lerp(Heights[row0], Heights[row0 + 1], f.x);
             var top = math.lerp(Heights[row1], Heights[row1 + 1], f.x);
-            return math.lerp(bottom, top, f.y);
+            return MinHeight + math.lerp(bottom, top, f.y) * HeightStep;
         }
     }
 
@@ -67,7 +72,18 @@ namespace Punchy.Terrain
         public float Height;
         public BiomeWeights Biomes;   // narrow (surface) blend
         public float River;           // 0..1 channel mask
-        public float WaterDepth;      // metres below the sea / lake / river surface; negative = above it
+        /// <summary>
+        /// Metres below the nearest water surface (negative = above it), for surface rules. Smoothed at the edges
+        /// of lake/river zones; use <see cref="WaterSurface"/> for the exact surface.
+        /// </summary>
+        public float WaterDepth;
+        /// <summary>Height of the nearby water body's surface, or <see cref="NoWater"/> where there is none.</summary>
+        public float WaterSurface;
+        /// <summary>Direction river water flows here (unit length in rivers, zero in still water).</summary>
+        public float2 Flow;
+
+        public const float NoWater = -1e6f;
+        public bool HasWater => WaterSurface > NoWater * 0.5f;
     }
 
     /// <summary>
@@ -201,7 +217,18 @@ namespace Punchy.Terrain
                 Height = UsesHeightmap ? Heightmap.Value.Sample(xz) : ShapeHeight(xz, shape)
             };
 
-            var waterSurface = World.SeaLevel;
+            // Each water body only claims the area around it, so inland ground far from water has no surface at
+            // all (rather than an invisible sea far below), and water meshes don't grow stray sheets.
+            var water = GroundSample.NoWater;
+            var flow = float2.zero;
+            if (g.Height < World.SeaLevel + 3f)
+                water = World.SeaLevel;
+
+            // Water depth as the surface rules see it. Lakes and rivers only claim a limited zone, so their depth
+            // fades out towards the zone's edge (to "far above water") instead of switching off along a line.
+            const float farAbove = -50f;
+            var ruleDepth = World.SeaLevel - g.Height;
+
             if (Rivers.IsCreated)
             {
                 var river = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz);
@@ -209,16 +236,36 @@ namespace Punchy.Terrain
                 if (!UsesHeightmap)
                     g.Height = RiverSampling.Carve(river, RiverSettings, g.Height);
                 g.River = RiverSampling.ChannelMask(river);
-                if (g.River > 0f)
-                    waterSurface = math.max(waterSurface, RiverSampling.WaterSurface(river, RiverSettings));
+                var edge = river.Width * 0.5f + RiverSampling.SurfaceMargin;
+                if (river.Found && river.Distance < edge)
+                {
+                    var surfaceLevel = RiverSampling.WaterSurface(river, RiverSettings);
+                    if (surfaceLevel > water)
+                    {
+                        water = surfaceLevel;
+                        flow = river.Flow;
+                    }
+                    var fade = 1f - math.smoothstep(edge - RiverSampling.SurfaceMargin * 0.5f, edge, river.Distance);
+                    ruleDepth = math.max(ruleDepth, math.lerp(farAbove, surfaceLevel - g.Height, fade));
+                }
 
                 var lake = RiverSampling.Lake(ref Rivers.Value, xz, out var lakeSurface);
-                if (lake > 0.5f)
-                    waterSurface = math.max(waterSurface, lakeSurface);
+                if (lake > 0f)
+                {
+                    if (lakeSurface > water)
+                    {
+                        water = lakeSurface;
+                        flow = float2.zero;
+                    }
+                    ruleDepth = math.max(ruleDepth, math.lerp(farAbove, lakeSurface - g.Height, math.smoothstep(0f, 0.4f, lake)));
+                }
                 // A river flowing through a lake is just lake there.
                 g.River *= 1f - math.saturate(lake * 2f);
             }
-            g.WaterDepth = waterSurface - g.Height;
+
+            g.WaterSurface = water;
+            g.Flow = flow;
+            g.WaterDepth = ruleDepth;
             return g;
         }
 

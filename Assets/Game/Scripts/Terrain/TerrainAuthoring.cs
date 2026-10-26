@@ -13,13 +13,17 @@ namespace Punchy.Terrain
     public class TerrainAuthoring : MonoBehaviour
     {
         public Material Material;
+        [Tooltip("Material for sea, lake and river surfaces. Leave empty to hide water.")]
+        public Material WaterMaterial;
 
         [Header("Chunks & LOD")]
         public float ChunkSize = 64f;
         [Tooltip("Quads per chunk edge at full detail. Power of two; each LOD halves it.")]
         public int Lod0Quads = 64;
         [Range(1, 6)] public int LodLevels = 4;
-        public float Lod0Distance = 96f;
+        [Tooltip("Full detail out to this distance; each further LOD covers double. Keep it at least ~2.5× Chunk Size " +
+                 "so LODs have room to geomorph smoothly.")]
+        public float Lod0Distance = 160f;
         [Range(1, 32)] public int ViewRadiusChunks = 12;
         [Range(1, 64)] public int MaxBuildsPerFrame = 12;
         [Tooltip("How far chunk edge skirts hang down to hide cracks between LODs.")]
@@ -50,7 +54,7 @@ namespace Punchy.Terrain
 
         [Header("Export (noise → images)")]
         [Tooltip("Heightmap pixels per side. 2^n + 1 keeps samples evenly spaced.")]
-        public int ExportResolution = 2049;
+        public int ExportResolution = 4097;
         [Tooltip("Biome map pixels per side. Biomes change slowly, so this can be much lower.")]
         public int ExportBiomeResolution = 513;
         [Tooltip("Width of the exported square, centred on the origin. Should cover the landmass and some sea.")]
@@ -95,6 +99,7 @@ namespace Punchy.Terrain
                 AddComponent(entity, new TerrainConfig
                 {
                     Material = authoring.Material,
+                    WaterMaterial = authoring.WaterMaterial,
                     ChunkSize = authoring.ChunkSize,
                     Lod0Quads = Mathf.Max(1, Mathf.ClosestPowerOfTwo(authoring.Lod0Quads)),
                     LodLevels = authoring.LodLevels,
@@ -175,7 +180,7 @@ namespace Punchy.Terrain
         public static BlobAssetReference<HeightmapBlob> LoadHeightmap(HeightmapAsset asset)
         {
             var path = UnityEditor.AssetDatabase.GetAssetPath(asset.Image);
-            var heights = HeightmapIO.DecodePng(System.IO.File.ReadAllBytes(path), asset.MinHeight, asset.MaxHeight, out var resolution);
+            var heights = HeightmapIO.DecodePng(System.IO.File.ReadAllBytes(path), out var resolution);
             if (heights == null || resolution < 2)
                 return default;
 
@@ -184,6 +189,8 @@ namespace Punchy.Terrain
             root.Resolution = resolution;
             root.Origin = asset.Origin;
             root.WorldSize = asset.WorldSize;
+            root.MinHeight = asset.MinHeight;
+            root.HeightStep = (asset.MaxHeight - asset.MinHeight) / 65535f;
             var array = builder.Allocate(ref root.Heights, heights.Length);
             for (int i = 0; i < heights.Length; i++)
                 array[i] = heights[i];

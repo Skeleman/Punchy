@@ -60,10 +60,11 @@ namespace Punchy.CameraRig
             var rotation = Quaternion.Euler(pitch, yaw, 0f);
             var position = target - rotation * Vector3.forward * Distance;
 
-            // Don't let the camera dip under hills; if it has to rise, keep looking at the player.
+            // Don't let the camera dip under hills or water; if it has to rise, keep looking at the player.
             if (terrainQuery.TryGetSingleton<TerrainSource>(out var terrain))
             {
-                var minY = terrain.SampleHeight(new Unity.Mathematics.float2(position.x, position.z)) + GroundClearance;
+                var ground = terrain.SampleGround(new Unity.Mathematics.float2(position.x, position.z));
+                var minY = Mathf.Max(ground.Height, ground.HasWater ? ground.WaterSurface : float.MinValue) + GroundClearance;
                 if (position.y < minY)
                 {
                     position.y = minY;

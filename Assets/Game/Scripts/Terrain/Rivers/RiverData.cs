@@ -89,10 +89,14 @@ namespace Punchy.Terrain
         public float Level;      // bank level of the river at its closest point
         public float Width;
         public float Carve;      // lowest carved height among nearby rivers (handles confluences)
+        public float2 Flow;      // downstream direction at the closest point
     }
 
     public static class RiverSampling
     {
+        /// <summary>River water surfaces extend this far (metres) past the channel edge, under the banks.</summary>
+        public const float SurfaceMargin = 8f;
+
         public static RiverQuery Query(ref RiverMapBlob map, in RiverSettings s, float2 xz)
         {
             var q = new RiverQuery { Carve = float.MaxValue, Distance = float.MaxValue };
@@ -133,6 +137,7 @@ namespace Punchy.Terrain
                 q.Distance = distance;
                 q.Level = level;
                 q.Width = width;
+                q.Flow = math.normalizesafe(ab);
             }
         }
 
@@ -175,7 +180,8 @@ namespace Punchy.Terrain
 
         /// <summary>
         /// Lakes are the dips the drainage simulation filled; their surface is the fill level.
-        /// Returns 0..1 lake coverage (bilinear across cells) and the lake surface height.
+        /// Returns 0..1 lake coverage (bilinear across cells) and the lake surface height, which is defined
+        /// anywhere within a cell of the lake so the surface reaches past the shoreline.
         /// </summary>
         public static float Lake(ref RiverMapBlob map, float2 xz, out float surface)
         {
