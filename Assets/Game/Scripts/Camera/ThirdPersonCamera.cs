@@ -61,7 +61,7 @@ namespace Punchy.CameraRig
             var position = target - rotation * Vector3.forward * Distance;
 
             // Don't let the camera dip under hills; if it has to rise, keep looking at the player.
-            if (terrainQuery.TryGetSingleton<TerrainHeightSource>(out var terrain))
+            if (terrainQuery.TryGetSingleton<TerrainSource>(out var terrain))
             {
                 var minY = terrain.SampleHeight(new Unity.Mathematics.float2(position.x, position.z)) + GroundClearance;
                 if (position.y < minY)
@@ -85,7 +85,7 @@ namespace Punchy.CameraRig
             {
                 entityManager = world.EntityManager;
                 playerQuery = entityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
-                terrainQuery = entityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainHeightSource>());
+                terrainQuery = entityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
                 queriesCreated = true;
             }
 

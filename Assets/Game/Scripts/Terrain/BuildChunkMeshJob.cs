@@ -8,17 +8,31 @@ using UnityEngine.Rendering;
 
 namespace Punchy.Terrain
 {
+    /// <summary>Must match TerrainAttributes in TerrainSurface.hlsl.</summary>
     [StructLayout(LayoutKind.Sequential)]
     struct TerrainVertex
     {
         public float3 Position;
         public float3 Normal;
+        public half4 Surface;   // albedo rgb (linear), smoothness
+        public half4 Extra;     // metallic, grass density, snow depth, skirt drop (0 on the surface)
+        public half4 Emission;  // emission rgb (linear HDR), unused
 
         public static readonly VertexAttributeDescriptor[] Layout =
         {
             new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3),
-            new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float32, 3)
+            new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float32, 3),
+            new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.Float16, 4),
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 4),
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float16, 4)
         };
+
+        public void SetSurface(in SurfaceProps s)
+        {
+            Surface = new half4(new float4(s.Albedo, s.Smoothness));
+            Extra = new half4(new float4(s.Metallic, s.Grass, s.Snow, 0f));
+            Emission = new half4(new float4(s.Emission, 0f));
+        }
     }
 
     struct ChunkBuildRequest
@@ -37,7 +51,7 @@ namespace Punchy.Terrain
     {
         public Mesh.MeshDataArray Meshes;
         [ReadOnly] public NativeArray<ChunkBuildRequest> Requests;
-        public TerrainHeightSource Source;
+        public TerrainSource Source;
         public float ChunkSize;
         public float NormalEpsilon;
         public float SkirtDepth;
@@ -64,15 +78,18 @@ namespace Punchy.Terrain
             {
                 var local = new float2(x, z) * step;
                 var world = request.Origin + local;
-                var h = Source.SampleHeight(world);
+                var biomes = Source.SampleBiomes(world);
+                var h = Source.HeightKind == HeightSourceKind.Heightmap && Source.Heightmap.IsCreated
+                    ? Source.Heightmap.Value.Sample(world)
+                    : Source.ShapeNoiseHeight(Source.Noise.Sample(world), biomes);
+                // Fixed-scale normals keep lighting identical across LODs, so LOD switches don't flicker.
+                var normal = Source.SampleNormal(world, NormalEpsilon);
                 minY = math.min(minY, h);
                 maxY = math.max(maxY, h);
-                verts[z * v + x] = new TerrainVertex
-                {
-                    Position = new float3(local.x, h, local.y),
-                    // Fixed-scale normals keep lighting identical across LODs, so LOD switches don't flicker.
-                    Normal = Source.SampleNormal(world, NormalEpsilon)
-                };
+
+                var vertex = new TerrainVertex { Position = new float3(local.x, h, local.y), Normal = normal };
+                vertex.SetSurface(Source.SampleSurface(world, h, normal, biomes));
+                verts[z * v + x] = vertex;
             }
 
             var depth = SkirtDepth * (request.Lod + 1);
@@ -82,6 +99,9 @@ namespace Punchy.Terrain
             {
                 var g = verts[EdgeVertex(edge, k, q)];
                 g.Position.y -= depth;
+                // The shader lifts skirt vertices back by this much for shadows, so skirts neither
+                // cast shadows nor sit in the shadow of the surface above them.
+                g.Extra.w = (half)depth;
                 verts[skirtBase + edge * v + k] = g;
             }
 

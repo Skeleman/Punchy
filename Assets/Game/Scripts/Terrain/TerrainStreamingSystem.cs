@@ -47,7 +47,7 @@ namespace Punchy.Terrain
         EntitiesGraphicsSystem graphics;
         BatchMaterialID materialId;
         TerrainConfig lastConfig;
-        TerrainHeightSource lastSource;
+        TerrainSource lastSource;
         bool initialized;
         EntityQuery focusQuery;
 
@@ -56,7 +56,7 @@ namespace Punchy.Terrain
         protected override void OnCreate()
         {
             RequireForUpdate<TerrainConfig>();
-            RequireForUpdate<TerrainHeightSource>();
+            RequireForUpdate<TerrainSource>();
             focusQuery = GetEntityQuery(ComponentType.ReadOnly<TerrainFocus>(), ComponentType.ReadOnly<LocalTransform>());
         }
 
@@ -77,7 +77,7 @@ namespace Punchy.Terrain
                 return;
 
             var config = SystemAPI.GetSingleton<TerrainConfig>();
-            var source = SystemAPI.GetSingleton<TerrainHeightSource>();
+            var source = SystemAPI.GetSingleton<TerrainSource>();
             HandleSettingsChanges(config, source);
             if (materialId == BatchMaterialID.Null)
                 return;
@@ -95,7 +95,7 @@ namespace Punchy.Terrain
             BuildChunks(config, source, math.min(wanted.Count, config.MaxBuildsPerFrame));
         }
 
-        void HandleSettingsChanges(in TerrainConfig config, in TerrainHeightSource source)
+        void HandleSettingsChanges(in TerrainConfig config, in TerrainSource source)
         {
             // Settings change when the subscene re-bakes (e.g. editing the Terrain inspector during Play mode).
             if (!initialized || !config.Equals(lastConfig))
@@ -165,7 +165,7 @@ namespace Punchy.Terrain
             }
         }
 
-        void BuildChunks(in TerrainConfig config, in TerrainHeightSource source, int count)
+        void BuildChunks(in TerrainConfig config, in TerrainSource source, int count)
         {
             var meshData = Mesh.AllocateWritableMeshData(count);
             var requests = new NativeArray<ChunkBuildRequest>(count, Allocator.TempJob);

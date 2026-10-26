@@ -298,7 +298,7 @@ MonoBehaviour:
   ViewRadiusChunks: 12
   MaxBuildsPerFrame: 12
   SkirtDepth: 6
-  Source: 0
+  HeightSource: 0
   Noise:
     Seed: 1337
     Frequency: 0.0025
@@ -307,8 +307,19 @@ MonoBehaviour:
     Lacunarity: 2
     Amplitude: 120
     Exponent: 1.8
-  Heightmap: {fileID: 11400000, guid: 2a8930f35a0019045b398c102dc3edf8, type: 2}
+  Heightmap: {fileID: 11400000, guid: cf11acdbea53b454e8ec76bae40df393, type: 2}
+  Biomes:
+  - {fileID: 11400000, guid: 277e2018d3d2abb46be2568301b07cab, type: 2}
+  - {fileID: 11400000, guid: 85ee83dd85b5ba542b880bbcf85da039, type: 2}
+  BiomeSource: 0
+  BiomeNoise:
+    Seed: 7
+    CellSize: 900
+    BlendDistance: 120
+    WarpStrength: 250
+  BiomeMap: {fileID: 11400000, guid: 2549cc5cb52be5040ba5c201868ae45f, type: 2}
   ExportResolution: 1025
+  ExportBiomeResolution: 257
   ExportWorldSize: 2048
 --- !u!4 &1384051219
 Transform:

@@ -8,7 +8,7 @@ namespace Punchy.Player
 {
     /// <summary>
     /// Moves the player across the height field: camera-relative walking/sprinting, jumping and gravity.
-    /// Ground height comes straight from TerrainHeightSource, so the player never depends on which chunks are loaded.
+    /// Ground height comes straight from TerrainSource, so the player never depends on which chunks are loaded.
     /// </summary>
     [BurstCompile]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -20,7 +20,7 @@ namespace Punchy.Player
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<PlayerInput>();
-            state.RequireForUpdate<TerrainHeightSource>();
+            state.RequireForUpdate<TerrainSource>();
         }
 
         [BurstCompile]
@@ -28,7 +28,7 @@ namespace Punchy.Player
         {
             var dt = SystemAPI.Time.DeltaTime;
             var input = SystemAPI.GetSingleton<PlayerInput>();
-            var terrain = SystemAPI.GetSingleton<TerrainHeightSource>();
+            var terrain = SystemAPI.GetSingleton<TerrainSource>();
 
             foreach (var (transform, motor, motion) in
                      SystemAPI.Query<RefRW<LocalTransform>, RefRO<PlayerMotor>, RefRW<PlayerMotion>>().WithAll<PlayerTag>())
