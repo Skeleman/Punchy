@@ -13,7 +13,8 @@ namespace Punchy.Fauna
         [Tooltip("Turns towards whatever the creature is looking at.")] Head,
         [Tooltip("Flicks with a little spring lag.")] Ear,
         Horn,
-        Eye
+        Eye,
+        [Tooltip("A static body feature: hump, mane, stripe, antler tine, shell ridge…")] Feature
     }
 
     /// <summary>
@@ -30,6 +31,11 @@ namespace Punchy.Fauna
         public List<LimbSegment> Segments = new List<LimbSegment>();
         [Tooltip("How strongly the part lags and swings with the body's turns and bobs (tails, ears).")]
         [Range(0f, 1f)] public float Spring;
+        [Tooltip("Each joint runs this far behind the one before it in the gait cycle (0..1), so a ripple travels " +
+                 "down the chain: a snake's body, a swishing tail.")]
+        [Range(0f, 0.5f)] public float JointPhaseStep;
+        [Tooltip("Each segment bends to lie on the ground (snake bodies, dragging tails).")]
+        public bool FollowGround;
 
         [Header("Key poses: joint angles in degrees (x pitch, y yaw, z roll), one per segment")]
         [Tooltip("Standing still.")]

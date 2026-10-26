@@ -146,9 +146,23 @@ MonoBehaviour:
   - Species: {fileID: 11400000, guid: 729d83d9ce0539d409d25ade5312c14d, type: 2}
     Density: 20
   Fauna:
+  - Species: {fileID: 11400000, guid: dceed473a78c0514ca16da942a240239, type: 2}
+    Density: 0.6
+  - Species: {fileID: 11400000, guid: 093e106afeedb8c47922c7c53a95c127, type: 2}
+    Density: 0.5
   - Species: {fileID: 11400000, guid: 89a61bfb5e05e3b489180d7e6ff44009, type: 2}
-    Density: 0.8
+    Density: 0.3
   - Species: {fileID: 11400000, guid: b85e826784a0af94ca6077752232e2c0, type: 2}
     Density: 2
   - Species: {fileID: 11400000, guid: bcec9f97bfcd3544992e948efb4c0aac, type: 2}
     Density: 0.1
+  - Species: {fileID: 11400000, guid: 14fd190e1b6f2f14796160e9a24c36bd, type: 2}
+    Density: 0.15
+  - Species: {fileID: 11400000, guid: 658e655f93e114d49990c393f02d6df6, type: 2}
+    Density: 0.8
+  - Species: {fileID: 11400000, guid: a573392c333a72441b637b557bafd12c, type: 2}
+    Density: 3
+  - Species: {fileID: 11400000, guid: 6d6d2cfe3325a4d43a1e27936d9a8429, type: 2}
+    Density: 0.4
+  - Species: {fileID: 11400000, guid: e079c2cb8c62f9e45a9c6f9c1809ecbb, type: 2}
+    Density: 0.15

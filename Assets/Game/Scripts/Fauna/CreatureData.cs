@@ -30,6 +30,34 @@ namespace Punchy.Fauna
         public BlobArray<CreaturePart> Parts;
         public BlobArray<CreatureSegment> Segments;
         public BlobArray<float3> Poses;   // Segments.Length × PoseCount, radians
+        /// <summary>Colourings individuals choose between (at least one).</summary>
+        public BlobArray<CreatureCoatData> Coats;
+
+        /// <summary>A segment's colour in one of the coats.</summary>
+        public float4 SegmentColor(int segment, int coat)
+        {
+            ref var seg = ref Segments[segment];
+            if (seg.Fixed != 0)
+                return seg.FixedColor;
+            ref var c = ref Coats[math.clamp(coat, 0, Coats.Length - 1)];
+            return math.lerp(c.Base, c.Accent, seg.Accent);
+        }
+
+        /// <summary>Picks a coat by weight from a random number in 0..1.</summary>
+        public int PickCoat(float random)
+        {
+            var total = 0f;
+            for (int i = 0; i < Coats.Length; i++)
+                total += Coats[i].Weight;
+            var pick = random * total;
+            for (int i = 0; i < Coats.Length; i++)
+            {
+                pick -= Coats[i].Weight;
+                if (pick <= 0f)
+                    return i;
+            }
+            return Coats.Length - 1;
+        }
 
         /// <summary>Blend of a part's key poses for one segment at gait phase p (0..1).</summary>
         public float3 Angles(int segment, float p, float move, float run)
@@ -67,12 +95,26 @@ namespace Punchy.Fauna
         public float Spring;
         /// <summary>+1, or -1 for the mirror image (yaw and roll flipped).</summary>
         public float Side;
+        /// <summary>Phase lag per joint down the chain (a travelling ripple).</summary>
+        public float JointPhaseStep;
+        /// <summary>Segments bend to lie on the ground.</summary>
+        public bool FollowGround;
     }
 
     public struct CreatureSegment
     {
         public float Length, RadiusStart, RadiusEnd, Flatten;
-        public float4 Color;   // linear
+        /// <summary>Mix from the coat's base colour (0) to its accent (1).</summary>
+        public float Accent;
+        /// <summary>Non-zero: always FixedColor, whatever the coat (hooves, eyes, beaks).</summary>
+        public int Fixed;
+        public float4 FixedColor;   // linear
+    }
+
+    public struct CreatureCoatData
+    {
+        public float4 Base, Accent;   // linear
+        public float Weight;
     }
 
     /// <summary>Which species a creature is. Blobs are built and owned by FaunaDirector.</summary>
@@ -81,6 +123,8 @@ namespace Punchy.Fauna
         public BlobAssetReference<CreatureBlob> Blob;
         public int Species;
         public int SegmentCount;
+        /// <summary>Which of the species' coats this animal wears.</summary>
+        public int Coat;
     }
 
     public enum CreatureMode : byte
@@ -139,8 +183,13 @@ namespace Punchy.Fauna
             public int Parent;
         }
 
-        public static BlobAssetReference<CreatureBlob> Build(CreatureSpecies species)
+        /// <summary>
+        /// Builds a species. A variant takes its body, parts, gait and behaviour from the species it is a variant
+        /// of, and only its own colours and size.
+        /// </summary>
+        public static BlobAssetReference<CreatureBlob> Build(CreatureSpecies variant)
         {
+            var species = variant.Body;
             // Expand slots: mirrored slots become left and right copies; children follow every copy of their parent.
             var parts = new List<Expanded>();
             var copies = new List<List<int>>();
@@ -184,21 +233,32 @@ namespace Punchy.Fauna
             root.FleeDistance = species.FleeDistance;
             root.TurnRate = math.radians(species.TurnRate);
             root.IdleTime = new float2(species.IdleTime.x, species.IdleTime.y);
-            root.Size = new float2(species.Size.x, species.Size.y);
+            var sizeScale = variant != species ? variant.VariantScale : 1f;
+            root.Size = new float2(species.Size.x, species.Size.y) * sizeScale;
 
             var partArray = builder.Allocate(ref root.Parts, parts.Count);
             var segArray = builder.Allocate(ref root.Segments, segmentCount);
             var poseArray = builder.Allocate(ref root.Poses, segmentCount * CreatureBlob.PoseCount);
 
-            var baseColor = (Vector4)species.Base.linear;
-            var accent = (Vector4)species.Accent.linear;
+            // Coats come from the variant (or the species itself): its listed coats, or just Base and Accent.
+            var coats = new List<CreatureCoat>(variant.Coats);
+            if (coats.Count == 0)
+                coats.Add(new CreatureCoat { Base = variant.Base, Accent = variant.Accent, Weight = 1f });
+            var coatArray = builder.Allocate(ref root.Coats, coats.Count);
+            for (int i = 0; i < coats.Count; i++)
+                coatArray[i] = new CreatureCoatData
+                {
+                    Base = (Vector4)coats[i].Base.linear,
+                    Accent = (Vector4)coats[i].Accent.linear,
+                    Weight = math.max(coats[i].Weight, 0.0001f)
+                };
+
             segArray[0] = new CreatureSegment
             {
                 Length = math.max(0f, species.BodyLength - root.RearRadius - root.FrontRadius),
                 RadiusStart = root.RearRadius,
                 RadiusEnd = root.FrontRadius,
-                Flatten = species.BodyFlatten,
-                Color = baseColor
+                Flatten = species.BodyFlatten
             };
 
             var cursor = 1;
@@ -227,6 +287,8 @@ namespace Punchy.Fauna
                     SegmentCount = limb.Segments.Count,
                     Role = limb.Role,
                     Spring = limb.Spring,
+                    JointPhaseStep = limb.JointPhaseStep,
+                    FollowGround = limb.FollowGround,
                     Side = side
                 };
 
@@ -234,14 +296,15 @@ namespace Punchy.Fauna
                 for (int s = 0; s < limb.Segments.Count; s++)
                 {
                     var seg = limb.Segments[s];
-                    var color = seg.UseFixedColor ? (Vector4)seg.FixedColor.linear : Vector4.Lerp(baseColor, accent, seg.Accent);
                     segArray[cursor] = new CreatureSegment
                     {
                         Length = seg.Length * slot.Scale,
-                        RadiusStart = seg.RadiusStart * slot.Scale,
-                        RadiusEnd = seg.RadiusEnd * slot.Scale,
+                        RadiusStart = seg.RadiusStart * slot.Scale * slot.Thickness,
+                        RadiusEnd = seg.RadiusEnd * slot.Scale * slot.Thickness,
                         Flatten = seg.Flatten,
-                        Color = color
+                        Accent = seg.Accent,
+                        Fixed = seg.UseFixedColor ? 1 : 0,
+                        FixedColor = (Vector4)seg.FixedColor.linear
                     };
                     for (int k = 0; k < CreatureBlob.PoseCount; k++)
                     {
@@ -254,7 +317,7 @@ namespace Punchy.Fauna
 
             var blob = builder.CreateBlobAssetReference<CreatureBlob>(Allocator.Persistent);
             builder.Dispose();
-            MeasureGait(ref blob.Value);
+            MeasureGait(ref blob.Value, species.LeglessStride);
             return blob;
         }
 
@@ -270,7 +333,7 @@ namespace Punchy.Fauna
         /// don't slide: in a cycle a planted foot sweeps back from reach to push while the body passes over it, so
         /// the body moves twice that sweep per cycle.
         /// </summary>
-        static void MeasureGait(ref CreatureBlob b)
+        static void MeasureGait(ref CreatureBlob b, Vector2 leglessStride)
         {
             float stand = 0f, walk = 0f, run = 0f;
             var legs = 0;
@@ -285,8 +348,8 @@ namespace Punchy.Fauna
                 legs++;
             }
             b.StandHeight = legs > 0 ? stand / legs : b.FrontRadius * b.BodyFlatten;
-            b.WalkStride = legs > 0 ? math.max(walk / legs, 0.05f) : 1f;
-            b.RunStride = legs > 0 ? math.max(run / legs, 0.05f) : 1.5f;
+            b.WalkStride = legs > 0 ? math.max(walk / legs, 0.05f) : math.max(leglessStride.x, 0.05f);
+            b.RunStride = legs > 0 ? math.max(run / legs, 0.05f) : math.max(leglessStride.y, 0.05f);
         }
 
         /// <summary>End of a body-attached part's chain in the body frame, at one key pose.</summary>

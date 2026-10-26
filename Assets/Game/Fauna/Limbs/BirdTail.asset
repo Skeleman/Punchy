@@ -22,6 +22,8 @@ MonoBehaviour:
     UseFixedColor: 0
     FixedColor: {r: 0.1, g: 0.08, b: 0.07, a: 1}
   Spring: 0.5
+  JointPhaseStep: 0
+  FollowGround: 0
   Idle:
     Joints:
     - {x: 0, y: 0, z: 0}

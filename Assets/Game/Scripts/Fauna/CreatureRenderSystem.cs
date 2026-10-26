@@ -90,7 +90,7 @@ namespace Punchy.Fauna
 
             void Execute([EntityIndexInQuery] int index, in CreatureState state, in CreatureBody body)
             {
-                CreatureAnimator.Evaluate(ref body.Blob.Value, state, Terrain, Output, Offsets[index]);
+                CreatureAnimator.Evaluate(ref body.Blob.Value, state, body.Coat, Terrain, Output, Offsets[index]);
             }
         }
     }

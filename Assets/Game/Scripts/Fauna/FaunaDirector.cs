@@ -132,9 +132,10 @@ namespace Punchy.Fauna
         string ConfigHash()
         {
             var text = new System.Text.StringBuilder();
-            foreach (var s in species)
+            foreach (var variant in species)
             {
-                text.Append(JsonUtility.ToJson(s));
+                var s = variant.Body;
+                text.Append(JsonUtility.ToJson(variant)).Append(JsonUtility.ToJson(s));
                 foreach (var slot in s.Parts)
                     if (slot.Limb != null)
                         text.Append(JsonUtility.ToJson(slot.Limb));
@@ -195,12 +196,13 @@ namespace Punchy.Fauna
                 return;
 
             var areaHectares = math.PI * Radius * Radius / 10000f;
+            var nearWater = ground.WaterDepth > -4f;
             int best = -1;
             var bestShortfall = 0f;
             foreach (var f in biome.Fauna)
             {
                 var index = f.Species != null ? species.IndexOf(f.Species) : -1;
-                if (index < 0)
+                if (index < 0 || f.Species.Body.NearWater && !nearWater)
                     continue;
                 var shortfall = f.Density * areaHectares - counts[index];
                 if (shortfall > bestShortfall)
@@ -209,9 +211,10 @@ namespace Punchy.Fauna
                     best = index;
                 }
             }
-            if (best < 0)
+            // Rare species (less than one expected nearby) turn up only some of the time.
+            if (best < 0 || bestShortfall < 1f && rng.NextFloat() > bestShortfall)
                 return;
-            var s = species[best];
+            var s = species[best].Body;
             var group = rng.NextInt(math.max(1, s.GroupSize.x), math.max(s.GroupSize.x, s.GroupSize.y) + 1);
             for (int i = 0; i < group; i++)
             {
@@ -229,7 +232,13 @@ namespace Punchy.Fauna
             var em = queryWorld.EntityManager;
             ref var b = ref blobs[speciesIndex].Value;
             var e = em.CreateEntity(typeof(CreatureState), typeof(CreatureBody));
-            em.SetComponentData(e, new CreatureBody { Blob = blobs[speciesIndex], Species = speciesIndex, SegmentCount = b.Segments.Length });
+            em.SetComponentData(e, new CreatureBody
+            {
+                Blob = blobs[speciesIndex],
+                Species = speciesIndex,
+                SegmentCount = b.Segments.Length,
+                Coat = b.PickCoat(rng.NextFloat())
+            });
             em.SetComponentData(e, new CreatureState
             {
                 Position = position,

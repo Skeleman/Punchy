@@ -12,6 +12,12 @@ namespace Punchy.Fauna
     [CreateAssetMenu(menuName = "Punchy/Creature Species", fileName = "Creature")]
     public class CreatureSpecies : ScriptableObject
     {
+        [Tooltip("Reuse another species' whole body, gait and behaviour; this asset then only sets colours (Base, " +
+                 "Accent, Coats) and size. For recoloured relatives: arctic fox from red fox, polar bear from bear.")]
+        public CreatureSpecies VariantOf;
+        [Tooltip("Variants only: size relative to the species they're based on.")]
+        [Min(0.05f)] public float VariantScale = 1f;
+
         [Header("Body")]
         [Tooltip("Length of the torso, nose-end to tail-end of the trunk, in metres.")]
         [Min(0.01f)] public float BodyLength = 0.8f;
@@ -22,6 +28,8 @@ namespace Punchy.Fauna
         [Range(0.2f, 3f)] public float BodyFlatten = 1.1f;
         public Color Base = new Color(0.55f, 0.4f, 0.25f);
         public Color Accent = new Color(0.9f, 0.85f, 0.75f);
+        [Tooltip("Alternative colourings; each animal picks one (by weight). Empty = everyone uses Base and Accent.")]
+        public List<CreatureCoat> Coats = new List<CreatureCoat>();
         [Tooltip("Random size of individuals.")]
         public Vector2 Size = new Vector2(0.9f, 1.1f);
 
@@ -37,6 +45,9 @@ namespace Punchy.Fauna
         public Vector2Int BobsPerCycle = new Vector2Int(2, 2);
         [Tooltip("Rocking of the body nose-up / nose-down per cycle when running, in degrees (bounding, hopping).")]
         public float RunRock = 0f;
+        [Tooltip("Distance travelled per gait cycle, walking and running, for animals without legs (snakes). " +
+                 "Animals with legs measure it from their leg poses.")]
+        public Vector2 LeglessStride = new Vector2(0.6f, 0.9f);
 
         [Header("Behaviour")]
         [Tooltip("How far it wanders from where it is in one go.")]
@@ -49,6 +60,29 @@ namespace Punchy.Fauna
         public float TurnRate = 140f;
         [Tooltip("Number that appear together.")]
         public Vector2Int GroupSize = new Vector2Int(1, 1);
+        [Tooltip("Only appears close to rivers, lakes and the sea (frogs).")]
+        public bool NearWater;
+
+        /// <summary>The species whose body, gait and behaviour this one uses (itself unless it's a variant).</summary>
+        public CreatureSpecies Body
+        {
+            get
+            {
+                var s = this;
+                for (int i = 0; i < 8 && s.VariantOf != null && s.VariantOf != s; i++)
+                    s = s.VariantOf;
+                return s;
+            }
+        }
+    }
+
+    [Serializable]
+    public class CreatureCoat
+    {
+        public string Name = "Coat";
+        public Color Base = new Color(0.55f, 0.4f, 0.25f);
+        public Color Accent = new Color(0.9f, 0.85f, 0.75f);
+        [Min(0f)] public float Weight = 1f;
     }
 
     [Serializable]
@@ -70,6 +104,8 @@ namespace Punchy.Fauna
         [Tooltip("Phase of the mirror image relative to this one (0.5 = alternating; 0 = together, as in a hop).")]
         [Range(0f, 1f)] public float MirrorPhase = 0.5f;
         [Min(0.01f)] public float Scale = 1f;
+        [Tooltip("Multiplies the part's radii on top of Scale: the same leg slender on a deer, stocky on a bison.")]
+        [Min(0.05f)] public float Thickness = 1f;
     }
 
     /// <summary>A species living in a biome, and how many.</summary>

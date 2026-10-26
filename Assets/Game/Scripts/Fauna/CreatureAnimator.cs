@@ -11,13 +11,14 @@ namespace Punchy.Fauna
     ///  2. body: stands at the height its legs give it, follows the slope of the ground, bobs with each step and
     ///     rocks when bounding;
     ///  3. secondary motion: tails and ears swing out of turns on a spring; the head turns to look;
-    ///  4. feet: legs are bent with two-bone IK so their feet meet the actual ground rather than a flat plane.
+    ///  4. feet: legs are bent with two-bone IK so their feet meet the actual ground rather than a flat plane;
+    ///     chains marked Follow Ground (snake bodies, dragging tails) lie along the terrain segment by segment.
     /// </summary>
     public static class CreatureAnimator
     {
         const int MaxSegments = 128;
 
-        public static void Evaluate(ref CreatureBlob b, in CreatureState s, in TerrainSource terrain,
+        public static void Evaluate(ref CreatureBlob b, in CreatureState s, int coat, in TerrainSource terrain,
                                     NativeArray<SegmentInstance> output, int offset)
         {
             var scale = s.Scale;
@@ -42,7 +43,7 @@ namespace Punchy.Fauna
 
             // Body.
             ref var body = ref b.Segments[0];
-            output[offset] = Instance(rootPos + math.mul(rootRot, new float3(0f, 0f, -halfLength + body.RadiusStart * scale)), rootRot, ref body, scale);
+            output[offset] = Instance(rootPos + math.mul(rootRot, new float3(0f, 0f, -halfLength + body.RadiusStart * scale)), rootRot, ref body, scale, b.SegmentColor(0, coat));
 
             var segPos = new FixedList4096Bytes<float3>();
             var segRot = new FixedList4096Bytes<quaternion>();
@@ -63,9 +64,11 @@ namespace Punchy.Fauna
                 for (int j = 0; j < part.SegmentCount; j++)
                 {
                     var seg = part.FirstSegment + j;
-                    var a = b.Angles(seg, phase, move, run);
+                    var a = b.Angles(seg, math.frac(phase - j * part.JointPhaseStep), move, run);
                     a += Secondary(ref part, in s, j, run);
                     rot = math.mul(rot, quaternion.EulerZXY(a));
+                    if (part.FollowGround)
+                        rot = LieOnGround(in terrain, pos, rot, b.Segments[seg].Length * scale, b.Segments[seg].RadiusEnd * b.Segments[seg].Flatten * scale);
                     if (seg < MaxSegments)
                     {
                         segPos[seg] = pos;
@@ -93,7 +96,23 @@ namespace Punchy.Fauna
             }
 
             for (int seg = 1; seg < b.Segments.Length && seg < MaxSegments; seg++)
-                output[offset + seg] = Instance(segPos[seg], segRot[seg], ref b.Segments[seg], scale);
+                output[offset + seg] = Instance(segPos[seg], segRot[seg], ref b.Segments[seg], scale, b.SegmentColor(seg, coat));
+        }
+
+        /// <summary>
+        /// Tilts a segment up or down (keeping its heading) so its far end rests on the ground, for chains that lie
+        /// along the terrain. The next segment then starts from there, so the chain drapes over bumps.
+        /// </summary>
+        static quaternion LieOnGround(in TerrainSource terrain, float3 start, quaternion rot, float length, float radius)
+        {
+            if (length < 1e-4f)
+                return rot;
+            var dir = math.mul(rot, new float3(0f, 0f, 1f));
+            var flat = math.normalizesafe(new float3(dir.x, 0f, dir.z), dir);
+            var end = start + flat * length;
+            var rise = math.clamp(terrain.SampleHeight(end.xz) + radius - start.y, -0.9f * length, 0.9f * length);
+            var wanted = flat * math.sqrt(length * length - rise * rise) + new float3(0f, rise, 0f);
+            return math.mul(FromTo(dir, wanted / length), rot);
         }
 
         /// <summary>Spring and look offsets added to a part's joint angles.</summary>
@@ -168,7 +187,7 @@ namespace Punchy.Fauna
             return math.normalize(new quaternion(c.x, c.y, c.z, w));
         }
 
-        static SegmentInstance Instance(float3 position, quaternion rotation, ref CreatureSegment seg, float scale) => new SegmentInstance
+        static SegmentInstance Instance(float3 position, quaternion rotation, ref CreatureSegment seg, float scale, float4 color) => new SegmentInstance
         {
             Position = position,
             Rotation = rotation,
@@ -176,7 +195,7 @@ namespace Punchy.Fauna
             RadiusStart = seg.RadiusStart * scale,
             RadiusEnd = seg.RadiusEnd * scale,
             Flatten = seg.Flatten,
-            Color = seg.Color
+            Color = color
         };
     }
 }
