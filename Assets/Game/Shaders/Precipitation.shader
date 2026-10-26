@@ -1,0 +1,56 @@
+Shader "Punchy/Precipitation"
+{
+    // Rain streaks (stretched billboards) or snowflakes (soft dots), drawn by particle systems. No textures needed.
+    Properties
+    {
+        [Enum(Snow, 0, Rain, 1)] _Shape("Shape", Float) = 1
+    }
+
+    SubShader
+    {
+        Tags { "Queue" = "Transparent" "RenderType" = "Transparent" "RenderPipeline" = "UniversalPipeline" }
+        Blend SrcAlpha OneMinusSrcAlpha
+        ZWrite Off
+        Cull Off
+
+        Pass
+        {
+            HLSLPROGRAM
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #pragma multi_compile_fog
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Sky.hlsl"
+
+            CBUFFER_START(UnityPerMaterial)
+                half _Shape;
+            CBUFFER_END
+
+            struct Attributes { float4 positionOS : POSITION; half4 color : COLOR; float2 uv : TEXCOORD0; };
+            struct Varyings { float4 positionCS : SV_POSITION; half4 color : COLOR; float2 uv : TEXCOORD0; half fog : TEXCOORD1; };
+
+            Varyings Vert(Attributes input)
+            {
+                Varyings o;
+                o.positionCS = TransformObjectToHClip(input.positionOS.xyz);
+                o.color = input.color;
+                o.uv = input.uv;
+                o.fog = ComputeFogFactor(o.positionCS.z);
+                return o;
+            }
+
+            half4 Frag(Varyings input) : SV_Target
+            {
+                float2 c = input.uv - 0.5;
+                half alpha = _Shape > 0.5
+                    ? smoothstep(0.5, 0.0, abs(c.x) * 2) * smoothstep(0.5, 0.2, abs(c.y))
+                    : smoothstep(0.5, 0.15, length(c));
+                // Lit roughly like the sky around it, so drops/flakes darken under storm clouds.
+                half3 color = input.color.rgb * (0.35 + 0.65 * _PunchySkyHorizon);
+                color = MixFog(color, input.fog);
+                return half4(color, alpha * input.color.a);
+            }
+            ENDHLSL
+        }
+    }
+}

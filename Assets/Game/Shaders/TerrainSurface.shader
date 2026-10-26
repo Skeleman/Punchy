@@ -34,6 +34,9 @@ Shader "Punchy/Terrain Surface"
             #pragma instancing_options renderinglayer
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"
 
+            // Reflect the flat ambient colour (which WeatherSystem keeps in step with the sky) rather than the
+            // environment cubemap, which is baked once and would show the wrong sky as weather changes.
+            #define _ENVIRONMENTREFLECTIONS_OFF
             #include "TerrainSurface.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
@@ -83,8 +86,10 @@ Shader "Punchy/Terrain Surface"
                 inputData.shadowMask = half4(1, 1, 1, 1);
 
                 SurfaceData surface = (SurfaceData)0;
-                surface.albedo = input.surface.rgb;
-                surface.smoothness = input.surface.a;
+                // Rain darkens and glosses the ground (wet soil and rock), but not snow.
+                half wet = _PunchyWetness * (1 - saturate(input.extra.z * 2));
+                surface.albedo = input.surface.rgb * lerp(1, 0.65, wet);
+                surface.smoothness = lerp(input.surface.a, 0.65, wet * 0.8);
                 surface.metallic = input.extra.x;
                 surface.occlusion = 1;
                 surface.emission = input.emission * _EmissionScale;

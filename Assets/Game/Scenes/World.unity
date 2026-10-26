@@ -296,10 +296,10 @@ MonoBehaviour:
   WaterMaterial: {fileID: 2100000, guid: ad04fae484d7e834bb2c02fa8403258e, type: 2}
   ChunkSize: 64
   Lod0Quads: 64
-  LodLevels: 4
+  LodLevels: 5
   Lod0Distance: 160
-  ViewRadiusChunks: 12
-  MaxBuildsPerFrame: 12
+  ViewRadiusChunks: 24
+  MaxBuildsPerFrame: 16
   SkirtDepth: 6
   World:
     Seed: 1337

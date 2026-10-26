@@ -46,6 +46,11 @@ Shader "Punchy/Water"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+            #include "Sky.hlsl"
+
+            // Weather globals (WeatherSystem): 0..1 rain intensity and wind strength.
+            half _PunchyRain;
+            half _PunchyWind;
 
             CBUFFER_START(UnityPerMaterial)
                 half4 _ShallowColor;
@@ -128,6 +133,26 @@ Shader "Punchy/Water"
                        WaveSlope(p - offset * phase1 + 7.3, t * 0.3) * (1 - w0);
             }
 
+            // Raindrop rings: each cell of a jittered grid spawns a ring that expands and fades, at a random phase.
+            float2 RainRipples(float2 p, float t)
+            {
+                float2 slope = 0;
+                [unroll]
+                for (int layer = 0; layer < 2; layer++)
+                {
+                    float2 q = p * 1.7 + layer * 7.31;
+                    float2 cell = floor(q);
+                    float2 centre = float2(PunchyHash(cell + 3.1 + layer), PunchyHash(cell + 5.7 + layer)) * 0.5 + 0.25;
+                    float2 d = frac(q) - centre;
+                    float r = length(d);
+                    float phase = frac(t * 0.9 + PunchyHash(cell + 11.3 * layer));
+                    float wave = sin((r - phase * 0.45) * 45) * (1 - phase) * smoothstep(0.45, 0, r) *
+                                 smoothstep(0.12, 0, abs(r - phase * 0.45));
+                    slope += d / max(r, 1e-3) * wave;
+                }
+                return slope;
+            }
+
             half4 Frag(Varyings input, bool frontFace : SV_IsFrontFace) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
@@ -142,7 +167,8 @@ Shader "Punchy/Water"
                 float2 slope = lerp(WaveSlope(p, t), flowingSlope, flowAmount);
                 // Calm ripples with distance: far away they'd only shimmer and alias.
                 float distanceFade = saturate(1 - distance(input.positionWS, GetCameraPositionWS()) / 350);
-                float strength = _WaveStrength * (0.25 + 0.75 * distanceFade);
+                slope += RainRipples(p, t) * _PunchyRain * distanceFade * 0.8;
+                float strength = _WaveStrength * (0.5 + _PunchyWind) * (0.25 + 0.75 * distanceFade);
                 float3 n = normalize(float3(-slope.x * strength, 1, -slope.y * strength));
                 if (!frontFace)
                     n = -n;
@@ -162,10 +188,11 @@ Shader "Punchy/Water"
                 half3 body = waterColor * (ambient + light.color * saturate(dot(n, light.direction)) * shadow * 0.6);
 
                 half fresnel = 0.02 + 0.98 * pow(1 - saturate(dot(n, v)), 5);
-                // Keep reflections pointing at the sky; tilted ripples would otherwise mirror the dark lower hemisphere.
+                // Reflect the live sky (same function as the skybox, so reflections follow the weather). Keep reflections
+                // pointing at the sky; tilted ripples would otherwise mirror the lower hemisphere.
                 float3 r = reflect(-v, n);
-                r.y = max(r.y, 0.05);
-                half3 reflection = GlossyEnvironmentReflection(normalize(r), input.positionWS, 1 - _Smoothness, 1, screenUV);
+                r.y = max(r.y, 0.03);
+                half3 reflection = PunchySkyColor(r, false);
                 float3 h = normalize(light.direction + v);
                 half glint = pow(saturate(dot(n, h)), exp2(10 * _Smoothness + 1)) * shadow;
 
