@@ -25,6 +25,8 @@ namespace Punchy.Weather
         [Tooltip("The first preset is the fair-weather background between cells.")]
         public List<WeatherPreset> Presets = new List<WeatherPreset>();
         public Light Sun;
+        [Tooltip("Shader for rain, snow, hail and dust particles. Referenced here so builds include it.")]
+        public Shader PrecipitationShader;
         [Tooltip("Optional. Without it the sky stays at fixed daytime colours.")]
         public DayNightCycle Cycle;
 
@@ -588,7 +590,7 @@ namespace Punchy.Weather
             renderer.lengthScale = 1f;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = false;
-            var material = new Material(Shader.Find("Punchy/Precipitation"));
+            var material = new Material(PrecipitationShader != null ? PrecipitationShader : Shader.Find("Punchy/Precipitation"));
             material.SetFloat("_Shape", shape);
             renderer.sharedMaterial = material;
 

@@ -569,6 +569,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: a4caf408c1a9d1542b1780825fb488c9, type: 2}
   - {fileID: 11400000, guid: 4575ea1c6985309479792514e54e704a, type: 2}
   Sun: {fileID: 410087040}
+  PrecipitationShader: {fileID: 4800000, guid: 842f5ad74756902438673274ff63562c, type: 3}
   Cycle: {fileID: 655229951}
   MaxCells: 14
   SpawnAttemptsPerMinute: 8
