@@ -5,7 +5,7 @@
 //   COLOR      rgb = albedo,     a = smoothness
 //   TEXCOORD0  x = metallic,     y = grass density, z = snow depth, w = skirt drop (metres; 0 on the surface)
 //   TEXCOORD1  rgb = emission (HDR), w = geomorph offset (coarse-LOD height − height)
-//   TEXCOORD2  distance from the terrain focus where the geomorph starts / completes
+//   TEXCOORD2  xy = distance from the terrain focus where the geomorph starts / completes, z = surface bumpiness
 // Grass density and snow depth are read by the (future) grass and snow-trail systems, not by this shader.
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
@@ -24,7 +24,7 @@ struct TerrainAttributes
     half4  surface    : COLOR;
     half4  extra      : TEXCOORD0;
     half4  emission   : TEXCOORD1;
-    float2 morph      : TEXCOORD2;
+    float4 morph      : TEXCOORD2;   // xy geomorph range, z surface bumpiness
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 

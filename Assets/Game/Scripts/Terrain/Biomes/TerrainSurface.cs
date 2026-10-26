@@ -17,9 +17,14 @@ namespace Punchy.Terrain
         [Tooltip("Random brightness breakup so large areas don't look flat.")]
         [Range(0f, 0.5f)] public float ColorVariation = 0.1f;
 
+        [Tooltip("Strength of the fine surface relief (clods, grain, cracks) drawn up close by the terrain shader.")]
+        [Range(0f, 1f)] public float Bumpiness = 0.5f;
+
         [Header("Features")]
-        [Tooltip("How densely grass blades grow here (read by the grass system).")]
+        [Tooltip("How densely grass blades grow here (drawn by the ground detail system).")]
         [Range(0f, 1f)] public float GrassDensity;
+        [Tooltip("How densely small stones are scattered here (drawn by the ground detail system).")]
+        [Range(0f, 1f)] public float Pebbles;
         [Tooltip("Depth of deformable snow here (read by the snow-trail system).")]
         [Range(0f, 1f)] public float SnowDepth;
     }

@@ -417,6 +417,7 @@ GameObject:
   - component: {fileID: 655229950}
   - component: {fileID: 655229949}
   - component: {fileID: 655229951}
+  - component: {fileID: 655229952}
   m_Layer: 0
   m_Name: Weather
   m_TagString: Untagged
@@ -444,6 +445,8 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 2fefebb67f2c6234f8ed2a4d78ebd50b, type: 2}
   - {fileID: 11400000, guid: 1c87395cb6a85e54ba6432f7841b5b21, type: 2}
   - {fileID: 11400000, guid: fc0d48c1d1e5e2a47a7158bedc4b2a0a, type: 2}
+  - {fileID: 11400000, guid: a4caf408c1a9d1542b1780825fb488c9, type: 2}
+  - {fileID: 11400000, guid: 4575ea1c6985309479792514e54e704a, type: 2}
   Sun: {fileID: 410087040}
   Cycle: {fileID: 655229951}
   MaxCells: 14
@@ -457,8 +460,35 @@ MonoBehaviour:
   DrySeconds: 120
   RainParticlesPerSecond: 9000
   SnowParticlesPerSecond: 2500
-  SandParticlesPerSecond: 7000
+  HailParticlesPerSecond: 2500
+  DustVeilsPerSecond: 70
   SnowLine: 140
+  DayTypes:
+  - Name: Sunny
+    Bias: -0.45
+    StormFactor: 0.2
+    PrecipitationFactor: 0.5
+    Chance: 2
+  - Name: Partly cloudy
+    Bias: -0.2
+    StormFactor: 0.6
+    PrecipitationFactor: 1
+    Chance: 3
+  - Name: Changeable
+    Bias: 0.05
+    StormFactor: 1
+    PrecipitationFactor: 1
+    Chance: 2.5
+  - Name: Overcast
+    Bias: 0.4
+    StormFactor: 0.1
+    PrecipitationFactor: 0.25
+    Chance: 1.5
+  - Name: Stormy
+    Bias: 0.55
+    StormFactor: 3
+    PrecipitationFactor: 1
+    Chance: 1
 --- !u!4 &655229950
 Transform:
   m_ObjectHideFlags: 0
@@ -584,6 +614,21 @@ MonoBehaviour:
     m_NumAlphaKeys: 2
   MoonColor: {r: 0.55, g: 0.65, b: 0.95, a: 1}
   MoonBrightness: 0.12
+--- !u!114 &655229952
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 655229948}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 66d6380142ecc2d49b570c836540429b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Debugging.DebugControls
+  Weather: {fileID: 655229949}
+  Cycle: {fileID: 655229951}
+  ShowReadout: 1
 --- !u!1 &832575517
 GameObject:
   m_ObjectHideFlags: 0
@@ -686,6 +731,58 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1797371706
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1797371708}
+  - component: {fileID: 1797371707}
+  m_Layer: 0
+  m_Name: GroundDetail
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1797371707
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1797371706}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 62e94de0076909e458183c270e467d63, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.GroundDetailSystem
+  GrassMaterial: {fileID: 2100000, guid: 060e767ef53d82849bb4e838995ad667, type: 2}
+  PebbleMaterial: {fileID: 2100000, guid: bb8cc9b6b38a45849b75505a67411c22, type: 2}
+  TileSize: 16
+  GrassRadius: 60
+  PebbleRadius: 45
+  GrassPerSquareMetre: 28
+  PebblesPerSquareMetre: 3
+  MaxTileBuildsPerFrame: 8
+--- !u!4 &1797371708
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1797371706}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -695,3 +792,4 @@ SceneRoots:
   - {fileID: 832575519}
   - {fileID: 1276947472}
   - {fileID: 655229950}
+  - {fileID: 1797371708}

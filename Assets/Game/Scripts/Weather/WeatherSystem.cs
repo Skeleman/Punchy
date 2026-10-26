@@ -52,7 +52,9 @@ namespace Punchy.Weather
         [Header("Particles")]
         public float RainParticlesPerSecond = 9000f;
         public float SnowParticlesPerSecond = 2500f;
-        public float SandParticlesPerSecond = 7000f;
+        public float HailParticlesPerSecond = 2500f;
+        [Tooltip("Large translucent dust veils per second in a full sandstorm.")]
+        public float DustVeilsPerSecond = 70f;
         [Tooltip("Above this height (metres above sea level) precipitation falls as snow.")]
         public float SnowLine = 140f;
 
@@ -72,6 +74,7 @@ namespace Punchy.Weather
         static readonly int WeatherRectId = Shader.PropertyToID("_PunchyWeatherRect");
         static readonly int CloudMapId = Shader.PropertyToID("_PunchyCloudMap");
         static readonly int ClimateId = Shader.PropertyToID("_PunchyClimate");
+        static readonly int WindDirectionId = Shader.PropertyToID("_PunchyWindDirection");
         static readonly int CloudNoiseId = Shader.PropertyToID("_PunchyCloudNoise");
         static readonly int LightningPosId = Shader.PropertyToID("_PunchyLightningPos");
         static readonly int DustColorId = Shader.PropertyToID("_PunchyDustColor");
@@ -88,10 +91,11 @@ namespace Punchy.Weather
         float windAngle = 37f;
         Vector2 cloudOffset;
         float baseSunIntensity = -1f;
-        ParticleSystem rain, snow, sand;
+        ParticleSystem rain, snow, hail, dust;
+        Transform hailGround;
         Light lightning;
-        AudioSource thunder;
-        AudioClip[] thunderClips;
+        int dayType;
+        float lastTimeOfDay = -1f;
         float strikeTime = -10f, strikeBrightness;
         Vector3 strikeDirection, strikePosition;
         Texture2D fallbackWeather, fallbackWetness, fallbackCloud;
@@ -134,11 +138,12 @@ namespace Punchy.Weather
             baseSunIntensity = Sun != null ? Sun.intensity : 1f;
             rain = CreateParticles("Rain", ParticleSystemRenderMode.Stretch, 15000, 1.4f, 0.025f, new Color(0.85f, 0.9f, 1f, 0.4f), new Vector3(60f, 1f, 60f), 1f);
             snow = CreateParticles("Snow", ParticleSystemRenderMode.Billboard, 25000, 9f, 0.07f, new Color(1f, 1f, 1f, 0.9f), new Vector3(50f, 1f, 50f), 0f);
-            sand = CreateParticles("Sand", ParticleSystemRenderMode.Stretch, 12000, 1.2f, 0.035f, new Color(0.8f, 0.65f, 0.45f, 0.5f), new Vector3(50f, 8f, 50f), 1f);
             var snowNoise = snow.noise;
             snowNoise.enabled = true;
             snowNoise.strength = 0.6f;
             snowNoise.frequency = 0.25f;
+            CreateHail();
+            CreateDustVeils();
 
             var lightningObject = new GameObject("Lightning");
             lightningObject.transform.SetParent(transform, false);
@@ -148,10 +153,7 @@ namespace Punchy.Weather
             lightning.intensity = 0f;
             lightning.shadows = LightShadows.None;
 
-            thunder = gameObject.AddComponent<AudioSource>();
-            thunder.playOnAwake = false;
-            thunder.spatialBlend = 0f;
-            thunderClips = new[] { MakeThunder(1), MakeThunder(2), MakeThunder(3) };
+            SetDayType(PickDayType(), false);
         }
 
         void Update()
@@ -179,6 +181,14 @@ namespace Punchy.Weather
             if (!field.Ready)
                 TryInitializeField();
             HandleDebugKeys();
+
+            // A new day brings a new day type (decided at midnight).
+            if (Cycle != null)
+            {
+                if (lastTimeOfDay >= 0f && Cycle.TimeOfDay < lastTimeOfDay - 12f)
+                    SetDayType(PickDayType(), false);
+                lastTimeOfDay = Cycle.TimeOfDay;
+            }
 
             windAngle += (Mathf.PerlinNoise(Time.time * 0.01f, 3.7f) - 0.5f) * 2f * WindVeer / 60f * dt;
             field.Step(dt, WindDirection, SpawnAttemptsPerMinute, MaxCells, SoakSeconds, DrySeconds);
@@ -209,14 +219,73 @@ namespace Punchy.Weather
             ApplyShaderGlobals(Local, sky, hazeDensity);
             ApplyLighting(Local, sky, hazeDensity);
             var snowiness = math.max(Local.AlwaysSnow, 1f - field.RainFraction(cameraXZ));
-            ApplyParticles(cam, Local.Precipitation * (1f - snowiness), Local.Precipitation * snowiness, Local.Dust, Local.Wind);
+            var falling = Local.Precipitation * (1f - Local.Hail * 0.5f);
+            ApplyParticles(cam, falling * (1f - snowiness), falling * snowiness, Local.Precipitation * Local.Hail * (1f - snowiness), Local.Dust, Local.Wind);
         }
+
+        // ---------------------------------------------------------------- day types
+
+        /// <summary>The overall character of a day: shifts the pressure pattern and how thundery the bad weather is.</summary>
+        [System.Serializable]
+        public class DayType
+        {
+            public string Name;
+            [Tooltip("−1 settled (few lows) … +1 unsettled (few highs).")]
+            [Range(-1f, 1f)] public float Bias;
+            [Tooltip("Multiplies the odds of thunderstorms and hail.")]
+            public float StormFactor = 1f;
+            [Tooltip("Multiplies the odds of any rain or snow.")]
+            public float PrecipitationFactor = 1f;
+            [Tooltip("Relative chance of a day being this type.")]
+            public float Chance = 1f;
+        }
+
+        [Header("Days")]
+        public List<DayType> DayTypes = new List<DayType>
+        {
+            new DayType { Name = "Sunny", Bias = -0.45f, StormFactor = 0.2f, Chance = 2f },
+            new DayType { Name = "Partly cloudy", Bias = -0.2f, StormFactor = 0.6f, Chance = 3f },
+            new DayType { Name = "Changeable", Bias = 0.05f, StormFactor = 1f, Chance = 2.5f },
+            new DayType { Name = "Overcast", Bias = 0.4f, StormFactor = 0.1f, PrecipitationFactor = 0.25f, Chance = 1.5f },
+            new DayType { Name = "Stormy", Bias = 0.55f, StormFactor = 3f, Chance = 1f }
+        };
+
+        public string DayTypeName => DayTypes.Count > 0 ? DayTypes[dayType].Name : "-";
+
+        int PickDayType()
+        {
+            float total = 0f;
+            foreach (var d in DayTypes) total += d.Chance;
+            var pick = Random.value * total;
+            for (int i = 0; i < DayTypes.Count; i++)
+            {
+                pick -= DayTypes[i].Chance;
+                if (pick <= 0f) return i;
+            }
+            return 0;
+        }
+
+        /// <summary>Switches the day type. With reseed, today's weather is replaced at once (for previewing).</summary>
+        public void SetDayType(int index, bool reseed)
+        {
+            if (DayTypes.Count == 0)
+                return;
+            dayType = (index % DayTypes.Count + DayTypes.Count) % DayTypes.Count;
+            field.Bias = DayTypes[dayType].Bias;
+            field.StormFactor = DayTypes[dayType].StormFactor;
+            field.PrecipitationFactor = DayTypes[dayType].PrecipitationFactor;
+            if (reseed && field.Ready)
+                field.Reseed();
+        }
+
+        public void NextDayType() => SetDayType(dayType + 1, true);
 
         void TryInitializeField()
         {
             if (!EnsureQueries() || !terrainQuery.TryGetSingleton<TerrainSource>(out var source) || !TryGetPalette(out var palette))
                 return;
             field.Initialize(source, palette.Biomes, Presets, SnowLine, WeatherAreaSize);
+            SetDayType(dayType, true);
         }
 
         void HandleDebugKeys()
@@ -278,6 +347,7 @@ namespace Punchy.Weather
             Shader.SetGlobalVector(LightningId, new Vector4(strikeDirection.x, strikeDirection.y, strikeDirection.z, FlashBrightness() * strikeBrightness));
             Shader.SetGlobalVector(LightningPosId, new Vector4(strikePosition.x, strikePosition.y, strikePosition.z, FlashBrightness()));
             Shader.SetGlobalFloat(WindId, s.Wind);
+            Shader.SetGlobalVector(WindDirectionId, WindDirection);
         }
 
         void ApplyLighting(in WeatherValues s, in Sky sky, float hazeDensity)
@@ -366,19 +436,39 @@ namespace Punchy.Weather
                     var horizontal = distance > 1f ? offset / distance : Vector3.forward;
                     strikeDirection = (horizontal * distance + Vector3.up * 1200f).normalized;
                     lightning.transform.rotation = Quaternion.LookRotation(-(Vector3.up + horizontal * 0.4f).normalized);
-                    // Thunder arrives after the light: ~3 s per kilometre.
+                    // Thunder arrives after the light (~3 s per kilometre), from the strike's direction.
                     if (distance < 9000f)
-                        StartCoroutine(PlayThunder(distance / 343f, math.lerp(1f, 0.15f, distance / 9000f)));
+                    {
+                        var pan = Vector3.Dot(horizontal, cam.transform.right) * 0.7f;
+                        StartCoroutine(PlayThunder(distance, pan));
+                    }
                 }
             }
             lightning.intensity = FlashBrightness() * strikeBrightness * 2.2f;
         }
 
-        IEnumerator PlayThunder(float delay, float volume)
+        IEnumerator PlayThunder(float distance, float pan)
         {
-            yield return new WaitForSeconds(delay);
-            thunder.PlayOneShot(thunderClips[Random.Range(0, thunderClips.Length)], volume);
+            // Synthesise on a worker thread while the sound "travels" (it always takes longer than the synthesis).
+            var seed = thunderRandom.Next();
+            var task = System.Threading.Tasks.Task.Run(() => ThunderSynth.Generate(distance, seed));
+            yield return new WaitForSeconds(distance / 343f);
+            while (!task.IsCompleted)
+                yield return null;
+            var clip = ThunderSynth.ToClip(task.Result);
+            // Each clap gets its own source so overlapping thunder from different directions pans independently.
+            var source = new GameObject("Thunder").AddComponent<AudioSource>();
+            source.transform.SetParent(transform, false);
+            source.spatialBlend = 0f;
+            source.panStereo = pan;
+            source.volume = math.lerp(1f, 0.25f, math.saturate(distance / 9000f));
+            source.clip = clip;
+            source.Play();
+            Destroy(source.gameObject, clip.length + 0.5f);
+            Destroy(clip, clip.length + 1f);
         }
+
+        readonly System.Random thunderRandom = new System.Random();
 
         /// <summary>A double-flicker flash envelope after each strike.</summary>
         float FlashBrightness()
@@ -392,36 +482,9 @@ namespace Punchy.Weather
             return flash;
         }
 
-        /// <summary>Synthesises a thunderclap: a sharp crack, then a long, swelling brown-noise rumble.</summary>
-        static AudioClip MakeThunder(int seed)
-        {
-            const int rate = 22050;
-            const float seconds = 7f;
-            var samples = new float[(int)(rate * seconds)];
-            var rng = new System.Random(seed);
-            float brown = 0f, crackFilter = 0f, peak = 1e-4f;
-            for (int i = 0; i < samples.Length; i++)
-            {
-                var t = i / (float)rate;
-                var white = (float)rng.NextDouble() * 2f - 1f;
-                brown = (brown + 0.02f * white) / 1.02f;
-                crackFilter += (white - crackFilter) * 0.3f;
-                var crack = t < 0.3f ? crackFilter * Mathf.Exp(-t * 14f) : 0f;
-                var swell = 0.6f + 0.4f * Mathf.Sin(t * 2.3f + seed) * Mathf.Sin(t * 0.9f + seed * 2f);
-                var rumble = brown * (1f - Mathf.Exp(-t * 6f)) * Mathf.Exp(-t * 0.55f) * swell * 4f;
-                samples[i] = crack * 0.6f + rumble;
-                peak = Mathf.Max(peak, Mathf.Abs(samples[i]));
-            }
-            for (int i = 0; i < samples.Length; i++)
-                samples[i] *= 0.9f / peak;
-            var clip = AudioClip.Create($"Thunder{seed}", samples.Length, 1, rate, false);
-            clip.SetData(samples, 0);
-            return clip;
-        }
-
         // ---------------------------------------------------------------- particles
 
-        void ApplyParticles(Camera cam, float rainAmount, float snowAmount, float dust, float wind)
+        void ApplyParticles(Camera cam, float rainAmount, float snowAmount, float hailAmount, float dustAmount, float wind)
         {
             if (cam == null || rain == null)
                 return;
@@ -429,9 +492,53 @@ namespace Punchy.Weather
             var drift = WindDirection * wind * 6f;
             UpdateEmitter(rain, rainAmount * RainParticlesPerSecond, position + Vector3.up * 14f, new Vector3(drift.x, -17f, drift.y));
             UpdateEmitter(snow, snowAmount * SnowParticlesPerSecond, position + Vector3.up * 10f, new Vector3(drift.x * 0.4f, -1.4f, drift.y * 0.4f));
-            // Sand blows sideways past the camera, entering from upwind.
-            var gust = WindDirection * (12f + 18f * wind);
-            UpdateEmitter(sand, dust * SandParticlesPerSecond, position - new Vector3(gust.x, 0f, gust.y) * 0.6f + Vector3.up * 2f, new Vector3(gust.x, -0.5f, gust.y));
+            UpdateEmitter(hail, hailAmount * HailParticlesPerSecond, position + Vector3.up * 16f, new Vector3(drift.x * 0.5f, -24f, drift.y * 0.5f));
+            // Hailstones bounce off the ground under the camera.
+            if (hailGround != null && EnsureQueries() && terrainQuery.TryGetSingleton<TerrainSource>(out var source))
+                hailGround.position = new Vector3(position.x, source.SampleHeight(new float2(position.x, position.z)) + 0.02f, position.z);
+
+            // Dust: no visible grains (too small to see) — slow, translucent veils of dust rolling past on the wind,
+            // on top of the visibility loss the atmosphere already applies.
+            var gust = WindDirection * (8f + 14f * wind);
+            UpdateEmitter(dust, dustAmount * DustVeilsPerSecond, position - new Vector3(gust.x, 0f, gust.y) * 2.5f + Vector3.up * 3f, new Vector3(gust.x, 0.3f, gust.y));
+            var main = dust.main;
+            main.startColor = DustColor() * new Color(1f, 1f, 1f, 0.16f);
+        }
+
+        void CreateHail()
+        {
+            hail = CreateParticles("Hail", ParticleSystemRenderMode.Billboard, 6000, 2.2f, 0.035f, new Color(0.95f, 0.97f, 1f, 1f), new Vector3(45f, 1f, 45f), 0f);
+            hailGround = new GameObject("HailGround").transform;
+            hailGround.SetParent(transform, false);
+            var collision = hail.collision;
+            collision.enabled = true;
+            collision.type = ParticleSystemCollisionType.Planes;
+            collision.SetPlane(0, hailGround);
+            collision.bounce = new ParticleSystem.MinMaxCurve(0.2f, 0.45f);
+            collision.dampen = 0.35f;
+            collision.lifetimeLoss = 0.25f;
+            var velocity = hail.velocityOverLifetime;
+            velocity.enabled = false;   // hail falls under gravity so it can bounce
+            var main = hail.main;
+            main.gravityModifier = 2.5f;
+            main.startSize = new ParticleSystem.MinMaxCurve(0.02f, 0.05f);
+        }
+
+        void CreateDustVeils()
+        {
+            dust = CreateParticles("DustVeils", ParticleSystemRenderMode.Billboard, 600, 7f, 10f, new Color(0.8f, 0.65f, 0.45f, 0.16f), new Vector3(90f, 10f, 90f), 2f);
+            var main = dust.main;
+            main.startSize = new ParticleSystem.MinMaxCurve(8f, 22f);
+            main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            var fade = dust.colorOverLifetime;
+            fade.enabled = true;
+            var gradient = new Gradient();
+            gradient.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                             new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.3f), new GradientAlphaKey(1f, 0.7f), new GradientAlphaKey(0f, 1f) });
+            fade.color = gradient;
+            var grow = dust.sizeOverLifetime;
+            grow.enabled = true;
+            grow.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.7f, 1f, 1.3f));
         }
 
         static void UpdateEmitter(ParticleSystem ps, float rate, Vector3 position, Vector3 velocity)

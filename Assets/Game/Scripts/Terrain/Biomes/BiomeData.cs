@@ -20,6 +20,8 @@ namespace Punchy.Terrain
         public float3 Emission;    // linear HDR
         public float Grass;
         public float Snow;
+        public float Bump;
+        public float Pebbles;
 
         public static SurfaceProps Lerp(in SurfaceProps a, in SurfaceProps b, float t) => new SurfaceProps
         {
@@ -28,7 +30,9 @@ namespace Punchy.Terrain
             Metallic = math.lerp(a.Metallic, b.Metallic, t),
             Emission = math.lerp(a.Emission, b.Emission, t),
             Grass = math.lerp(a.Grass, b.Grass, t),
-            Snow = math.lerp(a.Snow, b.Snow, t)
+            Snow = math.lerp(a.Snow, b.Snow, t),
+            Bump = math.lerp(a.Bump, b.Bump, t),
+            Pebbles = math.lerp(a.Pebbles, b.Pebbles, t)
         };
 
         public void AddScaled(in SurfaceProps s, float w)
@@ -39,6 +43,8 @@ namespace Punchy.Terrain
             Emission += s.Emission * w;
             Grass += s.Grass * w;
             Snow += s.Snow * w;
+            Bump += s.Bump * w;
+            Pebbles += s.Pebbles * w;
         }
     }
 

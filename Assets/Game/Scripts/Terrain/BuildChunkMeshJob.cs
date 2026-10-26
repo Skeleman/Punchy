@@ -17,7 +17,7 @@ namespace Punchy.Terrain
         public half4 Surface;   // albedo rgb (linear), smoothness
         public half4 Extra;     // metallic, grass density, snow depth, skirt drop (0 on the surface)
         public half4 Emission;  // emission rgb (linear HDR), geomorph offset (coarse height − height)
-        public float2 Morph;    // distance from the focus where geomorphing starts / completes
+        public float4 Morph;    // distance from the focus where geomorphing starts / completes; z = surface bumpiness
 
         public static readonly VertexAttributeDescriptor[] Layout =
         {
@@ -26,7 +26,7 @@ namespace Punchy.Terrain
             new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.Float16, 4),
             new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 4),
             new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float16, 4),
-            new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.Float32, 2)
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.Float32, 4)
         };
 
         public void SetSurface(in SurfaceProps s)
@@ -112,8 +112,9 @@ namespace Punchy.Terrain
                 maxY = math.max(maxY, h);
 
                 var vertex = new TerrainVertex { Position = new float3(local.x, h, local.y), Normal = normal };
-                vertex.SetSurface(Source.SampleSurface(world, ground, normal));
-                vertex.Morph = request.MorphRange;
+                var surface = Source.SampleSurface(world, ground, normal);
+                vertex.SetSurface(surface);
+                vertex.Morph = new float4(request.MorphRange, surface.Bump, 0f);
                 verts[z * v + x] = vertex;
                 water[z * v + x] = new float4(ground.WaterSurface, ground.Flow, h);
                 rapids[z * v + x] = ground.Rapids;

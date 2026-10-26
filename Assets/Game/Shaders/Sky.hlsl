@@ -15,7 +15,7 @@
 #define PUNCHY_CLOUD_NOISE_SCALE 4000.0
 #define PUNCHY_CLOUD_SIGMA 0.012      // cloud extinction per metre at density 1
 #define PUNCHY_CIRRUS_HEIGHT 8500.0
-#define PUNCHY_DUST_DENSITY 0.02      // extinction per metre in a full sandstorm (~150 m visibility)
+#define PUNCHY_DUST_DENSITY 0.028     // extinction per metre in a full sandstorm (~100 m visibility)
 #define PUNCHY_DUST_TOP 350.0         // dust thins out above this height
 #define PUNCHY_RAIN_DENSITY 0.0016    // extinction per metre in full rain (~1.5 km visibility)
 
@@ -94,13 +94,25 @@ float PunchyHash3(float3 p)
     return frac((p.x + p.y) * p.z);
 }
 
+// Integer hash of a lattice cell → 0..1. (Float-based hashes lose precision thousands of metres from the origin and
+// degrade into visible grid patterns; integer mixing doesn't.)
+float PunchyCellHash(int2 cell)
+{
+    uint h = asuint(cell.x) * 0x8da6b343u ^ asuint(cell.y) * 0xd8163841u;
+    h ^= h >> 13;
+    h *= 0x85ebca6bu;
+    h ^= h >> 16;
+    return h * (1.0 / 4294967296.0);
+}
+
 float PunchyValueNoise(float2 p)
 {
-    float2 i = floor(p);
-    float2 f = frac(p);
+    float2 fl = floor(p);
+    int2 i = int2(fl);
+    float2 f = p - fl;
     float2 u = f * f * (3 - 2 * f);
-    return lerp(lerp(PunchyHash(i), PunchyHash(i + float2(1, 0)), u.x),
-                lerp(PunchyHash(i + float2(0, 1)), PunchyHash(i + 1), u.x), u.y);
+    return lerp(lerp(PunchyCellHash(i), PunchyCellHash(i + int2(1, 0)), u.x),
+                lerp(PunchyCellHash(i + int2(0, 1)), PunchyCellHash(i + int2(1, 1)), u.x), u.y);
 }
 
 float PunchyFbm(float2 p, int octaves)
@@ -465,7 +477,17 @@ half3 PunchyAtmosphere(half3 color, float3 positionWS)
     float3 dir = toPoint / max(distance, 1e-3);
     color = PunchyWeatherVolumes(color, camera, dir, min(distance, 8000), 8);
     float haze = 1 - exp(-pow(distance * _PunchyHazeDensity, 2));
-    return lerp(color, _PunchySkyHorizon, haze);
+    if (haze < 0.01)
+        return color;
+
+    // Haze towards exactly what the sky shows just above the horizon in this direction: the horizon colour with the
+    // sun's glow, seen through the same rain and dust the skybox looks through. Hazing to the bare horizon colour
+    // left distant land brighter than the sky behind it whenever rain or cloud darkened the sky.
+    float3 flat = normalize(float3(dir.x, 0.02, dir.z));
+    float clearness = 1 - _PunchyClouds.x * 0.7;
+    half3 horizon = _PunchySkyHorizon + _PunchySunColor * pow(saturate(dot(flat, _PunchySunDirection)), 12) * 0.25 * clearness;
+    horizon = PunchyWeatherVolumes(horizon, camera, flat, 8000, 8);
+    return lerp(color, horizon, haze);
 }
 
 #endif

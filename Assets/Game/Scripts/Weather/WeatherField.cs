@@ -13,13 +13,14 @@ namespace Punchy.Weather
     public struct WeatherValues
     {
         public float Coverage, Darkness, Overcast, Sunlight, Fog, Wind, Precipitation, AlwaysSnow, Dust, Lightning;
-        public float CloudBase, CloudThickness;
+        public float CloudBase, CloudThickness, Hail;
 
         public static WeatherValues From(WeatherPreset p) => new WeatherValues
         {
             Coverage = p.CloudCoverage, Darkness = p.CloudDarkness, Overcast = p.Overcast, Sunlight = p.Sunlight,
             Fog = p.Fog, Wind = p.Wind, Precipitation = p.Precipitation, AlwaysSnow = p.AlwaysSnow ? 1f : 0f,
-            Dust = p.Dust, Lightning = p.LightningPerMinute, CloudBase = p.CloudBase, CloudThickness = p.CloudThickness
+            Dust = p.Dust, Lightning = p.LightningPerMinute, CloudBase = p.CloudBase, CloudThickness = p.CloudThickness,
+            Hail = p.Hail
         };
 
         public static WeatherValues Lerp(in WeatherValues a, in WeatherValues b, float t) => new WeatherValues
@@ -29,7 +30,8 @@ namespace Punchy.Weather
             Fog = math.lerp(a.Fog, b.Fog, t), Wind = math.lerp(a.Wind, b.Wind, t),
             Precipitation = math.lerp(a.Precipitation, b.Precipitation, t), AlwaysSnow = math.lerp(a.AlwaysSnow, b.AlwaysSnow, t),
             Dust = math.lerp(a.Dust, b.Dust, t), Lightning = math.lerp(a.Lightning, b.Lightning, t),
-            CloudBase = math.lerp(a.CloudBase, b.CloudBase, t), CloudThickness = math.lerp(a.CloudThickness, b.CloudThickness, t)
+            CloudBase = math.lerp(a.CloudBase, b.CloudBase, t), CloudThickness = math.lerp(a.CloudThickness, b.CloudThickness, t),
+            Hail = math.lerp(a.Hail, b.Hail, t)
         };
 
         public void AddScaled(in WeatherValues v, float w)
@@ -37,6 +39,7 @@ namespace Punchy.Weather
             Coverage += v.Coverage * w; Darkness += v.Darkness * w; Overcast += v.Overcast * w; Sunlight += v.Sunlight * w;
             Fog += v.Fog * w; Wind += v.Wind * w; Precipitation += v.Precipitation * w; AlwaysSnow += v.AlwaysSnow * w;
             Dust += v.Dust * w; Lightning += v.Lightning * w; CloudBase += v.CloudBase * w; CloudThickness += v.CloudThickness * w;
+            Hail += v.Hail * w;
         }
 
         /// <summary>Encoding of cloud base and thickness in the cloud map (must match Sky.hlsl).</summary>
@@ -239,7 +242,7 @@ namespace Punchy.Weather
             {
                 var c = cells[i];
                 // Cloudy weather dies away quickly once it drifts under high pressure.
-                var support = PressureSupport(presets[c.Preset].CloudCoverage, Lowness(c.Position, pressureOffset, pressureTime));
+                var support = PressureSupport(presets[c.Preset].CloudCoverage, Lowness(c.Position, pressureOffset, pressureTime, Bias));
                 c.Age += dt * (support < 0.15f && c.Age > c.Grow ? 4f : 1f);
                 var speed = 3f + 9f * presets[c.Preset].Wind;
                 c.Position += (windDirection * speed + c.Drift) * dt;
@@ -273,12 +276,29 @@ namespace Punchy.Weather
         /// 0..1: how deep in a low-pressure area a point is (1 = stormy low, 0 = settled high). A large, slowly
         /// evolving noise field, so weather clusters into regions: continuous cloud in some, clear skies in others.
         /// </summary>
-        public static float Lowness(float2 xz, float2 offset, float time)
+        public static float Lowness(float2 xz, float2 offset, float time, float bias)
         {
             var p = (xz - offset) / PressureScale;
             var n = noise.snoise(new float3(p, time / 900f)) * 0.7f + noise.snoise(new float3(p * 2.3f + 7.1f, time / 600f)) * 0.3f;
-            // Skewed so settled weather is the norm and well-developed lows are the exception.
-            return math.smoothstep(-0.25f, 0.75f, -n);
+            // Skewed so settled weather is the norm and well-developed lows are the exception; the day's bias shifts
+            // the whole pattern (a sunny day has few lows, a stormy day few highs).
+            return math.smoothstep(-0.25f, 0.75f, bias - n);
+        }
+
+        /// <summary>The day's weather bias: shifts pressure (−1 settled … +1 unsettled).</summary>
+        public float Bias;
+        /// <summary>Multiplies the odds of thunderstorm and hail presets (an overcast day is grey, not thundery).</summary>
+        public float StormFactor = 1f;
+        /// <summary>Multiplies the odds of any preset that rains or snows (an overcast day is mostly dry).</summary>
+        public float PrecipitationFactor = 1f;
+
+        /// <summary>Removes all cells and seeds fresh weather under the current bias (when the day type changes).</summary>
+        public void Reseed()
+        {
+            cells.Clear();
+            for (int i = 0; i < 25 && cells.Count < MaxCellsHint; i++)
+                TrySpawn(Random.Range(0f, 600f));
+            redrawTimer = 0f;
         }
 
         /// <summary>How well a preset with the given cloud cover suits a place's pressure (fair weather suits highs).</summary>
@@ -288,7 +308,9 @@ namespace Punchy.Weather
             return s * s * s;
         }
 
-        public float LownessAt(Vector2 xz) => Lowness(xz, pressureOffset, pressureTime);
+        public float LownessAt(Vector2 xz) => Lowness(xz, pressureOffset, pressureTime, Bias);
+
+        static bool IsStormy(WeatherPreset p) => p.LightningPerMinute > 1f || p.Hail > 0f;
 
         /// <summary>Picks a random place and lets the local biome odds (and pressure) decide what, if anything, forms there.</summary>
         void TrySpawn(float age)
@@ -296,14 +318,15 @@ namespace Punchy.Weather
             var x = Random.Range(Resolution / 8, Resolution * 7 / 8);
             var y = Random.Range(Resolution / 8, Resolution * 7 / 8);
             var t = y * Resolution + x;
-            var lowness = Lowness((float2)origin + (new float2(x, y) + 0.5f) * texel, pressureOffset, pressureTime);
+            var lowness = Lowness((float2)origin + (new float2(x, y) + 0.5f) * texel, pressureOffset, pressureTime, Bias);
 
             // The fair-weather background (preset 0) competes too: picking it means nothing forms this time.
             var weights = new float[presets.Count];
             float total = 0f;
             for (int p = 0; p < presets.Count; p++)
             {
-                weights[p] = chance[p][t] * PressureSupport(presets[p].CloudCoverage, lowness);
+                weights[p] = chance[p][t] * PressureSupport(presets[p].CloudCoverage, lowness) * (IsStormy(presets[p]) ? StormFactor : 1f)
+                             * (presets[p].Precipitation > 0f ? PrecipitationFactor : 1f);
                 total += weights[p];
             }
             if (total <= 0f)
@@ -424,6 +447,26 @@ namespace Punchy.Weather
         /// <summary>Average weather over the whole map (coverage, darkness, cloud base, thickness), for the far sky.</summary>
         public Vector4 Climate { get; private set; }
 
+        /// <summary>A short description of the weather at a point: the strongest cell there, or the background.</summary>
+        public string Describe(Vector2 xz)
+        {
+            if (!Ready)
+                return "-";
+            string best = null;
+            float bestWeight = 0.15f;
+            foreach (var c in cells)
+            {
+                var d = Vector2.Distance(c.Position, xz);
+                if (d >= c.Radius) continue;
+                var w = c.Intensity * math.smoothstep(1f, 0.55f, d / c.Radius) * BilinearAllowed(c.Preset, xz);
+                if (w > bestWeight) { bestWeight = w; best = presets[c.Preset].name; }
+            }
+            if (best != null)
+                return best;
+            var cover = Sample(xz).Coverage;
+            return cover < 0.25f ? "Fair (high pressure)" : cover < 0.6f ? "Fair, some cloud" : "Cloud deck (low pressure)";
+        }
+
         /// <summary>The live cells, for debug views and minimaps.</summary>
         public IEnumerable<(WeatherPreset preset, Vector2 position, float radius, float intensity)> Cells()
         {
@@ -468,7 +511,7 @@ namespace Punchy.Weather
                 Orography = orographyNative, RainFraction = rainFractionNative, Wetness = wetness,
                 Background = new float4(background.Coverage, background.Darkness, background.Haze, background.Dust),
                 BackgroundCloud = new float2(background.CloudBase, background.CloudThickness),
-                PressureOffset = pressureOffset, PressureTime = pressureTime,
+                PressureOffset = pressureOffset, PressureTime = pressureTime, PressureBias = Bias,
                 Resolution = Resolution, Origin = origin, Texel = texel,
                 SoakRate = 1f / math.max(soakSeconds, 0.1f), DryRate = 1f / math.max(drySeconds, 0.1f), Dt = dt,
                 WeatherPixels = weatherPixels, WetnessPixels = wetnessPixels, CloudPixels = cloudPixels
@@ -520,6 +563,7 @@ namespace Punchy.Weather
             public float2 BackgroundCloud;
             public float2 PressureOffset;
             public float PressureTime;
+            public float PressureBias;
             public int Resolution;
             public float2 Origin;
             public float Texel;
@@ -532,7 +576,7 @@ namespace Punchy.Weather
             {
                 var xz = Origin + (new float2(t % Resolution, t / Resolution) + 0.5f) * Texel;
                 var background = ApplyBackground(Background, BackgroundCloud, Orography[t],
-                                                 Lowness(xz, PressureOffset, PressureTime), out var backgroundCloud);
+                                                 Lowness(xz, PressureOffset, PressureTime, PressureBias), out var backgroundCloud);
 
                 float4 look = 0f;
                 float2 cloud = 0f;

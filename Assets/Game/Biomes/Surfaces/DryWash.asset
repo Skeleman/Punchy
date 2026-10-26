@@ -17,5 +17,7 @@ MonoBehaviour:
   Metallic: 0
   Emission: {r: 0, g: 0, b: 0, a: 1}
   ColorVariation: 0.06
+  Bumpiness: 0.4
   GrassDensity: 0
+  Pebbles: 0.45
   SnowDepth: 0

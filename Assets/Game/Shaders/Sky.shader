@@ -33,7 +33,8 @@ Shader "Punchy/Sky"
                 float3 dir = normalize(input.direction);
                 half3 sky = PunchySkyColor(dir, true, false);
                 sky = PunchyVolumetricClouds(sky, dir, input.positionCS.xy);
-                return half4(PunchyWeatherVolumes(sky, _WorldSpaceCameraPos, dir, 8000, 12), 1);
+                // (Same step count as the terrain haze target, so distant land and sky converge exactly.)
+                return half4(PunchyWeatherVolumes(sky, _WorldSpaceCameraPos, dir, 8000, 8), 1);
             }
             ENDHLSL
         }

@@ -34,6 +34,8 @@ MonoBehaviour:
     Chance: 0.1
   - Preset: {fileID: 11400000, guid: fc0d48c1d1e5e2a47a7158bedc4b2a0a, type: 2}
     Chance: 1.5
+  - Preset: {fileID: 11400000, guid: a4caf408c1a9d1542b1780825fb488c9, type: 2}
+    Chance: 2
   BaseSurface: {fileID: 11400000, guid: 52978979fde4c9a4497c8da1b03817f5, type: 2}
   Layers:
   - Surface: {fileID: 11400000, guid: 1753ba8fc7f960b43a8b3d37e34c11a4, type: 2}

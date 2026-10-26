@@ -3,7 +3,7 @@ Shader "Punchy/Precipitation"
     // Rain streaks (stretched billboards) or snowflakes (soft dots), drawn by particle systems. No textures needed.
     Properties
     {
-        [Enum(Snow, 0, Rain, 1)] _Shape("Shape", Float) = 1
+        [Enum(Snow, 0, Rain, 1, Veil, 2)] _Shape("Shape", Float) = 1
     }
 
     SubShader
@@ -42,9 +42,11 @@ Shader "Punchy/Precipitation"
             half4 Frag(Varyings input) : SV_Target
             {
                 float2 c = input.uv - 0.5;
-                half alpha = _Shape > 0.5
-                    ? smoothstep(0.5, 0.0, abs(c.x) * 2) * smoothstep(0.5, 0.2, abs(c.y))
-                    : smoothstep(0.5, 0.15, length(c));
+                half alpha = _Shape > 1.5
+                    ? pow(smoothstep(0.5, 0.0, length(c)), 2)                                      // veil: very soft blob
+                    : _Shape > 0.5
+                        ? smoothstep(0.5, 0.0, abs(c.x) * 2) * smoothstep(0.5, 0.2, abs(c.y))    // rain streak
+                        : smoothstep(0.5, 0.15, length(c));                                     // flake / stone
                 // Lit roughly like the sky around it, so drops/flakes darken under storm clouds.
                 half3 color = input.color.rgb * (0.35 + 0.65 * _PunchySkyHorizon);
                 color = MixFog(color, input.fog);

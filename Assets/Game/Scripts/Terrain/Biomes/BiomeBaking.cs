@@ -121,6 +121,8 @@ namespace Punchy.Terrain
                         Metallic = s.Metallic,
                         Emission = new float3(emission.r, emission.g, emission.b),
                         Grass = s.GrassDensity,
+                        Bump = s.Bumpiness,
+                        Pebbles = s.Pebbles,
                         Snow = s.SnowDepth
                     },
                     ColorVariation = s.ColorVariation

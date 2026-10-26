@@ -34,6 +34,8 @@ namespace Punchy.Weather
         [Range(0f, 1f)] public float Precipitation;
         [Tooltip("Precipitation always falls as snow (blizzards).")]
         public bool AlwaysSnow;
+        [Tooltip("Hailstones mixed into the precipitation (0..1).")]
+        [Range(0f, 1f)] public float Hail;
 
         [Header("Dust")]
         [Tooltip("Airborne dust or sand: tints the sky and fog and blows sand past the camera.")]

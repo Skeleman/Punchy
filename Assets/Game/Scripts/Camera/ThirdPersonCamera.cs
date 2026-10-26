@@ -27,6 +27,13 @@ namespace Punchy.CameraRig
 
         float yaw;
         float pitch = 20f;
+
+        /// <summary>Points the camera: yaw is the compass direction it looks towards, in degrees.</summary>
+        public void SetView(float newYaw, float newPitch)
+        {
+            yaw = newYaw;
+            pitch = Mathf.Clamp(newPitch, MinPitch, MaxPitch);
+        }
         EntityManager entityManager;
         EntityQuery playerQuery;
         EntityQuery terrainQuery;
