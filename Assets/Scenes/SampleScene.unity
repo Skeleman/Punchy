@@ -119,6 +119,77 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &233277104
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 233277107}
+  - component: {fileID: 233277106}
+  - component: {fileID: 233277105}
+  m_Layer: 0
+  m_Name: Ambience
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &233277105
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 233277104}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0195d810b6be63a4c87721564504cad6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Ambience.CritterSystem
+  FireflyMaterial: {fileID: 2100000, guid: 8479aecca1878cf45b05c70fc1befd30, type: 2}
+  ButterflyMaterial: {fileID: 2100000, guid: aea1ff56d22154c4bbe887701839b1b8, type: 2}
+  TileSize: 24
+  Radius: 70
+  MaxDensity: 8
+--- !u!114 &233277106
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 233277104}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 85c1544219b394145887af7071287300, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Ambience.AmbienceSystem
+  Weather: {fileID: 655229949}
+  Cycle: {fileID: 655229951}
+  PuffMaterial: {fileID: 2100000, guid: 3282e03dd3801884499471ee5aa7e786, type: 2}
+  HeatHaze: {fileID: -3321618816277824094, guid: f288ae1f4751b564a96ac7587541f7a2, type: 2}
+  HeatMapSize: 6000
+  HeatMapResolution: 128
+  BreathInterval: 3.2
+  BreathThreshold: 0.35
+  Mouth: {x: 1.5, y: 0.3}
+--- !u!4 &233277107
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 233277104}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0
@@ -864,3 +935,4 @@ SceneRoots:
   - {fileID: 655229950}
   - {fileID: 1797371708}
   - {fileID: 1595116840}
+  - {fileID: 233277107}

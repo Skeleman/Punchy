@@ -53,6 +53,16 @@ namespace Punchy.Terrain
         [Tooltip("Painted over the base in order; later layers cover earlier ones.")]
         public List<SurfaceLayer> Layers = new List<SurfaceLayer>();
 
+        [Header("Ambience")]
+        [Tooltip("How hot the ground gets in sunshine: heat shimmer and mirages (0 = none, 1 = scorching desert).")]
+        [Range(0f, 1f)] public float Heat;
+        [Tooltip("How cold the air is: the player's breath shows (0 = mild, 1 = arctic). Altitude, night and snow add to it.")]
+        [Range(0f, 1f)] public float Cold;
+        [Tooltip("Fireflies per 100 m² on warm, dry nights.")]
+        [Min(0f)] public float Fireflies;
+        [Tooltip("Butterflies per 100 m² on fair days.")]
+        [Min(0f)] public float Butterflies;
+
         [Header("Flora")]
         [Tooltip("Plants that grow here (drawn by the flora system). Changing these doesn't re-bake the terrain.")]
         public List<Punchy.Flora.BiomeFlora> Flora = new List<Punchy.Flora.BiomeFlora>();

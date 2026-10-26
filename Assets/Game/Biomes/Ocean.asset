@@ -42,3 +42,8 @@ MonoBehaviour:
     PatchCoverage: 0.4
     EdgeNoise: 0.6
     Opacity: 1
+  Heat: 0
+  Cold: 0.1
+  Fireflies: 0
+  Butterflies: 0
+  Flora: []

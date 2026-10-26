@@ -86,6 +86,10 @@ MonoBehaviour:
     PatchCoverage: 0.4
     EdgeNoise: 0
     Opacity: 1
+  Heat: 0.8
+  Cold: 0
+  Fireflies: 0.2
+  Butterflies: 0.6
   Flora:
   - Species: {fileID: 11400000, guid: 93c9b4cc1448305459c09c1a3fe299bc, type: 2}
     Density: 0.3
