@@ -1,6 +1,7 @@
 Shader "Punchy/Sky"
 {
-    // Procedural skybox: gradient, sun, drifting clouds and horizon haze, all driven by WeatherSystem globals.
+    // Procedural skybox: gradient, sun, moon and stars, cirrus, volumetric clouds, then rain and dust haze, all
+    // driven by WeatherSystem globals and world weather maps.
     SubShader
     {
         Tags { "Queue" = "Background" "RenderType" = "Background" "PreviewType" = "Skybox" "RenderPipeline" = "UniversalPipeline" }
@@ -30,7 +31,8 @@ Shader "Punchy/Sky"
             {
                 // Distant sandstorms and rain curtains show against the sky too.
                 float3 dir = normalize(input.direction);
-                half3 sky = PunchySkyColor(dir, true);
+                half3 sky = PunchySkyColor(dir, true, false);
+                sky = PunchyVolumetricClouds(sky, dir, input.positionCS.xy);
                 return half4(PunchyWeatherVolumes(sky, _WorldSpaceCameraPos, dir, 8000, 12), 1);
             }
             ENDHLSL

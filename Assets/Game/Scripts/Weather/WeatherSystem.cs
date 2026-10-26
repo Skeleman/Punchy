@@ -70,6 +70,9 @@ namespace Punchy.Weather
         static readonly int WeatherMapId = Shader.PropertyToID("_PunchyWeatherMap");
         static readonly int WetnessMapId = Shader.PropertyToID("_PunchyWetnessMap");
         static readonly int WeatherRectId = Shader.PropertyToID("_PunchyWeatherRect");
+        static readonly int CloudMapId = Shader.PropertyToID("_PunchyCloudMap");
+        static readonly int CloudNoiseId = Shader.PropertyToID("_PunchyCloudNoise");
+        static readonly int LightningPosId = Shader.PropertyToID("_PunchyLightningPos");
         static readonly int DustColorId = Shader.PropertyToID("_PunchyDustColor");
         static readonly int HazeDensityId = Shader.PropertyToID("_PunchyHazeDensity");
 
@@ -89,8 +92,9 @@ namespace Punchy.Weather
         AudioSource thunder;
         AudioClip[] thunderClips;
         float strikeTime = -10f, strikeBrightness;
-        Vector3 strikeDirection;
-        Texture2D fallbackWeather, fallbackWetness;
+        Vector3 strikeDirection, strikePosition;
+        Texture2D fallbackWeather, fallbackWetness, fallbackCloud;
+        Texture3D cloudNoise;
         EntityQuery playerQuery, terrainQuery, configQuery, paletteQuery;
         World queryWorld;
 
@@ -104,9 +108,21 @@ namespace Punchy.Weather
         {
             if (Cycle == null)
                 Cycle = GetComponent<DayNightCycle>();
+            if (cloudNoise == null)
+            {
+                cloudNoise = CloudNoise.Create();
+                cloudNoise.hideFlags = HideFlags.HideAndDontSave;
+            }
+            Shader.SetGlobalTexture(CloudNoiseId, cloudNoise);
         }
 
         void OnDisable() => field.Dispose();
+
+        void OnDestroy()
+        {
+            if (cloudNoise != null)
+                DestroyImmediate(cloudNoise);
+        }
 
         void Start()
         {
@@ -171,6 +187,7 @@ namespace Punchy.Weather
             {
                 Shader.SetGlobalTexture(WeatherMapId, field.WeatherMap);
                 Shader.SetGlobalTexture(WetnessMapId, field.WetnessMap);
+                Shader.SetGlobalTexture(CloudMapId, field.CloudMap);
                 Shader.SetGlobalVector(WeatherRectId, field.MapRect);
             }
             else
@@ -257,6 +274,7 @@ namespace Punchy.Weather
             Shader.SetGlobalVector(CloudOffsetId, cloudOffset);
             Shader.SetGlobalFloat(NightId, Cycle != null ? Cycle.Night : 0f);
             Shader.SetGlobalVector(LightningId, new Vector4(strikeDirection.x, strikeDirection.y, strikeDirection.z, FlashBrightness() * strikeBrightness));
+            Shader.SetGlobalVector(LightningPosId, new Vector4(strikePosition.x, strikePosition.y, strikePosition.z, FlashBrightness()));
             Shader.SetGlobalFloat(WindId, s.Wind);
         }
 
@@ -306,13 +324,19 @@ namespace Punchy.Weather
             {
                 fallbackWeather = new Texture2D(1, 1, TextureFormat.RGBA32, false, true) { hideFlags = HideFlags.HideAndDontSave };
                 fallbackWetness = new Texture2D(1, 1, TextureFormat.RGBA32, false, true) { hideFlags = HideFlags.HideAndDontSave };
+                fallbackCloud = new Texture2D(1, 1, TextureFormat.RGBA32, false, true) { hideFlags = HideFlags.HideAndDontSave };
                 fallbackWetness.SetPixel(0, 0, new Color(0f, 0f, 0f, 1f));
                 fallbackWetness.Apply();
             }
             fallbackWeather.SetPixel(0, 0, new Color(s.Coverage, s.Darkness, s.Haze, s.Dust));
             fallbackWeather.Apply();
+            fallbackCloud.SetPixel(0, 0, new Color(s.CloudBase / WeatherValues.MaxCloudBase, s.CloudThickness / WeatherValues.MaxCloudThickness, 0f, 1f));
+            fallbackCloud.Apply();
             Shader.SetGlobalTexture(WeatherMapId, fallbackWeather);
             Shader.SetGlobalTexture(WetnessMapId, fallbackWetness);
+            Shader.SetGlobalTexture(CloudMapId, fallbackCloud);
+            if (cloudNoise != null)
+                Shader.SetGlobalTexture(CloudNoiseId, cloudNoise);
             Shader.SetGlobalVector(WeatherRectId, new Vector4(0f, 0f, 1f, 1f));
         }
 
@@ -330,6 +354,9 @@ namespace Punchy.Weather
                 if (distance < 12000f)
                 {
                     strikeTime = Time.time;
+                    // The flash lights the storm cloud from inside, around a third of the way up the tower.
+                    var cloud = field.Sample(new Vector2(strike.x, strike.z));
+                    strikePosition = new Vector3(strike.x, cloud.CloudBase + cloud.CloudThickness * 0.3f, strike.z);
                     // Flashes fade with distance; the glow sits low over the storm, high when it's overhead.
                     strikeBrightness = 1f / (1f + (distance / 1500f) * (distance / 1500f));
                     var horizontal = distance > 1f ? offset / distance : Vector3.forward;

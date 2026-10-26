@@ -192,7 +192,7 @@ Shader "Punchy/Water"
                 // pointing at the sky; tilted ripples would otherwise mirror the lower hemisphere.
                 float3 r = reflect(-v, n);
                 r.y = max(r.y, 0.03);
-                half3 reflection = PunchySkyColor(r, false);
+                half3 reflection = PunchySkyColor(r, false, true);
                 float3 h = normalize(light.direction + v);
                 half glint = pow(saturate(dot(n, h)), exp2(10 * _Smoothness + 1)) * shadow;
 

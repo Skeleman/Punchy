@@ -12,10 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1d21f5df55fc2bc4c8895177bbf0ebab, type: 3}
   m_Name: Clear
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Weather.WeatherPreset
-  CloudCoverage: 0.15
+  CloudCoverage: 0.2
   CloudDarkness: 0
   Overcast: 0
   Sunlight: 1
+  CloudBase: 1300
+  CloudThickness: 600
   Fog: 1
   Wind: 0.2
   Precipitation: 0

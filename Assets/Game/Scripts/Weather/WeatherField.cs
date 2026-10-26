@@ -13,12 +13,13 @@ namespace Punchy.Weather
     public struct WeatherValues
     {
         public float Coverage, Darkness, Overcast, Sunlight, Fog, Wind, Precipitation, AlwaysSnow, Dust, Lightning;
+        public float CloudBase, CloudThickness;
 
         public static WeatherValues From(WeatherPreset p) => new WeatherValues
         {
             Coverage = p.CloudCoverage, Darkness = p.CloudDarkness, Overcast = p.Overcast, Sunlight = p.Sunlight,
             Fog = p.Fog, Wind = p.Wind, Precipitation = p.Precipitation, AlwaysSnow = p.AlwaysSnow ? 1f : 0f,
-            Dust = p.Dust, Lightning = p.LightningPerMinute
+            Dust = p.Dust, Lightning = p.LightningPerMinute, CloudBase = p.CloudBase, CloudThickness = p.CloudThickness
         };
 
         public static WeatherValues Lerp(in WeatherValues a, in WeatherValues b, float t) => new WeatherValues
@@ -27,15 +28,19 @@ namespace Punchy.Weather
             Overcast = math.lerp(a.Overcast, b.Overcast, t), Sunlight = math.lerp(a.Sunlight, b.Sunlight, t),
             Fog = math.lerp(a.Fog, b.Fog, t), Wind = math.lerp(a.Wind, b.Wind, t),
             Precipitation = math.lerp(a.Precipitation, b.Precipitation, t), AlwaysSnow = math.lerp(a.AlwaysSnow, b.AlwaysSnow, t),
-            Dust = math.lerp(a.Dust, b.Dust, t), Lightning = math.lerp(a.Lightning, b.Lightning, t)
+            Dust = math.lerp(a.Dust, b.Dust, t), Lightning = math.lerp(a.Lightning, b.Lightning, t),
+            CloudBase = math.lerp(a.CloudBase, b.CloudBase, t), CloudThickness = math.lerp(a.CloudThickness, b.CloudThickness, t)
         };
 
         public void AddScaled(in WeatherValues v, float w)
         {
             Coverage += v.Coverage * w; Darkness += v.Darkness * w; Overcast += v.Overcast * w; Sunlight += v.Sunlight * w;
             Fog += v.Fog * w; Wind += v.Wind * w; Precipitation += v.Precipitation * w; AlwaysSnow += v.AlwaysSnow * w;
-            Dust += v.Dust * w; Lightning += v.Lightning * w;
+            Dust += v.Dust * w; Lightning += v.Lightning * w; CloudBase += v.CloudBase * w; CloudThickness += v.CloudThickness * w;
         }
+
+        /// <summary>Encoding of cloud base and thickness in the cloud map (must match Sky.hlsl).</summary>
+        public const float MaxCloudBase = 4000f, MaxCloudThickness = 9000f, MaxAnvilTop = 12000f;
 
         /// <summary>Light grey haze in the air: rain, or mist under thick, foggy cloud.</summary>
         public float Haze => math.max(Precipitation, math.saturate((Fog - 1f) * 0.25f));
@@ -45,9 +50,11 @@ namespace Punchy.Weather
     /// Weather anchored in the world: a set of cells (rain cells, storms, sandstorms…) over a fair-weather
     /// background. Cells form at random places with the local biome's odds, drift with the wind, grow, linger and
     /// fade, and only exist where their preset is allowed (a sandstorm dissolves at the desert's edge). High ground
-    /// keeps extra cloud. The field is rendered into two world-covering textures each update:
+    /// keeps extra, lower cloud. The field is rendered into three world-covering textures each update:
     ///  weather map  rgba = cloud coverage, cloud darkness, rain/mist haze, dust;
-    ///  wetness map  rg   = ground wetness (accumulates where it rains, dries over time), precipitation.
+    ///  wetness map  rg   = ground wetness (accumulates where it rains, dries over time), precipitation;
+    ///  cloud map    rgba = cloud base / MaxCloudBase, cloud thickness / MaxCloudThickness,
+    ///                      anvil strength, anvil top / MaxAnvilTop (storm anvils spread beyond their cells).
     /// </summary>
     public class WeatherField
     {
@@ -80,11 +87,14 @@ namespace Punchy.Weather
         NativeArray<float> allowed;        // [preset * count + texel] 0..1 whether the preset can exist here
         NativeArray<float4> presetLook;    // per preset: coverage, darkness, haze, dust
         NativeArray<float> presetPrecip;
+        NativeArray<float2> presetCloud;   // per preset: cloud base, thickness (metres)
+        NativeArray<Color32> cloudPixels;
         NativeArray<float> orographyNative, rainFractionNative, wetness;
         NativeArray<Color32> weatherPixels, wetnessPixels;
 
         public Texture2D WeatherMap { get; private set; }
         public Texture2D WetnessMap { get; private set; }
+        public Texture2D CloudMap { get; private set; }
         public Vector4 MapRect => new Vector4(origin.x, origin.y, 1f / mapSize, 1f / mapSize);
         public bool Ready { get; private set; }
         public int CellCount => cells.Count;
@@ -145,20 +155,24 @@ namespace Punchy.Weather
 
             presetLook = new NativeArray<float4>(presets.Count, Allocator.Persistent);
             presetPrecip = new NativeArray<float>(presets.Count, Allocator.Persistent);
+            presetCloud = new NativeArray<float2>(presets.Count, Allocator.Persistent);
             for (int p = 0; p < presets.Count; p++)
             {
                 var v = WeatherValues.From(presets[p]);
                 presetLook[p] = new float4(v.Coverage, v.Darkness, v.Haze, v.Dust);
                 presetPrecip[p] = v.Precipitation;
+                presetCloud[p] = new float2(v.CloudBase, v.CloudThickness);
             }
             orographyNative = new NativeArray<float>(orography, Allocator.Persistent);
             rainFractionNative = new NativeArray<float>(rainFraction, Allocator.Persistent);
             wetness = new NativeArray<float>(count, Allocator.Persistent);
             weatherPixels = new NativeArray<Color32>(count, Allocator.Persistent);
             wetnessPixels = new NativeArray<Color32>(count, Allocator.Persistent);
+            cloudPixels = new NativeArray<Color32>(count, Allocator.Persistent);
 
             WeatherMap = CreateMap("WeatherMap");
             WetnessMap = CreateMap("WetnessMap");
+            CloudMap = CreateMap("CloudMap");
             Ready = true;
 
             // Start with weather already in the world rather than an empty sky.
@@ -190,6 +204,9 @@ namespace Punchy.Weather
             if (allowed.IsCreated) allowed.Dispose();
             if (presetLook.IsCreated) presetLook.Dispose();
             if (presetPrecip.IsCreated) presetPrecip.Dispose();
+            if (presetCloud.IsCreated) presetCloud.Dispose();
+            if (cloudPixels.IsCreated) cloudPixels.Dispose();
+            if (CloudMap != null) Object.Destroy(CloudMap);
             if (orographyNative.IsCreated) orographyNative.Dispose();
             if (rainFractionNative.IsCreated) rainFractionNative.Dispose();
             if (wetness.IsCreated) wetness.Dispose();
@@ -323,6 +340,8 @@ namespace Punchy.Weather
             var oro = Bilinear(orography, xz);
             background.Coverage = math.min(1f, background.Coverage + oro * 0.35f);
             background.Darkness += oro * 0.15f;
+            background.CloudBase -= oro * 250f;
+            background.CloudThickness += oro * 500f;
 
             var sum = default(WeatherValues);
             float total = 0f;
@@ -330,7 +349,7 @@ namespace Punchy.Weather
             {
                 var d = Vector2.Distance(c.Position, xz);
                 if (d >= c.Radius) continue;
-                var w = c.Intensity * math.smoothstep(1f, 0.4f, d / c.Radius) * BilinearAllowed(c.Preset, xz);
+                var w = c.Intensity * math.smoothstep(1f, 0.55f, d / c.Radius) * BilinearAllowed(c.Preset, xz);
                 if (w <= 0f) continue;
                 sum.AddScaled(WeatherValues.From(presets[c.Preset]), w);
                 total += w;
@@ -383,12 +402,13 @@ namespace Punchy.Weather
             var background = WeatherValues.From(presets[0]);
             new MapJob
             {
-                Cells = cellData, PresetLook = presetLook, PresetPrecip = presetPrecip, Allowed = allowed,
+                Cells = cellData, PresetLook = presetLook, PresetPrecip = presetPrecip, PresetCloud = presetCloud, Allowed = allowed,
                 Orography = orographyNative, RainFraction = rainFractionNative, Wetness = wetness,
                 Background = new float4(background.Coverage, background.Darkness, background.Haze, background.Dust),
+                BackgroundCloud = new float2(background.CloudBase, background.CloudThickness),
                 Resolution = Resolution, Origin = origin, Texel = texel,
                 SoakRate = 1f / math.max(soakSeconds, 0.1f), DryRate = 1f / math.max(drySeconds, 0.1f), Dt = dt,
-                WeatherPixels = weatherPixels, WetnessPixels = wetnessPixels
+                WeatherPixels = weatherPixels, WetnessPixels = wetnessPixels, CloudPixels = cloudPixels
             }.Schedule(Resolution * Resolution, 512).Complete();
             cellData.Dispose();
 
@@ -396,6 +416,8 @@ namespace Punchy.Weather
             WeatherMap.Apply(false);
             WetnessMap.SetPixelData(wetnessPixels, 0);
             WetnessMap.Apply(false);
+            CloudMap.SetPixelData(cloudPixels, 0);
+            CloudMap.Apply(false);
         }
 
         struct CellData
@@ -412,17 +434,20 @@ namespace Punchy.Weather
             [ReadOnly] public NativeArray<CellData> Cells;
             [ReadOnly] public NativeArray<float4> PresetLook;
             [ReadOnly] public NativeArray<float> PresetPrecip;
+            [ReadOnly] public NativeArray<float2> PresetCloud;
             [ReadOnly] public NativeArray<float> Allowed;
             [ReadOnly] public NativeArray<float> Orography;
             [ReadOnly] public NativeArray<float> RainFraction;
             public NativeArray<float> Wetness;
             public float4 Background;
+            public float2 BackgroundCloud;
             public int Resolution;
             public float2 Origin;
             public float Texel;
             public float SoakRate, DryRate, Dt;
             [WriteOnly] public NativeArray<Color32> WeatherPixels;
             [WriteOnly] public NativeArray<Color32> WetnessPixels;
+            [WriteOnly] public NativeArray<Color32> CloudPixels;
 
             public void Execute(int t)
             {
@@ -431,24 +456,44 @@ namespace Punchy.Weather
                 var oro = Orography[t];
                 background.x = math.min(1f, background.x + oro * 0.35f);
                 background.y += oro * 0.15f;
+                // Mountains hold lower, thicker cloud.
+                var backgroundCloud = BackgroundCloud + new float2(-250f, 500f) * oro;
 
                 float4 look = 0f;
+                float2 cloud = 0f;
                 float precip = 0f, total = 0f;
+                float anvil = 0f, anvilTop = 0f;
                 var count = Resolution * Resolution;
                 for (int i = 0; i < Cells.Length; i++)
                 {
                     var c = Cells[i];
                     var d = math.distance(c.Position, xz);
+
+                    // Towering storms spread an anvil at their top, reaching well beyond the cell itself.
+                    var tower = PresetCloud[c.Preset];
+                    if (tower.y > 3000f && d < c.Radius * 1.7f)
+                    {
+                        var a = c.Intensity * math.smoothstep(1.7f, 1.0f, d / c.Radius) * Allowed[c.Preset * count + t];
+                        if (a > anvil)
+                        {
+                            anvil = a;
+                            anvilTop = tower.x + tower.y;
+                        }
+                    }
+
                     if (d >= c.Radius) continue;
-                    var w = c.Intensity * math.smoothstep(1f, 0.4f, d / c.Radius) * Allowed[c.Preset * count + t];
+                    var w = c.Intensity * math.smoothstep(1f, 0.55f, d / c.Radius) * Allowed[c.Preset * count + t];
                     if (w <= 0f) continue;
                     look += PresetLook[c.Preset] * w;
                     precip += PresetPrecip[c.Preset] * w;
+                    cloud += PresetCloud[c.Preset] * w;
                     total += w;
                 }
 
                 var k = math.min(total, 1f);
                 var value = total > 0f ? math.lerp(background, look / total, k) : background;
+                // Cells are strongest at their centres, so tall clouds build into domes rather than flat slabs.
+                var cloudShape = total > 0f ? math.lerp(backgroundCloud, cloud / total, k) : backgroundCloud;
                 var precipitation = total > 0f ? precip / total * k : 0f;
 
                 // Ground soaks up rain (not snow) and dries out afterwards.
@@ -459,6 +504,8 @@ namespace Punchy.Weather
 
                 WeatherPixels[t] = new Color32(Byte(value.x), Byte(value.y), Byte(value.z), Byte(value.w));
                 WetnessPixels[t] = new Color32(Byte(wet), Byte(precipitation), 0, 255);
+                CloudPixels[t] = new Color32(Byte(cloudShape.x / WeatherValues.MaxCloudBase), Byte(cloudShape.y / WeatherValues.MaxCloudThickness),
+                                             Byte(anvil), Byte(anvilTop / WeatherValues.MaxAnvilTop));
             }
 
             static byte Byte(float v) => (byte)math.round(math.saturate(v) * 255f);

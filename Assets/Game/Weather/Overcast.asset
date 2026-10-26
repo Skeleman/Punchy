@@ -16,6 +16,8 @@ MonoBehaviour:
   CloudDarkness: 0.35
   Overcast: 0.8
   Sunlight: 0.35
+  CloudBase: 800
+  CloudThickness: 700
   Fog: 1.5
   Wind: 0.4
   Precipitation: 0

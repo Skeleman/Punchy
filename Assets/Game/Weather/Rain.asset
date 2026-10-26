@@ -16,6 +16,8 @@ MonoBehaviour:
   CloudDarkness: 0.6
   Overcast: 0.95
   Sunlight: 0.22
+  CloudBase: 650
+  CloudThickness: 2200
   Fog: 2
   Wind: 0.55
   Precipitation: 0.6
@@ -26,4 +28,4 @@ MonoBehaviour:
   Chance: 1.5
   OnlyInListedBiomes: 0
   Duration: {x: 180, y: 420}
-  Size: {x: 700, y: 1400}
+  Size: {x: 1200, y: 2200}

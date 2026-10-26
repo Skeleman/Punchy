@@ -18,6 +18,11 @@ namespace Punchy.Weather
         [Range(0f, 1f)] public float Overcast;
         [Tooltip("Sunlight strength relative to a clear day.")]
         [Range(0f, 1.5f)] public float Sunlight = 1f;
+        [Tooltip("Height of the cloud bottoms above sea level, in metres. Rain falls from here.")]
+        [Min(200f)] public float CloudBase = 1100f;
+        [Tooltip("Vertical extent of the clouds, in metres: a few hundred for flat cumulus/stratus, " +
+                 "several thousand for towering cumulonimbus (which spread into anvils at the top).")]
+        [Min(50f)] public float CloudThickness = 700f;
 
         [Header("Air")]
         [Tooltip("Fog thickness relative to the draw-distance minimum (1 = just enough to hide the terrain's edge).")]
