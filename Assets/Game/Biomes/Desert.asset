@@ -13,17 +13,47 @@ MonoBehaviour:
   m_Name: Desert
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.BiomeDefinition
   MapColor: {r: 0.9, g: 0.75, b: 0.4, a: 1}
-  Frequency: 1
-  HeightScale: 0.55
-  HeightOffset: 2
+  Frequency: 0.9
+  BaseElevation: 6
+  Shape: 2
+  Relief: 14
+  FeatureSize: 150
+  Octaves: 3
+  Sharpness: 1
+  TerraceSteps: 0
+  WindDirection: 60
+  Rainfall: 0.08
   BaseSurface: {fileID: 11400000, guid: cf5d4df68bc212d48a85892f37005489, type: 2}
   Layers:
   - Surface: {fileID: 11400000, guid: 5e130211aea3c484ea657de962d28795, type: 2}
     UseSlope: 1
-    SlopeRange: {x: 25, y: 90}
+    SlopeRange: {x: 33, y: 90}
+    SlopeBlend: 4
+    UseHeight: 0
+    HeightRange: {x: 80, y: 10000}
+    HeightBlend: 8
+    UseWaterDepth: 0
+    WaterDepthRange: {x: -2, y: 10000}
+    WaterDepthBlend: 1
+    OnlyInRivers: 0
+    UsePatches: 0
+    PatchSize: 40
+    PatchCoverage: 0.4
+    EdgeNoise: 0.6
+    Opacity: 1
+  - Surface: {fileID: 11400000, guid: ece8f3dc002817a46b1f4f7ac50141f7, type: 2}
+    UseSlope: 0
+    SlopeRange: {x: 35, y: 90}
     SlopeBlend: 5
     UseHeight: 0
     HeightRange: {x: 80, y: 10000}
     HeightBlend: 8
-    EdgeNoise: 0.6
+    UseWaterDepth: 0
+    WaterDepthRange: {x: -2, y: 10000}
+    WaterDepthBlend: 1
+    OnlyInRivers: 1
+    UsePatches: 0
+    PatchSize: 40
+    PatchCoverage: 0.4
+    EdgeNoise: 0
     Opacity: 1

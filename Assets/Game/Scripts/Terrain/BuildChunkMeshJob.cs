@@ -78,17 +78,15 @@ namespace Punchy.Terrain
             {
                 var local = new float2(x, z) * step;
                 var world = request.Origin + local;
-                var biomes = Source.SampleBiomes(world);
-                var h = Source.HeightKind == HeightSourceKind.Heightmap && Source.Heightmap.IsCreated
-                    ? Source.Heightmap.Value.Sample(world)
-                    : Source.ShapeNoiseHeight(Source.Noise.Sample(world), biomes);
+                var ground = Source.SampleGround(world);
+                var h = ground.Height;
                 // Fixed-scale normals keep lighting identical across LODs, so LOD switches don't flicker.
                 var normal = Source.SampleNormal(world, NormalEpsilon);
                 minY = math.min(minY, h);
                 maxY = math.max(maxY, h);
 
                 var vertex = new TerrainVertex { Position = new float3(local.x, h, local.y), Normal = normal };
-                vertex.SetSurface(Source.SampleSurface(world, h, normal, biomes));
+                vertex.SetSurface(Source.SampleSurface(world, ground, normal));
                 verts[z * v + x] = vertex;
             }
 

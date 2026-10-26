@@ -9,7 +9,24 @@ namespace Punchy.Terrain
     /// <summary>Turns biome/surface ScriptableObjects and biome map images into Burst-readable blobs.</summary>
     public static class BiomeBaking
     {
-        public static BlobAssetReference<BiomeSetBlob> BuildBiomeSet(IReadOnlyList<BiomeDefinition> biomes, Allocator allocator)
+        /// <summary>
+        /// The palette every biome id refers to: land biomes in list order (empty slots skipped), then the ocean.
+        /// Used by the blob, biome map images and anything else that turns ids back into biomes.
+        /// </summary>
+        public static List<BiomeDefinition> Palette(IEnumerable<BiomeDefinition> landBiomes, BiomeDefinition ocean)
+        {
+            var result = new List<BiomeDefinition>();
+            foreach (var b in landBiomes)
+                if (b != null && b != ocean)
+                    result.Add(b);
+            if (ocean != null)
+                result.Add(ocean);
+            return result;
+        }
+
+        /// <param name="palette">From <see cref="Palette"/>.</param>
+        /// <param name="hasOcean">Whether the last palette entry is the ocean.</param>
+        public static BlobAssetReference<BiomeSetBlob> BuildBiomeSet(IReadOnlyList<BiomeDefinition> palette, bool hasOcean, uint seed, Allocator allocator)
         {
             // Collect every distinct surface referenced by any biome.
             var surfaces = new List<TerrainSurface>();
@@ -26,35 +43,44 @@ namespace Punchy.Terrain
                 return i;
             }
 
-            var validBiomes = new List<BiomeDefinition>();
-            foreach (var b in biomes)
-                if (b != null)
-                    validBiomes.Add(b);
-
             var layerCount = 0;
-            foreach (var b in validBiomes)
+            foreach (var b in palette)
                 layerCount += b.Layers.Count;
 
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<BiomeSetBlob>();
-            var biomeArray = builder.Allocate(ref root.Biomes, validBiomes.Count);
+            var biomeArray = builder.Allocate(ref root.Biomes, palette.Count);
             var layerArray = builder.Allocate(ref root.Layers, layerCount);
+            root.LandCount = hasOcean ? palette.Count - 1 : palette.Count;
+            root.OceanIndex = hasOcean ? palette.Count - 1 : -1;
 
             var layerCursor = 0;
-            root.TotalFrequency = 0f;
-            for (int i = 0; i < validBiomes.Count; i++)
+            root.LandFrequency = 0f;
+            for (int i = 0; i < palette.Count; i++)
             {
-                var b = validBiomes[i];
+                var b = palette[i];
+                var wind = math.radians(b.WindDirection);
+                var offsetHash = math.hash(new uint2(seed, (uint)i * 2654435761u));
                 biomeArray[i] = new BiomeBlobData
                 {
-                    HeightScale = b.HeightScale,
-                    HeightOffset = b.HeightOffset,
                     Frequency = b.Frequency,
+                    BaseElevation = b.BaseElevation,
+                    Shape = b.Shape,
+                    Relief = b.Relief,
+                    FeatureFrequency = 1f / math.max(b.FeatureSize, 1f),
+                    Octaves = math.clamp(b.Octaves, 1, 8),
+                    Sharpness = b.Sharpness,
+                    TerraceSteps = b.TerraceSteps,
+                    Wind = new float2(math.sin(wind), math.cos(wind)),
+                    Rainfall = b.Rainfall,
+                    // Each biome reads a different region of the noise field.
+                    NoiseOffset = new float2(offsetHash & 0xFFFF, offsetHash >> 16) / 65535f * 500f,
                     BaseSurface = Index(b.BaseSurface),
                     FirstLayer = layerCursor,
                     LayerCount = b.Layers.Count
                 };
-                root.TotalFrequency += b.Frequency;
+                if (i < root.LandCount)
+                    root.LandFrequency += b.Frequency;
 
                 foreach (var l in b.Layers)
                 {
@@ -67,6 +93,13 @@ namespace Punchy.Terrain
                         UseHeight = l.UseHeight ? 1 : 0,
                         HeightRange = l.HeightRange,
                         HeightBlend = math.max(l.HeightBlend, 0.01f),
+                        UseWaterDepth = l.UseWaterDepth ? 1 : 0,
+                        WaterDepthRange = l.WaterDepthRange,
+                        WaterDepthBlend = math.max(l.WaterDepthBlend, 0.01f),
+                        OnlyInRivers = l.OnlyInRivers ? 1 : 0,
+                        UsePatches = l.UsePatches ? 1 : 0,
+                        PatchFrequency = 1f / math.max(l.PatchSize, 1f),
+                        PatchCoverage = l.PatchCoverage,
                         EdgeNoise = l.EdgeNoise,
                         Opacity = l.Opacity
                     };

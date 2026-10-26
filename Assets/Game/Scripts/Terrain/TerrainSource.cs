@@ -10,54 +10,32 @@ namespace Punchy.Terrain
         Heightmap
     }
 
-    /// <summary>Fractal (fBm) simplex noise parameters. Same settings + seed always give the same world.</summary>
+    /// <summary>World-wide layout: how big the landmass is, where the sea is, and the master seed for terrain shapes.</summary>
     [Serializable]
-    public struct NoiseSettings : IEquatable<NoiseSettings>
+    public struct WorldSettings : IEquatable<WorldSettings>
     {
         public uint Seed;
-        [UnityEngine.Tooltip("Base feature frequency in cycles per metre. Smaller = broader hills.")]
-        public float Frequency;
-        [UnityEngine.Range(1, 10)] public int Octaves;
-        [UnityEngine.Range(0f, 1f)] public float Persistence;
-        public float Lacunarity;
-        [UnityEngine.Tooltip("Maximum terrain height in metres (before biome height scaling).")]
-        public float Amplitude;
-        [UnityEngine.Tooltip("Values above 1 flatten valleys and sharpen peaks.")]
-        public float Exponent;
+        [UnityEngine.Tooltip("Approximate diameter of the landmass in metres. Beyond it is ocean (when an Ocean biome is set).")]
+        public float WorldSize;
+        [UnityEngine.Tooltip("Height of the sea surface in metres. Heights, water depth and beaches are relative to this.")]
+        public float SeaLevel;
+        [UnityEngine.Tooltip("Width of the transition from land elevations down to the sea floor, in metres.")]
+        public float CoastWidth;
+        [UnityEngine.Tooltip("How far the coastline wanders in and out, as a fraction of the world radius.")]
+        [UnityEngine.Range(0f, 0.6f)] public float CoastlineRoughness;
 
-        public static NoiseSettings Default => new NoiseSettings
+        public static WorldSettings Default => new WorldSettings
         {
             Seed = 1337,
-            Frequency = 0.0025f,
-            Octaves = 6,
-            Persistence = 0.5f,
-            Lacunarity = 2f,
-            Amplitude = 120f,
-            Exponent = 1.8f
+            WorldSize = 8192f,
+            SeaLevel = 0f,
+            CoastWidth = 900f,
+            CoastlineRoughness = 0.3f
         };
 
-        public float Sample(float2 xz)
-        {
-            // Hash the seed into a large offset so different seeds read different regions of the noise field.
-            var offset = (float2)(new uint2(Seed * 0x9E3779B9u, (Seed + 1u) * 0x85EBCA6Bu) % 100000u);
-            var p = xz + offset;
-
-            float sum = 0f, norm = 0f, amp = 1f, freq = Frequency;
-            for (int i = 0; i < Octaves; i++)
-            {
-                sum += amp * noise.snoise(p * freq);
-                norm += amp;
-                amp *= Persistence;
-                freq *= Lacunarity;
-            }
-
-            var h = math.saturate(sum / math.max(norm, 1e-5f) * 0.5f + 0.5f);
-            return math.pow(h, Exponent) * Amplitude;
-        }
-
-        public bool Equals(NoiseSettings o) =>
-            Seed == o.Seed && Frequency == o.Frequency && Octaves == o.Octaves && Persistence == o.Persistence &&
-            Lacunarity == o.Lacunarity && Amplitude == o.Amplitude && Exponent == o.Exponent;
+        public bool Equals(WorldSettings o) =>
+            Seed == o.Seed && WorldSize == o.WorldSize && SeaLevel == o.SeaLevel &&
+            CoastWidth == o.CoastWidth && CoastlineRoughness == o.CoastlineRoughness;
     }
 
     /// <summary>A baked grid of heights covering a square region of the world. Sampled bilinearly, clamped at the edges.</summary>
@@ -83,57 +61,165 @@ namespace Punchy.Terrain
         }
     }
 
+    /// <summary>Everything known about the ground at one point.</summary>
+    public struct GroundSample
+    {
+        public float Height;
+        public BiomeWeights Biomes;   // narrow (surface) blend
+        public float River;           // 0..1 channel mask
+        public float WaterDepth;      // metres below the sea / lake / river surface; negative = above it
+    }
+
     /// <summary>
-    /// Singleton that defines the world: its shape (heights) and its biomes (which region is what, and
-    /// what surfaces cover it). Everything that needs ground height or ground material samples this,
-    /// so terrain meshes, player movement and camera always agree.
+    /// Singleton that defines the world: its layout (land, sea), biomes (which region is what), shape
+    /// (heights), rivers, and what surfaces cover the ground. Everything that needs ground height or ground
+    /// material samples this, so terrain meshes, player movement and camera always agree.
     /// </summary>
     public struct TerrainSource : IComponentData, IEquatable<TerrainSource>
     {
+        public WorldSettings World;
+
         public HeightSourceKind HeightKind;
-        public NoiseSettings Noise;
         public BlobAssetReference<HeightmapBlob> Heightmap;
 
         public BiomeSourceKind BiomeKind;
         public BiomeNoiseSettings BiomeNoise;
+        /// <summary>Voronoi region containing the origin (always the first biome). Derived from BiomeNoise.</summary>
+        public int2 SpawnCell;
         public BlobAssetReference<BiomeMapBlob> BiomeMap;
         public BlobAssetReference<BiomeSetBlob> Biomes;
 
-        public BiomeWeights SampleBiomes(float2 xz)
+        public RiverSettings RiverSettings;
+        public BlobAssetReference<RiverMapBlob> Rivers;
+
+        bool HasBiomes => Biomes.IsCreated && Biomes.Value.Biomes.Length > 0;
+        bool UsesBiomeMap => BiomeKind == BiomeSourceKind.Map && BiomeMap.IsCreated;
+        bool UsesHeightmap => HeightKind == HeightSourceKind.Heightmap && Heightmap.IsCreated;
+
+        // ---------------------------------------------------------------- layout & biomes
+
+        /// <summary>0 on land, 1 out at sea; smooth across the coast band.</summary>
+        public float OceanFactor(float2 xz)
         {
-            if (BiomeKind == BiomeSourceKind.Map && BiomeMap.IsCreated)
-                return BiomeSampling.SampleMap(ref BiomeMap.Value, xz);
-            if (Biomes.IsCreated)
-                return BiomeSampling.SampleNoise(BiomeNoise, ref Biomes.Value, xz);
-            var none = default(BiomeWeights);
-            none.Normalize();
-            return none;
+            if (!HasBiomes || Biomes.Value.OceanIndex < 0)
+                return 0f;
+            var radius = World.WorldSize * 0.5f;
+            var p = xz / radius;
+            var wobble = noise.snoise(p * 1.7f + World.Seed % 10007u * 0.013f) * 0.65f + noise.snoise(p * 4.1f - 9.3f) * 0.35f;
+            var landness = (1f - math.length(p) + World.CoastlineRoughness * wobble) * radius;   // metres inside the coast
+            return 1f - math.smoothstep(-World.CoastWidth * 0.5f, World.CoastWidth * 0.5f, landness);
         }
 
-        public float SampleHeight(float2 xz)
+        /// <summary>Surface (narrow) and shape (wide) biome weights at a point.</summary>
+        public void SampleBiomes(float2 xz, out BiomeWeights surface, out BiomeWeights shape)
         {
-            if (HeightKind == HeightSourceKind.Heightmap && Heightmap.IsCreated)
-                return Heightmap.Value.Sample(xz);
-            return ShapeNoiseHeight(Noise.Sample(xz), SampleBiomes(xz));
+            if (!HasBiomes)
+            {
+                surface = default;
+                surface.Normalize();
+                shape = surface;
+                return;
+            }
+
+            if (UsesBiomeMap)
+            {
+                // The painted map already contains the ocean.
+                surface = BiomeSampling.SampleMap(ref BiomeMap.Value, xz);
+                shape = BiomeSampling.SampleMapBlurred(ref BiomeMap.Value, xz, BiomeNoise.ShapeBlendDistance * 0.5f);
+                return;
+            }
+
+            ref var set = ref Biomes.Value;
+            var cells = BiomeSampling.Cells(BiomeNoise, ref set, SpawnCell, xz);
+            var ocean = OceanFactor(xz);
+            surface = BiomeSampling.WithOcean(BiomeSampling.Weights(cells, BiomeNoise.BlendDistance, BiomeNoise.CellSize), ocean, set.OceanIndex);
+            shape = BiomeSampling.WithOcean(BiomeSampling.Weights(cells, BiomeNoise.ShapeBlendDistance, BiomeNoise.CellSize), ocean, set.OceanIndex);
         }
 
-        /// <summary>Applies each biome's height scale/offset to the raw noise height, blended by biome weight.</summary>
-        public float ShapeNoiseHeight(float rawHeight, in BiomeWeights biomes)
+        /// <summary>How much rain falls here (0..1), for river generation.</summary>
+        public float Rainfall(float2 xz)
         {
-            if (!Biomes.IsCreated || Biomes.Value.Biomes.Length == 0)
-                return rawHeight;
+            if (!HasBiomes)
+                return 0.5f;
+            SampleBiomes(xz, out var surface, out _);
+            ref var set = ref Biomes.Value;
+            float rain = 0f;
+            for (int i = 0; i < 4; i++)
+                if (surface.Weights[i] > 0f)
+                    rain += surface.Weights[i] * set.Biomes[surface.Ids[i]].Rainfall;
+            return rain;
+        }
+
+        // ---------------------------------------------------------------- heights
+
+        /// <summary>Biome base elevations plus each biome's relief, blended by shape weight. No rivers.</summary>
+        public float ShapeHeight(float2 xz, in BiomeWeights shape)
+        {
+            if (!HasBiomes)
+                return World.SeaLevel + 10f;
 
             ref var set = ref Biomes.Value;
             float height = 0f;
             for (int i = 0; i < 4; i++)
             {
-                var w = biomes.Weights[i];
+                var w = shape.Weights[i];
                 if (w <= 0f)
                     continue;
-                ref var biome = ref set.Biomes[biomes.Ids[i]];
-                height += w * (rawHeight * biome.HeightScale + biome.HeightOffset);
+                ref var biome = ref set.Biomes[shape.Ids[i]];
+                height += w * (biome.BaseElevation + BiomeSampling.Relief(ref biome, xz));
             }
-            return height;
+            return World.SeaLevel + height;
+        }
+
+        /// <summary>Ground height before river carving (what rivers are routed over).</summary>
+        public float BaseHeight(float2 xz)
+        {
+            if (UsesHeightmap)
+                return Heightmap.Value.Sample(xz);
+            SampleBiomes(xz, out _, out var shape);
+            return ShapeHeight(xz, shape);
+        }
+
+        public float SampleHeight(float2 xz)
+        {
+            if (UsesHeightmap)
+                return Heightmap.Value.Sample(xz);
+            SampleBiomes(xz, out _, out var shape);
+            var h = ShapeHeight(xz, shape);
+            if (Rivers.IsCreated)
+                h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz), RiverSettings, h);
+            return h;
+        }
+
+        /// <summary>Height plus biome, river and water information, computed together.</summary>
+        public GroundSample SampleGround(float2 xz)
+        {
+            SampleBiomes(xz, out var surface, out var shape);
+            var g = new GroundSample
+            {
+                Biomes = surface,
+                Height = UsesHeightmap ? Heightmap.Value.Sample(xz) : ShapeHeight(xz, shape)
+            };
+
+            var waterSurface = World.SeaLevel;
+            if (Rivers.IsCreated)
+            {
+                var river = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz);
+                // A loaded heightmap already contains the carved channels; only noise heights get carved here.
+                if (!UsesHeightmap)
+                    g.Height = RiverSampling.Carve(river, RiverSettings, g.Height);
+                g.River = RiverSampling.ChannelMask(river);
+                if (g.River > 0f)
+                    waterSurface = math.max(waterSurface, RiverSampling.WaterSurface(river, RiverSettings));
+
+                var lake = RiverSampling.Lake(ref Rivers.Value, xz, out var lakeSurface);
+                if (lake > 0.5f)
+                    waterSurface = math.max(waterSurface, lakeSurface);
+                // A river flowing through a lake is just lake there.
+                g.River *= 1f - math.saturate(lake * 2f);
+            }
+            g.WaterDepth = waterSurface - g.Height;
+            return g;
         }
 
         public float3 SampleNormal(float2 xz, float eps)
@@ -143,33 +229,43 @@ namespace Punchy.Terrain
             return math.normalize(new float3(-dx, 2f * eps, -dz));
         }
 
-        /// <summary>Blended surface properties at a point, given its height and normal.</summary>
-        public SurfaceProps SampleSurface(float2 xz, float height, float3 normal, in BiomeWeights biomes)
+        // ---------------------------------------------------------------- surfaces
+
+        /// <summary>Blended surface properties for a sampled point with the given normal.</summary>
+        public SurfaceProps SampleSurface(float2 xz, in GroundSample ground, float3 normal)
         {
             var result = default(SurfaceProps);
-            if (!Biomes.IsCreated || Biomes.Value.Biomes.Length == 0)
+            if (!HasBiomes)
             {
                 result.Albedo = new float3(0.3f);
                 result.Smoothness = 0.2f;
                 return result;
             }
 
-            var slope = math.degrees(math.acos(math.saturate(normal.y)));
-            var edgeNoise = noise.snoise(xz * 0.045f) * 0.7f + noise.snoise(xz * 0.17f) * 0.3f;
-            var colorNoise = noise.snoise(xz * 0.021f + 113.5f) * 0.6f + noise.snoise(xz * 0.11f - 57.1f) * 0.4f;
+            var context = new GroundContext
+            {
+                Position = xz,
+                Height = ground.Height - World.SeaLevel,
+                Slope = math.degrees(math.acos(math.saturate(normal.y))),
+                WaterDepth = ground.WaterDepth,
+                River = ground.River,
+                EdgeNoise = noise.snoise(xz * 0.045f) * 0.7f + noise.snoise(xz * 0.17f) * 0.3f,
+                ColorNoise = noise.snoise(xz * 0.021f + 113.5f) * 0.6f + noise.snoise(xz * 0.11f - 57.1f) * 0.4f
+            };
 
             ref var set = ref Biomes.Value;
             for (int i = 0; i < 4; i++)
             {
-                var w = biomes.Weights[i];
+                var w = ground.Biomes.Weights[i];
                 if (w > 0f)
-                    result.AddScaled(BiomeSampling.EvaluateBiome(ref set, biomes.Ids[i], height, slope, edgeNoise, colorNoise), w);
+                    result.AddScaled(BiomeSampling.EvaluateBiome(ref set, ground.Biomes.Ids[i], context), w);
             }
             return result;
         }
 
         public bool Equals(TerrainSource o) =>
-            HeightKind == o.HeightKind && Noise.Equals(o.Noise) && Heightmap == o.Heightmap &&
-            BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes;
+            World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap &&
+            BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes &&
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers;
     }
 }

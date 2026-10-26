@@ -298,29 +298,45 @@ MonoBehaviour:
   ViewRadiusChunks: 12
   MaxBuildsPerFrame: 12
   SkirtDepth: 6
-  HeightSource: 0
-  Noise:
+  World:
     Seed: 1337
-    Frequency: 0.0025
-    Octaves: 6
-    Persistence: 0.5
-    Lacunarity: 2
-    Amplitude: 120
-    Exponent: 1.8
-  Heightmap: {fileID: 11400000, guid: cf11acdbea53b454e8ec76bae40df393, type: 2}
+    WorldSize: 8192
+    SeaLevel: 0
+    CoastWidth: 900
+    CoastlineRoughness: 0.3
   Biomes:
   - {fileID: 11400000, guid: 277e2018d3d2abb46be2568301b07cab, type: 2}
   - {fileID: 11400000, guid: 85ee83dd85b5ba542b880bbcf85da039, type: 2}
+  - {fileID: 11400000, guid: b1b97ac8fbc6672418cc6308ad36b33b, type: 2}
+  - {fileID: 11400000, guid: b6dbd4f6350cf6743b5cf90b12731cfe, type: 2}
+  - {fileID: 11400000, guid: efa1fb2872ceb1d45b6ee561e78c8774, type: 2}
+  OceanBiome: {fileID: 11400000, guid: 356bf7d4cfe5b4e4686ec06eea61ac3d, type: 2}
   BiomeSource: 0
   BiomeNoise:
     Seed: 7
-    CellSize: 900
+    CellSize: 1400
     BlendDistance: 120
-    WarpStrength: 250
+    ShapeBlendDistance: 450
+    WarpStrength: 350
   BiomeMap: {fileID: 11400000, guid: 2549cc5cb52be5040ba5c201868ae45f, type: 2}
-  ExportResolution: 1025
-  ExportBiomeResolution: 257
-  ExportWorldSize: 2048
+  Rivers:
+    Enabled: 1
+    CellSize: 16
+    SourceCatchment: 0.4
+    FullCatchment: 40
+    MinWidth: 4
+    MaxWidth: 34
+    ChannelDepth: 1.6
+    BankSlope: 0.55
+    Meander: 0.7
+    MaxCarveDistance: 110
+    MinLakeArea: 0.15
+    MinLakeDepth: 5
+  HeightSource: 0
+  Heightmap: {fileID: 11400000, guid: cf11acdbea53b454e8ec76bae40df393, type: 2}
+  ExportResolution: 2049
+  ExportBiomeResolution: 513
+  ExportWorldSize: 9216
 --- !u!4 &1384051219
 Transform:
   m_ObjectHideFlags: 0

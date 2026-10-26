@@ -59,35 +59,28 @@ namespace Punchy.Editor
         /// </summary>
         public static (HeightmapAsset heightmap, BiomeMapAsset biomeMap) Export(TerrainAuthoring terrain)
         {
-            var biomes = terrain.ValidBiomes();
+            var palette = terrain.Palette();
             var worldSize = terrain.ExportWorldSize;
             var origin = new float2(-worldSize * 0.5f);
 
-            var source = new TerrainSource
-            {
-                HeightKind = HeightSourceKind.Noise,
-                Noise = terrain.Noise,
-                BiomeKind = BiomeSourceKind.Noise,
-                BiomeNoise = terrain.BiomeNoise
-            };
-            if (biomes.Count > 0)
-                source.Biomes = BiomeBaking.BuildBiomeSet(biomes, Allocator.Persistent);
-
+            // Always export the procedural world, whatever the terrain currently reads from.
+            var source = terrain.BuildSource(Allocator.Persistent);
             try
             {
-                var seedName = $"seed{terrain.Noise.Seed}_{terrain.BiomeNoise.Seed}";
-                return (ExportHeightmap(terrain, source, biomes, origin, worldSize, seedName),
-                        ExportBiomeMap(terrain, source, biomes, origin, worldSize, seedName));
+                var seedName = $"seed{terrain.World.Seed}_{terrain.BiomeNoise.Seed}";
+                return (ExportHeightmap(terrain, source, origin, worldSize, seedName),
+                        ExportBiomeMap(terrain, source, palette, origin, worldSize, seedName));
             }
             finally
             {
                 if (source.Biomes.IsCreated)
                     source.Biomes.Dispose();
+                if (source.Rivers.IsCreated)
+                    source.Rivers.Dispose();
             }
         }
 
-        static HeightmapAsset ExportHeightmap(TerrainAuthoring terrain, TerrainSource source, List<BiomeDefinition> biomes,
-                                              float2 origin, float worldSize, string seedName)
+        static HeightmapAsset ExportHeightmap(TerrainAuthoring terrain, TerrainSource source, float2 origin, float worldSize, string seedName)
         {
             var resolution = math.max(2, terrain.ExportResolution);
             var heights = new NativeArray<float>(resolution * resolution, Allocator.TempJob);
@@ -102,14 +95,17 @@ namespace Punchy.Editor
             var values = heights.ToArray();
             heights.Dispose();
 
-            // Normalise to the tallest height any biome could reach rather than the sampled max, so edits have headroom.
-            var min = 0f;
-            var max = terrain.Noise.Amplitude;
-            foreach (var b in biomes)
+            // Normalise to the sampled range plus some headroom, so painted edits can go a bit higher or lower.
+            var min = float.MaxValue;
+            var max = float.MinValue;
+            foreach (var h in values)
             {
-                min = math.min(min, b.HeightOffset);
-                max = math.max(max, terrain.Noise.Amplitude * b.HeightScale + b.HeightOffset);
+                min = math.min(min, h);
+                max = math.max(max, h);
             }
+            var headroom = (max - min) * 0.1f + 1f;
+            min = math.floor(min - headroom);
+            max = math.ceil(max + headroom);
 
             Directory.CreateDirectory(HeightmapFolder);
             var pngPath = AssetDatabase.GenerateUniqueAssetPath($"{HeightmapFolder}/Heightmap_{seedName}.png");
@@ -127,7 +123,7 @@ namespace Punchy.Editor
             return asset;
         }
 
-        static BiomeMapAsset ExportBiomeMap(TerrainAuthoring terrain, TerrainSource source, List<BiomeDefinition> biomes,
+        static BiomeMapAsset ExportBiomeMap(TerrainAuthoring terrain, TerrainSource source, List<BiomeDefinition> palette,
                                             float2 origin, float worldSize, string seedName)
         {
             var resolution = math.max(2, terrain.ExportBiomeResolution);
@@ -145,7 +141,7 @@ namespace Punchy.Editor
 
             Directory.CreateDirectory(BiomeMapFolder);
             var pngPath = AssetDatabase.GenerateUniqueAssetPath($"{BiomeMapFolder}/BiomeMap_{seedName}.png");
-            File.WriteAllBytes(pngPath, BiomeBaking.EncodeBiomeMap(values, resolution, biomes));
+            File.WriteAllBytes(pngPath, BiomeBaking.EncodeBiomeMap(values, resolution, palette));
             ImportImage(pngPath, resolution, linear: false);
 
             var asset = CreateInstance<BiomeMapAsset>();
@@ -201,12 +197,8 @@ namespace Punchy.Editor
             public void Execute(int index)
             {
                 var xz = Origin + new float2(index % Resolution, index / Resolution) * Step;
-                var w = Source.SampleBiomes(xz);
-                var best = 0;
-                for (int i = 1; i < 4; i++)
-                    if (w.Weights[i] > w.Weights[best])
-                        best = i;
-                Ids[index] = (byte)w.Ids[best];
+                Source.SampleBiomes(xz, out var surface, out _);
+                Ids[index] = (byte)surface.Dominant();
             }
         }
     }
