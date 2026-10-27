@@ -45,7 +45,7 @@ MonoBehaviour:
     Scale: 1
     Thickness: 1
     StyleGroup: 0
-  - Limb: {fileID: 11400000, guid: 38f5bde1e621b5048a55ee6cf5cbd380, type: 2}
+  - Limb: {fileID: 11400000, guid: e643fc75ab94c0248b5e3710ae391090, type: 2}
     Parent: 1
     Socket: {x: 0, y: 0, z: 0}
     Direction: {x: 60, y: 0, z: 0}
@@ -57,8 +57,8 @@ MonoBehaviour:
     StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 6e02047a4eb1c6844862edf9267ec349, type: 2}
     Parent: 2
-    Socket: {x: 0, y: 0, z: 0}
-    Direction: {x: 5, y: 0, z: 0}
+    Socket: {x: 0, y: -0.004, z: 0.02}
+    Direction: {x: 8, y: 0, z: 0}
     Mirror: 0
     Phase: 0
     MirrorPhase: 0.5
