@@ -185,6 +185,16 @@ namespace Punchy.Terrain
         [Min(1f)] public float CaveRadius = 2.4f;
         [Tooltip("Radius of the chamber at the end, in metres.")]
         [Min(1f)] public float ChamberRadius = 6f;
+        [Tooltip("More chambers along the main passage, each a little smaller than the end one.")]
+        [Range(0, 6)] public int CaveChambers;
+        [Tooltip("Side passages leading off the main one (and off each other, in big networks), each to a small chamber.")]
+        [Range(0, 12)] public int CaveBranches;
+        [Tooltip("Length of a side passage, in metres.")]
+        [Min(5f)] public float BranchLength = 30f;
+        [Tooltip("Shafts rising from chambers to the surface: sinkholes that let daylight in (and let the careless fall in).")]
+        [Range(0, 4)] public int CaveShafts;
+        [Tooltip("Styles this cave can take; it takes one listed for the biome it opens in (see CaveStyle.Biomes).")]
+        public List<CaveStyle> CaveStyles = new List<CaveStyle>();
 
         [Header("Residents")]
         [Tooltip("Animals that live here; they appear when the player comes near.")]

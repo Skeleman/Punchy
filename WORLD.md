@@ -96,6 +96,24 @@ cheaply. A first proposal:
   samples. Chunked walls: 65 chunks (26 with walls), 78,922 triangles, no open edges below the rim. The first chunked
   version left 4 seam edges (a float origin plus an offset rounds differently in neighbouring chunks); fixed by
   sampling on a global integer grid.
+- 2026-10-27: Phase 2 (cave sizes and styles), without the Glacier biome (its own commit, pending the user).
+  - Caves are networks: segments join any two nodes, so side passages branch off the main passage and off each
+    other; nodes are tagged Passage, Chamber or Shaft. `LandmarkType` gains CaveChambers, CaveBranches,
+    BranchLength, CaveShafts and CaveStyles. Sizes: **Grotto** (one chamber, ~20 m), **CaveEntrance** (cavern: an
+    extra chamber, two side passages, ~100 m), **CaveNetwork** (three extra chambers, seven side passages, two shafts,
+    ~380 m).
+  - `CaveStyle` assets (Landmarks/CaveStyles): passage shape (width, height, roughness, grain) is baked; the look
+    (rock colours and banding, gloss, metallic, crystal facets, ice translucency, glow in cell-border cracks plus a
+    share everywhere) is a table CaveSystem uploads each frame, so looks tune live. Styles: Limestone (Temperate,
+    Grassland), Granite (Mountains: tall fissures), Sandstone (Sonoran, Dunes, SaltFlat: low banded galleries),
+    LavaTube (Ashlands, Volcano: smooth black tubes, glowing cracks), Fungal (FoggyMarsh, PoisonSwamp: wet, green
+    glow), Crystal and Metallic (SparklingForest), Ice (Tundra for now; Glacier once it exists), Rock (fallback).
+  - Biomes list all three sizes (grotto 0.6, cavern 0.3 where newly added, network 0.12 per km²). This seed: 17
+    caves (10 grottos, 6 caverns, 1 network of 384 m with 11 chambers), in five styles.
+  - Checks on the baked world: sampling with the grid vs a sweep of every segment, 27,920 samples near walls, no sign
+    flips, worst difference 3.4 cm (stretched profiles); 329 vs 561 ms per 200k managed samples. Chunked walls: 184
+    chunks, 322,608 triangles, no open edges below the rim, 4 duplicate triangles (degenerate cells, not seams).
+    Looked at in game: LavaTube, Ice, Metallic, Sandstone.
 - 2026-10-27: User roadmap merged (via supervisor): building types sized to inhabitants, roads and signs (moved up
   into phase 4), landscaping and water, leader and religious buildings; cave sizes, per-biome styles (glacier ice
   caves, metallic and crystalline caves in the mystical forest), stalactites, underground rivers, glowing flora; an

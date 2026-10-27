@@ -3,41 +3,60 @@ using Unity.Mathematics;
 
 namespace Punchy.Terrain
 {
-    /// <summary>A point on a cave's centre line and how wide the passage is there.</summary>
+    /// <summary>A point on a passage's centre line and how wide the passage is there.</summary>
     public struct CaveNode
     {
         public float3 Position;
         public float Radius;
     }
 
+    /// <summary>What a node is for, so props and anchors can tell a chamber from a passage.</summary>
+    public enum CaveNodeKind : byte
+    {
+        Passage,
+        /// <summary>A room: the end of the main passage, one along it, or the end of a side passage.</summary>
+        Chamber,
+        /// <summary>Part of a shaft rising to the surface.</summary>
+        Shaft
+    }
+
+    /// <summary>One cave network: everything reached from one landmark's mouth.</summary>
     public struct CaveData
     {
         public int FirstNode, NodeCount;
+        public int FirstSegment, SegmentCount;
         /// <summary>World-space box around all of the cave's air (with a margin).</summary>
         public float3 Min, Max;
         /// <summary>The middle of the entrance, where daylight comes in.</summary>
         public float3 Mouth;
         public float Seed;
+        /// <summary>Its CaveStyle's slot in CaveStyleTable order, plus one (0 = no style).</summary>
+        public int Style;
+        /// <summary>Passage width and height multipliers (the style's Width, and Width × Height).</summary>
+        public float2 Profile;
+        /// <summary>Wall noise strength and frequency multipliers (the style's Roughness and Grain).</summary>
+        public float2 Wall;
     }
 
-    /// <summary>One capsule of a cave's passage, from a node to the next, with the box its influence reaches.</summary>
+    /// <summary>One capsule of a passage, between two nodes, with the box its influence reaches.</summary>
     public struct CaveSegment
     {
-        /// <summary>The node it starts at (it runs to Node + 1).</summary>
-        public int Node;
+        public int A, B;
         public int Cave;
         public float3 Min, Max;
     }
 
     /// <summary>
-    /// Every cave: chains of nodes whose swept, merged spheres are the cave's air. A coarse column grid lists the
-    /// segments reaching each cell (in cave order), so a sample only looks at the few passages nearby however many
-    /// caves the world has.
+    /// Every cave: networks of nodes joined by segments, whose swept, merged spheres are the cave's air. A coarse
+    /// column grid lists the segments reaching each cell (grouped by cave), so a sample only looks at the few
+    /// passages nearby however many caves the world has.
     /// </summary>
     public struct CaveSetBlob
     {
         public BlobArray<CaveData> Caves;
         public BlobArray<CaveNode> Nodes;
+        /// <summary>Per node (same order as Nodes).</summary>
+        public BlobArray<CaveNodeKind> Kinds;
         public BlobArray<CaveSegment> Segments;
         public float2 GridOrigin;
         public float CellSize;
@@ -47,42 +66,59 @@ namespace Punchy.Terrain
     }
 
     /// <summary>
-    /// The shape of caves as a signed distance: negative inside a cave's air, positive in rock. A cave is a chain of
-    /// capsules, blended smoothly where they meet, with a flatter floor than ceiling (easier to walk on) and noise
-    /// on the walls. Rock is everywhere that is below the terrain surface and outside every cave.
+    /// The shape of caves as a signed distance: negative inside a cave's air, positive in rock. A cave is a network
+    /// of capsules, blended smoothly where they meet, with a flatter floor than ceiling (easier to walk on), shaped by
+    /// its style (wide, tall) and with noise on the walls. Rock is everywhere that is below the terrain surface and
+    /// outside every cave.
     /// </summary>
     public static class CaveSampling
     {
         const float Blend = 1.5f;
-        /// <summary>Most the wall noise moves a wall (both octaves at full strength).</summary>
-        const float NoiseReach = 0.75f;
+        /// <summary>Most the wall noise moves a wall at Roughness 1 (both octaves at full strength).</summary>
+        public const float NoiseReach = 0.75f;
 
         /// <summary>
-        /// How far beyond a segment's radius its box reaches. Past the blend and the noise, the distance is exact for a
-        /// few metres more, so terrain vertices near an entrance still interpolate the cut-out edge correctly.
+        /// How far beyond a segment's radius its box reaches, before wall noise. Past the blend and the noise, the
+        /// distance is exact for a few metres more, so terrain vertices near an entrance still interpolate the
+        /// cut-out edge correctly.
         /// </summary>
-        public const float SegmentMargin = Blend + NoiseReach + 4f;
+        public const float SegmentMargin = Blend + 4f;
 
-        /// <summary>Distance to one capsule of a passage, with a flatter floor than ceiling.</summary>
-        static float Capsule(in CaveNode a, in CaveNode b, float3 p)
+        /// <summary>
+        /// Distance to one capsule of a passage, with a flatter floor than ceiling and the cave's width and height.
+        /// Stretching makes the field a little off true distance; scaling by the smaller stretch keeps it from
+        /// overstating it, so nothing that steps by distance overshoots a wall.
+        /// </summary>
+        static float Capsule(in CaveNode a, in CaveNode b, float3 p, float2 profile)
         {
             var ab = b.Position - a.Position;
             var t = math.saturate(math.dot(p - a.Position, ab) / math.max(math.lengthsq(ab), 1e-6f));
             var q = p - (a.Position + ab * t);
+            var stretch = profile.y / profile.x;
+            q.y /= stretch;
             if (q.y < 0f)
                 q.y *= 1.8f;   // flatter floor
-            return math.length(q) - math.lerp(a.Radius, b.Radius, t);
+            var r = math.lerp(a.Radius, b.Radius, t) * profile.x;
+            return (math.length(q) - r) * math.min(1f, stretch);
         }
 
-        static float WallNoise(float seed, float3 p) => noise.snoise(p * 0.22f + seed) * 0.55f + noise.snoise(p * 0.6f - seed) * 0.2f;
+        static float WallNoise(in CaveData c, float3 p)
+        {
+            var s = c.Seed;
+            var g = c.Wall.y;
+            return (noise.snoise(p * 0.22f * g + s) * 0.55f + noise.snoise(p * 0.6f * g - s) * 0.2f) * c.Wall.x;
+        }
 
         public static float Distance(ref CaveSetBlob set, int cave, float3 p)
         {
             ref var c = ref set.Caves[cave];
             var d = 1e9f;
-            for (int i = 0; i < c.NodeCount - 1; i++)
-                d = SmoothMin(d, Capsule(set.Nodes[c.FirstNode + i], set.Nodes[c.FirstNode + i + 1], p), Blend);
-            return d + WallNoise(c.Seed, p);
+            for (int i = c.FirstSegment; i < c.FirstSegment + c.SegmentCount; i++)
+            {
+                ref var seg = ref set.Segments[i];
+                d = SmoothMin(d, Capsule(set.Nodes[seg.A], set.Nodes[seg.B], p, c.Profile), Blend);
+            }
+            return d + WallNoise(c, p);
         }
 
         /// <summary>The range of grid items (indices into Items) for the column containing a point.</summary>
@@ -120,7 +156,7 @@ namespace Punchy.Terrain
                     current = seg.Cave;
                     d = 1e9f;
                 }
-                d = SmoothMin(d, Capsule(set.Nodes[seg.Node], set.Nodes[seg.Node + 1], p), Blend);
+                d = SmoothMin(d, Capsule(set.Nodes[seg.A], set.Nodes[seg.B], p, set.Caves[current].Profile), Blend);
             }
             Settle(ref set, current, d, p, ref best, ref cave);
             return best;
@@ -131,7 +167,7 @@ namespace Punchy.Terrain
         {
             if (current < 0)
                 return;
-            var full = d + WallNoise(set.Caves[current].Seed, p);
+            var full = d + WallNoise(set.Caves[current], p);
             if (full < best)
             {
                 best = full;

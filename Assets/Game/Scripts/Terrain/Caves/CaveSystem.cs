@@ -49,7 +49,7 @@ namespace Punchy.Terrain
             public NativeArray<float> Field, CaveField, Surface, SurfaceScale;
             public NativeList<float3> Positions, Normals;
             public NativeList<float4> Colors;
-            public NativeList<float2> Data;
+            public NativeList<float4> Data;
             public NativeList<int> Indices;
             public bool Pending;
 
@@ -96,6 +96,11 @@ namespace Punchy.Terrain
         EntityQuery othersQuery;
 
         static readonly int UndergroundId = Shader.PropertyToID("_PunchyUnderground");
+        static readonly int StylesId = Shader.PropertyToID("_PunchyCaveStyles");
+        readonly Vector4[] styleTable = new Vector4[CaveStyleTable.MaxStyles * CaveStyleTable.Vectors];
+        EntityQuery paletteQuery;
+        BiomePalette stylesFrom;
+        List<CaveStyle> styles;
 
         void OnDisable()
         {
@@ -127,6 +132,7 @@ namespace Punchy.Terrain
                 return;
 
             var camPos = (float3)cam.transform.position;
+            UploadStyles();
             Stream(source, camPos);
             Draw();
 
@@ -149,9 +155,30 @@ namespace Punchy.Terrain
                 terrainQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
                 playerQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Player.PlayerTag>(), ComponentType.ReadOnly<Unity.Transforms.LocalTransform>());
                 othersQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Net.NetPlayer>(), ComponentType.ReadOnly<Unity.Transforms.LocalTransform>());
+                paletteQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
                 queryWorld = world;
             }
             return terrainQuery.TryGetSingleton(out source);
+        }
+
+        /// <summary>
+        /// Uploads the cave styles' looks in the order baking numbered them (slot 0 stays empty: the material's own
+        /// colours). Every frame, so editing a style's colours or finish in play mode shows at once; its shape is
+        /// baked and needs a re-bake.
+        /// </summary>
+        void UploadStyles()
+        {
+            if (paletteQuery.IsEmpty)
+                return;
+            var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
+            if (palette != stylesFrom)
+            {
+                styles = CaveStyleTable.Collect(palette.Landmarks);
+                stylesFrom = palette;
+            }
+            for (int i = 0; i < styles.Count; i++)
+                styles[i].Pack(styleTable, i + 1);
+            Shader.SetGlobalVectorArray(StylesId, styleTable);
         }
 
         // ------------------------------------------------------------------------------------------- building
@@ -285,7 +312,7 @@ namespace Punchy.Terrain
                 CaveField = new NativeArray<float>(points.x * points.y * points.z, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
                 Surface = new NativeArray<float>(points.x * points.z, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
                 SurfaceScale = new NativeArray<float>(points.x * points.z, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
-                Data = new NativeList<float2>(Allocator.Persistent),
+                Data = new NativeList<float4>(Allocator.Persistent),
                 Positions = new NativeList<float3>(Allocator.Persistent),
                 Normals = new NativeList<float3>(Allocator.Persistent),
                 Colors = new NativeList<float4>(Allocator.Persistent),
@@ -374,7 +401,7 @@ namespace Punchy.Terrain
             [ReadOnly] public NativeArray<float> Field, CaveField;
             public NativeList<float3> Positions, Normals;
             public NativeList<float4> Colors;
-            public NativeList<float2> Data;
+            public NativeList<float4> Data;
             public NativeList<int> Indices;
 
             int Point(int x, int y, int z) => (z * (Cells.y + 1) + y) * (Cells.x + 1) + x;
@@ -479,9 +506,9 @@ namespace Punchy.Terrain
             /// <summary>
             /// rgb the terrain's colour at this spot; alpha how much daylight reaches (the entrance and near the
             /// surface). Data: x how much to look like the terrain (1 at the surface, fading out a few metres
-            /// underground), y a slight brightness tint for the cave rock.
+            /// underground), y a slight brightness tint for the cave rock, z the cave's style slot.
             /// </summary>
-            float4 Look(float3 p, out float2 data)
+            float4 Look(float3 p, out float4 data)
             {
                 var surface = Source.SampleHeight(p.xz);
                 // Daylight from the mouth of whichever cave this wall belongs to.
@@ -491,7 +518,8 @@ namespace Punchy.Terrain
                 var nearSurface = math.saturate(1f - (surface - p.y - 1f) / 3f);
                 var ground = Source.SampleGround(p.xz);
                 var albedo = Source.SampleSurface(p.xz, ground, Source.SampleNormal(p.xz, 1f)).Albedo;
-                data = new float2(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), 0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f));
+                data = new float4(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), 0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f),
+                                  cave >= 0 ? set.Caves[cave].Style : 0, 0f);
                 return new float4(albedo, math.max(fromMouth, nearSurface));
             }
         }
