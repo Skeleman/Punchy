@@ -131,7 +131,7 @@ namespace Punchy.Terrain
                 var distance = math.distance(math.clamp(camPos, c.Min, c.Max), camPos);
                 var has = caves.TryGetValue(i, out var built);
                 if (!has && distance < LoadRadius)
-                    caves[i] = Start(source, i, ref c);
+                    caves[i] = StartBuild(source, i, ref c);
                 else if (has && distance > LoadRadius * 1.2f)
                 {
                     built.Dispose();
@@ -163,7 +163,7 @@ namespace Punchy.Terrain
             }
         }
 
-        Built Start(in TerrainSource source, int index, ref CaveData c)
+        Built StartBuild(in TerrainSource source, int index, ref CaveData c)
         {
             var origin = c.Min - Voxel * 2f;
             var cells = (int3)math.ceil((c.Max - c.Min + Voxel * 4f) / Voxel);
