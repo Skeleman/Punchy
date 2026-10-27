@@ -261,3 +261,19 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
     - A salted client was refused with the log line.
   - **Note:** the time-of-day field isn't interpolated (it wraps at 24 h), so it steps at the snapshot rate.
     That's invisible.
+- 2026-10-27 — A — **M5 merged to `multiplayer`.** Online play through Unity Relay works; the project's Unity Cloud
+  link was already set up and Relay is enabled.
+  - **Package:** `com.unity.services.multiplayer` 2.4.1, which brings in Relay, Authentication and Core.
+  - **Code:** `Net/RelaySessions.cs` signs in anonymously, creates or joins Relay allocations (up to 8 players) and
+    keeps the join code and a status line. `GameBootstrap.HostRelay` gives the server two drivers: an in-process
+    IPC driver for the host's own client and a Relay UDP driver for everyone else. The host's client gets an
+    explicit IPC driver. `GameBootstrap.JoinRelay` gives a client a Relay UDP driver.
+  - **F2 panel:**
+    - "Host online (get a join code)" shows the code with a Copy button.
+    - "Code: [____] Join online" joins a game by its code.
+    - Errors (unknown code, Relay not enabled, offline) appear in plain words.
+  - **Launch flags:** `-hostonline` and `-joincode <CODE>`.
+  - **Tested:** the editor hosted online (code JPJFPB) and a Windows build joined with `-joincode` as an autowalking
+    Dwarf. The host saw it move with the right body.
+  - **Known:** Transport warns that a Relay driver should bind to `0.0.0.0:0`. We listen on port 7979 so the IPC
+    link has a fixed port. It works; tidy this up in M6.

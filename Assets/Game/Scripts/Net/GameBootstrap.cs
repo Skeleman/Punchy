@@ -2,6 +2,7 @@ using System;
 using Unity.Entities;
 using Unity.NetCode;
 using Unity.Networking.Transport;
+using Unity.Networking.Transport.Relay;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.Scripting;
@@ -79,6 +80,68 @@ namespace Punchy.Net
                 query.GetSingletonRW<NetworkStreamDriver>().ValueRW.Listen(NetworkEndpoint.AnyIpv4.WithPort(Port));
             using (var query = client.EntityManager.CreateEntityQuery(ComponentType.ReadWrite<NetworkStreamDriver>()))
                 query.GetSingletonRW<NetworkStreamDriver>().ValueRW.Connect(client.EntityManager, NetworkEndpoint.LoopbackIpv4.WithPort(Port));
+            ReloadScene();
+        }
+
+        /// <summary>
+        /// Drops the current game and hosts a new one reachable through Unity Relay (friends join with a code): the
+        /// server listens both on an in-process link for our own client and on the Relay allocation.
+        /// </summary>
+        public static void HostRelay(RelayServerData relay)
+        {
+            DisposeNetWorlds();
+            AutoConnectPort = 0;
+            var server = CreateServerWorld("ServerWorld");
+            var client = CreateClientWorld("ClientWorld");
+            World.DefaultGameObjectInjectionWorld = client;
+
+            var em = server.EntityManager;
+            using (var debug = em.CreateEntityQuery(ComponentType.ReadOnly<NetDebug>()))
+            using (var driverQuery = em.CreateEntityQuery(ComponentType.ReadWrite<NetworkStreamDriver>()))
+            {
+                var netDebug = debug.GetSingleton<NetDebug>();
+                var store = new NetworkDriverStore();
+                DefaultDriverBuilder.RegisterServerIpcDriver(server, ref store, netDebug, DefaultDriverBuilder.GetNetworkServerSettings());
+                var relaySettings = DefaultDriverBuilder.GetNetworkServerSettings();
+                relaySettings.WithRelayParameters(ref relay);
+                DefaultDriverBuilder.RegisterServerUdpDriver(server, ref store, netDebug, relaySettings);
+                ref var driver = ref driverQuery.GetSingletonRW<NetworkStreamDriver>().ValueRW;
+                driver.ResetDriverStore(server.Unmanaged, ref store);
+                driver.Listen(NetworkEndpoint.AnyIpv4.WithPort(Port));
+            }
+            // Our own client reaches the server in-process (Relay is only for the others).
+            var cem = client.EntityManager;
+            using (var debug = cem.CreateEntityQuery(ComponentType.ReadOnly<NetDebug>()))
+            using (var driverQuery = cem.CreateEntityQuery(ComponentType.ReadWrite<NetworkStreamDriver>()))
+            {
+                var store = new NetworkDriverStore();
+                DefaultDriverBuilder.RegisterClientIpcDriver(client, ref store, debug.GetSingleton<NetDebug>(), DefaultDriverBuilder.GetNetworkClientSettings());
+                ref var driver = ref driverQuery.GetSingletonRW<NetworkStreamDriver>().ValueRW;
+                driver.ResetDriverStore(client.Unmanaged, ref store);
+                driver.Connect(cem, NetworkEndpoint.LoopbackIpv4.WithPort(Port));
+            }
+            ReloadScene();
+        }
+
+        /// <summary>Drops the current game and joins a host through Unity Relay.</summary>
+        public static void JoinRelay(RelayServerData relay)
+        {
+            DisposeNetWorlds();
+            AutoConnectPort = 0;
+            var client = CreateClientWorld("ClientWorld");
+            World.DefaultGameObjectInjectionWorld = client;
+            var em = client.EntityManager;
+            using (var debug = em.CreateEntityQuery(ComponentType.ReadOnly<NetDebug>()))
+            using (var driverQuery = em.CreateEntityQuery(ComponentType.ReadWrite<NetworkStreamDriver>()))
+            {
+                var settings = DefaultDriverBuilder.GetNetworkClientSettings();
+                settings.WithRelayParameters(ref relay);
+                var store = new NetworkDriverStore();
+                DefaultDriverBuilder.RegisterClientUdpDriver(client, ref store, debug.GetSingleton<NetDebug>(), settings);
+                ref var driver = ref driverQuery.GetSingletonRW<NetworkStreamDriver>().ValueRW;
+                driver.ResetDriverStore(client.Unmanaged, ref store);
+                driver.Connect(em, relay.Endpoint);
+            }
             ReloadScene();
         }
 
