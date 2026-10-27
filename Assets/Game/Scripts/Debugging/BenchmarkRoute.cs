@@ -52,18 +52,11 @@ namespace Punchy.Debugging
             }
             yield return new WaitForSecondsRealtime(Settle);
 
-            yield return Stop("town", () => JumpTo(controls, "HumanVillage"));
-            yield return Stop("forest", () => JumpTo(controls, "OakGrove"));
-            yield return Stop("cave", PlaceInBiggestCave);
-            yield return Stop("storm", () =>
-            {
-                var weather = FindAnyObjectByType<WeatherSystem>();
-                var stormy = weather != null ? weather.DayTypes.FindIndex(d => d.Name == "Stormy") : -1;
-                if (stormy >= 0)
-                    weather.SetDayType(stormy, true);
-                return JumpTo(controls, "Mountains") && stormy >= 0;
-            });
-            yield return Stop("dash", () => JumpTo(controls, "Start"), dash: true);
+            yield return Stop("town", () => JumpTo(controls, "HumanVillage") && SetWeather("Partly cloudy", 11));
+            yield return Stop("forest", () => JumpTo(controls, "OakGrove") && SetWeather("Partly cloudy", 12));
+            yield return Stop("cave", () => PlaceInBiggestCave() && SetWeather("Partly cloudy", 13));
+            yield return Stop("storm", () => JumpTo(controls, "Mountains") && SetWeather("Stormy", 14));
+            yield return Stop("dash", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 15), dash: true);
 
             Debug.Log("BenchRoute: done\n" + summary);
             Application.Quit();
@@ -134,6 +127,21 @@ namespace Punchy.Debugging
             double sum = 0;
             foreach (var v in values) sum += v;
             return (sum / values.Count).ToString("F1");
+        }
+
+        /// <summary>
+        /// Gives the stop the same weather on every run: a fixed day type, its cells reseeded from a fixed random state
+        /// (the weather otherwise drifts apart between runs, as new cells form at frame-rate-dependent moments).
+        /// </summary>
+        static bool SetWeather(string dayType, int seed)
+        {
+            var weather = FindAnyObjectByType<WeatherSystem>();
+            var index = weather != null ? weather.DayTypes.FindIndex(d => d.Name == dayType) : -1;
+            if (index < 0)
+                return false;
+            UnityEngine.Random.InitState(seed);
+            weather.SetDayType(index, true);
+            return true;
         }
 
         /// <summary>Jumps to the first of DebugControls' places whose name contains the text (as -place does).</summary>
