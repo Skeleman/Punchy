@@ -72,6 +72,7 @@ namespace Punchy.Debugging
         static readonly List<string> pendingSpawns = new List<string>();
         EntityQuery creatureQuery;
         World creatureWorld;
+        FaunaDirector watchDirector;
         Entity watched;
         float nextWatchPick;
 
@@ -119,6 +120,13 @@ namespace Punchy.Debugging
             var director = FindAnyObjectByType<FaunaDirector>();
             if (director == null)
                 return;
+            if (!director.CanSpawn)
+            {
+                // A joined client doesn't simulate animals: only a host or a solo game can spawn them.
+                Debug.LogWarning("DebugControls: -spawn needs a solo or hosting game");
+                pendingSpawns.Clear();
+                return;
+            }
             var rng = new Unity.Mathematics.Random(1234u);
             foreach (var request in pendingSpawns)
             {
@@ -161,8 +169,9 @@ namespace Punchy.Debugging
                 creatureWorld = queryWorld;
                 creatureQuery = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
             }
-            var director = FindAnyObjectByType<FaunaDirector>();
-            var index = director != null ? director.SpeciesIndex(watchSpecies) : -1;
+            if (watchDirector == null)
+                watchDirector = FindAnyObjectByType<FaunaDirector>();
+            var index = watchDirector != null ? watchDirector.SpeciesIndex(watchSpecies) : -1;
             if (index < 0 || !playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return;
             if (Time.unscaledTime >= nextWatchPick || !em.Exists(watched))
@@ -177,7 +186,7 @@ namespace Punchy.Debugging
                         continue;
                     var c = em.GetComponentData<CreatureState>(e);
                     var busy = c.Mode == CreatureMode.Climb || c.Mode == CreatureMode.Web || c.Fly > 0.5f ||
-                               c.Action != IdleAction.None || c.Mode == CreatureMode.Hunt || c.Mode == CreatureMode.Burrow;
+                               c.Action != IdleAction.None || c.Mode == CreatureMode.Hunt || c.Mode == CreatureMode.Burrow || c.Mode == CreatureMode.Roost;
                     var score = math.distance(c.Position, player.Position) - (busy ? 1000f : 0f) - (c.Fly > 0.5f ? 1000f : 0f);
                     if (score < best)
                     {

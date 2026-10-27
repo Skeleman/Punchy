@@ -38,7 +38,7 @@ namespace Punchy.Fauna
         public bool Hunted;
         public IdleActions Idles;
         public float Fidgets, Climbing;
-        public bool SpinsWebs, Burrows;
+        public bool SpinsWebs, Burrows, CaveDweller, Roosts;
         public float WebSize;
         public float2 FlightHeight;
         public float FlySpeed, FlapRate, Glide, Perching;
@@ -203,7 +203,13 @@ namespace Punchy.Fauna
         /// Goes to ground in its burrow (Anchor is the burrow's mouth): to the mouth (0), down it (1), hidden below
         /// (2), back up (3).
         /// </summary>
-        Burrow
+        Burrow,
+        /// <summary>
+        /// Flies to its roost and hangs there asleep (Anchor is the ceiling or branch it hangs from). In a cave: to the
+        /// mouth (1), along the passage node by node (10 + node), up to the ceiling (199), hanging (200), and out again
+        /// at dusk (100 + node). Under a branch: straight there (198), then hanging.
+        /// </summary>
+        Roost
     }
 
     /// <summary>What a worker does at its post (posed by CreatureAnimator).</summary>
@@ -292,6 +298,8 @@ namespace Punchy.Fauna
         public float TargetHeight;
         /// <summary>Caught (by a diving bird of prey): FaunaDirector removes it.</summary>
         public bool Gone;
+        /// <summary>The cave it roosts in (-1 = none), and the passage node its roost is at.</summary>
+        public short LairCave, LairNode;
     }
 
     /// <summary>One segment as the creature shader draws it (a tapered capsule). Must match Creature.shader.</summary>
@@ -393,6 +401,8 @@ namespace Punchy.Fauna
             root.Climbing = species.Climbing;
             root.SpinsWebs = species.SpinsWebs;
             root.Burrows = species.Burrows;
+            root.CaveDweller = species.CaveDweller;
+            root.Roosts = species.Roosts;
             root.WebSize = species.WebSize * sizeScale;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));
             root.FlySpeed = species.FlySpeed;

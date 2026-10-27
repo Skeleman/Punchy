@@ -146,11 +146,10 @@ namespace Punchy.Fauna
                 }
 
                 var flier = b.Habitat == Habitat.Flies;
-                var ground = Terrain.SampleHeight(s.Position.xz);
-                var perched = flier && !Flying(s) && s.Position.y > ground + 0.3f;
+                var perched = flier && !Flying(s) && s.Position.y > Terrain.SampleHeight(s.Position.xz) + 0.3f;
                 // Up a tree or in its web, an animal feels safe from the ground.
                 var aloft = s.Mode == CreatureMode.Climb && s.Stage >= 1 || s.Mode == CreatureMode.Web && s.Stage >= 1 ||
-                            s.Mode == CreatureMode.Burrow && s.Stage >= 1;
+                            s.Mode == CreatureMode.Burrow && s.Stage >= 1 || s.Mode == CreatureMode.Roost;
 
                 // Danger: the player, or predators of this species (from further off when they're hunting it).
                 // Asleep, it notices only at half the distance; perched birds let you a bit closer.
@@ -193,6 +192,11 @@ namespace Punchy.Fauna
                 {
                     SetMode(ref s, CreatureMode.Burrow);
                     s.Timer = rng.NextFloat(8f, 20f);
+                    s.Focus = threat;
+                    threatened = false;
+                }
+                else if (threatened && s.Mode == CreatureMode.Burrow)
+                {
                     s.Focus = threat;
                     threatened = false;
                 }
@@ -248,7 +252,15 @@ namespace Punchy.Fauna
                         {
                             custom = true;
                             if (FlyTo(ref s, ref b, s.Target, s.TargetHeight, b.FlySpeed, dt, ref vertical))
-                                Land(ref s, ref b, ref rng);
+                            {
+                                // Bats don't land: they hawk for insects in loops all night, then go to roost.
+                                if (b.Roosts && SleepTime(ref b) < 0.5f)
+                                    NightLoop(ref s, ref b, ref rng);
+                                else if (b.Roosts)
+                                    StartRoost(ref s, ref b, ref rng);
+                                else
+                                    Land(ref s, ref b, ref rng);
+                            }
                             break;
                         }
                         targetSpeed = walk;
@@ -390,6 +402,11 @@ namespace Punchy.Fauna
                         InWeb(ref s, ref b, ref rng, dt, walk, ref targetSpeed, ref moving, ref custom, ref vertical);
                         break;
 
+                    case CreatureMode.Roost:
+                        custom = true;
+                        Roost(ref s, ref b, ref rng, dt, ref vertical);
+                        break;
+
                     case CreatureMode.Burrow:
                         GoToGround(ref s, ref b, ref rng, dt, walk, run, playerDistance, ref targetSpeed, ref moving, ref custom, ref vertical);
                         break;
@@ -433,8 +450,10 @@ namespace Punchy.Fauna
                     // Stay out of water and off cliffs: stop (or, running, veer) when the way ahead is bad.
                     var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
                     var ahead = s.Position.xz + forward * math.max(1.2f, s.Speed * 0.5f) * s.Scale;
-                    var landBound = b.Habitat == Habitat.Land || flier;
-                    if (s.Speed > 0.05f && !Walkable(ahead, b.Habitat) || landBound && SlopeAhead(s.Position.xz, ahead) > 0.8f)
+                    var landBound = (b.Habitat == Habitat.Land || flier) && !b.CaveDweller;
+                    var blocked = b.CaveDweller ? s.Speed > 0.05f && !CaveFloor(ahead, s.Position.y)
+                                                : s.Speed > 0.05f && !Walkable(ahead, b.Habitat);
+                    if (blocked || landBound && s.Speed > 0.05f && SlopeAhead(s.Position.xz, ahead) > 0.8f)
                     {
                         s.Speed *= 0.5f;
                         if (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Play && s.Stage == 1)
@@ -517,6 +536,15 @@ namespace Punchy.Fauna
                     sleep = 0f;
                 var roll = rng.NextFloat(wander + graze + rest + sleep + drink + play + hunt + work + climb + web + fly);
 
+                // Roosting species: hang up to sleep through their sleeping time, and otherwise stay on the wing.
+                if (b.Roosts)
+                {
+                    if (sleepy > 0.5f)
+                        StartRoost(ref s, ref b, ref rng);
+                    else
+                        NightLoop(ref s, ref b, ref rng);
+                    return;
+                }
                 // Burrowers sleep down their burrow (digging one where they are if they have none yet).
                 if (b.Burrows && sleep > 0f && sleepy > 0.5f && (s.AnchorSize > 0f || DigBurrow(ref s, ref b, ref rng)))
                 {
@@ -578,7 +606,7 @@ namespace Punchy.Fauna
                     // Animals with a home stay near it.
                     if (s.Leash > 0f && math.distance(candidate, s.Home) > s.Leash)
                         candidate = s.Home + rng.NextFloat2Direction() * s.Leash * rng.NextFloat(0.1f, 0.8f);
-                    if (Walkable(candidate, b.Habitat))
+                    if (b.CaveDweller ? CaveFloor(candidate, s.Position.y) : Walkable(candidate, b.Habitat))
                     {
                         SetMode(ref s, CreatureMode.Wander);
                         s.Target = candidate;
@@ -928,7 +956,10 @@ namespace Punchy.Fauna
                         var floor = Terrain.SampleHeight(s.Position.xz);
                         s.Position.y = math.max(s.Position.y - s.Speed * dt, floor);
                         if (s.Position.y <= floor + 0.01f)
+                        {
                             Pause(ref s, ref b, ref rng);
+                            s.AnchorSize = 0f;   // let go of the tree (AnchorSize > 0 means a lair to burrowers)
+                        }
                         break;
                 }
             }
@@ -974,7 +1005,9 @@ namespace Punchy.Fauna
             bool PlaceWeb(ref CreatureState s, ref CreatureBlob b, ref Random rng)
             {
                 var radius = b.WebSize * s.Scale;
-                var yaw = rng.NextFloat(-math.PI, math.PI);
+                // From the place, like burrows: the same web site whenever a spider lives here.
+                var place = LairRandom(s.Position.xz, 0xA11Eu);
+                var yaw = place.NextFloat(-math.PI, math.PI);
                 var right = new float2(math.cos(yaw), -math.sin(yaw));
                 float2 centre;
                 byte side;
@@ -1064,13 +1097,18 @@ namespace Punchy.Fauna
 
             // ------------------------------------------------------------------------------- burrows
 
+            static Random LairRandom(float2 near, uint kind) => new Random(math.hash(new int3((int2)math.floor(near / 16f), (int)kind)) | 1u);
+
             /// <summary>Picks a burrow mouth on flat, dry ground a few metres off (near home, for residents).</summary>
             bool DigBurrow(ref CreatureState s, ref CreatureBlob b, ref Random rng)
             {
                 var near = s.Leash > 0f ? s.Home : s.Position.xz;
+                // Lairs come from the place (a 16 m cell of the world), so an animal that despawns and comes back
+                // finds the same burrow, with nothing saved.
+                var place = LairRandom(near, 0x5B0Bu);
                 for (int attempt = 0; attempt < 6; attempt++)
                 {
-                    var spot = near + rng.NextFloat2Direction() * rng.NextFloat(1.5f, 6f);
+                    var spot = near + place.NextFloat2Direction() * place.NextFloat(1.5f, 6f);
                     if (!Walkable(spot, Habitat.Land) || SlopeAhead(spot, spot + new float2(0.5f, 0f)) > 0.35f ||
                         SlopeAhead(spot, spot + new float2(0f, 0.5f)) > 0.35f)
                         continue;
@@ -1140,11 +1178,175 @@ namespace Punchy.Fauna
                 }
             }
 
+            // ------------------------------------------------------------------------------- caves and roosts
+
+            /// <summary>Whether a cave dweller at this height can step here: cave floor at about the same level.</summary>
+            bool CaveFloor(float2 xz, float y)
+            {
+                var floor = Terrain.FloorUnder(new float3(xz.x, y + 0.3f, xz.y), out var inCave);
+                return inCave && math.abs(floor - y) < 0.8f;
+            }
+
+            /// <summary>A short, low loop to somewhere nearby: a bat hawking for insects.</summary>
+            void NightLoop(ref CreatureState s, ref CreatureBlob b, ref Random rng)
+            {
+                SetMode(ref s, CreatureMode.Wander);
+                s.Stage = 1;
+                s.Target = s.Position.xz + rng.NextFloat2Direction() * rng.NextFloat(6f, 20f);
+                s.TargetHeight = Terrain.SampleHeight(s.Target) + math.lerp(b.FlightHeight.x, b.FlightHeight.y, rng.NextFloat());
+            }
+
+            /// <summary>
+            /// Picks a roost: the ceiling of the nearest cave's inner passage (within 150 m), else the underside of a
+            /// branch nearby.
+            /// </summary>
+            void StartRoost(ref CreatureState s, ref CreatureBlob b, ref Random rng)
+            {
+                SetMode(ref s, CreatureMode.Roost);
+                s.Timer = rng.NextFloat(60f, 200f);
+                s.LairCave = -1;
+                if (Terrain.Caves.IsCreated)
+                {
+                    ref var set = ref Terrain.Caves.Value;
+                    var best = 150f;
+                    for (int i = 0; i < set.Caves.Length; i++)
+                    {
+                        var d = math.distance(set.Caves[i].Mouth.xz, s.Position.xz);
+                        if (d < best && set.Caves[i].NodeCount >= 2 && set.Caves[i].NodeCount < 80)
+                        {
+                            best = d;
+                            s.LairCave = (short)i;
+                        }
+                    }
+                }
+                if (s.LairCave >= 0)
+                {
+                    ref var set = ref Terrain.Caves.Value;
+                    ref var cave = ref set.Caves[s.LairCave];
+                    // Somewhere in the far half of the cave, on the ceiling straight above the passage's middle.
+                    s.LairNode = (short)rng.NextInt(cave.NodeCount / 2, cave.NodeCount);
+                    var p = set.Nodes[cave.FirstNode + s.LairNode].Position;
+                    for (int k = 0; k < 60 && Terrain.CaveDistance(p + new float3(0f, 0.2f, 0f)) < 0f; k++)
+                        p.y += 0.2f;
+                    s.Anchor = p + rng.NextFloat3Direction() * new float3(0.3f, 0f, 0.3f);
+                    s.AnchorSize = 0.3f;
+                    s.Stage = 1;
+                    return;
+                }
+                if (HasFlora && FloraPlacement.FindTree(ref Flora.Value, Terrain, s.Position.xz, 60f, 4f, ref rng, out var tree))
+                {
+                    var under = tree.Base.xz + rng.NextFloat2Direction() * (tree.TrunkRadius + tree.CrownRadius * 0.3f);
+                    s.Anchor = new float3(under.x, tree.Base.y + tree.CrownBase, under.y);
+                    s.AnchorSize = 0.2f;
+                    s.Stage = 198;
+                    return;
+                }
+                // Nowhere to hang: keep flying.
+                NightLoop(ref s, ref b, ref rng);
+            }
+
+            /// <summary>Flies straight at a point (no ground to keep clear of: inside a cave). Returns the distance left.</summary>
+            float FlyDirect(ref CreatureState s, ref CreatureBlob b, float3 target, float speed, float dt, ref float vertical)
+            {
+                var to = target - s.Position;
+                var distance = math.length(to);
+                var wanted = WrapAngle(math.atan2(to.x, to.z) - s.Yaw);
+                var turn = math.clamp(wanted, -b.TurnRate * 2f * dt, b.TurnRate * 2f * dt);
+                s.Yaw = WrapAngle(s.Yaw + turn);
+                s.YawRate = turn / math.max(dt, 1e-4f);
+                s.Speed += (speed * math.saturate(distance / 2f + 0.2f) - s.Speed) * math.min(1f, dt * 3f);
+                s.Position += to / math.max(distance, 1e-4f) * math.min(s.Speed * dt, distance);
+                vertical = math.clamp(to.y / math.max(distance, 0.5f), -0.6f, 0.5f);
+                return math.length(target - s.Position);
+            }
+
+            void Roost(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, ref float vertical)
+            {
+                var speed = b.FlySpeed * 0.6f;
+                var hangAt = s.Anchor - new float3(0f, (b.BodyLength * 0.5f + b.FrontRadius) * s.Scale + 0.05f, 0f);
+                var waking = SleepTime(ref b) < 0.3f;
+                if (s.Stage == 200)
+                {
+                    // Hanging head down, asleep, till dusk.
+                    vertical = -1f;
+                    s.Speed = 0f;
+                    s.Position = hangAt;
+                    s.Timer -= dt;
+                    if (waking && s.Timer <= 0f)
+                    {
+                        if (s.LairCave >= 0)
+                        {
+                            s.Stage = (byte)(100 + math.min(s.LairNode, 89));
+                            s.StageTime = 0f;
+                        }
+                        else
+                            NightLoop(ref s, ref b, ref rng);
+                    }
+                    return;
+                }
+                if (s.Stage == 198 || s.Stage == 199)
+                {
+                    if (FlyDirect(ref s, ref b, hangAt, speed * 0.6f, dt, ref vertical) < 0.15f)
+                    {
+                        s.Stage = 200;
+                        s.StageTime = 0f;
+                    }
+                    else if (s.StageTime > 30f)
+                        NightLoop(ref s, ref b, ref rng);
+                    return;
+                }
+                if (s.LairCave < 0 || !Terrain.Caves.IsCreated)
+                {
+                    NightLoop(ref s, ref b, ref rng);
+                    return;
+                }
+                ref var set = ref Terrain.Caves.Value;
+                ref var cave = ref set.Caves[s.LairCave];
+                if (s.Stage == 1)
+                {
+                    // To the cave's mouth, from outside.
+                    var mouth = cave.Mouth;
+                    if (FlyTo(ref s, ref b, mouth.xz, mouth.y, b.FlySpeed, dt, ref vertical) || math.distance(s.Position, mouth) < 1.2f)
+                    {
+                        s.Stage = 10;
+                        s.StageTime = 0f;
+                    }
+                    else if (s.StageTime > 60f)
+                        NightLoop(ref s, ref b, ref rng);
+                    return;
+                }
+                if (s.Stage >= 10 && s.Stage < 100)
+                {
+                    // In along the passage, node by node, then up to the ceiling.
+                    var node = s.Stage - 10;
+                    if (FlyDirect(ref s, ref b, set.Nodes[cave.FirstNode + node].Position, speed, dt, ref vertical) < 1f)
+                    {
+                        s.Stage = (byte)(node >= s.LairNode ? 199 : s.Stage + 1);
+                        s.StageTime = 0f;
+                    }
+                    return;
+                }
+                // Out again at dusk, back along the passage to the mouth, then off hawking.
+                var back = s.Stage - 100;
+                var target = back >= 0 ? set.Nodes[cave.FirstNode + back].Position : cave.Mouth;
+                if (FlyDirect(ref s, ref b, target, speed, dt, ref vertical) < 1f)
+                {
+                    if (back <= 0)
+                        NightLoop(ref s, ref b, ref rng);
+                    else
+                    {
+                        s.Stage--;
+                        s.StageTime = 0f;
+                    }
+                }
+            }
+
             // ------------------------------------------------------------------------------- flight
 
             /// <summary>Whether a flying species is in the air now (flying somewhere, fleeing or hunting).</summary>
             static bool Flying(in CreatureState s) =>
-                (s.Mode == CreatureMode.Wander || s.Mode == CreatureMode.Hunt) && s.Stage >= 1 || s.Mode == CreatureMode.Flee;
+                (s.Mode == CreatureMode.Wander || s.Mode == CreatureMode.Hunt) && s.Stage >= 1 || s.Mode == CreatureMode.Flee ||
+                s.Mode == CreatureMode.Roost && s.Stage != 200;
 
             /// <summary>
             /// Takes off for somewhere new: a branch in a tree nearby (more likely by its Perching, and always to
@@ -1565,7 +1767,9 @@ namespace Punchy.Fauna
             {
                 var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
                 s.Position.xz += forward * s.Speed * dt;
-                if (b.Habitat == Habitat.Land || b.Habitat == Habitat.Flies)
+                if (b.CaveDweller)
+                    s.Position.y = Terrain.FloorUnder(s.Position, out _);
+                else if (b.Habitat == Habitat.Land || b.Habitat == Habitat.Flies)
                 {
                     if (!keepHeight)
                         s.Position.y = Terrain.SampleHeight(s.Position.xz);

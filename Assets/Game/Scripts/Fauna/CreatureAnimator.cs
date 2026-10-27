@@ -39,19 +39,21 @@ namespace Punchy.Fauna
             var halfLength = b.BodyLength * 0.5f * scale;
             // Animals stand on the terrain; the player's body can be above it (jumping, swimming).
             // Swimmers and floaters are carried at their own height (the body's centre at Position).
-            var aquatic = b.Habitat != Habitat.Land;
+            var aquatic = b.Habitat == Habitat.Swims || b.Habitat == Habitat.Floats;
             var terrainHeight = aquatic ? s.Position.y - b.StandHeight * scale : GroundAt(terrain, s.Position.xz, s.Position.y);
             var ground = math.max(terrainHeight, s.Position.y);
             if (aquatic)
                 ground = terrainHeight;
             var airborne = aquatic ? 0f : math.saturate((s.Position.y - terrainHeight - 0.05f) / 0.3f);
-            var front = GroundAt(terrain, s.Position.xz + forward.xz * halfLength, s.Position.y);
-            var back = GroundAt(terrain, s.Position.xz - forward.xz * halfLength, s.Position.y);
-            var gradient = (front - back) / (2f * halfLength);   // rise per metre forward
             // Four-legged bodies tilt with the slope; upright ones stay level (their legs take up the slope), and
             // nobody tilts to follow the ground under them while in the air.
-            if (b.Upright || aquatic)
-                gradient = 0f;
+            var gradient = 0f;
+            if (!b.Upright && !aquatic)
+            {
+                var front = GroundAt(terrain, s.Position.xz + forward.xz * halfLength, s.Position.y);
+                var back = GroundAt(terrain, s.Position.xz - forward.xz * halfLength, s.Position.y);
+                gradient = (front - back) / (2f * halfLength);   // rise per metre forward
+            }
             var pitch = math.clamp(-math.atan(gradient), -0.45f, 0.45f) * (1f - airborne);
             // A leaping fish noses up out of the water and dives back in nose first.
             if (s.Air > 0f)
@@ -98,7 +100,7 @@ namespace Punchy.Fauna
             var up = math.saturate(s.Vertical);
             var lift = height - bob;
             // Hanging head down in a web, the body sits right at its anchor (the web's centre).
-            var hang = s.Mode == CreatureMode.Web ? math.saturate(-s.Vertical) : 0f;
+            var hang = s.Mode == CreatureMode.Web || s.Mode == CreatureMode.Roost ? math.saturate(-s.Vertical) : 0f;
             var rootPos = new float3(s.Position.x, ground, s.Position.z) + new float3(0f, lift * (1f - up - hang), 0f) - forward * lift * up;
 
             // Body.

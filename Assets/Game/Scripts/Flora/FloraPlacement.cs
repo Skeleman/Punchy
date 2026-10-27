@@ -92,6 +92,8 @@ namespace Punchy.Flora
     public static class FloraPlacement
     {
         public const int TreeLayer = 2;
+        /// <summary>The most tree cells one FindTree looks at.</summary>
+        const int MaxTreeCells = 24;
 
         /// <summary>
         /// Builds the tables from a palette. <paramref name="species"/> receives the species in model order (sorted by
@@ -446,10 +448,14 @@ namespace Punchy.Flora
             var min = (int2)math.floor((near - radius) / cellSize);
             var max = (int2)math.floor((near + radius) / cellSize);
             var found = 0;
-            for (int z = min.y; z <= max.y; z++)
-            for (int x = min.x; x <= max.x; x++)
+            // A wide search samples some of the cells rather than all (many animals choose a tree at once at dusk).
+            var span = max - min + 1;
+            var cells = span.x * span.y;
+            var tries = math.min(cells, MaxTreeCells);
+            for (int t = 0; t < tries; t++)
             {
-                var plant = Place(ref f, source, new int2(x, z), TreeLayer);
+                var index = cells <= MaxTreeCells ? t : rng.NextInt(cells);
+                var plant = Place(ref f, source, min + new int2(index % span.x, index / span.x), TreeLayer);
                 if (plant.Model < 0 || plant.Model >= f.Models.Length)
                     continue;
                 var shape = f.Models[plant.Model];

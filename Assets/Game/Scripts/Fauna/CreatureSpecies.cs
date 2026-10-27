@@ -108,6 +108,10 @@ namespace Punchy.Fauna
         [Min(0.1f)] public float WebSize = 0.6f;
         [Tooltip("Digs a burrow: bolts down it when startled, sleeps in it at night, pops up to look about.")]
         public bool Burrows;
+        [Tooltip("Lives inside caves: appears on cave floors when a player comes near a cave, and stays in.")]
+        public bool CaveDweller;
+        [Tooltip("Sleeps hanging upside down from a cave ceiling (or under a branch, with no cave near): bats.")]
+        public bool Roosts;
 
         [Header("Flight (habitat Flies)")]
         [Tooltip("Height above the ground it cruises at, in metres.")]

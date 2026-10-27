@@ -41,6 +41,9 @@ namespace Punchy.Fauna
             buffer = null;
         }
 
+        /// <summary>A spider sitting in its web (only then is the web drawn, and room made for it).</summary>
+        static bool InWeb(in CreatureState s) => s.Mode == CreatureMode.Web && s.Stage >= 2 && s.Stage <= 4;
+
         protected override void OnUpdate()
         {
             if (!SystemAPI.ManagedAPI.TryGetSingleton<FaunaRenderSettings>(out var settings) || settings.Material == null || settings.Capsule == null)
@@ -50,15 +53,17 @@ namespace Punchy.Fauna
                 return;
 
             var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.TempJob);
+            var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
             var offsets = new NativeArray<int>(bodies.Length, Allocator.TempJob);
             var total = 0;
             for (int i = 0; i < bodies.Length; i++)
             {
                 offsets[i] = total;
-                total += bodies[i].SegmentCount + MarkCount + (bodies[i].Blob.Value.SpinsWebs ? WebCount : 0) +
+                total += bodies[i].SegmentCount + MarkCount + (InWeb(states[i]) ? WebCount : 0) +
                          (bodies[i].Blob.Value.Burrows ? MoundCount : 0);
             }
             bodies.Dispose();
+            states.Dispose();
 
             var instances = new NativeArray<SegmentInstance>(total, Allocator.TempJob);
             Dependency = new PoseJob
@@ -106,10 +111,10 @@ namespace Punchy.Fauna
                 var offset = Offsets[index];
                 CreatureAnimator.Evaluate(ref body.Blob.Value, state, body.Coat, Terrain, Output, offset);
                 FearMarks(state, offset, body.SegmentCount, entity.Index);
-                if (body.Blob.Value.SpinsWebs)
+                if (InWeb(state))
                     Web(state, ref body.Blob.Value, offset + body.SegmentCount + MarkCount);
                 if (body.Blob.Value.Burrows)
-                    Mound(state, offset + body.SegmentCount + MarkCount + (body.Blob.Value.SpinsWebs ? WebCount : 0));
+                    Mound(state, offset + body.SegmentCount + MarkCount + (InWeb(state) ? WebCount : 0));
             }
 
             /// <summary>A burrow: a dark hole in a ring of dug-out earth, where the animal's burrow is (if it has one).</summary>
@@ -144,7 +149,6 @@ namespace Punchy.Fauna
                     var along = new Unity.Mathematics.float3(-dir.z, 0f, dir.x);
                     var heap = k <= 2 ? 1.5f : 1f;
                     var centre = mouth + dir * r * 1.1f;
-                    centre.y = Terrain.SampleHeight(centre.xz);
                     Output[offset + k] = new SegmentInstance
                     {
                         Position = centre - along * r * 0.5f,
@@ -165,13 +169,6 @@ namespace Punchy.Fauna
             /// </summary>
             void Web(in CreatureState state, ref CreatureBlob b, int offset)
             {
-                var inWeb = state.Mode == CreatureMode.Web && state.Stage >= 2 && state.Stage <= 4;
-                if (!inWeb)
-                {
-                    for (int i = 0; i < WebCount; i++)
-                        Output[offset + i] = default;
-                    return;
-                }
                 var radius = b.WebSize * state.Scale;
                 var centre = state.Position;
                 var right = new Unity.Mathematics.float3(Unity.Mathematics.math.cos(state.Yaw), 0f, -Unity.Mathematics.math.sin(state.Yaw));

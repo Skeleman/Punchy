@@ -45,6 +45,8 @@ namespace Punchy.Fauna
         LandmarkType[] landmarks;
         /// <summary>Landmarks whose residents are out; forgotten once every player is far enough away for them to be gone.</summary>
         readonly HashSet<int> occupied = new HashSet<int>();
+        /// <summary>Caves whose dwellers are out (like landmarks' residents).</summary>
+        readonly HashSet<int> occupiedCaves = new HashSet<int>();
         readonly List<int> scratch = new List<int>();
         readonly List<float3> players = new List<float3>();
         float nextResidentCheck;
@@ -110,6 +112,8 @@ namespace Punchy.Fauna
             blobs.Clear();
             species.Clear();
             occupied.Clear();
+            occupiedCaves.Clear();
+            Caught = 0;
             if (capsule != null) Destroy(capsule);
             capsule = null;
             built = false;
@@ -142,6 +146,7 @@ namespace Punchy.Fauna
             {
                 nextResidentCheck = Time.time + 0.5f;
                 SpawnResidents(source);
+                SpawnCaveDwellers(source);
             }
             spawnBudget = math.min(spawnBudget + SpawnRate * players.Count * Time.deltaTime, 3f * players.Count);
             while (spawnBudget >= 1f)
@@ -308,6 +313,8 @@ namespace Punchy.Fauna
         /// <summary>How many animals birds of prey have caught (for the test log).</summary>
         public static int Caught;
         public Habitat SpeciesHabitat(int index) => species[index].Body.Habitat;
+        /// <summary>Whether this machine simulates animals (alone or hosting), so Spawn works.</summary>
+        public bool CanSpawn => simWorld != null && simWorld.IsCreated && built;
 
         // ------------------------------------------------------------------------------------------- the player's body
 
@@ -605,6 +612,47 @@ namespace Punchy.Fauna
         }
 
         /// <summary>
+        /// Cave dwellers appear along the inner passages of a cave when a player comes within Radius of its mouth, a
+        /// few of each kind; like residents, they're forgotten once everyone is well away.
+        /// </summary>
+        void SpawnCaveDwellers(in TerrainSource source)
+        {
+            if (!source.Caves.IsCreated)
+                return;
+            ref var set = ref source.Caves.Value;
+            scratch.Clear();
+            foreach (var i in occupiedCaves)
+                if (NearestPlayer(set.Caves[i].Mouth.xz) > DespawnDistance + 20f)
+                    scratch.Add(i);
+            foreach (var i in scratch)
+                occupiedCaves.Remove(i);
+
+            for (int i = 0; i < set.Caves.Length; i++)
+            {
+                ref var cave = ref set.Caves[i];
+                if (occupiedCaves.Contains(i) || cave.NodeCount < 2 || NearestPlayer(cave.Mouth.xz) > Radius)
+                    continue;
+                occupiedCaves.Add(i);
+                for (int sp = 0; sp < species.Count; sp++)
+                {
+                    var body = species[sp].Body;
+                    if (!body.CaveDweller)
+                        continue;
+                    var count = rng.NextInt(math.max(1, body.GroupSize.x), math.max(body.GroupSize.x, body.GroupSize.y) + 1);
+                    for (int k = 0; k < count; k++)
+                    {
+                        // On the floor somewhere in the inner two thirds of the passage.
+                        var node = set.Nodes[cave.FirstNode + rng.NextInt(cave.NodeCount / 3, cave.NodeCount)];
+                        var at = node.Position + new float3(rng.NextFloat(-0.5f, 0.5f), 0f, rng.NextFloat(-0.5f, 0.5f)) * node.Radius;
+                        var floor = source.FloorUnder(at, out var inCave);
+                        if (inCave)
+                            Spawn(sp, new float3(at.x, floor, at.z));
+                    }
+                }
+            }
+        }
+
+        /// <summary>
         /// Creates one animal of a species (by index) at a point, in the simulation world: a creature ghost when this
         /// machine is a server, a plain entity without netcode. Also handy for testing.
         /// </summary>
@@ -636,6 +684,7 @@ namespace Punchy.Fauna
                 Scale = rng.NextFloat(b.Size.x, math.max(b.Size.x, b.Size.y)),
                 Mode = CreatureMode.Idle,
                 Timer = rng.NextFloat(0.5f, 4f),
+                LairCave = -1,
                 Seed = rng.NextUInt() | 1u,
                 Individual = rng.NextUInt() | 1u
             });

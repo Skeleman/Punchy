@@ -30,7 +30,9 @@ namespace Punchy.Net
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Speed;
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Look;
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Lie, HeadDown, Bow, Curl, Air;
-        [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Sit, Vertical, Fly, ActionTime;
+        [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Sit, Vertical, Fly;
+        /// <summary>Not smoothed: it jumps back to 0 when a new action starts.</summary>
+        [GhostField(Quantization = 100)] public float ActionTime;
         [GhostField] public byte Action;
         /// <summary>Its lair, if it has one (a burrow's mouth, a web's centre) and how big: drawn on every machine.</summary>
         [GhostField(Quantization = 100)] public float3 Anchor;
