@@ -134,8 +134,8 @@ namespace Punchy.Player
             // Out of the entrance onto open ground: fine unless it's a step up past the knees.
             if (!inCave)
                 return terrain.SampleHeight(xz) <= from.y + 0.6f;
-            // A wall, the floor rising too steeply, or a lava pool.
-            if (floor > from.y + 0.6f || terrain.OverCaveLava(new float3(xz.x, floor, xz.y)))
+            // A wall, or the floor rising too steeply.
+            if (floor > from.y + 0.6f)
                 return false;
             var body = new float3(xz.x, math.max(floor, from.y) + 1f, xz.y);
             return terrain.CaveDistance(body) < -radius * 0.8f || !terrain.IsRock(body);

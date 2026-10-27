@@ -345,8 +345,21 @@ namespace Punchy.Terrain
         /// <summary>Signed distance to cave air at a point: negative inside a cave, large away from every cave.</summary>
         public float CaveDistance(float3 p) => Caves.IsCreated ? CaveSampling.Distance(ref Caves.Value, p, out _) : 1e9f;
 
-        /// <summary>Whether a point is over a cave's lava pool, low enough to step in (movement keeps out of these).</summary>
-        public bool OverCaveLava(float3 p) => Caves.IsCreated && CaveSampling.OverLava(ref Caves.Value, p);
+        /// <summary>
+        /// How much lava (0..1) a point is in: a cave's lava pool, or surface water whose look is lava (volcano craters,
+        /// lava biomes). Nothing stops anyone walking or swimming into it; this is for whatever reacts to it (a future
+        /// health system, effects).
+        /// </summary>
+        public float LavaAt(float3 p)
+        {
+            if (Caves.IsCreated && CaveSampling.OverLava(ref Caves.Value, p))
+                return 1f;
+            var ground = SampleGround(p.xz);
+            if (!ground.HasWater || p.y > ground.WaterSurface + 0.1f)
+                return 0f;
+            WaterLook(p.xz, ground.Biomes, out var glow);
+            return glow.y;
+        }
 
         /// <summary>Whether the ground surface here is cut away by a cave entrance.</summary>
         public bool IsCaveHole(float2 xz)
