@@ -1,0 +1,49 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be30a536c49003f42bba655b0fd41247, type: 3}
+  m_Name: GlowLily
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
+  Form: 29
+  Layer: 0
+  Height: {x: 0.4, y: 0.7}
+  Spread: 1.4
+  TrunkFraction: 0.35
+  Thickness: 0.035
+  Fullness: 0.7
+  Branches: {x: 3, y: 6}
+  Flexibility: 0.05
+  FlowerHead: 0
+  Bark: {r: 0.36, g: 0.27, b: 0.2, a: 1}
+  Foliage: {r: 0.25, g: 0.5, b: 0.45, a: 1}
+  FoliageVariation: {r: 0.35, g: 0.55, b: 0.5, a: 1}
+  Accents:
+  - {r: 0.6, g: 0.85, b: 1, a: 1}
+  - {r: 0.9, g: 0.7, b: 1, a: 1}
+  AccentAmount: 0.6
+  ColorVariation: 0.12
+  Finish: 0
+  GlowingAccents: 1
+  MaxSlope: 90
+  Elevation: {x: 0.5, y: 10000}
+  GrassAffinity: 0.5
+  ToleratesSnow: 0
+  PatchSize: 15
+  PatchCoverage: 0.5
+  NearWater: 1
+  OnlyNearWater: 0
+  Aquatic: 1
+  WaterDepth: {x: 0.25, y: 2.5}
+  Floats: 1
+  Solid: 0
+  SizeRange: {x: 0.85, y: 1.15}
+  Variants: 4
+  Seed: 302

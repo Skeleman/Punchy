@@ -51,7 +51,11 @@ namespace Punchy.Flora
                  "bowl in the middle.")] Fountain,
         [Tooltip("Firewood: logs (Bark) stacked in a pile, and a chopping block with an axe stuck in it, towards +Z.")] Woodpile,
         [Tooltip("A well: a round stone wall (Foliage Variation) round dark water, two posts (Bark) holding a little " +
-                 "roof (Foliage), a crank and a bucket.")] Well
+                 "roof (Foliage), a crank and a bucket.")] Well,
+        [Tooltip("Lily pads floating in a loose cluster (Foliage), some with cupped flowers in the accent colour. " +
+                 "Height is a pad's size; Spread the cluster's; Branches = pads.")] LilyPad,
+        [Tooltip("A clump of tall, thin, arching blades (Foliage to Foliage Variation); Accent Amount of them carry a " +
+                 "slim cattail head in the accent colour. Branches = blades.")] Reeds
     }
 
     public enum FoliageFinish : byte
@@ -141,6 +145,11 @@ namespace Punchy.Flora
         [Min(0f)] public float NearWater = 1f;
         [Tooltip("Grows only close to water (oasis palms, willows).")]
         public bool OnlyNearWater;
+        [Tooltip("Grows in water instead of on land, where it's between Water Depth's two depths (m).")]
+        public bool Aquatic;
+        public Vector2 WaterDepth = new Vector2(0.1f, 1.5f);
+        [Tooltip("Aquatic: sits on the surface (lily pads) rather than rising from the bed (reeds).")]
+        public bool Floats;
         [Tooltip("Blocks the player (trees, big cacti).")]
         public bool Solid = true;
         [Tooltip("Random size of each placed plant, on top of its variant's own size.")]

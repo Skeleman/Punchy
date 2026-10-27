@@ -77,6 +77,8 @@ namespace Punchy.Flora
                     case FloraForm.Fountain: Fountain(g); break;
                     case FloraForm.Woodpile: Woodpile(g); break;
                     case FloraForm.Well: Well(g); break;
+                    case FloraForm.LilyPad: LilyPad(g); break;
+                    case FloraForm.Reeds: Reeds(g); break;
                 }
                 if (lod == 0)
                 {
@@ -1852,6 +1854,99 @@ namespace Punchy.Flora
             if (g.Lod < 2)
                 b.Tube(new List<Vector3> { new Vector3(0f, top * 0.42f, 0f), new Vector3(0f, top * 0.55f, 0f) }, new List<float> { 0.15f, 0.17f },
                        g.Sides(8, 5, 4), g.Bark * 0.7f, FloraPart.Bark, cap: true);
+        }
+
+
+        static void Reeds(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            g.Height = height;
+            g.Width = height * s.Spread;
+            g.TrunkRadius = 0f;
+            var blades = g.Count(s.Branches);
+            if (g.Lod == 2)
+                blades = Mathf.Max(3, blades / 2);
+            for (int i = 0; i < blades; i++)
+            {
+                var root = g.Flat(g.R() * 6.28f) * height * s.Spread * 0.15f * g.R();
+                var h = height * g.Range(0.55f, 1f);
+                var dir = g.Flat(g.R() * 6.28f);
+                var arch = g.Range(0.05f, 0.35f);
+                var colour = Color.Lerp(s.Foliage.linear, s.FoliageVariation.linear, g.R()) * g.Range(0.9f, 1.1f);
+                var across = Vector3.Cross(dir, Vector3.up).normalized;
+                var width = Mathf.Clamp(height * 0.025f, 0.012f, 0.04f);
+                var spine = new List<Vector3>();
+                var widths = new List<float>();
+                var rows = g.Lod == 0 ? 4 : 2;
+                for (int k = 0; k <= rows; k++)
+                {
+                    var t = k / (float)rows;
+                    spine.Add(root + Vector3.up * h * t + dir * h * arch * t * t);
+                    widths.Add(width * (1f - t * 0.9f));
+                }
+                b.Strip(spine, widths, across, colour, FloraPart.Foliage, 0.75f, (Vector3.up * 0.3f + Vector3.Cross(across, Vector3.up)).normalized);
+                // A few straight stems carry a cattail head.
+                if (g.HasAccent && g.Lod < 2 && g.R() < s.AccentAmount * 0.5f)
+                {
+                    var top = root + Vector3.up * h * 1.05f + dir * h * 0.04f;
+                    b.Tube(new List<Vector3> { root, top }, new List<float> { width * 0.25f, width * 0.2f }, 3, colour, FloraPart.Foliage, ao: 0.8f);
+                    var headLength = h * 0.16f;
+                    var headBottom = top - Vector3.up * headLength * 1.3f;
+                    b.Tube(new List<Vector3> { headBottom, headBottom + Vector3.up * headLength }, new List<float> { width * 0.9f, width * 0.85f },
+                           g.Sides(6, 4, 3), g.Accent, FloraPart.Petal, cap: true);
+                }
+            }
+        }
+
+        static void LilyPad(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var size = g.Range(s.Height);
+            var pads = g.Count(s.Branches);
+            var spread = size * s.Spread;
+            g.Height = 0.15f;
+            g.Width = spread * 2f + size;
+            g.TrunkRadius = 0f;
+            for (int k = 0; k < pads; k++)
+            {
+                var r = size * 0.5f * g.Range(0.6f, 1.1f);
+                var at = k == 0 ? Vector3.zero : g.Flat(g.R() * 6.28f) * spread * g.Range(0.3f, 1f);
+                at.y = 0.005f * k;
+                // A flat round pad with a notch cut in (left as a gap in the ring of the disc).
+                var first = b.VertexCount;
+                var notch = g.R() * 6.28f;
+                var sides = g.Sides(14, 9, 6);
+                var centre = b.Vertex(at, Vector3.up, g.FoliageColor(), FloraPart.Foliage, 1f, 0f);
+                var colour = g.FoliageColor();
+                for (int i = 0; i <= sides; i++)
+                {
+                    var a = notch + 0.35f + i / (float)sides * (6.28f - 0.7f);
+                    b.Vertex(at + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * r, Vector3.up, colour * g.Range(0.92f, 1.05f), FloraPart.Foliage, 0.9f, 0f);
+                }
+                for (int i = 0; i < sides; i++)
+                    b.Triangle(centre, centre + 1 + i, centre + 2 + i);
+                // Now and then a cupped flower rising from the pad.
+                if (g.HasAccent && g.R() < s.AccentAmount && g.Lod < 2)
+                {
+                    var flower = at + g.Flat(g.R() * 6.28f) * r * 0.3f + Vector3.up * 0.05f;
+                    var petals = g.Sides(8, 6, 4);
+                    for (int i = 0; i < petals; i++)
+                    {
+                        var a = i / (float)petals * 6.28f;
+                        var dir = new Vector3(Mathf.Cos(a), 1.1f, Mathf.Sin(a)).normalized;
+                        var tip = flower + dir * size * 0.28f;
+                        var side = Vector3.Cross(dir, Vector3.up).normalized * size * 0.07f;
+                        var v0 = b.Vertex(flower - side, dir, g.Accent, FloraPart.Petal, 0.9f, 0f);
+                        var v1 = b.Vertex(flower + side, dir, g.Accent, FloraPart.Petal, 0.9f, 0f);
+                        var v2 = b.Vertex(tip, dir, g.Accent, FloraPart.Petal, 1f, 0f);
+                        b.Triangle(v0, v1, v2);
+                    }
+                    b.Diamond(flower + Vector3.up * 0.02f, size * 0.05f, new Color(0.9f, 0.75f, 0.2f).linear, FloraPart.Petal);
+                }
+            }
         }
 
         static void Den(Grower g)

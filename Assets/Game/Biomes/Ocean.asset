@@ -14,6 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.BiomeDefinition
   MapColor: {r: 0.1, g: 0.25, b: 0.6, a: 1}
   Frequency: 0
+  Altitude: {x: 0, y: 1}
+  Temperature: {x: 0, y: 1}
+  Humidity: {x: 0, y: 1}
+  Volcanism: {x: 0, y: 0.3}
   BaseElevation: -38
   Shape: 0
   Relief: 18
@@ -23,6 +27,9 @@ MonoBehaviour:
   TerraceSteps: 0
   WindDirection: 60
   Rainfall: 0
+  WaterMurk: 0
+  WaterColor: {r: 0.2, g: 0.35, b: 0.2, a: 1}
+  WaterGlow: 0
   Weather: []
   BaseSurface: {fileID: 11400000, guid: 52309ffcc63888a4fa04169f80fd4edb, type: 2}
   Layers:
@@ -46,4 +53,11 @@ MonoBehaviour:
   Cold: 0.1
   Fireflies: 0
   Butterflies: 0
+  Particles: []
   Flora: []
+  Landmarks: []
+  Fauna:
+  - Species: {fileID: 11400000, guid: 2955219e47ad0664b8afa7195c7db5a2, type: 2}
+    Density: 5
+  - Species: {fileID: 11400000, guid: 85e64f7848d4fa247bd3cdbe79f4cf02, type: 2}
+    Density: 0.4

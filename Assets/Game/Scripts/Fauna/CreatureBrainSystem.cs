@@ -307,13 +307,19 @@ namespace Punchy.Fauna
                 // Stay out of water and off cliffs: stop (or, running, veer) when the way ahead is bad.
                 var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
                 var ahead = s.Position.xz + forward * math.max(1.2f, s.Speed * 0.5f) * s.Scale;
-                if (s.Speed > 0.05f && !Walkable(ahead) || SlopeAhead(s.Position.xz, ahead) > 0.8f)
+                if (s.Speed > 0.05f && !Walkable(ahead, b.Habitat) || b.Habitat == Habitat.Land && SlopeAhead(s.Position.xz, ahead) > 0.8f)
                 {
                     s.Speed *= 0.5f;
                     if (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Play && s.Stage == 1)
                         s.Target = s.Position.xz + new float2(-forward.y, forward.x) * (rng.NextBool() ? 20f : -20f);
                     else if (s.Mode == CreatureMode.Wander || s.Mode == CreatureMode.Drink && s.Stage == 0)
                         Pause(ref s, ref b, ref rng);
+                }
+                // Swimmers now and then leap out of the water while they're moving.
+                if (b.Habitat == Habitat.Swims && b.Leaps > 0f && s.Air <= 0f && s.Speed > walk * 0.5f && rng.NextFloat() < b.Leaps * dt / 60f)
+                {
+                    s.Air = 0.001f;
+                    s.AirHeight = (b.BodyLength * 1.2f + 0.4f) * s.Scale * rng.NextFloat(0.6f, 1.2f);
                 }
                 Advance(ref s, ref b, dt);
                 s.Look += (desiredLook - s.Look) * math.min(1f, dt * 3f);
@@ -405,7 +411,7 @@ namespace Punchy.Fauna
                     // Animals with a home stay near it.
                     if (s.Leash > 0f && math.distance(candidate, s.Home) > s.Leash)
                         candidate = s.Home + rng.NextFloat2Direction() * s.Leash * rng.NextFloat(0.1f, 0.8f);
-                    if (Walkable(candidate))
+                    if (Walkable(candidate, b.Habitat))
                     {
                         SetMode(ref s, CreatureMode.Wander);
                         s.Target = candidate;
@@ -676,13 +682,13 @@ namespace Punchy.Fauna
                     for (var d = 6f; d <= 50f; d += 8f)
                     {
                         var p = s.Position.xz + dir * d;
-                        if (Walkable(p))
+                        if (Walkable(p, Habitat.Land))
                             continue;
                         // Back up from the water to dry land.
                         var q = p;
-                        for (int step = 0; step < 30 && !Walkable(q); step++)
+                        for (int step = 0; step < 30 && !Walkable(q, Habitat.Land); step++)
                             q -= dir;
-                        if (!Walkable(q))
+                        if (!Walkable(q, Habitat.Land))
                             break;
                         water = p;
                         shore = q + dir * 0.6f - dir * (b.BodyLength * 0.4f * s.Scale);
@@ -697,17 +703,42 @@ namespace Punchy.Fauna
             {
                 var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
                 s.Position.xz += forward * s.Speed * dt;
-                s.Position.y = Terrain.SampleHeight(s.Position.xz);
+                if (b.Habitat == Habitat.Land)
+                    s.Position.y = Terrain.SampleHeight(s.Position.xz);
+                else
+                {
+                    // Floating on the surface, or swimming a little under it (shallower in shallow water); a leap
+                    // arcs up out of the water and back.
+                    var g = Terrain.SampleGround(s.Position.xz);
+                    var surface = g.HasWater ? g.WaterSurface : g.Height;
+                    var y = b.Habitat == Habitat.Floats ? surface + b.StandHeight * 0.35f * s.Scale
+                          : surface - math.clamp((surface - g.Height) * 0.45f, 0.25f, b.SwimDepth);
+                    if (s.Air > 0f)
+                    {
+                        s.Air += dt / (0.6f + s.AirHeight * 0.35f);
+                        if (s.Air >= 1f)
+                            s.Air = 0f;
+                        else
+                            y = math.max(y, surface + math.sin(math.PI * s.Air) * s.AirHeight - (surface - y) * (1f - math.sin(math.PI * s.Air)));
+                    }
+                    s.Position.y = y;
+                }
                 var run = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), s.Speed / s.Scale);
                 var stride = math.lerp(b.WalkStride, b.RunStride, run) * s.Scale;
                 s.Phase = math.frac(s.Phase + s.Speed * dt / stride);
                 s.Sway += (-s.YawRate * 0.35f - s.Sway) * math.min(1f, dt * 4f);
             }
 
-            bool Walkable(float2 xz)
+            /// <summary>Whether an animal of this habitat can go here: dry land, or water deep enough to swim or float in.</summary>
+            bool Walkable(float2 xz, Habitat habitat)
             {
                 var g = Terrain.SampleGround(xz);
-                return !(g.HasWater && g.WaterSurface > g.Height + 0.15f) && !Terrain.IsCaveHole(xz);
+                var depth = g.HasWater ? g.WaterSurface - g.Height : -1f;
+                if (habitat == Habitat.Swims)
+                    return depth >= 0.7f;
+                if (habitat == Habitat.Floats)
+                    return depth >= 0.3f;
+                return depth <= 0.15f && !Terrain.IsCaveHole(xz);
             }
 
             float SlopeAhead(float2 from, float2 to)

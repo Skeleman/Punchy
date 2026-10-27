@@ -82,6 +82,8 @@ namespace Punchy.Flora
             public float NearWater;
             public int OnlyNearWater;
             public float2 SizeRange;
+            public int Aquatic, Floats;
+            public float2 WaterDepth;
         }
 
         struct BiomeEntry
@@ -328,7 +330,10 @@ namespace Punchy.Flora
                     PatchOffset = new float2(h & 0xFFFF, h >> 16) / 65535f * 300f,
                     NearWater = s.NearWater,
                     OnlyNearWater = s.OnlyNearWater ? 1 : 0,
-                    SizeRange = s.SizeRange
+                    SizeRange = s.SizeRange,
+                    Aquatic = s.Aquatic ? 1 : 0,
+                    Floats = s.Floats ? 1 : 0,
+                    WaterDepth = s.WaterDepth
                 };
             }
 
@@ -876,8 +881,9 @@ namespace Punchy.Flora
                 if (Source.IsCaveHole(xz))
                     return;
                 var ground = Source.SampleGround(xz);
-                if (ground.HasWater && ground.WaterSurface > ground.Height - 0.15f)
-                    return;
+                // Land plants keep out of the water; aquatic ones grow only in it, at their depths.
+                var depth = ground.HasWater ? ground.WaterSurface - ground.Height : -1f;
+                var underwater = depth > -0.15f;
                 var normal = Source.SampleNormal(xz, 1f);
                 var surface = Source.SampleSurface(xz, ground, normal);
                 var slope = math.degrees(math.acos(math.saturate(normal.y)));
@@ -895,11 +901,34 @@ namespace Punchy.Flora
                     {
                         var propRule = Rules[Props[-candidates[c] - 1].Species];
                         weights[c] *= 1f - math.smoothstep(propRule.MaxSlope - 4f, propRule.MaxSlope, slope);
+                        if (underwater && propRule.Aquatic == 0)
+                            weights[c] = 0f;
                         shrink.Add(1f);
                         total += weights[c];
                         continue;
                     }
                     var r = Rules[candidates[c]];
+                    if (r.Aquatic != 0)
+                    {
+                        // Water plants: just the right depth (and patches, if the species has them).
+                        var inDepth = depth >= r.WaterDepth.x && depth <= r.WaterDepth.y ? 1f : 0f;
+                        var fw = weights[c] * inDepth;
+                        if (r.PatchCoverage < 1f)
+                        {
+                            var pn = noise.snoise(xz * r.PatchFrequency + r.PatchOffset) * 0.5f + 0.5f;
+                            fw *= math.smoothstep(1f - r.PatchCoverage - 0.12f, 1f - r.PatchCoverage + 0.12f, pn);
+                        }
+                        weights[c] = fw;
+                        shrink.Add(1f);
+                        total += fw;
+                        continue;
+                    }
+                    if (underwater)
+                    {
+                        weights[c] = 0f;
+                        shrink.Add(1f);
+                        continue;
+                    }
                     var f = weights[c] * dry;
                     f *= 1f - math.smoothstep(r.MaxSlope - 4f, r.MaxSlope, slope);
                     var upper = 1f - math.smoothstep(r.Elevation.y - 25f, r.Elevation.y, elevation);
@@ -940,7 +969,7 @@ namespace Punchy.Flora
                 var rule = Rules[picked];
                 Output[i] = new FloraInstance
                 {
-                    Position = new float3(xz.x, ground.Height, xz.y),
+                    Position = new float3(xz.x, rule.Floats != 0 && ground.HasWater ? ground.WaterSurface + 0.01f : ground.Height, xz.y),
                     Yaw = yaw,
                     // Plants grow smaller towards the top of their range (a tree line).
                     Scale = scale * (0.55f + 0.45f * shrink[pick]),

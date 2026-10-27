@@ -129,6 +129,15 @@ Input System. Windows is the only build target so far.
   existing assets.
 - Two-legged species set **Upright** so the body stays level on slopes (the legs take up the ground); others tilt
   with it. No body tilts to follow the ground while airborne.
+- Species have a **Habitat**: Land, Swims (fish, eels, dolphins) or Floats (ducks).
+  - Swimmers keep to water at least 0.7 m deep. They swim `clamp(depth × 0.45, 0.25, SwimDepth)` under the
+    surface and leap out `Leaps` times a minute. `CreatureState.Air` runs 0..1 through a leap.
+  - Floaters ride on the surface.
+  - The director spawns water species only at water spots, and land species only on dry ones.
+  - Aquatic bodies are legless, so `LeglessStride` sets their gait. The animator treats `Position.y` as the
+    body's centre, with no ground tilt.
+- Flora with **Aquatic** grows only where the water depth is within `WaterDepth`. **Floats** puts it on the
+  surface (the LilyPad form); otherwise it rises from the bed (Reeds).
 - Creature parts are drawn solid now (the capsule mesh was once wound inside-out, which let hidden parts show
   through), so a part meant to be seen must poke out of whatever it's attached to.
 - Joint axes depend on which way a part points: for a part pointing up (an upright torso, neck or head), a yaw

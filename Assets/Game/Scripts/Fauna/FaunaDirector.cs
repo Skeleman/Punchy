@@ -295,8 +295,8 @@ namespace Punchy.Fauna
             var distance = math.sqrt(rng.NextFloat(MinSpawnDistance * MinSpawnDistance, Radius * Radius));
             var at = player + new float2(math.cos(angle), math.sin(angle)) * distance;
             var ground = source.SampleGround(at);
-            if (ground.HasWater && ground.WaterSurface > ground.Height)
-                return;
+            // On land, land animals; in water, swimmers and floaters (deep enough for them).
+            var depth = ground.HasWater ? ground.WaterSurface - ground.Height : -1f;
             var biome = biomes[ground.Biomes.Dominant()];
             if (biome == null)
                 return;
@@ -308,7 +308,7 @@ namespace Punchy.Fauna
             foreach (var f in biome.Fauna)
             {
                 var index = f.Species != null ? species.IndexOf(f.Species) : -1;
-                if (index < 0 || f.Species.Body.NearWater && !nearWater)
+                if (index < 0 || f.Species.Body.NearWater && !nearWater || !Suits(f.Species.Body.Habitat, depth))
                     continue;
                 var shortfall = f.Density * areaHectares - counts[index];
                 if (shortfall > bestShortfall)
@@ -326,11 +326,16 @@ namespace Punchy.Fauna
             {
                 var p = at + rng.NextFloat2Direction() * rng.NextFloat(0f, 2f + group * 1.5f);
                 var g = source.SampleGround(p);
-                if (!(g.HasWater && g.WaterSurface > g.Height))
-                    Spawn(best, new float3(p.x, g.Height, p.y));
+                var d = g.HasWater ? g.WaterSurface - g.Height : -1f;
+                if (Suits(s.Habitat, d))
+                    Spawn(best, new float3(p.x, s.Habitat == Habitat.Land ? g.Height : g.WaterSurface - math.min(d * 0.45f, s.SwimDepth), p.y));
             }
             counts[best] += group;
         }
+
+        /// <summary>Whether water this deep (negative = dry land) suits an animal of a habitat.</summary>
+        static bool Suits(Habitat habitat, float depth) =>
+            habitat == Habitat.Swims ? depth >= 0.9f : habitat == Habitat.Floats ? depth >= 0.4f : depth <= 0f;
 
         void SpawnResidents(in TerrainSource source, float2 player)
         {

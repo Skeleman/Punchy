@@ -26,6 +26,8 @@ namespace Punchy.Fauna
         public float RunRock;
         /// <summary>Keeps the body level rather than tilting with the ground (two-legged walkers).</summary>
         public bool Upright;
+        public Habitat Habitat;
+        public float SwimDepth, Leaps;
         public float WanderRadius, FleeDistance, TurnRate;
         public float2 IdleTime, Size;
         public ActiveTime Active;
@@ -236,6 +238,8 @@ namespace Punchy.Fauna
         /// <summary>A worker's job, where it stands to do it, and what it faces there.</summary>
         public CreatureTask Task;
         public float2 WorkSpot, WorkFace;
+        /// <summary>A leap out of the water: progress 0..1 (0 = not leaping), and how high it goes.</summary>
+        public float Air, AirHeight;
 
         // Posture, 0..1, eased towards what the current activity wants (read by CreatureAnimator).
         /// <summary>Lying down: body on the ground, legs folded.</summary>
@@ -325,6 +329,9 @@ namespace Punchy.Fauna
             root.BobsPerCycle = new float2(species.BobsPerCycle.x, species.BobsPerCycle.y);
             root.RunRock = math.radians(species.RunRock);
             root.Upright = species.Upright;
+            root.Habitat = species.Habitat;
+            root.SwimDepth = species.SwimDepth;
+            root.Leaps = species.Leaps;
             root.WanderRadius = species.WanderRadius;
             root.FleeDistance = species.FleeDistance;
             root.TurnRate = math.radians(species.TurnRate);

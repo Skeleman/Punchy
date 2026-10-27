@@ -1,0 +1,101 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
+  m_Name: SilverFish
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
+  VariantOf: {fileID: 0}
+  VariantScale: 1
+  BodyLength: 0.32
+  BodyRadius: 0.045
+  BodyTaper: 0.75
+  BodyFlatten: 1.45
+  Base: {r: 0.62, g: 0.68, b: 0.72, a: 1}
+  Accent: {r: 0.3, g: 0.45, b: 0.6, a: 1}
+  AccentGlow: 0
+  Coats: []
+  Size: {x: 0.5, y: 0.6}
+  HairColors: []
+  Parts:
+  - Limb: {fileID: 11400000, guid: 923ab370e5346d142945565371fd6e01, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0, z: 0.9}
+    Direction: {x: 0, y: 0, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 8db8692701365314db1a0b5e9ab1cbd1, type: 2}
+    Parent: 0
+    Socket: {x: 0.03, y: 0.012, z: -0.025}
+    Direction: {x: 0, y: 0, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.55
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 4b1556f67cb82f2449f9ade533e0604a, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0, z: -0.95}
+    Direction: {x: 0, y: 180, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: b342e9b49eabf544aaa74acf67d9f3e1, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0.95, z: 0.1}
+    Direction: {x: -40, y: 180, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 2e593e00f4e664d4f8520fe81735e74d, type: 2}
+    Parent: -1
+    Socket: {x: 0.8, y: -0.4, z: 0.55}
+    Direction: {x: 30, y: 120, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1
+    Thickness: 1
+    StyleGroup: 0
+  WalkSpeed: 0.5
+  RunSpeed: 4.5
+  Bob: {x: 0.004, y: 0.01}
+  BobsPerCycle: {x: 2, y: 2}
+  RunRock: 0
+  Upright: 0
+  LeglessStride: {x: 0.25, y: 0.6}
+  WanderRadius: 20
+  IdleTime: {x: 1, y: 5}
+  FleeDistance: 7
+  TurnRate: 200
+  GroupSize: {x: 6, y: 12}
+  NearWater: 0
+  Habitat: 1
+  SwimDepth: 0.7
+  Leaps: 0.5
+  Active: 2
+  Grazing: 0
+  Thirst: 0
+  Playfulness: 0.2
+  Laziness: 0.1
+  Hunts: []
+  Hunger: 0
+  ChaseTime: 10

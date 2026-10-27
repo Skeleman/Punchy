@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be30a536c49003f42bba655b0fd41247, type: 3}
+  m_Name: WaterReed
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
+  Form: 30
+  Layer: 0
+  Height: {x: 1.1, y: 1.8}
+  Spread: 0.5
+  TrunkFraction: 0.35
+  Thickness: 0.035
+  Fullness: 0.7
+  Branches: {x: 9, y: 18}
+  Flexibility: 0.7
+  FlowerHead: 0
+  Bark: {r: 0.36, g: 0.27, b: 0.2, a: 1}
+  Foliage: {r: 0.3, g: 0.45, b: 0.16, a: 1}
+  FoliageVariation: {r: 0.45, g: 0.5, b: 0.22, a: 1}
+  Accents:
+  - {r: 0.3, g: 0.19, b: 0.1, a: 1}
+  AccentAmount: 0.35
+  ColorVariation: 0.12
+  Finish: 0
+  GlowingAccents: 0
+  MaxSlope: 90
+  Elevation: {x: 0.5, y: 10000}
+  GrassAffinity: 0.5
+  ToleratesSnow: 0
+  PatchSize: 10
+  PatchCoverage: 0.55
+  NearWater: 1
+  OnlyNearWater: 0
+  Aquatic: 1
+  WaterDepth: {x: 0, y: 0.6}
+  Floats: 0
+  Solid: 0
+  SizeRange: {x: 0.85, y: 1.15}
+  Variants: 4
+  Seed: 303

@@ -70,6 +70,12 @@ namespace Punchy.Fauna
         public Vector2Int GroupSize = new Vector2Int(1, 1);
         [Tooltip("Only appears close to rivers, lakes and the sea (frogs).")]
         public bool NearWater;
+        [Tooltip("Where it lives: on land, swimming under the water (fish), or floating on it (ducks).")]
+        public Habitat Habitat = Habitat.Land;
+        [Tooltip("Swimmers: how far below the surface they like to swim, in metres (shallower where the water is).")]
+        [Min(0.1f)] public float SwimDepth = 0.6f;
+        [Tooltip("Swimmers: leaps out of the water per minute.")]
+        [Min(0f)] public float Leaps;
 
         [Header("Activities (each species' own, variants included)")]
         [Tooltip("When it's awake: it sleeps through the rest of the day. Always = naps now and then.")]
@@ -100,6 +106,13 @@ namespace Punchy.Fauna
                 return s;
             }
         }
+    }
+
+    public enum Habitat : byte
+    {
+        Land,
+        [Tooltip("Swims under the surface; keeps to water deep enough to swim in.")] Swims,
+        [Tooltip("Floats on the surface (waterfowl).")] Floats
     }
 
     public enum ActiveTime : byte
