@@ -73,6 +73,9 @@ namespace Punchy.Terrain
 
         [Tooltip("Cave chunks started per frame at most (nearest first), so a cave coming into range doesn't hitch.")]
         [Min(1)] public int BuildsPerFrame = 2;
+        [Tooltip("Cave chunks building at once at most. Each holds a few MB of fields while it builds, and too many " +
+                 "crowd the terrain's own jobs off the workers.")]
+        [Min(1)] public int MaxBuilding = 4;
 
         /// <summary>Cave walls are built in cubes this many metres across (rounded to whole voxels).</summary>
         const float ChunkMetres = 32f;
@@ -280,7 +283,11 @@ namespace Punchy.Terrain
                 }
             }
 
-            for (int n = 0; n < BuildsPerFrame && wanted.Count > 0; n++)
+            var building = 0;
+            foreach (var b in chunks.Values)
+                if (b.Pending)
+                    building++;
+            for (int n = 0; n < BuildsPerFrame && building < MaxBuilding && wanted.Count > 0; n++, building++)
             {
                 var key = wanted[wanted.Count - 1];
                 wanted.RemoveAt(wanted.Count - 1);
