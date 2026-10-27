@@ -114,6 +114,8 @@ namespace Punchy.Fauna
         public bool Roosts;
         [Tooltip("Comes over to people, sits by them wagging its tail and follows them about (within its home range): dogs.")]
         public bool Friendly;
+        [Tooltip("Keeps a nest (in a tree, on a treetop or on the ground) and goes back to it to sleep.")]
+        public NestSite Nests;
 
         [Header("Flight (habitat Flies)")]
         [Tooltip("Height above the ground it cruises at, in metres.")]
@@ -146,6 +148,15 @@ namespace Punchy.Fauna
         [Tooltip("Swims under the surface; keeps to water deep enough to swim in.")] Swims,
         [Tooltip("Floats on the surface (waterfowl).")] Floats,
         [Tooltip("Flies, landing on the ground or perching in trees (songbirds, crows, birds of prey).")] Flies
+    }
+
+    /// <summary>Where a species keeps its nest.</summary>
+    public enum NestSite : byte
+    {
+        None,
+        [Tooltip("A cup of twigs against the trunk, low in the crown (songbirds, crows).")] Branch,
+        [Tooltip("A big platform of sticks on top of a tree (ospreys, eagles).")] Treetop,
+        [Tooltip("A scrape lined with grass, on flat ground (quail, chickens, ducks).")] Ground
     }
 
     /// <summary>Little things an animal does while standing about (which of them a species does).</summary>

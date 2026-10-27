@@ -14,10 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
   VariantOf: {fileID: 0}
   VariantScale: 1
-  BodyLength: 0.11
-  BodyRadius: 0.04
-  BodyTaper: 0.8
-  BodyFlatten: 1
+  BodyLength: 0.1
+  BodyRadius: 0.042
+  BodyTaper: 0.75
+  BodyFlatten: 0.95
   Base: {r: 0.5, g: 0.38, b: 0.26, a: 1}
   Accent: {r: 0.85, g: 0.78, b: 0.65, a: 1}
   AccentGlow: 0
@@ -37,63 +37,113 @@ MonoBehaviour:
   Parts:
   - Limb: {fileID: 11400000, guid: c9353264e2115d240afe20ef59feeaa3, type: 2}
     Parent: -1
-    Socket: {x: 0.5, y: -0.6, z: 0}
-    Direction: {x: 90, y: 0, z: 0}
+    Socket: {x: 0.55, y: -0.4, z: -0.85}
+    Direction: {x: 150, y: 0, z: 0}
     Mirror: 1
     Phase: 0
     MirrorPhase: 0.5
-    Scale: 0.5
+    Scale: 0.38
     Thickness: 1
     StyleGroup: 0
-  - Limb: {fileID: 11400000, guid: fee2595e6d0d0af4f84039dcc2a6a682, type: 2}
+  - Limb: {fileID: 11400000, guid: eaac76a5096f0c2488d1477e6eac192e, type: 2}
     Parent: -1
-    Socket: {x: 0, y: 0.5, z: 0.85}
-    Direction: {x: -50, y: 0, z: 0}
+    Socket: {x: 0, y: 0.25, z: 0.9}
+    Direction: {x: 5, y: 0, z: 0}
     Mirror: 0
     Phase: 0
     MirrorPhase: 0.5
-    Scale: 0.45
-    Thickness: 1
-    StyleGroup: 0
-  - Limb: {fileID: 11400000, guid: e643fc75ab94c0248b5e3710ae391090, type: 2}
-    Parent: 1
-    Socket: {x: 0, y: 0, z: 0}
-    Direction: {x: 50, y: 0, z: 0}
-    Mirror: 0
-    Phase: 0
-    MirrorPhase: 0.5
-    Scale: 0.9
-    Thickness: 1
+    Scale: 0.42
+    Thickness: 0.9
     StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 8db8692701365314db1a0b5e9ab1cbd1, type: 2}
-    Parent: 2
-    Socket: {x: 0.022, y: 0.01, z: -0.018}
+    Parent: 1
+    Socket: {x: 0.014, y: 0.01, z: -0.022}
     Direction: {x: 0, y: 0, z: 0}
     Mirror: 1
     Phase: 0
-    MirrorPhase: 0.5
-    Scale: 0.5
+    MirrorPhase: 0
+    Scale: 0.4
     Thickness: 1
     StyleGroup: 0
-  - Limb: {fileID: 11400000, guid: 203e147ec498a564292d0a018077d052, type: 2}
+  - Limb: {fileID: 11400000, guid: 1db1f7220d7eb0847a03c836297d07a0, type: 2}
+    Parent: 1
+    Socket: {x: 0.013, y: 0.016, z: -0.04}
+    Direction: {x: -70, y: 22, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0
+    Scale: 0.48
+    Thickness: 1.1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 7a40a9c51b3e2c243a535904004daaf7, type: 2}
     Parent: -1
-    Socket: {x: 0.8, y: 0.45, z: 0.35}
+    Socket: {x: 0.8, y: 0.45, z: 0.4}
     Direction: {x: 0, y: 90, z: 0}
     Mirror: 1
     Phase: 0
     MirrorPhase: 0
-    Scale: 0.27
+    Scale: 0.2
     Thickness: 1
     StyleGroup: 0
-  - Limb: {fileID: 11400000, guid: a27dc3024e78b864da32345a2d4090a5, type: 2}
-    Parent: 2
-    Socket: {x: 0.012, y: 0.014, z: -0.006}
-    Direction: {x: -70, y: 20, z: 0}
-    Mirror: 1
+  - Limb: {fileID: 11400000, guid: 2c912e5a3d4e7b947a3007fc94a63a03, type: 2}
+    Parent: 4
+    Socket: {x: 0, y: 0, z: 0}
+    Direction: {x: 0, y: -12, z: 0}
+    Mirror: 0
     Phase: 0
-    MirrorPhase: 0
-    Scale: 0.35
-    Thickness: 0.8
+    MirrorPhase: 0.5
+    Scale: 0.22
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: b663bca63a42f7d49872f028159f9e45, type: 2}
+    Parent: 4
+    Socket: {x: 0, y: 0.002, z: 0}
+    Direction: {x: 0, y: -12, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.22
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 2c912e5a3d4e7b947a3007fc94a63a03, type: 2}
+    Parent: 4
+    Socket: {x: 0, y: 0, z: 0}
+    Direction: {x: 0, y: 35, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.22
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: b663bca63a42f7d49872f028159f9e45, type: 2}
+    Parent: 4
+    Socket: {x: 0, y: 0.002, z: 0}
+    Direction: {x: 0, y: 35, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.22
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 2c912e5a3d4e7b947a3007fc94a63a03, type: 2}
+    Parent: 4
+    Socket: {x: 0, y: 0, z: 0}
+    Direction: {x: 0, y: 80, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.22
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: b663bca63a42f7d49872f028159f9e45, type: 2}
+    Parent: 4
+    Socket: {x: 0, y: 0.002, z: 0}
+    Direction: {x: 0, y: 80, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.22
+    Thickness: 1
     StyleGroup: 0
   WalkSpeed: 0.5
   RunSpeed: 2
@@ -127,6 +177,8 @@ MonoBehaviour:
   Burrows: 0
   CaveDweller: 0
   Roosts: 1
+  Friendly: 0
+  Nests: 0
   FlightHeight: {x: 2, y: 7}
   FlySpeed: 5
   FlapRate: 9

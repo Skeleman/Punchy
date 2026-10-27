@@ -101,9 +101,9 @@ namespace Punchy.Fauna
 
         static int2 Cell(float2 xz) => (int2)math.floor(xz / CellSize);
 
-        /// <summary>Every creature but players' bodies (PlayerAvatarSystem moves those).</summary>
+        /// <summary>Every creature but players' bodies (PlayerAvatarSystem moves those) and test specimens.</summary>
         [BurstCompile]
-        [WithNone(typeof(PlayerAvatar), typeof(RemoteAvatar))]
+        [WithNone(typeof(PlayerAvatar), typeof(RemoteAvatar), typeof(PosedForTest))]
         partial struct BrainJob : IJobEntity
         {
             public TerrainSource Terrain;
@@ -265,7 +265,9 @@ namespace Punchy.Fauna
                         }
                         targetSpeed = walk;
                         moving = true;
-                        if (math.distance(s.Position.xz, s.Target) < 1f)
+                        // (Right into its nest, when that's where it's going.)
+                        var arrive = b.Nests == NestSite.Ground && math.all(s.Target == s.Anchor.xz) ? 0.2f : 1f;
+                        if (math.distance(s.Position.xz, s.Target) < arrive)
                             Pause(ref s, ref b, ref rng);
                         break;
 
@@ -566,10 +568,23 @@ namespace Punchy.Fauna
                 var web = b.SpinsWebs ? 6f : 0f;
                 // Birds fly off somewhere new more often from a branch; to sleep, they go up into a tree first.
                 var fly = flier ? (perched ? 2f : 1.2f) * awake : 0f;
-                if (flier && sleepy > 0.5f && !perched && HasFlora)
+                // Nesters pick their nest the first time it's needed, and go home to it to sleep.
+                if (b.Nests != NestSite.None && s.AnchorSize == 0f)
+                    FindNest(ref s, ref b);
+                var nest = b.Nests != NestSite.None && s.AnchorSize > 0f;
+                var awayFromNest = nest && math.distance(s.Position, s.Anchor) > 0.5f;
+                if (flier && sleepy > 0.5f && HasFlora && (!perched || awayFromNest))
                 {
                     fly = 8f;
                     sleep = 0f;
+                }
+                else if (nest && sleepy > 0.5f && !awayFromNest)
+                    fly = 0f;   // home in the nest: stays put till morning
+                if (!flier && nest && sleepy > 0.5f && awayFromNest)
+                {
+                    SetMode(ref s, CreatureMode.Wander);
+                    s.Target = s.Anchor.xz;
+                    return;
                 }
                 // Workers mostly work by day, taking a short wander or rest between stints; at night they doze at
                 // their post.
@@ -1154,9 +1169,53 @@ namespace Punchy.Fauna
                 }
             }
 
-            // ------------------------------------------------------------------------------- burrows
+            // ------------------------------------------------------------------------------- burrows and nests
 
             static Random LairRandom(float2 near, uint kind) => new Random(math.hash(new int3((int2)math.floor(near / 16f), (int)kind)) | 1u);
+
+            /// <summary>
+            /// Picks its nest, from the place like a burrow (the same nest whenever a bird lives here): a cup against a
+            /// trunk low in a tree's crown, a platform of sticks on a treetop, or a scrape on flat ground (near home, for
+            /// residents).
+            /// </summary>
+            bool FindNest(ref CreatureState s, ref CreatureBlob b)
+            {
+                var near = s.Leash > 0f ? s.Home : (math.floor(s.Position.xz / 16f) + 0.5f) * 16f;
+                var place = LairRandom(near, 0x4E57u ^ (s.Leash > 0f ? s.Individual : 0u));
+                var size = math.max(b.BodyLength * s.Scale * 0.7f, 0.08f);
+                if (b.Nests == NestSite.Ground)
+                {
+                    for (int attempt = 0; attempt < 6; attempt++)
+                    {
+                        var spot = near + place.NextFloat2Direction() * place.NextFloat(1f, 6f);
+                        if (!Walkable(spot, Habitat.Land) || SlopeAhead(spot, spot + new float2(0.5f, 0f)) > 0.35f ||
+                            SlopeAhead(spot, spot + new float2(0f, 0.5f)) > 0.35f)
+                            continue;
+                        s.Anchor = new float3(spot.x, Terrain.SampleHeight(spot), spot.y);
+                        s.AnchorSize = size;
+                        return true;
+                    }
+                }
+                else if (HasFlora && FloraPlacement.FindTree(ref Flora.Value, Terrain, near, 30f, b.Nests == NestSite.Treetop ? 6f : 3f, ref place, out var tree))
+                {
+                    if (b.Nests == NestSite.Treetop)
+                    {
+                        // Big and untidy, sunk into the very top.
+                        s.Anchor = tree.Base + new float3(0f, tree.Height * 0.96f, 0f);
+                        s.AnchorSize = size * 1.4f;
+                    }
+                    else
+                    {
+                        var dir = place.NextFloat2Direction();
+                        var at = tree.Base.xz + dir * (tree.TrunkRadius + size * 0.8f);
+                        s.Anchor = new float3(at.x, tree.Base.y + tree.CrownBase + (tree.Height - tree.CrownBase) * 0.25f, at.y);
+                        s.AnchorSize = size;
+                    }
+                    return true;
+                }
+                s.AnchorSize = -1f;   // nowhere for one here: don't keep trying
+                return false;
+            }
 
             /// <summary>Picks a burrow mouth on flat, dry ground a few metres off (near home, for residents).</summary>
             bool DigBurrow(ref CreatureState s, ref CreatureBlob b, ref Random rng)
@@ -1505,6 +1564,15 @@ namespace Punchy.Fauna
             bool StartFlight(ref CreatureState s, ref CreatureBlob b, ref Random rng, bool toSleep)
             {
                 var range = math.max(b.WanderRadius, 20f);
+                if (toSleep && b.Nests != NestSite.None && b.Nests != NestSite.Ground && s.AnchorSize > 0f)
+                {
+                    // Home to its nest.
+                    SetMode(ref s, CreatureMode.Wander);
+                    s.Stage = 1;
+                    s.Target = s.Anchor.xz;
+                    s.TargetHeight = s.Anchor.y;
+                    return true;
+                }
                 if (HasFlora && (toSleep || rng.NextFloat() < b.Perching) &&
                     FloraPlacement.FindTree(ref Flora.Value, Terrain, s.Position.xz + rng.NextFloat2Direction() * range * 0.5f, range * 0.6f, 3f, ref rng, out var tree))
                 {

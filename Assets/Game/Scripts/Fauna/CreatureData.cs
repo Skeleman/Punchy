@@ -39,6 +39,7 @@ namespace Punchy.Fauna
         public IdleActions Idles;
         public float Fidgets, Climbing;
         public bool SpinsWebs, Burrows, CaveDweller, Roosts, Friendly;
+        public NestSite Nests;
         public float WebSize;
         public float2 FlightHeight;
         public float FlySpeed, FlapRate, Glide, Perching;
@@ -291,9 +292,10 @@ namespace Punchy.Fauna
         public IdleAction Action;
         public float ActionTime, ActionLength;
 
-        /// <summary>A fixed point it's using: the foot of the tree it climbs, its web's centre.</summary>
+        /// <summary>A fixed point it's using: the foot of the tree it climbs, its web's centre, its burrow or nest.</summary>
         public float3 Anchor;
-        /// <summary>The tree's trunk radius, or the web's radius (0 = no anchor yet); the web's facing and side.</summary>
+        /// <summary>The tree's trunk radius, or the web's, burrow's or nest's radius (0 = no anchor yet, -1 = none to be
+        /// had here); the web's facing and side.</summary>
         public float AnchorSize, AnchorYaw;
         public byte AnchorSide;
         /// <summary>Where a flight or a climb ends up, height-wise (absolute).</summary>
@@ -318,6 +320,9 @@ namespace Punchy.Fauna
         public float RadiusStart, RadiusEnd, Flatten, Pad;
         public float4 Color;
     }
+
+    /// <summary>A specimen held in a pose for a test ("-pose"): the brain leaves it alone; DebugControls poses it.</summary>
+    public struct PosedForTest : IComponentData { }
 
     /// <summary>Material and mesh for drawing creatures (a managed singleton set up by FaunaDirector).</summary>
     public class FaunaRenderSettings : IComponentData
@@ -410,6 +415,7 @@ namespace Punchy.Fauna
             root.CaveDweller = species.CaveDweller;
             root.Roosts = species.Roosts;
             root.Friendly = species.Friendly;
+            root.Nests = species.Nests;
             root.WebSize = species.WebSize * sizeScale;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));
             root.FlySpeed = species.FlySpeed;

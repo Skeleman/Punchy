@@ -30,6 +30,10 @@ namespace Punchy.Fauna
         const int Spokes = 12, Rings = 6, Anchors = 4;
         const int WebCount = Spokes + Spokes * Rings + Anchors;
         const int MoundCount = 7;
+        /// <summary>Capsules per nest: its floor and a ring of twigs (or grass).</summary>
+        const int NestCount = 9;
+        /// <summary>Room for the animal's lair: a burrow's mound or a nest.</summary>
+        static int LairCount(ref CreatureBlob b) => b.Burrows ? MoundCount : b.Nests != NestSite.None ? NestCount : 0;
         /// <summary>Capsules per hanging bat, the most per roost, and how near the camera colonies show.</summary>
         const int BatParts = 4, ColonyMax = 10;
         const float ColonyRange = 45f;
@@ -116,7 +120,7 @@ namespace Punchy.Fauna
             {
                 offsets[i] = total;
                 total += bodies[i].SegmentCount + MarkCount + (InWeb(states[i]) ? WebCount : 0) +
-                         (bodies[i].Blob.Value.Burrows ? MoundCount : 0);
+                         LairCount(ref bodies[i].Blob.Value);
             }
             bodies.Dispose();
             states.Dispose();
@@ -191,8 +195,65 @@ namespace Punchy.Fauna
                 FearMarks(state, offset, body.SegmentCount, entity.Index);
                 if (InWeb(state))
                     Web(state, ref body.Blob.Value, offset + body.SegmentCount + MarkCount);
+                var lair = offset + body.SegmentCount + MarkCount + (InWeb(state) ? WebCount : 0);
                 if (body.Blob.Value.Burrows)
-                    Mound(state, offset + body.SegmentCount + MarkCount + (InWeb(state) ? WebCount : 0));
+                    Mound(state, lair);
+                else if (body.Blob.Value.Nests != NestSite.None)
+                    Nest(state, body.Blob.Value.Nests, lair);
+            }
+
+            /// <summary>
+            /// A nest, where the bird's nest is (if it has one): a shallow bowl in a ring of twigs against a trunk, a
+            /// bigger, untidier one of sticks on a treetop, or a pale ring of grass on the ground.
+            /// </summary>
+            void Nest(in CreatureState state, NestSite site, int offset)
+            {
+                if (state.AnchorSize <= 0f)
+                {
+                    for (int i = 0; i < NestCount; i++)
+                        Output[offset + i] = default;
+                    return;
+                }
+                var r = state.AnchorSize;
+                var c = state.Anchor;
+                var ground = site == NestSite.Ground;
+                var top = site == NestSite.Treetop;
+                var twigs = ground ? new Unity.Mathematics.float4(0.62f, 0.55f, 0.34f, 0f) : new Unity.Mathematics.float4(0.36f, 0.27f, 0.17f, 0f);
+                var x = new Unity.Mathematics.float3(1f, 0f, 0f);
+                var up = new Unity.Mathematics.float3(0f, 1f, 0f);
+                // The floor: a flat disc just under the bird's feet.
+                Output[offset] = new SegmentInstance
+                {
+                    Position = c + new Unity.Mathematics.float3(-r * 0.45f, ground ? 0.01f : -r * 0.05f, 0f),
+                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(x, up),
+                    Length = r * 0.9f,
+                    RadiusStart = r * 0.55f,
+                    RadiusEnd = r * 0.55f,
+                    Flatten = ground ? 0.1f : 0.3f,
+                    Color = twigs * (ground ? 0.85f : 0.8f)
+                };
+                // The rim: twigs round it, each a little askew (sticks on a treetop more so).
+                var rng = new Unity.Mathematics.Random(state.Individual | 1u);
+                var rimHeight = ground ? r * 0.05f : r * 0.15f;
+                var thick = r * (ground ? 0.14f : top ? 0.22f : 0.18f);
+                for (int k = 1; k < NestCount; k++)
+                {
+                    var a = k / (float)(NestCount - 1) * Unity.Mathematics.math.PI * 2f + rng.NextFloat(-0.25f, 0.25f);
+                    var dir = new Unity.Mathematics.float3(Unity.Mathematics.math.cos(a), 0f, Unity.Mathematics.math.sin(a));
+                    var along = Unity.Mathematics.math.normalize(new Unity.Mathematics.float3(-dir.z, rng.NextFloat(-0.15f, 0.15f) * (top ? 2f : 1f), dir.x));
+                    var length = r * (top ? rng.NextFloat(1.1f, 1.6f) : 0.95f);
+                    var centre = c + dir * r * 0.9f + up * rimHeight;
+                    Output[offset + k] = new SegmentInstance
+                    {
+                        Position = centre - along * length * 0.5f,
+                        Rotation = Unity.Mathematics.quaternion.LookRotationSafe(along, up),
+                        Length = length,
+                        RadiusStart = thick,
+                        RadiusEnd = thick * 0.8f,
+                        Flatten = ground ? 0.5f : 1f,
+                        Color = twigs * rng.NextFloat(0.85f, 1.1f)
+                    };
+                }
             }
 
             /// <summary>A burrow: a dark hole in a ring of dug-out earth, where the animal's burrow is (if it has one).</summary>

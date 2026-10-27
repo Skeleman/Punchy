@@ -51,6 +51,7 @@ namespace Punchy.Debugging
             ApplyLaunchOptions();
             SpawnRequested();
             Watch();
+            Pose();
             var keyboard = Keyboard.current;
             if (keyboard == null)
                 return;
@@ -70,6 +71,10 @@ namespace Punchy.Debugging
         static string watchSpecies;
         /// <summary>"-spawn Osprey" (or "Trout:6"): a few of a species put near the player once the world is up (testing).</summary>
         static readonly List<string> pendingSpawns = new List<string>();
+        /// <summary>"-pose Bat" (or "Bat:fly", "Bat:rest", "Bat:hang"): one held beside the player while the camera
+        /// circles it, for looking at a body (no brain: it stays put, beating its wings if flying).</summary>
+        static string poseRequest;
+        Entity posed;
         EntityQuery creatureQuery;
         World creatureWorld;
         FaunaDirector watchDirector;
@@ -81,6 +86,43 @@ namespace Punchy.Debugging
         float nextWatchPick;
 
         /// <summary>
+        /// The test flags: the command line, plus in the editor whatever is in Temp/PlayArgs.txt (so Play mode can run
+        /// the same unattended tests as a build, without starting another process).
+        /// </summary>
+        public static string[] LaunchArgs
+        {
+            get
+            {
+                var args = System.Environment.GetCommandLineArgs();
+#if UNITY_EDITOR
+                const string file = "Temp/PlayArgs.txt";
+                if (System.IO.File.Exists(file))
+                {
+                    var extra = System.IO.File.ReadAllText(file).Split((char[])null, System.StringSplitOptions.RemoveEmptyEntries);
+                    var all = new string[args.Length + extra.Length];
+                    args.CopyTo(all, 0);
+                    extra.CopyTo(all, args.Length);
+                    args = all;
+                }
+#endif
+                return args;
+            }
+        }
+
+#if UNITY_EDITOR
+        // Play mode may start without a domain reload: start each run afresh.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics()
+        {
+            launchOptionsApplied = false;
+            watchSpecies = null;
+            pendingSpawns.Clear();
+            poseRequest = null;
+            Time.timeScale = 1f;
+        }
+#endif
+
+        /// <summary>
         /// For unattended tests: "-time 22" sets the clock, "-place summit" starts at the first preset location whose
         /// name contains the word (the list is logged).
         /// </summary>
@@ -90,7 +132,7 @@ namespace Punchy.Debugging
                 return;
             launchOptionsApplied = true;
             Debug.Log("DebugControls: places: " + string.Join(", ", locations.ConvertAll(l => l.Name)));
-            var args = System.Environment.GetCommandLineArgs();
+            var args = LaunchArgs;
             // "-incave": on the floor of the nearest cave's deepest chamber (after any -place).
             var inCave = System.Array.IndexOf(args, "-incave") >= 0;
             // "-nohud": no readout (for screenshots).
@@ -107,6 +149,8 @@ namespace Punchy.Debugging
                     Time.timeScale = Mathf.Clamp(scale, 0.1f, 20f);
                 if (args[i] == "-spawn")
                     pendingSpawns.Add(args[i + 1]);
+                if (args[i] == "-pose")
+                    poseRequest = args[i + 1];
                 if (args[i] == "-place")
                 {
                     // An exact name first (the landmark itself), else the first that contains it.
@@ -274,6 +318,53 @@ namespace Punchy.Debugging
             }
             else
                 ThirdPersonCamera.WatchTarget = null;
+        }
+
+        /// <summary>Holds the "-pose" specimen two metres to the player's side, in the pose asked for, and circles the camera round it.</summary>
+        void Pose()
+        {
+            if (poseRequest == null || Time.timeSinceLevelLoad < 8f || !EnsureLocations(out var source) ||
+                !playerQuery.TryGetSingleton<LocalTransform>(out var player))
+                return;
+            var director = FindAnyObjectByType<FaunaDirector>();
+            if (director == null || !director.CanSpawn)
+                return;
+            var em = queryWorld.EntityManager;
+            var parts = poseRequest.Split(':');
+            var how = parts.Length > 1 ? parts[1] : "fly";
+            if (posed == Entity.Null || !em.Exists(posed))
+            {
+                var index = director.SpeciesIndex(parts[0]);
+                if (index < 0)
+                {
+                    Debug.LogWarning($"DebugControls: no species '{parts[0]}' to pose");
+                    poseRequest = null;
+                    return;
+                }
+                var spot = player.Position.xz + new float2(2f, 0f);
+                posed = director.Spawn(index, new float3(spot.x, source.SampleHeight(spot), spot.y), 0f);
+                em.AddComponent<PosedForTest>(posed);
+                Debug.Log($"DebugControls: posing {parts[0]} ({how})");
+            }
+            var c = em.GetComponentData<CreatureState>(posed);
+            ref var b = ref em.GetComponentData<CreatureBody>(posed).Blob.Value;
+            var dt = Time.deltaTime;
+            var xz = player.Position.xz + new float2(2f, 0f);
+            var ground = source.SampleHeight(xz);
+            var size = b.BodyLength * c.Scale;
+            c.Mode = how == "hang" ? CreatureMode.Roost : CreatureMode.Idle;
+            c.Stage = (byte)(how == "hang" ? 200 : 0);
+            c.Fly = how == "fly" ? 1f : 0f;
+            c.Vertical = how == "hang" ? -1f : 0f;
+            c.Speed = how == "fly" ? b.FlySpeed * 0.6f : 0f;
+            c.Position = new float3(xz.x, ground + (how == "rest" ? 0f : math.max(1.2f, size * 4f)), xz.y);
+            c.Clock += dt;
+            if (how == "fly")
+                CreatureMotion.AdvancePhase(ref c, ref b, dt);
+            em.SetComponentData(posed, c);
+            ThirdPersonCamera.WatchTarget = (Vector3)c.Position + Vector3.up * size * 0.5f;
+            ThirdPersonCamera.WatchPitch = 20f;
+            ThirdPersonCamera.WatchDistance = math.clamp(size * 7f, 0.5f, 6f);
         }
 
         /// <summary>Teleports the player to the next (or previous) preset location.</summary>
