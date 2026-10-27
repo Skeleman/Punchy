@@ -10,7 +10,9 @@ namespace Punchy.Fauna
 {
     /// <summary>
     /// Poses every creature (Burst, in parallel) into one list of segments and draws them all with a single
-    /// instanced draw of a unit capsule: the shader stretches, tapers and places each instance.
+    /// instanced draw of a unit capsule: the shader stretches, tapers and places each instance. Every creature also
+    /// has a few spare capsules after its body for fear marks: short lines flashing out above the head while it
+    /// flees (collapsed to nothing the rest of the time).
     /// </summary>
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     public partial class CreatureRenderSystem : SystemBase
@@ -19,6 +21,7 @@ namespace Punchy.Fauna
         GraphicsBuffer buffer;
         MaterialPropertyBlock props;
         static readonly int SegmentsId = Shader.PropertyToID("_Segments");
+        const int MarkCount = 3;
 
         protected override void OnCreate()
         {
@@ -47,7 +50,7 @@ namespace Punchy.Fauna
             for (int i = 0; i < bodies.Length; i++)
             {
                 offsets[i] = total;
-                total += bodies[i].SegmentCount;
+                total += bodies[i].SegmentCount + MarkCount;
             }
             bodies.Dispose();
 
@@ -56,7 +59,9 @@ namespace Punchy.Fauna
             {
                 Terrain = SystemAPI.GetSingleton<TerrainSource>(),
                 Offsets = offsets,
-                Output = instances
+                Output = instances,
+                Time = (float)SystemAPI.Time.ElapsedTime,
+                CameraRight = cam.transform.right
             }.ScheduleParallel(query, Dependency);
             Dependency.Complete();
 
@@ -87,10 +92,50 @@ namespace Punchy.Fauna
             public TerrainSource Terrain;
             [ReadOnly] public NativeArray<int> Offsets;
             [NativeDisableParallelForRestriction] public NativeArray<SegmentInstance> Output;
+            public float Time;
+            public Unity.Mathematics.float3 CameraRight;
 
             void Execute([EntityIndexInQuery] int index, in CreatureState state, in CreatureBody body)
             {
-                CreatureAnimator.Evaluate(ref body.Blob.Value, state, body.Coat, Terrain, Output, Offsets[index]);
+                var offset = Offsets[index];
+                CreatureAnimator.Evaluate(ref body.Blob.Value, state, body.Coat, Terrain, Output, offset);
+                FearMarks(state, offset, body.SegmentCount);
+            }
+
+            /// <summary>
+            /// Three short lines fanning out above the creature's highest point, facing the camera, flashing on and
+            /// off while it flees. Sized to the creature, but never too small to see.
+            /// </summary>
+            void FearMarks(in CreatureState state, int offset, int segments)
+            {
+                var top = float.MinValue;
+                for (int i = 0; i < segments; i++)
+                {
+                    var seg = Output[offset + i];
+                    var end = seg.Position + Unity.Mathematics.math.mul(seg.Rotation, new Unity.Mathematics.float3(0f, 0f, seg.Length));
+                    top = Unity.Mathematics.math.max(top, Unity.Mathematics.math.max(seg.Position.y + seg.RadiusStart, end.y + seg.RadiusEnd));
+                }
+                var size = Unity.Mathematics.math.clamp(state.Scale * 0.3f, 0.25f, 0.5f);
+                var flash = Unity.Mathematics.math.frac(Time * 3f + (state.Seed % 97) * 0.01f) < 0.6f;
+                var visible = state.Mode == CreatureMode.Flee && flash;
+                var up = new Unity.Mathematics.float3(0f, 1f, 0f);
+                var right = Unity.Mathematics.math.normalizesafe(new Unity.Mathematics.float3(CameraRight.x, 0f, CameraRight.z), new Unity.Mathematics.float3(1f, 0f, 0f));
+                for (int k = 0; k < MarkCount; k++)
+                {
+                    var angle = (k - 1) * 0.6f;
+                    var dir = up * Unity.Mathematics.math.cos(angle) + right * Unity.Mathematics.math.sin(angle);
+                    var start = new Unity.Mathematics.float3(state.Position.x, top, state.Position.z) + dir * size * 0.7f;
+                    Output[offset + segments + k] = new SegmentInstance
+                    {
+                        Position = start,
+                        Rotation = Unity.Mathematics.quaternion.LookRotationSafe(dir, right),
+                        Length = visible ? size : 0f,
+                        RadiusStart = visible ? size * 0.16f : 0f,
+                        RadiusEnd = visible ? size * 0.1f : 0f,
+                        Flatten = 1f,
+                        Color = new Unity.Mathematics.float4(1f, 0.92f, 0.55f, 0.6f)
+                    };
+                }
             }
         }
     }

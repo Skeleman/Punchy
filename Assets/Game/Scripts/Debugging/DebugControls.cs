@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Punchy.CameraRig;
+using Punchy.Fauna;
 using Punchy.Player;
 using Punchy.Terrain;
 using Punchy.Weather;
@@ -106,6 +107,11 @@ namespace Punchy.Debugging
         void FindLocations(in TerrainSource source, BiomePalette palette)
         {
             locations.Add(new Location { Name = "Start", Position = float2.zero, Yaw = 0f });
+            // Straight away: the nearest cave entrance and the nearest settlement, wherever they are.
+            if (NearestNotable(source, palette, -1, 1, out var cave, out var caveFacing, out var caveName))
+                locations.Add(new Location { Name = $"Nearest cave ({caveName})", Position = cave, Yaw = Yaw(caveFacing - cave) });
+            if (NearestNotable(source, palette, -1, 0, out var town, out var townFacing, out var townName))
+                locations.Add(new Location { Name = $"Nearest settlement ({townName})", Position = town, Yaw = Yaw(townFacing - town) });
 
             // Survey the island on a 150 m grid (Burst): dominant biome (or -1 for water) and height.
             var half = source.World.WorldSize * 0.5f;
@@ -141,7 +147,10 @@ namespace Punchy.Debugging
                     }
                     if (score > bestScore) { bestScore = score; bestX = x; bestZ = z; }
                 }
-                if (bestScore >= 0)
+                // Rather than open country, stand by the biome's nearest settlement, or failing that a cave entrance.
+                if (NearestNotable(source, palette, b, -1, out var notable, out var facing, out var name))
+                    locations.Add(new Location { Name = $"{palette.Biomes[b].name}: {name}", Position = notable, Yaw = Yaw(facing - notable) });
+                else if (bestScore >= 0)
                 {
                     var p = ToWorld(bestX, bestZ);
                     locations.Add(new Location { Name = palette.Biomes[b].name, Position = p, Yaw = Yaw(-p) });
@@ -230,6 +239,54 @@ namespace Punchy.Debugging
                 Biome[i] = g.WaterDepth < -1f ? g.Biomes.Dominant() : -1;
                 Height[i] = g.Height;
             }
+        }
+
+        /// <summary>
+        /// The settlement (a landmark with upright, humanoid residents) nearest the start in a biome (any biome if
+        /// biome is -1), else its nearest cave entrance; or only one kind (kind 0 settlements, 1 caves, -1 either).
+        /// Where to stand just outside it (in front of a cliff), and the point to face.
+        /// </summary>
+        static bool NearestNotable(in TerrainSource source, BiomePalette palette, int biome, int kind, out float2 stand, out float2 facing, out string name)
+        {
+            stand = facing = default;
+            name = null;
+            if (!source.Landmarks.IsCreated || palette.Landmarks == null)
+                return false;
+            ref var set = ref source.Landmarks.Value;
+            int best = -1, bestRank = int.MaxValue;
+            var bestDistance = float.MaxValue;
+            for (int i = 0; i < set.Instances.Length; i++)
+            {
+                ref var inst = ref set.Instances[i];
+                var type = inst.Type < palette.Landmarks.Length ? palette.Landmarks[inst.Type] : null;
+                if (type == null)
+                    continue;
+                var settlement = false;
+                foreach (var r in type.Residents)
+                    settlement |= r.Species != null && r.Species.Body.Upright;
+                var rank = settlement ? 0 : type.Cave ? 1 : -1;
+                if (rank < 0 || kind >= 0 && rank != kind)
+                    continue;
+                source.SampleBiomes(inst.Position, out var biomes, out _);
+                if (biome >= 0 && biomes.Dominant() != biome)
+                    continue;
+                var distance = math.length(inst.Position);
+                if (rank < bestRank || rank == bestRank && distance < bestDistance)
+                {
+                    best = i;
+                    bestRank = rank;
+                    bestDistance = distance;
+                }
+            }
+            if (best < 0)
+                return false;
+            ref var chosen = ref set.Instances[best];
+            var radius = set.Types[chosen.Type].Radius * chosen.Scale;
+            var away = set.Types[chosen.Type].Shape == LandmarkShape.Cliff ? -chosen.Facing : math.normalizesafe(chosen.Position, new float2(1f, 0f));
+            stand = chosen.Position + away * radius * 0.9f;
+            facing = chosen.Position;
+            name = palette.Landmarks[chosen.Type].name;
+            return true;
         }
 
         static float2 WalkToDryLand(in TerrainSource source, float2 waterPoint)

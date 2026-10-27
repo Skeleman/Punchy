@@ -63,7 +63,7 @@ MonoBehaviour:
     Thickness: 1
   - Limb: {fileID: 11400000, guid: 87dfeb3512baffa468bc30d9c94d54ba, type: 2}
     Parent: 2
-    Socket: {x: 0, y: 0.014249999, z: -0.076}
+    Socket: {x: 0, y: 0.0076, z: -0.026600001}
     Direction: {x: 0, y: 0, z: 0}
     Mirror: 0
     Phase: 0
@@ -102,6 +102,7 @@ MonoBehaviour:
   Bob: {x: 0.07, y: 0.13}
   BobsPerCycle: {x: 2, y: 2}
   RunRock: 4
+  Upright: 1
   LeglessStride: {x: 0.6, y: 0.9}
   WanderRadius: 12
   IdleTime: {x: 3, y: 10}
@@ -112,7 +113,7 @@ MonoBehaviour:
   Active: 0
   Grazing: 0
   Thirst: 0
-  Playfulness: 0.15
+  Playfulness: 0.03
   Laziness: 0.5
   Hunts: []
   Hunger: 0

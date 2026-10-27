@@ -39,7 +39,7 @@ namespace Punchy.Terrain
 
         struct TypeRules
         {
-            public float Radius, MaxRelief;
+            public float Radius, MinRelief, MaxRelief;
             public float2 Elevation;
         }
 
@@ -107,7 +107,7 @@ namespace Punchy.Terrain
                         hi = math.max(hi, gq.Height);
                     }
                 }
-                if (hi - lo > rules.MaxRelief)
+                if (hi - lo > rules.MaxRelief || hi - lo < rules.MinRelief)
                     return;
 
                 var e1 = radius * 0.5f;
@@ -206,7 +206,7 @@ namespace Punchy.Terrain
                 }
                 var rules = new NativeArray<TypeRules>(types.Count, Allocator.TempJob);
                 for (int t = 0; t < types.Count; t++)
-                    rules[t] = new TypeRules { Radius = types[t].Radius, MaxRelief = types[t].MaxRelief, Elevation = types[t].Elevation };
+                    rules[t] = new TypeRules { Radius = types[t].Radius, MinRelief = types[t].MinRelief, MaxRelief = types[t].MaxRelief, Elevation = types[t].Elevation };
                 var outType = new NativeArray<int>(count, Allocator.TempJob);
                 var outBase = new NativeArray<float>(count, Allocator.TempJob);
                 var outUphill = new NativeArray<float2>(count, Allocator.TempJob);

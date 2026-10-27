@@ -38,7 +38,11 @@ namespace Punchy.Fauna
             var front = GroundAt(terrain, s.Position.xz + forward.xz * halfLength, s.Position.y);
             var back = GroundAt(terrain, s.Position.xz - forward.xz * halfLength, s.Position.y);
             var gradient = (front - back) / (2f * halfLength);   // rise per metre forward
-            var pitch = math.clamp(-math.atan(gradient), -0.45f, 0.45f);
+            // Four-legged bodies tilt with the slope; upright ones stay level (their legs take up the slope), and
+            // nobody tilts to follow the ground under them while in the air.
+            if (b.Upright)
+                gradient = 0f;
+            var pitch = math.clamp(-math.atan(gradient), -0.45f, 0.45f) * (1f - airborne);
 
             var bobs = math.lerp(b.BobsPerCycle.x, b.BobsPerCycle.y, run);
             var bob = math.lerp(b.Bob.x, b.Bob.y, run) * move * scale * (0.5f - 0.5f * math.cos(2f * math.PI * bobs * s.Phase));

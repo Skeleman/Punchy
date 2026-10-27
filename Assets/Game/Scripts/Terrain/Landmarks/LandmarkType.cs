@@ -99,6 +99,9 @@ namespace Punchy.Terrain
         public Vector2 Scale = new Vector2(0.85f, 1.15f);
         [Tooltip("Only placed where the natural ground varies by less than this across the footprint (m).")]
         [Min(0f)] public float MaxRelief = 10f;
+        [Tooltip("Only placed where the natural ground varies by at least this much (m): for landmarks that need " +
+                 "an existing slope, such as a cave entrance in a hillside.")]
+        [Min(0f)] public float MinRelief;
         [Tooltip("Height range above sea level where it can be placed (m).")]
         public Vector2 Elevation = new Vector2(3f, 10000f);
 

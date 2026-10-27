@@ -127,6 +127,7 @@ namespace Punchy.Fauna
                     s.Partner = playmate;
                     s.Stage = 1;
                     s.Timer = rng.NextFloat(12f, 25f);
+                    s.Focus = s.Leash > 0f ? s.Home : s.Position.xz;   // where the game is played
                 }
                 if (threatened)
                 {
@@ -218,7 +219,8 @@ namespace Punchy.Fauna
 
                     case CreatureMode.Rest:
                         s.Timer -= dt;
-                        lie = 1f;
+                        // Upright bodies have no sitting pose yet: they rest on their feet.
+                        lie = b.Upright ? 0f : 1f;
                         desiredLook = idleLook;
                         if (s.Timer <= 0f)
                             Pause(ref s, ref b, ref rng);
@@ -226,9 +228,10 @@ namespace Punchy.Fauna
 
                     case CreatureMode.Sleep:
                         s.Timer -= dt;
-                        lie = 1f;
-                        headDown = 0.75f;
-                        curl = 1f;
+                        // Animals curl up on the ground; upright bodies doze on their feet, head nodding.
+                        lie = b.Upright ? 0f : 1f;
+                        headDown = b.Upright ? 0.35f : 0.75f;
+                        curl = b.Upright ? 0f : 1f;
                         // Wakes when the nap ends, or (drowsily) once its sleeping time is over.
                         if (s.Timer <= 0f || SleepTime(ref b) < 0.3f && rng.NextFloat() < dt * 0.05f)
                             Pause(ref s, ref b, ref rng);
@@ -322,6 +325,7 @@ namespace Punchy.Fauna
                     SetMode(ref s, CreatureMode.Play);
                     s.Partner = playmate;
                     s.Timer = rng.NextFloat(12f, 25f);
+                    s.Focus = s.Leash > 0f ? s.Home : s.Position.xz;   // where the game is played
                 }
                 else if ((roll -= sleep) < 0f)
                 {
@@ -437,8 +441,15 @@ namespace Punchy.Fauna
                     }
                     var flee = math.normalizesafe(-to, new float2(1f, 0f));
                     var side = new float2(-flee.y, flee.x) * math.sin(s.Clock * 1.3f + s.Seed % 11) * 0.6f;
-                    // Don't run off: past a dozen metres, circle back round.
-                    s.Target = s.Position.xz + (distance > 12f ? new float2(-flee.y, flee.x) : flee + side) * 8f;
+                    // Don't run off: past a dozen metres from the chaser, circle back round; and keep the game near
+                    // where it started (home, for animals that have one), turning back towards it further out.
+                    var dir = distance > 12f ? new float2(-flee.y, flee.x) : flee + side;
+                    var toCentre = s.Focus - s.Position.xz;
+                    var wander = math.length(toCentre);
+                    var range = s.Leash > 0f ? s.Leash * 0.6f : 12f;
+                    if (wander > range)
+                        dir = math.lerp(math.normalizesafe(dir), toCentre / wander, math.saturate((wander - range) / 6f));
+                    s.Target = s.Position.xz + math.normalizesafe(dir, flee) * 8f;
                     targetSpeed = math.lerp(walk, run, distance > 12f ? 0.3f : 0.6f);
                 }
             }

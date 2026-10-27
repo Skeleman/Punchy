@@ -24,6 +24,8 @@ namespace Punchy.Fauna
         public float StandHeight;
         public float2 Bob, BobsPerCycle;
         public float RunRock;
+        /// <summary>Keeps the body level rather than tilting with the ground (two-legged walkers).</summary>
+        public bool Upright;
         public float WanderRadius, FleeDistance, TurnRate;
         public float2 IdleTime, Size;
         public ActiveTime Active;
@@ -282,6 +284,7 @@ namespace Punchy.Fauna
             root.Bob = new float2(species.Bob.x, species.Bob.y);
             root.BobsPerCycle = new float2(species.BobsPerCycle.x, species.BobsPerCycle.y);
             root.RunRock = math.radians(species.RunRock);
+            root.Upright = species.Upright;
             root.WanderRadius = species.WanderRadius;
             root.FleeDistance = species.FleeDistance;
             root.TurnRate = math.radians(species.TurnRate);

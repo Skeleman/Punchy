@@ -12,28 +12,29 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a5407ac3b5877da49af18e077398168c, type: 3}
   m_Name: CaveEntrance
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.LandmarkType
-  Radius: 45
+  Radius: 30
   Scale: {x: 0.95, y: 1.1}
-  MaxRelief: 30
+  MaxRelief: 45
+  MinRelief: 10
   Elevation: {x: 6, y: 10000}
   Shape: 3
-  Height: 16
+  Height: 6
   ShapeRadius: 0.7
-  Edge: 0.12
-  Flatten: 0.6
-  Roughness: 1
+  Edge: 0.18
+  Flatten: 0.1
+  Roughness: 1.5
   Pools: []
   OverrideWater: 0
   WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
   WaterMurk: 0.3
   WaterGlow: 0
   Ground: {fileID: 11400000, guid: 1753ba8fc7f960b43a8b3d37e34c11a4, type: 2}
-  GroundRadius: 0.45
-  ClearRadius: 0.55
+  GroundRadius: 0.35
+  ClearRadius: 0.4
   Props:
   - Species: {fileID: 11400000, guid: 86ecf3f6d6439604dbcad59755eb6017, type: 2}
-    Density: 1
-    Ring: {x: 0.3, y: 1}
+    Density: 0.6
+    Ring: {x: 0.35, y: 1}
     Scale: {x: 1, y: 1}
     Centrepiece: 0
     FaceCentre: 0

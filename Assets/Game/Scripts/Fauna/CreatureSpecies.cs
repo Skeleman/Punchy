@@ -47,6 +47,9 @@ namespace Punchy.Fauna
         public Vector2Int BobsPerCycle = new Vector2Int(2, 2);
         [Tooltip("Rocking of the body nose-up / nose-down per cycle when running, in degrees (bounding, hopping).")]
         public float RunRock = 0f;
+        [Tooltip("Stands upright on two legs (humanoids): the body stays level on slopes instead of tilting with " +
+                 "the ground, and the legs reach for the ground on their own.")]
+        public bool Upright;
         [Tooltip("Distance travelled per gait cycle, walking and running, for animals without legs (snakes). " +
                  "Animals with legs measure it from their leg poses.")]
         public Vector2 LeglessStride = new Vector2(0.6f, 0.9f);

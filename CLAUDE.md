@@ -109,6 +109,10 @@ Input System. Windows is the only build target so far.
 - Editor entity names are limited to a few thousand distinct strings; don't give streamed entities unique names.
 - Serialized values in scenes and assets override code defaults: changing a default in code doesn't change
   existing assets.
+- Two-legged species set **Upright** so the body stays level on slopes (the legs take up the ground); others tilt
+  with it. No body tilts to follow the ground while airborne.
+- Creature parts are drawn solid now (the capsule mesh was once wound inside-out, which let hidden parts show
+  through), so a part meant to be seen must poke out of whatever it's attached to.
 - Joint angles accumulate along chains: a snake or tail ripple needs small per-joint angles (about 10–15°).
 - `MaterialPropertyBlock.SetInt` stores a float; use `SetInteger` for `int`/`uint` shader properties.
 - Editing a landmark type re-bakes the terrain (its shape is baked), unlike plant and animal assets.

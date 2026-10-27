@@ -2,7 +2,8 @@ Shader "Punchy/Cave"
 {
     // Cave walls (CaveSystem): rough rock in two tones broken up by noise, lit by daylight only near the entrance
     // (vertex colour alpha: 1 at the mouth, falling to 0 deep inside) and by any additional lights, such as the
-    // player's lantern, everywhere. The mesh is in world space and double-sided.
+    // player's lantern, everywhere. At the entrance the walls take the surrounding terrain's colour (vertex rgb) and
+    // blend into the rock a few metres in (uv.x). The mesh is in world space and double-sided.
     Properties
     {
         _RockColor ("Rock", Color) = (0.48, 0.44, 0.4, 1)
@@ -29,6 +30,7 @@ Shader "Punchy/Cave"
             float3 positionOS : POSITION;
             float3 normalOS : NORMAL;
             float4 color : COLOR;
+            float2 data : TEXCOORD0;   // x terrain blend, y rock tint
         };
         ENDHLSL
 
@@ -54,6 +56,7 @@ Shader "Punchy/Cave"
                 float3 positionWS : TEXCOORD0;
                 float3 normalWS : TEXCOORD1;
                 float4 color : TEXCOORD2;
+                float2 data : TEXCOORD3;
             };
 
             Varyings Vert(CaveAttributes input)
@@ -63,6 +66,7 @@ Shader "Punchy/Cave"
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 o.color = input.color;
+                o.data = input.data;
                 return o;
             }
 
@@ -76,7 +80,10 @@ Shader "Punchy/Cave"
                 // Rock: two tones in blotches and strata, darker in the hollows (rgb carries a per-vertex tint).
                 float blotch = PunchyValueNoise(p.xz * 0.35 + p.y * 0.2) * 0.6 + PunchyValueNoise(p.xy * 1.3 + p.z) * 0.4;
                 float strata = 0.5 + 0.5 * sin(p.y * 2.3 + PunchyValueNoise(p.xz * 0.2) * 4);
-                half3 albedo = lerp(_DarkColor.rgb, _RockColor.rgb, saturate(blotch * 0.8 + strata * 0.3)) * input.color.rgb;
+                half3 rock = lerp(_DarkColor.rgb, _RockColor.rgb, saturate(blotch * 0.8 + strata * 0.3)) * input.data.y;
+                // Where it stands in for the terrain, speckle it like the terrain's own close-up detail.
+                half3 ground = input.color.rgb * (0.7 + 0.45 * blotch);
+                half3 albedo = lerp(rock, ground, saturate(input.data.x));
 
                 InputData inputData = (InputData)0;
                 inputData.positionWS = p;
