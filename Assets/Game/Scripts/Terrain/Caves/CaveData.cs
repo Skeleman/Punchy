@@ -73,7 +73,7 @@ namespace Punchy.Terrain
     /// </summary>
     public static class CaveSampling
     {
-        const float Blend = 1.5f;
+        public const float Blend = 1.5f;
         /// <summary>Most the wall noise moves a wall at Roughness 1 (both octaves at full strength).</summary>
         public const float NoiseReach = 0.75f;
 

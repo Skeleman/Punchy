@@ -208,9 +208,14 @@ namespace Punchy.Terrain
 
         // ------------------------------------------------------------------------------------------- building
 
+        /// <summary>Walls are kept only where the cave's distance is under this at a cell corner (MeshJob's nearCave).</summary>
+        const float WallReach = 1.2f;
+
         /// <summary>
-        /// Lists every chunk a cave segment's box touches, by column. Done once per baked world: chunks follow the
-        /// segments, so the list is as long as the caves are, not as big as the world.
+        /// Lists every chunk a cave's walls can reach, by column. Done once per baked world: chunks follow the
+        /// segments, so the list is as long as the caves are, not as big as the world. Each segment's box here is only
+        /// as wide as its walls can be (radius and stretch, blend, wall noise, the wall cut-off and a couple of voxels),
+        /// not the wider box sampling uses, so chunks the cave only grazes aren't built just to come out empty.
         /// </summary>
         void IndexChunks(in TerrainSource source)
         {
@@ -221,8 +226,13 @@ namespace Punchy.Terrain
             for (int i = 0; i < set.Segments.Length; i++)
             {
                 ref var seg = ref set.Segments[i];
-                var c0 = (int3)math.floor(seg.Min / chunkSize);
-                var c1 = (int3)math.floor(seg.Max / chunkSize);
+                ref var cave = ref set.Caves[seg.Cave];
+                ref var a = ref set.Nodes[seg.A];
+                ref var b = ref set.Nodes[seg.B];
+                var reach = math.max(a.Radius, b.Radius) * math.cmax(cave.Profile) + CaveSampling.Blend
+                            + CaveSampling.NoiseReach * cave.Wall.x + WallReach + Voxel * 2f;
+                var c0 = (int3)math.floor((math.min(a.Position, b.Position) - reach) / chunkSize);
+                var c1 = (int3)math.floor((math.max(a.Position, b.Position) + reach) / chunkSize);
                 for (int z = c0.z; z <= c1.z; z++)
                 for (int y = c0.y; y <= c1.y; y++)
                 for (int x = c0.x; x <= c1.x; x++)
@@ -460,7 +470,7 @@ namespace Punchy.Terrain
                     {
                         var i = Point(x + (c & 1), y + ((c >> 1) & 1), z + ((c >> 2) & 1));
                         if (Field[i] < 0f) rock++;
-                        nearCave |= CaveField[i] < 1.2f;
+                        nearCave |= CaveField[i] < WallReach;
                     }
                     if (rock == 0 || rock == 8 || !nearCave)
                         continue;
