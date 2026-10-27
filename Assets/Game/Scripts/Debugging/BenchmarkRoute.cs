@@ -75,6 +75,21 @@ namespace Punchy.Debugging
             yield return Stop("run", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 15), 12f, 0.1f, 40f);
             yield return Stop("glide", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 16), 25f, 15f, 40f);
             yield return Stop("dash", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 17), 80f, 3f);
+            // -benchspot x,z,yaw: also measure one spot (e.g. somewhere a crossing slowed down), with a screenshot of it
+            // next to the log when -benchshot <file> is given.
+            var args = System.Environment.GetCommandLineArgs();
+            var spotArg = System.Array.IndexOf(args, "-benchspot");
+            if (spotArg >= 0 && spotArg + 1 < args.Length)
+            {
+                var v = System.Array.ConvertAll(args[spotArg + 1].Split(','), s => float.Parse(s, System.Globalization.CultureInfo.InvariantCulture));
+                yield return Stop("spot", () => PlaceAt(new float2(v[0], v[1]), v.Length > 2 ? v[2] : 0f) && SetWeather("Partly cloudy", 18));
+                var shot = System.Array.IndexOf(args, "-benchshot");
+                if (shot >= 0 && shot + 1 < args.Length)
+                {
+                    ScreenCapture.CaptureScreenshot(args[shot + 1]);
+                    yield return new WaitForSecondsRealtime(1f);
+                }
+            }
 
             Debug.Log("BenchRoute: done\n" + summary);
             Application.Quit();
@@ -233,6 +248,23 @@ namespace Punchy.Debugging
         }
 
         /// <summary>Puts the player on the floor of the widest spot in the cave with the most nodes.</summary>
+        /// <summary>Puts the player on the ground at a point, facing yaw degrees.</summary>
+        static bool PlaceAt(float2 xz, float yaw)
+        {
+            if (!TryGetWorld(out var em, out var player))
+                return false;
+            using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (terrainQuery.IsEmpty)
+                return false;
+            var source = terrainQuery.GetSingleton<TerrainSource>();
+            em.SetComponentData(player, new LocalTransform { Position = new float3(xz.x, source.SampleHeight(xz) + 0.1f, xz.y), Rotation = quaternion.RotateY(math.radians(yaw)), Scale = 1f });
+            em.SetComponentData(player, new PlayerMotion { Grounded = true });
+            var cam = FindAnyObjectByType<ThirdPersonCamera>();
+            if (cam != null)
+                cam.SetView(yaw, 12f);
+            return true;
+        }
+
         static bool PlaceInBiggestCave()
         {
             if (!TryGetWorld(out var em, out var player))
