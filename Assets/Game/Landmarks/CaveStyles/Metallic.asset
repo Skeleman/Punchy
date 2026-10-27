@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b92d8651f7a54b46b75fb6e4f0c3de3, type: 3}
+  m_Name: Metallic
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.CaveStyle
+  Biomes:
+  - {fileID: 11400000, guid: 68e89c7ddec9ab245918187f5662a6c2, type: 2}
+  Width: 1
+  Height: 1.1
+  Roughness: 0.9
+  Grain: 1.2
+  Burrows: 0
+  RockColor: {r: 0.7, g: 0.62, b: 0.45, a: 1}
+  DarkColor: {r: 0.2, g: 0.18, b: 0.15, a: 1}
+  Strata: 0.2
+  StrataFrequency: 1.2
+  Gloss: 0.7
+  Metallic: 0.85
+  Facets: 0
+  Translucency: 0
+  GlowColor: {r: 0.4, g: 0.9, b: 1, a: 1}
+  Glow: 0.5
+  GlowCover: 0.04
+  GlowScale: 2
+  GlowEverywhere: 0

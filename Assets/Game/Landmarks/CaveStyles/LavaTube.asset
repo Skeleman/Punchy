@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b92d8651f7a54b46b75fb6e4f0c3de3, type: 3}
+  m_Name: LavaTube
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.CaveStyle
+  Biomes:
+  - {fileID: 11400000, guid: 46ea94191e2f71c4a8446135874892e0, type: 2}
+  - {fileID: 11400000, guid: 3abd880b4b52a0d45ac7f2b3a687cee8, type: 2}
+  Width: 1.1
+  Height: 0.95
+  Roughness: 0.3
+  Grain: 0.5
+  Burrows: 0
+  RockColor: {r: 0.16, g: 0.14, b: 0.14, a: 1}
+  DarkColor: {r: 0.06, g: 0.05, b: 0.05, a: 1}
+  Strata: 0.1
+  StrataFrequency: 0.6
+  Gloss: 0.35
+  Metallic: 0
+  Facets: 0
+  Translucency: 0
+  GlowColor: {r: 1, g: 0.35, b: 0.08, a: 1}
+  Glow: 1.6
+  GlowCover: 0.045
+  GlowScale: 1
+  GlowEverywhere: 0

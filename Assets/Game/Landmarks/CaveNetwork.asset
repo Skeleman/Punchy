@@ -1,0 +1,74 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a5407ac3b5877da49af18e077398168c, type: 3}
+  m_Name: CaveNetwork
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.LandmarkType
+  Radius: 36
+  Scale: {x: 0.95, y: 1.1}
+  MaxRelief: 60
+  MinRelief: 14
+  Elevation: {x: 6, y: 10000}
+  Shape: 3
+  Height: 8
+  ShapeRadius: 0.7
+  Edge: 0.18
+  Flatten: 0.1
+  Roughness: 1.5
+  Pools: []
+  OverrideWater: 0
+  WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
+  WaterMurk: 0.3
+  WaterGlow: 0
+  WaterLava: 0
+  Ground: {fileID: 11400000, guid: 1753ba8fc7f960b43a8b3d37e34c11a4, type: 2}
+  GroundRadius: 0.35
+  ClearRadius: 0.4
+  Props:
+  - Species: {fileID: 11400000, guid: 86ecf3f6d6439604dbcad59755eb6017, type: 2}
+    Density: 0.6
+    Ring: {x: 0.35, y: 1}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
+  - Species: {fileID: 11400000, guid: 28a71e688d796f14b9919018c61ac083, type: 2}
+    Density: 2.5
+    Ring: {x: 0.15, y: 0.9}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
+  Effects: []
+  Cave: 1
+  CaveLength: 90
+  CaveDepth: 18
+  CaveRadius: 2.8
+  ChamberRadius: 9
+  CaveChambers: 3
+  CaveBranches: 7
+  BranchLength: 35
+  CaveShafts: 2
+  CaveStyles:
+  - {fileID: 11400000, guid: c945975c60104c3439c424a48ff19913, type: 2}
+  - {fileID: 11400000, guid: 9a2e7fee5b6994848b970dea7982cd93, type: 2}
+  - {fileID: 11400000, guid: 1217b2a284eae4049b43a60e31f4d79f, type: 2}
+  - {fileID: 11400000, guid: 45384e7fe2b96a147b040b4eeef25c97, type: 2}
+  - {fileID: 11400000, guid: 0de8a5255a5f36642b9344dbf48f25d3, type: 2}
+  - {fileID: 11400000, guid: f165dbd5f0a89544f821f375d88f21ec, type: 2}
+  - {fileID: 11400000, guid: e3d5f597355700e4b9271156ec0afa6a, type: 2}
+  - {fileID: 11400000, guid: cf4d1d524b94e8f4a989de0d8e626641, type: 2}
+  - {fileID: 11400000, guid: 3f1381ab941965a4d824eef5805d8654, type: 2}
+  Residents: []

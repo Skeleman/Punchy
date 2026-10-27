@@ -412,6 +412,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 796e3aff2526932459f9855a9d99abee, type: 2}
   - {fileID: 11400000, guid: 3abd880b4b52a0d45ac7f2b3a687cee8, type: 2}
   - {fileID: 11400000, guid: fa4ebbcc3834f4c47afc7a79abe40ad7, type: 2}
+  - {fileID: 11400000, guid: 20ddf4d9933283446b410b041eced8ef, type: 2}
   OceanBiome: {fileID: 11400000, guid: 356bf7d4cfe5b4e4686ec06eea61ac3d, type: 2}
   BiomeSource: 0
   BiomeNoise:

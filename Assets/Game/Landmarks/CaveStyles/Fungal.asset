@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b92d8651f7a54b46b75fb6e4f0c3de3, type: 3}
+  m_Name: Fungal
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.CaveStyle
+  Biomes:
+  - {fileID: 11400000, guid: 796e3aff2526932459f9855a9d99abee, type: 2}
+  - {fileID: 11400000, guid: b4700b22c7df17e4ea2ac59d984c4566, type: 2}
+  Width: 1
+  Height: 0.9
+  Roughness: 1.2
+  Grain: 1.3
+  Burrows: 1
+  RockColor: {r: 0.33, g: 0.36, b: 0.3, a: 1}
+  DarkColor: {r: 0.12, g: 0.14, b: 0.1, a: 1}
+  Strata: 0.15
+  StrataFrequency: 0.4
+  Gloss: 0.6
+  Metallic: 0
+  Facets: 0
+  Translucency: 0
+  GlowColor: {r: 0.3, g: 1, b: 0.6, a: 1}
+  Glow: 0.8
+  GlowCover: 0.05
+  GlowScale: 2.5
+  GlowEverywhere: 0
