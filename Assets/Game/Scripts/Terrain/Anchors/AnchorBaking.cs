@@ -15,7 +15,7 @@ namespace Punchy.Terrain
     /// </summary>
     public static class AnchorBaking
     {
-        const float GridCell = 32f;
+        const float GridCell = 64f;
 
         public static BlobAssetReference<AnchorSetBlob> Build(in TerrainSource source, IReadOnlyList<LandmarkType> types, Allocator allocator)
         {
