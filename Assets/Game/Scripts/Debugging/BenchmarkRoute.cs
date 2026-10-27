@@ -16,11 +16,11 @@ namespace Punchy.Debugging
 {
     /// <summary>
     /// A repeatable performance run, started with the -benchroute launch flag: it visits a town, a forest full of
-    /// animals, the inside of the biggest cave and a storm, then crosses terrain chunks at sprint, glide and stress
-    /// speeds. It settles at each stop, then measures frame times and logs one "BenchRoute:" line per stop (average
-    /// fps, 1% lows, worst frame, and CPU vs GPU time when the build has Frame Timing Stats on) before quitting. Use it
-    /// with -weatherseed and compare builds by the logged numbers. Places come from DebugControls' own list (by name),
-    /// so the route follows the world as it changes.
+    /// animals, the inside of the biggest cave, a storm and water views, then crosses terrain chunks at sprint, glide
+    /// and stress speeds. It settles at each stop, then measures frame times and logs one "BenchRoute:" line per stop
+    /// (average fps, 1% lows, worst frame, CPU vs GPU time when the build has Frame Timing Stats on, and when the
+    /// slow frames happened) before quitting. Use it with -weatherseed and compare builds by the logged numbers. Places
+    /// come from DebugControls' own list (by name), so the route follows the world as it changes.
     /// </summary>
     public class BenchmarkRoute : MonoBehaviour
     {
@@ -70,19 +70,25 @@ namespace Punchy.Debugging
             yield return Stop("forest", () => JumpTo(controls, "OakGrove") && SetWeather("Partly cloudy", 12));
             yield return Stop("cave", () => PlaceInBiggestCave() && SetWeather("Partly cloudy", 13));
             yield return Stop("storm", () => JumpTo(controls, "Mountains") && SetWeather("Stormy", 14));
+            // Water filling much of the view: a lake shore, a river (often rapids), and the shore again in a storm.
+            yield return Stop("lake", () => JumpTo(controls, "Lake shore") && SetWeather("Partly cloudy", 19));
+            yield return Stop("river", () => JumpTo(controls, "River") && SetWeather("Partly cloudy", 20));
+            yield return Stop("stormshore", () => JumpTo(controls, "Lake shore") && SetWeather("Stormy", 21));
             // Travel across terrain chunks: a sprint and a glide at play speeds (spikes here matter), then an 80 m/s
             // dash as a stress figure only (fast travel will sit behind a loading screen).
             yield return Stop("run", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 15), 12f, 0.1f, 40f);
             yield return Stop("glide", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 16), 25f, 15f, 40f);
             yield return Stop("dash", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 17), 80f, 3f);
-            // -benchspot x,z,yaw: also measure one spot (e.g. somewhere a crossing slowed down), with a screenshot of it
-            // next to the log when -benchshot <file> is given.
+            // -benchspot x,z,yaw (on the ground) or x,y,z,yaw (on the floor under that point, e.g. in a cave): also
+            // measure one spot, with a screenshot of it when -benchshot <file> is given.
             var args = System.Environment.GetCommandLineArgs();
             var spotArg = System.Array.IndexOf(args, "-benchspot");
             if (spotArg >= 0 && spotArg + 1 < args.Length)
             {
                 var v = System.Array.ConvertAll(args[spotArg + 1].Split(','), s => float.Parse(s, System.Globalization.CultureInfo.InvariantCulture));
-                yield return Stop("spot", () => PlaceAt(new float2(v[0], v[1]), v.Length > 2 ? v[2] : 0f) && SetWeather("Partly cloudy", 18));
+                var at = v.Length >= 4 ? new float3(v[0], v[1], v[2]) : new float3(v[0], float.NaN, v[1]);
+                var yaw = v.Length >= 4 ? v[3] : v.Length > 2 ? v[2] : 0f;
+                yield return Stop("spot", () => PlaceAt(at, yaw) && SetWeather("Partly cloudy", 18));
                 var shot = System.Array.IndexOf(args, "-benchshot");
                 if (shot >= 0 && shot + 1 < args.Length)
                 {
@@ -248,8 +254,11 @@ namespace Punchy.Debugging
         }
 
         /// <summary>Puts the player on the floor of the widest spot in the cave with the most nodes.</summary>
-        /// <summary>Puts the player on the ground at a point, facing yaw degrees.</summary>
-        static bool PlaceAt(float2 xz, float yaw)
+        /// <summary>
+        /// Puts the player at a point facing yaw degrees: on the ground when y is NaN, else on the floor under (x, y, z),
+        /// which may be a cave's.
+        /// </summary>
+        static bool PlaceAt(float3 at, float yaw)
         {
             if (!TryGetWorld(out var em, out var player))
                 return false;
@@ -257,7 +266,8 @@ namespace Punchy.Debugging
             if (terrainQuery.IsEmpty)
                 return false;
             var source = terrainQuery.GetSingleton<TerrainSource>();
-            em.SetComponentData(player, new LocalTransform { Position = new float3(xz.x, source.SampleHeight(xz) + 0.1f, xz.y), Rotation = quaternion.RotateY(math.radians(yaw)), Scale = 1f });
+            var floor = float.IsNaN(at.y) ? source.SampleHeight(at.xz) : source.FloorUnder(at, out _);
+            em.SetComponentData(player, new LocalTransform { Position = new float3(at.x, floor + 0.1f, at.z), Rotation = quaternion.RotateY(math.radians(yaw)), Scale = 1f });
             em.SetComponentData(player, new PlayerMotion { Grounded = true });
             var cam = FindAnyObjectByType<ThirdPersonCamera>();
             if (cam != null)
