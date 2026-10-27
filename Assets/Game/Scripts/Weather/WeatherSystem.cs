@@ -169,6 +169,7 @@ namespace Punchy.Weather
             lightning.intensity = 0f;
             lightning.shadows = LightShadows.None;
 
+            ApplyWeatherSeed();
             SetDayType(PickDayType(), false);
         }
 
@@ -300,10 +301,24 @@ namespace Punchy.Weather
 
         public void NextDayType() => SetDayType(dayType + 1, true);
 
+        /// <summary>
+        /// Test flag -weatherseed n: seeds UnityEngine.Random so a launch starts with the same day type and weather
+        /// cells every time (the weather is otherwise random per session, which swings fps a lot in perf tests).
+        /// </summary>
+        static void ApplyWeatherSeed()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+                if (args[i] == "-weatherseed" && int.TryParse(args[i + 1], out var seed))
+                    Random.InitState(seed);
+        }
+
         void TryInitializeField()
         {
             if (!EnsureQueries() || !terrainQuery.TryGetSingleton<TerrainSource>(out var source) || !TryGetPalette(out var palette))
                 return;
+            // Reseed here too: other code draws from Random between startup and the field being ready.
+            ApplyWeatherSeed();
             field.Initialize(source, palette.Biomes, Presets, SnowLine, WeatherAreaSize);
             SetDayType(dayType, true);
         }
