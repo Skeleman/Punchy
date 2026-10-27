@@ -178,7 +178,7 @@ namespace Punchy.Fauna
                     FindTakeoff(self, ref s, body.Species, out var leader))
                     Follow(ref s, leader, ref rng);
                 // Invited to play: someone has started a game of chase with this one.
-                if (!threatened && b.Playfulness > 0f && Free(s.Mode) && !perched && FindPlaymate(self, ref s, out var playmate))
+                if (!threatened && b.Playfulness > 0f && Free(s.Mode) && !perched && !(flier && Flying(s)) && FindPlaymate(self, ref s, out var playmate))
                 {
                     SetMode(ref s, CreatureMode.Play);
                     s.Partner = playmate;
@@ -1254,9 +1254,20 @@ namespace Punchy.Fauna
                 var turn = math.clamp(wanted, -b.TurnRate * 2f * dt, b.TurnRate * 2f * dt);
                 s.Yaw = WrapAngle(s.Yaw + turn);
                 s.YawRate = turn / math.max(dt, 1e-4f);
-                s.Speed += (speed * math.saturate(distance / 2f + 0.2f) - s.Speed) * math.min(1f, dt * 3f);
-                s.Position += to / math.max(distance, 1e-4f) * math.min(s.Speed * dt, distance);
-                vertical = math.clamp(to.y / math.max(distance, 0.5f), -0.6f, 0.5f);
+                var flare = math.saturate(1f - distance / CreatureMotion.FlareDistance);
+                var wantSpeed = math.lerp(math.max(speed, b.FlySpeed * CreatureMotion.MinAirspeed), math.max(distance * 1.5f, 0.3f), flare);
+                s.Speed += (wantSpeed - s.Speed) * math.min(1f, dt * 3f);
+                // Along its heading, rising or sinking no steeper than the flight angle (the last moments of a landing
+                // excepted): it swings round to line up rather than lifting straight up.
+                var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
+                var flat = math.length(to.xz);
+                var level = math.abs(to.y) < 0.3f;
+                var across = level ? math.min(s.Speed, flat / math.max(dt, 1e-4f)) : s.Speed;
+                var steepest = across * CreatureMotion.MaxClimb;
+                var vy = math.clamp(to.y * 2f, -steepest, steepest);
+                var move = forward * across + new float3(0f, vy, 0f);
+                s.Position += move * dt;
+                vertical = math.max(math.clamp(vy / math.max(b.FlySpeed, 1f), -0.6f, 0.5f), flare * 0.45f);
                 return math.length(target - s.Position);
             }
 
@@ -1412,21 +1423,39 @@ namespace Punchy.Fauna
                 var turn = math.clamp(wanted, -turnRate * dt, turnRate * dt);
                 s.Yaw = WrapAngle(s.Yaw + turn);
                 s.YawRate = turn / math.max(dt, 1e-4f);
-                // Slows to land; takes off (from standing) gradually.
-                var wantSpeed = speed * math.saturate(distance / 5f + 0.15f) * math.saturate(math.cos(wanted) + 0.4f);
+                // Airspeed never drops below the minimum (a bird above its landing spot circles down rather than
+                // sinking), except in the flare, where it slows to touch down within a body length or two.
+                var minSpeed = b.FlySpeed * CreatureMotion.MinAirspeed;
+                var flare = math.saturate(1f - distance / CreatureMotion.FlareDistance);
+                var cruiseSpeed = math.max(speed * math.saturate(math.cos(wanted) + 0.4f), minSpeed);
+                var wantSpeed = math.lerp(cruiseSpeed, math.max(distance * 1.5f, 0.3f), flare);
+                // Taking off from standing: a hop forward, straight into the minimum speed.
+                if (s.Fly < 0.5f)
+                    s.Speed = math.max(s.Speed, minSpeed);
                 s.Speed += (wantSpeed - s.Speed) * math.min(1f, dt * 2f);
-                s.Position.xz += new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * math.min(s.Speed * dt, distance);
+                if (flare <= 0f)
+                    s.Speed = math.max(s.Speed, minSpeed);
+                // Only once it's down at the right height does it stop exactly on the spot; arriving over it too high,
+                // it carries on past and circles down.
+                var level = math.abs(s.Position.y - targetHeight) < 0.3f;
+                var step = level ? math.min(s.Speed * dt, distance) : s.Speed * dt;
+                s.Position.xz += new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * step;
 
+                // Height: cruising, or coming down the glide slope to the landing spot; never climbing or sinking
+                // steeper than the flight angle allows for how far it moved forward.
                 var cruise = math.max(Cruise(s, ref b, s.Position.xz), Cruise(s, ref b, target));
-                var descent = math.max(cruise - targetHeight, 0f) * 1.3f + 3f;
-                var wantY = distance > descent ? cruise : math.lerp(targetHeight, cruise, distance / descent);
-                var vy = math.clamp((wantY - s.Position.y) * 1.5f, -4f, 3f);
+                var wantY = math.min(cruise, targetHeight + distance * CreatureMotion.GlideSlope);
+                // (In the flare, the last few centimetres settle as it slows.)
+                var steepest = math.max(step / math.max(dt, 1e-4f) * CreatureMotion.MaxClimb, flare * 0.4f);
+                var vy = math.clamp((wantY - s.Position.y) * 1.5f, -steepest, steepest);
                 s.Position.y += vy * dt;
                 // Clear of the ground (except right at the landing spot).
                 var floor = Terrain.SampleHeight(s.Position.xz) + (distance > 1f ? 0.4f : 0f);
                 s.Position.y = math.max(s.Position.y, floor);
-                vertical = math.clamp(vy / math.max(b.FlySpeed, 1f), -0.6f, 0.5f);
-                if (distance < 0.35f && math.abs(s.Position.y - targetHeight) < 0.25f)
+                // Nose with the climb or descent; nose up in the flare.
+                vertical = math.max(math.clamp(vy / math.max(b.FlySpeed, 1f), -0.6f, 0.5f), flare * 0.45f);
+                // Touches down only once it's right there (no visible snap onto the spot).
+                if (distance < 0.35f && math.abs(s.Position.y - targetHeight) < 0.02f)
                 {
                     s.Position.xz = target;
                     s.Position.y = targetHeight;
@@ -1475,9 +1504,11 @@ namespace Punchy.Fauna
                     s.YawRate = turn / math.max(dt, 1e-4f);
                     // Steep enough to arrive over the fish as it reaches the water.
                     var drop = math.max(s.Position.y - surface, 0.1f);
-                    s.Speed = math.min(b.FlySpeed * 1.3f, distance / math.max(drop / 9f, 0.1f));
-                    s.Position.xz += new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * math.min(s.Speed * dt, distance);
-                    s.Position.y = math.max(s.Position.y - 9f * dt, surface + 0.15f);
+                    // Steep (a stoop), but never straight down: at least the minimum airspeed forward, and no
+                    // steeper than 70°.
+                    s.Speed = math.clamp(distance / math.max(drop / 9f, 0.1f), b.FlySpeed * CreatureMotion.MinAirspeed, b.FlySpeed * 1.3f);
+                    s.Position.xz += new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * s.Speed * dt;
+                    s.Position.y = math.max(s.Position.y - math.min(9f, s.Speed * 2.75f) * dt, surface + 0.15f);
                     vertical = -0.85f;
                     if (s.Position.y <= surface + 0.2f || s.StageTime > 6f)
                         NextStage(ref s);

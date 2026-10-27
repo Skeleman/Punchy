@@ -73,6 +73,10 @@ namespace Punchy.Debugging
         EntityQuery creatureQuery;
         World creatureWorld;
         FaunaDirector watchDirector;
+        // Flight check on the watched animal: its steepest climb or descent while airborne (vertical over horizontal speed).
+        Vector3 watchLast;
+        float watchSteepest;
+        int watchAirFrames;
         Entity watched;
         float nextWatchPick;
 
@@ -195,6 +199,11 @@ namespace Punchy.Debugging
                     }
                 }
                 entities.Dispose();
+                if (watchAirFrames > 0)
+                    Debug.Log($"DebugControls: steepest flight over {watchAirFrames} airborne frames: {math.degrees(math.atan(watchSteepest)):F0}°");
+                watchSteepest = 0f;
+                watchAirFrames = 0;
+                watchLast = Vector3.zero;
                 if (watched != Entity.Null)
                 {
                     var c = em.GetComponentData<CreatureState>(watched);
@@ -205,6 +214,22 @@ namespace Punchy.Debugging
             if (watched != Entity.Null && em.Exists(watched))
             {
                 var c = em.GetComponentData<CreatureState>(watched);
+                var p = (Vector3)c.Position;
+                if (c.Fly > 0.5f && watchLast != Vector3.zero && Time.deltaTime > 0f)
+                {
+                    var d = p - watchLast;
+                    var flat = new Vector2(d.x, d.z).magnitude;
+                    if (d.magnitude > 0.01f)
+                    {
+                        var steep = math.abs(d.y) / math.max(flat, 1e-4f);
+                        if (steep > 1.2f)
+                            Debug.Log($"DebugControls: steep flight frame: {math.degrees(math.atan(steep)):F0}° ({c.Mode} stage {c.Stage}, " +
+                                      $"speed {c.Speed:F2}, moved {flat:F3} m across, {d.y:F3} m up, {c.Position.y - terrainQuery.GetSingleton<TerrainSource>().SampleHeight(c.Position.xz):F2} m above ground)");
+                        watchSteepest = math.max(watchSteepest, steep);
+                        watchAirFrames++;
+                    }
+                }
+                watchLast = p;
                 var aloft = c.Position.y - terrainQuery.GetSingleton<TerrainSource>().SampleHeight(c.Position.xz) > 1f;
                 ThirdPersonCamera.WatchTarget = (Vector3)c.Position + Vector3.up * 0.3f;
                 ThirdPersonCamera.WatchPitch = aloft ? -15f : 15f;

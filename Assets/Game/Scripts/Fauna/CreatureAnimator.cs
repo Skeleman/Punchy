@@ -184,9 +184,13 @@ namespace Punchy.Fauna
                         segHidden[seg] = hidden;
                     if (fold > 0f)
                         a.x += Fold(j, part.SegmentCount) * fold;
-                    // Flying: legs swept back along the belly, feet tucked.
-                    if (folds && s.Fly > 0f)
-                        a.x += (j == 0 ? 1.35f : j == part.SegmentCount - 1 ? 0.6f : -0.2f) * s.Fly;
+                    // Flying: legs swept back along the belly, feet tucked; nose up (flaring to land, or climbing
+                    // away), they come down and forward to meet the ground.
+                    var tuck = s.Fly * (1f - math.saturate(s.Vertical * 2f));
+                    if (folds && tuck > 0f)
+                        a.x += (j == 0 ? 1.35f : j == part.SegmentCount - 1 ? 0.6f : -0.2f) * tuck;
+                    if (folds && s.Fly > 0f && s.Vertical > 0f && j == 0)
+                        a.x -= 0.5f * s.Fly * math.saturate(s.Vertical * 2f);
                     rot = math.mul(rot, quaternion.EulerZXY(a));
                     if (part.FollowGround)
                         rot = LieOnGround(in terrain, pos, rot, b.Segments[seg].Length * scale, b.Segments[seg].RadiusEnd * b.Segments[seg].Flatten * scale);
