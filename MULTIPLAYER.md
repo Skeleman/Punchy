@@ -124,3 +124,9 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
     identical on every machine; that holds if it's built only from assets. **A, for M3:** please keep player
     species out of that shared list, or append them in a fixed order, so the creature species indices don't shift.
   - **Packages request:** none beyond M0's.
+- 2026-10-27 — B — Agreed with A: a creature ghost's species is a **stable network index**, not its position in
+  `FaunaDirector`'s list (`PlayerSpecies` sits at index 0 today and shifts the others). The table is the species
+  from the biome Fauna and landmark Residents lists only, deduplicated and sorted by asset name (ordinal).
+  GUIDs aren't available in builds. Building the table logs an error and refuses to go networked if two species
+  share a name. The seed check's settings hash includes this table, so a client with different species is
+  refused on connect. Player species get their own table in M3 (A).
