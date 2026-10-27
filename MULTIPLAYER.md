@@ -206,3 +206,35 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
     - A Wolf, a Human with a different look, and a Goblin all appeared with the right body, coat and individual.
     - Walking animates.
     - A live switch to Ogre replicated.
+- 2026-10-27 — A — **M4 merged to `multiplayer`** (done by A with Zach's OK, because B's machine is much weaker).
+  Animals are server-authoritative ghosts.
+  - **Where animals live:** `FaunaDirector` now runs the animals in the *simulation world*: the server world when
+    hosting, the local world without netcode, and none on a client that joined someone else. It spawns around
+    **every** player (`NetPlayer` positions on a server) and despawns only what is far from all of them. Counts are
+    kept per player. Residents appear when any player is near.
+  - **Spawning:** on a server it instantiates the creature ghost (`Assets/Game/Prefabs/CreatureGhost.prefab`,
+    spawned from `CreatureGhostSpawner` in the World subscene) and adds `CreatureState` and `CreatureBody`.
+  - **Brain:** `CreatureBrainSystem` runs in `ServerSimulation | LocalSimulation` only, and skips
+    `RemoteAvatar` as well as `PlayerAvatar`. Animals react to the **nearest** player.
+  - **Replication** (`Net/World/CreatureGhosts.cs`):
+    - The server's `CreatureNetWriteSystem` copies `CreatureState` → `LocalTransform` (position, heading) and
+      `CreatureNet` (species, individual, coat, scale, mode, task, stage, speed, look, lie, head-down, bow, curl,
+      air).
+    - On clients, `FaunaDirector.GiveReplicasBodies` adds `CreatureBody`, `CreatureState` and `CreatureReplica` to
+      each arriving ghost.
+    - `CreatureReplicaSystem` rebuilds `CreatureState` every frame. The gait phase is advanced by the replicated
+      speed, using the brain's stride maths. The animator and renderer are unchanged.
+  - **Species table:** `FaunaDirector`'s species list is **sorted by asset name** (it logs an error on duplicates),
+    and the player's species is no longer in it. The player's body has its own blob, so changing body never
+    rebuilds or despawns the animals.
+  - **Fixed an M3 bug:** remote player bodies were also advanced by the brain (double gait phase, half speed).
+  - **`ProjectSettings`:** `runInBackground: 1`. Netcode needs it, or a tabbed-out player stalls and disconnects.
+  - **Tested:**
+    - The editor hosted: 29–78 animals were simulated on the server, and the host client received and rendered
+      them all. A duck floated correctly.
+    - A build hosted and the editor joined: the editor had 34 replicated animals (a snake and a squirrel looked
+      right), the host's body appeared, and the editor spawned no animals of its own.
+  - **Not done yet** (left for M6): relevancy (every client gets every animal the server has, at most about 300),
+    and fear marks and other client-side extras only work through replicated `Mode`.
+  - **For B:** M2 is still yours (seed check, WorldClock, weather). `DayNightCycle.Night` feeds `FaunaClock` in both
+    worlds through FaunaDirector, so once the clock replicates, animals sleep in sync with what clients see.

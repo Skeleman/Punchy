@@ -1,3 +1,4 @@
+using Punchy.Net;
 using Punchy.Player;
 using Punchy.Terrain;
 using Unity.Burst;
@@ -25,9 +26,10 @@ namespace Punchy.Fauna
     /// poses) matches the ground speed.
     /// </summary>
     [BurstCompile]
-    [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
+    // Runs where the animals are simulated: the server (clients only see them as ghosts; see CreatureReplicaSystem),
+    // or the one world of a game without netcode.
+    [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ServerSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
-    [UpdateAfter(typeof(PlayerMovementSystem))]
     public partial struct CreatureBrainSystem : ISystem
     {
         const float CellSize = 16f;
@@ -44,9 +46,15 @@ namespace Punchy.Fauna
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            var player = new float3(1e9f, 0f, 1e9f);
-            foreach (var t in SystemAPI.Query<RefRO<LocalTransform>>().WithAll<PlayerTag>())
-                player = t.ValueRO.Position;
+            // Every player animals should notice: the networked players on a server, or the one local player.
+            var players = new NativeList<float3>(4, Allocator.TempJob);
+            foreach (var t in SystemAPI.Query<RefRO<LocalTransform>>().WithAll<NetPlayer>())
+                players.Add(t.ValueRO.Position);
+            if (players.Length == 0)
+                foreach (var t in SystemAPI.Query<RefRO<LocalTransform>>().WithAll<PlayerTag>())
+                    players.Add(t.ValueRO.Position);
+            if (players.Length == 0)
+                players.Add(new float3(1e9f, 0f, 1e9f));
 
             // Snapshot of everyone, for seeing each other.
             var entities = creatures.ToEntityArray(Allocator.TempJob);
@@ -63,7 +71,7 @@ namespace Punchy.Fauna
             state.Dependency = new BrainJob
             {
                 Terrain = SystemAPI.GetSingleton<TerrainSource>(),
-                Player = player,
+                Players = players.AsArray(),
                 Dt = math.min(SystemAPI.Time.DeltaTime, 0.1f),
                 Night = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Night : 0f,
                 Entities = entities,
@@ -77,17 +85,18 @@ namespace Punchy.Fauna
             bodies.Dispose(state.Dependency);
             lookup.Dispose(state.Dependency);
             grid.Dispose(state.Dependency);
+            players.Dispose(state.Dependency);
         }
 
         static int2 Cell(float2 xz) => (int2)math.floor(xz / CellSize);
 
-        /// <summary>Every creature but the player's body (PlayerAvatarSystem moves that).</summary>
+        /// <summary>Every creature but players' bodies (PlayerAvatarSystem moves those).</summary>
         [BurstCompile]
-        [WithNone(typeof(PlayerAvatar))]
+        [WithNone(typeof(PlayerAvatar), typeof(RemoteAvatar))]
         partial struct BrainJob : IJobEntity
         {
             public TerrainSource Terrain;
-            public float3 Player;
+            [ReadOnly] public NativeArray<float3> Players;
             public float Dt, Night;
             [ReadOnly] public NativeArray<Entity> Entities;
             [ReadOnly] public NativeArray<CreatureState> States;
@@ -99,6 +108,11 @@ namespace Punchy.Fauna
             {
                 ref var b = ref body.Blob.Value;
                 var rng = new Random(s.Seed | 1u);
+                // The nearest player is the one it watches and runs from.
+                var player = Players[0];
+                for (int p = 1; p < Players.Length; p++)
+                    if (math.distancesq(Players[p].xz, s.Position.xz) < math.distancesq(player.xz, s.Position.xz))
+                        player = Players[p];
                 var dt = Dt;
                 s.Clock += dt;
                 if (s.Mode == CreatureMode.Puppet)
@@ -112,10 +126,10 @@ namespace Punchy.Fauna
                 // Danger: the player, or predators of this species (from further off when they're hunting it).
                 // Asleep, it notices only at half the distance.
                 var alert = s.Mode == CreatureMode.Sleep ? 0.5f : 1f;
-                var away = s.Position.xz - Player.xz;
+                var away = s.Position.xz - player.xz;
                 var playerDistance = math.length(away);
                 var threatened = b.FleeDistance > 0f && playerDistance < b.FleeDistance * s.Scale * alert;
-                var threat = Player.xz;
+                var threat = player.xz;
                 if (!threatened && b.Hunted && FindPredator(self, ref s, body.Species, alert, out var predator))
                 {
                     threatened = true;

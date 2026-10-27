@@ -1,19 +1,26 @@
 using System.Collections.Generic;
+using Punchy.Net;
 using Punchy.Player;
 using Punchy.Terrain;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.NetCode;
 using Unity.Transforms;
 using UnityEngine;
 
 namespace Punchy.Fauna
 {
     /// <summary>
-    /// Keeps the land around the player populated with the animals each biome lists in its Fauna: spawns groups out
+    /// Keeps the land around the players populated with the animals each biome lists in its Fauna: spawns groups out
     /// of sight-range (between Min Spawn Distance and Radius) wherever a species is below its biome's density, and
-    /// removes animals that end up far behind. Landmarks' residents appear at their landmark when the player comes
-    /// within Radius of it. Builds each species' runtime data and the shared capsule mesh.
+    /// removes animals that end up far behind everyone. Landmarks' residents appear at their landmark when a player
+    /// comes within Radius of it. Builds each species' runtime data and the shared capsule mesh, and the player's body.
+    ///
+    /// With netcode the animals live in the server world (when this machine hosts) as creature ghosts; every client
+    /// world, the host's included, gives the ghosts it receives their bodies (see CreatureGhosts.cs). The species table
+    /// is sorted by name so its indices mean the same animal on every machine. Without netcode everything happens in
+    /// the one local world, as before.
     /// </summary>
     public class FaunaDirector : MonoBehaviour
     {
@@ -22,51 +29,74 @@ namespace Punchy.Fauna
         public Punchy.Weather.DayNightCycle Cycle;
         [Tooltip("The player's body: any species (a human, a wolf…). Empty = the player's own placeholder mesh.")]
         public CreatureSpecies PlayerSpecies;
-        [Tooltip("Animals are kept within this distance of the player.")]
+        [Tooltip("Animals are kept within this distance of each player.")]
         public float Radius = 120f;
         [Tooltip("New animals appear at least this far away.")]
         public float MinSpawnDistance = 40f;
-        [Tooltip("Animals further than this are removed.")]
+        [Tooltip("Animals further than this from every player are removed.")]
         public float DespawnDistance = 170f;
         public int MaxCreatures = 300;
-        [Tooltip("Spawn attempts per second.")]
+        [Tooltip("Spawn attempts per second (per player).")]
         public float SpawnRate = 6f;
 
         readonly List<CreatureSpecies> species = new List<CreatureSpecies>();
         readonly List<BlobAssetReference<CreatureBlob>> blobs = new List<BlobAssetReference<CreatureBlob>>();
         BiomeDefinition[] biomes;
         LandmarkType[] landmarks;
-        /// <summary>Landmarks whose residents are out; forgotten once the player is far enough away for them to be gone.</summary>
+        /// <summary>Landmarks whose residents are out; forgotten once every player is far enough away for them to be gone.</summary>
         readonly HashSet<int> occupied = new HashSet<int>();
         readonly List<int> scratch = new List<int>();
+        readonly List<float3> players = new List<float3>();
         float nextResidentCheck;
-        World queryWorld;
-        EntityQuery terrainQuery, paletteQuery, playerQuery, creatureQuery, wildQuery, avatarQuery, playerMeshQuery;
-        CreatureSpecies builtPlayerSpecies;
+
+        // The client (or local) world shows things: render settings, the player's body, ghosts' bodies. The simulation
+        // world runs the animals: the server world when hosting, the local world without netcode, none on a client
+        // that joined someone else.
+        World queryWorld, simWorld;
+        EntityQuery terrainQuery, paletteQuery, playerQuery, avatarQuery, playerMeshQuery, replicaQuery, newReplicaQuery;
+        EntityQuery wildQuery, simCreatureQuery, netPlayerQuery, simPlayerQuery, ghostSpawnerQuery;
+        CreatureSpecies avatarSpecies;
+        BlobAssetReference<CreatureBlob> avatarBlob;
         Entity hiddenPlayer;
-        Entity settingsEntity;
+        Entity settingsEntity, simClockEntity;
         Mesh capsule;
         float spawnBudget;
         bool built;
         TerrainSource lastSource;
+        /// <summary>Per player, how many of each species are within Radius of them (player-major).</summary>
         int[] counts;
         long configStamp;
         float nextConfigCheck;
         Unity.Mathematics.Random rng = new Unity.Mathematics.Random(0x9E3779B9u);
 
-        void OnDisable() => Teardown();
+        void OnDisable()
+        {
+            Teardown();
+            DropAvatar();
+        }
 
         void Teardown()
         {
+            if (simWorld != null && simWorld.IsCreated)
+            {
+                var em = simWorld.EntityManager;
+                em.DestroyEntity(simCreatureQuery);
+                if (simClockEntity != Entity.Null && em.Exists(simClockEntity))
+                    em.DestroyEntity(simClockEntity);
+            }
             if (queryWorld != null && queryWorld.IsCreated)
             {
                 var em = queryWorld.EntityManager;
-                em.DestroyEntity(creatureQuery);
-                ShowPlayerMesh(true);
+                // Ghosts belong to the network: just take their bodies away (they get new ones after the rebuild).
+                if (queryWorld != simWorld)
+                {
+                    em.RemoveComponent<CreatureBody>(replicaQuery);
+                    em.RemoveComponent<CreatureReplica>(replicaQuery);
+                }
                 if (settingsEntity != Entity.Null && em.Exists(settingsEntity))
                     em.DestroyEntity(settingsEntity);
             }
-            settingsEntity = Entity.Null;
+            settingsEntity = simClockEntity = Entity.Null;
             foreach (var b in blobs)
                 if (b.IsCreated) b.Dispose();
             blobs.Clear();
@@ -79,51 +109,58 @@ namespace Punchy.Fauna
 
         void Update()
         {
-            if (Material == null || !TryGetWorld(out var source, out var palette, out var playerPos))
+            if (Material == null || !TryGetWorld(out var source, out var palette))
                 return;
             // Rebuild when the terrain is re-baked or (in the editor) a species or limb type is edited.
-            if (built && (!source.Equals(lastSource) || ConfigChanged() || PlayerSpecies != builtPlayerSpecies))
+            if (built && (!source.Equals(lastSource) || ConfigChanged()))
                 Teardown();
             if (!built)
                 Build(source, palette);
-            KeepAvatar(playerPos);
+            KeepAvatar();
+            GiveReplicasBodies();
 
-            queryWorld.EntityManager.SetComponentData(settingsEntity, new FaunaClock { Night = Cycle != null ? Cycle.Night : 0f });
-            Despawn(playerPos.xz);
+            var clock = new FaunaClock { Night = Cycle != null ? Cycle.Night : 0f };
+            queryWorld.EntityManager.SetComponentData(settingsEntity, clock);
+            if (simWorld == null)
+                return;
+            if (simWorld != queryWorld)
+                simWorld.EntityManager.SetComponentData(simClockEntity, clock);
+
+            GatherPlayers();
+            Despawn();
+            if (players.Count == 0)
+                return;
             if (Time.time >= nextResidentCheck)
             {
                 nextResidentCheck = Time.time + 0.5f;
-                SpawnResidents(source, playerPos.xz);
+                SpawnResidents(source);
             }
-            spawnBudget = math.min(spawnBudget + SpawnRate * Time.deltaTime, 3f);
+            spawnBudget = math.min(spawnBudget + SpawnRate * players.Count * Time.deltaTime, 3f * players.Count);
             while (spawnBudget >= 1f)
             {
                 spawnBudget -= 1f;
-                TrySpawn(source, playerPos.xz);
+                TrySpawn(source, rng.NextInt(players.Count));
             }
         }
 
-        bool TryGetWorld(out TerrainSource source, out BiomePalette palette, out float3 player)
+        bool TryGetWorld(out TerrainSource source, out BiomePalette palette)
         {
             source = default;
             palette = null;
-            player = default;
             var world = World.DefaultGameObjectInjectionWorld;
             if (world == null || !world.IsCreated)
                 return false;
-            if (queryWorld != world)
+            // Without netcode the local world is also where animals live; with it, the server world if we host.
+            var sim = world.IsClient() ? NetWorlds.Server : world;
+            if (queryWorld != world || simWorld != sim || simWorld != null && !simWorld.IsCreated)
             {
+                if (queryWorld != null && queryWorld.IsCreated)
+                    Teardown();
+                DropAvatar();
                 var em = world.EntityManager;
                 terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
                 paletteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
                 playerQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
-                creatureQuery = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
-                wildQuery = em.CreateEntityQuery(new EntityQueryDesc
-                {
-                    All = new[] { ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>() },
-                    // Players' bodies (ours and other players') aren't wildlife: never counted or despawned.
-                    None = new[] { ComponentType.ReadOnly<PlayerAvatar>(), ComponentType.ReadOnly<RemoteAvatar>() }
-                });
                 avatarQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerAvatar>());
                 // The player's placeholder mesh: render entities parented to the player.
                 playerMeshQuery = em.CreateEntityQuery(new EntityQueryDesc
@@ -131,12 +168,33 @@ namespace Punchy.Fauna
                     All = new[] { ComponentType.ReadOnly<Parent>(), ComponentType.ReadOnly<Unity.Rendering.MaterialMeshInfo>() },
                     Options = EntityQueryOptions.IncludeDisabledEntities
                 });
+                replicaQuery = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureReplica>());
+                newReplicaQuery = em.CreateEntityQuery(new EntityQueryDesc
+                {
+                    All = new[] { ComponentType.ReadOnly<CreatureNet>(), ComponentType.ReadOnly<LocalTransform>() },
+                    None = new[] { ComponentType.ReadOnly<CreatureReplica>() }
+                });
                 queryWorld = world;
+                simWorld = sim;
+                if (sim != null)
+                {
+                    var sem = sim.EntityManager;
+                    // Animals: everything with a body except players' (ours, and other players' stand-ins).
+                    var wild = new EntityQueryDesc
+                    {
+                        All = new[] { ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>() },
+                        None = new[] { ComponentType.ReadOnly<PlayerAvatar>(), ComponentType.ReadOnly<RemoteAvatar>(), ComponentType.ReadOnly<CreatureReplica>() }
+                    };
+                    wildQuery = sem.CreateEntityQuery(wild);
+                    simCreatureQuery = sem.CreateEntityQuery(wild);
+                    netPlayerQuery = sem.CreateEntityQuery(ComponentType.ReadOnly<NetPlayer>(), ComponentType.ReadOnly<LocalTransform>());
+                    simPlayerQuery = sem.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
+                    ghostSpawnerQuery = sem.CreateEntityQuery(ComponentType.ReadOnly<CreatureGhostSpawner>());
+                }
                 built = false;
             }
-            if (!terrainQuery.TryGetSingleton(out source) || paletteQuery.CalculateEntityCount() != 1 || !playerQuery.TryGetSingleton<LocalTransform>(out var t))
+            if (!terrainQuery.TryGetSingleton(out source) || paletteQuery.CalculateEntityCount() != 1)
                 return false;
-            player = t.Position;
             palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
             return palette != null && palette.Biomes != null;
         }
@@ -144,9 +202,6 @@ namespace Punchy.Fauna
         void Build(in TerrainSource source, BiomePalette palette)
         {
             biomes = palette.Biomes;
-            if (PlayerSpecies != null)
-                species.Add(PlayerSpecies);
-            builtPlayerSpecies = PlayerSpecies;
             foreach (var biome in biomes)
                 if (biome != null)
                     foreach (var f in biome.Fauna)
@@ -158,6 +213,12 @@ namespace Punchy.Fauna
                     foreach (var r in landmark.Residents)
                         if (r.Species != null && !species.Contains(r.Species))
                             species.Add(r.Species);
+            // The index is how the network names a species, so it must mean the same animal on every machine: sort by
+            // asset name, and refuse to network if two share one.
+            species.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+            for (int i = 1; i < species.Count; i++)
+                if (species[i].name == species[i - 1].name)
+                    Debug.LogError($"FaunaDirector: two species are both named '{species[i].name}'; creature indices would be ambiguous over the network.");
             // Who hunts whom: a listed species covers its variants too.
             var hunted = new bool[species.Count];
             var preyLists = new List<int>[species.Count];
@@ -173,7 +234,6 @@ namespace Punchy.Fauna
             }
             for (int i = 0; i < species.Count; i++)
                 blobs.Add(CreatureBlobBuilder.Build(species[i], preyLists[i], hunted[i]));
-            counts = new int[species.Count];
 
             capsule = BuildCapsule(12, 6, 4);
             var em = queryWorld.EntityManager;
@@ -181,6 +241,11 @@ namespace Punchy.Fauna
             em.SetName(settingsEntity, "Fauna Render Settings");
             em.AddComponentObject(settingsEntity, new FaunaRenderSettings { Material = Material, Capsule = capsule });
             em.AddComponentData(settingsEntity, new FaunaClock());
+            if (simWorld != null && simWorld != queryWorld)
+            {
+                simClockEntity = simWorld.EntityManager.CreateEntity(typeof(FaunaClock));
+                simWorld.EntityManager.SetName(simClockEntity, "Fauna Clock");
+            }
             lastSource = source;
             configStamp = ConfigStamp();
             built = true;
@@ -218,11 +283,19 @@ namespace Punchy.Fauna
 
         public int SpeciesIndex(CreatureSpecies s) => species.IndexOf(s);
 
-        // ------------------------------------------------------------------------------------------- population
+        // ------------------------------------------------------------------------------------------- the player's body
 
-        /// <summary>Spawns the player's body if there should be one and it's missing, and hides the placeholder.</summary>
-        void KeepAvatar(float3 playerPos)
+        /// <summary>
+        /// Spawns the player's body if there should be one and it's missing (or the species changed), and hides the
+        /// placeholder. The body has its own runtime data, so changing species never disturbs the animals.
+        /// </summary>
+        void KeepAvatar()
         {
+            if (!playerQuery.TryGetSingleton<LocalTransform>(out var player))
+                return;
+            var em = queryWorld.EntityManager;
+            if (PlayerSpecies != avatarSpecies)
+                DropAvatar();
             if (PlayerSpecies == null)
                 return;
             // A re-baked subscene brings back a new player entity, placeholder showing.
@@ -230,17 +303,42 @@ namespace Punchy.Fauna
                 ShowPlayerMesh(false);
             if (avatarQuery.CalculateEntityCount() > 0)
                 return;
-            var index = species.IndexOf(PlayerSpecies);
-            if (index < 0)
-                return;
-            var e = Spawn(index, playerPos);
-            var em = queryWorld.EntityManager;
-            em.AddComponent<PlayerAvatar>(e);
-            var s = em.GetComponentData<CreatureState>(e);
-            s.Mode = CreatureMode.Puppet;
-            s.Scale = 1f;
-            em.SetComponentData(e, s);
+            if (!avatarBlob.IsCreated)
+                avatarBlob = CreatureBlobBuilder.Build(PlayerSpecies);
+            avatarSpecies = PlayerSpecies;
+            ref var b = ref avatarBlob.Value;
+            var e = em.CreateEntity(typeof(CreatureState), typeof(CreatureBody), typeof(PlayerAvatar));
+            em.SetName(e, "PlayerBody");
+            em.SetComponentData(e, new CreatureBody
+            {
+                Blob = avatarBlob,
+                Species = species.IndexOf(PlayerSpecies),
+                SegmentCount = b.Segments.Length,
+                Coat = b.PickCoat(rng.NextFloat())
+            });
+            em.SetComponentData(e, new CreatureState
+            {
+                Position = player.Position,
+                Phase = rng.NextFloat(),
+                Scale = 1f,
+                Mode = CreatureMode.Puppet,
+                Seed = rng.NextUInt() | 1u,
+                Individual = rng.NextUInt() | 1u
+            });
             ShowPlayerMesh(false);
+        }
+
+        void DropAvatar()
+        {
+            if (queryWorld != null && queryWorld.IsCreated)
+            {
+                queryWorld.EntityManager.DestroyEntity(avatarQuery);
+                ShowPlayerMesh(true);
+            }
+            if (avatarBlob.IsCreated)
+                avatarBlob.Dispose();
+            avatarBlob = default;
+            avatarSpecies = null;
         }
 
         void ShowPlayerMesh(bool show)
@@ -262,21 +360,95 @@ namespace Punchy.Fauna
             meshes.Dispose();
         }
 
-        void Despawn(float2 player)
+        // ------------------------------------------------------------------------------------------- ghosts
+
+        /// <summary>Client: gives every newly arrived creature ghost the body of its species.</summary>
+        void GiveReplicasBodies()
         {
+            if (queryWorld == simWorld || newReplicaQuery.IsEmpty)
+                return;
             var em = queryWorld.EntityManager;
+            var ghosts = newReplicaQuery.ToEntityArray(Allocator.Temp);
+            foreach (var e in ghosts)
+            {
+                var net = em.GetComponentData<CreatureNet>(e);
+                if (net.Species < 0 || net.Species >= blobs.Count)
+                    continue;
+                var blob = blobs[net.Species];
+                ref var b = ref blob.Value;
+                var t = em.GetComponentData<LocalTransform>(e);
+                var forward = math.mul(t.Rotation, new float3(0f, 0f, 1f));
+                em.AddComponentData(e, new CreatureBody
+                {
+                    Blob = blob,
+                    Species = net.Species,
+                    SegmentCount = b.Segments.Length,
+                    Coat = math.min(net.Coat, math.max(0, b.Coats.Length - 1))
+                });
+                em.AddComponentData(e, new CreatureState
+                {
+                    Position = t.Position,
+                    Yaw = math.atan2(forward.x, forward.z),
+                    Phase = rng.NextFloat(),
+                    Scale = net.Scale > 0f ? net.Scale : 1f,
+                    Mode = (CreatureMode)net.Mode,
+                    Seed = net.Individual | 1u,
+                    Individual = net.Individual
+                });
+                em.AddComponent<CreatureReplica>(e);
+            }
+            ghosts.Dispose();
+        }
+
+        // ------------------------------------------------------------------------------------------- population
+
+        /// <summary>Where the players are, in the simulation world: networked players, or the one local player.</summary>
+        void GatherPlayers()
+        {
+            players.Clear();
+            // (A server's own baked player entity is an idle leftover: only connected players count there.)
+            var networked = simWorld.IsServer();
+            var transforms = (networked ? netPlayerQuery : simPlayerQuery).ToComponentDataArray<LocalTransform>(Allocator.Temp);
+            foreach (var t in transforms)
+                // A networked player sits at the origin until its owner reports where it is.
+                if (!networked || math.lengthsq(t.Position) > 1e-6f)
+                    players.Add(t.Position);
+            transforms.Dispose();
+        }
+
+        float NearestPlayer(float2 xz)
+        {
+            var best = float.MaxValue;
+            foreach (var p in players)
+                best = math.min(best, math.distance(p.xz, xz));
+            return best;
+        }
+
+        void Despawn()
+        {
+            var em = simWorld.EntityManager;
             var states = wildQuery.ToComponentDataArray<CreatureState>(Allocator.Temp);
             var bodies = wildQuery.ToComponentDataArray<CreatureBody>(Allocator.Temp);
             var entities = wildQuery.ToEntityArray(Allocator.Temp);
+            var size = math.max(1, players.Count) * species.Count;
+            if (counts == null || counts.Length != size)
+                counts = new int[size];
             System.Array.Clear(counts, 0, counts.Length);
             var far = new NativeList<Entity>(Allocator.Temp);
             for (int i = 0; i < entities.Length; i++)
             {
-                var d = math.distance(states[i].Position.xz, player);
-                if (d > DespawnDistance)
+                var xz = states[i].Position.xz;
+                if (players.Count == 0 || NearestPlayer(xz) > DespawnDistance)
+                {
                     far.Add(entities[i]);
-                else if (d <= Radius && bodies[i].Species < counts.Length)
-                    counts[bodies[i].Species]++;
+                    continue;
+                }
+                var s = bodies[i].Species;
+                if (s < 0 || s >= species.Count)
+                    continue;
+                for (int p = 0; p < players.Count; p++)
+                    if (math.distance(players[p].xz, xz) <= Radius)
+                        counts[p * species.Count + s]++;
             }
             if (far.Length > 0)
                 em.DestroyEntity(far.AsArray());
@@ -286,15 +458,18 @@ namespace Punchy.Fauna
             entities.Dispose();
         }
 
-        void TrySpawn(in TerrainSource source, float2 player)
+        void TrySpawn(in TerrainSource source, int playerIndex)
         {
             if (wildQuery.CalculateEntityCount() >= MaxCreatures || species.Count == 0)
                 return;
+            var player = players[playerIndex].xz;
             // A random spot in the ring around the player; whichever of its biome's species is furthest below its
-            // density there gets a group.
+            // density there gets a group. Not where another player would see it pop in.
             var angle = rng.NextFloat(math.PI * 2f);
             var distance = math.sqrt(rng.NextFloat(MinSpawnDistance * MinSpawnDistance, Radius * Radius));
             var at = player + new float2(math.cos(angle), math.sin(angle)) * distance;
+            if (NearestPlayer(at) < MinSpawnDistance)
+                return;
             var ground = source.SampleGround(at);
             // On land, land animals; in water, swimmers and floaters (deep enough for them).
             var depth = ground.HasWater ? ground.WaterSurface - ground.Height : -1f;
@@ -304,6 +479,7 @@ namespace Punchy.Fauna
 
             var areaHectares = math.PI * Radius * Radius / 10000f;
             var nearWater = ground.WaterDepth > -4f;
+            var offset = playerIndex * species.Count;
             int best = -1;
             var bestShortfall = 0f;
             foreach (var f in biome.Fauna)
@@ -311,7 +487,7 @@ namespace Punchy.Fauna
                 var index = f.Species != null ? species.IndexOf(f.Species) : -1;
                 if (index < 0 || f.Species.Body.NearWater && !nearWater || !Suits(f.Species.Body.Habitat, depth))
                     continue;
-                var shortfall = f.Density * areaHectares - counts[index];
+                var shortfall = f.Density * areaHectares - counts[offset + index];
                 if (shortfall > bestShortfall)
                 {
                     bestShortfall = shortfall;
@@ -331,30 +507,31 @@ namespace Punchy.Fauna
                 if (Suits(s.Habitat, d))
                     Spawn(best, new float3(p.x, s.Habitat == Habitat.Land ? g.Height : g.WaterSurface - math.min(d * 0.45f, s.SwimDepth), p.y));
             }
-            counts[best] += group;
+            counts[offset + best] += group;
         }
 
         /// <summary>Whether water this deep (negative = dry land) suits an animal of a habitat.</summary>
         static bool Suits(Habitat habitat, float depth) =>
             habitat == Habitat.Swims ? depth >= 0.9f : habitat == Habitat.Floats ? depth >= 0.4f : depth <= 0f;
 
-        void SpawnResidents(in TerrainSource source, float2 player)
+        void SpawnResidents(in TerrainSource source)
         {
             if (!source.Landmarks.IsCreated)
                 return;
             ref var set = ref source.Landmarks.Value;
             scratch.Clear();
             foreach (var i in occupied)
-                if (math.distance(set.Instances[i].Position, player) > DespawnDistance + 20f)
+                if (NearestPlayer(set.Instances[i].Position) > DespawnDistance + 20f)
                     scratch.Add(i);
             foreach (var i in scratch)
                 occupied.Remove(i);
 
+            var em = simWorld.EntityManager;
             for (int i = 0; i < set.Instances.Length; i++)
             {
                 ref var inst = ref set.Instances[i];
                 if (inst.Type >= landmarks.Length || landmarks[inst.Type] == null || occupied.Contains(i) ||
-                    math.distance(inst.Position, player) > Radius)
+                    NearestPlayer(inst.Position) > Radius)
                     continue;
                 occupied.Add(i);
                 var radius = set.Types[inst.Type].Radius * inst.Scale;
@@ -379,7 +556,7 @@ namespace Punchy.Fauna
                         if (g.HasWater && g.WaterSurface > g.Height)
                             continue;
                         var e = Spawn(index, new float3(p.x, g.Height, p.y));
-                        var state = queryWorld.EntityManager.GetComponentData<CreatureState>(e);
+                        var state = em.GetComponentData<CreatureState>(e);
                         state.Home = home;
                         state.Leash = leash;
                         if (r.Size.y > 0f)
@@ -392,18 +569,29 @@ namespace Punchy.Fauna
                             state.Mode = CreatureMode.Work;
                             state.Timer = rng.NextFloat(40f, 120f);
                         }
-                        queryWorld.EntityManager.SetComponentData(e, state);
+                        em.SetComponentData(e, state);
                     }
                 }
             }
         }
 
-        /// <summary>Creates one animal of a species (by index) at a point. Also handy for testing.</summary>
+        /// <summary>
+        /// Creates one animal of a species (by index) at a point, in the simulation world: a creature ghost when this
+        /// machine is a server, a plain entity without netcode. Also handy for testing.
+        /// </summary>
         public Entity Spawn(int speciesIndex, float3 position, float yaw = float.NaN)
         {
-            var em = queryWorld.EntityManager;
+            var em = simWorld.EntityManager;
             ref var b = ref blobs[speciesIndex].Value;
-            var e = em.CreateEntity(typeof(CreatureState), typeof(CreatureBody));
+            Entity e;
+            if (simWorld.IsServer() && ghostSpawnerQuery.TryGetSingleton<CreatureGhostSpawner>(out var spawner))
+            {
+                e = em.Instantiate(spawner.Prefab);
+                em.AddComponent<CreatureState>(e);
+                em.AddComponent<CreatureBody>(e);
+            }
+            else
+                e = em.CreateEntity(typeof(CreatureState), typeof(CreatureBody));
             em.SetComponentData(e, new CreatureBody
             {
                 Blob = blobs[speciesIndex],
@@ -422,6 +610,8 @@ namespace Punchy.Fauna
                 Seed = rng.NextUInt() | 1u,
                 Individual = rng.NextUInt() | 1u
             });
+            if (em.HasComponent<LocalTransform>(e))
+                em.SetComponentData(e, LocalTransform.FromPosition(position));
             return e;
         }
 
