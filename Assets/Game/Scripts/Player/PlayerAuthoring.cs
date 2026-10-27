@@ -20,6 +20,8 @@ namespace Punchy.Player
         [Tooltip("In water deeper than this the player swims, feet this far below the surface.")]
         public float SwimDepth = 1.3f;
         public float SwimSpeedMultiplier = 0.45f;
+        [Tooltip("How fast a river carries the player along while they swim in it (m/s; doubled in rapids).")]
+        public float RiverCurrent = 1.2f;
         [Tooltip("Body radius for bumping into trunks and cacti.")]
         public float Radius = 0.35f;
 
@@ -40,6 +42,7 @@ namespace Punchy.Player
                     GroundSnapDistance = authoring.GroundSnapDistance,
                     SwimDepth = authoring.SwimDepth,
                     SwimSpeedMultiplier = authoring.SwimSpeedMultiplier,
+                    RiverCurrent = authoring.RiverCurrent,
                     Radius = authoring.Radius
                 });
                 AddComponent(entity, new PlayerMotion { Grounded = false });

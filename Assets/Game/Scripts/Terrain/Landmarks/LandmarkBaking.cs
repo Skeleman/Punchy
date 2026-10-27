@@ -325,6 +325,7 @@ namespace Punchy.Terrain
                     OverrideWater = type.OverrideWater ? 1 : 0,
                     Water = new float4(water.r, water.g, water.b, type.WaterMurk),
                     WaterGlow = type.WaterGlow,
+                    WaterLava = type.WaterLava,
                     HasGround = type.Ground != null ? 1 : 0,
                     Ground = type.Ground != null ? BiomeBaking.SurfaceData(type.Ground) : default,
                     GroundRadius = math.max(type.GroundRadius, 0.05f),

@@ -75,6 +75,7 @@ namespace Punchy.Terrain
                     Rainfall = b.Rainfall,
                     Water = new float4(b.WaterColor.linear.r, b.WaterColor.linear.g, b.WaterColor.linear.b, b.WaterMurk),
                     WaterGlow = b.WaterGlow,
+                    WaterLava = b.WaterLava,
                     // Each biome reads a different region of the noise field.
                     NoiseOffset = new float2(offsetHash & 0xFFFF, offsetHash >> 16) / 65535f * 500f,
                     ClimateMin = new float4(b.Altitude.x, b.Temperature.x, b.Humidity.x, b.Volcanism.x),

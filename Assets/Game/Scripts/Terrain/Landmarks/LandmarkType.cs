@@ -157,6 +157,8 @@ namespace Punchy.Terrain
         [ColorUsage(false)] public Color WaterColor = new Color(0.2f, 0.6f, 0.6f);
         [Range(0f, 1f)] public float WaterMurk = 0.3f;
         [Min(0f)] public float WaterGlow;
+        [Tooltip("Molten rock instead of water (volcano craters).")]
+        [Range(0f, 1f)] public float WaterLava;
 
         [Header("Ground")]
         [Tooltip("Covers the middle of the landmark (sinter, ash, moss…). Empty = the biome's own ground.")]

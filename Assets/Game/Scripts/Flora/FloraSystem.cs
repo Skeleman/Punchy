@@ -84,6 +84,7 @@ namespace Punchy.Flora
             public float2 SizeRange;
             public int Aquatic, Floats;
             public float2 WaterDepth;
+            public float MinRapids;
         }
 
         struct BiomeEntry
@@ -333,7 +334,8 @@ namespace Punchy.Flora
                     SizeRange = s.SizeRange,
                     Aquatic = s.Aquatic ? 1 : 0,
                     Floats = s.Floats ? 1 : 0,
-                    WaterDepth = s.WaterDepth
+                    WaterDepth = s.WaterDepth,
+                    MinRapids = s.MinRapids
                 };
             }
 
@@ -913,6 +915,11 @@ namespace Punchy.Flora
                         // Water plants: just the right depth (and patches, if the species has them).
                         var inDepth = depth >= r.WaterDepth.x && depth <= r.WaterDepth.y ? 1f : 0f;
                         var fw = weights[c] * inDepth;
+                        // Floating plants drift away in a current: they keep to still water.
+                        if (r.Floats != 0)
+                            fw *= 1f - 0.9f * math.saturate(math.length(ground.Flow));
+                        if (r.MinRapids > 0f)
+                            fw *= math.smoothstep(r.MinRapids - 0.1f, r.MinRapids + 0.1f, ground.Rapids);
                         if (r.PatchCoverage < 1f)
                         {
                             var pn = noise.snoise(xz * r.PatchFrequency + r.PatchOffset) * 0.5f + 0.5f;

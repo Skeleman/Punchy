@@ -137,7 +137,18 @@ Input System. Windows is the only build target so far.
   - Aquatic bodies are legless, so `LeglessStride` sets their gait. The animator treats `Position.y` as the
     body's centre, with no ground tilt.
 - Flora with **Aquatic** grows only where the water depth is within `WaterDepth`. **Floats** puts it on the
-  surface (the LilyPad form); otherwise it rises from the bed (Reeds).
+  surface (the LilyPad form); otherwise it rises from the bed (Reeds). Floating plants avoid currents.
+  `MinRapids` limits a species to white water (RiverRock).
+- **Water.shader** draws three liquids from per-vertex data. Look `a` is murk, and from about 0.55 up it turns
+  thick and oily (slow swell, bubbles, scum). The glow channel is `float2` (toxic glow, lava). Lava amount comes
+  from `WaterLava` on biomes and landmarks (VolcanoCone).
+  - Reflections march screen space through the depth texture and sample the opaque texture, so the RP assets
+    must keep Opaque Texture on.
+  - Inside the march, sample with explicit LOD: implicit derivatives in a loop give a compile warning.
+- Reimporting an asset during play mode (e.g. `AssetDatabase.ImportAsset` on a shader) rebakes the subscene and
+  sends the player back to Start. Probe scripts should edit shaders while the editor is stopped.
+- Swimmers in rivers drift downstream at `PlayerMotor.RiverCurrent`, doubled in rapids. The drift is capped
+  below swim speed, so the player can always reach the bank.
 - Creature parts are drawn solid now (the capsule mesh was once wound inside-out, which let hidden parts show
   through), so a part meant to be seen must poke out of whatever it's attached to.
 - Joint axes depend on which way a part points: for a part pointing up (an upright torso, neck or head), a yaw

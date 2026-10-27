@@ -89,6 +89,7 @@ namespace Punchy.Terrain
         /// <summary>Water look: rgb colour (linear), a murk 0..1; plus glow.</summary>
         public float4 Water;
         public float WaterGlow;
+        public float WaterLava;
         public float2 NoiseOffset;
         /// <summary>Preferred climate: altitude, temperature, humidity, volcanism ranges.</summary>
         public float4 ClimateMin, ClimateMax;

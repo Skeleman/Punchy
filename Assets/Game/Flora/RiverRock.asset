@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be30a536c49003f42bba655b0fd41247, type: 3}
+  m_Name: RiverRock
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
+  Form: 12
+  Layer: 2
+  Height: {x: 0.7, y: 1.8}
+  Spread: 1
+  TrunkFraction: 0.35
+  Thickness: 0.035
+  Fullness: 0.7
+  Branches: {x: 1, y: 3}
+  Flexibility: 0
+  FlowerHead: 0
+  Bark: {r: 0.27, g: 0.27, b: 0.28, a: 1}
+  Foliage: {r: 0.22, g: 0.4, b: 0.14, a: 1}
+  FoliageVariation: {r: 0.3, g: 0.45, b: 0.16, a: 1}
+  Accents:
+  - {r: 0.22, g: 0.32, b: 0.13, a: 1}
+  - {r: 0.5, g: 0.55, b: 0.32, a: 1}
+  AccentAmount: 0.4
+  ColorVariation: 0.1
+  Finish: 0
+  GlowingAccents: 0
+  MaxSlope: 90
+  Elevation: {x: 0.5, y: 10000}
+  GrassAffinity: 0.5
+  ToleratesSnow: 0
+  PatchSize: 60
+  PatchCoverage: 1
+  NearWater: 1
+  OnlyNearWater: 0
+  Aquatic: 1
+  WaterDepth: {x: 0.05, y: 3}
+  Floats: 0
+  MinRapids: 0.3
+  Solid: 1
+  SizeRange: {x: 0.5, y: 1.5}
+  Variants: 8
+  Seed: 411

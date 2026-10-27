@@ -15,6 +15,7 @@ MonoBehaviour:
   Radius: 220
   Scale: {x: 0.9, y: 1.1}
   MaxRelief: 140
+  MinRelief: 0
   Elevation: {x: 3, y: 10000}
   Shape: 4
   Height: 110
@@ -30,6 +31,7 @@ MonoBehaviour:
   WaterColor: {r: 1, g: 0.3, b: 0.04, a: 1}
   WaterMurk: 1
   WaterGlow: 1
+  WaterLava: 1
   Ground: {fileID: 11400000, guid: 87e4552f42a54cf458915cd0d41df111, type: 2}
   GroundRadius: 0.22
   ClearRadius: 0.9
@@ -39,11 +41,19 @@ MonoBehaviour:
     Ring: {x: 0.3, y: 1}
     Scale: {x: 1, y: 1}
     Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
   - Species: {fileID: 11400000, guid: ddc4e50a58031e84d940072813a94687, type: 2}
     Density: 0.5
     Ring: {x: 0.2, y: 0.8}
     Scale: {x: 1, y: 1}
     Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
   Effects:
   - Kind: 0
     Offset: {x: 0, y: 0}
@@ -69,4 +79,9 @@ MonoBehaviour:
     Glow: 6
     Period: 0
     Duty: 0.25
+  Cave: 0
+  CaveLength: 40
+  CaveDepth: 8
+  CaveRadius: 2.4
+  ChamberRadius: 6
   Residents: []

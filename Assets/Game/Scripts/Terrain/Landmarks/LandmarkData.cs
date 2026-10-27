@@ -14,6 +14,7 @@ namespace Punchy.Terrain
         /// <summary>rgb colour (linear), a murk.</summary>
         public float4 Water;
         public float WaterGlow;
+        public float WaterLava;
         public int HasGround;
         public SurfaceBlobData Ground;
         public float GroundRadius;
@@ -220,7 +221,7 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Overrides the water look inside landmarks with their own (hot springs, toxic pools).</summary>
-        public static void WaterLook(ref LandmarkSetBlob set, float2 xz, ref float4 look, ref float glow)
+        public static void WaterLook(ref LandmarkSetBlob set, float2 xz, ref float4 look, ref float2 glow)
         {
             if (!Find(ref set, xz, out var hit))
                 return;
@@ -229,7 +230,7 @@ namespace Punchy.Terrain
                 return;
             var t = math.smoothstep(1f, 0.8f, hit.Distance);
             look = math.lerp(look, type.Water, t);
-            glow = math.lerp(glow, type.WaterGlow, t);
+            glow = math.lerp(glow, new float2(type.WaterGlow, type.WaterLava), t);
         }
 
         /// <summary>Paints landmarks' ground surfaces over the biome's.</summary>

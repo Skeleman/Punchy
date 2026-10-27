@@ -163,9 +163,9 @@ namespace Punchy.Terrain
 
         /// <summary>
         /// The look of the water here, blended from the biomes: rgb colour (weighted by murk, so clear-water biomes
-        /// don't dilute a swamp's colour), a = murk 0..1; glow in the out parameter.
+        /// don't dilute a swamp's colour), a = murk 0..1; glow (x) and lava (y) in the out parameter.
         /// </summary>
-        public float4 WaterLook(float2 xz, in BiomeWeights biomes, out float glow)
+        public float4 WaterLook(float2 xz, in BiomeWeights biomes, out float2 glow)
         {
             var look = WaterLook(biomes, out glow);
             if (Landmarks.IsCreated)
@@ -173,7 +173,7 @@ namespace Punchy.Terrain
             return look;
         }
 
-        public float4 WaterLook(in BiomeWeights biomes, out float glow)
+        public float4 WaterLook(in BiomeWeights biomes, out float2 glow)
         {
             glow = 0f;
             if (!HasBiomes)
@@ -189,7 +189,7 @@ namespace Punchy.Terrain
                 ref var b = ref set.Biomes[biomes.Ids[i]];
                 color += b.Water.xyz * b.Water.w * w;
                 murk += b.Water.w * w;
-                glow += b.WaterGlow * w;
+                glow += new float2(b.WaterGlow, b.WaterLava) * w;
             }
             return new float4(murk > 1e-4f ? color / murk : float3.zero, murk);
         }

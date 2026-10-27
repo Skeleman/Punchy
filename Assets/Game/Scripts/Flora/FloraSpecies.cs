@@ -150,6 +150,8 @@ namespace Punchy.Flora
         public Vector2 WaterDepth = new Vector2(0.1f, 1.5f);
         [Tooltip("Aquatic: sits on the surface (lily pads) rather than rising from the bed (reeds).")]
         public bool Floats;
+        [Tooltip("Aquatic: only in river rapids at least this steep (0..1; 0 = anywhere). Rocks in white water.")]
+        [Range(0f, 1f)] public float MinRapids;
         [Tooltip("Blocks the player (trees, big cacti).")]
         public bool Solid = true;
         [Tooltip("Random size of each placed plant, on top of its variant's own size.")]

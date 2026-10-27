@@ -30,6 +30,7 @@ MonoBehaviour:
   WaterMurk: 0
   WaterColor: {r: 0.2, g: 0.35, b: 0.2, a: 1}
   WaterGlow: 0
+  WaterLava: 0
   Weather:
   - Preset: {fileID: 11400000, guid: c387c3aae44eb0a4696f7e8a0739110d, type: 2}
     Chance: 0.5
@@ -115,6 +116,8 @@ MonoBehaviour:
     Density: 0.3
   - Species: {fileID: 11400000, guid: ac36da8a0a4c31b4e880d57d3a916758, type: 2}
     Density: 0.3
+  - Species: {fileID: 11400000, guid: b4f7c4f36bf84cb4698a26e36ae5f49a, type: 2}
+    Density: 3
   Landmarks:
   - Type: {fileID: 11400000, guid: 92e39e7c029a5f7469ad94c67b3b4912, type: 2}
     Density: 1.5

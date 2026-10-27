@@ -18,6 +18,8 @@ namespace Punchy.Player
         /// <summary>How far below the water surface the feet are while swimming.</summary>
         public float SwimDepth;
         public float SwimSpeedMultiplier;
+        /// <summary>How fast a river carries a swimmer downstream (m/s), doubled in rapids.</summary>
+        public float RiverCurrent;
         /// <summary>Body radius for bumping into trunks and cacti.</summary>
         public float Radius;
     }

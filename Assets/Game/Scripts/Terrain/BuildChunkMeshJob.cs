@@ -44,14 +44,14 @@ namespace Punchy.Terrain
         public float3 Position;
         public float4 Data;     // flow direction xz, depth below the surface, rapids 0..1
         public float4 Look;     // biome water colour rgb (linear), murk 0..1
-        public float Glow;
+        public float2 Glow;     // self-glow (toxic water), lava 0..1
 
         public static readonly VertexAttributeDescriptor[] Layout =
         {
             new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3),
             new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 4),
             new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 4),
-            new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.Float32, 1)
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.Float32, 2)
         };
     }
 
@@ -103,7 +103,7 @@ namespace Punchy.Terrain
             var water = new NativeArray<float4>(v * v, Allocator.Temp);   // surface, flow xz, terrain height
             var rapids = new NativeArray<float>(v * v, Allocator.Temp);
             var looks = new NativeArray<float4>(v * v, Allocator.Temp);   // water colour + murk, glow in a separate array
-            var glows = new NativeArray<float>(v * v, Allocator.Temp);
+            var glows = new NativeArray<float2>(v * v, Allocator.Temp);
             // Cave entrances: each vertex carries its distance to cave air, and the terrain shader cuts away the
             // surface just inside the cave's edge (per pixel, so the opening follows the cave, not the grid).
             var cutHoles = request.Lod <= 1 && Source.Caves.IsCreated;
@@ -217,7 +217,7 @@ namespace Punchy.Terrain
 
         /// <summary>Builds the water sheet; returns its (min, max) height, or (1, 0) when the chunk is dry.</summary>
         float2 BuildWater(Mesh.MeshData mesh, NativeArray<float4> water, NativeArray<float> rapids,
-                          NativeArray<float4> looks, NativeArray<float> glows, int q, float step)
+                          NativeArray<float4> looks, NativeArray<float2> glows, int q, float step)
         {
             int v = q + 1;
 

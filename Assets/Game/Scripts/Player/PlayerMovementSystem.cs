@@ -45,6 +45,14 @@ namespace Punchy.Player
                             (swimming ? settings.SwimSpeedMultiplier : 1f);
                 var from = position;
                 position.xz += input.MoveDirection * speed * dt;
+                if (swimming)
+                {
+                    // Rivers carry swimmers downstream: harder in rapids, but never faster than they can swim, so
+                    // they can always fight their way to the bank.
+                    var water = terrain.SampleGround(position.xz);
+                    var current = math.min(settings.RiverCurrent * (1f + water.Rapids), speed * 0.8f);
+                    position.xz += water.Flow * current * dt;
+                }
                 if (obstacles.IsCreated)
                     position.xz = SlideAroundObstacles(obstacles, position, settings.Radius);
                 if (inCave)

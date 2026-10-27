@@ -60,6 +60,8 @@ namespace Punchy.Terrain
         public Color WaterColor = new Color(0.2f, 0.35f, 0.2f);
         [Tooltip("How much the water glows by itself (toxic pools).")]
         [Range(0f, 1f)] public float WaterGlow;
+        [Tooltip("Molten rock instead of water: a dark cooling crust over glowing cracks, barely reflective.")]
+        [Range(0f, 1f)] public float WaterLava;
 
         [Header("Weather")]
         [Tooltip("Overrides how likely each weather is here. Presets not listed keep their own Chance, unless they're " +
