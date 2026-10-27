@@ -95,6 +95,30 @@ namespace Punchy.Fauna
         [Tooltip("Seconds it keeps up a chase before giving up.")]
         [Min(1f)] public float ChaseTime = 10f;
 
+        [Header("Habits")]
+        [Tooltip("Little things it does while standing about (pawing the ground, grooming, scratching, sitting…).")]
+        public IdleActions Idles = IdleActions.LookAround;
+        [Tooltip("How often it does them.")]
+        [Range(0f, 1f)] public float Fidgets = 0.5f;
+        [Tooltip("How keen it is to climb trees and sit in them (monkeys, squirrels).")]
+        [Range(0f, 1f)] public float Climbing;
+        [Tooltip("Builds a web beside a tree (or low in the grass) and waits in it.")]
+        public bool SpinsWebs;
+        [Tooltip("Radius of its web, in metres.")]
+        [Min(0.1f)] public float WebSize = 0.6f;
+
+        [Header("Flight (habitat Flies)")]
+        [Tooltip("Height above the ground it cruises at, in metres.")]
+        public Vector2 FlightHeight = new Vector2(8f, 18f);
+        [Tooltip("Airspeed, metres per second.")]
+        [Min(0.5f)] public float FlySpeed = 7f;
+        [Tooltip("Wingbeats per second.")]
+        [Min(0.1f)] public float FlapRate = 6f;
+        [Tooltip("How much it glides between bursts of flapping (soaring birds of prey).")]
+        [Range(0f, 1f)] public float Glide;
+        [Tooltip("How often it lands in a tree rather than on the ground.")]
+        [Range(0f, 1f)] public float Perching = 0.6f;
+
         /// <summary>The species whose body, gait and behaviour this one uses (itself unless it's a variant).</summary>
         public CreatureSpecies Body
         {
@@ -112,7 +136,33 @@ namespace Punchy.Fauna
     {
         Land,
         [Tooltip("Swims under the surface; keeps to water deep enough to swim in.")] Swims,
-        [Tooltip("Floats on the surface (waterfowl).")] Floats
+        [Tooltip("Floats on the surface (waterfowl).")] Floats,
+        [Tooltip("Flies, landing on the ground or perching in trees (songbirds, crows, birds of prey).")] Flies
+    }
+
+    /// <summary>Little things an animal does while standing about (which of them a species does).</summary>
+    [Flags]
+    public enum IdleActions : ushort
+    {
+        None = 0,
+        [Tooltip("Scrapes at the ground with a front hoof.")] PawGround = 1 << 0,
+        [Tooltip("Turns to lick its flank or shoulder.")] Groom = 1 << 1,
+        [Tooltip("Sits back and scratches behind an ear with a hind foot.")] Scratch = 1 << 2,
+        [Tooltip("Shakes itself off, head to tail.")] Shake = 1 << 3,
+        [Tooltip("Stretches: chest down and front legs out, then the back legs.")] Stretch = 1 << 4,
+        [Tooltip("Noses at the ground.")] Sniff = 1 << 5,
+        [Tooltip("Sits on its haunches for a while.")] Sit = 1 << 6,
+        [Tooltip("Sits up tall to look about (rabbits, prairie dogs, marmots).")] SitUp = 1 << 7,
+        [Tooltip("Flicks its tail back and forth.")] TailFlick = 1 << 8,
+        [Tooltip("Preens: turns its head back to its feathers.")] Preen = 1 << 9,
+        [Tooltip("Bobs its head and body up and down (lizard push-ups).")] HeadBob = 1 << 10,
+        [Tooltip("Lifts its head and looks around.")] LookAround = 1 << 11
+    }
+
+    /// <summary>The idle action an animal is doing now (one of IdleActions, by number).</summary>
+    public enum IdleAction : byte
+    {
+        None, PawGround, Groom, Scratch, Shake, Stretch, Sniff, Sit, SitUp, TailFlick, Preen, HeadBob, LookAround
     }
 
     public enum ActiveTime : byte

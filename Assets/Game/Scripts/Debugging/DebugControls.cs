@@ -49,6 +49,8 @@ namespace Punchy.Debugging
         void Update()
         {
             ApplyLaunchOptions();
+            SpawnRequested();
+            Watch();
             var keyboard = Keyboard.current;
             if (keyboard == null)
                 return;
@@ -64,6 +66,14 @@ namespace Punchy.Debugging
 
         // Once per run (statics survive the scene reloads that hosting and joining do).
         static bool launchOptionsApplied;
+        /// <summary>"-watch Squirrel": the camera follows the nearest animal of that species (for testing behaviours).</summary>
+        static string watchSpecies;
+        /// <summary>"-spawn Osprey" (or "Trout:6"): a few of a species put near the player once the world is up (testing).</summary>
+        static readonly List<string> pendingSpawns = new List<string>();
+        EntityQuery creatureQuery;
+        World creatureWorld;
+        Entity watched;
+        float nextWatchPick;
 
         /// <summary>
         /// For unattended tests: "-time 22" sets the clock, "-place summit" starts at the first preset location whose
@@ -80,6 +90,10 @@ namespace Punchy.Debugging
             {
                 if (args[i] == "-time" && Cycle != null && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var hours))
                     Cycle.TimeOfDay = Mathf.Repeat(hours, 24f);
+                if (args[i] == "-watch")
+                    watchSpecies = args[i + 1];
+                if (args[i] == "-spawn")
+                    pendingSpawns.Add(args[i + 1]);
                 if (args[i] == "-place")
                 {
                     var index = locations.FindIndex(l => l.Name.IndexOf(args[i + 1], System.StringComparison.OrdinalIgnoreCase) >= 0);
@@ -91,6 +105,105 @@ namespace Punchy.Debugging
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Spawns the "-spawn" requests near the player (where the game simulates animals: alone or hosting), each on
+        /// ground or in water to suit it, a few seconds after the world is up.
+        /// </summary>
+        void SpawnRequested()
+        {
+            if (pendingSpawns.Count == 0 || Time.timeSinceLevelLoad < 8f || !EnsureLocations(out var source) ||
+                !playerQuery.TryGetSingleton<LocalTransform>(out var player))
+                return;
+            var director = FindAnyObjectByType<FaunaDirector>();
+            if (director == null)
+                return;
+            var rng = new Unity.Mathematics.Random(1234u);
+            foreach (var request in pendingSpawns)
+            {
+                var parts = request.Split(':');
+                var count = parts.Length > 1 && int.TryParse(parts[1], out var n) ? n : 3;
+                var index = director.SpeciesIndex(parts[0]);
+                if (index < 0)
+                {
+                    Debug.LogWarning($"DebugControls: no species '{parts[0]}' to spawn");
+                    continue;
+                }
+                var wantsWater = director.SpeciesHabitat(index) == Habitat.Swims || director.SpeciesHabitat(index) == Habitat.Floats;
+                var spawned = 0;
+                for (int attempt = 0; attempt < 400 && spawned < count; attempt++)
+                {
+                    var xz = player.Position.xz + rng.NextFloat2Direction() * rng.NextFloat(6f, 45f);
+                    var g = source.SampleGround(xz);
+                    var depth = g.HasWater ? g.WaterSurface - g.Height : -1f;
+                    if (wantsWater ? depth < 1f : depth > 0f)
+                        continue;
+                    director.Spawn(index, new float3(xz.x, wantsWater ? g.WaterSurface - math.min(depth * 0.45f, 0.6f) : g.Height, xz.y));
+                    spawned++;
+                }
+                Debug.Log($"DebugControls: spawned {spawned} {parts[0]}");
+            }
+            pendingSpawns.Clear();
+        }
+
+        /// <summary>
+        /// Points the camera at the watched species: the nearest one doing something worth seeing (climbing, flying,
+        /// in a web, an idle action), else the nearest; re-picked every few seconds.
+        /// </summary>
+        void Watch()
+        {
+            if (watchSpecies == null || queryWorld == null || !queryWorld.IsCreated)
+                return;
+            var em = queryWorld.EntityManager;
+            if (creatureWorld != queryWorld)
+            {
+                creatureWorld = queryWorld;
+                creatureQuery = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            }
+            var director = FindAnyObjectByType<FaunaDirector>();
+            var index = director != null ? director.SpeciesIndex(watchSpecies) : -1;
+            if (index < 0 || !playerQuery.TryGetSingleton<LocalTransform>(out var player))
+                return;
+            if (Time.unscaledTime >= nextWatchPick || !em.Exists(watched))
+            {
+                nextWatchPick = Time.unscaledTime + 8f;
+                var entities = creatureQuery.ToEntityArray(Unity.Collections.Allocator.Temp);
+                var best = float.MaxValue;
+                watched = Entity.Null;
+                foreach (var e in entities)
+                {
+                    if (em.GetComponentData<CreatureBody>(e).Species != index)
+                        continue;
+                    var c = em.GetComponentData<CreatureState>(e);
+                    var busy = c.Mode == CreatureMode.Climb || c.Mode == CreatureMode.Web || c.Fly > 0.5f ||
+                               c.Action != IdleAction.None || c.Mode == CreatureMode.Hunt;
+                    var score = math.distance(c.Position, player.Position) - (busy ? 1000f : 0f) - (c.Fly > 0.5f ? 1000f : 0f);
+                    if (score < best)
+                    {
+                        best = score;
+                        watched = e;
+                    }
+                }
+                entities.Dispose();
+                if (watched != Entity.Null)
+                {
+                    var c = em.GetComponentData<CreatureState>(watched);
+                    Debug.Log($"DebugControls: watching {watchSpecies} ({c.Mode}, stage {c.Stage}, action {c.Action}, fly {c.Fly:F1}, " +
+                              $"height above ground {c.Position.y - terrainQuery.GetSingleton<TerrainSource>().SampleHeight(c.Position.xz):F1} m)");
+                }
+            }
+            if (watched != Entity.Null && em.Exists(watched))
+            {
+                var c = em.GetComponentData<CreatureState>(watched);
+                var aloft = c.Position.y - terrainQuery.GetSingleton<TerrainSource>().SampleHeight(c.Position.xz) > 1f;
+                ThirdPersonCamera.WatchTarget = (Vector3)c.Position + Vector3.up * 0.3f;
+                ThirdPersonCamera.WatchPitch = aloft ? -15f : 15f;
+                var size = em.GetComponentData<CreatureBody>(watched).Blob.Value.BodyLength * c.Scale;
+                ThirdPersonCamera.WatchDistance = math.clamp(size * 9f, 0.6f, 4f) * (aloft ? 1.4f : 1f);
+            }
+            else
+                ThirdPersonCamera.WatchTarget = null;
         }
 
         /// <summary>Teleports the player to the next (or previous) preset location.</summary>

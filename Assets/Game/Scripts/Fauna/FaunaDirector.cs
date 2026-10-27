@@ -58,7 +58,10 @@ namespace Punchy.Fauna
         CreatureSpecies avatarSpecies;
         BlobAssetReference<CreatureBlob> avatarBlob;
         Entity hiddenPlayer;
-        Entity settingsEntity, simClockEntity;
+        Entity settingsEntity, simClockEntity, floraEntity;
+        /// <summary>Where trees are, for climbing, perching and webs (the same tables the plants are drawn from).</summary>
+        BlobAssetReference<Punchy.Flora.FloraBlob> floraBlob;
+        readonly List<Punchy.Flora.FloraSpecies> floraSpecies = new List<Punchy.Flora.FloraSpecies>();
         Mesh capsule;
         float spawnBudget;
         bool built;
@@ -83,7 +86,12 @@ namespace Punchy.Fauna
                 em.DestroyEntity(simCreatureQuery);
                 if (simClockEntity != Entity.Null && em.Exists(simClockEntity))
                     em.DestroyEntity(simClockEntity);
+                if (floraEntity != Entity.Null && em.Exists(floraEntity))
+                    em.DestroyEntity(floraEntity);
             }
+            if (floraBlob.IsCreated)
+                floraBlob.Dispose();
+            floraBlob = default;
             if (queryWorld != null && queryWorld.IsCreated)
             {
                 var em = queryWorld.EntityManager;
@@ -96,7 +104,7 @@ namespace Punchy.Fauna
                 if (settingsEntity != Entity.Null && em.Exists(settingsEntity))
                     em.DestroyEntity(settingsEntity);
             }
-            settingsEntity = simClockEntity = Entity.Null;
+            settingsEntity = simClockEntity = floraEntity = Entity.Null;
             foreach (var b in blobs)
                 if (b.IsCreated) b.Dispose();
             blobs.Clear();
@@ -246,6 +254,20 @@ namespace Punchy.Fauna
                 simClockEntity = simWorld.EntityManager.CreateEntity(typeof(FaunaClock));
                 simWorld.EntityManager.SetName(simClockEntity, "Fauna Clock");
             }
+            if (simWorld != null)
+            {
+                // The tree grid must match FloraSystem's (its tree layer's cell size), so animals find the trees drawn.
+                var flora = FindAnyObjectByType<Punchy.Flora.FloraSystem>();
+                var cells = flora != null
+                    ? new float3(Punchy.Flora.FloraPlacement.CellSize(flora.Ground.TileSize, flora.Ground.CellSize),
+                                 Punchy.Flora.FloraPlacement.CellSize(flora.Shrubs.TileSize, flora.Shrubs.CellSize),
+                                 Punchy.Flora.FloraPlacement.CellSize(flora.Trees.TileSize, flora.Trees.CellSize))
+                    : new float3(0.7f, 2f, 4.5f);
+                floraBlob = Punchy.Flora.FloraPlacement.Build(palette, cells, floraSpecies);
+                floraEntity = simWorld.EntityManager.CreateEntity();
+                simWorld.EntityManager.SetName(floraEntity, "Flora Lookup");
+                simWorld.EntityManager.AddComponentData(floraEntity, new Punchy.Flora.FloraLookup { Blob = floraBlob });
+            }
             lastSource = source;
             configStamp = ConfigStamp();
             built = true;
@@ -282,6 +304,10 @@ namespace Punchy.Fauna
         }
 
         public int SpeciesIndex(CreatureSpecies s) => species.IndexOf(s);
+        public int SpeciesIndex(string name) => species.FindIndex(s => s.name == name);
+        /// <summary>How many animals birds of prey have caught (for the test log).</summary>
+        public static int Caught;
+        public Habitat SpeciesHabitat(int index) => species[index].Body.Habitat;
 
         // ------------------------------------------------------------------------------------------- the player's body
 
@@ -438,8 +464,11 @@ namespace Punchy.Fauna
             for (int i = 0; i < entities.Length; i++)
             {
                 var xz = states[i].Position.xz;
-                if (players.Count == 0 || NearestPlayer(xz) > DespawnDistance)
+                // Far from everyone, or caught by a bird of prey.
+                if (players.Count == 0 || NearestPlayer(xz) > DespawnDistance || states[i].Gone)
                 {
+                    if (states[i].Gone)
+                        Caught++;
                     far.Add(entities[i]);
                     continue;
                 }
@@ -505,14 +534,14 @@ namespace Punchy.Fauna
                 var g = source.SampleGround(p);
                 var d = g.HasWater ? g.WaterSurface - g.Height : -1f;
                 if (Suits(s.Habitat, d))
-                    Spawn(best, new float3(p.x, s.Habitat == Habitat.Land ? g.Height : g.WaterSurface - math.min(d * 0.45f, s.SwimDepth), p.y));
+                    Spawn(best, new float3(p.x, s.Habitat == Habitat.Land || s.Habitat == Habitat.Flies ? g.Height : g.WaterSurface - math.min(d * 0.45f, s.SwimDepth), p.y));
             }
             counts[offset + best] += group;
         }
 
         /// <summary>Whether water this deep (negative = dry land) suits an animal of a habitat.</summary>
         static bool Suits(Habitat habitat, float depth) =>
-            habitat == Habitat.Swims ? depth >= 0.9f : habitat == Habitat.Floats ? depth >= 0.4f : depth <= 0f;
+            habitat == Habitat.Swims ? depth >= 0.9f : habitat == Habitat.Floats ? depth >= 0.4f : depth <= 0f;   // fliers start on the ground
 
         void SpawnResidents(in TerrainSource source)
         {

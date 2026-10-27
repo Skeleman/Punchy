@@ -14,7 +14,8 @@ namespace Punchy.Fauna
         [Tooltip("Flicks with a little spring lag.")] Ear,
         Horn,
         Eye,
-        [Tooltip("A static body feature: hump, mane, stripe, antler tine, shell ridge…")] Feature
+        [Tooltip("A static body feature: hump, mane, stripe, antler tine, shell ridge…")] Feature,
+        [Tooltip("Folded (Idle) at rest; in flight it beats through the Walk keys (reach = up, push = down).")] Wing
     }
 
     /// <summary>

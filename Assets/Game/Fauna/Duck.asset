@@ -114,3 +114,13 @@ MonoBehaviour:
   Hunts: []
   Hunger: 0
   ChaseTime: 10
+  Idles: 2568
+  Fidgets: 0.6
+  Climbing: 0
+  SpinsWebs: 0
+  WebSize: 0.6
+  FlightHeight: {x: 8, y: 18}
+  FlySpeed: 7
+  FlapRate: 6
+  Glide: 0
+  Perching: 0.6

@@ -13,7 +13,10 @@ namespace Punchy.Fauna
     ///  3. secondary motion: tails and ears swing out of turns on a spring; the head turns to look;
     ///  4. posture (from the activity): lying down lowers the body to the ground and folds legs that hang beneath
     ///     it; head-down bends the neck and head to the ground, chewing; a play bow drops the chest; curling up to
-    ///     sleep wraps the tail round and lays the ears back; resting animals breathe;
+    ///     sleep wraps the tail round and lays the ears back; sitting folds the hind legs and raises the chest;
+    ///     climbing (or sitting up tall) pitches the body up, diving or hanging in a web pitches it down; in flight
+    ///     the wings beat through their walk keys and the legs tuck up; resting animals breathe; an idle action
+    ///     (pawing, grooming, scratching, shaking, stretching, sniffing, preening…) bends the parts it uses;
     ///  5. the individual: each animal has fixed traits (from CreatureState.Individual) for posture, arm swing,
     ///     bounce, torso twist and head tilt, shows one option per style group (hairstyles, beards) and has its own
     ///     hair colour; a worker at its post poses its arms for its task (hammering, chopping, tending…);
@@ -71,12 +74,32 @@ namespace Punchy.Fauna
             var height = math.lerp(b.StandHeight, lying, s.Lie) * scale;
             var lowered = b.StandHeight * scale - height;
             pitch += s.Bow * 0.3f + s.HeadDown * 0.1f * (1f - s.Lie);
+            // Sitting: rump down on folded hind legs, chest up.
+            pitch -= s.Sit * 0.5f;
+            height -= s.Sit * b.StandHeight * scale * 0.3f;
+            // Climbing a trunk or sitting up tall (up), diving or hanging head down in a web (down).
+            pitch -= s.Vertical * math.PI * 0.47f;
             var still = 1f - move;
             var breath = 0.5f + 0.5f * math.sin(s.Clock * (s.Curl > 0.5f ? 1.3f : 2.2f));
             height += breath * 0.01f * scale * still * (0.3f + s.Lie);
 
-            var rootRot = math.mul(quaternion.RotateY(s.Yaw), quaternion.RotateX(pitch));
-            var rootPos = new float3(s.Position.x, ground + height - bob, s.Position.z);
+            // Idle actions that move the whole body: a shake rolls it, lizard push-ups bob it, sniffing dips it.
+            var act = ActionEnvelope(s.ActionTime);
+            var roll = 0f;
+            if (s.Action == IdleAction.Shake)
+                roll = act * 0.45f * math.sin(s.Clock * 28f);
+            else if (s.Action == IdleAction.HeadBob)
+                height += act * 0.35f * b.StandHeight * scale * math.abs(math.sin(s.Clock * 9f));
+            else if (s.Action == IdleAction.Sniff)
+                pitch += act * 0.08f;
+
+            var rootRot = math.mul(quaternion.RotateY(s.Yaw), math.mul(quaternion.RotateX(pitch), quaternion.RotateZ(roll)));
+            // Pitched up against a trunk, the body keeps its legs' length out from it (behind it) rather than above.
+            var up = math.saturate(s.Vertical);
+            var lift = height - bob;
+            // Hanging head down in a web, the body sits right at its anchor (the web's centre).
+            var hang = s.Mode == CreatureMode.Web ? math.saturate(-s.Vertical) : 0f;
+            var rootPos = new float3(s.Position.x, ground, s.Position.z) + new float3(0f, lift * (1f - up - hang), 0f) - forward * lift * up;
 
             // Body.
             ref var body = ref b.Segments[0];
@@ -111,13 +134,37 @@ namespace Punchy.Fauna
                 // splayed legs (lizards, spiders) keep their feet planted and bend at the knees instead.
                 var fold = 0f;
                 var folds = part.Role == LimbRole.Leg && part.Parent < 0 && math.mul(part.Rest, new float3(0f, 0f, 1f)).y < -0.7f;
+                var hind = part.Socket.z < 0f;
                 if (folds)
+                {
                     fold = math.max(s.Lie, part.Socket.z > 0f ? s.Bow * 0.5f : 0f);
+                    // Sitting folds the hind legs; sitting up tall tucks the front paws too; in flight all tuck up.
+                    if (hind)
+                        fold = math.max(fold, s.Sit);
+                    else if (s.Mode != CreatureMode.Climb && s.Mode != CreatureMode.Web)
+                        fold = math.max(fold, math.saturate(s.Vertical * 1.6f));
+                    // In flight the legs trail back under the tail instead (below).
+                    fold *= 1f - s.Fly;
+                }
+                // A leg busy with an idle action (pawing, scratching) isn't planted.
+                var busyLeg = UsedByAction(ref part, in s);
+                var gaitMove = part.Role == LimbRole.Leg ? move * (1f - s.Fly) : move;
 
                 for (int j = 0; j < part.SegmentCount; j++)
                 {
                     var seg = part.FirstSegment + j;
-                    var a = b.Angles(seg, math.frac(phase - j * part.JointPhaseStep), move, run);
+                    var jointPhase = math.frac(phase - j * part.JointPhaseStep);
+                    float3 a;
+                    if (part.Role == LimbRole.Wing)
+                    {
+                        // Folded at rest; in flight, beating through the walk keys (or held spread, gliding).
+                        var k = seg * CreatureBlob.PoseCount;
+                        var flap = CreatureBlob.Cycle(b.Poses[k + CreatureBlob.WalkReach], b.Poses[k + CreatureBlob.WalkPush],
+                                                      b.Poses[k + CreatureBlob.WalkLift], jointPhase);
+                        a = math.lerp(b.Poses[k + CreatureBlob.Idle], flap, s.Fly);
+                    }
+                    else
+                        a = b.Angles(seg, jointPhase, gaitMove, run);
                     if (amplitude != 1f)
                     {
                         var idle = b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle];
@@ -129,10 +176,15 @@ namespace Punchy.Fauna
                         a += headTilt;
                     a += Secondary(ref part, in s, j, run, b.Upright);
                     a += TaskPose(ref part, in s, j);
+                    if (s.Action != IdleAction.None && !b.Upright)
+                        a += ActionPose(ref part, in s, j, act);
                     if (seg < segHidden.Length)
                         segHidden[seg] = hidden;
                     if (fold > 0f)
                         a.x += Fold(j, part.SegmentCount) * fold;
+                    // Flying: legs swept back along the belly, feet tucked.
+                    if (folds && s.Fly > 0f)
+                        a.x += (j == 0 ? 1.35f : j == part.SegmentCount - 1 ? 0.6f : -0.2f) * s.Fly;
                     rot = math.mul(rot, quaternion.EulerZXY(a));
                     if (part.FollowGround)
                         rot = LieOnGround(in terrain, pos, rot, b.Segments[seg].Length * scale, b.Segments[seg].RadiusEnd * b.Segments[seg].Flatten * scale);
@@ -144,7 +196,8 @@ namespace Punchy.Fauna
                     pos += math.mul(rot, new float3(0f, 0f, b.Segments[seg].Length * scale));
                 }
 
-                if (part.Role == LimbRole.Leg && part.Parent < 0 && part.SegmentCount >= 2 && part.FirstSegment + part.SegmentCount <= MaxSegments)
+                if (part.Role == LimbRole.Leg && part.Parent < 0 && part.SegmentCount >= 2 && part.FirstSegment + part.SegmentCount <= MaxSegments &&
+                    !busyLeg && s.Fly < 0.5f && up < 0.5f)
                 {
                     // Where the ground would be under this foot if it were the flat, sloped plane the body is
                     // standing on, versus where it really is: bend the leg by the difference.
@@ -176,6 +229,92 @@ namespace Punchy.Fauna
                     colour = b.HairColor(id, colour);
                 output[offset + seg] = Instance(segPos[seg], segRot[seg], ref segment, scale, colour);
             }
+        }
+
+        /// <summary>How far into an idle action it is, as a weight: eases in, holds, eases out.</summary>
+        static float ActionEnvelope(float t) => math.smoothstep(0f, 0.12f, t) * (1f - math.smoothstep(0.85f, 1f, t));
+
+        /// <summary>A weight that's 1 between a and b (easing over a tenth either side), for the phases of an action.</summary>
+        static float Window(float t, float a, float b) => math.smoothstep(a, a + 0.1f, t) * (1f - math.smoothstep(b - 0.1f, b, t));
+
+        static bool FrontLeg(ref CreaturePart part) => part.Role == LimbRole.Leg && part.Parent < 0 && part.Socket.z > 0f;
+        static bool HindLeg(ref CreaturePart part) => part.Role == LimbRole.Leg && part.Parent < 0 && part.Socket.z < 0f;
+
+        /// <summary>The right front leg paws, the right hind leg scratches.</summary>
+        static bool UsedByAction(ref CreaturePart part, in CreatureState s) =>
+            part.Side > 0f && (s.Action == IdleAction.PawGround && FrontLeg(ref part) || s.Action == IdleAction.Scratch && HindLeg(ref part));
+
+        /// <summary>
+        /// The joint angles an idle action adds (weighted by how far into it the animal is). Legs: negative pitch
+        /// reaches forward, positive swings back. Necks and heads turn by yaw (pitch nods them down).
+        /// </summary>
+        static float3 ActionPose(ref CreaturePart part, in CreatureState s, int joint, float e)
+        {
+            var n = math.max(part.SegmentCount, 1);
+            var t = s.ActionTime;
+            // Grooming and preening turn to one side or the other, fixed per individual.
+            var side = CreatureBlob.Trait(s.Individual, 13) > 0f ? 1f : -1f;
+            switch (s.Action)
+            {
+                case IdleAction.PawGround:
+                    if (UsedByAction(ref part, in s))
+                    {
+                        // Reach forward, then drag the hoof back through the dirt.
+                        var w = math.sin(math.PI * 2f * math.frac(s.Clock * 1.3f));
+                        return joint == 0 ? new float3((-0.5f * w - 0.25f) * e, 0f, 0f)
+                             : joint == 1 ? new float3(-0.6f * math.max(0f, w) * e, 0f, 0f) : float3.zero;
+                    }
+                    if (part.Role == LimbRole.Head) return new float3(0.3f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Neck) return new float3(0.35f * e / n, 0f, 0f);
+                    break;
+                case IdleAction.Groom:
+                    if (part.Role == LimbRole.Neck) return new float3(0.25f * e / n, side * 1.3f * e / n, 0f);
+                    if (part.Role == LimbRole.Head) return new float3((0.3f + 0.12f * math.sin(s.Clock * 10f)) * e, side * 0.7f * e, 0f);
+                    break;
+                case IdleAction.Scratch:
+                    if (UsedByAction(ref part, in s))
+                        return joint == 0 ? new float3((-1.1f + 0.18f * math.sin(s.Clock * 30f)) * e, 0f, 0f)
+                             : joint == 1 ? new float3(0.8f * e, 0f, 0f) : float3.zero;
+                    if (part.Role == LimbRole.Head) return new float3(0.1f * e, 0f, 0.45f * e);
+                    if (part.Role == LimbRole.Neck) return new float3(0f, 0.4f * e / n, 0f);
+                    break;
+                case IdleAction.Shake:
+                    if (part.Role == LimbRole.Ear || part.Role == LimbRole.Tail)
+                        return new float3(0f, 0.6f * math.sin(s.Clock * 28f) * e * (1f + joint * 0.5f), 0f);
+                    break;
+                case IdleAction.Stretch:
+                {
+                    // Chest down with the front legs out, then the hind legs stretched back with the head up.
+                    float first = Window(t, 0.05f, 0.5f), second = Window(t, 0.5f, 0.95f);
+                    if (FrontLeg(ref part) && joint == 0) return new float3(-0.7f * first, 0f, 0f);
+                    if (HindLeg(ref part) && joint == 0) return new float3(0.6f * second, 0f, 0f);
+                    if (part.Role == LimbRole.Head) return new float3(-0.3f * second, 0f, 0f);
+                    if (part.Role == LimbRole.Tail) return new float3(-0.3f * second, 0f, 0f);
+                    break;
+                }
+                case IdleAction.Sniff:
+                    if (part.Role == LimbRole.Neck) return new float3(0.8f * e / n, 0f, 0f);
+                    if (part.Role == LimbRole.Head) return new float3((0.35f + 0.07f * math.sin(s.Clock * 16f)) * e, 0f, 0f);
+                    break;
+                case IdleAction.TailFlick:
+                    if (part.Role == LimbRole.Tail)
+                        return new float3(-0.2f * e, 0.7f * math.sin(s.Clock * 7f) * e * (1f + joint * 0.5f), 0f);
+                    break;
+                case IdleAction.Preen:
+                    if (part.Role == LimbRole.Neck) return new float3(0.2f * e / n, side * 2f * e / n, 0f);
+                    if (part.Role == LimbRole.Head) return new float3((0.4f + 0.1f * math.sin(s.Clock * 14f)) * e, side * 0.8f * e, 0f);
+                    if (part.Role == LimbRole.Wing && part.Side * side > 0f && joint == 0) return new float3(0f, 0f, 0.25f * e * part.Side);
+                    break;
+                case IdleAction.HeadBob:
+                    if (part.Role == LimbRole.Head) return new float3(-0.2f * e, 0f, 0f);
+                    break;
+                case IdleAction.LookAround:
+                case IdleAction.SitUp:
+                    if (part.Role == LimbRole.Head) return new float3(-0.15f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Ear) return new float3(-0.3f * e, 0f, 0f);
+                    break;
+            }
+            return float3.zero;
         }
 
         /// <summary>

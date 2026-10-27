@@ -23,6 +23,7 @@ MonoBehaviour:
   AccentGlow: 0
   Coats: []
   Size: {x: 0.9, y: 1.1}
+  HairColors: []
   Parts:
   - Limb: {fileID: 11400000, guid: 2c2c89c13d2d68c4cb4c8822c3681830, type: 2}
     Parent: -1
@@ -33,6 +34,7 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 2.2
     Thickness: 1.35
+    StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 8126b24d28dddfa479b8f90a422c24b0, type: 2}
     Parent: -1
     Socket: {x: 0.55, y: -0.4, z: 0.7}
@@ -42,6 +44,7 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 2.2
     Thickness: 1.45
+    StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 638d929797ab7c94ea24e6ed0d7c877b, type: 2}
     Parent: -1
     Socket: {x: 0, y: 0.4, z: 0.95}
@@ -51,6 +54,7 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 1.6
     Thickness: 1.2
+    StyleGroup: 0
   - Limb: {fileID: 11400000, guid: eaac76a5096f0c2488d1477e6eac192e, type: 2}
     Parent: 2
     Socket: {x: 0, y: 0, z: 0}
@@ -60,6 +64,7 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 1
     Thickness: 1
+    StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 45fff01064efe4a4f875420c65a4851e, type: 2}
     Parent: 3
     Socket: {x: 0.05, y: 0.06, z: -0.09}
@@ -69,6 +74,7 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 1
     Thickness: 1
+    StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 8db8692701365314db1a0b5e9ab1cbd1, type: 2}
     Parent: 3
     Socket: {x: 0.05, y: 0.03, z: -0.04}
@@ -78,6 +84,7 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 1.1
     Thickness: 1
+    StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 8d51aa229c1545949a7f2be69d1443bb, type: 2}
     Parent: -1
     Socket: {x: 0, y: 0.3, z: -1}
@@ -87,11 +94,13 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 1
     Thickness: 1
+    StyleGroup: 0
   WalkSpeed: 1.1
   RunSpeed: 10
   Bob: {x: 0.008, y: 0.04}
   BobsPerCycle: {x: 2, y: 1}
   RunRock: 6
+  Upright: 0
   LeglessStride: {x: 0.6, y: 0.9}
   WanderRadius: 50
   IdleTime: {x: 3, y: 12}
@@ -99,6 +108,9 @@ MonoBehaviour:
   TurnRate: 120
   GroupSize: {x: 1, y: 1}
   NearWater: 0
+  Habitat: 0
+  SwimDepth: 0.6
+  Leaps: 0
   Active: 1
   Grazing: 0
   Thirst: 0.3
@@ -111,3 +123,13 @@ MonoBehaviour:
   - {fileID: 11400000, guid: a6c6bb705c9f3ab44adc7460ae96114d, type: 2}
   Hunger: 0.4
   ChaseTime: 10
+  Idles: 2394
+  Fidgets: 0.7
+  Climbing: 0
+  SpinsWebs: 0
+  WebSize: 0.6
+  FlightHeight: {x: 8, y: 18}
+  FlySpeed: 7
+  FlapRate: 6
+  Glide: 0
+  Perching: 0.6

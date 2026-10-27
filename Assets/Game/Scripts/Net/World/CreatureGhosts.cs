@@ -30,6 +30,8 @@ namespace Punchy.Net
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Speed;
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Look;
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Lie, HeadDown, Bow, Curl, Air;
+        [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Sit, Vertical, Fly, ActionTime;
+        [GhostField] public byte Action;
     }
 
     /// <summary>Client: this creature is a server ghost that FaunaDirector has given a body (CreatureState/CreatureBody).</summary>
@@ -71,6 +73,11 @@ namespace Punchy.Net
                 n.Bow = c.Bow;
                 n.Curl = c.Curl;
                 n.Air = c.Air;
+                n.Sit = c.Sit;
+                n.Vertical = c.Vertical;
+                n.Fly = c.Fly;
+                n.Action = (byte)c.Action;
+                n.ActionTime = c.ActionTime;
             }
         }
     }
@@ -158,10 +165,12 @@ namespace Punchy.Net
                 c.Bow = n.Bow;
                 c.Curl = n.Curl;
                 c.Air = n.Air;
-                var run = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), c.Speed / c.Scale);
-                var stride = math.lerp(b.WalkStride, b.RunStride, run) * c.Scale;
-                c.Phase = math.frac(c.Phase + c.Speed * dt / stride);
-                c.Sway += (-c.YawRate * 0.35f - c.Sway) * math.min(1f, dt * 4f);
+                c.Sit = n.Sit;
+                c.Vertical = n.Vertical;
+                c.Fly = n.Fly;
+                c.Action = (IdleAction)n.Action;
+                c.ActionTime = n.ActionTime;
+                CreatureMotion.AdvancePhase(ref c, ref b, dt);
             }
         }
     }

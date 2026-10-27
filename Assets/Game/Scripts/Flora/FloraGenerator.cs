@@ -92,6 +92,30 @@ namespace Punchy.Flora
             return model;
         }
 
+        /// <summary>
+        /// A variant's shape without growing it: trees draw their height first from the same seeded sequence Grow
+        /// uses, so this matches the model exactly. Anything that isn't a tree is TreeKind.None.
+        /// </summary>
+        public static FloraShape Shape(FloraSpecies species, int variant)
+        {
+            var kind = species.Form == FloraForm.BroadleafTree ? TreeKind.Broadleaf
+                     : species.Form == FloraForm.Conifer ? TreeKind.Conifer
+                     : species.Form == FloraForm.Palm ? TreeKind.Palm : TreeKind.None;
+            if (kind == TreeKind.None)
+                return default;
+            var seed = (int)Hash((uint)species.Seed, (uint)variant, StableHash(species.name));
+            var height = Mathf.Lerp(species.Height.x, species.Height.y, (float)new System.Random(seed).NextDouble());
+            return new FloraShape
+            {
+                Kind = kind,
+                Height = height,
+                TrunkRadius = height * species.Thickness,
+                // Palms carry their fronds at the top; the others branch from TrunkFraction up.
+                CrownBase = kind == TreeKind.Palm ? height * 0.88f : height * species.TrunkFraction,
+                CrownRadius = height * species.Spread * 0.5f
+            };
+        }
+
         static uint StableHash(string text)
         {
             var h = 2166136261u;

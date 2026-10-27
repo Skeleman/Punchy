@@ -1,0 +1,477 @@
+using System;
+using System.Collections.Generic;
+using Punchy.Terrain;
+using Unity.Collections;
+using Unity.Entities;
+using Unity.Mathematics;
+using UnityEngine;
+using Random = Unity.Mathematics.Random;
+
+namespace Punchy.Flora
+{
+    /// <summary>A species' placement rules, flattened for Burst.</summary>
+    public struct FloraRules
+    {
+        public int FirstModel, Variants;
+        public float MaxSlope;
+        public float2 Elevation;
+        public float GrassAffinity;
+        public int ToleratesSnow;
+        public float PatchFrequency, PatchCoverage;
+        public float2 PatchOffset;
+        public float NearWater;
+        public int OnlyNearWater;
+        public float2 SizeRange;
+        public int Aquatic, Floats;
+        public float2 WaterDepth;
+        public float MinRapids;
+    }
+
+    public struct FloraBiomeEntry
+    {
+        public int Species;
+        public float Density;
+    }
+
+    /// <summary>A landmark prop, flattened for Burst.</summary>
+    public struct FloraPropEntry
+    {
+        public int Species;
+        public float Density;
+        public float2 Ring, Scale;
+        public int Centrepiece, FaceCentre, Count;
+        public float Angle, Clearance;
+    }
+
+    public enum TreeKind : byte { None, Broadleaf, Conifer, Palm }
+
+    /// <summary>What a plant variant is like to climb or perch in (unscaled metres).</summary>
+    public struct FloraShape
+    {
+        public TreeKind Kind;
+        public float Height, TrunkRadius;
+        /// <summary>Where the crown starts (the first branches), and how far it spreads from the trunk.</summary>
+        public float CrownBase, CrownRadius;
+    }
+
+    /// <summary>
+    /// Everything that decides where plants grow, for any world and any job: the per-species rules, each biome's and
+    /// landmark's lists, and the grids' cell sizes. Placement is a pure function of a cell, so FloraSystem (drawing)
+    /// and the animals (climbing, perching, spinning webs) agree on where every tree is without sharing anything else.
+    /// </summary>
+    public struct FloraBlob
+    {
+        public BlobArray<FloraRules> Rules;
+        public BlobArray<FloraBiomeEntry> Entries;
+        /// <summary>Per biome × layer: (first entry, count).</summary>
+        public BlobArray<int2> Ranges;
+        public BlobArray<FloraPropEntry> Props;
+        /// <summary>Per landmark type × layer.</summary>
+        public BlobArray<int2> PropRanges;
+        public int BiomeCount, LandmarkTypeCount;
+        /// <summary>Every model (species variants, in FirstModel order).</summary>
+        public BlobArray<FloraShape> Models;
+        /// <summary>Grid spacing of the ground, shrub and tree layers.</summary>
+        public float3 CellSizes;
+    }
+
+    /// <summary>The placement tables, for the animals' world (set up by FaunaDirector).</summary>
+    public struct FloraLookup : IComponentData
+    {
+        public BlobAssetReference<FloraBlob> Blob;
+    }
+
+    /// <summary>A tree an animal can use.</summary>
+    public struct TreeSpot
+    {
+        public float3 Base;
+        public float Height, TrunkRadius, CrownBase, CrownRadius;
+        public TreeKind Kind;
+    }
+
+    public static class FloraPlacement
+    {
+        public const int TreeLayer = 2;
+
+        /// <summary>
+        /// Builds the tables from a palette. <paramref name="species"/> receives the species in model order (sorted by
+        /// layer, then name): species i's variants are models Rules[i].FirstModel onwards.
+        /// </summary>
+        public static BlobAssetReference<FloraBlob> Build(BiomePalette palette, float3 cellSizes, List<FloraSpecies> species)
+        {
+            var found = new HashSet<FloraSpecies>();
+            foreach (var biome in palette.Biomes)
+                if (biome != null)
+                    foreach (var f in biome.Flora)
+                        if (f.Species != null)
+                            found.Add(f.Species);
+            var landmarks = palette.Landmarks ?? Array.Empty<LandmarkType>();
+            foreach (var landmark in landmarks)
+                if (landmark != null)
+                    foreach (var p in landmark.Props)
+                        if (p.Species != null)
+                            found.Add(p.Species);
+            species.Clear();
+            species.AddRange(found);
+            species.Sort((a, b) => a.Layer != b.Layer ? a.Layer.CompareTo(b.Layer) : string.CompareOrdinal(a.name, b.name));
+
+            var builder = new BlobBuilder(Allocator.Temp);
+            ref var root = ref builder.ConstructRoot<FloraBlob>();
+            root.CellSizes = cellSizes;
+
+            var rules = builder.Allocate(ref root.Rules, species.Count);
+            var shapes = new List<FloraShape>();
+            for (int i = 0; i < species.Count; i++)
+            {
+                var s = species[i];
+                var h = math.hash(new int2(s.Seed, i));
+                rules[i] = new FloraRules
+                {
+                    FirstModel = shapes.Count,
+                    Variants = s.Variants,
+                    MaxSlope = s.MaxSlope,
+                    Elevation = s.Elevation,
+                    GrassAffinity = s.GrassAffinity,
+                    ToleratesSnow = s.ToleratesSnow ? 1 : 0,
+                    PatchFrequency = 1f / math.max(s.PatchSize, 1f),
+                    PatchCoverage = s.PatchCoverage,
+                    PatchOffset = new float2(h & 0xFFFF, h >> 16) / 65535f * 300f,
+                    NearWater = s.NearWater,
+                    OnlyNearWater = s.OnlyNearWater ? 1 : 0,
+                    SizeRange = s.SizeRange,
+                    Aquatic = s.Aquatic ? 1 : 0,
+                    Floats = s.Floats ? 1 : 0,
+                    WaterDepth = s.WaterDepth,
+                    MinRapids = s.MinRapids
+                };
+                for (int v = 0; v < s.Variants; v++)
+                    shapes.Add(FloraGenerator.Shape(s, v));
+            }
+            var models = builder.Allocate(ref root.Models, shapes.Count);
+            for (int m = 0; m < shapes.Count; m++)
+                models[m] = shapes[m];
+
+            root.BiomeCount = palette.Biomes.Length;
+            var list = new List<FloraBiomeEntry>();
+            var ranges = builder.Allocate(ref root.Ranges, root.BiomeCount * 3);
+            for (int b = 0; b < root.BiomeCount; b++)
+            for (int layer = 0; layer < 3; layer++)
+            {
+                var start = list.Count;
+                if (palette.Biomes[b] != null)
+                    foreach (var f in palette.Biomes[b].Flora)
+                        if (f.Species != null && (int)f.Species.Layer == layer && f.Density > 0f)
+                            list.Add(new FloraBiomeEntry { Species = species.IndexOf(f.Species), Density = f.Density });
+                ranges[b * 3 + layer] = new int2(start, list.Count - start);
+            }
+            var entries = builder.Allocate(ref root.Entries, list.Count);
+            for (int i = 0; i < list.Count; i++)
+                entries[i] = list[i];
+
+            root.LandmarkTypeCount = landmarks.Length;
+            var propList = new List<FloraPropEntry>();
+            var propRanges = builder.Allocate(ref root.PropRanges, math.max(1, landmarks.Length * 3));
+            for (int t = 0; t < landmarks.Length; t++)
+            for (int layer = 0; layer < 3; layer++)
+            {
+                var start = propList.Count;
+                if (landmarks[t] != null)
+                    foreach (var p in landmarks[t].Props)
+                        if (p.Species != null && (int)p.Species.Layer == layer && (p.Density > 0f || p.Centrepiece || p.Count > 0))
+                            propList.Add(new FloraPropEntry
+                            {
+                                Species = species.IndexOf(p.Species),
+                                Density = p.Density,
+                                Ring = p.Ring,
+                                Scale = p.Scale,
+                                Centrepiece = p.Centrepiece ? 1 : 0,
+                                FaceCentre = p.FaceCentre ? 1 : 0,
+                                Count = p.Count,
+                                Angle = p.Angle,
+                                Clearance = p.Clearance
+                            });
+                propRanges[t * 3 + layer] = new int2(start, propList.Count - start);
+            }
+            var props = builder.Allocate(ref root.Props, propList.Count);
+            for (int i = 0; i < propList.Count; i++)
+                props[i] = propList[i];
+
+            var blob = builder.CreateBlobAssetReference<FloraBlob>(Allocator.Persistent);
+            builder.Dispose();
+            return blob;
+        }
+
+        /// <summary>
+        /// The grid spacing a layer really uses: its tiles hold a whole number of cells, so the cell size is rounded
+        /// to fit (FloraSystem's tile streaming relies on it).
+        /// </summary>
+        public static float CellSize(float tileSize, float cellSize) => tileSize / math.round(tileSize / cellSize);
+
+        /// <summary>The plant growing in one cell of a layer's grid (Model -1 if none).</summary>
+        public static FloraSystem.FloraInstance Place(ref FloraBlob f, in TerrainSource source, int2 cell, int layer)
+        {
+            var none = new FloraSystem.FloraInstance { Model = -1 };
+            var cellSize = f.CellSizes[layer];
+            var rng = new Random(math.hash(new int3(cell, layer * 7919 + 13)) | 1u);
+            var xz = ((float2)cell + rng.NextFloat2()) * cellSize;
+            var roll = rng.NextFloat();
+            var area = cellSize * cellSize / 100f;
+            var candidates = new FixedList64Bytes<int>();   // species index, or -(prop entry + 1)
+            var weights = new FixedList64Bytes<float>();
+            var bound = 0f;
+
+            // Inside a landmark: its centrepiece takes the cell holding the centre, the biome's plants thin out
+            // towards the middle, and its props join the candidates.
+            var keep = 1f;
+            var towardsCentre = float2.zero;
+            if (source.Landmarks.IsCreated && LandmarkSampling.Find(ref source.Landmarks.Value, xz, out var landmark) && landmark.Type < f.LandmarkTypeCount)
+            {
+                ref var set = ref source.Landmarks.Value;
+                var clear = set.Types[landmark.Type].ClearRadius;
+                keep = clear > 0f ? math.smoothstep(clear * 0.8f, clear, landmark.Distance) : 1f;
+                towardsCentre = set.Instances[landmark.Instance].Position - xz;
+
+                // Placed props (an inn, a pen): each takes the cell holding its spot, in its own layer, and keeps
+                // everything else in every layer clear of it.
+                var blocked = false;
+                for (int l = 0; l < 3; l++)
+                {
+                    var placed = f.PropRanges[landmark.Type * 3 + l];
+                    for (int e = placed.x; e < placed.x + placed.y; e++)
+                    {
+                        var prop = f.Props[e];
+                        for (int k = 0; k < prop.Count; k++)
+                        {
+                            var spot = LandmarkSampling.ToWorld(set.Instances[landmark.Instance],
+                                LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
+                            if (l == layer && math.all((int2)math.floor(spot / cellSize) == cell))
+                            {
+                                var placedRule = f.Rules[prop.Species];
+                                var toCentre = set.Instances[landmark.Instance].Position - spot;
+                                return new FloraSystem.FloraInstance
+                                {
+                                    Position = new float3(spot.x, source.SampleHeight(spot), spot.y),
+                                    Yaw = prop.FaceCentre != 0 ? math.atan2(-toCentre.x, toCentre.y) : rng.NextFloat(math.PI * 2f),
+                                    Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
+                                    Model = placedRule.FirstModel + rng.NextInt(placedRule.Variants),
+                                    Random = rng.NextFloat()
+                                };
+                            }
+                            blocked |= math.distance(xz, spot) < prop.Clearance;
+                        }
+                    }
+                }
+                if (blocked)
+                    return none;
+                var propRange = f.PropRanges[landmark.Type * 3 + layer];
+                for (int e = propRange.x; e < propRange.x + propRange.y; e++)
+                {
+                    var prop = f.Props[e];
+                    if (prop.Count > 0)
+                        continue;
+                    if (prop.Centrepiece != 0)
+                    {
+                        var centre = set.Instances[landmark.Instance].Position;
+                        if (math.all((int2)math.floor(centre / cellSize) == cell))
+                        {
+                            var centreRule = f.Rules[prop.Species];
+                            return new FloraSystem.FloraInstance
+                            {
+                                Position = new float3(centre.x, source.SampleHeight(centre), centre.y),
+                                Yaw = rng.NextFloat(math.PI * 2f),
+                                Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
+                                Model = centreRule.FirstModel + rng.NextInt(centreRule.Variants),
+                                Random = rng.NextFloat()
+                            };
+                        }
+                        continue;
+                    }
+                    var ring = math.smoothstep(prop.Ring.x - 0.05f, prop.Ring.x, landmark.Distance) *
+                               (1f - math.smoothstep(prop.Ring.y, prop.Ring.y + 0.05f, landmark.Distance));
+                    var d = prop.Density * area * ring;
+                    if (d <= 0f || candidates.Length >= candidates.Capacity)
+                        continue;
+                    candidates.Add(-(e + 1));
+                    weights.Add(d);
+                    bound += d;
+                }
+            }
+
+            // Cheap first pass: which species could grow here, at most how likely.
+            source.SampleBiomes(xz, out var biomes, out _);
+            for (int b = 0; b < 4; b++)
+            {
+                var w = biomes.Weights[b];
+                if (w <= 0f || biomes.Ids[b] >= f.BiomeCount)
+                    continue;
+                var range = f.Ranges[biomes.Ids[b] * 3 + layer];
+                for (int e = range.x; e < range.x + range.y; e++)
+                {
+                    var entry = f.Entries[e];
+                    var d = entry.Density * w * area * keep;
+                    if (d <= 0f)
+                        continue;
+                    var at = candidates.IndexOf(entry.Species);
+                    if (at < 0)
+                    {
+                        if (candidates.Length >= candidates.Capacity)
+                            continue;
+                        candidates.Add(entry.Species);
+                        weights.Add(d);
+                    }
+                    else
+                        weights[at] += d;
+                    bound += d * math.max(1f, f.Rules[entry.Species].NearWater);
+                }
+            }
+            if (roll >= bound)
+                return none;
+
+            // Full sample of the ground (none over a cave entrance).
+            if (source.IsCaveHole(xz))
+                return none;
+            var ground = source.SampleGround(xz);
+            // Land plants keep out of the water; aquatic ones grow only in it, at their depths.
+            var depth = ground.HasWater ? ground.WaterSurface - ground.Height : -1f;
+            var underwater = depth > -0.15f;
+            var normal = source.SampleNormal(xz, 1f);
+            var surface = source.SampleSurface(xz, ground, normal);
+            var slope = math.degrees(math.acos(math.saturate(normal.y)));
+            var elevation = ground.Height - source.World.SeaLevel;
+            var nearWater = 1f - math.smoothstep(1.5f, 8f, -ground.WaterDepth);
+            var dry = 1f - math.saturate(ground.River * 1.5f);
+
+            var total = 0f;
+            var shrink = new FixedList64Bytes<float>();
+            for (int c = 0; c < candidates.Length; c++)
+            {
+                // Props go where the landmark puts them, whatever the ground, except too steep for the species
+                // (rocks would jut out of cliff faces).
+                if (candidates[c] < 0)
+                {
+                    var propRule = f.Rules[f.Props[-candidates[c] - 1].Species];
+                    weights[c] *= 1f - math.smoothstep(propRule.MaxSlope - 4f, propRule.MaxSlope, slope);
+                    if (underwater && propRule.Aquatic == 0)
+                        weights[c] = 0f;
+                    shrink.Add(1f);
+                    total += weights[c];
+                    continue;
+                }
+                var r = f.Rules[candidates[c]];
+                if (r.Aquatic != 0)
+                {
+                    // Water plants: just the right depth (and patches, if the species has them).
+                    var inDepth = depth >= r.WaterDepth.x && depth <= r.WaterDepth.y ? 1f : 0f;
+                    var fw = weights[c] * inDepth;
+                    // Floating plants drift away in a current: they keep to still water.
+                    if (r.Floats != 0)
+                        fw *= 1f - 0.9f * math.saturate(math.length(ground.Flow));
+                    if (r.MinRapids > 0f)
+                        fw *= math.smoothstep(r.MinRapids - 0.1f, r.MinRapids + 0.1f, ground.Rapids);
+                    if (r.PatchCoverage < 1f)
+                    {
+                        var pn = noise.snoise(xz * r.PatchFrequency + r.PatchOffset) * 0.5f + 0.5f;
+                        fw *= math.smoothstep(1f - r.PatchCoverage - 0.12f, 1f - r.PatchCoverage + 0.12f, pn);
+                    }
+                    weights[c] = fw;
+                    shrink.Add(1f);
+                    total += fw;
+                    continue;
+                }
+                if (underwater)
+                {
+                    weights[c] = 0f;
+                    shrink.Add(1f);
+                    continue;
+                }
+                var fl = weights[c] * dry;
+                fl *= 1f - math.smoothstep(r.MaxSlope - 4f, r.MaxSlope, slope);
+                var upper = 1f - math.smoothstep(r.Elevation.y - 25f, r.Elevation.y, elevation);
+                fl *= math.smoothstep(r.Elevation.x - 1f, r.Elevation.x + 1f, elevation) * upper;
+                fl *= math.lerp(1f, math.saturate(surface.Grass * 1.6f), r.GrassAffinity);
+                if (r.ToleratesSnow == 0)
+                    fl *= math.saturate(1f - surface.Snow * 3f);
+                if (r.PatchCoverage < 1f)
+                {
+                    var n = noise.snoise(xz * r.PatchFrequency + r.PatchOffset) * 0.5f + 0.5f;
+                    fl *= math.smoothstep(1f - r.PatchCoverage - 0.12f, 1f - r.PatchCoverage + 0.12f, n);
+                }
+                fl *= math.lerp(1f, r.NearWater, nearWater);
+                if (r.OnlyNearWater != 0)
+                    fl *= nearWater;
+                weights[c] = fl;
+                shrink.Add(upper);
+                total += fl;
+            }
+            if (roll >= total)
+                return none;
+
+            var pick = 0;
+            for (var cumulative = weights[0]; pick < candidates.Length - 1 && roll >= cumulative; cumulative += weights[++pick]) { }
+            var picked = candidates[pick];
+            var sizes = f.Rules[picked < 0 ? f.Props[-picked - 1].Species : picked].SizeRange;
+            var scale = rng.NextFloat(sizes.x, math.max(sizes.x, sizes.y));
+            var yaw = rng.NextFloat(math.PI * 2f);
+            if (picked < 0)
+            {
+                var prop = f.Props[-picked - 1];
+                picked = prop.Species;
+                scale *= rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y));
+                // Models face +Z, which yaw turns to (-sin, cos).
+                if (prop.FaceCentre != 0)
+                    yaw = math.atan2(-towardsCentre.x, towardsCentre.y) + rng.NextFloat(-0.15f, 0.15f);
+            }
+            var rule = f.Rules[picked];
+            return new FloraSystem.FloraInstance
+            {
+                Position = new float3(xz.x, rule.Floats != 0 && ground.HasWater ? ground.WaterSurface + 0.01f : ground.Height, xz.y),
+                Yaw = yaw,
+                // Plants grow smaller towards the top of their range (a tree line).
+                Scale = scale * (0.55f + 0.45f * shrink[pick]),
+                Model = rule.FirstModel + rng.NextInt(rule.Variants),
+                Random = rng.NextFloat(),
+                Snow = surface.Snow
+            };
+        }
+
+        /// <summary>
+        /// A tree (broadleaf, conifer or palm, at least <paramref name="minHeight"/> tall) within
+        /// <paramref name="radius"/> of a point: a random one, so animals don't all pick the same.
+        /// </summary>
+        public static bool FindTree(ref FloraBlob f, in TerrainSource source, float2 near, float radius, float minHeight,
+                                    ref Random rng, out TreeSpot tree)
+        {
+            tree = default;
+            var cellSize = f.CellSizes[TreeLayer];
+            var min = (int2)math.floor((near - radius) / cellSize);
+            var max = (int2)math.floor((near + radius) / cellSize);
+            var found = 0;
+            for (int z = min.y; z <= max.y; z++)
+            for (int x = min.x; x <= max.x; x++)
+            {
+                var plant = Place(ref f, source, new int2(x, z), TreeLayer);
+                if (plant.Model < 0 || plant.Model >= f.Models.Length)
+                    continue;
+                var shape = f.Models[plant.Model];
+                var height = shape.Height * plant.Scale;
+                var distance = math.distance(plant.Position.xz, near);
+                if (shape.Kind == TreeKind.None || height < minHeight || distance > radius)
+                    continue;
+                // Reservoir pick: each suitable tree equally likely.
+                found++;
+                if (rng.NextFloat() * found >= 1f)
+                    continue;
+                tree = new TreeSpot
+                {
+                    Base = plant.Position,
+                    Height = height,
+                    TrunkRadius = shape.TrunkRadius * plant.Scale,
+                    CrownBase = shape.CrownBase * plant.Scale,
+                    CrownRadius = shape.CrownRadius * plant.Scale,
+                    Kind = shape.Kind
+                };
+            }
+            return found > 0;
+        }
+    }
+}

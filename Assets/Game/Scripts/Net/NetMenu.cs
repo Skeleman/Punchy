@@ -74,7 +74,7 @@ namespace Punchy.Net
             {
                 // Alone: no networking, the animals live in this one world.
                 Debug.Log($"Net status (solo) {System.DateTime.Now:HH:mm:ss.ff}: worlds [{string.Join(", ", WorldNames())}], " +
-                          $"animals {Count<Punchy.Fauna.CreatureBody>(client)}, {1f / Time.smoothDeltaTime:F0} fps, {Whereabouts(client)}");
+                          $"animals {Count<Punchy.Fauna.CreatureBody>(client)} ({Behaviours(client)}), {1f / Time.smoothDeltaTime:F0} fps, {Whereabouts(client)}");
                 return;
             }
             if (cycle == null)
@@ -83,7 +83,36 @@ namespace Punchy.Net
             var role = NetWorlds.Server != null ? "host" : "joined";
             Debug.Log($"Net status ({role}) {System.DateTime.Now:HH:mm:ss.ff}: in game {Count<NetworkStreamInGame>(client) > 0}, players {Count<NetPlayer>(client)}, " +
                       $"animals {Count<Punchy.Net.CreatureReplica>(client)} ({AnimalsWithBodies(client, out var nearest)} with bodies, nearest {nearest:F0} m), " +
-                      $"time {time}, shared clock {Shader.GetGlobalFloat("_PunchyClock"):F2} s, {1f / Time.smoothDeltaTime:F0} fps, {Whereabouts(client)}");
+                      $"time {time}, shared clock {Shader.GetGlobalFloat("_PunchyClock"):F2} s, {1f / Time.smoothDeltaTime:F0} fps, {Whereabouts(client)}, {Behaviours(client)}");
+        }
+
+        /// <summary>How many animals (as this machine sees them) are flying, perched, climbing, in a web or fidgeting.</summary>
+        static string Behaviours(World world)
+        {
+            var em = world.EntityManager;
+            using var query = em.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Fauna.CreatureState>(), ComponentType.ReadOnly<Punchy.Fauna.CreatureBody>());
+            var states = query.ToComponentDataArray<Punchy.Fauna.CreatureState>(Unity.Collections.Allocator.Temp);
+            int flying = 0, high = 0, climbing = 0, webs = 0, acting = 0, sitting = 0, diving = 0, hunting = 0;
+            foreach (var c in states)
+            {
+                if (c.Fly > 0.5f) flying++;
+                if (c.Mode == Punchy.Fauna.CreatureMode.Climb) climbing++;
+                if (c.Mode == Punchy.Fauna.CreatureMode.Web && c.Stage >= 2 && c.Stage <= 4) webs++;
+                if (c.Mode == Punchy.Fauna.CreatureMode.Hunt && c.Fly > 0.5f && c.Vertical < -0.5f) diving++;
+                if (c.Mode == Punchy.Fauna.CreatureMode.Hunt) hunting++;
+                if (c.Action != Punchy.Fauna.IdleAction.None) acting++;
+                if (c.Sit > 0.5f) sitting++;
+                if (c.Fly < 0.5f && c.Mode != Punchy.Fauna.CreatureMode.Web && c.Position.y > 1.2f + SampleGround(world, c.Position.xz)) high++;
+            }
+            states.Dispose();
+            return $"flying {flying}, up a tree {high}, climbing {climbing}, in webs {webs}, hunting {hunting}, diving {diving}, " +
+                   $"caught {Punchy.Fauna.FaunaDirector.Caught}, idle actions {acting}, sitting {sitting}";
+        }
+
+        static float SampleGround(World world, float2 xz)
+        {
+            using var terrain = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            return terrain.TryGetSingleton<TerrainSource>(out var source) ? source.SampleHeight(xz) : 0f;
         }
 
         static System.Collections.Generic.IEnumerable<string> WorldNames()

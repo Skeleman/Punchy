@@ -36,6 +36,12 @@ namespace Punchy.Fauna
         public BlobArray<int> Prey;
         /// <summary>Whether anything hunts it (so it needs to watch out for predators).</summary>
         public bool Hunted;
+        public IdleActions Idles;
+        public float Fidgets, Climbing;
+        public bool SpinsWebs;
+        public float WebSize;
+        public float2 FlightHeight;
+        public float FlySpeed, FlapRate, Glide, Perching;
 
         public BlobArray<CreaturePart> Parts;
         public BlobArray<CreatureSegment> Segments;
@@ -181,7 +187,18 @@ namespace Punchy.Fauna
         /// <summary>Chasing prey (Partner): stalking low, then sprinting.</summary>
         Hunt,
         /// <summary>Walks to its work spot (stage 0), then does its task there facing its work (stage 1).</summary>
-        Work
+        Work,
+        /// <summary>
+        /// Climbs a tree (Anchor is the trunk's foot): walks to it (0), climbs (1), walks out onto a branch (2), sits
+        /// there (3), back to the trunk (4), climbs down (5).
+        /// </summary>
+        Climb,
+        /// <summary>
+        /// Goes to its web (Anchor is the web's centre): walks under it (0), climbs a thread (1), then waits in it head
+        /// down. In the web, Stage says where the anchoring tree is, so every machine can draw the web from the spider
+        /// alone: 2 = trunk to the spider's right, 3 = to its left, 4 = no tree (a web low in the grass).
+        /// </summary>
+        Web
     }
 
     /// <summary>What a worker does at its post (posed by CreatureAnimator).</summary>
@@ -250,6 +267,26 @@ namespace Punchy.Fauna
         public float Bow;
         /// <summary>Curled up asleep: tail wrapped round, ears back.</summary>
         public float Curl;
+        /// <summary>Sitting on its haunches (hind legs folded, chest up).</summary>
+        public float Sit;
+        /// <summary>Body pitched up (+1: climbing a trunk, sitting up tall) or down (-1: diving, hanging in a web).</summary>
+        public float Vertical;
+        /// <summary>In flight: wings beating or spread, legs tucked.</summary>
+        public float Fly;
+
+        /// <summary>An idle action under way and how far through it is (0..1), and how long it lasts.</summary>
+        public IdleAction Action;
+        public float ActionTime, ActionLength;
+
+        /// <summary>A fixed point it's using: the foot of the tree it climbs, its web's centre.</summary>
+        public float3 Anchor;
+        /// <summary>The tree's trunk radius, or the web's radius (0 = no anchor yet); the web's facing and side.</summary>
+        public float AnchorSize, AnchorYaw;
+        public byte AnchorSide;
+        /// <summary>Where a flight or a climb ends up, height-wise (absolute).</summary>
+        public float TargetHeight;
+        /// <summary>Caught (by a diving bird of prey): FaunaDirector removes it.</summary>
+        public bool Gone;
     }
 
     /// <summary>One segment as the creature shader draws it (a tapered capsule). Must match Creature.shader.</summary>
@@ -346,6 +383,16 @@ namespace Punchy.Fauna
             root.Hunger = variant.Hunger;
             root.ChaseTime = variant.ChaseTime;
             root.Hunted = hunted;
+            root.Idles = species.Idles;
+            root.Fidgets = species.Fidgets;
+            root.Climbing = species.Climbing;
+            root.SpinsWebs = species.SpinsWebs;
+            root.WebSize = species.WebSize * sizeScale;
+            root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));
+            root.FlySpeed = species.FlySpeed;
+            root.FlapRate = species.FlapRate;
+            root.Glide = species.Glide;
+            root.Perching = species.Perching;
             var preyArray = builder.Allocate(ref root.Prey, prey?.Count ?? 0);
             for (int i = 0; i < preyArray.Length; i++)
                 preyArray[i] = prey[i];

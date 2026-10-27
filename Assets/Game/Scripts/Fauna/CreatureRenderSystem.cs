@@ -12,7 +12,9 @@ namespace Punchy.Fauna
     /// Poses every creature (Burst, in parallel) into one list of segments and draws them all with a single
     /// instanced draw of a unit capsule: the shader stretches, tapers and places each instance. Every creature also
     /// has a few spare capsules after its body for fear marks: short lines flashing out above the head while it
-    /// flees (collapsed to nothing the rest of the time).
+    /// flees (collapsed to nothing the rest of the time). Web spinners have their web's threads after that, drawn
+    /// while they sit in it: everything about the web follows from where the spider is and which way it faces, so
+    /// replicas draw the same web with nothing extra sent.
     /// </summary>
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     public partial class CreatureRenderSystem : SystemBase
@@ -22,6 +24,8 @@ namespace Punchy.Fauna
         MaterialPropertyBlock props;
         static readonly int SegmentsId = Shader.PropertyToID("_Segments");
         const int MarkCount = 3;
+        const int Spokes = 12, Rings = 6, Anchors = 4;
+        const int WebCount = Spokes + Spokes * Rings + Anchors;
 
         protected override void OnCreate()
         {
@@ -50,7 +54,7 @@ namespace Punchy.Fauna
             for (int i = 0; i < bodies.Length; i++)
             {
                 offsets[i] = total;
-                total += bodies[i].SegmentCount + MarkCount;
+                total += bodies[i].SegmentCount + MarkCount + (bodies[i].Blob.Value.SpinsWebs ? WebCount : 0);
             }
             bodies.Dispose();
 
@@ -100,6 +104,85 @@ namespace Punchy.Fauna
                 var offset = Offsets[index];
                 CreatureAnimator.Evaluate(ref body.Blob.Value, state, body.Coat, Terrain, Output, offset);
                 FearMarks(state, offset, body.SegmentCount, entity.Index);
+                if (body.Blob.Value.SpinsWebs)
+                    Web(state, ref body.Blob.Value, offset + body.SegmentCount + MarkCount);
+            }
+
+            /// <summary>
+            /// An orb web round the spider, in the plane facing its heading: spokes, a spiral (as rings of chords
+            /// between the spokes), and anchor threads down to the ground and across to the tree it hangs by (see
+            /// CreatureMode.Web for the side). Collapsed to nothing unless the spider is sitting in it.
+            /// </summary>
+            void Web(in CreatureState state, ref CreatureBlob b, int offset)
+            {
+                var inWeb = state.Mode == CreatureMode.Web && state.Stage >= 2 && state.Stage <= 4;
+                if (!inWeb)
+                {
+                    for (int i = 0; i < WebCount; i++)
+                        Output[offset + i] = default;
+                    return;
+                }
+                var radius = b.WebSize * state.Scale;
+                var centre = state.Position;
+                var right = new Unity.Mathematics.float3(Unity.Mathematics.math.cos(state.Yaw), 0f, -Unity.Mathematics.math.sin(state.Yaw));
+                var up = new Unity.Mathematics.float3(0f, 1f, 0f);
+                var thick = Unity.Mathematics.math.clamp(radius * 0.006f, 0.003f, 0.012f);
+                var colour = new Unity.Mathematics.float4(0.93f, 0.95f, 0.98f, 0.18f);
+                // Every web is a little irregular, its own way.
+                var rng = new Unity.Mathematics.Random(state.Individual | 1u);
+                var spoke = new Unity.Collections.FixedList512Bytes<float>();
+                for (int k = 0; k < Spokes; k++)
+                    spoke.Add((k + rng.NextFloat(-0.2f, 0.2f)) / Spokes * Unity.Mathematics.math.PI * 2f);
+                Unity.Mathematics.float3 Point(float angle, float r) =>
+                    centre + (right * Unity.Mathematics.math.cos(angle) + up * Unity.Mathematics.math.sin(angle)) * r;
+
+                var n = 0;
+                for (int k = 0; k < Spokes; k++)
+                    Output[offset + n++] = Thread(centre, Point(spoke[k], radius * rng.NextFloat(0.95f, 1.05f)), thick, colour);
+                for (int ring = 0; ring < Rings; ring++)
+                {
+                    var r = radius * (0.22f + 0.13f * ring);
+                    for (int k = 0; k < Spokes; k++)
+                    {
+                        var next = spoke[(k + 1) % Spokes] + (k == Spokes - 1 ? Unity.Mathematics.math.PI * 2f : 0f);
+                        Output[offset + n++] = Thread(Point(spoke[k], r), Point(next, r), thick * 0.8f, colour);
+                    }
+                }
+                // Down to the ground from the lower edge, either side.
+                for (int k = 0; k < 2; k++)
+                {
+                    var start = Point(Unity.Mathematics.math.PI * (k == 0 ? 1.3f : 1.7f), radius);
+                    var foot = start + right * (k == 0 ? -0.3f : 0.3f) * radius;
+                    foot.y = Terrain.SampleHeight(foot.xz);
+                    Output[offset + n++] = Thread(start, foot, thick, colour);
+                }
+                // Across to the trunk, from the top and the near side (stage 2: tree to the spider's right, 3: left);
+                // a web in the grass is tied up to stems instead.
+                var trunkSide = state.Stage == 2 ? 1f : state.Stage == 3 ? -1f : 0f;
+                for (int k = 0; k < 2; k++)
+                {
+                    var start = k == 0 ? Point(Unity.Mathematics.math.PI * 0.5f, radius) : Point(trunkSide >= 0f ? 0f : Unity.Mathematics.math.PI, radius);
+                    var end = trunkSide != 0f
+                        ? centre + right * trunkSide * radius * 1.05f + up * (k == 0 ? radius * 1.4f : 0f)
+                        : start + up * radius * 0.4f + right * (k == 0 ? -0.15f : 0.15f) * radius;
+                    Output[offset + n++] = Thread(start, end, thick, colour);
+                }
+            }
+
+            static SegmentInstance Thread(Unity.Mathematics.float3 from, Unity.Mathematics.float3 to, float radius, Unity.Mathematics.float4 colour)
+            {
+                var d = to - from;
+                var length = Unity.Mathematics.math.length(d);
+                return new SegmentInstance
+                {
+                    Position = from,
+                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(d / Unity.Mathematics.math.max(length, 1e-5f), new Unity.Mathematics.float3(0f, 1f, 0.01f)),
+                    Length = length,
+                    RadiusStart = radius,
+                    RadiusEnd = radius,
+                    Flatten = 1f,
+                    Color = colour
+                };
             }
 
             /// <summary>

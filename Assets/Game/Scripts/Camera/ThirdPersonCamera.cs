@@ -14,6 +14,13 @@ namespace Punchy.CameraRig
     public class ThirdPersonCamera : MonoBehaviour
     {
         public float Distance = 8f;
+
+        /// <summary>Testing: when set, the camera circles this point (an animal being watched) instead of the player.</summary>
+        public static Vector3? WatchTarget;
+        /// <summary>Testing: the pitch to watch from (low, looking up, for an animal up a tree).</summary>
+        public static float WatchPitch = 15f;
+        /// <summary>Testing: how far from the watched animal (close for small ones).</summary>
+        public static float WatchDistance = 3.5f;
         public float MinDistance = 3f;
         public float MaxDistance = 30f;
         public float TargetHeight = 1.6f;
@@ -52,6 +59,13 @@ namespace Punchy.CameraRig
             HandleCursor();
             if (!TryGetPlayerPosition(out var playerPosition))
                 return;
+            if (WatchTarget.HasValue)
+            {
+                playerPosition = WatchTarget.Value - Vector3.up * TargetHeight;
+                yaw += Time.deltaTime * 12f;
+                pitch = Mathf.MoveTowards(pitch, WatchPitch, Time.deltaTime * 30f);
+                Distance = Mathf.MoveTowards(Distance, WatchDistance, Time.deltaTime * 4f);
+            }
 
             if (Cursor.lockState == CursorLockMode.Locked)
             {

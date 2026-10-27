@@ -23,6 +23,7 @@ MonoBehaviour:
   AccentGlow: 0
   Coats: []
   Size: {x: 0.9, y: 1.1}
+  HairColors: []
   Parts:
   - Limb: {fileID: 11400000, guid: c9353264e2115d240afe20ef59feeaa3, type: 2}
     Parent: -1
@@ -33,6 +34,7 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 3.2
     Thickness: 0.55
+    StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 0404b5c0915dd1944a8937a8da2ded55, type: 2}
     Parent: -1
     Socket: {x: 0, y: 0.5, z: 0.9}
@@ -42,6 +44,7 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 1
     Thickness: 1
+    StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 38f5bde1e621b5048a55ee6cf5cbd380, type: 2}
     Parent: 1
     Socket: {x: 0, y: 0, z: 0}
@@ -51,6 +54,7 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 1.2
     Thickness: 1
+    StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 6e02047a4eb1c6844862edf9267ec349, type: 2}
     Parent: 2
     Socket: {x: 0, y: 0, z: 0}
@@ -60,6 +64,7 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 2.2
     Thickness: 1
+    StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 8db8692701365314db1a0b5e9ab1cbd1, type: 2}
     Parent: 2
     Socket: {x: 0.026, y: 0.012, z: -0.02}
@@ -69,6 +74,7 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 0.6
     Thickness: 1
+    StyleGroup: 0
   - Limb: {fileID: 11400000, guid: fe76f58551e55a740ba27ee474f98714, type: 2}
     Parent: -1
     Socket: {x: 0, y: 0.3, z: -1}
@@ -78,11 +84,13 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 0.6
     Thickness: 1
+    StyleGroup: 0
   WalkSpeed: 0.5
   RunSpeed: 3
   Bob: {x: 0.01, y: 0.02}
   BobsPerCycle: {x: 2, y: 2}
   RunRock: 0
+  Upright: 0
   LeglessStride: {x: 0.6, y: 0.9}
   WanderRadius: 10
   IdleTime: {x: 4, y: 15}
@@ -90,6 +98,9 @@ MonoBehaviour:
   TurnRate: 120
   GroupSize: {x: 1, y: 1}
   NearWater: 1
+  Habitat: 0
+  SwimDepth: 0.6
+  Leaps: 0
   Active: 0
   Grazing: 0.3
   Thirst: 0
@@ -99,3 +110,13 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 8c1d9ca02541a3244baf69032c8cc21d, type: 2}
   Hunger: 0.5
   ChaseTime: 10
+  Idles: 2568
+  Fidgets: 0.4
+  Climbing: 0
+  SpinsWebs: 0
+  WebSize: 0.6
+  FlightHeight: {x: 8, y: 18}
+  FlySpeed: 7
+  FlapRate: 6
+  Glide: 0
+  Perching: 0.6
