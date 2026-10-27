@@ -102,7 +102,27 @@ namespace Punchy.Terrain
         BiomePalette stylesFrom;
         List<CaveStyle> styles;
 
+        void OnEnable() => Punchy.Net.GameBootstrap.WorldsReplacing += ReleaseWorld;
+
         void OnDisable()
+        {
+            Punchy.Net.GameBootstrap.WorldsReplacing -= ReleaseWorld;
+            Release();
+        }
+
+        /// <summary>
+        /// Hosting, joining or leaving disposes the game worlds, and with them the TerrainSource blobs that chunk jobs
+        /// still in flight are reading. This runs just before, while the old world is intact: every job is finished
+        /// and every chunk dropped, and the world is looked up afresh next frame.
+        /// </summary>
+        void ReleaseWorld()
+        {
+            Release();
+            lastSource = default;
+            queryWorld = null;
+        }
+
+        void Release()
         {
             foreach (var c in chunks.Values)
                 c.Dispose();
@@ -125,7 +145,7 @@ namespace Punchy.Terrain
                 return;
             if (!source.Equals(lastSource))
             {
-                OnDisable();
+                Release();
                 lastSource = source;
             }
             if (!source.Caves.IsCreated)
