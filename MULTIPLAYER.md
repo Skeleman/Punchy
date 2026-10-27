@@ -302,3 +302,35 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
     the editor became a host at the same position with its own animals and sky.
   - **Possible tweak:** a `NetCodeConfig` asset with a lower `DisconnectTimeoutMS` (for example 10 s) would make
     the fallback quicker.
+- 2026-10-27 — A + B — **First real two-PC test (Relay), with fixes.**
+  - Setup: A's PC hosted a Windows build with `-hostonline` (and later `-autowalk`). B's PC, the weaker one, joined
+    with `-joincode`.
+  - **Bugs found and fixed:**
+    - `-join <ip>` connected to loopback port 0. Auto-connect follows the build's play type (client and server), so
+      it swapped the host's address for loopback. The `-join` path now connects by hand. Found by B.
+    - On B's first try, `-joincode` failed silently; we don't know why. Relay calls now time out after 20 s and
+      every step is logged.
+    - `-joincode` built a local host and then threw it away. It now starts as a bare client, and falls back to
+      hosting if Relay fails.
+    - ThirdPersonCamera kept queries from the disposed client world, which threw one NRE when the host went away.
+      Found by B.
+  - **New logging:**
+    - `ConnectionLogSystem` logs every connection state change on both sides.
+    - WorldSync logs the world check passing.
+    - Every 10 s a "Net status" line gives in-game, players, animals, time and fps.
+    - The HUD shows fps.
+    - NetMenu notices go to the log.
+  - **Results:**
+    - The Relay join worked and the world check passed (9B342DA5).
+    - B saw A's autowalking character walk into view.
+    - Both sides reported players 2 and about 88 animals.
+    - The two game clocks agreed to within the wall-clock offset.
+    - A host at 320–360 fps; B's client at 32–34 fps.
+    - **Host killed:** B carried on alone after about 34 s (the timeout) at the same position.
+    - **Client closed normally:** the host logged `disconnected (ClosedByRemote)` at once.
+  - **Still open:**
+    - a LAN `-join` retest with the fix
+    - B not seeing animals on screen despite 88 relevant (to check)
+    - a bandwidth check
+    - the Relay bind-address warning
+    - a shorter disconnect timeout
