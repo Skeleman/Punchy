@@ -137,6 +137,18 @@ namespace Punchy.Terrain
         [Header("Effects")]
         public List<LandmarkEffect> Effects = new List<LandmarkEffect>();
 
+        [Header("Cave")]
+        [Tooltip("A cave opens here, running into the rise (best with the Cliff shape) and down to a chamber.")]
+        public bool Cave;
+        [Tooltip("Length of the passage, in metres.")]
+        [Min(5f)] public float CaveLength = 40f;
+        [Tooltip("How far the passage descends below the entrance, in metres.")]
+        [Min(0f)] public float CaveDepth = 8f;
+        [Tooltip("Radius of the passage, in metres.")]
+        [Min(1f)] public float CaveRadius = 2.4f;
+        [Tooltip("Radius of the chamber at the end, in metres.")]
+        [Min(1f)] public float ChamberRadius = 6f;
+
         [Header("Residents")]
         [Tooltip("Animals that live here; they appear when the player comes near.")]
         public List<LandmarkResident> Residents = new List<LandmarkResident>();

@@ -31,6 +31,14 @@ Input System. Windows is the only build target so far.
   `LandmarkBaking` places them after rivers (well inside one biome, dry, not too uneven; every listed type at least
   once if anywhere suits it), and `TerrainSource` applies them, so everything that samples the ground sees them.
   This stamp-plus-contents model is meant to grow into hand-made content (settlements, roads, caves).
+- **Caves** break the "one ground height" rule in a controlled way. A landmark type with `Cave` set gets a
+  passage (`CaveBaking`: a chain of nodes from its cliff face, winding in and down to a chamber). Cave air is a
+  signed distance (`CaveSampling`); rock is below the surface and outside every cave. `TerrainSource` answers
+  `CaveDistance`, `IsCaveHole` (surface cut away at an entrance), `IsRock` and `FloorUnder(float3)` (the cave
+  floor under a point, or the surface). Anything that can go underground must use `FloorUnder` with a 3D
+  position instead of `SampleHeight` (player movement, the player's body in `CreatureAnimator`, the camera).
+  The terrain mesh drops quads over entrances (near LODs only); `CaveSystem` builds the cave walls with surface
+  nets in background jobs, sets `CaveSystem.Underground` (weather stops) and lights a lantern on the player.
 - **Plants, animals and particles are not baked:** editing their assets in Play mode applies live within about a
   second (the systems hash their config and rebuild).
 

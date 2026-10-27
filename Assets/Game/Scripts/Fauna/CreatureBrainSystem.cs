@@ -645,7 +645,7 @@ namespace Punchy.Fauna
             bool Walkable(float2 xz)
             {
                 var g = Terrain.SampleGround(xz);
-                return !(g.HasWater && g.WaterSurface > g.Height + 0.15f);
+                return !(g.HasWater && g.WaterSurface > g.Height + 0.15f) && !Terrain.IsCaveHole(xz);
             }
 
             float SlopeAhead(float2 from, float2 to)

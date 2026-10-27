@@ -104,6 +104,8 @@ namespace Punchy.Terrain
             var rapids = new NativeArray<float>(v * v, Allocator.Temp);
             var looks = new NativeArray<float4>(v * v, Allocator.Temp);   // water colour + murk, glow in a separate array
             var glows = new NativeArray<float>(v * v, Allocator.Temp);
+            var holes = new NativeArray<bool>(v * v, Allocator.Temp);
+            var cutHoles = request.Lod <= 1 && Source.Caves.IsCreated;
 
             for (int z = 0; z < v; z++)
             for (int x = 0; x < v; x++)
@@ -125,6 +127,7 @@ namespace Punchy.Terrain
                 water[z * v + x] = new float4(ground.WaterSurface, ground.Flow, h);
                 rapids[z * v + x] = ground.Rapids;
                 looks[z * v + x] = Source.WaterLook(world, ground.Biomes, out var glow);
+                holes[z * v + x] = cutHoles && Source.IsCaveHole(world);
                 glows[z * v + x] = glow;
             }
 
@@ -152,6 +155,13 @@ namespace Punchy.Terrain
                 uint i1 = i0 + 1;
                 uint i2 = i0 + (uint)v;
                 uint i3 = i2 + 1;
+                // Cave entrances: quads touching the cut-away surface collapse to nothing (the cave mesh fills in).
+                if (holes[(int)i0] || holes[(int)i1] || holes[(int)i2] || holes[(int)i3])
+                {
+                    for (int k = 0; k < 6; k++)
+                        indices[t++] = i0;
+                    continue;
+                }
                 indices[t++] = i0; indices[t++] = i2; indices[t++] = i1;
                 indices[t++] = i1; indices[t++] = i2; indices[t++] = i3;
             }
@@ -176,6 +186,7 @@ namespace Punchy.Terrain
             rapids.Dispose();
             looks.Dispose();
             glows.Dispose();
+            holes.Dispose();
         }
 
         /// <summary>

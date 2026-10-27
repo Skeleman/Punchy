@@ -114,6 +114,8 @@ namespace Punchy.Terrain
 
         /// <summary>Natural landmarks (oases, geysers, waterfalls…): baked after rivers, applied on top of them.</summary>
         public BlobAssetReference<LandmarkSetBlob> Landmarks;
+        /// <summary>Caves (baked after landmarks): air pockets cut out of the rock under the surface.</summary>
+        public BlobAssetReference<CaveSetBlob> Caves;
 
         bool HasBiomes => Biomes.IsCreated && Biomes.Value.Biomes.Length > 0;
         bool UsesBiomeMap => BiomeKind == BiomeSourceKind.Map && BiomeMap.IsCreated;
@@ -332,6 +334,62 @@ namespace Punchy.Terrain
             return g;
         }
 
+        // ---------------------------------------------------------------- caves
+
+        /// <summary>Signed distance to cave air at a point: negative inside a cave, large away from every cave.</summary>
+        public float CaveDistance(float3 p) => Caves.IsCreated ? CaveSampling.Distance(ref Caves.Value, p, out _) : 1e9f;
+
+        /// <summary>Whether the ground surface here is cut away by a cave entrance.</summary>
+        public bool IsCaveHole(float2 xz)
+        {
+            if (!Caves.IsCreated || !CaveSampling.NearColumn(ref Caves.Value, xz))
+                return false;
+            return CaveDistance(new float3(xz.x, SampleHeight(xz) + 0.05f, xz.y)) < 0f;
+        }
+
+        /// <summary>
+        /// Rock at a point: below the surface and outside every cave. Things that move underground (the camera, a
+        /// walking player) test this to keep out of the walls.
+        /// </summary>
+        public bool IsRock(float3 p, float margin = 0f) =>
+            p.y < SampleHeight(p.xz) - margin && CaveDistance(p) > -margin;
+
+        /// <summary>
+        /// What's underfoot at a point. In a cave, or where the surface is cut away by an entrance, it's the cave
+        /// floor below the point (inCave true); otherwise it's the ground surface.
+        /// </summary>
+        public float FloorUnder(float3 p, out bool inCave)
+        {
+            inCave = false;
+            var surface = SampleHeight(p.xz);
+            if (!Caves.IsCreated || !CaveSampling.NearColumn(ref Caves.Value, p.xz))
+                return surface;
+            // Look down from a little above the feet, but never from above the surface.
+            var y = math.min(p.y + 0.6f, surface + 0.05f);
+            if (CaveDistance(new float3(p.x, y, p.z)) >= 0f)
+            {
+                // Underground but not in a cave: stay put (movement keeps us out of the walls).
+                if (p.y < surface - 1.5f)
+                {
+                    inCave = true;
+                    return p.y;
+                }
+                return surface;
+            }
+            inCave = true;
+            var step = 0.25f;
+            for (int i = 0; i < 160 && CaveDistance(new float3(p.x, y - step, p.z)) < 0f; i++)
+                y -= step;
+            // Refine to the floor between y - step (rock) and y (air).
+            float lo = y - step, hi = y;
+            for (int i = 0; i < 6; i++)
+            {
+                var mid = (lo + hi) * 0.5f;
+                if (CaveDistance(new float3(p.x, mid, p.z)) < 0f) hi = mid; else lo = mid;
+            }
+            return hi;
+        }
+
         public float3 SampleNormal(float2 xz, float eps)
         {
             var dx = SampleHeight(xz + new float2(eps, 0f)) - SampleHeight(xz - new float2(eps, 0f));
@@ -378,6 +436,6 @@ namespace Punchy.Terrain
         public bool Equals(TerrainSource o) =>
             World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
-            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks;
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Caves == o.Caves;
     }
 }

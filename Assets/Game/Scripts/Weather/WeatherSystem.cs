@@ -222,8 +222,10 @@ namespace Punchy.Weather
             ApplyShaderGlobals(Local, sky, hazeDensity);
             ApplyLighting(Local, sky, hazeDensity);
             var snowiness = math.max(Local.AlwaysSnow, 1f - field.RainFraction(cameraXZ));
-            var falling = Local.Precipitation * (1f - Local.Hail * 0.5f);
-            ApplyParticles(cam, falling * (1f - snowiness), falling * snowiness, Local.Precipitation * Local.Hail * (1f - snowiness), Local.Dust, Local.Wind);
+            // Nothing falls in a cave.
+            var sheltered = 1f - Punchy.Terrain.CaveSystem.Underground;
+            var falling = Local.Precipitation * (1f - Local.Hail * 0.5f) * sheltered;
+            ApplyParticles(cam, falling * (1f - snowiness), falling * snowiness, Local.Precipitation * Local.Hail * (1f - snowiness) * sheltered, Local.Dust * sheltered, Local.Wind);
         }
 
         // ---------------------------------------------------------------- day types

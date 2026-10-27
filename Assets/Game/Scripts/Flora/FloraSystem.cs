@@ -814,7 +814,9 @@ namespace Punchy.Flora
                 if (roll >= bound)
                     return;
 
-                // Full sample of the ground.
+                // Full sample of the ground (none over a cave entrance).
+                if (Source.IsCaveHole(xz))
+                    return;
                 var ground = Source.SampleGround(xz);
                 if (ground.HasWater && ground.WaterSurface > ground.Height - 0.15f)
                     return;

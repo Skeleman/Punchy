@@ -70,6 +70,30 @@ namespace Punchy.CameraRig
             // Don't let the camera dip under hills or water; if it has to rise, keep looking at the player.
             if (terrainQuery.TryGetSingleton<TerrainSource>(out var terrain))
             {
+                // In a cave, pull the camera in rather than through the rock.
+                var head = new Unity.Mathematics.float3(target.x, target.y, target.z);
+                if (terrain.CaveDistance(head) < 0f)
+                {
+                    // Passages are low: trail behind at about head height rather than looking down from above.
+                    rotation = Quaternion.Euler(Mathf.Clamp(pitch, -5f, 12f), yaw, 0f);
+                    position = target - rotation * Vector3.forward * Distance;
+                    var back = position - target;
+                    var length = back.magnitude;
+                    for (var t = 0.25f; t <= length; t += 0.25f)
+                    {
+                        var p = target + back * (t / length);
+                        if (terrain.IsRock(new Unity.Mathematics.float3(p.x, p.y, p.z), 0.35f))
+                        {
+                            position = target + back * (Mathf.Max(t - 0.45f, 0.3f) / length);
+                            break;
+                        }
+                    }
+                }
+                if (terrain.CaveDistance(new Unity.Mathematics.float3(position.x, position.y, position.z)) < 0f)
+                {
+                    transform.SetPositionAndRotation(position, rotation);
+                    return;
+                }
                 var ground = terrain.SampleGround(new Unity.Mathematics.float2(position.x, position.z));
                 var minY = Mathf.Max(ground.Height, ground.HasWater ? ground.WaterSurface : float.MinValue) + GroundClearance;
                 if (position.y < minY)

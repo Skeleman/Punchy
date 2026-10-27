@@ -100,6 +100,8 @@ namespace Punchy.Terrain
                 source.Rivers = RiverBaking.Build(source, Rivers, allocator);
             if (palette.Count > 0)
                 source.Landmarks = LandmarkBaking.Build(source, palette, LandmarkTypes(), PlacedLandmarks, allocator);
+            if (source.Landmarks.IsCreated)
+                source.Caves = CaveBaking.Build(source, LandmarkTypes(), allocator);
             return source;
         }
 
@@ -164,6 +166,7 @@ namespace Punchy.Terrain
                 if (source.BiomeCells.IsCreated) AddBlobAsset(ref source.BiomeCells, out _);
                 if (source.Rivers.IsCreated) AddBlobAsset(ref source.Rivers, out _);
                 if (source.Landmarks.IsCreated) AddBlobAsset(ref source.Landmarks, out _);
+                if (source.Caves.IsCreated) AddBlobAsset(ref source.Caves, out _);
                 AddComponent(entity, source);
             }
 

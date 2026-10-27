@@ -32,11 +32,11 @@ namespace Punchy.Fauna
             var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
             var halfLength = b.BodyLength * 0.5f * scale;
             // Animals stand on the terrain; the player's body can be above it (jumping, swimming).
-            var terrainHeight = terrain.SampleHeight(s.Position.xz);
+            var terrainHeight = GroundAt(terrain, s.Position.xz, s.Position.y);
             var ground = math.max(terrainHeight, s.Position.y);
             var airborne = math.saturate((s.Position.y - terrainHeight - 0.05f) / 0.3f);
-            var front = terrain.SampleHeight(s.Position.xz + forward.xz * halfLength);
-            var back = terrain.SampleHeight(s.Position.xz - forward.xz * halfLength);
+            var front = GroundAt(terrain, s.Position.xz + forward.xz * halfLength, s.Position.y);
+            var back = GroundAt(terrain, s.Position.xz - forward.xz * halfLength, s.Position.y);
             var gradient = (front - back) / (2f * halfLength);   // rise per metre forward
             var pitch = math.clamp(-math.atan(gradient), -0.45f, 0.45f);
 
@@ -107,7 +107,7 @@ namespace Punchy.Fauna
                     // standing on, versus where it really is: bend the leg by the difference.
                     var along = math.dot(pos.xz - s.Position.xz, forward.xz);
                     var nominal = ground + along * gradient;
-                    var actual = terrain.SampleHeight(pos.xz);
+                    var actual = GroundAt(terrain, pos.xz, s.Position.y);
                     var reach = 0f;
                     for (int j = 0; j < part.SegmentCount; j++)
                         reach += b.Segments[part.FirstSegment + j].Length * scale;
@@ -125,6 +125,13 @@ namespace Punchy.Fauna
         }
 
         /// <summary>
+        /// The ground under a point near height <paramref name="nearY"/>: the surface, or a cave floor for a creature
+        /// (the player's body) underground.
+        /// </summary>
+        static float GroundAt(in TerrainSource terrain, float2 xz, float nearY) =>
+            terrain.Caves.IsCreated ? terrain.FloorUnder(new float3(xz.x, nearY, xz.y), out _) : terrain.SampleHeight(xz);
+
+        /// <summary>
         /// Tilts a segment up or down (keeping its heading) so its far end rests on the ground, for chains that lie
         /// along the terrain. The next segment then starts from there, so the chain drapes over bumps.
         /// </summary>
@@ -135,7 +142,7 @@ namespace Punchy.Fauna
             var dir = math.mul(rot, new float3(0f, 0f, 1f));
             var flat = math.normalizesafe(new float3(dir.x, 0f, dir.z), dir);
             var end = start + flat * length;
-            var rise = math.clamp(terrain.SampleHeight(end.xz) + radius - start.y, -0.9f * length, 0.9f * length);
+            var rise = math.clamp(GroundAt(terrain, end.xz, start.y) + radius - start.y, -0.9f * length, 0.9f * length);
             var wanted = flat * math.sqrt(length * length - rise * rise) + new float3(0f, rise, 0f);
             return math.mul(FromTo(dir, wanted / length), rot);
         }

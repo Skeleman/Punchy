@@ -295,16 +295,19 @@ namespace Punchy.Terrain
                 var ground = Source.SampleGround(xz);
                 var normal = Source.SampleNormal(xz, 1f);
                 var surface = Source.SampleSurface(xz, ground, normal);
+                // Nothing grows over a cave entrance.
+                var bare = Source.IsCaveHole(xz);
                 Points[i] = new GroundPoint
                 {
                     Height = ground.Height,
-                    Grass = surface.Grass,
-                    Pebbles = surface.Pebbles,
+                    Grass = bare ? 0f : surface.Grass,
+                    Pebbles = bare ? 0f : surface.Pebbles,
                     Snow = surface.Snow,
                     Albedo = surface.Albedo,
                     Slope = normal.y,
                     Water = ground.HasWater ? ground.WaterSurface : -1e6f
                 };
+
             }
         }
 
