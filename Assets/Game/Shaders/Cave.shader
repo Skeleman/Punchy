@@ -153,10 +153,14 @@ Shader "Punchy/Cave"
                 inputData.normalWS = n;
                 inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
 
-                // Daylight reaches only near the entrance.
-                Light sun = GetMainLight(TransformWorldToShadowCoord(p));
-                half3 light = sun.color * saturate(dot(n, sun.direction)) * sun.shadowAttenuation * openness;
-                light += SampleSH(n) * lerp(_Darkness, 1, openness);
+                // Daylight reaches only near the entrance. Openness is per vertex, so this branch is coherent: deep
+                // inside, whole wavefronts skip the sun's shadow taps.
+                half3 light = SampleSH(n) * lerp(_Darkness, 1, openness);
+                if (openness > 0.001)
+                {
+                    Light sun = GetMainLight(TransformWorldToShadowCoord(p));
+                    light += sun.color * saturate(dot(n, sun.direction)) * sun.shadowAttenuation * openness;
+                }
                 half3 shine = 0;
                 half3 through = 0;
 
@@ -173,7 +177,9 @@ Shader "Punchy/Cave"
                 LIGHT_LOOP_END
 
                 half3 color = diffuse * light + specColor * shine + s0.rgb * through * translucency * 0.6;
-                color = lerp(color, PunchyAtmosphere(color, p), openness);
+                // The atmosphere (fog and weather marches) only where daylight reaches; deep inside it would be lerped away.
+                if (openness > 0.001)
+                    color = lerp(color, PunchyAtmosphere(color, p), openness);
 
                 // Light the rock gives off: a share everywhere (ice, faintly lit crystal), the rest in cracks. Cracks are
                 // the borders between random 3D cells (polygonal, like cooling lava crust or fractured ice), and a slow
