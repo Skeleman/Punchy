@@ -533,9 +533,10 @@ namespace Punchy.Fauna
                     s.Target = shore;
                     s.Focus = water;
                 }
-                else if ((roll -= climb) < 0f && StartClimb(ref s, ref b, ref rng, sleepy > 0.5f)) { }
-                else if ((roll -= web) < 0f && GoToWeb(ref s, ref b, ref rng)) { }
-                else if ((roll -= fly) < 0f && StartFlight(ref s, ref b, ref rng, sleepy > 0.5f)) { }
+                // (Only for species that do these: a failed drink above leaves the roll below zero.)
+                else if (climb > 0f && (roll -= climb) < 0f && StartClimb(ref s, ref b, ref rng, sleepy > 0.5f)) { }
+                else if (web > 0f && (roll -= web) < 0f && GoToWeb(ref s, ref b, ref rng)) { }
+                else if (fly > 0f && (roll -= fly) < 0f && StartFlight(ref s, ref b, ref rng, sleepy > 0.5f)) { }
                 else if (onGround)
                 {
                     var candidate = s.Position.xz + rng.NextFloat2Direction() * b.WanderRadius * rng.NextFloat(0.3f, 1f) * (flier ? 0.15f : 1f);
