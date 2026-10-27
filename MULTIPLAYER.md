@@ -431,3 +431,71 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
   - **1-hour local soak** (two copies autowalking, the previous build): no disconnects or errors. Memory grew
     1410 → 1542 MB on the client and 1481 → 1542 MB on the host, slowing (about 20 MB in the last 30 min). Small;
     worth a Memory Profiler look if it ever matters.
+- 2026-10-27 — B — **Solo isn't slower than hosting; the weather is.** Profiled on B's weaker PC (218d10d).
+  - **The first result was noise:** solo 41–43 fps vs host 48.6, one run each. The weather is random on every
+    launch: the day type and the starting cells come from unseeded `UnityEngine.Random`. That alone moves fps by
+    about 40%.
+  - **With the weather pinned** (a temporary `-weatherseed` flag, not committed), alternating runs at ElfGrove, noon,
+    1280x720, 100 s each, with the first 30 s skipped:
+
+    | Run | Solo fps | Host fps |
+    |---|---|---|
+    | 1 | 24.7 | 23.8 |
+    | 2 | 25.4 | 25.2 |
+
+    Solo is the same as hosting, or slightly faster.
+  - **Weather decides fps here:** solo with seeds 1–3 ran at about 25 fps, seed 4 at about 40. Seed 4 ran last, so
+    it isn't heat.
+  - **GPU-bound in both modes** (Development build, Profiler capture, 1200+ steady frames each):
+    - The main thread spends 29.7 ms (solo) / 32.3 ms (host) of each frame in `DXGI.WaitOnSwapChain`.
+    - All game systems together take a few ms. The biggest: TerrainStreamingSystem about 1.0 ms,
+      FloraSystem.LateUpdate 0.6 ms, CreatureRenderSystem PoseJob 0.4–0.5 ms, WeatherSystem.Update 0.24 ms.
+    - The host adds CreatureBrainSystem 0.15 ms and netcode receive under 0.2 ms.
+  - **Nothing to fix in Fauna or Net for solo.** Two leads instead:
+    - **Weather GPU cost:** some weather costs this PC about 40% of its frame rate. The volumetric clouds and
+      precipitation are worth profiling with a GPU capture.
+    - **A `-weatherseed <n>` test flag:** call `Random.InitState(n)` before `PickDayType` and before
+      `WeatherField.Initialize`. It would make perf runs comparable. It's about 10 lines in `Weather/`; proposing
+      it to A rather than committing.
+- 2026-10-27 — B — **`-weatherseed <n>` added** (b64275f). It seeds `UnityEngine.Random` before the day type is
+  picked and again before the weather field starts.
+- 2026-10-27 — B — **Where the weather costs fps on a weak GPU: the rain and dust haze in every surface shader.**
+  - Method: a temporary bench build switched one cost off at a time (nothing committed). Solo, ElfGrove, noon,
+    1280x720, about 65 s per run with the first 30 s skipped.
+  - Seed 1 is a Stormy day. Seed 4 is Partly cloudy.
+
+    | Seed 1 (Stormy) | fps |
+    |---|---|
+    | Everything on | 25–27 |
+    | No volumetric cloud march | 26 (no change) |
+    | No precipitation particles | 25.5 (no change) |
+    | No SSAO | 25 (no change) |
+    | **No rain/dust haze** (`PunchyWeatherVolumes`) | **46** |
+    | Haze at 4 steps instead of 8 | 29 |
+    | Haze without the horizon march | 27 |
+    | **Both of those** | **37** |
+    | Render scale 0.75 | 32 |
+
+  - Seed 4 (Partly cloudy): 38 fps → 45 with the haze off. So it costs even on fair days, whenever any rain or dust
+    cell lies within 8 km.
+  - **Why:** `PunchyAtmosphere` runs per pixel in 12 surface shaders: terrain, grass, flora, creatures, water,
+    pebbles and the effects. Each call marches 8 steps toward the surface plus 8 more along the horizon, each step
+    a weather-map read, a cloud-shape read and three value noises. Grass and flora overdraw multiplies it.
+  - Proposed fixes are with A; nothing in `Weather/` or the shaders has changed.
+- 2026-10-27 — B — **Haze lookup texture** (`b/weather-perf`, for A to review). The rain and dust haze is now marched
+  once a frame into a 1024×32 texture (directions round the horizon × distance out to 8 km), by `HazeLut.shader`
+  from `WeatherSystem.RenderHazeLut`.
+  - `PunchyAtmosphere` reads it twice per pixel instead of marching 2 × 8 steps. The skybox keeps its own march.
+  - An unset texture means no haze, never black.
+  - Release builds, solo, noon, 1280x720, `-weatherseed`, first 30 s skipped:
+
+    | Seed, place | Before | After |
+    |---|---|---|
+    | 1 (Stormy), ElfGrove | 23.8 | 40.3 |
+    | 4, ElfGrove | 36.7 | 47.5 |
+    | 1, Mountains | 31 | 44 |
+    | 1, Dunes | 30.5 | 48 |
+
+  - Same-seed screenshots at ElfGrove, Mountains and Dunes look the same, distant storm haze included. The only
+    differences come from the weather drifting differently between runs: new cells spawn at a rate tied to frame
+    rate. No vertical error showed, so a froxel volume isn't needed.

@@ -611,6 +611,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: e900e831a2c640e40b6f7017db3a039d, type: 2}
   Sun: {fileID: 410087040}
   PrecipitationShader: {fileID: 4800000, guid: 842f5ad74756902438673274ff63562c, type: 3}
+  HazeLutShader: {fileID: 4800000, guid: 80dfa185173d41e3b9dd6cbb9a6f169d, type: 3}
   Cycle: {fileID: 655229951}
   MaxCells: 14
   SpawnAttemptsPerMinute: 8
