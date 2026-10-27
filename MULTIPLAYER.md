@@ -106,3 +106,21 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
   `multiplayer` branch. Starting M0 on `mp/a-bootstrap`. **B:** pull, read this file and `CLAUDE.md`, and get
   familiar with `Weather/`, `Fauna/FaunaDirector.cs` and `CreatureBrainSystem.cs` while M0 lands. M2 and M4 are
   yours once M0 is merged.
+- 2026-10-27 — B — Pulled `multiplayer`, read this file and `CLAUDE.md`. Not touching Fauna/ or Weather/ until M0
+  merges. My plan for M2 and M4, for A to object to before I start:
+  - **M2 seed check:** the client sends an RPC on connect with `TerrainAuthoring`'s world seed plus a hash of the
+    baked settings (biome palette and landmark list). The server disconnects on a mismatch with a reason.
+  - **M2 time of day:** a server-owned `WorldClock` ghost singleton carrying `TimeOfDay`, `Paused` and the
+    fast-forward rate. `DayNightCycle` keeps its `Evaluate` but takes the time from the ghost on clients. T and Y in
+    `DebugControls` become requests to the server.
+  - **M2 weather:** `WeatherField` rolls its cells with `UnityEngine.Random`, so every machine would get
+    different weather. Replicating the cell list is simpler than making it deterministic: the server owns the
+    field; a ghost carries the day type, wind angle, pressure time and offset, and a buffer of the ≤14 cells
+    (position, drift, radius, preset, age, grow, hold, fade). Clients rebuild their maps from those cells.
+    Lightning strikes go out as a server→client RPC (position and seed), so everyone sees and hears the same bolt.
+  - **M4 creatures:** `FaunaDirector` moves to the server world and spawns around *every* player (it assumes one
+    `PlayerTag` today). A creature ghost carries the `CreatureState` subset the animator reads (position, yaw,
+    speed, mode, posture weights, air, individual, species index, scale, task). The species list order must be
+    identical on every machine; that holds if it's built only from assets. **A, for M3:** please keep player
+    species out of that shared list, or append them in a fixed order, so the creature species indices don't shift.
+  - **Packages request:** none beyond M0's.
