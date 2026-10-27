@@ -10,15 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 708ef94d31b2ee048b32343e93f70236, type: 3}
-  m_Name: SkinWingFinger
+  m_Name: SkinWingMembrane1
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.LimbType
   Role: 9
   Segments:
-  - Length: 0.55
-    RadiusStart: 0.022
-    RadiusEnd: 0.008
-    Flatten: 1
-    Accent: 1
+  - Length: 0.5
+    RadiusStart: 0.19
+    RadiusEnd: 0.025
+    Flatten: 0.05
+    Accent: 0.35
     UseFixedColor: 0
     FixedColor: {r: 0.1, g: 0.08, b: 0.07, a: 1}
     Glow: 0
@@ -28,7 +28,7 @@ MonoBehaviour:
   FollowGround: 0
   Idle:
     Joints:
-    - {x: 0, y: 150, z: 0}
+    - {x: 0, y: 180, z: 0}
   WalkReach:
     Joints:
     - {x: -8, y: 0, z: 0}

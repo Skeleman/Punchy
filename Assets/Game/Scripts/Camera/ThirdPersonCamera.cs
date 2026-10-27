@@ -76,7 +76,8 @@ namespace Punchy.CameraRig
                 pitch = Mathf.Clamp(pitch - look.y, MinPitch, MaxPitch);
 
                 if (Mouse.current != null)
-                    Distance = Mathf.Clamp(Distance - Mouse.current.scroll.ReadValue().y * ZoomSensitivity * Distance, MinDistance, MaxDistance);
+                    Distance = Mathf.Clamp(Distance - Mouse.current.scroll.ReadValue().y * ZoomSensitivity * Distance,
+                                           WatchTarget.HasValue ? Mathf.Min(MinDistance, WatchDistance) : MinDistance, MaxDistance);
             }
 
             var target = playerPosition + Vector3.up * TargetHeight;

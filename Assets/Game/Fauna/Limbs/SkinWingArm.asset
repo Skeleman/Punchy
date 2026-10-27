@@ -15,19 +15,19 @@ MonoBehaviour:
   Role: 9
   Segments:
   - Length: 0.3
-    RadiusStart: 0.13
-    RadiusEnd: 0.11
-    Flatten: 0.12
-    Accent: 0.7
+    RadiusStart: 0.34
+    RadiusEnd: 0.3
+    Flatten: 0.06
+    Accent: 0.35
     UseFixedColor: 0
     FixedColor: {r: 0.1, g: 0.08, b: 0.07, a: 1}
     Glow: 0
     Hair: 0
   - Length: 0.5
-    RadiusStart: 0.11
-    RadiusEnd: 0.03
-    Flatten: 0.15
-    Accent: 0.7
+    RadiusStart: 0.3
+    RadiusEnd: 0.12
+    Flatten: 0.07
+    Accent: 0.35
     UseFixedColor: 0
     FixedColor: {r: 0.1, g: 0.08, b: 0.07, a: 1}
     Glow: 0

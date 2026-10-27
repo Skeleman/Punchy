@@ -71,8 +71,9 @@ namespace Punchy.Debugging
         static string watchSpecies;
         /// <summary>"-spawn Osprey" (or "Trout:6"): a few of a species put near the player once the world is up (testing).</summary>
         static readonly List<string> pendingSpawns = new List<string>();
-        /// <summary>"-pose Bat" (or "Bat:fly", "Bat:rest", "Bat:hang"): one held beside the player while the camera
-        /// circles it, for looking at a body (no brain: it stays put, beating its wings if flying).</summary>
+        /// <summary>"-pose Bat" (or "Bat:fly", "Bat:glide", "Bat:rest", "Bat:hang", and a camera pitch: "Bat:glide:70"):
+        /// one held beside the player while the camera circles it, for looking at a body (no brain: it stays put,
+        /// beating its wings if flying).</summary>
         static string poseRequest;
         Entity posed;
         EntityQuery creatureQuery;
@@ -332,6 +333,12 @@ namespace Punchy.Debugging
             var em = queryWorld.EntityManager;
             var parts = poseRequest.Split(':');
             var how = parts.Length > 1 ? parts[1] : "fly";
+            // A third part is the camera's pitch (70: from above, to see a wing's shape).
+            var viewPitch = parts.Length > 2 && float.TryParse(parts[2], out var p) ? p : 20f;
+            // Gliding: in the air with the wings held level, half way through the beat.
+            var glide = how == "glide";
+            if (glide)
+                how = "fly";
             if (posed == Entity.Null || !em.Exists(posed))
             {
                 var index = director.SpeciesIndex(parts[0]);
@@ -359,11 +366,13 @@ namespace Punchy.Debugging
             c.Speed = how == "fly" ? b.FlySpeed * 0.6f : 0f;
             c.Position = new float3(xz.x, ground + (how == "rest" ? 0f : math.max(1.2f, size * 4f)), xz.y);
             c.Clock += dt;
-            if (how == "fly")
+            if (glide)
+                c.Phase = 0.25f;
+            else if (how == "fly")
                 CreatureMotion.AdvancePhase(ref c, ref b, dt);
             em.SetComponentData(posed, c);
             ThirdPersonCamera.WatchTarget = (Vector3)c.Position + Vector3.up * size * 0.5f;
-            ThirdPersonCamera.WatchPitch = 20f;
+            ThirdPersonCamera.WatchPitch = viewPitch;
             ThirdPersonCamera.WatchDistance = math.clamp(size * 7f, 0.5f, 6f);
         }
 
