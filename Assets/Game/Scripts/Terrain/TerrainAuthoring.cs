@@ -102,6 +102,7 @@ namespace Punchy.Terrain
                 source.Landmarks = LandmarkBaking.Build(source, palette, LandmarkTypes(), PlacedLandmarks, allocator);
             if (source.Landmarks.IsCreated)
                 source.Caves = CaveBaking.Build(source, palette, LandmarkTypes(), allocator);
+            source.Anchors = AnchorBaking.Build(source, LandmarkTypes(), allocator);
             return source;
         }
 
@@ -170,6 +171,7 @@ namespace Punchy.Terrain
                 if (source.Rivers.IsCreated) AddBlobAsset(ref source.Rivers, out _);
                 if (source.Landmarks.IsCreated) AddBlobAsset(ref source.Landmarks, out _);
                 if (source.Caves.IsCreated) AddBlobAsset(ref source.Caves, out _);
+                if (source.Anchors.IsCreated) AddBlobAsset(ref source.Anchors, out _);
                 AddComponent(entity, source);
             }
 

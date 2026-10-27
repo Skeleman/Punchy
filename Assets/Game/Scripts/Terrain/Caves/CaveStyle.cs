@@ -25,6 +25,9 @@ namespace Punchy.Terrain
         [Tooltip("Size of the wall lumps: above 1 makes them smaller and busier.")]
         [Range(0.3f, 3f)] public float Grain = 1f;
 
+        [Tooltip("The floor is soft enough to dig (earth, sand, rotten rock): chambers get Burrow anchors.")]
+        public bool Burrows = true;
+
         [Header("Rock")]
         [ColorUsage(false)] public Color RockColor = new Color(0.48f, 0.44f, 0.4f);
         [ColorUsage(false)] public Color DarkColor = new Color(0.22f, 0.2f, 0.18f);

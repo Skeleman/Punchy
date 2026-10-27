@@ -97,11 +97,15 @@ it real. To add or change a term, edit this file in the same commit as the code 
 
 ## Hand-off between places and creatures
 
-- **Anchor** (new): a point that world geometry exports for creatures to use, with a kind, a facing and a few
-  fields; baked from the seed, so nothing to sync. Kinds (append only, a byte): Door, Work, Stall, Well, Bench, Gate,
-  Altar, Seat, Roost, Perch, Nest, Burrow, Pool, Hearth, Yard. The world session creates anchors; the animal session
-  decides how creatures use them. This is the only contract between the two. (`CreatureState.Anchor` is the point a
-  creature is using right now: a world anchor, or one it found itself: a tree's foot, its web's centre.)
+- **Anchor**: `Punchy.Terrain.Anchor`, a point that world geometry exports for creatures to use; baked from the seed
+  into `TerrainSource.Anchors`, so nothing to sync, and immutable (users count occupancy). Fields: Position (on the
+  surface used: a roost's ceiling point, a perch's top), Facing, Size (radius of the spot), Owner (cave or
+  settlement), Kind, Capacity (0 = unlimited), Biome, Tags (Shelter bit, plus the cave style or settlement folk).
+  Kinds (`AnchorKind`, a byte, append only): Door, Work, Stall, Well, Bench, Gate, Altar, Seat, Roost, Perch, Nest,
+  Burrow, Pool, Hearth, Yard. Look up with `Anchors.Near` and `Anchors.Pick` (Burst-safe, allocation-free). The world
+  session creates anchors; the animal session decides how creatures use them. This is the only contract between the
+  two. (`CreatureState.Anchor` is the point a creature is using right now: a world anchor, or one it found itself: a
+  tree's foot, its web's centre.)
 
 ## Multiplayer and testing
 

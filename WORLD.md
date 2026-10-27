@@ -119,6 +119,14 @@ nothing to sync; immutable (the animal session counts occupancy from its creatur
     flips, worst difference 3.4 cm (stretched profiles); 329 vs 561 ms per 200k managed samples. Chunked walls: 184
     chunks, 322,608 triangles, no open edges below the rim, 4 duplicate triangles (degenerate cells, not seams).
     Looked at in game: LavaTube, Ice, Metallic, Sandstone.
+- 2026-10-27: Phase 3a, **Anchors**. `Anchor`, `AnchorKind`, `AnchorSetBlob` and `Anchors.Near` / `Anchors.Pick`
+  (Terrain/Anchors), baked last into `TerrainSource.Anchors` with a 32 m column grid. One field beyond the agreed
+  contract: a `Biome` byte (the Tags byte can't hold both the style/folk and the biome). Cave anchors: a Roost on
+  every chamber ceiling over 2.5 m up (capacity ≈ 3 per metre of chamber radius), a Nest on a wall ledge per chamber
+  and one just inside each mouth, a Burrow at a wall's foot where the style's floor is soft (CaveStyle.Burrows: on for
+  Limestone, Sandstone, Fungal, Rock). All sheltered. This seed: 104 anchors (39 Roost holding 583, 53 Nest, 12
+  Burrow), all placed correctly (roosts against rock with air below, burrows on floors, nests in air within 0.6 m
+  of a wall); Near matches a brute-force scan in 2,000 queries, Pick never returns a wrong anchor.
 - 2026-10-27: **Glacier** biome (confirmed by the user: high, cold country). Appended last to the terrain's land
   biomes (World.unity), so earlier biomes keep their share of each region's roll. Climate: altitude 0.72–1,
   temperature 0–0.12, humidity 0.3–1; a broad rounded ice sheet (base 120 m, relief 90 m) of snow with GlacierIce on

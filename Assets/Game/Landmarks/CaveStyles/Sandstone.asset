@@ -20,6 +20,7 @@ MonoBehaviour:
   Height: 0.7
   Roughness: 0.7
   Grain: 0.6
+  Burrows: 1
   RockColor: {r: 0.82, g: 0.55, b: 0.35, a: 1}
   DarkColor: {r: 0.55, g: 0.3, b: 0.18, a: 1}
   Strata: 0.8
@@ -32,3 +33,4 @@ MonoBehaviour:
   Glow: 0
   GlowCover: 0.08
   GlowScale: 1
+  GlowEverywhere: 0

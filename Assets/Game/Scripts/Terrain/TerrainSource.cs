@@ -116,6 +116,11 @@ namespace Punchy.Terrain
         public BlobAssetReference<LandmarkSetBlob> Landmarks;
         /// <summary>Caves (baked after landmarks): air pockets cut out of the rock under the surface.</summary>
         public BlobAssetReference<CaveSetBlob> Caves;
+        /// <summary>
+        /// Anchors (baked last): points places export for creatures, such as roosts, nests and burrows. Look them up
+        /// with <see cref="Punchy.Terrain.Anchors"/>.
+        /// </summary>
+        public BlobAssetReference<AnchorSetBlob> Anchors;
 
         bool HasBiomes => Biomes.IsCreated && Biomes.Value.Biomes.Length > 0;
         bool UsesBiomeMap => BiomeKind == BiomeSourceKind.Map && BiomeMap.IsCreated;
@@ -447,6 +452,6 @@ namespace Punchy.Terrain
         public bool Equals(TerrainSource o) =>
             World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
-            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Caves == o.Caves;
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Caves == o.Caves && Anchors == o.Anchors;
     }
 }
