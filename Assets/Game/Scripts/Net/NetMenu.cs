@@ -74,9 +74,9 @@ namespace Punchy.Net
                 cycle = FindAnyObjectByType<Punchy.Weather.DayNightCycle>();
             var time = cycle != null ? $"{(int)cycle.TimeOfDay:00}:{(int)((cycle.TimeOfDay % 1f) * 60f):00}" : "?";
             var role = NetWorlds.Server != null ? "host" : "joined";
-            Debug.Log($"Net status ({role}): in game {Count<NetworkStreamInGame>(client) > 0}, players {Count<NetPlayer>(client)}, " +
+            Debug.Log($"Net status ({role}) {System.DateTime.Now:HH:mm:ss.ff}: in game {Count<NetworkStreamInGame>(client) > 0}, players {Count<NetPlayer>(client)}, " +
                       $"animals {Count<Punchy.Net.CreatureReplica>(client)} ({AnimalsWithBodies(client, out var nearest)} with bodies, nearest {nearest:F0} m), " +
-                      $"time {time}, {1f / Time.smoothDeltaTime:F0} fps, {Whereabouts(client)}");
+                      $"time {time}, shared clock {Shader.GetGlobalFloat("_PunchyClock"):F2} s, {1f / Time.smoothDeltaTime:F0} fps, {Whereabouts(client)}");
         }
 
         /// <summary>Where we are, and how far the nearest other player is (for reading tests from the log).</summary>

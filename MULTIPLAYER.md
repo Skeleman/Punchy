@@ -381,3 +381,31 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
       set by WorldSync.
   - **Still per-machine (cosmetic):** animal gait phase, grass wind sway, waterfall streak scroll, rain particles.
   - **Note:** Netcode 6.5 has a HostMigration system; worth a look for "the host leaves and someone else takes over".
+- 2026-10-27 — A + B — **Unattended checks while Zach was at work.**
+  - **New test aids:**
+    - `-time <h>` and `-place <name>` launch options (the place list is logged).
+    - Status lines carry a wall-clock timestamp, our position, the nearest player, the cold here, others nearby and
+      breathing, and the shared clock.
+    - The scratchpad `capture.ps1` grabs one game window through PrintWindow, never the desktop.
+  - **30-minute LAN soak** (A hosting with autowalk on the summit at night, B's weaker PC joined and standing):
+    - One connection throughout, with no disconnects, errors or exceptions on either side.
+    - Game clocks agreed to within about 2 s across the whole run. The day type rolled Overcast → Sunny at midnight
+      on both.
+    - **fps:** B averaged 68 (minimum 44) windowed at 1280x720 on a GTX 1060 Max-Q, with no downward trend. A's
+      host held 320–380.
+    - **Memory:** A's host warmed up to about 1110 MB by 10 min, then stayed flat. B's client warmed up by 5 min,
+      then grew 35 MB over 25 min while its animal count rose from 36 to 46 (new bodies). Probably not a leak; a
+      2-hour soak would confirm it.
+  - **Breath:**
+    - Remote players' breath renders. B saw A's trail at running pace.
+    - A local test with both standing still caught a puff leaving the remote player's face.
+    - "others nearby 1 (1 breathing)" is logged whenever another player is within range in the cold.
+  - **Shared clock:** host and joiner logged `_PunchyClock` 48.53 s and 48.73 s at wall-clock moments 0.18 s apart,
+    so they agree to within about 0.02 s. Fireflies render for both in a warm forest at night. They're placed by
+    deterministic tile hashes and now animated by the shared clock.
+  - **Host migration:** Netcode's built-in host migration is experimental.
+    - It needs the `ENABLE_HOST_MIGRATION` define and the Lobby service on top of Relay, so it's online only.
+    - Its known issues include crashes on the new host and invalid ghosts after migrating.
+    - Our state is mostly generated (seed, animals) or already carried over (sky). A lighter option would be a Lobby
+      that lists the next host and its join code, so players regroup automatically without migrating ghost state.
+    - Left for Zach to decide.
