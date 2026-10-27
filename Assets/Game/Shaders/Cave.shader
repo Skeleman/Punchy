@@ -186,10 +186,11 @@ Shader "Punchy/Cave"
                 // mask leaves whole patches of wall uncracked.
                 if (any(s2.rgb > 0))
                 {
+                    // The mask first: the 27-cell crack search only runs where the mask leaves any crack to draw.
                     float g = s4.x;
-                    float edge = CellEdge(p * 0.6 * g);
-                    float crack = 1 - smoothstep(s2.w * 0.4, s2.w * 1.6, edge);
-                    crack *= smoothstep(0.45, 0.75, PunchyValueNoise(p.xz * 0.13 * g + p.y * 0.11 + 37));
+                    float crack = smoothstep(0.45, 0.75, PunchyValueNoise(p.xz * 0.13 * g + p.y * 0.11 + 37));
+                    if (crack > 0 && terrain < 1)
+                        crack *= 1 - smoothstep(s2.w * 0.4, s2.w * 1.6, CellEdge(p * 0.6 * g));
                     color += s2.rgb * (s4.y + crack * (1 - s4.y)) * (1 - terrain);
                 }
                 return half4(color, 1);
