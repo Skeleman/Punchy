@@ -1,0 +1,225 @@
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Text;
+using Punchy.CameraRig;
+using Punchy.Player;
+using Punchy.Terrain;
+using Punchy.Weather;
+using Unity.Entities;
+using Unity.Mathematics;
+using Unity.Transforms;
+using UnityEngine;
+
+namespace Punchy.Debugging
+{
+    /// <summary>
+    /// A repeatable performance run, started with the -benchroute launch flag: it visits a town, a forest full of
+    /// animals, the inside of the biggest cave, a storm and a fast dash across terrain chunks, settles at each, then
+    /// measures frame times and logs one "BenchRoute:" line per stop (average fps, 1% lows, worst frame, and CPU vs GPU
+    /// time when the build has Frame Timing Stats on) before quitting. Use it with -weatherseed so the weather matches
+    /// between runs, and compare builds by the logged numbers. Places come from DebugControls' own list (by name), so
+    /// the route follows the world as it changes.
+    /// </summary>
+    public class BenchmarkRoute : MonoBehaviour
+    {
+        const float Settle = 10f, Measure = 20f, DashSpeed = 80f;
+
+        readonly List<float> frameMs = new List<float>();
+        readonly List<double> cpuMs = new List<double>(), gpuMs = new List<double>();
+        readonly FrameTiming[] timing = new FrameTiming[1];
+        readonly StringBuilder summary = new StringBuilder();
+        bool measuring;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void Boot()
+        {
+            if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-benchroute") < 0)
+                return;
+            var go = new GameObject("BenchmarkRoute");
+            DontDestroyOnLoad(go);
+            go.AddComponent<BenchmarkRoute>();
+        }
+
+        IEnumerator Start()
+        {
+            // Wait for the world, the player and DebugControls' place list.
+            DebugControls controls = null;
+            while (controls == null || !TryGetWorld(out _, out _))
+            {
+                controls = FindAnyObjectByType<DebugControls>();
+                yield return null;
+            }
+            yield return new WaitForSecondsRealtime(Settle);
+
+            yield return Stop("town", () => JumpTo(controls, "HumanVillage"));
+            yield return Stop("forest", () => JumpTo(controls, "OakGrove"));
+            yield return Stop("cave", PlaceInBiggestCave);
+            yield return Stop("storm", () =>
+            {
+                var weather = FindAnyObjectByType<WeatherSystem>();
+                var stormy = weather != null ? weather.DayTypes.FindIndex(d => d.Name == "Stormy") : -1;
+                if (stormy >= 0)
+                    weather.SetDayType(stormy, true);
+                return JumpTo(controls, "Mountains") && stormy >= 0;
+            });
+            yield return Stop("dash", () => JumpTo(controls, "Start"), dash: true);
+
+            Debug.Log("BenchRoute: done\n" + summary);
+            Application.Quit();
+        }
+
+        IEnumerator Stop(string name, System.Func<bool> arrive, bool dash = false)
+        {
+            if (!arrive())
+            {
+                Debug.LogWarning($"BenchRoute: {name}: couldn't get there, skipped");
+                yield break;
+            }
+            float3 start = default;
+            if (dash && TryGetWorld(out var em, out var player))
+                start = em.GetComponentData<LocalTransform>(player).Position;
+            var t = 0f;
+            frameMs.Clear(); cpuMs.Clear(); gpuMs.Clear();
+            while (t < Settle + Measure)
+            {
+                t += Time.unscaledDeltaTime;
+                // Dash: carry the player straight across the chunks a few metres above the ground the whole time,
+                // so streaming has to keep up (settling included, so the measured part is already at speed).
+                if (dash)
+                    Carry(start + new float3(1f, 0f, 0.3f) * DashSpeed * t);
+                measuring = t > Settle;
+                yield return null;
+            }
+            measuring = false;
+            Report(name);
+        }
+
+        void Update()
+        {
+            FrameTimingManager.CaptureFrameTimings();
+            if (!measuring)
+                return;
+            frameMs.Add(Time.unscaledDeltaTime * 1000f);
+            if (FrameTimingManager.GetLatestTimings(1, timing) > 0)
+            {
+                cpuMs.Add(timing[0].cpuFrameTime);
+                gpuMs.Add(timing[0].gpuFrameTime);
+            }
+        }
+
+        void Report(string name)
+        {
+            if (frameMs.Count == 0)
+                return;
+            var sorted = new List<float>(frameMs);
+            sorted.Sort();
+            float total = 0f;
+            foreach (var ms in sorted) total += ms;
+            // 1% low: the average frame rate over the slowest 1% of frames.
+            var worst = math.max(1, sorted.Count / 100);
+            float worstTotal = 0f;
+            for (int i = sorted.Count - worst; i < sorted.Count; i++) worstTotal += sorted[i];
+            var line = $"{name}: avg {1000f * sorted.Count / total:F1} fps, 1% low {1000f * worst / worstTotal:F1} fps, " +
+                       $"median {sorted[sorted.Count / 2]:F1} ms, worst {sorted[sorted.Count - 1]:F1} ms, " +
+                       $"cpu {Average(cpuMs)} ms, gpu {Average(gpuMs)} ms, frames {sorted.Count}";
+            summary.AppendLine(line);
+            Debug.Log("BenchRoute: " + line);
+        }
+
+        static string Average(List<double> values)
+        {
+            if (values.Count == 0)
+                return "n/a";   // Frame Timing Stats is off in this build
+            double sum = 0;
+            foreach (var v in values) sum += v;
+            return (sum / values.Count).ToString("F1");
+        }
+
+        /// <summary>Jumps to the first of DebugControls' places whose name contains the text (as -place does).</summary>
+        static bool JumpTo(DebugControls controls, string place)
+        {
+            var type = typeof(DebugControls);
+            const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
+            var ensure = type.GetMethod("EnsureLocations", flags);
+            var list = type.GetField("locations", flags)?.GetValue(controls) as IList;
+            var current = type.GetField("current", flags);
+            if (ensure == null || list == null || current == null || !(bool)ensure.Invoke(controls, new object[] { null }))
+                return false;
+            for (int i = 0; i < list.Count; i++)
+            {
+                var name = list[i].GetType().GetField("Name")?.GetValue(list[i]) as string;
+                if (name == null || name.IndexOf(place, System.StringComparison.OrdinalIgnoreCase) < 0)
+                    continue;
+                current.SetValue(controls, i - 1);
+                controls.Jump(1);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Puts the player on the floor of the widest spot in the cave with the most nodes.</summary>
+        static bool PlaceInBiggestCave()
+        {
+            if (!TryGetWorld(out var em, out var player))
+                return false;
+            using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (terrainQuery.IsEmpty)
+                return false;
+            var source = terrainQuery.GetSingleton<TerrainSource>();
+            if (!source.Caves.IsCreated)
+                return false;
+            ref var set = ref source.Caves.Value;
+            int best = -1;
+            for (int c = 0; c < set.Caves.Length; c++)
+                if (best < 0 || set.Caves[c].NodeCount > set.Caves[best].NodeCount)
+                    best = c;
+            if (best < 0)
+                return false;
+            ref var cave = ref set.Caves[best];
+            int node = cave.FirstNode;
+            for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
+                if (set.Nodes[n].Radius > set.Nodes[node].Radius)
+                    node = n;
+            var p = set.Nodes[node].Position;
+            var next = set.Nodes[node == cave.FirstNode ? node + 1 : node - 1].Position;
+            var yaw = math.degrees(math.atan2(next.x - p.x, next.z - p.z));
+            em.SetComponentData(player, new LocalTransform { Position = new float3(p.x, source.FloorUnder(p, out _) + 0.1f, p.z), Rotation = quaternion.RotateY(math.radians(yaw)), Scale = 1f });
+            em.SetComponentData(player, new PlayerMotion { Grounded = true });
+            var cam = FindAnyObjectByType<ThirdPersonCamera>();
+            if (cam != null)
+                cam.SetView(yaw, 10f);
+            return true;
+        }
+
+        /// <summary>Moves the player to a point a few metres above the ground there (the dash).</summary>
+        static void Carry(float3 at)
+        {
+            if (!TryGetWorld(out var em, out var player))
+                return;
+            using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (terrainQuery.IsEmpty)
+                return;
+            var source = terrainQuery.GetSingleton<TerrainSource>();
+            var transform = em.GetComponentData<LocalTransform>(player);
+            transform.Position = new float3(at.x, source.SampleHeight(at.xz) + 3f, at.z);
+            em.SetComponentData(player, transform);
+            em.SetComponentData(player, new PlayerMotion { Grounded = true });
+        }
+
+        static bool TryGetWorld(out EntityManager em, out Entity player)
+        {
+            em = default;
+            player = Entity.Null;
+            var world = World.DefaultGameObjectInjectionWorld;
+            if (world == null || !world.IsCreated)
+                return false;
+            em = world.EntityManager;
+            using var query = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadWrite<LocalTransform>());
+            if (query.CalculateEntityCount() != 1)
+                return false;
+            player = query.GetSingletonEntity();
+            return true;
+        }
+    }
+}
