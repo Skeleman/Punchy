@@ -162,6 +162,23 @@ namespace Punchy.Debugging
             var line = $"{name}: avg {1000f * sorted.Count / total:F1} fps, 1% low {1000f * worst / worstTotal:F1} fps, " +
                        $"median {sorted[sorted.Count / 2]:F1} ms, worst {sorted[sorted.Count - 1]:F1} ms, " +
                        $"cpu {Average(cpuMs)} ms, gpu {Average(gpuMs)} ms, frames {sorted.Count}, GC {System.GC.CollectionCount(0) - gcAtStart}, gfx {Megabytes(gfxUsed)}/{Megabytes(gfxReserved)} MB used/reserved, system {Megabytes(systemUsed)} MB";
+            // When the hitches happen: the worst frame and the frames over 33 ms in each 5 s of the measured part.
+            var windows = new StringBuilder();
+            float windowTime = 0f, windowWorst = 0f;
+            int windowSlow = 0;
+            foreach (var ms in frameMs)
+            {
+                windowTime += ms;
+                windowWorst = math.max(windowWorst, ms);
+                if (ms > 33.3f) windowSlow++;
+                if (windowTime >= 5000f)
+                {
+                    windows.Append($" {windowWorst:F0}/{windowSlow}");
+                    windowTime = windowWorst = 0f;
+                    windowSlow = 0;
+                }
+            }
+            line += $", per 5 s worst ms/slow frames:{windows}";
             summary.AppendLine(line);
             Debug.Log("BenchRoute: " + line);
         }
