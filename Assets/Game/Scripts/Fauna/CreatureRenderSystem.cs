@@ -26,6 +26,7 @@ namespace Punchy.Fauna
         const int MarkCount = 3;
         const int Spokes = 12, Rings = 6, Anchors = 4;
         const int WebCount = Spokes + Spokes * Rings + Anchors;
+        const int MoundCount = 7;
 
         protected override void OnCreate()
         {
@@ -54,7 +55,8 @@ namespace Punchy.Fauna
             for (int i = 0; i < bodies.Length; i++)
             {
                 offsets[i] = total;
-                total += bodies[i].SegmentCount + MarkCount + (bodies[i].Blob.Value.SpinsWebs ? WebCount : 0);
+                total += bodies[i].SegmentCount + MarkCount + (bodies[i].Blob.Value.SpinsWebs ? WebCount : 0) +
+                         (bodies[i].Blob.Value.Burrows ? MoundCount : 0);
             }
             bodies.Dispose();
 
@@ -106,6 +108,54 @@ namespace Punchy.Fauna
                 FearMarks(state, offset, body.SegmentCount, entity.Index);
                 if (body.Blob.Value.SpinsWebs)
                     Web(state, ref body.Blob.Value, offset + body.SegmentCount + MarkCount);
+                if (body.Blob.Value.Burrows)
+                    Mound(state, offset + body.SegmentCount + MarkCount + (body.Blob.Value.SpinsWebs ? WebCount : 0));
+            }
+
+            /// <summary>A burrow: a dark hole in a ring of dug-out earth, where the animal's burrow is (if it has one).</summary>
+            void Mound(in CreatureState state, int offset)
+            {
+                if (state.AnchorSize <= 0f)
+                {
+                    for (int i = 0; i < MoundCount; i++)
+                        Output[offset + i] = default;
+                    return;
+                }
+                var r = state.AnchorSize;
+                var mouth = state.Anchor;
+                var earth = new Unity.Mathematics.float4(0.36f, 0.27f, 0.18f, 0f);
+                // The hole: a flat dark disc just above the ground.
+                Output[offset] = new SegmentInstance
+                {
+                    Position = mouth + new Unity.Mathematics.float3(-r * 0.45f, 0.02f, 0f),
+                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(new Unity.Mathematics.float3(1f, 0f, 0f), new Unity.Mathematics.float3(0f, 1f, 0f)),
+                    Length = r * 0.9f,
+                    RadiusStart = r * 0.55f,
+                    RadiusEnd = r * 0.55f,
+                    Flatten = 0.08f,
+                    Color = new Unity.Mathematics.float4(0.05f, 0.04f, 0.03f, 0f)
+                };
+                // Heaped earth round it, thicker on one side (where it was thrown).
+                var rng = new Unity.Mathematics.Random(state.Individual | 1u);
+                for (int k = 1; k < MoundCount; k++)
+                {
+                    var a = k / (float)(MoundCount - 1) * Unity.Mathematics.math.PI * 2f + rng.NextFloat(-0.3f, 0.3f);
+                    var dir = new Unity.Mathematics.float3(Unity.Mathematics.math.cos(a), 0f, Unity.Mathematics.math.sin(a));
+                    var along = new Unity.Mathematics.float3(-dir.z, 0f, dir.x);
+                    var heap = k <= 2 ? 1.5f : 1f;
+                    var centre = mouth + dir * r * 1.1f;
+                    centre.y = Terrain.SampleHeight(centre.xz);
+                    Output[offset + k] = new SegmentInstance
+                    {
+                        Position = centre - along * r * 0.5f,
+                        Rotation = Unity.Mathematics.quaternion.LookRotationSafe(along, new Unity.Mathematics.float3(0f, 1f, 0f)),
+                        Length = r,
+                        RadiusStart = r * 0.35f * heap,
+                        RadiusEnd = r * 0.3f * heap,
+                        Flatten = 0.45f,
+                        Color = earth
+                    };
+                }
             }
 
             /// <summary>

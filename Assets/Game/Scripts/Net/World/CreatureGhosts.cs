@@ -32,6 +32,9 @@ namespace Punchy.Net
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Lie, HeadDown, Bow, Curl, Air;
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Sit, Vertical, Fly, ActionTime;
         [GhostField] public byte Action;
+        /// <summary>Its lair, if it has one (a burrow's mouth, a web's centre) and how big: drawn on every machine.</summary>
+        [GhostField(Quantization = 100)] public float3 Anchor;
+        [GhostField(Quantization = 100)] public float AnchorSize;
     }
 
     /// <summary>Client: this creature is a server ghost that FaunaDirector has given a body (CreatureState/CreatureBody).</summary>
@@ -78,6 +81,8 @@ namespace Punchy.Net
                 n.Fly = c.Fly;
                 n.Action = (byte)c.Action;
                 n.ActionTime = c.ActionTime;
+                n.Anchor = c.Anchor;
+                n.AnchorSize = c.AnchorSize;
             }
         }
     }
@@ -170,6 +175,8 @@ namespace Punchy.Net
                 c.Fly = n.Fly;
                 c.Action = (IdleAction)n.Action;
                 c.ActionTime = n.ActionTime;
+                c.Anchor = n.Anchor;
+                c.AnchorSize = n.AnchorSize;
                 CreatureMotion.AdvancePhase(ref c, ref b, dt);
             }
         }

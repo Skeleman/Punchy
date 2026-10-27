@@ -38,7 +38,7 @@ namespace Punchy.Fauna
         public bool Hunted;
         public IdleActions Idles;
         public float Fidgets, Climbing;
-        public bool SpinsWebs;
+        public bool SpinsWebs, Burrows;
         public float WebSize;
         public float2 FlightHeight;
         public float FlySpeed, FlapRate, Glide, Perching;
@@ -198,7 +198,12 @@ namespace Punchy.Fauna
         /// down. In the web, Stage says where the anchoring tree is, so every machine can draw the web from the spider
         /// alone: 2 = trunk to the spider's right, 3 = to its left, 4 = no tree (a web low in the grass).
         /// </summary>
-        Web
+        Web,
+        /// <summary>
+        /// Goes to ground in its burrow (Anchor is the burrow's mouth): to the mouth (0), down it (1), hidden below
+        /// (2), back up (3).
+        /// </summary>
+        Burrow
     }
 
     /// <summary>What a worker does at its post (posed by CreatureAnimator).</summary>
@@ -387,6 +392,7 @@ namespace Punchy.Fauna
             root.Fidgets = species.Fidgets;
             root.Climbing = species.Climbing;
             root.SpinsWebs = species.SpinsWebs;
+            root.Burrows = species.Burrows;
             root.WebSize = species.WebSize * sizeScale;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));
             root.FlySpeed = species.FlySpeed;

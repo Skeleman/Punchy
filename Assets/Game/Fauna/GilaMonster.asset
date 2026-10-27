@@ -105,6 +105,7 @@ MonoBehaviour:
   Climbing: 0
   SpinsWebs: 0
   WebSize: 0.6
+  Burrows: 1
   FlightHeight: {x: 8, y: 18}
   FlySpeed: 7
   FlapRate: 6

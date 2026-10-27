@@ -92,7 +92,7 @@ namespace Punchy.Net
             var em = world.EntityManager;
             using var query = em.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Fauna.CreatureState>(), ComponentType.ReadOnly<Punchy.Fauna.CreatureBody>());
             var states = query.ToComponentDataArray<Punchy.Fauna.CreatureState>(Unity.Collections.Allocator.Temp);
-            int flying = 0, high = 0, climbing = 0, webs = 0, acting = 0, sitting = 0, diving = 0, hunting = 0;
+            int flying = 0, high = 0, climbing = 0, webs = 0, acting = 0, sitting = 0, diving = 0, hunting = 0, burrows = 0, below = 0;
             foreach (var c in states)
             {
                 if (c.Fly > 0.5f) flying++;
@@ -100,13 +100,15 @@ namespace Punchy.Net
                 if (c.Mode == Punchy.Fauna.CreatureMode.Web && c.Stage >= 2 && c.Stage <= 4) webs++;
                 if (c.Mode == Punchy.Fauna.CreatureMode.Hunt && c.Fly > 0.5f && c.Vertical < -0.5f) diving++;
                 if (c.Mode == Punchy.Fauna.CreatureMode.Hunt) hunting++;
+                if (c.AnchorSize > 0f && c.Mode != Punchy.Fauna.CreatureMode.Web && c.Mode != Punchy.Fauna.CreatureMode.Climb) burrows++;
+                if (c.Mode == Punchy.Fauna.CreatureMode.Burrow && c.Stage == 2) below++;
                 if (c.Action != Punchy.Fauna.IdleAction.None) acting++;
                 if (c.Sit > 0.5f) sitting++;
                 if (c.Fly < 0.5f && c.Mode != Punchy.Fauna.CreatureMode.Web && c.Position.y > 1.2f + SampleGround(world, c.Position.xz)) high++;
             }
             states.Dispose();
             return $"flying {flying}, up a tree {high}, climbing {climbing}, in webs {webs}, hunting {hunting}, diving {diving}, " +
-                   $"caught {Punchy.Fauna.FaunaDirector.Caught}, idle actions {acting}, sitting {sitting}";
+                   $"caught {Punchy.Fauna.FaunaDirector.Caught}, idle actions {acting}, sitting {sitting}, burrows {burrows} ({below} down)";
         }
 
         static float SampleGround(World world, float2 xz)

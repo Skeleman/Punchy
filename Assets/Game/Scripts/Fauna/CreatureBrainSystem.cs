@@ -149,7 +149,8 @@ namespace Punchy.Fauna
                 var ground = Terrain.SampleHeight(s.Position.xz);
                 var perched = flier && !Flying(s) && s.Position.y > ground + 0.3f;
                 // Up a tree or in its web, an animal feels safe from the ground.
-                var aloft = s.Mode == CreatureMode.Climb && s.Stage >= 1 || s.Mode == CreatureMode.Web && s.Stage >= 1;
+                var aloft = s.Mode == CreatureMode.Climb && s.Stage >= 1 || s.Mode == CreatureMode.Web && s.Stage >= 1 ||
+                            s.Mode == CreatureMode.Burrow && s.Stage >= 1;
 
                 // Danger: the player, or predators of this species (from further off when they're hunting it).
                 // Asleep, it notices only at half the distance; perched birds let you a bit closer.
@@ -185,6 +186,15 @@ namespace Punchy.Fauna
                     s.Stage = 1;
                     s.Timer = rng.NextFloat(12f, 25f);
                     s.Focus = s.Leash > 0f ? s.Home : s.Position.xz;   // where the game is played
+                }
+                // A burrower with its burrow near runs for it instead of just running.
+                if (threatened && b.Burrows && s.Mode != CreatureMode.Burrow && s.AnchorSize > 0f &&
+                    math.distance(s.Position.xz, s.Anchor.xz) < 30f)
+                {
+                    SetMode(ref s, CreatureMode.Burrow);
+                    s.Timer = rng.NextFloat(8f, 20f);
+                    s.Focus = threat;
+                    threatened = false;
                 }
                 if (threatened)
                 {
@@ -379,6 +389,10 @@ namespace Punchy.Fauna
                     case CreatureMode.Web:
                         InWeb(ref s, ref b, ref rng, dt, walk, ref targetSpeed, ref moving, ref custom, ref vertical);
                         break;
+
+                    case CreatureMode.Burrow:
+                        GoToGround(ref s, ref b, ref rng, dt, walk, run, playerDistance, ref targetSpeed, ref moving, ref custom, ref vertical);
+                        break;
                 }
 
                 // Little things done while standing about: start one now and then, keep it going, and take up the
@@ -396,7 +410,8 @@ namespace Punchy.Fauna
                         targetSpeed *= 0.2f;   // cornered: mill about rather than run on the spot
                 }
 
-                var urgent = s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Hunt || s.Mode == CreatureMode.Play;
+                var urgent = s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Hunt || s.Mode == CreatureMode.Play ||
+                             s.Mode == CreatureMode.Burrow && s.ModeTime < 3f;
                 if (!custom)
                 {
                     // Getting up comes before going anywhere.
@@ -501,6 +516,16 @@ namespace Punchy.Fauna
                 if (s.Task != CreatureTask.None && sleepy > 0.5f)
                     sleep = 0f;
                 var roll = rng.NextFloat(wander + graze + rest + sleep + drink + play + hunt + work + climb + web + fly);
+
+                // Burrowers sleep down their burrow (digging one where they are if they have none yet).
+                if (b.Burrows && sleep > 0f && sleepy > 0.5f && (s.AnchorSize > 0f || DigBurrow(ref s, ref b, ref rng)))
+                {
+                    SetMode(ref s, CreatureMode.Burrow);
+                    s.Timer = rng.NextFloat(120f, 400f);
+                    return;
+                }
+                if (b.Burrows && s.AnchorSize <= 0f)
+                    DigBurrow(ref s, ref b, ref rng);
 
                 if ((roll -= work) < 0f)
                 {
@@ -1034,6 +1059,84 @@ namespace Punchy.Fauna
                     s.Position.y = math.max(s.Position.y - s.Speed * dt, floor);
                     if (s.Position.y <= floor + 0.01f)
                         Pause(ref s, ref b, ref rng);
+                }
+            }
+
+            // ------------------------------------------------------------------------------- burrows
+
+            /// <summary>Picks a burrow mouth on flat, dry ground a few metres off (near home, for residents).</summary>
+            bool DigBurrow(ref CreatureState s, ref CreatureBlob b, ref Random rng)
+            {
+                var near = s.Leash > 0f ? s.Home : s.Position.xz;
+                for (int attempt = 0; attempt < 6; attempt++)
+                {
+                    var spot = near + rng.NextFloat2Direction() * rng.NextFloat(1.5f, 6f);
+                    if (!Walkable(spot, Habitat.Land) || SlopeAhead(spot, spot + new float2(0.5f, 0f)) > 0.35f ||
+                        SlopeAhead(spot, spot + new float2(0f, 0.5f)) > 0.35f)
+                        continue;
+                    s.Anchor = new float3(spot.x, Terrain.SampleHeight(spot), spot.y);
+                    s.AnchorSize = math.max(b.BodyLength * s.Scale * 0.8f, 0.18f);
+                    return true;
+                }
+                return false;
+            }
+
+            /// <summary>
+            /// To the burrow's mouth (running, if startled), down it, hidden a while (longer while the player is close),
+            /// then up again to sit up and look about.
+            /// </summary>
+            void GoToGround(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, float run, float playerDistance,
+                            ref float targetSpeed, ref bool moving, ref bool custom, ref float vertical)
+            {
+                var mouth = s.Anchor;
+                var down = mouth.y - (b.StandHeight + b.BodyLength) * s.Scale - 0.1f;
+                switch (s.Stage)
+                {
+                    case 0:
+                        s.Target = mouth.xz;
+                        targetSpeed = s.ModeTime < 6f && s.Timer < 30f ? run : walk;
+                        moving = true;
+                        if (math.distance(s.Position.xz, mouth.xz) < 0.25f)
+                            NextStage(ref s);
+                        else if (s.ModeTime > 30f)
+                            Pause(ref s, ref b, ref rng);
+                        break;
+                    case 1:
+                        custom = true;
+                        vertical = -0.7f;
+                        s.Speed = 0f;
+                        s.Position.xz = mouth.xz;
+                        s.Position.y = math.max(s.Position.y - dt * 1.2f, down);
+                        if (s.Position.y <= down + 0.01f)
+                            NextStage(ref s);
+                        break;
+                    case 2:
+                        custom = true;
+                        s.Speed = 0f;
+                        s.Position.y = down;
+                        // Waits out danger: while the player is near, it stays down.
+                        if (playerDistance > b.FleeDistance * s.Scale * 1.5f)
+                            s.Timer -= dt;
+                        if (s.Timer <= 0f)
+                            NextStage(ref s);
+                        break;
+                    default:
+                        custom = true;
+                        vertical = 0.6f;
+                        s.Speed = 0f;
+                        s.Position.y = math.min(s.Position.y + dt * 0.8f, mouth.y);
+                        if (s.Position.y >= mouth.y - 0.01f)
+                        {
+                            // Out, and straight up on its hind legs to look about (if it does that).
+                            Pause(ref s, ref b, ref rng);
+                            if ((b.Idles & IdleActions.SitUp) != 0)
+                            {
+                                s.Action = IdleAction.SitUp;
+                                s.ActionTime = 0f;
+                                s.ActionLength = rng.NextFloat(3f, 6f);
+                            }
+                        }
+                        break;
                 }
             }
 

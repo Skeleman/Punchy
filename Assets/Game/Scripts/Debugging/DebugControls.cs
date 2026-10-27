@@ -177,7 +177,7 @@ namespace Punchy.Debugging
                         continue;
                     var c = em.GetComponentData<CreatureState>(e);
                     var busy = c.Mode == CreatureMode.Climb || c.Mode == CreatureMode.Web || c.Fly > 0.5f ||
-                               c.Action != IdleAction.None || c.Mode == CreatureMode.Hunt;
+                               c.Action != IdleAction.None || c.Mode == CreatureMode.Hunt || c.Mode == CreatureMode.Burrow;
                     var score = math.distance(c.Position, player.Position) - (busy ? 1000f : 0f) - (c.Fly > 0.5f ? 1000f : 0f);
                     if (score < best)
                     {

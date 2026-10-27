@@ -106,6 +106,8 @@ namespace Punchy.Fauna
         public bool SpinsWebs;
         [Tooltip("Radius of its web, in metres.")]
         [Min(0.1f)] public float WebSize = 0.6f;
+        [Tooltip("Digs a burrow: bolts down it when startled, sleeps in it at night, pops up to look about.")]
+        public bool Burrows;
 
         [Header("Flight (habitat Flies)")]
         [Tooltip("Height above the ground it cruises at, in metres.")]
