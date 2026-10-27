@@ -32,7 +32,8 @@ namespace Punchy.Net
         void Start()
         {
             // "-joincode ABC123" on the command line joins that online game straight away; "-hostonline" hosts one.
-            var args = System.Environment.GetCommandLineArgs();
+            // (In the editor, also from the test flags in Temp/PlayArgs.txt.)
+            var args = Punchy.Debugging.DebugControls.LaunchArgs;
             for (int i = 0; i < args.Length; i++)
             {
                 if (args[i] == "-joincode" && i + 1 < args.Length && RelaySessions.JoinCode == null && !joinedFromCommandLine)
@@ -50,6 +51,12 @@ namespace Punchy.Net
 
         // Survives the scene reload a join does, so it only happens once.
         static bool joinedFromCommandLine;
+
+#if UNITY_EDITOR
+        // Play mode may start without a domain reload: each run joins afresh.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => joinedFromCommandLine = false;
+#endif
 
         /// <summary>A note shown on screen for a few seconds (the host left, and so on).</summary>
         static string notice;
