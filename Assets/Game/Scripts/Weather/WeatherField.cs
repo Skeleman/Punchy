@@ -108,6 +108,14 @@ namespace Punchy.Weather
         NativeArray<Color32> cloudPixels;
         NativeArray<float> orographyNative, rainFractionNative, wetness;
         NativeArray<Color32> weatherPixels, wetnessPixels;
+        NativeArray<float> lownessNative;  // per texel: the pressure pattern, baked about once a second (it moves slowly)
+
+        // The map redraw runs in the background and is picked up a frame or more later (never completed in the frame
+        // that scheduled it, which stalled the main thread every redraw).
+        JobHandle mapJob;
+        NativeArray<CellData> mapCells;
+        bool mapPending;
+        float lownessTimer, lownessBias;
 
         public Texture2D WeatherMap { get; private set; }
         public Texture2D WetnessMap { get; private set; }
@@ -187,6 +195,8 @@ namespace Punchy.Weather
             weatherPixels = new NativeArray<Color32>(count, Allocator.Persistent);
             wetnessPixels = new NativeArray<Color32>(count, Allocator.Persistent);
             cloudPixels = new NativeArray<Color32>(count, Allocator.Persistent);
+            lownessNative = new NativeArray<float>(count, Allocator.Persistent);
+            lownessTimer = 0f;
 
             WeatherMap = CreateMap("WeatherMap");
             WetnessMap = CreateMap("WetnessMap");
@@ -223,6 +233,10 @@ namespace Punchy.Weather
 
         public void Dispose()
         {
+            mapJob.Complete();
+            mapPending = false;
+            if (mapCells.IsCreated) mapCells.Dispose();
+            if (lownessNative.IsCreated) lownessNative.Dispose();
             if (allowed.IsCreated) allowed.Dispose();
             if (presetLook.IsCreated) presetLook.Dispose();
             if (presetPrecip.IsCreated) presetPrecip.Dispose();
@@ -269,12 +283,16 @@ namespace Punchy.Weather
             if (cells.Count < maxCells && Random.value < spawnsPerMinute / 60f * dt)
                 TrySpawn(0f);
 
+            if (mapPending && mapJob.IsCompleted)
+                FinishRedraw();
             redrawTimer -= dt;
+            lownessTimer -= dt;
             pendingDt += dt;
-            if (redrawTimer <= 0f)
+            // A redraw still running (a slow frame) just delays the next one; its wetness catches up through pendingDt.
+            if (redrawTimer <= 0f && !mapPending)
             {
                 redrawTimer = 0.1f;
-                Redraw(pendingDt, soakSeconds, drySeconds);
+                ScheduleRedraw(pendingDt, soakSeconds, drySeconds);
                 pendingDt = 0f;
             }
         }
@@ -542,25 +560,46 @@ namespace Punchy.Weather
 
         // ---------------------------------------------------------------- maps
 
-        void Redraw(float dt, float soakSeconds, float drySeconds)
+        void ScheduleRedraw(float dt, float soakSeconds, float drySeconds)
         {
-            var cellData = new NativeArray<CellData>(cells.Count, Allocator.TempJob);
+            mapCells = new NativeArray<CellData>(cells.Count, Allocator.Persistent);
             for (int i = 0; i < cells.Count; i++)
-                cellData[i] = new CellData { Position = cells[i].Position, Radius = cells[i].Radius, Intensity = cells[i].Intensity, Preset = cells[i].Preset };
+                mapCells[i] = new CellData { Position = cells[i].Position, Radius = cells[i].Radius, Intensity = cells[i].Intensity, Preset = cells[i].Preset };
+
+            // The pressure pattern drifts at a couple of metres a second against 64 m texels, so it's baked about once a
+            // second (and at once when the day's bias changes) rather than re-noised for every texel on every redraw.
+            var dependency = default(JobHandle);
+            if (lownessTimer <= 0f || lownessBias != Bias)
+            {
+                lownessTimer = 1f;
+                lownessBias = Bias;
+                dependency = new LownessJob
+                {
+                    PressureOffset = pressureOffset, PressureTime = pressureTime, PressureBias = Bias,
+                    Resolution = Resolution, Origin = origin, Texel = texel, Lowness = lownessNative
+                }.Schedule(Resolution * Resolution, 1024);
+            }
 
             var background = WeatherValues.From(presets[0]);
-            new MapJob
+            mapJob = new MapJob
             {
-                Cells = cellData, PresetLook = presetLook, PresetPrecip = presetPrecip, PresetCloud = presetCloud, Allowed = allowed,
-                Orography = orographyNative, RainFraction = rainFractionNative, Wetness = wetness,
+                Cells = mapCells, PresetLook = presetLook, PresetPrecip = presetPrecip, PresetCloud = presetCloud, Allowed = allowed,
+                Orography = orographyNative, RainFraction = rainFractionNative, Wetness = wetness, Lowness = lownessNative,
                 Background = new float4(background.Coverage, background.Darkness, background.Haze, background.Dust),
                 BackgroundCloud = new float2(background.CloudBase, background.CloudThickness),
-                PressureOffset = pressureOffset, PressureTime = pressureTime, PressureBias = Bias,
                 Resolution = Resolution, Origin = origin, Texel = texel,
                 SoakRate = 1f / math.max(soakSeconds, 0.1f), DryRate = 1f / math.max(drySeconds, 0.1f), Dt = dt,
                 WeatherPixels = weatherPixels, WetnessPixels = wetnessPixels, CloudPixels = cloudPixels
-            }.Schedule(Resolution * Resolution, 512).Complete();
-            cellData.Dispose();
+            }.Schedule(Resolution * Resolution, 512, dependency);
+            mapPending = true;
+        }
+
+        /// <summary>Uploads a finished redraw to the map textures.</summary>
+        void FinishRedraw()
+        {
+            mapJob.Complete();
+            mapPending = false;
+            mapCells.Dispose();
 
             WeatherMap.SetPixelData(weatherPixels, 0);
             WeatherMap.Apply(false);
@@ -592,6 +631,25 @@ namespace Punchy.Weather
             public int Preset;
         }
 
+        /// <summary>The pressure pattern (Lowness) at every map texel.</summary>
+        [BurstCompile]
+        struct LownessJob : IJobParallelFor
+        {
+            public float2 PressureOffset;
+            public float PressureTime;
+            public float PressureBias;
+            public int Resolution;
+            public float2 Origin;
+            public float Texel;
+            [WriteOnly] public NativeArray<float> Lowness;
+
+            public void Execute(int t)
+            {
+                var xz = Origin + (new float2(t % Resolution, t / Resolution) + 0.5f) * Texel;
+                Lowness[t] = WeatherField.Lowness(xz, PressureOffset, PressureTime, PressureBias);
+            }
+        }
+
         [BurstCompile]
         struct MapJob : IJobParallelFor
         {
@@ -602,12 +660,10 @@ namespace Punchy.Weather
             [ReadOnly] public NativeArray<float> Allowed;
             [ReadOnly] public NativeArray<float> Orography;
             [ReadOnly] public NativeArray<float> RainFraction;
+            [ReadOnly] public NativeArray<float> Lowness;
             public NativeArray<float> Wetness;
             public float4 Background;
             public float2 BackgroundCloud;
-            public float2 PressureOffset;
-            public float PressureTime;
-            public float PressureBias;
             public int Resolution;
             public float2 Origin;
             public float Texel;
@@ -619,8 +675,7 @@ namespace Punchy.Weather
             public void Execute(int t)
             {
                 var xz = Origin + (new float2(t % Resolution, t / Resolution) + 0.5f) * Texel;
-                var background = ApplyBackground(Background, BackgroundCloud, Orography[t],
-                                                 Lowness(xz, PressureOffset, PressureTime, PressureBias), out var backgroundCloud);
+                var background = ApplyBackground(Background, BackgroundCloud, Orography[t], Lowness[t], out var backgroundCloud);
 
                 float4 look = 0f;
                 float2 cloud = 0f;
