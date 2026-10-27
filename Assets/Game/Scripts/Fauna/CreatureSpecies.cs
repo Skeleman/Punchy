@@ -179,10 +179,14 @@ namespace Punchy.Fauna
         [Tooltip("Sits back and howls at night; others of its kind nearby join in.")] Howl = 1 << 12
     }
 
-    /// <summary>The idle action an animal is doing now (one of IdleActions, by number).</summary>
+    /// <summary>
+    /// The idle action an animal is doing now (one of IdleActions, by number), or a pose a player's body takes for an
+    /// interaction (Pet, Carry: not idle actions any species picks for itself).
+    /// </summary>
     public enum IdleAction : byte
     {
-        None, PawGround, Groom, Scratch, Shake, Stretch, Sniff, Sit, SitUp, TailFlick, Preen, HeadBob, LookAround, Howl
+        None, PawGround, Groom, Scratch, Shake, Stretch, Sniff, Sit, SitUp, TailFlick, Preen, HeadBob, LookAround, Howl,
+        Pet, Carry
     }
 
     public enum ActiveTime : byte

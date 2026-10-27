@@ -52,6 +52,7 @@ namespace Punchy.Debugging
             SpawnRequested();
             Watch();
             Pose();
+            Interact();
             var keyboard = Keyboard.current;
             if (keyboard == null)
                 return;
@@ -77,6 +78,12 @@ namespace Punchy.Debugging
         /// beating its wings if flying).</summary>
         static string poseRequest;
         Entity posed;
+        /// <summary>"-interact Cat:carry" (or ":pet"): walks up to the nearest one, pets it or picks it up, and puts it
+        /// down again a while later, as if the keys were pressed (alone only).</summary>
+        static string interactRequest;
+        static string shotDir;
+        float interactStep = -1f;
+        Entity interactTarget;
         EntityQuery creatureQuery;
         World creatureWorld;
         FaunaDirector watchDirector;
@@ -121,6 +128,8 @@ namespace Punchy.Debugging
             watchPitchOverride = null;
             pendingSpawns.Clear();
             poseRequest = null;
+            interactRequest = null;
+            shotDir = null;
             Time.timeScale = 1f;
         }
 #endif
@@ -140,7 +149,10 @@ namespace Punchy.Debugging
             var inCave = System.Array.IndexOf(args, "-incave") >= 0;
             // "-nohud": no readout (for screenshots).
             if (System.Array.IndexOf(args, "-nohud") >= 0)
+            {
                 ShowReadout = false;
+                InteractionPrompt.Hidden = true;
+            }
             for (int i = 0; i < args.Length - 1; i++)
             {
                 if (args[i] == "-time" && Cycle != null && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var hours))
@@ -157,6 +169,11 @@ namespace Punchy.Debugging
                     pendingSpawns.Add(args[i + 1]);
                 if (args[i] == "-pose")
                     poseRequest = args[i + 1];
+                if (args[i] == "-interact")
+                    interactRequest = args[i + 1];
+                // "-shotdir C:\shots": tests that take their own screenshots (-interact) save them there.
+                if (args[i] == "-shotdir")
+                    shotDir = args[i + 1];
                 if (args[i] == "-place")
                 {
                     // An exact name first (the landmark itself), else the first that contains it.
@@ -434,6 +451,121 @@ namespace Punchy.Debugging
             ThirdPersonCamera.WatchTarget = (Vector3)c.Position + Vector3.up * size * 0.5f;
             ThirdPersonCamera.WatchPitch = viewPitch;
             ThirdPersonCamera.WatchDistance = math.clamp(size * 7f, 0.5f, 6f);
+        }
+
+        /// <summary>
+        /// The "-interact" test: 12 s in (after any -spawn), stands the player just in front of the nearest animal of the
+        /// species, facing it; a moment later pets it or picks it up; carrying, walks off a few metres and puts it down.
+        /// </summary>
+        void Interact()
+        {
+            if (interactRequest == null || Time.timeSinceLevelLoad < 12f || queryWorld == null || !queryWorld.IsCreated ||
+                !playerQuery.TryGetSingletonEntity<LocalTransform>(out var playerEntity))
+                return;
+            var em = queryWorld.EntityManager;
+            var parts = interactRequest.Split(':');
+            var carry = parts.Length > 1 && parts[1] == "carry";
+            var director = FindAnyObjectByType<FaunaDirector>();
+            var index = director != null ? director.SpeciesIndex(parts[0]) : -1;
+            if (index < 0)
+            {
+                Debug.LogWarning($"DebugControls: no species '{parts[0]}' to interact with");
+                interactRequest = null;
+                return;
+            }
+            if (creatureWorld != queryWorld)
+            {
+                creatureWorld = queryWorld;
+                creatureQuery = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            }
+            var player = em.GetComponentData<LocalTransform>(playerEntity);
+            var requestQuery = em.CreateEntityQuery(ComponentType.ReadWrite<InteractionRequest>());
+            if (!requestQuery.TryGetSingleton<InteractionRequest>(out var request))
+                return;
+            void Send(InteractAct act)
+            {
+                request.Act = act;
+                request.Serial++;
+                request.Target = interactTarget;
+                requestQuery.SetSingleton(request);
+                Debug.Log($"DebugControls: interact {act} {parts[0]}");
+            }
+
+            var now = Time.timeSinceLevelLoad;
+            if (interactStep < 0f)
+            {
+                // Find one and stand in front of it.
+                var entities = creatureQuery.ToEntityArray(Unity.Collections.Allocator.Temp);
+                var best = float.MaxValue;
+                interactTarget = Entity.Null;
+                foreach (var e in entities)
+                {
+                    if (em.HasComponent<PlayerAvatar>(e) || em.GetComponentData<CreatureBody>(e).Species != index)
+                        continue;
+                    var d = math.distance(em.GetComponentData<CreatureState>(e).Position, player.Position);
+                    if (d < best)
+                    {
+                        best = d;
+                        interactTarget = e;
+                    }
+                }
+                entities.Dispose();
+                if (interactTarget == Entity.Null)
+                    return;
+                interactStep = now;
+            }
+            if (!em.Exists(interactTarget))
+            {
+                interactRequest = null;
+                return;
+            }
+            var s = em.GetComponentData<CreatureState>(interactTarget);
+            var elapsed = now - interactStep;
+            if (elapsed < 1f)
+            {
+                // Keep stepping up to it (it may be wandering) until the request goes.
+                var toward = math.normalizesafe(s.Position.xz - player.Position.xz, new float2(0f, 1f));
+                var stand = s.Position.xz - toward * 0.9f;
+                player.Position = new float3(stand.x, s.Position.y, stand.y);
+                player.Rotation = quaternion.RotateY(math.atan2(toward.x, toward.y));
+                em.SetComponentData(playerEntity, player);
+                ThirdPersonCamera.WatchTarget = (Vector3)player.Position + Vector3.up * 0.4f;
+                ThirdPersonCamera.WatchPitch = watchPitchOverride ?? 20f;
+                ThirdPersonCamera.WatchDistance = 3f;
+                return;
+            }
+            if (request.Act == InteractAct.None || request.Target != interactTarget)
+            {
+                Send(carry ? InteractAct.PickUp : InteractAct.Pet);
+                return;
+            }
+            if (elapsed > 3f && (elapsed - Time.deltaTime) <= 3f)
+            {
+                var avatarQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerAvatar>(), ComponentType.ReadOnly<CreatureState>());
+                var avatar = avatarQuery.TryGetSingleton<CreatureState>(out var a) ? $"{a.Action} at {a.ActionTime:F2}" : "none";
+                Debug.Log($"DebugControls: {parts[0]} is {s.Mode} (stage {s.Stage}, holder {s.Holder}); player pose {request.Pose}, body {avatar}");
+            }
+            // Its own screenshots: being petted or just picked up, then (carrying) on the move.
+            foreach (var at in new[] { 2.5f, 4f, 6f })
+                if (shotDir != null && elapsed > at && elapsed - Time.deltaTime <= at)
+                    ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(shotDir, $"interact-{parts[0]}-{(carry ? "carry" : "pet")}-{at * 10f:F0}.png"));
+            // Carrying: turn and walk a few metres (by stepping), then put it down.
+            if (carry && s.Mode == CreatureMode.Held && elapsed > 4f && elapsed < 8f)
+            {
+                var forward = math.mul(player.Rotation, new float3(0f, 0f, 1f));
+                player.Position += forward * Time.deltaTime * 1.2f;
+                player.Position.y = terrainQuery.GetSingleton<TerrainSource>().SampleHeight(player.Position.xz);
+                em.SetComponentData(playerEntity, player);
+            }
+            if (carry && elapsed > 9f && request.Act == InteractAct.PickUp)
+                Send(InteractAct.PutDown);
+            ThirdPersonCamera.WatchTarget = (Vector3)player.Position + Vector3.up * 0.8f;
+            if (elapsed > 14f)
+            {
+                Debug.Log($"DebugControls: interaction test over: {parts[0]} is {s.Mode}");
+                interactRequest = null;
+                ThirdPersonCamera.WatchTarget = null;
+            }
         }
 
         /// <summary>Teleports the player to the next (or previous) preset location.</summary>

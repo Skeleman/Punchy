@@ -212,7 +212,14 @@ namespace Punchy.Fauna
         /// </summary>
         Roost,
         /// <summary>A friendly animal going over to a person (Focus: where they are), then keeping them company.</summary>
-        Greet
+        Greet,
+        /// <summary>
+        /// Being petted by a person (Holder; Focus: where they are): enjoying it (stage 0: leaning in, tail going) or
+        /// putting up with it (1); then it goes on with its day, or keeps the person company.
+        /// </summary>
+        Petted,
+        /// <summary>Picked up and carried by a person (Holder), held in their arms; it may squirm free.</summary>
+        Held
     }
 
     /// <summary>What a worker does at its post (posed by CreatureAnimator).</summary>
@@ -304,6 +311,8 @@ namespace Punchy.Fauna
         public bool Gone;
         /// <summary>The cave it roosts in (-1 = none), and the passage node its roost is at.</summary>
         public short LairCave, LairNode;
+        /// <summary>Who is petting or carrying it (see Interactions.HolderId; 0 = nobody).</summary>
+        public int Holder;
 
         // Needs, 0 (satisfied) to 1 (pressing): they rise with time by the species' tastes and are eased by the
         // activity that meets them; what it decides to do next is weighted by them. Simulation only (not sent).

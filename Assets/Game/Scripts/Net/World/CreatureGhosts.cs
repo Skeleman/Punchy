@@ -37,6 +37,8 @@ namespace Punchy.Net
         /// <summary>Its lair, if it has one (a burrow's mouth, a web's centre) and how big: drawn on every machine.</summary>
         [GhostField(Quantization = 100)] public float3 Anchor;
         [GhostField(Quantization = 100)] public float AnchorSize;
+        /// <summary>Who is petting or carrying it (Interactions.HolderId; 0 = nobody).</summary>
+        [GhostField] public int Holder;
     }
 
     /// <summary>Client: this creature is a server ghost that FaunaDirector has given a body (CreatureState/CreatureBody).</summary>
@@ -85,6 +87,7 @@ namespace Punchy.Net
                 n.ActionTime = c.ActionTime;
                 n.Anchor = c.Anchor;
                 n.AnchorSize = c.AnchorSize;
+                n.Holder = c.Holder;
             }
         }
     }
@@ -141,6 +144,7 @@ namespace Punchy.Net
     [BurstCompile]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [UpdateAfter(typeof(Punchy.Player.PlayerMovementSystem))]   // (a carried animal goes where the player is now)
     public partial struct CreatureReplicaSystem : ISystem
     {
         [BurstCompile]
@@ -179,7 +183,24 @@ namespace Punchy.Net
                 c.ActionTime = n.ActionTime;
                 c.Anchor = n.Anchor;
                 c.AnchorSize = n.AnchorSize;
+                c.Holder = n.Holder;
                 CreatureMotion.AdvancePhase(ref c, ref b, dt);
+            }
+
+            // One we're carrying sits in our own arms, where we are now (its ghost trails behind, interpolated).
+            if (!SystemAPI.TryGetSingleton<NetworkId>(out var id))
+                return;
+            var me = Interactions.HolderId(id.Value);
+            foreach (var t in SystemAPI.Query<RefRO<LocalTransform>>().WithAll<Punchy.Player.PlayerTag>())
+            {
+                var forward = math.mul(t.ValueRO.Rotation, new float3(0f, 0f, 1f));
+                var yaw = math.atan2(forward.x, forward.z);
+                foreach (var s in SystemAPI.Query<RefRW<CreatureState>>().WithAll<CreatureReplica>())
+                    if (s.ValueRO.Mode == CreatureMode.Held && s.ValueRO.Holder == me)
+                    {
+                        s.ValueRW.Position = Interactions.Hands(t.ValueRO.Position, yaw);
+                        s.ValueRW.Yaw = yaw + math.PI * 0.5f;
+                    }
             }
         }
     }

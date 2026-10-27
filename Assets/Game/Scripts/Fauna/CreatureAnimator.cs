@@ -178,7 +178,8 @@ namespace Punchy.Fauna
                         a += headTilt;
                     a += Secondary(ref part, in s, j, run, b.Upright);
                     a += TaskPose(ref part, in s, j);
-                    if (s.Action != IdleAction.None && !b.Upright)
+                    // (Upright bodies have no idle actions of their own, but players' bodies take interaction poses.)
+                    if (s.Action != IdleAction.None && (!b.Upright || s.Action >= IdleAction.Pet))
                         a += ActionPose(ref part, in s, j, act);
                     if (seg < segHidden.Length)
                         segHidden[seg] = hidden;
@@ -324,6 +325,25 @@ namespace Punchy.Fauna
                 case IdleAction.SitUp:
                     if (part.Role == LimbRole.Head) return new float3(-0.15f * e, 0f, 0f);
                     if (part.Role == LimbRole.Ear) return new float3(-0.3f * e, 0f, 0f);
+                    break;
+                case IdleAction.Pet:
+                {
+                    // A player petting an animal: leaning over it, the right hand reaching down and stroking (a body
+                    // with no arms noses at it instead).
+                    var stroke = math.sin(s.Clock * 3.2f);
+                    if (part.Role == LimbRole.Feature && part.Parent < 0 && joint == 0) return new float3(0.45f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Arm && part.Side > 0f)
+                        return joint == 0 ? new float3((-0.95f + 0.18f * stroke) * e, 0f, 0f)
+                             : joint == 1 ? new float3((-0.25f - 0.15f * stroke) * e, 0f, 0f) : float3.zero;
+                    if (part.Role == LimbRole.Neck) return new float3(0.5f * e / n, 0f, 0f);
+                    if (part.Role == LimbRole.Head) return new float3((0.45f + 0.06f * stroke) * e, 0f, 0f);
+                    break;
+                }
+                case IdleAction.Carry:
+                    // A player carrying an animal: both arms forward with the elbows bent, cradling it at the chest.
+                    if (part.Role == LimbRole.Arm)
+                        return joint == 0 ? new float3(-0.7f * e, 0f, 0f) : joint == 1 ? new float3(-1.45f * e, 0f, 0f) : float3.zero;
+                    if (part.Role == LimbRole.Head) return new float3(0.2f * e, 0f, 0f);
                     break;
             }
             return float3.zero;

@@ -53,9 +53,13 @@ namespace Punchy.Fauna
                 motion = m.ValueRO;
                 hasPlayer = true;
             }
+            var pose = SystemAPI.TryGetSingleton<InteractionRequest>(out var interaction) ? interaction.Pose : IdleAction.None;
             if (hasPlayer)
                 foreach (var (s, body) in SystemAPI.Query<RefRW<CreatureState>, RefRO<CreatureBody>>().WithAll<PlayerAvatar>())
+                {
                     Drive(ref s.ValueRW, ref body.ValueRO.Blob.Value, player, motion.Grounded, dt);
+                    Pose(ref s.ValueRW, pose, dt);
+                }
 
             transforms.Update(ref state);
             looks.Update(ref state);
@@ -65,6 +69,34 @@ namespace Punchy.Fauna
                 if (!transforms.HasComponent(ghost) || !looks.HasComponent(ghost))
                     continue;
                 Drive(ref s.ValueRW, ref body.ValueRO.Blob.Value, transforms[ghost], looks[ghost].Grounded, dt);
+                Pose(ref s.ValueRW, (IdleAction)looks[ghost].Pose, dt);
+            }
+        }
+
+        /// <summary>
+        /// Eases into an interaction pose (petting, carrying) and holds it half way through the action (where its
+        /// weight is full), then eases out of it when it's over.
+        /// </summary>
+        static void Pose(ref CreatureState c, IdleAction pose, float dt)
+        {
+            if (pose != IdleAction.None)
+            {
+                if (c.Action != pose)
+                {
+                    c.Action = pose;
+                    c.ActionTime = 0f;
+                }
+                // (The action's weight is full from 0.12 to 0.85 of the way through: a quarter second in, the same out.)
+                c.ActionTime = math.min(c.ActionTime + dt * 0.5f, 0.5f);
+            }
+            else if (c.Action != IdleAction.None)
+            {
+                c.ActionTime = math.max(c.ActionTime, 0.85f) + dt * 0.6f;
+                if (c.ActionTime >= 1f)
+                {
+                    c.Action = IdleAction.None;
+                    c.ActionTime = 0f;
+                }
             }
         }
 

@@ -34,6 +34,12 @@ namespace Punchy.Net
         public int Species;
         public uint Individual;
         public int Coat;
+        /// <summary>The owner's latest interaction with an animal (an InteractAct), numbered so the server acts on it
+        /// once, and the animal's ghost id.</summary>
+        public byte Act, ActSerial;
+        public int ActTarget;
+        /// <summary>The pose the owner's body is in for it (an IdleAction: Pet, Carry or None).</summary>
+        public byte Pose;
     }
 
     /// <summary>What other players need to draw this one's body: replicated from the owner via the server.</summary>
@@ -43,6 +49,8 @@ namespace Punchy.Net
         [GhostField] public uint Individual;
         [GhostField] public int Coat;
         [GhostField] public bool Grounded;
+        /// <summary>Petting or carrying (an IdleAction), so the others see it.</summary>
+        [GhostField] public byte Pose;
     }
 
     /// <summary>Client singleton: the local player's species in the playable table (set by NetAvatars).</summary>
@@ -154,6 +162,14 @@ namespace Punchy.Net
                     command.Individual = avatar.ValueRO.Individual;
                     command.Coat = body.ValueRO.Coat;
                 }
+            // What we're doing with an animal, if anything.
+            if (SystemAPI.TryGetSingleton<InteractionRequest>(out var interaction))
+            {
+                command.Act = (byte)interaction.Act;
+                command.ActSerial = interaction.Serial;
+                command.ActTarget = interaction.TargetGhost;
+                command.Pose = (byte)interaction.Pose;
+            }
             foreach (var input in SystemAPI.Query<RefRW<NetPlayerCommand>>().WithAll<NetPlayer, GhostOwnerIsLocal>())
                 input.ValueRW = command;
         }
@@ -175,7 +191,7 @@ namespace Punchy.Net
                     continue;
                 transform.ValueRW.Position = c.Position;
                 transform.ValueRW.Rotation = quaternion.RotateY(c.Yaw);
-                look.ValueRW = new NetPlayerLook { Species = c.Species, Individual = c.Individual, Coat = c.Coat, Grounded = c.Grounded };
+                look.ValueRW = new NetPlayerLook { Species = c.Species, Individual = c.Individual, Coat = c.Coat, Grounded = c.Grounded, Pose = c.Pose };
             }
         }
     }

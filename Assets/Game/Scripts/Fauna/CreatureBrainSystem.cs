@@ -54,15 +54,18 @@ namespace Punchy.Fauna
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            // Every player animals should notice: the networked players on a server, or the one local player.
+            // Every player animals should notice: the networked players on a server, or the one local player; who each
+            // is (as a Holder) and which way they face (for an animal in their arms).
             var players = new NativeList<float3>(4, Allocator.TempJob);
-            foreach (var t in SystemAPI.Query<RefRO<LocalTransform>>().WithAll<NetPlayer>())
-                players.Add(t.ValueRO.Position);
+            var playerIds = new NativeList<int>(4, Allocator.TempJob);
+            var playerYaws = new NativeList<float>(4, Allocator.TempJob);
+            foreach (var (t, owner) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<Unity.NetCode.GhostOwner>>().WithAll<NetPlayer>())
+                AddPlayer(t.ValueRO, Interactions.HolderId(owner.ValueRO.NetworkId), ref players, ref playerIds, ref playerYaws);
             if (players.Length == 0)
                 foreach (var t in SystemAPI.Query<RefRO<LocalTransform>>().WithAll<PlayerTag>())
-                    players.Add(t.ValueRO.Position);
+                    AddPlayer(t.ValueRO, Interactions.HolderId(0), ref players, ref playerIds, ref playerYaws);
             if (players.Length == 0)
-                players.Add(new float3(1e9f, 0f, 1e9f));
+                AddPlayer(LocalTransform.FromPosition(new float3(1e9f, 0f, 1e9f)), 0, ref players, ref playerIds, ref playerYaws);
 
             // Snapshot of everyone, for seeing each other.
             var entities = creatures.ToEntityArray(Allocator.TempJob);
@@ -83,6 +86,8 @@ namespace Punchy.Fauna
                 Flora = hasFlora ? flora.Blob : default,
                 HasFlora = hasFlora,
                 Players = players.AsArray(),
+                PlayerIds = playerIds.AsArray(),
+                PlayerYaws = playerYaws.AsArray(),
                 Dt = math.min(SystemAPI.Time.DeltaTime, 0.1f),
                 Night = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Night : 0f,
                 Entities = entities,
@@ -97,6 +102,16 @@ namespace Punchy.Fauna
             lookup.Dispose(state.Dependency);
             grid.Dispose(state.Dependency);
             players.Dispose(state.Dependency);
+            playerIds.Dispose(state.Dependency);
+            playerYaws.Dispose(state.Dependency);
+        }
+
+        static void AddPlayer(in LocalTransform t, int id, ref NativeList<float3> players, ref NativeList<int> ids, ref NativeList<float> yaws)
+        {
+            var forward = math.mul(t.Rotation, new float3(0f, 0f, 1f));
+            players.Add(t.Position);
+            ids.Add(id);
+            yaws.Add(math.atan2(forward.x, forward.z));
         }
 
         static int2 Cell(float2 xz) => (int2)math.floor(xz / CellSize);
@@ -110,6 +125,8 @@ namespace Punchy.Fauna
             public BlobAssetReference<FloraBlob> Flora;
             public bool HasFlora;
             [ReadOnly] public NativeArray<float3> Players;
+            [ReadOnly] public NativeArray<int> PlayerIds;
+            [ReadOnly] public NativeArray<float> PlayerYaws;
             public float Dt, Night;
             [ReadOnly] public NativeArray<Entity> Entities;
             [ReadOnly] public NativeArray<CreatureState> States;
@@ -149,7 +166,11 @@ namespace Punchy.Fauna
                 var perched = flier && !Flying(s) && s.Position.y > Terrain.SampleHeight(s.Position.xz) + 0.3f;
                 // Up a tree or in its web, an animal feels safe from the ground.
                 var aloft = s.Mode == CreatureMode.Climb && s.Stage >= 1 || s.Mode == CreatureMode.Web && s.Stage >= 1 ||
-                            s.Mode == CreatureMode.Burrow && s.Stage >= 1 || s.Mode == CreatureMode.Roost;
+                            s.Mode == CreatureMode.Burrow && s.Stage >= 1 || s.Mode == CreatureMode.Roost ||
+                            // (In someone's hands, it isn't afraid of them.)
+                            s.Mode == CreatureMode.Held || s.Mode == CreatureMode.Petted;
+                // Settlements' animals are used to people: they let them come close (not predators, though).
+                var tame = s.Leash > 0f && !b.Upright ? 0.3f : 1f;
 
                 // Danger: the player, or predators of this species (from further off when they're hunting it).
                 // Asleep, it notices only at half the distance; perched birds let you a bit closer.
@@ -160,7 +181,7 @@ namespace Punchy.Fauna
                 // unless the player is really close.
                 var threatDistance = flier && Flying(s) ? math.distance(s.Position, player) : playerDistance;
                 var nerve = s.Mode == CreatureMode.Hunt && flier ? 0.4f : 1f;
-                var threatened = !aloft && b.FleeDistance > 0f && threatDistance < b.FleeDistance * s.Scale * alert * nerve;
+                var threatened = !aloft && b.FleeDistance > 0f && threatDistance < b.FleeDistance * s.Scale * alert * nerve * tame;
                 var threat = player.xz;
                 if (!threatened && !aloft && b.Hunted && FindPredator(self, ref s, body.Species, alert, out var predator))
                 {
@@ -408,6 +429,15 @@ namespace Punchy.Fauna
                         Greet(ref s, ref b, ref rng, dt, player, walk, run, ref targetSpeed, ref moving, ref sit, ref desiredLook);
                         break;
 
+                    case CreatureMode.Petted:
+                        Petted(ref s, ref b, ref rng, dt, ref sit, ref bow, ref desiredLook);
+                        break;
+
+                    case CreatureMode.Held:
+                        custom = true;
+                        Held(ref s, ref b, ref rng, dt);
+                        break;
+
                     case CreatureMode.Roost:
                         custom = true;
                         Roost(ref s, ref b, ref rng, dt, ref vertical);
@@ -520,6 +550,7 @@ namespace Punchy.Fauna
                     case CreatureMode.Climb: if (s.Stage == 3) s.Tired -= dt * 0.02f; break;
                     case CreatureMode.Play: s.Lonely -= dt * 0.05f; break;
                     case CreatureMode.Greet: s.Lonely -= dt * 0.03f; break;
+                    case CreatureMode.Petted: s.Lonely -= dt * 0.08f; break;
                 }
                 s.Hunger = math.saturate(s.Hunger);
                 s.Thirst = math.saturate(s.Thirst);
@@ -725,10 +756,12 @@ namespace Punchy.Fauna
                 var calm = s.Mode == CreatureMode.Idle || s.Mode == CreatureMode.Rest ||
                            s.Mode == CreatureMode.Climb && s.Stage == 3 ||
                            s.Mode == CreatureMode.Greet && s.Speed < 0.2f;
+                // (Being petted or held, it carries on with what it was given to do: a wag, a wriggle; nothing new.)
+                var keeps = calm || s.Mode == CreatureMode.Petted || s.Mode == CreatureMode.Held;
                 if (s.Action != IdleAction.None)
                 {
                     s.ActionTime += dt / math.max(s.ActionLength, 0.1f);
-                    if (s.ActionTime >= 1f || !calm)
+                    if (s.ActionTime >= 1f || !keeps)
                     {
                         s.Action = IdleAction.None;
                         s.ActionTime = 0f;
@@ -1303,6 +1336,103 @@ namespace Punchy.Fauna
             }
 
             // ------------------------------------------------------------------------------- people
+
+            /// <summary>Where the player with this Holder id is, and which way they face (false if they've gone).</summary>
+            bool FindHolder(int holder, out float3 position, out float yaw)
+            {
+                for (int p = 0; p < PlayerIds.Length; p++)
+                    if (PlayerIds[p] == holder)
+                    {
+                        position = Players[p];
+                        yaw = PlayerYaws[p];
+                        return true;
+                    }
+                position = default;
+                yaw = 0f;
+                return false;
+            }
+
+            /// <summary>
+            /// Being petted: turned to the person, it leans into the hand with its tail going (stage 0) or stands for it,
+            /// watching them (1). When the person leaves off (or walks away) it goes on with its day; a friendly one
+            /// keeps them company.
+            /// </summary>
+            void Petted(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, ref float sit, ref float bow, ref float desiredLook)
+            {
+                s.Timer -= dt;
+                var hasPerson = FindHolder(s.Holder, out var person, out _);
+                if (s.Timer <= 0f || !hasPerson || math.distance(person.xz, s.Position.xz) > Interactions.Reach + 1.5f)
+                {
+                    s.Holder = 0;
+                    if (b.Friendly && hasPerson)
+                    {
+                        SetMode(ref s, CreatureMode.Greet);
+                        s.Timer = rng.NextFloat(20f, 45f);
+                    }
+                    else
+                    {
+                        Pause(ref s, ref b, ref rng);
+                        // Tidying itself after being handled.
+                        if ((b.Idles & IdleActions.Groom) != 0 && rng.NextFloat() < 0.5f)
+                        {
+                            s.Action = IdleAction.Groom;
+                            s.ActionLength = rng.NextFloat(2f, 4f);
+                        }
+                    }
+                    return;
+                }
+                s.Focus = person.xz;
+                TurnTowards(ref s, ref b, person.xz, dt);
+                var to = person.xz - s.Position.xz;
+                var lookAt = math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -1.2f, 1.2f);
+                if (s.Stage == 0)
+                {
+                    // Leaning in: head pressed up to the hand, chest down a little, tail going.
+                    desiredLook = lookAt * 0.6f;
+                    bow = 0.3f;
+                    sit = b.Friendly ? 0.6f : 0f;
+                    if (s.Action == IdleAction.None && (b.Idles & IdleActions.TailFlick) != 0 && rng.NextFloat() < dt * 1.5f)
+                    {
+                        s.Action = IdleAction.TailFlick;
+                        s.ActionTime = 0f;
+                        s.ActionLength = rng.NextFloat(1.5f, 2.5f);
+                    }
+                }
+                else
+                    desiredLook = lookAt;   // putting up with it, keeping an eye on them
+            }
+
+            /// <summary>
+            /// In someone's arms, across their chest. One that isn't friendly puts up with it for a while, then wriggles
+            /// (a shake), and before long squirms free and runs. If the holder has gone, it's back on the ground.
+            /// </summary>
+            void Held(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
+            {
+                s.Speed = 0f;
+                if (!FindHolder(s.Holder, out var holder, out var yaw))
+                {
+                    Interactions.PutDown(ref s, Terrain, s.Position, ref rng);
+                    return;
+                }
+                s.Position = Interactions.Hands(holder, yaw);
+                s.Yaw = yaw + math.PI * 0.5f;
+                s.YawRate = 0f;
+                s.Timer -= dt;
+                if (s.Timer < 2f && s.Action == IdleAction.None && (b.Idles & IdleActions.Shake) != 0)
+                {
+                    s.Action = IdleAction.Shake;
+                    s.ActionTime = 0f;
+                    s.ActionLength = 1.2f;
+                }
+                if (s.Timer <= 0f)
+                {
+                    // Free: it drops to the ground beside them and runs.
+                    var side = new float3(math.cos(yaw), 0f, -math.sin(yaw)) * (rng.NextBool() ? 0.6f : -0.6f);
+                    Interactions.PutDown(ref s, Terrain, holder + side, ref rng);
+                    Interactions.Bolt(ref s, holder, ref rng);
+                    s.Target = s.Position.xz + math.normalizesafe(s.Position.xz - holder.xz, new float2(1f, 0f)) * 10f;
+                }
+            }
 
             /// <summary>
             /// Trots over to the person (to their side, not into them), then sits by them looking up and wagging its

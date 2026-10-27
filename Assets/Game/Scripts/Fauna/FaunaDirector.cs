@@ -322,6 +322,21 @@ namespace Punchy.Fauna
         public static int Caught;
         public Habitat SpeciesHabitat(int index) => species[index].Body.Habitat;
         public bool SpeciesCaveDweller(int index) => species[index].Body.CaveDweller;
+        /// <summary>A species' name as people say it ("MountainLion": "mountain lion").</summary>
+        public string SpeciesName(int index)
+        {
+            if (index < 0 || index >= species.Count)
+                return "animal";
+            var name = species[index].name;
+            var words = new System.Text.StringBuilder(name.Length + 4);
+            for (int i = 0; i < name.Length; i++)
+            {
+                if (i > 0 && char.IsUpper(name[i]))
+                    words.Append(' ');
+                words.Append(char.ToLowerInvariant(name[i]));
+            }
+            return words.ToString();
+        }
         /// <summary>Whether this machine simulates animals (alone or hosting), so Spawn works.</summary>
         public bool CanSpawn => simWorld != null && simWorld.IsCreated && built;
 
@@ -480,8 +495,8 @@ namespace Punchy.Fauna
             for (int i = 0; i < entities.Length; i++)
             {
                 var xz = states[i].Position.xz;
-                // Far from everyone, or caught by a bird of prey.
-                if (players.Count == 0 || NearestPlayer(xz) > DespawnDistance || states[i].Gone)
+                // Far from everyone, or caught by a bird of prey; never one someone is carrying (wherever they go).
+                if ((players.Count == 0 || NearestPlayer(xz) > DespawnDistance || states[i].Gone) && states[i].Mode != CreatureMode.Held)
                 {
                     if (states[i].Gone)
                         Caught++;
