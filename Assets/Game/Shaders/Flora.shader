@@ -112,7 +112,8 @@ Shader "Punchy/Flora"
                 if (part == 5)
                 {
                     float pulse = 0.75 + 0.25 * sin(_Time.y * 1.3 + r * 40 + input.positionWS.y * 2);
-                    color += albedo * 1.6 * pulse;
+                    // Brighter in the dark of a cave (eyes adjusted to the dark see the glow stand out).
+                    color += albedo * 1.6 * pulse * lerp(1, 2.5, _PunchyUnderground);
                 }
 
                 // A waxy sheen on cacti (and on anything wet).

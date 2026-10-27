@@ -220,14 +220,37 @@ namespace Punchy.Terrain
         // ------------------------------------------------------------------------------------------- pools
 
         static readonly int HeatId = Shader.PropertyToID("_PunchyCaveHeat");
+        static readonly int HeatColorId = Shader.PropertyToID("_PunchyCaveHeatColor");
         static readonly int HeatCountId = Shader.PropertyToID("_PunchyCaveHeatCount");
-        /// <summary>Lava pools lighting the walls at once at most (the nearest; must match Cave.shader's array).</summary>
+        /// <summary>Glowing things lighting the walls at once at most (the nearest; must match Cave.shader's arrays).</summary>
         const int MaxHeat = 16;
         readonly Vector4[] heat = new Vector4[MaxHeat];
+        readonly Vector4[] heatColor = new Vector4[MaxHeat];
+        /// <summary>This frame's glowing things near the camera: lava pools and glowing plants.</summary>
+        readonly List<(float distance, Vector4 position, Vector4 color)> glowing = new List<(float, Vector4, Vector4)>();
+        static readonly Vector4 LavaLight = new Vector4(1f * 2.2f, 0.42f * 2.2f, 0.1f * 2.2f, 0f);
+
+        /// <summary>Uploads the nearest glowing things to the cave shader, which lights the walls round them.</summary>
+        void UploadGlowing()
+        {
+            glowing.Sort((a, b) => a.distance.CompareTo(b.distance));
+            var count = math.min(glowing.Count, MaxHeat);
+            for (int i = 0; i < count; i++)
+            {
+                heat[i] = glowing[i].position;
+                heatColor[i] = glowing[i].color;
+            }
+            Shader.SetGlobalVectorArray(HeatId, heat);
+            Shader.SetGlobalVectorArray(HeatColorId, heatColor);
+            Shader.SetGlobalInt(HeatCountId, count);
+            glowing.Clear();
+        }
         readonly List<(float distance, int pool)> nearPools = new List<(float, int)>();
         static Mesh lavaPoolMesh, waterPoolMesh;
         /// <summary>Cave water's look in the water vertex layout: dark, clear and cold (rgb, murk).</summary>
         static readonly float4 CaveWater = new float4(0.1f, 0.28f, 0.3f, 0.1f);
+        // Streams run shallow over dark rock: darker and greener than the pools, a little murkier.
+        static readonly float4 CaveStreamWater = new float4(0.04f, 0.13f, 0.12f, 0.3f);
         /// <summary>One mesh per stream, built when the world's caves are first drawn (streams are few and fixed).</summary>
         readonly List<Mesh> streamMeshes = new List<Mesh>();
         EntityQuery configQuery;
@@ -247,7 +270,6 @@ namespace Punchy.Terrain
                 if (d < LoadRadius)
                     nearPools.Add((d, i));
             }
-            var heatCount = 0;
             var water = configQuery.IsEmpty ? null : configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value;
             if (nearPools.Count > 0)
             {
@@ -271,12 +293,14 @@ namespace Punchy.Terrain
                         var mesh = pool.Lava > 0.5f ? lavaPoolMesh : waterPoolMesh;
                         Graphics.RenderMesh(rp, mesh, 0, Matrix4x4.TRS(pool.Centre, Quaternion.identity, new Vector3(pool.Radius, 1f, pool.Radius)));
                     }
-                    if (pool.Lava > 0.5f && heatCount < MaxHeat)
-                        heat[heatCount++] = new Vector4(pool.Centre.x, pool.Centre.y + 0.3f, pool.Centre.z, pool.Radius);
+                    if (pool.Lava > 0.5f)
+                    {
+                        var reach = LavaLight;
+                        reach.w = pool.Radius * 5f + 4f;
+                        glowing.Add((math.distance(pool.Centre, camPos), new Vector4(pool.Centre.x, pool.Centre.y + 0.3f, pool.Centre.z, 0f), reach));
+                    }
                 }
             }
-            Shader.SetGlobalVectorArray(HeatId, heat);
-            Shader.SetGlobalInt(HeatCountId, heatCount);
 
             if (set.Streams.Length == 0 || water == null)
                 return;
@@ -309,6 +333,11 @@ namespace Punchy.Terrain
         readonly List<(Mesh mesh, int start, int count, MaterialPropertyBlock props)> plantDraws = new List<(Mesh, int, int, MaterialPropertyBlock)>();
         readonly List<MaterialPropertyBlock> plantProps = new List<MaterialPropertyBlock>();
         readonly List<(int key, int plant)> plantKeys = new List<(int, int)>();
+        /// <summary>Per species, the light its glowing parts give the walls round it (rgb strength, w reach); zero if none.</summary>
+        readonly List<Vector4> speciesGlow = new List<Vector4>();
+        readonly List<(float3 position, Vector4 light)> nearGlowPlants = new List<(float3, Vector4)>();
+        /// <summary>How far a glowing plant lights the floor and walls round it (m).</summary>
+        const float PlantGlowReach = 5f;
         float3 plantsAround = new float3(float.MaxValue);
         static readonly int FloraInstancesId = Shader.PropertyToID("_FloraInstances");
         static readonly int FloraVisibleId = Shader.PropertyToID("_FloraVisible");
@@ -337,8 +366,18 @@ namespace Punchy.Terrain
             {
                 ReleasePlants();
                 foreach (var species in CaveFloraTable.Collect(palette.Landmarks))
+                {
                     for (int v = 0; v < PlantVariants; v++)
                         plantModels.Add(Punchy.Flora.FloraGenerator.Grow(species, v));
+                    // The glowing colour: the foliage of a glowing finish, else the first accent of glowing accents.
+                    var glow = Vector4.zero;
+                    if (species.Finish == Punchy.Flora.FoliageFinish.Glowing)
+                        glow = (Vector4)species.Foliage.linear * 0.9f;
+                    else if (species.GlowingAccents && species.Accents.Count > 0)
+                        glow = (Vector4)species.Accents[0].linear * 0.6f;
+                    glow.w = glow == Vector4.zero ? 0f : PlantGlowReach;
+                    speciesGlow.Add(glow);
+                }
                 plantsFrom = palette;
             }
 
@@ -346,6 +385,7 @@ namespace Punchy.Terrain
             {
                 plantsAround = camPos;
                 plantKeys.Clear();
+                nearGlowPlants.Clear();
                 for (int i = 0; i < set.Plants.Length; i++)
                 {
                     ref var p = ref set.Plants[i];
@@ -356,6 +396,8 @@ namespace Punchy.Terrain
                     if (model < 0 || model >= plantModels.Count)
                         continue;
                     plantKeys.Add((model * 2 + (d < PlantLod0 ? 0 : 1), i));
+                    if (speciesGlow[p.Species].w > 0f)
+                        nearGlowPlants.Add((p.Position + new float3(0f, 0.3f * p.Scale, 0f), speciesGlow[p.Species]));
                 }
                 plantKeys.Sort((a, b) => a.key.CompareTo(b.key));
                 var count = plantKeys.Count;
@@ -403,6 +445,9 @@ namespace Punchy.Terrain
                 }
             }
 
+            foreach (var (position, light) in nearGlowPlants)
+                glowing.Add((math.distance(position, camPos), new Vector4(position.x, position.y, position.z, 0f), light));
+
             var bounds = new Bounds(camPos, new Vector3(PlantRadius * 2f, PlantRadius * 2f, PlantRadius * 2f));
             foreach (var (mesh, _, count, props) in plantDraws)
             {
@@ -422,6 +467,8 @@ namespace Punchy.Terrain
             foreach (var m in plantModels)
                 m.Destroy();
             plantModels.Clear();
+            speciesGlow.Clear();
+            nearGlowPlants.Clear();
             plantDraws.Clear();
             plantInstances?.Release();
             plantVisible?.Release();
@@ -448,15 +495,16 @@ namespace Punchy.Terrain
                 var along = math.normalizesafe((next - prev).xz, new float2(1f, 0f));
                 // Narrowing to a trickle at both ends, rather than stopping square.
                 var taper = math.lerp(0.15f, 1f, math.saturate(math.min(k, count - 1 - k) / 2f));
-                var side = new float2(-along.y, along.x) * p.Width * 0.5f * taper;
+                var side = new float2(-along.y, along.x) * p.Width * 0.4f * taper;
                 var drop = (prev.y - next.y) / math.max(math.distance(prev.xz, next.xz), 0.1f);
-                var rapids = math.saturate(drop * 3f);
+                // Cave streams run steep all the way, so only the steepest steps churn white.
+                var rapids = math.saturate(drop * 1.5f - 0.15f);
                 foreach (var edge in new[] { -1f, 0f, 1f })
                     vertices.Add(new WaterVertex
                     {
                         Position = p.Position + new float3(side.x, 0f, side.y) * edge,
                         Data = new float4(along * 0.7f, edge == 0f ? p.Depth : 0.05f, rapids),
-                        Look = CaveWater,
+                        Look = CaveStreamWater,
                         Glow = float2.zero
                     });
                 if (k == 0)
@@ -539,6 +587,7 @@ namespace Punchy.Terrain
             Draw();
             DrawPools(source, camPos);
             DrawPlants(source, camPos);
+            UploadGlowing();
 
             // Underground: the camera in a cave's air, a couple of metres below the surface.
             var deep = source.CaveDistance(camPos) < 0f ? math.saturate((source.SampleHeight(camPos.xz) - camPos.y - 1f) / 3f) : 0f;

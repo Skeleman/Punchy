@@ -70,9 +70,11 @@ Shader "Punchy/Cave"
             // glow rgb + crack width, (gloss, metallic, facets, translucency), (glow scale, glow everywhere, cracks),
             // floor rgb + grit, floor dark rgb + floor gloss, (detail, detail scale, sheen, moss), moss rgb.
             float4 _PunchyCaveStyles[32 * 9];
-            // The nearest lava pools (xyz a point just above the surface, w the pool's radius): they light the walls round
-            // them warmly, in the shader, instead of with real lights.
+            // The nearest glowing things (lava pools, glowing plants): xyz where the light comes from, and its colour times
+            // strength (rgb) and reach in metres (w). They light the walls round them in the shader instead of with real
+            // lights.
             float4 _PunchyCaveHeat[16];
+            float4 _PunchyCaveHeatColor[16];
             int _PunchyCaveHeatCount;
             // Shared tiling detail (CaveSystem makes it once): rg a fine normal, b a height, a a sparkle.
             TEXTURE2D(_PunchyCaveDetail);
@@ -227,17 +229,17 @@ Shader "Punchy/Cave"
                     through += lit * (0.35 + 0.65 * saturate(0.5 - 0.5 * dot(n, l.direction)));
                 LIGHT_LOOP_END
 
-                // Molten pools nearby: a warm glow falling off over a few pool radii, brightest on walls facing them, with
-                // a hot glint on glossy rock.
+                // Glowing things nearby (molten pools, glowing plants): their light falling off over its reach, brightest
+                // on walls facing them, with a glint on glossy rock.
                 for (int k = 0; k < _PunchyCaveHeatCount; k++)
                 {
-                    float4 h = _PunchyCaveHeat[k];
-                    float3 toPool = h.xyz - p;
+                    float3 toPool = _PunchyCaveHeat[k].xyz - p;
+                    float4 hc = _PunchyCaveHeatColor[k];
                     float dist = length(toPool);
-                    float fall = saturate(1 - dist / (h.w * 5 + 4));
+                    float fall = saturate(1 - dist / hc.w);
                     fall *= fall;
                     float3 dir = toPool / max(dist, 1e-3);
-                    half3 warm = half3(1.0, 0.42, 0.1) * 2.2 * fall;
+                    half3 warm = hc.rgb * fall;
                     light += warm * saturate(dot(n, dir) * 0.7 + 0.3);
                     shine += warm * pow(saturate(dot(n, normalize(dir + view))), shininess) * saturate(gloss + metallic * 0.6);
                 }

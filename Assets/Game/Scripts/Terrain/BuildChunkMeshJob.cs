@@ -123,6 +123,9 @@ namespace Punchy.Terrain
                 var vertex = new TerrainVertex { Position = new float3(local.x, h, local.y), Normal = normal };
                 var surface = Source.SampleSurface(world, ground, normal);
                 vertex.SetSurface(surface);
+                // Ground just above the water stays wet (a dark band along shores); stored as a negative skirt drop.
+                if (ground.HasWater)
+                    vertex.Extra.w = (half)(-(1f - math.smoothstep(0.1f, 1.4f, h - ground.WaterSurface)));
                 var cave = cutHoles && CaveSampling.NearColumn(ref Source.Caves.Value, world)
                     ? math.min(Source.CaveDistance(new float3(world.x, h + 0.05f, world.y)), 100f) : 100f;
                 vertex.Morph = new float4(request.MorphRange, surface.Bump, cave);

@@ -104,11 +104,15 @@ Shader "Punchy/Terrain Surface"
                 // darkens and gets a soft sheen. Grass and snow don't glaze. Far away the sheen fades, since at
                 // that distance it would only read as a bright smear.
                 half wet = PunchyWetnessAt(p).r * (1 - saturate(input.extra.z * 2));
+                // Shores: ground just above the water stays wet, a dark band with an uneven upper edge. The mesh
+                // stores it as a negative skirt drop (surface vertices leave that channel 0; skirts are positive).
+                half shore = smoothstep(0.2, 0.75, saturate(-input.extra.w) + (PunchyValueNoise(p * 0.8) - 0.5) * 0.35)
+                           * (1 - saturate(input.extra.z * 2));
                 half flatness = smoothstep(0.96, 0.995, normalWS.y);
                 half puddleNoise = PunchyValueNoise(p / 2.3) * 0.65 + PunchyValueNoise(p / 0.9 + 5.1) * 0.35;
                 half puddle = smoothstep(0.62, 0.7, puddleNoise + wet * 0.35 - 0.25) * flatness * step(0.3, wet)
                             * (1 - input.extra.y);
-                half sheen = wet * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
+                half sheen = max(wet, shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
 
                 half relief = detailFade * 0.45 * (1 - puddle);
                 normalWS = normalize(normalWS - half3(micro.x, 0, micro.y) * relief);
@@ -119,7 +123,7 @@ Shader "Punchy/Terrain Surface"
                 inputData.normalWS = normalWS;
                 inputData.viewDirectionWS = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 // Skirts take their shadowing from the surface edge they hang from.
-                inputData.shadowCoord = TransformWorldToShadowCoord(input.positionWS + float3(0, input.extra.w, 0));
+                inputData.shadowCoord = TransformWorldToShadowCoord(input.positionWS + float3(0, max(input.extra.w, 0), 0));
                 inputData.fogCoord = InitializeInputDataFog(float4(input.positionWS, 1.0), input.fogFactor);
                 inputData.bakedGI = SampleSH(inputData.normalWS);
                 inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
@@ -128,6 +132,7 @@ Shader "Punchy/Terrain Surface"
                 SurfaceData surface = (SurfaceData)0;
                 half3 albedo = input.surface.rgb * (1 + (micro.z - 0.5) * 0.5 * detailFade);   // grain in the colour too
                 albedo *= lerp(1, 0.72, wet);
+                albedo *= lerp(1, 0.55, shore * (1 - 0.4 * input.extra.y));
                 surface.albedo = lerp(albedo, albedo * 0.6, puddle);
                 surface.smoothness = lerp(lerp(input.surface.a, max(input.surface.a, 0.45), sheen), 0.92, puddle);
                 surface.metallic = input.extra.x;
@@ -148,7 +153,7 @@ Shader "Punchy/Terrain Surface"
                 }
 
                 // Cloud shadows: dim the share of the light that comes straight from the sun.
-                half cloudShadow = PunchyCloudShadow(input.positionWS + float3(0, input.extra.w, 0));
+                half cloudShadow = PunchyCloudShadow(input.positionWS + float3(0, max(input.extra.w, 0), 0));
                 if (cloudShadow > 0)
                 {
                     Light mainLight = GetMainLight(inputData.shadowCoord);
@@ -200,7 +205,7 @@ Shader "Punchy/Terrain Surface"
                 o.cave = input.morph.w;
 
                 // Collapse skirts onto their top edge so they cast no shadow.
-                float3 positionWS = TransformObjectToWorld(TerrainPositionOS(input) + float3(0, input.extra.w, 0));
+                float3 positionWS = TransformObjectToWorld(TerrainPositionOS(input) + float3(0, max(input.extra.w, 0), 0));
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
             #if _CASTING_PUNCTUAL_LIGHT_SHADOW
                 float3 lightDirectionWS = normalize(_LightPosition - positionWS);
