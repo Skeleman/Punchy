@@ -27,6 +27,8 @@ namespace Punchy.Weather
         public Light Sun;
         [Tooltip("Shader for rain, snow, hail and dust particles. Referenced here so builds include it.")]
         public Shader PrecipitationShader;
+        [Tooltip("Shader that marches the rain and dust haze into a small table once a frame (HazeLut). Referenced here so builds include it.")]
+        public Shader HazeLutShader;
         [Tooltip("Optional. Without it the sky stays at fixed daytime colours.")]
         public DayNightCycle Cycle;
 
@@ -82,6 +84,12 @@ namespace Punchy.Weather
         static readonly int DustColorId = Shader.PropertyToID("_PunchyDustColor");
         static readonly int GlowId = Shader.PropertyToID("_Glow");
         static readonly int HazeDensityId = Shader.PropertyToID("_PunchyHazeDensity");
+        static readonly int HazeLutId = Shader.PropertyToID("_PunchyHazeLut");
+        static readonly int HazeOriginId = Shader.PropertyToID("_PunchyHazeOrigin");
+        static readonly int HazeLutSizeId = Shader.PropertyToID("_HazeLutSize");
+
+        // Haze table size: directions round the horizon × distances (rows must match PUNCHY_HAZE_ROWS in Sky.hlsl).
+        const int HazeLutWidth = 1024, HazeLutHeight = 32;
 
         /// <summary>Final sky colours for this frame, after time of day and the weather overhead.</summary>
         struct Sky
@@ -103,6 +111,8 @@ namespace Punchy.Weather
         Vector3 strikeDirection, strikePosition;
         Texture2D fallbackWeather, fallbackWetness, fallbackCloud;
         Texture3D cloudNoise;
+        RenderTexture hazeLut;
+        Material hazeLutMaterial;
         EntityQuery playerQuery, terrainQuery, configQuery, paletteQuery;
         World queryWorld;
 
@@ -143,6 +153,13 @@ namespace Punchy.Weather
         {
             if (cloudNoise != null)
                 DestroyImmediate(cloudNoise);
+            if (hazeLut != null)
+            {
+                hazeLut.Release();
+                DestroyImmediate(hazeLut);
+            }
+            if (hazeLutMaterial != null)
+                DestroyImmediate(hazeLutMaterial);
         }
 
         void Start()
@@ -191,6 +208,7 @@ namespace Punchy.Weather
                 Local = WeatherValues.From(Presets[0]);
                 PublishFallbackMaps(Local);
                 ApplyShaderGlobals(Local, ComputeSky(Local), 1f / 1500f);
+                RenderHazeLut(cam);
                 return;
             }
 
@@ -236,6 +254,7 @@ namespace Punchy.Weather
             var sky = ComputeSky(Local);
             UpdateLightning(dt, cam);
             ApplyShaderGlobals(Local, sky, hazeDensity);
+            RenderHazeLut(cam);
             ApplyLighting(Local, sky, hazeDensity);
             var snowiness = math.max(Local.AlwaysSnow, 1f - field.RainFraction(cameraXZ));
             // Nothing falls in a cave.
@@ -359,6 +378,41 @@ namespace Punchy.Weather
                 Horizon = horizon,
                 Ground = GroundColor * (daylight * (1f - 0.4f * s.Darkness))
             };
+        }
+
+        /// <summary>
+        /// Marches the rain and dust haze around the camera into the haze table (HazeLut.shader) that every surface
+        /// shader reads, instead of each pixel marching it. Needs this frame's weather maps and sky globals set.
+        /// </summary>
+        void RenderHazeLut(Camera cam)
+        {
+            if (HazeLutShader == null)
+            {
+                // Without the table surfaces show no weather haze (black reads as none), rather than going black.
+                Shader.SetGlobalTexture(HazeLutId, Texture2D.blackTexture);
+                return;
+            }
+            if (hazeLutMaterial == null)
+                hazeLutMaterial = new Material(HazeLutShader) { hideFlags = HideFlags.HideAndDontSave };
+            if (hazeLut == null || !hazeLut.IsCreated())
+            {
+                if (hazeLut != null)
+                    DestroyImmediate(hazeLut);
+                hazeLut = new RenderTexture(HazeLutWidth, HazeLutHeight, 0, RenderTextureFormat.ARGBHalf)
+                {
+                    name = "HazeLut",
+                    hideFlags = HideFlags.HideAndDontSave,
+                    wrapModeU = TextureWrapMode.Repeat,   // round the horizon
+                    wrapModeV = TextureWrapMode.Clamp,
+                    filterMode = FilterMode.Bilinear
+                };
+                hazeLut.Create();
+            }
+            var origin = cam != null ? cam.transform.position : Vector3.zero;
+            Shader.SetGlobalVector(HazeOriginId, origin);
+            hazeLutMaterial.SetVector(HazeLutSizeId, new Vector2(HazeLutWidth, HazeLutHeight));
+            Graphics.Blit(null, hazeLut, hazeLutMaterial);
+            Shader.SetGlobalTexture(HazeLutId, hazeLut);
         }
 
         void ApplyShaderGlobals(in WeatherValues s, in Sky sky, float hazeDensity)

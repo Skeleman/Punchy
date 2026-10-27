@@ -482,3 +482,20 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
     pebbles and the effects. Each call marches 8 steps toward the surface plus 8 more along the horizon, each step
     a weather-map read, a cloud-shape read and three value noises. Grass and flora overdraw multiplies it.
   - Proposed fixes are with A; nothing in `Weather/` or the shaders has changed.
+- 2026-10-27 — B — **Haze lookup texture** (`b/weather-perf`, for A to review). The rain and dust haze is now marched
+  once a frame into a 1024×32 texture (directions round the horizon × distance out to 8 km), by `HazeLut.shader`
+  from `WeatherSystem.RenderHazeLut`.
+  - `PunchyAtmosphere` reads it twice per pixel instead of marching 2 × 8 steps. The skybox keeps its own march.
+  - An unset texture means no haze, never black.
+  - Release builds, solo, noon, 1280x720, `-weatherseed`, first 30 s skipped:
+
+    | Seed, place | Before | After |
+    |---|---|---|
+    | 1 (Stormy), ElfGrove | 23.8 | 40.3 |
+    | 4, ElfGrove | 36.7 | 47.5 |
+    | 1, Mountains | 31 | 44 |
+    | 1, Dunes | 30.5 | 48 |
+
+  - Same-seed screenshots at ElfGrove, Mountains and Dunes look the same, distant storm haze included. The only
+    differences come from the weather drifting differently between runs: new cells spawn at a rate tied to frame
+    rate. No vertical error showed, so a froxel volume isn't needed.

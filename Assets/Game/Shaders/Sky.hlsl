@@ -427,11 +427,12 @@ half3 PunchySkyColor(float3 dir, bool withDiscs, bool approximateClouds)
 
 // Dust and rain haze along a ray, read from the weather map: a distant sandstorm is a tan wall, rain hangs in
 // grey curtains below the local cloud base. Steps are packed towards the camera, where detail matters most.
-half3 PunchyWeatherVolumes(half3 color, float3 start, float3 dir, float rayLength, int steps)
+// Gives the light scattered in and the fraction of what's behind that still shows through.
+void PunchyWeatherVolumesAlong(float3 start, float3 dir, float rayLength, int steps, out half3 scatter, out float transmit)
 {
     half brightness = dot(_PunchySkyHorizon, half3(0.3, 0.5, 0.2));
-    half3 scatter = 0;
-    float transmit = 1;
+    scatter = 0;
+    transmit = 1;
     float previous = 0;
     [loop]
     for (int i = 1; i <= steps; i++)
@@ -464,7 +465,49 @@ half3 PunchyWeatherVolumes(half3 color, float3 start, float3 dir, float rayLengt
         scatter += tint * absorbed * transmit;
         transmit *= 1 - absorbed;
     }
+}
+
+half3 PunchyWeatherVolumes(half3 color, float3 start, float3 dir, float rayLength, int steps)
+{
+    half3 scatter;
+    float transmit;
+    PunchyWeatherVolumesAlong(start, dir, rayLength, steps, scatter, transmit);
     return color * transmit + scatter;
+}
+
+// The weather volumes seen from the camera, marched once a frame into a small table (HazeLut.shader, rendered by
+// WeatherSystem) instead of per pixel in every surface shader, which cost weak GPUs nearly half their frame rate
+// in stormy weather. Columns are directions round the horizon, rows distances out to PUNCHY_HAZE_RANGE (square-root
+// spaced, so near distances get more rows). Rays run almost level from the camera, like the horizon haze target.
+// rgb = scattered light, a = 1 - transmittance, so an unset (black) table means no weather haze rather than black.
+#define PUNCHY_HAZE_RANGE 8000.0
+#define PUNCHY_HAZE_ELEVATION 0.02
+#define PUNCHY_HAZE_ROWS 32.0
+TEXTURE2D(_PunchyHazeLut);     SAMPLER(sampler_PunchyHazeLut);
+float3 _PunchyHazeOrigin;      // where the table was marched from
+
+// The ray through table column u (0..1 round the horizon).
+float3 PunchyHazeLutDirection(float u)
+{
+    float angle = (u - 0.5) * 2 * PI;
+    return normalize(float3(cos(angle), PUNCHY_HAZE_ELEVATION, sin(angle)));
+}
+
+// The distance of table row v (texel centres run from 0 m to PUNCHY_HAZE_RANGE).
+float PunchyHazeLutDistance(float v)
+{
+    float s = saturate((v * PUNCHY_HAZE_ROWS - 0.5) / (PUNCHY_HAZE_ROWS - 1));
+    return PUNCHY_HAZE_RANGE * s * s;
+}
+
+// Applies the tabled weather volumes for `distance` metres towards `offsetXZ` (from the table's origin).
+half3 PunchyHazeFromLut(half3 color, float2 offsetXZ, float distance)
+{
+    float u = atan2(offsetXZ.y, offsetXZ.x) * (0.5 / PI) + 0.5;
+    float s = sqrt(saturate(distance / PUNCHY_HAZE_RANGE));
+    float v = (s * (PUNCHY_HAZE_ROWS - 1) + 0.5) / PUNCHY_HAZE_ROWS;
+    half4 haze = SAMPLE_TEXTURE2D_LOD(_PunchyHazeLut, sampler_PunchyHazeLut, float2(u, v), 0);
+    return color * (1 - haze.a) + haze.rgb;
 }
 
 // Everything between the camera and a surface point: weather volumes, then the base haze (fog coloured like the
@@ -475,7 +518,7 @@ half3 PunchyAtmosphere(half3 color, float3 positionWS)
     float3 toPoint = positionWS - camera;
     float distance = length(toPoint);
     float3 dir = toPoint / max(distance, 1e-3);
-    color = PunchyWeatherVolumes(color, camera, dir, min(distance, 8000), 8);
+    color = PunchyHazeFromLut(color, positionWS.xz - _PunchyHazeOrigin.xz, distance);
     float haze = 1 - exp(-pow(distance * _PunchyHazeDensity, 2));
     if (haze < 0.01)
         return color;
@@ -486,7 +529,7 @@ half3 PunchyAtmosphere(half3 color, float3 positionWS)
     float3 flat = normalize(float3(dir.x, 0.02, dir.z));
     float clearness = 1 - _PunchyClouds.x * 0.7;
     half3 horizon = _PunchySkyHorizon + _PunchySunColor * pow(saturate(dot(flat, _PunchySunDirection)), 12) * 0.25 * clearness;
-    horizon = PunchyWeatherVolumes(horizon, camera, flat, 8000, 8);
+    horizon = PunchyHazeFromLut(horizon, flat.xz, PUNCHY_HAZE_RANGE);
     return lerp(color, horizon, haze);
 }
 
