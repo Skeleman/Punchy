@@ -431,3 +431,29 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
   - **1-hour local soak** (two copies autowalking, the previous build): no disconnects or errors. Memory grew
     1410 → 1542 MB on the client and 1481 → 1542 MB on the host, slowing (about 20 MB in the last 30 min). Small;
     worth a Memory Profiler look if it ever matters.
+- 2026-10-27 — B — **Solo isn't slower than hosting; the weather is.** Profiled on B's weaker PC (218d10d).
+  - **The first result was noise:** solo 41–43 fps vs host 48.6, one run each. The weather is random on every
+    launch: the day type and the starting cells come from unseeded `UnityEngine.Random`. That alone moves fps by
+    about 40%.
+  - **With the weather pinned** (a temporary `-weatherseed` flag, not committed), alternating runs at ElfGrove, noon,
+    1280x720, 100 s each, with the first 30 s skipped:
+
+    | Run | Solo fps | Host fps |
+    |---|---|---|
+    | 1 | 24.7 | 23.8 |
+    | 2 | 25.4 | 25.2 |
+
+    Solo is the same as hosting, or slightly faster.
+  - **Weather decides fps here:** solo with seeds 1–3 ran at about 25 fps, seed 4 at about 40. Seed 4 ran last, so
+    it isn't heat.
+  - **GPU-bound in both modes** (Development build, Profiler capture, 1200+ steady frames each):
+    - The main thread spends 29.7 ms (solo) / 32.3 ms (host) of each frame in `DXGI.WaitOnSwapChain`.
+    - All game systems together take a few ms. The biggest: TerrainStreamingSystem about 1.0 ms,
+      FloraSystem.LateUpdate 0.6 ms, CreatureRenderSystem PoseJob 0.4–0.5 ms, WeatherSystem.Update 0.24 ms.
+    - The host adds CreatureBrainSystem 0.15 ms and netcode receive under 0.2 ms.
+  - **Nothing to fix in Fauna or Net for solo.** Two leads instead:
+    - **Weather GPU cost:** some weather costs this PC about 40% of its frame rate. The volumetric clouds and
+      precipitation are worth profiling with a GPU capture.
+    - **A `-weatherseed <n>` test flag:** call `Random.InitState(n)` before `PickDayType` and before
+      `WeatherField.Initialize`. It would make perf runs comparable. It's about 10 lines in `Weather/`; proposing
+      it to A rather than committing.
