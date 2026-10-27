@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be30a536c49003f42bba655b0fd41247, type: 3}
+  m_Name: MossShrub
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
+  Form: 3
+  Layer: 1
+  Height: {x: 0.25, y: 0.5}
+  Spread: 1.8
+  TrunkFraction: 0.35
+  Thickness: 0.035
+  Fullness: 0.6
+  Branches: {x: 2, y: 4}
+  Flexibility: 0.4
+  FlowerHead: 0
+  Bark: {r: 0.25, g: 0.22, b: 0.16, a: 1}
+  Foliage: {r: 0.2, g: 0.33, b: 0.1, a: 1}
+  FoliageVariation: {r: 0.28, g: 0.4, b: 0.14, a: 1}
+  Accents: []
+  AccentAmount: 0.3
+  ColorVariation: 0.12
+  Finish: 0
+  GlowingAccents: 0
+  MaxSlope: 30
+  Elevation: {x: 0.5, y: 10000}
+  GrassAffinity: 0
+  ToleratesSnow: 1
+  PatchSize: 45
+  PatchCoverage: 0.55
+  NearWater: 2
+  OnlyNearWater: 0
+  Aquatic: 0
+  WaterDepth: {x: 0.1, y: 1.5}
+  Floats: 0
+  MinRapids: 0
+  Solid: 0
+  SizeRange: {x: 0.85, y: 1.15}
+  Variants: 4
+  Seed: 24

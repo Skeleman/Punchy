@@ -18,7 +18,31 @@ MonoBehaviour:
   Height: 1.1
   Roughness: 0.9
   Grain: 1.2
+  Jaggedness: 0.9
+  Blockiness: 0.4
+  FloorFlatness: 0.8
+  FloorSteps: 0.6
   Burrows: 0
+  SpeleothemDensity: 3
+  SpeleothemLength: 0.4
+  SpeleothemThickness: 0.45
+  Hanging: 0.5
+  Columns: 0.05
+  Rubble: 3
+  RubbleSize: 0.6
+  Moss: 0.1
+  MossColor: {r: 0.22, g: 0.32, b: 0.12, a: 1}
+  Flora:
+  - Species: {fileID: 11400000, guid: 3415e0490a794144688330c18293425b, type: 2}
+    Density: 4.5
+    Light: 0
+  - Species: {fileID: 11400000, guid: ddc4e50a58031e84d940072813a94687, type: 2}
+    Density: 3
+    Light: 0
+  PoolChance: 0.2
+  LavaPools: 0
+  PoolSize: 0.32
+  StreamChance: 0
   RockColor: {r: 0.7, g: 0.62, b: 0.45, a: 1}
   DarkColor: {r: 0.2, g: 0.18, b: 0.15, a: 1}
   Strata: 0.2
@@ -27,8 +51,16 @@ MonoBehaviour:
   Metallic: 0.85
   Facets: 0
   Translucency: 0
+  FloorColor: {r: 0.42, g: 0.37, b: 0.3, a: 1}
+  FloorDark: {r: 0.2, g: 0.18, b: 0.15, a: 1}
+  FloorGrit: 0.8
+  FloorGloss: 0.2
+  Detail: 0.35
+  DetailScale: 1.8
+  Sheen: 0
   GlowColor: {r: 0.4, g: 0.9, b: 1, a: 1}
   Glow: 0.5
-  GlowCover: 0.04
+  GlowCover: 0.035
+  Cracks: 0.2
   GlowScale: 2
   GlowEverywhere: 0

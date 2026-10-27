@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -111,7 +112,67 @@ namespace Punchy.Terrain
         BiomePalette stylesFrom;
         List<CaveStyle> styles;
 
-        void OnEnable() => Punchy.Net.GameBootstrap.WorldsReplacing += ReleaseWorld;
+        static readonly int DetailId = Shader.PropertyToID("_PunchyCaveDetail");
+        static Texture2D detail;
+
+        void OnEnable()
+        {
+            Punchy.Net.GameBootstrap.WorldsReplacing += ReleaseWorld;
+            if (detail == null)
+                detail = MakeDetail();
+            Shader.SetGlobalTexture(DetailId, detail);
+        }
+
+        /// <summary>
+        /// The fine surface detail every cave style shares (frost, grain, grit), so there's one texture rather than one
+        /// per style: rg a normal from a tiling height, b that height, a white-noise sparkle. The height is periodic
+        /// gradient noise over four octaves with a slight warp (value noise on a lattice shows its grid as rows of
+        /// bumps). Deterministic, so it's the same on every machine.
+        /// </summary>
+        static Texture2D MakeDetail()
+        {
+            const int size = 256;
+            var height = new float[size * size];
+            float lo = float.MaxValue, hi = float.MinValue;
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                var uv = new float2(x, y) / size;
+                // Periods are whole numbers of repeats across the texture, so it tiles.
+                uv += new float2(noise.pnoise(uv * 4f + 3.7f, new float2(4f)), noise.pnoise(uv * 4f - 1.3f, new float2(4f))) * 0.04f;
+                var h = 0f;
+                var amplitude = 0.5f;
+                for (int o = 0, period = 6; o < 4; o++, period *= 2, amplitude *= 0.55f)
+                    h += noise.pnoise(uv * period, new float2(period)) * amplitude;
+                height[y * size + x] = h;
+                lo = math.min(lo, h);
+                hi = math.max(hi, h);
+            }
+            for (int i = 0; i < height.Length; i++)
+                height[i] = (height[i] - lo) / math.max(hi - lo, 1e-6f);
+
+            var pixels = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float H(int dx, int dy) => height[((y + dy + size) % size) * size + (x + dx + size) % size];
+                var slope = new float2(H(1, 0) - H(-1, 0), H(0, 1) - H(0, -1)) * 10f;
+                var normal = math.normalize(new float3(-slope, 1f));
+                var sparkle = (math.hash(new int2(x, y + 7919)) & 0xFF) / 255f;
+                pixels[y * size + x] = new Color32((byte)((normal.x * 0.5f + 0.5f) * 255f), (byte)((normal.y * 0.5f + 0.5f) * 255f),
+                                                   (byte)(H(0, 0) * 255f), (byte)(sparkle * 255f));
+            }
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, true, true)
+            {
+                name = "Cave detail",
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Trilinear,
+                anisoLevel = 4
+            };
+            texture.SetPixels32(pixels);
+            texture.Apply(true, true);
+            return texture;
+        }
 
         void OnDisable()
         {
@@ -148,6 +209,315 @@ namespace Punchy.Terrain
             foreach (var l in otherLanterns.Values)
                 if (l.Light != null) Destroy(l.Light.gameObject);
             otherLanterns.Clear();
+            Shader.SetGlobalInt(HeatCountId, 0);
+            foreach (var m in streamMeshes)
+                if (m != null) Destroy(m);
+            streamMeshes.Clear();
+            ReleasePlants();
+            Shader.SetGlobalVector(LanternId, Vector4.zero);
+        }
+
+        // ------------------------------------------------------------------------------------------- pools
+
+        static readonly int HeatId = Shader.PropertyToID("_PunchyCaveHeat");
+        static readonly int HeatCountId = Shader.PropertyToID("_PunchyCaveHeatCount");
+        /// <summary>Lava pools lighting the walls at once at most (the nearest; must match Cave.shader's array).</summary>
+        const int MaxHeat = 16;
+        readonly Vector4[] heat = new Vector4[MaxHeat];
+        readonly List<(float distance, int pool)> nearPools = new List<(float, int)>();
+        static Mesh lavaPoolMesh, waterPoolMesh;
+        /// <summary>Cave water's look in the water vertex layout: dark, clear and cold (rgb, murk).</summary>
+        static readonly float4 CaveWater = new float4(0.1f, 0.28f, 0.3f, 0.1f);
+        /// <summary>One mesh per stream, built when the world's caves are first drawn (streams are few and fixed).</summary>
+        readonly List<Mesh> streamMeshes = new List<Mesh>();
+        EntityQuery configQuery;
+
+        /// <summary>
+        /// Draws every pool and stream within LoadRadius with the terrain's own water material (lava is its lava path):
+        /// pools with one shared disc mesh each for water and lava, streams with a ribbon mesh each. Uploads the nearest
+        /// lava pools so the cave shader can light the walls round them warmly without real lights.
+        /// </summary>
+        void DrawPools(in TerrainSource source, float3 camPos)
+        {
+            ref var set = ref source.Caves.Value;
+            nearPools.Clear();
+            for (int i = 0; i < set.Pools.Length; i++)
+            {
+                var d = math.distance(set.Pools[i].Centre, camPos);
+                if (d < LoadRadius)
+                    nearPools.Add((d, i));
+            }
+            var heatCount = 0;
+            var water = configQuery.IsEmpty ? null : configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value;
+            if (nearPools.Count > 0)
+            {
+                if (lavaPoolMesh == null)
+                {
+                    lavaPoolMesh = MakePoolMesh(new float4(1f, 0.33f, 0.05f, 0.2f), 1f);
+                    waterPoolMesh = MakePoolMesh(CaveWater, 0f);
+                }
+                nearPools.Sort((a, b) => a.distance.CompareTo(b.distance));
+                foreach (var (_, i) in nearPools)
+                {
+                    ref var pool = ref set.Pools[i];
+                    if (water != null)
+                    {
+                        var rp = new RenderParams(water)
+                        {
+                            worldBounds = new Bounds(pool.Centre, new Vector3(pool.Radius * 2f, 1f, pool.Radius * 2f)),
+                            shadowCastingMode = ShadowCastingMode.Off,
+                            receiveShadows = false
+                        };
+                        var mesh = pool.Lava > 0.5f ? lavaPoolMesh : waterPoolMesh;
+                        Graphics.RenderMesh(rp, mesh, 0, Matrix4x4.TRS(pool.Centre, Quaternion.identity, new Vector3(pool.Radius, 1f, pool.Radius)));
+                    }
+                    if (pool.Lava > 0.5f && heatCount < MaxHeat)
+                        heat[heatCount++] = new Vector4(pool.Centre.x, pool.Centre.y + 0.3f, pool.Centre.z, pool.Radius);
+                }
+            }
+            Shader.SetGlobalVectorArray(HeatId, heat);
+            Shader.SetGlobalInt(HeatCountId, heatCount);
+
+            if (set.Streams.Length == 0 || water == null)
+                return;
+            if (streamMeshes.Count == 0)
+                for (int s = 0; s < set.Streams.Length; s++)
+                    streamMeshes.Add(MakeStreamMesh(ref set, s));
+            for (int s = 0; s < streamMeshes.Count; s++)
+            {
+                var bounds = streamMeshes[s].bounds;
+                if (math.distance((float3)bounds.ClosestPoint(camPos), camPos) > LoadRadius)
+                    continue;
+                var rp = new RenderParams(water) { worldBounds = bounds, shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false };
+                Graphics.RenderMesh(rp, streamMeshes[s], 0, Matrix4x4.identity);
+            }
+        }
+
+        // ------------------------------------------------------------------------------------------- plants
+
+        [Tooltip("Cave plants within this distance of the camera are drawn.")]
+        public float PlantRadius = 60f;
+        /// <summary>Variants grown per species (as the flora system does).</summary>
+        const int PlantVariants = 3;
+        /// <summary>Cave plants nearer than this use the finest mesh, the rest the middle one.</summary>
+        const float PlantLod0 = 20f;
+
+        readonly List<Punchy.Flora.FloraModel> plantModels = new List<Punchy.Flora.FloraModel>();
+        BiomePalette plantsFrom;
+        Material floraMaterial;
+        GraphicsBuffer plantInstances, plantVisible;
+        readonly List<(Mesh mesh, int start, int count, MaterialPropertyBlock props)> plantDraws = new List<(Mesh, int, int, MaterialPropertyBlock)>();
+        readonly List<MaterialPropertyBlock> plantProps = new List<MaterialPropertyBlock>();
+        readonly List<(int key, int plant)> plantKeys = new List<(int, int)>();
+        float3 plantsAround = new float3(float.MaxValue);
+        static readonly int FloraInstancesId = Shader.PropertyToID("_FloraInstances");
+        static readonly int FloraVisibleId = Shader.PropertyToID("_FloraVisible");
+        static readonly int RegionStartId = Shader.PropertyToID("_RegionStart");
+
+        /// <summary>
+        /// Draws the cave plants near the camera with the flora system's own material, shader and procedural meshes
+        /// (grown once per species and variant), so they match the plants above ground and add no materials. Each
+        /// species variant and LOD is one instanced draw over this system's own small instance list, rebuilt when the
+        /// camera has moved a few metres; the flora shader reads it exactly as it reads the flora system's.
+        /// </summary>
+        void DrawPlants(in TerrainSource source, float3 camPos)
+        {
+            ref var set = ref source.Caves.Value;
+            if (set.Plants.Length == 0 || paletteQuery.IsEmpty)
+                return;
+            if (floraMaterial == null)
+            {
+                var flora = FindFirstObjectByType<Punchy.Flora.FloraSystem>();
+                floraMaterial = flora != null ? flora.Material : null;
+                if (floraMaterial == null)
+                    return;
+            }
+            var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
+            if (palette != plantsFrom)
+            {
+                ReleasePlants();
+                foreach (var species in CaveFloraTable.Collect(palette.Landmarks))
+                    for (int v = 0; v < PlantVariants; v++)
+                        plantModels.Add(Punchy.Flora.FloraGenerator.Grow(species, v));
+                plantsFrom = palette;
+            }
+
+            if (math.distancesq(camPos, plantsAround) > 16f)
+            {
+                plantsAround = camPos;
+                plantKeys.Clear();
+                for (int i = 0; i < set.Plants.Length; i++)
+                {
+                    ref var p = ref set.Plants[i];
+                    var d = math.distance(p.Position, camPos);
+                    if (d > PlantRadius)
+                        continue;
+                    var model = p.Species * PlantVariants + p.Variant;
+                    if (model < 0 || model >= plantModels.Count)
+                        continue;
+                    plantKeys.Add((model * 2 + (d < PlantLod0 ? 0 : 1), i));
+                }
+                plantKeys.Sort((a, b) => a.key.CompareTo(b.key));
+                var count = plantKeys.Count;
+                if (plantInstances == null || plantInstances.count < math.max(count, 1))
+                {
+                    plantInstances?.Release();
+                    plantVisible?.Release();
+                    var capacity = math.max(64, math.ceilpow2(math.max(count, 1)));
+                    plantInstances = new GraphicsBuffer(GraphicsBuffer.Target.Structured, capacity, UnsafeUtility.SizeOf<Punchy.Flora.FloraSystem.FloraInstance>());
+                    plantVisible = new GraphicsBuffer(GraphicsBuffer.Target.Structured, capacity, sizeof(uint) * 2);
+                }
+                var instances = new NativeArray<Punchy.Flora.FloraSystem.FloraInstance>(count, Allocator.Temp);
+                var visible = new NativeArray<uint2>(count, Allocator.Temp);
+                var fullyVisible = math.asuint(1f);
+                for (int k = 0; k < count; k++)
+                {
+                    ref var p = ref set.Plants[plantKeys[k].plant];
+                    instances[k] = new Punchy.Flora.FloraSystem.FloraInstance
+                    {
+                        Position = p.Position, Yaw = p.Yaw, Scale = p.Scale,
+                        Model = plantKeys[k].key / 2, Random = p.Random, Snow = 0f
+                    };
+                    visible[k] = new uint2((uint)k, fullyVisible);
+                }
+                plantInstances.SetData(instances);
+                plantVisible.SetData(visible);
+                instances.Dispose();
+                visible.Dispose();
+
+                // One draw per run of the same model and LOD.
+                plantDraws.Clear();
+                for (int k = 0; k < count;)
+                {
+                    var key = plantKeys[k].key;
+                    var start = k;
+                    while (k < count && plantKeys[k].key == key)
+                        k++;
+                    if (plantProps.Count <= plantDraws.Count)
+                        plantProps.Add(new MaterialPropertyBlock());
+                    var props = plantProps[plantDraws.Count];
+                    props.SetBuffer(FloraInstancesId, plantInstances);
+                    props.SetBuffer(FloraVisibleId, plantVisible);
+                    props.SetInteger(RegionStartId, start);
+                    plantDraws.Add((plantModels[key / 2].Lods[key % 2], start, k - start, props));
+                }
+            }
+
+            var bounds = new Bounds(camPos, new Vector3(PlantRadius * 2f, PlantRadius * 2f, PlantRadius * 2f));
+            foreach (var (mesh, _, count, props) in plantDraws)
+            {
+                var rp = new RenderParams(floraMaterial)
+                {
+                    worldBounds = bounds,
+                    matProps = props,
+                    shadowCastingMode = ShadowCastingMode.Off,
+                    receiveShadows = true
+                };
+                Graphics.RenderMeshPrimitives(rp, mesh, 0, count);
+            }
+        }
+
+        void ReleasePlants()
+        {
+            foreach (var m in plantModels)
+                m.Destroy();
+            plantModels.Clear();
+            plantDraws.Clear();
+            plantInstances?.Release();
+            plantVisible?.Release();
+            plantInstances = plantVisible = null;
+            plantsFrom = null;
+            plantsAround = new float3(float.MaxValue);
+        }
+
+        /// <summary>
+        /// A stream's water surface: a ribbon along its points, in world space, flowing from first to last. Shallow at
+        /// the banks; rapids where the surface drops quickly, so the water shader's river look carries over.
+        /// </summary>
+        static Mesh MakeStreamMesh(ref CaveSetBlob set, int index)
+        {
+            ref var stream = ref set.Streams[index];
+            var vertices = new List<WaterVertex>();
+            var indices = new List<int>();
+            var count = stream.PointCount;
+            for (int k = 0; k < count; k++)
+            {
+                ref var p = ref set.StreamPoints[stream.FirstPoint + k];
+                var prev = set.StreamPoints[stream.FirstPoint + math.max(k - 1, 0)].Position;
+                var next = set.StreamPoints[stream.FirstPoint + math.min(k + 1, count - 1)].Position;
+                var along = math.normalizesafe((next - prev).xz, new float2(1f, 0f));
+                // Narrowing to a trickle at both ends, rather than stopping square.
+                var taper = math.lerp(0.15f, 1f, math.saturate(math.min(k, count - 1 - k) / 2f));
+                var side = new float2(-along.y, along.x) * p.Width * 0.5f * taper;
+                var drop = (prev.y - next.y) / math.max(math.distance(prev.xz, next.xz), 0.1f);
+                var rapids = math.saturate(drop * 3f);
+                foreach (var edge in new[] { -1f, 0f, 1f })
+                    vertices.Add(new WaterVertex
+                    {
+                        Position = p.Position + new float3(side.x, 0f, side.y) * edge,
+                        Data = new float4(along * 0.7f, edge == 0f ? p.Depth : 0.05f, rapids),
+                        Look = CaveWater,
+                        Glow = float2.zero
+                    });
+                if (k == 0)
+                    continue;
+                var a = (k - 1) * 3;
+                var b = k * 3;
+                for (int e = 0; e < 2; e++)
+                {
+                    indices.Add(a + e); indices.Add(b + e); indices.Add(a + e + 1);
+                    indices.Add(a + e + 1); indices.Add(b + e); indices.Add(b + e + 1);
+                }
+            }
+            var mesh = new Mesh { name = "Cave stream" };
+            mesh.SetVertexBufferParams(vertices.Count, WaterVertex.Layout);
+            mesh.SetVertexBufferData(vertices, 0, 0, vertices.Count);
+            mesh.SetIndices(indices, MeshTopology.Triangles, 0);
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        /// <summary>
+        /// A unit disc in the terrain's water vertex layout: no flow, deepest at the middle (lava cools and crusts
+        /// towards the rim), in the given look and lava amount.
+        /// </summary>
+        static Mesh MakePoolMesh(float4 look, float lava)
+        {
+            const int rings = 6, spokes = 32;
+            var vertices = new List<WaterVertex> { Vertex(float2.zero) };
+            for (int r = 1; r <= rings; r++)
+                for (int s = 0; s < spokes; s++)
+                {
+                    var a = s / (float)spokes * math.PI * 2f;
+                    vertices.Add(Vertex(new float2(math.cos(a), math.sin(a)) * r / rings));
+                }
+            var indices = new List<int>();
+            for (int s = 0; s < spokes; s++)
+            {
+                indices.Add(0); indices.Add(1 + (s + 1) % spokes); indices.Add(1 + s);
+            }
+            for (int r = 1; r < rings; r++)
+                for (int s = 0; s < spokes; s++)
+                {
+                    int a = 1 + (r - 1) * spokes + s, b = 1 + (r - 1) * spokes + (s + 1) % spokes;
+                    int c = a + spokes, d = b + spokes;
+                    indices.Add(a); indices.Add(b); indices.Add(c);
+                    indices.Add(b); indices.Add(d); indices.Add(c);
+                }
+            var mesh = new Mesh { name = "Cave pool" };
+            mesh.SetVertexBufferParams(vertices.Count, WaterVertex.Layout);
+            mesh.SetVertexBufferData(vertices, 0, 0, vertices.Count);
+            mesh.SetIndices(indices, MeshTopology.Triangles, 0);
+            mesh.bounds = new Bounds(Vector3.zero, new Vector3(2f, 1f, 2f));
+            return mesh;
+
+            WaterVertex Vertex(float2 xz) => new WaterVertex
+            {
+                Position = new float3(xz.x, 0f, xz.y),
+                Data = new float4(0f, 0f, 1f - math.lengthsq(xz), 0f),
+                Look = look,
+                Glow = new float2(0f, lava)
+            };
         }
 
         void Update()
@@ -167,6 +537,8 @@ namespace Punchy.Terrain
             UploadStyles();
             Stream(source, camPos);
             Draw();
+            DrawPools(source, camPos);
+            DrawPlants(source, camPos);
 
             // Underground: the camera in a cave's air, a couple of metres below the surface.
             var deep = source.CaveDistance(camPos) < 0f ? math.saturate((source.SampleHeight(camPos.xz) - camPos.y - 1f) / 3f) : 0f;
@@ -188,6 +560,7 @@ namespace Punchy.Terrain
                 playerQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Player.PlayerTag>(), ComponentType.ReadOnly<Unity.Transforms.LocalTransform>());
                 othersQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Net.NetPlayer>(), ComponentType.ReadOnly<Unity.Transforms.LocalTransform>());
                 paletteQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
+                configQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainConfig>());
                 queryWorld = world;
             }
             return terrainQuery.TryGetSingleton(out source);
@@ -246,7 +619,7 @@ namespace Punchy.Terrain
                 // in it reach that much further.
                 var stretch = CaveSampling.Stretch(cave.Profile);
                 var reach = math.max(a.Radius, b.Radius) * math.cmax(cave.Profile)
-                            + (CaveSampling.Blend + CaveSampling.NoiseReach * cave.Wall.x + WallReach) * stretch + chunkVoxel * 2f;
+                            + (CaveSampling.Blend + CaveSampling.WallReach(cave) + WallReach) * stretch + chunkVoxel * 2f;
                 var c0 = (int3)math.floor((math.min(a.Position, b.Position) - reach) / chunkSize);
                 var c1 = (int3)math.floor((math.max(a.Position, b.Position) + reach) / chunkSize);
                 for (int z = c0.z; z <= c1.z; z++)
@@ -353,11 +726,12 @@ namespace Punchy.Terrain
                     mesh.UploadMeshData(true);
                     b.Mesh = mesh;
                     // A chunk whose top is a few metres under the lowest ground above it can't shade anything the sun
-                    // reaches, so it stays out of the shadow cascades (the column heights are already sampled).
+                    // reaches, so it stays out of the shadow cascades (the column heights are already sampled) -
+                    // unless it's near a mouth, where daylight comes in sideways under the hill.
                     var lowestGround = float.MaxValue;
                     for (int i = 0; i < b.Surface.Length; i++)
                         lowestGround = math.min(lowestGround, b.Surface[i]);
-                    b.CastsShadows = min.y + chunkSize + chunkVoxel > lowestGround - 4f;
+                    b.CastsShadows = min.y + chunkSize + chunkVoxel > lowestGround - 4f || NearMouth(source, min, min + chunkSize);
                 }
                 b.Field.Dispose();
                 b.CaveField.Dispose();
@@ -369,6 +743,21 @@ namespace Punchy.Terrain
                 b.Data.Dispose();
                 b.Indices.Dispose();
             }
+        }
+
+        /// <summary>Daylight from a mouth lights walls up to about 17 m in (Look's fromMouth), so walls within 20 m shade.</summary>
+        const float MouthLight = 20f;
+
+        static bool NearMouth(in TerrainSource source, float3 min, float3 max)
+        {
+            ref var set = ref source.Caves.Value;
+            for (int c = 0; c < set.Caves.Length; c++)
+            {
+                var mouth = set.Caves[c].Mouth;
+                if (math.distance(math.clamp(mouth, min, max), mouth) < MouthLight)
+                    return true;
+            }
+            return false;
         }
 
         Built StartBuild(in TerrainSource source, int3 key)
@@ -623,7 +1012,15 @@ namespace Punchy.Terrain
             if (lantern == null)
                 lantern = CreateLantern("Lantern");
             PlaceLantern(lantern, player, lanternLevel, 0.5f);
+            // The flora shader has no light loop (it would cost every plant on the surface), so cave plants get the
+            // lantern as one cheap term from these.
+            var at = lantern.transform.position;
+            Shader.SetGlobalVector(LanternId, new Vector4(at.x, at.y, at.z, lantern.enabled ? lantern.intensity * 0.2f : 0f));
+            Shader.SetGlobalVector(LanternColorId, new Vector4(LanternColor.r, LanternColor.g, LanternColor.b, LanternRange));
         }
+
+        static readonly int LanternId = Shader.PropertyToID("_PunchyLantern");
+        static readonly int LanternColorId = Shader.PropertyToID("_PunchyLanternColor");
 
         /// <summary>How lit someone's lantern should be: in a cave and away from the daylight at the entrance.</summary>
         static float LanternWanted(in TerrainSource source, float3 feet)

@@ -15,16 +15,48 @@ namespace Punchy.Terrain
     /// </summary>
     public static class AnchorBaking
     {
-        const float GridCell = 32f;
+        const float GridCell = 64f;
 
         public static BlobAssetReference<AnchorSetBlob> Build(in TerrainSource source, IReadOnlyList<LandmarkType> types, Allocator allocator)
         {
             var anchors = new List<Anchor>();
             if (source.Caves.IsCreated)
+            {
                 AddCaveAnchors(source, CaveStyleTable.Collect(types), anchors);
+                AddGlowAnchors(source, CaveFloraTable.Collect(types), anchors);
+            }
             if (anchors.Count == 0)
                 return default;
             return BuildBlob(anchors, allocator);
+        }
+
+        /// <summary>A Glow anchor at every glowing cave plant (creatures drawn to light gather there), owned by its cave.</summary>
+        static void AddGlowAnchors(in TerrainSource source, List<Punchy.Flora.FloraSpecies> flora, List<Anchor> anchors)
+        {
+            ref var set = ref source.Caves.Value;
+            for (int i = 0; i < set.Plants.Length; i++)
+            {
+                var plant = set.Plants[i];
+                if (plant.Species < 0 || plant.Species >= flora.Count)
+                    continue;
+                var species = flora[plant.Species];
+                if (species.Finish != Punchy.Flora.FoliageFinish.Glowing && !species.GlowingAccents)
+                    continue;
+                CaveSampling.Distance(ref set, plant.Position + new float3(0f, 0.5f, 0f), out var cave);
+                if (cave < 0)
+                    continue;
+                anchors.Add(new Anchor
+                {
+                    Position = plant.Position,
+                    Facing = new float2(math.cos(plant.Yaw), math.sin(plant.Yaw)),
+                    Size = 1.5f,
+                    Owner = Anchor.OwnerCave(cave),
+                    Kind = AnchorKind.Glow,
+                    Capacity = 0,
+                    Biome = (byte)Dominant(source.SampleGround(plant.Position.xz).Biomes),
+                    Tags = (byte)(Anchor.Shelter | (set.Caves[cave].Style & 0x7F))
+                });
+            }
         }
 
         static void AddCaveAnchors(in TerrainSource source, List<CaveStyle> styles, List<Anchor> anchors)
@@ -60,7 +92,7 @@ namespace Punchy.Terrain
                     var floor = source.FloorUnder(centre, out var inCave);
                     if (!inCave || source.CaveDistance(centre) >= 0f)
                         continue;
-                    var ceiling = Ceiling(source, centre);
+                    var ceiling = source.CeilingOver(centre);
                     // The way into the chamber: from the node before it, so anchors face along the cave.
                     var along = n > cave.FirstNode ? (centre - set.Nodes[n - 1].Position).xz : new float2(1f, 0f);
 
@@ -82,6 +114,39 @@ namespace Punchy.Terrain
                     }
                 }
 
+                // Drinking spots: round each water pool's rim and along a stream's banks, facing the water. None at lava.
+                for (int i = cave.FirstPool; i < cave.FirstPool + cave.PoolCount; i++)
+                {
+                    var pool = set.Pools[i];
+                    if (pool.Lava > 0.5f)
+                        continue;
+                    var start = rng.NextFloat(math.PI * 2f);
+                    for (int k = 0; k < 3; k++)
+                    {
+                        var a = start + k * math.PI * 2f / 3f;
+                        var dir = new float2(math.cos(a), math.sin(a));
+                        var spot = pool.Centre.xz + dir * (pool.Radius * 1.2f + 0.3f);
+                        var ground = source.FloorUnder(new float3(spot.x, pool.Centre.y + 1f, spot.y), out var inCave);
+                        if (inCave && source.CaveDistance(new float3(spot.x, ground + 0.5f, spot.y)) < -0.3f)
+                            anchors.Add(Make(AnchorKind.Pool, new float3(spot.x, ground, spot.y), -dir, 0.8f, 3));
+                    }
+                }
+                for (int s = cave.FirstStream; s < cave.FirstStream + cave.StreamCount; s++)
+                {
+                    var stream = set.Streams[s];
+                    for (int k = 2; k < stream.PointCount - 1; k += 5)
+                    {
+                        var p = set.StreamPoints[stream.FirstPoint + k];
+                        var next = set.StreamPoints[stream.FirstPoint + k + 1].Position;
+                        var along = math.normalizesafe((next - p.Position).xz, new float2(1f, 0f));
+                        var bank = (rng.NextBool() ? 1f : -1f) * new float2(-along.y, along.x);
+                        var spot = p.Position.xz + bank * (p.Width * 0.65f + 0.3f);
+                        var ground = source.FloorUnder(new float3(spot.x, p.Position.y + 1f, spot.y), out var inCave);
+                        if (inCave && source.CaveDistance(new float3(spot.x, ground + 0.5f, spot.y)) < -0.3f)
+                            anchors.Add(Make(AnchorKind.Pool, new float3(spot.x, ground, spot.y), -bank, 0.8f, 2));
+                    }
+                }
+
                 // A nest on the wall just inside the mouth, where the daylight still reaches.
                 var mouth = cave.Mouth;
                 var inward = cave.NodeCount > 1 ? math.normalizesafe((set.Nodes[cave.FirstNode + 1].Position - mouth).xz) : new float2(1f, 0f);
@@ -90,20 +155,6 @@ namespace Punchy.Terrain
                 if (source.CaveDistance(at) < 0f && WallPoint(source, at, side, out var mouthNest))
                     anchors.Add(Make(AnchorKind.Nest, mouthNest, -side, 0.4f, 1));
             }
-        }
-
-        /// <summary>The ceiling straight above a point in cave air (sphere-traced up to rock).</summary>
-        static float Ceiling(in TerrainSource source, float3 p)
-        {
-            var y = p.y;
-            for (int i = 0; i < 100; i++)
-            {
-                var d = source.CaveDistance(new float3(p.x, y, p.z));
-                if (d >= -0.05f)
-                    break;
-                y += math.max(0.1f, -d * 0.8f);
-            }
-            return y;
         }
 
         /// <summary>The wall reached by going horizontally from a point in cave air, pulled back 0.3 m into the air.</summary>

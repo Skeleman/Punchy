@@ -47,10 +47,22 @@ a time.
      banded sandstone in arid land, limestone elsewhere. More to invent as it goes.
    - Style tags carried on cave Anchors for the animal session (which fauna live where).
 3. **Cave interiors.**
-   - Stalactites and stalagmites in larger rooms (ceiling and floor props, density by room size and style).
-   - Underground rivers along passage floors and pools in chambers (cave water surfaces, flow along the passage).
+   - *(done)* Anchors (5ba72f1); the look rework from Zach's reviews: jagged ceilings, flat stepped floors, floor
+     materials, frosted ice, obsidian lava tubes (033fc81, bdb4071); lava pools (575986b, walkable since e9df26b);
+     speleothems built into the rock (c696ac1).
+   - Rocks, rubble and mossy shrubs on cave floors, through the flora path (shared meshes, instanced).
+   - Underground rivers along passage floors and water pools in chambers (cave water surfaces, flow along the
+     passage); Pool anchors at water.
    - Glowing flora on cave floors and walls (glow fungi, crystal growths, ice blooms by style).
-   - Anchors: Roost on chamber ceilings, Nest and Perch on ledges, Burrow on soft floors, Pool at water.
+3b. **Water surfaces** (Water.shader, after underground water; tell the animal session first, as the shader predates
+   both sessions).
+   - Finer detail: small-scale ripples and normals (a scrolling detail normal or two, reusing the shared cave detail
+     texture where it fits), varied by wind and by calm against rapids; better sparkle and highlights; gentle foam
+     streaks on moving water.
+   - Towards the shore, from the depth it already reads: clearer and more tinted in the shallows so the bed shows, a
+     deep-to-shallow colour gradient, a foam or wet line with soft lapping, and darkened wet ground just above the
+     waterline. Lakes, rivers, the sea and underground pools.
+   - GPU-bound already on the profiler's PC: a few texture samples, no extra passes; benchmarked before and after.
 4. **Towns: layouts, streets and roads.**
    - `SettlementLayout` asset on `LandmarkType`: street pattern (square with radial lanes, main street, grid, ring
      wall with gates), plot sizes scaled to the residents' species, building mix by role.
@@ -75,6 +87,18 @@ a time.
    - The imp species asset and any creature AI they need come from the animal session; I provide the warren, its
      layout and its anchors.
 7. **Later:** settlement growth along roads, outlying farms, ruins.
+8. **Late: world events** (after towns, roads and the warren; not started). Agree ownership first: sky and weather
+   rendering and WeatherSystem's Sun belong to other sessions, so auroras and shooting stars may be theirs, eruptions
+   and impacts mine. All seed- and shared-clock-driven, so every player sees the same event without extra sync;
+   shader-driven where possible, reusing ambient particle types and LandmarkEffectSystem, with no per-event
+   allocations.
+   - **Volcanic eruptions**: VolcanoCone landmarks erupt now and then: plumes, ash fall, lava fountains and flows,
+     maybe fresh lava channels (walkable lava, harmful later).
+   - **Shooting stars**: brief streaks across the night sky.
+   - **Meteors**: rare visible strikes leaving an impact crater landmark, perhaps with glowing or metallic debris
+     (Metallic or Crystal styles). Impact sites pre-seeded and baked rather than terrain deformed live, unless that
+     proves cheap.
+   - **Auroras**: night-sky curtains, biased to cold, high biomes (Glacier, Tundra).
 
 ## Anchors (agreed with the animal session)
 
@@ -120,7 +144,7 @@ nothing to sync; immutable (the animal session counts occupancy from its creatur
     chunks, 322,608 triangles, no open edges below the rim, 4 duplicate triangles (degenerate cells, not seams).
     Looked at in game: LavaTube, Ice, Metallic, Sandstone.
 - 2026-10-27: Phase 3a, **Anchors**. `Anchor`, `AnchorKind`, `AnchorSetBlob` and `Anchors.Near` / `Anchors.Pick`
-  (Terrain/Anchors), baked last into `TerrainSource.Anchors` with a 32 m column grid. One field beyond the agreed
+  (Terrain/Anchors), baked last into `TerrainSource.Anchors` with a 32 m column grid (64 m since bfe933d). One field beyond the agreed
   contract: a `Biome` byte (the Tags byte can't hold both the style/folk and the biome). Cave anchors: a Roost on
   every chamber ceiling over 2.5 m up (capacity ≈ 3 per metre of chamber radius), a Nest on a wall ledge per chamber
   and one just inside each mouth, a Burrow at a wall's foot where the style's floor is soft (CaveStyle.Burrows: on for
@@ -135,6 +159,15 @@ nothing to sync; immutable (the animal session counts occupancy from its creatur
   became Glacier (11 Tundra, 3 SparklingForest, 2 Mountains) and 8 flipped elsewhere as the draw shifted (7
   Mountains → Tundra, 1 SparklingForest → FoggyMarsh). Glacier now holds an ice CaveNetwork (418 m, 11 chambers),
   a cavern and four grottos.
+- 2026-10-27: Cave look rework from Zach's reviews: geometry (033fc81: flat stepped floors, jagged ceilings, per-style
+  shape), materials (bdb4071: floor materials, shared detail texture, sparse cracks, frosted blue ice, obsidian lava
+  tubes; one shader and material for all styles), profiler rounds 2–3 (6670c12, aae8f42, bfe933d: FloorUnder thin
+  floors and fewer calls, mouth shadows, 64 m anchor cells). CaveTools (7b29f7b): cave-only re-bake in play mode in
+  34 ms, Visit presets, Check. Lava pools (575986b): basins in lava-tube chambers, drawn with the terrain water
+  material's lava path, warm wall light from the nearest 16; lava itself now flows in warped swirls, mostly orange.
+  Lava is walkable, cave and surface alike (Zach); TerrainSource.LavaAt for a future health system (e9df26b).
+  Speleothems (c696ac1): tapered rods in the rock field, no meshes or draws of their own; 78 on this seed, +4% on
+  CaveDistance. Water-surface detail and shorelines added as phase 3b; world events as a late phase 8.
 - 2026-10-27: User roadmap merged (via supervisor): building types sized to inhabitants, roads and signs (moved up
   into phase 4), landscaping and water, leader and religious buildings; cave sizes, per-biome styles (glacier ice
   caves, metallic and crystalline caves in the mystical forest), stalactites, underground rivers, glowing flora; an

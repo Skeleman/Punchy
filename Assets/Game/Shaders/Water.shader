@@ -6,8 +6,9 @@ Shader "Punchy/Water"
     // The sun glints, ripples are sums of directional waves, rivers carry their ripples and streaks downstream
     // (faster in the deep middle), and foam lines the shore and the rapids.
     // Two other liquids share the sheet: very murky water (swamps) turns thick and oily, slowly heaving and bubbling,
-    // with drifting scum; lava (the lava amount in the vertex) is a dark cooling crust over glowing cracks, barely
-    // reflective.
+    // with drifting scum; lava (the lava amount in the vertex) is bright molten orange flowing in slow warped swirls,
+    // with thin, sparse crust riding on it and thickening at the edges, barely reflective. (Cave pools use the same
+    // path, drawn by CaveSystem.)
     Properties
     {
         _ShallowColor("Shallow Color", Color) = (0.10, 0.42, 0.45, 1)
@@ -71,6 +72,8 @@ Shader "Punchy/Water"
                 half _Smoothness;
                 half _ScreenReflection;
             CBUFFER_END
+            // 0 above ground, 1 with the camera deep in a cave (CaveSystem).
+            float _PunchyUnderground;
 
             // Must match WaterVertex in BuildChunkMeshJob.cs.
             struct WaterAttributes
@@ -208,25 +211,6 @@ Shader "Punchy/Water"
                 return float3(slope, dome);
             }
 
-            // Cells of cooling lava crust: x = distance to the nearest crack (0 on it), y = per-plate random. The
-            // plates wander slowly.
-            float2 LavaCrust(float2 p, float t)
-            {
-                float2 cell = floor(p);
-                float f1 = 8, f2 = 8, id = 0;
-                [unroll] for (int y = -1; y <= 1; y++)
-                [unroll] for (int x = -1; x <= 1; x++)
-                {
-                    float2 c = cell + float2(x, y);
-                    float h = PunchyHash(c + 0.7);
-                    float2 centre = c + 0.5 + 0.38 * float2(sin(t * 0.07 + h * 6.28), cos(t * 0.05 + PunchyHash(c + 3.3) * 6.28));
-                    float d = distance(p, centre);
-                    if (d < f1) { f2 = f1; f1 = d; id = h; }
-                    else if (d < f2) f2 = d;
-                }
-                return float2(f2 - f1, id);
-            }
-
             // The scene reflected in the water, found by marching the reflected ray through the camera depth texture
             // (rgb, a = how sure: 0 where the ray left the screen or found nothing, so the sky shows instead).
             half4 ScreenReflection(float3 origin, float3 dir)
@@ -318,6 +302,9 @@ Shader "Punchy/Water"
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
                 half3 ambient = SampleSH(n);
+                // Underground the sun and sky don't reach (cave rock deep down casts no sun shadow, so it's done here).
+                shadow *= 1 - _PunchyUnderground;
+                ambient *= lerp(1, 0.06, _PunchyUnderground);
 
                 // Glowing (toxic) water swirls between its colour and a shifted hue in slow-moving patches.
                 half swirl = smoothstep(0.35, 0.65, PunchyValueNoise(p * 0.06 + float2(t * 0.01, -t * 0.013)) * 0.7 + PunchyValueNoise(p * 0.21) * 0.3);
@@ -334,7 +321,9 @@ Shader "Punchy/Water"
                 // pointing at the sky; tilted ripples would otherwise mirror the lower hemisphere.
                 float3 r = reflect(-v, nReflect);
                 r.y = max(r.y, 0.03);
-                half3 reflection = PunchySkyColor(r, false, true);
+                // Underground (cave pools and streams, seen from inside) there is no sky to mirror: only darkness, and
+                // whatever the screen-space march finds.
+                half3 reflection = PunchySkyColor(r, false, true) * lerp(1, 0.04, _PunchyUnderground);
                 // ...and the scene where the reflected ray finds it (the far bank, trees, rocks, creatures).
                 if (frontFace && _ScreenReflection > 0 && lava < 0.99)
                 {
@@ -343,7 +332,8 @@ Shader "Punchy/Water"
                 }
                 float3 h = normalize(light.direction + v);
                 // Thick water has a broad, soft sheen rather than a sharp glint.
-                half glint = pow(saturate(dot(n, h)), exp2(lerp(10 * _Smoothness + 1, 6, viscous))) * shadow * (1 - 0.6 * viscous);
+                half glint = pow(saturate(dot(n, h)), exp2(lerp(10 * _Smoothness + 1, 6, viscous))) * shadow * (1 - 0.6 * viscous)
+                             * (1 - _PunchyUnderground);
 
                 fresnel *= 1 - 0.5 * murk * (1 - viscous);
                 half3 color = lerp(body, reflection, fresnel) + light.color * glint * 4 * (1 - 0.6 * murk * (1 - viscous));
@@ -378,26 +368,33 @@ Shader "Punchy/Water"
                 color = lerp(color, foamLit, foam * (1 - lava));
                 alpha = max(alpha, foam * (1 - lava));
 
-                // Lava: plates of dark, cooling crust drifting on the melt, split by glowing cracks; molten patches
-                // well up and crust over again. It hardly reflects anything.
+                // Lava: mostly bright molten orange and yellow, flowing in slow, domain-warped swirls (noise warped by
+                // noise, each layer drifting its own way, so nothing looks like cells), with thin, sparse islands of
+                // dark crust riding on it; they gather and thicken towards the edges, where it cools against the rock.
+                // It hardly reflects anything.
                 if (lava > 0)
                 {
-                    float2 q = (p - flowDir * flowAmount * t * 0.15) * 0.45;
-                    float2 crust = LavaCrust(q, t);
-                    float2 fine = LavaCrust(q * 3.1 + 17.3, t * 1.3);
-                    half crack = 1 - smoothstep(0.0, 0.09, crust.x);
-                    crack = max(crack, (1 - smoothstep(0.0, 0.04, fine.x)) * 0.15);
-                    half molten = 0.8 * smoothstep(0.6, 0.8, PunchyValueNoise(p * 0.07 + float2(t * 0.012, -t * 0.009)) * 0.8 + crust.y * 0.2);
-                    half heat = saturate(max(crack, molten));
-                    // Cooler near the edges, where it crusts against the rock.
-                    heat *= saturate(thickness / 0.6) * 0.8 + 0.2;
-                    half pulse = 0.85 + 0.15 * sin(t * 0.8 + crust.y * 6.28);
-                    half3 hot = lerp(input.look.rgb, half3(1.0, 0.7, 0.2), heat * heat * heat) * (0.8 + 1.6 * heat) * pulse;
-                    half3 rock = half3(0.035, 0.028, 0.025) * (1 + crust.y * 0.5);
-                    half3 rockLit = rock * (ambient + light.color * saturate(dot(n, light.direction)) * shadow) + input.look.rgb * 0.03;
-                    half3 lavaColor = lerp(rockLit, hot, heat);
+                    float2 q = (p - flowDir * flowAmount * t * 0.15) * 0.18;
+                    float2 w1 = float2(PunchyValueNoise(q * 1.3 + float2(t * 0.021, 0)), PunchyValueNoise(q * 1.3 + float2(5.2, -t * 0.017)));
+                    float2 w2 = float2(PunchyValueNoise((q + w1 * 1.6) * 2.1 + float2(-t * 0.013, 1.7)),
+                                       PunchyValueNoise((q + w1 * 1.6) * 2.1 + float2(8.3, t * 0.019)));
+                    float swirl = PunchyValueNoise(q + w1 * 1.4 + w2 * 0.8 + t * 0.006) * 0.6 + PunchyValueNoise((q + w2) * 3.3 - t * 0.01) * 0.4;
+                    // Crust only on the highest tenth of the swirl, plus a thin rim where the melt meets the rock.
+                    half crust = smoothstep(0.66, 0.72, swirl);
+                    crust = max(crust, 1 - saturate(thickness / 0.2));
+                    // Crust edges glow hotter, as if the melt is just closing over them.
+                    half edge = smoothstep(0.6, 0.66, swirl) * (1 - crust);
+                    half band = PunchyValueNoise((q + w1 * 2.0) * 4.0 + t * 0.03);
+                    half3 orange = lerp(half3(1.0, 0.33, 0.04), input.look.rgb, 0.3);
+                    half3 molten = lerp(orange, half3(1.0, 0.78, 0.25), saturate(smoothstep(0.45, 0.85, band) + edge * 0.8));
+                    half pulse = 0.9 + 0.1 * sin(t * 0.7 + swirl * 6.28);
+                    // Bright enough to glow, not so bright the tonemapper washes the orange out to white.
+                    half3 hot = molten * (1.0 + 0.5 * band + 0.4 * edge) * pulse;
+                    half3 rock = half3(0.05, 0.035, 0.03);
+                    half3 rockLit = rock * (ambient + light.color * saturate(dot(n, light.direction)) * shadow) + orange * 0.08;
+                    half3 lavaColor = lerp(hot, rockLit, crust);
                     // A faint, rough sheen on the crust only.
-                    lavaColor += reflection * fresnel * 0.06 * (1 - heat);
+                    lavaColor += reflection * fresnel * 0.06 * crust;
                     color = lerp(color, lavaColor, lava);
                     alpha = lerp(alpha, 1, lava);
                 }

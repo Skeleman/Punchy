@@ -70,13 +70,22 @@ Shader "Punchy/Flora"
 
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
+                // Underground (cave plants, seen from a cave) the sun and sky don't reach; the player's lantern does.
+                shadow *= 1 - _PunchyUnderground;
+                half3 sky = SampleSH(n) * lerp(1, 0.06, _PunchyUnderground);
+                if (_PunchyLantern.w > 0)
+                {
+                    float3 toLantern = _PunchyLantern.xyz - input.positionWS;
+                    float reach = saturate(1 - length(toLantern) / _PunchyLanternColor.w);
+                    sky += _PunchyLanternColor.rgb * _PunchyLantern.w * reach * reach * saturate(dot(n, normalize(toLantern)) * 0.7 + 0.3);
+                }
                 half ndl = dot(n, light.direction);
                 half diffuse = leafy ? saturate(ndl * 0.6 + 0.4) : saturate(ndl * 0.8 + 0.2);
                 half through = leafy ? pow(saturate(dot(-v, light.direction)), 4) * 0.55 : 0;
                 half ao = input.color.a;
 
                 // Metal leaves: dim diffuse, the colour mostly comes from tinted reflections.
-                half3 color = albedo * (light.color * shadow * (diffuse + through) * lerp(0.6, 1, ao) + SampleSH(n) * ao) * (metal ? 0.45 : 1);
+                half3 color = albedo * (light.color * shadow * (diffuse + through) * lerp(0.6, 1, ao) + sky * ao) * (metal ? 0.45 : 1);
                 if (metal)
                 {
                     // Tinted reflections of the sky, a sharp sun highlight, and glints that twinkle as the leaves move
@@ -84,7 +93,7 @@ Shader "Punchy/Flora"
                     half3 h = normalize(light.direction + v);
                     float3 r3 = reflect(-v, n);
                     r3.y = max(r3.y, 0.05);
-                    color += albedo * PunchySkyColor(r3, false, true) * 0.35 * ao;
+                    color += albedo * PunchySkyColor(r3, false, true) * 0.35 * ao * lerp(1, 0.06, _PunchyUnderground);
                     color += albedo * light.color * shadow * pow(saturate(dot(n, h)), 90) * 3;
                     float3 cell = floor(input.positionWS * 7);
                     float sparkle = frac(sin(dot(cell, float3(12.9898, 78.233, 37.719))) * 43758.5453);
@@ -96,7 +105,7 @@ Shader "Punchy/Flora"
                 if (part == 0)
                 {
                     half fresnel = 0.04 + 0.96 * pow(1 - saturate(dot(n, v)), 5);
-                    color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * ao;
+                    color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * ao * lerp(1, 0.06, _PunchyUnderground);
                 }
 
                 // Glowing parts shine by themselves with a slow, uneven pulse (bright enough to bloom at night).
