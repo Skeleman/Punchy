@@ -36,6 +36,8 @@ namespace Punchy.Terrain
         public float2 Profile;
         /// <summary>Wall noise strength and frequency multipliers (the style's Roughness and Grain).</summary>
         public float2 Wall;
+        /// <summary>The style's Jaggedness, FloorFlatness, FloorSteps and Blockiness.</summary>
+        public float4 Rock;
     }
 
     /// <summary>One capsule of a passage, between two nodes, with the box its influence reaches.</summary>
@@ -67,15 +69,26 @@ namespace Punchy.Terrain
 
     /// <summary>
     /// The shape of caves as a signed distance: negative inside a cave's air, positive in rock. A cave is a network
-    /// of capsules, blended smoothly where they meet, with a flatter floor than ceiling (easier to walk on), shaped by
-    /// its style (wide, tall) and with noise on the walls. Rock is everywhere that is below the terrain surface and
-    /// outside every cave.
+    /// of capsules, blended smoothly where they meet and shaped by its style (wide, tall). Each passage's air stops at
+    /// a floor: a level plane under its centre with gentle undulation and stepped ledges, so floors are flat enough to
+    /// walk. Above it the walls get noise, and towards the ceiling ridged, fractured and blocky noise (jagged rock,
+    /// overhangs, collapse hollows) that fades out before the floor. Rock is everywhere that is below the terrain
+    /// surface and outside every cave.
     /// </summary>
     public static class CaveSampling
     {
         public const float Blend = 1.5f;
         /// <summary>Most the wall noise moves a wall at Roughness 1 (both octaves at full strength).</summary>
         public const float NoiseReach = 0.75f;
+        /// <summary>Most the ceiling's ridges, fractures and blocks move it at Jaggedness 1.</summary>
+        public const float JaggedReach = 1.2f;
+        /// <summary>Height of one floor ledge (m).</summary>
+        const float StepHeight = 0.35f;
+        /// <summary>Distances whose wall noise is skipped are kept at least this far from zero (beyond the 1.2 m wall cut-off).</summary>
+        const float SkipBeyond = 1.5f;
+
+        /// <summary>Most a cave's wall and ceiling noise can move its walls.</summary>
+        public static float WallReach(in CaveData c) => NoiseReach * c.Wall.x + JaggedReach * c.Rock.x;
 
         /// <summary>
         /// How far beyond a segment's radius its box reaches, before wall noise. Past the blend and the noise, the
@@ -85,28 +98,65 @@ namespace Punchy.Terrain
         public const float SegmentMargin = Blend + 4f;
 
         /// <summary>
-        /// Distance to one capsule of a passage, with a flatter floor than ceiling and the cave's width and height.
-        /// Stretching makes the field a little off true distance; scaling by the smaller stretch keeps it from
-        /// overstating it, so nothing that steps by distance overshoots a wall.
+        /// Distance to one capsule of a passage with the cave's width and height, cut off at its floor. Stretching
+        /// makes the field a little off true distance; scaling by the smaller stretch keeps it from overstating it, so
+        /// nothing that steps by distance overshoots a wall. Out: the capsule's centre height and vertical radius here
+        /// (for the noise's floor-to-ceiling fade).
         /// </summary>
-        static float Capsule(in CaveNode a, in CaveNode b, float3 p, float2 profile)
+        static float Capsule(in CaveNode a, in CaveNode b, float3 p, in CaveData c, float floorShape, out float centreY, out float height)
         {
             var ab = b.Position - a.Position;
             var t = math.saturate(math.dot(p - a.Position, ab) / math.max(math.lengthsq(ab), 1e-6f));
-            var q = p - (a.Position + ab * t);
-            var stretch = profile.y / profile.x;
+            var centre = a.Position + ab * t;
+            var q = p - centre;
+            var stretch = c.Profile.y / c.Profile.x;
+            var flat = c.Rock.y;
             q.y /= stretch;
             if (q.y < 0f)
-                q.y *= 1.8f;   // flatter floor
-            var r = math.lerp(a.Radius, b.Radius, t) * profile.x;
-            return (math.length(q) - r) * math.min(1f, stretch);
+                q.y *= math.lerp(1.8f, 1f, flat);   // a flatter underside, until the floor takes over
+            var r = math.lerp(a.Radius, b.Radius, t) * c.Profile.x;
+            var d = (math.length(q) - r) * math.min(1f, stretch);
+            centreY = centre.y;
+            height = r * stretch;
+            // The floor: halfway down at full flatness, sinking below the capsule's bottom (no effect) as flatness goes.
+            var floor = centre.y - height * (0.45f + (1f - flat) * 0.65f) + floorShape;
+            return math.max(d, floor - p.y);
         }
 
-        static float WallNoise(in CaveData c, float3 p)
+        /// <summary>A cave's floor height offset at a spot: gentle undulation plus ledges with short ramps between them.</summary>
+        static float FloorShape(in CaveData c, float2 xz)
+        {
+            var s = c.Seed;
+            var swell = noise.snoise(xz * 0.07f + s) * 0.18f;
+            if (c.Rock.z <= 0f)
+                return swell;
+            var v = (noise.snoise(xz * 0.045f - s) * 0.5f + 0.5f) * 4f * c.Rock.z;
+            var step = math.floor(v);
+            return swell + (step + math.smoothstep(0.4f, 0.6f, v - step) - 2f * c.Rock.z) * StepHeight;
+        }
+
+        /// <summary>
+        /// The walls' noise: gentle near the floor, and towards the ceiling ridges (low and broad), fractures (sharp
+        /// creases) and blocky collapse hollows, by the cave's Jaggedness and Blockiness. Positive pushes rock in,
+        /// negative hollows it out, so the ceiling gets both hanging ribs and overhung pockets.
+        /// </summary>
+        static float WallNoise(in CaveData c, float3 p, float centreY, float height)
         {
             var s = c.Seed;
             var g = c.Wall.y;
-            return (noise.snoise(p * 0.22f * g + s) * 0.55f + noise.snoise(p * 0.6f * g - s) * 0.2f) * c.Wall.x;
+            // 0 at the floor, 1 at the top of the passage.
+            var up = math.saturate((p.y - (centreY - height * 0.45f)) / math.max(height * 1.45f, 0.1f));
+            var n = (noise.snoise(p * 0.22f * g + s) * 0.55f + noise.snoise(p * 0.6f * g - s) * 0.2f) * c.Wall.x
+                    * math.lerp(0.3f, 1f, math.smoothstep(0f, 0.35f, up));
+            if (c.Rock.x > 0f && up > 0.2f)
+            {
+                var ridge = 1f - math.abs(noise.snoise(p * 0.12f * g + s * 0.7f));
+                var crease = math.abs(noise.snoise(p * 0.5f * g - s * 1.3f));
+                var jag = (ridge * ridge - 0.45f) * 0.9f + (crease - 0.5f) * 0.35f;
+                var blocks = c.Rock.w > 0f ? noise.snoise(math.floor(p * (1f / 1.7f)) * 0.37f + s) * 0.5f * c.Rock.w * math.smoothstep(0.45f, 1f, up) : 0f;
+                n += (jag + blocks) * c.Rock.x * math.smoothstep(0.2f, 0.75f, up);
+            }
+            return n;
         }
 
         /// <summary>
@@ -142,6 +192,7 @@ namespace Punchy.Terrain
             var range = CellRange(ref set, p.xz);
             var current = -1;
             var d = 1e9f;
+            float floorShape = 0f, nearest = 1e9f, centreY = 0f, height = 1f;
             for (int k = range.x; k < range.x + range.y; k++)
             {
                 ref var seg = ref set.Segments[set.Items[k]];
@@ -150,22 +201,39 @@ namespace Punchy.Terrain
                 if (seg.Cave != current)
                 {
                     // Items are grouped by cave, so the previous cave is done.
-                    Settle(ref set, current, d, p, ref best, ref cave);
+                    Settle(ref set, current, d, p, centreY, height, ref best, ref cave);
                     current = seg.Cave;
                     d = 1e9f;
+                    nearest = 1e9f;
+                    floorShape = FloorShape(set.Caves[current], p.xz);
                 }
-                d = SmoothMin(d, Capsule(set.Nodes[seg.A], set.Nodes[seg.B], p, set.Caves[current].Profile), Blend);
+                var ds = Capsule(set.Nodes[seg.A], set.Nodes[seg.B], p, set.Caves[current], floorShape, out var cy, out var h);
+                // The noise fades from floor to ceiling by the nearest passage's own floor and ceiling.
+                if (ds < nearest)
+                {
+                    nearest = ds;
+                    centreY = cy;
+                    height = h;
+                }
+                d = SmoothMin(d, ds, Blend);
             }
-            Settle(ref set, current, d, p, ref best, ref cave);
+            Settle(ref set, current, d, p, centreY, height, ref best, ref cave);
             return best;
         }
 
         /// <summary>Adds a finished cave's wall noise and keeps it if it's the nearest so far.</summary>
-        static void Settle(ref CaveSetBlob set, int current, float d, float3 p, ref float best, ref int cave)
+        static void Settle(ref CaveSetBlob set, int current, float d, float3 p, float centreY, float height, ref float best, ref int cave)
         {
             if (current < 0)
                 return;
-            var full = d + WallNoise(set.Caves[current], p);
+            ref var c = ref set.Caves[current];
+            // Well beyond the noise's reach of the wall, it can't decide rock or air: skip it, and step the distance
+            // towards the wall by its reach so anything that steps by distance still never overshoots. The skipped
+            // values stay at least SkipBeyond from zero, so everything near a wall (and the meshing's cut-off) is exact.
+            var reach = WallReach(c);
+            var full = d > reach + SkipBeyond ? d - reach
+                     : d < -reach - SkipBeyond ? d + reach
+                     : d + WallNoise(c, p, centreY, height);
             if (full < best)
             {
                 best = full;

@@ -24,6 +24,15 @@ namespace Punchy.Terrain
         [Range(0f, 2f)] public float Roughness = 1f;
         [Tooltip("Size of the wall lumps: above 1 makes them smaller and busier.")]
         [Range(0.3f, 3f)] public float Grain = 1f;
+        [Tooltip("How broken the upper walls and ceiling are: ridges, sharp creases and overhangs (0 = a smooth tube, " +
+                 "as a lava tube; 1 = jagged rock).")]
+        [Range(0f, 1.5f)] public float Jaggedness = 0.7f;
+        [Tooltip("Blocky collapse hollows in the ceiling, as a share of the jaggedness (fractured ice, bedded rock).")]
+        [Range(0f, 1f)] public float Blockiness = 0.3f;
+        [Tooltip("How flat the floor is: 1 = a level floor halfway down the passage, 0 = the passage's own round bottom.")]
+        [Range(0f, 1f)] public float FloorFlatness = 0.85f;
+        [Tooltip("How many ledges and steps the floor has.")]
+        [Range(0f, 1f)] public float FloorSteps = 0.4f;
 
         [Tooltip("The floor is soft enough to dig (earth, sand, rotten rock): chambers get Burrow anchors.")]
         public bool Burrows = true;

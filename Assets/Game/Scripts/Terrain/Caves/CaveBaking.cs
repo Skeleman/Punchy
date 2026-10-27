@@ -52,6 +52,7 @@ namespace Punchy.Terrain
                 var style = PickStyle(source, palette, type, inst.Position, ref rng);
                 var profile = style != null ? new float2(style.Width, style.Width * style.Height) : new float2(1f);
                 var wall = style != null ? new float2(style.Roughness, style.Grain) : new float2(1f);
+                var rock = style != null ? new float4(style.Jaggedness, style.FloorFlatness, style.FloorSteps, style.Blockiness) : new float4(0.7f, 0.85f, 0.4f, 0.3f);
                 var radius = type.Radius * inst.Scale;
                 var r = type.CaveRadius * inst.Scale;
                 var chamber = type.ChamberRadius * inst.Scale;
@@ -162,7 +163,7 @@ namespace Punchy.Terrain
                 float3 min = float.MaxValue, max = float.MinValue;
                 for (int n = firstNode; n < nodes.Count; n++)
                 {
-                    var reach = nodes[n].Radius * math.cmax(profile) + 2.5f + CaveSampling.NoiseReach * wall.x;
+                    var reach = nodes[n].Radius * math.cmax(profile) + 2.5f + CaveSampling.NoiseReach * wall.x + CaveSampling.JaggedReach * rock.x;
                     min = math.min(min, nodes[n].Position - reach);
                     max = math.max(max, nodes[n].Position + reach);
                 }
@@ -178,7 +179,8 @@ namespace Punchy.Terrain
                     Seed = rng.NextFloat(-50f, 50f),
                     Style = style != null ? styles.IndexOf(style) + 1 : 0,
                     Profile = profile,
-                    Wall = wall
+                    Wall = wall,
+                    Rock = rock
                 });
             }
 
@@ -249,7 +251,7 @@ namespace Punchy.Terrain
                 var b = nodes[seg.B];
                 // The margin is measured in the cave's field, which runs slower than true distance along a stretch.
                 var reach = math.max(a.Radius, b.Radius) * math.cmax(c.Profile)
-                            + (CaveSampling.SegmentMargin + CaveSampling.NoiseReach * c.Wall.x) * CaveSampling.Stretch(c.Profile);
+                            + (CaveSampling.SegmentMargin + CaveSampling.WallReach(c)) * CaveSampling.Stretch(c.Profile);
                 seg.Min = math.min(a.Position, b.Position) - reach;
                 seg.Max = math.max(a.Position, b.Position) + reach;
                 segments[i] = seg;

@@ -18,6 +18,10 @@ MonoBehaviour:
   Height: 1.1
   Roughness: 0.9
   Grain: 1.2
+  Jaggedness: 0.9
+  Blockiness: 0.4
+  FloorFlatness: 0.8
+  FloorSteps: 0.6
   Burrows: 0
   RockColor: {r: 0.7, g: 0.62, b: 0.45, a: 1}
   DarkColor: {r: 0.2, g: 0.18, b: 0.15, a: 1}

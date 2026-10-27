@@ -246,7 +246,7 @@ namespace Punchy.Terrain
                 // in it reach that much further.
                 var stretch = CaveSampling.Stretch(cave.Profile);
                 var reach = math.max(a.Radius, b.Radius) * math.cmax(cave.Profile)
-                            + (CaveSampling.Blend + CaveSampling.NoiseReach * cave.Wall.x + WallReach) * stretch + chunkVoxel * 2f;
+                            + (CaveSampling.Blend + CaveSampling.WallReach(cave) + WallReach) * stretch + chunkVoxel * 2f;
                 var c0 = (int3)math.floor((math.min(a.Position, b.Position) - reach) / chunkSize);
                 var c1 = (int3)math.floor((math.max(a.Position, b.Position) + reach) / chunkSize);
                 for (int z = c0.z; z <= c1.z; z++)
