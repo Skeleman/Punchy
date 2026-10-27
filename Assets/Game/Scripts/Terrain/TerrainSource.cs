@@ -118,7 +118,8 @@ namespace Punchy.Terrain
         public BlobAssetReference<CaveSetBlob> Caves;
         /// <summary>
         /// Anchors (baked last): points places export for creatures, such as roosts, nests and burrows. Look them up
-        /// with <see cref="Punchy.Terrain.Anchors"/>.
+        /// with <see cref="Punchy.Terrain.Anchors"/>. A world with no caves or settlements has none: check IsCreated
+        /// before taking <c>ref Anchors.Value</c>.
         /// </summary>
         public BlobAssetReference<AnchorSetBlob> Anchors;
 
@@ -371,7 +372,8 @@ namespace Punchy.Terrain
                 return surface;
             // Look down from a little above the feet, but never from above the surface.
             var y = math.min(p.y + 0.6f, surface + 0.05f);
-            if (CaveDistance(new float3(p.x, y, p.z)) >= 0f)
+            var d = CaveDistance(new float3(p.x, y, p.z));
+            if (d >= 0f)
             {
                 // Underground but not in a cave: stay put (movement keeps us out of the walls).
                 if (p.y < surface - 1.5f)
@@ -382,23 +384,33 @@ namespace Punchy.Terrain
                 return surface;
             }
             inCave = true;
-            // March down through the air by most of the distance to the nearest rock (at least 25 cm), so a deep shaft
-            // takes a few dozen steps rather than running out of them partway down.
-            var d = CaveDistance(new float3(p.x, y, p.z));
+            // March down through the air by part of the distance to the nearest rock (at least 25 cm), so a deep shaft
+            // takes a few dozen steps rather than running out of them partway down. Below a passage's axis the field
+            // can overstate the distance down to the floor by up to 1.8 times, so the step is 0.4 of it: never past a
+            // thin floor into a passage beneath.
+            var start = y;
+            var found = false;
             float lo = y - 0.25f, hi = y;
             for (int i = 0; i < 200; i++)
             {
-                var next = y - math.max(0.25f, -d * 0.8f);
+                var next = y - math.max(0.25f, -d * 0.4f);
                 var dn = CaveDistance(new float3(p.x, next, p.z));
                 lo = next;
                 hi = y;
                 if (dn >= 0f)
+                {
+                    found = true;
                     break;
+                }
                 y = next;
                 d = dn;
             }
-            // Refine to the floor between lo (rock) and hi (air).
-            for (int i = 0; i < 10; i++)
+            // No floor within reach: stay where we started rather than standing in mid-air.
+            if (!found)
+                return start;
+            // Refine to the floor between lo (rock) and hi (air); the bracket is a step or so, so 7 halvings give
+            // under a centimetre.
+            for (int i = 0; i < 7; i++)
             {
                 var mid = (lo + hi) * 0.5f;
                 if (CaveDistance(new float3(p.x, mid, p.z)) < 0f) hi = mid; else lo = mid;
