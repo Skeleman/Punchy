@@ -30,6 +30,7 @@ namespace Punchy.Debugging
         readonly FrameTiming[] timing = new FrameTiming[1];
         readonly StringBuilder summary = new StringBuilder();
         bool measuring;
+        int gcAtStart;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
@@ -93,6 +94,8 @@ namespace Punchy.Debugging
                 t += Time.unscaledDeltaTime;
                 if (speed > 0f)
                     Carry(start + math.normalize(new float3(1f, 0f, 0.3f)) * speed * t, height);
+                if (!measuring && t > Settle)
+                    gcAtStart = System.GC.CollectionCount(0);   // garbage collections during the measured part
                 measuring = t > Settle;
                 yield return null;
             }
@@ -127,7 +130,7 @@ namespace Punchy.Debugging
             for (int i = sorted.Count - worst; i < sorted.Count; i++) worstTotal += sorted[i];
             var line = $"{name}: avg {1000f * sorted.Count / total:F1} fps, 1% low {1000f * worst / worstTotal:F1} fps, " +
                        $"median {sorted[sorted.Count / 2]:F1} ms, worst {sorted[sorted.Count - 1]:F1} ms, " +
-                       $"cpu {Average(cpuMs)} ms, gpu {Average(gpuMs)} ms, frames {sorted.Count}";
+                       $"cpu {Average(cpuMs)} ms, gpu {Average(gpuMs)} ms, frames {sorted.Count}, GC {System.GC.CollectionCount(0) - gcAtStart}";
             summary.AppendLine(line);
             Debug.Log("BenchRoute: " + line);
         }
