@@ -1,5 +1,6 @@
 using Punchy.Fauna;
 using Unity.Burst;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.NetCode;
@@ -70,6 +71,51 @@ namespace Punchy.Net
                 n.Bow = c.Bow;
                 n.Curl = c.Curl;
                 n.Air = c.Air;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Server: each player only receives the animals near them (within <see cref="Radius"/> of their NetPlayer), so
+    /// players far apart don't pay for each other's surroundings. Everything else (players, the world state) is
+    /// always sent.
+    /// </summary>
+    [BurstCompile]
+    [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
+    [UpdateInGroup(typeof(SimulationSystemGroup), OrderLast = true)]
+    public partial struct CreatureRelevancySystem : ISystem
+    {
+        /// <summary>A bit beyond FaunaDirector's despawn distance, so nothing a player could see is ever held back.</summary>
+        public const float Radius = 200f;
+
+        [BurstCompile]
+        public void OnCreate(ref SystemState state)
+        {
+            state.RequireForUpdate<GhostRelevancy>();
+        }
+
+        [BurstCompile]
+        public void OnUpdate(ref SystemState state)
+        {
+            ref var relevancy = ref SystemAPI.GetSingletonRW<GhostRelevancy>().ValueRW;
+            relevancy.GhostRelevancyMode = GhostRelevancyMode.SetIsIrrelevant;
+            var set = relevancy.GhostRelevancySet;
+            set.Clear();
+
+            // Where each connection's player is (connections without a placed player get everything).
+            var players = new NativeHashMap<int, float3>(8, Allocator.Temp);
+            foreach (var (owner, transform) in SystemAPI.Query<RefRO<GhostOwner>, RefRO<LocalTransform>>().WithAll<NetPlayer>())
+                if (math.lengthsq(transform.ValueRO.Position) > 1e-6f)
+                    players[owner.ValueRO.NetworkId] = transform.ValueRO.Position;
+            if (players.Count == 0)
+                return;
+            var radiusSq = Radius * Radius;
+            foreach (var (ghost, transform) in SystemAPI.Query<RefRO<GhostInstance>, RefRO<LocalTransform>>().WithAll<CreatureNet>())
+            {
+                var xz = transform.ValueRO.Position.xz;
+                foreach (var player in players)
+                    if (math.distancesq(player.Value.xz, xz) > radiusSq)
+                        set.TryAdd(new RelevantGhostForConnection(player.Key, ghost.ValueRO.ghostId), 1);
             }
         }
     }

@@ -277,3 +277,15 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
     Dwarf. The host saw it move with the right body.
   - **Known:** Transport warns that a Relay driver should bind to `0.0.0.0:0`. We listen on port 7979 so the IPC
     link has a fixed port. It works; tidy this up in M6.
+- 2026-10-27 — A — **M6 (part): relevancy.**
+  - `CreatureRelevancySystem` (server) marks animal ghosts more than 200 m from a connection's NetPlayer as
+    irrelevant to that connection. Players and WorldState are always sent.
+  - **Tested** with the players about 3 km apart: the server simulated 137 animals (around both) and the host's
+    client received only its own 68. The host held 126 fps while also running the server.
+  - CLAUDE.md now has a multiplayer section summarising the architecture.
+  - **Still open for M6:**
+    - a real two-PC test on the LAN and over Relay
+    - a bandwidth check with Netcode's network debugger
+    - the Relay bind-address warning
+    - a better experience when the host leaves (clients keep the last weather, and F2 says "Not connected")
+    - host migration: none; if the host quits, the game ends for everyone

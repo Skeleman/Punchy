@@ -182,3 +182,29 @@ Input System. Windows is the only build target so far.
 - Systems that touch input, cameras, meshes or rendering need
   `[WorldSystemFilter(LocalSimulation | ClientSimulation)]` or a presentation group, so they never run on the
   server.
+- **Players:**
+  - Movement is client-authoritative. Each machine moves its own baked `PlayerTag` player.
+  - A `NetPlayer` ghost per connection carries the pose and look (`NetPlayerCommand` → `NetPlayerLook`).
+  - Other players' bodies are `RemoteAvatar` puppets spawned by `NetAvatars`. `NetAvatars.PlayableSpecies` is the
+    network's body table: append only, never reorder.
+- **Animals:**
+  - They live in the *simulation world*: the server when hosting, the local world without netcode, none on a
+    joined client. The brain only runs there.
+  - Clients get creature ghosts, which `FaunaDirector` gives bodies, and `CreatureReplicaSystem` rebuilds
+    `CreatureState` from them.
+  - FaunaDirector's species table is sorted by asset name, so an index means the same animal everywhere.
+  - Each connection only receives animals within 200 m of its player (`CreatureRelevancySystem`).
+- **Sky:** the host's time and weather go out on a `WorldState` ghost. Joined clients run
+  `WeatherSystem.Remote = true` and copy that state in (`WorldSync`). Clients whose world fingerprint differs
+  are disconnected.
+- **Connecting:**
+  - Default is to host on UDP 7979.
+  - `-join <ip>` joins over LAN; `-hostonline` / `-joincode <CODE>` go through Unity Relay.
+  - F2 opens the panel for all of these and the body picker.
+  - Test flags: `-body <Name>`, `-autowalk`, `-newlook`.
+- Netcode needs **Run In Background** (set in Player Settings, and for play mode in the editor), or a tabbed-out
+  player stalls.
+- MonoBehaviour authoring classes must live in a file named after the class, or subscene baking silently skips
+  them.
+- Reimporting an asset or recompiling in play mode rebakes the subscene and resets the game. Test with builds:
+  `BuildGame.Windows`, then run `Builds/Windows/Punchy.exe -join 127.0.0.1` against an editor host.
