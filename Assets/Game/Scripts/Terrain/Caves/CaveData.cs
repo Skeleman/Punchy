@@ -109,16 +109,14 @@ namespace Punchy.Terrain
             return (noise.snoise(p * 0.22f * g + s) * 0.55f + noise.snoise(p * 0.6f * g - s) * 0.2f) * c.Wall.x;
         }
 
-        public static float Distance(ref CaveSetBlob set, int cave, float3 p)
+        /// <summary>
+        /// How much further than true distance a cave's field can reach along its stretch (1 for a round passage): it
+        /// is scaled by the smaller stretch, so margins measured in it must grow by the larger.
+        /// </summary>
+        public static float Stretch(float2 profile)
         {
-            ref var c = ref set.Caves[cave];
-            var d = 1e9f;
-            for (int i = c.FirstSegment; i < c.FirstSegment + c.SegmentCount; i++)
-            {
-                ref var seg = ref set.Segments[i];
-                d = SmoothMin(d, Capsule(set.Nodes[seg.A], set.Nodes[seg.B], p, c.Profile), Blend);
-            }
-            return d + WallNoise(c, p);
+            var s = profile.y / profile.x;
+            return math.max(1f, math.max(s, 1f / s));
         }
 
         /// <summary>The range of grid items (indices into Items) for the column containing a point.</summary>

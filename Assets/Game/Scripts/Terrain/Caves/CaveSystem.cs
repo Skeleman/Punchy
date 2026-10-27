@@ -87,6 +87,10 @@ namespace Punchy.Terrain
         readonly List<int3> scratch = new List<int3>();
         int chunkCells;
         float chunkSize;
+        /// <summary>Voxel as it was when the chunks were indexed: editing Voxel in play mode mustn't change the grid under them.</summary>
+        float chunkVoxel;
+        /// <summary>Chunks unloaded while still building: dropped once their jobs finish, not waited on.</summary>
+        readonly List<Built> dying = new List<Built>();
         int3 lastCameraChunk = new int3(int.MinValue);
         World queryWorld;
         EntityQuery terrainQuery, playerQuery;
@@ -132,6 +136,9 @@ namespace Punchy.Terrain
             foreach (var c in chunks.Values)
                 c.Dispose();
             chunks.Clear();
+            foreach (var c in dying)
+                c.Dispose();
+            dying.Clear();
             columns.Clear();
             lastCameraChunk = new int3(int.MinValue);
             Underground = 0f;
@@ -188,19 +195,24 @@ namespace Punchy.Terrain
 
         /// <summary>
         /// Uploads the cave styles' looks in the order baking numbered them (slot 0 stays empty: the material's own
-        /// colours). Every frame, so editing a style's colours or finish in play mode shows at once; its shape is
-        /// baked and needs a re-bake.
+        /// colours). In the editor every frame, so editing a style's colours or finish in play mode shows at once (its
+        /// shape is baked and needs a re-bake); in a build only when the palette changes.
         /// </summary>
         void UploadStyles()
         {
             if (paletteQuery.IsEmpty)
                 return;
             var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
-            if (palette != stylesFrom)
+            var changed = palette != stylesFrom;
+            if (changed)
             {
                 styles = CaveStyleTable.Collect(palette.Landmarks);
                 stylesFrom = palette;
             }
+#if !UNITY_EDITOR
+            if (!changed)
+                return;
+#endif
             for (int i = 0; i < styles.Count; i++)
                 styles[i].Pack(styleTable, i + 1);
             Shader.SetGlobalVectorArray(StylesId, styleTable);
@@ -219,8 +231,9 @@ namespace Punchy.Terrain
         /// </summary>
         void IndexChunks(in TerrainSource source)
         {
-            chunkCells = math.max(4, (int)math.round(ChunkMetres / Voxel));
-            chunkSize = chunkCells * Voxel;
+            chunkVoxel = Voxel;
+            chunkCells = math.max(4, (int)math.round(ChunkMetres / chunkVoxel));
+            chunkSize = chunkCells * chunkVoxel;
             ref var set = ref source.Caves.Value;
             var seen = new HashSet<int3>();
             for (int i = 0; i < set.Segments.Length; i++)
@@ -229,8 +242,11 @@ namespace Punchy.Terrain
                 ref var cave = ref set.Caves[seg.Cave];
                 ref var a = ref set.Nodes[seg.A];
                 ref var b = ref set.Nodes[seg.B];
-                var reach = math.max(a.Radius, b.Radius) * math.cmax(cave.Profile) + CaveSampling.Blend
-                            + CaveSampling.NoiseReach * cave.Wall.x + WallReach + Voxel * 2f;
+                // A stretched passage's field runs slower than true distance along the stretch, so distances measured
+                // in it reach that much further.
+                var stretch = CaveSampling.Stretch(cave.Profile);
+                var reach = math.max(a.Radius, b.Radius) * math.cmax(cave.Profile)
+                            + (CaveSampling.Blend + CaveSampling.NoiseReach * cave.Wall.x + WallReach) * stretch + chunkVoxel * 2f;
                 var c0 = (int3)math.floor((math.min(a.Position, b.Position) - reach) / chunkSize);
                 var c1 = (int3)math.floor((math.max(a.Position, b.Position) + reach) / chunkSize);
                 for (int z = c0.z; z <= c1.z; z++)
@@ -288,12 +304,22 @@ namespace Punchy.Terrain
                         scratch.Add(kv.Key);
                 foreach (var key in scratch)
                 {
-                    chunks[key].Dispose();
+                    // One still building is parked until its jobs finish rather than waited on here.
+                    if (chunks[key].Pending)
+                        dying.Add(chunks[key]);
+                    else
+                        chunks[key].Dispose();
                     chunks.Remove(key);
                 }
             }
+            for (int i = dying.Count - 1; i >= 0; i--)
+                if (dying[i].Job.IsCompleted)
+                {
+                    dying[i].Dispose();
+                    dying.RemoveAt(i);
+                }
 
-            var building = 0;
+            var building = dying.Count;
             foreach (var b in chunks.Values)
                 if (b.Pending)
                     building++;
@@ -322,14 +348,16 @@ namespace Punchy.Terrain
                     mesh.SetUVs(0, b.Data.AsArray());
                     mesh.SetIndices(b.Indices.AsArray(), MeshTopology.Triangles, 0);
                     var min = (float3)kv.Key * chunkSize;
-                    mesh.bounds = new Bounds(min + chunkSize * 0.5f, new float3(chunkSize + Voxel * 4f));
+                    mesh.bounds = new Bounds(min + chunkSize * 0.5f, new float3(chunkSize + chunkVoxel * 4f));
+                    // Drawn only: let the CPU copy go.
+                    mesh.UploadMeshData(true);
                     b.Mesh = mesh;
                     // A chunk whose top is a few metres under the lowest ground above it can't shade anything the sun
                     // reaches, so it stays out of the shadow cascades (the column heights are already sampled).
                     var lowestGround = float.MaxValue;
                     for (int i = 0; i < b.Surface.Length; i++)
                         lowestGround = math.min(lowestGround, b.Surface[i]);
-                    b.CastsShadows = min.y + chunkSize + Voxel > lowestGround - 4f;
+                    b.CastsShadows = min.y + chunkSize + chunkVoxel > lowestGround - 4f;
                 }
                 b.Field.Dispose();
                 b.CaveField.Dispose();
@@ -364,13 +392,13 @@ namespace Punchy.Terrain
                 Indices = new NativeList<int>(Allocator.Persistent),
                 Pending = true
             };
-            var columnJob = new ColumnJob { Source = source, Origin = origin, Points = points, Voxel = Voxel, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
+            var columnJob = new ColumnJob { Source = source, Origin = origin, Points = points, Voxel = chunkVoxel, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
                 .Schedule(points.x * points.z, 64);
-            var field = new FieldJob { Source = source, Origin = origin, Points = points, Voxel = Voxel, Field = b.Field, CaveField = b.CaveField, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
+            var field = new FieldJob { Source = source, Origin = origin, Points = points, Voxel = chunkVoxel, Field = b.Field, CaveField = b.CaveField, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
                 .Schedule(points.y * points.z, 4, columnJob);
             b.Job = new MeshJob
             {
-                Source = source, Origin = origin, Cells = cells, Voxel = Voxel,
+                Source = source, Origin = origin, Cells = cells, Voxel = chunkVoxel,
                 Field = b.Field, CaveField = b.CaveField,
                 Positions = b.Positions, Normals = b.Normals, Colors = b.Colors, Data = b.Data, Indices = b.Indices
             }.Schedule(field);

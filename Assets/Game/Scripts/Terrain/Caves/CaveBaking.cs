@@ -45,7 +45,7 @@ namespace Punchy.Terrain
             for (int i = 0; i < landmarks.Instances.Length; i++)
             {
                 ref var inst = ref landmarks.Instances[i];
-                var type = inst.Type < types.Count ? types[inst.Type] : null;
+                var type = (uint)inst.Type < (uint)types.Count ? types[inst.Type] : null;
                 if (type == null || !type.Cave)
                     continue;
                 var rng = new Random(math.hash(new int2(i, 7717)) | 1u);
@@ -134,8 +134,8 @@ namespace Punchy.Terrain
                     }
                 }
 
-                // Shafts: from chambers (the deepest first are the most dramatic, but any will do) straight up to a
-                // little above the surface, wherever the surface there is dry.
+                // Shafts: from chambers, the last laid out first (side-passage ends, then the main passage's), straight
+                // up to a little above the surface, wherever the surface there is dry.
                 var shafts = 0;
                 for (int n = nodes.Count - 1; n > firstNode && shafts < type.CaveShafts; n--)
                 {
@@ -247,7 +247,9 @@ namespace Punchy.Terrain
                 var c = caves[seg.Cave];
                 var a = nodes[seg.A];
                 var b = nodes[seg.B];
-                var reach = math.max(a.Radius, b.Radius) * math.cmax(c.Profile) + CaveSampling.SegmentMargin + CaveSampling.NoiseReach * c.Wall.x;
+                // The margin is measured in the cave's field, which runs slower than true distance along a stretch.
+                var reach = math.max(a.Radius, b.Radius) * math.cmax(c.Profile)
+                            + (CaveSampling.SegmentMargin + CaveSampling.NoiseReach * c.Wall.x) * CaveSampling.Stretch(c.Profile);
                 seg.Min = math.min(a.Position, b.Position) - reach;
                 seg.Max = math.max(a.Position, b.Position) + reach;
                 segments[i] = seg;
