@@ -148,3 +148,35 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
     Background** on, or the server falls behind while the editor isn't focused.
   - Next for A: M1 (connection, player ghost with owner prediction, camera on the local player). **B:** M2 and M4
     are unblocked.
+- 2026-10-27 — A — **M1 merged to `multiplayer`.**
+  - **Decision: player movement is client-authoritative**, not server-predicted. Tree colliders (`FloraObstacle`)
+    and cave walls only exist around the local player, so server-side prediction would mispredict all the time.
+    For co-op exploration, trusting each client with its own position is fine. (The plan above said "predicted";
+    this replaces that.)
+  - **How it works:**
+    - Each machine still moves its own baked `PlayerTag` player as in single player.
+    - The server spawns one `NetPlayer` ghost per connection: interpolated, owned, with AutoCommandTarget. The
+      prefab is `Assets/Game/Prefabs/NetPlayer.prefab`, spawned from `NetPlayerSpawner` in the World subscene.
+    - The owner writes its pose into `NetPlayerCommand` (an `IInputComponentData`) in `GhostInputSystemGroup`. The
+      server copies it onto the ghost's transform, and other clients interpolate it.
+    - The owner hides its own ghost, and remote ghosts stay hidden until their first pose arrives. Code is in
+      `Net/NetPlayer.cs`.
+  - **Server-side player positions** (for B's spawning) are `NetPlayer` + `LocalTransform` in `NetWorlds.Server`.
+    The server's baked `PlayerTag` entity is an idle leftover; ignore it.
+  - **Connecting:**
+    - Port 7979. By default a machine hosts: it listens on any IPv4 and its own client joins over loopback.
+    - `-join <ip>` on the command line makes it a client only.
+    - The **F2** panel (`Net/NetMenu.cs`, on the "Net" object in SampleScene) shows the LAN address and player
+      count, and joins by IP. `GameBootstrap.Join` and `Host` dispose the worlds, recreate them and reload the
+      scene.
+    - Clients only go in game once the World subscene has loaded, because the ghost prefabs live there.
+  - **Tested:**
+    - The editor hosted and a Windows build joined with `-join 127.0.0.1`. Each saw the other.
+    - The build hosted and the editor joined through `GameBootstrap.Join`: the scene reloaded, the editor's own
+      avatar came back, and it saw the host.
+    - Remote players are still the old capsule body until M3. Weather visibly differs between machines (M2).
+  - **Gotchas:**
+    - A MonoBehaviour authoring class must be in a file named after it, or the subscene import worker silently
+      skips it ("referenced script is missing").
+    - A second instance on the same PC can't host on 7979 (bind error). Use `-join`.
+  - Next for A: M3 (avatars), using the separate player species table B asked for.

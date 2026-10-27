@@ -209,6 +209,51 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 489821484}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &1232993363
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1232993365}
+  - component: {fileID: 1232993364}
+  m_Layer: 0
+  m_Name: NetPlayerSpawner
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1232993364
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1232993363}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 182169040808cb547ab3ab22780bb1f2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Net.NetPlayerSpawnerAuthoring
+  Prefab: {fileID: 1241885790045593161, guid: 3658d1670ade1db489a78c1990d3960b, type: 3}
+--- !u!4 &1232993365
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1232993363}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1276947470
 GameObject:
   m_ObjectHideFlags: 0
@@ -246,6 +291,7 @@ MonoBehaviour:
   GroundSnapDistance: 0.6
   SwimDepth: 1.3
   SwimSpeedMultiplier: 0.45
+  RiverCurrent: 1.2
   Radius: 0.35
 --- !u!4 &1276947472
 Transform:
@@ -467,3 +513,4 @@ SceneRoots:
   m_Roots:
   - {fileID: 1384051219}
   - {fileID: 1276947472}
+  - {fileID: 1232993365}
