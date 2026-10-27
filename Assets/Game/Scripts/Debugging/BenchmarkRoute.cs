@@ -15,15 +15,15 @@ namespace Punchy.Debugging
 {
     /// <summary>
     /// A repeatable performance run, started with the -benchroute launch flag: it visits a town, a forest full of
-    /// animals, the inside of the biggest cave, a storm and a fast dash across terrain chunks, settles at each, then
-    /// measures frame times and logs one "BenchRoute:" line per stop (average fps, 1% lows, worst frame, and CPU vs GPU
-    /// time when the build has Frame Timing Stats on) before quitting. Use it with -weatherseed so the weather matches
-    /// between runs, and compare builds by the logged numbers. Places come from DebugControls' own list (by name), so
-    /// the route follows the world as it changes.
+    /// animals, the inside of the biggest cave and a storm, then crosses terrain chunks at sprint, glide and stress
+    /// speeds. It settles at each stop, then measures frame times and logs one "BenchRoute:" line per stop (average
+    /// fps, 1% lows, worst frame, and CPU vs GPU time when the build has Frame Timing Stats on) before quitting. Use it
+    /// with -weatherseed and compare builds by the logged numbers. Places come from DebugControls' own list (by name),
+    /// so the route follows the world as it changes.
     /// </summary>
     public class BenchmarkRoute : MonoBehaviour
     {
-        const float Settle = 10f, Measure = 20f, DashSpeed = 80f;
+        const float Settle = 10f, Measure = 20f;
 
         readonly List<float> frameMs = new List<float>();
         readonly List<double> cpuMs = new List<double>(), gpuMs = new List<double>();
@@ -56,13 +56,22 @@ namespace Punchy.Debugging
             yield return Stop("forest", () => JumpTo(controls, "OakGrove") && SetWeather("Partly cloudy", 12));
             yield return Stop("cave", () => PlaceInBiggestCave() && SetWeather("Partly cloudy", 13));
             yield return Stop("storm", () => JumpTo(controls, "Mountains") && SetWeather("Stormy", 14));
-            yield return Stop("dash", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 15), dash: true);
+            // Travel across terrain chunks: a sprint and a glide at play speeds (spikes here matter), then an 80 m/s
+            // dash as a stress figure only (fast travel will sit behind a loading screen).
+            yield return Stop("run", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 15), 12f, 0.1f, 40f);
+            yield return Stop("glide", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 16), 25f, 15f, 40f);
+            yield return Stop("dash", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 17), 80f, 3f);
 
             Debug.Log("BenchRoute: done\n" + summary);
             Application.Quit();
         }
 
-        IEnumerator Stop(string name, System.Func<bool> arrive, bool dash = false)
+        /// <summary>
+        /// One stop: arrive, settle, measure. With a speed, the player is carried in a straight line at that speed
+        /// (at a height above the ground) the whole time, so streaming has to keep up; settling is included, so the
+        /// measured part is already at speed.
+        /// </summary>
+        IEnumerator Stop(string name, System.Func<bool> arrive, float speed = 0f, float height = 0f, float measure = Measure)
         {
             if (!arrive())
             {
@@ -70,17 +79,15 @@ namespace Punchy.Debugging
                 yield break;
             }
             float3 start = default;
-            if (dash && TryGetWorld(out var em, out var player))
+            if (speed > 0f && TryGetWorld(out var em, out var player))
                 start = em.GetComponentData<LocalTransform>(player).Position;
             var t = 0f;
             frameMs.Clear(); cpuMs.Clear(); gpuMs.Clear();
-            while (t < Settle + Measure)
+            while (t < Settle + measure)
             {
                 t += Time.unscaledDeltaTime;
-                // Dash: carry the player straight across the chunks a few metres above the ground the whole time,
-                // so streaming has to keep up (settling included, so the measured part is already at speed).
-                if (dash)
-                    Carry(start + new float3(1f, 0f, 0.3f) * DashSpeed * t);
+                if (speed > 0f)
+                    Carry(start + math.normalize(new float3(1f, 0f, 0.3f)) * speed * t, height);
                 measuring = t > Settle;
                 yield return null;
             }
@@ -200,8 +207,8 @@ namespace Punchy.Debugging
             return true;
         }
 
-        /// <summary>Moves the player to a point a few metres above the ground there (the dash).</summary>
-        static void Carry(float3 at)
+        /// <summary>Moves the player to a point the given height above the ground there.</summary>
+        static void Carry(float3 at, float height)
         {
             if (!TryGetWorld(out var em, out var player))
                 return;
@@ -210,7 +217,7 @@ namespace Punchy.Debugging
                 return;
             var source = terrainQuery.GetSingleton<TerrainSource>();
             var transform = em.GetComponentData<LocalTransform>(player);
-            transform.Position = new float3(at.x, source.SampleHeight(at.xz) + 3f, at.z);
+            transform.Position = new float3(at.x, source.SampleHeight(at.xz) + height, at.z);
             em.SetComponentData(player, transform);
             em.SetComponentData(player, new PlayerMotion { Grounded = true });
         }
