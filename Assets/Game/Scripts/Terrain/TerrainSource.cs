@@ -377,12 +377,23 @@ namespace Punchy.Terrain
                 return surface;
             }
             inCave = true;
-            var step = 0.25f;
-            for (int i = 0; i < 160 && CaveDistance(new float3(p.x, y - step, p.z)) < 0f; i++)
-                y -= step;
-            // Refine to the floor between y - step (rock) and y (air).
-            float lo = y - step, hi = y;
-            for (int i = 0; i < 6; i++)
+            // March down through the air by most of the distance to the nearest rock (at least 25 cm), so a deep shaft
+            // takes a few dozen steps rather than running out of them partway down.
+            var d = CaveDistance(new float3(p.x, y, p.z));
+            float lo = y - 0.25f, hi = y;
+            for (int i = 0; i < 200; i++)
+            {
+                var next = y - math.max(0.25f, -d * 0.8f);
+                var dn = CaveDistance(new float3(p.x, next, p.z));
+                lo = next;
+                hi = y;
+                if (dn >= 0f)
+                    break;
+                y = next;
+                d = dn;
+            }
+            // Refine to the floor between lo (rock) and hi (air).
+            for (int i = 0; i < 10; i++)
             {
                 var mid = (lo + hi) * 0.5f;
                 if (CaveDistance(new float3(p.x, mid, p.z)) < 0f) hi = mid; else lo = mid;
