@@ -308,6 +308,12 @@ namespace Punchy.Fauna
                 case IdleAction.HeadBob:
                     if (part.Role == LimbRole.Head) return new float3(-0.2f * e, 0f, 0f);
                     break;
+                case IdleAction.Howl:
+                    // Muzzle up to the sky, ears back, a slow sway as the note rises and falls.
+                    if (part.Role == LimbRole.Neck) return new float3(-0.9f * e / n, 0f, 0f);
+                    if (part.Role == LimbRole.Head) return new float3((-0.7f + 0.08f * math.sin(s.Clock * 1.7f)) * e, 0f, 0f);
+                    if (part.Role == LimbRole.Ear) return new float3(0.5f * e, 0f, 0f);
+                    break;
                 case IdleAction.LookAround:
                 case IdleAction.SitUp:
                     if (part.Role == LimbRole.Head) return new float3(-0.15f * e, 0f, 0f);

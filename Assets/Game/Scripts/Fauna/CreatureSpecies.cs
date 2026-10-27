@@ -156,13 +156,14 @@ namespace Punchy.Fauna
         [Tooltip("Flicks its tail back and forth.")] TailFlick = 1 << 8,
         [Tooltip("Preens: turns its head back to its feathers.")] Preen = 1 << 9,
         [Tooltip("Bobs its head and body up and down (lizard push-ups).")] HeadBob = 1 << 10,
-        [Tooltip("Lifts its head and looks around.")] LookAround = 1 << 11
+        [Tooltip("Lifts its head and looks around.")] LookAround = 1 << 11,
+        [Tooltip("Sits back and howls at night; others of its kind nearby join in.")] Howl = 1 << 12
     }
 
     /// <summary>The idle action an animal is doing now (one of IdleActions, by number).</summary>
     public enum IdleAction : byte
     {
-        None, PawGround, Groom, Scratch, Shake, Stretch, Sniff, Sit, SitUp, TailFlick, Preen, HeadBob, LookAround
+        None, PawGround, Groom, Scratch, Shake, Stretch, Sniff, Sit, SitUp, TailFlick, Preen, HeadBob, LookAround, Howl
     }
 
     public enum ActiveTime : byte

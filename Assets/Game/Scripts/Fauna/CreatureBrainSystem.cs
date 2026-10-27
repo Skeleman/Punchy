@@ -167,6 +167,16 @@ namespace Punchy.Fauna
                     threatened = true;
                     threat = predator;
                 }
+                // One bolts, they all bolt: a herd (or a flock) runs when any of it close by does, from the same thing.
+                if (!threatened && !aloft && b.FleeDistance > 0f && s.Mode != CreatureMode.Flee && FindAlarm(self, ref s, body.Species, out var alarm))
+                {
+                    threatened = true;
+                    threat = alarm;
+                }
+                // Birds of a feather: when one takes off, the others near it go along to the same place.
+                if (!threatened && flier && (s.Mode == CreatureMode.Idle || s.Mode == CreatureMode.Graze || s.Mode == CreatureMode.Rest) &&
+                    FindTakeoff(self, ref s, body.Species, out var leader))
+                    Follow(ref s, leader, ref rng);
                 // Invited to play: someone has started a game of chase with this one.
                 if (!threatened && b.Playfulness > 0f && Free(s.Mode) && !perched && FindPlaymate(self, ref s, out var playmate))
                 {
@@ -373,7 +383,7 @@ namespace Punchy.Fauna
 
                 // Little things done while standing about: start one now and then, keep it going, and take up the
                 // posture it needs.
-                Fidget(ref s, ref b, ref rng, dt, perched, ref sit, ref vertical, ref bow, ref desiredLook);
+                Fidget(self, body.Species, ref s, ref b, ref rng, dt, perched, ref sit, ref vertical, ref bow, ref desiredLook);
 
                 // Animals with a home never head out of range of it (penned animals stay in their pen, even fleeing).
                 if (s.Leash > 0f && moving)
@@ -533,9 +543,10 @@ namespace Punchy.Fauna
                     s.Target = shore;
                     s.Focus = water;
                 }
-                else if ((roll -= climb) < 0f && StartClimb(ref s, ref b, ref rng, sleepy > 0.5f)) { }
-                else if ((roll -= web) < 0f && GoToWeb(ref s, ref b, ref rng)) { }
-                else if ((roll -= fly) < 0f && StartFlight(ref s, ref b, ref rng, sleepy > 0.5f)) { }
+                // (Only for species that do these: a failed drink above leaves the roll below zero.)
+                else if (climb > 0f && (roll -= climb) < 0f && StartClimb(ref s, ref b, ref rng, sleepy > 0.5f)) { }
+                else if (web > 0f && (roll -= web) < 0f && GoToWeb(ref s, ref b, ref rng)) { }
+                else if (fly > 0f && (roll -= fly) < 0f && StartFlight(ref s, ref b, ref rng, sleepy > 0.5f)) { }
                 else if (onGround)
                 {
                     var candidate = s.Position.xz + rng.NextFloat2Direction() * b.WanderRadius * rng.NextFloat(0.3f, 1f) * (flier ? 0.15f : 1f);
@@ -586,7 +597,7 @@ namespace Punchy.Fauna
             /// While standing, lying or sitting about (on the ground, on a branch), now and then starts one of its
             /// species' little actions, carries it through, and takes up the posture it needs.
             /// </summary>
-            void Fidget(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, bool perched,
+            void Fidget(Entity self, int species, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, bool perched,
                         ref float sit, ref float vertical, ref float bow, ref float desiredLook)
             {
                 var lying = s.Mode == CreatureMode.Rest && s.Lie > 0.5f;
@@ -602,7 +613,15 @@ namespace Punchy.Fauna
                     }
                 }
                 else if (calm && b.Idles != IdleActions.None && s.Speed < 0.1f && rng.NextFloat() < dt * b.Fidgets * 0.15f)
-                    StartAction(ref s, ref b, ref rng, lying, perched || s.Mode == CreatureMode.Climb);
+                    StartAction(ref s, ref b, ref rng, lying, perched || s.Mode == CreatureMode.Climb, Night);
+                // A howl is taken up by the rest of the pack, one after another.
+                else if (calm && !lying && (b.Idles & IdleActions.Howl) != 0 && s.Speed < 0.1f && Night > 0.5f &&
+                         rng.NextFloat() < dt * 0.8f && Howling(self, ref s, species))
+                {
+                    s.Action = IdleAction.Howl;
+                    s.ActionTime = 0f;
+                    s.ActionLength = rng.NextFloat(4f, 7f);
+                }
 
                 var t = s.ActionTime;
                 switch (s.Action)
@@ -618,6 +637,10 @@ namespace Punchy.Fauna
                     case IdleAction.Scratch:
                         sit = math.max(sit, 0.8f);
                         break;
+                    case IdleAction.Howl:
+                        sit = 1f;
+                        desiredLook = 0f;
+                        break;
                     case IdleAction.Stretch:
                         bow = t < 0.5f ? 1f : 0f;
                         break;
@@ -628,10 +651,10 @@ namespace Punchy.Fauna
             }
 
             /// <summary>Picks one of the species' idle actions that suits how it is now (lying, perched or standing).</summary>
-            static void StartAction(ref CreatureState s, ref CreatureBlob b, ref Random rng, bool lying, bool aloft)
+            static void StartAction(ref CreatureState s, ref CreatureBlob b, ref Random rng, bool lying, bool aloft, float night)
             {
                 var options = new FixedList64Bytes<byte>();
-                for (int a = 1; a <= (int)IdleAction.LookAround; a++)
+                for (int a = 1; a <= (int)IdleAction.Howl; a++)
                 {
                     var flag = (IdleActions)(1 << (a - 1));
                     if ((b.Idles & flag) == 0)
@@ -643,7 +666,10 @@ namespace Punchy.Fauna
                         action != IdleAction.Preen)
                         continue;
                     if (aloft && (action == IdleAction.PawGround || action == IdleAction.Sniff || action == IdleAction.Stretch ||
-                                  action == IdleAction.SitUp || action == IdleAction.HeadBob))
+                                  action == IdleAction.SitUp || action == IdleAction.HeadBob || action == IdleAction.Howl))
+                        continue;
+                    // Howling is for the night (and not lying down).
+                    if (action == IdleAction.Howl && (night < 0.5f || lying))
                         continue;
                     options.Add((byte)a);
                 }
@@ -664,6 +690,7 @@ namespace Punchy.Fauna
                     IdleAction.TailFlick => 1.6f,
                     IdleAction.Preen => rng.NextFloat(2.5f, 5f),
                     IdleAction.HeadBob => 1.4f,
+                    IdleAction.Howl => rng.NextFloat(4f, 7f),
                     _ => 3f
                 };
             }
@@ -1228,6 +1255,84 @@ namespace Punchy.Fauna
                     } while (Grid.TryGetNextValue(out j, ref it));
                 }
                 return best < float.MaxValue;
+            }
+
+            /// <summary>Another of its kind close by that has just started running: where from (what it runs from).</summary>
+            bool FindAlarm(Entity self, ref CreatureState s, int species, out float2 from)
+            {
+                from = default;
+                var c = Cell(s.Position.xz);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        var other = States[j];
+                        if (Entities[j] != self && Bodies[j].Species == species && other.Mode == CreatureMode.Flee && other.ModeTime < 3f &&
+                            math.distance(other.Position.xz, s.Position.xz) < 12f)
+                        {
+                            from = other.Focus;
+                            return true;
+                        }
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return false;
+            }
+
+            /// <summary>Another bird of its kind close by that has just taken off somewhere (not fleeing).</summary>
+            bool FindTakeoff(Entity self, ref CreatureState s, int species, out CreatureState leader)
+            {
+                leader = default;
+                var c = Cell(s.Position.xz);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        var other = States[j];
+                        if (Entities[j] != self && Bodies[j].Species == species && other.Mode == CreatureMode.Wander && other.Stage >= 1 &&
+                            other.ModeTime < 1.5f && math.distance(other.Position.xz, s.Position.xz) < 12f)
+                        {
+                            leader = other;
+                            return true;
+                        }
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return false;
+            }
+
+            /// <summary>Takes off after a flock-mate, to land a little way from where it's going (same height: a branch, or the ground).</summary>
+            void Follow(ref CreatureState s, in CreatureState leader, ref Random rng)
+            {
+                SetMode(ref s, CreatureMode.Wander);
+                s.Stage = 1;
+                var groundThere = Terrain.SampleHeight(leader.Target);
+                var onBranch = leader.TargetHeight > groundThere + 0.5f;
+                s.Target = leader.Target + rng.NextFloat2Direction() * (onBranch ? rng.NextFloat(0.3f, 1.2f) : rng.NextFloat(0.8f, 3f));
+                s.TargetHeight = onBranch ? leader.TargetHeight + rng.NextFloat(-0.4f, 0.4f) : Terrain.SampleHeight(s.Target);
+            }
+
+            /// <summary>Another of its kind within earshot, howling.</summary>
+            bool Howling(Entity self, ref CreatureState s, int species)
+            {
+                var c = Cell(s.Position.xz);
+                for (int z = -3; z <= 3; z++)
+                for (int x = -3; x <= 3; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        if (Entities[j] != self && Bodies[j].Species == species && States[j].Action == IdleAction.Howl &&
+                            States[j].ActionTime > 0.2f)
+                            return true;
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return false;
             }
 
             static bool Hunts(ref CreatureBlob b, int species)

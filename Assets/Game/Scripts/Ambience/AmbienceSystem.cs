@@ -19,6 +19,7 @@ namespace Punchy.Ambience
     ///    around the camera, built from each biome's Heat);
     ///  - breath showing as puffs of vapour in the cold, and powder kicked up by footsteps in snow, for the player and
     ///    for other players nearby (worked out here from their positions, so nothing extra is sent);
+    ///  - spray thrown up where a diving bird of prey hits the water;
     ///  - how many fireflies and butterflies are out (drawn by CritterSystem).
     /// </summary>
     [DefaultExecutionOrder(900)]
@@ -90,6 +91,10 @@ namespace Punchy.Ambience
         readonly Breather self = new Breather();
         readonly Dictionary<Entity, Breather> others = new Dictionary<Entity, Breather>();
         readonly List<Entity> gone = new List<Entity>();
+        ParticleSystem spray;
+        EntityQuery diverQuery;
+        /// <summary>Divers that have hit the water, and when (one splash per dive).</summary>
+        readonly Dictionary<Entity, float> splashed = new Dictionary<Entity, float>();
         WeatherValues weatherHere;
         float nightHere;
 
@@ -103,6 +108,8 @@ namespace Punchy.Ambience
             heatMap = null;
             hasHeatMap = false;
             if (puffs != null) Destroy(puffs.gameObject);
+            if (spray != null) Destroy(spray.gameObject);
+            splashed.Clear();
             Shader.SetGlobalFloat(HeatId, 0f);
             Shader.SetGlobalVector(CrittersId, Vector4.zero);
             if (HeatHaze != null) HeatHaze.SetActive(false);
@@ -121,6 +128,7 @@ namespace Punchy.Ambience
             UpdateConditions(source, player.Position);
             UpdatePuffs(source, player, grounded);
             UpdateOthers(source, cam != null ? (float3)cam.transform.position : player.Position);
+            UpdateSplashes(source);
         }
 
         // ------------------------------------------------------------------------------------------- setup
@@ -140,6 +148,8 @@ namespace Punchy.Ambience
                 terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
                 paletteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
                 playerQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>(), ComponentType.ReadOnly<PlayerMotion>());
+                diverQuery = em.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Fauna.CreatureState>(), ComponentType.ReadOnly<Punchy.Fauna.CreatureBody>());
+                splashed.Clear();
                 othersQuery = em.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Net.NetPlayer>(), ComponentType.ReadOnly<Punchy.Net.NetPlayerLook>(),
                     ComponentType.ReadOnly<LocalTransform>());
                 others.Clear();
@@ -420,6 +430,66 @@ namespace Punchy.Ambience
             }
             else
                 b.StepDistance = 0f;
+        }
+
+        /// <summary>
+        /// A bird of prey diving at a fish (as every machine sees it: hunting, in the air, pitched steeply down)
+        /// throws up a burst of spray as it reaches the water.
+        /// </summary>
+        void UpdateSplashes(in TerrainSource source)
+        {
+            if (PuffMaterial == null || diverQuery.IsEmpty)
+                return;
+            var states = diverQuery.ToComponentDataArray<Punchy.Fauna.CreatureState>(Allocator.Temp);
+            var entities = diverQuery.ToEntityArray(Allocator.Temp);
+            for (int i = 0; i < states.Length; i++)
+            {
+                var c = states[i];
+                if (c.Mode != Punchy.Fauna.CreatureMode.Hunt || c.Fly < 0.5f || c.Vertical > -0.4f)
+                    continue;
+                if (splashed.TryGetValue(entities[i], out var when) && Time.time - when < 5f)
+                    continue;
+                var g = source.SampleGround(c.Position.xz);
+                if (!g.HasWater || c.Position.y - g.WaterSurface > 0.5f)
+                    continue;
+                splashed[entities[i]] = Time.time;
+                Debug.Log($"Ambience: a diving bird hit the water at ({c.Position.x:F0}, {c.Position.z:F0})");
+                if (spray == null)
+                    spray = CreateSpraySystem(PuffMaterial);
+                var at = new Vector3(c.Position.x, g.WaterSurface + 0.05f, c.Position.z);
+                var size = math.max(c.Scale, 1f);
+                for (int k = 0; k < 40; k++)
+                {
+                    var outward = UnityEngine.Random.insideUnitCircle * 1.6f;
+                    spray.Emit(new ParticleSystem.EmitParams
+                    {
+                        position = at + new Vector3(outward.x, 0f, outward.y) * 0.1f * size,
+                        velocity = new Vector3(outward.x, UnityEngine.Random.Range(2f, 4.5f), outward.y) * (0.6f + 0.15f * size),
+                        startSize = UnityEngine.Random.Range(0.05f, 0.13f) * size * 0.5f,
+                        startLifetime = UnityEngine.Random.Range(0.5f, 1f),
+                        startColor = new Color(0.93f, 0.97f, 1f, 0.85f),
+                        applyShapeToPosition = false
+                    }, 1);
+                }
+            }
+            states.Dispose();
+            entities.Dispose();
+            if (splashed.Count > 64)
+                splashed.Clear();
+        }
+
+        /// <summary>Like the puffs, but droplets: they fall back down and don't swell.</summary>
+        static ParticleSystem CreateSpraySystem(Material material)
+        {
+            var ps = CreatePuffSystem(material);
+            ps.gameObject.name = "Spray";
+            var main = ps.main;
+            main.gravityModifier = 1.2f;
+            var size = ps.sizeOverLifetime;
+            size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 0.6f)));
+            var drag = ps.limitVelocityOverLifetime;
+            drag.drag = 0.2f;
+            return ps;
         }
 
         static ParticleSystem CreatePuffSystem(Material material)

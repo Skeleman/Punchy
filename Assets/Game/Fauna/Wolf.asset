@@ -139,7 +139,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: d90bd69ecb3316b42a677afbb0017279, type: 2}
   Hunger: 0.4
   ChaseTime: 10
-  Idles: 2174
+  Idles: 6270
   Fidgets: 0.6
   Climbing: 0
   SpinsWebs: 0

@@ -14,13 +14,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.LimbType
   Role: 6
   Segments:
-  - Length: 0.06
-    RadiusStart: 0.012
+  - Length: 0.05
+    RadiusStart: 0.014
     RadiusEnd: 0.001
     Flatten: 1
     Accent: 0
     UseFixedColor: 1
-    FixedColor: {r: 0.2, g: 0.18, b: 0.16, a: 1}
+    FixedColor: {r: 0.62, g: 0.55, b: 0.42, a: 1}
+    Glow: 0
+    Hair: 0
   Spring: 0
   JointPhaseStep: 0
   FollowGround: 0
