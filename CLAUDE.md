@@ -207,4 +207,5 @@ Input System. Windows is the only build target so far.
 - MonoBehaviour authoring classes must live in a file named after the class, or subscene baking silently skips
   them.
 - Reimporting an asset or recompiling in play mode rebakes the subscene and resets the game. Test with builds:
-  `BuildGame.Windows`, then run `Builds/Windows/Punchy.exe -join 127.0.0.1` against an editor host.
+  File → Build Profiles → Windows → Build to `Builds/Windows/Punchy.exe` (or a throwaway `BuildPipeline.BuildPlayer`
+  script run through `unity command script run`; none is kept in the repo), then run `Builds/Windows/Punchy.exe -join 127.0.0.1` against an editor host.

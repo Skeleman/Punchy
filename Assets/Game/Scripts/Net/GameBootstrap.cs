@@ -32,15 +32,23 @@ namespace Punchy.Net
         {
             if (!DetermineIfBootstrappingEnabled())
                 return false;
-            AutoConnectPort = Port;
             var join = JoinAddressFromCommandLine();
             if (join != null && NetworkEndpoint.TryParse(join, Port, out var endpoint))
             {
-                DefaultConnectAddress = endpoint;
-                CreateClientWorld("ClientWorld");
+                // Connect by hand: auto-connect goes by the build's play type (client and server), so it would swap
+                // the host's address for loopback.
+                AutoConnectPort = 0;
+                PendingPlacement = Placement.NearHost;
+                var client = CreateClientWorld("ClientWorld");
+                using (var query = client.EntityManager.CreateEntityQuery(ComponentType.ReadWrite<NetworkStreamDriver>()))
+                    query.GetSingletonRW<NetworkStreamDriver>().ValueRW.Connect(client.EntityManager, endpoint);
+                Debug.Log($"GameBootstrap: joining {endpoint}");
             }
             else
+            {
+                AutoConnectPort = Port;
                 CreateDefaultClientServerWorlds();
+            }
             MakeClientDefault();
             return true;
         }

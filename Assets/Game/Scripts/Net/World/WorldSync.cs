@@ -193,6 +193,8 @@ namespace Punchy.Net
                     Debug.LogWarning($"WorldSync: a player built a different world ({theirs:X8}, ours {ours:X8}): seed, biomes or species differ. Disconnecting them.");
                     em.AddComponent<NetworkStreamRequestDisconnect>(connection);
                 }
+                else if (em.Exists(connection))
+                    Debug.Log($"WorldSync: player {em.GetComponentData<NetworkId>(connection).Value} has the same world ({theirs:X8}); welcome");
                 em.DestroyEntity(r);
             }
             requests.Dispose();
@@ -213,6 +215,7 @@ namespace Punchy.Net
                 if (signature == 0)
                     continue;   // world not loaded yet
                 checkedConnections.Add(connection);
+                Debug.Log($"WorldSync: in game as player {em.GetComponentData<NetworkId>(connection).Value}; sending world check {signature:X8}");
                 var rpc = em.CreateEntity(typeof(WorldCheckRpc), typeof(SendRpcCommandRequest));
                 em.SetComponentData(rpc, new WorldCheckRpc { Signature = signature });
                 em.SetComponentData(rpc, new SendRpcCommandRequest { TargetConnection = connection });
