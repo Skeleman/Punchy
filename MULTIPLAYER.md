@@ -457,3 +457,28 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
     - **A `-weatherseed <n>` test flag:** call `Random.InitState(n)` before `PickDayType` and before
       `WeatherField.Initialize`. It would make perf runs comparable. It's about 10 lines in `Weather/`; proposing
       it to A rather than committing.
+- 2026-10-27 — B — **`-weatherseed <n>` added** (b64275f). It seeds `UnityEngine.Random` before the day type is
+  picked and again before the weather field starts.
+- 2026-10-27 — B — **Where the weather costs fps on a weak GPU: the rain and dust haze in every surface shader.**
+  - Method: a temporary bench build switched one cost off at a time (nothing committed). Solo, ElfGrove, noon,
+    1280x720, about 65 s per run with the first 30 s skipped.
+  - Seed 1 is a Stormy day. Seed 4 is Partly cloudy.
+
+    | Seed 1 (Stormy) | fps |
+    |---|---|
+    | Everything on | 25–27 |
+    | No volumetric cloud march | 26 (no change) |
+    | No precipitation particles | 25.5 (no change) |
+    | No SSAO | 25 (no change) |
+    | **No rain/dust haze** (`PunchyWeatherVolumes`) | **46** |
+    | Haze at 4 steps instead of 8 | 29 |
+    | Haze without the horizon march | 27 |
+    | **Both of those** | **37** |
+    | Render scale 0.75 | 32 |
+
+  - Seed 4 (Partly cloudy): 38 fps → 45 with the haze off. So it costs even on fair days, whenever any rain or dust
+    cell lies within 8 km.
+  - **Why:** `PunchyAtmosphere` runs per pixel in 12 surface shaders: terrain, grass, flora, creatures, water,
+    pebbles and the effects. Each call marches 8 steps toward the surface plus 8 more along the horizon, each step
+    a weather-map read, a cloud-shape read and three value noises. Grass and flora overdraw multiplies it.
+  - Proposed fixes are with A; nothing in `Weather/` or the shaders has changed.
