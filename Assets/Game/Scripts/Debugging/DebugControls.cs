@@ -91,12 +91,20 @@ namespace Punchy.Debugging
             launchOptionsApplied = true;
             Debug.Log("DebugControls: places: " + string.Join(", ", locations.ConvertAll(l => l.Name)));
             var args = System.Environment.GetCommandLineArgs();
+            // "-incave": on the floor of the nearest cave's deepest chamber (after any -place).
+            var inCave = System.Array.IndexOf(args, "-incave") >= 0;
+            // "-nohud": no readout (for screenshots).
+            if (System.Array.IndexOf(args, "-nohud") >= 0)
+                ShowReadout = false;
             for (int i = 0; i < args.Length - 1; i++)
             {
                 if (args[i] == "-time" && Cycle != null && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var hours))
                     Cycle.TimeOfDay = Mathf.Repeat(hours, 24f);
                 if (args[i] == "-watch")
                     watchSpecies = args[i + 1];
+                // "-timescale 4": everything runs four times as fast (a dusk, a burrow cycle, a roost in seconds).
+                if (args[i] == "-timescale" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var scale))
+                    Time.timeScale = Mathf.Clamp(scale, 0.1f, 20f);
                 if (args[i] == "-spawn")
                     pendingSpawns.Add(args[i + 1]);
                 if (args[i] == "-place")
@@ -110,6 +118,30 @@ namespace Punchy.Debugging
                     }
                 }
             }
+            if (inCave && EnsureLocations(out var source))
+                GoIntoCave(source);
+        }
+
+        /// <summary>Puts the player on the floor of the deepest chamber of the cave whose mouth is nearest.</summary>
+        void GoIntoCave(in TerrainSource source)
+        {
+            if (!source.Caves.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            ref var set = ref source.Caves.Value;
+            var em = queryWorld.EntityManager;
+            var at = em.GetComponentData<LocalTransform>(player);
+            var best = -1;
+            for (int i = 0; i < set.Caves.Length; i++)
+                if (set.Caves[i].NodeCount >= 2 && (best < 0 || math.distance(set.Caves[i].Mouth, at.Position) < math.distance(set.Caves[best].Mouth, at.Position)))
+                    best = i;
+            if (best < 0)
+                return;
+            ref var cave = ref set.Caves[best];
+            var node = set.Nodes[cave.FirstNode + cave.NodeCount - 1];
+            var floor = source.FloorUnder(node.Position, out var inCave);
+            at.Position = new float3(node.Position.x, inCave ? floor + 0.05f : node.Position.y, node.Position.z);
+            em.SetComponentData(player, at);
+            Debug.Log($"DebugControls: into cave {best}, chamber floor at ({at.Position.x:F0}, {at.Position.y:F0}, {at.Position.z:F0})");
         }
 
         /// <summary>

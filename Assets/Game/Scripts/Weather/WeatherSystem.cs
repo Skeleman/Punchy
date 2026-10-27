@@ -25,6 +25,8 @@ namespace Punchy.Weather
         [Tooltip("The first preset is the fair-weather background between cells.")]
         public List<WeatherPreset> Presets = new List<WeatherPreset>();
         public Light Sun;
+        LightShadows baseSunShadows = LightShadows.Soft;
+        bool sunShadowsOff;
         [Tooltip("Shader for rain, snow, hail and dust particles. Referenced here so builds include it.")]
         public Shader PrecipitationShader;
         [Tooltip("Shader that marches the rain and dust haze into a small table once a frame (HazeLut). Referenced here so builds include it.")]
@@ -169,6 +171,7 @@ namespace Punchy.Weather
             if (Sun == null)
                 Sun = RenderSettings.sun;
             baseSunIntensity = Sun != null ? Sun.intensity : 1f;
+            baseSunShadows = Sun != null ? Sun.shadows : LightShadows.Soft;
             rain = CreateParticles("Rain", ParticleSystemRenderMode.Stretch, 15000, 1.4f, 0.025f, new Color(0.85f, 0.9f, 1f, 0.4f), new Vector3(60f, 1f, 60f), 1f);
             snow = CreateParticles("Snow", ParticleSystemRenderMode.Billboard, 25000, 9f, 0.07f, new Color(1f, 1f, 1f, 0.9f), new Vector3(50f, 1f, 50f), 0f);
             var snowNoise = snow.noise;
@@ -467,6 +470,16 @@ namespace Punchy.Weather
                 }
                 Sun.intensity = baseSunIntensity * strength * (1f - 0.7f * s.Dust);
                 Sun.shadowStrength = math.lerp(0.25f, 1f, 1f - s.Coverage * 0.6f) * (1f - 0.6f * s.Dust);
+                // Deep in a cave no sunlight reaches anything, so skip the sun's shadow pass (several ms of shadow
+                // draws for nothing); with a margin either way, so it doesn't flicker at a cave's mouth.
+                var underground = Punchy.Terrain.CaveSystem.Underground;
+                if (underground > 0.95f)
+                    sunShadowsOff = true;
+                else if (underground < 0.8f)
+                    sunShadowsOff = false;
+                var shadows = sunShadowsOff ? LightShadows.None : baseSunShadows;
+                if (Sun.shadows != shadows)
+                    Sun.shadows = shadows;
             }
         }
 
