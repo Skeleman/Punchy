@@ -76,7 +76,32 @@ namespace Punchy.Net
             var role = NetWorlds.Server != null ? "host" : "joined";
             Debug.Log($"Net status ({role}): in game {Count<NetworkStreamInGame>(client) > 0}, players {Count<NetPlayer>(client)}, " +
                       $"animals {Count<Punchy.Net.CreatureReplica>(client)} ({AnimalsWithBodies(client, out var nearest)} with bodies, nearest {nearest:F0} m), " +
-                      $"time {time}, {1f / Time.smoothDeltaTime:F0} fps");
+                      $"time {time}, {1f / Time.smoothDeltaTime:F0} fps, {Whereabouts(client)}");
+        }
+
+        /// <summary>Where we are, and how far the nearest other player is (for reading tests from the log).</summary>
+        static string Whereabouts(World world)
+        {
+            var em = world.EntityManager;
+            using var players = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
+            if (!players.TryGetSingleton<LocalTransform>(out var me))
+                return "no player";
+            using var ghosts = em.CreateEntityQuery(ComponentType.ReadOnly<NetPlayer>(), ComponentType.ReadOnly<LocalTransform>());
+            var entities = ghosts.ToEntityArray(Unity.Collections.Allocator.Temp);
+            var nearest = float.PositiveInfinity;
+            foreach (var e in entities)
+            {
+                if (em.HasComponent<GhostOwnerIsLocal>(e) && em.IsComponentEnabled<GhostOwnerIsLocal>(e))
+                    continue;
+                var p = em.GetComponentData<LocalTransform>(e).Position;
+                if (math.lengthsq(p) > 1e-6f)
+                    nearest = math.min(nearest, math.distance(p, me.Position));
+            }
+            entities.Dispose();
+            var ambience = FindAnyObjectByType<Punchy.Ambience.AmbienceSystem>();
+            return $"at ({me.Position.x:F0}, {me.Position.y:F0}, {me.Position.z:F0})" +
+                   (float.IsPositiveInfinity(nearest) ? "" : $", nearest player {nearest:F0} m") +
+                   (ambience != null ? $", cold {ambience.Cold:F2}, others nearby {ambience.OthersNearby} ({ambience.OthersBreathing} breathing)" : "");
         }
 
         /// <summary>Replicated animals that have been given a body to draw, and how far the nearest one is from us.</summary>
@@ -215,6 +240,7 @@ namespace Punchy.Net
                 placementDeadline = Time.unscaledTime + 15f;
             if (Time.unscaledTime > placementDeadline)
             {
+                Debug.Log($"NetMenu: gave up placing the player ({placement}): no host position arrived");
                 GameBootstrap.PendingPlacement = GameBootstrap.Placement.None;
                 placementDeadline = -1f;
                 return;
@@ -256,6 +282,7 @@ namespace Punchy.Net
             var t = em.GetComponentData<LocalTransform>(player);
             t.Position = new float3(target.x, source.SampleHeight(target) + 0.2f, target.y);
             em.SetComponentData(player, t);
+            Debug.Log($"NetMenu: placed the player ({placement}) at ({t.Position.x:F0}, {t.Position.y:F0}, {t.Position.z:F0})");
             GameBootstrap.PendingPlacement = GameBootstrap.Placement.None;
             placementDeadline = -1f;
         }

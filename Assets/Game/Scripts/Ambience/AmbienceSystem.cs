@@ -55,6 +55,9 @@ namespace Punchy.Ambience
         public float Night { get; private set; }
         public float Fog { get; private set; }
         public float Dust { get; private set; }
+        /// <summary>Other players near enough to show breath and footprints, and how many of them are in the cold.</summary>
+        public int OthersNearby { get; private set; }
+        public int OthersBreathing { get; private set; }
 
         static readonly int HeatId = Shader.PropertyToID("_PunchyHeat");
         static readonly int HeatMapId = Shader.PropertyToID("_PunchyHeatMap");
@@ -312,6 +315,7 @@ namespace Punchy.Ambience
                 return;
             foreach (var b in others.Values)
                 b.Seen = false;
+            OthersNearby = OthersBreathing = 0;
             var em = queryWorld.EntityManager;
             var entities = othersQuery.ToEntityArray(Allocator.Temp);
             foreach (var e in entities)
@@ -328,6 +332,9 @@ namespace Punchy.Ambience
                 var ground = source.SampleGround(t.Position.xz);
                 var snow = source.SampleSurface(t.Position.xz, ground, source.SampleNormal(t.Position.xz, 1f)).Snow;
                 var cold = ColdAt(source, ground.Height, snow, AmbienceAt(ground.Biomes));
+                OthersNearby++;
+                if (cold > BreathThreshold)
+                    OthersBreathing++;
                 Puff(b, source, t, em.GetComponentData<Punchy.Net.NetPlayerLook>(e).Grounded, cold);
             }
             entities.Dispose();

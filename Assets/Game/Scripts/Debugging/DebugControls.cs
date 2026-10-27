@@ -48,6 +48,7 @@ namespace Punchy.Debugging
 
         void Update()
         {
+            ApplyLaunchOptions();
             var keyboard = Keyboard.current;
             if (keyboard == null)
                 return;
@@ -59,6 +60,37 @@ namespace Punchy.Debugging
                 Cycle.TimeOfDay = Mathf.Repeat(Cycle.TimeOfDay + 2f, 24f);
             if (keyboard.nKey.wasPressedThisFrame)
                 Jump(keyboard.shiftKey.isPressed ? -1 : 1);
+        }
+
+        // Once per run (statics survive the scene reloads that hosting and joining do).
+        static bool launchOptionsApplied;
+
+        /// <summary>
+        /// For unattended tests: "-time 22" sets the clock, "-place summit" starts at the first preset location whose
+        /// name contains the word (the list is logged).
+        /// </summary>
+        void ApplyLaunchOptions()
+        {
+            if (launchOptionsApplied || !EnsureLocations(out _))
+                return;
+            launchOptionsApplied = true;
+            Debug.Log("DebugControls: places: " + string.Join(", ", locations.ConvertAll(l => l.Name)));
+            var args = System.Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (args[i] == "-time" && Cycle != null && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var hours))
+                    Cycle.TimeOfDay = Mathf.Repeat(hours, 24f);
+                if (args[i] == "-place")
+                {
+                    var index = locations.FindIndex(l => l.Name.IndexOf(args[i + 1], System.StringComparison.OrdinalIgnoreCase) >= 0);
+                    if (index >= 0)
+                    {
+                        current = index - 1;
+                        Jump(1);
+                        Debug.Log($"DebugControls: started at {locations[index].Name}");
+                    }
+                }
+            }
         }
 
         /// <summary>Teleports the player to the next (or previous) preset location.</summary>
