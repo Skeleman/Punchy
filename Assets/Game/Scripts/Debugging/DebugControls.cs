@@ -398,7 +398,7 @@ namespace Punchy.Debugging
                     watchStage = c.Stage;
                     // A hunter drawing back and throwing: worth a picture.
                     if (shotDir != null && c.Mode == CreatureMode.Hunt && (c.Stage == FolkHunting.Aim || c.Stage == FolkHunting.Throw))
-                        ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(shotDir, $"hunt-{c.Stage}-{++watchShots}.png"));
+                        Shot($"hunt-{c.Stage}-{++watchShots}.png");
                 }
                 var aloft = c.Position.y - terrainQuery.GetSingleton<TerrainSource>().SampleHeight(c.Position.xz) > 1f;
                 ref var watchedBody = ref em.GetComponentData<CreatureBody>(watched).Blob.Value;
@@ -573,7 +573,7 @@ namespace Punchy.Debugging
             // Its own screenshots: being petted or just picked up, then (carrying) on the move.
             foreach (var at in new[] { 2.5f, 4f, 6f })
                 if (shotDir != null && elapsed > at && elapsed - Time.deltaTime <= at)
-                    ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(shotDir, $"interact-{parts[0]}-{(carry ? "carry" : "pet")}-{at * 10f:F0}.png"));
+                    Shot($"interact-{parts[0]}-{(carry ? "carry" : "pet")}-{at * 10f:F0}.png");
             // Carrying: turn and walk a few metres (by stepping), then put it down.
             if (carry && s.Mode == CreatureMode.Held && elapsed > 4f && elapsed < 8f)
             {
@@ -592,6 +592,10 @@ namespace Punchy.Debugging
                 ThirdPersonCamera.WatchTarget = null;
             }
         }
+
+        /// <summary>A test's own screenshot into -shotdir, at least 1280 wide (a small Game view is rendered larger).</summary>
+        static void Shot(string name) =>
+            ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(shotDir, name), Mathf.Max(1, Mathf.CeilToInt(1280f / Mathf.Max(Screen.width, 1))));
 
         /// <summary>Teleports the player to the next (or previous) preset location.</summary>
         public void Jump(int step)
