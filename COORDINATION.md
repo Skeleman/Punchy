@@ -65,7 +65,7 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
 | Session | Task | State |
 |---|---|---|
 | Animal behavior manager | Lairs (nests at Nest anchors); then bat rework (J-013) | In progress |
-| world feature manager | Underground water check and push (WIP 8212cce); then glowing flora and mossy shrubs | In progress |
+| world feature manager | Wet band (Terrain.shader), stream follow-up; then phase 4 towns | In progress |
 | kind-possum | Route determinism, WeatherField MapJob fix, round 5 | In progress |
 
 ## Shared-file queue
@@ -73,6 +73,7 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
 | # | File | Session | Why | State |
 |---|---|---|---|---|
 | 1 | `CLAUDE.md` | Animal behavior manager | Pointer to `GLOSSARY.md` (J-004) | Written, uncommitted, waiting on Zach's direct word |
+| 2 | `Shaders/Terrain.shader` | world feature manager | Wet band above the waterline (3b), additive, own commit, animal session told | Lent |
 
 ## Open questions
 
