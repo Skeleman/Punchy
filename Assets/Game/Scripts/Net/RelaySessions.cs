@@ -1,5 +1,7 @@
 using System;
 using System.Threading.Tasks;
+using Unity.Entities;
+using Unity.NetCode;
 using Unity.Services.Authentication;
 using Unity.Services.Core;
 using Unity.Services.Relay;
@@ -96,8 +98,20 @@ namespace Punchy.Net
             {
                 Status = Explain(e);
                 Debug.LogWarning($"RelaySessions: couldn't join {code}: {e}");
+                // Launched with -joincode there's no game of our own yet: start one rather than stand in an empty world.
+                if (NetWorlds.Server == null && !InGame())
+                    GameBootstrap.Host();
             }
             Busy = false;
+        }
+
+        static bool InGame()
+        {
+            var client = NetWorlds.Client;
+            if (client == null || !client.IsCreated)
+                return false;
+            using var query = client.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<NetworkStreamInGame>());
+            return !query.IsEmpty;
         }
 
         /// <summary>Hosting or joining any other way ends the online game's code.</summary>

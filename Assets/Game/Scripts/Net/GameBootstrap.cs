@@ -44,6 +44,12 @@ namespace Punchy.Net
                     query.GetSingletonRW<NetworkStreamDriver>().ValueRW.Connect(client.EntityManager, endpoint);
                 Debug.Log($"GameBootstrap: joining {endpoint}");
             }
+            else if (HasArgument("-joincode"))
+            {
+                // An online join replaces the worlds as soon as Relay answers; just a client until then.
+                AutoConnectPort = 0;
+                CreateClientWorld("ClientWorld");
+            }
             else
             {
                 AutoConnectPort = Port;
@@ -61,6 +67,8 @@ namespace Punchy.Net
                     return args[i + 1];
             return null;
         }
+
+        static bool HasArgument(string name) => Array.IndexOf(Environment.GetCommandLineArgs(), name) >= 0;
 
         static void MakeClientDefault()
         {

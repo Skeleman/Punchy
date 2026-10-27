@@ -334,7 +334,7 @@ namespace Punchy.Debugging
             if (Cycle != null)
             {
                 var hours = (int)Cycle.TimeOfDay;
-                lines.Add($"time {hours:00}:{(int)((Cycle.TimeOfDay - hours) * 60f):00}");
+                lines.Add($"time {hours:00}:{(int)((Cycle.TimeOfDay - hours) * 60f):00}   {1f / Time.smoothDeltaTime:F0} fps");
             }
             lines.Add("<color=#bbbbbb>N/Shift+N place · B day type · Y +2 h · T fast time · ] force weather · [ clear · F1 hide</color>");
 

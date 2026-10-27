@@ -55,8 +55,29 @@ namespace Punchy.Net
         bool wasInGame;
         float lostAt = -1f;
 
+        // A status line in the player log every so often, so a test can be read from the log alone.
+        float nextStatus;
+        Punchy.Weather.DayNightCycle cycle;
+
+        void LogStatus()
+        {
+            if (Time.unscaledTime < nextStatus)
+                return;
+            nextStatus = Time.unscaledTime + 10f;
+            var client = NetWorlds.Client;
+            if (client == null || !client.IsCreated || !client.IsClient())
+                return;
+            if (cycle == null)
+                cycle = FindAnyObjectByType<Punchy.Weather.DayNightCycle>();
+            var time = cycle != null ? $"{(int)cycle.TimeOfDay:00}:{(int)((cycle.TimeOfDay % 1f) * 60f):00}" : "?";
+            var role = NetWorlds.Server != null ? "host" : "joined";
+            Debug.Log($"Net status ({role}): in game {Count<NetworkStreamInGame>(client) > 0}, players {Count<NetPlayer>(client)}, " +
+                      $"animals {Count<Punchy.Net.CreatureReplica>(client)}, time {time}, {1f / Time.smoothDeltaTime:F0} fps");
+        }
+
         void Update()
         {
+            LogStatus();
             PlaceLocalPlayer();
             WatchForHostLeaving();
             if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.f2Key.wasPressedThisFrame)
