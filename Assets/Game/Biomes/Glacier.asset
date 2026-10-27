@@ -1,0 +1,134 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6eba43088e24ee94090ce3f49291f267, type: 3}
+  m_Name: Glacier
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.BiomeDefinition
+  MapColor: {r: 0.55, g: 0.85, b: 1, a: 1}
+  Frequency: 1.2
+  Altitude: {x: 0.72, y: 1}
+  Temperature: {x: 0, y: 0.12}
+  Humidity: {x: 0.3, y: 1}
+  Volcanism: {x: 0, y: 0.1}
+  BaseElevation: 120
+  Shape: 0
+  Relief: 90
+  FeatureSize: 700
+  Octaves: 4
+  Sharpness: 0.8
+  TerraceSteps: 0
+  WindDirection: 60
+  Rainfall: 0.25
+  WaterMurk: 0
+  WaterColor: {r: 0.2, g: 0.35, b: 0.2, a: 1}
+  WaterGlow: 0
+  WaterLava: 0
+  Weather:
+  - Preset: {fileID: 11400000, guid: c387c3aae44eb0a4696f7e8a0739110d, type: 2}
+    Chance: 1.5
+  - Preset: {fileID: 11400000, guid: 28af6bbd1c228fc409ad3b95dd96369f, type: 2}
+    Chance: 3
+  - Preset: {fileID: 11400000, guid: 7771effdbe3750c469548baca5cddc21, type: 2}
+    Chance: 1
+  - Preset: {fileID: 11400000, guid: 2fefebb67f2c6234f8ed2a4d78ebd50b, type: 2}
+    Chance: 0.1
+  - Preset: {fileID: 11400000, guid: fc0d48c1d1e5e2a47a7158bedc4b2a0a, type: 2}
+    Chance: 1.5
+  - Preset: {fileID: 11400000, guid: a4caf408c1a9d1542b1780825fb488c9, type: 2}
+    Chance: 2
+  - Preset: {fileID: 11400000, guid: b286ddfaf2340f145a3f219b8b4f7a57, type: 2}
+    Chance: 0.6
+  BaseSurface: {fileID: 11400000, guid: 25556895e51119e4ead9eaf3f9db9839, type: 2}
+  Layers:
+  - Surface: {fileID: 11400000, guid: f400b485b7c3ba4469e2f2f7f842e1aa, type: 2}
+    UseSlope: 1
+    SlopeRange: {x: 14, y: 90}
+    SlopeBlend: 6
+    UseHeight: 0
+    HeightRange: {x: 80, y: 10000}
+    HeightBlend: 8
+    UseWaterDepth: 0
+    WaterDepthRange: {x: -2, y: 10000}
+    WaterDepthBlend: 1
+    OnlyInRivers: 0
+    UsePatches: 0
+    PatchSize: 40
+    PatchCoverage: 0.4
+    EdgeNoise: 0.6
+    Opacity: 1
+  - Surface: {fileID: 11400000, guid: f400b485b7c3ba4469e2f2f7f842e1aa, type: 2}
+    UseSlope: 0
+    SlopeRange: {x: 35, y: 90}
+    SlopeBlend: 5
+    UseHeight: 0
+    HeightRange: {x: 80, y: 10000}
+    HeightBlend: 8
+    UseWaterDepth: 0
+    WaterDepthRange: {x: -2, y: 10000}
+    WaterDepthBlend: 1
+    OnlyInRivers: 0
+    UsePatches: 1
+    PatchSize: 60
+    PatchCoverage: 0.25
+    EdgeNoise: 0.5
+    Opacity: 0.8
+  - Surface: {fileID: 11400000, guid: 1753ba8fc7f960b43a8b3d37e34c11a4, type: 2}
+    UseSlope: 1
+    SlopeRange: {x: 42, y: 90}
+    SlopeBlend: 5
+    UseHeight: 0
+    HeightRange: {x: 80, y: 10000}
+    HeightBlend: 8
+    UseWaterDepth: 0
+    WaterDepthRange: {x: -2, y: 10000}
+    WaterDepthBlend: 1
+    OnlyInRivers: 0
+    UsePatches: 0
+    PatchSize: 40
+    PatchCoverage: 0.4
+    EdgeNoise: 0.5
+    Opacity: 1
+  Heat: 0
+  Cold: 1
+  Fireflies: 0
+  Butterflies: 0.1
+  Particles:
+  - Type: {fileID: 11400000, guid: 27a1ceebb4c0878498b62c3d35774e37, type: 2}
+    Density: 1.5
+  Flora: []
+  Landmarks:
+  - Type: {fileID: 11400000, guid: 0f21af3c3ff261a4090accd0165cce42, type: 2}
+    Density: 0.5
+  - Type: {fileID: 11400000, guid: 51c63ce05e3feab468de0aaaefef529a, type: 2}
+    Density: 0.8
+  - Type: {fileID: 11400000, guid: bcab05481a0b9b24998783c2371beb08, type: 2}
+    Density: 0.25
+  Fauna:
+  - Species: {fileID: 11400000, guid: 95c27f9bad710144ab7e6bee8a1e05e6, type: 2}
+    Density: 0.4
+  - Species: {fileID: 11400000, guid: be75da16c46401c42981cc0b39f59986, type: 2}
+    Density: 1
+  - Species: {fileID: 11400000, guid: 869ac6b5d6add0d45a009aa906d8f9e9, type: 2}
+    Density: 0.6
+  - Species: {fileID: 11400000, guid: c0733a25a6bab64458eb8c570f83bf7a, type: 2}
+    Density: 0.04
+  - Species: {fileID: 11400000, guid: 2ba8f1aa663ffe446aee91e9ff93b88d, type: 2}
+    Density: 0.08
+  - Species: {fileID: 11400000, guid: b04ad3c11333dd04b9d2ea70a055ca7a, type: 2}
+    Density: 0.6
+  - Species: {fileID: 11400000, guid: 7e4cfb2563527ff448af44073b2c3306, type: 2}
+    Density: 0.2
+  - Species: {fileID: 11400000, guid: 780fa17270efa624da105ca3c3b88967, type: 2}
+    Density: 2
+  - Species: {fileID: 11400000, guid: d45f7e17bc2d30343b502175f0abf9e8, type: 2}
+    Density: 0.1
+  - Species: {fileID: 11400000, guid: 9f55f2cb168921445872a5632fd97816, type: 2}
+    Density: 0.05

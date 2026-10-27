@@ -14,6 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.CaveStyle
   Biomes:
   - {fileID: 11400000, guid: efa1fb2872ceb1d45b6ee561e78c8774, type: 2}
+  - {fileID: 11400000, guid: 20ddf4d9933283446b410b041eced8ef, type: 2}
   Width: 1.1
   Height: 1.1
   Roughness: 0.35
@@ -24,7 +25,7 @@ MonoBehaviour:
   StrataFrequency: 0.25
   Gloss: 0.9
   Metallic: 0
-  Facets: 0.1
+  Facets: 0
   Translucency: 0.85
   GlowColor: {r: 0.3, g: 0.6, b: 1, a: 1}
   Glow: 0.35

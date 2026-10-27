@@ -119,6 +119,14 @@ nothing to sync; immutable (the animal session counts occupancy from its creatur
     flips, worst difference 3.4 cm (stretched profiles); 329 vs 561 ms per 200k managed samples. Chunked walls: 184
     chunks, 322,608 triangles, no open edges below the rim, 4 duplicate triangles (degenerate cells, not seams).
     Looked at in game: LavaTube, Ice, Metallic, Sandstone.
+- 2026-10-27: **Glacier** biome (confirmed by the user: high, cold country). Appended last to the terrain's land
+  biomes (World.unity), so earlier biomes keep their share of each region's roll. Climate: altitude 0.72–1,
+  temperature 0–0.12, humidity 0.3–1; a broad rounded ice sheet (base 120 m, relief 90 m) of snow with GlacierIce on
+  slopes and in patches, rock on cliffs; no plants; Tundra's fauna for now (the animal session may retune); caves of
+  all three sizes at high density, all in the Ice style. Reshuffle on this seed: 24 of 196 regions changed biome — 16
+  became Glacier (11 Tundra, 3 SparklingForest, 2 Mountains) and 8 flipped elsewhere as the draw shifted (7
+  Mountains → Tundra, 1 SparklingForest → FoggyMarsh). Glacier now holds an ice CaveNetwork (418 m, 11 chambers),
+  a cavern and four grottos.
 - 2026-10-27: User roadmap merged (via supervisor): building types sized to inhabitants, roads and signs (moved up
   into phase 4), landscaping and water, leader and religious buildings; cave sizes, per-biome styles (glacier ice
   caves, metallic and crystalline caves in the mystical forest), stalactites, underground rivers, glowing flora; an
