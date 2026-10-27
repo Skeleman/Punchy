@@ -31,6 +31,9 @@ feature code, and it never edits files in another session's checkout.
    stop and report it.
 6. Send questions for Zach to the supervisor, not to Zach, unless Zach must confirm something to you directly.
 7. Use the terms in `GLOSSARY.md`.
+8. Main PC memory: restart your Unity editor (after committing) when it grows past about 10 GB or after heavy
+   recompile runs. Keep Play-mode tests short and exit when done. Ask the supervisor before opening a player or
+   build next to the two editors.
 
 ## Sessions and lanes
 
@@ -62,7 +65,7 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
 | Session | Task | State |
 |---|---|---|
 | Animal behavior manager | Lairs (nests at Nest anchors); then bat rework (J-013) | In progress |
-| world feature manager | Underground water with Pool anchors (uncommitted; blocked on memory for the play-mode check); then glowing flora and mossy shrubs | Blocked |
+| world feature manager | Underground water check and push (WIP 8212cce); then glowing flora and mossy shrubs | In progress |
 | kind-possum | Route determinism, WeatherField MapJob fix, round 5 | In progress |
 
 ## Shared-file queue
@@ -92,3 +95,4 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
   shared (bake calls). On record: World.unity (one line, Glacier in the biome list, ab49284), PlayerMovementSystem
   (lava block added 575986b, removed e9df26b, net zero), Water.shader (lava block). Main PC memory: commit 58/64 GB;
   animal editor restart requested; world session blocked on its subscene load until memory clears.
+- 2026-10-27: Both editors restarted (animal 16.4 to about 7 GB, world 9.6 to 4.6 GB); commit 58.9 to 37 GB. Rule 8 added.
