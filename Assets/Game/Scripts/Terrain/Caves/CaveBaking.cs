@@ -13,6 +13,8 @@ namespace Punchy.Terrain
     public static class CaveBaking
     {
         const float NodeSpacing = 7f;
+        /// <summary>Column size of the segment grid (m): a few passage segments across, so cells stay short.</summary>
+        const float GridCell = 32f;
 
         public static BlobAssetReference<CaveSetBlob> Build(in TerrainSource source, IReadOnlyList<LandmarkType> types, Allocator allocator)
         {
@@ -86,9 +88,66 @@ namespace Punchy.Terrain
             var nodeArray = builder.Allocate(ref root.Nodes, nodes.Count);
             for (int i = 0; i < nodes.Count; i++)
                 nodeArray[i] = nodes[i];
+            BuildGrid(builder, ref root, caves, nodes);
             var blob = builder.CreateBlobAssetReference<CaveSetBlob>(allocator);
             builder.Dispose();
             return blob;
+        }
+
+        /// <summary>
+        /// Splits every cave into its segments and lists each segment in the grid columns its box touches. Segments go
+        /// in cave by cave, so each cell's items stay grouped by cave (sampling relies on it).
+        /// </summary>
+        static void BuildGrid(BlobBuilder builder, ref CaveSetBlob root, List<CaveData> caves, List<CaveNode> nodes)
+        {
+            var segments = new List<CaveSegment>();
+            float2 min = float.MaxValue, max = float.MinValue;
+            for (int c = 0; c < caves.Count; c++)
+                for (int i = 0; i < caves[c].NodeCount - 1; i++)
+                {
+                    var a = nodes[caves[c].FirstNode + i];
+                    var b = nodes[caves[c].FirstNode + i + 1];
+                    var reach = math.max(a.Radius, b.Radius) + CaveSampling.SegmentMargin;
+                    var seg = new CaveSegment
+                    {
+                        Node = caves[c].FirstNode + i,
+                        Cave = c,
+                        Min = math.min(a.Position, b.Position) - reach,
+                        Max = math.max(a.Position, b.Position) + reach
+                    };
+                    segments.Add(seg);
+                    min = math.min(min, seg.Min.xz);
+                    max = math.max(max, seg.Max.xz);
+                }
+
+            var segmentArray = builder.Allocate(ref root.Segments, segments.Count);
+            for (int i = 0; i < segments.Count; i++)
+                segmentArray[i] = segments[i];
+
+            root.GridOrigin = min;
+            root.CellSize = GridCell;
+            var size = (int2)math.ceil((max - min) / GridCell) + 1;
+            root.GridSize = size;
+            var cells = new List<int>[size.x * size.y];
+            for (int i = 0; i < segments.Count; i++)
+            {
+                var c0 = (int2)math.floor((segments[i].Min.xz - min) / GridCell);
+                var c1 = (int2)math.floor((segments[i].Max.xz - min) / GridCell);
+                for (int z = c0.y; z <= c1.y; z++)
+                for (int x = c0.x; x <= c1.x; x++)
+                    (cells[z * size.x + x] ??= new List<int>()).Add(i);
+            }
+            var cellArray = builder.Allocate(ref root.Cells, cells.Length);
+            var items = new List<int>();
+            for (int c = 0; c < cells.Length; c++)
+            {
+                cellArray[c] = new int2(items.Count, cells[c]?.Count ?? 0);
+                if (cells[c] != null)
+                    items.AddRange(cells[c]);
+            }
+            var itemArray = builder.Allocate(ref root.Items, items.Count);
+            for (int i = 0; i < items.Count; i++)
+                itemArray[i] = items[i];
         }
     }
 }
