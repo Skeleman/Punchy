@@ -82,6 +82,39 @@ namespace Punchy.Terrain
                     }
                 }
 
+                // Drinking spots: round each water pool's rim and along a stream's banks, facing the water. None at lava.
+                for (int i = cave.FirstPool; i < cave.FirstPool + cave.PoolCount; i++)
+                {
+                    var pool = set.Pools[i];
+                    if (pool.Lava > 0.5f)
+                        continue;
+                    var start = rng.NextFloat(math.PI * 2f);
+                    for (int k = 0; k < 3; k++)
+                    {
+                        var a = start + k * math.PI * 2f / 3f;
+                        var dir = new float2(math.cos(a), math.sin(a));
+                        var spot = pool.Centre.xz + dir * (pool.Radius * 1.2f + 0.3f);
+                        var ground = source.FloorUnder(new float3(spot.x, pool.Centre.y + 1f, spot.y), out var inCave);
+                        if (inCave && source.CaveDistance(new float3(spot.x, ground + 0.5f, spot.y)) < -0.3f)
+                            anchors.Add(Make(AnchorKind.Pool, new float3(spot.x, ground, spot.y), -dir, 0.8f, 3));
+                    }
+                }
+                for (int s = cave.FirstStream; s < cave.FirstStream + cave.StreamCount; s++)
+                {
+                    var stream = set.Streams[s];
+                    for (int k = 2; k < stream.PointCount - 1; k += 5)
+                    {
+                        var p = set.StreamPoints[stream.FirstPoint + k];
+                        var next = set.StreamPoints[stream.FirstPoint + k + 1].Position;
+                        var along = math.normalizesafe((next - p.Position).xz, new float2(1f, 0f));
+                        var bank = (rng.NextBool() ? 1f : -1f) * new float2(-along.y, along.x);
+                        var spot = p.Position.xz + bank * (p.Width * 0.65f + 0.3f);
+                        var ground = source.FloorUnder(new float3(spot.x, p.Position.y + 1f, spot.y), out var inCave);
+                        if (inCave && source.CaveDistance(new float3(spot.x, ground + 0.5f, spot.y)) < -0.3f)
+                            anchors.Add(Make(AnchorKind.Pool, new float3(spot.x, ground, spot.y), -bank, 0.8f, 2));
+                    }
+                }
+
                 // A nest on the wall just inside the mouth, where the daylight still reaches.
                 var mouth = cave.Mouth;
                 var inward = cave.NodeCount > 1 ? math.normalizesafe((set.Nodes[cave.FirstNode + 1].Position - mouth).xz) : new float2(1f, 0f);

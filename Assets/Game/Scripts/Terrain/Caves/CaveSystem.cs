@@ -209,6 +209,9 @@ namespace Punchy.Terrain
                 if (l.Light != null) Destroy(l.Light.gameObject);
             otherLanterns.Clear();
             Shader.SetGlobalInt(HeatCountId, 0);
+            foreach (var m in streamMeshes)
+                if (m != null) Destroy(m);
+            streamMeshes.Clear();
         }
 
         // ------------------------------------------------------------------------------------------- pools
@@ -219,13 +222,17 @@ namespace Punchy.Terrain
         const int MaxHeat = 16;
         readonly Vector4[] heat = new Vector4[MaxHeat];
         readonly List<(float distance, int pool)> nearPools = new List<(float, int)>();
-        static Mesh poolMesh;
+        static Mesh lavaPoolMesh, waterPoolMesh;
+        /// <summary>Cave water's look in the water vertex layout: dark, clear and cold (rgb, murk).</summary>
+        static readonly float4 CaveWater = new float4(0.1f, 0.28f, 0.3f, 0.1f);
+        /// <summary>One mesh per stream, built when the world's caves are first drawn (streams are few and fixed).</summary>
+        readonly List<Mesh> streamMeshes = new List<Mesh>();
         EntityQuery configQuery;
 
         /// <summary>
-        /// Draws every pool within LoadRadius with the terrain's own water material (lava is its lava path), all with
-        /// one shared disc mesh, and uploads the nearest lava pools so the cave shader can light the walls round them
-        /// warmly without real lights.
+        /// Draws every pool and stream within LoadRadius with the terrain's own water material (lava is its lava path):
+        /// pools with one shared disc mesh each for water and lava, streams with a ribbon mesh each. Uploads the nearest
+        /// lava pools so the cave shader can light the walls round them warmly without real lights.
         /// </summary>
         void DrawPools(in TerrainSource source, float3 camPos)
         {
@@ -238,11 +245,14 @@ namespace Punchy.Terrain
                     nearPools.Add((d, i));
             }
             var heatCount = 0;
-            if (nearPools.Count > 0 && !configQuery.IsEmpty)
+            var water = configQuery.IsEmpty ? null : configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value;
+            if (nearPools.Count > 0)
             {
-                var water = configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value;
-                if (poolMesh == null)
-                    poolMesh = MakePoolMesh();
+                if (lavaPoolMesh == null)
+                {
+                    lavaPoolMesh = MakePoolMesh(new float4(1f, 0.33f, 0.05f, 0.2f), 1f);
+                    waterPoolMesh = MakePoolMesh(CaveWater, 0f);
+                }
                 nearPools.Sort((a, b) => a.distance.CompareTo(b.distance));
                 foreach (var (_, i) in nearPools)
                 {
@@ -255,7 +265,8 @@ namespace Punchy.Terrain
                             shadowCastingMode = ShadowCastingMode.Off,
                             receiveShadows = false
                         };
-                        Graphics.RenderMesh(rp, poolMesh, 0, Matrix4x4.TRS(pool.Centre, Quaternion.identity, new Vector3(pool.Radius, 1f, pool.Radius)));
+                        var mesh = pool.Lava > 0.5f ? lavaPoolMesh : waterPoolMesh;
+                        Graphics.RenderMesh(rp, mesh, 0, Matrix4x4.TRS(pool.Centre, Quaternion.identity, new Vector3(pool.Radius, 1f, pool.Radius)));
                     }
                     if (pool.Lava > 0.5f && heatCount < MaxHeat)
                         heat[heatCount++] = new Vector4(pool.Centre.x, pool.Centre.y + 0.3f, pool.Centre.z, pool.Radius);
@@ -263,13 +274,72 @@ namespace Punchy.Terrain
             }
             Shader.SetGlobalVectorArray(HeatId, heat);
             Shader.SetGlobalInt(HeatCountId, heatCount);
+
+            if (set.Streams.Length == 0 || water == null)
+                return;
+            if (streamMeshes.Count == 0)
+                for (int s = 0; s < set.Streams.Length; s++)
+                    streamMeshes.Add(MakeStreamMesh(ref set, s));
+            for (int s = 0; s < streamMeshes.Count; s++)
+            {
+                var bounds = streamMeshes[s].bounds;
+                if (math.distance((float3)bounds.ClosestPoint(camPos), camPos) > LoadRadius)
+                    continue;
+                var rp = new RenderParams(water) { worldBounds = bounds, shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false };
+                Graphics.RenderMesh(rp, streamMeshes[s], 0, Matrix4x4.identity);
+            }
         }
 
         /// <summary>
-        /// A unit disc in the terrain's water vertex layout, set up as molten lava: no flow, deepest at the middle (the
-        /// lava cools and crusts towards the rim), lava amount 1.
+        /// A stream's water surface: a ribbon along its points, in world space, flowing from first to last. Shallow at
+        /// the banks; rapids where the surface drops quickly, so the water shader's river look carries over.
         /// </summary>
-        static Mesh MakePoolMesh()
+        static Mesh MakeStreamMesh(ref CaveSetBlob set, int index)
+        {
+            ref var stream = ref set.Streams[index];
+            var vertices = new List<WaterVertex>();
+            var indices = new List<int>();
+            var count = stream.PointCount;
+            for (int k = 0; k < count; k++)
+            {
+                ref var p = ref set.StreamPoints[stream.FirstPoint + k];
+                var prev = set.StreamPoints[stream.FirstPoint + math.max(k - 1, 0)].Position;
+                var next = set.StreamPoints[stream.FirstPoint + math.min(k + 1, count - 1)].Position;
+                var along = math.normalizesafe((next - prev).xz, new float2(1f, 0f));
+                var side = new float2(-along.y, along.x) * p.Width * 0.5f;
+                var drop = (prev.y - next.y) / math.max(math.distance(prev.xz, next.xz), 0.1f);
+                var rapids = math.saturate(drop * 3f);
+                foreach (var edge in new[] { -1f, 0f, 1f })
+                    vertices.Add(new WaterVertex
+                    {
+                        Position = p.Position + new float3(side.x, 0f, side.y) * edge,
+                        Data = new float4(along * 0.7f, edge == 0f ? p.Depth : 0.05f, rapids),
+                        Look = CaveWater,
+                        Glow = float2.zero
+                    });
+                if (k == 0)
+                    continue;
+                var a = (k - 1) * 3;
+                var b = k * 3;
+                for (int e = 0; e < 2; e++)
+                {
+                    indices.Add(a + e); indices.Add(b + e); indices.Add(a + e + 1);
+                    indices.Add(a + e + 1); indices.Add(b + e); indices.Add(b + e + 1);
+                }
+            }
+            var mesh = new Mesh { name = "Cave stream" };
+            mesh.SetVertexBufferParams(vertices.Count, WaterVertex.Layout);
+            mesh.SetVertexBufferData(vertices, 0, 0, vertices.Count);
+            mesh.SetIndices(indices, MeshTopology.Triangles, 0);
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        /// <summary>
+        /// A unit disc in the terrain's water vertex layout: no flow, deepest at the middle (lava cools and crusts
+        /// towards the rim), in the given look and lava amount.
+        /// </summary>
+        static Mesh MakePoolMesh(float4 look, float lava)
         {
             const int rings = 6, spokes = 32;
             var vertices = new List<WaterVertex> { Vertex(float2.zero) };
@@ -299,12 +369,12 @@ namespace Punchy.Terrain
             mesh.bounds = new Bounds(Vector3.zero, new Vector3(2f, 1f, 2f));
             return mesh;
 
-            static WaterVertex Vertex(float2 xz) => new WaterVertex
+            WaterVertex Vertex(float2 xz) => new WaterVertex
             {
                 Position = new float3(xz.x, 0f, xz.y),
                 Data = new float4(0f, 0f, 1f - math.lengthsq(xz), 0f),
-                Look = new float4(1f, 0.33f, 0.05f, 0.2f),
-                Glow = new float2(0f, 1f)
+                Look = look,
+                Glow = new float2(0f, lava)
             };
         }
 

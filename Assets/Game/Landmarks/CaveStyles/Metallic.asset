@@ -32,9 +32,10 @@ MonoBehaviour:
   RubbleSize: 0.6
   Moss: 0.1
   MossColor: {r: 0.22, g: 0.32, b: 0.12, a: 1}
-  PoolChance: 0
+  PoolChance: 0.2
   LavaPools: 0
   PoolSize: 0.32
+  StreamChance: 0
   RockColor: {r: 0.7, g: 0.62, b: 0.45, a: 1}
   DarkColor: {r: 0.2, g: 0.18, b: 0.15, a: 1}
   Strata: 0.2

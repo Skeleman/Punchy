@@ -39,6 +39,26 @@ namespace Punchy.Terrain
         /// <summary>The style's Jaggedness, FloorFlatness, FloorSteps and Blockiness.</summary>
         public float4 Rock;
         public int FirstPool, PoolCount;
+        public int FirstStream, StreamCount;
+    }
+
+    /// <summary>
+    /// An underground stream: a chain of points along a passage floor, each with its water surface height (never
+    /// rising along the flow) and channel width. A channel is carved under it, and CaveSystem draws it with the
+    /// terrain's water material, flowing from the first point to the last.
+    /// </summary>
+    public struct CaveStream
+    {
+        public int FirstPoint, PointCount;
+        /// <summary>Box round the channel, to skip it cheaply when sampling.</summary>
+        public float2 Min, Max;
+    }
+
+    public struct CaveStreamPoint
+    {
+        /// <summary>The middle of the water surface.</summary>
+        public float3 Position;
+        public float Width, Depth;
     }
 
     /// <summary>
@@ -92,6 +112,8 @@ namespace Punchy.Terrain
         public BlobArray<CaveNodeKind> Kinds;
         public BlobArray<CaveSegment> Segments;
         public BlobArray<CavePool> Pools;
+        public BlobArray<CaveStream> Streams;
+        public BlobArray<CaveStreamPoint> StreamPoints;
         public float2 GridOrigin;
         public float CellSize;
         public int2 GridSize;
@@ -135,7 +157,7 @@ namespace Punchy.Terrain
         /// nothing that steps by distance overshoots a wall. Out: the floor's height and the capsule's vertical radius
         /// here (for the noise's floor-to-ceiling fade).
         /// </summary>
-        static float Capsule(in CaveNode a, in CaveNode b, float3 p, in CaveData c, float floorShape, out float floorY, out float height)
+        static float Capsule(in CaveNode a, in CaveNode b, float3 p, in CaveData c, float floorShape, float channel, out float floorY, out float height)
         {
             var ab = b.Position - a.Position;
             var t = math.saturate(math.dot(p - a.Position, ab) / math.max(math.lengthsq(ab), 1e-6f));
@@ -151,7 +173,39 @@ namespace Punchy.Terrain
             height = r * stretch;
             // The floor: halfway down at full flatness, sinking below the capsule's bottom (no effect) as flatness goes.
             floorY = centre.y - height * (0.45f + (1f - flat) * 0.65f) + floorShape;
+            // A stream's channel cuts the floor down to its own bed wherever it runs.
+            floorY = math.min(floorY, channel);
             return math.max(d, floorY - p.y);
+        }
+
+        /// <summary>
+        /// The bed of a cave's streams at a spot (absolute height), or a large number away from them: a rounded channel
+        /// under each stretch of each stream, Depth below its surface in the middle, rising to the surface at its banks.
+        /// </summary>
+        static float StreamBed(ref CaveSetBlob set, in CaveData c, float2 xz)
+        {
+            var bed = 1e9f;
+            for (int s = c.FirstStream; s < c.FirstStream + c.StreamCount; s++)
+            {
+                ref var stream = ref set.Streams[s];
+                if (math.any(xz < stream.Min) || math.any(xz > stream.Max))
+                    continue;
+                for (int i = stream.FirstPoint; i < stream.FirstPoint + stream.PointCount - 1; i++)
+                {
+                    ref var a = ref set.StreamPoints[i];
+                    ref var b = ref set.StreamPoints[i + 1];
+                    var ab = b.Position.xz - a.Position.xz;
+                    var t = math.saturate(math.dot(xz - a.Position.xz, ab) / math.max(math.lengthsq(ab), 1e-6f));
+                    var half = math.lerp(a.Width, b.Width, t) * 0.5f;
+                    var across = math.distance(xz, a.Position.xz + ab * t);
+                    if (across >= half * 1.3f)
+                        continue;
+                    var surface = math.lerp(a.Position.y, b.Position.y, t);
+                    var depth = math.lerp(a.Depth, b.Depth, t) * (1f - math.smoothstep(half * 0.6f, half * 1.3f, across));
+                    bed = math.min(bed, surface - depth + 0.05f);
+                }
+            }
+            return bed;
         }
 
         /// <summary>
@@ -236,7 +290,7 @@ namespace Punchy.Terrain
             var range = CellRange(ref set, p.xz);
             var current = -1;
             var d = 1e9f;
-            float floorShape = 0f, nearest = 1e9f, floorY = 0f, height = 1f;
+            float floorShape = 0f, channel = 1e9f, nearest = 1e9f, floorY = 0f, height = 1f;
             for (int k = range.x; k < range.x + range.y; k++)
             {
                 ref var seg = ref set.Segments[set.Items[k]];
@@ -250,8 +304,9 @@ namespace Punchy.Terrain
                     d = 1e9f;
                     nearest = 1e9f;
                     floorShape = FloorShape(ref set, set.Caves[current], p.xz);
+                    channel = set.Caves[current].StreamCount > 0 ? StreamBed(ref set, set.Caves[current], p.xz) : 1e9f;
                 }
-                var ds = Capsule(set.Nodes[seg.A], set.Nodes[seg.B], p, set.Caves[current], floorShape, out var fy, out var h);
+                var ds = Capsule(set.Nodes[seg.A], set.Nodes[seg.B], p, set.Caves[current], floorShape, channel, out var fy, out var h);
                 // The noise fades from floor to ceiling by the nearest passage's own floor and ceiling.
                 if (ds < nearest)
                 {

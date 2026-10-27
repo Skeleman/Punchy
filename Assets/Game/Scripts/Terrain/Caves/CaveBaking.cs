@@ -186,28 +186,99 @@ namespace Punchy.Terrain
 
             if (caves.Count == 0)
                 return default;
-            // Pools and speleothems sit on the finished floors and hang from the finished ceilings, so each is placed
-            // against the caves as built so far, then everything is built again with them: pools first (their basins
-            // change the floors), then speleothems (kept out of the pools).
-            var pools = new List<CavePool>();
-            var speleothems = new List<CaveSpeleothem>();
+            // Pools, streams and speleothems sit on the finished floors and hang from the finished ceilings, so each is
+            // placed against the caves as built so far, then everything is built again with them: water first (basins
+            // and channels change the floors), then speleothems and rubble (kept out of the water).
+            var extras = new Extras();
             var withCaves = source;
-            var bare = BuildBlob(caves, nodes, kinds, segments, pools, speleothems, Allocator.Persistent);
+            var bare = BuildBlob(caves, nodes, kinds, segments, extras, Allocator.Persistent);
             withCaves.Caves = bare;
-            PlacePools(withCaves, caves, nodes, kinds, segments, styles, pools);
+            PlacePools(withCaves, caves, nodes, kinds, segments, styles, extras.Pools);
+            PlaceStreams(withCaves, caves, nodes, segments, styles, extras);
             bare.Dispose();
-            var withPools = BuildBlob(caves, nodes, kinds, segments, pools, speleothems, Allocator.Persistent);
-            withCaves.Caves = withPools;
-            PlaceSpeleothems(withCaves, caves, nodes, kinds, segments, styles, pools, speleothems);
-            PlaceRubble(withCaves, caves, nodes, kinds, segments, styles, pools, speleothems);
-            withPools.Dispose();
-            return BuildBlob(caves, nodes, kinds, segments, pools, speleothems, allocator);
+            var withWater = BuildBlob(caves, nodes, kinds, segments, extras, Allocator.Persistent);
+            withCaves.Caves = withWater;
+            PlaceSpeleothems(withCaves, caves, nodes, kinds, segments, styles, extras.Pools, extras.Speleothems);
+            PlaceRubble(withCaves, caves, nodes, kinds, segments, styles, extras.Pools, extras.Speleothems);
+            withWater.Dispose();
+            return BuildBlob(caves, nodes, kinds, segments, extras, allocator);
+        }
+
+        /// <summary>What's placed in caves after their shape: pools, streams, speleothems (and rubble).</summary>
+        class Extras
+        {
+            public readonly List<CavePool> Pools = new List<CavePool>();
+            public readonly List<CaveStream> Streams = new List<CaveStream>();
+            public readonly List<CaveStreamPoint> StreamPoints = new List<CaveStreamPoint>();
+            public readonly List<CaveSpeleothem> Speleothems = new List<CaveSpeleothem>();
+        }
+
+        /// <summary>
+        /// A stream along the main passage of caves whose style rolls for one, from the second node in (clear of the
+        /// mouth) down to the end chamber. Points every 1.5 m along the passage floor; the surface follows the floor
+        /// but never rises along the flow, so where the floor climbs the channel cuts deeper.
+        /// </summary>
+        static void PlaceStreams(in TerrainSource source, List<CaveData> caves, List<CaveNode> nodes, List<CaveSegment> segments,
+                                 List<CaveStyle> styles, Extras extras)
+        {
+            for (int c = 0; c < caves.Count; c++)
+            {
+                var cave = caves[c];
+                cave.FirstStream = extras.Streams.Count;
+                var style = cave.Style > 0 ? styles[cave.Style - 1] : null;
+                var rng = new Random(math.hash(new int2(c, 0x5711)) | 1u);
+                if (style != null && style.StreamChance > 0f && rng.NextFloat() < style.StreamChance && cave.NodeCount >= 4)
+                {
+                    // The main passage: laid out first, each node joined to the one before it; it ends where that
+                    // stops (the side passages' nodes come next, joined elsewhere).
+                    var path = new List<int> { cave.FirstNode + 1 };
+                    for (int n = cave.FirstNode + 2; n < cave.FirstNode + cave.NodeCount && Joined(n - 1, n, cave, segments); n++)
+                        path.Add(n);
+                    var first = extras.StreamPoints.Count;
+                    var level = float.MaxValue;
+                    float2 min = float.MaxValue, max = float.MinValue;
+                    for (int k = 0; k < path.Count - 1; k++)
+                    {
+                        var a = nodes[path[k]];
+                        var b = nodes[path[k + 1]];
+                        var steps = math.max(1, (int)math.ceil(math.distance(a.Position.xz, b.Position.xz) / 1.5f));
+                        for (int s = 0; s < steps; s++)
+                        {
+                            var t = s / (float)steps;
+                            var at = math.lerp(a.Position, b.Position, t);
+                            var floor = source.FloorUnder(at, out var inCave);
+                            if (!inCave)
+                                continue;
+                            level = math.min(level, floor - 0.08f);
+                            var width = math.clamp(math.lerp(a.Radius, b.Radius, t) * cave.Profile.x * 0.35f, 0.8f, 2f);
+                            extras.StreamPoints.Add(new CaveStreamPoint { Position = new float3(at.x, level, at.z), Width = width, Depth = 0.35f });
+                            min = math.min(min, at.xz - width);
+                            max = math.max(max, at.xz + width);
+                        }
+                    }
+                    if (extras.StreamPoints.Count - first >= 4)
+                        extras.Streams.Add(new CaveStream { FirstPoint = first, PointCount = extras.StreamPoints.Count - first, Min = min, Max = max });
+                    else
+                        extras.StreamPoints.RemoveRange(first, extras.StreamPoints.Count - first);
+                }
+                cave.StreamCount = extras.Streams.Count - cave.FirstStream;
+                caves[c] = cave;
+            }
+        }
+
+        static bool Joined(int a, int b, CaveData cave, List<CaveSegment> segments)
+        {
+            for (int i = cave.FirstSegment; i < cave.FirstSegment + cave.SegmentCount; i++)
+                if (segments[i].A == a && segments[i].B == b)
+                    return true;
+            return false;
         }
 
         static BlobAssetReference<CaveSetBlob> BuildBlob(List<CaveData> caves, List<CaveNode> nodes, List<CaveNodeKind> kinds,
-                                                         List<CaveSegment> segments, List<CavePool> pools,
-                                                         List<CaveSpeleothem> speleothems, Allocator allocator)
+                                                         List<CaveSegment> segments, Extras extras, Allocator allocator)
         {
+            var pools = extras.Pools;
+            var speleothems = extras.Speleothems;
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<CaveSetBlob>();
             var caveArray = builder.Allocate(ref root.Caves, caves.Count);
@@ -222,6 +293,12 @@ namespace Punchy.Terrain
             var poolArray = builder.Allocate(ref root.Pools, pools.Count);
             for (int i = 0; i < pools.Count; i++)
                 poolArray[i] = pools[i];
+            var streamArray = builder.Allocate(ref root.Streams, extras.Streams.Count);
+            for (int i = 0; i < extras.Streams.Count; i++)
+                streamArray[i] = extras.Streams[i];
+            var pointArray = builder.Allocate(ref root.StreamPoints, extras.StreamPoints.Count);
+            for (int i = 0; i < extras.StreamPoints.Count; i++)
+                pointArray[i] = extras.StreamPoints[i];
             BuildGrid(builder, ref root, caves, nodes, segments);
             BuildSpeleothemGrid(builder, ref root, speleothems);
             var blob = builder.CreateBlobAssetReference<CaveSetBlob>(allocator);

@@ -154,7 +154,7 @@ namespace Punchy.EditorTools
                     var ok = a.Kind switch
                     {
                         AnchorKind.Roost => source.CaveDistance(a.Position + new float3(0, 0.3f, 0)) > -0.2f && source.CaveDistance(a.Position - new float3(0, 1f, 0)) < 0f,
-                        AnchorKind.Burrow => math.abs(source.FloorUnder(a.Position + new float3(0, 0.5f, 0), out _) - a.Position.y) < 0.2f,
+                        AnchorKind.Burrow or AnchorKind.Pool => math.abs(source.FloorUnder(a.Position + new float3(0, 0.5f, 0), out _) - a.Position.y) < 0.2f,
                         _ => source.CaveDistance(a.Position) < 0f && source.CaveDistance(a.Position) > -0.6f
                     };
                     if (!ok) misplaced++;

@@ -37,6 +37,7 @@ MonoBehaviour:
   PoolChance: 0
   LavaPools: 0
   PoolSize: 0.32
+  StreamChance: 0.3
   RockColor: {r: 0.82, g: 0.55, b: 0.35, a: 1}
   DarkColor: {r: 0.55, g: 0.3, b: 0.18, a: 1}
   Strata: 0.8
