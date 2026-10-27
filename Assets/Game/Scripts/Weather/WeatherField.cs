@@ -325,6 +325,35 @@ namespace Punchy.Weather
 
         public float LownessAt(Vector2 xz) => Lowness(xz, pressureOffset, pressureTime, Bias);
 
+        // ---------------------------------------------------------------- network state
+
+        /// <summary>One cell's full state, for sending the weather to other machines.</summary>
+        public struct CellState
+        {
+            public Vector2 Position, Drift;
+            public float Radius, Age, Grow, Hold, Fade;
+            public int Preset;
+        }
+
+        public float PressureTime { get => pressureTime; set => pressureTime = value; }
+        public Vector2 PressureOffset { get => pressureOffset; set => pressureOffset = value; }
+
+        public void ExportCells(List<CellState> into)
+        {
+            into.Clear();
+            foreach (var c in cells)
+                into.Add(new CellState { Position = c.Position, Drift = c.Drift, Radius = c.Radius, Age = c.Age, Grow = c.Grow, Hold = c.Hold, Fade = c.Fade, Preset = c.Preset });
+        }
+
+        /// <summary>Replaces the cells with another machine's (the host's).</summary>
+        public void ImportCells(List<CellState> from)
+        {
+            cells.Clear();
+            foreach (var c in from)
+                if (c.Preset >= 0 && presets != null && c.Preset < presets.Count)
+                    cells.Add(new Cell { Position = c.Position, Drift = c.Drift, Radius = c.Radius, Age = c.Age, Grow = c.Grow, Hold = c.Hold, Fade = c.Fade, Preset = c.Preset });
+        }
+
         static bool IsStormy(WeatherPreset p) => p.LightningPerMinute > 1f || p.Hail > 0f;
 
         /// <summary>Picks a random place and lets the local biome odds (and pressure) decide what, if anything, forms there.</summary>

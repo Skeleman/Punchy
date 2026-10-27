@@ -108,6 +108,19 @@ namespace Punchy.Weather
 
         /// <summary>The world's weather (cells, maps, sampling).</summary>
         public WeatherField Field => field;
+
+        /// <summary>
+        /// Set on a client that joined someone else's game: the weather is the host's (WorldSync copies it in every
+        /// frame), so nothing forms or changes here by itself, and lightning strikes only when the host's does.
+        /// </summary>
+        [System.NonSerialized] public bool Remote;
+        /// <summary>A strike rolled here (on the host), for WorldSync to send to everyone else.</summary>
+        public event System.Action<Vector3> Struck;
+        readonly Queue<Vector3> remoteStrikes = new Queue<Vector3>();
+        public void Strike(Vector3 position) => remoteStrikes.Enqueue(position);
+        public int DayTypeIndex => dayType;
+        public float WindAngle { get => windAngle; set => windAngle = value; }
+        public Vector2 CloudOffset { get => cloudOffset; set => cloudOffset = value; }
         /// <summary>Weather at the camera this frame.</summary>
         public WeatherValues Local { get; private set; }
         public Vector2 WindDirection => new Vector2(Mathf.Cos(windAngle * Mathf.Deg2Rad), Mathf.Sin(windAngle * Mathf.Deg2Rad));
@@ -183,18 +196,20 @@ namespace Punchy.Weather
             var dt = Time.deltaTime;
             if (!field.Ready)
                 TryInitializeField();
-            HandleDebugKeys();
+            if (!Remote)
+                HandleDebugKeys();
 
             // A new day brings a new day type (decided at midnight).
-            if (Cycle != null)
+            if (Cycle != null && !Remote)
             {
                 if (lastTimeOfDay >= 0f && Cycle.TimeOfDay < lastTimeOfDay - 12f)
                     SetDayType(PickDayType(), false);
                 lastTimeOfDay = Cycle.TimeOfDay;
             }
 
-            windAngle += (Mathf.PerlinNoise(Time.time * 0.01f, 3.7f) - 0.5f) * 2f * WindVeer / 60f * dt;
-            field.Step(dt, WindDirection, SpawnAttemptsPerMinute, MaxCells, SoakSeconds, DrySeconds);
+            if (!Remote)
+                windAngle += (Mathf.PerlinNoise(Time.time * 0.01f, 3.7f) - 0.5f) * 2f * WindVeer / 60f * dt;
+            field.Step(dt, WindDirection, Remote ? 0f : SpawnAttemptsPerMinute, MaxCells, SoakSeconds, DrySeconds);
             Local = field.Ready ? field.Sample(cameraXZ) : WeatherValues.From(Presets[0]);
 
             if (field.Ready)
@@ -434,7 +449,22 @@ namespace Punchy.Weather
         {
             if (lightning == null || cam == null)
                 return;
-            if (field.TryStrike(dt, out var strike))
+            var struck = false;
+            Vector3 strike = default;
+            if (Remote)
+            {
+                if (remoteStrikes.Count > 0)
+                {
+                    strike = remoteStrikes.Dequeue();
+                    struck = true;
+                }
+            }
+            else if (field.TryStrike(dt, out strike))
+            {
+                struck = true;
+                Struck?.Invoke(strike);
+            }
+            if (struck)
             {
                 var camPos = cam.transform.position;
                 var offset = new Vector3(strike.x - camPos.x, 0f, strike.z - camPos.z);

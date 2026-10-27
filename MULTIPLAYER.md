@@ -238,3 +238,26 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
     and fear marks and other client-side extras only work through replicated `Mode`.
   - **For B:** M2 is still yours (seed check, WorldClock, weather). `DayNightCycle.Night` feeds `FaunaClock` in both
     worlds through FaunaDirector, so once the clock replicates, animals sleep in sync with what clients see.
+- 2026-10-27 — A — **M2 merged to `multiplayer`** (done by A; B's plan followed). Everyone shares the host's sky.
+  - **World state ghost:** `Net/World/WorldSync.cs` (on the "Net" object) publishes a `WorldState` ghost from the
+    host: time of day, day type, wind angle, pressure time and offset, cloud drift, plus a `WeatherCellState`
+    buffer of the host's 14 or fewer weather cells. The prefab is `Assets/Game/Prefabs/WorldState.prefab`, spawned
+    once from `WorldStateSpawner` in the World subscene.
+  - **Joined clients:** `WeatherSystem.Remote = true`. No cells spawn locally, there are no day-type changes and no
+    debug weather keys, and wind doesn't veer. WorldSync copies in the host's state every frame, before
+    DayNightCycle and WeatherSystem run.
+  - **Lightning:** the host's strikes raise `WeatherSystem.Struck`, which goes out as a `LightningRpc` to everyone.
+    Joined clients play it through `WeatherSystem.Strike`.
+  - **Weather/ changes (B's area, small):**
+    - `WeatherField`: `CellState`, `ExportCells`, `ImportCells`, and `PressureTime` / `PressureOffset` accessors.
+    - `WeatherSystem`: `Remote`, `Struck`, `Strike`, and `DayTypeIndex` / `WindAngle` / `CloudOffset` accessors.
+  - **World check:** on going in game, each client sends a `WorldCheckRpc` with a fingerprint of its world
+    (seed, size, sea level, biome and landmark lists, sorted creature species, playable species). The host
+    disconnects anyone whose fingerprint differs and logs both values. F2 then says "Not connected: … refused …".
+    `WorldSync.TestSalt` is a test hook to force a mismatch.
+  - **Tested:**
+    - The editor hosted with a forced storm, and a Windows build joined. The build's HUD read "Stormy / Storm /
+      09:36" against the host's "Stormy / 09:35", and rain fell on both (window screenshot).
+    - A salted client was refused with the log line.
+  - **Note:** the time-of-day field isn't interpolated (it wraps at 24 h), so it steps at the snapshot rate.
+    That's invisible.

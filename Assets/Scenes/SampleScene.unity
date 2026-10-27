@@ -852,6 +852,7 @@ GameObject:
   - component: {fileID: 1232993365}
   - component: {fileID: 1232993364}
   - component: {fileID: 1232993366}
+  - component: {fileID: 1232993367}
   m_Layer: 0
   m_Name: Net
   m_TagString: Untagged
@@ -914,6 +915,21 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 44ada7010e7e0a644b76380d89a8d591, type: 2}
   - {fileID: 11400000, guid: e112520915f6d014b9b6ec86042081a8, type: 2}
   - {fileID: 11400000, guid: 7e4cfb2563527ff448af44073b2c3306, type: 2}
+--- !u!114 &1232993367
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1232993363}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e748c52bf4986cd46a724cba5d5de806, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Net.WorldSync
+  Cycle: {fileID: 655229951}
+  Weather: {fileID: 655229949}
+  Avatars: {fileID: 1232993366}
 --- !u!1 &1276947470
 GameObject:
   m_ObjectHideFlags: 0

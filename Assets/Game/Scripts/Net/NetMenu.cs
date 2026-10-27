@@ -44,7 +44,13 @@ namespace Punchy.Net
             if (server != null)
                 GUILayout.Label($"Hosting on {lanAddress}:{GameBootstrap.Port} — {players} player(s) connected");
             else
-                GUILayout.Label(connected ? "Connected to a host" : "Connecting…");
+            {
+                // A refused or lost connection disappears; a join in progress still has its connection entity.
+                var connecting = client != null && Count<NetworkStreamConnection>(client) > 0;
+                GUILayout.Label(connected ? "Connected to a host" : connecting ? "Connecting…"
+                    : "Not connected: the host is unreachable, or refused us (a different world or build). Join again, or host.",
+                    new GUIStyle(GUI.skin.label) { wordWrap = true });
+            }
 
             GUILayout.Space(6);
             GUILayout.Label("Join a host by IP:");
