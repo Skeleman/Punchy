@@ -181,12 +181,12 @@ namespace Punchy.Fauna
 
     /// <summary>
     /// The idle action an animal is doing now (one of IdleActions, by number), or a pose a player's body takes for an
-    /// interaction (Pet, Carry: not idle actions any species picks for itself).
+    /// interaction (Pet, Carry, Throw: not idle actions any species picks for itself).
     /// </summary>
     public enum IdleAction : byte
     {
         None, PawGround, Groom, Scratch, Shake, Stretch, Sniff, Sit, SitUp, TailFlick, Preen, HeadBob, LookAround, Howl,
-        Pet, Carry
+        Pet, Carry, Throw
     }
 
     public enum ActiveTime : byte

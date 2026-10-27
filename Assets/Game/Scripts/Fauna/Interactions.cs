@@ -20,7 +20,9 @@ namespace Punchy.Fauna
     // walks off), a wild one bolts. A carried animal follows its holder's hands (on the holder's own machine, placed
     // at the hands directly, so it doesn't lag behind its interpolated ghost) and is never despawned.
 
-    public enum InteractAct : byte { None, Pet, PickUp, PutDown }
+    /// <summary>What a player does to an animal. Startle: a lunge at it (the player's side of hunting, harmless until
+    /// there's a health system): it bolts.</summary>
+    public enum InteractAct : byte { None, Pet, PickUp, PutDown, Startle }
 
     /// <summary>
     /// The local player's latest interaction (on the player's machine: alone, or a client), and the pose their body
@@ -42,6 +44,8 @@ namespace Punchy.Fauna
     {
         /// <summary>How far in front of the player an animal can be reached.</summary>
         public const float Reach = 1.6f;
+        /// <summary>How far a lunge (Attack) reaches.</summary>
+        public const float LungeReach = 3.5f;
         /// <summary>How long a pet lasts, at most (the animal may leave sooner).</summary>
         public const float PetTime = 6f;
 
@@ -82,7 +86,7 @@ namespace Punchy.Fauna
                         break;
                     if (!Tame(ref b, s))
                     {
-                        Bolt(ref s, player, ref rng);
+                        Bolt(ref s, ref b, terrain, player, ref rng);
                         break;
                     }
                     // A domestic animal that isn't in the mood walks off (a friendly one always is).
@@ -111,6 +115,12 @@ namespace Punchy.Fauna
                     s.Speed = 0f;
                     break;
 
+                case InteractAct.Startle:
+                    if (s.Mode == CreatureMode.Held || s.Mode == CreatureMode.Puppet || s.Gone || b.Upright)
+                        break;
+                    Bolt(ref s, ref b, terrain, player, ref rng);
+                    break;
+
                 case InteractAct.PutDown:
                     if (s.Mode != CreatureMode.Held || s.Holder != holder)
                         break;
@@ -134,12 +144,17 @@ namespace Punchy.Fauna
             s.Speed = 0f;
         }
 
-        /// <summary>Runs from the person who reached for it.</summary>
-        public static void Bolt(ref CreatureState s, float3 from, ref Random rng)
+        /// <summary>Runs from the person who reached for it (a bird takes off, to come down further off).</summary>
+        public static void Bolt(ref CreatureState s, ref CreatureBlob b, in TerrainSource terrain, float3 from, ref Random rng)
         {
             SetMode(ref s, CreatureMode.Flee);
             var away = math.normalizesafe(s.Position.xz - from.xz, rng.NextFloat2Direction());
-            s.Target = s.Position.xz + away * 25f + rng.NextFloat2Direction() * 5f;
+            s.Target = s.Position.xz + away * (b.Habitat == Habitat.Flies ? 35f : 25f) + rng.NextFloat2Direction() * 5f;
+            if (b.Habitat == Habitat.Flies)
+            {
+                s.Stage = 1;
+                s.TargetHeight = terrain.SampleHeight(s.Target);
+            }
             s.Focus = from.xz;
             s.Holder = 0;
         }
@@ -230,7 +245,8 @@ namespace Punchy.Fauna
             var yaw = math.atan2(forward.x, forward.z);
             var s = states[target];
             // Too far to have reached it (an old request, or it moved off): nothing happens.
-            if (act != InteractAct.PutDown && math.distance(s.Position.xz, player.Position.xz) > Interactions.Reach + 1.5f)
+            var reach = act == InteractAct.Startle ? Interactions.LungeReach : Interactions.Reach;
+            if (act != InteractAct.PutDown && math.distance(s.Position.xz, player.Position.xz) > reach + 1.5f)
                 return;
             Interactions.Apply(ref s, ref bodies[target].Blob.Value, terrain, act, holder, player.Position, yaw);
             states[target] = s;

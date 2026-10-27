@@ -230,7 +230,17 @@ namespace Punchy.Fauna
         [UnityEngine.Tooltip("Swings an axe down with both arms (chopping wood).")] Chop,
         [UnityEngine.Tooltip("Leans on a counter, now and then raising a hand (a vendor).")] Gesture,
         [UnityEngine.Tooltip("Both hands working in front, slowly (drawing water, tending a fountain, stirring).")] Tend,
-        [UnityEngine.Tooltip("Stands keeping watch, hands behind the back (a gatekeeper).")] Watch
+        [UnityEngine.Tooltip("Stands keeping watch, hands behind the back (a gatekeeper).")] Watch,
+        [UnityEngine.Tooltip("Goes out by day after game: creeps up on it, throws (and, for now, always misses).")] Hunt
+    }
+
+    /// <summary>
+    /// The stages of a hunter's outing (CreatureMode.Hunt for a creature with the Hunt task, numbered apart from an
+    /// animal's own chase): walking out and creeping up on the game, aiming, the throw, then a short run after it.
+    /// </summary>
+    public static class FolkHunting
+    {
+        public const byte Stalk = 10, Aim = 11, Throw = 12, Chase = 13;
     }
 
     /// <summary>World conditions animals react to (set by FaunaDirector).</summary>

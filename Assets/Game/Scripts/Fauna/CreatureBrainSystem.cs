@@ -183,6 +183,12 @@ namespace Punchy.Fauna
                 var nerve = s.Mode == CreatureMode.Hunt && flier ? 0.4f : 1f;
                 var threatened = !aloft && b.FleeDistance > 0f && threatDistance < b.FleeDistance * s.Scale * alert * nerve * tame;
                 var threat = player.xz;
+                // A hunter after it: heard creeping close, or seen drawing back to throw (and the throw itself).
+                if (!threatened && !aloft && b.FleeDistance > 0f && FindHunter(self, ref s, alert, out var hunter))
+                {
+                    threatened = true;
+                    threat = hunter;
+                }
                 if (!threatened && !aloft && b.Hunted && FindPredator(self, ref s, body.Species, alert, out var predator))
                 {
                     threatened = true;
@@ -379,7 +385,9 @@ namespace Punchy.Fauna
                         break;
 
                     case CreatureMode.Hunt:
-                        if (flier)
+                        if (s.Stage >= FolkHunting.Stalk)
+                            FolkHunt(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref desiredLook, ref bow, ref headDown);
+                        else if (flier)
                         {
                             custom = true;
                             Dive(ref s, ref b, ref rng, dt, ref vertical);
@@ -619,9 +627,19 @@ namespace Punchy.Fauna
                 }
                 // Workers mostly work by day, taking a short wander or rest between stints; at night they doze at
                 // their post.
-                var work = s.Task != CreatureTask.None ? sleepy > 0.5f ? 10f : 6f : 0f;
-                if (s.Task != CreatureTask.None && sleepy > 0.5f)
+                // (Hunters have no post: by day they go out after game, at night they sleep at home.)
+                var posted = s.Task != CreatureTask.None && s.Task != CreatureTask.Hunt;
+                var work = posted ? sleepy > 0.5f ? 10f : 6f : 0f;
+                if (posted && sleepy > 0.5f)
                     sleep = 0f;
+                if (s.Task == CreatureTask.Hunt && sleepy < 0.5f && rng.NextFloat() < 0.6f && FindGame(self, ref s, 100f, out var game))
+                {
+                    SetMode(ref s, CreatureMode.Hunt);
+                    s.Partner = game;
+                    s.Stage = FolkHunting.Stalk;
+                    s.Timer = rng.NextFloat(60f, 100f);
+                    return;
+                }
                 var roll = rng.NextFloat(wander + graze + rest + sleep + drink + play + hunt + work + climb + web + fly);
 
                 // Friendly animals go over to a person nearby (within their home range) more often than not.
@@ -1337,6 +1355,145 @@ namespace Punchy.Fauna
 
             // ------------------------------------------------------------------------------- people
 
+            /// <summary>
+            /// Game for a hunter: the nearest wild grazer or small animal on land (not a predator, not a settlement's own,
+            /// not someone's body) within range and within the hunter's own range from home.
+            /// </summary>
+            bool FindGame(Entity self, ref CreatureState s, float range, out Entity found)
+            {
+                found = Entity.Null;
+                var best = range;
+                var c = Cell(s.Position.xz);
+                var r = (int)math.ceil(range / CellSize);
+                for (int z = -r; z <= r; z++)
+                for (int x = -r; x <= r; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        var other = States[j];
+                        ref var ob = ref Bodies[j].Blob.Value;
+                        var size = ob.BodyLength * other.Scale;
+                        if (Entities[j] == self || ob.Upright || ob.Habitat != Habitat.Land || ob.Prey.Length > 0 || ob.CaveDweller ||
+                            other.Leash > 0f || other.Gone || other.Mode == CreatureMode.Puppet || other.Mode == CreatureMode.Held ||
+                            size < 0.25f || size > 2.6f || ob.FleeDistance <= 0f ||
+                            s.Leash > 0f && math.distance(other.Position.xz, s.Home) > s.Leash)
+                            continue;
+                        var d = math.distance(other.Position.xz, s.Position.xz);
+                        if (d < best)
+                        {
+                            best = d;
+                            found = Entities[j];
+                        }
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return found != Entity.Null;
+            }
+
+            /// <summary>
+            /// A hunter's outing (stages in FolkHunting): out towards the game openly, then creeping bent low once
+            /// within 25 m; at about 11 m it stops and draws back (Aim), throws (Throw), and runs after the game a
+            /// little way as it bolts (Chase), before giving up and heading home. Nothing is killed (no hunt ends in a
+            /// kill until there's a health system: the throw always misses). Gives up if the game is gone or too long passes.
+            /// </summary>
+            void FolkHunt(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, float run,
+                          ref float targetSpeed, ref bool moving, ref float desiredLook, ref float bow, ref float headDown)
+            {
+                s.Timer -= dt;
+                if (s.Timer <= 0f || !Lookup.TryGetValue(s.Partner, out var p) || States[p].Gone)
+                {
+                    HeadHome(ref s, ref rng);
+                    return;
+                }
+                var prey = States[p];
+                var to = prey.Position.xz - s.Position.xz;
+                var distance = math.length(to);
+                switch (s.Stage)
+                {
+                    case FolkHunting.Stalk:
+                    {
+                        var close = distance < 25f;
+                        s.Target = prey.Position.xz - math.normalizesafe(to) * 1.5f;
+                        moving = true;
+                        targetSpeed = close ? walk * 0.35f : walk;
+                        if (close)
+                        {
+                            bow = 1f;
+                            headDown = 0.2f;
+                        }
+                        // It's seen them coming: off it goes, and the hunter after it.
+                        if (prey.Mode == CreatureMode.Flee && close)
+                            NextStage(ref s, FolkHunting.Chase);
+                        else if (distance < 11f)
+                            NextStage(ref s, FolkHunting.Aim);
+                        break;
+                    }
+                    case FolkHunting.Aim:
+                        TurnTowards(ref s, ref b, prey.Position.xz, dt);
+                        bow = 0.3f;
+                        if (s.StageTime > 1.4f)
+                            NextStage(ref s, FolkHunting.Throw);
+                        break;
+                    case FolkHunting.Throw:
+                        TurnTowards(ref s, ref b, prey.Position.xz, dt);
+                        if (s.StageTime > 0.7f)
+                            NextStage(ref s, FolkHunting.Chase);
+                        break;
+                    default:
+                        // After it a little way, then gives up.
+                        s.Target = prey.Position.xz;
+                        moving = true;
+                        targetSpeed = run * 0.6f;
+                        if (s.StageTime > 4f || distance > 40f)
+                            HeadHome(ref s, ref rng);
+                        break;
+                }
+                desiredLook = math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -1f, 1f);
+            }
+
+            static void NextStage(ref CreatureState s, byte stage)
+            {
+                s.Stage = stage;
+                s.StageTime = 0f;
+            }
+
+            /// <summary>Back towards home (a settlement's folk), to take up the day there.</summary>
+            static void HeadHome(ref CreatureState s, ref Random rng)
+            {
+                SetMode(ref s, CreatureMode.Wander);
+                s.Target = (s.Leash > 0f ? s.Home : s.Position.xz) + rng.NextFloat2Direction() * rng.NextFloat(2f, 8f);
+            }
+
+            /// <summary>
+            /// A hunter after this animal near enough to notice: creeping within 5 m (heard), aiming within 15 m (seen), or
+            /// throwing or running after it within 40 m. Where they are.
+            /// </summary>
+            bool FindHunter(Entity self, ref CreatureState s, float alert, out float2 at)
+            {
+                at = default;
+                var c = Cell(s.Position.xz);
+                for (int z = -3; z <= 3; z++)
+                for (int x = -3; x <= 3; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        var other = States[j];
+                        if (other.Mode != CreatureMode.Hunt || other.Partner != self || other.Stage < FolkHunting.Stalk)
+                            continue;
+                        var range = other.Stage == FolkHunting.Stalk ? 5f * alert : other.Stage == FolkHunting.Aim ? 15f * alert : 40f;
+                        if (math.distance(other.Position.xz, s.Position.xz) < range)
+                        {
+                            at = other.Position.xz;
+                            return true;
+                        }
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return false;
+            }
+
             /// <summary>Where the player with this Holder id is, and which way they face (false if they've gone).</summary>
             bool FindHolder(int holder, out float3 position, out float yaw)
             {
@@ -1429,7 +1586,7 @@ namespace Punchy.Fauna
                     // Free: it drops to the ground beside them and runs.
                     var side = new float3(math.cos(yaw), 0f, -math.sin(yaw)) * (rng.NextBool() ? 0.6f : -0.6f);
                     Interactions.PutDown(ref s, Terrain, holder + side, ref rng);
-                    Interactions.Bolt(ref s, holder, ref rng);
+                    Interactions.Bolt(ref s, ref b, Terrain, holder, ref rng);
                     s.Target = s.Position.xz + math.normalizesafe(s.Position.xz - holder.xz, new float2(1f, 0f)) * 10f;
                 }
             }

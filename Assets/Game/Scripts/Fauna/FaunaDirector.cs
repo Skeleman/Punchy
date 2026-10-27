@@ -652,7 +652,8 @@ namespace Punchy.Fauna
                 if (index < 0)
                     continue;
                 var count = rng.NextInt(math.max(0, d.Count.x), math.max(d.Count.x, d.Count.y) + 1);
-                var leash = radius * d.Range;
+                // Hunters range well beyond the settlement, out to where the game is.
+                var leash = d.Task == CreatureTask.Hunt ? math.max(radius * 3f, 70f) : radius * d.Range;
                 for (int k = 0; k < count; k++)
                 {
                     var p = centre + rng.NextFloat2Direction() * rng.NextFloat(0.1f, 0.7f) * leash;
@@ -664,6 +665,7 @@ namespace Punchy.Fauna
                     var state = em.GetComponentData<CreatureState>(e);
                     state.Home = centre;
                     state.Leash = leash;
+                    state.Task = d.Task;
                     em.SetComponentData(e, state);
                 }
             }

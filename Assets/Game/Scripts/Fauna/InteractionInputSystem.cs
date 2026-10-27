@@ -23,9 +23,11 @@ namespace Punchy.Fauna
         /// <summary>What the player can do right now ("E  pet the cat"), or null.</summary>
         public static string Prompt;
 
-        InputAction interact;
+        InputAction interact, attack;
         /// <summary>This press of the button has already done its thing (picked up, put down).</summary>
         bool pressUsed;
+        /// <summary>When the lunge pose ends.</summary>
+        double lungeUntil;
         EntityQuery creatures;
         FaunaDirector director;
 
@@ -42,6 +44,7 @@ namespace Punchy.Fauna
         protected override void OnStartRunning()
         {
             interact = InputSystem.actions?.FindAction("Player/Interact");
+            attack = InputSystem.actions?.FindAction("Player/Attack");
             InteractionPrompt.Ensure();
         }
 
@@ -62,10 +65,11 @@ namespace Punchy.Fauna
             var entities = creatures.ToEntityArray(Allocator.Temp);
             var states = creatures.ToComponentDataArray<CreatureState>(Allocator.Temp);
             var bodies = creatures.ToComponentDataArray<CreatureBody>(Allocator.Temp);
-            Entity held = Entity.Null, target = Entity.Null;
+            Entity held = Entity.Null, target = Entity.Null, lungeTarget = Entity.Null;
             var petting = false;
             var targetCarry = false;
             var best = Interactions.Reach;
+            var lungeBest = Interactions.LungeReach;
             var targetSpecies = -1;
             for (int i = 0; i < entities.Length; i++)
             {
@@ -78,6 +82,11 @@ namespace Punchy.Fauna
                 if (!Interactions.CanPet(ref b, s) || math.abs(s.Position.y - player.Position.y) > 1.5f)
                     continue;
                 var d = math.distance(s.Position.xz, reachPoint.xz) - b.BodyLength * s.Scale * 0.5f;
+                if (d < lungeBest)
+                {
+                    lungeBest = d;
+                    lungeTarget = entities[i];
+                }
                 if (d < best)
                 {
                     best = d;
@@ -90,7 +99,8 @@ namespace Punchy.Fauna
             states.Dispose();
             bodies.Dispose();
 
-            request.Pose = held != Entity.Null ? IdleAction.Carry : petting ? IdleAction.Pet : IdleAction.None;
+            var lunging = SystemAPI.Time.ElapsedTime < lungeUntil;
+            request.Pose = held != Entity.Null ? IdleAction.Carry : lunging ? IdleAction.Throw : petting ? IdleAction.Pet : IdleAction.None;
             if (held != Entity.Null)
                 Prompt = "E  put down";
             else if (target != Entity.Null)
@@ -123,6 +133,13 @@ namespace Punchy.Fauna
                     Send(ref request, InteractAct.Pet, target);
                     pressUsed = true;
                 }
+            }
+            // Attack: a lunge at the animal in front (it bolts; harmless for now). Empty-handed only.
+            if (attack != null && !Punchy.Net.NetMenu.IsOpen && held == Entity.Null && attack.WasPressedThisFrame() && !lunging)
+            {
+                lungeUntil = SystemAPI.Time.ElapsedTime + 0.6;
+                if (lungeTarget != Entity.Null)
+                    Send(ref request, InteractAct.Startle, lungeTarget);
             }
             SystemAPI.SetSingleton(request);
         }

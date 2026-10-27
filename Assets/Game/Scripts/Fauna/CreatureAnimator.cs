@@ -339,6 +339,14 @@ namespace Punchy.Fauna
                     if (part.Role == LimbRole.Head) return new float3((0.45f + 0.06f * stroke) * e, 0f, 0f);
                     break;
                 }
+                case IdleAction.Throw:
+                    // A player lunging at game: right arm thrown forward, leaning into it (a body with no arms lunges
+                    // head first).
+                    if (part.Role == LimbRole.Feature && part.Parent < 0 && joint == 0) return new float3(0.3f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Arm && part.Side > 0f)
+                        return joint == 0 ? new float3(-1.5f * e, 0f, 0f) : float3.zero;
+                    if (part.Role == LimbRole.Head) return new float3(0.15f * e, 0f, 0f);
+                    break;
                 case IdleAction.Carry:
                     // A player carrying an animal: both arms forward with the elbows bent, cradling it at the chest.
                     if (part.Role == LimbRole.Arm)
@@ -355,6 +363,8 @@ namespace Punchy.Fauna
         /// </summary>
         static float3 TaskPose(ref CreaturePart part, in CreatureState s, int joint)
         {
+            if (part.Role == LimbRole.Arm && joint <= 1 && s.Mode == CreatureMode.Hunt && s.Task == CreatureTask.Hunt)
+                return HuntPose(part.Side > 0f, s.Stage, joint);
             if (part.Role != LimbRole.Arm || s.Mode != CreatureMode.Work || s.Stage == 0 || s.Task == CreatureTask.None || joint > 1)
                 return float3.zero;
             var right = part.Side > 0f;
@@ -383,6 +393,25 @@ namespace Punchy.Fauna
                     return new float3(joint == 0 ? -0.65f + 0.22f * math.sin(t * 1.5f + (right ? 0f : 1.4f)) : -0.55f, 0f, 0f);
                 case CreatureTask.Watch:
                     return new float3(joint == 0 ? 0.35f : -0.75f, 0f, 0f);   // hands clasped behind the back
+                default:
+                    return float3.zero;
+            }
+        }
+
+        /// <summary>
+        /// A hunter's arms: creeping up, both carried low in front (the spear); aiming, the right drawn back high over
+        /// the shoulder with the left pointing at the game; the throw, the right whipped through and forward.
+        /// </summary>
+        static float3 HuntPose(bool right, byte stage, int joint)
+        {
+            switch (stage)
+            {
+                case FolkHunting.Stalk:
+                    return new float3(joint == 0 ? -0.55f : -0.7f, 0f, 0f);
+                case FolkHunting.Aim:
+                    return right ? new float3(joint == 0 ? -2.7f : -0.7f, 0f, 0f) : new float3(joint == 0 ? -1.3f : 0f, 0f, 0f);
+                case FolkHunting.Throw:
+                    return right ? new float3(joint == 0 ? -0.9f : 0f, 0f, 0f) : new float3(joint == 0 ? -0.4f : -0.3f, 0f, 0f);
                 default:
                     return float3.zero;
             }

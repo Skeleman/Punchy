@@ -79,7 +79,7 @@ namespace Punchy.Debugging
         static string poseRequest;
         Entity posed;
         /// <summary>"-interact Cat:carry" (or ":pet"): walks up to the nearest one, pets it or picks it up, and puts it
-        /// down again a while later, as if the keys were pressed (alone only).</summary>
+        /// down again a while later, as if the keys were pressed (alone, hosting or joined).</summary>
         static string interactRequest;
         static string shotDir;
         float interactStep = -1f;
@@ -92,6 +92,9 @@ namespace Punchy.Debugging
         float watchSteepest;
         int watchAirFrames;
         Entity watched;
+        CreatureMode watchMode;
+        byte watchStage;
+        int watchShots;
         float nextWatchPick;
 
         /// <summary>
@@ -323,7 +326,11 @@ namespace Punchy.Debugging
             }
             if (watchDirector == null)
                 watchDirector = FindAnyObjectByType<FaunaDirector>();
-            var index = watchDirector != null ? watchDirector.SpeciesIndex(watchSpecies) : -1;
+            // "Human:Hunt": only those with that task.
+            var watchParts = watchSpecies.Split(':');
+            var index = watchDirector != null ? watchDirector.SpeciesIndex(watchParts[0]) : -1;
+            var watchTask = CreatureTask.None;
+            var hasTask = watchParts.Length > 1 && System.Enum.TryParse(watchParts[1], true, out watchTask);
             if (index < 0 || !playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return;
             if (Time.unscaledTime >= nextWatchPick || !em.Exists(watched))
@@ -337,6 +344,8 @@ namespace Punchy.Debugging
                     if (em.GetComponentData<CreatureBody>(e).Species != index)
                         continue;
                     var c = em.GetComponentData<CreatureState>(e);
+                    if (hasTask && c.Task != watchTask)
+                        continue;
                     var busy = c.Mode == CreatureMode.Climb || c.Mode == CreatureMode.Web || c.Fly > 0.5f ||
                                c.Action != IdleAction.None || c.Mode == CreatureMode.Hunt || c.Mode == CreatureMode.Burrow || c.Mode == CreatureMode.Roost;
                     var score = math.distance(c.Position, player.Position) - (busy ? 1000f : 0f) - (c.Fly > 0.5f ? 1000f : 0f);
@@ -381,11 +390,24 @@ namespace Punchy.Debugging
                     }
                 }
                 watchLast = p;
+                // Every change of what it's doing, as it happens.
+                if (c.Mode != watchMode || c.Stage != watchStage)
+                {
+                    Debug.Log($"DebugControls: {watchSpecies} now {c.Mode} stage {c.Stage} (target {math.distance(c.Position.xz, c.Target):F1} m)");
+                    watchMode = c.Mode;
+                    watchStage = c.Stage;
+                    // A hunter drawing back and throwing: worth a picture.
+                    if (shotDir != null && c.Mode == CreatureMode.Hunt && (c.Stage == FolkHunting.Aim || c.Stage == FolkHunting.Throw))
+                        ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(shotDir, $"hunt-{c.Stage}-{++watchShots}.png"));
+                }
                 var aloft = c.Position.y - terrainQuery.GetSingleton<TerrainSource>().SampleHeight(c.Position.xz) > 1f;
-                ThirdPersonCamera.WatchTarget = (Vector3)c.Position + Vector3.up * 0.3f;
+                ref var watchedBody = ref em.GetComponentData<CreatureBody>(watched).Blob.Value;
+                // Upright bodies (people) are framed whole, from their middle.
+                var tall = watchedBody.Upright ? watchedBody.StandHeight * c.Scale : 0f;
+                ThirdPersonCamera.WatchTarget = (Vector3)c.Position + Vector3.up * math.max(0.3f, tall * 0.6f);
                 ThirdPersonCamera.WatchPitch = watchPitchOverride ?? (aloft ? -15f : 15f);
-                var size = em.GetComponentData<CreatureBody>(watched).Blob.Value.BodyLength * c.Scale;
-                ThirdPersonCamera.WatchDistance = math.clamp(size * 9f, 0.6f, 4f) * (aloft ? 1.4f : 1f);
+                var size = math.max(watchedBody.BodyLength * c.Scale, tall * 0.6f);
+                ThirdPersonCamera.WatchDistance = math.clamp(size * 9f, 0.6f, 8f) * (aloft ? 1.4f : 1f);
             }
             else
                 ThirdPersonCamera.WatchTarget = null;
@@ -487,6 +509,9 @@ namespace Punchy.Debugging
                 request.Act = act;
                 request.Serial++;
                 request.Target = interactTarget;
+                // (Joined to someone else's game: the server knows the animal by its ghost id.)
+                request.TargetGhost = em.HasComponent<Unity.NetCode.GhostInstance>(interactTarget)
+                    ? em.GetComponentData<Unity.NetCode.GhostInstance>(interactTarget).ghostId : 0;
                 requestQuery.SetSingleton(request);
                 Debug.Log($"DebugControls: interact {act} {parts[0]}");
             }
