@@ -1,3 +1,4 @@
+using Punchy.Fauna;
 using Punchy.Player;
 using Unity.Burst;
 using Unity.Collections;
@@ -21,13 +22,33 @@ namespace Punchy.Net
     /// <summary>A player as the network sees it (one per connection, owned by that connection).</summary>
     public struct NetPlayer : IComponentData { }
 
-    /// <summary>The owner's pose for this tick, sent to the server.</summary>
+    /// <summary>The owner's pose and look for this tick, sent to the server.</summary>
     public struct NetPlayerCommand : IInputComponentData
     {
         public float3 Position;
         public float Yaw;
         /// <summary>False until the owner has a player to report (so the ghost doesn't flash at the origin).</summary>
         public bool Valid;
+        public bool Grounded;
+        /// <summary>Index into the playable species table (NetAvatars), or -1 for no body (the capsule shows).</summary>
+        public int Species;
+        public uint Individual;
+        public int Coat;
+    }
+
+    /// <summary>What other players need to draw this one's body: replicated from the owner via the server.</summary>
+    public struct NetPlayerLook : IComponentData
+    {
+        [GhostField] public int Species;
+        [GhostField] public uint Individual;
+        [GhostField] public int Coat;
+        [GhostField] public bool Grounded;
+    }
+
+    /// <summary>Client singleton: the local player's species in the playable table (set by NetAvatars).</summary>
+    public struct LocalPlayerSpecies : IComponentData
+    {
+        public int Index;
     }
 
     /// <summary>Points at the NetPlayer ghost prefab; baked into the world subscene.</summary>
@@ -116,17 +137,23 @@ namespace Punchy.Net
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            var command = default(NetPlayerCommand);
-            foreach (var t in SystemAPI.Query<RefRO<LocalTransform>>().WithAll<PlayerTag>())
+            var command = new NetPlayerCommand { Species = -1 };
+            foreach (var (t, motion) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<PlayerMotion>>().WithAll<PlayerTag>())
             {
                 var forward = math.mul(t.ValueRO.Rotation, new float3(0f, 0f, 1f));
-                command = new NetPlayerCommand
-                {
-                    Position = t.ValueRO.Position,
-                    Yaw = math.atan2(forward.x, forward.z),
-                    Valid = true
-                };
+                command.Position = t.ValueRO.Position;
+                command.Yaw = math.atan2(forward.x, forward.z);
+                command.Grounded = motion.ValueRO.Grounded;
+                command.Valid = true;
             }
+            // How our body looks, so the others draw the same individual.
+            if (SystemAPI.TryGetSingleton<LocalPlayerSpecies>(out var species) && species.Index >= 0)
+                foreach (var (avatar, body) in SystemAPI.Query<RefRO<CreatureState>, RefRO<CreatureBody>>().WithAll<PlayerAvatar>())
+                {
+                    command.Species = species.Index;
+                    command.Individual = avatar.ValueRO.Individual;
+                    command.Coat = body.ValueRO.Coat;
+                }
             foreach (var input in SystemAPI.Query<RefRW<NetPlayerCommand>>().WithAll<NetPlayer, GhostOwnerIsLocal>())
                 input.ValueRW = command;
         }
@@ -141,19 +168,22 @@ namespace Punchy.Net
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            foreach (var (command, transform) in SystemAPI.Query<RefRO<NetPlayerCommand>, RefRW<LocalTransform>>().WithAll<NetPlayer>())
+            foreach (var (command, transform, look) in SystemAPI.Query<RefRO<NetPlayerCommand>, RefRW<LocalTransform>, RefRW<NetPlayerLook>>().WithAll<NetPlayer>())
             {
-                if (!command.ValueRO.Valid)
+                var c = command.ValueRO;
+                if (!c.Valid)
                     continue;
-                transform.ValueRW.Position = command.ValueRO.Position;
-                transform.ValueRW.Rotation = quaternion.RotateY(command.ValueRO.Yaw);
+                transform.ValueRW.Position = c.Position;
+                transform.ValueRW.Rotation = quaternion.RotateY(c.Yaw);
+                look.ValueRW = new NetPlayerLook { Species = c.Species, Individual = c.Individual, Coat = c.Coat, Grounded = c.Grounded };
             }
         }
     }
 
     /// <summary>
-    /// Client: hides our own NetPlayer (we already see our real body), and remote ones until their owner has
-    /// reported a position.
+    /// Client: hides our own NetPlayer (we already see our real body), remote ones until their owner has reported a
+    /// position, and remote ones drawn as a creature body (NetAvatars). The capsule only shows for a player with no
+    /// body species.
     /// </summary>
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     [UpdateInGroup(typeof(PresentationSystemGroup), OrderFirst = true)]
@@ -167,12 +197,12 @@ namespace Punchy.Net
         public void OnUpdate(ref SystemState state)
         {
             var commands = new EntityCommandBuffer(Allocator.Temp);
-            foreach (var (transform, entity) in SystemAPI.Query<RefRO<LocalTransform>>().WithAll<NetPlayer>()
+            foreach (var (transform, look, entity) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<NetPlayerLook>>().WithAll<NetPlayer>()
                          .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState).WithEntityAccess())
             {
                 var local = SystemAPI.IsComponentEnabled<GhostOwnerIsLocal>(entity);
                 // A remote player stays hidden at the origin until its first real pose arrives.
-                var hide = local || math.lengthsq(transform.ValueRO.Position) < 1e-6f;
+                var hide = local || math.lengthsq(transform.ValueRO.Position) < 1e-6f || look.ValueRO.Species >= 0;
                 var hidden = SystemAPI.HasComponent<DisableRendering>(entity);
                 if (hide == hidden)
                     continue;

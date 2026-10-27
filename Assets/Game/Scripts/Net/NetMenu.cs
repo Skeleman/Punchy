@@ -14,6 +14,7 @@ namespace Punchy.Net
     public class NetMenu : MonoBehaviour
     {
         public KeyCode Toggle = KeyCode.F2;
+        public NetAvatars Avatars;
 
         bool open;
         string address = "192.168.1.";
@@ -38,7 +39,7 @@ namespace Punchy.Net
             var players = server != null ? Count<NetworkId>(server) : -1;
             var connected = client != null && Count<NetworkId>(client) > 0;
 
-            GUILayout.BeginArea(new Rect(Screen.width - 330, 10, 320, 210), box);
+            GUILayout.BeginArea(new Rect(Screen.width - 330, 10, 320, 250), box);
             GUILayout.Label("<b>Multiplayer</b>  (F2)", new GUIStyle(GUI.skin.label) { richText = true });
             if (server != null)
                 GUILayout.Label($"Hosting on {lanAddress}:{GameBootstrap.Port} — {players} player(s) connected");
@@ -54,6 +55,21 @@ namespace Punchy.Net
             GUILayout.EndHorizontal();
             if (server == null && GUILayout.Button("Host my own game instead"))
                 GameBootstrap.Host();
+
+            // Which body we have (everyone sees it).
+            if (Avatars != null && Avatars.PlayableSpecies.Count > 0)
+            {
+                GUILayout.Space(6);
+                var index = Avatars.LocalIndex;
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Body:", GUILayout.Width(40));
+                if (GUILayout.Button("<", GUILayout.Width(24)))
+                    Avatars.SetLocalSpecies((index - 1 + Avatars.PlayableSpecies.Count) % Avatars.PlayableSpecies.Count);
+                GUILayout.Label(index >= 0 ? Avatars.PlayableSpecies[index].name : "(custom)", GUILayout.Width(150));
+                if (GUILayout.Button(">", GUILayout.Width(24)))
+                    Avatars.SetLocalSpecies((index + 1) % Avatars.PlayableSpecies.Count);
+                GUILayout.EndHorizontal();
+            }
             GUILayout.EndArea();
         }
 

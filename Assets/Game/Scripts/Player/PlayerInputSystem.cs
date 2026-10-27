@@ -15,6 +15,8 @@ namespace Punchy.Player
     public partial class PlayerInputSystem : SystemBase
     {
         InputAction move, jump, sprint;
+        // "-autowalk" on the command line: walk in a slow circle with nobody at the keys (for multiplayer tests).
+        bool autowalk;
 
         protected override void OnCreate()
         {
@@ -30,6 +32,7 @@ namespace Punchy.Player
                 return;
             }
 
+            autowalk = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-autowalk") >= 0;
             move = actions.FindAction("Player/Move");
             jump = actions.FindAction("Player/Jump");
             sprint = actions.FindAction("Player/Sprint");
@@ -50,6 +53,11 @@ namespace Punchy.Player
                 direction = forward * raw.y + right * raw.x;
             }
 
+            if (autowalk)
+            {
+                var a = (float)SystemAPI.Time.ElapsedTime * 0.25f;
+                direction = new float2(math.cos(a), math.sin(a));
+            }
             if (math.lengthsq(direction) > 1f)
                 direction = math.normalize(direction);
 

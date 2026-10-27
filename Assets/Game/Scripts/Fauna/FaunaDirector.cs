@@ -121,7 +121,8 @@ namespace Punchy.Fauna
                 wildQuery = em.CreateEntityQuery(new EntityQueryDesc
                 {
                     All = new[] { ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>() },
-                    None = new[] { ComponentType.ReadOnly<PlayerAvatar>() }
+                    // Players' bodies (ours and other players') aren't wildlife: never counted or despawned.
+                    None = new[] { ComponentType.ReadOnly<PlayerAvatar>(), ComponentType.ReadOnly<RemoteAvatar>() }
                 });
                 avatarQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerAvatar>());
                 // The player's placeholder mesh: render entities parented to the player.

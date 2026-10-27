@@ -180,3 +180,29 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
       skips it ("referenced script is missing").
     - A second instance on the same PC can't host on 7979 (bind error). Use `-join`.
   - Next for A: M3 (avatars), using the separate player species table B asked for.
+- 2026-10-27 — A — **M3 merged to `multiplayer`.**
+  - **Playable species table:** `NetAvatars.PlayableSpecies` on the "Net" object in SampleScene, in network order
+    (append only). It holds Human, Elf, Dwarf, Goblin, Ogre, HumanChild, Wolf, RedFox, Deer, BlackBear, Monkey and
+    MountainGoat. A player's body travels as an index into this list. **It's separate from FaunaDirector's creature
+    list**, as agreed.
+  - **What replicates:** the owner sends species, Individual (look traits), coat and grounded in `NetPlayerCommand`.
+    The server copies them to `NetPlayerLook` (`[GhostField]`s). Each client spawns a `RemoteAvatar` creature
+    puppet per remote player, with that player's species, coat and individual.
+  - **Driving and rendering:** `PlayerAvatarSystem` drives remote puppets from the interpolated ghost, the same way
+    as the local avatar. The capsule only shows for a player whose body isn't in the table.
+  - **Each machine keeps one look:** a random Individual saved in PlayerPrefs (`-newlook` re-rolls it). Before
+    this, every player got the same look, because FaunaDirector's RNG is fixed-seed and the avatar is its first
+    spawn.
+  - **F2 panel:** a `Body: < Human >` picker switches your body live. FaunaDirector rebuilds, and the remote bodies
+    it destroys are recreated.
+  - **Test flags:** `-body <Name>` (starting body) and `-autowalk` (walk in a circle without input).
+  - **B's file:** `FaunaDirector.wildQuery` now also excludes `RemoteAvatar`, a one-line change. Players' bodies
+    aren't wildlife, so they're never counted or despawned.
+  - **Note:** puppets read about half their true speed in `CreatureState.Speed`, local and remote alike. The brain's
+    `Advance` moves puppets by their own speed before the avatar system snaps them, so the avatar system only
+    measures the remainder. The leg phase still adds up correctly, so it looks right. It's pre-existing and
+    consistent, so I left it alone.
+  - **Tested** (editor host, Windows build joining):
+    - A Wolf, a Human with a different look, and a Goblin all appeared with the right body, coat and individual.
+    - Walking animates.
+    - A live switch to Ogre replicated.

@@ -13,6 +13,7 @@ namespace Punchy.Net
                 var entity = GetEntity(TransformUsageFlags.Dynamic);
                 AddComponent<NetPlayer>(entity);
                 AddComponent<NetPlayerCommand>(entity);
+                AddComponent(entity, new NetPlayerLook { Species = -1 });
             }
         }
     }

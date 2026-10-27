@@ -851,6 +851,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1232993365}
   - component: {fileID: 1232993364}
+  - component: {fileID: 1232993366}
   m_Layer: 0
   m_Name: Net
   m_TagString: Untagged
@@ -871,6 +872,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Net.NetMenu
   Toggle: 283
+  Avatars: {fileID: 1232993366}
 --- !u!4 &1232993365
 Transform:
   m_ObjectHideFlags: 0
@@ -886,6 +888,32 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1232993366
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1232993363}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2505150dcf6bc9d4c8ecde54b8552662, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Net.NetAvatars
+  Fauna: {fileID: 10198392}
+  PlayableSpecies:
+  - {fileID: 11400000, guid: 8e349b1519701e84fbe7923c0c10f2fd, type: 2}
+  - {fileID: 11400000, guid: 46b822fc6510e9c438d06b7c0598a487, type: 2}
+  - {fileID: 11400000, guid: 92efcd8c205109b498ebcc61830248fd, type: 2}
+  - {fileID: 11400000, guid: 419544623d75bcf48961c8801162cabd, type: 2}
+  - {fileID: 11400000, guid: b13923c35daf72c4c997d600178bd234, type: 2}
+  - {fileID: 11400000, guid: d3f5b20b4d342d14d826ea54366e1847, type: 2}
+  - {fileID: 11400000, guid: 2ba8f1aa663ffe446aee91e9ff93b88d, type: 2}
+  - {fileID: 11400000, guid: bcec9f97bfcd3544992e948efb4c0aac, type: 2}
+  - {fileID: 11400000, guid: 89a61bfb5e05e3b489180d7e6ff44009, type: 2}
+  - {fileID: 11400000, guid: 44ada7010e7e0a644b76380d89a8d591, type: 2}
+  - {fileID: 11400000, guid: e112520915f6d014b9b6ec86042081a8, type: 2}
+  - {fileID: 11400000, guid: 7e4cfb2563527ff448af44073b2c3306, type: 2}
 --- !u!1 &1276947470
 GameObject:
   m_ObjectHideFlags: 0
