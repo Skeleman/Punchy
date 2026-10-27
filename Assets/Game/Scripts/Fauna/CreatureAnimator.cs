@@ -31,7 +31,10 @@ namespace Punchy.Fauna
             // Body on the ground: height from the legs, pitch from the ground ahead and behind.
             var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
             var halfLength = b.BodyLength * 0.5f * scale;
-            var ground = terrain.SampleHeight(s.Position.xz);
+            // Animals stand on the terrain; the player's body can be above it (jumping, swimming).
+            var terrainHeight = terrain.SampleHeight(s.Position.xz);
+            var ground = math.max(terrainHeight, s.Position.y);
+            var airborne = math.saturate((s.Position.y - terrainHeight - 0.05f) / 0.3f);
             var front = terrain.SampleHeight(s.Position.xz + forward.xz * halfLength);
             var back = terrain.SampleHeight(s.Position.xz - forward.xz * halfLength);
             var gradient = (front - back) / (2f * halfLength);   // rise per metre forward
@@ -108,7 +111,7 @@ namespace Punchy.Fauna
                     var reach = 0f;
                     for (int j = 0; j < part.SegmentCount; j++)
                         reach += b.Segments[part.FirstSegment + j].Length * scale;
-                    var correction = (actual - nominal) * (1f - fold) + (folds ? 0f : lowered);
+                    var correction = ((actual - nominal) * (1f - fold) + (folds ? 0f : lowered)) * (1f - airborne);
                     correction = math.clamp(correction, -0.45f * reach, 0.45f * reach);
                     pos += PlaceFoot(ref b, ref part, ref segPos, ref segRot, new float3(0f, correction, 0f), scale);
                 }

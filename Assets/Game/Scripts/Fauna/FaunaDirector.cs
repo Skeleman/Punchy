@@ -20,6 +20,8 @@ namespace Punchy.Fauna
         public Material Material;
         [Tooltip("Tells animals whether it's day or night (when they sleep).")]
         public Punchy.Weather.DayNightCycle Cycle;
+        [Tooltip("The player's body: any species (a human, a wolf…). Empty = the player's own placeholder mesh.")]
+        public CreatureSpecies PlayerSpecies;
         [Tooltip("Animals are kept within this distance of the player.")]
         public float Radius = 120f;
         [Tooltip("New animals appear at least this far away.")]
@@ -39,7 +41,8 @@ namespace Punchy.Fauna
         readonly List<int> scratch = new List<int>();
         float nextResidentCheck;
         World queryWorld;
-        EntityQuery terrainQuery, paletteQuery, playerQuery, creatureQuery;
+        EntityQuery terrainQuery, paletteQuery, playerQuery, creatureQuery, wildQuery, avatarQuery, playerMeshQuery;
+        CreatureSpecies builtPlayerSpecies;
         Entity settingsEntity;
         Mesh capsule;
         float spawnBudget;
@@ -58,6 +61,7 @@ namespace Punchy.Fauna
             {
                 var em = queryWorld.EntityManager;
                 em.DestroyEntity(creatureQuery);
+                ShowPlayerMesh(true);
                 if (settingsEntity != Entity.Null && em.Exists(settingsEntity))
                     em.DestroyEntity(settingsEntity);
             }
@@ -77,10 +81,11 @@ namespace Punchy.Fauna
             if (Material == null || !TryGetWorld(out var source, out var palette, out var playerPos))
                 return;
             // Rebuild when the terrain is re-baked or (in the editor) a species or limb type is edited.
-            if (built && (!source.Equals(lastSource) || ConfigChanged()))
+            if (built && (!source.Equals(lastSource) || ConfigChanged() || PlayerSpecies != builtPlayerSpecies))
                 Teardown();
             if (!built)
                 Build(source, palette);
+            KeepAvatar(playerPos);
 
             queryWorld.EntityManager.SetComponentData(settingsEntity, new FaunaClock { Night = Cycle != null ? Cycle.Night : 0f });
             Despawn(playerPos.xz);
@@ -112,6 +117,18 @@ namespace Punchy.Fauna
                 paletteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
                 playerQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
                 creatureQuery = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+                wildQuery = em.CreateEntityQuery(new EntityQueryDesc
+                {
+                    All = new[] { ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>() },
+                    None = new[] { ComponentType.ReadOnly<PlayerAvatar>() }
+                });
+                avatarQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerAvatar>());
+                // The player's placeholder mesh: render entities parented to the player.
+                playerMeshQuery = em.CreateEntityQuery(new EntityQueryDesc
+                {
+                    All = new[] { ComponentType.ReadOnly<Parent>(), ComponentType.ReadOnly<Unity.Rendering.MaterialMeshInfo>() },
+                    Options = EntityQueryOptions.IncludeDisabledEntities
+                });
                 queryWorld = world;
                 built = false;
             }
@@ -125,6 +142,9 @@ namespace Punchy.Fauna
         void Build(in TerrainSource source, BiomePalette palette)
         {
             biomes = palette.Biomes;
+            if (PlayerSpecies != null)
+                species.Add(PlayerSpecies);
+            builtPlayerSpecies = PlayerSpecies;
             foreach (var biome in biomes)
                 if (biome != null)
                     foreach (var f in biome.Fauna)
@@ -198,12 +218,48 @@ namespace Punchy.Fauna
 
         // ------------------------------------------------------------------------------------------- population
 
+        /// <summary>Spawns the player's body if there should be one and it's missing, and hides the placeholder.</summary>
+        void KeepAvatar(float3 playerPos)
+        {
+            if (PlayerSpecies == null || avatarQuery.CalculateEntityCount() > 0)
+                return;
+            var index = species.IndexOf(PlayerSpecies);
+            if (index < 0)
+                return;
+            var e = Spawn(index, playerPos);
+            var em = queryWorld.EntityManager;
+            em.AddComponent<PlayerAvatar>(e);
+            var s = em.GetComponentData<CreatureState>(e);
+            s.Mode = CreatureMode.Puppet;
+            s.Scale = 1f;
+            em.SetComponentData(e, s);
+            ShowPlayerMesh(false);
+        }
+
+        void ShowPlayerMesh(bool show)
+        {
+            if (!playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var em = queryWorld.EntityManager;
+            var meshes = playerMeshQuery.ToEntityArray(Allocator.Temp);
+            foreach (var e in meshes)
+            {
+                if (em.GetComponentData<Parent>(e).Value != player)
+                    continue;
+                if (show)
+                    em.RemoveComponent<Unity.Rendering.DisableRendering>(e);
+                else
+                    em.AddComponent<Unity.Rendering.DisableRendering>(e);
+            }
+            meshes.Dispose();
+        }
+
         void Despawn(float2 player)
         {
             var em = queryWorld.EntityManager;
-            var states = creatureQuery.ToComponentDataArray<CreatureState>(Allocator.Temp);
-            var bodies = creatureQuery.ToComponentDataArray<CreatureBody>(Allocator.Temp);
-            var entities = creatureQuery.ToEntityArray(Allocator.Temp);
+            var states = wildQuery.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var bodies = wildQuery.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var entities = wildQuery.ToEntityArray(Allocator.Temp);
             System.Array.Clear(counts, 0, counts.Length);
             var far = new NativeList<Entity>(Allocator.Temp);
             for (int i = 0; i < entities.Length; i++)
@@ -224,7 +280,7 @@ namespace Punchy.Fauna
 
         void TrySpawn(in TerrainSource source, float2 player)
         {
-            if (creatureQuery.CalculateEntityCount() >= MaxCreatures || species.Count == 0)
+            if (wildQuery.CalculateEntityCount() >= MaxCreatures || species.Count == 0)
                 return;
             // A random spot in the ring around the player; whichever of its biome's species is furthest below its
             // density there gets a group.

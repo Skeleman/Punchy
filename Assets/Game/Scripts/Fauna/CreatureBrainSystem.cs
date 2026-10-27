@@ -80,7 +80,9 @@ namespace Punchy.Fauna
 
         static int2 Cell(float2 xz) => (int2)math.floor(xz / CellSize);
 
+        /// <summary>Every creature but the player's body (PlayerAvatarSystem moves that).</summary>
         [BurstCompile]
+        [WithNone(typeof(PlayerAvatar))]
         partial struct BrainJob : IJobEntity
         {
             public TerrainSource Terrain;
