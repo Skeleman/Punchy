@@ -1437,6 +1437,7 @@ namespace Punchy.Fauna
                         break;
                     case FolkHunting.Throw:
                         TurnTowards(ref s, ref b, prey.Position.xz, dt);
+                        bow = 1f;   // leaning into the throw
                         if (s.StageTime > 0.7f)
                             NextStage(ref s, FolkHunting.Chase);
                         break;

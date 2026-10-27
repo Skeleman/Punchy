@@ -350,7 +350,7 @@ namespace Punchy.Fauna
                 case IdleAction.Carry:
                     // A player carrying an animal: both arms forward with the elbows bent, cradling it at the chest.
                     if (part.Role == LimbRole.Arm)
-                        return joint == 0 ? new float3(-0.7f * e, 0f, 0f) : joint == 1 ? new float3(-1.45f * e, 0f, 0f) : float3.zero;
+                        return joint == 0 ? new float3(-0.35f * e, 0f, 0f) : joint == 1 ? new float3(-1.25f * e, 0f, 0f) : float3.zero;
                     if (part.Role == LimbRole.Head) return new float3(0.2f * e, 0f, 0f);
                     break;
             }

@@ -120,7 +120,7 @@ namespace Punchy.Fauna
             {
                 offsets[i] = total;
                 total += bodies[i].SegmentCount + MarkCount + (InWeb(states[i]) ? WebCount : 0) +
-                         LairCount(ref bodies[i].Blob.Value);
+                         LairCount(ref bodies[i].Blob.Value) + (states[i].Task == CreatureTask.Hunt ? 1 : 0);
             }
             bodies.Dispose();
             states.Dispose();
@@ -200,6 +200,50 @@ namespace Punchy.Fauna
                     Mound(state, lair);
                 else if (body.Blob.Value.Nests != NestSite.None)
                     Nest(state, body.Blob.Value.Nests, lair);
+                if (state.Task == CreatureTask.Hunt)
+                    Spear(state, ref body.Blob.Value, offset, lair + LairCount(ref body.Blob.Value));
+            }
+
+            /// <summary>
+            /// A hunter's spear, in the right hand: carried pointing ahead and a little down while creeping, held level
+            /// over the shoulder at the game while aiming; gone at the throw (it's been thrown), back in hand after.
+            /// (Drawn for every hunter: the Hunt task is replicated, so each machine draws it.)
+            /// </summary>
+            void Spear(in CreatureState state, ref CreatureBlob b, int offset, int at)
+            {
+                Output[at] = default;
+                if (state.Mode == CreatureMode.Hunt && state.Stage == FolkHunting.Throw)
+                    return;
+                // The right hand: the end of the right arm's last segment, as just posed.
+                var hand = -1;
+                for (int i = 0; i < b.Parts.Length; i++)
+                    if (b.Parts[i].Role == LimbRole.Arm && b.Parts[i].Side > 0f)
+                    {
+                        hand = b.Parts[i].FirstSegment + b.Parts[i].SegmentCount - 1;
+                        break;
+                    }
+                if (hand < 0)
+                    return;
+                var segment = Output[offset + hand];
+                var grip = segment.Position + Unity.Mathematics.math.mul(segment.Rotation, new Unity.Mathematics.float3(0f, 0f, segment.Length));
+                var yaw = state.Yaw;
+                var aiming = state.Mode == CreatureMode.Hunt && state.Stage == FolkHunting.Aim;
+                var pitch = aiming ? -0.08f : 0.25f;   // (positive: tip down)
+                var dir = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(yaw) * Unity.Mathematics.math.cos(pitch),
+                                                       -Unity.Mathematics.math.sin(pitch),
+                                                       Unity.Mathematics.math.cos(yaw) * Unity.Mathematics.math.cos(pitch));
+                var length = 1.8f * state.Scale;
+                var colour = new Unity.Mathematics.float4(0.16f, 0.1f, 0.05f, 0f);   // (linear) dark wood
+                Output[at] = new SegmentInstance
+                {
+                    Position = grip - dir * length * 0.4f,
+                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(dir, new Unity.Mathematics.float3(0f, 1f, 0f)),
+                    Length = length,
+                    RadiusStart = 0.016f * state.Scale,
+                    RadiusEnd = 0.009f * state.Scale,
+                    Flatten = 1f,
+                    Color = colour
+                };
             }
 
             /// <summary>
