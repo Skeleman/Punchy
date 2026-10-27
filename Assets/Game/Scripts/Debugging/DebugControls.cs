@@ -173,6 +173,37 @@ namespace Punchy.Debugging
             }
             if (inCave && EnsureLocations(out var source))
                 GoIntoCave(source);
+            // "-at Pool" (any AnchorKind): on the floor by the nearest anchor of that kind (after any -place).
+            var at = System.Array.IndexOf(args, "-at");
+            if (at >= 0 && at + 1 < args.Length && System.Enum.TryParse<AnchorKind>(args[at + 1], true, out var kind) &&
+                EnsureLocations(out var terrain))
+                GoToAnchor(terrain, kind);
+        }
+
+        /// <summary>Puts the player on the floor beside the nearest anchor of a kind, anywhere in the world.</summary>
+        void GoToAnchor(in TerrainSource source, AnchorKind kind)
+        {
+            if (!source.Anchors.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            ref var anchors = ref source.Anchors.Value.Anchors;
+            var em = queryWorld.EntityManager;
+            var at = em.GetComponentData<LocalTransform>(player);
+            var best = -1;
+            for (int i = 0; i < anchors.Length; i++)
+                if (anchors[i].Kind == kind && (best < 0 || math.distancesq(anchors[i].Position, at.Position) < math.distancesq(anchors[best].Position, at.Position)))
+                    best = i;
+            if (best < 0)
+            {
+                Debug.LogWarning($"DebugControls: no {kind} anchors");
+                return;
+            }
+            var anchor = anchors[best];
+            // A step back from it, the way it faces (so not in the water or the plant), on whatever floor is there.
+            var p = anchor.Position - new float3(anchor.Facing.x, 0f, anchor.Facing.y) * (anchor.Size + 1f);
+            var floor = source.FloorUnder(p + new float3(0f, 0.5f, 0f), out var inCave);
+            at.Position = new float3(p.x, inCave ? floor + 0.05f : source.SampleHeight(p.xz), p.z);
+            em.SetComponentData(player, at);
+            Debug.Log($"DebugControls: at {kind} anchor {best} ({anchor.Position.x:F0}, {anchor.Position.y:F0}, {anchor.Position.z:F0}), in cave {anchor.InCave}");
         }
 
         /// <summary>Puts the player on the floor of the deepest chamber of the cave whose mouth is nearest.</summary>
@@ -229,6 +260,21 @@ namespace Punchy.Debugging
                 }
                 var wantsWater = director.SpeciesHabitat(index) == Habitat.Swims || director.SpeciesHabitat(index) == Habitat.Floats;
                 var spawned = 0;
+                // Cave dwellers go on the cave floor round the player (who should be in a cave: -incave, -at).
+                if (director.SpeciesCaveDweller(index))
+                {
+                    for (int attempt = 0; attempt < 400 && spawned < count; attempt++)
+                    {
+                        var xz = player.Position.xz + rng.NextFloat2Direction() * rng.NextFloat(2f, 15f);
+                        var floor = source.FloorUnder(new float3(xz.x, player.Position.y + 0.5f, xz.y), out var inCave);
+                        if (!inCave || math.abs(floor - player.Position.y) > 2f)
+                            continue;
+                        director.Spawn(index, new float3(xz.x, floor, xz.y));
+                        spawned++;
+                    }
+                    Debug.Log($"DebugControls: spawned {spawned} {parts[0]} on the cave floor");
+                    continue;
+                }
                 for (int attempt = 0; attempt < 400 && spawned < count; attempt++)
                 {
                     var xz = player.Position.xz + rng.NextFloat2Direction() * rng.NextFloat(6f, 45f);

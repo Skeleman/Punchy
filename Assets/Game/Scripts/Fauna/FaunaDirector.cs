@@ -321,6 +321,7 @@ namespace Punchy.Fauna
         /// <summary>How many animals birds of prey have caught (for the test log).</summary>
         public static int Caught;
         public Habitat SpeciesHabitat(int index) => species[index].Body.Habitat;
+        public bool SpeciesCaveDweller(int index) => species[index].Body.CaveDweller;
         /// <summary>Whether this machine simulates animals (alone or hosting), so Spawn works.</summary>
         public bool CanSpawn => simWorld != null && simWorld.IsCreated && built;
 

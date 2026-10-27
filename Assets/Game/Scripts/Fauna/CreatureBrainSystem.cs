@@ -657,7 +657,8 @@ namespace Punchy.Fauna
                     SetMode(ref s, CreatureMode.Graze);
                     s.Timer = rng.NextFloat(8f, 25f);
                 }
-                else if ((roll -= drink) < 0f && FindWater(ref s, ref b, ref rng, out var shore, out var water))
+                else if ((roll -= drink) < 0f && (b.CaveDweller ? FindCaveWater(ref s, ref b, ref rng, out var shore, out var water)
+                                                                 : FindWater(ref s, ref b, ref rng, out shore, out water)))
                 {
                     SetMode(ref s, CreatureMode.Drink);
                     s.Target = shore;
@@ -1347,6 +1348,25 @@ namespace Punchy.Fauna
             }
 
             // ------------------------------------------------------------------------------- caves and roosts
+
+            /// <summary>
+            /// A drinking spot by underground water: one of the Pool anchors the caves export (on a pool's rim or a
+            /// stream bank, facing the water), near enough on about the same level, spread over the anchor's size.
+            /// </summary>
+            bool FindCaveWater(ref CreatureState s, ref CreatureBlob b, ref Random rng, out float2 shore, out float2 water)
+            {
+                shore = water = default;
+                if (!Terrain.Anchors.IsCreated ||
+                    !Anchors.Pick(ref Terrain.Anchors.Value, s.Position, 20f, AnchorKind.Pool, ref rng, out var pool) ||
+                    math.abs(pool.Position.y - s.Position.y) > 3f)
+                    return false;
+                var spot = pool.Position.xz + rng.NextFloat2Direction() * rng.NextFloat(0f, pool.Size * 0.5f);
+                if (!CaveFloor(spot, pool.Position.y))
+                    return false;
+                shore = spot - pool.Facing * (b.BodyLength * 0.4f * s.Scale);
+                water = spot + pool.Facing;
+                return true;
+            }
 
             /// <summary>Whether a cave dweller at this height can step here: cave floor at about the same level.</summary>
             bool CaveFloor(float2 xz, float y)
