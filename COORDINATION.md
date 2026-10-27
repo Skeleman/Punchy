@@ -47,12 +47,12 @@ Paths are under `Assets/Game/`.
 | Owner | Paths |
 |---|---|
 | Animal behavior manager | `Scripts/Fauna/**`, `Fauna/**` assets, `Resources/Domestics.asset`, `Scripts/Debugging/DebugControls.cs` (shared test flags), `Scripts/Weather/WeatherSystem.cs` Sun handling, `GLOSSARY.md` |
-| world feature manager | `Scripts/Terrain/Caves/**`, `Scripts/Terrain/Landmarks/**`, `Scripts/Terrain/Settlements/**`, `Scripts/Editor/CaveTools.cs`, `Landmarks/*.asset`, cave style and settlement assets, `Shaders/Cave.shader`, `WORLD.md` |
+| world feature manager | `Scripts/Terrain/Caves/**`, `Scripts/Terrain/Anchors/**`, `Scripts/Terrain/Landmarks/**`, `Scripts/Terrain/Settlements/**`, `Scripts/Editor/CaveTools.cs`, `Biomes/Glacier.asset`, `Biomes/Surfaces/GlacierIce.asset`, `Landmarks/*.asset`, cave style and settlement assets, `Shaders/Cave.shader`, `WORLD.md` |
 | kind-possum | `Scripts/Debugging/BenchmarkRoute.cs` and its own `b/*` branches |
 
 **Shared, additive only (tell the other owner):** `Flora/FloraGenerator.cs`, `Flora/FloraPlacement.cs`,
 `Flora/FloraSystem.cs`, biome assets (landmark lists only), `Water.shader` (world session is doing the surface
-work; animal session gets told first), `TerrainSource.cs` (entry points only).
+work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.cs` (entry points and bake calls only).
 
 **No owner, changes go through the supervisor:** `CLAUDE.md`, `MULTIPLAYER.md`, `.gitignore`, scenes,
 `ProjectSettings/`, `Packages/`.
@@ -62,7 +62,7 @@ work; animal session gets told first), `TerrainSource.cs` (entry points only).
 | Session | Task | State |
 |---|---|---|
 | Animal behavior manager | Lairs (nests at Nest anchors); then bat rework (J-013) | In progress |
-| world feature manager | Underground water with Pool anchors; then glowing flora and mossy shrubs | In progress |
+| world feature manager | Underground water with Pool anchors (uncommitted; blocked on memory for the play-mode check); then glowing flora and mossy shrubs | Blocked |
 | kind-possum | Route determinism, WeatherField MapJob fix, round 5 | In progress |
 
 ## Shared-file queue
@@ -88,3 +88,7 @@ work; animal session gets told first), `TerrainSource.cs` (entry points only).
 - 2026-10-27: Animal session listed earlier additive edits outside Fauna, all pushed: Ambience (dive splashes),
   CreatureGhosts (Net), NetMenu stats line, ThirdPersonCamera watch mode, the Flora placement split. Accepted;
   further edits outside the lane go through the supervisor. Traces done (5a4dd10); b/weather-mapjob merged (a90cfd4).
+- 2026-10-27: World session's lane gains Terrain/Anchors/**, Glacier.asset, GlacierIce.asset; TerrainAuthoring.cs is
+  shared (bake calls). On record: World.unity (one line, Glacier in the biome list, ab49284), PlayerMovementSystem
+  (lava block added 575986b, removed e9df26b, net zero), Water.shader (lava block). Main PC memory: commit 58/64 GB;
+  animal editor restart requested; world session blocked on its subscene load until memory clears.
