@@ -66,10 +66,10 @@ Shader "Punchy/Cave"
                 nointerpolation float style : TEXCOORD4;
             };
 
-            // Eight vectors per style slot (CaveStyle.Pack): rock rgb + strata, dark rgb + strata frequency,
+            // Nine vectors per style slot (CaveStyle.Pack): rock rgb + strata, dark rgb + strata frequency,
             // glow rgb + crack width, (gloss, metallic, facets, translucency), (glow scale, glow everywhere, cracks),
-            // floor rgb + grit, floor dark rgb + floor gloss, (detail, detail scale, sheen).
-            float4 _PunchyCaveStyles[32 * 8];
+            // floor rgb + grit, floor dark rgb + floor gloss, (detail, detail scale, sheen, moss), moss rgb.
+            float4 _PunchyCaveStyles[32 * 9];
             // The nearest lava pools (xyz a point just above the surface, w the pool's radius): they light the walls round
             // them warmly, in the shader, instead of with real lights.
             float4 _PunchyCaveHeat[16];
@@ -142,14 +142,15 @@ Shader "Punchy/Cave"
                 // The cave's style (slot 0: this material's colours, plain rock).
                 int slot = clamp((int)round(input.style), 0, 31);
                 float4 s0 = float4(_RockColor.rgb, 0.3), s1 = float4(_DarkColor.rgb, 0.366), s2 = 0, s3 = 0, s4 = float4(1, 0, 0, 0);
-                float4 s5 = float4(_RockColor.rgb * 0.8, 0.3), s6 = float4(_DarkColor.rgb, 0), s7 = float4(0.3, 1, 0, 0);
+                float4 s5 = float4(_RockColor.rgb * 0.8, 0.3), s6 = float4(_DarkColor.rgb, 0), s7 = float4(0.3, 1, 0, 0), s8 = 0;
                 if (slot > 0)
                 {
-                    int i = slot * 8;
+                    int i = slot * 9;
                     s0 = _PunchyCaveStyles[i];     s1 = _PunchyCaveStyles[i + 1];
                     s2 = _PunchyCaveStyles[i + 2]; s3 = _PunchyCaveStyles[i + 3];
                     s4 = _PunchyCaveStyles[i + 4]; s5 = _PunchyCaveStyles[i + 5];
                     s6 = _PunchyCaveStyles[i + 6]; s7 = _PunchyCaveStyles[i + 7];
+                    s8 = _PunchyCaveStyles[i + 8];
                 }
                 float terrain = saturate(input.data.x);
                 // Floor: ground that faces up, by its shape (not its fine detail), away from the terrain-coloured mouth.
@@ -179,6 +180,15 @@ Shader "Punchy/Cave"
                 half3 floorTone = lerp(s6.rgb, s5.rgb, saturate(blotch * 0.7 + detail.b * 0.5));
                 floorTone *= lerp(1, 0.6 + 0.8 * detail.a, s5.w);
                 rock = lerp(rock, floorTone, floorShare);
+                // Moss: patches on anything facing up (floors, ledges, the tops of fallen rocks), thickest where daylight
+                // comes in, a little on the lower walls; matte, so it also dulls the rock's gloss.
+                if (s7.w > 0)
+                {
+                    float clump = PunchyValueNoise(p.xz * 0.6 + p.y * 0.3 + 71) * 0.7 + detail.b * 0.3;
+                    float moss = smoothstep(0.55, 0.7, clump + s7.w * 0.35 + openness * 0.25) * saturate(shape.y * 1.6 + 0.2) * s7.w;
+                    rock = lerp(rock, s8.rgb * (0.7 + 0.6 * detail.b), moss);
+                    gloss *= 1 - moss;
+                }
                 // Where it stands in for the terrain, speckle it like the terrain's own close-up detail.
                 half3 ground = input.color.rgb * (0.7 + 0.45 * blotch);
                 half3 albedo = lerp(rock, ground, terrain);

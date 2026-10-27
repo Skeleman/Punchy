@@ -28,6 +28,10 @@ MonoBehaviour:
   SpeleothemThickness: 0.5
   Hanging: 0.5
   Columns: 0
+  Rubble: 6
+  RubbleSize: 0.8
+  Moss: 0.15
+  MossColor: {r: 0.22, g: 0.32, b: 0.12, a: 1}
   PoolChance: 0
   LavaPools: 0
   PoolSize: 0.32

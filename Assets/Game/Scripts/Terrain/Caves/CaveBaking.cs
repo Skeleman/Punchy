@@ -199,6 +199,7 @@ namespace Punchy.Terrain
             var withPools = BuildBlob(caves, nodes, kinds, segments, pools, speleothems, Allocator.Persistent);
             withCaves.Caves = withPools;
             PlaceSpeleothems(withCaves, caves, nodes, kinds, segments, styles, pools, speleothems);
+            PlaceRubble(withCaves, caves, nodes, kinds, segments, styles, pools, speleothems);
             withPools.Dispose();
             return BuildBlob(caves, nodes, kinds, segments, pools, speleothems, allocator);
         }
@@ -275,6 +276,70 @@ namespace Punchy.Terrain
                             s = Rod(new float3(q.x, floor - 0.5f, q.y), new float3(q.x, floor + math.min(length, height - 0.8f), q.y), thickness * 1.2f, 0.08f);
                         if (s.Tip.y != s.Root.y)
                             result.Add(s);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Fallen rocks in every chamber, by its cave's style: most heaped against the foot of the walls, the rest
+        /// scattered over the floor, each a rounded, slightly elongated lump sunk a third into the floor. They are rods
+        /// like the speleothems (part of the rock: drawn with it, solid), so they cost no meshes or draws of their own.
+        /// Never across the way through or in a pool.
+        /// </summary>
+        static void PlaceRubble(in TerrainSource source, List<CaveData> caves, List<CaveNode> nodes, List<CaveNodeKind> kinds,
+                                List<CaveSegment> segments, List<CaveStyle> styles, List<CavePool> pools, List<CaveSpeleothem> result)
+        {
+            for (int c = 0; c < caves.Count; c++)
+            {
+                var cave = caves[c];
+                var style = cave.Style > 0 ? styles[cave.Style - 1] : null;
+                var density = style != null ? style.Rubble : 3f;
+                if (density <= 0f)
+                    continue;
+                var size = style != null ? style.RubbleSize : 0.6f;
+                var rng = new Random(math.hash(new int2(c, 0x2B1E)) | 1u);
+                for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
+                {
+                    if (kinds[n] != CaveNodeKind.Chamber)
+                        continue;
+                    var centre = nodes[n].Position;
+                    var spread = nodes[n].Radius * cave.Profile.x;
+                    var count = (int)math.round(density * math.PI * spread * spread * 0.64f / 100f * rng.NextFloat(0.7f, 1.3f));
+                    for (int k = 0; k < count; k++)
+                    {
+                        var r = size * rng.NextFloat(0.6f, 1.5f);
+                        var a = rng.NextFloat(math.PI * 2f);
+                        var dir = new float2(math.cos(a), math.sin(a));
+                        float2 q;
+                        if (rng.NextFloat() < 0.65f)
+                        {
+                            // Against the wall: walk out from the middle at knee height until rock, then back off.
+                            var floorHere = source.FloorUnder(centre, out _);
+                            var from = new float3(centre.x, floorHere + 0.5f, centre.z);
+                            var t = 0f;
+                            var hit = false;
+                            for (int s = 0; s < 80 && !hit; s++)
+                            {
+                                var d = source.CaveDistance(from + new float3(dir.x, 0f, dir.y) * t);
+                                if (d >= 0f) hit = true;
+                                else t += math.max(0.2f, -d * 0.4f);
+                            }
+                            if (!hit || t < r * 2f)
+                                continue;
+                            q = centre.xz + dir * (t - r * 0.6f);
+                        }
+                        else
+                            q = centre.xz + dir * spread * 0.8f * math.sqrt(rng.NextFloat());
+                        if (InTheWay(q, 0.6f + r, n, nodes, segments, cave) || InPool(q, r, pools, cave))
+                            continue;
+                        var floor = source.FloorUnder(new float3(q.x, centre.y, q.y), out var inCave);
+                        if (!inCave || source.CaveDistance(new float3(q.x, floor + 0.3f, q.y)) >= 0f)
+                            continue;
+                        var lean = rng.NextFloat(math.PI * 2f);
+                        var root = new float3(q.x, floor + r * 0.3f, q.y);
+                        var tip = root + new float3(math.cos(lean), rng.NextFloat(-0.1f, 0.2f), math.sin(lean)) * r * rng.NextFloat(0f, 0.8f);
+                        result.Add(Rod(root, tip, r, r * rng.NextFloat(0.6f, 0.9f)));
                     }
                 }
             }

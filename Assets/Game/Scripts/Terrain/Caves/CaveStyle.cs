@@ -50,6 +50,16 @@ namespace Punchy.Terrain
         [Tooltip("Chance one reaches all the way from floor to ceiling as a column.")]
         [Range(0f, 1f)] public float Columns = 0.1f;
 
+        [Header("Rubble and moss")]
+        [Tooltip("Fallen rocks per 100 m² of chamber floor, heaped against the walls and scattered across the middle. " +
+                 "Part of the rock (drawn with it, solid), never across the way through or in a pool.")]
+        [Range(0f, 15f)] public float Rubble = 3f;
+        [Tooltip("Typical radius of a fallen rock, in metres.")]
+        [Range(0.3f, 1.5f)] public float RubbleSize = 0.6f;
+        [Tooltip("Moss on floors and lower walls, in patches, thickest where daylight comes in.")]
+        [Range(0f, 1f)] public float Moss;
+        [ColorUsage(false)] public Color MossColor = new Color(0.22f, 0.32f, 0.12f);
+
         [Header("Pools")]
         [Tooltip("Chance a cave of this style has pools sunk into its biggest chambers' floors (off to one side, " +
                  "clear of the way through).")]
@@ -122,7 +132,9 @@ namespace Punchy.Terrain
             var floorDark = FloorDark.linear;
             table[i + 5] = new Vector4(floor.r, floor.g, floor.b, FloorGrit);
             table[i + 6] = new Vector4(floorDark.r, floorDark.g, floorDark.b, FloorGloss);
-            table[i + 7] = new Vector4(Detail, DetailScale, Sheen, 0f);
+            table[i + 7] = new Vector4(Detail, DetailScale, Sheen, Moss);
+            var moss = MossColor.linear;
+            table[i + 8] = new Vector4(moss.r, moss.g, moss.b, 0f);
         }
     }
 
@@ -132,7 +144,7 @@ namespace Punchy.Terrain
     /// </summary>
     public static class CaveStyleTable
     {
-        public const int Vectors = 8;
+        public const int Vectors = 9;
         public const int MaxStyles = 32;
 
         public static List<CaveStyle> Collect(IReadOnlyList<LandmarkType> types)
