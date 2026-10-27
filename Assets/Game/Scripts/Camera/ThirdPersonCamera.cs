@@ -37,7 +37,8 @@ namespace Punchy.CameraRig
         EntityManager entityManager;
         EntityQuery playerQuery;
         EntityQuery terrainQuery;
-        bool queriesCreated;
+        // The world the queries belong to; joining or hosting replaces the worlds, so they are rebuilt then.
+        World queryWorld;
 
         void Start()
         {
@@ -113,12 +114,12 @@ namespace Punchy.CameraRig
             if (world == null || !world.IsCreated)
                 return false;
 
-            if (!queriesCreated)
+            if (queryWorld != world)
             {
                 entityManager = world.EntityManager;
                 playerQuery = entityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
                 terrainQuery = entityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
-                queriesCreated = true;
+                queryWorld = world;
             }
 
             // The subscene streams in asynchronously, so the player may not exist for the first few frames.

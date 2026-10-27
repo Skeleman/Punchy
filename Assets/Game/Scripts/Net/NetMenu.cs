@@ -264,6 +264,7 @@ namespace Punchy.Net
         public static void Notify(string text, float seconds = 5f)
         {
             notice = text;
+            Debug.Log($"NetMenu: {text}");
             noticeUntil = Time.unscaledTime + seconds;
         }
 
