@@ -52,6 +52,8 @@ namespace Punchy.Terrain
             public NativeList<float4> Data;
             public NativeList<int> Indices;
             public bool Pending;
+            /// <summary>Whether its walls cast sun shadows: only chunks reaching up near the surface can shade anything the sun lights.</summary>
+            public bool CastsShadows;
 
             public void Dispose()
             {
@@ -305,6 +307,12 @@ namespace Punchy.Terrain
                     var min = (float3)kv.Key * chunkSize;
                     mesh.bounds = new Bounds(min + chunkSize * 0.5f, new float3(chunkSize + Voxel * 4f));
                     b.Mesh = mesh;
+                    // A chunk whose top is a few metres under the lowest ground above it can't shade anything the sun
+                    // reaches, so it stays out of the shadow cascades (the column heights are already sampled).
+                    var lowestGround = float.MaxValue;
+                    for (int i = 0; i < b.Surface.Length; i++)
+                        lowestGround = math.min(lowestGround, b.Surface[i]);
+                    b.CastsShadows = min.y + chunkSize + Voxel > lowestGround - 4f;
                 }
                 b.Field.Dispose();
                 b.CaveField.Dispose();
@@ -553,7 +561,7 @@ namespace Punchy.Terrain
                 var rp = new RenderParams(Material)
                 {
                     worldBounds = b.Mesh.bounds,
-                    shadowCastingMode = ShadowCastingMode.On,
+                    shadowCastingMode = b.CastsShadows ? ShadowCastingMode.On : ShadowCastingMode.Off,
                     receiveShadows = true
                 };
                 Graphics.RenderMesh(rp, b.Mesh, 0, Matrix4x4.identity);
