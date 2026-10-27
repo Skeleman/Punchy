@@ -74,6 +74,12 @@ namespace Punchy.Terrain
         Light lantern;
         float lanternLevel;
 
+        // Other players carry lanterns too (lit from where their bodies are; nothing extra is sent).
+        class OtherLantern { public Light Light; public float Level; public bool Seen; }
+        readonly Dictionary<Entity, OtherLantern> otherLanterns = new Dictionary<Entity, OtherLantern>();
+        readonly List<Entity> goneLanterns = new List<Entity>();
+        EntityQuery othersQuery;
+
         static readonly int UndergroundId = Shader.PropertyToID("_PunchyUnderground");
 
         void OnDisable()
@@ -85,6 +91,9 @@ namespace Punchy.Terrain
             Shader.SetGlobalFloat(UndergroundId, 0f);
             if (lantern != null)
                 lantern.enabled = false;
+            foreach (var l in otherLanterns.Values)
+                if (l.Light != null) Destroy(l.Light.gameObject);
+            otherLanterns.Clear();
         }
 
         void Update()
@@ -109,6 +118,7 @@ namespace Punchy.Terrain
             Underground = Mathf.MoveTowards(Underground, deep, Time.deltaTime * 1.5f);
             Shader.SetGlobalFloat(UndergroundId, Underground);
             UpdateLantern(source);
+            UpdateOtherLanterns(source, cam.transform.position);
         }
 
         bool TryGetWorld(out TerrainSource source)
@@ -121,6 +131,7 @@ namespace Punchy.Terrain
             {
                 terrainQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
                 playerQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Player.PlayerTag>(), ComponentType.ReadOnly<Unity.Transforms.LocalTransform>());
+                othersQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Net.NetPlayer>(), ComponentType.ReadOnly<Unity.Transforms.LocalTransform>());
                 queryWorld = world;
             }
             return terrainQuery.TryGetSingleton(out source);
@@ -410,26 +421,72 @@ namespace Punchy.Terrain
         {
             if (!playerQuery.TryGetSingleton<Unity.Transforms.LocalTransform>(out var player))
                 return;
-            // Lit while the player is in a cave and away from the daylight at the entrance.
-            source.FloorUnder(player.Position, out var inCave);
-            var depth = source.SampleHeight(player.Position.xz) - player.Position.y;
-            var wanted = inCave ? math.saturate((depth - 1f) / 3f) : 0f;
-            lanternLevel = Mathf.MoveTowards(lanternLevel, wanted, Time.deltaTime * 1.2f);
+            lanternLevel = Mathf.MoveTowards(lanternLevel, LanternWanted(source, player.Position), Time.deltaTime * 1.2f);
             if (lantern == null)
+                lantern = CreateLantern("Lantern");
+            PlaceLantern(lantern, player, lanternLevel, 0.5f);
+        }
+
+        /// <summary>How lit someone's lantern should be: in a cave and away from the daylight at the entrance.</summary>
+        static float LanternWanted(in TerrainSource source, float3 feet)
+        {
+            source.FloorUnder(feet, out var inCave);
+            var depth = source.SampleHeight(feet.xz) - feet.y;
+            return inCave ? math.saturate((depth - 1f) / 3f) : 0f;
+        }
+
+        Light CreateLantern(string name)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(transform, false);
+            var light = go.AddComponent<Light>();
+            light.type = LightType.Point;
+            light.shadows = LightShadows.None;
+            return light;
+        }
+
+        void PlaceLantern(Light light, in Unity.Transforms.LocalTransform holder, float level, float flickerSeed)
+        {
+            light.enabled = level > 0.01f;
+            light.color = LanternColor;
+            light.range = LanternRange;
+            var flicker = 0.92f + 0.08f * Mathf.PerlinNoise(Time.time * 3f, flickerSeed);
+            light.intensity = LanternIntensity * level * flicker;
+            var forward = math.mul(holder.Rotation, new float3(0f, 0f, 1f));
+            light.transform.position = holder.Position + new float3(0f, 1.6f, 0f) + forward * 0.4f;
+        }
+
+        void UpdateOtherLanterns(in TerrainSource source, Vector3 camera)
+        {
+            if (othersQuery.IsEmpty && otherLanterns.Count == 0)
+                return;
+            foreach (var l in otherLanterns.Values)
+                l.Seen = false;
+            var em = queryWorld.EntityManager;
+            var entities = othersQuery.ToEntityArray(Allocator.Temp);
+            foreach (var e in entities)
             {
-                var go = new GameObject("Lantern");
-                go.transform.SetParent(transform, false);
-                lantern = go.AddComponent<Light>();
-                lantern.type = LightType.Point;
-                lantern.shadows = LightShadows.None;
+                if (em.HasComponent<Unity.NetCode.GhostOwnerIsLocal>(e) && em.IsComponentEnabled<Unity.NetCode.GhostOwnerIsLocal>(e))
+                    continue;
+                var t = em.GetComponentData<Unity.Transforms.LocalTransform>(e);
+                if (math.lengthsq(t.Position) < 1e-6f || math.distance(t.Position, camera) > 150f)
+                    continue;
+                if (!otherLanterns.TryGetValue(e, out var l))
+                    otherLanterns[e] = l = new OtherLantern { Light = CreateLantern("Lantern (other player)") };
+                l.Seen = true;
+                l.Level = Mathf.MoveTowards(l.Level, LanternWanted(source, t.Position), Time.deltaTime * 1.2f);
+                PlaceLantern(l.Light, t, l.Level, 1.5f + (e.Index % 7));
             }
-            lantern.enabled = lanternLevel > 0.01f;
-            lantern.color = LanternColor;
-            lantern.range = LanternRange;
-            var flicker = 0.92f + 0.08f * Mathf.PerlinNoise(Time.time * 3f, 0.5f);
-            lantern.intensity = LanternIntensity * lanternLevel * flicker;
-            var forward = math.mul(player.Rotation, new float3(0f, 0f, 1f));
-            lantern.transform.position = player.Position + new float3(0f, 1.6f, 0f) + forward * 0.4f;
+            entities.Dispose();
+            goneLanterns.Clear();
+            foreach (var pair in otherLanterns)
+                if (!pair.Value.Seen)
+                    goneLanterns.Add(pair.Key);
+            foreach (var e in goneLanterns)
+            {
+                if (otherLanterns[e].Light != null) Destroy(otherLanterns[e].Light.gameObject);
+                otherLanterns.Remove(e);
+            }
         }
     }
 }

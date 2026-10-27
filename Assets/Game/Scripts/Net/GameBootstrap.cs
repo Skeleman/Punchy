@@ -28,6 +28,17 @@ namespace Punchy.Net
         public static Placement PendingPlacement;
         public static Unity.Mathematics.float3 CarriedPosition;
 
+        /// <summary>The host we're joining (for the F2 panel), and since when; negative once in game or not joining.</summary>
+        public static string JoiningTo;
+        public static float JoiningSince = -1f;
+
+        static void StartedJoining(string to)
+        {
+            JoiningTo = to;
+            JoiningSince = Time.unscaledTime;
+            Debug.Log($"GameBootstrap: joining {to}");
+        }
+
         public override bool Initialize(string defaultWorldName)
         {
             if (!DetermineIfBootstrappingEnabled())
@@ -43,7 +54,7 @@ namespace Punchy.Net
                 var client = CreateClientWorld("ClientWorld");
                 using (var query = client.EntityManager.CreateEntityQuery(ComponentType.ReadWrite<NetworkStreamDriver>()))
                     query.GetSingletonRW<NetworkStreamDriver>().ValueRW.Connect(client.EntityManager, endpoint);
-                Debug.Log($"GameBootstrap: joining {endpoint}");
+                StartedJoining(endpoint.ToString());
             }
             else if (HasArgument("-joincode"))
             {
@@ -81,6 +92,7 @@ namespace Punchy.Net
         /// <summary>Drops the current game and joins the host at an address (keeps the scene, rebuilds the worlds).</summary>
         public static void Join(NetworkEndpoint host)
         {
+            StartedJoining(host.ToString());
             PendingPlacement = Placement.NearHost;
             DisposeNetWorlds();
             AutoConnectPort = 0;
@@ -94,6 +106,7 @@ namespace Punchy.Net
         /// <summary>Drops the current game and hosts a new one on <see cref="Port"/>.</summary>
         public static void Host()
         {
+            JoiningSince = -1f;
             PendingPlacement = Placement.KeepPosition;
             DisposeNetWorlds();
             AutoConnectPort = 0;
@@ -113,6 +126,7 @@ namespace Punchy.Net
         /// </summary>
         public static void HostRelay(RelayServerData relay)
         {
+            JoiningSince = -1f;
             PendingPlacement = Placement.KeepPosition;
             DisposeNetWorlds();
             AutoConnectPort = 0;
@@ -151,6 +165,7 @@ namespace Punchy.Net
         /// <summary>Drops the current game and joins a host through Unity Relay.</summary>
         public static void JoinRelay(RelayServerData relay)
         {
+            StartedJoining("an online game");
             PendingPlacement = Placement.NearHost;
             DisposeNetWorlds();
             AutoConnectPort = 0;

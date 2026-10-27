@@ -1,6 +1,8 @@
 #ifndef PUNCHY_LANDMARK_EFFECTS_INCLUDED
 #define PUNCHY_LANDMARK_EFFECTS_INCLUDED
 
+#include "SharedClock.hlsl"
+
 // Landmark effects (LandmarkEffectSystem). Each emitter is one effect; every puff and streak is animated from time
 // alone. Must match LandmarkEffectSystem.Emitter.
 
@@ -54,8 +56,8 @@ PlumeVertex BuildPlume(uint vertex, uint instance)
     LandmarkEmitter e = _LandmarkEmitters[index];
     float r = EffectHash(k * 1.731 + e.seed * 91.0);
     float life = e.shape.w;
-    float age = frac(_Time.y / life + r);
-    float born = _Time.y - age * life;
+    float age = frac(_PunchyClock / life + r);
+    float born = _PunchyClock - age * life;
 
     float rise = 1 - (1 - age) * (1 - age);
     float angle = EffectHash(r * 5.3) * 6.2832;
@@ -100,7 +102,7 @@ FallVertex BuildWaterfall(uint vertex, uint instance)
     float width = e.shape.y * (1 + 0.3 * t);
     float3 p = e.position + outDir * e.shape.x * t - float3(0, e.drop * t * t, 0) + across * (u - 0.5) * width;
     // Ripple the sheet so it isn't a perfect surface.
-    p += outDir * sin(u * 9.0 + t * 4.0 + _Time.y * 1.7) * 0.15 * t;
+    p += outDir * sin(u * 9.0 + t * 4.0 + _PunchyClock * 1.7) * 0.15 * t;
 
     float3 tangent = normalize(outDir * e.shape.x - float3(0, 2 * e.drop * t, 0));
     FallVertex o;

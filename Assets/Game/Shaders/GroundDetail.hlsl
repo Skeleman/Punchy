@@ -29,6 +29,8 @@ struct Pebble
 uint   _InstanceCount;
 float  _DetailRadius;
 float4 _PunchyPlayerPos;
+// Other players' feet (w = 1 where there is one), set by GroundDetailSystem.
+float4 _PunchyOthersPos[4];
 float2 _PunchyWindDirection;
 half   _PunchyWind;
 
@@ -76,9 +78,19 @@ void BuildBladeVertex(Blade blade, uint instance, uint vertex, out float3 positi
     float sway = (sin(phase) * 0.5 + 0.5) * (0.15 + 0.85 * _PunchyWind) + sin(phase * 2.7) * 0.06;
     float3 wind = windDir * sway * height * 0.7;
 
-    // The player pushes blades aside.
+    // The player, and anyone else nearby, pushes blades aside.
     float2 away = blade.position.xz - _PunchyPlayerPos.xz;
     float push = saturate(1 - length(away) / 0.9) * step(abs(blade.position.y - _PunchyPlayerPos.y), 1.5);
+    [unroll] for (int o = 0; o < 4; o++)
+    {
+        float2 awayOther = blade.position.xz - _PunchyOthersPos[o].xz;
+        float pushOther = saturate(1 - length(awayOther) / 0.9) * step(abs(blade.position.y - _PunchyOthersPos[o].y), 1.5) * _PunchyOthersPos[o].w;
+        if (pushOther > push)
+        {
+            push = pushOther;
+            away = awayOther;
+        }
+    }
     float3 shove = float3(normalize(away + 1e-4).x, 0, normalize(away + 1e-4).y) * push * height * 0.9;
 
     float3 bend = lean * blade.bend * height + wind + shove;

@@ -34,7 +34,7 @@ Shader "Punchy/Fireflies"
             {
                 Critter c = _CritterBuffer[instance];
                 float r = c.random;
-                float t = _Time.y + r * 137.0;
+                float t = _PunchyClock + r * 137.0;
 
                 // Meandering drift: a few incommensurate swirls around home, between knee and head height.
                 float3 p = c.position;

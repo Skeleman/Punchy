@@ -107,6 +107,7 @@ namespace Punchy.Net
                 Weather.Struck += OnStruck;
                 subscribed = true;
             }
+            Shader.SetGlobalFloat(ClockId, SharedClock());
             var hosting = server != null && server.IsCreated;
             var joined = !hosting && client != null && client.IsCreated && client.IsClient();
             if (Weather != null)
@@ -167,6 +168,25 @@ namespace Punchy.Net
             Weather.Field.ImportCells(carriedCells);
             Debug.Log($"WorldSync: carried the sky over ({(int)carried.TimeOfDay:00}:{(int)(carried.TimeOfDay % 1f * 60f):00}, {carriedCells.Count} weather cells)");
             return true;
+        }
+
+        static readonly int ClockId = Shader.PropertyToID("_PunchyClock");
+
+        /// <summary>
+        /// Seconds by the server's tick, which every connected player agrees on, so ambient motion driven by it
+        /// (fireflies, butterflies, motes) matches between screens. Time since start when not in a game.
+        /// </summary>
+        float SharedClock()
+        {
+            if (client == null || !client.IsCreated || !client.IsClient())
+                return Time.time;
+            var em = client.EntityManager;
+            using var time = em.CreateEntityQuery(ComponentType.ReadOnly<NetworkTime>());
+            if (!time.TryGetSingleton<NetworkTime>(out var t) || !t.ServerTick.IsValid)
+                return Time.time;
+            using var rate = em.CreateEntityQuery(ComponentType.ReadOnly<ClientServerTickRate>());
+            var hz = rate.TryGetSingleton<ClientServerTickRate>(out var r) && r.SimulationTickRate > 0 ? r.SimulationTickRate : 60;
+            return (float)((t.ServerTick.TickIndexForValidTick + (double)t.ServerTickFraction) / hz);
         }
 
         // ------------------------------------------------------------------------------------------- host

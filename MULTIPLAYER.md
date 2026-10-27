@@ -358,3 +358,26 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
     - the Relay bind-address warning (harmless)
     - host migration (none)
     - a longer session (30 minutes) with two people actually playing
+- 2026-10-27 — A — **After Zach's first real session.**
+  - **IP join that "looked accepted":**
+    - B's editor log shows the F2 IP join sat at `Connecting` for 40+ s with no error. A's editor (the host) saw
+      no packets. Its firewall allows Unity.exe on Private UDP, so the likely cause is that the wrong address was
+      typed: the joiner's panel showed its *own* address.
+    - Now:
+      - The host's panel says "Others on your network join this PC at X".
+      - Joining your own address is refused.
+      - The panel shows "Connecting to X…".
+      - A join the host doesn't answer within 15 s gives up with a notice and hosts locally.
+      - Every join logs its target.
+  - **Things that weren't the same on both screens:** each machine now works these out for other players from
+    positions it already has, so nothing extra is sent.
+    - **Breath and snow footstep puffs** were only drawn for the local player. AmbienceSystem now does them for
+      every other player within 80 m, using the cold where that player stands.
+    - **Grass** only bent for the local player. Up to 4 other players near the camera now push it too
+      (`_PunchyOthersPos`).
+    - **Cave lanterns** were only for the local player. Other players in caves now carry one.
+    - **Fireflies, butterflies, ambient motes and landmark effects** were animated by each machine's `_Time`, so
+      they sat in different places. They now run on `_PunchyClock` (SharedClock.hlsl), the server tick in seconds,
+      set by WorldSync.
+  - **Still per-machine (cosmetic):** animal gait phase, grass wind sway, waterfall streak scroll, rain particles.
+  - **Note:** Netcode 6.5 has a HostMigration system; worth a look for "the host leaves and someone else takes over".

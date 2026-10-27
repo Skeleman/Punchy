@@ -1,6 +1,8 @@
 #ifndef PUNCHY_AMBIENT_PARTICLES_INCLUDED
 #define PUNCHY_AMBIENT_PARTICLES_INCLUDED
 
+#include "SharedClock.hlsl"
+
 // Ambient particles (AmbientParticleSystem): each instance is one particle with a home spot on the ground. It
 // hangs at a random height, wanders lazily around home, and (if the type drifts) travels up, down or with the wind
 // over a set distance, fading in and out, then starts again. Must match AmbientParticleSystem.Particle.
@@ -35,7 +37,7 @@ ParticleVertex BuildParticle(uint vertex, uint instance)
 {
     AmbientParticle p = _AmbientParticles[instance];
     float r = p.random;
-    float t = _Time.y;
+    float t = _PunchyClock;
 
     float presence = saturate((_ParticleShape.y - r * 0.95) / 0.05);
     float size = lerp(_ParticleSize.x, _ParticleSize.y, ParticleHash(r * 3.1));

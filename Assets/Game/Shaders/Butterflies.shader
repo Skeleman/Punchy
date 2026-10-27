@@ -38,7 +38,7 @@
             {
                 Critter c = _CritterBuffer[instance];
                 float r = c.random;
-                float t = _Time.y * (0.8 + 0.3 * r) + r * 91.0;
+                float t = _PunchyClock * (0.8 + 0.3 * r) + r * 91.0;
                 float turn = r > 0.5 ? 1 : -1;
 
                 // Loose loops around home, with a fluttery bob; facing along the path.
@@ -53,7 +53,7 @@
                 float3 up = cross(forward, side);
 
                 // Wings flap between nearly closed above the back and slightly below level.
-                float flap = sin(_Time.y * (13.0 + 5.0 * r) + r * 30.0);
+                float flap = sin(_PunchyClock * (13.0 + 5.0 * r) + r * 30.0);
                 float lift = lerp(-0.25, 1.35, 0.5 + 0.5 * flap);
                 uint wing = vertex / 6;
                 float s = wing == 0 ? 1 : -1;

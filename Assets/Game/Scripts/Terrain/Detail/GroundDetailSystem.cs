@@ -85,6 +85,9 @@ namespace Punchy.Terrain
         static readonly int CountId = Shader.PropertyToID("_InstanceCount");
         static readonly int RadiusId = Shader.PropertyToID("_DetailRadius");
         static readonly int PlayerId = Shader.PropertyToID("_PunchyPlayerPos");
+        static readonly int OthersId = Shader.PropertyToID("_PunchyOthersPos");
+        readonly Vector4[] othersPos = new Vector4[4];
+        EntityQuery othersQuery;
 
         int GridSamples => (int)TileSize + 1;
         int MaxGrass => (int)(TileSize * TileSize * GrassPerSquareMetre);
@@ -113,12 +116,38 @@ namespace Punchy.Terrain
 
             if (playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 Shader.SetGlobalVector(PlayerId, new Vector4(player.Position.x, player.Position.y, player.Position.z, 0f));
+            SetOthers(cam.transform.position);
 
             var camXZ = new float2(cam.transform.position.x, cam.transform.position.z);
             var radius = math.max(GrassRadius, PebbleRadius);
             UnloadFarTiles(camXZ, radius + TileSize * 1.5f);
             BuildMissingTiles(source, camXZ, radius);
             Draw(cam, camXZ);
+        }
+
+        /// <summary>Other players walking through the grass push it aside too: the nearest few to the camera.</summary>
+        void SetOthers(Vector3 camera)
+        {
+            for (int i = 0; i < othersPos.Length; i++)
+                othersPos[i] = Vector4.zero;
+            if (!othersQuery.IsEmpty)
+            {
+                var em = queryWorld.EntityManager;
+                var entities = othersQuery.ToEntityArray(Allocator.Temp);
+                var used = 0;
+                foreach (var e in entities)
+                {
+                    if (em.HasComponent<Unity.NetCode.GhostOwnerIsLocal>(e) && em.IsComponentEnabled<Unity.NetCode.GhostOwnerIsLocal>(e))
+                        continue;
+                    var p = em.GetComponentData<LocalTransform>(e).Position;
+                    if (math.lengthsq(p) < 1e-6f || math.distance(p, camera) > GrassRadius)
+                        continue;
+                    if (used < othersPos.Length)
+                        othersPos[used++] = new Vector4(p.x, p.y, p.z, 1f);
+                }
+                entities.Dispose();
+            }
+            Shader.SetGlobalVectorArray(OthersId, othersPos);
         }
 
         void UnloadFarTiles(float2 camXZ, float radius)
@@ -260,6 +289,7 @@ namespace Punchy.Terrain
             {
                 terrainQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
                 playerQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
+                othersQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Net.NetPlayer>(), ComponentType.ReadOnly<LocalTransform>());
                 queryWorld = world;
             }
             return terrainQuery.TryGetSingleton(out source);

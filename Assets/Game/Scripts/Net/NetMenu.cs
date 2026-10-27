@@ -136,24 +136,32 @@ namespace Punchy.Net
                 GUILayout.EndHorizontal();
             }
             else if (server != null)
-                GUILayout.Label($"Hosting on {lanAddress}:{GameBootstrap.Port} — {players} player(s) connected");
+                GUILayout.Label($"Hosting — {players} player(s) connected. Others on your network join this PC at <b>{lanAddress}</b>",
+                    new GUIStyle(GUI.skin.label) { wordWrap = true, richText = true });
             else
             {
                 // A refused or lost connection disappears; a join in progress still has its connection entity.
                 var connecting = client != null && Count<NetworkStreamConnection>(client) > 0;
-                GUILayout.Label(connected ? "Connected to a host" : connecting ? "Connecting…"
+                GUILayout.Label(connected ? "Connected to a host" : connecting ? $"Connecting to {GameBootstrap.JoiningTo}…"
                     : "Not connected: the host is unreachable, or refused us (a different world or build). Join again, or host.",
                     new GUIStyle(GUI.skin.label) { wordWrap = true });
             }
 
             GUILayout.Space(6);
-            GUILayout.Label("Join a host by IP:");
+            GUILayout.Label("Join a host by IP (the address its F2 panel shows):");
             GUILayout.BeginHorizontal();
             address = GUILayout.TextField(address, GUILayout.Width(200));
-            if (GUILayout.Button("Join") && NetworkEndpoint.TryParse(address.Trim(), GameBootstrap.Port, out var endpoint))
+            if (GUILayout.Button("Join"))
             {
-                RelaySessions.Forget();
-                GameBootstrap.Join(endpoint);
+                if (address.Trim() == lanAddress)
+                    Notify("That's this PC's own address. Type the address shown on the host's F2 panel.", 6f);
+                else if (!NetworkEndpoint.TryParse(address.Trim(), GameBootstrap.Port, out var endpoint))
+                    Notify($"\"{address.Trim()}\" isn't an IP address (it looks like 192.168.1.20).", 6f);
+                else
+                {
+                    RelaySessions.Forget();
+                    GameBootstrap.Join(endpoint);
+                }
             }
             GUILayout.EndHorizontal();
             if (server == null && GUILayout.Button("Host my own game instead"))
@@ -265,7 +273,21 @@ namespace Punchy.Net
             if (Count<NetworkStreamInGame>(client) > 0)
             {
                 wasInGame = true;
+                GameBootstrap.JoiningSince = -1f;
                 lostAt = -1f;
+                return;
+            }
+            // A join that never gets through (wrong address, host not running, blocked) gives up rather than
+            // leaving us in an empty world that looks like it worked.
+            // (Only until the host answers: after that, loading the world can take a while on a slow PC.)
+            if (GameBootstrap.JoiningSince >= 0f && Count<NetworkId>(client) > 0)
+                GameBootstrap.JoiningSince = -1f;
+            if (!wasInGame && GameBootstrap.JoiningSince >= 0f && Time.unscaledTime - GameBootstrap.JoiningSince > JoinTimeout)
+            {
+                Notify($"Couldn't reach {GameBootstrap.JoiningTo}. Check the address: the host's F2 panel shows it.", 8f);
+                GameBootstrap.JoiningSince = -1f;
+                RelaySessions.Forget();
+                GameBootstrap.Host();
                 return;
             }
             if (!wasInGame)
@@ -283,6 +305,8 @@ namespace Punchy.Net
                 GameBootstrap.Host();
             }
         }
+
+        const float JoinTimeout = 15f;
 
         public static void Notify(string text, float seconds = 5f)
         {

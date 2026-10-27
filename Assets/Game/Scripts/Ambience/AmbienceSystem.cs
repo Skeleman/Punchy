@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 ﻿using Punchy.Player;
 using Punchy.Terrain;
 using Punchy.Weather;
@@ -16,7 +17,8 @@ namespace Punchy.Ambience
     /// Small environmental touches driven by where the player is and what the weather and time of day are doing:
     ///  - heat shimmer and mirages over hot ground on sunny days (a full-screen pass reads a heat map of the land
     ///    around the camera, built from each biome's Heat);
-    ///  - the player's breath showing as puffs of vapour in the cold, and powder kicked up by footsteps in snow;
+    ///  - breath showing as puffs of vapour in the cold, and powder kicked up by footsteps in snow, for the player and
+    ///    for other players nearby (worked out here from their positions, so nothing extra is sent);
     ///  - how many fireflies and butterflies are out (drawn by CritterSystem).
     /// </summary>
     [DefaultExecutionOrder(900)]
@@ -41,6 +43,8 @@ namespace Punchy.Ambience
         public float BreathThreshold = 0.35f;
         [Tooltip("Height of the mouth above the feet, and how far in front of the body's centre.")]
         public Vector2 Mouth = new Vector2(1.5f, 0.3f);
+        [Tooltip("Other players' breath and footprints show within this distance of the camera.")]
+        public float OthersRange = 80f;
 
         /// <summary>0..1 conditions where the player is (for debugging and other systems).</summary>
         public float Heat { get; private set; }
@@ -71,10 +75,20 @@ namespace Punchy.Ambience
         bool hasHeatMap;
 
         ParticleSystem puffs;
-        float breathTimer, exhaleLeft, stepDistance;
-        bool leftFoot;
-        float3 lastPlayerPosition;
-        bool hasLastPosition;
+        EntityQuery othersQuery;
+
+        /// <summary>Someone breathing and walking: the local player, or another player's body.</summary>
+        class Breather
+        {
+            public float BreathTimer, ExhaleLeft, StepDistance;
+            public bool LeftFoot, HasLast, Seen;
+            public float3 LastPosition;
+        }
+        readonly Breather self = new Breather();
+        readonly Dictionary<Entity, Breather> others = new Dictionary<Entity, Breather>();
+        readonly List<Entity> gone = new List<Entity>();
+        WeatherValues weatherHere;
+        float nightHere;
 
         void OnDisable()
         {
@@ -103,6 +117,7 @@ namespace Punchy.Ambience
             UpdateHeatMap(source, camXZ);
             UpdateConditions(source, player.Position);
             UpdatePuffs(source, player, grounded);
+            UpdateOthers(source, cam != null ? (float3)cam.transform.position : player.Position);
         }
 
         // ------------------------------------------------------------------------------------------- setup
@@ -122,6 +137,9 @@ namespace Punchy.Ambience
                 terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
                 paletteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
                 playerQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>(), ComponentType.ReadOnly<PlayerMotion>());
+                othersQuery = em.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Net.NetPlayer>(), ComponentType.ReadOnly<Punchy.Net.NetPlayerLook>(),
+                    ComponentType.ReadOnly<LocalTransform>());
+                others.Clear();
                 queryWorld = world;
             }
             if (!terrainQuery.TryGetSingleton(out source) || paletteQuery.CalculateEntityCount() != 1 || playerQuery.CalculateEntityCount() != 1)
@@ -244,20 +262,18 @@ namespace Punchy.Ambience
 
             var w = Weather != null ? Weather.Local : default;
             var night = Cycle != null ? Cycle.Night : 0f;
+            weatherHere = w;
+            nightHere = night;
             Night = night;
             Fog = math.saturate((w.Fog - 1.5f) / 2f);
             Dust = math.saturate(w.Dust * 1.5f);
             var sunHeight = Cycle != null ? Cycle.SunDirection.y : 0.7f;
             var dry = 1f - math.saturate(w.Precipitation * 2f);
             var calm = 1f - math.smoothstep(0.45f, 0.85f, w.Wind);
-            var elevation = ground.Height - source.World.SeaLevel;
-            var snowing = w.Precipitation * math.max(w.AlwaysSnow, Weather != null ? math.step(Weather.SnowLine, elevation) : 0f);
 
             // Heat: strong sun on clear, dry days. Where it shows is up to the heat map.
             Heat = math.smoothstep(0.15f, 0.6f, sunHeight) * (1f - w.Coverage * 0.75f) * dry * (1f - w.Dust * 0.7f);
-            // Cold: the biome, height, night, snow on the ground or falling; warm biomes push back.
-            Cold = math.saturate(biome.y + math.saturate((elevation - 90f) / 160f) * 0.6f + night * 0.25f +
-                                 surface.Snow * 0.4f + snowing * 0.4f - biome.x * 0.6f);
+            Cold = ColdAt(source, ground.Height, surface.Snow, biome);
             Fireflies = night * dry * calm * (1f - math.smoothstep(0.4f, 0.7f, Cold));
             Butterflies = math.smoothstep(0.1f, 0.4f, sunHeight) * dry * calm * math.lerp(1f, 0.35f, w.Coverage) * (1f - math.smoothstep(0.4f, 0.7f, Cold));
 
@@ -268,6 +284,16 @@ namespace Punchy.Ambience
                 HeatHaze.SetActive(heatVisible > 0.02f);
         }
 
+        /// <summary>Cold at a spot: the biome, height, night, snow on the ground or falling; warm biomes push back.</summary>
+        float ColdAt(in TerrainSource source, float groundHeight, float snowCover, float4 biome)
+        {
+            var w = weatherHere;
+            var elevation = groundHeight - source.World.SeaLevel;
+            var snowing = w.Precipitation * math.max(w.AlwaysSnow, Weather != null ? math.step(Weather.SnowLine, elevation) : 0f);
+            return math.saturate(biome.y + math.saturate((elevation - 90f) / 160f) * 0.6f + nightHere * 0.25f +
+                                 snowCover * 0.4f + snowing * 0.4f - biome.x * 0.6f);
+        }
+
         // ------------------------------------------------------------------------------------------- breath & snow
 
         void UpdatePuffs(in TerrainSource source, LocalTransform player, bool grounded)
@@ -276,29 +302,67 @@ namespace Punchy.Ambience
                 return;
             if (puffs == null)
                 puffs = CreatePuffSystem(PuffMaterial);
+            Puff(self, source, player, grounded, Cold);
+        }
 
+        /// <summary>Other players' bodies breathe and kick up snow too, judged by the cold where they stand.</summary>
+        void UpdateOthers(in TerrainSource source, float3 camera)
+        {
+            if (puffs == null || othersQuery.IsEmpty && others.Count == 0)
+                return;
+            foreach (var b in others.Values)
+                b.Seen = false;
+            var em = queryWorld.EntityManager;
+            var entities = othersQuery.ToEntityArray(Allocator.Temp);
+            foreach (var e in entities)
+            {
+                // Not our own ghost (we are the local player), nor one that hasn't had a pose yet.
+                if (em.HasComponent<Unity.NetCode.GhostOwnerIsLocal>(e) && em.IsComponentEnabled<Unity.NetCode.GhostOwnerIsLocal>(e))
+                    continue;
+                var t = em.GetComponentData<LocalTransform>(e);
+                if (math.lengthsq(t.Position) < 1e-6f || math.distancesq(t.Position, camera) > OthersRange * OthersRange)
+                    continue;
+                if (!others.TryGetValue(e, out var b))
+                    others[e] = b = new Breather { BreathTimer = UnityEngine.Random.Range(0f, BreathInterval) };
+                b.Seen = true;
+                var ground = source.SampleGround(t.Position.xz);
+                var snow = source.SampleSurface(t.Position.xz, ground, source.SampleNormal(t.Position.xz, 1f)).Snow;
+                var cold = ColdAt(source, ground.Height, snow, AmbienceAt(ground.Biomes));
+                Puff(b, source, t, em.GetComponentData<Punchy.Net.NetPlayerLook>(e).Grounded, cold);
+            }
+            entities.Dispose();
+            gone.Clear();
+            foreach (var pair in others)
+                if (!pair.Value.Seen)
+                    gone.Add(pair.Key);
+            foreach (var e in gone)
+                others.Remove(e);
+        }
+
+        void Puff(Breather b, in TerrainSource source, LocalTransform player, bool grounded, float cold)
+        {
             var dt = Time.deltaTime;
             var position = player.Position;
-            var velocity = hasLastPosition && dt > 0f ? (position - lastPlayerPosition) / dt : float3.zero;
+            var velocity = b.HasLast && dt > 0f ? (position - b.LastPosition) / dt : float3.zero;
             if (math.lengthsq(velocity) > 400f)
                 velocity = float3.zero;   // teleported
-            lastPlayerPosition = position;
-            hasLastPosition = true;
+            b.LastPosition = position;
+            b.HasLast = true;
             var speed = math.length(velocity.xz);
             var wind = Weather != null ? (Vector3)new float3(Weather.WindDirection.x, 0f, Weather.WindDirection.y) * Weather.Local.Wind * 1.5f : Vector3.zero;
             var forward = math.mul(player.Rotation, new float3(0f, 0f, 1f));
 
             // Breath: an exhale every few seconds (quicker when running), as a short stream of vapour.
-            var breathe = math.smoothstep(BreathThreshold, BreathThreshold + 0.3f, Cold);
-            breathTimer -= dt;
-            if (breathTimer <= 0f)
+            var breathe = math.smoothstep(BreathThreshold, BreathThreshold + 0.3f, cold);
+            b.BreathTimer -= dt;
+            if (b.BreathTimer <= 0f)
             {
-                breathTimer = BreathInterval * (speed > 8f ? 0.5f : 1f) * UnityEngine.Random.Range(0.85f, 1.15f);
-                exhaleLeft = 0.45f;
+                b.BreathTimer = BreathInterval * (speed > 8f ? 0.5f : 1f) * UnityEngine.Random.Range(0.85f, 1.15f);
+                b.ExhaleLeft = 0.45f;
             }
-            if (exhaleLeft > 0f && breathe > 0f)
+            if (b.ExhaleLeft > 0f && breathe > 0f)
             {
-                exhaleLeft -= dt;
+                b.ExhaleLeft -= dt;
                 var mouth = position + new float3(0f, Mouth.x, 0f) + forward * Mouth.y;
                 var count = UnityEngine.Random.value < dt * 30f ? 1 : 0;
                 for (int i = 0; i < count; i++)
@@ -325,13 +389,13 @@ namespace Punchy.Ambience
             }
             if (snow > 0.3f)
             {
-                stepDistance += speed * dt;
+                b.StepDistance += speed * dt;
                 var stride = speed > 8f ? 1.6f : 1.1f;
-                if (stepDistance >= stride)
+                if (b.StepDistance >= stride)
                 {
-                    stepDistance -= stride;
-                    leftFoot = !leftFoot;
-                    var side = math.normalizesafe(new float3(forward.z, 0f, -forward.x)) * (leftFoot ? -0.15f : 0.15f);
+                    b.StepDistance -= stride;
+                    b.LeftFoot = !b.LeftFoot;
+                    var side = math.normalizesafe(new float3(forward.z, 0f, -forward.x)) * (b.LeftFoot ? -0.15f : 0.15f);
                     for (int i = 0; i < 5; i++)
                     {
                         puffs.Emit(new ParticleSystem.EmitParams
@@ -348,7 +412,7 @@ namespace Punchy.Ambience
                 }
             }
             else
-                stepDistance = 0f;
+                b.StepDistance = 0f;
         }
 
         static ParticleSystem CreatePuffSystem(Material material)

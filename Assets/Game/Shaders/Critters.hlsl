@@ -1,6 +1,8 @@
 #ifndef PUNCHY_CRITTERS_INCLUDED
 #define PUNCHY_CRITTERS_INCLUDED
 
+#include "SharedClock.hlsl"
+
 // Shared by the firefly and butterfly shaders (CritterSystem). Must match CritterSystem.Critter.
 
 struct Critter
