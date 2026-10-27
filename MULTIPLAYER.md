@@ -289,3 +289,16 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
     - the Relay bind-address warning
     - a better experience when the host leaves (clients keep the last weather, and F2 says "Not connected")
     - host migration: none; if the host quits, the game ends for everyone
+- 2026-10-27 — A — **M6 (part): joining and leaving.**
+  - **Joining** (by IP or code) puts you 3 m from the host's player, once its first pose arrives (up to 15 s),
+    instead of at the world start point.
+  - **Re-hosting keeps your position.** `GameBootstrap` remembers the local player's position before rebuilding
+    the worlds, and NetMenu restores it.
+  - **If the host goes away,** a joined player sees "Lost the connection to the host. Carrying on alone…". About
+    2 s after Netcode drops the connection, they become their own host where they stand, with their own animals
+    and weather.
+  - **Tested:** the build hosted and autowalked, and the editor joined and landed beside it. I killed the build:
+    after Netcode's 30 s disconnect timeout (a killed process sends no goodbye; a normal quit should be quicker),
+    the editor became a host at the same position with its own animals and sky.
+  - **Possible tweak:** a `NetCodeConfig` asset with a lower `DisconnectTimeoutMS` (for example 10 s) would make
+    the fallback quicker.

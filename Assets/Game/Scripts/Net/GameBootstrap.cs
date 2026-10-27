@@ -23,6 +23,11 @@ namespace Punchy.Net
     {
         public const ushort Port = 7979;
 
+        /// <summary>Where the local player should be put once the reloaded scene has a player (see NetMenu).</summary>
+        public enum Placement { None, KeepPosition, NearHost }
+        public static Placement PendingPlacement;
+        public static Unity.Mathematics.float3 CarriedPosition;
+
         public override bool Initialize(string defaultWorldName)
         {
             if (!DetermineIfBootstrappingEnabled())
@@ -59,6 +64,7 @@ namespace Punchy.Net
         /// <summary>Drops the current game and joins the host at an address (keeps the scene, rebuilds the worlds).</summary>
         public static void Join(NetworkEndpoint host)
         {
+            PendingPlacement = Placement.NearHost;
             DisposeNetWorlds();
             AutoConnectPort = 0;
             var client = CreateClientWorld("ClientWorld");
@@ -71,6 +77,7 @@ namespace Punchy.Net
         /// <summary>Drops the current game and hosts a new one on <see cref="Port"/>.</summary>
         public static void Host()
         {
+            PendingPlacement = Placement.KeepPosition;
             DisposeNetWorlds();
             AutoConnectPort = 0;
             var server = CreateServerWorld("ServerWorld");
@@ -89,6 +96,7 @@ namespace Punchy.Net
         /// </summary>
         public static void HostRelay(RelayServerData relay)
         {
+            PendingPlacement = Placement.KeepPosition;
             DisposeNetWorlds();
             AutoConnectPort = 0;
             var server = CreateServerWorld("ServerWorld");
@@ -126,6 +134,7 @@ namespace Punchy.Net
         /// <summary>Drops the current game and joins a host through Unity Relay.</summary>
         public static void JoinRelay(RelayServerData relay)
         {
+            PendingPlacement = Placement.NearHost;
             DisposeNetWorlds();
             AutoConnectPort = 0;
             var client = CreateClientWorld("ClientWorld");
@@ -147,6 +156,12 @@ namespace Punchy.Net
 
         static void DisposeNetWorlds()
         {
+            // Remember where the local player was, so hosting again (or the host leaving) doesn't send them home.
+            var client = NetWorlds.Client;
+            if (client != null && client.IsCreated)
+                using (var q = client.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Player.PlayerTag>(), ComponentType.ReadOnly<Unity.Transforms.LocalTransform>()))
+                    if (q.TryGetSingleton<Unity.Transforms.LocalTransform>(out var t))
+                        CarriedPosition = t.Position;
             for (int i = World.All.Count - 1; i >= 0; i--)
             {
                 var world = World.All[i];

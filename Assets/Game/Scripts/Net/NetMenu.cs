@@ -1,7 +1,11 @@
 using System.Net;
 using System.Net.Sockets;
+using Punchy.Player;
+using Punchy.Terrain;
 using Unity.Entities;
+using Unity.Mathematics;
 using Unity.NetCode;
+using Unity.Transforms;
 using Unity.Networking.Transport;
 using UnityEngine;
 
@@ -44,14 +48,28 @@ namespace Punchy.Net
         // Survives the scene reload a join does, so it only happens once.
         static bool joinedFromCommandLine;
 
+        /// <summary>A note shown on screen for a few seconds (the host left, and so on).</summary>
+        static string notice;
+        static float noticeUntil;
+        float placementDeadline = -1f;
+        bool wasInGame;
+        float lostAt = -1f;
+
         void Update()
         {
+            PlaceLocalPlayer();
+            WatchForHostLeaving();
             if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.f2Key.wasPressedThisFrame)
                 open = !open;
         }
 
         void OnGUI()
         {
+            if (notice != null && Time.unscaledTime < noticeUntil)
+            {
+                box ??= new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 13, padding = new RectOffset(10, 10, 8, 8) };
+                GUI.Box(new Rect(Screen.width * 0.5f - 200, 60, 400, 30), notice, box);
+            }
             if (!open)
                 return;
             box ??= new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 13, padding = new RectOffset(10, 10, 8, 8) };
@@ -130,6 +148,102 @@ namespace Punchy.Net
                 GUILayout.EndHorizontal();
             }
             GUILayout.EndArea();
+        }
+
+        /// <summary>
+        /// After a world rebuild: put the player back where they were (hosting again), or next to the host (having
+        /// joined), once the scene and the host's player have arrived.
+        /// </summary>
+        void PlaceLocalPlayer()
+        {
+            var placement = GameBootstrap.PendingPlacement;
+            if (placement == GameBootstrap.Placement.None)
+                return;
+            if (placementDeadline < 0f)
+                placementDeadline = Time.unscaledTime + 15f;
+            if (Time.unscaledTime > placementDeadline)
+            {
+                GameBootstrap.PendingPlacement = GameBootstrap.Placement.None;
+                placementDeadline = -1f;
+                return;
+            }
+            var world = NetWorlds.Client;
+            if (world == null || !world.IsCreated)
+                return;
+            var em = world.EntityManager;
+            using var players = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadWrite<LocalTransform>());
+            using var terrain = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (!players.TryGetSingletonEntity<PlayerTag>(out var player) || !terrain.TryGetSingleton<TerrainSource>(out var source))
+                return;
+            var target = GameBootstrap.CarriedPosition.xz;
+            if (placement == GameBootstrap.Placement.NearHost)
+            {
+                // The host's NetPlayer is the first one that isn't ours and has a real position.
+                using var ghosts = em.CreateEntityQuery(new EntityQueryDesc
+                {
+                    All = new[] { ComponentType.ReadOnly<NetPlayer>(), ComponentType.ReadOnly<LocalTransform>() },
+                    Options = EntityQueryOptions.IgnoreComponentEnabledState
+                });
+                var found = false;
+                var list = ghosts.ToEntityArray(Unity.Collections.Allocator.Temp);
+                foreach (var e in list)
+                {
+                    var p = em.GetComponentData<LocalTransform>(e).Position;
+                    var mine = em.HasComponent<GhostOwnerIsLocal>(e) && em.IsComponentEnabled<GhostOwnerIsLocal>(e);
+                    if (!mine && math.lengthsq(p) > 1e-6f)
+                    {
+                        target = p.xz + new float2(2.5f, 1.5f);
+                        found = true;
+                        break;
+                    }
+                }
+                list.Dispose();
+                if (!found)
+                    return;
+            }
+            var t = em.GetComponentData<LocalTransform>(player);
+            t.Position = new float3(target.x, source.SampleHeight(target) + 0.2f, target.y);
+            em.SetComponentData(player, t);
+            GameBootstrap.PendingPlacement = GameBootstrap.Placement.None;
+            placementDeadline = -1f;
+        }
+
+        /// <summary>A joined player whose host goes away carries on alone, hosting their own game where they stand.</summary>
+        void WatchForHostLeaving()
+        {
+            var client = NetWorlds.Client;
+            if (NetWorlds.Server != null || client == null || !client.IsCreated || !client.IsClient())
+            {
+                wasInGame = false;
+                lostAt = -1f;
+                return;
+            }
+            if (Count<NetworkStreamInGame>(client) > 0)
+            {
+                wasInGame = true;
+                lostAt = -1f;
+                return;
+            }
+            if (!wasInGame)
+                return;
+            if (lostAt < 0f)
+            {
+                lostAt = Time.unscaledTime;
+                Notify("Lost the connection to the host. Carrying on alone...");
+            }
+            else if (Time.unscaledTime - lostAt > 2f)
+            {
+                wasInGame = false;
+                lostAt = -1f;
+                RelaySessions.Forget();
+                GameBootstrap.Host();
+            }
+        }
+
+        public static void Notify(string text, float seconds = 5f)
+        {
+            notice = text;
+            noticeUntil = Time.unscaledTime + seconds;
         }
 
         static int Count<T>(World world) where T : unmanaged, IComponentData
