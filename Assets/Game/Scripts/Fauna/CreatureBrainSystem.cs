@@ -546,13 +546,13 @@ namespace Punchy.Fauna
                     return;
                 }
                 // Burrowers sleep down their burrow (digging one where they are if they have none yet).
-                if (b.Burrows && sleep > 0f && sleepy > 0.5f && (s.AnchorSize > 0f || DigBurrow(ref s, ref b, ref rng)))
+                if (b.Burrows && sleep > 0f && sleepy > 0.5f && (s.AnchorSize > 0f || s.AnchorSize == 0f && DigBurrow(ref s, ref b, ref rng)))
                 {
                     SetMode(ref s, CreatureMode.Burrow);
                     s.Timer = rng.NextFloat(120f, 400f);
                     return;
                 }
-                if (b.Burrows && s.AnchorSize <= 0f)
+                if (b.Burrows && s.AnchorSize == 0f)
                     DigBurrow(ref s, ref b, ref rng);
 
                 if ((roll -= work) < 0f)
@@ -864,7 +864,8 @@ namespace Punchy.Fauna
             /// <summary>Picks a tree nearby and sets off to climb it (false if there's none).</summary>
             bool StartClimb(ref CreatureState s, ref CreatureBlob b, ref Random rng, bool toSleep)
             {
-                if (!HasFlora || !FloraPlacement.FindTree(ref Flora.Value, Terrain, s.Position.xz, 30f, 3.5f, ref rng, out var tree))
+                // (A burrower's Anchor is its burrow: it doesn't climb.)
+                if (b.Burrows || !HasFlora || !FloraPlacement.FindTree(ref Flora.Value, Terrain, s.Position.xz, 30f, 3.5f, ref rng, out var tree))
                     return false;
                 SetMode(ref s, CreatureMode.Climb);
                 s.Anchor = tree.Base;
@@ -900,7 +901,10 @@ namespace Punchy.Fauna
                         if (math.distance(s.Position.xz, s.Target) < 0.3f)
                             NextStage(ref s);
                         else if (s.ModeTime > 40f)
+                        {
                             Pause(ref s, ref b, ref rng);
+                            s.AnchorSize = 0f;
+                        }
                         break;
                     case 1:
                         custom = true;
@@ -1007,20 +1011,21 @@ namespace Punchy.Fauna
                 var radius = b.WebSize * s.Scale;
                 // From the place, like burrows: the same web site whenever a spider lives here.
                 var place = LairRandom(s.Position.xz, 0xA11Eu);
+                var cellCentre = (math.floor(s.Position.xz / 16f) + 0.5f) * 16f;
                 var yaw = place.NextFloat(-math.PI, math.PI);
                 var right = new float2(math.cos(yaw), -math.sin(yaw));
                 float2 centre;
                 byte side;
-                if (HasFlora && FloraPlacement.FindTree(ref Flora.Value, Terrain, s.Position.xz, 14f, 2f, ref rng, out var tree))
+                if (HasFlora && FloraPlacement.FindTree(ref Flora.Value, Terrain, cellCentre, 14f, 2f, ref place, out var tree))
                 {
                     // Trunk to the spider's left (side 1: centre to the trunk's right) or right (side 0).
-                    var toTheRight = rng.NextBool();
+                    var toTheRight = place.NextBool();
                     centre = tree.Base.xz + right * (toTheRight ? 1f : -1f) * (tree.TrunkRadius + radius * 1.02f);
                     side = (byte)(toTheRight ? 1 : 0);
                 }
                 else
                 {
-                    centre = s.Position.xz + rng.NextFloat2Direction() * rng.NextFloat(1f, 4f);
+                    centre = cellCentre + place.NextFloat2Direction() * place.NextFloat(1f, 4f);
                     side = 2;
                 }
                 if (!Walkable(centre, Habitat.Land))
@@ -1102,10 +1107,11 @@ namespace Punchy.Fauna
             /// <summary>Picks a burrow mouth on flat, dry ground a few metres off (near home, for residents).</summary>
             bool DigBurrow(ref CreatureState s, ref CreatureBlob b, ref Random rng)
             {
-                var near = s.Leash > 0f ? s.Home : s.Position.xz;
-                // Lairs come from the place (a 16 m cell of the world), so an animal that despawns and comes back
-                // finds the same burrow, with nothing saved.
-                var place = LairRandom(near, 0x5B0Bu);
+                // Lairs come from the place (a 16 m cell of the world, round its centre, or a resident's home), so an
+                // animal that despawns and comes back finds the same burrow, with nothing saved. Residents sharing a
+                // home each get their own.
+                var near = s.Leash > 0f ? s.Home : (math.floor(s.Position.xz / 16f) + 0.5f) * 16f;
+                var place = LairRandom(near, 0x5B0Bu ^ (s.Leash > 0f ? s.Individual : 0u));
                 for (int attempt = 0; attempt < 6; attempt++)
                 {
                     var spot = near + place.NextFloat2Direction() * place.NextFloat(1.5f, 6f);
@@ -1116,6 +1122,7 @@ namespace Punchy.Fauna
                     s.AnchorSize = math.max(b.BodyLength * s.Scale * 0.8f, 0.18f);
                     return true;
                 }
+                s.AnchorSize = -1f;   // no room here: don't keep trying
                 return false;
             }
 
@@ -1205,6 +1212,27 @@ namespace Punchy.Fauna
                 SetMode(ref s, CreatureMode.Roost);
                 s.Timer = rng.NextFloat(60f, 200f);
                 s.LairCave = -1;
+                // A Roost anchor the caves export: a spot on a chamber ceiling, which bats share (spread over its Size).
+                if (Terrain.Anchors.IsCreated && Terrain.Caves.IsCreated &&
+                    Anchors.Pick(ref Terrain.Anchors.Value, s.Position, 150f, AnchorKind.Roost, ref rng, out var roost) &&
+                    roost.InCave && roost.OwnerIndex < Terrain.Caves.Value.Caves.Length)
+                {
+                    ref var caves = ref Terrain.Caves.Value;
+                    ref var home = ref caves.Caves[roost.OwnerIndex];
+                    // The passage node nearest the roost: the way there.
+                    var nearest = 0;
+                    for (int n = 1; n < home.NodeCount; n++)
+                        if (math.distancesq(caves.Nodes[home.FirstNode + n].Position, roost.Position) <
+                            math.distancesq(caves.Nodes[home.FirstNode + nearest].Position, roost.Position))
+                            nearest = n;
+                    s.LairCave = (short)roost.OwnerIndex;
+                    s.LairNode = (short)nearest;
+                    var spread = rng.NextFloat2Direction() * rng.NextFloat(0f, roost.Size * 0.8f);
+                    s.Anchor = roost.Position + new float3(spread.x, 0f, spread.y);
+                    s.AnchorSize = 0.3f;
+                    s.Stage = 1;
+                    return;
+                }
                 if (Terrain.Caves.IsCreated)
                 {
                     ref var set = ref Terrain.Caves.Value;
@@ -1295,7 +1323,19 @@ namespace Punchy.Fauna
                     }
                     return;
                 }
-                if (s.Stage == 198 || s.Stage == 199)
+                if (s.Stage == 198)
+                {
+                    // To a branch outdoors: flying as usual (clear of the ground), to hang just under it.
+                    if (FlyTo(ref s, ref b, hangAt.xz, hangAt.y, b.FlySpeed, dt, ref vertical))
+                    {
+                        s.Stage = 200;
+                        s.StageTime = 0f;
+                    }
+                    else if (s.StageTime > 60f)
+                        NightLoop(ref s, ref b, ref rng);
+                    return;
+                }
+                if (s.Stage == 199)
                 {
                     if (FlyDirect(ref s, ref b, hangAt, speed * 0.6f, dt, ref vertical) < 0.15f)
                     {
@@ -1418,7 +1458,8 @@ namespace Punchy.Fauna
             {
                 var to = target - s.Position.xz;
                 var distance = math.length(to);
-                var wanted = WrapAngle(math.atan2(to.x, to.y) - s.Yaw);
+                // (Right over the spot the bearing means nothing: hold the heading.)
+                var wanted = distance < 0.1f ? 0f : WrapAngle(math.atan2(to.x, to.y) - s.Yaw);
                 var turnRate = b.TurnRate * 1.5f;
                 var turn = math.clamp(wanted, -turnRate * dt, turnRate * dt);
                 s.Yaw = WrapAngle(s.Yaw + turn);
@@ -1435,30 +1476,37 @@ namespace Punchy.Fauna
                 s.Speed += (wantSpeed - s.Speed) * math.min(1f, dt * 2f);
                 if (flare <= 0f)
                     s.Speed = math.max(s.Speed, minSpeed);
-                // Only once it's down at the right height does it stop exactly on the spot; arriving over it too high,
-                // it carries on past and circles down.
-                var level = math.abs(s.Position.y - targetHeight) < 0.3f;
-                var step = level ? math.min(s.Speed * dt, distance) : s.Speed * dt;
+                // Always moving forward: arriving over the spot too high, it carries on past and circles down.
+                var step = s.Speed * dt;
                 s.Position.xz += new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * step;
 
                 // Height: cruising, or coming down the glide slope to the landing spot; never climbing or sinking
                 // steeper than the flight angle allows for how far it moved forward.
                 var cruise = math.max(Cruise(s, ref b, s.Position.xz), Cruise(s, ref b, target));
-                var wantY = math.min(cruise, targetHeight + distance * CreatureMotion.GlideSlope);
+                // (The slope meets the landing height just short of the spot, so it touches down still moving forward.
+                // Landing on the ground: the ground right where it is; on a branch: the branch's height.)
+                var groundHere = Terrain.SampleHeight(s.Position.xz);
+                var onGround = targetHeight < Terrain.SampleHeight(target) + 0.1f;
+                var touchdown = onGround && distance < CreatureMotion.FlareDistance ? groundHere : targetHeight;
+                var wantY = math.min(cruise, touchdown + math.max(distance - 0.3f, 0f) * CreatureMotion.GlideSlope);
                 // (In the flare, the last few centimetres settle as it slows.)
                 var steepest = math.max(step / math.max(dt, 1e-4f) * CreatureMotion.MaxClimb, flare * 0.4f);
                 var vy = math.clamp((wantY - s.Position.y) * 1.5f, -steepest, steepest);
+                // In the flare the last of the height goes at a steady rate (not ever more slowly), so it settles as
+                // it slows rather than hanging over the spot.
+                var gap = wantY - s.Position.y;
+                if (flare > 0f && math.abs(gap) > 1e-3f)
+                    vy = math.sign(gap) * math.min(math.max(math.abs(vy), 0.3f * flare), math.abs(gap) / math.max(dt, 1e-4f));
                 s.Position.y += vy * dt;
                 // Clear of the ground (except right at the landing spot).
                 var floor = Terrain.SampleHeight(s.Position.xz) + (distance > 1f ? 0.4f : 0f);
                 s.Position.y = math.max(s.Position.y, floor);
                 // Nose with the climb or descent; nose up in the flare.
                 vertical = math.max(math.clamp(vy / math.max(b.FlySpeed, 1f), -0.6f, 0.5f), flare * 0.45f);
-                // Touches down only once it's right there (no visible snap onto the spot).
-                if (distance < 0.35f && math.abs(s.Position.y - targetHeight) < 0.02f)
+                // Touches down where it is, once it's down at the landing height near the spot (no snap).
+                if (distance < 0.5f && math.abs(s.Position.y - touchdown) < 0.005f)
                 {
-                    s.Position.xz = target;
-                    s.Position.y = targetHeight;
+                    s.Position.y = touchdown;
                     return true;
                 }
                 return false;

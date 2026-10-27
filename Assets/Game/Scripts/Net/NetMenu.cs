@@ -103,7 +103,8 @@ namespace Punchy.Net
                 if (c.Mode == Punchy.Fauna.CreatureMode.Web && c.Stage >= 2 && c.Stage <= 4) webs++;
                 if (c.Mode == Punchy.Fauna.CreatureMode.Hunt && c.Fly > 0.5f && c.Vertical < -0.5f) diving++;
                 if (c.Mode == Punchy.Fauna.CreatureMode.Hunt) hunting++;
-                if (c.AnchorSize > 0f && c.Mode != Punchy.Fauna.CreatureMode.Web && c.Mode != Punchy.Fauna.CreatureMode.Climb) burrows++;
+                if (c.AnchorSize > 0f && c.Mode != Punchy.Fauna.CreatureMode.Web && c.Mode != Punchy.Fauna.CreatureMode.Climb &&
+                    c.Mode != Punchy.Fauna.CreatureMode.Roost && c.Fly < 0.5f) burrows++;
                 if (c.Mode == Punchy.Fauna.CreatureMode.Burrow && c.Stage == 2) below++;
                 if (c.Mode == Punchy.Fauna.CreatureMode.Roost) roosting++;
                 if (c.Mode == Punchy.Fauna.CreatureMode.Roost && c.Stage == 200) hanging++;

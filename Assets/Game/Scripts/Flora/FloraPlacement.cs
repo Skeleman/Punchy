@@ -92,6 +92,13 @@ namespace Punchy.Flora
     public static class FloraPlacement
     {
         public const int TreeLayer = 2;
+        static int Gcd(int a, int b)
+        {
+            while (b != 0)
+                (a, b) = (b, a % b);
+            return a;
+        }
+
         /// <summary>The most tree cells one FindTree looks at.</summary>
         const int MaxTreeCells = 24;
 
@@ -452,9 +459,14 @@ namespace Punchy.Flora
             var span = max - min + 1;
             var cells = span.x * span.y;
             var tries = math.min(cells, MaxTreeCells);
+            // Each cell at most once: a random start, then a stride that shares no factor with the cell count.
+            var start = rng.NextInt(cells);
+            var stride = 1;
+            if (cells > MaxTreeCells)
+                for (stride = cells / MaxTreeCells + 1; Gcd(stride, cells) != 1; stride++) { }
             for (int t = 0; t < tries; t++)
             {
-                var index = cells <= MaxTreeCells ? t : rng.NextInt(cells);
+                var index = (start + t * stride) % cells;
                 var plant = Place(ref f, source, min + new int2(index % span.x, index / span.x), TreeLayer);
                 if (plant.Model < 0 || plant.Model >= f.Models.Length)
                     continue;

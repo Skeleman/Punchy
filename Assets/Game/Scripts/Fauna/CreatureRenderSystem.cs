@@ -3,6 +3,7 @@ using Punchy.Terrain;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -14,7 +15,9 @@ namespace Punchy.Fauna
     /// has a few spare capsules after its body for fear marks: short lines flashing out above the head while it
     /// flees (collapsed to nothing the rest of the time). Web spinners have their web's threads after that, drawn
     /// while they sit in it: everything about the web follows from where the spider is and which way it faces, so
-    /// replicas draw the same web with nothing extra sent.
+    /// replicas draw the same web with nothing extra sent. Roosts near the camera show a colony of sleeping bats hanging
+    /// from the ceiling: no creatures, just a few capsules each (placed from the roost's index, so every machine draws
+    /// the same colony), thinner at night when most are out.
     /// </summary>
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     public partial class CreatureRenderSystem : SystemBase
@@ -27,6 +30,10 @@ namespace Punchy.Fauna
         const int Spokes = 12, Rings = 6, Anchors = 4;
         const int WebCount = Spokes + Spokes * Rings + Anchors;
         const int MoundCount = 7;
+        /// <summary>Capsules per hanging bat, the most per roost, and how near the camera colonies show.</summary>
+        const int BatParts = 4, ColonyMax = 10;
+        const float ColonyRange = 45f;
+        Unity.Collections.NativeList<int> roosts;
 
         protected override void OnCreate()
         {
@@ -37,9 +44,58 @@ namespace Punchy.Fauna
 
         protected override void OnDestroy()
         {
+            if (roosts.IsCreated) roosts.Dispose();
             buffer?.Release();
             buffer = null;
         }
+
+        /// <summary>How many sleeping bats a roost shows: up to ColonyMax (by its capacity), fewer at night.</summary>
+        static int ColonySize(in Anchor roost, int index, float night)
+        {
+            var size = math.min((int)roost.Capacity, ColonyMax);
+            var awake = (int)math.round(size * night * 0.75f);
+            return math.max(size - awake, 0);
+        }
+
+        /// <summary>
+        /// Writes a roost's sleeping bats: each hangs head down from the ceiling, wings wrapped round, at a spot spread
+        /// over the roost picked from its index.
+        /// </summary>
+        static int Colony(in Anchor roost, int index, float night, NativeArray<SegmentInstance> output, int at)
+        {
+            var count = ColonySize(roost, index, night);
+            var rng = new Unity.Mathematics.Random(math.hash(new int2(index, 0xBA7)) | 1u);
+            var fur = new float4(0.2f, 0.15f, 0.11f, 0f);
+            var wing = new float4(0.1f, 0.08f, 0.07f, 0f);
+            var down = new float3(0f, -1f, 0f);
+            for (int k = 0; k < count; k++)
+            {
+                var spread = rng.NextFloat2Direction() * rng.NextFloat(0f, math.max(roost.Size, 0.3f) * 0.8f);
+                var size = rng.NextFloat(0.85f, 1.15f);
+                var top = roost.Position + new float3(spread.x, -0.02f, spread.y);
+                var facing = rng.NextFloat(math.PI * 2f);
+                var side = new float3(math.cos(facing), 0f, math.sin(facing));
+                var hang = quaternion.LookRotationSafe(down, side);
+                // Body, head below it, and the two folded wings either side.
+                output[at++] = Part(top, hang, 0.09f * size, 0.032f * size, 0.026f * size, 1f, fur);
+                output[at++] = Part(top + down * 0.1f * size, hang, 0.015f * size, 0.022f * size, 0.02f * size, 1f, fur);
+                for (int w = -1; w <= 1; w += 2)
+                    output[at++] = Part(top + side * w * 0.025f * size, hang, 0.1f * size, 0.03f * size, 0.02f * size, 0.25f, wing);
+            }
+            return at;
+        }
+
+        static SegmentInstance Part(float3 from, quaternion rotation, float length, float r0, float r1, float flatten, float4 colour) =>
+            new SegmentInstance
+            {
+                Position = from,
+                Rotation = rotation,
+                Length = length,
+                RadiusStart = r0,
+                RadiusEnd = r1,
+                Flatten = flatten,
+                Color = colour
+            };
 
         /// <summary>A spider sitting in its web (only then is the web drawn, and room made for it).</summary>
         static bool InWeb(in CreatureState s) => s.Mode == CreatureMode.Web && s.Stage >= 2 && s.Stage <= 4;
@@ -65,6 +121,18 @@ namespace Punchy.Fauna
             bodies.Dispose();
             states.Dispose();
 
+            // Colonies at the roosts near the camera.
+            var terrain = SystemAPI.GetSingleton<TerrainSource>();
+            if (!roosts.IsCreated)
+                roosts = new Unity.Collections.NativeList<int>(16, Allocator.Persistent);
+            roosts.Clear();
+            if (terrain.Anchors.IsCreated)
+                Punchy.Terrain.Anchors.Near(ref terrain.Anchors.Value, cam.transform.position, ColonyRange, AnchorKind.Roost, ref roosts);
+            var night = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Night : 0f;
+            var colonyStart = total;
+            for (int i = 0; i < roosts.Length; i++)
+                total += ColonySize(terrain.Anchors.Value.Anchors[roosts[i]], roosts[i], night) * BatParts;
+
             var instances = new NativeArray<SegmentInstance>(total, Allocator.TempJob);
             Dependency = new PoseJob
             {
@@ -75,6 +143,9 @@ namespace Punchy.Fauna
                 CameraRight = cam.transform.right
             }.ScheduleParallel(query, Dependency);
             Dependency.Complete();
+            var at = colonyStart;
+            for (int i = 0; i < roosts.Length; i++)
+                at = Colony(terrain.Anchors.Value.Anchors[roosts[i]], roosts[i], night, instances, at);
 
             if (buffer == null || buffer.count < total)
             {
@@ -165,7 +236,7 @@ namespace Punchy.Fauna
             /// <summary>
             /// An orb web round the spider, in the plane facing its heading: spokes, a spiral (as rings of chords
             /// between the spokes), and anchor threads down to the ground and across to the tree it hangs by (see
-            /// CreatureMode.Web for the side). Collapsed to nothing unless the spider is sitting in it.
+            /// CreatureMode.Web for the side). Only for a spider sitting in its web (room is made for it then only).
             /// </summary>
             void Web(in CreatureState state, ref CreatureBlob b, int offset)
             {
