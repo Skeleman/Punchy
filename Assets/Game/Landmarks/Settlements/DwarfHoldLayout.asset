@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0f8776ddfd0ddd4aa44c098914f8b77, type: 3}
+  m_Name: DwarfHoldLayout
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.SettlementLayout
+  Pattern: 1
+  FolkScale: 0.85
+  PlotSize: {x: 9, y: 9}
+  PlotGap: 1.5
+  Setback: 1
+  StreetWidth: 4
+  LaneWidth: 3
+  SquareSize: 14
+  Lanes: 3
+  Shrines: 1
+  Landscaping: 0.05
+  Palisade: 0
+  MaxRelief: 3
+  StreetSurface: {fileID: 11400000, guid: a8cd07def73bbae4b8a8c600df5cfb32, type: 2}
+  Buildings:
+  - Role: 0
+    Species: {fileID: 11400000, guid: 0f3f75139a798b8428c4a8d150f31958, type: 2}
+    Weight: 1
+    Count: 1
+  - Role: 1
+    Species: {fileID: 11400000, guid: 0f3f75139a798b8428c4a8d150f31958, type: 2}
+    Weight: 1
+    Count: 1
+  - Role: 2
+    Species: {fileID: 11400000, guid: 984ecb906b0fd1b4fadd4d4319a9cd40, type: 2}
+    Weight: 1
+    Count: 1

@@ -101,6 +101,8 @@ namespace Punchy.Terrain
             if (palette.Count > 0)
                 source.Landmarks = LandmarkBaking.Build(source, palette, LandmarkTypes(), PlacedLandmarks, allocator);
             if (source.Landmarks.IsCreated)
+                source.Settlements = SettlementBaking.Build(source, LandmarkTypes(), allocator);
+            if (source.Landmarks.IsCreated)
                 source.Caves = CaveBaking.Build(source, palette, LandmarkTypes(), allocator);
             source.Anchors = AnchorBaking.Build(source, LandmarkTypes(), allocator);
             return source;
@@ -143,6 +145,12 @@ namespace Punchy.Terrain
                 // Cave styles shape the passages, so editing one re-bakes too.
                 foreach (var style in CaveStyleTable.Collect(landmarks))
                     DependsOn(style);
+                // So do settlement layouts (streets and plots level the ground).
+                foreach (var layout in SettlementBaking.Layouts(landmarks))
+                {
+                    DependsOn(layout);
+                    DependsOn(layout.StreetSurface);
+                }
                 if (palette.Count == 0)
                     Debug.LogWarning("Terrain has no biomes assigned; it will be flat and grey.", authoring);
                 AddComponentObject(entity, new BiomePalette { Biomes = palette.ToArray(), Landmarks = landmarks.ToArray() });
@@ -170,6 +178,7 @@ namespace Punchy.Terrain
                 if (source.BiomeCells.IsCreated) AddBlobAsset(ref source.BiomeCells, out _);
                 if (source.Rivers.IsCreated) AddBlobAsset(ref source.Rivers, out _);
                 if (source.Landmarks.IsCreated) AddBlobAsset(ref source.Landmarks, out _);
+                if (source.Settlements.IsCreated) AddBlobAsset(ref source.Settlements, out _);
                 if (source.Caves.IsCreated) AddBlobAsset(ref source.Caves, out _);
                 if (source.Anchors.IsCreated) AddBlobAsset(ref source.Anchors, out _);
                 AddComponent(entity, source);

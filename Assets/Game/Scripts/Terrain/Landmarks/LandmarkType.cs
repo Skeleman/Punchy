@@ -196,6 +196,10 @@ namespace Punchy.Terrain
         [Tooltip("Styles this cave can take; it takes one listed for the biome it opens in (see CaveStyle.Biomes).")]
         public List<CaveStyle> CaveStyles = new List<CaveStyle>();
 
+        [Header("Settlement")]
+        [Tooltip("Lays the landmark out as a town: streets, plots and what stands on them (see SettlementLayout).")]
+        public SettlementLayout Settlement;
+
         [Header("Residents")]
         [Tooltip("Animals that live here; they appear when the player comes near.")]
         public List<LandmarkResident> Residents = new List<LandmarkResident>();

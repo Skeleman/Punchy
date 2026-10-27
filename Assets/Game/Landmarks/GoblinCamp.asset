@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a5407ac3b5877da49af18e077398168c, type: 3}
   m_Name: GoblinCamp
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.LandmarkType
-  Radius: 30
+  Radius: 34
   Scale: {x: 0.9, y: 1.1}
   MaxRelief: 10
   MinRelief: 0
@@ -28,19 +28,11 @@ MonoBehaviour:
   WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
   WaterMurk: 0.3
   WaterGlow: 0
+  WaterLava: 0
   Ground: {fileID: 11400000, guid: df538c85803bafa47873340f23f14be5, type: 2}
   GroundRadius: 0.75
   ClearRadius: 0.75
   Props:
-  - Species: {fileID: 11400000, guid: f4eaef6ef684cc34db0dbe63934e3d10, type: 2}
-    Density: 1.1
-    Ring: {x: 0.3, y: 0.85}
-    Scale: {x: 0.85, y: 1.2}
-    Centrepiece: 0
-    FaceCentre: 1
-    Count: 0
-    Angle: 0
-    Clearance: 4
   - Species: {fileID: 11400000, guid: 984ecb906b0fd1b4fadd4d4319a9cd40, type: 2}
     Density: 5
     Ring: {x: 0, y: 1}
@@ -125,6 +117,12 @@ MonoBehaviour:
   CaveDepth: 8
   CaveRadius: 2.4
   ChamberRadius: 6
+  CaveChambers: 0
+  CaveBranches: 0
+  BranchLength: 30
+  CaveShafts: 0
+  CaveStyles: []
+  Settlement: {fileID: 11400000, guid: 108f00e539b68384cb4caf515c0b9eda, type: 2}
   Residents:
   - Species: {fileID: 11400000, guid: 419544623d75bcf48961c8801162cabd, type: 2}
     Count: {x: 7, y: 11}

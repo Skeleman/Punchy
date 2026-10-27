@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a5407ac3b5877da49af18e077398168c, type: 3}
   m_Name: HumanVillage
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.LandmarkType
-  Radius: 42
+  Radius: 72
   Scale: {x: 0.95, y: 1.1}
   MaxRelief: 9
   MinRelief: 0
@@ -28,19 +28,11 @@ MonoBehaviour:
   WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
   WaterMurk: 0.3
   WaterGlow: 0
+  WaterLava: 0
   Ground: {fileID: 11400000, guid: f397da19159900045997c350ec927c49, type: 2}
-  GroundRadius: 0.75
+  GroundRadius: 0.3
   ClearRadius: 0.9
   Props:
-  - Species: {fileID: 11400000, guid: cd21dbf16eff8d64ea65f16948e9db37, type: 2}
-    Density: 0.38
-    Ring: {x: 0.42, y: 0.82}
-    Scale: {x: 0.9, y: 1.15}
-    Centrepiece: 0
-    FaceCentre: 1
-    Count: 0
-    Angle: 0
-    Clearance: 4
   - Species: {fileID: 11400000, guid: b6d022bd9487a0744bddd69571f71986, type: 2}
     Density: 5
     Ring: {x: 0, y: 1}
@@ -170,6 +162,12 @@ MonoBehaviour:
   CaveDepth: 8
   CaveRadius: 2.4
   ChamberRadius: 6
+  CaveChambers: 0
+  CaveBranches: 0
+  BranchLength: 30
+  CaveShafts: 0
+  CaveStyles: []
+  Settlement: {fileID: 11400000, guid: 63901019b3521214983bb1c402cc45a5, type: 2}
   Residents:
   - Species: {fileID: 11400000, guid: 8e349b1519701e84fbe7923c0c10f2fd, type: 2}
     Count: {x: 4, y: 6}
