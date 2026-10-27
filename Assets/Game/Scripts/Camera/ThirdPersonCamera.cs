@@ -39,6 +39,7 @@ namespace Punchy.CameraRig
         EntityQuery terrainQuery;
         // The world the queries belong to; joining or hosting replaces the worlds, so they are rebuilt then.
         World queryWorld;
+        bool menuWasOpen;
 
         void Start()
         {
@@ -132,6 +133,19 @@ namespace Punchy.CameraRig
 
         void HandleCursor()
         {
+            // The multiplayer panel (F2) needs the mouse; take it back once the panel closes.
+            if (Punchy.Net.NetMenu.IsOpen)
+            {
+                if (Cursor.lockState == CursorLockMode.Locked)
+                    SetCursorCaptured(false);
+                menuWasOpen = true;
+                return;
+            }
+            if (menuWasOpen)
+            {
+                menuWasOpen = false;
+                SetCursorCaptured(true);
+            }
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
                 SetCursorCaptured(false);
             else if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)

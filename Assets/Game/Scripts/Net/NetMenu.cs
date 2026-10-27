@@ -21,6 +21,9 @@ namespace Punchy.Net
         public NetAvatars Avatars;
 
         bool open;
+
+        /// <summary>The panel is showing: the camera leaves the mouse free so its buttons can be clicked.</summary>
+        public static bool IsOpen { get; private set; }
         string address = "192.168.1.";
         string code = "";
         string lanAddress;
@@ -101,6 +104,7 @@ namespace Punchy.Net
             WatchForHostLeaving();
             if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.f2Key.wasPressedThisFrame)
                 open = !open;
+            IsOpen = open;
         }
 
         void OnGUI()

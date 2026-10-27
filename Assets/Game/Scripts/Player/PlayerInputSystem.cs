@@ -60,12 +60,16 @@ namespace Punchy.Player
             }
             if (math.lengthsq(direction) > 1f)
                 direction = math.normalize(direction);
+            // Typing a join code or address in the multiplayer panel shouldn't walk the player around.
+            var typing = Punchy.Net.NetMenu.IsOpen;
+            if (typing && !autowalk)
+                direction = float2.zero;
 
             SystemAPI.SetSingleton(new PlayerInput
             {
                 MoveDirection = direction,
-                Sprint = sprint != null && sprint.IsPressed(),
-                JumpPressed = jump != null && jump.WasPressedThisFrame()
+                Sprint = !typing && sprint != null && sprint.IsPressed(),
+                JumpPressed = !typing && jump != null && jump.WasPressedThisFrame()
             });
         }
     }
