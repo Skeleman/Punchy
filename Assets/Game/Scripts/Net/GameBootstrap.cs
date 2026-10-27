@@ -32,6 +32,7 @@ namespace Punchy.Net
         {
             if (!DetermineIfBootstrappingEnabled())
                 return false;
+            NetworkStreamReceiveSystem.DriverConstructor = new NetDrivers.Constructor();
             var join = JoinAddressFromCommandLine();
             if (join != null && NetworkEndpoint.TryParse(join, Port, out var endpoint))
             {
@@ -125,8 +126,8 @@ namespace Punchy.Net
             {
                 var netDebug = debug.GetSingleton<NetDebug>();
                 var store = new NetworkDriverStore();
-                DefaultDriverBuilder.RegisterServerIpcDriver(server, ref store, netDebug, DefaultDriverBuilder.GetNetworkServerSettings());
-                var relaySettings = DefaultDriverBuilder.GetNetworkServerSettings();
+                DefaultDriverBuilder.RegisterServerIpcDriver(server, ref store, netDebug, NetDrivers.Server());
+                var relaySettings = NetDrivers.Server();
                 relaySettings.WithRelayParameters(ref relay);
                 DefaultDriverBuilder.RegisterServerUdpDriver(server, ref store, netDebug, relaySettings);
                 ref var driver = ref driverQuery.GetSingletonRW<NetworkStreamDriver>().ValueRW;
@@ -139,7 +140,7 @@ namespace Punchy.Net
             using (var driverQuery = cem.CreateEntityQuery(ComponentType.ReadWrite<NetworkStreamDriver>()))
             {
                 var store = new NetworkDriverStore();
-                DefaultDriverBuilder.RegisterClientIpcDriver(client, ref store, debug.GetSingleton<NetDebug>(), DefaultDriverBuilder.GetNetworkClientSettings());
+                DefaultDriverBuilder.RegisterClientIpcDriver(client, ref store, debug.GetSingleton<NetDebug>(), NetDrivers.Client());
                 ref var driver = ref driverQuery.GetSingletonRW<NetworkStreamDriver>().ValueRW;
                 driver.ResetDriverStore(client.Unmanaged, ref store);
                 driver.Connect(cem, NetworkEndpoint.LoopbackIpv4.WithPort(Port));
@@ -159,7 +160,7 @@ namespace Punchy.Net
             using (var debug = em.CreateEntityQuery(ComponentType.ReadOnly<NetDebug>()))
             using (var driverQuery = em.CreateEntityQuery(ComponentType.ReadWrite<NetworkStreamDriver>()))
             {
-                var settings = DefaultDriverBuilder.GetNetworkClientSettings();
+                var settings = NetDrivers.Client();
                 settings.WithRelayParameters(ref relay);
                 var store = new NetworkDriverStore();
                 DefaultDriverBuilder.RegisterClientUdpDriver(client, ref store, debug.GetSingleton<NetDebug>(), settings);

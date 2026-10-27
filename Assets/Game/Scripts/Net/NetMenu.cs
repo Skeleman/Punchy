@@ -72,7 +72,26 @@ namespace Punchy.Net
             var time = cycle != null ? $"{(int)cycle.TimeOfDay:00}:{(int)((cycle.TimeOfDay % 1f) * 60f):00}" : "?";
             var role = NetWorlds.Server != null ? "host" : "joined";
             Debug.Log($"Net status ({role}): in game {Count<NetworkStreamInGame>(client) > 0}, players {Count<NetPlayer>(client)}, " +
-                      $"animals {Count<Punchy.Net.CreatureReplica>(client)}, time {time}, {1f / Time.smoothDeltaTime:F0} fps");
+                      $"animals {Count<Punchy.Net.CreatureReplica>(client)} ({AnimalsWithBodies(client, out var nearest)} with bodies, nearest {nearest:F0} m), " +
+                      $"time {time}, {1f / Time.smoothDeltaTime:F0} fps");
+        }
+
+        /// <summary>Replicated animals that have been given a body to draw, and how far the nearest one is from us.</summary>
+        static int AnimalsWithBodies(World world, out float nearest)
+        {
+            nearest = float.PositiveInfinity;
+            var em = world.EntityManager;
+            using var players = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
+            using var bodies = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureReplica>(), ComponentType.ReadOnly<Punchy.Fauna.CreatureBody>(),
+                ComponentType.ReadOnly<Punchy.Fauna.CreatureState>());
+            if (players.TryGetSingleton<LocalTransform>(out var player))
+            {
+                var states = bodies.ToComponentDataArray<Punchy.Fauna.CreatureState>(Unity.Collections.Allocator.Temp);
+                foreach (var c in states)
+                    nearest = math.min(nearest, math.distance(c.Position, player.Position));
+                states.Dispose();
+            }
+            return bodies.CalculateEntityCount();
         }
 
         void Update()
