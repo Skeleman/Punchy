@@ -61,7 +61,7 @@ work; animal session gets told first), `TerrainSource.cs` (entry points only).
 
 | Session | Task | State |
 |---|---|---|
-| Animal behavior manager | Traces and Lairs; then bat rework (J-013) | In progress |
+| Animal behavior manager | Lairs (nests at Nest anchors); then bat rework (J-013) | In progress |
 | world feature manager | Underground water with Pool anchors; then glowing flora and mossy shrubs | In progress |
 | kind-possum | Route determinism, WeatherField MapJob fix, round 5 | In progress |
 
@@ -85,3 +85,6 @@ work; animal session gets told first), `TerrainSource.cs` (entry points only).
 
 - 2026-10-27: Lanes written down from the working arrangement. Light process adopted (J-016). Shared docs on the
   `coordination` branch (J-014). Both editors stay open (J-015).
+- 2026-10-27: Animal session listed earlier additive edits outside Fauna, all pushed: Ambience (dive splashes),
+  CreatureGhosts (Net), NetMenu stats line, ThirdPersonCamera watch mode, the Flora placement split. Accepted;
+  further edits outside the lane go through the supervisor. Traces done (5a4dd10); b/weather-mapjob merged (a90cfd4).
