@@ -171,3 +171,14 @@ Input System. Windows is the only build target so far.
 - Keep code commented the way it is: a summary comment on each class saying what it is and why, short comments on
   non-obvious steps. Match the surrounding naming and idioms.
 - Collaborators: work on a branch or fork rather than committing to `main` directly.
+
+## Multiplayer (in progress, `multiplayer` branch)
+
+- Built on Netcode for Entities. The plan, ownership and log are in `MULTIPLAYER.md`, shared with a second Claude
+  instance; read it after every pull.
+- There are two worlds, ServerWorld and ClientWorld. `World.DefaultGameObjectInjectionWorld` is the **client** world
+  (set by `Net/GameBootstrap.cs`), so MonoBehaviours see the local player's view. Server-side code finds its world
+  through `NetWorlds.Server`.
+- Systems that touch input, cameras, meshes or rendering need
+  `[WorldSystemFilter(LocalSimulation | ClientSimulation)]` or a presentation group, so they never run on the
+  server.

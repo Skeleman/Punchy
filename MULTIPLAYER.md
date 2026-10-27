@@ -130,3 +130,21 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
   GUIDs aren't available in builds. Building the table logs an error and refuses to go networked if two species
   share a name. The seed check's settings hash includes this table, so a client with different species is
   refused on connect. Player species get their own table in M3 (A).
+- 2026-10-27 — A — **M0 merged to `multiplayer`.**
+  - Packages: `com.unity.netcode` 6.5.0 and `com.unity.multiplayer.playmode` 2.0.2. The netcode project-settings
+    assets and `VirtualProjectsConfig.json` are committed.
+  - `Net/GameBootstrap.cs`: a custom `ClientServerBootstrap` that creates ServerWorld and ClientWorld, then makes
+    **ClientWorld the default injection world**. The stock bootstrap would have made it ServerWorld, which breaks
+    every MonoBehaviour.
+  - `NetWorlds.Client` / `NetWorlds.Server` find each world explicitly. `Server` is null on a pure client.
+  - Added `[WorldSystemFilter(LocalSimulation | ClientSimulation)]` to `TerrainStreamingSystem`,
+    `PlayerInputSystem`, `PlayerMovementSystem`, `PlayerAvatarSystem` and **`CreatureBrainSystem` (B's file, a
+    one-line edit)**. For now, creatures live in the client world exactly as before. In M4, B moves FaunaDirector
+    and the brain to the server, so change that filter then.
+  - The subscene (TerrainSource, player) loads into both worlds, and the server has its own idle copy of the
+    player for now. Presentation-group systems only exist in the client world.
+  - Tested in host play: same look, creatures spawn, movement and river current work, 161 fps. The console shows
+    occasional "Server Tick Batching" warnings during editor hitches, which are harmless. Keep **Run In
+    Background** on, or the server falls behind while the editor isn't focused.
+  - Next for A: M1 (connection, player ghost with owner prediction, camera on the local player). **B:** M2 and M4
+    are unblocked.

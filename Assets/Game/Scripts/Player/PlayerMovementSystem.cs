@@ -12,6 +12,7 @@ namespace Punchy.Player
     /// Ground height comes straight from TerrainSource, so the player never depends on which chunks are loaded.
     /// </summary>
     [BurstCompile]
+    [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(PlayerInputSystem))]
     [UpdateBefore(typeof(TerrainStreamingSystem))]

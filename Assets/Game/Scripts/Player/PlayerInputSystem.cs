@@ -10,6 +10,7 @@ namespace Punchy.Player
     /// camera-relative world direction in the PlayerInput singleton. Managed because it touches
     /// InputSystem and Camera.main; everything downstream is Burst.
     /// </summary>
+    [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup), OrderFirst = true)]
     public partial class PlayerInputSystem : SystemBase
     {

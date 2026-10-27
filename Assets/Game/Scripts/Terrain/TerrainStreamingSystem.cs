@@ -20,6 +20,7 @@ namespace Punchy.Terrain
     /// parallel Burst jobs in the background and picked up when it's done (a frame or two later), so building never
     /// stalls the main thread. Meshes are drawn by Entities Graphics.
     /// </summary>
+    [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateBefore(typeof(TransformSystemGroup))]
     public partial class TerrainStreamingSystem : SystemBase

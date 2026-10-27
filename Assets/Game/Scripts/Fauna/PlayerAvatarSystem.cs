@@ -16,6 +16,7 @@ namespace Punchy.Fauna
     /// the body rises with the jump.
     /// </summary>
     [BurstCompile]
+    [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(PlayerMovementSystem))]
     public partial struct PlayerAvatarSystem : ISystem

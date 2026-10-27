@@ -25,6 +25,7 @@ namespace Punchy.Fauna
     /// poses) matches the ground speed.
     /// </summary>
     [BurstCompile]
+    [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(PlayerMovementSystem))]
     public partial struct CreatureBrainSystem : ISystem
