@@ -73,6 +73,11 @@ namespace Punchy.Debugging
         /// </summary>
         IEnumerator Stop(string name, System.Func<bool> arrive, float speed = 0f, float height = 0f, float measure = Measure)
         {
+            // -benchstops run,glide runs only the listed stops (to profile one of them on its own).
+            var args = System.Environment.GetCommandLineArgs();
+            var only = System.Array.IndexOf(args, "-benchstops");
+            if (only >= 0 && only + 1 < args.Length && System.Array.IndexOf(args[only + 1].Split(','), name) < 0)
+                yield break;
             if (!arrive())
             {
                 Debug.LogWarning($"BenchRoute: {name}: couldn't get there, skipped");
