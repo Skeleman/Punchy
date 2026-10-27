@@ -209,3 +209,24 @@ Input System. Windows is the only build target so far.
 - Reimporting an asset or recompiling in play mode rebakes the subscene and resets the game. Test with builds:
   File → Build Profiles → Windows → Build to `Builds/Windows/Punchy.exe` (or a throwaway `BuildPipeline.BuildPlayer`
   script run through `unity command script run`; none is kept in the repo), then run `Builds/Windows/Punchy.exe -join 127.0.0.1` against an editor host.
+
+### Keeping new features multiplayer-ready
+
+Multiplayer is a proof of concept for now, but every new feature should fit it. For each one, decide which kind of
+state it is:
+- **Derived from the seed:** terrain, biomes, flora, landmarks, critter spots. Nothing to sync, as long as it
+  doesn't depend on per-machine randomness (`UnityEngine.Random`, `_Time`, frame order). For ambient motion use
+  `_PunchyClock` (SharedClock.hlsl), not `_Time`.
+- **Shared world state that changes:** time, weather, anything the world remembers. It belongs to the host. Send it
+  on `WorldState` (small fields) or its own ghost, or as an RPC for one-off events like lightning. Joined clients
+  copy it and don't simulate it.
+- **Simulated things others must see the same:** animals, and in future NPCs, items or projectiles. They run only
+  in the simulation world (`NetWorlds.Server`) as ghosts, with relevancy so far-away ones aren't sent.
+- **The local player's own state:** pose, body, held items. It's client-authoritative, carried on the `NetPlayer`
+  ghost or its command.
+- **Cosmetics around a player:** breath, footprints, grass bending, lanterns. Apply them to *every* player,
+  including `NetPlayer` ghosts that aren't `GhostOwnerIsLocal`, by working them out from positions each machine
+  already has. Nothing should only react to `PlayerTag`.
+
+When a feature changes a network table (ghost fields, `PlayableSpecies`, species or biome lists), all players need
+the same build. The world fingerprint in `WorldSync` refuses mismatched joiners.
