@@ -94,6 +94,12 @@ namespace Punchy.Terrain
                  "the landmark's facing): the same as a placed prop's Ring.x and Angle.")]
         public float HomeRing;
         public float HomeAngle;
+        [Tooltip("A job: they spend the day at their home spot doing it, facing Face Ring / Face Angle.")]
+        public Punchy.Fauna.CreatureTask Task;
+        public float FaceRing;
+        public float FaceAngle;
+        [Tooltip("Size range for these individuals (children). Zero = the species' own.")]
+        public Vector2 Size;
     }
 
     public static class LandmarkLayout

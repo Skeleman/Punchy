@@ -48,7 +48,10 @@ namespace Punchy.Flora
         [Tooltip("A forum: a ring of columns (Bark) on a round platform, joined by a lintel ring. Height is the " +
                  "columns; Spread sets the ring's size; Branches = columns.")] Forum,
         [Tooltip("A fountain: a round stone basin (Bark) of water (Foliage, shining), with a pillar and a smaller " +
-                 "bowl in the middle.")] Fountain
+                 "bowl in the middle.")] Fountain,
+        [Tooltip("Firewood: logs (Bark) stacked in a pile, and a chopping block with an axe stuck in it, towards +Z.")] Woodpile,
+        [Tooltip("A well: a round stone wall (Foliage Variation) round dark water, two posts (Bark) holding a little " +
+                 "roof (Foliage), a crank and a bucket.")] Well
     }
 
     public enum FoliageFinish : byte

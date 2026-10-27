@@ -66,6 +66,8 @@ namespace Punchy.Fauna
         public Color FixedColor = new Color(0.1f, 0.08f, 0.07f);
         [Tooltip("Glows by itself (eye sockets, embers, toxic markings).")]
         [Range(0f, 1f)] public float Glow;
+        [Tooltip("Hair (or beard): each individual colours it from its species' Hair Colors.")]
+        public bool Hair;
     }
 
     [Serializable]

@@ -358,13 +358,17 @@ namespace Punchy.Fauna
                     if (index < 0)
                         continue;
                     var count = rng.NextInt(math.max(0, r.Count.x), math.max(r.Count.x, r.Count.y) + 1);
-                    // Residents with a leash live round their own home spot (a pen); the rest anywhere in the landmark.
-                    var home = r.Leash > 0f ? LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(r.HomeRing, r.HomeAngle), radius) : inst.Position;
-                    var leash = r.Leash > 0f ? r.Leash : radius * 0.8f;
+                    // Residents with a leash live round their own home spot (a pen); workers at their post (and stay near
+                    // it); the rest anywhere in the landmark.
+                    var worker = r.Task != CreatureTask.None;
+                    var stationed = r.Leash > 0f || worker;
+                    var home = stationed ? LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(r.HomeRing, r.HomeAngle), radius) : inst.Position;
+                    var leash = r.Leash > 0f ? r.Leash : worker ? 7f : radius * 0.8f;
                     for (int k = 0; k < count; k++)
                     {
-                        var p = r.Leash > 0f ? home + rng.NextFloat2Direction() * rng.NextFloat(0f, leash * 0.7f)
-                                             : inst.Position + rng.NextFloat2Direction() * rng.NextFloat(0.1f, 0.45f) * radius;
+                        var p = worker ? home + rng.NextFloat2Direction() * 0.2f
+                              : r.Leash > 0f ? home + rng.NextFloat2Direction() * rng.NextFloat(0f, leash * 0.7f)
+                              : inst.Position + rng.NextFloat2Direction() * rng.NextFloat(0.1f, 0.45f) * radius;
                         var g = source.SampleGround(p);
                         if (g.HasWater && g.WaterSurface > g.Height)
                             continue;
@@ -372,6 +376,16 @@ namespace Punchy.Fauna
                         var state = queryWorld.EntityManager.GetComponentData<CreatureState>(e);
                         state.Home = home;
                         state.Leash = leash;
+                        if (r.Size.y > 0f)
+                            state.Scale = rng.NextFloat(r.Size.x, math.max(r.Size.x, r.Size.y));
+                        if (worker)
+                        {
+                            state.Task = r.Task;
+                            state.WorkSpot = home;
+                            state.WorkFace = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(r.FaceRing, r.FaceAngle), radius);
+                            state.Mode = CreatureMode.Work;
+                            state.Timer = rng.NextFloat(40f, 120f);
+                        }
                         queryWorld.EntityManager.SetComponentData(e, state);
                     }
                 }
@@ -399,7 +413,8 @@ namespace Punchy.Fauna
                 Scale = rng.NextFloat(b.Size.x, math.max(b.Size.x, b.Size.y)),
                 Mode = CreatureMode.Idle,
                 Timer = rng.NextFloat(0.5f, 4f),
-                Seed = rng.NextUInt() | 1u
+                Seed = rng.NextUInt() | 1u,
+                Individual = rng.NextUInt() | 1u
             });
             return e;
         }

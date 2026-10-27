@@ -122,13 +122,43 @@ MonoBehaviour:
     Leash: 0
     HomeRing: 0
     HomeAngle: 0
+    Task: 0
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}
   - Species: {fileID: 11400000, guid: 8e349b1519701e84fbe7923c0c10f2fd, type: 2}
     Count: {x: 0, y: 2}
     Leash: 0
     HomeRing: 0
     HomeAngle: 0
+    Task: 0
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}
   - Species: {fileID: 11400000, guid: 92efcd8c205109b498ebcc61830248fd, type: 2}
     Count: {x: 0, y: 1}
     Leash: 0
     HomeRing: 0
     HomeAngle: 0
+    Task: 0
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}
+  - Species: {fileID: 11400000, guid: 46b822fc6510e9c438d06b7c0598a487, type: 2}
+    Count: {x: 1, y: 1}
+    Leash: 0
+    HomeRing: 0.06
+    HomeAngle: 0
+    Task: 4
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}
+  - Species: {fileID: 11400000, guid: 46b822fc6510e9c438d06b7c0598a487, type: 2}
+    Count: {x: 1, y: 1}
+    Leash: 0
+    HomeRing: 0.17
+    HomeAngle: 90
+    Task: 5
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}

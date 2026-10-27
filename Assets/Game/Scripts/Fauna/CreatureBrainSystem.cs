@@ -143,8 +143,10 @@ namespace Punchy.Fauna
                 var desiredLook = 0f;
                 var moving = false;
                 float lie = 0f, headDown = 0f, bow = 0f, curl = 0f;
-                var walk = b.WalkSpeed * s.Scale;
-                var run = b.RunSpeed * s.Scale;
+                // Each individual walks a little faster or slower than the next.
+                var pace = 1f + CreatureBlob.Trait(s.Individual, 5) * 0.08f;
+                var walk = b.WalkSpeed * s.Scale * pace;
+                var run = b.RunSpeed * s.Scale * pace;
 
                 // Keep an eye on a nearby player (busy feeding or drinking, only a close one).
                 var watchPlayer = b.FleeDistance > 0f && playerDistance < b.FleeDistance * 2.5f;
@@ -244,6 +246,34 @@ namespace Punchy.Fauna
                     case CreatureMode.Hunt:
                         Hunt(ref s, ref b, ref rng, ref targetSpeed, ref desiredLook, ref headDown, ref moving);
                         break;
+
+                    case CreatureMode.Work:
+                        s.Timer -= dt;
+                        if (s.Stage == 0)
+                        {
+                            s.Target = s.WorkSpot;
+                            targetSpeed = walk;
+                            moving = true;
+                            if (math.distance(s.Position.xz, s.WorkSpot) < 0.4f)
+                            {
+                                s.Stage = 1;
+                                s.StageTime = 0f;
+                            }
+                        }
+                        else
+                        {
+                            // At the post: turn to face the work, glance about now and then.
+                            var toWork = s.WorkFace - s.Position.xz;
+                            var wanted = WrapAngle(math.atan2(toWork.x, toWork.y) - s.Yaw);
+                            s.Yaw = WrapAngle(s.Yaw + math.clamp(wanted, -b.TurnRate * dt, b.TurnRate * dt));
+                            desiredLook = math.frac(s.ModeTime / 9f) > 0.85f ? idleLook : 0f;
+                            // Asleep on their feet at night.
+                            if (SleepTime(ref b) > 0.5f)
+                                headDown = 0.35f;
+                        }
+                        if (s.Timer <= 0f)
+                            Pause(ref s, ref b, ref rng);
+                        break;
                 }
 
                 // Animals with a home never head out of range of it (penned animals stay in their pen, even fleeing).
@@ -323,9 +353,19 @@ namespace Punchy.Fauna
                 var drink = b.Thirst * 1.2f * awake;
                 var play = playmate != Entity.Null ? b.Playfulness * 2f : 0f;
                 var hunt = prey != Entity.Null ? b.Hunger * 2.5f : 0f;
-                var roll = rng.NextFloat(wander + graze + rest + sleep + drink + play + hunt);
+                // Workers mostly work by day, taking a short wander or rest between stints; at night they doze at
+                // their post.
+                var work = s.Task != CreatureTask.None ? sleepy > 0.5f ? 10f : 6f : 0f;
+                if (s.Task != CreatureTask.None && sleepy > 0.5f)
+                    sleep = 0f;
+                var roll = rng.NextFloat(wander + graze + rest + sleep + drink + play + hunt + work);
 
-                if ((roll -= hunt) < 0f)
+                if ((roll -= work) < 0f)
+                {
+                    SetMode(ref s, CreatureMode.Work);
+                    s.Timer = rng.NextFloat(40f, 120f);
+                }
+                else if ((roll -= hunt) < 0f)
                 {
                     SetMode(ref s, CreatureMode.Hunt);
                     s.Partner = prey;

@@ -75,6 +75,8 @@ namespace Punchy.Flora
                     case FloraForm.Smithy: Smithy(g); break;
                     case FloraForm.Forum: Forum(g); break;
                     case FloraForm.Fountain: Fountain(g); break;
+                    case FloraForm.Woodpile: Woodpile(g); break;
+                    case FloraForm.Well: Well(g); break;
                 }
                 if (lod == 0)
                 {
@@ -1778,6 +1780,78 @@ namespace Punchy.Flora
             b.Blob(Vector3.up * height * 0.75f, new Vector3(radius * 0.38f, 0.14f, radius * 0.38f), Quaternion.identity, g.Sides(2, 1, 1), 0f, 0f, g.Bark, FloraPart.Bark);
             b.Blob(Vector3.up * (height * 0.75f + 0.1f), new Vector3(radius * 0.34f, 0.03f, radius * 0.34f), Quaternion.identity, 1, 0f, 0f, water, FloraPart.Metal);
             b.Tube(new List<Vector3> { Vector3.up * height * 0.78f, Vector3.up * height }, new List<float> { 0.09f, 0.03f }, g.Sides(6, 4, 3), g.Bark, FloraPart.Bark, cap: true);
+        }
+
+
+        static void Woodpile(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var length = height * s.Spread;
+            var log = height / 8f;
+            g.Height = height;
+            g.Width = length * 1.6f;
+            g.TrunkRadius = length * 0.35f;
+
+            // Logs along X, stacked in rows that narrow upwards; each a slightly different shade.
+            var rows = 4;
+            for (int r = 0; r < rows; r++)
+            {
+                var count = rows - r + 1;
+                for (int k = 0; k < count; k++)
+                {
+                    var z = (k - (count - 1) * 0.5f) * log * 2.05f;
+                    var y = log + r * log * 1.75f;
+                    var ends = g.Range(-0.15f, 0.15f);
+                    b.Tube(new List<Vector3> { new Vector3(-length * 0.5f + ends, y, z), new Vector3(length * 0.5f + ends, y, z) },
+                           new List<float> { log * g.Range(0.85f, 1.05f), log * g.Range(0.85f, 1.05f) }, g.Sides(7, 5, 4),
+                           Color.Lerp(g.Bark, g.Bark * 1.25f, g.R()), FloraPart.Bark, cap: g.Lod < 2);
+                }
+            }
+            // The chopping block in front, with an axe in it.
+            var block = new Vector3(length * 0.25f, 0f, log * 2.05f * 2.5f + 0.6f);
+            b.Tube(new List<Vector3> { block + Vector3.down * 0.05f, block + Vector3.up * 0.5f }, new List<float> { 0.3f, 0.28f }, g.Sides(9, 6, 4), g.Bark * 0.85f, FloraPart.Bark);
+            b.Blob(block + Vector3.up * 0.5f, new Vector3(0.28f, 0.02f, 0.28f), Quaternion.identity, 1, 0f, 0f, g.Bark * 1.3f, FloraPart.Bark);
+            if (g.Lod < 2)
+            {
+                var head = block + new Vector3(0.05f, 0.56f, 0f);
+                b.Beam(head, head + new Vector3(-0.45f, 0.45f, 0.1f), 0.05f, 0.05f, g.Bark * 0.7f, FloraPart.Bark);
+                b.Box(head + new Vector3(0.03f, 0.02f, 0f), new Vector3(0.22f, 0.12f, 0.05f), Quaternion.Euler(0f, 0f, 35f), new Color(0.12f, 0.12f, 0.13f), FloraPart.Metal);
+            }
+        }
+
+        static void Well(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var radius = height * s.Spread * 0.5f;
+            var stone = s.FoliageVariation.linear;
+            var sides = g.Sides(16, 10, 7);
+            g.Height = height;
+            g.Width = radius * 2.6f;
+            g.TrunkRadius = radius + 0.05f;
+
+            // The wall (outer and inner faces, and a rim), with dark water well down inside.
+            var first = b.VertexCount;
+            b.Tube(new List<Vector3> { Vector3.down * 0.1f, Vector3.up * 0.8f }, new List<float> { radius, radius }, sides, stone, FloraPart.Bark);
+            b.Tube(new List<Vector3> { Vector3.down * 0.1f, Vector3.up * 0.8f }, new List<float> { radius - 0.16f, radius - 0.16f }, sides, stone * 0.6f, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, 0.6f));
+            b.Tube(new List<Vector3> { Vector3.up * 0.78f, Vector3.up * 0.9f }, new List<float> { radius + 0.05f, radius + 0.05f }, sides, stone * 1.05f, FloraPart.Bark);
+            b.Blob(Vector3.up * 0.25f, new Vector3(radius - 0.16f, 0.02f, radius - 0.16f), Quaternion.identity, 1, 0f, 0f, new Color(0.03f, 0.05f, 0.06f), FloraPart.Metal);
+
+            // Posts, a little gabled roof, the crank and a bucket.
+            var top = height * 0.78f;
+            foreach (var x in new[] { -1f, 1f })
+                b.Box(new Vector3(x * (radius + 0.05f), top * 0.5f, 0f), new Vector3(0.16f, top, 0.16f), Quaternion.identity, g.Bark, FloraPart.Bark);
+            var roof = g.FoliageColor();
+            foreach (var z in new[] { -1f, 1f })
+                b.Beam(new Vector3(0f, top - 0.05f, z * (radius * 0.75f + 0.25f)), new Vector3(0f, height, 0f), radius * 2f + 0.6f, 0.08f, roof, FloraPart.Bark);
+            b.Beam(new Vector3(-radius - 0.15f, top * 0.72f, 0f), new Vector3(radius + 0.25f, top * 0.72f, 0f), 0.08f, 0.08f, g.Bark * 0.8f, FloraPart.Bark);
+            if (g.Lod < 2)
+                b.Tube(new List<Vector3> { new Vector3(0f, top * 0.42f, 0f), new Vector3(0f, top * 0.55f, 0f) }, new List<float> { 0.15f, 0.17f },
+                       g.Sides(8, 5, 4), g.Bark * 0.7f, FloraPart.Bark, cap: true);
         }
 
         static void Den(Grower g)

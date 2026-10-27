@@ -73,6 +73,14 @@ Input System. Windows is the only build target so far.
   collision: FloraModel.Colliders, a few upright cylinders hugging the footprint, turned and scaled with each
   placed rock (other solid plants use one trunk cylinder). FloraSpecies.SizeRange sets each placed plant's
   random size; a landmark prop's Scale multiplies it.
+- **Individuals:** CreatureState.Individual is fixed at spawn and drives CreatureBlob.Trait (posture lean, arm
+  swing, bounce, torso twist, head tilt, pace), hair colour (segments marked Hair, from the species' HairColors)
+  and style options (slots with the same StyleGroup: each individual shows one; list a slot twice to make it
+  commoner). The humanoids' slot 3 is a placeholder kept so later slot indices don't shift.
+- **Workers:** a LandmarkResident with a Task (Hammer, Chop, Gesture, Tend, Watch) lives at its HomeRing/HomeAngle
+  spot facing FaceRing/FaceAngle, works by day in CreatureMode.Work (arm poses in CreatureAnimator.TaskPose),
+  takes breaks within 7 m, and dozes at its post at night. LandmarkResident.Size overrides size (HumanChild is a
+  small, playful Human variant).
 - Flora tubes' caps are cones whose height scales with the radius: don't cap wide tubes (rims, platforms). Slot `Parent` indices count slots in the species' list,
   not the mirrored copies.
 - `Ambience/` — heat haze, breath and snow puffs, fireflies and butterflies, shared `AmbientParticleType`
