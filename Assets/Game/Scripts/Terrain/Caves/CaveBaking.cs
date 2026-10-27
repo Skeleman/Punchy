@@ -186,6 +186,20 @@ namespace Punchy.Terrain
 
             if (caves.Count == 0)
                 return default;
+            // Pools sit on the finished floors, so they're placed against the caves as built so far, then everything
+            // is built again with them (their basins change the floors).
+            var pools = new List<CavePool>();
+            var bare = BuildBlob(caves, nodes, kinds, segments, pools, Allocator.Persistent);
+            var withCaves = source;
+            withCaves.Caves = bare;
+            PlacePools(withCaves, caves, nodes, kinds, segments, styles, pools);
+            bare.Dispose();
+            return BuildBlob(caves, nodes, kinds, segments, pools, allocator);
+        }
+
+        static BlobAssetReference<CaveSetBlob> BuildBlob(List<CaveData> caves, List<CaveNode> nodes, List<CaveNodeKind> kinds,
+                                                         List<CaveSegment> segments, List<CavePool> pools, Allocator allocator)
+        {
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<CaveSetBlob>();
             var caveArray = builder.Allocate(ref root.Caves, caves.Count);
@@ -197,10 +211,80 @@ namespace Punchy.Terrain
             var kindArray = builder.Allocate(ref root.Kinds, kinds.Count);
             for (int i = 0; i < kinds.Count; i++)
                 kindArray[i] = kinds[i];
+            var poolArray = builder.Allocate(ref root.Pools, pools.Count);
+            for (int i = 0; i < pools.Count; i++)
+                poolArray[i] = pools[i];
             BuildGrid(builder, ref root, caves, nodes, segments);
             var blob = builder.CreateBlobAssetReference<CaveSetBlob>(allocator);
             builder.Dispose();
             return blob;
+        }
+
+        /// <summary>
+        /// Pools for caves whose style rolls for them: in up to the two biggest chambers, off to one side of the way
+        /// through (beside the axis of the passages joining the chamber), sunk into the floor there. Sets each cave's
+        /// pool range.
+        /// </summary>
+        static void PlacePools(in TerrainSource source, List<CaveData> caves, List<CaveNode> nodes, List<CaveNodeKind> kinds,
+                               List<CaveSegment> segments, List<CaveStyle> styles, List<CavePool> pools)
+        {
+            for (int c = 0; c < caves.Count; c++)
+            {
+                var cave = caves[c];
+                cave.FirstPool = pools.Count;
+                var style = cave.Style > 0 ? styles[cave.Style - 1] : null;
+                var rng = new Random(math.hash(new int2(c, 0x9001)) | 1u);
+                if (style != null && style.PoolChance > 0f && rng.NextFloat() < style.PoolChance)
+                {
+                    var chambers = new List<int>();
+                    for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
+                        if (kinds[n] == CaveNodeKind.Chamber && nodes[n].Radius * cave.Profile.x >= 3.5f)
+                            chambers.Add(n);
+                    chambers.Sort((a, b) => nodes[b].Radius.CompareTo(nodes[a].Radius));
+                    for (int k = 0; k < chambers.Count && k < 2; k++)
+                    {
+                        var n = chambers[k];
+                        var centre = nodes[n].Position;
+                        var r = nodes[n].Radius * cave.Profile.x;
+                        // Beside the way in: across the line from the previous node.
+                        var along = math.normalizesafe((centre - nodes[math.max(n - 1, cave.FirstNode)].Position).xz, new float2(1f, 0f));
+                        var side = (rng.NextBool() ? 1f : -1f) * new float2(-along.y, along.x);
+                        var radius = r * style.PoolSize;
+                        var xz = centre.xz + side * (r * 0.8f - radius * 0.4f);
+                        if (InTheWay(xz, radius, n, nodes, segments, cave))
+                            continue;
+                        var floor = source.FloorUnder(new float3(xz.x, centre.y, xz.y), out var inCave);
+                        if (!inCave || floor < centre.y - r * 2f)
+                            continue;
+                        pools.Add(new CavePool
+                        {
+                            Centre = new float3(xz.x, floor - 0.12f, xz.y),
+                            Radius = radius,
+                            Depth = math.min(1.2f, radius * 0.4f),
+                            Lava = style.LavaPools ? 1f : 0f
+                        });
+                    }
+                }
+                cave.PoolCount = pools.Count - cave.FirstPool;
+                caves[c] = cave;
+            }
+        }
+
+        /// <summary>Whether a pool there would cover the way through a chamber: the axis of any passage joining it.</summary>
+        static bool InTheWay(float2 q, float radius, int node, List<CaveNode> nodes, List<CaveSegment> segments, CaveData cave)
+        {
+            for (int i = cave.FirstSegment; i < cave.FirstSegment + cave.SegmentCount; i++)
+            {
+                var seg = segments[i];
+                if (seg.A != node && seg.B != node)
+                    continue;
+                // The passage's line, carried on across the chamber.
+                var dir = math.normalizesafe(nodes[seg.B].Position.xz - nodes[seg.A].Position.xz);
+                var off = q - nodes[node].Position.xz;
+                if (math.abs(off.x * dir.y - off.y * dir.x) < radius + 1.2f)
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>

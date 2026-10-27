@@ -345,6 +345,9 @@ namespace Punchy.Terrain
         /// <summary>Signed distance to cave air at a point: negative inside a cave, large away from every cave.</summary>
         public float CaveDistance(float3 p) => Caves.IsCreated ? CaveSampling.Distance(ref Caves.Value, p, out _) : 1e9f;
 
+        /// <summary>Whether a point is over a cave's lava pool, low enough to step in (movement keeps out of these).</summary>
+        public bool OverCaveLava(float3 p) => Caves.IsCreated && CaveSampling.OverLava(ref Caves.Value, p);
+
         /// <summary>Whether the ground surface here is cut away by a cave entrance.</summary>
         public bool IsCaveHole(float2 xz)
         {

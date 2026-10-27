@@ -162,17 +162,18 @@ namespace Punchy.EditorTools
                 sb.AppendLine($"{anchors.Anchors.Length} anchors, {misplaced} misplaced");
             }
 
-            // Floors: FloorUnder against a plain 5 cm scan down, at points in cave air.
+            // Floors: FloorUnder against a plain 5 cm scan down from where it starts looking (a little above the
+            // point), at points in cave air.
             var rng = new Unity.Mathematics.Random(99);
             int tested = 0, off = 0;
             for (int k = 0; k < 3000; k++)
             {
                 var node = set.Nodes[rng.NextInt(set.Nodes.Length)];
                 var p = node.Position + rng.NextFloat3(-node.Radius, node.Radius) * 0.7f;
-                if (source.CaveDistance(p) >= 0f || p.y > source.SampleHeight(p.xz) - 1f)
+                var y = math.min(p.y + 0.6f, source.SampleHeight(p.xz) + 0.05f);
+                if (source.CaveDistance(new float3(p.x, y, p.z)) >= 0f || p.y > source.SampleHeight(p.xz) - 1f)
                     continue;
                 tested++;
-                var y = p.y;
                 while (y > p.y - 60f && source.CaveDistance(new float3(p.x, y - 0.05f, p.z)) < 0f)
                     y -= 0.05f;
                 if (math.abs(source.FloorUnder(p, out _) - y) > 0.1f)

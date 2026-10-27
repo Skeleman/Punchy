@@ -24,8 +24,11 @@ MonoBehaviour:
   FloorFlatness: 0.85
   FloorSteps: 0.3
   Burrows: 0
-  RockColor: {r: 0.85, g: 0.94, b: 1, a: 1}
-  DarkColor: {r: 0.05, g: 0.25, b: 0.7, a: 1}
+  PoolChance: 0
+  LavaPools: 0
+  PoolSize: 0.32
+  RockColor: {r: 0.75, g: 0.9, b: 1, a: 1}
+  DarkColor: {r: 0.02, g: 0.18, b: 0.62, a: 1}
   Strata: 0.1
   StrataFrequency: 0.25
   Gloss: 0.85
@@ -39,8 +42,8 @@ MonoBehaviour:
   Detail: 0.9
   DetailScale: 0.9
   Sheen: 0.7
-  GlowColor: {r: 0.25, g: 0.55, b: 1, a: 1}
-  Glow: 0.4
+  GlowColor: {r: 0.15, g: 0.45, b: 1, a: 1}
+  Glow: 0.5
   GlowCover: 0.025
   Cracks: 0.08
   GlowScale: 0.8

@@ -37,6 +37,15 @@ namespace Punchy.Terrain
         [Tooltip("The floor is soft enough to dig (earth, sand, rotten rock): chambers get Burrow anchors.")]
         public bool Burrows = true;
 
+        [Header("Pools")]
+        [Tooltip("Chance a cave of this style has pools sunk into its biggest chambers' floors (off to one side, " +
+                 "clear of the way through).")]
+        [Range(0f, 1f)] public float PoolChance;
+        [Tooltip("The pools are molten lava (glowing onto the walls, and the player can't step in) rather than water.")]
+        public bool LavaPools;
+        [Tooltip("Pool radius as a share of the chamber's.")]
+        [Range(0.15f, 0.5f)] public float PoolSize = 0.32f;
+
         [Header("Rock")]
         [ColorUsage(false)] public Color RockColor = new Color(0.48f, 0.44f, 0.4f);
         [ColorUsage(false)] public Color DarkColor = new Color(0.22f, 0.2f, 0.18f);

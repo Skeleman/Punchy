@@ -208,6 +208,104 @@ namespace Punchy.Terrain
             foreach (var l in otherLanterns.Values)
                 if (l.Light != null) Destroy(l.Light.gameObject);
             otherLanterns.Clear();
+            Shader.SetGlobalInt(HeatCountId, 0);
+        }
+
+        // ------------------------------------------------------------------------------------------- pools
+
+        static readonly int HeatId = Shader.PropertyToID("_PunchyCaveHeat");
+        static readonly int HeatCountId = Shader.PropertyToID("_PunchyCaveHeatCount");
+        /// <summary>Lava pools lighting the walls at once at most (the nearest; must match Cave.shader's array).</summary>
+        const int MaxHeat = 16;
+        readonly Vector4[] heat = new Vector4[MaxHeat];
+        readonly List<(float distance, int pool)> nearPools = new List<(float, int)>();
+        static Mesh poolMesh;
+        EntityQuery configQuery;
+
+        /// <summary>
+        /// Draws every pool within LoadRadius with the terrain's own water material (lava is its lava path), all with
+        /// one shared disc mesh, and uploads the nearest lava pools so the cave shader can light the walls round them
+        /// warmly without real lights.
+        /// </summary>
+        void DrawPools(in TerrainSource source, float3 camPos)
+        {
+            ref var set = ref source.Caves.Value;
+            nearPools.Clear();
+            for (int i = 0; i < set.Pools.Length; i++)
+            {
+                var d = math.distance(set.Pools[i].Centre, camPos);
+                if (d < LoadRadius)
+                    nearPools.Add((d, i));
+            }
+            var heatCount = 0;
+            if (nearPools.Count > 0 && !configQuery.IsEmpty)
+            {
+                var water = configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value;
+                if (poolMesh == null)
+                    poolMesh = MakePoolMesh();
+                nearPools.Sort((a, b) => a.distance.CompareTo(b.distance));
+                foreach (var (_, i) in nearPools)
+                {
+                    ref var pool = ref set.Pools[i];
+                    if (water != null)
+                    {
+                        var rp = new RenderParams(water)
+                        {
+                            worldBounds = new Bounds(pool.Centre, new Vector3(pool.Radius * 2f, 1f, pool.Radius * 2f)),
+                            shadowCastingMode = ShadowCastingMode.Off,
+                            receiveShadows = false
+                        };
+                        Graphics.RenderMesh(rp, poolMesh, 0, Matrix4x4.TRS(pool.Centre, Quaternion.identity, new Vector3(pool.Radius, 1f, pool.Radius)));
+                    }
+                    if (pool.Lava > 0.5f && heatCount < MaxHeat)
+                        heat[heatCount++] = new Vector4(pool.Centre.x, pool.Centre.y + 0.3f, pool.Centre.z, pool.Radius);
+                }
+            }
+            Shader.SetGlobalVectorArray(HeatId, heat);
+            Shader.SetGlobalInt(HeatCountId, heatCount);
+        }
+
+        /// <summary>
+        /// A unit disc in the terrain's water vertex layout, set up as molten lava: no flow, deepest at the middle (the
+        /// lava cools and crusts towards the rim), lava amount 1.
+        /// </summary>
+        static Mesh MakePoolMesh()
+        {
+            const int rings = 6, spokes = 32;
+            var vertices = new List<WaterVertex> { Vertex(float2.zero) };
+            for (int r = 1; r <= rings; r++)
+                for (int s = 0; s < spokes; s++)
+                {
+                    var a = s / (float)spokes * math.PI * 2f;
+                    vertices.Add(Vertex(new float2(math.cos(a), math.sin(a)) * r / rings));
+                }
+            var indices = new List<int>();
+            for (int s = 0; s < spokes; s++)
+            {
+                indices.Add(0); indices.Add(1 + (s + 1) % spokes); indices.Add(1 + s);
+            }
+            for (int r = 1; r < rings; r++)
+                for (int s = 0; s < spokes; s++)
+                {
+                    int a = 1 + (r - 1) * spokes + s, b = 1 + (r - 1) * spokes + (s + 1) % spokes;
+                    int c = a + spokes, d = b + spokes;
+                    indices.Add(a); indices.Add(b); indices.Add(c);
+                    indices.Add(b); indices.Add(d); indices.Add(c);
+                }
+            var mesh = new Mesh { name = "Cave pool" };
+            mesh.SetVertexBufferParams(vertices.Count, WaterVertex.Layout);
+            mesh.SetVertexBufferData(vertices, 0, 0, vertices.Count);
+            mesh.SetIndices(indices, MeshTopology.Triangles, 0);
+            mesh.bounds = new Bounds(Vector3.zero, new Vector3(2f, 1f, 2f));
+            return mesh;
+
+            static WaterVertex Vertex(float2 xz) => new WaterVertex
+            {
+                Position = new float3(xz.x, 0f, xz.y),
+                Data = new float4(0f, 0f, 1f - math.lengthsq(xz), 0f),
+                Look = new float4(1f, 0.33f, 0.05f, 0.2f),
+                Glow = new float2(0f, 1f)
+            };
         }
 
         void Update()
@@ -227,6 +325,7 @@ namespace Punchy.Terrain
             UploadStyles();
             Stream(source, camPos);
             Draw();
+            DrawPools(source, camPos);
 
             // Underground: the camera in a cave's air, a couple of metres below the surface.
             var deep = source.CaveDistance(camPos) < 0f ? math.saturate((source.SampleHeight(camPos.xz) - camPos.y - 1f) / 3f) : 0f;
@@ -248,6 +347,7 @@ namespace Punchy.Terrain
                 playerQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Player.PlayerTag>(), ComponentType.ReadOnly<Unity.Transforms.LocalTransform>());
                 othersQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Net.NetPlayer>(), ComponentType.ReadOnly<Unity.Transforms.LocalTransform>());
                 paletteQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
+                configQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainConfig>());
                 queryWorld = world;
             }
             return terrainQuery.TryGetSingleton(out source);

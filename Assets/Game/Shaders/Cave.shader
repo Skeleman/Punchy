@@ -70,6 +70,10 @@ Shader "Punchy/Cave"
             // glow rgb + crack width, (gloss, metallic, facets, translucency), (glow scale, glow everywhere, cracks),
             // floor rgb + grit, floor dark rgb + floor gloss, (detail, detail scale, sheen).
             float4 _PunchyCaveStyles[32 * 8];
+            // The nearest lava pools (xyz a point just above the surface, w the pool's radius): they light the walls round
+            // them warmly, in the shader, instead of with real lights.
+            float4 _PunchyCaveHeat[16];
+            int _PunchyCaveHeatCount;
             // Shared tiling detail (CaveSystem makes it once): rg a fine normal, b a height, a a sparkle.
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
@@ -213,9 +217,25 @@ Shader "Punchy/Cave"
                     through += lit * (0.35 + 0.65 * saturate(0.5 - 0.5 * dot(n, l.direction)));
                 LIGHT_LOOP_END
 
+                // Molten pools nearby: a warm glow falling off over a few pool radii, brightest on walls facing them, with
+                // a hot glint on glossy rock.
+                for (int k = 0; k < _PunchyCaveHeatCount; k++)
+                {
+                    float4 h = _PunchyCaveHeat[k];
+                    float3 toPool = h.xyz - p;
+                    float dist = length(toPool);
+                    float fall = saturate(1 - dist / (h.w * 5 + 4));
+                    fall *= fall;
+                    float3 dir = toPool / max(dist, 1e-3);
+                    half3 warm = half3(1.0, 0.42, 0.1) * 2.2 * fall;
+                    light += warm * saturate(dot(n, dir) * 0.7 + 0.3);
+                    shine += warm * pow(saturate(dot(n, normalize(dir + view))), shininess) * saturate(gloss + metallic * 0.6);
+                }
+
                 half3 color = diffuse * light + specColor * shine + s0.rgb * through * translucency * 0.6;
-                // Sheen: a soft frosty rim where the wall turns away, lit by whatever light reaches it.
-                color += s0.rgb * pow(1 - saturate(dot(n, view)), 3) * s7.z * (light * 0.5 + 0.02);
+                // Sheen: a soft rim where the wall turns away, lit by whatever light reaches it, with a faint floor of
+                // its own so even near-black rock (obsidian) keeps its shape out of the lantern's reach.
+                color += lerp(s0.rgb, 1, 0.3) * pow(1 - saturate(dot(n, view)), 3) * s7.z * (light * 0.5 + 0.035);
                 // The atmosphere (fog and weather marches) only where daylight reaches; deep inside it would be lerped away.
                 if (openness > 0.001)
                     color = lerp(color, PunchyAtmosphere(color, p), openness);
@@ -228,7 +248,8 @@ Shader "Punchy/Cave"
                     // The mask first: the 27-cell crack search only runs where the mask leaves any crack to draw.
                     float g = s4.x;
                     float patch = PunchyValueNoise(p.xz * 0.21 * g + p.y * 0.17 + 37) * 0.7 + PunchyValueNoise(p.zy * 0.5 * g - 11) * 0.3;
-                    float crack = smoothstep(1 - s4.z, 1 - s4.z + 0.12, patch) * (1 - floorShare) * (1 - terrain);
+                    // Only on walls and ceilings: anything facing even half up (sloped floor) stays clear.
+                    float crack = smoothstep(1 - s4.z, 1 - s4.z + 0.12, patch) * (1 - smoothstep(0.2, 0.45, shape.y)) * (1 - terrain);
                     if (crack > 0)
                     {
                         float3 warp = float3(PunchyValueNoise(p.xy * 0.9 + 3), PunchyValueNoise(p.yz * 0.9 - 5), PunchyValueNoise(p.zx * 0.9 + 9));

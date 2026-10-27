@@ -38,6 +38,20 @@ namespace Punchy.Terrain
         public float2 Wall;
         /// <summary>The style's Jaggedness, FloorFlatness, FloorSteps and Blockiness.</summary>
         public float4 Rock;
+        public int FirstPool, PoolCount;
+    }
+
+    /// <summary>
+    /// A pool sunk into a chamber floor: a basin carved below the floor, filled to Level (lava or water). Drawn with
+    /// the terrain's own water material; lava pools glow onto the walls round them and keep the player out.
+    /// </summary>
+    public struct CavePool
+    {
+        /// <summary>Centre of the surface (y = the surface level).</summary>
+        public float3 Centre;
+        public float Radius, Depth;
+        /// <summary>1 = molten lava, 0 = water.</summary>
+        public float Lava;
     }
 
     /// <summary>One capsule of a passage, between two nodes, with the box its influence reaches.</summary>
@@ -60,6 +74,7 @@ namespace Punchy.Terrain
         /// <summary>Per node (same order as Nodes).</summary>
         public BlobArray<CaveNodeKind> Kinds;
         public BlobArray<CaveSegment> Segments;
+        public BlobArray<CavePool> Pools;
         public float2 GridOrigin;
         public float CellSize;
         public int2 GridSize;
@@ -81,7 +96,7 @@ namespace Punchy.Terrain
         /// <summary>Most the wall noise moves a wall at Roughness 1 (both octaves at full strength).</summary>
         public const float NoiseReach = 0.75f;
         /// <summary>Most the ceiling's ridges, fractures and blocks move it at Jaggedness 1.</summary>
-        public const float JaggedReach = 1.2f;
+        public const float JaggedReach = 1.3f;
         /// <summary>Height of one floor ledge (m).</summary>
         const float StepHeight = 0.35f;
         /// <summary>Distances whose wall noise is skipped are kept at least this far from zero (beyond the 1.2 m wall cut-off).</summary>
@@ -100,10 +115,10 @@ namespace Punchy.Terrain
         /// <summary>
         /// Distance to one capsule of a passage with the cave's width and height, cut off at its floor. Stretching
         /// makes the field a little off true distance; scaling by the smaller stretch keeps it from overstating it, so
-        /// nothing that steps by distance overshoots a wall. Out: the capsule's centre height and vertical radius here
-        /// (for the noise's floor-to-ceiling fade).
+        /// nothing that steps by distance overshoots a wall. Out: the floor's height and the capsule's vertical radius
+        /// here (for the noise's floor-to-ceiling fade).
         /// </summary>
-        static float Capsule(in CaveNode a, in CaveNode b, float3 p, in CaveData c, float floorShape, out float centreY, out float height)
+        static float Capsule(in CaveNode a, in CaveNode b, float3 p, in CaveData c, float floorShape, out float floorY, out float height)
         {
             var ab = b.Position - a.Position;
             var t = math.saturate(math.dot(p - a.Position, ab) / math.max(math.lengthsq(ab), 1e-6f));
@@ -116,36 +131,48 @@ namespace Punchy.Terrain
                 q.y *= math.lerp(1.8f, 1f, flat);   // a flatter underside, until the floor takes over
             var r = math.lerp(a.Radius, b.Radius, t) * c.Profile.x;
             var d = (math.length(q) - r) * math.min(1f, stretch);
-            centreY = centre.y;
             height = r * stretch;
             // The floor: halfway down at full flatness, sinking below the capsule's bottom (no effect) as flatness goes.
-            var floor = centre.y - height * (0.45f + (1f - flat) * 0.65f) + floorShape;
-            return math.max(d, floor - p.y);
+            floorY = centre.y - height * (0.45f + (1f - flat) * 0.65f) + floorShape;
+            return math.max(d, floorY - p.y);
         }
 
-        /// <summary>A cave's floor height offset at a spot: gentle undulation plus ledges with short ramps between them.</summary>
-        static float FloorShape(in CaveData c, float2 xz)
+        /// <summary>
+        /// A cave's floor height offset at a spot: gentle undulation plus ledges with short ramps between them, sunk
+        /// into a basin under each of its pools.
+        /// </summary>
+        static float FloorShape(ref CaveSetBlob set, in CaveData c, float2 xz)
         {
             var s = c.Seed;
-            var swell = noise.snoise(xz * 0.07f + s) * 0.18f;
-            if (c.Rock.z <= 0f)
-                return swell;
-            var v = (noise.snoise(xz * 0.045f - s) * 0.5f + 0.5f) * 4f * c.Rock.z;
-            var step = math.floor(v);
-            return swell + (step + math.smoothstep(0.4f, 0.6f, v - step) - 2f * c.Rock.z) * StepHeight;
+            var shape = noise.snoise(xz * 0.07f + s) * 0.18f;
+            if (c.Rock.z > 0f)
+            {
+                var v = (noise.snoise(xz * 0.045f - s) * 0.5f + 0.5f) * 4f * c.Rock.z;
+                var step = math.floor(v);
+                shape += (step + math.smoothstep(0.4f, 0.6f, v - step) - 2f * c.Rock.z) * StepHeight;
+            }
+            for (int i = c.FirstPool; i < c.FirstPool + c.PoolCount; i++)
+            {
+                ref var pool = ref set.Pools[i];
+                var d = math.distance(xz, pool.Centre.xz);
+                if (d < pool.Radius * 1.2f)
+                    shape -= pool.Depth * math.smoothstep(pool.Radius * 1.2f, pool.Radius * 0.7f, d);
+            }
+            return shape;
         }
 
         /// <summary>
         /// The walls' noise: gentle near the floor, and towards the ceiling ridges (low and broad), fractures (sharp
-        /// creases) and blocky collapse hollows, by the cave's Jaggedness and Blockiness. Positive pushes rock in,
-        /// negative hollows it out, so the ceiling gets both hanging ribs and overhung pockets.
+        /// creases) and blocky collapse hollows, by the cave's Jaggedness and Blockiness. Ridges and creases push rock in
+        /// and hollow it out, so the ceiling gets both hanging ribs and overhung pockets; blocks only hollow (a
+        /// collapse leaves a hole, never a slab hanging in the air).
         /// </summary>
-        static float WallNoise(in CaveData c, float3 p, float centreY, float height)
+        static float WallNoise(in CaveData c, float3 p, float floorY, float height)
         {
             var s = c.Seed;
             var g = c.Wall.y;
-            // 0 at the floor, 1 at the top of the passage.
-            var up = math.saturate((p.y - (centreY - height * 0.45f)) / math.max(height * 1.45f, 0.1f));
+            // 0 at the floor (its own floor, ledges and all, so a ledge doesn't sprout ceiling noise), 1 at the top.
+            var up = math.saturate((p.y - floorY) / math.max(height * 1.45f, 0.1f));
             var n = (noise.snoise(p * 0.22f * g + s) * 0.55f + noise.snoise(p * 0.6f * g - s) * 0.2f) * c.Wall.x
                     * math.lerp(0.3f, 1f, math.smoothstep(0f, 0.35f, up));
             if (c.Rock.x > 0f && up > 0.2f)
@@ -153,7 +180,7 @@ namespace Punchy.Terrain
                 var ridge = 1f - math.abs(noise.snoise(p * 0.12f * g + s * 0.7f));
                 var crease = math.abs(noise.snoise(p * 0.5f * g - s * 1.3f));
                 var jag = (ridge * ridge - 0.45f) * 0.9f + (crease - 0.5f) * 0.35f;
-                var blocks = c.Rock.w > 0f ? noise.snoise(math.floor(p * (1f / 1.7f)) * 0.37f + s) * 0.5f * c.Rock.w * math.smoothstep(0.45f, 1f, up) : 0f;
+                var blocks = c.Rock.w > 0f ? math.min(0f, noise.snoise(math.floor(p * (1f / 1.7f)) * 0.37f + s)) * 0.6f * c.Rock.w * math.smoothstep(0.45f, 1f, up) : 0f;
                 n += (jag + blocks) * c.Rock.x * math.smoothstep(0.2f, 0.75f, up);
             }
             return n;
@@ -192,7 +219,7 @@ namespace Punchy.Terrain
             var range = CellRange(ref set, p.xz);
             var current = -1;
             var d = 1e9f;
-            float floorShape = 0f, nearest = 1e9f, centreY = 0f, height = 1f;
+            float floorShape = 0f, nearest = 1e9f, floorY = 0f, height = 1f;
             for (int k = range.x; k < range.x + range.y; k++)
             {
                 ref var seg = ref set.Segments[set.Items[k]];
@@ -201,28 +228,28 @@ namespace Punchy.Terrain
                 if (seg.Cave != current)
                 {
                     // Items are grouped by cave, so the previous cave is done.
-                    Settle(ref set, current, d, p, centreY, height, ref best, ref cave);
+                    Settle(ref set, current, d, p, floorY, height, ref best, ref cave);
                     current = seg.Cave;
                     d = 1e9f;
                     nearest = 1e9f;
-                    floorShape = FloorShape(set.Caves[current], p.xz);
+                    floorShape = FloorShape(ref set, set.Caves[current], p.xz);
                 }
-                var ds = Capsule(set.Nodes[seg.A], set.Nodes[seg.B], p, set.Caves[current], floorShape, out var cy, out var h);
+                var ds = Capsule(set.Nodes[seg.A], set.Nodes[seg.B], p, set.Caves[current], floorShape, out var fy, out var h);
                 // The noise fades from floor to ceiling by the nearest passage's own floor and ceiling.
                 if (ds < nearest)
                 {
                     nearest = ds;
-                    centreY = cy;
+                    floorY = fy;
                     height = h;
                 }
                 d = SmoothMin(d, ds, Blend);
             }
-            Settle(ref set, current, d, p, centreY, height, ref best, ref cave);
+            Settle(ref set, current, d, p, floorY, height, ref best, ref cave);
             return best;
         }
 
         /// <summary>Adds a finished cave's wall noise and keeps it if it's the nearest so far.</summary>
-        static void Settle(ref CaveSetBlob set, int current, float d, float3 p, float centreY, float height, ref float best, ref int cave)
+        static void Settle(ref CaveSetBlob set, int current, float d, float3 p, float floorY, float height, ref float best, ref int cave)
         {
             if (current < 0)
                 return;
@@ -233,12 +260,28 @@ namespace Punchy.Terrain
             var reach = WallReach(c);
             var full = d > reach + SkipBeyond ? d - reach
                      : d < -reach - SkipBeyond ? d + reach
-                     : d + WallNoise(c, p, centreY, height);
+                     : d + WallNoise(c, p, floorY, height);
             if (full < best)
             {
                 best = full;
                 cave = current;
             }
+        }
+
+        /// <summary>
+        /// Whether a point is over a cave's lava pool and low enough to step into it (up to a metre above the surface).
+        /// Pools are few, so this just checks them all.
+        /// </summary>
+        public static bool OverLava(ref CaveSetBlob set, float3 p)
+        {
+            for (int i = 0; i < set.Pools.Length; i++)
+            {
+                ref var pool = ref set.Pools[i];
+                if (pool.Lava > 0.5f && math.distancesq(p.xz, pool.Centre.xz) < pool.Radius * pool.Radius &&
+                    p.y < pool.Centre.y + 1f && p.y > pool.Centre.y - pool.Depth - 1f)
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>Whether a point's column passes through any cave segment's box (a cheap first test).</summary>
