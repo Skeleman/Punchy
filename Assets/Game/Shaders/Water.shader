@@ -307,6 +307,9 @@ Shader "Punchy/Water"
                 float3 n = normalize(float3(-slope.x * strength - fine.x * fineStrength, 1, -slope.y * strength - fine.y * fineStrength));
                 // Reflections use a calmer normal, so they stay crisp instead of breaking into noise.
                 float3 nReflect = normalize(float3(-slope.x * strength * 0.4, 1, -slope.y * strength * 0.4));
+                // Running water underground has no calm sky to mirror: its reflection breaks up with the flow and fades.
+                float caveRun = _PunchyUnderground * flowAmount;
+                nReflect = normalize(lerp(nReflect, n, caveRun));
                 if (!frontFace)
                 {
                     n = -n;
@@ -374,6 +377,7 @@ Shader "Punchy/Water"
                              * (1 - _PunchyUnderground);
 
                 fresnel *= 1 - 0.5 * murk * (1 - viscous);
+                fresnel *= 1 - 0.6 * caveRun;
                 half3 color = lerp(body, reflection, fresnel) + light.color * glint * 4 * (1 - 0.6 * murk * (1 - viscous));
                 color += _PunchyLanternColor.rgb * lanternGlint * 0.8;
                 // Glitter: where both fine reads sparkle at once and the ripple catches the sun just so.

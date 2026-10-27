@@ -251,9 +251,9 @@ namespace Punchy.Terrain
                             var floor = source.FloorUnder(at, out var inCave);
                             if (!inCave)
                                 continue;
-                            level = math.min(level, floor - 0.08f);
+                            level = math.min(level, floor - 0.3f);
                             var width = math.clamp(math.lerp(a.Radius, b.Radius, t) * cave.Profile.x * 0.35f, 0.8f, 2f);
-                            extras.StreamPoints.Add(new CaveStreamPoint { Position = new float3(at.x, level, at.z), Width = width, Depth = 0.35f });
+                            extras.StreamPoints.Add(new CaveStreamPoint { Position = new float3(at.x, level, at.z), Width = width, Depth = 0.45f });
                             min = math.min(min, at.xz - width);
                             max = math.max(max, at.xz + width);
                         }
