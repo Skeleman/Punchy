@@ -77,6 +77,8 @@ namespace Punchy.Terrain
                     WaterGlow = b.WaterGlow,
                     // Each biome reads a different region of the noise field.
                     NoiseOffset = new float2(offsetHash & 0xFFFF, offsetHash >> 16) / 65535f * 500f,
+                    ClimateMin = new float4(b.Altitude.x, b.Temperature.x, b.Humidity.x, b.Volcanism.x),
+                    ClimateMax = new float4(b.Altitude.y, b.Temperature.y, b.Humidity.y, b.Volcanism.y),
                     BaseSurface = Index(b.BaseSurface),
                     FirstLayer = layerCursor,
                     LayerCount = b.Layers.Count

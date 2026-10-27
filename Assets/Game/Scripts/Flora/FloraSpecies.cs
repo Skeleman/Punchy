@@ -26,7 +26,9 @@ namespace Punchy.Flora
                  "Bark and Foliage.")] Spire,
         [Tooltip("A cluster of pointed crystals from a rocky base (Foliage colours them; Finish makes them metallic " +
                  "or glowing). Branches = crystals.")] Crystal,
-        [Tooltip("A rocky or earthen hump with a dark opening: a den, burrow or cave mouth. Bark is the rock.")] Den
+        [Tooltip("A rocky or earthen hump with a dark opening: a den, burrow or cave mouth. Bark is the rock.")] Den,
+        [Tooltip("Packed hexagonal columns of cooled lava (basalt), flat-topped at stepped heights. Branches = " +
+                 "columns, Thickness = column width, Spread = how much the heights vary.")] Columns
     }
 
     public enum FoliageFinish : byte

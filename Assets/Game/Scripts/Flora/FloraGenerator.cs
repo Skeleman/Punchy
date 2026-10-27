@@ -59,6 +59,7 @@ namespace Punchy.Flora
                     case FloraForm.Spire: Spire(g); break;
                     case FloraForm.Crystal: Crystal(g); break;
                     case FloraForm.Den: Den(g); break;
+                    case FloraForm.Columns: Columns(g); break;
                 }
                 if (lod == 0)
                 {
@@ -1200,6 +1201,59 @@ namespace Punchy.Flora
                 var radii = new List<float> { r, r * 0.92f, 0.002f };
                 b.Tube(path, radii, 6, color, FloraPart.Foliage);
             }
+        }
+
+        static void Columns(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var radius = height * s.Thickness;
+            var count = g.Count(s.Branches);
+            g.Height = height;
+            g.TrunkRadius = radius * 1.8f;
+
+            // Hexagonal packing outwards from the centre; columns get shorter (and some broken) towards the edge.
+            var first = b.VertexCount;
+            var axial = new List<Vector2Int> { Vector2Int.zero };
+            for (int ring = 1; axial.Count < count; ring++)
+            {
+                var hex = new Vector2Int(-ring, ring);
+                Vector2Int[] steps = { new Vector2Int(1, 0), new Vector2Int(1, -1), new Vector2Int(0, -1), new Vector2Int(-1, 0), new Vector2Int(-1, 1), new Vector2Int(0, 1) };
+                foreach (var step in steps)
+                    for (int k = 0; k < ring && axial.Count < count; k++)
+                    {
+                        axial.Add(hex);
+                        hex += step;
+                    }
+            }
+            var width = 0f;
+            var rotation = Quaternion.Euler(0f, 30f, 0f);
+            foreach (var a in axial)
+            {
+                var centre = new Vector3(radius * 1.732f * (a.x + a.y * 0.5f), 0f, radius * 1.5f * a.y);
+                var ring = Mathf.Max(Mathf.Abs(a.x), Mathf.Abs(a.y), Mathf.Abs(a.x + a.y));
+                var h = height * Mathf.Clamp01(1f - ring * 0.18f * (0.5f + s.Spread) + g.Range(-0.25f, 0.25f) * s.Spread);
+                if (h < radius)
+                    continue;
+                width = Mathf.Max(width, centre.magnitude + radius);
+                var color = Color.Lerp(g.Bark, g.Bark * 0.8f, g.R());
+                b.Tube(new List<Vector3> { centre + Vector3.down * 0.2f, centre + Vector3.up * h },
+                       new List<float> { radius * 0.98f, radius * 0.94f }, 6, color, FloraPart.Bark);
+                // A flat hexagonal top.
+                var top = b.VertexCount;
+                b.Vertex(centre + Vector3.up * h, Vector3.up, color, FloraPart.Bark, 1f);
+                for (int k = 0; k < 6; k++)
+                {
+                    var angle = k / 6f * Mathf.PI * 2f;
+                    b.Vertex(centre + Vector3.up * h + rotation * new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius * 0.94f, Vector3.up, color, FloraPart.Bark, 1f);
+                }
+                for (int k = 0; k < 6; k++)
+                    b.Triangle(top, top + 1 + (k + 1) % 6, top + 1 + k);
+            }
+            g.Width = width * 2f;
+            b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.4f));
+            Moss(g, first);
         }
 
         static void Den(Grower g)

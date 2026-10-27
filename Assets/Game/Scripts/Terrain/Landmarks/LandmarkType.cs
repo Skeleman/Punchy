@@ -10,7 +10,8 @@ namespace Punchy.Terrain
         [Tooltip("Leaves the ground's shape alone (Flatten and Roughness still apply).")] None,
         [Tooltip("A rounded hill (positive Height) or hollow (negative).")] Dome,
         [Tooltip("Flat top with steep sides (positive Height: a butte) or a flat-bottomed basin (negative).")] Mesa,
-        [Tooltip("A step: the far half (+X, before rotation) rises by Height behind a steep face through the centre.")] Cliff
+        [Tooltip("A step: the far half (+X, before rotation) rises by Height behind a steep face through the centre.")] Cliff,
+        [Tooltip("A cone with steepening flanks and a crater at the top (Edge = crater size, in units of the shape).")] Volcano
     }
 
     public enum LandmarkEffectKind : byte

@@ -23,6 +23,18 @@ namespace Punchy.Terrain
         [Tooltip("Relative chance of this biome being picked for a region when biomes come from noise.")]
         [Min(0f)] public float Frequency = 1f;
 
+        [Header("Climate (noise biomes)")]
+        [Tooltip("Regions get a climate from slowly varying fields (each 0..1); a biome is picked mostly where the " +
+                 "region's climate is inside all its ranges, so biomes that like the same climate end up together.\n" +
+                 "Altitude: lowlands 0 – uplands 1. Temperature falls with altitude.")]
+        public Vector2 Altitude = new Vector2(0f, 1f);
+        [Tooltip("Cold 0 – hot 1 (also colder at altitude).")]
+        public Vector2 Temperature = new Vector2(0f, 1f);
+        [Tooltip("Arid 0 – wet 1.")]
+        public Vector2 Humidity = new Vector2(0f, 1f);
+        [Tooltip("Volcanic activity: mostly 0, rising to 1 at a few hotspots.")]
+        public Vector2 Volcanism = new Vector2(0f, 0.3f);
+
         [Header("Shape (noise heights only)")]
         [Tooltip("Ground level of this biome's lowlands, in metres relative to sea level.")]
         public float BaseElevation = 20f;

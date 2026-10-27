@@ -1,0 +1,95 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a5407ac3b5877da49af18e077398168c, type: 3}
+  m_Name: MudPits
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.LandmarkType
+  Radius: 35
+  Scale: {x: 0.85, y: 1.15}
+  MaxRelief: 10
+  Elevation: {x: 3, y: 10000}
+  Shape: 2
+  Height: -1.5
+  ShapeRadius: 0.8
+  Edge: 0.5
+  Flatten: 0.8
+  Roughness: 0
+  Pools:
+  - Offset: {x: 0, y: 0}
+    Radius: 0.18
+    Depth: 0.8
+  - Offset: {x: 0.42, y: 0.25}
+    Radius: 0.12
+    Depth: 0.6
+  - Offset: {x: -0.38, y: 0.3}
+    Radius: 0.13
+    Depth: 0.6
+  - Offset: {x: 0.1, y: -0.48}
+    Radius: 0.14
+    Depth: 0.7
+  OverrideWater: 1
+  WaterColor: {r: 0.3, g: 0.22, b: 0.15, a: 1}
+  WaterMurk: 1
+  WaterGlow: 0
+  Ground: {fileID: 11400000, guid: df538c85803bafa47873340f23f14be5, type: 2}
+  GroundRadius: 0.75
+  ClearRadius: 0.8
+  Props: []
+  Effects:
+  - Kind: 0
+    Offset: {x: 0, y: 0}
+    Height: 5
+    Width: 2
+    Size: 2
+    Particles: 25
+    Lifetime: 4
+    Color: {r: 0.8, g: 0.78, b: 0.75, a: 1}
+    Opacity: 0.25
+    Glow: 0
+    Period: 0
+    Duty: 0.25
+  - Kind: 0
+    Offset: {x: 0.42, y: 0.25}
+    Height: 4
+    Width: 1.5
+    Size: 1.6
+    Particles: 18
+    Lifetime: 4
+    Color: {r: 0.8, g: 0.78, b: 0.75, a: 1}
+    Opacity: 0.22
+    Glow: 0
+    Period: 0
+    Duty: 0.25
+  - Kind: 0
+    Offset: {x: -0.38, y: 0.3}
+    Height: 4
+    Width: 1.5
+    Size: 1.6
+    Particles: 18
+    Lifetime: 4
+    Color: {r: 0.8, g: 0.78, b: 0.75, a: 1}
+    Opacity: 0.22
+    Glow: 0
+    Period: 0
+    Duty: 0.25
+  - Kind: 0
+    Offset: {x: 0.1, y: -0.48}
+    Height: 4
+    Width: 1.5
+    Size: 1.6
+    Particles: 18
+    Lifetime: 4
+    Color: {r: 0.8, g: 0.78, b: 0.75, a: 1}
+    Opacity: 0.22
+    Glow: 0
+    Period: 0
+    Duty: 0.25
+  Residents: []

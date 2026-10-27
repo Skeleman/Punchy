@@ -11,9 +11,13 @@ Input System. Windows is the only build target so far.
   meshes, player movement, plants, animals, weather and particles all sample it, so they always agree. Don't
   compute heights any other way.
 - It is **baked** from `TerrainAuthoring` in the `Assets/Game/Scenes/World.unity` subscene. Editing a biome or
-  surface asset re-bakes the terrain, rivers included, which takes a while and can reshuffle the island
-  (biome regions come from Voronoi cells weighted by each biome's `Frequency`; the region at the origin is always
-  the first biome).
+  surface asset re-bakes the terrain, rivers included, which takes a while and can reshuffle the island.
+- **Biome placement:** regions are warped Voronoi cells. Each cell reads a climate from smooth fields
+  (`BiomeSampling.Climate`: altitude, temperature falling with altitude, humidity, and volcanism around a few
+  hotspots in high country) and picks a biome weighted by `Frequency` × how well the climate fits the biome's
+  Climate ranges, so arid biomes cluster, wet ones cluster, and each volcano sits inside ashlands. The region at
+  the origin is always the first biome. Not every seed gets every biome; to force a layout, export the biome map
+  (TerrainAuthoring inspector), paint it, and set Biome Source to Map.
 - **Data-driven assets, not code, define content.** Biomes (`Assets/Game/Biomes`) list their surfaces, terrain shape,
   water look, weather odds, ambience, flora, fauna and ambient particles. Most new content is a new asset or a
   biome list entry.

@@ -14,6 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.BiomeDefinition
   MapColor: {r: 0.3, g: 0.3, b: 0.32, a: 1}
   Frequency: 0.8
+  Altitude: {x: 0, y: 1}
+  Temperature: {x: 0, y: 1}
+  Humidity: {x: 0, y: 1}
+  Volcanism: {x: 0.12, y: 0.5}
   BaseElevation: 12
   Shape: 2
   Relief: 20
@@ -113,6 +117,10 @@ MonoBehaviour:
   - Type: {fileID: 11400000, guid: 8175ea536cdeb5148a16e3d7b6aa82a6, type: 2}
     Density: 2.4
   - Type: {fileID: 11400000, guid: 835336737195be64a8d3c46d1ef30a96, type: 2}
+    Density: 1.6
+  - Type: {fileID: 11400000, guid: 498ac8009990c6441be5d6ee23352d76, type: 2}
+    Density: 2
+  - Type: {fileID: 11400000, guid: bad3790244695dc439d77b3e847182ac, type: 2}
     Density: 1.6
   Fauna:
   - Species: {fileID: 11400000, guid: 7373782e991263741bf9d3a93f8aafe5, type: 2}

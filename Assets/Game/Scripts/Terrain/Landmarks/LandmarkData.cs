@@ -132,6 +132,15 @@ namespace Punchy.Terrain
                 case LandmarkShape.Cliff:
                     var w = math.max(radius * type.Edge * 0.5f, 0.5f);
                     return math.smoothstep(-w, w, local.x);
+                case LandmarkShape.Volcano:
+                {
+                    // Concave flanks rising to a rim, then a bowl-shaped crater a quarter of the height deep.
+                    var crater = r * type.Edge;
+                    var flank = math.pow(math.saturate(1f - math.max(d, crater) / r), 1.4f);
+                    var dip = d < crater ? 0.25f * (1f - (d / crater) * (d / crater)) : 0f;
+                    var foot = math.saturate(1f - d / r);
+                    return flank - dip + foot * 0.05f;
+                }
                 default:
                     return 0f;
             }

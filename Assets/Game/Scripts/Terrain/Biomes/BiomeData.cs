@@ -90,6 +90,8 @@ namespace Punchy.Terrain
         public float4 Water;
         public float WaterGlow;
         public float2 NoiseOffset;
+        /// <summary>Preferred climate: altitude, temperature, humidity, volcanism ranges.</summary>
+        public float4 ClimateMin, ClimateMax;
         public int BaseSurface;
         public int FirstLayer;
         public int LayerCount;
@@ -130,6 +132,10 @@ namespace Punchy.Terrain
         public float ShapeBlendDistance;
         [UnityEngine.Tooltip("How far (metres) region borders are pushed around to look organic.")]
         public float WarpStrength;
+        [UnityEngine.Tooltip("Typical size of climate zones (wet, dry, high, cold, volcanic), in metres.")]
+        public float ClimateSize;
+        [UnityEngine.Tooltip("How strictly biomes follow climate: 0 = random by frequency, 1 = only where they fit.")]
+        [UnityEngine.Range(0f, 1f)] public float ClimateInfluence;
 
         public static BiomeNoiseSettings Default => new BiomeNoiseSettings
         {
@@ -137,12 +143,15 @@ namespace Punchy.Terrain
             CellSize = 1400f,
             BlendDistance = 120f,
             ShapeBlendDistance = 450f,
-            WarpStrength = 350f
+            WarpStrength = 350f,
+            ClimateSize = 3000f,
+            ClimateInfluence = 1f
         };
 
         public bool Equals(BiomeNoiseSettings o) =>
             Seed == o.Seed && CellSize == o.CellSize && BlendDistance == o.BlendDistance &&
-            ShapeBlendDistance == o.ShapeBlendDistance && WarpStrength == o.WarpStrength;
+            ShapeBlendDistance == o.ShapeBlendDistance && WarpStrength == o.WarpStrength &&
+            ClimateSize == o.ClimateSize && ClimateInfluence == o.ClimateInfluence;
     }
 
     /// <summary>Up to four biomes and their weights at a point (weights sum to 1).</summary>
@@ -228,7 +237,7 @@ namespace Punchy.Terrain
                 var d = math.distance(p, c + CellJitter(c, s.Seed));
                 cells.Distances.Add(d);
                 // The region containing the world origin always uses the first biome, so the start area is predictable.
-                cells.Biomes.Add(math.all(c == spawnCell) ? 0 : CellBiome(c, s.Seed, ref set));
+                cells.Biomes.Add(math.all(c == spawnCell) ? 0 : CellBiome(c, s, ref set));
                 cells.Nearest = math.min(cells.Nearest, d);
             }
             return cells;
@@ -331,21 +340,90 @@ namespace Punchy.Terrain
             return 0.1f + 0.8f * new float2(h & 0xFFFF, h >> 16) / 65535f;
         }
 
-        static int CellBiome(int2 cell, uint seed, ref BiomeSetBlob set)
+        /// <summary>
+        /// The climate at a point, each 0..1: x altitude, y temperature, z humidity, w volcanism. Smooth fields a few
+        /// regions across; temperature drops with altitude, and volcanism is zero except around scattered hotspots.
+        /// </summary>
+        public static float4 Climate(in BiomeNoiseSettings s, float2 xz)
+        {
+            var q = xz / math.max(s.ClimateSize, 1f) + new float2(s.Seed % 89u, s.Seed % 97u) * 0.37f;
+            static float Spread(float n) => math.saturate(0.5f + n * 0.65f);
+            var altitude = Spread(noise.snoise(q + 11.3f) * 0.7f + noise.snoise(q * 2.3f - 5.1f) * 0.3f);
+            var temperature = math.saturate(Spread(noise.snoise(q * 0.8f + 23.9f)) - (altitude - 0.5f) * 0.6f);
+            var humidity = Spread(noise.snoise(q * 1.1f - 37.2f) * 0.75f + noise.snoise(q * 2.6f + 3.3f) * 0.25f);
+            // Volcanic hotspots: about a quarter of the cells of a coarse grid hold one (if it's in high country), and
+            // volcanism falls off with distance from it, so every volcanic area has a volcano at its heart and
+            // ashlands around it.
+            var g = xz / (math.max(s.ClimateSize, 1f) * 1.6f);
+            var home = (int2)math.floor(g);
+            var volcanism = 0f;
+            for (int i = 0; i < 9; i++)
+            {
+                var c = home + new int2(i % 3 - 1, i / 3 - 1);
+                var h = math.hash(new int3(c, (int)(s.Seed * 31u + 5u)));
+                if ((h & 0xFF) >= 70)
+                    continue;
+                var spot = (float2)c + 0.2f + 0.6f * new float2((h >> 8) & 0xFFF, h >> 20) / 4095f;
+                // Only in high country.
+                var sq = spot * 1.6f + new float2(s.Seed % 89u, s.Seed % 97u) * 0.37f;
+                if (Spread(noise.snoise(sq + 11.3f) * 0.7f + noise.snoise(sq * 2.3f - 5.1f) * 0.3f) < 0.45f)
+                    continue;
+                volcanism = math.max(volcanism, math.saturate(1f - math.distance(g, spot) / 0.36f));
+            }
+            return new float4(altitude, temperature, humidity, volcanism);
+        }
+
+        /// <summary>How well a climate suits a biome: 1 inside all its ranges, falling off outside them.</summary>
+        public static float ClimateFit(ref BiomeBlobData b, float4 climate) => math.exp(-ClimateMisfit(ref b, climate));
+
+        /// <summary>How far a climate is outside a biome's ranges (0 inside them), in units of the tolerance.</summary>
+        static float ClimateMisfit(ref BiomeBlobData b, float4 climate)
+        {
+            var outside = math.max(math.max(b.ClimateMin - climate, climate - b.ClimateMax), 0f);
+            // Volcanism is strict, so the ashlands give way to the volcano at a hotspot's heart.
+            return math.lengthsq(outside / new float4(0.15f, 0.15f, 0.15f, 0.04f));
+        }
+
+        /// <summary>A region's biome: random, weighted by each biome's frequency and how well it suits the climate.</summary>
+        static int CellBiome(int2 cell, in BiomeNoiseSettings s, ref BiomeSetBlob set)
         {
             if (set.LandCount <= 1)
                 return 0;
 
-            var h = math.hash(new int3(cell, (int)(seed * 7919u + 17u)));
-            var pick = (h / (float)uint.MaxValue) * set.LandFrequency;
+            var climate = Climate(s, (cell + CellJitter(cell, s.Seed)) * s.CellSize);
+            var total = 0f;
+            for (int i = 0; i < set.LandCount; i++)
+                total += Suitability(ref set.Biomes[i], climate, s.ClimateInfluence);
+            // A climate no biome covers takes the nearest fit.
+            if (total < 1e-20f)
+            {
+                var best = 0;
+                var bestMisfit = float.MaxValue;
+                for (int i = 0; i < set.LandCount; i++)
+                {
+                    var misfit = set.Biomes[i].Frequency > 0f ? ClimateMisfit(ref set.Biomes[i], climate) : float.MaxValue;
+                    if (misfit < bestMisfit)
+                    {
+                        bestMisfit = misfit;
+                        best = i;
+                    }
+                }
+                return best;
+            }
+
+            var h = math.hash(new int3(cell, (int)(s.Seed * 7919u + 17u)));
+            var pick = (h / (float)uint.MaxValue) * total;
             for (int i = 0; i < set.LandCount; i++)
             {
-                pick -= set.Biomes[i].Frequency;
+                pick -= Suitability(ref set.Biomes[i], climate, s.ClimateInfluence);
                 if (pick <= 0f)
                     return i;
             }
             return set.LandCount - 1;
         }
+
+        static float Suitability(ref BiomeBlobData b, float4 climate, float influence) =>
+            b.Frequency * math.lerp(1f, ClimateFit(ref b, climate), influence);
 
         /// <summary>Height of one biome's relief above its base elevation, at xz (metres).</summary>
         public static float Relief(ref BiomeBlobData b, float2 xz)

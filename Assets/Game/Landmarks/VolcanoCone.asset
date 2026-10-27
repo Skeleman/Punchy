@@ -1,0 +1,72 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a5407ac3b5877da49af18e077398168c, type: 3}
+  m_Name: VolcanoCone
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.LandmarkType
+  Radius: 220
+  Scale: {x: 0.9, y: 1.1}
+  MaxRelief: 140
+  Elevation: {x: 3, y: 10000}
+  Shape: 4
+  Height: 110
+  ShapeRadius: 0.95
+  Edge: 0.15
+  Flatten: 0.3
+  Roughness: 4
+  Pools:
+  - Offset: {x: 0, y: 0}
+    Radius: 0.06
+    Depth: 3
+  OverrideWater: 1
+  WaterColor: {r: 1, g: 0.3, b: 0.04, a: 1}
+  WaterMurk: 1
+  WaterGlow: 1
+  Ground: {fileID: 11400000, guid: 87e4552f42a54cf458915cd0d41df111, type: 2}
+  GroundRadius: 0.22
+  ClearRadius: 0.9
+  Props:
+  - Species: {fileID: 11400000, guid: b6d022bd9487a0744bddd69571f71986, type: 2}
+    Density: 1
+    Ring: {x: 0.3, y: 1}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+  - Species: {fileID: 11400000, guid: ddc4e50a58031e84d940072813a94687, type: 2}
+    Density: 0.5
+    Ring: {x: 0.2, y: 0.8}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+  Effects:
+  - Kind: 0
+    Offset: {x: 0, y: 0}
+    Height: 70
+    Width: 18
+    Size: 16
+    Particles: 90
+    Lifetime: 16
+    Color: {r: 0.22, g: 0.21, b: 0.2, a: 1}
+    Opacity: 0.5
+    Glow: 0
+    Period: 0
+    Duty: 0.25
+  - Kind: 0
+    Offset: {x: 0, y: 0}
+    Height: 30
+    Width: 10
+    Size: 0.35
+    Particles: 120
+    Lifetime: 4
+    Color: {r: 1, g: 0.45, b: 0.12, a: 1}
+    Opacity: 0.9
+    Glow: 6
+    Period: 0
+    Duty: 0.25
+  Residents: []

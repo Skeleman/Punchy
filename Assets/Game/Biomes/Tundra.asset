@@ -14,6 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.BiomeDefinition
   MapColor: {r: 0.75, g: 0.8, b: 0.85, a: 1}
   Frequency: 0.8
+  Altitude: {x: 0, y: 0.75}
+  Temperature: {x: 0, y: 0.16}
+  Humidity: {x: 0, y: 1}
+  Volcanism: {x: 0, y: 0.2}
   BaseElevation: 105
   Shape: 0
   Relief: 14
