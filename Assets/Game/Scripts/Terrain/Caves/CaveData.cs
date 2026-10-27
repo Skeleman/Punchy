@@ -54,6 +54,21 @@ namespace Punchy.Terrain
         public float2 Min, Max;
     }
 
+    /// <summary>
+    /// A plant on a cave floor (a glowing mushroom, a crystal, a mossy shrub): placed at bake time from the seed, and
+    /// drawn by CaveSystem with the flora system's meshes and material.
+    /// </summary>
+    public struct CavePlant
+    {
+        public float3 Position;
+        public float Yaw, Scale;
+        /// <summary>Index into CaveFloraTable's species.</summary>
+        public int Species;
+        /// <summary>Which of the species' variants, and a per-plant random for the flora shader.</summary>
+        public int Variant;
+        public float Random;
+    }
+
     public struct CaveStreamPoint
     {
         /// <summary>The middle of the water surface.</summary>
@@ -114,6 +129,7 @@ namespace Punchy.Terrain
         public BlobArray<CavePool> Pools;
         public BlobArray<CaveStream> Streams;
         public BlobArray<CaveStreamPoint> StreamPoints;
+        public BlobArray<CavePlant> Plants;
         public float2 GridOrigin;
         public float CellSize;
         public int2 GridSize;

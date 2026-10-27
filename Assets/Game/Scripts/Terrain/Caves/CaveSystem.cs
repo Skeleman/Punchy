@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -212,6 +213,8 @@ namespace Punchy.Terrain
             foreach (var m in streamMeshes)
                 if (m != null) Destroy(m);
             streamMeshes.Clear();
+            ReleasePlants();
+            Shader.SetGlobalVector(LanternId, Vector4.zero);
         }
 
         // ------------------------------------------------------------------------------------------- pools
@@ -288,6 +291,143 @@ namespace Punchy.Terrain
                 var rp = new RenderParams(water) { worldBounds = bounds, shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false };
                 Graphics.RenderMesh(rp, streamMeshes[s], 0, Matrix4x4.identity);
             }
+        }
+
+        // ------------------------------------------------------------------------------------------- plants
+
+        [Tooltip("Cave plants within this distance of the camera are drawn.")]
+        public float PlantRadius = 60f;
+        /// <summary>Variants grown per species (as the flora system does).</summary>
+        const int PlantVariants = 3;
+        /// <summary>Cave plants nearer than this use the finest mesh, the rest the middle one.</summary>
+        const float PlantLod0 = 20f;
+
+        readonly List<Punchy.Flora.FloraModel> plantModels = new List<Punchy.Flora.FloraModel>();
+        BiomePalette plantsFrom;
+        Material floraMaterial;
+        GraphicsBuffer plantInstances, plantVisible;
+        readonly List<(Mesh mesh, int start, int count, MaterialPropertyBlock props)> plantDraws = new List<(Mesh, int, int, MaterialPropertyBlock)>();
+        readonly List<MaterialPropertyBlock> plantProps = new List<MaterialPropertyBlock>();
+        readonly List<(int key, int plant)> plantKeys = new List<(int, int)>();
+        float3 plantsAround = new float3(float.MaxValue);
+        static readonly int FloraInstancesId = Shader.PropertyToID("_FloraInstances");
+        static readonly int FloraVisibleId = Shader.PropertyToID("_FloraVisible");
+        static readonly int RegionStartId = Shader.PropertyToID("_RegionStart");
+
+        /// <summary>
+        /// Draws the cave plants near the camera with the flora system's own material, shader and procedural meshes
+        /// (grown once per species and variant), so they match the plants above ground and add no materials. Each
+        /// species variant and LOD is one instanced draw over this system's own small instance list, rebuilt when the
+        /// camera has moved a few metres; the flora shader reads it exactly as it reads the flora system's.
+        /// </summary>
+        void DrawPlants(in TerrainSource source, float3 camPos)
+        {
+            ref var set = ref source.Caves.Value;
+            if (set.Plants.Length == 0 || paletteQuery.IsEmpty)
+                return;
+            if (floraMaterial == null)
+            {
+                var flora = FindFirstObjectByType<Punchy.Flora.FloraSystem>();
+                floraMaterial = flora != null ? flora.Material : null;
+                if (floraMaterial == null)
+                    return;
+            }
+            var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
+            if (palette != plantsFrom)
+            {
+                ReleasePlants();
+                foreach (var species in CaveFloraTable.Collect(palette.Landmarks))
+                    for (int v = 0; v < PlantVariants; v++)
+                        plantModels.Add(Punchy.Flora.FloraGenerator.Grow(species, v));
+                plantsFrom = palette;
+            }
+
+            if (math.distancesq(camPos, plantsAround) > 16f)
+            {
+                plantsAround = camPos;
+                plantKeys.Clear();
+                for (int i = 0; i < set.Plants.Length; i++)
+                {
+                    ref var p = ref set.Plants[i];
+                    var d = math.distance(p.Position, camPos);
+                    if (d > PlantRadius)
+                        continue;
+                    var model = p.Species * PlantVariants + p.Variant;
+                    if (model < 0 || model >= plantModels.Count)
+                        continue;
+                    plantKeys.Add((model * 2 + (d < PlantLod0 ? 0 : 1), i));
+                }
+                plantKeys.Sort((a, b) => a.key.CompareTo(b.key));
+                var count = plantKeys.Count;
+                if (plantInstances == null || plantInstances.count < math.max(count, 1))
+                {
+                    plantInstances?.Release();
+                    plantVisible?.Release();
+                    var capacity = math.max(64, math.ceilpow2(math.max(count, 1)));
+                    plantInstances = new GraphicsBuffer(GraphicsBuffer.Target.Structured, capacity, UnsafeUtility.SizeOf<Punchy.Flora.FloraSystem.FloraInstance>());
+                    plantVisible = new GraphicsBuffer(GraphicsBuffer.Target.Structured, capacity, sizeof(uint) * 2);
+                }
+                var instances = new NativeArray<Punchy.Flora.FloraSystem.FloraInstance>(count, Allocator.Temp);
+                var visible = new NativeArray<uint2>(count, Allocator.Temp);
+                var fullyVisible = math.asuint(1f);
+                for (int k = 0; k < count; k++)
+                {
+                    ref var p = ref set.Plants[plantKeys[k].plant];
+                    instances[k] = new Punchy.Flora.FloraSystem.FloraInstance
+                    {
+                        Position = p.Position, Yaw = p.Yaw, Scale = p.Scale,
+                        Model = plantKeys[k].key / 2, Random = p.Random, Snow = 0f
+                    };
+                    visible[k] = new uint2((uint)k, fullyVisible);
+                }
+                plantInstances.SetData(instances);
+                plantVisible.SetData(visible);
+                instances.Dispose();
+                visible.Dispose();
+
+                // One draw per run of the same model and LOD.
+                plantDraws.Clear();
+                for (int k = 0; k < count;)
+                {
+                    var key = plantKeys[k].key;
+                    var start = k;
+                    while (k < count && plantKeys[k].key == key)
+                        k++;
+                    if (plantProps.Count <= plantDraws.Count)
+                        plantProps.Add(new MaterialPropertyBlock());
+                    var props = plantProps[plantDraws.Count];
+                    props.SetBuffer(FloraInstancesId, plantInstances);
+                    props.SetBuffer(FloraVisibleId, plantVisible);
+                    props.SetInteger(RegionStartId, start);
+                    plantDraws.Add((plantModels[key / 2].Lods[key % 2], start, k - start, props));
+                }
+            }
+
+            var bounds = new Bounds(camPos, new Vector3(PlantRadius * 2f, PlantRadius * 2f, PlantRadius * 2f));
+            foreach (var (mesh, _, count, props) in plantDraws)
+            {
+                var rp = new RenderParams(floraMaterial)
+                {
+                    worldBounds = bounds,
+                    matProps = props,
+                    shadowCastingMode = ShadowCastingMode.Off,
+                    receiveShadows = true
+                };
+                Graphics.RenderMeshPrimitives(rp, mesh, 0, count);
+            }
+        }
+
+        void ReleasePlants()
+        {
+            foreach (var m in plantModels)
+                m.Destroy();
+            plantModels.Clear();
+            plantDraws.Clear();
+            plantInstances?.Release();
+            plantVisible?.Release();
+            plantInstances = plantVisible = null;
+            plantsFrom = null;
+            plantsAround = new float3(float.MaxValue);
         }
 
         /// <summary>
@@ -398,6 +538,7 @@ namespace Punchy.Terrain
             Stream(source, camPos);
             Draw();
             DrawPools(source, camPos);
+            DrawPlants(source, camPos);
 
             // Underground: the camera in a cave's air, a couple of metres below the surface.
             var deep = source.CaveDistance(camPos) < 0f ? math.saturate((source.SampleHeight(camPos.xz) - camPos.y - 1f) / 3f) : 0f;
@@ -871,7 +1012,15 @@ namespace Punchy.Terrain
             if (lantern == null)
                 lantern = CreateLantern("Lantern");
             PlaceLantern(lantern, player, lanternLevel, 0.5f);
+            // The flora shader has no light loop (it would cost every plant on the surface), so cave plants get the
+            // lantern as one cheap term from these.
+            var at = lantern.transform.position;
+            Shader.SetGlobalVector(LanternId, new Vector4(at.x, at.y, at.z, lantern.enabled ? lantern.intensity * 0.2f : 0f));
+            Shader.SetGlobalVector(LanternColorId, new Vector4(LanternColor.r, LanternColor.g, LanternColor.b, LanternRange));
         }
+
+        static readonly int LanternId = Shader.PropertyToID("_PunchyLantern");
+        static readonly int LanternColorId = Shader.PropertyToID("_PunchyLanternColor");
 
         /// <summary>How lit someone's lantern should be: in a cave and away from the daylight at the entrance.</summary>
         static float LanternWanted(in TerrainSource source, float3 feet)

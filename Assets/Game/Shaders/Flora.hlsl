@@ -23,6 +23,11 @@ StructuredBuffer<uint2> _FloraVisible;
 uint _RegionStart;
 float2 _PunchyWindDirection;
 half _PunchyWind;
+// 0 above ground, 1 with the camera deep in a cave; the player's lantern (xyz position, w strength) and its colour
+// (rgb) and range (w). Set by CaveSystem.
+float _PunchyUnderground;
+float4 _PunchyLantern;
+float4 _PunchyLanternColor;
 
 struct FloraAttributes
 {

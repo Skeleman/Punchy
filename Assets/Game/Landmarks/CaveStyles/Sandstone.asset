@@ -34,6 +34,10 @@ MonoBehaviour:
   RubbleSize: 0.7
   Moss: 0
   MossColor: {r: 0.22, g: 0.32, b: 0.12, a: 1}
+  Flora:
+  - Species: {fileID: 11400000, guid: bd276f49a3ba0da489507a483dad61ab, type: 2}
+    Density: 4.5
+    Light: 1
   PoolChance: 0
   LavaPools: 0
   PoolSize: 0.32

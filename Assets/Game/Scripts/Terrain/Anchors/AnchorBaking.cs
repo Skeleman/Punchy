@@ -21,10 +21,42 @@ namespace Punchy.Terrain
         {
             var anchors = new List<Anchor>();
             if (source.Caves.IsCreated)
+            {
                 AddCaveAnchors(source, CaveStyleTable.Collect(types), anchors);
+                AddGlowAnchors(source, CaveFloraTable.Collect(types), anchors);
+            }
             if (anchors.Count == 0)
                 return default;
             return BuildBlob(anchors, allocator);
+        }
+
+        /// <summary>A Glow anchor at every glowing cave plant (creatures drawn to light gather there), owned by its cave.</summary>
+        static void AddGlowAnchors(in TerrainSource source, List<Punchy.Flora.FloraSpecies> flora, List<Anchor> anchors)
+        {
+            ref var set = ref source.Caves.Value;
+            for (int i = 0; i < set.Plants.Length; i++)
+            {
+                var plant = set.Plants[i];
+                if (plant.Species < 0 || plant.Species >= flora.Count)
+                    continue;
+                var species = flora[plant.Species];
+                if (species.Finish != Punchy.Flora.FoliageFinish.Glowing && !species.GlowingAccents)
+                    continue;
+                CaveSampling.Distance(ref set, plant.Position + new float3(0f, 0.5f, 0f), out var cave);
+                if (cave < 0)
+                    continue;
+                anchors.Add(new Anchor
+                {
+                    Position = plant.Position,
+                    Facing = new float2(math.cos(plant.Yaw), math.sin(plant.Yaw)),
+                    Size = 1.5f,
+                    Owner = Anchor.OwnerCave(cave),
+                    Kind = AnchorKind.Glow,
+                    Capacity = 0,
+                    Biome = (byte)Dominant(source.SampleGround(plant.Position.xz).Biomes),
+                    Tags = (byte)(Anchor.Shelter | (set.Caves[cave].Style & 0x7F))
+                });
+            }
         }
 
         static void AddCaveAnchors(in TerrainSource source, List<CaveStyle> styles, List<Anchor> anchors)

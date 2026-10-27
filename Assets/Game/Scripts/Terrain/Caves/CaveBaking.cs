@@ -200,17 +200,19 @@ namespace Punchy.Terrain
             withCaves.Caves = withWater;
             PlaceSpeleothems(withCaves, caves, nodes, kinds, segments, styles, extras.Pools, extras.Speleothems);
             PlaceRubble(withCaves, caves, nodes, kinds, segments, styles, extras.Pools, extras.Speleothems);
+            PlacePlants(withCaves, caves, nodes, kinds, segments, styles, CaveFloraTable.Collect(types), extras);
             withWater.Dispose();
             return BuildBlob(caves, nodes, kinds, segments, extras, allocator);
         }
 
-        /// <summary>What's placed in caves after their shape: pools, streams, speleothems (and rubble).</summary>
+        /// <summary>What's placed in caves after their shape: pools, streams, speleothems (and rubble), plants.</summary>
         class Extras
         {
             public readonly List<CavePool> Pools = new List<CavePool>();
             public readonly List<CaveStream> Streams = new List<CaveStream>();
             public readonly List<CaveStreamPoint> StreamPoints = new List<CaveStreamPoint>();
             public readonly List<CaveSpeleothem> Speleothems = new List<CaveSpeleothem>();
+            public readonly List<CavePlant> Plants = new List<CavePlant>();
         }
 
         /// <summary>
@@ -296,6 +298,9 @@ namespace Punchy.Terrain
             var streamArray = builder.Allocate(ref root.Streams, extras.Streams.Count);
             for (int i = 0; i < extras.Streams.Count; i++)
                 streamArray[i] = extras.Streams[i];
+            var plantArray = builder.Allocate(ref root.Plants, extras.Plants.Count);
+            for (int i = 0; i < extras.Plants.Count; i++)
+                plantArray[i] = extras.Plants[i];
             var pointArray = builder.Allocate(ref root.StreamPoints, extras.StreamPoints.Count);
             for (int i = 0; i < extras.StreamPoints.Count; i++)
                 pointArray[i] = extras.StreamPoints[i];
@@ -420,6 +425,90 @@ namespace Punchy.Terrain
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Plants on chamber and passage floors, by each cave's style: each listed species scattered by its density
+        /// where the light suits it (near daylight: within reach of the mouth or under a shaft; dark: away from both),
+        /// off the way through and out of pools and streams.
+        /// </summary>
+        static void PlacePlants(in TerrainSource source, List<CaveData> caves, List<CaveNode> nodes, List<CaveNodeKind> kinds,
+                                List<CaveSegment> segments, List<CaveStyle> styles, List<Punchy.Flora.FloraSpecies> flora, Extras extras)
+        {
+            const float DaylightReach = 15f;
+            for (int c = 0; c < caves.Count; c++)
+            {
+                var cave = caves[c];
+                var style = cave.Style > 0 ? styles[cave.Style - 1] : null;
+                if (style == null || style.Flora.Count == 0)
+                    continue;
+                var rng = new Random(math.hash(new int2(c, 0xF10A)) | 1u);
+                var shafts = new List<float2>();
+                for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
+                    if (kinds[n] == CaveNodeKind.Shaft)
+                        shafts.Add(nodes[n].Position.xz);
+                bool NearDaylight(float2 q)
+                {
+                    if (math.distance(q, cave.Mouth.xz) < DaylightReach)
+                        return true;
+                    foreach (var s in shafts)
+                        if (math.distance(q, s) < 6f)
+                            return true;
+                    return false;
+                }
+
+                for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
+                {
+                    if (kinds[n] == CaveNodeKind.Shaft)
+                        continue;
+                    var centre = nodes[n].Position;
+                    var spread = nodes[n].Radius * cave.Profile.x * 0.75f;
+                    foreach (var entry in style.Flora)
+                    {
+                        if (entry == null || entry.Species == null || entry.Density <= 0f)
+                            continue;
+                        // Rounded at random (most nodes expect less than one plant of a kind), so the density holds on average.
+                        var expected = entry.Density * math.PI * spread * spread / 100f * rng.NextFloat(0.6f, 1.4f);
+                        var count = (int)expected + (rng.NextFloat() < expected - (int)expected ? 1 : 0);
+                        for (int k = 0; k < count; k++)
+                        {
+                            var a = rng.NextFloat(math.PI * 2f);
+                            var q = centre.xz + new float2(math.cos(a), math.sin(a)) * spread * math.sqrt(rng.NextFloat());
+                            var daylight = NearDaylight(q);
+                            if (entry.Light == CaveLight.NearDaylight && !daylight || entry.Light == CaveLight.Dark && daylight)
+                                continue;
+                            // A narrow way through is enough for small plants: 0.6 m each side of the axis.
+                            if (InTheWay(q, -0.6f, n, nodes, segments, cave) || InPool(q, 0.3f, extras.Pools, cave) || InStream(q, extras, cave))
+                                continue;
+                            var floor = source.FloorUnder(new float3(q.x, centre.y, q.y), out var inCave);
+                            if (!inCave || source.CaveDistance(new float3(q.x, floor + 0.5f, q.y)) > -0.3f)
+                                continue;
+                            var size = entry.Species.SizeRange;
+                            extras.Plants.Add(new CavePlant
+                            {
+                                Position = new float3(q.x, floor - 0.03f, q.y),
+                                Yaw = rng.NextFloat(math.PI * 2f),
+                                Scale = math.lerp(size.x, size.y, rng.NextFloat()),
+                                Species = flora.IndexOf(entry.Species),
+                                Variant = rng.NextInt(3),
+                                Random = rng.NextFloat()
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        static bool InStream(float2 q, Extras extras, CaveData cave)
+        {
+            for (int s = cave.FirstStream; s < cave.FirstStream + cave.StreamCount; s++)
+            {
+                var stream = extras.Streams[s];
+                for (int i = stream.FirstPoint; i < stream.FirstPoint + stream.PointCount; i++)
+                    if (math.distance(q, extras.StreamPoints[i].Position.xz) < extras.StreamPoints[i].Width * 0.8f + 0.3f)
+                        return true;
+            }
+            return false;
         }
 
         static bool InPool(float2 q, float thickness, List<CavePool> pools, CaveData cave)

@@ -21,7 +21,9 @@ namespace Punchy.Terrain
         Burrow,
         /// <summary>The edge of still or running water to drink at.</summary>
         Pool,
-        Hearth, Yard
+        Hearth, Yard,
+        /// <summary>A glowing plant (cave mushrooms, crystals): moths, salamanders and the like gather by its light.</summary>
+        Glow
     }
 
     /// <summary>

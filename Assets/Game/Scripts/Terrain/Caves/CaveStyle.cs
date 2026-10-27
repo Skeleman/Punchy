@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -59,6 +60,11 @@ namespace Punchy.Terrain
         [Tooltip("Moss on floors and lower walls, in patches, thickest where daylight comes in.")]
         [Range(0f, 1f)] public float Moss;
         [ColorUsage(false)] public Color MossColor = new Color(0.22f, 0.32f, 0.12f);
+
+        [Header("Plants")]
+        [Tooltip("Plants on chamber and passage floors (glowing mushrooms, crystals, mossy shrubs): any flora species, " +
+                 "drawn with the flora system's own meshes and material.")]
+        public List<CaveFlora> Flora = new List<CaveFlora>();
 
         [Header("Pools")]
         [Tooltip("Chance a cave of this style has pools sunk into its biggest chambers' floors (off to one side, " +
@@ -138,6 +144,41 @@ namespace Punchy.Terrain
             table[i + 7] = new Vector4(Detail, DetailScale, Sheen, Moss);
             var moss = MossColor.linear;
             table[i + 8] = new Vector4(moss.r, moss.g, moss.b, 0f);
+        }
+    }
+
+    /// <summary>Where in a cave a plant grows: by the daylight (mouths, shafts), away from it, or anywhere.</summary>
+    public enum CaveLight : byte
+    {
+        Anywhere,
+        [Tooltip("Within reach of daylight: just inside a mouth or under a shaft (mossy shrubs, ferns).")] NearDaylight,
+        [Tooltip("Away from daylight (glowing mushrooms and crystals).")] Dark
+    }
+
+    /// <summary>A plant species growing on a cave style's floors.</summary>
+    [Serializable]
+    public class CaveFlora
+    {
+        public Punchy.Flora.FloraSpecies Species;
+        [Tooltip("Plants per 100 m² of floor where the light suits them.")]
+        [Range(0f, 20f)] public float Density = 2f;
+        public CaveLight Light;
+    }
+
+    /// <summary>
+    /// The plant species every cave style uses, in one order shared by baking (which stores a species index in each
+    /// cave plant) and CaveSystem (which grows their meshes in the same order).
+    /// </summary>
+    public static class CaveFloraTable
+    {
+        public static List<Punchy.Flora.FloraSpecies> Collect(IReadOnlyList<LandmarkType> types)
+        {
+            var species = new List<Punchy.Flora.FloraSpecies>();
+            foreach (var style in CaveStyleTable.Collect(types))
+                foreach (var f in style.Flora)
+                    if (f != null && f.Species != null && !species.Contains(f.Species))
+                        species.Add(f.Species);
+            return species;
         }
     }
 
