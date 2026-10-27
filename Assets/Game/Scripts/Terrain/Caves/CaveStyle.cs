@@ -37,6 +37,19 @@ namespace Punchy.Terrain
         [Tooltip("The floor is soft enough to dig (earth, sand, rotten rock): chambers get Burrow anchors.")]
         public bool Burrows = true;
 
+        [Header("Speleothems")]
+        [Tooltip("Stalactites, stalagmites and columns per 100 m² of chamber floor (icicles, crystal spikes, lava drips " +
+                 "by style). Only in chambers, never across the way through or in a pool. 0 = none.")]
+        [Range(0f, 15f)] public float SpeleothemDensity = 4f;
+        [Tooltip("Typical length, as a share of the chamber's height.")]
+        [Range(0.05f, 0.9f)] public float SpeleothemLength = 0.4f;
+        [Tooltip("Radius at the root, in metres.")]
+        [Range(0.2f, 2f)] public float SpeleothemThickness = 0.55f;
+        [Tooltip("Share that hang from the ceiling (the rest stand on the floor).")]
+        [Range(0f, 1f)] public float Hanging = 0.55f;
+        [Tooltip("Chance one reaches all the way from floor to ceiling as a column.")]
+        [Range(0f, 1f)] public float Columns = 0.1f;
+
         [Header("Pools")]
         [Tooltip("Chance a cave of this style has pools sunk into its biggest chambers' floors (off to one side, " +
                  "clear of the way through).")]

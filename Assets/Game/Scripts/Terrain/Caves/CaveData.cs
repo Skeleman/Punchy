@@ -63,12 +63,29 @@ namespace Punchy.Terrain
     }
 
     /// <summary>
+    /// A stalactite, stalagmite or column: a tapered rod of rock standing in a chamber's air, rooted in the floor or
+    /// ceiling. It is part of the rock, so it's drawn with the walls (in the cave's own style), collided with and stood
+    /// on like them: no meshes or draws of its own.
+    /// </summary>
+    public struct CaveSpeleothem
+    {
+        /// <summary>The root (inside the floor or ceiling) and the tip.</summary>
+        public float3 Root, Tip;
+        public float RootRadius, TipRadius;
+        /// <summary>World-space box around it (with a margin).</summary>
+        public float3 Min, Max;
+    }
+
+    /// <summary>
     /// Every cave: networks of nodes joined by segments, whose swept, merged spheres are the cave's air. A coarse
     /// column grid lists the segments reaching each cell (grouped by cave), so a sample only looks at the few
-    /// passages nearby however many caves the world has.
+    /// passages nearby however many caves the world has. Speleothems have their own lists on the same grid.
     /// </summary>
     public struct CaveSetBlob
     {
+        public BlobArray<CaveSpeleothem> Speleothems;
+        public BlobArray<int2> SpeleothemCells;   // (first item, count), same grid as Cells
+        public BlobArray<int> SpeleothemItems;
         public BlobArray<CaveData> Caves;
         public BlobArray<CaveNode> Nodes;
         /// <summary>Per node (same order as Nodes).</summary>
@@ -245,7 +262,39 @@ namespace Punchy.Terrain
                 d = SmoothMin(d, ds, Blend);
             }
             Settle(ref set, current, d, p, floorY, height, ref best, ref cave);
+            if (best < SpeleothemReach && set.SpeleothemCells.Length > 0)
+                best = Speleothems(ref set, p, best);
             return best;
+        }
+
+        /// <summary>Only near the air do speleothems matter: they turn air into rock, never rock into air.</summary>
+        const float SpeleothemReach = 2f;
+        /// <summary>How softly a speleothem's root blends into the floor or ceiling (m).</summary>
+        const float RootFillet = 0.5f;
+
+        /// <summary>Takes the speleothems near a point out of the air: a smooth maximum with each one's rock.</summary>
+        static float Speleothems(ref CaveSetBlob set, float3 p, float air)
+        {
+            var c = (int2)math.floor((p.xz - set.GridOrigin) / set.CellSize);
+            if (math.any(c < 0) || math.any(c >= set.GridSize))
+                return air;
+            var range = set.SpeleothemCells[c.y * set.GridSize.x + c.x];
+            for (int k = range.x; k < range.x + range.y; k++)
+            {
+                ref var s = ref set.Speleothems[set.SpeleothemItems[k]];
+                if (math.any(p < s.Min) || math.any(p > s.Max))
+                    continue;
+                air = -SmoothMin(-air, Rod(s, p), RootFillet);
+            }
+            return air;
+        }
+
+        /// <summary>Distance to a tapered rod (a cone with rounded ends), slightly understated so stepping never overshoots.</summary>
+        static float Rod(in CaveSpeleothem s, float3 p)
+        {
+            var ab = s.Tip - s.Root;
+            var t = math.saturate(math.dot(p - s.Root, ab) / math.max(math.lengthsq(ab), 1e-6f));
+            return (math.distance(p, s.Root + ab * t) - math.lerp(s.RootRadius, s.TipRadius, t)) * 0.9f;
         }
 
         /// <summary>Adds a finished cave's wall noise and keeps it if it's the nearest so far.</summary>

@@ -421,6 +421,23 @@ namespace Punchy.Terrain
             return hi;
         }
 
+        /// <summary>
+        /// The cave ceiling straight above a point in cave air (sphere-traced up to rock); the point's own height if
+        /// it isn't in cave air.
+        /// </summary>
+        public float CeilingOver(float3 p)
+        {
+            var y = p.y;
+            for (int i = 0; i < 200; i++)
+            {
+                var d = CaveDistance(new float3(p.x, y, p.z));
+                if (d >= -0.05f)
+                    break;
+                y += math.max(0.1f, -d * 0.8f);
+            }
+            return y;
+        }
+
         public float3 SampleNormal(float2 xz, float eps)
         {
             var dx = SampleHeight(xz + new float2(eps, 0f)) - SampleHeight(xz - new float2(eps, 0f));

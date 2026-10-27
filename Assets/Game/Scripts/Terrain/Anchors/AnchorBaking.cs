@@ -60,7 +60,7 @@ namespace Punchy.Terrain
                     var floor = source.FloorUnder(centre, out var inCave);
                     if (!inCave || source.CaveDistance(centre) >= 0f)
                         continue;
-                    var ceiling = Ceiling(source, centre);
+                    var ceiling = source.CeilingOver(centre);
                     // The way into the chamber: from the node before it, so anchors face along the cave.
                     var along = n > cave.FirstNode ? (centre - set.Nodes[n - 1].Position).xz : new float2(1f, 0f);
 
@@ -90,20 +90,6 @@ namespace Punchy.Terrain
                 if (source.CaveDistance(at) < 0f && WallPoint(source, at, side, out var mouthNest))
                     anchors.Add(Make(AnchorKind.Nest, mouthNest, -side, 0.4f, 1));
             }
-        }
-
-        /// <summary>The ceiling straight above a point in cave air (sphere-traced up to rock).</summary>
-        static float Ceiling(in TerrainSource source, float3 p)
-        {
-            var y = p.y;
-            for (int i = 0; i < 100; i++)
-            {
-                var d = source.CaveDistance(new float3(p.x, y, p.z));
-                if (d >= -0.05f)
-                    break;
-                y += math.max(0.1f, -d * 0.8f);
-            }
-            return y;
         }
 
         /// <summary>The wall reached by going horizontally from a point in cave air, pulled back 0.3 m into the air.</summary>

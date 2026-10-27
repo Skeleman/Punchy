@@ -24,6 +24,11 @@ MonoBehaviour:
   FloorFlatness: 0.75
   FloorSteps: 0.1
   Burrows: 0
+  SpeleothemDensity: 2.5
+  SpeleothemLength: 0.15
+  SpeleothemThickness: 0.35
+  Hanging: 0.9
+  Columns: 0
   PoolChance: 0.6
   LavaPools: 1
   PoolSize: 0.35

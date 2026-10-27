@@ -186,19 +186,26 @@ namespace Punchy.Terrain
 
             if (caves.Count == 0)
                 return default;
-            // Pools sit on the finished floors, so they're placed against the caves as built so far, then everything
-            // is built again with them (their basins change the floors).
+            // Pools and speleothems sit on the finished floors and hang from the finished ceilings, so each is placed
+            // against the caves as built so far, then everything is built again with them: pools first (their basins
+            // change the floors), then speleothems (kept out of the pools).
             var pools = new List<CavePool>();
-            var bare = BuildBlob(caves, nodes, kinds, segments, pools, Allocator.Persistent);
+            var speleothems = new List<CaveSpeleothem>();
             var withCaves = source;
+            var bare = BuildBlob(caves, nodes, kinds, segments, pools, speleothems, Allocator.Persistent);
             withCaves.Caves = bare;
             PlacePools(withCaves, caves, nodes, kinds, segments, styles, pools);
             bare.Dispose();
-            return BuildBlob(caves, nodes, kinds, segments, pools, allocator);
+            var withPools = BuildBlob(caves, nodes, kinds, segments, pools, speleothems, Allocator.Persistent);
+            withCaves.Caves = withPools;
+            PlaceSpeleothems(withCaves, caves, nodes, kinds, segments, styles, pools, speleothems);
+            withPools.Dispose();
+            return BuildBlob(caves, nodes, kinds, segments, pools, speleothems, allocator);
         }
 
         static BlobAssetReference<CaveSetBlob> BuildBlob(List<CaveData> caves, List<CaveNode> nodes, List<CaveNodeKind> kinds,
-                                                         List<CaveSegment> segments, List<CavePool> pools, Allocator allocator)
+                                                         List<CaveSegment> segments, List<CavePool> pools,
+                                                         List<CaveSpeleothem> speleothems, Allocator allocator)
         {
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<CaveSetBlob>();
@@ -215,9 +222,112 @@ namespace Punchy.Terrain
             for (int i = 0; i < pools.Count; i++)
                 poolArray[i] = pools[i];
             BuildGrid(builder, ref root, caves, nodes, segments);
+            BuildSpeleothemGrid(builder, ref root, speleothems);
             var blob = builder.CreateBlobAssetReference<CaveSetBlob>(allocator);
             builder.Dispose();
             return blob;
+        }
+
+        /// <summary>
+        /// Stalactites, stalagmites and columns in every chamber, by its cave's style: scattered over the middle of the
+        /// floor, rooted half a metre into the floor or ceiling. Hanging ones leave head room; none stand across the
+        /// way through the chamber (near the axis of a passage joining it) or in a pool, so they never block the cave.
+        /// </summary>
+        static void PlaceSpeleothems(in TerrainSource source, List<CaveData> caves, List<CaveNode> nodes, List<CaveNodeKind> kinds,
+                                     List<CaveSegment> segments, List<CaveStyle> styles, List<CavePool> pools, List<CaveSpeleothem> result)
+        {
+            for (int c = 0; c < caves.Count; c++)
+            {
+                var cave = caves[c];
+                var style = cave.Style > 0 ? styles[cave.Style - 1] : null;
+                var density = style != null ? style.SpeleothemDensity : 4f;
+                if (density <= 0f)
+                    continue;
+                var rng = new Random(math.hash(new int2(c, 0x57A1)) | 1u);
+                for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
+                {
+                    if (kinds[n] != CaveNodeKind.Chamber)
+                        continue;
+                    var centre = nodes[n].Position;
+                    var spread = nodes[n].Radius * cave.Profile.x * 0.8f;
+                    var count = (int)math.round(density * math.PI * spread * spread / 100f * rng.NextFloat(0.7f, 1.3f));
+                    for (int k = 0; k < count; k++)
+                    {
+                        var a = rng.NextFloat(math.PI * 2f);
+                        var q = centre.xz + new float2(math.cos(a), math.sin(a)) * spread * math.sqrt(rng.NextFloat());
+                        var thickness = (style != null ? style.SpeleothemThickness : 0.55f) * rng.NextFloat(0.7f, 1.3f);
+                        if (InTheWay(q, 0.6f + thickness * 1.3f, n, nodes, segments, cave) || InPool(q, thickness, pools, cave))
+                            continue;
+                        var floor = source.FloorUnder(new float3(q.x, centre.y, q.y), out var inCave);
+                        if (!inCave || source.CaveDistance(new float3(q.x, floor + 0.3f, q.y)) >= 0f)
+                            continue;
+                        var ceiling = source.CeilingOver(new float3(q.x, floor + 0.3f, q.y));
+                        var height = ceiling - floor;
+                        if (height < 2.5f)
+                            continue;
+                        var length = height * (style != null ? style.SpeleothemLength : 0.4f) * rng.NextFloat(0.5f, 1.2f);
+                        CaveSpeleothem s;
+                        if (rng.NextFloat() < (style != null ? style.Columns : 0.1f))
+                            s = Rod(new float3(q.x, floor - 0.5f, q.y), new float3(q.x, ceiling + 0.5f, q.y), thickness * 1.3f, thickness * 0.8f);
+                        else if (rng.NextFloat() < (style != null ? style.Hanging : 0.55f))
+                            s = Rod(new float3(q.x, ceiling + 0.5f, q.y), new float3(q.x, ceiling - math.min(length, height - 2.2f), q.y), thickness, 0.05f);
+                        else
+                            s = Rod(new float3(q.x, floor - 0.5f, q.y), new float3(q.x, floor + math.min(length, height - 0.8f), q.y), thickness * 1.2f, 0.08f);
+                        if (s.Tip.y != s.Root.y)
+                            result.Add(s);
+                    }
+                }
+            }
+        }
+
+        static bool InPool(float2 q, float thickness, List<CavePool> pools, CaveData cave)
+        {
+            for (int i = cave.FirstPool; i < cave.FirstPool + cave.PoolCount; i++)
+                if (math.distance(q, pools[i].Centre.xz) < pools[i].Radius * 1.2f + thickness)
+                    return true;
+            return false;
+        }
+
+        static CaveSpeleothem Rod(float3 root, float3 tip, float rootRadius, float tipRadius)
+        {
+            var reach = math.max(rootRadius, tipRadius) + 1f;
+            return new CaveSpeleothem
+            {
+                Root = root, Tip = tip, RootRadius = rootRadius, TipRadius = tipRadius,
+                Min = math.min(root, tip) - reach,
+                Max = math.max(root, tip) + reach
+            };
+        }
+
+        /// <summary>Lists each speleothem in the grid columns its box touches (the segment grid's cells).</summary>
+        static void BuildSpeleothemGrid(BlobBuilder builder, ref CaveSetBlob root, List<CaveSpeleothem> speleothems)
+        {
+            var array = builder.Allocate(ref root.Speleothems, speleothems.Count);
+            for (int i = 0; i < speleothems.Count; i++)
+                array[i] = speleothems[i];
+            var size = root.GridSize;
+            var cells = new List<int>[size.x * size.y];
+            for (int i = 0; i < speleothems.Count; i++)
+            {
+                var c0 = math.max((int2)math.floor((speleothems[i].Min.xz - root.GridOrigin) / root.CellSize), 0);
+                var c1 = math.min((int2)math.floor((speleothems[i].Max.xz - root.GridOrigin) / root.CellSize), size - 1);
+                for (int z = c0.y; z <= c1.y; z++)
+                for (int x = c0.x; x <= c1.x; x++)
+                    (cells[z * size.x + x] ??= new List<int>()).Add(i);
+            }
+            // No speleothems: no cell table at all, so sampling skips them with one length check.
+            var cellArray = builder.Allocate(ref root.SpeleothemCells, speleothems.Count > 0 ? cells.Length : 0);
+            var items = new List<int>();
+            if (speleothems.Count > 0)
+                for (int c = 0; c < cells.Length; c++)
+                {
+                    cellArray[c] = new int2(items.Count, cells[c]?.Count ?? 0);
+                    if (cells[c] != null)
+                        items.AddRange(cells[c]);
+                }
+            var itemArray = builder.Allocate(ref root.SpeleothemItems, items.Count);
+            for (int i = 0; i < items.Count; i++)
+                itemArray[i] = items[i];
         }
 
         /// <summary>

@@ -24,6 +24,14 @@ MonoBehaviour:
   FloorFlatness: 0.85
   FloorSteps: 0.3
   Burrows: 1
+  SpeleothemDensity: 4
+  SpeleothemLength: 0.4
+  SpeleothemThickness: 0.5
+  Hanging: 0.5
+  Columns: 0.1
+  PoolChance: 0
+  LavaPools: 0
+  PoolSize: 0.32
   RockColor: {r: 0.33, g: 0.36, b: 0.3, a: 1}
   DarkColor: {r: 0.12, g: 0.14, b: 0.1, a: 1}
   Strata: 0.15
