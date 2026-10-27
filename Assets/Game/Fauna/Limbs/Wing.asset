@@ -37,8 +37,8 @@ MonoBehaviour:
   FollowGround: 0
   Idle:
     Joints:
-    - {x: 8, y: 88, z: 0}
-    - {x: -6, y: 160, z: 0}
+    - {x: 6, y: 86, z: 80}
+    - {x: -4, y: 4, z: 0}
   WalkReach:
     Joints:
     - {x: -55, y: 5, z: 0}

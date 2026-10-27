@@ -1200,9 +1200,12 @@ namespace Punchy.Fauna
                 {
                     if (b.Nests == NestSite.Treetop)
                     {
-                        // Big and untidy, sunk into the very top.
-                        s.Anchor = tree.Base + new float3(0f, tree.Height * 0.96f, 0f);
+                        // Big and untidy, on the very top of the crown (in plain view, not inside the leaves).
                         s.AnchorSize = size * 1.4f;
+                        // (A broadleaf's leaf clumps bulge about a third of the crown's radius above its height; a
+                        // conifer ends in a spike at its height, the nest settled on it.)
+                        var top = tree.Kind == TreeKind.Broadleaf ? tree.Height + tree.CrownRadius * 0.3f : tree.Height;
+                        s.Anchor = tree.Base + new float3(0f, top - s.AnchorSize * 0.15f, 0f);
                     }
                     else
                     {

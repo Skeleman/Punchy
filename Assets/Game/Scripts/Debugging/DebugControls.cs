@@ -69,6 +69,7 @@ namespace Punchy.Debugging
         static bool launchOptionsApplied;
         /// <summary>"-watch Squirrel": the camera follows the nearest animal of that species (for testing behaviours).</summary>
         static string watchSpecies;
+        static float? watchPitchOverride;
         /// <summary>"-spawn Osprey" (or "Trout:6"): a few of a species put near the player once the world is up (testing).</summary>
         static readonly List<string> pendingSpawns = new List<string>();
         /// <summary>"-pose Bat" (or "Bat:fly", "Bat:glide", "Bat:rest", "Bat:hang", "Crow:nest", and a camera pitch: "Bat:glide:70"):
@@ -117,6 +118,7 @@ namespace Punchy.Debugging
         {
             launchOptionsApplied = false;
             watchSpecies = null;
+            watchPitchOverride = null;
             pendingSpawns.Clear();
             poseRequest = null;
             Time.timeScale = 1f;
@@ -145,6 +147,9 @@ namespace Punchy.Debugging
                     Cycle.TimeOfDay = Mathf.Repeat(hours, 24f);
                 if (args[i] == "-watch")
                     watchSpecies = args[i + 1];
+                // "-watchpitch 45": watch from above (to see over leaves), rather than low or level.
+                if (args[i] == "-watchpitch" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var watchPitch))
+                    watchPitchOverride = watchPitch;
                 // "-timescale 4": everything runs four times as fast (a dusk, a burrow cycle, a roost in seconds).
                 if (args[i] == "-timescale" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var scale))
                     Time.timeScale = Mathf.Clamp(scale, 0.1f, 20f);
@@ -315,7 +320,7 @@ namespace Punchy.Debugging
                 watchLast = p;
                 var aloft = c.Position.y - terrainQuery.GetSingleton<TerrainSource>().SampleHeight(c.Position.xz) > 1f;
                 ThirdPersonCamera.WatchTarget = (Vector3)c.Position + Vector3.up * 0.3f;
-                ThirdPersonCamera.WatchPitch = aloft ? -15f : 15f;
+                ThirdPersonCamera.WatchPitch = watchPitchOverride ?? (aloft ? -15f : 15f);
                 var size = em.GetComponentData<CreatureBody>(watched).Blob.Value.BodyLength * c.Scale;
                 ThirdPersonCamera.WatchDistance = math.clamp(size * 9f, 0.6f, 4f) * (aloft ? 1.4f : 1f);
             }
