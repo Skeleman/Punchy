@@ -196,7 +196,7 @@ namespace Punchy.Terrain
 
         /// <summary>
         /// The bed of a cave's streams at a spot (absolute height), or a large number away from them: a rounded channel
-        /// under each stretch of each stream, Depth below its surface in the middle, rising to the surface at its banks.
+        /// under each stretch of each stream, Depth below its surface in the middle, rising past the floor at its banks.
         /// </summary>
         static float StreamBed(ref CaveSetBlob set, in CaveData c, float2 xz)
         {
@@ -214,10 +214,13 @@ namespace Punchy.Terrain
                     var t = math.saturate(math.dot(xz - a.Position.xz, ab) / math.max(math.lengthsq(ab), 1e-6f));
                     var half = math.lerp(a.Width, b.Width, t) * 0.5f;
                     var across = math.distance(xz, a.Position.xz + ab * t);
-                    if (across >= half * 1.3f)
+                    if (across >= half * 2f)
                         continue;
                     var surface = math.lerp(a.Position.y, b.Position.y, t);
-                    var depth = math.lerp(a.Depth, b.Depth, t) * (1f - math.smoothstep(half * 0.6f, half * 1.3f, across));
+                    // The bank rises smoothly from the bed to well above the surface (past the floor), so the cut has
+                    // no step at its edge.
+                    var depth = math.lerp(a.Depth, b.Depth, t);
+                    depth -= (depth + 1.2f) * math.smoothstep(half * 0.5f, half * 2f, across);
                     bed = math.min(bed, surface - depth + 0.05f);
                 }
             }
@@ -361,7 +364,7 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Distance to a tapered rod (a cone with rounded ends), slightly understated so stepping never overshoots.</summary>
-        static float Rod(in CaveSpeleothem s, float3 p)
+        internal static float Rod(in CaveSpeleothem s, float3 p)
         {
             var ab = s.Tip - s.Root;
             var t = math.saturate(math.dot(p - s.Root, ab) / math.max(math.lengthsq(ab), 1e-6f));

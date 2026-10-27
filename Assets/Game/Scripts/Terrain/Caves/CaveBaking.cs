@@ -481,7 +481,8 @@ namespace Punchy.Terrain
                             if (InTheWay(q, -0.6f, n, nodes, segments, cave) || InPool(q, 0.3f, extras.Pools, cave) || InStream(q, extras, cave))
                                 continue;
                             var floor = source.FloorUnder(new float3(q.x, centre.y, q.y), out var inCave);
-                            if (!inCave || source.CaveDistance(new float3(q.x, floor + 0.5f, q.y)) > -0.3f)
+                            if (!inCave || source.CaveDistance(new float3(q.x, floor + 0.5f, q.y)) > -0.3f
+                                || UnderRock(new float3(q.x, floor, q.y), extras.Speleothems))
                                 continue;
                             var size = entry.Species.SizeRange;
                             extras.Plants.Add(new CavePlant
@@ -609,6 +610,18 @@ namespace Punchy.Terrain
                 cave.PoolCount = pools.Count - cave.FirstPool;
                 caves[c] = cave;
             }
+        }
+
+        /// <summary>
+        /// Whether a speleothem or rubble rock (added to the rock after plants are placed) would swallow a spot, its
+        /// fillet included.
+        /// </summary>
+        static bool UnderRock(float3 p, List<CaveSpeleothem> rods)
+        {
+            foreach (var s in rods)
+                if (math.all(p >= s.Min - 0.6f) && math.all(p <= s.Max + 0.6f) && CaveSampling.Rod(s, p) < 0.6f)
+                    return true;
+            return false;
         }
 
         /// <summary>Whether a pool there would cover the way through a chamber: the axis of any passage joining it.</summary>
