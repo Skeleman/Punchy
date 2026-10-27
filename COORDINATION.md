@@ -65,7 +65,7 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
 | Session | Task | State |
 |---|---|---|
 | Animal behavior manager | Interactions: pet, carry, hunt (J-017); then swallows and glow moths | In progress |
-| world feature manager | Wet band (Terrain.shader), stream follow-up; then phase 4 towns | In progress |
+| world feature manager | Phase 4 towns: SettlementLayout design first | In progress |
 | kind-possum | Route determinism, WeatherField MapJob fix, round 5 | In progress |
 
 ## Shared-file queue
@@ -73,7 +73,7 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
 | # | File | Session | Why | State |
 |---|---|---|---|---|
 | 1 | `CLAUDE.md` | Animal behavior manager | Pointer to `GLOSSARY.md` (J-004) | Written, uncommitted, waiting on Zach's direct word |
-| 2 | `Shaders/Terrain.shader` | world feature manager | Wet band above the waterline (3b), additive, own commit, animal session told | Lent |
+| 2 | `TerrainSurface.shader`, `BuildChunkMeshJob.cs` | world feature manager | Wet band above the waterline (3b), additive, animal session OK'd | Done (5e971a1) |
 
 ## Open questions
 
@@ -97,3 +97,5 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
   (lava block added 575986b, removed e9df26b, net zero), Water.shader (lava block). Main PC memory: commit 58/64 GB;
   animal editor restart requested; world session blocked on its subscene load until memory clears.
 - 2026-10-27: Both editors restarted (animal 16.4 to about 7 GB, world 9.6 to 4.6 GB); commit 58.9 to 37 GB. Rule 8 added.
+- 2026-10-27: Friend's repo (anweather/5e-compatible-game) has no licence: ideas only, no copied code or assets
+  without the author's permission.
