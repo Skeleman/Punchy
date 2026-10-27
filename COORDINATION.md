@@ -64,7 +64,7 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
 
 | Session | Task | State |
 |---|---|---|
-| Animal behavior manager | Interactions: pet, carry, hunt (J-017); then swallows and glow moths | In progress |
+| Animal behavior manager | Interactions: pet and carry done (bbb3194), hunt next (J-017); then swallows and glow moths | In progress |
 | world feature manager | Phase 4 towns: SettlementLayout design first | In progress |
 | kind-possum | Route determinism, WeatherField MapJob fix, round 5 | In progress |
 
@@ -99,3 +99,5 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
 - 2026-10-27: Both editors restarted (animal 16.4 to about 7 GB, world 9.6 to 4.6 GB); commit 58.9 to 37 GB. Rule 8 added.
 - 2026-10-27: Friend's repo (anweather/5e-compatible-game) has no licence: ideas only, no copied code or assets
   without the author's permission.
+- 2026-10-27: Animal session's additive edits to Net/NetPlayer.cs and Net/World/CreatureGhosts.cs (carry
+  replication) accepted; it wrote both. Multiplayer carry test goes on the other PC by Relay, between benchmark runs.
