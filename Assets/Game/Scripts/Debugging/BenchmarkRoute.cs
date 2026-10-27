@@ -7,6 +7,7 @@ using Punchy.Player;
 using Punchy.Terrain;
 using Punchy.Weather;
 using Unity.Entities;
+using Unity.Profiling;
 using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
@@ -31,6 +32,8 @@ namespace Punchy.Debugging
         readonly StringBuilder summary = new StringBuilder();
         bool measuring;
         int gcAtStart;
+        // Graphics and process memory at the end of each stop (does streaming fill video memory over a route?).
+        ProfilerRecorder gfxUsed, gfxReserved, systemUsed;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
@@ -42,8 +45,18 @@ namespace Punchy.Debugging
             go.AddComponent<BenchmarkRoute>();
         }
 
+        void OnDestroy()
+        {
+            gfxUsed.Dispose();
+            gfxReserved.Dispose();
+            systemUsed.Dispose();
+        }
+
         IEnumerator Start()
         {
+            gfxUsed = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "Gfx Used Memory");
+            gfxReserved = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "Gfx Reserved Memory");
+            systemUsed = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "System Used Memory");
             // Wait for the world, the player and DebugControls' place list.
             DebugControls controls = null;
             while (controls == null || !TryGetWorld(out _, out _))
@@ -148,10 +161,13 @@ namespace Punchy.Debugging
             for (int i = sorted.Count - worst; i < sorted.Count; i++) worstTotal += sorted[i];
             var line = $"{name}: avg {1000f * sorted.Count / total:F1} fps, 1% low {1000f * worst / worstTotal:F1} fps, " +
                        $"median {sorted[sorted.Count / 2]:F1} ms, worst {sorted[sorted.Count - 1]:F1} ms, " +
-                       $"cpu {Average(cpuMs)} ms, gpu {Average(gpuMs)} ms, frames {sorted.Count}, GC {System.GC.CollectionCount(0) - gcAtStart}";
+                       $"cpu {Average(cpuMs)} ms, gpu {Average(gpuMs)} ms, frames {sorted.Count}, GC {System.GC.CollectionCount(0) - gcAtStart}, gfx {Megabytes(gfxUsed)}/{Megabytes(gfxReserved)} MB used/reserved, system {Megabytes(systemUsed)} MB";
             summary.AppendLine(line);
             Debug.Log("BenchRoute: " + line);
         }
+
+        static string Megabytes(ProfilerRecorder recorder) =>
+            recorder.Valid ? (recorder.LastValue / (1024 * 1024)).ToString() : "n/a";
 
         static string Average(List<double> values)
         {
