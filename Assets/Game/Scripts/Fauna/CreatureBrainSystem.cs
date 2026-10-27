@@ -1649,7 +1649,8 @@ namespace Punchy.Fauna
 
                 // Height: cruising, or coming down the glide slope to the landing spot; never climbing or sinking
                 // steeper than the flight angle allows for how far it moved forward.
-                var cruise = math.max(Cruise(s, ref b, s.Position.xz), Cruise(s, ref b, target));
+                // (Never below where it's landing: a nest or branch can be higher than its usual cruising height.)
+                var cruise = math.max(math.max(Cruise(s, ref b, s.Position.xz), Cruise(s, ref b, target)), targetHeight);
                 // (The slope meets the landing height just short of the spot, so it touches down still moving forward.
                 // Landing on the ground: the ground right where it is; on a branch: the branch's height.)
                 var groundHere = Terrain.SampleHeight(s.Position.xz);

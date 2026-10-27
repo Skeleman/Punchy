@@ -71,7 +71,7 @@ namespace Punchy.Debugging
         static string watchSpecies;
         /// <summary>"-spawn Osprey" (or "Trout:6"): a few of a species put near the player once the world is up (testing).</summary>
         static readonly List<string> pendingSpawns = new List<string>();
-        /// <summary>"-pose Bat" (or "Bat:fly", "Bat:glide", "Bat:rest", "Bat:hang", and a camera pitch: "Bat:glide:70"):
+        /// <summary>"-pose Bat" (or "Bat:fly", "Bat:glide", "Bat:rest", "Bat:hang", "Crow:nest", and a camera pitch: "Bat:glide:70"):
         /// one held beside the player while the camera circles it, for looking at a body (no brain: it stays put,
         /// beating its wings if flying).</summary>
         static string poseRequest;
@@ -289,7 +289,9 @@ namespace Punchy.Debugging
                     var c = em.GetComponentData<CreatureState>(watched);
                     Debug.Log($"DebugControls: watching {watchSpecies} ({c.Mode}, stage {c.Stage}, action {c.Action}, fly {c.Fly:F1}, " +
                               $"height above ground {c.Position.y - terrainQuery.GetSingleton<TerrainSource>().SampleHeight(c.Position.xz):F1} m, " +
-                              $"player {math.distance(c.Position.xz, player.Position.xz):F0} m away, home {math.distance(c.Position.xz, c.Home):F0} m (leash {c.Leash:F0}))");
+                              $"player {math.distance(c.Position.xz, player.Position.xz):F0} m away, home {math.distance(c.Position.xz, c.Home):F0} m (leash {c.Leash:F0}), " +
+                              $"target {math.distance(c.Position.xz, c.Target):F2} m across, {c.TargetHeight - c.Position.y:F2} m up, speed {c.Speed:F2}, " +
+                              $"anchor {math.distance(c.Position, c.Anchor):F2} m (size {c.AnchorSize:F2}))");
                 }
             }
             if (watched != Entity.Null && em.Exists(watched))
@@ -364,7 +366,14 @@ namespace Punchy.Debugging
             c.Fly = how == "fly" ? 1f : 0f;
             c.Vertical = how == "hang" ? -1f : 0f;
             c.Speed = how == "fly" ? b.FlySpeed * 0.6f : 0f;
-            c.Position = new float3(xz.x, ground + (how == "rest" ? 0f : math.max(1.2f, size * 4f)), xz.y);
+            var onGround = how == "rest" || how == "nest" && b.Nests == NestSite.Ground;
+            c.Position = new float3(xz.x, ground + (onGround ? 0f : math.max(1.2f, size * 4f)), xz.y);
+            // Sitting in its nest (made where it is, the size FindNest gives one).
+            if (how == "nest")
+            {
+                c.Anchor = c.Position;
+                c.AnchorSize = math.max(size * 0.7f, 0.08f) * (b.Nests == NestSite.Treetop ? 1.4f : 1f);
+            }
             c.Clock += dt;
             if (glide)
                 c.Phase = 0.25f;

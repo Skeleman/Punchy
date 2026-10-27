@@ -218,7 +218,8 @@ namespace Punchy.Fauna
                 var c = state.Anchor;
                 var ground = site == NestSite.Ground;
                 var top = site == NestSite.Treetop;
-                var twigs = ground ? new Unity.Mathematics.float4(0.62f, 0.55f, 0.34f, 0f) : new Unity.Mathematics.float4(0.36f, 0.27f, 0.17f, 0f);
+                // (Linear colours: dry grass; dark twigs.)
+                var twigs = ground ? new Unity.Mathematics.float4(0.34f, 0.26f, 0.095f, 0f) : new Unity.Mathematics.float4(0.1f, 0.06f, 0.025f, 0f);
                 var x = new Unity.Mathematics.float3(1f, 0f, 0f);
                 var up = new Unity.Mathematics.float3(0f, 1f, 0f);
                 // The floor: a flat disc just under the bird's feet.
@@ -235,7 +236,7 @@ namespace Punchy.Fauna
                 // The rim: twigs round it, each a little askew (sticks on a treetop more so).
                 var rng = new Unity.Mathematics.Random(state.Individual | 1u);
                 var rimHeight = ground ? r * 0.05f : r * 0.15f;
-                var thick = r * (ground ? 0.14f : top ? 0.22f : 0.18f);
+                var thick = r * (ground ? 0.14f : top ? 0.16f : 0.18f);
                 for (int k = 1; k < NestCount; k++)
                 {
                     var a = k / (float)(NestCount - 1) * Unity.Mathematics.math.PI * 2f + rng.NextFloat(-0.25f, 0.25f);
@@ -267,7 +268,7 @@ namespace Punchy.Fauna
                 }
                 var r = state.AnchorSize;
                 var mouth = state.Anchor;
-                var earth = new Unity.Mathematics.float4(0.36f, 0.27f, 0.18f, 0f);
+                var earth = new Unity.Mathematics.float4(0.11f, 0.06f, 0.027f, 0f);   // (linear)
                 // The hole: a flat dark disc just above the ground.
                 Output[offset] = new SegmentInstance
                 {
