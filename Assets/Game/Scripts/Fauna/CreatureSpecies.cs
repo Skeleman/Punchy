@@ -112,6 +112,8 @@ namespace Punchy.Fauna
         public bool CaveDweller;
         [Tooltip("Sleeps hanging upside down from a cave ceiling (or under a branch, with no cave near): bats.")]
         public bool Roosts;
+        [Tooltip("Comes over to people, sits by them wagging its tail and follows them about (within its home range): dogs.")]
+        public bool Friendly;
 
         [Header("Flight (habitat Flies)")]
         [Tooltip("Height above the ground it cruises at, in metres.")]

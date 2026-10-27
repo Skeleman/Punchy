@@ -38,7 +38,7 @@ namespace Punchy.Fauna
         public bool Hunted;
         public IdleActions Idles;
         public float Fidgets, Climbing;
-        public bool SpinsWebs, Burrows, CaveDweller, Roosts;
+        public bool SpinsWebs, Burrows, CaveDweller, Roosts, Friendly;
         public float WebSize;
         public float2 FlightHeight;
         public float FlySpeed, FlapRate, Glide, Perching;
@@ -209,7 +209,9 @@ namespace Punchy.Fauna
         /// mouth (1), along the passage node by node (10 + node), up to the ceiling (199), hanging (200), and out again
         /// at dusk (100 + node). Under a branch: straight there (198), then hanging.
         /// </summary>
-        Roost
+        Roost,
+        /// <summary>A friendly animal going over to a person (Focus: where they are), then keeping them company.</summary>
+        Greet
     }
 
     /// <summary>What a worker does at its post (posed by CreatureAnimator).</summary>
@@ -403,6 +405,7 @@ namespace Punchy.Fauna
             root.Burrows = species.Burrows;
             root.CaveDweller = species.CaveDweller;
             root.Roosts = species.Roosts;
+            root.Friendly = species.Friendly;
             root.WebSize = species.WebSize * sizeScale;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));
             root.FlySpeed = species.FlySpeed;

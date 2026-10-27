@@ -40,6 +40,8 @@ namespace Punchy.Fauna
         public float SpawnRate = 6f;
 
         readonly List<CreatureSpecies> species = new List<CreatureSpecies>();
+        /// <summary>Settlements' dogs, cats, chickens and pigeons (from Resources).</summary>
+        DomesticTable domestics;
         readonly List<BlobAssetReference<CreatureBlob>> blobs = new List<BlobAssetReference<CreatureBlob>>();
         BiomeDefinition[] biomes;
         LandmarkType[] landmarks;
@@ -226,6 +228,12 @@ namespace Punchy.Fauna
                     foreach (var r in landmark.Residents)
                         if (r.Species != null && !species.Contains(r.Species))
                             species.Add(r.Species);
+            domestics = Resources.Load<DomesticTable>("Domestics");
+            Debug.Log($"FaunaDirector: domestic animals table {(domestics != null ? domestics.Entries.Count + " entries" : "missing")}");
+            if (domestics != null)
+                foreach (var d in domestics.Entries)
+                    if (d.Species != null && !species.Contains(d.Species))
+                        species.Add(d.Species);
             // The index is how the network names a species, so it must mean the same animal on every machine: sort by
             // asset name, and refuse to network if two share one.
             species.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
@@ -571,6 +579,7 @@ namespace Punchy.Fauna
                     continue;
                 occupied.Add(i);
                 var radius = set.Types[inst.Type].Radius * inst.Scale;
+                SpawnDomestics(source, landmarks[inst.Type], inst.Position, radius);
                 foreach (var r in landmarks[inst.Type].Residents)
                 {
                     var index = r.Species != null ? species.IndexOf(r.Species) : -1;
@@ -609,6 +618,41 @@ namespace Punchy.Fauna
                     }
                 }
             }
+        }
+
+        /// <summary>The settlement's domestic animals, about its middle, homed on it and leashed to it.</summary>
+        void SpawnDomestics(in TerrainSource source, LandmarkType settlement, float2 centre, float radius)
+        {
+            if (domestics == null)
+                return;
+            var spawnedDomestics = 0;
+            var em = simWorld.EntityManager;
+            foreach (var d in domestics.Entries)
+            {
+                // By name: the palette's landmark types (baked into the world subscene) aren't the same objects as the table's.
+                if (d.Settlement == null || d.Species == null || d.Settlement.name != settlement.name)
+                    continue;
+                var index = species.IndexOf(d.Species);
+                if (index < 0)
+                    continue;
+                var count = rng.NextInt(math.max(0, d.Count.x), math.max(d.Count.x, d.Count.y) + 1);
+                var leash = radius * d.Range;
+                for (int k = 0; k < count; k++)
+                {
+                    var p = centre + rng.NextFloat2Direction() * rng.NextFloat(0.1f, 0.7f) * leash;
+                    var g = source.SampleGround(p);
+                    if (g.HasWater && g.WaterSurface > g.Height)
+                        continue;
+                    var e = Spawn(index, new float3(p.x, g.Height, p.y));
+                    spawnedDomestics++;
+                    var state = em.GetComponentData<CreatureState>(e);
+                    state.Home = centre;
+                    state.Leash = leash;
+                    em.SetComponentData(e, state);
+                }
+            }
+            if (spawnedDomestics > 0)
+                Debug.Log($"FaunaDirector: {spawnedDomestics} domestic animals at {settlement.name}");
         }
 
         /// <summary>

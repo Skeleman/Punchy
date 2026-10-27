@@ -244,7 +244,7 @@ namespace Punchy.Fauna
                             s.Timer -= dt;
                         desiredLook = idleLook;
                         if (s.Timer <= 0f)
-                            Decide(self, ref s, ref b, body.Species, ref rng, perched);
+                            Decide(self, ref s, ref b, body.Species, ref rng, perched, player);
                         break;
 
                     case CreatureMode.Wander:
@@ -402,6 +402,10 @@ namespace Punchy.Fauna
                         InWeb(ref s, ref b, ref rng, dt, walk, ref targetSpeed, ref moving, ref custom, ref vertical);
                         break;
 
+                    case CreatureMode.Greet:
+                        Greet(ref s, ref b, ref rng, dt, player, walk, run, ref targetSpeed, ref moving, ref sit, ref desiredLook);
+                        break;
+
                     case CreatureMode.Roost:
                         custom = true;
                         Roost(ref s, ref b, ref rng, dt, ref vertical);
@@ -493,7 +497,7 @@ namespace Punchy.Fauna
             float SleepTime(ref CreatureBlob b) =>
                 b.Active == ActiveTime.Day ? Night : b.Active == ActiveTime.Night ? 1f - Night : 0f;
 
-            void Decide(Entity self, ref CreatureState s, ref CreatureBlob b, int species, ref Random rng, bool perched)
+            void Decide(Entity self, ref CreatureState s, ref CreatureBlob b, int species, ref Random rng, bool perched, float3 player)
             {
                 var sleepy = SleepTime(ref b);
                 var awake = 1f - sleepy * 0.8f;
@@ -536,6 +540,16 @@ namespace Punchy.Fauna
                     sleep = 0f;
                 var roll = rng.NextFloat(wander + graze + rest + sleep + drink + play + hunt + work + climb + web + fly);
 
+                // Friendly animals go over to a person nearby (within their home range) more often than not.
+                // (Someone arriving at the edge of its home range counts: it goes as far as its range lets it.)
+                var nearPerson = math.distance(player.xz, s.Position.xz) < 35f &&
+                                 (s.Leash <= 0f || math.distance(player.xz, s.Home) < s.Leash + 15f);
+                if (b.Friendly && nearPerson && sleepy < 0.5f && rng.NextFloat() < 0.65f)
+                {
+                    SetMode(ref s, CreatureMode.Greet);
+                    s.Timer = rng.NextFloat(20f, 45f);
+                    return;
+                }
                 // Roosting species: hang up to sleep through their sleeping time, and otherwise stay on the wing.
                 if (b.Roosts)
                 {
@@ -655,7 +669,8 @@ namespace Punchy.Fauna
             {
                 var lying = s.Mode == CreatureMode.Rest && s.Lie > 0.5f;
                 var calm = s.Mode == CreatureMode.Idle || s.Mode == CreatureMode.Rest ||
-                           s.Mode == CreatureMode.Climb && s.Stage == 3;
+                           s.Mode == CreatureMode.Climb && s.Stage == 3 ||
+                           s.Mode == CreatureMode.Greet && s.Speed < 0.2f;
                 if (s.Action != IdleAction.None)
                 {
                     s.ActionTime += dt / math.max(s.ActionLength, 0.1f);
@@ -1182,6 +1197,50 @@ namespace Punchy.Fauna
                             }
                         }
                         break;
+                }
+            }
+
+            // ------------------------------------------------------------------------------- people
+
+            /// <summary>
+            /// Trots over to the person (to their side, not into them), then sits by them looking up and wagging its
+            /// tail; follows when they walk off (as far as its home range allows), until it loses interest.
+            /// </summary>
+            void Greet(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float3 player, float walk, float run,
+                       ref float targetSpeed, ref bool moving, ref float sit, ref float desiredLook)
+            {
+                s.Timer -= dt;
+                var to = player.xz - s.Position.xz;
+                var distance = math.length(to);
+                if (s.Timer <= 0f || distance > 40f)
+                {
+                    Pause(ref s, ref b, ref rng);
+                    return;
+                }
+                // Its own spot beside the person, kept for the visit.
+                var side = (s.Individual & 1u) == 0 ? 1f : -1f;
+                var dir = math.normalizesafe(to, new float2(0f, 1f));
+                var spot = player.xz - dir * 1.2f + new float2(-dir.y, dir.x) * side * 0.8f;
+                var lookAt = math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -1.2f, 1.2f);
+                if (math.distance(s.Position.xz, spot) > 0.6f)
+                {
+                    s.Target = spot;
+                    targetSpeed = distance > 6f ? run * 0.7f : walk;
+                    moving = true;
+                    desiredLook = lookAt;
+                }
+                else
+                {
+                    // Sitting by them, facing them, tail going.
+                    TurnTowards(ref s, ref b, player.xz, dt);
+                    sit = 1f;
+                    desiredLook = lookAt * 0.5f;
+                    if (s.Action == IdleAction.None && rng.NextFloat() < dt * 0.8f)
+                    {
+                        s.Action = IdleAction.TailFlick;
+                        s.ActionTime = 0f;
+                        s.ActionLength = rng.NextFloat(1.5f, 3f);
+                    }
                 }
             }
 

@@ -109,7 +109,10 @@ namespace Punchy.Debugging
                     pendingSpawns.Add(args[i + 1]);
                 if (args[i] == "-place")
                 {
-                    var index = locations.FindIndex(l => l.Name.IndexOf(args[i + 1], System.StringComparison.OrdinalIgnoreCase) >= 0);
+                    // An exact name first (the landmark itself), else the first that contains it.
+                    var index = locations.FindIndex(l => string.Equals(l.Name, args[i + 1], System.StringComparison.OrdinalIgnoreCase));
+                    if (index < 0)
+                        index = locations.FindIndex(l => l.Name.IndexOf(args[i + 1], System.StringComparison.OrdinalIgnoreCase) >= 0);
                     if (index >= 0)
                     {
                         current = index - 1;
@@ -240,7 +243,8 @@ namespace Punchy.Debugging
                 {
                     var c = em.GetComponentData<CreatureState>(watched);
                     Debug.Log($"DebugControls: watching {watchSpecies} ({c.Mode}, stage {c.Stage}, action {c.Action}, fly {c.Fly:F1}, " +
-                              $"height above ground {c.Position.y - terrainQuery.GetSingleton<TerrainSource>().SampleHeight(c.Position.xz):F1} m)");
+                              $"height above ground {c.Position.y - terrainQuery.GetSingleton<TerrainSource>().SampleHeight(c.Position.xz):F1} m, " +
+                              $"player {math.distance(c.Position.xz, player.Position.xz):F0} m away, home {math.distance(c.Position.xz, c.Home):F0} m (leash {c.Leash:F0}))");
                 }
             }
             if (watched != Entity.Null && em.Exists(watched))
