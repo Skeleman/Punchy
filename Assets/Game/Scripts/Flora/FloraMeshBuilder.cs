@@ -114,6 +114,16 @@ namespace Punchy.Flora
                 colors[v] = tint(positions[v], colors[v]);
         }
 
+        /// <summary>Moves (and turns the normals of) vertices added since <paramref name="firstVertex"/>.</summary>
+        public void Transform(int firstVertex, Func<Vector3, Vector3> position, Func<Vector3, Vector3> normal)
+        {
+            for (int v = firstVertex; v < positions.Count; v++)
+            {
+                positions[v] = position(positions[v]);
+                normals[v] = normal(normals[v]);
+            }
+        }
+
         /// <summary>Recolours vertices by position and normal (moss on the tops of rocks).</summary>
         public void Recolor(int firstVertex, Func<Vector3, Vector3, Color, Color> tint)
         {

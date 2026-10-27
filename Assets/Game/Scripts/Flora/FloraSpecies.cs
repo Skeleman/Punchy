@@ -30,7 +30,13 @@ namespace Punchy.Flora
         [Tooltip("Packed hexagonal columns of cooled lava (basalt), flat-topped at stepped heights. Branches = " +
                  "columns, Thickness = column width, Spread = how much the heights vary.")] Columns,
         [Tooltip("A round hut: Bark-coloured walls, a conical thatched roof (Foliage) with an overhang, and a dark " +
-                 "doorway facing +Z. Height is the whole hut; Spread is the width relative to it.")] Hut
+                 "doorway facing +Z. Height is the whole hut; Spread is the width relative to it.")] Hut,
+        [Tooltip("A square stone house: Bark is the stone, Foliage the slate roof; a chimney, and windows in the " +
+                 "accent colour (Glowing Accents lights them at night). Doorway faces +Z.")] StoneHouse,
+        [Tooltip("A tent of hides over crooked poles that poke out of the top: Foliage is the hide (each panel " +
+                 "varies towards Foliage Variation), Bark the poles; Branches = poles. Opening faces +Z.")] Tent,
+        [Tooltip("A slender tower: tapering walls (Bark) ringed with balconies, a tall pointed roof (Foliage) and " +
+                 "windows in the accent colour. Doorway faces +Z.")] Tower
     }
 
     public enum FoliageFinish : byte
