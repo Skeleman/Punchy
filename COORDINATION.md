@@ -64,7 +64,7 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
 
 | Session | Task | State |
 |---|---|---|
-| Animal behavior manager | Lairs (nests at Nest anchors); then bat rework (J-013) | In progress |
+| Animal behavior manager | Interactions: pet, carry, hunt (J-017); then swallows and glow moths | In progress |
 | world feature manager | Wet band (Terrain.shader), stream follow-up; then phase 4 towns | In progress |
 | kind-possum | Route determinism, WeatherField MapJob fix, round 5 | In progress |
 

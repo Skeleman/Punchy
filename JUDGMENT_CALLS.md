@@ -13,6 +13,14 @@ asks Zach if needed, and records the answer here.
 
 ## Decided
 
+### J-017: What does the animal session do after cave drinkers?
+
+- **Asked:** 2026-10-27, by the animal session (via the supervisor).
+- **Also comes up when:** ordering the animal roadmap: small cave-fauna items vs Interactions vs Imps.
+- **Answer (2026-10-27):** Interactions next (pet, carry, hunt), then swallows and glow moths, then Imps.
+- **Why:** (recommendation) biggest change to play, and nothing blocks it.
+- **Revisited:** 0.
+
 ### J-013: Should bats be redesigned to look like bats?
 
 - **Asked:** 2026-10-27, by the supervisor, from the bat screenshots (62eb225).
