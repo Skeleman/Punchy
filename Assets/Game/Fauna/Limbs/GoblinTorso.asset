@@ -39,21 +39,21 @@ MonoBehaviour:
     - {x: 25, y: 0, z: 0}
   WalkReach:
     Joints:
-    - {x: 28, y: -8, z: 0}
-    - {x: 25, y: -4, z: 0}
+    - {x: 28, y: -2, z: -8}
+    - {x: 20.9, y: -1, z: -4.8}
   WalkPush:
     Joints:
-    - {x: 28, y: 8, z: 0}
-    - {x: 25, y: 4, z: 0}
+    - {x: 28, y: 2, z: 8}
+    - {x: 20.9, y: 1, z: 4.8}
   WalkLift:
     Joints: []
   RunReach:
     Joints:
-    - {x: 40, y: -10, z: 0}
-    - {x: 30, y: -6, z: 0}
+    - {x: 40, y: -2, z: -10}
+    - {x: 28.5, y: -1, z: -6}
   RunPush:
     Joints:
-    - {x: 40, y: 10, z: 0}
-    - {x: 30, y: 6, z: 0}
+    - {x: 40, y: 2, z: 10}
+    - {x: 28.5, y: 1, z: 6}
   RunLift:
     Joints: []

@@ -37,7 +37,8 @@ Input System. Windows is the only build target so far.
   `CaveDistance`, `IsCaveHole` (surface cut away at an entrance), `IsRock` and `FloorUnder(float3)` (the cave
   floor under a point, or the surface). Anything that can go underground must use `FloorUnder` with a 3D
   position instead of `SampleHeight` (player movement, the player's body in `CreatureAnimator`, the camera).
-  The terrain mesh drops quads over entrances (near LODs only); `CaveSystem` builds the cave walls with surface
+  At entrances the terrain stores each vertex's distance to cave air (Morph.w) and its shader cuts the surface
+  just inside the cave's edge, in every pass (near LODs only); `CaveSystem` builds the cave walls with surface
   nets in background jobs, sets `CaveSystem.Underground` (weather stops) and lights a lantern on the player.
 - **Plants, animals and particles are not baked:** editing their assets in Play mode applies live within about a
   second (the systems hash their config and rebuild).
@@ -113,6 +114,8 @@ Input System. Windows is the only build target so far.
   with it. No body tilts to follow the ground while airborne.
 - Creature parts are drawn solid now (the capsule mesh was once wound inside-out, which let hidden parts show
   through), so a part meant to be seen must poke out of whatever it's attached to.
+- Joint axes depend on which way a part points: for a part pointing up (an upright torso, neck or head), a yaw
+  leans it sideways and a roll (z) twists it about its length.
 - Joint angles accumulate along chains: a snake or tail ripple needs small per-joint angles (about 10–15°).
 - `MaterialPropertyBlock.SetInt` stores a float; use `SetInteger` for `int`/`uint` shader properties.
 - Editing a landmark type re-bakes the terrain (its shape is baked), unlike plant and animal assets.

@@ -51,6 +51,7 @@ Shader "Punchy/Terrain Surface"
                 half3  emission   : TEXCOORD4;
                 half   fogFactor  : TEXCOORD5;
                 half   bump       : TEXCOORD6;
+                float  cave       : TEXCOORD7;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -82,12 +83,14 @@ Shader "Punchy/Terrain Surface"
                 o.emission = input.emission.rgb;
                 o.fogFactor = ComputeFogFactor(pos.positionCS.z);
                 o.bump = input.morph.z;
+                o.cave = input.morph.w;
                 return o;
             }
 
             half4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
+                TerrainCaveClip(input.cave);
 
                 float distance = length(input.positionWS - GetCameraPositionWS());
                 half3 normalWS = NormalizeNormalPerPixel(input.normalWS);
@@ -185,6 +188,7 @@ Shader "Punchy/Terrain Surface"
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
+                float cave : TEXCOORD0;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -193,6 +197,7 @@ Shader "Punchy/Terrain Surface"
                 Varyings o = (Varyings)0;
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_TRANSFER_INSTANCE_ID(input, o);
+                o.cave = input.morph.w;
 
                 // Collapse skirts onto their top edge so they cast no shadow.
                 float3 positionWS = TransformObjectToWorld(TerrainPositionOS(input) + float3(0, input.extra.w, 0));
@@ -206,7 +211,11 @@ Shader "Punchy/Terrain Surface"
                 return o;
             }
 
-            half4 Frag(Varyings input) : SV_Target { return 0; }
+            half4 Frag(Varyings input) : SV_Target
+            {
+                TerrainCaveClip(input.cave);
+                return 0;
+            }
             ENDHLSL
         }
 
@@ -229,6 +238,7 @@ Shader "Punchy/Terrain Surface"
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
+                float cave : TEXCOORD0;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -238,10 +248,15 @@ Shader "Punchy/Terrain Surface"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_TRANSFER_INSTANCE_ID(input, o);
                 o.positionCS = TransformObjectToHClip(TerrainPositionOS(input));
+                o.cave = input.morph.w;
                 return o;
             }
 
-            half Frag(Varyings input) : SV_Target { return input.positionCS.z; }
+            half Frag(Varyings input) : SV_Target
+            {
+                TerrainCaveClip(input.cave);
+                return input.positionCS.z;
+            }
             ENDHLSL
         }
 
@@ -265,6 +280,7 @@ Shader "Punchy/Terrain Surface"
             {
                 float4 positionCS : SV_POSITION;
                 half3  normalWS   : TEXCOORD0;
+                float  cave       : TEXCOORD1;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -275,6 +291,7 @@ Shader "Punchy/Terrain Surface"
                 UNITY_TRANSFER_INSTANCE_ID(input, o);
                 o.positionCS = TransformObjectToHClip(TerrainPositionOS(input));
                 o.normalWS = TransformObjectToWorldNormal(input.normalOS);
+                o.cave = input.morph.w;
                 return o;
             }
 
@@ -284,6 +301,7 @@ Shader "Punchy/Terrain Surface"
             #endif
             )
             {
+                TerrainCaveClip(input.cave);
                 outNormalWS = half4(NormalizeNormalPerPixel(input.normalWS), 0);
             #ifdef _WRITE_RENDERING_LAYERS
                 outRenderingLayers = EncodeMeshRenderingLayer();

@@ -24,9 +24,16 @@ struct TerrainAttributes
     half4  surface    : COLOR;
     half4  extra      : TEXCOORD0;
     half4  emission   : TEXCOORD1;
-    float4 morph      : TEXCOORD2;   // xy geomorph range, z surface bumpiness
+    float4 morph      : TEXCOORD2;   // xy geomorph range, z surface bumpiness, w distance to cave air
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
+
+// Cave entrances: the surface is cut away a little inside a cave's air, so it overhangs the cave walls' top edge by a
+// thin lip (hiding the seam). Every pass must do this, or the hole would cast shadows or block the depth texture.
+void TerrainCaveClip(float caveDistance)
+{
+    clip(caveDistance + 0.25);
+}
 
 // Geomorphing: vertices slide onto the next-coarser LOD's surface as they approach the distance where their
 // chunk switches LOD, so the switch itself changes nothing on screen. Every pass must use this.

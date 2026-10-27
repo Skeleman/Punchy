@@ -17,7 +17,7 @@ namespace Punchy.Terrain
         public half4 Surface;   // albedo rgb (linear), smoothness
         public half4 Extra;     // metallic, grass density, snow depth, skirt drop (0 on the surface)
         public half4 Emission;  // emission rgb (linear HDR), geomorph offset (coarse height − height)
-        public float4 Morph;    // distance from the focus where geomorphing starts / completes; z = surface bumpiness
+        public float4 Morph;    // geomorph start / complete distance from the focus; z surface bumpiness; w distance to cave air
 
         public static readonly VertexAttributeDescriptor[] Layout =
         {
@@ -104,7 +104,8 @@ namespace Punchy.Terrain
             var rapids = new NativeArray<float>(v * v, Allocator.Temp);
             var looks = new NativeArray<float4>(v * v, Allocator.Temp);   // water colour + murk, glow in a separate array
             var glows = new NativeArray<float>(v * v, Allocator.Temp);
-            var holes = new NativeArray<bool>(v * v, Allocator.Temp);
+            // Cave entrances: each vertex carries its distance to cave air, and the terrain shader cuts away the
+            // surface just inside the cave's edge (per pixel, so the opening follows the cave, not the grid).
             var cutHoles = request.Lod <= 1 && Source.Caves.IsCreated;
 
             for (int z = 0; z < v; z++)
@@ -122,12 +123,14 @@ namespace Punchy.Terrain
                 var vertex = new TerrainVertex { Position = new float3(local.x, h, local.y), Normal = normal };
                 var surface = Source.SampleSurface(world, ground, normal);
                 vertex.SetSurface(surface);
-                vertex.Morph = new float4(request.MorphRange, surface.Bump, 0f);
+                var cave = cutHoles && CaveSampling.NearColumn(ref Source.Caves.Value, world)
+                    ? math.min(Source.CaveDistance(new float3(world.x, h + 0.05f, world.y)), 100f) : 100f;
+                vertex.Morph = new float4(request.MorphRange, surface.Bump, cave);
                 verts[z * v + x] = vertex;
                 water[z * v + x] = new float4(ground.WaterSurface, ground.Flow, h);
                 rapids[z * v + x] = ground.Rapids;
                 looks[z * v + x] = Source.WaterLook(world, ground.Biomes, out var glow);
-                holes[z * v + x] = cutHoles && Source.IsCaveHole(world);
+
                 glows[z * v + x] = glow;
             }
 
@@ -155,13 +158,6 @@ namespace Punchy.Terrain
                 uint i1 = i0 + 1;
                 uint i2 = i0 + (uint)v;
                 uint i3 = i2 + 1;
-                // Cave entrances: quads touching the cut-away surface collapse to nothing (the cave mesh fills in).
-                if (holes[(int)i0] || holes[(int)i1] || holes[(int)i2] || holes[(int)i3])
-                {
-                    for (int k = 0; k < 6; k++)
-                        indices[t++] = i0;
-                    continue;
-                }
                 indices[t++] = i0; indices[t++] = i2; indices[t++] = i1;
                 indices[t++] = i1; indices[t++] = i2; indices[t++] = i3;
             }
@@ -186,7 +182,6 @@ namespace Punchy.Terrain
             rapids.Dispose();
             looks.Dispose();
             glows.Dispose();
-            holes.Dispose();
         }
 
         /// <summary>
@@ -227,7 +222,8 @@ namespace Punchy.Terrain
             int v = q + 1;
 
             // Vertices with no water body of their own take the highest neighbouring surface, so a sheet's border
-            // extends flat under the banks instead of sloping off towards nothing.
+            // extends flat under the banks instead of sloping off towards nothing; but only where the ground is
+            // above that surface (a real bank), never out over lower ground beyond a raised pool's rim.
             var surface = new NativeArray<float>(v * v, Allocator.Temp);
             var flow = new NativeArray<float2>(v * v, Allocator.Temp);
             for (int i = 0; i < v * v; i++)
@@ -247,7 +243,7 @@ namespace Punchy.Terrain
                 {
                     var nx = x + dx;
                     var nz = z + dz;
-                    if (nx >= 0 && nz >= 0 && nx < v && nz < v && water[nz * v + nx].x > best)
+                    if (nx >= 0 && nz >= 0 && nx < v && nz < v && water[nz * v + nx].x > best && water[i].w >= water[nz * v + nx].x - 0.05f)
                     {
                         best = water[nz * v + nx].x;
                         flow[i] = water[nz * v + nx].yz;

@@ -15,10 +15,10 @@ namespace Punchy.Terrain
     /// A cave's walls are the boundary of the rock: everywhere below the terrain surface and outside the cave's air.
     /// That field is sampled on a grid round the cave and turned into a mesh by surface nets (a vertex in each grid
     /// cell the boundary passes through, joined across every grid edge it crosses), in background Burst jobs.
-    /// Only the boundary close to the cave is kept, so the mesh is the cave walls plus a strip of ground a few metres
-    /// round the entrance, 10 cm under the terrain (measured across the slope, so steep faces don't flicker),
-    /// filling the hole the terrain mesh leaves there. That strip takes the terrain's own colour and blends into cave
-    /// rock as it goes underground.
+    /// Only the boundary close to the cave is kept: the cave walls, which end 10 cm under the terrain surface
+    /// (measured across the slope). The terrain cuts its own opening just inside the cave's edge, overhanging the
+    /// walls' top edge, so there's no seam. Near the surface the walls take the terrain's colour and blend into cave
+    /// rock as they go underground.
     ///
     /// Underground (camera in a cave, well below the surface) fades from 0 to 1: weather stops, and a lantern on the
     /// player lights the way.
@@ -44,7 +44,6 @@ namespace Punchy.Terrain
             public Mesh Mesh;
             public JobHandle Job;
             public NativeArray<float> Field, CaveField, Surface, SurfaceScale;
-            public NativeArray<bool> NearColumn;
             public NativeList<float3> Positions, Normals;
             public NativeList<float4> Colors;
             public NativeList<float2> Data;
@@ -58,7 +57,6 @@ namespace Punchy.Terrain
                 if (CaveField.IsCreated) CaveField.Dispose();
                 if (Surface.IsCreated) Surface.Dispose();
                 if (SurfaceScale.IsCreated) SurfaceScale.Dispose();
-                if (NearColumn.IsCreated) NearColumn.Dispose();
                 if (Data.IsCreated) Data.Dispose();
                 if (Positions.IsCreated) Positions.Dispose();
                 if (Normals.IsCreated) Normals.Dispose();
@@ -167,7 +165,6 @@ namespace Punchy.Terrain
                 b.CaveField.Dispose();
                 b.Surface.Dispose();
                 b.SurfaceScale.Dispose();
-                b.NearColumn.Dispose();
                 b.Positions.Dispose();
                 b.Normals.Dispose();
                 b.Colors.Dispose();
@@ -187,7 +184,6 @@ namespace Punchy.Terrain
                 CaveField = new NativeArray<float>(points.x * points.y * points.z, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
                 Surface = new NativeArray<float>(points.x * points.z, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
                 SurfaceScale = new NativeArray<float>(points.x * points.z, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
-                NearColumn = new NativeArray<bool>(points.x * points.z, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
                 Data = new NativeList<float2>(Allocator.Persistent),
                 Positions = new NativeList<float3>(Allocator.Persistent),
                 Normals = new NativeList<float3>(Allocator.Persistent),
@@ -195,14 +191,14 @@ namespace Punchy.Terrain
                 Indices = new NativeList<int>(Allocator.Persistent),
                 Pending = true
             };
-            var columns = new ColumnJob { Source = source, Cave = index, Origin = origin, Points = points, Voxel = Voxel, Surface = b.Surface, SurfaceScale = b.SurfaceScale, NearColumn = b.NearColumn }
+            var columns = new ColumnJob { Source = source, Origin = origin, Points = points, Voxel = Voxel, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
                 .Schedule(points.x * points.z, 64);
             var field = new FieldJob { Source = source, Cave = index, Origin = origin, Points = points, Voxel = Voxel, Field = b.Field, CaveField = b.CaveField, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
                 .Schedule(points.y * points.z, 4, columns);
             b.Job = new MeshJob
             {
                 Source = source, Cave = index, Origin = origin, Cells = cells, Voxel = Voxel, Mouth = c.Mouth,
-                Field = b.Field, CaveField = b.CaveField, NearColumn = b.NearColumn,
+                Field = b.Field, CaveField = b.CaveField,
                 Positions = b.Positions, Normals = b.Normals, Colors = b.Colors, Data = b.Data, Indices = b.Indices
             }.Schedule(field);
             JobHandle.ScheduleBatchedJobs();
@@ -210,20 +206,16 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
-        /// Per grid column: the surface height, how to turn height above it into distance across the slope, and
-        /// whether the column is close enough to the entrance for the cave mesh to cover the ground there (wider
-        /// than the terrain's hole, which can be a whole terrain quad bigger than the cut-away surface itself).
+        /// Per grid column: the surface height, and how to turn height above it into distance across the slope.
         /// </summary>
         [BurstCompile]
         struct ColumnJob : IJobParallelFor
         {
             public TerrainSource Source;
-            public int Cave;
             public float3 Origin;
             public int3 Points;
             public float Voxel;
             [WriteOnly] public NativeArray<float> Surface, SurfaceScale;
-            [WriteOnly] public NativeArray<bool> NearColumn;
 
             public void Execute(int i)
             {
@@ -234,7 +226,6 @@ namespace Punchy.Terrain
                                        Source.SampleHeight(xz + new float2(0f, e)) - Source.SampleHeight(xz - new float2(0f, e))) / (2f * e);
                 Surface[i] = h;
                 SurfaceScale[i] = math.rsqrt(1f + math.lengthsq(slope));
-                NearColumn[i] = CaveSampling.Distance(ref Source.Caves.Value, Cave, new float3(xz.x, h + 0.05f, xz.y)) < 3f;
             }
         }
 
@@ -279,7 +270,6 @@ namespace Punchy.Terrain
             public float Voxel;
             public float3 Mouth;
             [ReadOnly] public NativeArray<float> Field, CaveField;
-            [ReadOnly] public NativeArray<bool> NearColumn;
             public NativeList<float3> Positions, Normals;
             public NativeList<float4> Colors;
             public NativeList<float2> Data;
@@ -306,7 +296,7 @@ namespace Punchy.Terrain
                     {
                         var i = Point(x + (c & 1), y + ((c >> 1) & 1), z + ((c >> 2) & 1));
                         if (Field[i] < 0f) rock++;
-                        nearCave |= CaveField[i] < 1.2f || NearColumn[(z + ((c >> 2) & 1)) * (Cells.x + 1) + x + (c & 1)];
+                        nearCave |= CaveField[i] < 1.2f;
                     }
                     if (rock == 0 || rock == 8 || !nearCave)
                         continue;
