@@ -118,7 +118,8 @@ it real. To add or change a term, edit this file in the same commit as the code 
 - **Shared clock**: `_PunchyClock`, the server tick in seconds; ambient motion runs on it so screens agree.
 - **Status line**: the timestamped "Net status" log line every 10 s. **Test flags**: `-place`, `-time`, `-autowalk`,
   `-watch`, `-spawn`, `-pose` (one specimen held in daylight while the camera circles it, e.g. `Bat:glide:70`),
-  `-incave`, `-timescale`, `-nohud`, `-host`, `-join`, `-hostonline`, `-joincode`, `-body`, `-weatherseed`. In the
+  `-incave`, `-at <AnchorKind>` (beside the nearest anchor of that kind, e.g. `-at Pool`), `-watchpitch`, `-timescale`,
+  `-nohud`, `-host`, `-join`, `-hostonline`, `-joincode`, `-body`, `-weatherseed`. In the
   editor, Play mode also reads the DebugControls flags from `Temp/PlayArgs.txt`, so tests need no build.
 
 ## Sessions
