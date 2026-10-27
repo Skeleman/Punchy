@@ -729,6 +729,11 @@ namespace Punchy.Fauna
                 Mode = CreatureMode.Idle,
                 Timer = rng.NextFloat(0.5f, 4f),
                 LairCave = -1,
+                // Needs start part-way, so a new arrival doesn't do everything at once.
+                Hunger = rng.NextFloat(0.1f, 0.7f),
+                Thirst = rng.NextFloat(0.1f, 0.6f),
+                Tired = rng.NextFloat(0f, 0.5f),
+                Lonely = rng.NextFloat(0f, 0.5f),
                 Seed = rng.NextUInt() | 1u,
                 Individual = rng.NextUInt() | 1u
             });

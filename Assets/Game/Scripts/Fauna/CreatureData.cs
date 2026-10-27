@@ -302,6 +302,10 @@ namespace Punchy.Fauna
         public bool Gone;
         /// <summary>The cave it roosts in (-1 = none), and the passage node its roost is at.</summary>
         public short LairCave, LairNode;
+
+        // Needs, 0 (satisfied) to 1 (pressing): they rise with time by the species' tastes and are eased by the
+        // activity that meets them; what it decides to do next is weighted by them. Simulation only (not sent).
+        public float Hunger, Thirst, Tired, Lonely;
     }
 
     /// <summary>One segment as the creature shader draws it (a tapered capsule). Must match Creature.shader.</summary>

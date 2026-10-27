@@ -95,9 +95,11 @@ namespace Punchy.Net
             using var terrain = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
             var hasTerrain = terrain.TryGetSingleton<TerrainSource>(out var source);
             float SampleGround(World _, float2 xz) => hasTerrain ? source.SampleHeight(xz) : 0f;
+            float hunger = 0f, thirst = 0f, tired = 0f, lonely = 0f;
             int flying = 0, high = 0, climbing = 0, webs = 0, acting = 0, sitting = 0, diving = 0, hunting = 0, burrows = 0, below = 0, roosting = 0, hanging = 0, inCaves = 0;
             foreach (var c in states)
             {
+                hunger += c.Hunger; thirst += c.Thirst; tired += c.Tired; lonely += c.Lonely;
                 if (c.Fly > 0.5f) flying++;
                 if (c.Mode == Punchy.Fauna.CreatureMode.Climb) climbing++;
                 if (c.Mode == Punchy.Fauna.CreatureMode.Web && c.Stage >= 2 && c.Stage <= 4) webs++;
@@ -115,7 +117,9 @@ namespace Punchy.Net
             }
             states.Dispose();
             return $"flying {flying}, up a tree {high}, climbing {climbing}, in webs {webs}, hunting {hunting}, diving {diving}, " +
-                   $"caught {Punchy.Fauna.FaunaDirector.Caught}, idle actions {acting}, sitting {sitting}, burrows {burrows} ({below} down), roosting {roosting} ({hanging} hanging), in caves {inCaves}";
+                   $"caught {Punchy.Fauna.FaunaDirector.Caught}, idle actions {acting}, sitting {sitting}, burrows {burrows} ({below} down), roosting {roosting} ({hanging} hanging), in caves {inCaves}, " +
+                   $"needs (mean) hunger {hunger / math.max(states.Length, 1):F2} thirst {thirst / math.max(states.Length, 1):F2} " +
+                   $"tired {tired / math.max(states.Length, 1):F2} lonely {lonely / math.max(states.Length, 1):F2}";
         }
 
         static System.Collections.Generic.IEnumerable<string> WorldNames()

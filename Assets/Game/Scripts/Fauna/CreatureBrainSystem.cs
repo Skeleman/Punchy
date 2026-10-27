@@ -416,6 +416,8 @@ namespace Punchy.Fauna
                         break;
                 }
 
+                Needs(ref s, ref b, dt);
+
                 // Little things done while standing about: start one now and then, keep it going, and take up the
                 // posture it needs.
                 Fidget(self, body.Species, ref s, ref b, ref rng, dt, perched, ref sit, ref vertical, ref bow, ref desiredLook);
@@ -491,6 +493,41 @@ namespace Punchy.Fauna
                 s.Seed = rng.state;
             }
 
+            // ------------------------------------------------------------------------------- needs
+
+            /// <summary>
+            /// Needs rise over time (by the species' tastes: a big grazer gets hungry faster) and fall while the
+            /// activity that meets them goes on: grazing or a hunt for hunger, drinking for thirst, rest and sleep for
+            /// tiredness, play, a flock or company for loneliness.
+            /// </summary>
+            static void Needs(ref CreatureState s, ref CreatureBlob b, float dt)
+            {
+                s.Hunger += dt * (0.002f + (b.Grazing + b.Hunger) * 0.003f);
+                s.Thirst += dt * b.Thirst * 0.004f;
+                s.Tired += dt * 0.0015f;
+                s.Lonely += dt * b.Playfulness * 0.003f;
+                switch (s.Mode)
+                {
+                    case CreatureMode.Graze: s.Hunger -= dt * 0.04f; break;
+                    case CreatureMode.Hunt: s.Hunger -= dt * 0.01f; break;
+                    case CreatureMode.Drink: if (s.Stage == 1) s.Thirst -= dt * 0.12f; break;
+                    case CreatureMode.Rest: s.Tired -= dt * 0.02f; break;
+                    case CreatureMode.Sleep: s.Tired -= dt * 0.04f; break;
+                    case CreatureMode.Burrow: if (s.Stage == 2) s.Tired -= dt * 0.03f; break;
+                    case CreatureMode.Roost: if (s.Stage == 200) s.Tired -= dt * 0.04f; break;
+                    case CreatureMode.Climb: if (s.Stage == 3) s.Tired -= dt * 0.02f; break;
+                    case CreatureMode.Play: s.Lonely -= dt * 0.05f; break;
+                    case CreatureMode.Greet: s.Lonely -= dt * 0.03f; break;
+                }
+                s.Hunger = math.saturate(s.Hunger);
+                s.Thirst = math.saturate(s.Thirst);
+                s.Tired = math.saturate(s.Tired);
+                s.Lonely = math.saturate(s.Lonely);
+            }
+
+            /// <summary>How much a need pushes an activity: a little even when met, a lot when pressing.</summary>
+            static float Urge(float need) => 0.25f + need * need * 3f;
+
             // ------------------------------------------------------------------------------- choosing what to do
 
             /// <summary>How much this is its time to sleep (0..1).</summary>
@@ -513,13 +550,14 @@ namespace Punchy.Fauna
 
                 // On a branch, a bird can only rest, sleep or fly off.
                 var onGround = !perched;
+                // Each activity's appeal: the species' taste for it, pressed by the need it meets.
                 var wander = 1f * awake * (onGround ? 1f : 0f);
-                var graze = b.Grazing * 2.5f * awake * (onGround ? 1f : 0f);
-                var rest = b.Laziness * 0.7f;
-                var sleep = sleepy > 0.5f ? 6f : b.Active == ActiveTime.Always ? b.Laziness * 0.4f : 0f;
-                var drink = b.Thirst * 1.2f * awake * (onGround && !flier ? 1f : 0f);
-                var play = playmate != Entity.Null ? b.Playfulness * 2f : 0f;
-                var hunt = prey != Entity.Null ? b.Hunger * 2.5f : 0f;
+                var graze = b.Grazing * 2.5f * awake * (onGround ? 1f : 0f) * Urge(s.Hunger);
+                var rest = b.Laziness * 0.7f * Urge(s.Tired);
+                var sleep = sleepy > 0.5f ? 6f : b.Active == ActiveTime.Always ? b.Laziness * 0.4f * Urge(s.Tired) : 0f;
+                var drink = b.Thirst * 1.2f * awake * (onGround && !flier ? 1f : 0f) * Urge(s.Thirst);
+                var play = playmate != Entity.Null ? b.Playfulness * 2f * Urge(s.Lonely) : 0f;
+                var hunt = prey != Entity.Null ? b.Hunger * 2.5f * Urge(s.Hunger) : 0f;
                 // Climbers go up trees to sit, and to sleep (they sleep up there, not on the ground).
                 var climb = b.Climbing > 0f && HasFlora && !flier ? b.Climbing * (sleepy > 0.5f ? 8f : 2.5f) : 0f;
                 if (climb > 0f && sleepy > 0.5f)
@@ -544,7 +582,7 @@ namespace Punchy.Fauna
                 // (Someone arriving at the edge of its home range counts: it goes as far as its range lets it.)
                 var nearPerson = math.distance(player.xz, s.Position.xz) < 35f &&
                                  (s.Leash <= 0f || math.distance(player.xz, s.Home) < s.Leash + 15f);
-                if (b.Friendly && nearPerson && sleepy < 0.5f && rng.NextFloat() < 0.65f)
+                if (b.Friendly && nearPerson && sleepy < 0.5f && rng.NextFloat() < 0.35f + s.Lonely * 0.6f)
                 {
                     SetMode(ref s, CreatureMode.Greet);
                     s.Timer = rng.NextFloat(20f, 45f);
@@ -870,6 +908,7 @@ namespace Punchy.Fauna
 
             static void Tired(ref CreatureState s, ref Random rng)
             {
+                s.Hunger = math.max(0f, s.Hunger - 0.4f);
                 SetMode(ref s, CreatureMode.Rest);
                 s.Timer = rng.NextFloat(15f, 40f);
             }
@@ -1217,10 +1256,11 @@ namespace Punchy.Fauna
                     Pause(ref s, ref b, ref rng);
                     return;
                 }
-                // Its own spot beside the person, kept for the visit.
-                var side = (s.Individual & 1u) == 0 ? 1f : -1f;
+                // Its own spot round the person (one of five, by individual), so several don't pile into each other.
                 var dir = math.normalizesafe(to, new float2(0f, 1f));
-                var spot = player.xz - dir * 1.2f + new float2(-dir.y, dir.x) * side * 0.8f;
+                var angle = ((int)(s.Individual % 5u) - 2) * 0.75f;
+                var away = new float2(dir.x * math.cos(angle) - dir.y * math.sin(angle), dir.x * math.sin(angle) + dir.y * math.cos(angle));
+                var spot = player.xz - away * (1.3f + b.BodyLength * s.Scale * 0.5f);
                 var lookAt = math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -1.2f, 1.2f);
                 if (math.distance(s.Position.xz, spot) > 0.6f)
                 {
