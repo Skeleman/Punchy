@@ -163,5 +163,50 @@ Shader "Punchy/Creature"
             half Frag(float4 positionCS : SV_POSITION) : SV_Target { return positionCS.z; }
             ENDHLSL
         }
+
+        // Depth and normals for the depth-normals prepass (SSAO), which is also where the camera depth texture comes
+        // from; without it creatures would be missing from both.
+        Pass
+        {
+            Name "DepthNormals"
+            Tags { "LightMode" = "DepthNormals" }
+            ZWrite On
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl"
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                half3 normalWS : TEXCOORD0;
+            };
+
+            Varyings Vert(CreatureAttributes input)
+            {
+                float3 p, n;
+                float4 c;
+                SegmentVertex(input, p, n, c);
+                Varyings o;
+                o.positionCS = TransformWorldToHClip(p);
+                o.normalWS = n;
+                return o;
+            }
+
+            void Frag(Varyings input, out half4 outNormalWS : SV_Target0
+            #ifdef _WRITE_RENDERING_LAYERS
+                , out uint outRenderingLayers : SV_Target1
+            #endif
+            )
+            {
+                outNormalWS = half4(NormalizeNormalPerPixel(input.normalWS), 0);
+            #ifdef _WRITE_RENDERING_LAYERS
+                outRenderingLayers = EncodeMeshRenderingLayer();
+            #endif
+            }
+            ENDHLSL
+        }
     }
 }

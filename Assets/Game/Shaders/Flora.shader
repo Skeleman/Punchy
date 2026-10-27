@@ -201,5 +201,57 @@ Shader "Punchy/Flora"
             }
             ENDHLSL
         }
+
+        // Depth and normals for the depth-normals prepass (SSAO). With it, the camera depth texture comes from this
+        // prepass, so without this pass plants would be missing from it (and from SSAO and the heat haze).
+        Pass
+        {
+            Name "DepthNormals"
+            Tags { "LightMode" = "DepthNormals" }
+            ZWrite On
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl"
+            #include "Flora.hlsl"
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float fade : TEXCOORD0;
+                float3 positionWS : TEXCOORD1;
+                half3 normalWS : TEXCOORD2;
+            };
+
+            Varyings Vert(FloraAttributes input)
+            {
+                FloraVertex v = FloraTransform(input);
+                Varyings o;
+                o.positionCS = TransformWorldToHClip(v.positionWS);
+                o.fade = v.fade;
+                o.positionWS = v.positionWS;
+                o.normalWS = v.normalWS;
+                return o;
+            }
+
+            void Frag(Varyings input, bool front : SV_IsFrontFace, out half4 outNormalWS : SV_Target0
+            #ifdef _WRITE_RENDERING_LAYERS
+                , out uint outRenderingLayers : SV_Target1
+            #endif
+            )
+            {
+                FloraDither(input.positionCS, input.fade, input.positionWS);
+                // Leaves are double-sided: the back face's normal points the other way.
+                half3 n = NormalizeNormalPerPixel(input.normalWS);
+                outNormalWS = half4(front ? n : -n, 0);
+            #ifdef _WRITE_RENDERING_LAYERS
+                outRenderingLayers = EncodeMeshRenderingLayer();
+            #endif
+            }
+            ENDHLSL
+        }
     }
 }
