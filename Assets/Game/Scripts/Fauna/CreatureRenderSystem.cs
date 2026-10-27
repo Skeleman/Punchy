@@ -133,6 +133,11 @@ namespace Punchy.Fauna
             for (int i = 0; i < roosts.Length; i++)
                 total += ColonySize(terrain.Anchors.Value.Anchors[roosts[i]], roosts[i], night) * BatParts;
 
+            // Footprints and feathers (TraceSystem).
+            var traces = World.GetExistingSystemManaged<TraceSystem>();
+            var traceCount = traces != null ? traces.Count : 0;
+            total += traceCount;
+
             var instances = new NativeArray<SegmentInstance>(total, Allocator.TempJob);
             Dependency = new PoseJob
             {
@@ -146,6 +151,8 @@ namespace Punchy.Fauna
             var at = colonyStart;
             for (int i = 0; i < roosts.Length; i++)
                 at = Colony(terrain.Anchors.Value.Anchors[roosts[i]], roosts[i], night, instances, at);
+            if (traceCount > 0)
+                at = traces.Write(instances, at, (float)SystemAPI.Time.ElapsedTime);
 
             if (buffer == null || buffer.count < total)
             {
