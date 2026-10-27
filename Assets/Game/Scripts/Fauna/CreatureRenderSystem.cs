@@ -95,18 +95,20 @@ namespace Punchy.Fauna
             public float Time;
             public Unity.Mathematics.float3 CameraRight;
 
-            void Execute([EntityIndexInQuery] int index, in CreatureState state, in CreatureBody body)
+            void Execute(Entity entity, [EntityIndexInQuery] int index, in CreatureState state, in CreatureBody body)
             {
                 var offset = Offsets[index];
                 CreatureAnimator.Evaluate(ref body.Blob.Value, state, body.Coat, Terrain, Output, offset);
-                FearMarks(state, offset, body.SegmentCount);
+                FearMarks(state, offset, body.SegmentCount, entity.Index);
             }
 
             /// <summary>
             /// Three short lines fanning out above the creature's highest point, facing the camera, flashing on and
             /// off while it flees. Sized to the creature, but never too small to see.
             /// </summary>
-            void FearMarks(in CreatureState state, int offset, int segments)
+            /// <param name="id">Fixed per creature, so each flashes on its own steady beat (its random seed changes
+            /// every frame, which made the marks flicker).</param>
+            void FearMarks(in CreatureState state, int offset, int segments, int id)
             {
                 var top = float.MinValue;
                 for (int i = 0; i < segments; i++)
@@ -116,7 +118,7 @@ namespace Punchy.Fauna
                     top = Unity.Mathematics.math.max(top, Unity.Mathematics.math.max(seg.Position.y + seg.RadiusStart, end.y + seg.RadiusEnd));
                 }
                 var size = Unity.Mathematics.math.clamp(state.Scale * 0.3f, 0.25f, 0.5f);
-                var flash = Unity.Mathematics.math.frac(Time * 3f + (state.Seed % 97) * 0.01f) < 0.6f;
+                var flash = Unity.Mathematics.math.frac(Time * 3f + (id % 97) * 0.01f) < 0.6f;
                 var visible = state.Mode == CreatureMode.Flee && flash;
                 var up = new Unity.Mathematics.float3(0f, 1f, 0f);
                 var right = Unity.Mathematics.math.normalizesafe(new Unity.Mathematics.float3(CameraRight.x, 0f, CameraRight.z), new Unity.Mathematics.float3(1f, 0f, 0f));

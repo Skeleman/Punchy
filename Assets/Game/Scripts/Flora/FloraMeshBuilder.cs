@@ -279,6 +279,38 @@ namespace Punchy.Flora
             return firstVertex;
         }
 
+        /// <summary>A flat-shaded box (planks, walls, roof slabs, counters), centred and rotated.</summary>
+        public void Box(Vector3 centre, Vector3 size, Quaternion rotation, Color color, FloraPart part, float ao = 1f)
+        {
+            var half = size * 0.5f;
+            Vector3[] faces = { Vector3.right, Vector3.left, Vector3.up, Vector3.down, Vector3.forward, Vector3.back };
+            foreach (var n in faces)
+            {
+                var u = Mathf.Abs(n.y) > 0.5f ? Vector3.right : Vector3.up;
+                var w = Vector3.Cross(n, u);
+                var first = positions.Count;
+                for (int k = 0; k < 4; k++)
+                {
+                    var su = k == 0 || k == 3 ? -1f : 1f;
+                    var sw = k < 2 ? -1f : 1f;
+                    var local = Vector3.Scale(n + u * su + w * sw, half);
+                    Vertex(centre + rotation * local, rotation * n, color, part, n.y < -0.5f ? ao * 0.6f : ao);
+                }
+                Triangle(first, first + 1, first + 2);
+                Triangle(first, first + 2, first + 3);
+            }
+        }
+
+        /// <summary>A box spanning from one point to another (a beam, a rail, a sloping roof slab).</summary>
+        public void Beam(Vector3 from, Vector3 to, float width, float thickness, Color color, FloraPart part, float ao = 1f)
+        {
+            var along = to - from;
+            if (along.sqrMagnitude < 1e-6f)
+                return;
+            var rotation = Quaternion.LookRotation(along.normalized, Mathf.Abs(along.normalized.y) > 0.95f ? Vector3.forward : Vector3.up);
+            Box((from + to) * 0.5f, new Vector3(width, thickness, along.magnitude), rotation, color, part, ao);
+        }
+
         /// <summary>A tiny octahedron (floret, berry, flower bud): 8 triangles.</summary>
         public void Diamond(Vector3 centre, float radius, Color color, FloraPart part, float ao = 1f)
         {

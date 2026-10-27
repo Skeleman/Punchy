@@ -91,6 +91,14 @@ Shader "Punchy/Flora"
                     float facing = pow(saturate(dot(normalize(n + (sparkle - 0.5) * 0.9), h)), 400);
                     color += light.color * shadow * facing * 14 * step(0.55, sparkle);
                 }
+                // Bark and rock take a faint reflection of the sky at grazing angles, as the terrain does (its
+                // surfaces have a little smoothness), so rocks fade into the same sky-tinted haze as the land.
+                if (part == 0)
+                {
+                    half fresnel = 0.04 + 0.96 * pow(1 - saturate(dot(n, v)), 5);
+                    color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * ao;
+                }
+
                 // Glowing parts shine by themselves with a slow, uneven pulse (bright enough to bloom at night).
                 if (part == 5)
                 {

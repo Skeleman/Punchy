@@ -15,6 +15,7 @@ MonoBehaviour:
   Radius: 45
   Scale: {x: 0.95, y: 1.1}
   MaxRelief: 14
+  MinRelief: 0
   Elevation: {x: 3, y: 10000}
   Shape: 0
   Height: 0
@@ -37,30 +38,54 @@ MonoBehaviour:
     Scale: {x: 0.9, y: 1.15}
     Centrepiece: 0
     FaceCentre: 1
-  - Species: {fileID: 11400000, guid: ad584df5993190d4895211b957b4d9ff, type: 2}
-    Density: 5
-    Ring: {x: 0, y: 1}
-    Scale: {x: 1.4, y: 1.4}
-    Centrepiece: 1
-    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
   - Species: {fileID: 11400000, guid: d64f8e525fe2c0147bf884835d50180a, type: 2}
     Density: 0.5
     Ring: {x: 0.55, y: 1}
     Scale: {x: 1, y: 1}
     Centrepiece: 0
     FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
   - Species: {fileID: 11400000, guid: ad584df5993190d4895211b957b4d9ff, type: 2}
     Density: 0.5
     Ring: {x: 0.55, y: 1}
     Scale: {x: 1, y: 1}
     Centrepiece: 0
     FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
   - Species: {fileID: 11400000, guid: 50cec33f99fe81f40b44c329d3647ede, type: 2}
     Density: 25
     Ring: {x: 0.2, y: 0.9}
     Scale: {x: 1, y: 1}
     Centrepiece: 0
     FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
+  - Species: {fileID: 11400000, guid: ee99e03d767866641a1fd309f546edda, type: 2}
+    Density: 5
+    Ring: {x: 0, y: 1}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 1
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
+  - Species: {fileID: 11400000, guid: 7c9534dc8b6f9f44caa5189be1a27130, type: 2}
+    Density: 5
+    Ring: {x: 0, y: 1}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 1
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
   Effects:
   - Kind: 0
     Offset: {x: 0, y: 0}
@@ -74,10 +99,36 @@ MonoBehaviour:
     Glow: 4
     Period: 0
     Duty: 0.25
+  - Kind: 0
+    Offset: {x: 0, y: 0}
+    Height: 3.4
+    Width: 0.9
+    Size: 0.18
+    Particles: 50
+    Lifetime: 1.4
+    Color: {r: 0.85, g: 0.92, b: 1, a: 1}
+    Opacity: 0.45
+    Glow: 0
+    Period: 0
+    Duty: 0.25
+  Cave: 0
+  CaveLength: 40
+  CaveDepth: 8
+  CaveRadius: 2.4
+  ChamberRadius: 6
   Residents:
   - Species: {fileID: 11400000, guid: 46b822fc6510e9c438d06b7c0598a487, type: 2}
     Count: {x: 6, y: 8}
+    Leash: 0
+    HomeRing: 0
+    HomeAngle: 0
   - Species: {fileID: 11400000, guid: 8e349b1519701e84fbe7923c0c10f2fd, type: 2}
     Count: {x: 0, y: 2}
+    Leash: 0
+    HomeRing: 0
+    HomeAngle: 0
   - Species: {fileID: 11400000, guid: 92efcd8c205109b498ebcc61830248fd, type: 2}
     Count: {x: 0, y: 1}
+    Leash: 0
+    HomeRing: 0
+    HomeAngle: 0

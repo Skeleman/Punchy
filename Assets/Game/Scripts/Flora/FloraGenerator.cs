@@ -64,6 +64,12 @@ namespace Punchy.Flora
                     case FloraForm.StoneHouse: StoneHouse(g); break;
                     case FloraForm.Tent: Tent(g); break;
                     case FloraForm.Tower: Tower(g); break;
+                    case FloraForm.Pen: Pen(g); break;
+                    case FloraForm.Stall: Stall(g); break;
+                    case FloraForm.Inn: Inn(g); break;
+                    case FloraForm.Smithy: Smithy(g); break;
+                    case FloraForm.Forum: Forum(g); break;
+                    case FloraForm.Fountain: Fountain(g); break;
                 }
                 if (lod == 0)
                 {
@@ -1462,6 +1468,235 @@ namespace Punchy.Flora
             b.Occlude(roof, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y + 0.3f)));
 
             Doorway(g, radius * 1.1f, Mathf.Min(radius * 0.7f, 1f), Mathf.Min(walls * 0.25f, 2.2f));
+        }
+
+
+        // ------------------------------------------------------------------------------------------- settlement structures
+
+        static Color Stone(Grower g) => new Color(0.42f, 0.41f, 0.39f).linear;
+        static Color AccentAt(Grower g, int i) => g.S.Accents.Count > 0 ? g.S.Accents[i % g.S.Accents.Count].linear : Color.white;
+
+        static void Pen(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var radius = height * s.Spread * 0.5f;
+            g.Height = height;
+            g.Width = radius * 2.2f;
+            g.TrunkRadius = 0f;
+            var postRadius = Mathf.Max(0.05f, height * 0.055f);
+            var posts = Mathf.Max(6, g.Count(s.Branches));
+            var tops = new List<Vector3>();
+            for (int k = 0; k < posts; k++)
+            {
+                var a = (k + 0.5f) / posts * Mathf.PI * 2f;
+                var p = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius * g.Range(0.97f, 1.03f);
+                tops.Add(p);
+                var first = b.VertexCount;
+                b.Tube(new List<Vector3> { p + Vector3.down * 0.1f, p + Vector3.up * height * g.Range(0.95f, 1.08f) },
+                       new List<float> { postRadius, postRadius * 0.9f }, g.Sides(5, 4, 3), g.Bark, FloraPart.Bark, cap: true);
+                b.Occlude(first, (q, n) => GroundOcclusion(q, height * 0.5f));
+            }
+            // Two rails between neighbouring posts, except across the gate (+Z).
+            for (int k = 0; k < posts; k++)
+            {
+                var p = tops[k];
+                var q = tops[(k + 1) % posts];
+                var mid = (p + q) * 0.5f;
+                if (mid.z > radius * 0.85f)
+                    continue;
+                foreach (var y in new[] { 0.45f, 0.85f })
+                    b.Beam(p + Vector3.up * height * y, q + Vector3.up * height * y, postRadius * 1.2f, postRadius * 0.9f, g.Bark * 0.9f, FloraPart.Bark);
+            }
+            // A trough inside.
+            b.Box(new Vector3(-radius * 0.45f, 0.22f, -radius * 0.35f), new Vector3(1.4f, 0.44f, 0.5f), Quaternion.Euler(0f, 30f, 0f), g.Bark * 0.7f, FloraPart.Bark);
+        }
+
+        static void Stall(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var width = height * s.Spread;
+            var depth = width * 0.7f;
+            g.Height = height;
+            g.Width = Mathf.Max(width, depth) * 1.3f;
+            g.TrunkRadius = 0f;
+            var post = 0.06f;
+            var frontHeight = height * 0.82f;
+            foreach (var x in new[] { -0.5f, 0.5f })
+            foreach (var z in new[] { -0.5f, 0.5f })
+            {
+                var top = z > 0f ? frontHeight : height;
+                b.Tube(new List<Vector3> { new Vector3(x * width, -0.05f, z * depth), new Vector3(x * width, top, z * depth) },
+                       new List<float> { post, post }, g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
+            }
+            // Counter across the front, and goods laid out on it.
+            b.Box(new Vector3(0f, 0.45f, depth * 0.5f - 0.15f), new Vector3(width * 0.95f, 0.9f, 0.45f), Quaternion.identity, g.Bark * 0.8f, FloraPart.Bark);
+            if (g.Lod < 2)
+                for (int k = 0; k < 7; k++)
+                {
+                    var at = new Vector3(Mathf.Lerp(-0.4f, 0.4f, k / 6f) * width, 0.98f, depth * 0.5f - 0.15f + g.Range(-0.08f, 0.08f));
+                    b.Blob(at, Vector3.one * g.Range(0.07f, 0.12f), Quaternion.identity, 0, 0.2f, g.R() * 50f, AccentAt(g, k + 1), FloraPart.Bark);
+                }
+            // A striped awning sloping from the back down over the front, overhanging it.
+            var back = new Vector3(0f, height + 0.05f, -depth * 0.55f);
+            var front = new Vector3(0f, frontHeight - 0.15f, depth * 0.5f + 0.45f);
+            var stripes = g.Sides(6, 4, 2);
+            for (int k = 0; k < stripes; k++)
+            {
+                var x = (k + 0.5f) / stripes - 0.5f;
+                var colour = k % 2 == 0 ? g.FoliageColor() : AccentAt(g, 0);
+                b.Beam(back + Vector3.right * x * width * 1.1f, front + Vector3.right * x * width * 1.1f, width * 1.1f / stripes, 0.04f, colour, FloraPart.Bark);
+            }
+        }
+
+        static void Inn(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var half = height * s.Spread * 0.5f;
+            var front = half * 0.8f;
+            var wall = height * 0.6f;
+            g.Height = height;
+            g.Width = half * 2.8f;
+            g.TrunkRadius = half * 0.9f;
+
+            // Walls, with a timber band between the storeys and dark corner posts.
+            var first = b.VertexCount;
+            b.Box(new Vector3(0f, wall * 0.5f - 0.1f, 0f), new Vector3(half * 2f, wall + 0.2f, front * 2f), Quaternion.identity, g.Bark, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, wall * 0.4f));
+            var timber = g.Bark * 0.5f;
+            if (g.Lod < 2)
+            {
+                b.Box(new Vector3(0f, wall * 0.5f, 0f), new Vector3(half * 2f + 0.08f, 0.2f, front * 2f + 0.08f), Quaternion.identity, timber, FloraPart.Bark);
+                foreach (var x in new[] { -1f, 1f })
+                foreach (var z in new[] { -1f, 1f })
+                    b.Box(new Vector3(x * half, wall * 0.5f, z * front), new Vector3(0.25f, wall, 0.25f), Quaternion.identity, timber, FloraPart.Bark);
+            }
+
+            // Gabled roof: two slabs meeting at a ridge along X, and the gable ends filled in.
+            var roof = g.FoliageColor();
+            var ridge = height;
+            foreach (var z in new[] { -1f, 1f })
+                b.Beam(new Vector3(0f, wall - 0.25f, z * (front + 0.6f)), new Vector3(0f, ridge + 0.1f, 0f), half * 2f + 0.8f, 0.18f, roof, FloraPart.Bark);
+            foreach (var x in new[] { -1f, 1f })
+            {
+                var v0 = b.Vertex(new Vector3(x * half, wall, -front), Vector3.right * x, g.Bark, FloraPart.Bark, 0.9f);
+                var v1 = b.Vertex(new Vector3(x * half, wall, front), Vector3.right * x, g.Bark, FloraPart.Bark, 0.9f);
+                var v2 = b.Vertex(new Vector3(x * half, ridge, 0f), Vector3.right * x, g.Bark, FloraPart.Bark, 0.9f);
+                b.Triangle(v0, v1, v2);
+            }
+            b.Box(new Vector3(half * 0.6f, height * 0.85f, -front * 0.35f), new Vector3(0.6f, height * 0.5f, 0.6f), Quaternion.identity, Stone(g), FloraPart.Bark);
+
+            // Door, windows (lit at night) and the porch out front.
+            Doorway(g, front + 0.02f, 1.1f, Mathf.Min(wall * 0.42f, 2.1f));
+            if (g.Lod < 2)
+                foreach (var (x, y) in new[] { (-0.55f, 0.27f), (0.55f, 0.27f), (-0.55f, 0.75f), (0f, 0.75f), (0.55f, 0.75f) })
+                    b.Box(new Vector3(x * half, y * wall, front + 0.03f), new Vector3(0.6f, 0.7f, 0.06f), Quaternion.identity, AccentAt(g, 0), FloraPart.Petal);
+            var porch = 2.4f;
+            b.Box(new Vector3(0f, 0.15f, front + porch * 0.5f), new Vector3(half * 1.8f, 0.3f, porch), Quaternion.identity, g.Bark * 0.75f, FloraPart.Bark);
+            b.Beam(new Vector3(0f, wall * 0.48f, front), new Vector3(0f, wall * 0.4f, front + porch + 0.3f), half * 1.9f, 0.12f, roof, FloraPart.Bark);
+            foreach (var x in new[] { -0.85f, 0.85f })
+                b.Tube(new List<Vector3> { new Vector3(x * half, 0.3f, front + porch - 0.1f), new Vector3(x * half, wall * 0.41f, front + porch - 0.1f) },
+                       new List<float> { 0.1f, 0.1f }, g.Sides(6, 4, 3), timber, FloraPart.Bark);
+            // A sign hanging from the porch roof.
+            if (g.Lod < 2)
+                b.Box(new Vector3(half * 0.55f, wall * 0.3f, front + porch + 0.2f), new Vector3(0.9f, 0.55f, 0.06f), Quaternion.identity, AccentAt(g, 1), FloraPart.Bark);
+        }
+
+        static void Smithy(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var half = height * s.Spread * 0.5f;
+            var depth = half * 0.8f;
+            var eaves = height * 0.58f;
+            g.Height = height;
+            g.Width = half * 2.6f;
+            g.TrunkRadius = 0f;
+
+            // An open shed: corner posts under a pyramid roof.
+            foreach (var x in new[] { -1f, 1f })
+            foreach (var z in new[] { -1f, 1f })
+                b.Tube(new List<Vector3> { new Vector3(x * half, -0.05f, z * depth), new Vector3(x * half, eaves, z * depth) },
+                       new List<float> { 0.12f, 0.11f }, g.Sides(6, 4, 3), g.Bark, FloraPart.Bark);
+            var roof = b.VertexCount;
+            b.Tube(new List<Vector3> { Vector3.up * (eaves - 0.1f), Vector3.up * height }, new List<float> { Mathf.Max(half, depth) * 1.414f * 1.15f, 0.05f },
+                   4, g.FoliageColor(), FloraPart.Bark, cap: true);
+            RotateFrom(b, roof, Quaternion.Euler(0f, 45f, 0f));
+
+            // The forge at the back: a stone hearth of glowing coals, and its chimney up through the roof.
+            var hearth = new Vector3(0f, 0.55f, -depth * 0.45f);
+            b.Box(hearth, new Vector3(half * 1.1f, 1.1f, depth * 0.8f), Quaternion.identity, Stone(g), FloraPart.Bark);
+            b.Blob(hearth + Vector3.up * 0.58f, new Vector3(half * 0.4f, 0.12f, depth * 0.28f), Quaternion.identity, 1, 0.3f, g.R() * 50f, AccentAt(g, 0), FloraPart.Glow);
+            b.Box(new Vector3(0f, (1.1f + height + 0.8f) * 0.5f, -depth * 0.7f), new Vector3(0.7f, height + 0.8f - 1.1f, 0.6f), Quaternion.identity, Stone(g) * 0.85f, FloraPart.Bark);
+            // The anvil on its block.
+            var anvil = new Vector3(half * 0.3f, 0f, depth * 0.25f);
+            var iron = new Color(0.06f, 0.06f, 0.07f);
+            b.Box(anvil + Vector3.up * 0.3f, new Vector3(0.35f, 0.6f, 0.35f), Quaternion.identity, g.Bark * 0.6f, FloraPart.Bark);
+            b.Box(anvil + Vector3.up * 0.72f, new Vector3(0.75f, 0.24f, 0.3f), Quaternion.identity, iron, FloraPart.Metal);
+        }
+
+        static void Forum(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var radius = height * s.Spread * 0.5f;
+            var columns = Mathf.Max(6, g.Count(s.Branches));
+            var shaft = height * 0.045f;
+            g.Height = height + 0.6f;
+            g.Width = radius * 2.3f;
+            g.TrunkRadius = 0f;
+
+            // A low round platform.
+            b.Blob(Vector3.zero, new Vector3(radius + 1.2f, 0.25f, radius + 1.2f), Quaternion.identity, g.Sides(3, 2, 1), 0f, 0f, g.Bark * 0.9f, FloraPart.Bark);
+            var tops = new List<Vector3>();
+            for (int k = 0; k < columns; k++)
+            {
+                var a = k / (float)columns * Mathf.PI * 2f;
+                var p = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius;
+                var first = b.VertexCount;
+                b.Box(p + Vector3.up * 0.25f, new Vector3(shaft * 3f, 0.3f, shaft * 3f), Quaternion.Euler(0f, -a * Mathf.Rad2Deg, 0f), g.Bark, FloraPart.Bark);
+                b.Tube(new List<Vector3> { p + Vector3.up * 0.35f, p + Vector3.up * height * 0.5f, p + Vector3.up * height },
+                       new List<float> { shaft, shaft * 1.02f, shaft * 0.86f }, g.Sides(10, 6, 4), g.Bark, FloraPart.Bark, ribs: g.Lod == 0 ? 10 : 0, ribDepth: 0.06f);
+                b.Box(p + Vector3.up * (height + 0.12f), new Vector3(shaft * 3f, 0.25f, shaft * 3f), Quaternion.Euler(0f, -a * Mathf.Rad2Deg, 0f), g.Bark, FloraPart.Bark);
+                b.Occlude(first, (q, n) => GroundOcclusion(q, height * 0.3f));
+                tops.Add(p + Vector3.up * (height + 0.4f));
+            }
+            // The lintel ring joining the column tops.
+            for (int k = 0; k < columns; k++)
+                b.Beam(tops[k], tops[(k + 1) % columns], shaft * 2.6f, 0.4f, g.Bark * 0.95f, FloraPart.Bark);
+        }
+
+        static void Fountain(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var radius = height * s.Spread * 0.5f;
+            g.Height = height;
+            g.Width = radius * 2.1f;
+            g.TrunkRadius = radius;
+            var sides = g.Sides(18, 12, 8);
+
+            // The basin wall, its rim, and the water inside.
+            var first = b.VertexCount;
+            b.Tube(new List<Vector3> { Vector3.down * 0.1f, Vector3.up * 0.6f }, new List<float> { radius, radius }, sides, g.Bark, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, 0.6f));
+            b.Tube(new List<Vector3> { Vector3.up * 0.58f, Vector3.up * 0.7f }, new List<float> { radius + 0.12f, radius + 0.12f }, sides, g.Bark * 1.05f, FloraPart.Bark);
+            var water = s.Foliage.linear;
+            b.Blob(Vector3.up * 0.66f, new Vector3(radius * 0.97f, 0.03f, radius * 0.97f), Quaternion.identity, g.Sides(2, 1, 1), 0f, 0f, water, FloraPart.Metal);
+
+            // A pillar holding up a smaller bowl, brimming, with a finial on top.
+            b.Tube(new List<Vector3> { Vector3.up * 0.5f, Vector3.up * height * 0.72f }, new List<float> { 0.22f, 0.16f }, g.Sides(8, 6, 4), g.Bark, FloraPart.Bark);
+            b.Blob(Vector3.up * height * 0.75f, new Vector3(radius * 0.38f, 0.14f, radius * 0.38f), Quaternion.identity, g.Sides(2, 1, 1), 0f, 0f, g.Bark, FloraPart.Bark);
+            b.Blob(Vector3.up * (height * 0.75f + 0.1f), new Vector3(radius * 0.34f, 0.03f, radius * 0.34f), Quaternion.identity, 1, 0f, 0f, water, FloraPart.Metal);
+            b.Tube(new List<Vector3> { Vector3.up * height * 0.78f, Vector3.up * height }, new List<float> { 0.09f, 0.03f }, g.Sides(6, 4, 3), g.Bark, FloraPart.Bark, cap: true);
         }
 
         static void Den(Grower g)

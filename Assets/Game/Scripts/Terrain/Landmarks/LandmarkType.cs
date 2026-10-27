@@ -47,6 +47,13 @@ namespace Punchy.Terrain
         public bool Centrepiece;
         [Tooltip("Turn its front (doorway, den mouth) towards the centre, as huts round a square.")]
         public bool FaceCentre;
+        [Tooltip("Place exactly this many (an inn, a pen, a couple of stalls) evenly round a circle at Ring.x, " +
+                 "starting at Angle, instead of scattering by Density. 0 = scatter.")]
+        [Min(0)] public int Count;
+        [Tooltip("Where round the circle the first one goes, in degrees from the landmark's facing.")]
+        public float Angle;
+        [Tooltip("Placed ones keep everything else (plants, scattered props) this many metres away.")]
+        [Min(0f)] public float Clearance = 4f;
     }
 
     /// <summary>A procedural effect drawn at a landmark by LandmarkEffectSystem.</summary>
@@ -81,6 +88,25 @@ namespace Punchy.Terrain
     {
         public Punchy.Fauna.CreatureSpecies Species;
         public Vector2Int Count = new Vector2Int(1, 2);
+        [Tooltip("Keep them within this many metres of their home (penned animals). 0 = anywhere in the landmark.")]
+        [Min(0f)] public float Leash;
+        [Tooltip("Their home, as a distance from the centre (in units of the radius) and an angle (degrees from " +
+                 "the landmark's facing): the same as a placed prop's Ring.x and Angle.")]
+        public float HomeRing;
+        public float HomeAngle;
+    }
+
+    public static class LandmarkLayout
+    {
+        /// <summary>
+        /// The spot a landmark puts a placed thing: a distance from the centre in units of the radius, and an angle
+        /// in degrees from its facing; as a point in the landmark's frame, in radii (for LandmarkSampling.ToWorld).
+        /// </summary>
+        public static Unity.Mathematics.float2 Spot(float ring, float angleDegrees)
+        {
+            var a = Unity.Mathematics.math.radians(angleDegrees);
+            return new Unity.Mathematics.float2(Unity.Mathematics.math.cos(a), Unity.Mathematics.math.sin(a)) * ring;
+        }
     }
 
     /// <summary>

@@ -246,6 +246,17 @@ namespace Punchy.Fauna
                         break;
                 }
 
+                // Animals with a home never head out of range of it (penned animals stay in their pen, even fleeing).
+                if (s.Leash > 0f && moving)
+                {
+                    var fromHome = s.Target - s.Home;
+                    var far = math.length(fromHome);
+                    if (far > s.Leash)
+                        s.Target = s.Home + fromHome / far * s.Leash;
+                    if (math.distance(s.Position.xz, s.Target) < 0.8f && s.Mode == CreatureMode.Flee)
+                        targetSpeed *= 0.2f;   // cornered: mill about rather than run on the spot
+                }
+
                 // Getting up comes before going anywhere.
                 targetSpeed *= math.saturate(1f - s.Lie * 1.5f);
 

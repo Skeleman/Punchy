@@ -95,7 +95,8 @@ namespace Punchy.Flora
             public int Species;
             public float Density;
             public float2 Ring, Scale;
-            public int Centrepiece, FaceCentre;
+            public int Centrepiece, FaceCentre, Count;
+            public float Angle, Clearance;
         }
 
         class Layer
@@ -353,7 +354,7 @@ namespace Punchy.Flora
                 var start = propList.Count;
                 if (landmarks[t] != null)
                     foreach (var p in landmarks[t].Props)
-                        if (p.Species != null && (int)p.Species.Layer == layer && (p.Density > 0f || p.Centrepiece))
+                        if (p.Species != null && (int)p.Species.Layer == layer && (p.Density > 0f || p.Centrepiece || p.Count > 0))
                             propList.Add(new PropEntry
                             {
                                 Species = species.IndexOf(p.Species),
@@ -361,7 +362,10 @@ namespace Punchy.Flora
                                 Ring = p.Ring,
                                 Scale = p.Scale,
                                 Centrepiece = p.Centrepiece ? 1 : 0,
-                                FaceCentre = p.FaceCentre ? 1 : 0
+                                FaceCentre = p.FaceCentre ? 1 : 0,
+                                Count = p.Count,
+                                Angle = p.Angle,
+                                Clearance = p.Clearance
                             });
                 propRanges[t * 3 + layer] = new int2(start, propList.Count - start);
             }
@@ -751,10 +755,46 @@ namespace Punchy.Flora
                     var clear = set.Types[landmark.Type].ClearRadius;
                     keep = clear > 0f ? math.smoothstep(clear * 0.8f, clear, landmark.Distance) : 1f;
                     towardsCentre = set.Instances[landmark.Instance].Position - xz;
+
+                    // Placed props (an inn, a pen): each takes the cell holding its spot, in its own layer, and keeps
+                    // everything else in every layer clear of it.
+                    var blocked = false;
+                    for (int layer = 0; layer < 3; layer++)
+                    {
+                        var placed = PropRanges[landmark.Type * 3 + layer];
+                        for (int e = placed.x; e < placed.x + placed.y; e++)
+                        {
+                            var prop = Props[e];
+                            for (int k = 0; k < prop.Count; k++)
+                            {
+                                var spot = LandmarkSampling.ToWorld(set.Instances[landmark.Instance],
+                                    LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
+                                if (layer == Layer && math.all((int2)math.floor(spot / CellSize) == cell))
+                                {
+                                    var placedRule = Rules[prop.Species];
+                                    var toCentre = set.Instances[landmark.Instance].Position - spot;
+                                    Output[i] = new FloraInstance
+                                    {
+                                        Position = new float3(spot.x, Source.SampleHeight(spot), spot.y),
+                                        Yaw = prop.FaceCentre != 0 ? math.atan2(-toCentre.x, toCentre.y) : rng.NextFloat(math.PI * 2f),
+                                        Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
+                                        Model = placedRule.FirstModel + rng.NextInt(placedRule.Variants),
+                                        Random = rng.NextFloat()
+                                    };
+                                    return;
+                                }
+                                blocked |= math.distance(xz, spot) < prop.Clearance;
+                            }
+                        }
+                    }
+                    if (blocked)
+                        return;
                     var propRange = PropRanges[landmark.Type * 3 + Layer];
                     for (int e = propRange.x; e < propRange.x + propRange.y; e++)
                     {
                         var prop = Props[e];
+                        if (prop.Count > 0)
+                            continue;
                         if (prop.Centrepiece != 0)
                         {
                             var centre = set.Instances[landmark.Instance].Position;
@@ -831,9 +871,12 @@ namespace Punchy.Flora
                 var shrink = new FixedList64Bytes<float>();
                 for (int c = 0; c < candidates.Length; c++)
                 {
-                    // Props go where the landmark puts them, whatever the ground.
+                    // Props go where the landmark puts them, whatever the ground, except too steep for the species
+                    // (rocks would jut out of cliff faces).
                     if (candidates[c] < 0)
                     {
+                        var propRule = Rules[Props[-candidates[c] - 1].Species];
+                        weights[c] *= 1f - math.smoothstep(propRule.MaxSlope - 4f, propRule.MaxSlope, slope);
                         shrink.Add(1f);
                         total += weights[c];
                         continue;

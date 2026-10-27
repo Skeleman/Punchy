@@ -64,7 +64,12 @@ Input System. Windows is the only build target so far.
   Human limb parts with different slot scales and thicknesses, plus their own torso or leg poses where the gait
   differs (goblin crouch, ogre sway). Settlements are landmarks, one per culture (HumanVillage, DwarfHold,
   ElfGrove, GoblinCamp, OgreCamp): mostly residents of that folk, in its own buildings (flora forms Hut,
-  StoneHouse, Tower, Tent, turned to face the square). Residents get a Home and Leash so they stay in town. Slot `Parent` indices count slots in the species' list,
+  StoneHouse, Tower, Tent, turned to face the square). Residents get a Home and Leash so they stay in town.
+  Set pieces use placed props (LandmarkProp.Count/Angle/Clearance: exactly N round a circle, everything else kept
+  clear): an inn and smithy in human villages, a smithy in dwarf holds, pens and stalls in camps, a forum and
+  fountain at the heart of elf groves. Residents with a Leash and HomeRing/HomeAngle live at such a spot (penned
+  animals); nothing with a home heads out of its range, even fleeing.
+- Flora tubes' caps are cones whose height scales with the radius: don't cap wide tubes (rims, platforms). Slot `Parent` indices count slots in the species' list,
   not the mirrored copies.
 - `Ambience/` — heat haze, breath and snow puffs, fireflies and butterflies, shared `AmbientParticleType`
   assets (sparkles, spores, embers, ash, fog wisps) that biomes list, and `LandmarkEffectSystem` (landmark plumes

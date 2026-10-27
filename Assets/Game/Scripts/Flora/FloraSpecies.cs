@@ -36,7 +36,19 @@ namespace Punchy.Flora
         [Tooltip("A tent of hides over crooked poles that poke out of the top: Foliage is the hide (each panel " +
                  "varies towards Foliage Variation), Bark the poles; Branches = poles. Opening faces +Z.")] Tent,
         [Tooltip("A slender tower: tapering walls (Bark) ringed with balconies, a tall pointed roof (Foliage) and " +
-                 "windows in the accent colour. Doorway faces +Z.")] Tower
+                 "windows in the accent colour. Doorway faces +Z.")] Tower,
+        [Tooltip("A round fenced pen: posts (Bark) joined by two rails, a gap for the gate at +Z and a trough. " +
+                 "Height is the fence; Spread sets the pen's size (radius = Height × Spread / 2); Branches = posts.")] Pen,
+        [Tooltip("A market stall: four posts, a counter at the front (+Z) and a sloping awning striped in Foliage " +
+                 "and the accent colour, with goods on the counter.")] Stall,
+        [Tooltip("An inn: a two-storey timber house (Bark) with a gabled roof (Foliage), chimney, windows lit in the " +
+                 "accent colour, a porch on posts at the front (+Z) and a hanging sign.")] Inn,
+        [Tooltip("A smithy: an open shed on posts under a pyramid roof (Foliage), with a stone forge of glowing coals " +
+                 "(accent colour), its chimney, and an anvil. Faces +Z.")] Smithy,
+        [Tooltip("A forum: a ring of columns (Bark) on a round platform, joined by a lintel ring. Height is the " +
+                 "columns; Spread sets the ring's size; Branches = columns.")] Forum,
+        [Tooltip("A fountain: a round stone basin (Bark) of water (Foliage, shining), with a pillar and a smaller " +
+                 "bowl in the middle.")] Fountain
     }
 
     public enum FoliageFinish : byte

@@ -15,6 +15,7 @@ MonoBehaviour:
   Radius: 50
   Scale: {x: 0.95, y: 1.1}
   MaxRelief: 18
+  MinRelief: 0
   Elevation: {x: 3, y: 10000}
   Shape: 0
   Height: 0
@@ -37,24 +38,54 @@ MonoBehaviour:
     Scale: {x: 0.9, y: 1.15}
     Centrepiece: 0
     FaceCentre: 1
+    Count: 0
+    Angle: 0
+    Clearance: 4
   - Species: {fileID: 11400000, guid: feaf8f14987029942a37240830e9420c, type: 2}
     Density: 0.06
     Ring: {x: 0.5, y: 0.95}
     Scale: {x: 0.8, y: 1}
     Centrepiece: 0
     FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
   - Species: {fileID: 11400000, guid: 86ecf3f6d6439604dbcad59755eb6017, type: 2}
     Density: 0.25
     Ring: {x: 0.85, y: 1}
     Scale: {x: 1, y: 1.6}
     Centrepiece: 0
     FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
   - Species: {fileID: 11400000, guid: b6d022bd9487a0744bddd69571f71986, type: 2}
     Density: 5
     Ring: {x: 0, y: 1}
     Scale: {x: 1.6, y: 1.6}
     Centrepiece: 1
     FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
+  - Species: {fileID: 11400000, guid: 2b10b22cb1f40f14982b3b0e74ae69d2, type: 2}
+    Density: 5
+    Ring: {x: 0.6, y: 0.6}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: 90
+    Clearance: 9
+  - Species: {fileID: 11400000, guid: 4c4bda5fd600394419954de96e4ac86c, type: 2}
+    Density: 5
+    Ring: {x: 0.28, y: 0.28}
+    Scale: {x: 1.4, y: 1.4}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 2
+    Angle: 0
+    Clearance: 4.5
   Effects:
   - Kind: 0
     Offset: {x: 0, y: 0}
@@ -80,8 +111,24 @@ MonoBehaviour:
     Glow: 0
     Period: 0
     Duty: 0.25
+  Cave: 0
+  CaveLength: 40
+  CaveDepth: 8
+  CaveRadius: 2.4
+  ChamberRadius: 6
   Residents:
   - Species: {fileID: 11400000, guid: b13923c35daf72c4c997d600178bd234, type: 2}
     Count: {x: 3, y: 5}
+    Leash: 0
+    HomeRing: 0
+    HomeAngle: 0
   - Species: {fileID: 11400000, guid: 419544623d75bcf48961c8801162cabd, type: 2}
     Count: {x: 1, y: 3}
+    Leash: 0
+    HomeRing: 0
+    HomeAngle: 0
+  - Species: {fileID: 11400000, guid: dceed473a78c0514ca16da942a240239, type: 2}
+    Count: {x: 1, y: 2}
+    Leash: 5
+    HomeRing: 0.6
+    HomeAngle: 90

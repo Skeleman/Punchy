@@ -15,6 +15,7 @@ MonoBehaviour:
   Radius: 70
   Scale: {x: 0.85, y: 1.15}
   MaxRelief: 15
+  MinRelief: 0
   Elevation: {x: 3, y: 10000}
   Shape: 2
   Height: 22
@@ -33,8 +34,14 @@ MonoBehaviour:
   Props:
   - Species: {fileID: 11400000, guid: 5fcd92ec265509742bc3dc40073c6be2, type: 2}
     Density: 1.5
-    Ring: {x: 0.5, y: 0.95}
-    Scale: {x: 0.8, y: 1.6}
+    Ring: {x: 0.6, y: 0.95}
+    Scale: {x: 0.7, y: 1.2}
     Centrepiece: 0
+    FaceCentre: 0
   Effects: []
+  Cave: 0
+  CaveLength: 40
+  CaveDepth: 8
+  CaveRadius: 2.4
+  ChamberRadius: 6
   Residents: []

@@ -358,16 +358,20 @@ namespace Punchy.Fauna
                     if (index < 0)
                         continue;
                     var count = rng.NextInt(math.max(0, r.Count.x), math.max(r.Count.x, r.Count.y) + 1);
+                    // Residents with a leash live round their own home spot (a pen); the rest anywhere in the landmark.
+                    var home = r.Leash > 0f ? LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(r.HomeRing, r.HomeAngle), radius) : inst.Position;
+                    var leash = r.Leash > 0f ? r.Leash : radius * 0.8f;
                     for (int k = 0; k < count; k++)
                     {
-                        var p = inst.Position + rng.NextFloat2Direction() * rng.NextFloat(0.1f, 0.45f) * radius;
+                        var p = r.Leash > 0f ? home + rng.NextFloat2Direction() * rng.NextFloat(0f, leash * 0.7f)
+                                             : inst.Position + rng.NextFloat2Direction() * rng.NextFloat(0.1f, 0.45f) * radius;
                         var g = source.SampleGround(p);
                         if (g.HasWater && g.WaterSurface > g.Height)
                             continue;
                         var e = Spawn(index, new float3(p.x, g.Height, p.y));
                         var state = queryWorld.EntityManager.GetComponentData<CreatureState>(e);
-                        state.Home = inst.Position;
-                        state.Leash = radius * 0.8f;
+                        state.Home = home;
+                        state.Leash = leash;
                         queryWorld.EntityManager.SetComponentData(e, state);
                     }
                 }
