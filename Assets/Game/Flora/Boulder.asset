@@ -14,12 +14,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
   Form: 12
   Layer: 2
-  Height: {x: 1.4, y: 3}
-  Spread: 0.8
+  Height: {x: 1, y: 2.6}
+  Spread: 0.9
   TrunkFraction: 0.35
   Thickness: 0.035
   Fullness: 0.7
-  Branches: {x: 1, y: 3}
+  Branches: {x: 1, y: 4}
   Flexibility: 0
   FlowerHead: 0
   Bark: {r: 0.43, g: 0.42, b: 0.4, a: 1}
@@ -41,5 +41,6 @@ MonoBehaviour:
   NearWater: 1
   OnlyNearWater: 0
   Solid: 1
-  Variants: 4
+  SizeRange: {x: 0.5, y: 1.6}
+  Variants: 8
   Seed: 71

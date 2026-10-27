@@ -140,6 +140,8 @@ namespace Punchy.Flora
         public bool OnlyNearWater;
         [Tooltip("Blocks the player (trees, big cacti).")]
         public bool Solid = true;
+        [Tooltip("Random size of each placed plant, on top of its variant's own size.")]
+        public Vector2 SizeRange = new Vector2(0.85f, 1.15f);
 
         [Header("Variety")]
         [Tooltip("Number of distinct procedurally grown shapes.")]

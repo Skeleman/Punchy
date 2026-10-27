@@ -13,6 +13,11 @@ namespace Punchy.Flora
         /// <summary>Radius of the trunk / stem at the ground, for collisions.</summary>
         public float TrunkRadius;
         public float Height;
+        /// <summary>
+        /// Collision shape for plants that aren't a single trunk (rocks): upright cylinders (x, z offset from the
+        /// plant's base, radius, height of the top), before the plant's own rotation and scale. Empty = the trunk.
+        /// </summary>
+        public readonly List<Vector4> Colliders = new List<Vector4>();
 
         public void Destroy()
         {
@@ -75,6 +80,7 @@ namespace Punchy.Flora
                 {
                     builder.Bounds(out model.CentreY, out model.Radius);
                     model.TrunkRadius = g.TrunkRadius;
+                    model.Colliders.AddRange(g.Colliders);
                     model.Height = g.Height;
                 }
                 model.Lods[lod] = builder.ToMesh($"{species.name} {variant} LOD{lod}", g.Height, g.Width, species.Flexibility);
@@ -110,6 +116,31 @@ namespace Punchy.Flora
             /// <summary>Fine detail that only some levels draw (loose leaves, florets).</summary>
             public readonly System.Random Detail;
             public float Height, Width, TrunkRadius;
+            public readonly List<Vector4> Colliders = new List<Vector4>();
+
+            /// <summary>
+            /// Adds upright cylinders covering a rotated ellipsoid's footprint: a row of circles along its longer
+            /// horizontal axis, each as wide as the shorter one, as tall as its top.
+            /// </summary>
+            public void AddCollider(Vector3 centre, Vector3 radii, Quaternion rotation)
+            {
+                var top = centre.y + radii.y;
+                if (top < 0.35f)
+                    return;   // low enough to step over
+                var ax = rotation * new Vector3(radii.x, 0f, 0f);
+                var az = rotation * new Vector3(0f, 0f, radii.z);
+                var a = new Vector2(ax.x, ax.z);
+                var c = new Vector2(az.x, az.z);
+                var major = a.magnitude >= c.magnitude ? a : c;
+                var minor = Mathf.Max(Mathf.Min(a.magnitude, c.magnitude), 0.1f);
+                var count = Mathf.Clamp(Mathf.CeilToInt(major.magnitude / minor), 1, 4);
+                for (int k = 0; k < count; k++)
+                {
+                    var t = count == 1 ? 0f : Mathf.Lerp(-1f, 1f, k / (count - 1f)) * (1f - minor / Mathf.Max(major.magnitude, minor));
+                    var at = new Vector2(centre.x, centre.z) + major * t;
+                    Colliders.Add(new Vector4(at.x, at.y, minor * 0.95f, top));
+                }
+            }
 
             public Grower(FloraSpecies s, int variant, int lod, int seed, FloraMeshBuilder b)
             {
@@ -1109,30 +1140,80 @@ namespace Punchy.Flora
             });
         }
 
+        /// <summary>
+        /// Rocks in five families, one per variant in turn: a rounded lump, a flat slab (sometimes two stacked), an
+        /// L of a long low block and an upright one, a tall standing stone, and a monstrous split mass with chunks
+        /// fallen off it. Built from rounded blocks (boxy, broadly lumpy blobs), with a few loose stones round the foot.
+        /// </summary>
         static void Boulder(Grower g)
         {
             var s = g.S;
             var b = g.B;
-            var height = g.Range(s.Height);
-            var width = height * s.Spread * 2f;
-            g.Height = height;
-            g.Width = width;
-            g.TrunkRadius = width * 0.42f;
+            var size = g.Range(s.Height);
+            var family = g.Variant % 5;
             var detail = g.Sides(3, 2, 1);
-
             var first = b.VertexCount;
-            var count = g.Count(s.Branches);
-            for (int i = 0; i < count; i++)
+            var yaw = g.R() * 360f;
+
+            void Block(Vector3 centre, Vector3 radii, Quaternion rotation, float sink = 0.3f)
             {
-                // The main rock in the middle, smaller ones leaning against and around it.
-                var size = i == 0 ? 1f : g.Range(0.2f, 0.5f);
-                var at = i == 0 ? Vector3.zero : g.Flat(g.R() * 6.28f) * width * g.Range(0.45f, 0.8f);
-                var radii = new Vector3(width * 0.5f, height * 0.62f, width * 0.5f * g.Range(0.65f, 1f)) * size;
-                var rotation = Quaternion.Euler(g.Range(-12f, 12f), g.R() * 360f, g.Range(-12f, 12f));
-                var color = Color.Lerp(g.Bark, g.Bark * 0.78f, g.R());
-                b.Blob(at + Vector3.up * radii.y * 0.55f, radii, rotation, i == 0 ? detail : Mathf.Max(0, detail - 1), 0.24f, g.R() * 100f, color, FloraPart.Bark);
+                var at = centre + Vector3.up * radii.y * (1f - sink);
+                var colour = Color.Lerp(g.Bark, g.Bark * 0.8f, g.R());
+                b.Blob(at, radii, rotation, detail, 0.14f, g.R() * 100f, colour, FloraPart.Bark, 1f, g.Range(0.35f, 0.6f), 0.55f);
+                g.AddCollider(at, radii * 0.92f, rotation);
             }
-            b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.25f) * Mathf.Lerp(0.75f, 1f, Mathf.Clamp01(n.y + 0.6f)));
+            Quaternion Turn(float tilt = 8f) => Quaternion.Euler(g.Range(-tilt, tilt), yaw + g.Range(-20f, 20f), g.Range(-tilt, tilt));
+
+            var w = size * s.Spread;
+            switch (family)
+            {
+                case 0:   // lump
+                    Block(Vector3.zero, new Vector3(w, size * 0.55f, w * g.Range(0.6f, 0.95f)), Turn());
+                    break;
+                case 1:   // slab, sometimes with a second resting on it
+                    Block(Vector3.zero, new Vector3(w * 1.3f, size * 0.22f, w * g.Range(0.7f, 1f)), Turn(4f), 0.4f);
+                    if (g.R() < 0.5f)
+                        Block(new Vector3(g.Range(-0.3f, 0.3f) * w, size * 0.25f, g.Range(-0.3f, 0.3f) * w),
+                              new Vector3(w * 0.75f, size * 0.17f, w * 0.55f), Turn(6f), 0.2f);
+                    break;
+                case 2:   // L: a long low block with an upright one at its end
+                {
+                    var along = Quaternion.Euler(0f, yaw, 0f) * Vector3.right;
+                    Block(-along * w * 0.35f, new Vector3(w * 1.1f, size * 0.3f, w * 0.5f), Quaternion.Euler(g.Range(-4f, 4f), yaw, g.Range(-4f, 4f)), 0.35f);
+                    Block(along * w * 0.6f, new Vector3(w * 0.45f, size * 0.75f, w * 0.5f), Quaternion.Euler(g.Range(-6f, 6f), yaw + g.Range(-10f, 10f), g.Range(-6f, 6f)), 0.25f);
+                    break;
+                }
+                case 3:   // standing
+                    Block(Vector3.zero, new Vector3(w * 0.5f, size * 0.95f, w * g.Range(0.35f, 0.55f)), Turn(12f), 0.2f);
+                    break;
+                default:   // monstrous: a big mass split down the middle, chunks fallen from it
+                {
+                    var big = 1.9f;
+                    var split = Quaternion.Euler(0f, yaw, 0f) * Vector3.right * w * big * 0.32f;
+                    Block(-split, new Vector3(w * big * 0.6f, size * big * 0.55f, w * big * 0.8f), Turn(5f), 0.3f);
+                    Block(split, new Vector3(w * big * 0.5f, size * big * 0.48f, w * big * 0.75f), Turn(7f), 0.3f);
+                    for (int k = 0; k < 2; k++)
+                        Block(g.Flat(g.R() * 6.28f) * w * big * g.Range(0.9f, 1.2f), new Vector3(w * 0.45f, size * 0.35f, w * 0.4f), Turn(15f), 0.35f);
+                    size *= big;
+                    w *= big;
+                    break;
+                }
+            }
+
+            // Loose stones round the foot.
+            var loose = Mathf.Max(0, g.Count(s.Branches) - 1);
+            for (int k = 0; k < loose && g.Lod < 2; k++)
+            {
+                var r = w * g.Range(0.12f, 0.25f);
+                var at = g.Flat(g.R() * 6.28f) * w * g.Range(0.9f, 1.4f) + Vector3.up * r * 0.3f;
+                b.Blob(at, new Vector3(r, r * g.Range(0.45f, 0.75f), r * g.Range(0.6f, 1f)), Turn(20f), Mathf.Max(0, detail - 1), 0.12f, g.R() * 100f,
+                       Color.Lerp(g.Bark, g.Bark * 0.8f, g.R()), FloraPart.Bark, 1f, 0.4f, 0.6f);
+            }
+
+            g.Height = size;
+            g.Width = w * 2.4f;
+            g.TrunkRadius = w * 0.45f;
+            b.Occlude(first, (p, n) => GroundOcclusion(p, size * 0.25f) * Mathf.Lerp(0.75f, 1f, Mathf.Clamp01(n.y + 0.6f)));
             Moss(g, first);
         }
 

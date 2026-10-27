@@ -81,6 +81,7 @@ namespace Punchy.Flora
             public float2 PatchOffset;
             public float NearWater;
             public int OnlyNearWater;
+            public float2 SizeRange;
         }
 
         struct BiomeEntry
@@ -326,7 +327,8 @@ namespace Punchy.Flora
                     PatchCoverage = s.PatchCoverage,
                     PatchOffset = new float2(h & 0xFFFF, h >> 16) / 65535f * 300f,
                     NearWater = s.NearWater,
-                    OnlyNearWater = s.OnlyNearWater ? 1 : 0
+                    OnlyNearWater = s.OnlyNearWater ? 1 : 0,
+                    SizeRange = s.SizeRange
                 };
             }
 
@@ -700,12 +702,28 @@ namespace Punchy.Flora
                         var model = models[inst.Model];
                         if (!model.Species.Solid || model.TrunkRadius <= 0f || math.distance(inst.Position.xz, centre) > CollisionRange)
                             continue;
-                        buffer.Add(new FloraObstacle
+                        if (model.Colliders.Count == 0)
                         {
-                            Position = inst.Position,
-                            Radius = model.TrunkRadius * inst.Scale,
-                            Height = model.Height * inst.Scale
-                        });
+                            buffer.Add(new FloraObstacle
+                            {
+                                Position = inst.Position,
+                                Radius = model.TrunkRadius * inst.Scale,
+                                Height = model.Height * inst.Scale
+                            });
+                            continue;
+                        }
+                        // Shaped plants (rocks): their cylinders, turned and scaled as the plant is drawn.
+                        float c = math.cos(inst.Yaw), sn = math.sin(inst.Yaw);
+                        foreach (var col in model.Colliders)
+                        {
+                            var offset = new float2(col.x * c - col.y * sn, col.x * sn + col.y * c) * inst.Scale;
+                            buffer.Add(new FloraObstacle
+                            {
+                                Position = inst.Position + new float3(offset.x, 0f, offset.y),
+                                Radius = col.z * inst.Scale,
+                                Height = col.w * inst.Scale
+                            });
+                        }
                     }
                 }
             }
@@ -906,14 +924,15 @@ namespace Punchy.Flora
 
                 var pick = 0;
                 for (var cumulative = weights[0]; pick < candidates.Length - 1 && roll >= cumulative; cumulative += weights[++pick]) { }
-                var scale = rng.NextFloat(0.85f, 1.15f);
-                var yaw = rng.NextFloat(math.PI * 2f);
                 var picked = candidates[pick];
+                var sizes = Rules[picked < 0 ? Props[-picked - 1].Species : picked].SizeRange;
+                var scale = rng.NextFloat(sizes.x, math.max(sizes.x, sizes.y));
+                var yaw = rng.NextFloat(math.PI * 2f);
                 if (picked < 0)
                 {
                     var prop = Props[-picked - 1];
                     picked = prop.Species;
-                    scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y));
+                    scale *= rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y));
                     // Models face +Z, which yaw turns to (-sin, cos).
                     if (prop.FaceCentre != 0)
                         yaw = math.atan2(-towardsCentre.x, towardsCentre.y) + rng.NextFloat(-0.15f, 0.15f);

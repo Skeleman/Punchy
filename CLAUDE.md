@@ -69,6 +69,10 @@ Input System. Windows is the only build target so far.
   clear): an inn and smithy in human villages, a smithy in dwarf holds, pens and stalls in camps, a forum and
   fountain at the heart of elf groves. Residents with a Leash and HomeRing/HomeAngle live at such a spot (penned
   animals); nothing with a home heads out of its range, even fleeing.
+- Rocks (Boulder form) come in five families by variant (lump, slab, L, standing, monstrous) and carry their own
+  collision: FloraModel.Colliders, a few upright cylinders hugging the footprint, turned and scaled with each
+  placed rock (other solid plants use one trunk cylinder). FloraSpecies.SizeRange sets each placed plant's
+  random size; a landmark prop's Scale multiplies it.
 - Flora tubes' caps are cones whose height scales with the radius: don't cap wide tubes (rims, platforms). Slot `Parent` indices count slots in the species' list,
   not the mirrored copies.
 - `Ambience/` — heat haze, breath and snow puffs, fireflies and butterflies, shared `AmbientParticleType`

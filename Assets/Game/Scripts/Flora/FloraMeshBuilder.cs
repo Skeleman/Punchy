@@ -206,18 +206,22 @@ namespace Punchy.Flora
         /// A noisy ellipsoid (leaf clump, cactus pad). Detail 0–3 subdivides an icosahedron (20 → 1280 triangles).
         /// Returns the first vertex so callers can adjust normals, colour or occlusion.
         /// </summary>
+        /// <param name="boxiness">0 = ellipsoid, towards 1 = a rounded block (rocks).</param>
+        /// <param name="noiseScale">Scales the bump frequency: below 1 gives broad lumps rather than spikes.</param>
         public int Blob(Vector3 centre, Vector3 radii, Quaternion rotation, int detail, float bumpiness, float seed,
-                        Color color, FloraPart part, float ao = 1f)
+                        Color color, FloraPart part, float ao = 1f, float boxiness = 0f, float noiseScale = 1f)
         {
             var (verts, tris) = Icosphere.Get(detail);
             var firstVertex = positions.Count;
             var firstIndex = indices.Count;
-            var freq = 1.6f + detail * 0.4f;
+            var freq = (1.6f + detail * 0.4f) * noiseScale;
             foreach (var u in verts)
             {
                 var n = noise.snoise(new float3(u.x * freq + seed, u.y * freq - seed * 0.7f, u.z * freq + seed * 1.3f)) * 0.7f +
                         noise.snoise(new float3(u.x * freq * 2.3f - seed, u.y * freq * 2.3f, u.z * freq * 2.3f + seed)) * 0.3f;
-                var local = Vector3.Scale(u, radii) * (1f + bumpiness * n);
+                // Pushed out towards the enclosing cube, so the shape has flat-ish faces and rounded edges.
+                var shape = boxiness > 0f ? Vector3.Lerp(u, u / Mathf.Max(Mathf.Abs(u.x), Mathf.Max(Mathf.Abs(u.y), Mathf.Abs(u.z))), boxiness) : u;
+                var local = Vector3.Scale(shape, radii) * (1f + bumpiness * n);
                 Vertex(centre + rotation * local, rotation * u, color, part, ao);
             }
             for (int i = 0; i < tris.Length; i += 3)
