@@ -176,9 +176,14 @@ Input System. Windows is the only build target so far.
 
 - Built on Netcode for Entities. The plan, ownership and log are in `MULTIPLAYER.md`, shared with a second Claude
   instance; read it after every pull.
-- There are two worlds, ServerWorld and ClientWorld. `World.DefaultGameObjectInjectionWorld` is the **client** world
-  (set by `Net/GameBootstrap.cs`), so MonoBehaviours see the local player's view. Server-side code finds its world
-  through `NetWorlds.Server`.
+- **Playing alone there is no networking:** one local world (`GameBootstrap.Solo`), as before multiplayer.
+  - Hosting or joining (F2, or the flags below) disposes it and creates the netcode worlds, ServerWorld and/or
+    ClientWorld. `GameBootstrap.PlaySolo()` goes back.
+  - A lost host, a join that never connects, or a failed Relay join all drop back to solo where you stand.
+  - `World.DefaultGameObjectInjectionWorld` is the local world or the **client** world, so MonoBehaviours always
+    see the local player's view. Server-side code finds its world through `NetWorlds.Server`, which is the local
+    world when solo. Use `world.IsServer()` when it matters.
+  - Code must work in all three: local, client and server.
 - Systems that touch input, cameras, meshes or rendering need
   `[WorldSystemFilter(LocalSimulation | ClientSimulation)]` or a presentation group, so they never run on the
   server.
@@ -198,17 +203,19 @@ Input System. Windows is the only build target so far.
   `WeatherSystem.Remote = true` and copy that state in (`WorldSync`). Clients whose world fingerprint differs
   are disconnected.
 - **Connecting:**
-  - Default is to host on UDP 7979.
+  - Default is solo. `-host` hosts on LAN (UDP 7979) from the start, and so does Multiplayer Play Mode's Client
+    play type for virtual players.
   - `-join <ip>` joins over LAN; `-hostonline` / `-joincode <CODE>` go through Unity Relay.
   - F2 opens the panel for all of these and the body picker.
-  - Test flags: `-body <Name>`, `-autowalk`, `-newlook`.
+  - Test flags: `-body <Name>`, `-autowalk`, `-newlook`, `-time <h>`, `-place <name>`. A timestamped "Net status"
+    line is logged every 10 s.
 - Netcode needs **Run In Background** (set in Player Settings, and for play mode in the editor), or a tabbed-out
   player stalls.
 - MonoBehaviour authoring classes must live in a file named after the class, or subscene baking silently skips
   them.
 - Reimporting an asset or recompiling in play mode rebakes the subscene and resets the game. Test with builds:
   File → Build Profiles → Windows → Build to `Builds/Windows/Punchy.exe` (or a throwaway `BuildPipeline.BuildPlayer`
-  script run through `unity command script run`; none is kept in the repo), then run `Builds/Windows/Punchy.exe -join 127.0.0.1` against an editor host.
+  script run through `unity command script run`; none is kept in the repo), then run `Builds/Windows/Punchy.exe -join 127.0.0.1` against a `-host` build or an editor that is hosting (F2).
 
 ### Keeping new features multiplayer-ready
 

@@ -108,7 +108,7 @@ namespace Punchy.Net
                 subscribed = true;
             }
             Shader.SetGlobalFloat(ClockId, SharedClock());
-            var hosting = server != null && server.IsCreated;
+            var hosting = server != null && server.IsCreated && server.IsServer();
             var joined = !hosting && client != null && client.IsCreated && client.IsClient();
             if (Weather != null)
                 Weather.Remote = joined;
@@ -131,7 +131,7 @@ namespace Punchy.Net
 
         void LateUpdate()
         {
-            if (server != null && server.IsCreated && stateGhost != Entity.Null)
+            if (server != null && server.IsCreated && server.IsServer() && stateGhost != Entity.Null)
                 PublishState();
         }
 

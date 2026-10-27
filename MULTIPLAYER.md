@@ -409,3 +409,25 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
     - Our state is mostly generated (seed, animals) or already carried over (sky). A lighter option would be a Lobby
       that lists the next host and its join code, so players regroup automatically without migrating ghost state.
     - Left for Zach to decide.
+- 2026-10-27 — A — **Solo play without networking.**
+  - The game now starts in one local world with no netcode, as before multiplayer.
+  - Hosting or joining replaces it with the netcode worlds: F2's "Host on my network" or "Host online", joining, or
+    the `-host`, `-hostonline`, `-join` and `-joincode` flags. `GameBootstrap.PlaySolo()` goes back:
+    - "Stop hosting" or "Leave" in F2;
+    - a lost host;
+    - a join that never connects;
+    - a failed Relay join.
+  - Position and sky carry across every switch. `GameBootstrap.Solo` says which mode we're in. `NetWorlds.Server` is
+    the local world when solo, so code that needs a real server checks `IsServer()`. WorldSync does this.
+  - The status line has a solo form listing the worlds.
+  - **Tested** (Builds/Test):
+    - solo start;
+    - solo → `-hostonline` (sky carried) → a second copy joined by code → host killed → the joiner went solo at the
+      same spot with the sky carried;
+    - a bad code → solo in about 2 s;
+    - a bad IP → solo after 15 s.
+  - **Cost of hosting vs solo on A's PC** (ElfGrove, noon, 1280x720): fps the same (237 solo vs 250 host,
+    GPU-bound), but about 14% more CPU time (289 s vs 330 s over 75 s). Weaker CPUs should gain more from solo.
+  - **1-hour local soak** (two copies autowalking, the previous build): no disconnects or errors. Memory grew
+    1410 → 1542 MB on the client and 1481 → 1542 MB on the host, slowing (about 20 MB in the last 30 min). Small;
+    worth a Memory Profiler look if it ever matters.

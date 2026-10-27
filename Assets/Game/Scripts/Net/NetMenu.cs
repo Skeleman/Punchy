@@ -68,8 +68,15 @@ namespace Punchy.Net
                 return;
             nextStatus = Time.unscaledTime + 10f;
             var client = NetWorlds.Client;
-            if (client == null || !client.IsCreated || !client.IsClient())
+            if (client == null || !client.IsCreated)
                 return;
+            if (!client.IsClient())
+            {
+                // Alone: no networking, the animals live in this one world.
+                Debug.Log($"Net status (solo) {System.DateTime.Now:HH:mm:ss.ff}: worlds [{string.Join(", ", WorldNames())}], " +
+                          $"animals {Count<Punchy.Fauna.CreatureBody>(client)}, {1f / Time.smoothDeltaTime:F0} fps, {Whereabouts(client)}");
+                return;
+            }
             if (cycle == null)
                 cycle = FindAnyObjectByType<Punchy.Weather.DayNightCycle>();
             var time = cycle != null ? $"{(int)cycle.TimeOfDay:00}:{(int)((cycle.TimeOfDay % 1f) * 60f):00}" : "?";
@@ -77,6 +84,13 @@ namespace Punchy.Net
             Debug.Log($"Net status ({role}) {System.DateTime.Now:HH:mm:ss.ff}: in game {Count<NetworkStreamInGame>(client) > 0}, players {Count<NetPlayer>(client)}, " +
                       $"animals {Count<Punchy.Net.CreatureReplica>(client)} ({AnimalsWithBodies(client, out var nearest)} with bodies, nearest {nearest:F0} m), " +
                       $"time {time}, shared clock {Shader.GetGlobalFloat("_PunchyClock"):F2} s, {1f / Time.smoothDeltaTime:F0} fps, {Whereabouts(client)}");
+        }
+
+        static System.Collections.Generic.IEnumerable<string> WorldNames()
+        {
+            foreach (var w in World.All)
+                if (w.IsCreated && (w.Flags & WorldFlags.Game) != 0)
+                    yield return w.Name;
         }
 
         /// <summary>Where we are, and how far the nearest other player is (for reading tests from the log).</summary>
@@ -144,14 +158,25 @@ namespace Punchy.Net
             box ??= new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 13, padding = new RectOffset(10, 10, 8, 8) };
             lanAddress ??= LanAddress();
 
-            var server = NetWorlds.Server;
+            var solo = GameBootstrap.Solo;
+            var server = solo ? null : NetWorlds.Server;
             var client = NetWorlds.Client;
             var players = server != null ? Count<NetworkId>(server) : -1;
             var connected = client != null && Count<NetworkId>(client) > 0;
 
             GUILayout.BeginArea(new Rect(Screen.width - 330, 10, 320, 360), box);
             GUILayout.Label("<b>Multiplayer</b>  (F2)", new GUIStyle(GUI.skin.label) { richText = true });
-            if (server != null && RelaySessions.JoinCode != null)
+            if (solo)
+            {
+                GUILayout.Label("Playing alone (no networking). Host to let others join, or join someone.",
+                    new GUIStyle(GUI.skin.label) { wordWrap = true });
+                if (GUILayout.Button("Host on my network"))
+                {
+                    RelaySessions.Forget();
+                    GameBootstrap.Host();
+                }
+            }
+            else if (server != null && RelaySessions.JoinCode != null)
             {
                 GUILayout.Label($"Hosting online — {players} player(s) connected");
                 GUILayout.BeginHorizontal();
@@ -189,10 +214,10 @@ namespace Punchy.Net
                 }
             }
             GUILayout.EndHorizontal();
-            if (server == null && GUILayout.Button("Host my own game instead"))
+            if (!solo && GUILayout.Button(server != null ? "Stop hosting (play alone)" : "Leave (play alone)"))
             {
                 RelaySessions.Forget();
-                GameBootstrap.Host();
+                GameBootstrap.PlaySolo();
             }
 
             // Online, through Unity Relay: friends anywhere join with a code.
@@ -287,7 +312,7 @@ namespace Punchy.Net
             placementDeadline = -1f;
         }
 
-        /// <summary>A joined player whose host goes away carries on alone, hosting their own game where they stand.</summary>
+        /// <summary>A joined player whose host goes away carries on alone where they stand, without networking.</summary>
         void WatchForHostLeaving()
         {
             var client = NetWorlds.Client;
@@ -314,7 +339,7 @@ namespace Punchy.Net
                 Notify($"Couldn't reach {GameBootstrap.JoiningTo}. Check the address: the host's F2 panel shows it.", 8f);
                 GameBootstrap.JoiningSince = -1f;
                 RelaySessions.Forget();
-                GameBootstrap.Host();
+                GameBootstrap.PlaySolo();
                 return;
             }
             if (!wasInGame)
@@ -329,7 +354,7 @@ namespace Punchy.Net
                 wasInGame = false;
                 lostAt = -1f;
                 RelaySessions.Forget();
-                GameBootstrap.Host();
+                GameBootstrap.PlaySolo();
             }
         }
 

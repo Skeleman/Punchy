@@ -100,7 +100,7 @@ namespace Punchy.Net
                 Debug.LogWarning($"RelaySessions: couldn't join {code}: {e}");
                 // Launched with -joincode there's no game of our own yet: start one rather than stand in an empty world.
                 if (NetWorlds.Server == null && !InGame())
-                    GameBootstrap.Host();
+                    GameBootstrap.PlaySolo();
             }
             Busy = false;
         }

@@ -10,10 +10,11 @@ using UnityEngine.Scripting;
 namespace Punchy.Net
 {
     /// <summary>
-    /// Creates the netcode worlds: a server world (authoritative simulation) and a client world (the local player's
-    /// view, input and everything drawn). By default this machine hosts: it listens on <see cref="Port"/> and its own
-    /// client connects over loopback. Launching with <c>-join &lt;ip&gt;</c> creates only a client that joins that
-    /// host instead (and Multiplayer Play Mode's virtual players join the editor's host the same way).
+    /// Creates the game's worlds. Playing alone (the default) there's just one local world with no networking, as
+    /// before multiplayer, so solo play pays nothing for it. Hosting (F2, or <c>-host</c>) swaps in a server world
+    /// (authoritative simulation, listening on <see cref="Port"/>) plus a client world (the local player's view, input
+    /// and everything drawn) connected to it in-process; <c>-join &lt;ip&gt;</c> creates only a client that joins
+    /// that host (and Multiplayer Play Mode's virtual players join the editor's host the same way).
     /// The stock bootstrap makes whichever world it creates first the default injection world, which would be the
     /// server; MonoBehaviours (camera, weather, ambience, debug controls) must talk to the client world, so it's made
     /// the default here. Server code finds its world through <see cref="NetWorlds"/>.
@@ -62,13 +63,41 @@ namespace Punchy.Net
                 AutoConnectPort = 0;
                 CreateClientWorld("ClientWorld");
             }
-            else
+            else if (HasArgument("-host") || RequestedPlayType == PlayType.Client)
             {
+                // Host on the LAN straight away (or, as a Multiplayer Play Mode virtual player, join the editor).
                 AutoConnectPort = Port;
                 CreateDefaultClientServerWorlds();
             }
+            else
+            {
+                AutoConnectPort = 0;
+                CreateLocalWorld(defaultWorldName);
+                return true;
+            }
             MakeClientDefault();
             return true;
+        }
+
+        /// <summary>Playing alone, with no networking at all.</summary>
+        public static bool Solo
+        {
+            get
+            {
+                var world = World.DefaultGameObjectInjectionWorld;
+                return world != null && world.IsCreated && !world.IsClient() && !world.IsServer();
+            }
+        }
+
+        /// <summary>Drops any network game and carries on alone where we stand, without networking.</summary>
+        public static void PlaySolo()
+        {
+            JoiningSince = -1f;
+            PendingPlacement = Placement.KeepPosition;
+            DisposeGameWorlds();
+            AutoConnectPort = 0;
+            CreateLocalWorld("Default World");
+            ReloadScene();
         }
 
         static string JoinAddressFromCommandLine()
@@ -94,7 +123,7 @@ namespace Punchy.Net
         {
             StartedJoining(host.ToString());
             PendingPlacement = Placement.NearHost;
-            DisposeNetWorlds();
+            DisposeGameWorlds();
             AutoConnectPort = 0;
             var client = CreateClientWorld("ClientWorld");
             World.DefaultGameObjectInjectionWorld = client;
@@ -108,7 +137,7 @@ namespace Punchy.Net
         {
             JoiningSince = -1f;
             PendingPlacement = Placement.KeepPosition;
-            DisposeNetWorlds();
+            DisposeGameWorlds();
             AutoConnectPort = 0;
             var server = CreateServerWorld("ServerWorld");
             var client = CreateClientWorld("ClientWorld");
@@ -128,7 +157,7 @@ namespace Punchy.Net
         {
             JoiningSince = -1f;
             PendingPlacement = Placement.KeepPosition;
-            DisposeNetWorlds();
+            DisposeGameWorlds();
             AutoConnectPort = 0;
             var server = CreateServerWorld("ServerWorld");
             var client = CreateClientWorld("ClientWorld");
@@ -167,7 +196,7 @@ namespace Punchy.Net
         {
             StartedJoining("an online game");
             PendingPlacement = Placement.NearHost;
-            DisposeNetWorlds();
+            DisposeGameWorlds();
             AutoConnectPort = 0;
             var client = CreateClientWorld("ClientWorld");
             World.DefaultGameObjectInjectionWorld = client;
@@ -189,7 +218,7 @@ namespace Punchy.Net
         /// <summary>Raised just before the worlds are replaced, while the old game is still intact.</summary>
         public static event Action WorldsReplacing;
 
-        static void DisposeNetWorlds()
+        static void DisposeGameWorlds()
         {
             WorldsReplacing?.Invoke();
             // Remember where the local player was, so hosting again (or the host leaving) doesn't send them home.
@@ -198,10 +227,11 @@ namespace Punchy.Net
                 using (var q = client.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Player.PlayerTag>(), ComponentType.ReadOnly<Unity.Transforms.LocalTransform>()))
                     if (q.TryGetSingleton<Unity.Transforms.LocalTransform>(out var t))
                         CarriedPosition = t.Position;
+            var solo = Solo ? World.DefaultGameObjectInjectionWorld : null;
             for (int i = World.All.Count - 1; i >= 0; i--)
             {
                 var world = World.All[i];
-                if (world.IsClient() || world.IsServer())
+                if (world.IsClient() || world.IsServer() || world == solo)
                     world.Dispose();
             }
         }

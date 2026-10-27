@@ -79,8 +79,9 @@ namespace Punchy.Net
 
         void Update()
         {
+            // The client world, or the local world when playing alone (our own look applies there too).
             var client = NetWorlds.Client;
-            if (client == null || !client.IsCreated || !client.IsClient())
+            if (client == null || !client.IsCreated)
                 return;
             if (world != client)
             {
