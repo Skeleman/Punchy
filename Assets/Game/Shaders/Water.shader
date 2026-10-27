@@ -72,6 +72,8 @@ Shader "Punchy/Water"
                 half _Smoothness;
                 half _ScreenReflection;
             CBUFFER_END
+            // 0 above ground, 1 with the camera deep in a cave (CaveSystem).
+            float _PunchyUnderground;
 
             // Must match WaterVertex in BuildChunkMeshJob.cs.
             struct WaterAttributes
@@ -300,6 +302,9 @@ Shader "Punchy/Water"
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
                 half3 ambient = SampleSH(n);
+                // Underground the sun and sky don't reach (cave rock deep down casts no sun shadow, so it's done here).
+                shadow *= 1 - _PunchyUnderground;
+                ambient *= lerp(1, 0.06, _PunchyUnderground);
 
                 // Glowing (toxic) water swirls between its colour and a shifted hue in slow-moving patches.
                 half swirl = smoothstep(0.35, 0.65, PunchyValueNoise(p * 0.06 + float2(t * 0.01, -t * 0.013)) * 0.7 + PunchyValueNoise(p * 0.21) * 0.3);
@@ -316,7 +321,9 @@ Shader "Punchy/Water"
                 // pointing at the sky; tilted ripples would otherwise mirror the lower hemisphere.
                 float3 r = reflect(-v, nReflect);
                 r.y = max(r.y, 0.03);
-                half3 reflection = PunchySkyColor(r, false, true);
+                // Underground (cave pools and streams, seen from inside) there is no sky to mirror: only darkness, and
+                // whatever the screen-space march finds.
+                half3 reflection = PunchySkyColor(r, false, true) * lerp(1, 0.04, _PunchyUnderground);
                 // ...and the scene where the reflected ray finds it (the far bank, trees, rocks, creatures).
                 if (frontFace && _ScreenReflection > 0 && lava < 0.99)
                 {
@@ -325,7 +332,8 @@ Shader "Punchy/Water"
                 }
                 float3 h = normalize(light.direction + v);
                 // Thick water has a broad, soft sheen rather than a sharp glint.
-                half glint = pow(saturate(dot(n, h)), exp2(lerp(10 * _Smoothness + 1, 6, viscous))) * shadow * (1 - 0.6 * viscous);
+                half glint = pow(saturate(dot(n, h)), exp2(lerp(10 * _Smoothness + 1, 6, viscous))) * shadow * (1 - 0.6 * viscous)
+                             * (1 - _PunchyUnderground);
 
                 fresnel *= 1 - 0.5 * murk * (1 - viscous);
                 half3 color = lerp(body, reflection, fresnel) + light.color * glint * 4 * (1 - 0.6 * murk * (1 - viscous));

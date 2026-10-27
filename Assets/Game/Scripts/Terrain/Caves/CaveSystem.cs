@@ -306,7 +306,9 @@ namespace Punchy.Terrain
                 var prev = set.StreamPoints[stream.FirstPoint + math.max(k - 1, 0)].Position;
                 var next = set.StreamPoints[stream.FirstPoint + math.min(k + 1, count - 1)].Position;
                 var along = math.normalizesafe((next - prev).xz, new float2(1f, 0f));
-                var side = new float2(-along.y, along.x) * p.Width * 0.5f;
+                // Narrowing to a trickle at both ends, rather than stopping square.
+                var taper = math.lerp(0.15f, 1f, math.saturate(math.min(k, count - 1 - k) / 2f));
+                var side = new float2(-along.y, along.x) * p.Width * 0.5f * taper;
                 var drop = (prev.y - next.y) / math.max(math.distance(prev.xz, next.xz), 0.1f);
                 var rapids = math.saturate(drop * 3f);
                 foreach (var edge in new[] { -1f, 0f, 1f })
