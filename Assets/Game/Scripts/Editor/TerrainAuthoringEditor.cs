@@ -77,6 +77,10 @@ namespace Punchy.Editor
                     source.Biomes.Dispose();
                 if (source.Rivers.IsCreated)
                     source.Rivers.Dispose();
+                if (source.BiomeCells.IsCreated)
+                    source.BiomeCells.Dispose();
+                if (source.Landmarks.IsCreated)
+                    source.Landmarks.Dispose();
             }
         }
 

@@ -109,6 +109,16 @@ namespace Punchy.Terrain
         public float LandFrequency;
     }
 
+    /// <summary>
+    /// Each biome region's (Voronoi cell's) biome, worked out once at bake time for every cell around the island:
+    /// picking it means evaluating the climate fields, far too slow to repeat for every terrain sample.
+    /// </summary>
+    public struct BiomeCellTableBlob
+    {
+        public int2 Min, Size;
+        public BlobArray<byte> Ids;
+    }
+
     /// <summary>Biome index per pixel, covering a square region of the world.</summary>
     public struct BiomeMapBlob
     {
@@ -225,7 +235,11 @@ namespace Punchy.Terrain
     {
         /// <summary>Finds the warped-Voronoi feature points around xz; weights for any blend width derive from this.</summary>
         /// <param name="spawnCell">From <see cref="SpawnCell"/>; this region always gets the first biome.</param>
-        public static BiomeCells Cells(in BiomeNoiseSettings s, ref BiomeSetBlob set, int2 spawnCell, float2 xz)
+        public static BiomeCells Cells(in BiomeNoiseSettings s, ref BiomeSetBlob set, int2 spawnCell, float2 xz) =>
+            Cells(s, ref set, default, spawnCell, xz);
+
+        /// <param name="table">Precomputed cell biomes (<see cref="BuildCellTable"/>); cells outside it are worked out.</param>
+        public static BiomeCells Cells(in BiomeNoiseSettings s, ref BiomeSetBlob set, BlobAssetReference<BiomeCellTableBlob> table, int2 spawnCell, float2 xz)
         {
             var p = Warp(s, xz);
             var cell = (int2)math.floor(p);
@@ -237,7 +251,7 @@ namespace Punchy.Terrain
                 var d = math.distance(p, c + CellJitter(c, s.Seed));
                 cells.Distances.Add(d);
                 // The region containing the world origin always uses the first biome, so the start area is predictable.
-                cells.Biomes.Add(math.all(c == spawnCell) ? 0 : CellBiome(c, s, ref set));
+                cells.Biomes.Add(math.all(c == spawnCell) ? 0 : LookUp(c, s, ref set, table));
                 cells.Nearest = math.min(cells.Nearest, d);
             }
             return cells;
@@ -382,6 +396,36 @@ namespace Punchy.Terrain
             var outside = math.max(math.max(b.ClimateMin - climate, climate - b.ClimateMax), 0f);
             // Volcanism is strict, so the ashlands give way to the volcano at a hotspot's heart.
             return math.lengthsq(outside / new float4(0.15f, 0.15f, 0.15f, 0.04f));
+        }
+
+        static int LookUp(int2 cell, in BiomeNoiseSettings s, ref BiomeSetBlob set, BlobAssetReference<BiomeCellTableBlob> table)
+        {
+            if (table.IsCreated)
+            {
+                var local = cell - table.Value.Min;
+                if (math.all(local >= 0) && math.all(local < table.Value.Size))
+                    return table.Value.Ids[local.y * table.Value.Size.x + local.x];
+            }
+            return CellBiome(cell, s, ref set);
+        }
+
+        /// <summary>Precomputes the biome of every cell that can reach within <paramref name="extent"/> of the origin.</summary>
+        public static BlobAssetReference<BiomeCellTableBlob> BuildCellTable(in BiomeNoiseSettings s, ref BiomeSetBlob set, float extent, Allocator allocator)
+        {
+            var reach = (extent + math.abs(s.WarpStrength)) / math.max(s.CellSize, 1f);
+            var min = (int2)math.floor(-reach) - 2;
+            var size = (int2)math.ceil(reach * 2f) + 5;
+            var builder = new BlobBuilder(Allocator.Temp);
+            ref var root = ref builder.ConstructRoot<BiomeCellTableBlob>();
+            root.Min = min;
+            root.Size = size;
+            var ids = builder.Allocate(ref root.Ids, size.x * size.y);
+            for (int y = 0; y < size.y; y++)
+            for (int x = 0; x < size.x; x++)
+                ids[y * size.x + x] = (byte)CellBiome(min + new int2(x, y), s, ref set);
+            var blob = builder.CreateBlobAssetReference<BiomeCellTableBlob>(allocator);
+            builder.Dispose();
+            return blob;
         }
 
         /// <summary>A region's biome: random, weighted by each biome's frequency and how well it suits the climate.</summary>

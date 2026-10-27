@@ -14,10 +14,11 @@ namespace Punchy.Terrain
     public struct TerrainFocus : IComponentData { }
 
     /// <summary>
-    /// Keeps a disc of terrain chunks loaded around the TerrainFocus entity. Each frame it unloads
-    /// chunks that fell out of range, then builds (or re-LODs) the nearest chunks that need it,
-    /// up to MaxBuildsPerFrame. Each chunk has a terrain mesh and, where there is water, a water mesh;
-    /// both are built in parallel Burst jobs and drawn by Entities Graphics.
+    /// Keeps a disc of terrain chunks loaded around the TerrainFocus entity. It unloads chunks that fell out of
+    /// range, then builds (or re-LODs) the nearest chunks that need it, up to MaxBuildsPerFrame and a vertex budget
+    /// per batch. Each chunk has a terrain mesh and, where there is water, a water mesh; a batch is built by
+    /// parallel Burst jobs in the background and picked up when it's done (a frame or two later), so building never
+    /// stalls the main thread. Meshes are drawn by Entities Graphics.
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateBefore(typeof(TransformSystemGroup))]
@@ -42,6 +43,10 @@ namespace Punchy.Terrain
         }
 
         static readonly int TerrainFocusId = Shader.PropertyToID("_TerrainFocus");
+        /// <summary>Vertices per batch (a full-detail chunk is about 4,500).</summary>
+        const int VertexBudget = 14000;
+        /// <summary>Frames a batch may run before the main thread waits for it.</summary>
+        const int MaxBuildFrames = 4;
 
         readonly Dictionary<int2, LoadedChunk> loaded = new Dictionary<int2, LoadedChunk>();
         readonly Stack<(Mesh mesh, BatchMeshID id)> meshPool = new Stack<(Mesh, BatchMeshID)>();
@@ -49,6 +54,15 @@ namespace Punchy.Terrain
         readonly List<BuildItem> wanted = new List<BuildItem>();
         readonly List<Mesh> buildMeshes = new List<Mesh>();
         readonly List<BatchMeshID> buildMeshIds = new List<BatchMeshID>();
+
+        // The batch being built in the background.
+        readonly List<BuildItem> building = new List<BuildItem>();
+        JobHandle buildHandle;
+        int buildFrames;
+        Mesh.MeshDataArray buildData;
+        NativeArray<ChunkBuildRequest> buildRequests;
+        NativeArray<float2> buildRanges, buildWaterRanges;
+        NativeArray<VertexAttributeDescriptor> buildWaterLayout;
 
         EntitiesGraphicsSystem graphics;
         BatchMaterialID materialId;
@@ -70,6 +84,7 @@ namespace Punchy.Terrain
 
         protected override void OnDestroy()
         {
+            CancelBuild();
             foreach (var chunk in loaded.Values)
             {
                 Object.Destroy(chunk.Mesh);
@@ -93,6 +108,14 @@ namespace Punchy.Terrain
             if (materialId == BatchMaterialID.Null)
                 return;
 
+            // Pick up the batch being built once it's done (or it has had long enough).
+            if (building.Count > 0)
+            {
+                if (!buildHandle.IsCompleted && ++buildFrames < MaxBuildFrames)
+                    return;
+                FinishBuild(config);
+            }
+
             var focus = focusQuery.TryGetSingleton<LocalTransform>(out var focusTransform)
                 ? focusTransform.Position.xz
                 : float2.zero;
@@ -105,7 +128,17 @@ namespace Punchy.Terrain
                 return;
 
             wanted.Sort((a, b) => a.Distance.CompareTo(b.Distance));
-            BuildChunks(config, source, math.min(wanted.Count, config.MaxBuildsPerFrame));
+            var count = 0;
+            var vertices = 0;
+            while (count < wanted.Count && count < config.MaxBuildsPerFrame)
+            {
+                var quads = config.QuadsForLod(wanted[count].Lod);
+                vertices += BuildChunkMeshJob.VertexCount(quads);
+                if (count > 0 && vertices > VertexBudget)
+                    break;
+                count++;
+            }
+            StartBuild(config, source, count);
         }
 
         void HandleSettingsChanges(in TerrainConfig config, in TerrainSource source)
@@ -113,6 +146,7 @@ namespace Punchy.Terrain
             // Settings change when the subscene re-bakes (e.g. editing the Terrain inspector during Play mode).
             if (!initialized || !config.Equals(lastConfig))
             {
+                CancelBuild();
                 UnloadAll();
                 var material = config.Material.Value;
                 materialId = material != null ? graphics.RegisterMaterial(material) : BatchMaterialID.Null;
@@ -123,6 +157,7 @@ namespace Punchy.Terrain
             }
             else if (!source.Equals(lastSource))
             {
+                CancelBuild();
                 // Same layout, new shape: flag every chunk for rebuild. Nearest ones are rebuilt first.
                 scratchCoords.Clear();
                 scratchCoords.AddRange(loaded.Keys);
@@ -180,23 +215,25 @@ namespace Punchy.Terrain
             }
         }
 
-        void BuildChunks(in TerrainConfig config, in TerrainSource source, int count)
+        /// <summary>Starts building the first <paramref name="count"/> wanted chunks in the background.</summary>
+        void StartBuild(in TerrainConfig config, in TerrainSource source, int count)
         {
             // Terrain meshes at [0, count), water meshes at [count, 2·count).
-            var meshData = Mesh.AllocateWritableMeshData(count * 2);
-            var requests = new NativeArray<ChunkBuildRequest>(count, Allocator.TempJob);
-            var ranges = new NativeArray<float2>(count, Allocator.TempJob);
-            var waterRanges = new NativeArray<float2>(count, Allocator.TempJob);
+            buildData = Mesh.AllocateWritableMeshData(count * 2);
+            buildRequests = new NativeArray<ChunkBuildRequest>(count, Allocator.Persistent);
+            buildRanges = new NativeArray<float2>(count, Allocator.Persistent);
+            buildWaterRanges = new NativeArray<float2>(count, Allocator.Persistent);
             var layout = new NativeArray<VertexAttributeDescriptor>(TerrainVertex.Layout, Allocator.Temp);
-            var waterLayout = new NativeArray<VertexAttributeDescriptor>(WaterVertex.Layout, Allocator.TempJob);
-            const MeshUpdateFlags flags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices;
+            buildWaterLayout = new NativeArray<VertexAttributeDescriptor>(WaterVertex.Layout, Allocator.Persistent);
+            building.Clear();
 
             for (int i = 0; i < count; i++)
             {
                 var item = wanted[i];
+                building.Add(item);
                 var quads = config.QuadsForLod(item.Lod);
                 var indexCount = BuildChunkMeshJob.IndexCount(quads);
-                requests[i] = new ChunkBuildRequest
+                buildRequests[i] = new ChunkBuildRequest
                 {
                     Origin = (float2)item.Coord * config.ChunkSize,
                     Quads = quads,
@@ -205,26 +242,37 @@ namespace Punchy.Terrain
                     MorphRange = config.MorphRange(item.Lod)
                 };
 
-                var data = meshData[i];
+                var data = buildData[i];
                 data.SetVertexBufferParams(BuildChunkMeshJob.VertexCount(quads), layout);
                 data.SetIndexBufferParams(indexCount, IndexFormat.UInt32);
                 data.subMeshCount = 1;
-                data.SetSubMesh(0, new SubMeshDescriptor(0, indexCount), flags);
+                data.SetSubMesh(0, new SubMeshDescriptor(0, indexCount), MeshFlags);
             }
 
             var job = new BuildChunkMeshJob
             {
-                Meshes = meshData,
-                Requests = requests,
-                WaterLayout = waterLayout,
+                Meshes = buildData,
+                Requests = buildRequests,
+                WaterLayout = buildWaterLayout,
                 Source = source,
                 ChunkSize = config.ChunkSize,
                 NormalEpsilon = config.ChunkSize / config.Lod0Quads,
                 SkirtDepth = config.SkirtDepth,
-                HeightRanges = ranges,
-                WaterRanges = waterRanges
+                HeightRanges = buildRanges,
+                WaterRanges = buildWaterRanges
             };
-            IJobParallelForExtensions.Schedule(job, count, 1).Complete();
+            buildHandle = IJobParallelForExtensions.Schedule(job, count, 1);
+            buildFrames = 0;
+            JobHandle.ScheduleBatchedJobs();
+        }
+
+        const MeshUpdateFlags MeshFlags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices;
+
+        /// <summary>Applies a finished batch: fills the chunks' meshes and creates or updates their entities.</summary>
+        void FinishBuild(in TerrainConfig config)
+        {
+            buildHandle.Complete();
+            var count = building.Count;
 
             // Rebuilt chunks reuse their own meshes; new chunks take them from the pool.
             buildMeshes.Clear();
@@ -232,21 +280,21 @@ namespace Punchy.Terrain
             for (int pass = 0; pass < 2; pass++)
             for (int i = 0; i < count; i++)
             {
-                var (mesh, id) = loaded.TryGetValue(wanted[i].Coord, out var existing)
+                var (mesh, id) = loaded.TryGetValue(building[i].Coord, out var existing)
                     ? pass == 0 ? (existing.Mesh, existing.MeshId) : (existing.WaterMesh, existing.WaterMeshId)
                     : RentMesh();
                 buildMeshes.Add(mesh);
                 buildMeshIds.Add(id);
             }
-            Mesh.ApplyAndDisposeWritableMeshData(meshData, buildMeshes, flags);
+            Mesh.ApplyAndDisposeWritableMeshData(buildData, buildMeshes, MeshFlags);
 
             for (int i = 0; i < count; i++)
             {
-                var item = wanted[i];
-                var origin = requests[i].Origin;
-                var terrainBounds = SetBounds(buildMeshes[i], ranges[i], config.ChunkSize);
-                var hasWater = waterRanges[i].x <= waterRanges[i].y;
-                var waterBounds = hasWater ? SetBounds(buildMeshes[count + i], waterRanges[i], config.ChunkSize) : default;
+                var item = building[i];
+                var origin = buildRequests[i].Origin;
+                var terrainBounds = SetBounds(buildMeshes[i], buildRanges[i], config.ChunkSize);
+                var hasWater = buildWaterRanges[i].x <= buildWaterRanges[i].y;
+                var waterBounds = hasWater ? SetBounds(buildMeshes[count + i], buildWaterRanges[i], config.ChunkSize) : default;
 
                 if (!loaded.TryGetValue(item.Coord, out var chunk))
                 {
@@ -281,11 +329,26 @@ namespace Punchy.Terrain
 
                 loaded[item.Coord] = chunk;
             }
+            DisposeBuild();
+        }
 
-            requests.Dispose();
-            ranges.Dispose();
-            waterRanges.Dispose();
-            waterLayout.Dispose();
+        /// <summary>Abandons the batch being built (settings changed, or shutting down).</summary>
+        void CancelBuild()
+        {
+            if (building.Count == 0)
+                return;
+            buildHandle.Complete();
+            buildData.Dispose();
+            DisposeBuild();
+        }
+
+        void DisposeBuild()
+        {
+            building.Clear();
+            buildRequests.Dispose();
+            buildRanges.Dispose();
+            buildWaterRanges.Dispose();
+            buildWaterLayout.Dispose();
         }
 
         static AABB SetBounds(Mesh mesh, float2 heightRange, float size)
@@ -317,7 +380,9 @@ namespace Punchy.Terrain
             EntityManager.AddComponentData(entity, new LocalToWorld { Value = transform.ToMatrix() });
             RenderMeshUtility.AddComponents(entity, EntityManager, desc, new MaterialMeshInfo(material, mesh));
 #if UNITY_EDITOR
-            EntityManager.SetName(entity, $"{name} {coord.x},{coord.y}");
+            // One name per kind: the editor only has room for a few thousand distinct entity names, and streaming
+            // creates chunks without end.
+            EntityManager.SetName(entity, name);
 #endif
             return entity;
         }

@@ -91,7 +91,11 @@ namespace Punchy.Terrain
                 RiverSettings = Rivers
             };
             if (palette.Count > 0)
+            {
                 source.Biomes = BiomeBaking.BuildBiomeSet(palette, OceanBiome != null, World.Seed, allocator);
+                if (!biomeMap.IsCreated)
+                    source.BiomeCells = BiomeSampling.BuildCellTable(BiomeNoise, ref source.Biomes.Value, World.WorldSize * 0.5f + World.CoastWidth * 2f, allocator);
+            }
             if (Rivers.Enabled && palette.Count > 0)
                 source.Rivers = RiverBaking.Build(source, Rivers, allocator);
             if (palette.Count > 0)
@@ -157,6 +161,7 @@ namespace Punchy.Terrain
                 if (source.Heightmap.IsCreated) AddBlobAsset(ref source.Heightmap, out _);
                 if (source.BiomeMap.IsCreated) AddBlobAsset(ref source.BiomeMap, out _);
                 if (source.Biomes.IsCreated) AddBlobAsset(ref source.Biomes, out _);
+                if (source.BiomeCells.IsCreated) AddBlobAsset(ref source.BiomeCells, out _);
                 if (source.Rivers.IsCreated) AddBlobAsset(ref source.Rivers, out _);
                 if (source.Landmarks.IsCreated) AddBlobAsset(ref source.Landmarks, out _);
                 AddComponent(entity, source);

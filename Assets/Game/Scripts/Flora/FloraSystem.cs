@@ -144,7 +144,7 @@ namespace Punchy.Flora
         int biomeCount, landmarkTypeCount;
         bool built;
         TerrainSource lastSource;
-        string configHash;
+        long configStamp;
         float nextConfigCheck;
 
         World queryWorld;
@@ -214,7 +214,7 @@ namespace Punchy.Flora
             {
                 Build(palette);
                 lastSource = source;
-                configHash = ConfigHash(palette);
+                configStamp = ConfigStamp(palette);
             }
 
             var camXZ = new float2(cam.transform.position.x, cam.transform.position.z);
@@ -250,26 +250,33 @@ namespace Punchy.Flora
             return palette != null && palette.Biomes != null;
         }
 
-        static string ConfigHash(BiomePalette palette)
+        /// <summary>
+        /// Changes whenever a biome, species or landmark type in use is edited (editor only): the sum of their dirty
+        /// counters, which Unity bumps on every inspector edit. Cheap enough to check every second.
+        /// </summary>
+        static long ConfigStamp(BiomePalette palette)
         {
-            var text = new System.Text.StringBuilder();
+            long stamp = 0;
+#if UNITY_EDITOR
             foreach (var biome in palette.Biomes)
             {
                 if (biome == null) continue;
+                stamp += UnityEditor.EditorUtility.GetDirtyCount(biome);
                 foreach (var f in biome.Flora)
                     if (f.Species != null)
-                        text.Append(f.Density).Append(JsonUtility.ToJson(f.Species));
-                text.Append('|');
+                        stamp += UnityEditor.EditorUtility.GetDirtyCount(f.Species);
             }
-            foreach (var landmark in palette.Landmarks ?? Array.Empty<LandmarkType>())
-            {
-                if (landmark == null) continue;
-                foreach (var p in landmark.Props)
-                    if (p.Species != null)
-                        text.Append(JsonUtility.ToJson(p)).Append(JsonUtility.ToJson(p.Species));
-                text.Append('|');
-            }
-            return text.ToString();
+            if (palette.Landmarks != null)
+                foreach (var landmark in palette.Landmarks)
+                {
+                    if (landmark == null) continue;
+                    stamp += UnityEditor.EditorUtility.GetDirtyCount(landmark);
+                    foreach (var p in landmark.Props)
+                        if (p.Species != null)
+                            stamp += UnityEditor.EditorUtility.GetDirtyCount(p.Species);
+                }
+#endif
+            return stamp;
         }
 
         bool ConfigChanged(BiomePalette palette)
@@ -277,7 +284,7 @@ namespace Punchy.Flora
             if (!Application.isEditor || Time.unscaledTime < nextConfigCheck)
                 return false;
             nextConfigCheck = Time.unscaledTime + 1f;
-            return ConfigHash(palette) != configHash;
+            return ConfigStamp(palette) != configStamp;
         }
 
         void Build(BiomePalette palette)

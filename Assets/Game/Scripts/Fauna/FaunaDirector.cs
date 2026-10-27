@@ -46,7 +46,7 @@ namespace Punchy.Fauna
         bool built;
         TerrainSource lastSource;
         int[] counts;
-        string configHash;
+        long configStamp;
         float nextConfigCheck;
         Unity.Mathematics.Random rng = new Unity.Mathematics.Random(0x9E3779B9u);
 
@@ -160,25 +160,30 @@ namespace Punchy.Fauna
             em.AddComponentObject(settingsEntity, new FaunaRenderSettings { Material = Material, Capsule = capsule });
             em.AddComponentData(settingsEntity, new FaunaClock());
             lastSource = source;
-            configHash = ConfigHash();
+            configStamp = ConfigStamp();
             built = true;
         }
 
-        string ConfigHash()
+        /// <summary>
+        /// Changes whenever any species, limb type or prey list in use is edited (editor only): the sum of their
+        /// dirty counters, which Unity bumps on every inspector edit. Cheap enough to check every second.
+        /// </summary>
+        long ConfigStamp()
         {
-            var text = new System.Text.StringBuilder();
+            long stamp = 0;
+#if UNITY_EDITOR
             foreach (var variant in species)
             {
+                stamp += UnityEditor.EditorUtility.GetDirtyCount(variant);
                 var s = variant.Body;
-                text.Append(JsonUtility.ToJson(variant)).Append(JsonUtility.ToJson(s));
+                if (s != variant)
+                    stamp += UnityEditor.EditorUtility.GetDirtyCount(s);
                 foreach (var slot in s.Parts)
                     if (slot.Limb != null)
-                        text.Append(JsonUtility.ToJson(slot.Limb));
-                foreach (var prey in variant.Hunts)
-                    if (prey != null)
-                        text.Append(prey.name);
+                        stamp += UnityEditor.EditorUtility.GetDirtyCount(slot.Limb);
             }
-            return text.ToString();
+#endif
+            return stamp;
         }
 
         bool ConfigChanged()
@@ -186,7 +191,7 @@ namespace Punchy.Fauna
             if (!Application.isEditor || Time.unscaledTime < nextConfigCheck)
                 return false;
             nextConfigCheck = Time.unscaledTime + 1f;
-            return ConfigHash() != configHash;
+            return ConfigStamp() != configStamp;
         }
 
         public int SpeciesIndex(CreatureSpecies s) => species.IndexOf(s);

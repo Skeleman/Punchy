@@ -106,6 +106,8 @@ namespace Punchy.Terrain
         public int2 SpawnCell;
         public BlobAssetReference<BiomeMapBlob> BiomeMap;
         public BlobAssetReference<BiomeSetBlob> Biomes;
+        /// <summary>Each noise biome region's biome, precomputed (optional: without it they're worked out per sample).</summary>
+        public BlobAssetReference<BiomeCellTableBlob> BiomeCells;
 
         public RiverSettings RiverSettings;
         public BlobAssetReference<RiverMapBlob> Rivers;
@@ -151,7 +153,7 @@ namespace Punchy.Terrain
             }
 
             ref var set = ref Biomes.Value;
-            var cells = BiomeSampling.Cells(BiomeNoise, ref set, SpawnCell, xz);
+            var cells = BiomeSampling.Cells(BiomeNoise, ref set, BiomeCells, SpawnCell, xz);
             var ocean = OceanFactor(xz);
             surface = BiomeSampling.WithOcean(BiomeSampling.Weights(cells, BiomeNoise.BlendDistance, BiomeNoise.CellSize), ocean, set.OceanIndex);
             shape = BiomeSampling.WithOcean(BiomeSampling.Weights(cells, BiomeNoise.ShapeBlendDistance, BiomeNoise.CellSize), ocean, set.OceanIndex);
@@ -375,7 +377,7 @@ namespace Punchy.Terrain
 
         public bool Equals(TerrainSource o) =>
             World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap &&
-            BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes &&
+            BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
             RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks;
     }
 }

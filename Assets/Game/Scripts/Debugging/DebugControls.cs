@@ -41,6 +41,9 @@ namespace Punchy.Debugging
         EntityQuery playerQuery, terrainQuery, paletteQuery;
         World queryWorld;
         GUIStyle style;
+        string readout;
+        Vector2 readoutSize;
+        float nextReadout;
 
         void Update()
         {
@@ -248,6 +251,18 @@ namespace Punchy.Debugging
                 return;
             style ??= new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 13, richText = true };
 
+            // The text is rebuilt a few times a second rather than on every GUI event, to keep garbage down.
+            if (Time.unscaledTime >= nextReadout || readout == null)
+            {
+                nextReadout = Time.unscaledTime + 0.25f;
+                readout = BuildReadout();
+                readoutSize = style.CalcSize(new GUIContent(readout));
+            }
+            GUI.Box(new Rect(10, 10, readoutSize.x + 12, readoutSize.y + 8), readout, style);
+        }
+
+        string BuildReadout()
+        {
             var lines = new List<string>();
             if (EnsureLocations(out var source) && playerQuery.TryGetSingleton<LocalTransform>(out var player))
             {
@@ -266,9 +281,7 @@ namespace Punchy.Debugging
             }
             lines.Add("<color=#bbbbbb>N/Shift+N place · B day type · Y +2 h · T fast time · ] force weather · [ clear · F1 hide</color>");
 
-            var text = string.Join("\n", lines);
-            var size = style.CalcSize(new GUIContent(text));
-            GUI.Box(new Rect(10, 10, size.x + 12, size.y + 8), text, style);
+            return string.Join("\n", lines);
         }
     }
 }

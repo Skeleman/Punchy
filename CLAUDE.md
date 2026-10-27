@@ -72,6 +72,10 @@ Input System. Windows is the only build target so far.
 
 ## Gotchas
 
+- **Every opaque custom shader needs a `DepthNormals` pass** (as well as `DepthOnly` and `ShadowCaster`). SSAO
+  uses depth + normals, so URP builds the camera depth texture from the depth-normals prepass; anything without
+  the pass is missing from it, and effects that read depth (heat haze, soft particles, SSAO) treat it as the
+  ground behind.
 - **Never `Shader.Find` at runtime.** Builds strip shaders nothing references; reference shaders or materials from
   a serialized field (see `WeatherSystem.PrecipitationShader`).
 - **`Mathf.SmoothStep(a, b, t)` is an interpolation, not shader smoothstep.** Use `FloraMeshBuilder.Smooth` or
@@ -80,6 +84,12 @@ Input System. Windows is the only build target so far.
   per-cell randomness (see `PunchyCellHash` in `Sky.hlsl`).
 - Heavy background jobs crowd out the terrain's own jobs and cause hitches; keep per-frame placement budgets small
   (`FloraSystem.CellsPerFrame`).
+- `TerrainSource` sampling is the hot path: terrain meshing samples it about six times per vertex, and plants,
+  animals and ambience call it constantly (some from plain C#, not Burst). Anything that's slow to work out per
+  region belongs in a baked table (see `BiomeCellTableBlob`), not in the per-sample code.
+- Never `Schedule(...).Complete()` heavy work in the same frame: the main thread ends up doing it. Pick results up
+  a frame or two later, as `TerrainStreamingSystem` and `FloraSystem` do.
+- Editor entity names are limited to a few thousand distinct strings; don't give streamed entities unique names.
 - Serialized values in scenes and assets override code defaults: changing a default in code doesn't change
   existing assets.
 - Joint angles accumulate along chains: a snake or tail ripple needs small per-joint angles (about 10–15°).
