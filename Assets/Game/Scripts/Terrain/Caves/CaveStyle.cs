@@ -55,12 +55,31 @@ namespace Punchy.Terrain
         [Tooltip("Light passing into the rock and glowing back out (ice).")]
         [Range(0f, 1f)] public float Translucency;
 
+        [Header("Floor")]
+        [Tooltip("Ground facing up gets its own material: packed earth, gravel, sand, ash, frost crust.")]
+        [ColorUsage(false)] public Color FloorColor = new Color(0.45f, 0.4f, 0.33f);
+        [ColorUsage(false)] public Color FloorDark = new Color(0.25f, 0.22f, 0.18f);
+        [Tooltip("Speckle of grains and pebbles (0 = smooth mud or ice, 1 = coarse gravel).")]
+        [Range(0f, 1f)] public float FloorGrit = 0.5f;
+        [Range(0f, 1f)] public float FloorGloss = 0.1f;
+
+        [Header("Surface detail")]
+        [Tooltip("Strength of the fine surface relief: rough grain on rock, frost on ice. It also adds glints where the " +
+                 "lantern catches it.")]
+        [Range(0f, 1f)] public float Detail = 0.3f;
+        [Tooltip("Detail repeats per metre: above 1 makes it finer.")]
+        [Range(0.2f, 4f)] public float DetailScale = 1f;
+        [Tooltip("A soft frosty rim where the wall turns away from the eye.")]
+        [Range(0f, 1f)] public float Sheen;
+
         [Header("Glow")]
         [Tooltip("Light the rock gives off by itself, in veins: crystal light, lava cracks, glowing lichen.")]
         [ColorUsage(false, true)] public Color GlowColor = new Color(0.4f, 0.8f, 1f);
         [Min(0f)] public float Glow;
-        [Tooltip("How much of the wall the veins cover.")]
+        [Tooltip("Width of the glowing cracks.")]
         [Range(0.01f, 0.5f)] public float GlowCover = 0.08f;
+        [Tooltip("Share of the walls that has cracks, in patches (never the floor). 0 = none.")]
+        [Range(0f, 1f)] public float Cracks = 0.3f;
         [Tooltip("Vein spacing: above 1 makes them finer.")]
         [Range(0.2f, 4f)] public float GlowScale = 1f;
         [Tooltip("Share of the glow given off by the whole wall rather than only the veins (ice, softly lit crystal).")]
@@ -76,7 +95,12 @@ namespace Punchy.Terrain
             table[i + 1] = new Vector4(dark.r, dark.g, dark.b, StrataFrequency);
             table[i + 2] = new Vector4(GlowColor.r * Glow, GlowColor.g * Glow, GlowColor.b * Glow, GlowCover);
             table[i + 3] = new Vector4(Gloss, Metallic, Facets, Translucency);
-            table[i + 4] = new Vector4(GlowScale, GlowEverywhere, 0f, 0f);
+            table[i + 4] = new Vector4(GlowScale, GlowEverywhere, Cracks, 0f);
+            var floor = FloorColor.linear;
+            var floorDark = FloorDark.linear;
+            table[i + 5] = new Vector4(floor.r, floor.g, floor.b, FloorGrit);
+            table[i + 6] = new Vector4(floorDark.r, floorDark.g, floorDark.b, FloorGloss);
+            table[i + 7] = new Vector4(Detail, DetailScale, Sheen, 0f);
         }
     }
 
@@ -86,7 +110,7 @@ namespace Punchy.Terrain
     /// </summary>
     public static class CaveStyleTable
     {
-        public const int Vectors = 5;
+        public const int Vectors = 8;
         public const int MaxStyles = 32;
 
         public static List<CaveStyle> Collect(IReadOnlyList<LandmarkType> types)

@@ -24,16 +24,24 @@ MonoBehaviour:
   FloorFlatness: 0.85
   FloorSteps: 0.3
   Burrows: 0
-  RockColor: {r: 0.62, g: 0.82, b: 0.95, a: 1}
-  DarkColor: {r: 0.25, g: 0.45, b: 0.65, a: 1}
-  Strata: 0.15
+  RockColor: {r: 0.85, g: 0.94, b: 1, a: 1}
+  DarkColor: {r: 0.05, g: 0.25, b: 0.7, a: 1}
+  Strata: 0.1
   StrataFrequency: 0.25
-  Gloss: 0.9
+  Gloss: 0.85
   Metallic: 0
   Facets: 0
-  Translucency: 0.85
-  GlowColor: {r: 0.3, g: 0.6, b: 1, a: 1}
-  Glow: 0.35
-  GlowCover: 0.08
+  Translucency: 0.9
+  FloorColor: {r: 0.9, g: 0.95, b: 1, a: 1}
+  FloorDark: {r: 0.6, g: 0.75, b: 0.92, a: 1}
+  FloorGrit: 0.25
+  FloorGloss: 0.7
+  Detail: 0.9
+  DetailScale: 0.9
+  Sheen: 0.7
+  GlowColor: {r: 0.25, g: 0.55, b: 1, a: 1}
+  Glow: 0.4
+  GlowCover: 0.025
+  Cracks: 0.08
   GlowScale: 0.8
-  GlowEverywhere: 0.6
+  GlowEverywhere: 0.55

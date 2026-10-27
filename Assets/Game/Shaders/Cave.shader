@@ -6,8 +6,10 @@ Shader "Punchy/Cave"
     // blend into the rock a few metres in (uv.x). The mesh is in world space and double-sided.
     //
     // Each vertex carries its cave's style slot (uv.z) into _PunchyCaveStyles, the table CaveSystem uploads from the
-    // CaveStyle assets: rock colours and banding, a finish (gloss, metal, crystal facets, translucent ice) and glowing
-    // veins. Slot 0 is no style, drawn with this material's own colours.
+    // CaveStyle assets: rock colours and banding, a finish (gloss, metal, crystal facets, translucent ice, frost sheen),
+    // fine surface detail from one shared texture, a floor material (ground facing up: sand, gravel, ash, frost crust)
+    // and glowing cracks in sparse patches. One shader and one material for every style. Slot 0 is no style, drawn
+    // with this material's own colours.
     Properties
     {
         _RockColor ("Rock", Color) = (0.48, 0.44, 0.4, 1)
@@ -64,9 +66,13 @@ Shader "Punchy/Cave"
                 nointerpolation float style : TEXCOORD4;
             };
 
-            // Five vectors per style slot (CaveStyle.Pack): rock rgb + strata, dark rgb + strata frequency,
-            // glow rgb + cover, (gloss, metallic, facets, translucency), (glow scale, glow everywhere).
-            float4 _PunchyCaveStyles[32 * 5];
+            // Eight vectors per style slot (CaveStyle.Pack): rock rgb + strata, dark rgb + strata frequency,
+            // glow rgb + crack width, (gloss, metallic, facets, translucency), (glow scale, glow everywhere, cracks),
+            // floor rgb + grit, floor dark rgb + floor gloss, (detail, detail scale, sheen).
+            float4 _PunchyCaveStyles[32 * 8];
+            // Shared tiling detail (CaveSystem makes it once): rg a fine normal, b a height, a a sparkle.
+            TEXTURE2D(_PunchyCaveDetail);
+            SAMPLER(sampler_PunchyCaveDetail);
 
             Varyings Vert(CaveAttributes input)
             {
@@ -107,45 +113,76 @@ Shader "Punchy/Cave"
                 return f2 - f1;
             }
 
+            // The shared detail texture on three planes, blended by the normal: rg a tangent-space normal in -1..1 per
+            // plane (folded into a world-space nudge), b a height, a a sparkle.
+            float4 Detail(float3 p, float3 n, float scale, out float3 nudge)
+            {
+                float3 w = pow(abs(n), 4);
+                w /= w.x + w.y + w.z;
+                float4 x = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p.zy * scale);
+                float4 y = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p.xz * scale);
+                float4 z = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p.xy * scale);
+                float2 nx = x.rg * 2 - 1, ny = y.rg * 2 - 1, nz = z.rg * 2 - 1;
+                nudge = float3(0, nx.y, nx.x) * w.x + float3(ny.x, 0, ny.y) * w.y + float3(nz.x, nz.y, 0) * w.z;
+                return x * w.x + y * w.y + z * w.z;
+            }
+
             half4 Frag(Varyings input) : SV_Target
             {
                 // Normals come from the rock's shape and always face into the cave, whichever way a triangle winds.
-                float3 n = normalize(input.normalWS);
+                float3 shape = normalize(input.normalWS);
+                float3 n = shape;
                 float3 p = input.positionWS;
                 float openness = saturate(input.color.a);
 
                 // The cave's style (slot 0: this material's colours, plain rock).
                 int slot = clamp((int)round(input.style), 0, 31);
                 float4 s0 = float4(_RockColor.rgb, 0.3), s1 = float4(_DarkColor.rgb, 0.366), s2 = 0, s3 = 0, s4 = float4(1, 0, 0, 0);
+                float4 s5 = float4(_RockColor.rgb * 0.8, 0.3), s6 = float4(_DarkColor.rgb, 0), s7 = float4(0.3, 1, 0, 0);
                 if (slot > 0)
                 {
-                    s0 = _PunchyCaveStyles[slot * 5];
-                    s1 = _PunchyCaveStyles[slot * 5 + 1];
-                    s2 = _PunchyCaveStyles[slot * 5 + 2];
-                    s3 = _PunchyCaveStyles[slot * 5 + 3];
-                    s4 = _PunchyCaveStyles[slot * 5 + 4];
+                    int i = slot * 8;
+                    s0 = _PunchyCaveStyles[i];     s1 = _PunchyCaveStyles[i + 1];
+                    s2 = _PunchyCaveStyles[i + 2]; s3 = _PunchyCaveStyles[i + 3];
+                    s4 = _PunchyCaveStyles[i + 4]; s5 = _PunchyCaveStyles[i + 5];
+                    s6 = _PunchyCaveStyles[i + 6]; s7 = _PunchyCaveStyles[i + 7];
                 }
-                float gloss = s3.x, metallic = s3.y, facets = s3.z, translucency = s3.w;
+                float terrain = saturate(input.data.x);
+                // Floor: ground that faces up, by its shape (not its fine detail), away from the terrain-coloured mouth.
+                float floorShare = smoothstep(0.55, 0.8, shape.y) * (1 - terrain);
+                float gloss = lerp(s3.x, s6.w, floorShare);
+                float metallic = s3.y * (1 - floorShare), facets = s3.z * (1 - floorShare), translucency = s3.w * (1 - floorShare);
+                gloss *= 1 - terrain;
+                metallic *= 1 - terrain;
+                translucency *= 1 - terrain;
+
+                // Fine surface detail: frost and grain on walls, grit on floors; one texture, three reads.
+                float3 nudge;
+                float4 detail = Detail(p, shape, s7.y, nudge);
+                n = normalize(n + nudge * s7.x * (1 - terrain));
 
                 // Crystal: each lattice cell of the wall tilts its normal its own way, so flat faces flash in turn.
                 if (facets > 0)
                     n = normalize(n + facets * 1.4 * FacetHash(int3(floor(p * 1.7))));
 
-                // Rock: two tones in blotches and strata, darker in the hollows (rgb carries a per-vertex tint).
+                // Rock: two tones in blotches and strata, darker in the hollows (rgb carries a per-vertex tint). Raised
+                // detail takes the light tone (frost on ice), sunken detail the dark one (deep blue in its recesses).
                 float blotch = PunchyValueNoise(p.xz * 0.35 + p.y * 0.2) * 0.6 + PunchyValueNoise(p.xy * 1.3 + p.z) * 0.4;
                 float strata = 0.5 + 0.5 * sin(p.y * s1.w * 6.2832 + PunchyValueNoise(p.xz * 0.2) * 4);
-                half3 rock = lerp(s1.rgb, s0.rgb, saturate(blotch * 0.8 + strata * s0.w)) * input.data.y;
+                float tone = saturate(blotch * 0.8 + strata * s0.w + (detail.b - 0.5) * s7.x);
+                half3 rock = lerp(s1.rgb, s0.rgb, tone) * input.data.y;
+                // The floor: its own two tones with grit (sand, gravel, ash, frost crust).
+                half3 floorTone = lerp(s6.rgb, s5.rgb, saturate(blotch * 0.7 + detail.b * 0.5));
+                floorTone *= lerp(1, 0.6 + 0.8 * detail.a, s5.w);
+                rock = lerp(rock, floorTone, floorShare);
                 // Where it stands in for the terrain, speckle it like the terrain's own close-up detail.
                 half3 ground = input.color.rgb * (0.7 + 0.45 * blotch);
-                float terrain = saturate(input.data.x);
                 half3 albedo = lerp(rock, ground, terrain);
-                // The finish belongs to the rock, not to the terrain colour near the mouth.
-                gloss *= 1 - terrain;
-                metallic *= 1 - terrain;
-                translucency *= 1 - terrain;
                 half3 diffuse = albedo * (1 - 0.7 * metallic);
                 half3 specColor = lerp(half3(0.9, 0.9, 0.9), albedo * 1.6, metallic);
-                float shininess = lerp(12, 140, saturate(gloss + facets * 0.5));
+                float shininess = lerp(12, 256, saturate(gloss + facets * 0.5));
+                // Frost and grit glint: the odd detail texel catches the lantern far brighter than the rest.
+                float glint = 1 + 8 * smoothstep(0.93, 0.99, detail.a) * s7.x;
                 float3 view = normalize(GetCameraPositionWS() - p);
 
                 InputData inputData = (InputData)0;
@@ -172,26 +209,32 @@ Shader "Punchy/Cave"
                     half3 lit = l.color * l.distanceAttenuation * l.shadowAttenuation;
                     light += lit * saturate(dot(n, l.direction) * 0.8 + 0.2);
                     float3 h = normalize(l.direction + view);
-                    shine += lit * pow(saturate(dot(n, h)), shininess) * saturate(gloss + metallic * 0.6 + facets * 0.8);
+                    shine += lit * pow(saturate(dot(n, h)), shininess) * saturate(gloss + metallic * 0.6 + facets * 0.8) * glint;
                     through += lit * (0.35 + 0.65 * saturate(0.5 - 0.5 * dot(n, l.direction)));
                 LIGHT_LOOP_END
 
                 half3 color = diffuse * light + specColor * shine + s0.rgb * through * translucency * 0.6;
+                // Sheen: a soft frosty rim where the wall turns away, lit by whatever light reaches it.
+                color += s0.rgb * pow(1 - saturate(dot(n, view)), 3) * s7.z * (light * 0.5 + 0.02);
                 // The atmosphere (fog and weather marches) only where daylight reaches; deep inside it would be lerped away.
                 if (openness > 0.001)
                     color = lerp(color, PunchyAtmosphere(color, p), openness);
 
                 // Light the rock gives off: a share everywhere (ice, faintly lit crystal), the rest in cracks. Cracks are
-                // the borders between random 3D cells (polygonal, like cooling lava crust or fractured ice), and a slow
-                // mask leaves whole patches of wall uncracked.
+                // borders between random 3D cells, warped so they wander, small, and only in sparse patches (the style's
+                // Cracks share of the wall), never on the floor.
                 if (any(s2.rgb > 0))
                 {
                     // The mask first: the 27-cell crack search only runs where the mask leaves any crack to draw.
                     float g = s4.x;
-                    float crack = smoothstep(0.45, 0.75, PunchyValueNoise(p.xz * 0.13 * g + p.y * 0.11 + 37));
-                    if (crack > 0 && terrain < 1)
-                        crack *= 1 - smoothstep(s2.w * 0.4, s2.w * 1.6, CellEdge(p * 0.6 * g));
-                    color += s2.rgb * (s4.y + crack * (1 - s4.y)) * (1 - terrain);
+                    float patch = PunchyValueNoise(p.xz * 0.21 * g + p.y * 0.17 + 37) * 0.7 + PunchyValueNoise(p.zy * 0.5 * g - 11) * 0.3;
+                    float crack = smoothstep(1 - s4.z, 1 - s4.z + 0.12, patch) * (1 - floorShare) * (1 - terrain);
+                    if (crack > 0)
+                    {
+                        float3 warp = float3(PunchyValueNoise(p.xy * 0.9 + 3), PunchyValueNoise(p.yz * 0.9 - 5), PunchyValueNoise(p.zx * 0.9 + 9));
+                        crack *= 1 - smoothstep(s2.w * 0.4, s2.w * 1.6, CellEdge(p * 1.3 * g + warp * 1.2));
+                    }
+                    color += s2.rgb * (s4.y * (1 - floorShare * 0.5) + crack * (1 - s4.y)) * (1 - terrain);
                 }
                 return half4(color, 1);
             }

@@ -111,7 +111,67 @@ namespace Punchy.Terrain
         BiomePalette stylesFrom;
         List<CaveStyle> styles;
 
-        void OnEnable() => Punchy.Net.GameBootstrap.WorldsReplacing += ReleaseWorld;
+        static readonly int DetailId = Shader.PropertyToID("_PunchyCaveDetail");
+        static Texture2D detail;
+
+        void OnEnable()
+        {
+            Punchy.Net.GameBootstrap.WorldsReplacing += ReleaseWorld;
+            if (detail == null)
+                detail = MakeDetail();
+            Shader.SetGlobalTexture(DetailId, detail);
+        }
+
+        /// <summary>
+        /// The fine surface detail every cave style shares (frost, grain, grit), so there's one texture rather than one
+        /// per style: rg a normal from a tiling height, b that height, a white-noise sparkle. The height is periodic
+        /// gradient noise over four octaves with a slight warp (value noise on a lattice shows its grid as rows of
+        /// bumps). Deterministic, so it's the same on every machine.
+        /// </summary>
+        static Texture2D MakeDetail()
+        {
+            const int size = 256;
+            var height = new float[size * size];
+            float lo = float.MaxValue, hi = float.MinValue;
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                var uv = new float2(x, y) / size;
+                // Periods are whole numbers of repeats across the texture, so it tiles.
+                uv += new float2(noise.pnoise(uv * 4f + 3.7f, new float2(4f)), noise.pnoise(uv * 4f - 1.3f, new float2(4f))) * 0.04f;
+                var h = 0f;
+                var amplitude = 0.5f;
+                for (int o = 0, period = 6; o < 4; o++, period *= 2, amplitude *= 0.55f)
+                    h += noise.pnoise(uv * period, new float2(period)) * amplitude;
+                height[y * size + x] = h;
+                lo = math.min(lo, h);
+                hi = math.max(hi, h);
+            }
+            for (int i = 0; i < height.Length; i++)
+                height[i] = (height[i] - lo) / math.max(hi - lo, 1e-6f);
+
+            var pixels = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float H(int dx, int dy) => height[((y + dy + size) % size) * size + (x + dx + size) % size];
+                var slope = new float2(H(1, 0) - H(-1, 0), H(0, 1) - H(0, -1)) * 10f;
+                var normal = math.normalize(new float3(-slope, 1f));
+                var sparkle = (math.hash(new int2(x, y + 7919)) & 0xFF) / 255f;
+                pixels[y * size + x] = new Color32((byte)((normal.x * 0.5f + 0.5f) * 255f), (byte)((normal.y * 0.5f + 0.5f) * 255f),
+                                                   (byte)(H(0, 0) * 255f), (byte)(sparkle * 255f));
+            }
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, true, true)
+            {
+                name = "Cave detail",
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Trilinear,
+                anisoLevel = 4
+            };
+            texture.SetPixels32(pixels);
+            texture.Apply(true, true);
+            return texture;
+        }
 
         void OnDisable()
         {

@@ -32,8 +32,16 @@ MonoBehaviour:
   Metallic: 0
   Facets: 0
   Translucency: 0
+  FloorColor: {r: 0.47, g: 0.42, b: 0.35, a: 1}
+  FloorDark: {r: 0.27, g: 0.24, b: 0.2, a: 1}
+  FloorGrit: 0.5
+  FloorGloss: 0.15
+  Detail: 0.3
+  DetailScale: 1.2
+  Sheen: 0
   GlowColor: {r: 0.4, g: 0.8, b: 1, a: 1}
   Glow: 0
   GlowCover: 0.08
+  Cracks: 0
   GlowScale: 1
   GlowEverywhere: 0
