@@ -14,7 +14,7 @@ a time.
 - **Animal session ("Animal behavior manager", claude-41 [635c9b]):** `Fauna/**`, `CreatureBrainSystem` and all
   creature behaviour, including bats, glowing cave fauna, burrowers, settlement pets (dogs, cats, rooftop birds) and
   animal remnants (nests, feathers, footprints). Ask before brain changes; new `CreatureTask` values are appended
-  only. I provide **hook points** for its creatures (see below); we agree that interface directly.
+  only. I provide **Anchors** for its creatures (see below); we agree that interface directly.
 - **Profiling session (other PC):** `Weather/**`.
 - **Not mine either:** `DebugControls`, `ThirdPersonCamera`, `NetMenu`, `CreatureGhosts`.
 - Builds go to `Builds/World/`.
@@ -45,12 +45,12 @@ a time.
    - Styles per biome: **ice caves** in a new **Glacier** biome (blue translucent walls, frozen falls), **metallic and
      crystalline** caves in the mystical forest (Sparkling Forest), lava tubes in ashlands, fungal caves in the marsh,
      banded sandstone in arid land, limestone elsewhere. More to invent as it goes.
-   - Style tags exported per cave and per chamber for the animal session (which fauna live where).
+   - Style tags carried on cave Anchors for the animal session (which fauna live where).
 3. **Cave interiors.**
    - Stalactites and stalagmites in larger rooms (ceiling and floor props, density by room size and style).
    - Underground rivers along passage floors and pools in chambers (cave water surfaces, flow along the passage).
    - Glowing flora on cave floors and walls (glow fungi, crystal growths, ice blooms by style).
-   - Hook points: **roost spots** on chamber ceilings, nest ledges, water spots.
+   - Anchors: Roost on chamber ceilings, Nest and Perch on ledges, Burrow on soft floors, Pool at water.
 4. **Towns: layouts, streets and roads.**
    - `SettlementLayout` asset on `LandmarkType`: street pattern (square with radial lanes, main street, grid, ring
      wall with gates), plot sizes scaled to the residents' species, building mix by role.
@@ -66,27 +66,32 @@ a time.
      (goblins, ogres), elder's spire (elves).
    - **Religious buildings** per culture: chapel or temple, shrine, standing-stone circle, totem ground.
    - **Landscaping and water**: fountains, wells, ponds, gardens and allotments, hedges, fences, lamp posts.
-   - Hook points: **nest and perch spots** on roofs, chimneys and towers; **pet spots** (hearths, doorsteps,
-     yards); door, workplace, market stall, well and bench points for residents.
+   - Anchors: Nest and Perch on roofs, chimneys and towers; Hearth and Yard for domestic animals (hearths, doorsteps,
+     yards); Door, Work, Stall, Well, Bench, Gate, Altar and Seat for residents.
 6. **Imp warren (cave settlement).**
    - A pale, imp-like folk living in a cave network, with crude architecture of their own (stacked-stone huts, rope
      bridges, lean-tos against cave walls) and milky white pools nearby.
    - Reuses `SettlementLayout` and the resident system, inside a cave network instead of on the surface.
    - The imp species asset and any creature AI they need come from the animal session; I provide the warren, its
-     layout and its hook points.
+     layout and its anchors.
 7. **Later:** settlement growth along roads, outlying farms, ruins.
 
-## Hook points for creatures (to agree with the animal session)
+## Anchors (agreed with the animal session)
 
-Baked from the seed, so every machine has the same ones, and kept in spatial grids so creatures nearby find them
-cheaply. A first proposal:
+The only contract between this branch's geometry and creature behaviour (see GLOSSARY.md). Baked from the seed, so
+nothing to sync; immutable (the animal session counts occupancy from its creature snapshot).
 
-- `WorldHook { float3 Position; float2 Facing; HookKind Kind; byte Tags; int Owner; }`, where Kind is one of Roost
-  (cave ceiling), Nest (ledge, eave), Perch (rooftop, chimney, tower top, signpost), PetSpot (hearth, doorstep,
-  yard), Burrow (soft cave floor or bank), Water (pool or river edge), and Owner is the settlement or cave.
-- Tags carry the cave style or settlement culture (and biome), so a species can filter for "ice cave roosts" or
-  "human village roofs".
-- A lookup like `WorldHooks.Near(position, radius, kind)` over a column grid, readable from Burst.
+- `Anchor { float3 Position; float2 Facing; AnchorKind Kind; byte Tags; int Owner; byte Capacity; float Size; }`
+  - Position is absolute, on the surface the creature uses: the ceiling point for a Roost, the ridge or sill top
+    for a Perch.
+  - Capacity: creatures it holds (0 = unlimited). Size: radius of the spot (m); creatures spread inside it.
+  - Owner: the settlement or cave network. Tags: cave style or settlement folk, biome, and a Shelter bit.
+- `AnchorKind` (a byte, append only): Door, Work, Stall, Well, Bench, Gate, Altar, Seat, Roost, Perch, Nest, Burrow,
+  Pool, Hearth, Yard. The list goes into GLOSSARY.md in the same commit as the enum.
+- On `TerrainSource` as a blob with a Cell grid: `Anchors.Near(position, radius, kind)` and an allocation-free,
+  Burst-safe `Anchors.Pick(ref blob, near, radius, kind, ref rng, out anchor)` (uniform reservoir pick, like
+  `FloraPlacement.FindTree`), which the brain calls while Deciding.
+- First kinds land in phase 3 (Roost, Burrow, Pool, plus Nest and Perch on cave ledges); building kinds in phase 5.
 
 ## Log
 
