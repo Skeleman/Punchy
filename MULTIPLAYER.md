@@ -334,3 +334,27 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
     - a bandwidth check
     - the Relay bind-address warning
     - a shorter disconnect timeout
+- 2026-10-27 — A + B — **Second two-PC round (LAN) and fixes.**
+  - **LAN `-join` works:**
+    - B ran `-join 192.168.1.138`: connected in about 2 s, and the world check passed.
+    - Every replicated animal had a body on B (85–96, nearest 8–41 m). B's earlier empty clearing was just
+      distance and trees.
+  - **10 s disconnect timeout:** `NetDrivers` gives every driver Netcode's defaults with a 10 s timeout. A driver
+    constructor covers the startup worlds, and the Relay and IPC paths use it too.
+    - With the host killed, B's game said "Lost the connection" about 11 s after the last update, and was hosting
+      itself 2 s later.
+  - **Sky carried across world rebuilds.**
+    - The bug (found by B): carrying on alone reset the clock to 09:00 and restarted the weather, because the scene
+      reload rebuilds DayNightCycle and WeatherSystem.
+    - The fix: `GameBootstrap.WorldsReplacing` fires before the worlds are disposed. WorldSync snapshots the time,
+      day type, wind, clouds, pressure and weather cells into statics, then restores them once the new field is
+      ready (unless we joined someone, whose sky wins).
+    - Tested locally: the host was killed at 10:04 and the joiner carried on from 10:06 with 14 cells.
+  - **Bandwidth:** with one client and about 90 animals, the host sent about 26 KB/s above its idle baseline
+    (Windows NIC counters, so rough), about 0.2 Mbit/s per player. The client sent about 8 KB/s.
+  - **Performance:** B's weaker PC ran at 35–54 fps as a client and 26–28 fps when hosting alone (it then runs the
+    animal brains). A's host ran at 330–380 fps.
+  - **Still open:**
+    - the Relay bind-address warning (harmless)
+    - host migration (none)
+    - a longer session (30 minutes) with two people actually playing

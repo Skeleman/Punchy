@@ -171,8 +171,12 @@ namespace Punchy.Net
             ReloadScene();
         }
 
+        /// <summary>Raised just before the worlds are replaced, while the old game is still intact.</summary>
+        public static event Action WorldsReplacing;
+
         static void DisposeNetWorlds()
         {
+            WorldsReplacing?.Invoke();
             // Remember where the local player was, so hosting again (or the host leaving) doesn't send them home.
             var client = NetWorlds.Client;
             if (client != null && client.IsCreated)

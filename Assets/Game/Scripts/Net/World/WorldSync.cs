@@ -67,6 +67,14 @@ namespace Punchy.Net
         public static uint TestSalt;
 
         readonly List<WeatherField.CellState> cells = new List<WeatherField.CellState>();
+
+        // The sky as it was when the worlds were last replaced, so hosting again (or carrying on alone after the
+        // host leaves) keeps the time and weather instead of starting the day over. Statics survive the scene reload.
+        static WorldState carried;
+        static readonly List<WeatherField.CellState> carriedCells = new List<WeatherField.CellState>();
+        static bool hasCarried;
+
+        void OnEnable() => GameBootstrap.WorldsReplacing += CarrySky;
         readonly HashSet<Entity> checkedConnections = new HashSet<Entity>();
         World server, client;
         Entity stateGhost;
@@ -74,6 +82,7 @@ namespace Punchy.Net
 
         void OnDisable()
         {
+            GameBootstrap.WorldsReplacing -= CarrySky;
             if (Weather != null)
             {
                 Weather.Remote = false;
@@ -103,6 +112,8 @@ namespace Punchy.Net
             if (Weather != null)
                 Weather.Remote = joined;
 
+            if (hasCarried && (joined || RestoreSky()))
+                hasCarried = false;   // a joined player takes the host's sky instead
             if (hosting)
             {
                 EnsureStateGhost();
@@ -121,6 +132,41 @@ namespace Punchy.Net
         {
             if (server != null && server.IsCreated && stateGhost != Entity.Null)
                 PublishState();
+        }
+
+        void CarrySky()
+        {
+            if (Weather == null || !Weather.Field.Ready)
+                return;
+            carried = new WorldState
+            {
+                TimeOfDay = Cycle != null ? Cycle.TimeOfDay : 12f,
+                DayType = Weather.DayTypeIndex,
+                WindAngle = Weather.WindAngle,
+                PressureTime = Weather.Field.PressureTime,
+                PressureOffset = Weather.Field.PressureOffset,
+                CloudOffset = Weather.CloudOffset
+            };
+            Weather.Field.ExportCells(carriedCells);
+            hasCarried = true;
+        }
+
+        /// <summary>Puts the carried sky back once the new weather field is ready; false until then.</summary>
+        bool RestoreSky()
+        {
+            if (Weather == null || !Weather.Field.Ready)
+                return false;
+            if (Cycle != null)
+                Cycle.TimeOfDay = carried.TimeOfDay;
+            if (Weather.DayTypeIndex != carried.DayType)
+                Weather.SetDayType(carried.DayType, false);
+            Weather.WindAngle = carried.WindAngle;
+            Weather.CloudOffset = carried.CloudOffset;
+            Weather.Field.PressureTime = carried.PressureTime;
+            Weather.Field.PressureOffset = carried.PressureOffset;
+            Weather.Field.ImportCells(carriedCells);
+            Debug.Log($"WorldSync: carried the sky over ({(int)carried.TimeOfDay:00}:{(int)(carried.TimeOfDay % 1f * 60f):00}, {carriedCells.Count} weather cells)");
+            return true;
         }
 
         // ------------------------------------------------------------------------------------------- host
