@@ -23,6 +23,9 @@ Shader "Punchy/Water"
         _FlowSpeed("River Flow Speed (m/s)", Float) = 1.6
         _Smoothness("Smoothness", Range(0, 1)) = 0.95
         _ScreenReflection("Screen-Space Reflection", Range(0, 1)) = 1
+        _DetailStrength("Fine Ripples", Range(0, 1)) = 0.5
+        _DetailScale("Fine Ripple Repeats (per metre)", Float) = 0.4
+        _Sparkle("Sun Sparkle", Range(0, 1)) = 0.6
     }
 
     SubShader
@@ -71,9 +74,19 @@ Shader "Punchy/Water"
                 float _FlowSpeed;
                 half _Smoothness;
                 half _ScreenReflection;
+                half _DetailStrength;
+                float _DetailScale;
+                half _Sparkle;
             CBUFFER_END
             // 0 above ground, 1 with the camera deep in a cave (CaveSystem).
             float _PunchyUnderground;
+            // The player's lantern (xyz position, w strength) and its colour (rgb) and range (w), set by CaveSystem.
+            float4 _PunchyLantern;
+            float4 _PunchyLanternColor;
+            // The fine detail texture shared with the caves (CaveSystem makes it once): rg a tiling normal, b a height,
+            // a a sparkle. Two scrolling reads of it give the water its small ripples and glitter.
+            TEXTURE2D(_PunchyCaveDetail);
+            SAMPLER(sampler_PunchyCaveDetail);
 
             // Must match WaterVertex in BuildChunkMeshJob.cs.
             struct WaterAttributes
@@ -283,7 +296,15 @@ Shader "Punchy/Water"
                 float strength = _WaveStrength * (0.5 + _PunchyWind) * (0.25 + 0.75 * distanceFade);
                 // Streaks along a river are bands of rougher and smoother water.
                 strength *= lerp(1, 0.55 + 0.9 * streaks, flowAmount);
-                float3 n = normalize(float3(-slope.x * strength, 1, -slope.y * strength));
+                // Fine ripples: two reads of the shared detail texture drifting different ways (and downstream on a
+                // river), stronger in wind and white water, fading with distance; on the shading normal only, so
+                // reflections stay crisp. Their sparkle channels line up here and there for glitter in the sun.
+                float2 drift = flowDir * flowAmount * riverSpeed * t;
+                half4 fine0 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale + float2(t * 0.031, t * 0.017) - drift * _DetailScale * 0.6);
+                half4 fine1 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale * 1.7 + float2(-t * 0.022, t * 0.029) - drift * _DetailScale * 1.1);
+                float2 fine = fine0.rg + fine1.rg - 1;
+                float fineStrength = _DetailStrength * (0.35 + _PunchyWind + rapids) * distanceFade * (1 - 0.8 * murk) * (1 - lava);
+                float3 n = normalize(float3(-slope.x * strength - fine.x * fineStrength, 1, -slope.y * strength - fine.y * fineStrength));
                 // Reflections use a calmer normal, so they stay crisp instead of breaking into noise.
                 float3 nReflect = normalize(float3(-slope.x * strength * 0.4, 1, -slope.y * strength * 0.4));
                 if (!frontFace)
@@ -315,6 +336,23 @@ Shader "Punchy/Water"
                 // River streaks: lighter and darker bands drifting downstream.
                 waterColor *= lerp(1, 0.88 + 0.24 * streaks, flowAmount * (1 - murk));
                 half3 body = waterColor * (ambient + light.color * saturate(dot(n, light.direction)) * shadow * 0.6);
+                // The player's lantern (it's lit underground): it lights the water's body and foam, with a highlight, so
+                // cave pools and streams read as water rather than holes.
+                half3 lanternLit = 0;
+                half lanternGlint = 0;
+                if (_PunchyLantern.w > 0)
+                {
+                    float3 toLantern = _PunchyLantern.xyz - input.positionWS;
+                    float reach = saturate(1 - length(toLantern) / _PunchyLanternColor.w);
+                    reach *= reach;
+                    lanternLit = _PunchyLanternColor.rgb * _PunchyLantern.w * reach;
+                    lanternGlint = pow(saturate(dot(n, normalize(normalize(toLantern) + v))), 400) * reach * _PunchyLantern.w;
+                }
+                body += waterColor * lanternLit * 0.8;
+                // Shallows: light focused by the fine ripples dances over the bed where the water is thin.
+                half shallow = exp(-thickness * 0.9) * (1 - murk) * (1 - lava);
+                half caustic = smoothstep(0.55, 0.85, fine0.b * 0.5 + fine1.b * 0.5) * shallow;
+                body += waterColor * caustic * (light.color * shadow * 0.8 + lanternLit);
 
                 half fresnel = 0.02 + 0.98 * pow(1 - saturate(dot(nReflect, v)), 5);
                 // Reflect the live sky (same function as the skybox, so reflections follow the weather). Keep reflections
@@ -337,9 +375,14 @@ Shader "Punchy/Water"
 
                 fresnel *= 1 - 0.5 * murk * (1 - viscous);
                 half3 color = lerp(body, reflection, fresnel) + light.color * glint * 4 * (1 - 0.6 * murk * (1 - viscous));
+                color += _PunchyLanternColor.rgb * lanternGlint * 0.8;
+                // Glitter: where both fine reads sparkle at once and the ripple catches the sun just so.
+                half glitter = smoothstep(0.55, 0.9, fine0.a * fine1.a * 1.6) * pow(saturate(dot(n, h)), 300) * shadow
+                               * _Sparkle * distanceFade * (1 - murk) * (1 - lava);
+                color += light.color * glitter * 10;
                 // Toxic pools glow from within, pulsing slowly in patches.
                 color += input.look.rgb * glow * (1 - lava) * (0.7 + 0.3 * sin(t * 0.6 + PunchyValueNoise(p * 0.08) * 6.28)) * 1.5;
-                half alpha = saturate(1 - exp(-thickness * _Opacity * (1 + murk * 12)) + fresnel + glint);
+                half alpha = saturate(1 - exp(-thickness * _Opacity * (1 + murk * 12)) + fresnel + glint + glitter + lanternGlint);
 
                 // Thick water: an oily rainbow film in the reflection, and pale scum drifting in slow rafts.
                 if (viscous > 0)
@@ -358,13 +401,20 @@ Shader "Punchy/Water"
 
                 // Broken foam line where the water thins out against the shore (and around rocks in the stream).
                 half foamNoise = PunchyValueNoise(p * 0.9 + float2(t * 0.25, -t * 0.18)) * 0.6 + PunchyValueNoise(p * 2.7 - t * 0.4) * 0.4;
-                half foam = smoothstep(foamNoise * 0.7, 1, saturate(1 - thickness / (_FoamDistance * (1 + rapids))));
+                // The line laps: it creeps up the shore and draws back, unevenly along it.
+                half lap = 0.75 + 0.25 * sin(t * 1.4 + foamNoise * 5);
+                half foam = smoothstep(foamNoise * 0.7, 1, saturate(1 - thickness / (_FoamDistance * lap * (1 + rapids))));
+                // Not a solid white strip: clear right at the edge (a wet line, where the bed shows through), and broken
+                // into patches along it. Underground, still shallow water barely foams (a shallow stream would otherwise
+                // count as shore all over).
+                foam *= smoothstep(0.02, 0.12, thickness) * (0.55 + 0.45 * smoothstep(0.3, 0.7, PunchyValueNoise(p * 1.6 + t * 0.3)));
+                foam *= lerp(1, 0.2, _PunchyUnderground);
                 foam *= 1 - viscous * 0.7;
                 // White water: the churned (steepest) parts of the flowing ripples turn to foam on rapids, and flecks
                 // ride the streaks downstream on any river.
                 foam = max(foam, rapids * smoothstep(0.25, 0.6, length(flowingSlope)));
                 foam = max(foam, flowAmount * smoothstep(0.9 - 0.06 * rapids, 0.98, streaks) * (0.2 + 0.4 * rapids) * distanceFade * (1 - viscous));
-                half3 foamLit = _FoamColor.rgb * (ambient + light.color * shadow * saturate(light.direction.y));
+                half3 foamLit = _FoamColor.rgb * (ambient + light.color * shadow * saturate(light.direction.y) + lanternLit);
                 color = lerp(color, foamLit, foam * (1 - lava));
                 alpha = max(alpha, foam * (1 - lava));
 
@@ -374,7 +424,8 @@ Shader "Punchy/Water"
                 // It hardly reflects anything.
                 if (lava > 0)
                 {
-                    float2 q = (p - flowDir * flowAmount * t * 0.15) * 0.18;
+                    // Carried by any flow, and always drifting a little, so even a still pool visibly moves.
+                    float2 q = (p - flowDir * flowAmount * t * 0.15 + float2(t * 0.04, t * 0.025)) * 0.18;
                     float2 w1 = float2(PunchyValueNoise(q * 1.3 + float2(t * 0.021, 0)), PunchyValueNoise(q * 1.3 + float2(5.2, -t * 0.017)));
                     float2 w2 = float2(PunchyValueNoise((q + w1 * 1.6) * 2.1 + float2(-t * 0.013, 1.7)),
                                        PunchyValueNoise((q + w1 * 1.6) * 2.1 + float2(8.3, t * 0.019)));
@@ -385,11 +436,12 @@ Shader "Punchy/Water"
                     // Crust edges glow hotter, as if the melt is just closing over them.
                     half edge = smoothstep(0.6, 0.66, swirl) * (1 - crust);
                     half band = PunchyValueNoise((q + w1 * 2.0) * 4.0 + t * 0.03);
-                    half3 orange = lerp(half3(1.0, 0.33, 0.04), input.look.rgb, 0.3);
-                    half3 molten = lerp(orange, half3(1.0, 0.78, 0.25), saturate(smoothstep(0.45, 0.85, band) + edge * 0.8));
+                    // A deep orange core; yellow only on the hottest bands and the crust edges.
+                    half3 orange = lerp(half3(1.0, 0.24, 0.02), input.look.rgb, 0.25);
+                    half3 molten = lerp(orange, half3(1.0, 0.72, 0.2), saturate(smoothstep(0.6, 0.9, band) + edge * 0.8));
                     half pulse = 0.9 + 0.1 * sin(t * 0.7 + swirl * 6.28);
                     // Bright enough to glow, not so bright the tonemapper washes the orange out to white.
-                    half3 hot = molten * (1.0 + 0.5 * band + 0.4 * edge) * pulse;
+                    half3 hot = molten * (0.7 + 0.35 * band + 0.3 * edge) * pulse;
                     half3 rock = half3(0.05, 0.035, 0.03);
                     half3 rockLit = rock * (ambient + light.color * saturate(dot(n, light.direction)) * shadow) + orange * 0.08;
                     half3 lavaColor = lerp(hot, rockLit, crust);
@@ -399,7 +451,9 @@ Shader "Punchy/Water"
                     alpha = lerp(alpha, 1, lava);
                 }
 
-                color = PunchyAtmosphere(color, input.positionWS);
+                // The atmosphere (fog and weather) only above ground; a cave pool is right in front of you.
+                if (_PunchyUnderground < 0.999)
+                    color = lerp(PunchyAtmosphere(color, input.positionWS), color, _PunchyUnderground);
                 return half4(color, alpha);
             }
             ENDHLSL
