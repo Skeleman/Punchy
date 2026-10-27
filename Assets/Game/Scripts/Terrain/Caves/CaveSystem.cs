@@ -413,11 +413,12 @@ namespace Punchy.Terrain
                     mesh.UploadMeshData(true);
                     b.Mesh = mesh;
                     // A chunk whose top is a few metres under the lowest ground above it can't shade anything the sun
-                    // reaches, so it stays out of the shadow cascades (the column heights are already sampled).
+                    // reaches, so it stays out of the shadow cascades (the column heights are already sampled) -
+                    // unless it's near a mouth, where daylight comes in sideways under the hill.
                     var lowestGround = float.MaxValue;
                     for (int i = 0; i < b.Surface.Length; i++)
                         lowestGround = math.min(lowestGround, b.Surface[i]);
-                    b.CastsShadows = min.y + chunkSize + chunkVoxel > lowestGround - 4f;
+                    b.CastsShadows = min.y + chunkSize + chunkVoxel > lowestGround - 4f || NearMouth(source, min, min + chunkSize);
                 }
                 b.Field.Dispose();
                 b.CaveField.Dispose();
@@ -429,6 +430,21 @@ namespace Punchy.Terrain
                 b.Data.Dispose();
                 b.Indices.Dispose();
             }
+        }
+
+        /// <summary>Daylight from a mouth lights walls up to about 17 m in (Look's fromMouth), so walls within 20 m shade.</summary>
+        const float MouthLight = 20f;
+
+        static bool NearMouth(in TerrainSource source, float3 min, float3 max)
+        {
+            ref var set = ref source.Caves.Value;
+            for (int c = 0; c < set.Caves.Length; c++)
+            {
+                var mouth = set.Caves[c].Mouth;
+                if (math.distance(math.clamp(mouth, min, max), mouth) < MouthLight)
+                    return true;
+            }
+            return false;
         }
 
         Built StartBuild(in TerrainSource source, int3 key)
