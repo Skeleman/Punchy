@@ -45,6 +45,8 @@ namespace Punchy.Terrain
         public Vector2 Scale = Vector2.one;
         [Tooltip("Exactly one, at the centre (an ancient tree, a den). Density and Ring are ignored.")]
         public bool Centrepiece;
+        [Tooltip("Turn its front (doorway, den mouth) towards the centre, as huts round a square.")]
+        public bool FaceCentre;
     }
 
     /// <summary>A procedural effect drawn at a landmark by LandmarkEffectSystem.</summary>

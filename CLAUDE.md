@@ -51,7 +51,10 @@ Input System. Windows is the only build target so far.
 - **The player's body is a creature.** `FaunaDirector.PlayerSpecies` (a `CreatureSpecies`, currently `Human`)
   is spawned as a creature tagged `PlayerAvatar`; `PlayerAvatarSystem` copies the player's position, heading and
   speed into it instead of a brain, so any species can be played and moves with its own gait. Setting the field
-  to empty falls back to the player's placeholder mesh. Slot `Parent` indices count slots in the species' list,
+  to empty falls back to the player's placeholder mesh. Humanoid folk (Human, Dwarf, Elf, Goblin, Ogre) share the
+  Human limb parts with different slot scales and thicknesses, plus their own torso or leg poses where the gait
+  differs (goblin crouch, ogre sway); villages are a landmark (huts face the centre) whose residents get a Home
+  and Leash so they stay in town. Slot `Parent` indices count slots in the species' list,
   not the mirrored copies.
 - `Ambience/` — heat haze, breath and snow puffs, fireflies and butterflies, shared `AmbientParticleType`
   assets (sparkles, spores, embers, ash, fog wisps) that biomes list, and `LandmarkEffectSystem` (landmark plumes

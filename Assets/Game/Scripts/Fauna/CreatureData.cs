@@ -192,6 +192,9 @@ namespace Punchy.Fauna
         public float ModeTime, StageTime;
         /// <summary>Seconds alive, for breathing and chewing.</summary>
         public float Clock;
+        /// <summary>Where it lives (a settlement, a den); with Leash &gt; 0 it wanders no further than that from it.</summary>
+        public float2 Home;
+        public float Leash;
 
         // Posture, 0..1, eased towards what the current activity wants (read by CreatureAnimator).
         /// <summary>Lying down: body on the ground, legs folded.</summary>

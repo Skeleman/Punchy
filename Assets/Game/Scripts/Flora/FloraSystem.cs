@@ -95,7 +95,7 @@ namespace Punchy.Flora
             public int Species;
             public float Density;
             public float2 Ring, Scale;
-            public int Centrepiece;
+            public int Centrepiece, FaceCentre;
         }
 
         class Layer
@@ -360,7 +360,8 @@ namespace Punchy.Flora
                                 Density = p.Density,
                                 Ring = p.Ring,
                                 Scale = p.Scale,
-                                Centrepiece = p.Centrepiece ? 1 : 0
+                                Centrepiece = p.Centrepiece ? 1 : 0,
+                                FaceCentre = p.FaceCentre ? 1 : 0
                             });
                 propRanges[t * 3 + layer] = new int2(start, propList.Count - start);
             }
@@ -743,11 +744,13 @@ namespace Punchy.Flora
                 // Inside a landmark: its centrepiece takes the cell holding the centre, the biome's plants thin out
                 // towards the middle, and its props join the candidates.
                 var keep = 1f;
+                var towardsCentre = float2.zero;
                 if (Source.Landmarks.IsCreated && LandmarkSampling.Find(ref Source.Landmarks.Value, xz, out var landmark) && landmark.Type < LandmarkTypeCount)
                 {
                     ref var set = ref Source.Landmarks.Value;
                     var clear = set.Types[landmark.Type].ClearRadius;
                     keep = clear > 0f ? math.smoothstep(clear * 0.8f, clear, landmark.Distance) : 1f;
+                    towardsCentre = set.Instances[landmark.Instance].Position - xz;
                     var propRange = PropRanges[landmark.Type * 3 + Layer];
                     for (int e = propRange.x; e < propRange.x + propRange.y; e++)
                     {
@@ -859,18 +862,22 @@ namespace Punchy.Flora
                 var pick = 0;
                 for (var cumulative = weights[0]; pick < candidates.Length - 1 && roll >= cumulative; cumulative += weights[++pick]) { }
                 var scale = rng.NextFloat(0.85f, 1.15f);
+                var yaw = rng.NextFloat(math.PI * 2f);
                 var picked = candidates[pick];
                 if (picked < 0)
                 {
                     var prop = Props[-picked - 1];
                     picked = prop.Species;
                     scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y));
+                    // Models face +Z, which yaw turns to (-sin, cos).
+                    if (prop.FaceCentre != 0)
+                        yaw = math.atan2(-towardsCentre.x, towardsCentre.y) + rng.NextFloat(-0.15f, 0.15f);
                 }
                 var rule = Rules[picked];
                 Output[i] = new FloraInstance
                 {
                     Position = new float3(xz.x, ground.Height, xz.y),
-                    Yaw = rng.NextFloat(math.PI * 2f),
+                    Yaw = yaw,
                     // Plants grow smaller towards the top of their range (a tree line).
                     Scale = scale * (0.55f + 0.45f * shrink[pick]),
                     Model = rule.FirstModel + rng.NextInt(rule.Variants),

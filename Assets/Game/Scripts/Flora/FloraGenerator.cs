@@ -60,6 +60,7 @@ namespace Punchy.Flora
                     case FloraForm.Crystal: Crystal(g); break;
                     case FloraForm.Den: Den(g); break;
                     case FloraForm.Columns: Columns(g); break;
+                    case FloraForm.Hut: Hut(g); break;
                 }
                 if (lod == 0)
                 {
@@ -1254,6 +1255,47 @@ namespace Punchy.Flora
             g.Width = width * 2f;
             b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.4f));
             Moss(g, first);
+        }
+
+        static void Hut(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var radius = height * s.Spread * 0.5f;
+            var wall = height * 0.45f;
+            g.Height = height;
+            g.Width = radius * 2.5f;
+            g.TrunkRadius = radius;
+            var sides = g.Sides(14, 10, 7);
+
+            // Walls, slightly bulging, sunk a little into the ground.
+            var first = b.VertexCount;
+            b.Tube(new List<Vector3> { Vector3.down * 0.1f, Vector3.up * wall * 0.5f, Vector3.up * wall },
+                   new List<float> { radius, radius * 1.02f, radius * 0.98f }, sides, g.Bark, FloraPart.Bark);
+            // Timber bands round the wall.
+            if (g.Lod < 2)
+                foreach (var y in new[] { 0.15f, wall * 0.95f })
+                    b.Tube(new List<Vector3> { Vector3.up * (y - 0.06f), Vector3.up * (y + 0.06f) },
+                           new List<float> { radius * 1.04f, radius * 1.04f }, sides, g.Bark * 0.6f, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, wall * 0.6f));
+
+            // Conical roof with an overhang, rough at the edge.
+            var roof = b.VertexCount;
+            var overhang = radius * 1.3f;
+            var roofColor = g.FoliageColor();
+            b.Tube(new List<Vector3> { Vector3.up * (wall - 0.15f), Vector3.up * (wall + (height - wall) * 0.45f), Vector3.up * height },
+                   new List<float> { overhang, overhang * 0.55f, 0.05f }, sides, roofColor, FloraPart.Bark, cap: true);
+            b.Occlude(roof, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.2f)));
+
+            // Doorway facing +Z: a dark arch set into the wall, with a lintel.
+            var doorHeight = Mathf.Min(wall * 0.85f, 1.9f);
+            var door = new Vector3(0f, doorHeight * 0.5f, radius * 0.97f);
+            b.Blob(door, new Vector3(radius * 0.28f, doorHeight * 0.5f, 0.12f), Quaternion.identity, 1, 0.02f, 0f,
+                   new Color(0.02f, 0.017f, 0.015f), FloraPart.Bark, 0.2f);
+            if (g.Lod < 2)
+                b.Tube(new List<Vector3> { door + new Vector3(-radius * 0.35f, doorHeight * 0.5f + 0.05f, 0.08f), door + new Vector3(radius * 0.35f, doorHeight * 0.5f + 0.05f, 0.08f) },
+                       new List<float> { 0.07f, 0.07f }, 5, g.Bark * 0.55f, FloraPart.Bark);
         }
 
         static void Den(Grower g)

@@ -28,7 +28,9 @@ namespace Punchy.Flora
                  "or glowing). Branches = crystals.")] Crystal,
         [Tooltip("A rocky or earthen hump with a dark opening: a den, burrow or cave mouth. Bark is the rock.")] Den,
         [Tooltip("Packed hexagonal columns of cooled lava (basalt), flat-topped at stepped heights. Branches = " +
-                 "columns, Thickness = column width, Spread = how much the heights vary.")] Columns
+                 "columns, Thickness = column width, Spread = how much the heights vary.")] Columns,
+        [Tooltip("A round hut: Bark-coloured walls, a conical thatched roof (Foliage) with an overhang, and a dark " +
+                 "doorway facing +Z. Height is the whole hut; Spread is the width relative to it.")] Hut
     }
 
     public enum FoliageFinish : byte

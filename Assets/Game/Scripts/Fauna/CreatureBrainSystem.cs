@@ -347,6 +347,9 @@ namespace Punchy.Fauna
                 else
                 {
                     var candidate = s.Position.xz + rng.NextFloat2Direction() * b.WanderRadius * rng.NextFloat(0.3f, 1f);
+                    // Animals with a home stay near it.
+                    if (s.Leash > 0f && math.distance(candidate, s.Home) > s.Leash)
+                        candidate = s.Home + rng.NextFloat2Direction() * s.Leash * rng.NextFloat(0.1f, 0.8f);
                     if (Walkable(candidate))
                     {
                         SetMode(ref s, CreatureMode.Wander);

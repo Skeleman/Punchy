@@ -43,6 +43,7 @@ namespace Punchy.Fauna
         World queryWorld;
         EntityQuery terrainQuery, paletteQuery, playerQuery, creatureQuery, wildQuery, avatarQuery, playerMeshQuery;
         CreatureSpecies builtPlayerSpecies;
+        Entity hiddenPlayer;
         Entity settingsEntity;
         Mesh capsule;
         float spawnBudget;
@@ -221,7 +222,12 @@ namespace Punchy.Fauna
         /// <summary>Spawns the player's body if there should be one and it's missing, and hides the placeholder.</summary>
         void KeepAvatar(float3 playerPos)
         {
-            if (PlayerSpecies == null || avatarQuery.CalculateEntityCount() > 0)
+            if (PlayerSpecies == null)
+                return;
+            // A re-baked subscene brings back a new player entity, placeholder showing.
+            if (playerQuery.TryGetSingletonEntity<LocalTransform>(out var playerEntity) && playerEntity != hiddenPlayer && avatarQuery.CalculateEntityCount() > 0)
+                ShowPlayerMesh(false);
+            if (avatarQuery.CalculateEntityCount() > 0)
                 return;
             var index = species.IndexOf(PlayerSpecies);
             if (index < 0)
@@ -241,6 +247,7 @@ namespace Punchy.Fauna
             if (!playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
                 return;
             var em = queryWorld.EntityManager;
+            hiddenPlayer = show ? Entity.Null : player;
             var meshes = playerMeshQuery.ToEntityArray(Allocator.Temp);
             foreach (var e in meshes)
             {
@@ -355,8 +362,13 @@ namespace Punchy.Fauna
                     {
                         var p = inst.Position + rng.NextFloat2Direction() * rng.NextFloat(0.1f, 0.45f) * radius;
                         var g = source.SampleGround(p);
-                        if (!(g.HasWater && g.WaterSurface > g.Height))
-                            Spawn(index, new float3(p.x, g.Height, p.y));
+                        if (g.HasWater && g.WaterSurface > g.Height)
+                            continue;
+                        var e = Spawn(index, new float3(p.x, g.Height, p.y));
+                        var state = queryWorld.EntityManager.GetComponentData<CreatureState>(e);
+                        state.Home = inst.Position;
+                        state.Leash = radius * 0.8f;
+                        queryWorld.EntityManager.SetComponentData(e, state);
                     }
                 }
             }
