@@ -87,6 +87,10 @@ namespace Punchy.Debugging
             float3 start = default;
             if (speed > 0f && TryGetWorld(out var em, out var player))
                 start = em.GetComponentData<LocalTransform>(player).Position;
+            // -profilestop <stop> <file>: record a Profiler capture of just that stop's measured part (Development
+            // builds only), so a long route doesn't fill the disk.
+            var profile = System.Array.IndexOf(args, "-profilestop");
+            var profiling = profile >= 0 && profile + 2 < args.Length && args[profile + 1] == name;
             var t = 0f;
             frameMs.Clear(); cpuMs.Clear(); gpuMs.Clear();
             while (t < Settle + measure)
@@ -95,11 +99,25 @@ namespace Punchy.Debugging
                 if (speed > 0f)
                     Carry(start + math.normalize(new float3(1f, 0f, 0.3f)) * speed * t, height);
                 if (!measuring && t > Settle)
+                {
                     gcAtStart = System.GC.CollectionCount(0);   // garbage collections during the measured part
+                    if (profiling)
+                    {
+                        UnityEngine.Profiling.Profiler.logFile = args[profile + 2];
+                        UnityEngine.Profiling.Profiler.enableBinaryLog = true;
+                        UnityEngine.Profiling.Profiler.maxUsedMemory = 256 * 1024 * 1024;
+                        UnityEngine.Profiling.Profiler.enabled = true;
+                    }
+                }
                 measuring = t > Settle;
                 yield return null;
             }
             measuring = false;
+            if (profiling)
+            {
+                UnityEngine.Profiling.Profiler.enabled = false;
+                UnityEngine.Profiling.Profiler.logFile = "";
+            }
             Report(name);
         }
 
