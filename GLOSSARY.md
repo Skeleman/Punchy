@@ -102,10 +102,13 @@ it real. To add or change a term, edit this file in the same commit as the code 
   surface used: a roost's ceiling point, a perch's top), Facing, Size (radius of the spot), Owner (cave or
   settlement), Kind, Capacity (0 = unlimited), Biome, Tags (Shelter bit, plus the cave style or settlement folk).
   Kinds (`AnchorKind`, a byte, append only): Door, Work, Stall, Well, Bench, Gate, Altar, Seat, Roost, Perch, Nest,
-  Burrow, Pool, Hearth, Yard. Look up with `Anchors.Near` and `Anchors.Pick` (Burst-safe, allocation-free). The world
+  Burrow, Pool, Hearth, Yard, Glow (a glowing plant: creatures drawn to light gather there). Look up with `Anchors.Near` and `Anchors.Pick` (Burst-safe, allocation-free). The world
   session creates anchors; the animal session decides how creatures use them. This is the only contract between the
   two. (`CreatureState.Anchor` is the point a creature is using right now: a world anchor, or one it found itself: a
-  tree's foot, its web's centre.)
+  tree's foot, its web's centre, its burrow or nest.)
+- **Nest**: where a bird sleeps (`CreatureSpecies.Nests`: Branch, a twig cup against a trunk; Treetop, a stick
+  platform; Ground, a grass scrape). Picked from its 16 m lair cell, like a burrow, so a bird that despawns and comes
+  back has the same nest with nothing saved. Not the same as the Nest anchor kind (a cave ledge), which birds don't use yet.
 
 ## Multiplayer and testing
 
@@ -114,7 +117,9 @@ it real. To add or change a term, edit this file in the same commit as the code 
 - **Ghost**: a replicated entity. **Replica**: a client's rebuilt copy of creature state (`CreatureReplica`).
 - **Shared clock**: `_PunchyClock`, the server tick in seconds; ambient motion runs on it so screens agree.
 - **Status line**: the timestamped "Net status" log line every 10 s. **Test flags**: `-place`, `-time`, `-autowalk`,
-  `-watch`, `-spawn`, `-host`, `-join`, `-hostonline`, `-joincode`, `-body`, `-weatherseed`.
+  `-watch`, `-spawn`, `-pose` (one specimen held in daylight while the camera circles it, e.g. `Bat:glide:70`),
+  `-incave`, `-timescale`, `-nohud`, `-host`, `-join`, `-hostonline`, `-joincode`, `-body`, `-weatherseed`. In the
+  editor, Play mode also reads the DebugControls flags from `Temp/PlayArgs.txt`, so tests need no build.
 
 ## Sessions
 
