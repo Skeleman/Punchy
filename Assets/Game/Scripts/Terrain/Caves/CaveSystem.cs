@@ -253,7 +253,7 @@ namespace Punchy.Terrain
         /// <summary>Cave water's look in the water vertex layout: dark, clear and cold (rgb, murk).</summary>
         static readonly float4 CaveWater = new float4(0.1f, 0.28f, 0.3f, 0.1f);
         // Streams run shallow over dark rock: darker and greener than the pools, a little murkier.
-        static readonly float4 CaveStreamWater = new float4(0.04f, 0.13f, 0.12f, 0.3f);
+        static readonly float4 CaveStreamWater = new float4(0.04f, 0.13f, 0.12f, 0.15f);
         /// <summary>One mesh per stream, built when the world's caves are first drawn (streams are few and fixed).</summary>
         readonly List<Mesh> streamMeshes = new List<Mesh>();
         EntityQuery configQuery;
@@ -505,15 +505,16 @@ namespace Punchy.Terrain
                 var along = math.normalizesafe((next - prev).xz, new float2(1f, 0f));
                 // Narrowing to a trickle at both ends, rather than stopping square.
                 var taper = math.lerp(0.15f, 1f, math.saturate(math.min(k, count - 1 - k) / 2f));
-                var side = new float2(-along.y, along.x) * p.Width * 0.4f * taper;
+                // A little past where the banks rise out of the water (the edges tuck under them), so it fills the channel.
+                var side = new float2(-along.y, along.x) * p.Width * 0.58f * taper;
                 var drop = (prev.y - next.y) / math.max(math.distance(prev.xz, next.xz), 0.1f);
-                // Cave streams run steep all the way, so only the steepest steps churn white.
-                var rapids = math.saturate(drop * 1.5f - 0.15f);
+                // Cave streams run steep all the way, so only the steepest steps churn white; but a brook is never still.
+                var rapids = math.max(math.saturate(drop * 1.5f - 0.15f), 0.2f);
                 foreach (var edge in new[] { -1f, 0f, 1f })
                     vertices.Add(new WaterVertex
                     {
                         Position = p.Position + new float3(side.x, 0f, side.y) * edge,
-                        Data = new float4(along * 0.7f, edge == 0f ? p.Depth : 0.05f, rapids),
+                        Data = new float4(along, edge == 0f ? p.Depth : 0.05f, rapids),
                         Look = CaveStreamWater,
                         Glow = float2.zero
                     });
