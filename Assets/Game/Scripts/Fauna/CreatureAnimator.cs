@@ -55,6 +55,9 @@ namespace Punchy.Fauna
                 gradient = (front - back) / (2f * halfLength);   // rise per metre forward
             }
             var pitch = math.clamp(-math.atan(gradient), -0.45f, 0.45f) * (1f - airborne);
+            // The plane the body stands on is as steep as it pitches (at most about 26°): on anything steeper, the legs
+            // make up the rest, each to the ground under it.
+            gradient = -math.tan(pitch);
             // Swimming (a land animal low in deep water): nose up a little, to keep its head out.
             if (b.CrossesWater)
             {
@@ -127,6 +130,27 @@ namespace Punchy.Fauna
                     rootRot = math.mul(quaternion.LookRotationSafe(math.normalizesafe(along, forward), surfaceUp), quaternion.RotateZ(roll));
                     rootPos = s.Position + surfaceUp * (height - bob);
                 }
+            }
+
+            // Across a slope or over a step, the hips come down just far enough that the downhill feet can reach the
+            // ground: under each leg's foot as it stands now, how far the ground falls below the body's plane, against
+            // how much further that leg can stretch. (The legs' own correction below then bends the others by as much.)
+            var sink = 0f;
+            if (!aquatic && !crawling && airborne < 0.5f && s.Fly < 0.5f && math.abs(s.Vertical) < 0.3f && s.Lie < 0.5f)
+            {
+                for (int i = 0; i < b.Parts.Length; i++)
+                {
+                    ref var leg = ref b.Parts[i];
+                    if (leg.Role != LimbRole.Leg || leg.Parent >= 0 || leg.SegmentCount < 2)
+                        continue;
+                    // (Where its foot stands, not straight under the hip: on a bank the two can be far apart in height.
+                    // Its give is none for a straight leg, more for a bent one.)
+                    var foot = rootPos + math.mul(rootRot, (leg.Socket + leg.Stance) * scale);
+                    var plane = ground + math.dot(foot.xz - s.Position.xz, forward.xz) * gradient;
+                    sink = math.max(sink, plane - GroundAt(terrain, foot.xz, s.Position.y) - leg.Slack * scale * 0.9f);
+                }
+                sink = math.clamp(sink, 0f, b.StandHeight * scale * 0.4f);
+                rootPos.y -= sink;
             }
 
             // Body.
@@ -296,9 +320,31 @@ namespace Punchy.Fauna
                     var reach = 0f;
                     for (int j = 0; j < part.SegmentCount; j++)
                         reach += b.Segments[part.FirstSegment + j].Length * scale;
-                    var correction = ((actual - nominal) * (1f - fold) + (folds ? 0f : lowered)) * (1f - airborne);
+                    var correction = ((actual - nominal) * (1f - fold) + (folds ? 0f : lowered) + sink) * (1f - airborne);
                     correction = math.clamp(correction, -0.45f * reach, 0.45f * reach);
                     pos += PlaceFoot(ref b, ref part, ref segPos, ref segRot, new float3(0f, correction, 0f), scale);
+
+                    // A foot that lies along the ground (folk's feet) tips with it while standing, toes up a rise and down
+                    // a fall, by at most 30°: the ground just ahead of and behind it, turned about the ankle. (Walking,
+                    // the heel and toe below roll it through each step instead.)
+                    if (part.SegmentCount >= 3 && fold < 0.5f && move < 0.5f)
+                    {
+                        var fs = part.FirstSegment + part.SegmentCount - 1;
+                        var len = b.Segments[fs].Length * scale;
+                        var footDir = math.mul(segRot[fs], new float3(0f, 0f, 1f));
+                        if (math.abs(footDir.y) < 0.6f && len > 1e-3f)
+                        {
+                            var flat = math.normalizesafe(new float2(footDir.x, footDir.z));
+                            var mid = segPos[fs].xz + flat * len * 0.5f;
+                            var span = len * 0.5f + 0.05f * scale;
+                            var rise = GroundAt(terrain, mid + flat * span, s.Position.y) - GroundAt(terrain, mid - flat * span, s.Position.y);
+                            var tilt = math.clamp(math.atan2(rise, 2f * span), -0.52f, 0.52f);
+                            var right = math.mul(segRot[fs], new float3(1f, 0f, 0f));
+                            segRot[fs] = math.mul(quaternion.AxisAngle(right, -tilt), segRot[fs]);
+                            pos = segPos[fs] + math.mul(segRot[fs], new float3(0f, 0f, len));
+                            rot = segRot[fs];
+                        }
+                    }
 
                     // Heel and toe (an upright body walking, fading out into a run): the foot comes down heel first,
                     // toes up, lies flat through the middle of the step, then rolls up onto its toes to push off (the

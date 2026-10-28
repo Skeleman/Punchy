@@ -167,6 +167,11 @@ namespace Punchy.Fauna
         public bool FollowGround;
         /// <summary>Style option group (0 = always shown), this part's option in it, and how many options it has.</summary>
         public int StyleGroup, StyleIndex, StyleCount;
+        /// <summary>A leg's give: how much further its hip-to-ankle span can stretch beyond the standing pose (m, at
+        /// size 1), so how far the ground can fall away under it before the hips must come down.</summary>
+        public float Slack;
+        /// <summary>Where a leg's foot stands from its hip in the standing pose, in the body's frame (m, at size 1).</summary>
+        public float3 Stance;
     }
 
     public struct CreatureSegment
@@ -601,7 +606,36 @@ namespace Punchy.Fauna
             var blob = builder.CreateBlobAssetReference<CreatureBlob>(Allocator.Persistent);
             builder.Dispose();
             MeasureGait(ref blob.Value, species.LeglessStride);
+            MeasureLegs(ref blob.Value);
             return blob;
+        }
+
+        /// <summary>
+        /// Each leg's give (Slack): its thigh and shin at full stretch against the span from hip to ankle in the
+        /// standing pose, chained as the animator chains them (the rest orientation, then each joint's idle angles).
+        /// </summary>
+        static void MeasureLegs(ref CreatureBlob b)
+        {
+            for (int i = 0; i < b.Parts.Length; i++)
+            {
+                ref var part = ref b.Parts[i];
+                if (part.Role != LimbRole.Leg || part.Parent >= 0 || part.SegmentCount < 2)
+                    continue;
+                int s0 = part.FirstSegment, s1 = s0 + 1;
+                var rot = math.mul(part.Rest, quaternion.EulerZXY(b.Poses[s0 * CreatureBlob.PoseCount + CreatureBlob.Idle]));
+                var knee = math.mul(rot, new float3(0f, 0f, b.Segments[s0].Length));
+                rot = math.mul(rot, quaternion.EulerZXY(b.Poses[s1 * CreatureBlob.PoseCount + CreatureBlob.Idle]));
+                var ankle = knee + math.mul(rot, new float3(0f, 0f, b.Segments[s1].Length));
+                part.Slack = math.max(b.Segments[s0].Length + b.Segments[s1].Length - math.length(ankle), 0f);
+                // (On down the rest of the leg, to its foot.)
+                var foot = ankle;
+                for (int j = 2; j < part.SegmentCount; j++)
+                {
+                    rot = math.mul(rot, quaternion.EulerZXY(b.Poses[(s0 + j) * CreatureBlob.PoseCount + CreatureBlob.Idle]));
+                    foot += math.mul(rot, new float3(0f, 0f, b.Segments[s0 + j].Length));
+                }
+                part.Stance = foot;
+            }
         }
 
         /// <summary>How many slots before <paramref name="slotIndex"/> share its style group (its option number).</summary>
