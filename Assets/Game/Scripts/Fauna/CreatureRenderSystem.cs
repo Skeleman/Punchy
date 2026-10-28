@@ -24,8 +24,9 @@ namespace Punchy.Fauna
     {
         EntityQuery query;
         GraphicsBuffer buffer;
-        MaterialPropertyBlock props;
+        MaterialPropertyBlock props, flatProps;
         static readonly int SegmentsId = Shader.PropertyToID("_Segments");
+        static readonly int SegmentOffsetId = Shader.PropertyToID("_SegmentOffset");
         const int MarkCount = 3;
         const int Spokes = 12, Rings = 6, Anchors = 4;
         const int WebCount = Spokes + Spokes * Rings + Anchors;
@@ -63,12 +64,11 @@ namespace Punchy.Fauna
         }
 
         /// <summary>
-        /// Writes a roost's sleeping bats: each hangs head down from the ceiling, wings wrapped round, at a spot spread
-        /// over the roost picked from its index.
+        /// Writes a roost's sleeping bats (count of them): each hangs head down from the ceiling, wings wrapped round, at
+        /// a spot spread over the roost picked from its index.
         /// </summary>
-        static int Colony(in Anchor roost, int index, float night, NativeArray<SegmentInstance> output, int at)
+        static int Colony(in Anchor roost, int index, int count, NativeArray<SegmentInstance> output, int at)
         {
-            var count = ColonySize(roost, index, night);
             var rng = new Unity.Mathematics.Random(math.hash(new int2(index, 0xBA7)) | 1u);
             var fur = new float4(0.2f, 0.15f, 0.11f, 0f);
             var wing = new float4(0.1f, 0.08f, 0.07f, 0f);
@@ -116,12 +116,15 @@ namespace Punchy.Fauna
             var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.TempJob);
             var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
             var offsets = new NativeArray<int>(bodies.Length, Allocator.TempJob);
+            var hanging = new NativeList<float3>(8, Allocator.Temp);
             var total = 0;
             for (int i = 0; i < bodies.Length; i++)
             {
                 offsets[i] = total;
                 total += bodies[i].SegmentCount + MarkCount + (InWeb(states[i]) ? WebCount : 0) +
                          LairCount(ref bodies[i].Blob.Value) + (states[i].Task == CreatureTask.Hunt ? 1 : 0);
+                if (states[i].Mode == CreatureMode.Roost && states[i].Stage == 200)
+                    hanging.Add(states[i].Position);
             }
             bodies.Dispose();
             states.Dispose();
@@ -134,9 +137,20 @@ namespace Punchy.Fauna
             if (terrain.Anchors.IsCreated)
                 Punchy.Terrain.Anchors.Near(ref terrain.Anchors.Value, cam.transform.position, ColonyRange, AnchorKind.Roost, ref roosts);
             var night = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Night : 0f;
+            // (Less any real bats hanging there now, so they don't double up with the drawn ones.)
             var colonyStart = total;
+            var colonySizes = new NativeArray<int>(roosts.Length, Allocator.Temp);
             for (int i = 0; i < roosts.Length; i++)
-                total += ColonySize(terrain.Anchors.Value.Anchors[roosts[i]], roosts[i], night) * BatParts;
+            {
+                var roost = terrain.Anchors.Value.Anchors[roosts[i]];
+                var real = 0;
+                foreach (var p in hanging)
+                    if (math.distance(p, roost.Position) < roost.Size + 0.6f)
+                        real++;
+                colonySizes[i] = math.max(ColonySize(roost, roosts[i], night) - real, 0);
+                total += colonySizes[i] * BatParts;
+            }
+            hanging.Dispose();
 
             // Footprints and feathers (TraceSystem).
             var traces = World.GetExistingSystemManaged<TraceSystem>();
@@ -161,7 +175,8 @@ namespace Punchy.Fauna
             Dependency.Complete();
             var at = colonyStart;
             for (int i = 0; i < roosts.Length; i++)
-                at = Colony(terrain.Anchors.Value.Anchors[roosts[i]], roosts[i], night, instances, at);
+                at = Colony(terrain.Anchors.Value.Anchors[roosts[i]], roosts[i], colonySizes[i], instances, at);
+            colonySizes.Dispose();
             if (traceCount > 0)
                 at = traces.Write(instances, at, (float)SystemAPI.Time.ElapsedTime);
 
@@ -174,8 +189,11 @@ namespace Punchy.Fauna
             instances.Dispose();
             offsets.Dispose();
 
+            // Two draws from the one buffer: the creatures, casting shadows; then the colonies and traces after them,
+            // which don't (sleeping bats under a cave ceiling and prints on the ground gain nothing from a shadow pass).
             props ??= new MaterialPropertyBlock();
             props.SetBuffer(SegmentsId, buffer);
+            props.SetInteger(SegmentOffsetId, 0);
             var rp = new RenderParams(settings.Material)
             {
                 worldBounds = new Bounds(cam.transform.position, Vector3.one * 2000f),
@@ -183,7 +201,17 @@ namespace Punchy.Fauna
                 shadowCastingMode = ShadowCastingMode.On,
                 receiveShadows = true
             };
-            Graphics.RenderMeshPrimitives(rp, settings.Capsule, 0, total);
+            if (colonyStart > 0)
+                Graphics.RenderMeshPrimitives(rp, settings.Capsule, 0, colonyStart);
+            if (total > colonyStart)
+            {
+                flatProps ??= new MaterialPropertyBlock();
+                flatProps.SetBuffer(SegmentsId, buffer);
+                flatProps.SetInteger(SegmentOffsetId, colonyStart);
+                rp.matProps = flatProps;
+                rp.shadowCastingMode = ShadowCastingMode.Off;
+                Graphics.RenderMeshPrimitives(rp, settings.Capsule, 0, total - colonyStart);
+            }
         }
 
         [BurstCompile]

@@ -25,6 +25,8 @@ Shader "Punchy/Creature"
         };
 
         StructuredBuffer<Segment> _Segments;
+        // Where this draw's instances start in _Segments (the shadowless draw of colonies and traces follows the bodies).
+        uint _SegmentOffset;
 
         struct CreatureAttributes
         {
@@ -50,11 +52,11 @@ Shader "Punchy/Creature"
             clip(1 - fade - (pattern[p.y * 4 + p.x] + 0.5) / 16.0);
         }
 
-        float SegmentFade(CreatureAttributes input) { return _Segments[input.instanceID].pad; }
+        float SegmentFade(CreatureAttributes input) { return _Segments[input.instanceID + _SegmentOffset].pad; }
 
         void SegmentVertex(CreatureAttributes input, out float3 positionWS, out float3 normalWS, out float4 color)
         {
-            Segment s = _Segments[input.instanceID];
+            Segment s = _Segments[input.instanceID + _SegmentOffset];
             float t = input.shape.z;
             float r = lerp(s.radiusStart, s.radiusEnd, t);
             float2 around = input.shape.xy;
