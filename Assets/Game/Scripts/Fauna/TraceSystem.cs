@@ -126,12 +126,11 @@ namespace Punchy.Fauna
             // too, a little less than the ground round it (the creature shader's glow is colour × alpha × about 2.2),
             // so it reads as a pressed print, not a dark hole.
             var colour = surface.Snow > 0.5f ? new float3(0.62f, 0.68f, 0.78f) : surface.Albedo * 0.55f;
-            var glow = 0f;
-            if (math.cmax(surface.Emission) > 0.05f)
-            {
-                colour = colour * 0.5f + surface.Emission * 0.3f;
-                glow = 1f;
-            }
+            // (Ramped in from faint glow, so dimly hot ground doesn't get dark prints: about two-thirds of the ground's
+            // own glow, which the terrain adds at its emission × 1.)
+            var glow = math.saturate(math.cmax(surface.Emission) / 0.04f);
+            if (glow > 0f)
+                colour = math.lerp(colour, colour * 0.5f + surface.Emission * 0.3f / glow, glow);
             Add(new Trace
             {
                 Position = at,
