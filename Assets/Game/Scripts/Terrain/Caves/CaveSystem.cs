@@ -1530,7 +1530,8 @@ namespace Punchy.Terrain
             /// <summary>
             /// rgb the terrain's colour at this spot; alpha how much daylight reaches (the entrance and near the
             /// surface). Data: x how much to look like the terrain (1 at the surface, fading out a few metres
-            /// underground), y a slight brightness tint for the cave rock, z the cave's style slot.
+            /// underground), y a slight brightness tint for the cave rock, z the cave's style slot, w how much darker
+            /// (negative: lighter) ribs make it here.
             /// </summary>
             float4 Look(float3 p, out float4 data)
             {
@@ -1547,8 +1548,17 @@ namespace Punchy.Terrain
                 var open = math.saturate((2f - Source.CaveClearance(p.xz, surface)) / 1.5f);
                 var ground = Source.SampleGround(p.xz);
                 var albedo = Source.SampleSurface(p.xz, ground, Source.SampleNormal(p.xz, 1f)).Albedo;
+                // Ribbed caves: how much darker the hollow between two ribs is (crests a touch lighter), applied to
+                // every look the wall takes, so the ribs read even in the flat light of a shallow ice cave; none where
+                // the cave opens to the sky, so mouths still match the terrain.
+                var ribShade = 0f;
+                if (cave >= 0 && set.Caves[cave].Wall.z > 0f)
+                {
+                    var rib = CaveSampling.Rib(set.Caves[cave], p);
+                    ribShade = (0.55f - 0.75f * rib * rib) * set.Caves[cave].Wall.z * (1f - open);
+                }
                 data = new float4(math.max(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), open),
-                                  0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f), cave >= 0 ? set.Caves[cave].Style : 0, 0f);
+                                  0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f), cave >= 0 ? set.Caves[cave].Style : 0, ribShade);
                 return new float4(albedo, math.max(math.max(fromMouth, nearSurface), open));
             }
         }
