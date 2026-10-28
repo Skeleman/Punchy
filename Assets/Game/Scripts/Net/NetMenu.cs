@@ -322,6 +322,8 @@ namespace Punchy.Net
             if (!players.TryGetSingletonEntity<PlayerTag>(out var player) || !terrain.TryGetSingleton<TerrainSource>(out var source))
                 return;
             var target = GameBootstrap.CarriedPosition.xz;
+            // (On the floor under the spot, not the ground overhead: someone in a cave stays in it.)
+            var level = GameBootstrap.CarriedPosition.y;
             if (placement == GameBootstrap.Placement.NearHost)
             {
                 // The host's NetPlayer is the first one that isn't ours and has a real position.
@@ -339,6 +341,12 @@ namespace Punchy.Net
                     if (!mine && math.lengthsq(p) > 1e-6f)
                     {
                         target = p.xz + new float2(2.5f, 1.5f);
+                        level = p.y;
+                        // Beside them if that's open floor too; in a cave the spot beside them may be rock.
+                        source.FloorUnder(new float3(p.x, p.y + 0.5f, p.z), out var hostInCave);
+                        source.FloorUnder(new float3(target.x, p.y + 0.5f, target.y), out var besideInCave);
+                        if (hostInCave && !besideInCave)
+                            target = p.xz;
                         found = true;
                         break;
                     }
@@ -348,7 +356,7 @@ namespace Punchy.Net
                     return;
             }
             var t = em.GetComponentData<LocalTransform>(player);
-            t.Position = new float3(target.x, source.SampleHeight(target) + 0.2f, target.y);
+            t.Position = new float3(target.x, source.FloorUnder(new float3(target.x, level + 0.5f, target.y), out _) + 0.2f, target.y);
             em.SetComponentData(player, t);
             Debug.Log($"NetMenu: placed the player ({placement}) at ({t.Position.x:F0}, {t.Position.y:F0}, {t.Position.z:F0})");
             GameBootstrap.PendingPlacement = GameBootstrap.Placement.None;
