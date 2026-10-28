@@ -13,6 +13,14 @@ asks Zach if needed, and records the answer here.
 
 ## Decided
 
+### J-021: Leaf-card tree canopies?
+
+- **Asked:** 2026-10-27, by the supervisor, after the world session's experiment (113c608, 86951d0).
+- **Also comes up when:** any change to how tree crowns are built.
+- **Answer (2026-10-27):** drop it. Revert the cards; reshape the great tree's crown with spheroids instead.
+- **Why:** Zach's pick after the compare sheet (cards read see-through and spiky).
+- **Revisited:** 0.
+
 ### J-018: In what order does play-test feedback get worked?
 
 - **Asked:** 2026-10-27, by the supervisor, after Zach's ~40-item play-test list.
