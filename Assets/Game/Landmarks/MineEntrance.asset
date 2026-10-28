@@ -64,4 +64,9 @@ MonoBehaviour:
   CaveStyles:
   - {fileID: 11400000, guid: 97fb4f7267ce3954ab415f2eedd92458, type: 2}
   Settlement: {fileID: 0}
+  Companions:
+  - {fileID: 11400000, guid: eb1675c48543d0a4d9f5e420d61695e6, type: 2}
+  - {fileID: 11400000, guid: 1a51505d1a065444897844632b0f8a32, type: 2}
+  CompanionRange: 160
+  OnlyAsCompanion: 0
   Residents: []

@@ -192,6 +192,17 @@ namespace Punchy.Terrain
                     var dir = Direction(ref rng);
                     if (WallPoint(source, new float3(centre.x, math.lerp(floor, ceiling, 0.65f), centre.z), dir, out var ledge))
                         anchors.Add(Make(AnchorKind.Nest, ledge, -dir, 0.4f, 1));
+                    // Mines: an ore face to work at in every chamber (miners stand a pace off the wall, facing it).
+                    if (style != null && style.Frame != null)
+                    {
+                        var face = Direction(ref rng);
+                        if (WallPoint(source, new float3(centre.x, floor + 1f, centre.z), face, out var ore))
+                        {
+                            var stand = ore - new float3(face.x, 0f, face.y) * 0.8f;
+                            var standFloor = source.FloorUnder(stand + new float3(0f, 0.5f, 0f), out _);
+                            anchors.Add(Make(AnchorKind.Work, new float3(stand.x, standFloor + 0.3f, stand.z), face, 1f, 2));
+                        }
+                    }
                     if (style == null || style.Burrows)
                     {
                         dir = Direction(ref rng);
@@ -234,6 +245,15 @@ namespace Punchy.Terrain
                         if (inCave && source.CaveDistance(new float3(spot.x, ground + 0.5f, spot.y)) < -0.3f)
                             anchors.Add(Make(AnchorKind.Pool, new float3(spot.x, ground, spot.y), -bank, 0.8f, 2));
                     }
+                }
+
+                // Mines: a work spot just inside the mouth, facing out (where ore is carried out and timber in).
+                if (style != null && style.Frame != null && cave.NodeCount > 1)
+                {
+                    var inside = set.Nodes[cave.FirstNode + 1].Position;
+                    var insideFloor = source.FloorUnder(inside + new float3(0f, 0.5f, 0f), out var underRock);
+                    if (underRock)
+                        anchors.Add(Make(AnchorKind.Work, new float3(inside.x, insideFloor + 0.3f, inside.z), (cave.Mouth - inside).xz, 1.5f, 3));
                 }
 
                 // A nest on the wall just inside the mouth, where the daylight still reaches.

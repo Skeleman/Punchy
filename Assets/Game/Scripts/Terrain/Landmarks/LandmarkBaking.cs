@@ -43,6 +43,8 @@ namespace Punchy.Terrain
             public float2 Elevation;
             /// <summary>A settlement's folk (FolkCulture bit), or 0 for other landmarks; Camp: a palisaded camp.</summary>
             public int Culture, Camp;
+            /// <summary>1: only placed as another landmark's companion.</summary>
+            public int CompanionOnly;
         }
 
         /// <summary>Set in a biome's culture mask when it takes camps only (Habitability.CampsOnly).</summary>
@@ -70,6 +72,8 @@ namespace Punchy.Terrain
             [ReadOnly] public NativeArray<int> BiomeRealm;
             /// <summary>Only spots in this realm (the pass that gives every realm a settlement), or -1.</summary>
             public int ForcedRealm;
+            /// <summary>Only spots within z metres of xy (a companion beside its landmark); z 0 = anywhere.</summary>
+            public float3 Near;
             [ReadOnly] public NativeArray<int2> BiomeRanges;
             [ReadOnly] public NativeArray<int> EntryTypes;
             [ReadOnly] public NativeArray<float> EntryChances;
@@ -82,6 +86,8 @@ namespace Punchy.Terrain
             {
                 OutType[i] = -1;
                 var p = Points[i];
+                if (Near.z > 0f && math.distance(p, Near.xy) > Near.z)
+                    return;
                 var g = Source.SampleGround(p);
                 var biome = Dominant(g.Biomes, out var weight);
                 if (weight < 0.9f || biome >= BiomeRanges.Length)
@@ -103,6 +109,8 @@ namespace Punchy.Terrain
                     return;
 
                 var rules = Types[type];
+                if (rules.CompanionOnly != 0 && Near.z <= 0f)
+                    return;
                 // Settlements only where the biome under the centre allows their folk (and only camps where it takes
                 // camps only).
                 if (rules.Culture != 0)
@@ -275,7 +283,8 @@ namespace Punchy.Terrain
                         MaxRelief = types[t].MaxRelief,
                         Elevation = types[t].Elevation,
                         Culture = layout != null ? (int)layout.Culture : 0,
-                        Camp = layout != null && layout.Pattern == SettlementPattern.Camp ? 1 : 0
+                        Camp = layout != null && layout.Pattern == SettlementPattern.Camp ? 1 : 0,
+                        CompanionOnly = types[t].OnlyAsCompanion ? 1 : 0
                     };
                 }
                 var outType = new NativeArray<int>(count, Allocator.TempJob);
@@ -288,7 +297,7 @@ namespace Punchy.Terrain
 
                 // Evaluates every spot (rolling for a type, or trying the forced one), then accepts the suitable ones
                 // in random order, skipping any that would crowd one already accepted. Returns how many were added.
-                int Place(int forced, int limit, int forcedRealm = -1)
+                int Place(int forced, int limit, int forcedRealm = -1, float3 near = default)
                 {
                     new EvaluateJob
                     {
@@ -301,6 +310,7 @@ namespace Punchy.Terrain
                         BiomeCultures = biomeCultures,
                         BiomeRealm = biomeRealm,
                         ForcedRealm = forcedRealm,
+                        Near = near,
                         BiomeRanges = biomeRanges,
                         EntryTypes = entryTypeArray,
                         EntryChances = chances,
@@ -352,8 +362,39 @@ namespace Punchy.Terrain
 
                 Place(-1, int.MaxValue);
                 for (int t = 0; t < types.Count; t++)
-                    if (entryTypes.Contains(t) && !instances.Exists(inst => inst.Type == t))
+                    if (entryTypes.Contains(t) && !types[t].OnlyAsCompanion && !instances.Exists(inst => inst.Type == t))
                         Place(t, 1);
+
+                // Companions: beside each landmark that has them (a mining village by its mine), the first that the
+                // biome there lists and that finds a spot in range.
+                // The candidate grid is too coarse this close, so a ring of spots round the host stands in for its first
+                // few (put back afterwards).
+                const int Ring = 48;
+                var savedPoints = new float2[math.min(Ring, count)];
+                for (int j = 0; j < savedPoints.Length; j++)
+                    savedPoints[j] = points[j];
+                var placedSoFar = instances.Count;
+                for (int k = 0; k < placedSoFar; k++)
+                {
+                    var host = instances[k];
+                    var hostType = types[host.Type];
+                    if (hostType.Companions == null || hostType.Companions.Count == 0)
+                        continue;
+                    for (int j = 0; j < savedPoints.Length; j++)
+                    {
+                        var a = j * 2.39996f + host.Seed;
+                        var d = hostType.CompanionRange * math.lerp(0.55f, 1f, math.frac(j * 0.618034f));
+                        points[j] = host.Position + new float2(math.cos(a), math.sin(a)) * d;
+                    }
+                    foreach (var companion in hostType.Companions)
+                    {
+                        var ct = companion != null ? types.IndexOf(companion) : -1;
+                        if (ct >= 0 && entryTypes.Contains(ct) && Place(ct, 1, -1, new float3(host.Position, hostType.CompanionRange)) > 0)
+                            break;
+                    }
+                }
+                for (int j = 0; j < savedPoints.Length; j++)
+                    points[j] = savedPoints[j];
 
                 // Every settlement type a realm's biomes list gets at least one settlement in that realm (or the
                 // entry's Per Realm), so each realm has its own folk (a human village in the temperate lands even if
@@ -369,7 +410,7 @@ namespace Punchy.Terrain
                     for (int e = biomeRanges[b].x; e < biomeRanges[b].x + biomeRanges[b].y; e++)
                     {
                         var t = entryTypes[e];
-                        if (types[t].Settlement == null)
+                        if (types[t].Settlement == null || types[t].OnlyAsCompanion)
                             continue;
                         var present = 0;
                         foreach (var inst in instances)

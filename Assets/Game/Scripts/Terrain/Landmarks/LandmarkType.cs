@@ -200,6 +200,15 @@ namespace Punchy.Terrain
         [Tooltip("Lays the landmark out as a town: streets, plots and what stands on them (see SettlementLayout).")]
         public SettlementLayout Settlement;
 
+        [Header("Companions")]
+        [Tooltip("Landmarks placed beside this one where the ground allows (a mining village by its mine): the first in " +
+                 "the list that the biome there lists and that finds a spot within Companion Range.")]
+        public List<LandmarkType> Companions = new List<LandmarkType>();
+        [Min(20f)] public float CompanionRange = 150f;
+        [Tooltip("Only ever placed as another landmark's companion, never on its own (biomes still list it, which says " +
+                 "where it may go).")]
+        public bool OnlyAsCompanion;
+
         [Header("Residents")]
         [Tooltip("Animals that live here; they appear when the player comes near.")]
         public List<LandmarkResident> Residents = new List<LandmarkResident>();
