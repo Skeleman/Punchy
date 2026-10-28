@@ -53,6 +53,13 @@ namespace Punchy.Terrain
                 var profile = style != null ? new float2(style.Width, style.Width * style.Height) : new float2(1f);
                 var wall = style != null ? new float4(style.Roughness, style.Grain, style.Ribs, style.RibSpacing) : new float4(1f, 1f, 0f, 1.6f);
                 var rock = style != null ? new float4(style.Jaggedness, style.FloorFlatness, style.FloorSteps, style.Blockiness) : new float4(0.7f, 0.85f, 0.4f, 0.3f);
+                // Each cave its own take on its style, from its seed: a little wider or lower, rougher or smoother, more
+                // or less broken, with more or fewer steps (so two limestone caves don't look cast from one mould).
+                var vary = new Random(math.hash(new int2(i, 0x5A17)) | 1u);
+                profile *= new float2(vary.NextFloat(0.88f, 1.12f), vary.NextFloat(0.85f, 1.15f));
+                wall.x *= vary.NextFloat(0.8f, 1.2f);
+                rock.x = math.min(rock.x * vary.NextFloat(0.8f, 1.2f), 1.5f);
+                rock.z = math.saturate(rock.z + vary.NextFloat(-0.2f, 0.2f));
                 var radius = type.Radius * inst.Scale;
                 var r = type.CaveRadius * inst.Scale;
                 var chamber = type.ChamberRadius * inst.Scale;
