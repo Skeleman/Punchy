@@ -27,7 +27,7 @@ MonoBehaviour:
   SpeleothemLength: 0.5
   SpeleothemThickness: 0.5
   Hanging: 0.4
-  Columns: 0.05
+  Columns: 0.2
   Rubble: 2
   RubbleSize: 0.5
   Moss: 0.25
@@ -67,3 +67,4 @@ MonoBehaviour:
   Cracks: 0.35
   GlowScale: 1.2
   GlowEverywhere: 0.15
+  CrackDarkness: 0

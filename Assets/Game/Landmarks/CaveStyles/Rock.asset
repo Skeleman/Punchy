@@ -22,11 +22,11 @@ MonoBehaviour:
   FloorFlatness: 0.85
   FloorSteps: 0.4
   Burrows: 1
-  SpeleothemDensity: 3
+  SpeleothemDensity: 3.5
   SpeleothemLength: 0.4
   SpeleothemThickness: 0.55
   Hanging: 0.5
-  Columns: 0.1
+  Columns: 0.35
   Rubble: 3
   RubbleSize: 0.6
   Moss: 0.3
@@ -63,3 +63,4 @@ MonoBehaviour:
   Cracks: 0
   GlowScale: 1
   GlowEverywhere: 0
+  CrackDarkness: 0
