@@ -60,7 +60,7 @@ namespace Punchy.Fauna
                     Drive(ref s.ValueRW, ref body.ValueRO.Blob.Value, player, motion.Grounded, dt);
                     // On the wing: wings out, nose up or down with the climb.
                     Wings(ref s.ValueRW, ref body.ValueRO.Blob.Value, motion.Flying, motion.Pitch, motion.Flapping, dt);
-                    Pose(ref s.ValueRW, pose, dt);
+                    Pose(ref s.ValueRW, ref body.ValueRO.Blob.Value, pose, dt);
                 }
 
             transforms.Update(ref state);
@@ -78,7 +78,7 @@ namespace Punchy.Fauna
                 var run = math.distance(was.xz, s.ValueRO.Position.xz);
                 var pitch = run > 1e-4f ? math.atan2(s.ValueRO.Position.y - was.y, run) : 0f;
                 Wings(ref s.ValueRW, ref b, flying, pitch, pitch > 0.1f, dt);
-                Pose(ref s.ValueRW, (IdleAction)looks[ghost].Pose, dt);
+                Pose(ref s.ValueRW, ref b, (IdleAction)looks[ghost].Pose, dt);
             }
         }
 
@@ -86,8 +86,12 @@ namespace Punchy.Fauna
         /// Eases into an interaction pose (petting, carrying) and holds it half way through the action (where its
         /// weight is full), then eases out of it when it's over.
         /// </summary>
-        static void Pose(ref CreatureState c, IdleAction pose, float dt)
+        static void Pose(ref CreatureState c, ref CreatureBlob b, IdleAction pose, float dt)
         {
+            // An animal body bows as animals do: a play bow, chest down and rump up (its other emotes are a wag of the
+            // tail and a toss of the head, from the same actions).
+            if (!b.Upright)
+                c.Bow += ((pose == IdleAction.Bow ? 1f : 0f) - c.Bow) * math.min(1f, dt * 6f);
             if (pose != IdleAction.None)
             {
                 if (c.Action != pose)
