@@ -43,6 +43,23 @@ namespace Punchy.Terrain
         /// <summary>0 above ground, 1 deep in a cave (from the camera). Weather and ambience read it.</summary>
         public static float Underground { get; private set; }
 
+        /// <summary>
+        /// Whether every cave chunk in range of the camera is built and nothing is queued or building: what tools that
+        /// take screenshots wait on, instead of a fixed delay, after moving the camera.
+        /// </summary>
+        public bool Settled
+        {
+            get
+            {
+                if (wanted.Count > 0 || dying.Count > 0)
+                    return false;
+                foreach (var b in chunks.Values)
+                    if (b.Pending)
+                        return false;
+                return true;
+            }
+        }
+
         class Built
         {
             public Mesh Mesh;
