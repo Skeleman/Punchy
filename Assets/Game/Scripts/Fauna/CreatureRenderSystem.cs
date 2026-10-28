@@ -45,7 +45,9 @@ namespace Punchy.Fauna
         /// <summary>A torch's: redder, brighter and further.</summary>
         static readonly UnityEngine.Vector4 TorchLight = new UnityEngine.Vector4(2.4f, 1.0f, 0.3f, 11f);
         const float LanternLightRange = 60f;
-        static int HeldCount(HeldItem held) => held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.Torch ? 2 : 0;
+        /// <summary>Capsules in what a guard holds (a spear's shaft and head; a torch's handle, flame, heart and glow).</summary>
+        const int GuardParts = 4;
+        static int HeldCount(HeldItem held) => held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.Torch ? GuardParts : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 1 : -1;
         /// <summary>Capsules per hanging bat, the most per roost, and how near the camera colonies show.</summary>
@@ -367,8 +369,8 @@ namespace Punchy.Fauna
             /// </summary>
             void Guard(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded, int id)
             {
-                Output[at] = default;
-                Output[at + 1] = default;
+                for (int i = 0; i < GuardParts; i++)
+                    Output[at + i] = default;
                 var hand = -1;
                 for (int i = 0; i < b.Parts.Length; i++)
                     if (b.Parts[i].Role == LimbRole.Arm && b.Parts[i].Side > 0f)
@@ -379,7 +381,8 @@ namespace Punchy.Fauna
                 if (hand < 0)
                     return;
                 var segment = Output[offset + hand];
-                var grip = segment.Position + Unity.Mathematics.math.mul(segment.Rotation, new Unity.Mathematics.float3(0f, 0f, segment.Length));
+                // (Held in the palm, a little short of the fingertips, so the hand closes round it.)
+                var grip = segment.Position + Unity.Mathematics.math.mul(segment.Rotation, new Unity.Mathematics.float3(0f, 0f, segment.Length * 0.55f));
                 var scale = Unity.Mathematics.math.max(state.Scale, 0.3f);
                 var forward = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
                 var wood = new Unity.Mathematics.float4(0.16f, 0.1f, 0.05f, 0f);
@@ -396,18 +399,47 @@ namespace Punchy.Fauna
                 var up = Unity.Mathematics.math.normalize(new Unity.Mathematics.float3(0f, 1f, 0f) + forward * 0.45f);
                 var handle = 0.5f * scale;
                 var bottom = grip - up * handle * 0.35f;
-                var flicker = 1f + 0.18f * Unity.Mathematics.math.sin(Time * 13f + id) + 0.1f * Unity.Mathematics.math.sin(Time * 29f + id * 0.7f);
                 Output[at] = new SegmentInstance { Position = bottom, Rotation = Unity.Mathematics.quaternion.LookRotationSafe(up, forward), Length = handle, RadiusStart = 0.02f * scale, RadiusEnd = 0.028f * scale, Flatten = 1f, Color = wood, Pad = faded };
+                // The flame: an orange tongue round a yellow heart, each licking up at its own beat (taller and shorter,
+                // leaning this way and that), and a faint glow round it all.
+                var top = bottom + up * handle;
+                var t = Time * 1f + id * 0.37f;
+                var lick = 1f + 0.22f * Unity.Mathematics.math.sin(t * 11f) + 0.12f * Unity.Mathematics.math.sin(t * 23f + 1.7f);
+                var lean = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(t * 7.3f), 0f, Unity.Mathematics.math.cos(t * 5.1f + 0.6f)) * 0.22f;
+                var tongue = Unity.Mathematics.math.normalize(new Unity.Mathematics.float3(0f, 1f, 0f) + lean - forward * 0.15f);
                 Output[at + 1] = new SegmentInstance
                 {
-                    Position = bottom + up * handle,
-                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(new Unity.Mathematics.float3(0f, 1f, 0f), forward),
-                    Length = 0.2f * scale * flicker,
-                    RadiusStart = 0.05f * scale,
-                    RadiusEnd = 0.012f * scale,
+                    Position = top - tongue * 0.02f * scale,
+                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(tongue, forward),
+                    Length = 0.24f * scale * lick,
+                    RadiusStart = 0.055f * scale,
+                    RadiusEnd = 0.008f * scale,
                     Flatten = 1f,
-                    Color = new Unity.Mathematics.float4(1f, 0.52f, 0.14f, 1f),
+                    Color = new Unity.Mathematics.float4(1f, 0.38f, 0.06f, 0.85f),
+                    Pad = Unity.Mathematics.math.max(faded, 0.15f)
+                };
+                var heart = Unity.Mathematics.math.normalize(new Unity.Mathematics.float3(0f, 1f, 0f) - lean * 0.6f);
+                Output[at + 2] = new SegmentInstance
+                {
+                    Position = top,
+                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(heart, forward),
+                    Length = 0.13f * scale * (2f - lick * 0.8f),
+                    RadiusStart = 0.03f * scale,
+                    RadiusEnd = 0.006f * scale,
+                    Flatten = 1f,
+                    Color = new Unity.Mathematics.float4(1f, 0.85f, 0.35f, 1f),
                     Pad = faded
+                };
+                Output[at + 3] = new SegmentInstance
+                {
+                    Position = top + new Unity.Mathematics.float3(0f, 0.04f, 0f) * scale,
+                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(new Unity.Mathematics.float3(0f, 1f, 0f), forward),
+                    Length = 0.1f * scale,
+                    RadiusStart = 0.13f * scale * (0.9f + 0.1f * lick),
+                    RadiusEnd = 0.13f * scale * (0.9f + 0.1f * lick),
+                    Flatten = 1f,
+                    Color = new Unity.Mathematics.float4(1f, 0.45f, 0.12f, 0.6f),
+                    Pad = Unity.Mathematics.math.max(faded, 0.8f)
                 };
             }
 
