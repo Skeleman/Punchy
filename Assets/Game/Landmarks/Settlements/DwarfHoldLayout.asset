@@ -32,10 +32,10 @@ MonoBehaviour:
     Weight: 1
     Count: 1
   - Role: 1
-    Species: {fileID: 11400000, guid: 0f3f75139a798b8428c4a8d150f31958, type: 2}
+    Species: {fileID: 11400000, guid: e75164f2430d28f4f8ad7994d2b5be2a, type: 2}
     Weight: 1
     Count: 1
   - Role: 2
-    Species: {fileID: 11400000, guid: 984ecb906b0fd1b4fadd4d4319a9cd40, type: 2}
+    Species: {fileID: 11400000, guid: 71d1f02f3ce27f84b85a1556a6c4cca5, type: 2}
     Weight: 1
     Count: 1
