@@ -2298,9 +2298,9 @@ namespace Punchy.Fauna
 
             /// <summary>
             /// The point a leg of a round makes for: on the bounds, the town's gate in that leg's slice (seen from the
-            /// middle) if it has one there (gate true), else a point just inside the edge, drawn in until it's clear of
-            /// the houses and their yards and on dry ground; round the square, a point a quarter of the way out, likewise
-            /// clear. False if there's nowhere clear.
+            /// middle) if it has one there (gate true), else a point just inside the edge, drawn in (or turned aside a
+            /// little) until it's clear of the houses and their yards and on dry ground; round the square, a point about
+            /// a quarter of the way out, likewise clear. False if there's nowhere clear.
             /// </summary>
             bool RoundPoint(int settlement, int leg, int legs, bool inner, out float2 point, out bool gate)
             {
@@ -2330,14 +2330,20 @@ namespace Punchy.Fauna
                     if (gate)
                         return true;
                 }
-                math.sincos(angle, out var sin, out var cos);
-                var dir = new float2(sin, cos);
-                for (int k = 0; k < 8; k++)
+                // (Straight out from the middle first, then a little to either side within the slice: a spoke of
+                // houses can fill the line from the middle out.)
+                for (int side = 0; side < 5; side++)
                 {
-                    var r = town.Radius * (inner ? 0.22f + 0.04f * k : 0.9f - 0.05f * k);
-                    point = town.Centre + dir * r;
-                    if (!InYard(settlement, point) && Walkable(point, Habitat.Land))
-                        return true;
+                    var turn = (side == 0 ? 0f : (side % 2 == 1 ? 1f : -1f) * (side < 3 ? 0.2f : 0.4f)) * slice;
+                    math.sincos(angle + turn, out var sin, out var cos);
+                    var dir = new float2(sin, cos);
+                    for (int k = 0; k < 8; k++)
+                    {
+                        var r = town.Radius * (inner ? 0.22f + 0.04f * k : 0.9f - 0.05f * k);
+                        point = town.Centre + dir * r;
+                        if (!InYard(settlement, point) && Walkable(point, Habitat.Land))
+                            return true;
+                    }
                 }
                 return false;
             }
@@ -2663,7 +2669,9 @@ namespace Punchy.Fauna
                         s.ActionTime = 1f;
                         if (SleepTime(ref b) < 0.5f)
                             s.Timer -= dt;
-                        if (s.Timer <= 0f)
+                        // (A guard comes out when its watch begins, however long it meant to stay in: a night guard
+                        // asleep through the day is out again at dusk.)
+                        if (s.Timer <= 0f || OnShift(s))
                             NextStage(ref s);
                         break;
                     default:
