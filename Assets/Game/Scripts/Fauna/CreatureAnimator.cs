@@ -151,13 +151,32 @@ namespace Punchy.Fauna
                 // A leg busy with an idle action (pawing, scratching) isn't planted.
                 var busyLeg = UsedByAction(ref part, in s);
                 var gaitMove = part.Role == LimbRole.Leg ? move * (1f - s.Fly) : move;
+                // A snake's body (a chain that lies on the ground, off the body): serpentine. It lies along one wave
+                // that stays put on the ground, sideways offset A·sin(k(D − u)) at distance u back from the head after
+                // it has gone D: as it moves on, the wave runs back along the body at its own speed, so every part of
+                // the body follows the head's track (rather than a tail wagging behind a straight head). Stopped, it
+                // keeps its S. The wavelength is its stride, so the gait phase is how far along the wave it is.
+                var serpent = part.FollowGround && part.Parent < 0;
+                var wave = math.max(b.WalkStride * scale, 0.05f);
+                var back = b.BodyLength * scale * 1.2f;
+                var heading = 0f;
 
                 for (int j = 0; j < part.SegmentCount; j++)
                 {
                     var seg = part.FirstSegment + j;
                     var jointPhase = math.frac(phase - j * part.JointPhaseStep);
                     float3 a;
-                    if (part.Role == LimbRole.Wing)
+                    if (serpent)
+                    {
+                        // Each segment turned to the wave's direction at its middle; the joint turns by the change.
+                        var length = b.Segments[seg].Length * scale;
+                        var k = 2f * math.PI / wave;
+                        var direction = math.atan(0.12f * wave * k * math.cos(k * (s.Phase * wave - (back + length * 0.5f))));
+                        a = new float3(0f, direction - heading, 0f);
+                        heading = direction;
+                        back += length;
+                    }
+                    else if (part.Role == LimbRole.Wing)
                     {
                         // Folded at rest; in flight, beating through the walk keys (or held spread, gliding).
                         var k = seg * CreatureBlob.PoseCount;
