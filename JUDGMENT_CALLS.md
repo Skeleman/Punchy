@@ -13,6 +13,14 @@ asks Zach if needed, and records the answer here.
 
 ## Decided
 
+### J-032: Second human village in Temperate?
+
+- **Asked:** 2026-10-28, by the world session after the habitability pass.
+- **Also comes up when:** town counts per realm.
+- **Answer (2026-10-28):** yes; add a "two per realm" option. Also: release v0.7.0 once the frame cap lands.
+- **Why:** (recommendation).
+- **Revisited:** 0.
+
 ### J-031: Frame-rate cap?
 
 - **Asked:** 2026-10-28, by the supervisor, from the profiler's throttling finding.
