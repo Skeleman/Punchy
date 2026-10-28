@@ -256,6 +256,26 @@ namespace Punchy.Fauna
                     s.Focus = threat;
                 }
 
+                // A ghost abroad at night: someone coming close and it's gone, to appear again further off (dithering
+                // back in, as anything new does); someone within sight, and it drifts closer to watch them from a few
+                // metres off.
+                if (b.Haunts && SleepTime(ref b) < 0.5f)
+                {
+                    if (playerDistance < 3.5f)
+                    {
+                        var off = math.normalizesafe(s.Position.xz - player.xz, rng.NextFloat2Direction());
+                        s.Position.xz += off * rng.NextFloat(20f, 35f) + rng.NextFloat2Direction() * 6f;
+                        s.Clock = 0f;
+                        Pause(ref s, ref b, ref rng);
+                    }
+                    else if (playerDistance < 18f && (s.Mode == CreatureMode.Idle || s.Mode == CreatureMode.Wander))
+                    {
+                        if (s.Mode != CreatureMode.Wander)
+                            SetMode(ref s, CreatureMode.Wander);
+                        s.Target = player.xz - math.normalizesafe(player.xz - s.Position.xz) * 5f;
+                    }
+                }
+
                 // Swimming with nowhere to go (it stopped, or wanted to graze or rest): it makes for the nearest shore.
                 if (b.CrossesWater && !threatened && s.Mode != CreatureMode.Wander && s.Mode != CreatureMode.Flee &&
                     s.Mode != CreatureMode.Hunt && s.Mode != CreatureMode.Play && s.Mode != CreatureMode.Greet && s.Mode != CreatureMode.Held &&
@@ -534,6 +554,12 @@ namespace Punchy.Fauna
                                                 : s.Speed > 0.05f && !Walkable(ahead, b.Habitat);
                     // Animals that swim go on into water when they're on their way somewhere (not to stand in it), and a
                     // lake bed's slope doesn't stop them.
+                    // Ghosts drift over water and up slopes alike (only a cave's hole turns them).
+                    if (b.Haunts)
+                    {
+                        blocked = s.Speed > 0.05f && Terrain.IsCaveHole(ahead);
+                        landBound = false;
+                    }
                     if (b.CrossesWater && blocked && s.Mode != CreatureMode.Drink && s.Mode != CreatureMode.Graze && Swimmable(ahead))
                     {
                         blocked = false;
@@ -2458,7 +2484,15 @@ namespace Punchy.Fauna
                     return;
                 }
                 s.Position.xz += forward * s.Speed * dt;
-                if (b.Habitat == Habitat.Land || b.Habitat == Habitat.Flies)
+                if (b.Haunts)
+                {
+                    // Drifting half a metre above the ground or water, rising and sinking slowly.
+                    var g = Terrain.SampleGround(s.Position.xz);
+                    var floor = g.HasWater ? math.max(g.Height, g.WaterSurface) : g.Height;
+                    var drift = floor + 0.45f * s.Scale + math.sin(s.Clock * 0.9f + (s.Individual % 7)) * 0.12f * s.Scale;
+                    s.Position.y += (drift - s.Position.y) * math.min(1f, dt * 2f);
+                }
+                else if (b.Habitat == Habitat.Land || b.Habitat == Habitat.Flies)
                 {
                     if (!keepHeight)
                         s.Position.y = Terrain.SampleHeight(s.Position.xz);

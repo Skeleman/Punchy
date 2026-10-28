@@ -155,7 +155,8 @@ namespace Punchy.Fauna
                 FadeInTime = 1.2f,
                 FadeOutRange = 25f,
                 // A little short of FaunaDirector's despawn distance (170 m), so it's gone before it's removed.
-                FadeFar = 165f
+                FadeFar = 165f,
+                Night = night
             }.ScheduleParallel(query, Dependency);
             Dependency.Complete();
             var at = colonyStart;
@@ -195,6 +196,8 @@ namespace Punchy.Fauna
             public Unity.Mathematics.float3 CameraRight, CameraPosition;
             /// <summary>Faded in over this long after it's made; out over this far before it's let go.</summary>
             public float FadeInTime, FadeOutRange, FadeFar;
+            /// <summary>0 by day, 1 at night (ghosts are only seen at night).</summary>
+            public float Night;
 
             void Execute(Entity entity, [EntityIndexInQuery] int index, in CreatureState state, in CreatureBody body)
             {
@@ -205,11 +208,22 @@ namespace Punchy.Fauna
                 var fadeIn = Unity.Mathematics.math.saturate(state.Clock / FadeInTime);
                 var fadeOut = Unity.Mathematics.math.saturate((FadeFar - Unity.Mathematics.math.distance(state.Position, CameraPosition)) / FadeOutRange);
                 var faded = 1f - fadeIn * fadeOut;
+                // A ghost is only half there (shimmering), and not there at all by day.
+                if (body.Blob.Value.Haunts)
+                {
+                    var shimmer = 0.42f + 0.1f * Unity.Mathematics.math.sin(Time * 1.3f + (state.Individual % 13));
+                    var day = 1f - Unity.Mathematics.math.smoothstep(0.2f, 0.6f, Night);
+                    faded = Unity.Mathematics.math.max(faded, Unity.Mathematics.math.max(shimmer, day));
+                }
+                var haunts = body.Blob.Value.Haunts;
                 if (faded > 0f)
                     for (int i = 0; i < body.SegmentCount; i++)
                     {
                         var instance = Output[offset + i];
                         instance.Pad = faded;
+                        // (A ghost glows faintly all over, so the whole of it shows in the dark.)
+                        if (haunts)
+                            instance.Color.w = Unity.Mathematics.math.max(instance.Color.w, 0.3f);
                         Output[offset + i] = instance;
                     }
                 FearMarks(state, offset, body.SegmentCount, entity.Index);
