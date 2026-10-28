@@ -784,7 +784,7 @@ namespace Punchy.Fauna
                     s.Stage = 2;
                     s.Focus = s.Position.xz;
                     s.TargetHeight = Cruise(s, ref b, s.Focus);
-                    s.Timer = rng.NextFloat(90f, 240f);
+                    s.Timer = rng.NextFloat(180f, 480f);   // (long spells: it spends much of its day in the air)
                     s.Target = s.Focus;
                     return;
                 }
@@ -2618,6 +2618,9 @@ namespace Punchy.Fauna
                         return;
                     s.Timer = 10f;   // (nowhere to come down just here: round again)
                 }
+                // A sky serpent now and then climbs to a higher pass, or sinks to a lower one, over the same water.
+                if (b.Breaches && rng.NextFloat() < dt / 40f)
+                    s.TargetHeight = Cruise(s, ref b, s.Focus) + rng.NextFloat(0f, 45f);
                 var radius = math.lerp(30f, 70f, CreatureBlob.Trait(s.Individual, 21) * 0.5f + 0.5f);
                 var way = CreatureBlob.Trait(s.Individual, 22) > 0f ? 1f : -1f;
                 var from = s.Position.xz - s.Focus;
