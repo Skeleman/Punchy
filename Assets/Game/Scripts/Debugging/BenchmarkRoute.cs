@@ -69,6 +69,9 @@ namespace Punchy.Debugging
             yield return Stop("town", () => JumpTo(controls, "HumanVillage") && SetWeather("Partly cloudy", 11));
             yield return Stop("forest", () => JumpTo(controls, "OakGrove") && SetWeather("Partly cloudy", 12));
             yield return Stop("cave", () => PlaceInBiggestCave() && SetWeather("Partly cloudy", 13));
+            yield return Stop("lavacave", () => PlaceInBiggestCave("LavaTube") && SetWeather("Partly cloudy", 22));
+            // An elf grove late at night: the worst case for glowing things.
+            yield return Stop("nightgrove", () => JumpTo(controls, "ElfGrove") && SetWeather("Partly cloudy", 23), hour: 23f);
             yield return Stop("storm", () => JumpTo(controls, "Mountains") && SetWeather("Stormy", 14));
             // Water filling much of the view: a lake shore, a river (often rapids), and the shore again in a storm.
             yield return Stop("lake", () => JumpTo(controls, "Lake shore") && SetWeather("Partly cloudy", 19));
@@ -106,7 +109,7 @@ namespace Punchy.Debugging
         /// (at a height above the ground) the whole time, so streaming has to keep up; settling is included, so the
         /// measured part is already at speed.
         /// </summary>
-        IEnumerator Stop(string name, System.Func<bool> arrive, float speed = 0f, float height = 0f, float measure = Measure)
+        IEnumerator Stop(string name, System.Func<bool> arrive, float speed = 0f, float height = 0f, float measure = Measure, float hour = 12f)
         {
             // -benchstops run,glide runs only the listed stops (to profile one of them on its own).
             var args = System.Environment.GetCommandLineArgs();
@@ -118,6 +121,10 @@ namespace Punchy.Debugging
                 Debug.LogWarning($"BenchRoute: {name}: couldn't get there, skipped");
                 yield break;
             }
+            // Every stop at its own hour (noon unless asked), so a night stop doesn't carry over into the next.
+            var cycle = FindAnyObjectByType<DayNightCycle>();
+            if (cycle != null)
+                cycle.TimeOfDay = hour;
             float3 start = default;
             if (speed > 0f && TryGetWorld(out var em, out var player))
                 start = em.GetComponentData<LocalTransform>(player).Position;
@@ -153,6 +160,13 @@ namespace Punchy.Debugging
                 UnityEngine.Profiling.Profiler.logFile = "";
             }
             Report(name);
+            // -benchshots <folder>: a screenshot of every stop as it ends, to compare looks between builds.
+            var shots = System.Array.IndexOf(args, "-benchshots");
+            if (shots >= 0 && shots + 1 < args.Length)
+            {
+                ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(args[shots + 1], name + ".png"));
+                yield return null;
+            }
         }
 
         void Update()
@@ -275,7 +289,11 @@ namespace Punchy.Debugging
             return true;
         }
 
-        static bool PlaceInBiggestCave()
+        /// <summary>
+        /// Puts the player on the floor of the widest spot in the cave with the most nodes, optionally only among caves
+        /// of a style (by asset name; read by reflection, as branches without cave styles must still compile).
+        /// </summary>
+        static bool PlaceInBiggestCave(string style = null)
         {
             if (!TryGetWorld(out var em, out var player))
                 return false;
@@ -286,10 +304,29 @@ namespace Punchy.Debugging
             if (!source.Caves.IsCreated)
                 return false;
             ref var set = ref source.Caves.Value;
+            IList styles = null;
+            FieldInfo styleField = null;
+            if (style != null)
+            {
+                var caves = FindAnyObjectByType<CaveSystem>();
+                styles = caves != null ? typeof(CaveSystem).GetField("styles", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(caves) as IList : null;
+                styleField = typeof(CaveData).GetField("Style");
+                if (styles == null || styleField == null)
+                    return false;
+            }
             int best = -1;
             for (int c = 0; c < set.Caves.Length; c++)
+            {
+                if (style != null)
+                {
+                    // Style slots count from 1 (slot 0 is the material's own plain rock).
+                    var slot = (int)styleField.GetValue(set.Caves[c]);
+                    if (slot < 1 || slot > styles.Count || (styles[slot - 1] as Object)?.name != style)
+                        continue;
+                }
                 if (best < 0 || set.Caves[c].NodeCount > set.Caves[best].NodeCount)
                     best = c;
+            }
             if (best < 0)
                 return false;
             ref var cave = ref set.Caves[best];
