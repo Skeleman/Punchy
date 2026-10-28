@@ -1,0 +1,110 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ade123283ec3b524d95979e745a2dfba, type: 3}
+  m_Name: Domestics
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.DomesticTable
+  Entries:
+  - Settlement: {fileID: 11400000, guid: 763d8148ce954a8428c0f6f05beea8aa, type: 2}
+    Species: {fileID: 11400000, guid: 28ce2e17eb09b374f9ebf742b5e3f5bc, type: 2}
+    Count: {x: 1, y: 3}
+    Range: 0.8
+    Task: 0
+  - Settlement: {fileID: 11400000, guid: 763d8148ce954a8428c0f6f05beea8aa, type: 2}
+    Species: {fileID: 11400000, guid: ed2c5eeab4234694983fb4152e8fdfdc, type: 2}
+    Count: {x: 1, y: 2}
+    Range: 0.7
+    Task: 0
+  - Settlement: {fileID: 11400000, guid: 763d8148ce954a8428c0f6f05beea8aa, type: 2}
+    Species: {fileID: 11400000, guid: 1d91141c42fd2db47805ff08515f25ce, type: 2}
+    Count: {x: 4, y: 8}
+    Range: 0.45
+    Task: 0
+  - Settlement: {fileID: 11400000, guid: 763d8148ce954a8428c0f6f05beea8aa, type: 2}
+    Species: {fileID: 11400000, guid: 41a47e2de4fcce647ab1dd098f43e415, type: 2}
+    Count: {x: 3, y: 6}
+    Range: 0.9
+    Task: 0
+  - Settlement: {fileID: 11400000, guid: 5e0bdef9bf80b3642874f0824d52e136, type: 2}
+    Species: {fileID: 11400000, guid: 28ce2e17eb09b374f9ebf742b5e3f5bc, type: 2}
+    Count: {x: 1, y: 2}
+    Range: 0.8
+    Task: 0
+  - Settlement: {fileID: 11400000, guid: 5e0bdef9bf80b3642874f0824d52e136, type: 2}
+    Species: {fileID: 11400000, guid: ed2c5eeab4234694983fb4152e8fdfdc, type: 2}
+    Count: {x: 1, y: 2}
+    Range: 0.7
+    Task: 0
+  - Settlement: {fileID: 11400000, guid: 5e0bdef9bf80b3642874f0824d52e136, type: 2}
+    Species: {fileID: 11400000, guid: 1d91141c42fd2db47805ff08515f25ce, type: 2}
+    Count: {x: 2, y: 4}
+    Range: 0.45
+    Task: 0
+  - Settlement: {fileID: 11400000, guid: b5d2ef65eb3ccde4a9b71edc4b25bec1, type: 2}
+    Species: {fileID: 11400000, guid: ed2c5eeab4234694983fb4152e8fdfdc, type: 2}
+    Count: {x: 1, y: 2}
+    Range: 0.7
+    Task: 0
+  - Settlement: {fileID: 11400000, guid: b5d2ef65eb3ccde4a9b71edc4b25bec1, type: 2}
+    Species: {fileID: 11400000, guid: 41a47e2de4fcce647ab1dd098f43e415, type: 2}
+    Count: {x: 2, y: 4}
+    Range: 0.9
+    Task: 0
+  - Settlement: {fileID: 11400000, guid: 9db9dc76cdcb53647bfb1d44f4d04b9b, type: 2}
+    Species: {fileID: 11400000, guid: 28ce2e17eb09b374f9ebf742b5e3f5bc, type: 2}
+    Count: {x: 2, y: 3}
+    Range: 0.8
+    Task: 0
+  - Settlement: {fileID: 11400000, guid: 9db9dc76cdcb53647bfb1d44f4d04b9b, type: 2}
+    Species: {fileID: 11400000, guid: 1d91141c42fd2db47805ff08515f25ce, type: 2}
+    Count: {x: 2, y: 4}
+    Range: 0.45
+    Task: 0
+  - Settlement: {fileID: 11400000, guid: 7fa9865d12a2fbc428e72ed4cdf061a2, type: 2}
+    Species: {fileID: 11400000, guid: 28ce2e17eb09b374f9ebf742b5e3f5bc, type: 2}
+    Count: {x: 1, y: 2}
+    Range: 0.8
+    Task: 0
+  - Settlement: {fileID: 11400000, guid: 763d8148ce954a8428c0f6f05beea8aa, type: 2}
+    Species: {fileID: 11400000, guid: 8e349b1519701e84fbe7923c0c10f2fd, type: 2}
+    Count: {x: 1, y: 2}
+    Range: 1
+    Task: 6
+  - Settlement: {fileID: 11400000, guid: 9db9dc76cdcb53647bfb1d44f4d04b9b, type: 2}
+    Species: {fileID: 11400000, guid: 419544623d75bcf48961c8801162cabd, type: 2}
+    Count: {x: 1, y: 2}
+    Range: 1
+    Task: 6
+  - Settlement: {fileID: 11400000, guid: b5d2ef65eb3ccde4a9b71edc4b25bec1, type: 2}
+    Species: {fileID: 11400000, guid: 46b822fc6510e9c438d06b7c0598a487, type: 2}
+    Count: {x: 1, y: 1}
+    Range: 1
+    Task: 6
+  - Settlement: {fileID: 11400000, guid: 5e0bdef9bf80b3642874f0824d52e136, type: 2}
+    Species: {fileID: 11400000, guid: 92efcd8c205109b498ebcc61830248fd, type: 2}
+    Count: {x: 1, y: 1}
+    Range: 1
+    Task: 6
+  - Settlement: {fileID: 11400000, guid: 7fa9865d12a2fbc428e72ed4cdf061a2, type: 2}
+    Species: {fileID: 11400000, guid: b13923c35daf72c4c997d600178bd234, type: 2}
+    Count: {x: 1, y: 1}
+    Range: 1
+    Task: 6
+  - Settlement: {fileID: 11400000, guid: 92e39e7c029a5f7469ad94c67b3b4912, type: 2}
+    Species: {fileID: 11400000, guid: 2e005590929fde24b8c869f721b8ab86, type: 2}
+    Count: {x: 3, y: 5}
+    Range: 0.1
+    Task: 0
+  - Settlement: {fileID: 11400000, guid: 763d8148ce954a8428c0f6f05beea8aa, type: 2}
+    Species: {fileID: 11400000, guid: 5f06c42d47b784f4ebd4917523c87563, type: 2}
+    Count: {x: 0, y: 2}
+    Range: 0.5
+    Task: 0

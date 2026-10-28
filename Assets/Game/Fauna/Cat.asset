@@ -1,0 +1,156 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
+  m_Name: Cat
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
+  VariantOf: {fileID: 0}
+  VariantScale: 1
+  BodyLength: 0.85
+  BodyRadius: 0.15
+  BodyTaper: 0.95
+  BodyFlatten: 1.1
+  Base: {r: 0.66, g: 0.52, b: 0.36, a: 1}
+  Accent: {r: 0.9, g: 0.84, b: 0.75, a: 1}
+  AccentGlow: 0
+  Coats:
+  - Name: Ginger
+    Base: {r: 0.85, g: 0.5, b: 0.22, a: 1}
+    Accent: {r: 0.95, g: 0.85, b: 0.7, a: 1}
+    AccentGlow: 0
+    Weight: 2
+  - Name: Tabby
+    Base: {r: 0.45, g: 0.4, b: 0.33, a: 1}
+    Accent: {r: 0.2, g: 0.17, b: 0.14, a: 1}
+    AccentGlow: 0
+    Weight: 2
+  - Name: Black
+    Base: {r: 0.08, g: 0.08, b: 0.09, a: 1}
+    Accent: {r: 0.9, g: 0.9, b: 0.88, a: 1}
+    AccentGlow: 0
+    Weight: 1.5
+  - Name: White
+    Base: {r: 0.93, g: 0.92, b: 0.9, a: 1}
+    Accent: {r: 0.55, g: 0.5, b: 0.45, a: 1}
+    AccentGlow: 0
+    Weight: 1
+  Size: {x: 0.34, y: 0.42}
+  HairColors: []
+  Parts:
+  - Limb: {fileID: 11400000, guid: 2c2c89c13d2d68c4cb4c8822c3681830, type: 2}
+    Parent: -1
+    Socket: {x: 0.5, y: -0.3, z: -0.7}
+    Direction: {x: 90, y: 0, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1.8
+    Thickness: 1.35
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 8126b24d28dddfa479b8f90a422c24b0, type: 2}
+    Parent: -1
+    Socket: {x: 0.55, y: -0.4, z: 0.7}
+    Direction: {x: 90, y: 0, z: 0}
+    Mirror: 1
+    Phase: 0.25
+    MirrorPhase: 0.5
+    Scale: 1.8
+    Thickness: 1.45
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 638d929797ab7c94ea24e6ed0d7c877b, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0.4, z: 0.95}
+    Direction: {x: -20, y: 0, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1.6
+    Thickness: 1.2
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 84cc577b3ce39b949b13ea01e5ceb81f, type: 2}
+    Parent: 2
+    Socket: {x: 0, y: 0, z: 0}
+    Direction: {x: 30, y: 0, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 9bc0bad3b30a40749865966abdcb6e5c, type: 2}
+    Parent: 3
+    Socket: {x: 0.05, y: 0.06, z: -0.09}
+    Direction: {x: -80, y: 18, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1.45
+    Thickness: 1.5
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 8db8692701365314db1a0b5e9ab1cbd1, type: 2}
+    Parent: 3
+    Socket: {x: 0.05, y: 0.03, z: -0.04}
+    Direction: {x: 0, y: 0, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1.1
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 8d51aa229c1545949a7f2be69d1443bb, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0.3, z: -1}
+    Direction: {x: 15, y: 180, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1
+    Thickness: 1
+    StyleGroup: 0
+  WalkSpeed: 1.1
+  RunSpeed: 10
+  Bob: {x: 0.008, y: 0.04}
+  BobsPerCycle: {x: 2, y: 1}
+  RunRock: 6
+  Upright: 0
+  LeglessStride: {x: 0.6, y: 0.9}
+  WanderRadius: 50
+  IdleTime: {x: 3, y: 12}
+  FleeDistance: 8
+  TurnRate: 120
+  GroupSize: {x: 1, y: 1}
+  NearWater: 0
+  Habitat: 0
+  SwimDepth: 0.6
+  Leaps: 0
+  Active: 2
+  Grazing: 0
+  Thirst: 0.3
+  Playfulness: 0.3
+  Laziness: 0.9
+  Hunts: []
+  Hunger: 0
+  ChaseTime: 10
+  Idles: 2394
+  Fidgets: 0.8
+  Climbing: 0.4
+  SpinsWebs: 0
+  WebSize: 0.6
+  Burrows: 0
+  CaveDweller: 0
+  Roosts: 0
+  Friendly: 0
+  Nests: 0
+  FlightHeight: {x: 8, y: 18}
+  FlySpeed: 7
+  FlapRate: 6
+  Glide: 0
+  Perching: 0.6

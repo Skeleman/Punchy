@@ -92,6 +92,7 @@ namespace Punchy.Ambience
         readonly Dictionary<Entity, Breather> others = new Dictionary<Entity, Breather>();
         readonly List<Entity> gone = new List<Entity>();
         ParticleSystem spray;
+        float nextDiverCheck;
         EntityQuery diverQuery;
         /// <summary>Divers that have hit the water, and when (one splash per dive).</summary>
         readonly Dictionary<Entity, float> splashed = new Dictionary<Entity, float>();
@@ -438,8 +439,9 @@ namespace Punchy.Ambience
         /// </summary>
         void UpdateSplashes(in TerrainSource source)
         {
-            if (PuffMaterial == null || diverQuery.IsEmpty)
+            if (PuffMaterial == null || diverQuery.IsEmpty || Time.time < nextDiverCheck)
                 return;
+            nextDiverCheck = Time.time + 0.1f;
             var states = diverQuery.ToComponentDataArray<Punchy.Fauna.CreatureState>(Allocator.Temp);
             var entities = diverQuery.ToEntityArray(Allocator.Temp);
             for (int i = 0; i < states.Length; i++)
@@ -453,7 +455,6 @@ namespace Punchy.Ambience
                 if (!g.HasWater || c.Position.y - g.WaterSurface > 0.5f)
                     continue;
                 splashed[entities[i]] = Time.time;
-                Debug.Log($"Ambience: a diving bird hit the water at ({c.Position.x:F0}, {c.Position.z:F0})");
                 if (spray == null)
                     spray = CreateSpraySystem(PuffMaterial);
                 var at = new Vector3(c.Position.x, g.WaterSurface + 0.05f, c.Position.z);

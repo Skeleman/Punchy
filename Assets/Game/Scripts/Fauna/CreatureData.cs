@@ -38,10 +38,13 @@ namespace Punchy.Fauna
         public bool Hunted;
         public IdleActions Idles;
         public float Fidgets, Climbing;
-        public bool SpinsWebs;
+        public bool SpinsWebs, Burrows, CaveDweller, Roosts, Friendly, CrossesWater, Haunts, LavaDweller;
+        public NestSite Nests;
         public float WebSize;
         public float2 FlightHeight;
         public float FlySpeed, FlapRate, Glide, Perching;
+        /// <summary>A surface animal sometimes found in caves (see CreatureSpecies.CaveAffinity).</summary>
+        public float CaveAffinity;
 
         public BlobArray<CreaturePart> Parts;
         public BlobArray<CreatureSegment> Segments;
@@ -94,6 +97,25 @@ namespace Punchy.Fauna
         }
 
         /// <summary>Blend of a part's key poses for one segment at gait phase p (0..1).</summary>
+        /// <summary>
+        /// How far into a sprint an upright body is (0 up to its run speed, 1 well past it): folk past a run sprint, a gait
+        /// of its own (longer strides, leaning in, knees driven high, arms pumping, both feet off the ground between steps).
+        /// </summary>
+        public float Sprint(float speed) => Upright ? math.smoothstep(RunSpeed * 1.05f, RunSpeed * 1.6f, speed) : 0f;
+
+        /// <summary>A sprinting leg's sweep, longer than its run's by this share.</summary>
+        public const float SprintStride = 0.35f;
+
+        /// <summary>A leg's joint angles at a point of its cycle, with the sprint's longer stride.</summary>
+        public float3 LegAngles(int segment, float p, float move, float run, float sprint)
+        {
+            var a = Angles(segment, p, move, run);
+            if (sprint <= 0f)
+                return a;
+            var idle = Poses[segment * PoseCount + Idle];
+            return idle + (a - idle) * (1f + SprintStride * sprint);
+        }
+
         public float3 Angles(int segment, float p, float move, float run)
         {
             var i = segment * PoseCount;
@@ -198,7 +220,33 @@ namespace Punchy.Fauna
         /// down. In the web, Stage says where the anchoring tree is, so every machine can draw the web from the spider
         /// alone: 2 = trunk to the spider's right, 3 = to its left, 4 = no tree (a web low in the grass).
         /// </summary>
-        Web
+        Web,
+        /// <summary>
+        /// Goes to ground in its burrow (Anchor is the burrow's mouth): to the mouth (0), down it (1), hidden below
+        /// (2), back up (3).
+        /// </summary>
+        Burrow,
+        /// <summary>
+        /// Flies to its roost and hangs there asleep (Anchor is the ceiling or branch it hangs from). In a cave: to the
+        /// mouth (1), along the passage node by node (10 + node), up to the ceiling (199), hanging (200), and out again
+        /// at dusk (100 + node). Under a branch: straight there (198), then hanging.
+        /// </summary>
+        Roost,
+        /// <summary>A friendly animal going over to a person (Focus: where they are), then keeping them company.</summary>
+        Greet,
+        /// <summary>
+        /// Being petted by a person (Holder; Focus: where they are): enjoying it (stage 0: leaning in, tail going) or
+        /// putting up with it (1); then it goes on with its day, or keeps the person company.
+        /// </summary>
+        Petted,
+        /// <summary>Picked up and carried by a person (Holder), held in their arms; it may squirm free.</summary>
+        Held,
+        /// <summary>
+        /// Folk going indoors through their door (Anchor; AnchorYaw: the way out): to the door (0), stepping in (1),
+        /// indoors out of sight (2), stepping out again (3). ActionTime is how far out of sight they are while
+        /// stepping through (it rides on the ghost, so every machine dithers them the same).
+        /// </summary>
+        Home
     }
 
     /// <summary>What a worker does at its post (posed by CreatureAnimator).</summary>
@@ -209,7 +257,17 @@ namespace Punchy.Fauna
         [UnityEngine.Tooltip("Swings an axe down with both arms (chopping wood).")] Chop,
         [UnityEngine.Tooltip("Leans on a counter, now and then raising a hand (a vendor).")] Gesture,
         [UnityEngine.Tooltip("Both hands working in front, slowly (drawing water, tending a fountain, stirring).")] Tend,
-        [UnityEngine.Tooltip("Stands keeping watch, hands behind the back (a gatekeeper).")] Watch
+        [UnityEngine.Tooltip("Stands keeping watch, hands behind the back (a gatekeeper).")] Watch,
+        [UnityEngine.Tooltip("Goes out by day after game: creeps up on it, throws (and, for now, always misses).")] Hunt
+    }
+
+    /// <summary>
+    /// The stages of a hunter's outing (CreatureMode.Hunt for a creature with the Hunt task, numbered apart from an
+    /// animal's own chase): walking out and creeping up on the game, aiming, the throw, then a short run after it.
+    /// </summary>
+    public static class FolkHunting
+    {
+        public const byte Stalk = 10, Aim = 11, Throw = 12, Chase = 13;
     }
 
     /// <summary>World conditions animals react to (set by FaunaDirector).</summary>
@@ -278,15 +336,26 @@ namespace Punchy.Fauna
         public IdleAction Action;
         public float ActionTime, ActionLength;
 
-        /// <summary>A fixed point it's using: the foot of the tree it climbs, its web's centre.</summary>
+        /// <summary>A fixed point it's using: the foot of the tree it climbs, its web's centre, its burrow or nest.</summary>
         public float3 Anchor;
-        /// <summary>The tree's trunk radius, or the web's radius (0 = no anchor yet); the web's facing and side.</summary>
+        /// <summary>The tree's trunk radius, or the web's, burrow's or nest's radius (0 = no anchor yet, -1 = none to be
+        /// had here); the web's facing and side.</summary>
         public float AnchorSize, AnchorYaw;
         public byte AnchorSide;
         /// <summary>Where a flight or a climb ends up, height-wise (absolute).</summary>
         public float TargetHeight;
         /// <summary>Caught (by a diving bird of prey): FaunaDirector removes it.</summary>
         public bool Gone;
+        /// <summary>The cave it roosts in (-1 = none), and the passage node its roost is at.</summary>
+        public short LairCave, LairNode;
+        /// <summary>Who is petting or carrying it (see Interactions.HolderId; 0 = nobody).</summary>
+        public int Holder;
+
+        // Needs, 0 (satisfied) to 1 (pressing): they rise with time by the species' tastes and are eased by the
+        // activity that meets them; what it decides to do next is weighted by them. Simulation only (not sent).
+        public float Hunger, Thirst, Tired, Lonely;
+        /// <summary>Seconds left before a startled animal will settle again (a bat waved off its roost). Simulation only.</summary>
+        public float Unsettled;
     }
 
     /// <summary>One segment as the creature shader draws it (a tapered capsule). Must match Creature.shader.</summary>
@@ -299,6 +368,9 @@ namespace Punchy.Fauna
         public float RadiusStart, RadiusEnd, Flatten, Pad;
         public float4 Color;
     }
+
+    /// <summary>A specimen held in a pose for a test ("-pose"): the brain leaves it alone; DebugControls poses it.</summary>
+    public struct PosedForTest : IComponentData { }
 
     /// <summary>Material and mesh for drawing creatures (a managed singleton set up by FaunaDirector).</summary>
     public class FaunaRenderSettings : IComponentData
@@ -387,6 +459,15 @@ namespace Punchy.Fauna
             root.Fidgets = species.Fidgets;
             root.Climbing = species.Climbing;
             root.SpinsWebs = species.SpinsWebs;
+            root.Burrows = species.Burrows;
+            root.CaveDweller = species.CaveDweller;
+            root.Roosts = species.Roosts;
+            root.Friendly = species.Friendly;
+            root.CrossesWater = species.CrossesWater && species.Habitat == Habitat.Land;
+            root.Haunts = species.Haunts;
+            root.LavaDweller = species.LavaDweller;
+            root.CaveAffinity = variant.CaveAffinity;
+            root.Nests = species.Nests;
             root.WebSize = species.WebSize * sizeScale;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));
             root.FlySpeed = species.FlySpeed;

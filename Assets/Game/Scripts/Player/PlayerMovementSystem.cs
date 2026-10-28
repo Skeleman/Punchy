@@ -8,7 +8,10 @@ using Unity.Transforms;
 namespace Punchy.Player
 {
     /// <summary>
-    /// Moves the player across the height field: camera-relative walking/sprinting, jumping and gravity.
+    /// Moves the player across the height field: camera-relative walking/sprinting, jumping and gravity, at the pace
+    /// of the body they're in. A flying body takes off with a jump and flies by the same rules as the birds
+    /// (CreatureMotion): it steers where the camera looks, climbs (jump held) or dives (sprint held) at most 35°,
+    /// never slows below its minimum airspeed, glides when it isn't beating its wings, and flares to land.
     /// Ground height comes straight from TerrainSource, so the player never depends on which chunks are loaded.
     /// </summary>
     [BurstCompile]
@@ -31,6 +34,7 @@ namespace Punchy.Player
             var dt = SystemAPI.Time.DeltaTime;
             var input = SystemAPI.GetSingleton<PlayerInput>();
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
+            var body = SystemAPI.TryGetSingleton<PlayerBody>(out var playerBody) ? playerBody : new PlayerBody { SpeedFactor = 1f };
             SystemAPI.TryGetSingletonBuffer<FloraObstacle>(out var obstacles, true);
 
             foreach (var (transform, motor, motion) in
@@ -42,7 +46,24 @@ namespace Punchy.Player
 
                 var position = t.Position;
                 var swimming = Floor(terrain, position, settings.SwimDepth, out _, out var inCave);
-                var speed = settings.WalkSpeed * (input.Sprint ? settings.SprintMultiplier : 1f) *
+
+                // A flying body: off with a jump, and on the wing until it comes down on something.
+                if (!body.Flies)
+                    m.Flying = false;
+                else if (!m.Flying && input.JumpPressed && (m.Grounded || swimming))
+                {
+                    m.Flying = true;
+                    m.Grounded = false;
+                    m.Airspeed = body.FlySpeed * 0.6f;
+                    m.Pitch = 0.5f;
+                }
+                if (m.Flying)
+                {
+                    Fly(ref t, ref m, body, input, terrain, settings, inCave, dt);
+                    continue;
+                }
+
+                var speed = settings.WalkSpeed * math.max(body.SpeedFactor, 0.1f) * (input.Sprint ? settings.SprintMultiplier : 1f) *
                             (swimming ? settings.SwimSpeedMultiplier : 1f);
                 var from = position;
                 position.xz += input.MoveDirection * speed * dt;
@@ -93,6 +114,64 @@ namespace Punchy.Player
                     t.Rotation = math.slerp(t.Rotation, target, 1f - math.exp(-settings.TurnSharpness * dt));
                 }
             }
+        }
+
+        /// <summary>
+        /// A frame on the wing: turn towards where the camera looks (banking round, not snapping), climb or dive within
+        /// the birds' limits, beat the wings to keep speed up or glide down slowly, and come down with a flare.
+        /// </summary>
+        static void Fly(ref LocalTransform t, ref PlayerMotion m, in PlayerBody body, in PlayerInput input, in TerrainSource terrain,
+                        in PlayerMotor settings, bool inCave, float dt)
+        {
+            var forward3 = math.mul(t.Rotation, new float3(0f, 0f, 1f));
+            var yaw = math.atan2(forward3.x, forward3.z);
+            var wanted = math.atan2(input.CameraForward.x, input.CameraForward.y);
+            var turn = math.atan2(math.sin(wanted - yaw), math.cos(wanted - yaw));
+            yaw += math.clamp(turn, -2.2f * dt, 2.2f * dt);
+
+            var steepest = math.atan(Punchy.Fauna.CreatureMotion.MaxClimb);
+            var dive = input.Sprint;
+            var climb = input.JumpHeld && !dive;
+            m.Flapping = climb || math.lengthsq(input.MoveDirection) > 0.01f;
+            Floor(terrain, t.Position, settings.SwimDepth, out var ground, out _);
+            var height = t.Position.y - ground;
+            // Nose: up to climb, down to dive; held level beating on, or sinking gently gliding. Near the ground on the
+            // way down, it flares: nose up, slowing to land.
+            var targetPitch = climb ? steepest : dive ? -steepest : m.Flapping ? 0f : -0.12f;
+            var flaring = !climb && height < Punchy.Fauna.CreatureMotion.FlareDistance * 1.5f && m.Pitch <= 0.05f;
+            if (flaring)
+                targetPitch = math.max(targetPitch, -0.15f);
+            m.Pitch += math.clamp(targetPitch - m.Pitch, -1.5f * dt, 1.5f * dt);
+
+            // Speed: wingbeats bring it up to flying speed; a glide bleeds it off slowly (faster climbing, gaining
+            // diving), never below the minimum, except in the last moments of a landing.
+            var flySpeed = math.max(body.FlySpeed, 1f);
+            var lowest = flySpeed * Punchy.Fauna.CreatureMotion.MinAirspeed * (flaring ? 0.5f : 1f);
+            if (m.Flapping)
+                m.Airspeed += (flySpeed - m.Airspeed) * math.min(1f, dt * 1.5f);
+            m.Airspeed -= math.sin(m.Pitch) * 9.81f * 0.5f * dt;
+            m.Airspeed = math.clamp(m.Airspeed - (m.Flapping ? 0f : 0.15f * dt), lowest, flySpeed * 1.6f);
+
+            var velocity = new float3(math.sin(yaw) * math.cos(m.Pitch), math.sin(m.Pitch), math.cos(yaw) * math.cos(m.Pitch)) * m.Airspeed;
+            var position = t.Position + velocity * dt;
+            // Under rock (a cave's ceiling or walls): no further that way, and the nose goes down.
+            if (inCave && terrain.CaveDistance(position + new float3(0f, settings.Radius, 0f)) > -settings.Radius)
+            {
+                position = t.Position;
+                m.Pitch = math.min(m.Pitch, -0.2f);
+            }
+            Floor(terrain, position, settings.SwimDepth, out ground, out _);
+            if (position.y <= ground)
+            {
+                // Down: on its feet (or swimming), walking again.
+                position.y = ground;
+                m.Flying = false;
+                m.Grounded = true;
+                m.VerticalVelocity = 0f;
+                m.Pitch = 0f;
+            }
+            t.Position = position;
+            t.Rotation = quaternion.RotateY(yaw);
         }
 
         /// <summary>Pushes the player out of any trunk or cactus they walked into, so they slide around it.</summary>

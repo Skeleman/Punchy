@@ -39,20 +39,29 @@ namespace Punchy.Fauna
             var halfLength = b.BodyLength * 0.5f * scale;
             // Animals stand on the terrain; the player's body can be above it (jumping, swimming).
             // Swimmers and floaters are carried at their own height (the body's centre at Position).
-            var aquatic = b.Habitat != Habitat.Land;
+            var aquatic = b.Habitat == Habitat.Swims || b.Habitat == Habitat.Floats;
             var terrainHeight = aquatic ? s.Position.y - b.StandHeight * scale : GroundAt(terrain, s.Position.xz, s.Position.y);
             var ground = math.max(terrainHeight, s.Position.y);
             if (aquatic)
                 ground = terrainHeight;
             var airborne = aquatic ? 0f : math.saturate((s.Position.y - terrainHeight - 0.05f) / 0.3f);
-            var front = GroundAt(terrain, s.Position.xz + forward.xz * halfLength, s.Position.y);
-            var back = GroundAt(terrain, s.Position.xz - forward.xz * halfLength, s.Position.y);
-            var gradient = (front - back) / (2f * halfLength);   // rise per metre forward
             // Four-legged bodies tilt with the slope; upright ones stay level (their legs take up the slope), and
             // nobody tilts to follow the ground under them while in the air.
-            if (b.Upright || aquatic)
-                gradient = 0f;
+            var gradient = 0f;
+            if (!b.Upright && !aquatic)
+            {
+                var front = GroundAt(terrain, s.Position.xz + forward.xz * halfLength, s.Position.y);
+                var back = GroundAt(terrain, s.Position.xz - forward.xz * halfLength, s.Position.y);
+                gradient = (front - back) / (2f * halfLength);   // rise per metre forward
+            }
             var pitch = math.clamp(-math.atan(gradient), -0.45f, 0.45f) * (1f - airborne);
+            // Swimming (a land animal low in deep water): nose up a little, to keep its head out.
+            if (b.CrossesWater)
+            {
+                var water = terrain.SampleGround(s.Position.xz);
+                if (water.HasWater && s.Position.y < water.WaterSurface - b.StandHeight * scale * 0.5f)
+                    pitch -= 0.22f;
+            }
             // A leaping fish noses up out of the water and dives back in nose first.
             if (s.Air > 0f)
                 pitch -= math.cos(math.PI * s.Air) * 0.9f;
@@ -65,6 +74,9 @@ namespace Punchy.Fauna
             var twist = 1f + CreatureBlob.Trait(id, 4) * 0.6f;
             var headTilt = new float3(CreatureBlob.Trait(id, 6) * 0.1f, 0f, CreatureBlob.Trait(id, 7) * 0.07f);
 
+            // Past a run, folk sprint: leaning well in, and lifting clear of the ground between steps.
+            var sprint = b.Sprint(s.Speed);
+            pitch += sprint * 0.3f;
             var bobs = math.lerp(b.BobsPerCycle.x, b.BobsPerCycle.y, run);
             var bob = math.lerp(b.Bob.x, b.Bob.y, run) * bounce * move * scale * (0.5f - 0.5f * math.cos(2f * math.PI * bobs * s.Phase));
             pitch += b.RunRock * run * move * math.sin(2f * math.PI * s.Phase);
@@ -96,9 +108,9 @@ namespace Punchy.Fauna
             var rootRot = math.mul(quaternion.RotateY(s.Yaw), math.mul(quaternion.RotateX(pitch), quaternion.RotateZ(roll)));
             // Pitched up against a trunk, the body keeps its legs' length out from it (behind it) rather than above.
             var up = math.saturate(s.Vertical);
-            var lift = height - bob;
+            var lift = height - bob + sprint * 0.08f * scale * (0.5f + 0.5f * math.cos(4f * math.PI * s.Phase));
             // Hanging head down in a web, the body sits right at its anchor (the web's centre).
-            var hang = s.Mode == CreatureMode.Web ? math.saturate(-s.Vertical) : 0f;
+            var hang = s.Mode == CreatureMode.Web || s.Mode == CreatureMode.Roost ? math.saturate(-s.Vertical) : 0f;
             var rootPos = new float3(s.Position.x, ground, s.Position.z) + new float3(0f, lift * (1f - up - hang), 0f) - forward * lift * up;
 
             // Body.
@@ -145,17 +157,39 @@ namespace Punchy.Fauna
                         fold = math.max(fold, math.saturate(s.Vertical * 1.6f));
                     // In flight the legs trail back under the tail instead (below).
                     fold *= 1f - s.Fly;
+                    // Carried: legs tucked up, not dangling.
+                    if (s.Mode == CreatureMode.Held)
+                        fold = math.max(fold, 0.85f);
                 }
                 // A leg busy with an idle action (pawing, scratching) isn't planted.
                 var busyLeg = UsedByAction(ref part, in s);
                 var gaitMove = part.Role == LimbRole.Leg ? move * (1f - s.Fly) : move;
+                // A snake's body (a chain that lies on the ground, off the body): serpentine. It lies along one wave
+                // that stays put on the ground, sideways offset A·sin(k(D − u)) at distance u back from the head after
+                // it has gone D: as it moves on, the wave runs back along the body at its own speed, so every part of
+                // the body follows the head's track (rather than a tail wagging behind a straight head). Stopped, it
+                // keeps its S. The wavelength is its stride, so the gait phase is how far along the wave it is.
+                var serpent = part.FollowGround && part.Parent < 0;
+                var wave = math.max(b.WalkStride * scale, 0.05f);
+                var back = b.BodyLength * scale * 1.2f;
+                var heading = 0f;
 
                 for (int j = 0; j < part.SegmentCount; j++)
                 {
                     var seg = part.FirstSegment + j;
                     var jointPhase = math.frac(phase - j * part.JointPhaseStep);
                     float3 a;
-                    if (part.Role == LimbRole.Wing)
+                    if (serpent)
+                    {
+                        // Each segment turned to the wave's direction at its middle; the joint turns by the change.
+                        var length = b.Segments[seg].Length * scale;
+                        var k = 2f * math.PI / wave;
+                        var direction = math.atan(0.12f * wave * k * math.cos(k * (s.Phase * wave - (back + length * 0.5f))));
+                        a = new float3(0f, direction - heading, 0f);
+                        heading = direction;
+                        back += length;
+                    }
+                    else if (part.Role == LimbRole.Wing)
                     {
                         // Folded at rest; in flight, beating through the walk keys (or held spread, gliding).
                         var k = seg * CreatureBlob.PoseCount;
@@ -163,28 +197,59 @@ namespace Punchy.Fauna
                                                       b.Poses[k + CreatureBlob.WalkLift], jointPhase);
                         a = math.lerp(b.Poses[k + CreatureBlob.Idle], flap, s.Fly);
                     }
+                    else if (part.Role == LimbRole.Leg && sprint > 0f)
+                    {
+                        // A sprinting leg: the longer stride, and in the swing the knee driven high and the heel kicked up.
+                        a = b.LegAngles(seg, jointPhase, gaitMove, run, sprint);
+                        if (jointPhase >= 0.5f)
+                        {
+                            var swing = math.sin((jointPhase - 0.5f) * 2f * math.PI);
+                            if (j == 0) a.x -= 0.55f * sprint * swing;
+                            else if (j == 1) a.x += 1.1f * sprint * swing;
+                        }
+                    }
                     else
                         a = b.Angles(seg, jointPhase, gaitMove, run);
+                    // A sprinter's arms pump hard, elbows bent.
+                    if (part.Role == LimbRole.Arm && sprint > 0f)
+                    {
+                        var rest = b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle];
+                        a = rest + (a - rest) * (1f + 0.5f * sprint);
+                        if (j == 1)
+                            a.x -= 0.85f * sprint;
+                    }
                     if (amplitude != 1f)
                     {
                         var idle = b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle];
                         a = idle + (a - idle) * amplitude;
                     }
+                    // Carrying something in both arms: they hold it, rather than swinging with the stride.
+                    if (part.Role == LimbRole.Arm && s.Action == IdleAction.Carry)
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], act);
                     if (torso && j == 0)
                         a.x += lean;
                     if (part.Role == LimbRole.Head && j == 0)
                         a += headTilt;
                     a += Secondary(ref part, in s, j, run, b.Upright);
                     a += TaskPose(ref part, in s, j);
-                    if (s.Action != IdleAction.None && !b.Upright)
+                    // (Upright bodies have no idle actions of their own, but players' bodies take interaction poses.)
+                    if (s.Action != IdleAction.None && (!b.Upright || s.Action >= IdleAction.Pet))
                         a += ActionPose(ref part, in s, j, act);
+                    // An upright body's elbow bends one way only (negative pitch, forward): never past straight, nor
+                    // folded beyond 150°, however much swing, sprint or pose is added up.
+                    if (b.Upright && part.Role == LimbRole.Arm && j == 1)
+                        a.x = math.clamp(a.x, -2.6f, 0f);
                     if (seg < segHidden.Length)
                         segHidden[seg] = hidden;
                     if (fold > 0f)
                         a.x += Fold(j, part.SegmentCount) * fold;
-                    // Flying: legs swept back along the belly, feet tucked.
-                    if (folds && s.Fly > 0f)
-                        a.x += (j == 0 ? 1.35f : j == part.SegmentCount - 1 ? 0.6f : -0.2f) * s.Fly;
+                    // Flying: legs swept back along the belly, feet tucked; nose up (flaring to land, or climbing
+                    // away), they come down and forward to meet the ground.
+                    var tuck = s.Fly * (1f - math.saturate(s.Vertical * 2f));
+                    if (folds && tuck > 0f)
+                        a.x += (j == 0 ? 1.35f : j == part.SegmentCount - 1 ? 0.6f : -0.2f) * tuck;
+                    if (folds && s.Fly > 0f && s.Vertical > 0f && j == 0)
+                        a.x -= 0.5f * s.Fly * math.saturate(s.Vertical * 2f);
                     rot = math.mul(rot, quaternion.EulerZXY(a));
                     if (part.FollowGround)
                         rot = LieOnGround(in terrain, pos, rot, b.Segments[seg].Length * scale, b.Segments[seg].RadiusEnd * b.Segments[seg].Flatten * scale);
@@ -319,6 +384,78 @@ namespace Punchy.Fauna
                     if (part.Role == LimbRole.Head) return new float3(-0.15f * e, 0f, 0f);
                     if (part.Role == LimbRole.Ear) return new float3(-0.3f * e, 0f, 0f);
                     break;
+                case IdleAction.Pet:
+                {
+                    // A player petting an animal: leaning over it, the right hand reaching down and stroking (a body
+                    // with no arms noses at it instead).
+                    var stroke = math.sin(s.Clock * 3.2f);
+                    if (part.Role == LimbRole.Feature && part.Parent < 0 && joint == 0) return new float3(0.45f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Arm && part.Side > 0f)
+                        return joint == 0 ? new float3((-0.95f + 0.18f * stroke) * e, 0f, 0f)
+                             : joint == 1 ? new float3((-0.25f - 0.15f * stroke) * e, 0f, 0f) : float3.zero;
+                    if (part.Role == LimbRole.Neck) return new float3(0.5f * e / n, 0f, 0f);
+                    if (part.Role == LimbRole.Head) return new float3((0.45f + 0.06f * stroke) * e, 0f, 0f);
+                    break;
+                }
+                case IdleAction.Throw:
+                    // A player lunging at game: right arm thrown forward, leaning into it (a body with no arms lunges
+                    // head first).
+                    if (part.Role == LimbRole.Feature && part.Parent < 0 && joint == 0) return new float3(0.3f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Arm && part.Side > 0f)
+                        return joint == 0 ? new float3(-1.5f * e, 0f, 0f) : float3.zero;
+                    if (part.Role == LimbRole.Head) return new float3(0.15f * e, 0f, 0f);
+                    break;
+                case IdleAction.Carry:
+                    // A player carrying an animal: both arms forward with the elbows bent, cradling it at the chest.
+                    if (part.Role == LimbRole.Arm)
+                        return joint == 0 ? new float3(-0.35f * e, 0f, 0f) : joint == 1 ? new float3(-1.25f * e, 0f, 0f) : float3.zero;
+                    if (part.Role == LimbRole.Head) return new float3(0.2f * e, 0f, 0f);
+                    break;
+                // Emotes (a player's, or folk answering one). Bodies without arms make do: a nod, a wag of the tail.
+                case IdleAction.Wave:
+                {
+                    // The right arm up, swinging side to side from the shoulder; head tilted a little.
+                    var swing = math.sin(s.Clock * 9f);
+                    if (part.Role == LimbRole.Arm && part.Side > 0f)
+                        return joint == 0 ? new float3(-2.55f * e, 0f, 0.35f * swing * e) : joint == 1 ? new float3(-0.45f * e, 0f, 0f) : float3.zero;
+                    if (part.Role == LimbRole.Head) return new float3(-0.1f * e, 0f, 0.15f * e);
+                    if (part.Role == LimbRole.Tail) return new float3(-0.2f * e, 0.6f * swing * e * (1f + joint * 0.5f), 0f);
+                    break;
+                }
+                case IdleAction.Bow:
+                {
+                    // Bent at the waist, head down, then up again (a body without a torso part bows its neck).
+                    var w = Window(t, 0.05f, 0.8f) * e;
+                    if (part.Role == LimbRole.Feature && part.Parent < 0 && joint == 0) return new float3(0.75f * w, 0f, 0f);
+                    if (part.Role == LimbRole.Neck) return new float3(0.6f * w / n, 0f, 0f);
+                    if (part.Role == LimbRole.Head) return new float3(0.35f * w, 0f, 0f);
+                    if (part.Role == LimbRole.Arm && joint == 0) return new float3(-0.25f * w, 0f, 0f);
+                    break;
+                }
+                case IdleAction.Cheer:
+                {
+                    // Both arms flung up and shaken, face to the sky.
+                    var shake = math.sin(s.Clock * 11f + (part.Side > 0f ? 0f : 1.3f));
+                    if (part.Role == LimbRole.Arm)
+                        return joint == 0 ? new float3((-2.8f + 0.15f * shake) * e, 0f, 0f) : joint == 1 ? new float3(-0.2f * e, 0f, 0f) : float3.zero;
+                    if (part.Role == LimbRole.Head) return new float3(-0.3f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Tail) return new float3(-0.4f * e, 0.5f * shake * e, 0f);
+                    break;
+                }
+                case IdleAction.Dance:
+                {
+                    // Arms pumping in turn with the elbows bent, hips swaying, head bobbing to the beat.
+                    var beat = s.Clock * 7f + (s.Individual % 7u) * 0.4f;
+                    if (part.Role == LimbRole.Arm)
+                    {
+                        var pump = math.max(0f, math.sin(beat + (part.Side > 0f ? 0f : math.PI)));
+                        return joint == 0 ? new float3((-0.9f - 0.8f * pump) * e, 0f, 0f) : joint == 1 ? new float3(-1.3f * e, 0f, 0f) : float3.zero;
+                    }
+                    if (part.Role == LimbRole.Feature && part.Parent < 0 && joint == 0) return new float3(0f, 0.25f * math.sin(beat * 0.5f) * e, 0f);
+                    if (part.Role == LimbRole.Head) return new float3(0.15f * math.sin(beat) * e, 0f, 0f);
+                    if (part.Role == LimbRole.Tail) return new float3(-0.3f * e, 0.7f * math.sin(beat) * e * (1f + joint * 0.5f), 0f);
+                    break;
+                }
             }
             return float3.zero;
         }
@@ -329,6 +466,8 @@ namespace Punchy.Fauna
         /// </summary>
         static float3 TaskPose(ref CreaturePart part, in CreatureState s, int joint)
         {
+            if (part.Role == LimbRole.Arm && joint <= 1 && s.Mode == CreatureMode.Hunt && s.Task == CreatureTask.Hunt)
+                return HuntPose(part.Side > 0f, s.Stage, joint);
             if (part.Role != LimbRole.Arm || s.Mode != CreatureMode.Work || s.Stage == 0 || s.Task == CreatureTask.None || joint > 1)
                 return float3.zero;
             var right = part.Side > 0f;
@@ -357,6 +496,25 @@ namespace Punchy.Fauna
                     return new float3(joint == 0 ? -0.65f + 0.22f * math.sin(t * 1.5f + (right ? 0f : 1.4f)) : -0.55f, 0f, 0f);
                 case CreatureTask.Watch:
                     return new float3(joint == 0 ? 0.35f : -0.75f, 0f, 0f);   // hands clasped behind the back
+                default:
+                    return float3.zero;
+            }
+        }
+
+        /// <summary>
+        /// A hunter's arms: creeping up, both carried low in front (the spear); aiming, the right drawn back high over
+        /// the shoulder with the left pointing at the game; the throw, the right whipped through and forward.
+        /// </summary>
+        static float3 HuntPose(bool right, byte stage, int joint)
+        {
+            switch (stage)
+            {
+                case FolkHunting.Stalk:
+                    return new float3(joint == 0 ? -0.55f : -0.7f, 0f, 0f);
+                case FolkHunting.Aim:
+                    return right ? new float3(joint == 0 ? -2.7f : -0.7f, 0f, 0f) : new float3(joint == 0 ? -1.3f : 0f, 0f, 0f);
+                case FolkHunting.Throw:
+                    return right ? new float3(joint == 0 ? -0.9f : 0f, 0f, 0f) : new float3(joint == 0 ? -0.4f : -0.3f, 0f, 0f);
                 default:
                     return float3.zero;
             }

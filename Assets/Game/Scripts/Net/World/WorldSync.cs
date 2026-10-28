@@ -378,6 +378,12 @@ namespace Punchy.Net
                     foreach (var r in l.Residents)
                         if (r.Species != null) species.Add(r.Species.name);
             }
+            // (The settlements' animals and hunters too: FaunaDirector's table is exactly these names, sorted, so this
+            // fixes every creature index the network sends.)
+            var domestics = Resources.Load<Punchy.Fauna.DomesticTable>("Domestics");
+            if (domestics != null)
+                foreach (var d in domestics.Entries)
+                    if (d.Species != null) species.Add(d.Species.name);
             foreach (var s in species)
                 Add(s);
             if (Avatars != null)

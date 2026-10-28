@@ -40,11 +40,15 @@ namespace Punchy.Fauna
         public float SpawnRate = 6f;
 
         readonly List<CreatureSpecies> species = new List<CreatureSpecies>();
+        /// <summary>Settlements' dogs, cats, chickens and pigeons (from Resources).</summary>
+        DomesticTable domestics;
         readonly List<BlobAssetReference<CreatureBlob>> blobs = new List<BlobAssetReference<CreatureBlob>>();
         BiomeDefinition[] biomes;
         LandmarkType[] landmarks;
         /// <summary>Landmarks whose residents are out; forgotten once every player is far enough away for them to be gone.</summary>
         readonly HashSet<int> occupied = new HashSet<int>();
+        /// <summary>Caves whose dwellers are out (like landmarks' residents).</summary>
+        readonly HashSet<int> occupiedCaves = new HashSet<int>();
         readonly List<int> scratch = new List<int>();
         readonly List<float3> players = new List<float3>();
         float nextResidentCheck;
@@ -53,15 +57,18 @@ namespace Punchy.Fauna
         // world runs the animals: the server world when hosting, the local world without netcode, none on a client
         // that joined someone else.
         World queryWorld, simWorld;
-        EntityQuery terrainQuery, paletteQuery, playerQuery, avatarQuery, playerMeshQuery, replicaQuery, newReplicaQuery;
+        EntityQuery terrainQuery, paletteQuery, playerQuery, avatarQuery, replicaQuery, newReplicaQuery;
         EntityQuery wildQuery, simCreatureQuery, netPlayerQuery, simPlayerQuery, ghostSpawnerQuery;
         CreatureSpecies avatarSpecies;
         BlobAssetReference<CreatureBlob> avatarBlob;
-        Entity hiddenPlayer;
         Entity settingsEntity, simClockEntity, floraEntity;
+        BlobAssetReference<CarryBlob> carryBlob;
         /// <summary>Where trees are, for climbing, perching and webs (the same tables the plants are drawn from).</summary>
         BlobAssetReference<Punchy.Flora.FloraBlob> floraBlob;
         readonly List<Punchy.Flora.FloraSpecies> floraSpecies = new List<Punchy.Flora.FloraSpecies>();
+        /// <summary>The plant placement animals use (where a machine simulates them), and its species in rule order (tests).</summary>
+        public BlobAssetReference<Punchy.Flora.FloraBlob> FloraPlacementBlob => floraBlob;
+        public IReadOnlyList<Punchy.Flora.FloraSpecies> FloraSpeciesList => floraSpecies;
         Mesh capsule;
         float spawnBudget;
         bool built;
@@ -92,6 +99,9 @@ namespace Punchy.Fauna
             if (floraBlob.IsCreated)
                 floraBlob.Dispose();
             floraBlob = default;
+            if (carryBlob.IsCreated)
+                carryBlob.Dispose();
+            carryBlob = default;
             if (queryWorld != null && queryWorld.IsCreated)
             {
                 var em = queryWorld.EntityManager;
@@ -110,6 +120,8 @@ namespace Punchy.Fauna
             blobs.Clear();
             species.Clear();
             occupied.Clear();
+            occupiedCaves.Clear();
+            Caught = 0;
             if (capsule != null) Destroy(capsule);
             capsule = null;
             built = false;
@@ -142,6 +154,7 @@ namespace Punchy.Fauna
             {
                 nextResidentCheck = Time.time + 0.5f;
                 SpawnResidents(source);
+                SpawnCaveDwellers(source);
             }
             spawnBudget = math.min(spawnBudget + SpawnRate * players.Count * Time.deltaTime, 3f * players.Count);
             while (spawnBudget >= 1f)
@@ -170,12 +183,6 @@ namespace Punchy.Fauna
                 paletteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
                 playerQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
                 avatarQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerAvatar>());
-                // The player's placeholder mesh: render entities parented to the player.
-                playerMeshQuery = em.CreateEntityQuery(new EntityQueryDesc
-                {
-                    All = new[] { ComponentType.ReadOnly<Parent>(), ComponentType.ReadOnly<Unity.Rendering.MaterialMeshInfo>() },
-                    Options = EntityQueryOptions.IncludeDisabledEntities
-                });
                 replicaQuery = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureReplica>());
                 newReplicaQuery = em.CreateEntityQuery(new EntityQueryDesc
                 {
@@ -209,18 +216,30 @@ namespace Punchy.Fauna
 
         void Build(in TerrainSource source, BiomePalette palette)
         {
+            // Each species once, by name: in a built player the Domestics table (loaded from Resources) holds its own
+            // copies of species the world's palette also lists, so the same species can arrive as two objects. (Counted
+            // twice, the indices shifted, and an editor and a build disagreed on what each index meant.)
+            var named = new HashSet<string>();
+            void AddSpecies(CreatureSpecies s)
+            {
+                if (s != null && named.Add(s.name))
+                    species.Add(s);
+            }
             biomes = palette.Biomes;
             foreach (var biome in biomes)
                 if (biome != null)
                     foreach (var f in biome.Fauna)
-                        if (f.Species != null && !species.Contains(f.Species))
-                            species.Add(f.Species);
+                        AddSpecies(f.Species);
             landmarks = palette.Landmarks ?? System.Array.Empty<LandmarkType>();
             foreach (var landmark in landmarks)
                 if (landmark != null)
                     foreach (var r in landmark.Residents)
-                        if (r.Species != null && !species.Contains(r.Species))
-                            species.Add(r.Species);
+                        AddSpecies(r.Species);
+            domestics = Resources.Load<DomesticTable>("Domestics");
+            Debug.Log($"FaunaDirector: domestic animals table {(domestics != null ? domestics.Entries.Count + " entries" : "missing")}");
+            if (domestics != null)
+                foreach (var d in domestics.Entries)
+                    AddSpecies(d.Species);
             // The index is how the network names a species, so it must mean the same animal on every machine: sort by
             // asset name, and refuse to network if two share one.
             species.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
@@ -249,10 +268,13 @@ namespace Punchy.Fauna
             em.SetName(settingsEntity, "Fauna Render Settings");
             em.AddComponentObject(settingsEntity, new FaunaRenderSettings { Material = Material, Capsule = capsule });
             em.AddComponentData(settingsEntity, new FaunaClock());
+            carryBlob = BuildCarryTable();
+            em.AddComponentData(settingsEntity, new CarryTable { Blob = carryBlob });
             if (simWorld != null && simWorld != queryWorld)
             {
                 simClockEntity = simWorld.EntityManager.CreateEntity(typeof(FaunaClock));
                 simWorld.EntityManager.SetName(simClockEntity, "Fauna Clock");
+                simWorld.EntityManager.AddComponentData(simClockEntity, new CarryTable { Blob = carryBlob });
             }
             if (simWorld != null)
             {
@@ -263,7 +285,7 @@ namespace Punchy.Fauna
                                  Punchy.Flora.FloraPlacement.CellSize(flora.Shrubs.TileSize, flora.Shrubs.CellSize),
                                  Punchy.Flora.FloraPlacement.CellSize(flora.Trees.TileSize, flora.Trees.CellSize))
                     : new float3(0.7f, 2f, 4.5f);
-                floraBlob = Punchy.Flora.FloraPlacement.Build(palette, cells, floraSpecies);
+                floraBlob = Punchy.Flora.FloraPlacement.Build(palette, cells, floraSpecies, obstacles: true);
                 floraEntity = simWorld.EntityManager.CreateEntity();
                 simWorld.EntityManager.SetName(floraEntity, "Flora Lookup");
                 simWorld.EntityManager.AddComponentData(floraEntity, new Punchy.Flora.FloraLookup { Blob = floraBlob });
@@ -271,6 +293,49 @@ namespace Punchy.Fauna
             lastSource = source;
             configStamp = ConfigStamp();
             built = true;
+        }
+
+        /// <summary>
+        /// Who can carry and where a carried animal sits, per playable body (players are named by their index in
+        /// NetAvatars.PlayableSpecies): folk carry, at the height and reach of a human's arms (0.98 m up, 0.38 m out)
+        /// scaled by how high their arms are next to a human's, so a goblin holds it lower and an ogre higher. Taken
+        /// from the species, so every machine puts it in the same place.
+        /// </summary>
+        BlobAssetReference<CarryBlob> BuildCarryTable()
+        {
+            var avatars = FindAnyObjectByType<Punchy.Net.NetAvatars>();
+            var playable = avatars != null ? avatars.PlayableSpecies : new List<CreatureSpecies>();
+            var stand = new float[playable.Count];
+            var chest = new float[playable.Count];
+            var upright = new bool[playable.Count];
+            var reference = 0.9f;
+            for (int i = 0; i < playable.Count; i++)
+            {
+                if (playable[i] == null)
+                    continue;
+                // (How high its arms are: legs plus half the trunk, an upright body's length being its height.)
+                var body = CreatureBlobBuilder.Build(playable[i]);
+                var size = (playable[i].Size.x + playable[i].Size.y) * 0.5f;
+                stand[i] = (body.Value.StandHeight + body.Value.BodyLength * 0.5f) * size;
+                chest[i] = math.max(body.Value.FrontRadius, body.Value.RearRadius) * body.Value.BodyFlatten * size;
+                upright[i] = body.Value.Upright;
+                body.Dispose();
+                if (playable[i].name == "Human")
+                    reference = math.max(stand[i], 0.1f);
+            }
+            var builder = new BlobBuilder(Allocator.Temp);
+            ref var root = ref builder.ConstructRoot<CarryBlob>();
+            var folk = builder.Allocate(ref root.Folk, playable.Count);
+            var hold = builder.Allocate(ref root.Hold, playable.Count);
+            for (int i = 0; i < playable.Count; i++)
+            {
+                folk[i] = (byte)(upright[i] ? 1 : 0);
+                // (Out by the chest's own depth and a forearm's thickness, so a stout body holds it further out.)
+                hold[i] = new float2(0.98f * (stand[i] > 0f ? stand[i] / reference : 1f), chest[i] + 0.1f);
+            }
+            var blob = builder.CreateBlobAssetReference<CarryBlob>(Allocator.Persistent);
+            builder.Dispose();
+            return blob;
         }
 
         /// <summary>
@@ -303,30 +368,49 @@ namespace Punchy.Fauna
             return ConfigStamp() != configStamp;
         }
 
-        public int SpeciesIndex(CreatureSpecies s) => species.IndexOf(s);
+        /// <summary>A species' index (by name: a build can hold more than one copy of the same species asset).</summary>
+        public int SpeciesIndex(CreatureSpecies s) => s != null ? SpeciesIndex(s.name) : -1;
         public int SpeciesIndex(string name) => species.FindIndex(s => s.name == name);
         /// <summary>How many animals birds of prey have caught (for the test log).</summary>
         public static int Caught;
         public Habitat SpeciesHabitat(int index) => species[index].Body.Habitat;
+        public bool SpeciesCaveDweller(int index) => species[index].Body.CaveDweller;
+        /// <summary>A species' name as people say it ("MountainLion": "mountain lion").</summary>
+        public string SpeciesName(int index)
+        {
+            if (index < 0 || index >= species.Count)
+                return "animal";
+            var name = species[index].name;
+            var words = new System.Text.StringBuilder(name.Length + 4);
+            for (int i = 0; i < name.Length; i++)
+            {
+                if (i > 0 && char.IsUpper(name[i]))
+                    words.Append(' ');
+                words.Append(char.ToLowerInvariant(name[i]));
+            }
+            return words.ToString();
+        }
+        /// <summary>Whether this machine simulates animals (alone or hosting), so Spawn works.</summary>
+        public bool CanSpawn => simWorld != null && simWorld.IsCreated && built;
 
         // ------------------------------------------------------------------------------------------- the player's body
 
         /// <summary>
-        /// Spawns the player's body if there should be one and it's missing (or the species changed), and hides the
-        /// placeholder. The body has its own runtime data, so changing species never disturbs the animals.
+        /// Spawns the player's body if it's missing (or the species changed). There's always one: with no species
+        /// chosen, a human (the player entity itself has no mesh). The body has its own runtime data, so changing
+        /// species never disturbs the animals.
         /// </summary>
         void KeepAvatar()
         {
             if (!playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return;
             var em = queryWorld.EntityManager;
+            if (PlayerSpecies == null)
+                PlayerSpecies = species.Find(s => s.name == "Human") ?? species.Find(s => s.Body.Upright);
             if (PlayerSpecies != avatarSpecies)
                 DropAvatar();
             if (PlayerSpecies == null)
                 return;
-            // A re-baked subscene brings back a new player entity, placeholder showing.
-            if (playerQuery.TryGetSingletonEntity<LocalTransform>(out var playerEntity) && playerEntity != hiddenPlayer && avatarQuery.CalculateEntityCount() > 0)
-                ShowPlayerMesh(false);
             if (avatarQuery.CalculateEntityCount() > 0)
                 return;
             if (!avatarBlob.IsCreated)
@@ -338,52 +422,43 @@ namespace Punchy.Fauna
             em.SetComponentData(e, new CreatureBody
             {
                 Blob = avatarBlob,
-                Species = species.IndexOf(PlayerSpecies),
+                Species = SpeciesIndex(PlayerSpecies),
                 SegmentCount = b.Segments.Length,
                 Coat = b.PickCoat(rng.NextFloat())
             });
+            // (At the species' middle size: a cat body is cat-sized, an osprey osprey-sized.)
+            var size = (b.Size.x + b.Size.y) * 0.5f;
             em.SetComponentData(e, new CreatureState
             {
                 Position = player.Position,
                 Phase = rng.NextFloat(),
-                Scale = 1f,
+                Scale = size,
                 Mode = CreatureMode.Puppet,
                 Seed = rng.NextUInt() | 1u,
                 Individual = rng.NextUInt() | 1u
             });
-            ShowPlayerMesh(false);
+            // What the body can do, for player movement: its pace next to a human's, and flight.
+            var human = SpeciesIndex("Human");
+            var humanRun = human >= 0 ? blobs[human].Value.RunSpeed * (blobs[human].Value.Size.x + blobs[human].Value.Size.y) * 0.5f : 0f;
+            var abilities = new Punchy.Player.PlayerBody
+            {
+                SpeedFactor = humanRun > 0f ? math.clamp(b.RunSpeed * size / humanRun, 0.35f, 2.5f) : 1f,
+                Flies = b.Habitat == Habitat.Flies,
+                FlySpeed = b.FlySpeed
+            };
+            if (!em.CreateEntityQuery(typeof(Punchy.Player.PlayerBody)).TryGetSingletonEntity<Punchy.Player.PlayerBody>(out var bodyEntity))
+                bodyEntity = em.CreateEntity(typeof(Punchy.Player.PlayerBody));
+            em.SetComponentData(bodyEntity, abilities);
         }
 
         void DropAvatar()
         {
             if (queryWorld != null && queryWorld.IsCreated)
-            {
                 queryWorld.EntityManager.DestroyEntity(avatarQuery);
-                ShowPlayerMesh(true);
-            }
             if (avatarBlob.IsCreated)
                 avatarBlob.Dispose();
             avatarBlob = default;
             avatarSpecies = null;
-        }
-
-        void ShowPlayerMesh(bool show)
-        {
-            if (!playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
-                return;
-            var em = queryWorld.EntityManager;
-            hiddenPlayer = show ? Entity.Null : player;
-            var meshes = playerMeshQuery.ToEntityArray(Allocator.Temp);
-            foreach (var e in meshes)
-            {
-                if (em.GetComponentData<Parent>(e).Value != player)
-                    continue;
-                if (show)
-                    em.RemoveComponent<Unity.Rendering.DisableRendering>(e);
-                else
-                    em.AddComponent<Unity.Rendering.DisableRendering>(e);
-            }
-            meshes.Dispose();
         }
 
         // ------------------------------------------------------------------------------------------- ghosts
@@ -464,8 +539,8 @@ namespace Punchy.Fauna
             for (int i = 0; i < entities.Length; i++)
             {
                 var xz = states[i].Position.xz;
-                // Far from everyone, or caught by a bird of prey.
-                if (players.Count == 0 || NearestPlayer(xz) > DespawnDistance || states[i].Gone)
+                // Far from everyone, or caught by a bird of prey; never one someone is carrying (wherever they go).
+                if ((players.Count == 0 || NearestPlayer(xz) > DespawnDistance || states[i].Gone) && states[i].Mode != CreatureMode.Held)
                 {
                     if (states[i].Gone)
                         Caught++;
@@ -513,7 +588,7 @@ namespace Punchy.Fauna
             var bestShortfall = 0f;
             foreach (var f in biome.Fauna)
             {
-                var index = f.Species != null ? species.IndexOf(f.Species) : -1;
+                var index = SpeciesIndex(f.Species);
                 if (index < 0 || f.Species.Body.NearWater && !nearWater || !Suits(f.Species.Body.Habitat, depth))
                     continue;
                 var shortfall = f.Density * areaHectares - counts[offset + index];
@@ -564,9 +639,10 @@ namespace Punchy.Fauna
                     continue;
                 occupied.Add(i);
                 var radius = set.Types[inst.Type].Radius * inst.Scale;
+                SpawnDomestics(source, landmarks[inst.Type], inst.Position, radius);
                 foreach (var r in landmarks[inst.Type].Residents)
                 {
-                    var index = r.Species != null ? species.IndexOf(r.Species) : -1;
+                    var index = SpeciesIndex(r.Species);
                     if (index < 0)
                         continue;
                     var count = rng.NextInt(math.max(0, r.Count.x), math.max(r.Count.x, r.Count.y) + 1);
@@ -604,6 +680,112 @@ namespace Punchy.Fauna
             }
         }
 
+        /// <summary>The settlement's domestic animals, about its middle, homed on it and leashed to it.</summary>
+        void SpawnDomestics(in TerrainSource source, LandmarkType settlement, float2 centre, float radius)
+        {
+            if (domestics == null)
+                return;
+            var spawnedDomestics = 0;
+            var em = simWorld.EntityManager;
+            foreach (var d in domestics.Entries)
+            {
+                // By name: the palette's landmark types (baked into the world subscene) aren't the same objects as the table's.
+                if (d.Settlement == null || d.Species == null || d.Settlement.name != settlement.name)
+                    continue;
+                var index = SpeciesIndex(d.Species);
+                if (index < 0)
+                    continue;
+                var count = rng.NextInt(math.max(0, d.Count.x), math.max(d.Count.x, d.Count.y) + 1);
+                // Hunters range well beyond the settlement, out to where the game is.
+                var leash = d.Task == CreatureTask.Hunt ? math.max(radius * 3f, 70f) : radius * d.Range;
+                // Lava dwellers go in the landmark's lava (a few tries each), not on dry ground.
+                var lava = d.Species.Body.LavaDweller;
+                for (int k = 0; k < count; k++)
+                {
+                    var p = centre + rng.NextFloat2Direction() * rng.NextFloat(0.1f, 0.7f) * leash;
+                    var g = source.SampleGround(p);
+                    for (int t = 0; lava && t < 12 && !(g.HasWater && g.WaterSurface - g.Height > 0.5f &&
+                                                        source.LavaAt(new float3(p.x, g.WaterSurface - 0.2f, p.y)) > 0.5f); t++)
+                    {
+                        p = centre + rng.NextFloat2Direction() * rng.NextFloat(0f, 0.8f) * leash;
+                        g = source.SampleGround(p);
+                    }
+                    if (lava ? !(g.HasWater && g.WaterSurface > g.Height + 0.5f) : g.HasWater && g.WaterSurface > g.Height)
+                        continue;
+                    var e = Spawn(index, new float3(p.x, lava ? g.WaterSurface - 0.3f : g.Height, p.y));
+                    spawnedDomestics++;
+                    var state = em.GetComponentData<CreatureState>(e);
+                    state.Home = centre;
+                    state.Leash = leash;
+                    state.Task = d.Task;
+                    em.SetComponentData(e, state);
+                }
+            }
+            if (spawnedDomestics > 0)
+                Debug.Log($"FaunaDirector: {spawnedDomestics} domestic animals at {settlement.name}");
+        }
+
+        /// <summary>
+        /// Cave dwellers appear along the inner passages of a cave when a player comes within Radius of its mouth, a
+        /// few of each kind; like residents, they're forgotten once everyone is well away.
+        /// </summary>
+        void SpawnCaveDwellers(in TerrainSource source)
+        {
+            if (!source.Caves.IsCreated)
+                return;
+            ref var set = ref source.Caves.Value;
+            scratch.Clear();
+            foreach (var i in occupiedCaves)
+                if (NearestPlayer(set.Caves[i].Mouth.xz) > DespawnDistance + 20f)
+                    scratch.Add(i);
+            foreach (var i in scratch)
+                occupiedCaves.Remove(i);
+
+            for (int i = 0; i < set.Caves.Length; i++)
+            {
+                ref var cave = ref set.Caves[i];
+                if (occupiedCaves.Contains(i) || cave.NodeCount < 2 || NearestPlayer(cave.Mouth.xz) > Radius)
+                    continue;
+                occupiedCaves.Add(i);
+                for (int sp = 0; sp < species.Count; sp++)
+                {
+                    var body = species[sp].Body;
+                    // Now and then a surface animal (a bear in its den, a wolf, a fox), if it lives round the mouth:
+                    // one or two in the chambers near the mouth.
+                    var visitor = !body.CaveDweller && species[sp].CaveAffinity > 0f;
+                    if (!body.CaveDweller && !visitor)
+                        continue;
+                    if (visitor && (rng.NextFloat() >= species[sp].CaveAffinity || !LivesAt(source, sp, cave.Mouth.xz)))
+                        continue;
+                    var count = visitor ? rng.NextInt(1, 3)
+                              : rng.NextInt(math.max(1, body.GroupSize.x), math.max(body.GroupSize.x, body.GroupSize.y) + 1);
+                    for (int k = 0; k < count; k++)
+                    {
+                        // On the floor somewhere in the inner two thirds of the passage (a visitor, the outer half).
+                        var node = set.Nodes[cave.FirstNode + (visitor ? rng.NextInt(1, math.max(2, cave.NodeCount / 2))
+                                                                       : rng.NextInt(cave.NodeCount / 3, cave.NodeCount))];
+                        var at = node.Position + new float3(rng.NextFloat(-0.5f, 0.5f), 0f, rng.NextFloat(-0.5f, 0.5f)) * node.Radius;
+                        var floor = source.FloorUnder(at, out var inCave);
+                        // (Really under the rock: not where a passage opens to the sky.)
+                        if (inCave && source.CaveDistance(new float3(at.x, floor + 0.3f, at.z)) < -0.05f)
+                            Spawn(sp, new float3(at.x, floor, at.z));
+                    }
+                }
+            }
+        }
+
+        /// <summary>Whether a species is among the animals of the biome at a point.</summary>
+        bool LivesAt(in TerrainSource source, int speciesIndex, float2 at)
+        {
+            var biome = source.SampleGround(at).Biomes.Dominant();
+            if (biome < 0 || biome >= biomes.Length || biomes[biome] == null)
+                return false;
+            foreach (var f in biomes[biome].Fauna)
+                if (f.Species != null && f.Species.name == species[speciesIndex].name)
+                    return true;
+            return false;
+        }
+
         /// <summary>
         /// Creates one animal of a species (by index) at a point, in the simulation world: a creature ghost when this
         /// machine is a server, a plain entity without netcode. Also handy for testing.
@@ -636,6 +818,12 @@ namespace Punchy.Fauna
                 Scale = rng.NextFloat(b.Size.x, math.max(b.Size.x, b.Size.y)),
                 Mode = CreatureMode.Idle,
                 Timer = rng.NextFloat(0.5f, 4f),
+                LairCave = -1,
+                // Needs start part-way, so a new arrival doesn't do everything at once.
+                Hunger = rng.NextFloat(0.1f, 0.7f),
+                Thirst = rng.NextFloat(0.1f, 0.6f),
+                Tired = rng.NextFloat(0f, 0.5f),
+                Lonely = rng.NextFloat(0f, 0.5f),
                 Seed = rng.NextUInt() | 1u,
                 Individual = rng.NextUInt() | 1u
             });

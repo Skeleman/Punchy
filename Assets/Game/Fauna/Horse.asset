@@ -1,0 +1,175 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
+  m_Name: Horse
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
+  VariantOf: {fileID: 0}
+  VariantScale: 1
+  BodyLength: 1.55
+  BodyRadius: 0.29
+  BodyTaper: 0.92
+  BodyFlatten: 1.2
+  Base: {r: 0.55, g: 0.37, b: 0.22, a: 1}
+  Accent: {r: 0.92, g: 0.87, b: 0.8, a: 1}
+  AccentGlow: 0
+  Coats:
+  - Name: Bay
+    Base: {r: 0.45, g: 0.24, b: 0.12, a: 1}
+    Accent: {r: 0.08, g: 0.06, b: 0.05, a: 1}
+    AccentGlow: 0
+    Weight: 3
+  - Name: Chestnut
+    Base: {r: 0.6, g: 0.3, b: 0.14, a: 1}
+    Accent: {r: 0.55, g: 0.28, b: 0.13, a: 1}
+    AccentGlow: 0
+    Weight: 2
+  - Name: Grey
+    Base: {r: 0.78, g: 0.76, b: 0.74, a: 1}
+    Accent: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    AccentGlow: 0
+    Weight: 2
+  - Name: Black
+    Base: {r: 0.08, g: 0.07, b: 0.07, a: 1}
+    Accent: {r: 0.05, g: 0.05, b: 0.05, a: 1}
+    AccentGlow: 0
+    Weight: 1
+  - Name: Dun
+    Base: {r: 0.78, g: 0.64, b: 0.42, a: 1}
+    Accent: {r: 0.2, g: 0.15, b: 0.1, a: 1}
+    AccentGlow: 0
+    Weight: 2
+  Size: {x: 0.92, y: 1.08}
+  HairColors:
+  - {r: 0.08, g: 0.06, b: 0.05, a: 1}
+  - {r: 0.3, g: 0.18, b: 0.1, a: 1}
+  - {r: 0.85, g: 0.82, b: 0.75, a: 1}
+  Parts:
+  - Limb: {fileID: 11400000, guid: 5754e7ae7bf05e44aa4156707c6e0336, type: 2}
+    Parent: -1
+    Socket: {x: 0.55, y: -0.35, z: -0.75}
+    Direction: {x: 90, y: 0, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1.4
+    Thickness: 1.7
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: ca532975d0d08d14ba12a36051e875e1, type: 2}
+    Parent: -1
+    Socket: {x: 0.55, y: -0.45, z: 0.72}
+    Direction: {x: 90, y: 0, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1.4
+    Thickness: 1.7
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: e29940a987e4100488d751804489b174, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0.45, z: 0.85}
+    Direction: {x: -50, y: 0, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1.45
+    Thickness: 2
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 5a8a3871a65bb814f9ddf13ea0c45bbf, type: 2}
+    Parent: 2
+    Socket: {x: 0, y: 0, z: 0}
+    Direction: {x: 62, y: 0, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1.55
+    Thickness: 1.25
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: e23719102dfcd524a93240730d28f2d8, type: 2}
+    Parent: 3
+    Socket: {x: 0.04, y: 0.06, z: -0.27}
+    Direction: {x: -85, y: 15, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0
+    Scale: 0.6
+    Thickness: 0.9
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 8db8692701365314db1a0b5e9ab1cbd1, type: 2}
+    Parent: 3
+    Socket: {x: 0.06, y: 0.03, z: -0.2}
+    Direction: {x: 0, y: 0, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0
+    Scale: 1.1
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: b4e18c70a87f12945b2939ceae5889a9, type: 2}
+    Parent: 2
+    Socket: {x: 0, y: 0.05, z: 0.02}
+    Direction: {x: -6, y: 180, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 3.4
+    Thickness: 1.2
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 69a4671c47d80fc478e19bcc62eae563, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0.6, z: -1}
+    Direction: {x: 68, y: 180, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 2.8
+    Thickness: 1.5
+    StyleGroup: 0
+  WalkSpeed: 1.6
+  RunSpeed: 17
+  Bob: {x: 0.015, y: 0.06}
+  BobsPerCycle: {x: 2, y: 1}
+  RunRock: 6
+  Upright: 0
+  LeglessStride: {x: 0.6, y: 0.9}
+  WanderRadius: 70
+  IdleTime: {x: 3, y: 10}
+  FleeDistance: 30
+  TurnRate: 95
+  GroupSize: {x: 6, y: 12}
+  NearWater: 0
+  Habitat: 0
+  SwimDepth: 0.6
+  Leaps: 0
+  Active: 0
+  Grazing: 0.9
+  Thirst: 0.5
+  Playfulness: 0.4
+  Laziness: 0.3
+  Hunts: []
+  Hunger: 0.3
+  ChaseTime: 10
+  Idles: 2345
+  Fidgets: 0.6
+  Climbing: 0
+  SpinsWebs: 0
+  WebSize: 0.6
+  Burrows: 0
+  CaveDweller: 0
+  Roosts: 0
+  Friendly: 0
+  CrossesWater: 1
+  Nests: 0
+  FlightHeight: {x: 8, y: 18}
+  FlySpeed: 7
+  FlapRate: 6
+  Glide: 0
+  Perching: 0.6

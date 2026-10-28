@@ -106,6 +106,27 @@ namespace Punchy.Fauna
         public bool SpinsWebs;
         [Tooltip("Radius of its web, in metres.")]
         [Min(0.1f)] public float WebSize = 0.6f;
+        [Tooltip("Digs a burrow: bolts down it when startled, sleeps in it at night, pops up to look about.")]
+        public bool Burrows;
+        [Tooltip("Lives inside caves: appears on cave floors when a player comes near a cave, and stays in.")]
+        public bool CaveDweller;
+        [Tooltip("How likely a surface animal is to be found in a cave (bears, wolves, foxes): 0 never. A cave near where " +
+                 "it lives may have one or two in its chambers near the mouth, and under rock it moves as cave animals do.")]
+        [Range(0f, 1f)] public float CaveAffinity;
+        [Tooltip("Sleeps hanging upside down from a cave ceiling (or under a branch, with no cave near): bats.")]
+        public bool Roosts;
+        [Tooltip("Comes over to people, sits by them wagging its tail and follows them about (within its home range): dogs.")]
+        public bool Friendly;
+        [Tooltip("Lives in lava (with habitat Swims): keeps to lava, never water, and comes up to bask at its surface.")]
+        public bool LavaDweller;
+        [Tooltip("A ghost: drifts above the ground (and water), half seen and faintly glowing, only at night; drifts closer " +
+                 "to watch a person, and is gone when they come near, to appear again further off.")]
+        public bool Haunts;
+        [Tooltip("A land animal that swims across rivers and lakes when its way lies over water (dogs, deer, bears, horses), " +
+                 "paddling with its back at the surface.")]
+        public bool CrossesWater;
+        [Tooltip("Keeps a nest (in a tree, on a treetop or on the ground) and goes back to it to sleep.")]
+        public NestSite Nests;
 
         [Header("Flight (habitat Flies)")]
         [Tooltip("Height above the ground it cruises at, in metres.")]
@@ -140,6 +161,15 @@ namespace Punchy.Fauna
         [Tooltip("Flies, landing on the ground or perching in trees (songbirds, crows, birds of prey).")] Flies
     }
 
+    /// <summary>Where a species keeps its nest.</summary>
+    public enum NestSite : byte
+    {
+        None,
+        [Tooltip("A cup of twigs against the trunk, low in the crown (songbirds, crows).")] Branch,
+        [Tooltip("A big platform of sticks on top of a tree (ospreys, eagles).")] Treetop,
+        [Tooltip("A scrape lined with grass, on flat ground (quail, chickens, ducks).")] Ground
+    }
+
     /// <summary>Little things an animal does while standing about (which of them a species does).</summary>
     [Flags]
     public enum IdleActions : ushort
@@ -160,10 +190,16 @@ namespace Punchy.Fauna
         [Tooltip("Sits back and howls at night; others of its kind nearby join in.")] Howl = 1 << 12
     }
 
-    /// <summary>The idle action an animal is doing now (one of IdleActions, by number).</summary>
+    /// <summary>
+    /// The idle action an animal is doing now (one of IdleActions, by number), or a pose a player's body takes for an
+    /// interaction (Pet, Carry, Throw: not idle actions any species picks for itself).
+    /// </summary>
     public enum IdleAction : byte
     {
-        None, PawGround, Groom, Scratch, Shake, Stretch, Sniff, Sit, SitUp, TailFlick, Preen, HeadBob, LookAround, Howl
+        None, PawGround, Groom, Scratch, Shake, Stretch, Sniff, Sit, SitUp, TailFlick, Preen, HeadBob, LookAround, Howl,
+        Pet, Carry, Throw,
+        // Emotes: a player's (InteractionInputSystem), and folk answering one.
+        Wave, Bow, Cheer, Dance
     }
 
     public enum ActiveTime : byte

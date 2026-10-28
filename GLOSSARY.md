@@ -78,14 +78,20 @@ it real. To add or change a term, edit this file in the same commit as the code 
   with a **Task** (`CreatureTask`: Hammer, Chop, Gesture, Tend, Watch) done at its **Work spot**. **Domestic** (new):
   an animal resident of a settlement (dog, cat, chickens, rooftop birds).
 - **Brain**: `CreatureBrainSystem`, running only in the **simulation world**. Between activities it **Decides**: picks
-  a **Mode** (`CreatureMode`: Idle, Wander, Flee, Graze, Drink, Rest, Sleep, Play, Hunt, Work, Climb, Web, plus Puppet
-  for tests) weighted by the species' **Tastes** (Grazing, Thirst, Playfulness, Laziness, Hunger, Climbing…).
+  a **Mode** (`CreatureMode`: Idle, Wander, Flee, Graze, Drink, Rest, Sleep, Play, Hunt, Work, Climb, Web, Home (folk going indoors
+  through a Door anchor), plus Puppet for tests) weighted by the species' **Tastes** (Grazing, Thirst, Playfulness, Laziness, Hunger, Climbing…).
   A **Stage** is a step within a mode (walk to the tree, climb, sit…).
 - **Posture**: a blended whole-body pose eased by the brain and replicated (`Lie`, `HeadDown`, `Bow`, `Curl`, `Sit`,
   `Vertical`, `Fly`). **Idle action**: one of a species' **Habits** (`IdleAction`: PawGround, Groom, Scratch, Shake,
   Stretch, Sniff, Sit, SitUp, TailFlick, Preen, HeadBob, LookAround, Howl), done while calm.
 - **Flee**, **Alarm** (one of a herd bolting sets off the rest), **Flock** (birds following one that takes off),
   **Dive** (a bird of prey's hunt on fish), **Caught** (`CreatureState.Gone`: removed by the Director).
+- **Destination** (principle, from Zach): anything that moves a distance is going somewhere identifiable. Folk always
+  pick a named target (a door, the well, the hall, a stall, a field, a seat, a gate, the next town), walk there with
+  purpose, do something, then pick the next; no random-point wandering for folk. Messenger birds arrive from and leave
+  for real places. Animals head for what their Needs ask for (water, grazing, lair, a sunny rock, a roost); short local
+  milling while grazing is fine. The current goal shows in the `-watch` log. Existing wandering is retrofitted
+  gradually, folk first.
 - **Need** (new): a drive that rises over time (hunger, thirst, rest, safety, social). Needs give animals agency
   instead of wandering.
 - **Lair** (new): an animal's home: nest, den, burrow, roost, web. Seed-derived lairs persist (cheap to regenerate);
@@ -94,6 +100,8 @@ it real. To add or change a term, edit this file in the same commit as the code 
   droppings. Drawn per machine, never synced.
 - **Interaction** (new): a folk or player action on an animal: **Pet**, **Hunt**, **Carry**. (An animal hunting is
   `CreatureMode.Hunt`; the same word, the same idea.)
+- **Emote**: a player's Wave, Bow, Cheer or Dance (keys 1–4 or the d-pad; an `IdleAction` sent as their pose). Folk
+  near answer in kind, friendly animals come over, and wild ones run from cheering or dancing from further off.
 
 ## Hand-off between places and creatures
 
@@ -102,10 +110,13 @@ it real. To add or change a term, edit this file in the same commit as the code 
   surface used: a roost's ceiling point, a perch's top), Facing, Size (radius of the spot), Owner (cave or
   settlement), Kind, Capacity (0 = unlimited), Biome, Tags (Shelter bit, plus the cave style or settlement folk).
   Kinds (`AnchorKind`, a byte, append only): Door, Work, Stall, Well, Bench, Gate, Altar, Seat, Roost, Perch, Nest,
-  Burrow, Pool, Hearth, Yard. Look up with `Anchors.Near` and `Anchors.Pick` (Burst-safe, allocation-free). The world
+  Burrow, Pool, Hearth, Yard, Glow (a glowing plant: creatures drawn to light gather there). Look up with `Anchors.Near` and `Anchors.Pick` (Burst-safe, allocation-free). The world
   session creates anchors; the animal session decides how creatures use them. This is the only contract between the
   two. (`CreatureState.Anchor` is the point a creature is using right now: a world anchor, or one it found itself: a
-  tree's foot, its web's centre.)
+  tree's foot, its web's centre, its burrow or nest.)
+- **Nest**: where a bird sleeps (`CreatureSpecies.Nests`: Branch, a twig cup against a trunk; Treetop, a stick
+  platform; Ground, a grass scrape). Picked from its 16 m lair cell, like a burrow, so a bird that despawns and comes
+  back has the same nest with nothing saved. Not the same as the Nest anchor kind (a cave ledge), which birds don't use yet.
 
 ## Multiplayer and testing
 
@@ -114,7 +125,16 @@ it real. To add or change a term, edit this file in the same commit as the code 
 - **Ghost**: a replicated entity. **Replica**: a client's rebuilt copy of creature state (`CreatureReplica`).
 - **Shared clock**: `_PunchyClock`, the server tick in seconds; ambient motion runs on it so screens agree.
 - **Status line**: the timestamped "Net status" log line every 10 s. **Test flags**: `-place`, `-time`, `-autowalk`,
-  `-watch`, `-spawn`, `-host`, `-join`, `-hostonline`, `-joincode`, `-body`, `-weatherseed`.
+  `-watch`, `-spawn`, `-pose` (one specimen held in daylight while the camera circles it, e.g. `Bat:glide:70`),
+  `-shotlist <file>` with `-shotdir <folder>` (many screenshots in one session: each line is these flags for one shot
+  plus `-shot <name>` and optionally `-wait <s>`; Play mode ends when done), `-place <Landmark>:centre`,
+  `-place cave:<Style>`, `-place tree:<Species>`, `-place meadow`, `-place clearlake`, `-cam x,y,z,yaw,pitch`, `-camlook x,y,z,tx,ty,tz`,
+  `-emote <Wave|Bow|Cheer|Dance>` (as if its key were pressed),
+  `-interact <Species>:<pet|carry>` (walks up and does it, as if the keys were pressed), `-shotdir <folder>` (tests
+  that take their own screenshots: -interact, and -watch at a hunter's throw), `-watch <Species>[:<Task>]`,
+  `-incave`, `-at <AnchorKind>` (beside the nearest anchor of that kind, e.g. `-at Pool`), `-watchpitch`, `-timescale`,
+  `-nohud`, `-host`, `-join`, `-hostonline`, `-joincode`, `-body`, `-weatherseed`. In the
+  editor, Play mode also reads the DebugControls flags from `Temp/PlayArgs.txt`, so tests need no build.
 
 ## Sessions
 

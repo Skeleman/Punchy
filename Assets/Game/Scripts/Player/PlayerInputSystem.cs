@@ -17,6 +17,11 @@ namespace Punchy.Player
         InputAction move, jump, sprint;
         // "-autowalk" on the command line: walk in a slow circle with nobody at the keys (for multiplayer tests).
         bool autowalk;
+        /// <summary>Tests: walk this way (world XZ) as if the stick were pushed, and sprint, while set.</summary>
+        public static float2? TestMove;
+        public static bool TestSprint;
+        /// <summary>Tests: press jump once (cleared after the frame), and hold it (in flight: climb).</summary>
+        public static bool TestJump, TestClimb;
 
         protected override void OnCreate()
         {
@@ -32,7 +37,7 @@ namespace Punchy.Player
                 return;
             }
 
-            autowalk = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-autowalk") >= 0;
+            autowalk = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-autowalk") >= 0;
             move = actions.FindAction("Player/Move");
             jump = actions.FindAction("Player/Jump");
             sprint = actions.FindAction("Player/Sprint");
@@ -46,9 +51,11 @@ namespace Punchy.Player
             // Rotate stick/WASD input so "forward" means "away from the camera".
             var direction = raw;
             var cam = Camera.main;
+            var cameraForward = new float2(0f, 1f);
             if (cam != null)
             {
                 var forward = math.normalizesafe(((float3)cam.transform.forward).xz, new float2(0f, 1f));
+                cameraForward = forward;
                 var right = new float2(forward.y, -forward.x);
                 direction = forward * raw.y + right * raw.x;
             }
@@ -58,6 +65,8 @@ namespace Punchy.Player
                 var a = (float)SystemAPI.Time.ElapsedTime * 0.25f;
                 direction = new float2(math.cos(a), math.sin(a));
             }
+            if (TestMove.HasValue)
+                direction = TestMove.Value;
             if (math.lengthsq(direction) > 1f)
                 direction = math.normalize(direction);
             // Typing a join code or address in the multiplayer panel shouldn't walk the player around.
@@ -68,9 +77,12 @@ namespace Punchy.Player
             SystemAPI.SetSingleton(new PlayerInput
             {
                 MoveDirection = direction,
-                Sprint = !typing && sprint != null && sprint.IsPressed(),
-                JumpPressed = !typing && jump != null && jump.WasPressedThisFrame()
+                Sprint = TestSprint || !typing && sprint != null && sprint.IsPressed(),
+                JumpPressed = TestJump || !typing && jump != null && jump.WasPressedThisFrame(),
+                JumpHeld = TestClimb || !typing && jump != null && jump.IsPressed(),
+                CameraForward = TestMove.HasValue && math.lengthsq(TestMove.Value) > 0f ? math.normalize(TestMove.Value) : cameraForward
             });
+            TestJump = false;
         }
     }
 }

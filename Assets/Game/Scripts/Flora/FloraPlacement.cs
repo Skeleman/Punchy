@@ -54,6 +54,8 @@ namespace Punchy.Flora
         public float Height, TrunkRadius;
         /// <summary>Where the crown starts (the first branches), and how far it spreads from the trunk.</summary>
         public float CrownBase, CrownRadius;
+        /// <summary>A building's walls, for creatures to walk round: its cylinders in FloraBlob.Obstacles.</summary>
+        public int FirstObstacle, ObstacleCount;
     }
 
     /// <summary>
@@ -80,6 +82,11 @@ namespace Punchy.Flora
         public int BiomeCount, LandmarkTypeCount;
         /// <summary>Every model (species variants, in FirstModel order).</summary>
         public BlobArray<FloraShape> Models;
+        /// <summary>
+        /// Buildings' collision cylinders (x, z offset from the base, radius, top), unturned and unscaled, as the player
+        /// collides with them (FloraModel.Colliders). Only built for the animals' tables (see Build).
+        /// </summary>
+        public BlobArray<float4> Obstacles;
         /// <summary>Grid spacing of the ground, shrub and tree layers.</summary>
         public float3 CellSizes;
     }
@@ -101,12 +108,23 @@ namespace Punchy.Flora
     public static class FloraPlacement
     {
         public const int TreeLayer = 2;
+        static int Gcd(int a, int b)
+        {
+            while (b != 0)
+                (a, b) = (b, a % b);
+            return a;
+        }
+
+        /// <summary>The most tree cells one FindTree looks at.</summary>
+        const int MaxTreeCells = 24;
 
         /// <summary>
         /// Builds the tables from a palette. <paramref name="species"/> receives the species in model order (sorted by
-        /// layer, then name): species i's variants are models Rules[i].FirstModel onwards.
+        /// layer, then name): species i's variants are models Rules[i].FirstModel onwards. With
+        /// <paramref name="obstacles"/>, buildings' walls too (each building variant is grown once for its colliders,
+        /// so only the animals' tables pay for it).
         /// </summary>
-        public static BlobAssetReference<FloraBlob> Build(BiomePalette palette, float3 cellSizes, List<FloraSpecies> species)
+        public static BlobAssetReference<FloraBlob> Build(BiomePalette palette, float3 cellSizes, List<FloraSpecies> species, bool obstacles = false)
         {
             var found = new HashSet<FloraSpecies>();
             foreach (var biome in palette.Biomes)
@@ -134,6 +152,7 @@ namespace Punchy.Flora
 
             var rules = builder.Allocate(ref root.Rules, species.Count);
             var shapes = new List<FloraShape>();
+            var walls = new List<float4>();
             for (int i = 0; i < species.Count; i++)
             {
                 var s = species[i];
@@ -159,8 +178,25 @@ namespace Punchy.Flora
                     Tilt = s.Form == FloraForm.Boulder ? 0.85f : 0f
                 };
                 for (int v = 0; v < s.Variants; v++)
-                    shapes.Add(FloraGenerator.Shape(s, v));
+                {
+                    var shape = FloraGenerator.Shape(s, v);
+                    if (obstacles && IsBuilding(s))
+                    {
+                        var model = FloraGenerator.Grow(s, v);
+                        shape.FirstObstacle = walls.Count;
+                        foreach (var c in model.Colliders)
+                            walls.Add(new float4(c.x, c.y, c.z, c.w));
+                        if (model.Colliders.Count == 0 && model.TrunkRadius > 0f)
+                            walls.Add(new float4(0f, 0f, model.TrunkRadius, model.Height));
+                        shape.ObstacleCount = walls.Count - shape.FirstObstacle;
+                        model.Destroy();
+                    }
+                    shapes.Add(shape);
+                }
             }
+            var obstacleArray = builder.Allocate(ref root.Obstacles, walls.Count);
+            for (int i = 0; i < walls.Count; i++)
+                obstacleArray[i] = walls[i];
             var glow = builder.Allocate(ref root.Glow, species.Count);
             for (int i = 0; i < species.Count; i++)
                 glow[i] = GlowLight(species[i]);
@@ -221,6 +257,91 @@ namespace Punchy.Flora
             var blob = builder.CreateBlobAssetReference<FloraBlob>(Allocator.Persistent);
             builder.Dispose();
             return blob;
+        }
+
+        /// <summary>
+        /// Solid structures creatures walk round. Not pens or dens: animals live in those.
+        /// </summary>
+        static bool IsBuilding(FloraSpecies s) => s.Solid && s.Form switch
+        {
+            FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tent or FloraForm.Tower or FloraForm.Stall or FloraForm.Inn or
+            FloraForm.Smithy or FloraForm.Forum or FloraForm.Fountain or FloraForm.Woodpile or FloraForm.Well or
+            FloraForm.Hall or FloraForm.Shrine or FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade => true,
+            _ => false
+        };
+
+        /// <summary>
+        /// Whether a body of this radius at <paramref name="xz"/> would be inside a building's walls: a settlement's
+        /// (on its plots) or a landmark's placed props. Each is placed as it's drawn (Place), so creatures and players
+        /// meet the same walls. Burst-safe; cheap away from settlements and landmarks.
+        /// </summary>
+        public static bool Blocked(ref FloraBlob f, in TerrainSource source, float2 xz, float radius)
+        {
+            if (f.Obstacles.Length == 0)
+                return false;
+            if (source.Settlements.IsCreated && f.SettlementSpecies.Length > 0)
+            {
+                ref var towns = ref source.Settlements.Value;
+                var townCell = SettlementSampling.Cell(ref towns, xz);
+                if (townCell >= 0)
+                {
+                    var plots = towns.PlotCells[townCell];
+                    for (int k = plots.x; k < plots.x + plots.y; k++)
+                    {
+                        ref var plot = ref towns.Plots[towns.PlotItems[k]];
+                        if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length ||
+                            math.any(xz < plot.Min - radius) || math.any(xz > plot.Max + radius))
+                            continue;
+                        var building = f.SettlementSpecies[plot.Building];
+                        if (building.x < 0 || f.Models[f.Rules[building.x].FirstModel].ObstacleCount == 0)
+                            continue;
+                        var cell = (int2)math.floor(plot.Centre / f.CellSizes[building.y]);
+                        if (Inside(ref f, Place(ref f, source, cell, building.y), xz, radius))
+                            return true;
+                    }
+                }
+            }
+            if (source.Landmarks.IsCreated && LandmarkSampling.Find(ref source.Landmarks.Value, xz, out var landmark) && landmark.Type < f.LandmarkTypeCount)
+            {
+                ref var set = ref source.Landmarks.Value;
+                for (int l = 0; l < 3; l++)
+                {
+                    var placed = f.PropRanges[landmark.Type * 3 + l];
+                    for (int e = placed.x; e < placed.x + placed.y; e++)
+                    {
+                        var prop = f.Props[e];
+                        if (prop.Count == 0 || f.Models[f.Rules[prop.Species].FirstModel].ObstacleCount == 0)
+                            continue;
+                        for (int k = 0; k < prop.Count; k++)
+                        {
+                            var spot = LandmarkSampling.ToWorld(set.Instances[landmark.Instance],
+                                LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
+                            if (math.distance(spot, xz) > 15f + radius)
+                                continue;
+                            if (Inside(ref f, Place(ref f, source, (int2)math.floor(spot / f.CellSizes[l]), l), xz, radius))
+                                return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        /// <summary>Inside one placed plant's walls (turned and scaled as FloraSystem turns them for the player).</summary>
+        static bool Inside(ref FloraBlob f, in FloraSystem.FloraInstance plant, float2 xz, float radius)
+        {
+            if (plant.Model < 0 || plant.Model >= f.Models.Length)
+                return false;
+            var shape = f.Models[plant.Model];
+            float c = math.cos(plant.Yaw), sn = math.sin(plant.Yaw);
+            for (int i = shape.FirstObstacle; i < shape.FirstObstacle + shape.ObstacleCount; i++)
+            {
+                var col = f.Obstacles[i];
+                var offset = new float2(col.x * c - col.y * sn, col.x * sn + col.y * c) * plant.Scale;
+                if (math.distance(xz, plant.Position.xz + offset) < col.z * plant.Scale + radius)
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>
@@ -538,10 +659,19 @@ namespace Punchy.Flora
             var min = (int2)math.floor((near - radius) / cellSize);
             var max = (int2)math.floor((near + radius) / cellSize);
             var found = 0;
-            for (int z = min.y; z <= max.y; z++)
-            for (int x = min.x; x <= max.x; x++)
+            // A wide search samples some of the cells rather than all (many animals choose a tree at once at dusk).
+            var span = max - min + 1;
+            var cells = span.x * span.y;
+            var tries = math.min(cells, MaxTreeCells);
+            // Each cell at most once: a random start, then a stride that shares no factor with the cell count.
+            var start = rng.NextInt(cells);
+            var stride = 1;
+            if (cells > MaxTreeCells)
+                for (stride = cells / MaxTreeCells + 1; Gcd(stride, cells) != 1; stride++) { }
+            for (int t = 0; t < tries; t++)
             {
-                var plant = Place(ref f, source, new int2(x, z), TreeLayer);
+                var index = (start + t * stride) % cells;
+                var plant = Place(ref f, source, min + new int2(index % span.x, index / span.x), TreeLayer);
                 if (plant.Model < 0 || plant.Model >= f.Models.Length)
                     continue;
                 var shape = f.Models[plant.Model];
