@@ -24,6 +24,8 @@ MonoBehaviour:
   Blockiness: 0.2
   Ribs: 0
   RibSpacing: 1.6
+  Angularity: 0
+  FacetSize: 2.5
   Straightness: 0.85
   Frame: {fileID: 11400000, guid: 16183855535b3ff439302e4442acec7c, type: 2}
   FrameSpacing: 4
@@ -40,11 +42,10 @@ MonoBehaviour:
   Drips: 0.2
   Rubble: 10
   RubbleSize: 0.5
-  Boulder: {fileID: 11400000, guid: 86ecf3f6d6439604dbcad59755eb6017, type: 2}
   Moss: 0.3
   MossColor: {r: 0.22, g: 0.32, b: 0.12, a: 1}
   Flora:
-  - Species: {fileID: 11400000, guid: 28a71e688d796f14b9919018c61ac083, type: 2}
+  - Species: {fileID: 11400000, guid: b2075efb2c5607c418e7d3efac7828a2, type: 2}
     Density: 9
     Light: 0
     Hanging: 0

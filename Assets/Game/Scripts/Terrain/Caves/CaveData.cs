@@ -111,6 +111,11 @@ namespace Punchy.Terrain
         public float RootRadius, TipRadius;
         /// <summary>How softly it blends into the rock it stands on (m): 0.5 for stalagmites, less for loose rock.</summary>
         public float Fillet;
+        /// <summary>
+        /// 0: a tapered rod (root to tip). Otherwise a fallen boulder: a sharp-edged block cut by planes round Root
+        /// (RootRadius across), Seed being this value (see <see cref="CaveSampling.Block"/>).
+        /// </summary>
+        public float Block;
         /// <summary>World-space box around it (with a margin).</summary>
         public float3 Min, Max;
     }
@@ -397,9 +402,31 @@ namespace Punchy.Terrain
                 ref var s = ref set.Speleothems[set.SpeleothemItems[k]];
                 if (math.any(p < s.Min) || math.any(p > s.Max))
                     continue;
-                air = -SmoothMin(-air, Rod(s, p), math.max(s.Fillet, 0.05f));
+                air = -SmoothMin(-air, s.Block != 0f ? Block(s, p) : Rod(s, p), math.max(s.Fillet, 0.05f));
             }
             return air;
+        }
+
+        /// <summary>
+        /// Distance to a fallen boulder: the intersection of ten planes round its middle, each facing its own way (from
+        /// the boulder's seed) and set at its own distance, so it's an irregular block with flat faces and sharp
+        /// edges. The largest plane distance never overstates the true distance, so stepping never overshoots.
+        /// </summary>
+        internal static float Block(in CaveSpeleothem s, float3 p)
+        {
+            var q = p - s.Root;
+            var d = -1e9f;
+            for (int i = 0; i < 10; i++)
+            {
+                // Spread round the sphere (golden spiral), turned by the seed, each face nearer or farther.
+                var y = 1f - (i + 0.5f) / 5f;
+                var ring = math.sqrt(math.saturate(1f - y * y));
+                var a = i * 2.39996f + s.Block * 6.283f;
+                var n = math.normalize(new float3(math.cos(a) * ring, y * 0.85f, math.sin(a) * ring));
+                var h = math.frac(math.sin((i + 1) * 12.9898f + s.Block * 78.233f) * 43758.5453f);
+                d = math.max(d, math.dot(q, n) - s.RootRadius * (0.72f + 0.3f * h));
+            }
+            return d;
         }
 
         /// <summary>Distance to a tapered rod (a cone with rounded ends), slightly understated so stepping never overshoots.</summary>

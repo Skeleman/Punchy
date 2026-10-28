@@ -210,10 +210,9 @@ namespace Punchy.Terrain
             var withWater = BuildBlob(caves, nodes, kinds, segments, extras, Allocator.Persistent);
             withCaves.Caves = withWater;
             PlaceSpeleothems(withCaves, caves, nodes, kinds, segments, styles, extras.Pools, extras.Speleothems);
-            PlaceRubble(withCaves, caves, nodes, kinds, segments, styles, extras.Pools, extras.Speleothems, extras.Boulders);
+            PlaceRubble(withCaves, caves, nodes, kinds, segments, styles, extras.Pools, extras.Speleothems);
             PlacePlants(withCaves, caves, nodes, kinds, segments, styles, CaveFloraTable.Collect(types), extras);
             PlaceFittings(withCaves, caves, nodes, kinds, segments, styles, CaveFloraTable.Collect(types), extras);
-            PlaceBoulderMeshes(caves, styles, CaveFloraTable.Collect(types), extras);
             withWater.Dispose();
             return BuildBlob(caves, nodes, kinds, segments, extras, allocator);
         }
@@ -222,8 +221,6 @@ namespace Punchy.Terrain
         class Extras
         {
             public readonly List<CavePool> Pools = new List<CavePool>();
-            /// <summary>Big boulders (base on the floor, radius, cave) for their rock meshes.</summary>
-            public readonly List<(float3 at, float radius, int cave)> Boulders = new List<(float3, float, int)>();
             public readonly List<CaveStream> Streams = new List<CaveStream>();
             public readonly List<CaveStreamPoint> StreamPoints = new List<CaveStreamPoint>();
             public readonly List<CaveSpeleothem> Speleothems = new List<CaveSpeleothem>();
@@ -388,8 +385,7 @@ namespace Punchy.Terrain
         /// Never across the way through or in a pool.
         /// </summary>
         static void PlaceRubble(in TerrainSource source, List<CaveData> caves, List<CaveNode> nodes, List<CaveNodeKind> kinds,
-                                List<CaveSegment> segments, List<CaveStyle> styles, List<CavePool> pools, List<CaveSpeleothem> result,
-                                List<(float3 at, float radius, int cave)> boulderSpots)
+                                List<CaveSegment> segments, List<CaveStyle> styles, List<CavePool> pools, List<CaveSpeleothem> result)
         {
             for (int c = 0; c < caves.Count; c++)
             {
@@ -444,8 +440,8 @@ namespace Punchy.Terrain
                         result.Add(Rod(root, tip, r, r * rng.NextFloat(0.6f, 0.9f), 0.3f));
                     }
 
-                    // A few chunky boulders per chamber, fallen near the walls: big, round and crisply set on the
-                    // floor (they're rock, so they block the way like the walls).
+                    // A few chunky boulders per chamber, fallen near the walls: sharp-edged blocks of the cave's own
+                    // rock (its look and collision), crisply set on the floor.
                     var boulders = (int)math.round(math.min(density / 5f, 1f) * rng.NextFloat(2f, 4.5f));
                     for (int k = 0; k < boulders; k++)
                     {
@@ -470,15 +466,11 @@ namespace Punchy.Terrain
                         var floor = source.FloorUnder(new float3(q.x, centre.y, q.y), out var inCave);
                         if (!inCave || source.CaveDistance(new float3(q.x, floor + r * 1.6f, q.y)) >= 0f)
                             continue;
-                        var lean = rng.NextFloat(math.PI * 2f);
-                        var root = new float3(q.x, floor + r * 0.55f, q.y);
-                        var tip = root + new float3(math.cos(lean), rng.NextFloat(0f, 0.25f), math.sin(lean)) * r * rng.NextFloat(0.1f, 0.4f);
-                        // With a rock mesh over it, the lump is a little smaller, so the mesh covers it.
-                        var mesh = style != null && style.Boulder != null;
-                        var lump = mesh ? r * 0.8f : r;
-                        result.Add(Rod(root, tip, lump, lump * rng.NextFloat(0.75f, 0.95f), 0.12f));
-                        if (mesh)
-                            boulderSpots.Add((new float3(q.x, floor - 0.05f, q.y), r, c));
+                        // Set a little into the floor, so it rests on a flat face.
+                        var middle = new float3(q.x, floor + r * 0.45f, q.y);
+                        var block = Rod(middle, middle, r, r, 0.08f);
+                        block.Block = rng.NextFloat(0.05f, 1f);
+                        result.Add(block);
                     }
                 }
             }
@@ -656,29 +648,6 @@ namespace Punchy.Terrain
             }
         }
 
-        /// <summary>A rock mesh (the style's Boulder) over each big boulder, sized to cover its lump.</summary>
-        static void PlaceBoulderMeshes(List<CaveData> caves, List<CaveStyle> styles, List<Punchy.Flora.FloraSpecies> flora, Extras extras)
-        {
-            var rng = new Random(0xB0B0u);
-            foreach (var (at, radius, c) in extras.Boulders)
-            {
-                var style = caves[c].Style > 0 ? styles[caves[c].Style - 1] : null;
-                if (style == null || style.Boulder == null)
-                    continue;
-                // A boulder model is about its species' height across: scaled so its width is the lump's.
-                var height = (style.Boulder.Height.x + style.Boulder.Height.y) * 0.5f;
-                extras.Plants.Add(new CavePlant
-                {
-                    Position = at,
-                    Yaw = rng.NextFloat(math.PI * 2f),
-                    Scale = radius * 2.1f / math.max(height, 0.1f),
-                    Species = flora.IndexOf(style.Boulder),
-                    Variant = rng.NextInt(3),
-                    Random = rng.NextFloat()
-                });
-            }
-        }
-
         static bool InStream(float2 q, Extras extras, CaveData cave)
         {
             for (int s = cave.FirstStream; s < cave.FirstStream + cave.StreamCount; s++)
@@ -824,7 +793,7 @@ namespace Punchy.Terrain
         static bool UnderRock(float3 p, List<CaveSpeleothem> rods)
         {
             foreach (var s in rods)
-                if (math.all(p >= s.Min - 0.6f) && math.all(p <= s.Max + 0.6f) && CaveSampling.Rod(s, p) < 0.6f)
+                if (math.all(p >= s.Min - 0.6f) && math.all(p <= s.Max + 0.6f) && (s.Block != 0f ? CaveSampling.Block(s, p) : CaveSampling.Rod(s, p)) < 0.6f)
                     return true;
             return false;
         }

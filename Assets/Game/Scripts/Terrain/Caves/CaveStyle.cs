@@ -80,9 +80,6 @@ namespace Punchy.Terrain
         [Range(0f, 15f)] public float Rubble = 3f;
         [Tooltip("Typical radius of a fallen rock, in metres.")]
         [Range(0.3f, 1.5f)] public float RubbleSize = 0.6f;
-        [Tooltip("The rock (flora form Boulder) drawn over each chamber's few big fallen boulders, which are also rock " +
-                 "in the cave's shape so they block the way. Empty = the boulders are rock-shaped lumps only.")]
-        public Punchy.Flora.FloraSpecies Boulder;
         [Tooltip("Moss on floors and lower walls, in patches, thickest where daylight comes in.")]
         [Range(0f, 1f)] public float Moss;
         [ColorUsage(false)] public Color MossColor = new Color(0.22f, 0.32f, 0.12f);
@@ -217,8 +214,6 @@ namespace Punchy.Terrain
                     species.Add(style.Frame);
                 if (style.Torch != null && !species.Contains(style.Torch))
                     species.Add(style.Torch);
-                if (style.Boulder != null && !species.Contains(style.Boulder))
-                    species.Add(style.Boulder);
             }
             return species;
         }
