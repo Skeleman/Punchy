@@ -588,6 +588,8 @@ namespace Punchy.Debugging
             var em = queryWorld.EntityManager;
             var parts = interactRequest.Split(':');
             var carry = parts.Length > 1 && parts[1] == "carry";
+            // ("Rabbit:carry:sneak": crept up on from behind, not walked up to from the front.)
+            var sneak = parts.Length > 2 && parts[2] == "sneak";
             if (interactDirector == null)
                 interactDirector = FindAnyObjectByType<FaunaDirector>();
             var index = interactDirector != null ? interactDirector.SpeciesIndex(parts[0]) : -1;
@@ -656,8 +658,9 @@ namespace Punchy.Debugging
             if (elapsed < 1f)
             {
                 // Keep stepping up to it (it may be wandering) until the request goes.
-                var toward = math.normalizesafe(s.Position.xz - player.Position.xz, new float2(0f, 1f));
-                var stand = s.Position.xz - toward * 0.9f;
+                var toward = sneak ? new float2(math.sin(s.Yaw), math.cos(s.Yaw))
+                                   : math.normalizesafe(s.Position.xz - player.Position.xz, new float2(0f, 1f));
+                var stand = s.Position.xz - toward * (sneak ? 1.3f : 0.9f);
                 player.Position = new float3(stand.x, s.Position.y, stand.y);
                 player.Rotation = quaternion.RotateY(math.atan2(toward.x, toward.y));
                 em.SetComponentData(playerEntity, player);
@@ -677,19 +680,29 @@ namespace Punchy.Debugging
                 var avatar = avatarQuery.TryGetSingleton<CreatureState>(out var a) ? $"{a.Action} at {a.ActionTime:F2}" : "none";
                 Debug.Log($"DebugControls: {parts[0]} is {s.Mode} (stage {s.Stage}, holder {s.Holder}); player pose {request.Pose}, body {avatar}");
             }
-            // Its own screenshots: being petted or just picked up, then (carrying) on the move.
-            foreach (var at in new[] { 2.5f, 4f, 6f })
+            // Its own screenshots: being petted or just picked up, then (carrying) walking, turning on the spot and
+            // sprinting.
+            foreach (var at in new[] { 2.5f, 5f, 6.6f, 8.2f })
                 if (shotDir != null && elapsed > at && elapsed - Time.deltaTime <= at)
                     Shot($"interact-{parts[0]}-{(carry ? "carry" : "pet")}-{at * 10f:F0}.png");
-            // Carrying: turn and walk a few metres (by stepping), then put it down.
-            if (carry && s.Mode == CreatureMode.Held && elapsed > 4f && elapsed < 8f)
+            // Carrying: walk on (as if the stick were pushed), turn round on the spot, sprint, then put it down.
+            Punchy.Player.PlayerInputSystem.TestMove = null;
+            Punchy.Player.PlayerInputSystem.TestSprint = false;
+            if (carry && s.Mode == CreatureMode.Held && elapsed > 4f && elapsed < 8.6f)
             {
-                var forward = math.mul(player.Rotation, new float3(0f, 0f, 1f));
-                player.Position += forward * Time.deltaTime * 1.2f;
-                player.Position.y = terrainQuery.GetSingleton<TerrainSource>().SampleHeight(player.Position.xz);
-                em.SetComponentData(playerEntity, player);
+                var forward = math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz;
+                if (elapsed < 6f || elapsed > 7f)
+                {
+                    Punchy.Player.PlayerInputSystem.TestMove = math.normalizesafe(forward, new float2(0f, 1f));
+                    Punchy.Player.PlayerInputSystem.TestSprint = elapsed > 7f;
+                }
+                else
+                {
+                    player.Rotation = math.mul(player.Rotation, quaternion.RotateY(math.PI * Time.deltaTime));
+                    em.SetComponentData(playerEntity, player);
+                }
             }
-            if (carry && elapsed > 9f && request.Act == InteractAct.PickUp)
+            if (carry && elapsed > 9.5f && request.Act == InteractAct.PickUp)
                 Send(InteractAct.PutDown);
             ThirdPersonCamera.WatchTarget = (Vector3)player.Position + Vector3.up * 0.8f;
             if (elapsed > 14f)

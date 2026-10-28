@@ -17,6 +17,9 @@ namespace Punchy.Player
         InputAction move, jump, sprint;
         // "-autowalk" on the command line: walk in a slow circle with nobody at the keys (for multiplayer tests).
         bool autowalk;
+        /// <summary>Tests: walk this way (world XZ) as if the stick were pushed, and sprint, while set.</summary>
+        public static float2? TestMove;
+        public static bool TestSprint;
 
         protected override void OnCreate()
         {
@@ -32,7 +35,7 @@ namespace Punchy.Player
                 return;
             }
 
-            autowalk = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-autowalk") >= 0;
+            autowalk = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-autowalk") >= 0;
             move = actions.FindAction("Player/Move");
             jump = actions.FindAction("Player/Jump");
             sprint = actions.FindAction("Player/Sprint");
@@ -58,6 +61,8 @@ namespace Punchy.Player
                 var a = (float)SystemAPI.Time.ElapsedTime * 0.25f;
                 direction = new float2(math.cos(a), math.sin(a));
             }
+            if (TestMove.HasValue)
+                direction = TestMove.Value;
             if (math.lengthsq(direction) > 1f)
                 direction = math.normalize(direction);
             // Typing a join code or address in the multiplayer panel shouldn't walk the player around.
@@ -68,7 +73,7 @@ namespace Punchy.Player
             SystemAPI.SetSingleton(new PlayerInput
             {
                 MoveDirection = direction,
-                Sprint = !typing && sprint != null && sprint.IsPressed(),
+                Sprint = TestSprint || !typing && sprint != null && sprint.IsPressed(),
                 JumpPressed = !typing && jump != null && jump.WasPressedThisFrame()
             });
         }

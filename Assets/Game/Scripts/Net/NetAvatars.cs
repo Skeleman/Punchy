@@ -55,10 +55,11 @@ namespace Punchy.Net
                 individual = (uint)System.Guid.NewGuid().GetHashCode() | 1u;
                 PlayerPrefs.SetInt("Punchy.PlayerIndividual", (int)individual);
             }
-            if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-newlook") >= 0)
+            // (In the editor the test flags also come from Temp/PlayArgs.txt.)
+            var args = Punchy.Debugging.DebugControls.LaunchArgs;
+            if (System.Array.IndexOf(args, "-newlook") >= 0)
                 individual = (uint)System.Guid.NewGuid().GetHashCode() | 1u;
             // "-body Wolf" on the command line picks the starting body (handy for testing with builds).
-            var args = System.Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length - 1; i++)
                 if (args[i] == "-body")
                     SetLocalSpecies(PlayableSpecies.FindIndex(s => s != null && s.name == args[i + 1]));
