@@ -18,6 +18,8 @@ asks Zach if needed, and records the answer here.
 - **Asked:** 2026-10-27, by the supervisor, after the world session's experiment (113c608, 86951d0).
 - **Also comes up when:** any change to how tree crowns are built.
 - **Answer (2026-10-27):** drop it. Revert the cards; reshape the great tree's crown with spheroids instead.
+  Follow-up the same day: try a second experiment, a solid spheroid core plus a fringe of alpha-cut leaf-cluster
+  cards (inspired by Benedict Targett's Abundant Skies trees).
 - **Why:** Zach's pick after the compare sheet (cards read see-through and spiky).
 - **Revisited:** 0.
 
