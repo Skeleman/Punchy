@@ -55,17 +55,21 @@ namespace Punchy.Fauna
         public void OnUpdate(ref SystemState state)
         {
             // Every player animals should notice: the networked players on a server, or the one local player; who each
-            // is (as a Holder) and which way they face (for an animal in their arms).
+            // is (as a Holder), which way they face (for an animal in their arms) and their pose (an emote, say).
             var players = new NativeList<float3>(4, Allocator.TempJob);
             var playerIds = new NativeList<int>(4, Allocator.TempJob);
             var playerYaws = new NativeList<float>(4, Allocator.TempJob);
-            foreach (var (t, owner) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<Unity.NetCode.GhostOwner>>().WithAll<NetPlayer>())
-                AddPlayer(t.ValueRO, Interactions.HolderId(owner.ValueRO.NetworkId), ref players, ref playerIds, ref playerYaws);
+            var playerPoses = new NativeList<byte>(4, Allocator.TempJob);
+            foreach (var (t, owner, command) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<Unity.NetCode.GhostOwner>, RefRO<NetPlayerCommand>>().WithAll<NetPlayer>())
+                AddPlayer(t.ValueRO, Interactions.HolderId(owner.ValueRO.NetworkId), command.ValueRO.Pose, ref players, ref playerIds, ref playerYaws, ref playerPoses);
             if (players.Length == 0)
+            {
+                var pose = SystemAPI.TryGetSingleton<InteractionRequest>(out var request) ? (byte)request.Pose : (byte)0;
                 foreach (var t in SystemAPI.Query<RefRO<LocalTransform>>().WithAll<PlayerTag>())
-                    AddPlayer(t.ValueRO, Interactions.HolderId(0), ref players, ref playerIds, ref playerYaws);
+                    AddPlayer(t.ValueRO, Interactions.HolderId(0), pose, ref players, ref playerIds, ref playerYaws, ref playerPoses);
+            }
             if (players.Length == 0)
-                AddPlayer(LocalTransform.FromPosition(new float3(1e9f, 0f, 1e9f)), 0, ref players, ref playerIds, ref playerYaws);
+                AddPlayer(LocalTransform.FromPosition(new float3(1e9f, 0f, 1e9f)), 0, 0, ref players, ref playerIds, ref playerYaws, ref playerPoses);
 
             // Snapshot of everyone, for seeing each other.
             var entities = creatures.ToEntityArray(Allocator.TempJob);
@@ -91,6 +95,7 @@ namespace Punchy.Fauna
                 Players = players.AsArray(),
                 PlayerIds = playerIds.AsArray(),
                 PlayerYaws = playerYaws.AsArray(),
+                PlayerPoses = playerPoses.AsArray(),
                 Dt = math.min(SystemAPI.Time.DeltaTime, 0.1f),
                 Night = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Night : 0f,
                 Entities = entities,
@@ -109,10 +114,13 @@ namespace Punchy.Fauna
             players.Dispose(state.Dependency);
             playerIds.Dispose(state.Dependency);
             playerYaws.Dispose(state.Dependency);
+            playerPoses.Dispose(state.Dependency);
         }
 
-        static void AddPlayer(in LocalTransform t, int id, ref NativeList<float3> players, ref NativeList<int> ids, ref NativeList<float> yaws)
+        static void AddPlayer(in LocalTransform t, int id, byte pose, ref NativeList<float3> players, ref NativeList<int> ids, ref NativeList<float> yaws,
+                              ref NativeList<byte> poses)
         {
+            poses.Add(pose);
             var forward = math.mul(t.Rotation, new float3(0f, 0f, 1f));
             players.Add(t.Position);
             ids.Add(id);
@@ -132,6 +140,8 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<float3> Players;
             [ReadOnly] public NativeArray<int> PlayerIds;
             [ReadOnly] public NativeArray<float> PlayerYaws;
+            /// <summary>Each player's pose (an IdleAction): emotes are answered.</summary>
+            [ReadOnly] public NativeArray<byte> PlayerPoses;
             public float Dt, Night;
             [ReadOnly] public NativeArray<Entity> Entities;
             [ReadOnly] public NativeArray<CreatureState> States;
@@ -149,9 +159,15 @@ namespace Punchy.Fauna
                 var rng = new Random(s.Seed | 1u);
                 // The nearest player is the one it watches and runs from.
                 var player = Players[0];
+                var emote = (IdleAction)PlayerPoses[0];
                 for (int p = 1; p < Players.Length; p++)
                     if (math.distancesq(Players[p].xz, s.Position.xz) < math.distancesq(player.xz, s.Position.xz))
+                    {
                         player = Players[p];
+                        emote = (IdleAction)PlayerPoses[p];
+                    }
+                if (emote < IdleAction.Wave)
+                    emote = IdleAction.None;
                 var dt = Dt;
                 s.Clock += dt;
                 if (s.Mode == CreatureMode.Puppet)
@@ -189,7 +205,9 @@ namespace Punchy.Fauna
                 // (In a cave, too: someone walking on the ground overhead isn't near.)
                 var threatDistance = flier && Flying(s) || b.CaveDweller ? math.distance(s.Position, player) : playerDistance;
                 var nerve = s.Mode == CreatureMode.Hunt && flier ? 0.4f : 1f;
-                var threatened = !aloft && b.FleeDistance > 0f && threatDistance < b.FleeDistance * s.Scale * alert * nerve * tame;
+                // Someone cheering or dancing about is noticed (and run from) further off; waving, a little.
+                var commotion = emote == IdleAction.Cheer || emote == IdleAction.Dance ? 1.8f : emote == IdleAction.Wave ? 1.25f : 1f;
+                var threatened = !aloft && b.FleeDistance > 0f && threatDistance < b.FleeDistance * s.Scale * alert * nerve * tame * commotion;
                 var threat = player.xz;
                 // A hunter after it: heard creeping close, or seen drawing back to throw (and the throw itself).
                 if (!threatened && !aloft && b.FleeDistance > 0f && FindHunter(self, ref s, alert, out var hunter))
@@ -255,6 +273,8 @@ namespace Punchy.Fauna
                     }
                     s.Focus = threat;
                 }
+                else if (emote != IdleAction.None)
+                    Answer(ref s, ref b, ref rng, emote, player, playerDistance, dt);
 
                 // A ghost abroad at night: someone coming close and it's gone, to appear again further off (dithering
                 // back in, as anything new does); someone within sight, and it drifts closer to watch them from a few
@@ -1664,6 +1684,51 @@ namespace Punchy.Fauna
                     Interactions.PutDown(ref s, Terrain, holder + side, ref rng);
                     Interactions.Bolt(ref s, ref b, Terrain, holder, ref rng);
                     s.Target = s.Position.xz + math.normalizesafe(s.Position.xz - holder.xz, new float2(1f, 0f)) * 10f;
+                }
+            }
+
+            /// <summary>
+            /// Someone near is emoting. Folk stop, turn to them and answer in kind (a wave back, a bow, a cheer; some
+            /// dance along, the rest cheer them on), each after a moment of their own, and a few shy ones not at all.
+            /// Friendly animals come over to see; one sitting by them play-bows back to a bow.
+            /// </summary>
+            void Answer(ref CreatureState s, ref CreatureBlob b, ref Random rng, IdleAction emote, float3 player, float distance, float dt)
+            {
+                if (b.Upright)
+                {
+                    if (distance > 20f || !(Free(s.Mode) || s.Mode == CreatureMode.Work))
+                        return;
+                    // Answering already: keep facing them.
+                    if (s.Action >= IdleAction.Wave)
+                    {
+                        TurnTowards(ref s, ref b, player.xz, dt);
+                        return;
+                    }
+                    if (s.Action != IdleAction.None || CreatureBlob.Trait(s.Individual, 21) < -0.75f || rng.NextFloat() > dt * 2.5f)
+                        return;
+                    var reply = emote != IdleAction.Dance ? emote : CreatureBlob.Trait(s.Individual, 22) > 0f ? IdleAction.Dance : IdleAction.Cheer;
+                    SetMode(ref s, CreatureMode.Idle);
+                    s.Action = reply;
+                    s.ActionTime = 0f;
+                    s.ActionLength = reply == IdleAction.Dance ? rng.NextFloat(4f, 7f) : reply == IdleAction.Wave ? 2f : 1.8f;
+                    s.Timer = s.ActionLength + rng.NextFloat(0.5f, 1.5f);
+                    s.Speed = 0f;
+                    s.Focus = player.xz;
+                    return;
+                }
+                if (!b.Friendly)
+                    return;
+                if (emote != IdleAction.Bow && distance < 20f && Free(s.Mode))
+                {
+                    SetMode(ref s, CreatureMode.Greet);
+                    s.Timer = rng.NextFloat(15f, 30f);
+                }
+                else if (emote == IdleAction.Bow && s.Mode == CreatureMode.Greet && distance < 4f && s.Action == IdleAction.None &&
+                         (b.Idles & IdleActions.Stretch) != 0)
+                {
+                    s.Action = IdleAction.Stretch;
+                    s.ActionTime = 0f;
+                    s.ActionLength = 2.2f;
                 }
             }
 

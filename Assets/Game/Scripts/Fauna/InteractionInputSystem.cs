@@ -14,6 +14,8 @@ namespace Punchy.Fauna
     /// shows it (InteractionPrompt), and turns the Interact button into a request (see Interactions): a tap pets, a
     /// hold picks up (small, tame animals), and with an animal in the arms a press puts it down. Also sets the pose the
     /// player's body takes: petting while an animal is being petted by them, carrying while they hold one.
+    /// Emotes too (keys 1–4, or the d-pad: wave, bow, cheer, dance): a pose held a moment (dancing, until they move),
+    /// which folk and animals near them react to (the brain reads it from the pose).
     /// </summary>
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -23,7 +25,10 @@ namespace Punchy.Fauna
         /// <summary>What the player can do right now ("E  pet the cat"), or null.</summary>
         public static string Prompt;
 
-        InputAction interact, attack;
+        InputAction interact, attack, move;
+        /// <summary>The emote the player is doing (an IdleAction, Wave to Dance), and when it ends.</summary>
+        IdleAction emote;
+        double emoteUntil;
         /// <summary>This press of the button has already done its thing (picked up, put down).</summary>
         bool pressUsed;
         /// <summary>When the lunge pose ends.</summary>
@@ -50,6 +55,7 @@ namespace Punchy.Fauna
         {
             interact = InputSystem.actions?.FindAction("Player/Interact");
             attack = InputSystem.actions?.FindAction("Player/Attack");
+            move = InputSystem.actions?.FindAction("Player/Move");
             InteractionPrompt.Ensure();
         }
 
@@ -105,7 +111,8 @@ namespace Punchy.Fauna
             bodies.Dispose();
 
             var lunging = SystemAPI.Time.ElapsedTime < lungeUntil;
-            request.Pose = held != Entity.Null ? IdleAction.Carry : lunging ? IdleAction.Throw : petting ? IdleAction.Pet : IdleAction.None;
+            UpdateEmote(held != Entity.Null || lunging || petting);
+            request.Pose = held != Entity.Null ? IdleAction.Carry : lunging ? IdleAction.Throw : petting ? IdleAction.Pet : emote;
             // Named by the button on whatever was used last: the keyboard's E, or the gamepad's top face button (Y).
             // (By real use: an idle gamepad still sends updates.)
             if (Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame || Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
@@ -169,6 +176,53 @@ namespace Punchy.Fauna
             }
             SystemAPI.SetSingleton(request);
         }
+
+        /// <summary>
+        /// Starts an emote on its key (or d-pad direction); it ends after a moment (a dance goes on until they move),
+        /// when they walk off, or when their hands are busy with an animal.
+        /// </summary>
+        void UpdateEmote(bool busy)
+        {
+            var now = SystemAPI.Time.ElapsedTime;
+            var moving = move != null && move.ReadValue<Vector2>().sqrMagnitude > 0.1f;
+            if (emote != IdleAction.None && (now > emoteUntil || moving || busy))
+                emote = IdleAction.None;
+            if (busy || Punchy.Net.NetMenu.IsOpen)
+                return;
+            var keys = Keyboard.current;
+            var pad = Gamepad.current;
+            var pick = IdleAction.None;
+            if (keys != null && keys.digit1Key.wasPressedThisFrame || pad != null && pad.dpad.up.wasPressedThisFrame)
+                pick = IdleAction.Wave;
+            else if (keys != null && keys.digit2Key.wasPressedThisFrame || pad != null && pad.dpad.down.wasPressedThisFrame)
+                pick = IdleAction.Bow;
+            else if (keys != null && keys.digit3Key.wasPressedThisFrame || pad != null && pad.dpad.right.wasPressedThisFrame)
+                pick = IdleAction.Cheer;
+            else if (keys != null && keys.digit4Key.wasPressedThisFrame || pad != null && pad.dpad.left.wasPressedThisFrame)
+                pick = IdleAction.Dance;
+            if (Requested != IdleAction.None)
+            {
+                pick = Requested;
+                Requested = IdleAction.None;
+            }
+            if (pick == IdleAction.None)
+                return;
+            emote = pick;
+            emoteUntil = now + EmoteLength(pick);
+        }
+
+        /// <summary>How long an emote lasts (a dance, until the player moves off).</summary>
+        public static float EmoteLength(IdleAction emote) => emote switch
+        {
+            IdleAction.Wave => 2.2f,
+            IdleAction.Bow => 1.8f,
+            IdleAction.Cheer => 1.8f,
+            IdleAction.Dance => 30f,
+            _ => 0f
+        };
+
+        /// <summary>A test's way in ("-emote Wave"): as if its key had been pressed.</summary>
+        public static IdleAction Requested;
 
         void Send(ref InteractionRequest request, InteractAct act, Entity target)
         {

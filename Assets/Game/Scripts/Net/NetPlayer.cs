@@ -38,7 +38,7 @@ namespace Punchy.Net
         /// once, and the animal's ghost id.</summary>
         public byte Act, ActSerial;
         public int ActTarget;
-        /// <summary>The pose the owner's body is in for it (an IdleAction: Pet, Carry or None).</summary>
+        /// <summary>The pose the owner's body is in (an IdleAction: Pet, Carry, Throw, an emote, or None).</summary>
         public byte Pose;
     }
 
@@ -49,7 +49,7 @@ namespace Punchy.Net
         [GhostField] public uint Individual;
         [GhostField] public int Coat;
         [GhostField] public bool Grounded;
-        /// <summary>Petting or carrying (an IdleAction), so the others see it.</summary>
+        /// <summary>Petting, carrying or an emote (an IdleAction), so the others see it.</summary>
         [GhostField] public byte Pose;
     }
 

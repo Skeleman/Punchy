@@ -194,7 +194,9 @@ namespace Punchy.Fauna
     public enum IdleAction : byte
     {
         None, PawGround, Groom, Scratch, Shake, Stretch, Sniff, Sit, SitUp, TailFlick, Preen, HeadBob, LookAround, Howl,
-        Pet, Carry, Throw
+        Pet, Carry, Throw,
+        // Emotes: a player's (InteractionInputSystem), and folk answering one.
+        Wave, Bow, Cheer, Dance
     }
 
     public enum ActiveTime : byte

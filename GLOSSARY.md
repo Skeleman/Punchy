@@ -94,6 +94,8 @@ it real. To add or change a term, edit this file in the same commit as the code 
   droppings. Drawn per machine, never synced.
 - **Interaction** (new): a folk or player action on an animal: **Pet**, **Hunt**, **Carry**. (An animal hunting is
   `CreatureMode.Hunt`; the same word, the same idea.)
+- **Emote**: a player's Wave, Bow, Cheer or Dance (keys 1–4 or the d-pad; an `IdleAction` sent as their pose). Folk
+  near answer in kind, friendly animals come over, and wild ones run from cheering or dancing from further off.
 
 ## Hand-off between places and creatures
 
@@ -121,6 +123,7 @@ it real. To add or change a term, edit this file in the same commit as the code 
   `-shotlist <file>` with `-shotdir <folder>` (many screenshots in one session: each line is these flags for one shot
   plus `-shot <name>` and optionally `-wait <s>`; Play mode ends when done), `-place <Landmark>:centre`,
   `-place cave:<Style>`, `-place tree:<Species>`, `-place meadow`, `-place clearlake`, `-cam x,y,z,yaw,pitch`, `-camlook x,y,z,tx,ty,tz`,
+  `-emote <Wave|Bow|Cheer|Dance>` (as if its key were pressed),
   `-interact <Species>:<pet|carry>` (walks up and does it, as if the keys were pressed), `-shotdir <folder>` (tests
   that take their own screenshots: -interact, and -watch at a hunter's throw), `-watch <Species>[:<Task>]`,
   `-incave`, `-at <AnchorKind>` (beside the nearest anchor of that kind, e.g. `-at Pool`), `-watchpitch`, `-timescale`,

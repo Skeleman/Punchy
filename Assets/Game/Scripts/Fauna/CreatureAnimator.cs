@@ -382,6 +382,51 @@ namespace Punchy.Fauna
                         return joint == 0 ? new float3(-0.35f * e, 0f, 0f) : joint == 1 ? new float3(-1.25f * e, 0f, 0f) : float3.zero;
                     if (part.Role == LimbRole.Head) return new float3(0.2f * e, 0f, 0f);
                     break;
+                // Emotes (a player's, or folk answering one). Bodies without arms make do: a nod, a wag of the tail.
+                case IdleAction.Wave:
+                {
+                    // The right arm up, swinging side to side from the shoulder; head tilted a little.
+                    var swing = math.sin(s.Clock * 9f);
+                    if (part.Role == LimbRole.Arm && part.Side > 0f)
+                        return joint == 0 ? new float3(-2.55f * e, 0f, 0.35f * swing * e) : joint == 1 ? new float3(-0.45f * e, 0f, 0f) : float3.zero;
+                    if (part.Role == LimbRole.Head) return new float3(-0.1f * e, 0f, 0.15f * e);
+                    if (part.Role == LimbRole.Tail) return new float3(-0.2f * e, 0.6f * swing * e * (1f + joint * 0.5f), 0f);
+                    break;
+                }
+                case IdleAction.Bow:
+                {
+                    // Bent at the waist, head down, then up again (a body without a torso part bows its neck).
+                    var w = Window(t, 0.05f, 0.8f) * e;
+                    if (part.Role == LimbRole.Feature && part.Parent < 0 && joint == 0) return new float3(0.75f * w, 0f, 0f);
+                    if (part.Role == LimbRole.Neck) return new float3(0.6f * w / n, 0f, 0f);
+                    if (part.Role == LimbRole.Head) return new float3(0.35f * w, 0f, 0f);
+                    if (part.Role == LimbRole.Arm && joint == 0) return new float3(-0.25f * w, 0f, 0f);
+                    break;
+                }
+                case IdleAction.Cheer:
+                {
+                    // Both arms flung up and shaken, face to the sky.
+                    var shake = math.sin(s.Clock * 11f + (part.Side > 0f ? 0f : 1.3f));
+                    if (part.Role == LimbRole.Arm)
+                        return joint == 0 ? new float3((-2.8f + 0.15f * shake) * e, 0f, 0f) : joint == 1 ? new float3(-0.2f * e, 0f, 0f) : float3.zero;
+                    if (part.Role == LimbRole.Head) return new float3(-0.3f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Tail) return new float3(-0.4f * e, 0.5f * shake * e, 0f);
+                    break;
+                }
+                case IdleAction.Dance:
+                {
+                    // Arms pumping in turn with the elbows bent, hips swaying, head bobbing to the beat.
+                    var beat = s.Clock * 7f + (s.Individual % 7u) * 0.4f;
+                    if (part.Role == LimbRole.Arm)
+                    {
+                        var pump = math.max(0f, math.sin(beat + (part.Side > 0f ? 0f : math.PI)));
+                        return joint == 0 ? new float3((-0.9f - 0.8f * pump) * e, 0f, 0f) : joint == 1 ? new float3(-1.3f * e, 0f, 0f) : float3.zero;
+                    }
+                    if (part.Role == LimbRole.Feature && part.Parent < 0 && joint == 0) return new float3(0f, 0.25f * math.sin(beat * 0.5f) * e, 0f);
+                    if (part.Role == LimbRole.Head) return new float3(0.15f * math.sin(beat) * e, 0f, 0f);
+                    if (part.Role == LimbRole.Tail) return new float3(-0.3f * e, 0.7f * math.sin(beat) * e * (1f + joint * 0.5f), 0f);
+                    break;
+                }
             }
             return float3.zero;
         }

@@ -204,6 +204,9 @@ namespace Punchy.Debugging
                     poseRequest = args[i + 1];
                 if (args[i] == "-interact")
                     interactRequest = args[i + 1];
+                // "-emote Wave" (Wave, Bow, Cheer, Dance): as if its key were pressed.
+                if (args[i] == "-emote" && System.Enum.TryParse<IdleAction>(args[i + 1], true, out var emote) && emote >= IdleAction.Wave)
+                    InteractionInputSystem.Requested = emote;
                 // "-shotdir C:\shots": tests that take their own screenshots (-interact) save them there.
                 if (args[i] == "-shotdir")
                     shotDir = args[i + 1];

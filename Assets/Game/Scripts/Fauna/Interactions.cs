@@ -36,7 +36,7 @@ namespace Punchy.Fauna
         /// <summary>The animal: the entity (alone) or its ghost id (networked).</summary>
         public Entity Target;
         public int TargetGhost;
-        /// <summary>The player's body pose for it (IdleAction.Pet or Carry, or None).</summary>
+        /// <summary>The player's body pose (IdleAction.Pet, Carry, Throw, an emote, or None).</summary>
         public IdleAction Pose;
     }
 
