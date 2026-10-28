@@ -229,6 +229,7 @@ MonoBehaviour:
   BreathInterval: 3.2
   BreathThreshold: 0.35
   Mouth: {x: 1.5, y: 0.3}
+  OthersRange: 80
 --- !u!4 &233277107
 Transform:
   m_ObjectHideFlags: 0
@@ -916,6 +917,20 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 44ada7010e7e0a644b76380d89a8d591, type: 2}
   - {fileID: 11400000, guid: e112520915f6d014b9b6ec86042081a8, type: 2}
   - {fileID: 11400000, guid: 7e4cfb2563527ff448af44073b2c3306, type: 2}
+  - {fileID: 11400000, guid: ed2c5eeab4234694983fb4152e8fdfdc, type: 2}
+  - {fileID: 11400000, guid: 28ce2e17eb09b374f9ebf742b5e3f5bc, type: 2}
+  - {fileID: 11400000, guid: 0c5acc4dafa82174c9803112ff6942ac, type: 2}
+  - {fileID: 11400000, guid: b85e826784a0af94ca6077752232e2c0, type: 2}
+  - {fileID: 11400000, guid: 1d91141c42fd2db47805ff08515f25ce, type: 2}
+  - {fileID: 11400000, guid: d45f7e17bc2d30343b502175f0abf9e8, type: 2}
+  - {fileID: 11400000, guid: 9f55f2cb168921445872a5632fd97816, type: 2}
+  - {fileID: 11400000, guid: 67dbea075c2b2aa42b1c93042c048409, type: 2}
+  - {fileID: 11400000, guid: 9cb3dbacf7364f64bbeb2735f28e1559, type: 2}
+  - {fileID: 11400000, guid: 827df96a7ef1b8f4e94b89d7945bfa81, type: 2}
+  - {fileID: 11400000, guid: d9b8e39f7dbafe546bf70c1f924ea9bc, type: 2}
+  - {fileID: 11400000, guid: 60253a2baebad5546a4755a37a060d98, type: 2}
+  - {fileID: 11400000, guid: 7199114923ac3fb428d57650f289f0c5, type: 2}
+  - {fileID: 11400000, guid: 2e005590929fde24b8c869f721b8ab86, type: 2}
 --- !u!114 &1232993367
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1089,6 +1104,9 @@ MonoBehaviour:
   LanternColor: {r: 1, g: 0.78, b: 0.5, a: 1}
   LanternIntensity: 6
   LanternRange: 15
+  BuildsPerFrame: 2
+  MaxBuilding: 4
+  PlantRadius: 60
 --- !u!4 &1725390928
 Transform:
   m_ObjectHideFlags: 0
@@ -1139,6 +1157,9 @@ MonoBehaviour:
   GrassRadius: 60
   PebbleRadius: 45
   GrassPerSquareMetre: 28
+  GrassDensityScale: 1
+  FullDensityRadius: 20
+  GroundTint: 1
   PebblesPerSquareMetre: 3
   MaxTileBuildsPerFrame: 8
 --- !u!4 &1797371708
