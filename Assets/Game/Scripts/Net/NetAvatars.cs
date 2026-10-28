@@ -178,7 +178,7 @@ namespace Punchy.Net
             em.SetComponentData(e, new CreatureState
             {
                 Position = position,
-                Scale = 1f,
+                Scale = (b.Size.x + b.Size.y) * 0.5f,   // (the species' middle size, as on its owner's screen)
                 Mode = CreatureMode.Puppet,
                 Seed = look.Individual | 1u,
                 Individual = look.Individual

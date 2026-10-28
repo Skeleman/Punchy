@@ -20,6 +20,8 @@ namespace Punchy.Player
         /// <summary>Tests: walk this way (world XZ) as if the stick were pushed, and sprint, while set.</summary>
         public static float2? TestMove;
         public static bool TestSprint;
+        /// <summary>Tests: press jump once (cleared after the frame), and hold it (in flight: climb).</summary>
+        public static bool TestJump, TestClimb;
 
         protected override void OnCreate()
         {
@@ -49,9 +51,11 @@ namespace Punchy.Player
             // Rotate stick/WASD input so "forward" means "away from the camera".
             var direction = raw;
             var cam = Camera.main;
+            var cameraForward = new float2(0f, 1f);
             if (cam != null)
             {
                 var forward = math.normalizesafe(((float3)cam.transform.forward).xz, new float2(0f, 1f));
+                cameraForward = forward;
                 var right = new float2(forward.y, -forward.x);
                 direction = forward * raw.y + right * raw.x;
             }
@@ -74,8 +78,11 @@ namespace Punchy.Player
             {
                 MoveDirection = direction,
                 Sprint = TestSprint || !typing && sprint != null && sprint.IsPressed(),
-                JumpPressed = !typing && jump != null && jump.WasPressedThisFrame()
+                JumpPressed = TestJump || !typing && jump != null && jump.WasPressedThisFrame(),
+                JumpHeld = TestClimb || !typing && jump != null && jump.IsPressed(),
+                CameraForward = TestMove.HasValue && math.lengthsq(TestMove.Value) > 0f ? math.normalize(TestMove.Value) : cameraForward
             });
+            TestJump = false;
         }
     }
 }

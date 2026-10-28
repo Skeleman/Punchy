@@ -58,6 +58,8 @@ namespace Punchy.Fauna
                 foreach (var (s, body) in SystemAPI.Query<RefRW<CreatureState>, RefRO<CreatureBody>>().WithAll<PlayerAvatar>())
                 {
                     Drive(ref s.ValueRW, ref body.ValueRO.Blob.Value, player, motion.Grounded, dt);
+                    // On the wing: wings out, nose up or down with the climb.
+                    Wings(ref s.ValueRW, ref body.ValueRO.Blob.Value, motion.Flying, motion.Pitch, motion.Flapping, dt);
                     Pose(ref s.ValueRW, pose, dt);
                 }
 
@@ -68,7 +70,14 @@ namespace Punchy.Fauna
                 var ghost = remote.ValueRO.Ghost;
                 if (!transforms.HasComponent(ghost) || !looks.HasComponent(ghost))
                     continue;
-                Drive(ref s.ValueRW, ref body.ValueRO.Blob.Value, transforms[ghost], looks[ghost].Grounded, dt);
+                ref var b = ref body.ValueRO.Blob.Value;
+                // (Another player's flying body: off the ground and well above it. The climb from how it rose.)
+                var was = s.ValueRO.Position;
+                Drive(ref s.ValueRW, ref b, transforms[ghost], looks[ghost].Grounded, dt);
+                var flying = b.Habitat == Habitat.Flies && !looks[ghost].Grounded;
+                var run = math.distance(was.xz, s.ValueRO.Position.xz);
+                var pitch = run > 1e-4f ? math.atan2(s.ValueRO.Position.y - was.y, run) : 0f;
+                Wings(ref s.ValueRW, ref b, flying, pitch, pitch > 0.1f, dt);
                 Pose(ref s.ValueRW, (IdleAction)looks[ghost].Pose, dt);
             }
         }
@@ -125,6 +134,24 @@ namespace Punchy.Fauna
                 var stride = math.lerp(b.WalkStride, b.RunStride, run) * c.Scale;
                 c.Phase = math.frac(c.Phase + moved / stride);
             }
+        }
+
+        /// <summary>
+        /// A body on the wing: eases into flight (wings out, legs tucked), pitched with the climb or dive, and beats its
+        /// wings or holds them spread by the flight rules (CreatureMotion), as a bird the brain flies would.
+        /// </summary>
+        static void Wings(ref CreatureState c, ref CreatureBlob b, bool flying, float pitch, bool flapping, float dt)
+        {
+            if (b.Habitat != Habitat.Flies)
+                return;
+            c.Fly += ((flying ? 1f : 0f) - c.Fly) * math.min(1f, dt * 6f);
+            if (c.Fly < 0.05f)
+                return;
+            // (Vertical > 0.15 reads as climbing, which beats the wings.)
+            var vertical = math.clamp(pitch / (math.PI * 0.47f), -0.5f, 0.5f) + (flapping ? 0.16f : 0f);
+            c.Vertical += (vertical * c.Fly - c.Vertical) * math.min(1f, dt * 5f);
+            if (c.Fly > 0.5f)
+                CreatureMotion.AdvancePhase(ref c, ref b, dt);
         }
 
         static float WrapAngle(float a) => a - 2f * math.PI * math.floor((a + math.PI) / (2f * math.PI));

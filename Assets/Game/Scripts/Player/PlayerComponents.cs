@@ -29,6 +29,22 @@ namespace Punchy.Player
     {
         public float VerticalVelocity;
         public bool Grounded;
+        /// <summary>On the wing (a flying body): airspeed (m/s), and the climb (+) or dive (−) angle (radians).</summary>
+        public bool Flying;
+        public float Airspeed, Pitch;
+        /// <summary>Beating its wings this frame (climbing, or pressing on), rather than gliding.</summary>
+        public bool Flapping;
+    }
+
+    /// <summary>
+    /// What the player's body can do, from its species (set by FaunaDirector): how fast it goes on the ground next to
+    /// a human (SpeedFactor), and whether and how fast it flies.
+    /// </summary>
+    public struct PlayerBody : IComponentData
+    {
+        public float SpeedFactor;
+        public bool Flies;
+        public float FlySpeed;
     }
 
     /// <summary>Singleton written by PlayerInputSystem each frame. MoveDirection is world-space XZ, length 0..1.</summary>
@@ -37,5 +53,9 @@ namespace Punchy.Player
         public float2 MoveDirection;
         public bool Sprint;
         public bool JumpPressed;
+        /// <summary>Jump and sprint held down (in flight: climb and dive).</summary>
+        public bool JumpHeld;
+        /// <summary>Where the camera looks, world XZ (in flight: the way to steer).</summary>
+        public float2 CameraForward;
     }
 }

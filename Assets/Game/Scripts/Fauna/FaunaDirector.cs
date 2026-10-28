@@ -426,15 +426,29 @@ namespace Punchy.Fauna
                 SegmentCount = b.Segments.Length,
                 Coat = b.PickCoat(rng.NextFloat())
             });
+            // (At the species' middle size: a cat body is cat-sized, an osprey osprey-sized.)
+            var size = (b.Size.x + b.Size.y) * 0.5f;
             em.SetComponentData(e, new CreatureState
             {
                 Position = player.Position,
                 Phase = rng.NextFloat(),
-                Scale = 1f,
+                Scale = size,
                 Mode = CreatureMode.Puppet,
                 Seed = rng.NextUInt() | 1u,
                 Individual = rng.NextUInt() | 1u
             });
+            // What the body can do, for player movement: its pace next to a human's, and flight.
+            var human = SpeciesIndex("Human");
+            var humanRun = human >= 0 ? blobs[human].Value.RunSpeed * (blobs[human].Value.Size.x + blobs[human].Value.Size.y) * 0.5f : 0f;
+            var abilities = new Punchy.Player.PlayerBody
+            {
+                SpeedFactor = humanRun > 0f ? math.clamp(b.RunSpeed * size / humanRun, 0.35f, 2.5f) : 1f,
+                Flies = b.Habitat == Habitat.Flies,
+                FlySpeed = b.FlySpeed
+            };
+            if (!em.CreateEntityQuery(typeof(Punchy.Player.PlayerBody)).TryGetSingletonEntity<Punchy.Player.PlayerBody>(out var bodyEntity))
+                bodyEntity = em.CreateEntity(typeof(Punchy.Player.PlayerBody));
+            em.SetComponentData(bodyEntity, abilities);
         }
 
         void DropAvatar()
