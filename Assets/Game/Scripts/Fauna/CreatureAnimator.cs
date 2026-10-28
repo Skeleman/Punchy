@@ -685,7 +685,13 @@ namespace Punchy.Fauna
                 switch (part.Role)
                 {
                     case LimbRole.Leg:
-                        return joint == 0 ? new float3(-1.45f, part.Side * 0.75f, part.Side * 1.3f) : joint == 1 ? new float3(2.5f, 0f, 0f) : float3.zero;
+                    {
+                        // The thigh out and forward from the hip and turned out, so the knee bends across the body: the
+                        // shin folds back towards the other hip. (Solved for: thigh about level, out at 50 degrees;
+                        // shin back across, level.) One shin over the other, by individual: the upper a little raised.
+                        var over = (CreatureBlob.Trait(s.Individual, 31) > 0f) == (part.Side > 0f);
+                        return joint == 0 ? new float3(-0.7f, part.Side * (over ? 1.42f : 1.56f), -part.Side * 3f) : joint == 1 ? new float3(2.5f, 0f, 0f) : float3.zero;
+                    }
                     case LimbRole.Arm:
                         return joint == 0 ? new float3(-0.3f, 0f, part.Side * 0.45f) : joint == 1 ? new float3(-0.45f, 0f, 0f) : float3.zero;
                     default:
