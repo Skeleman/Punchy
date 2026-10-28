@@ -147,10 +147,13 @@ namespace Punchy.Terrain
             for (int k = 0; k < v; k++)
             {
                 var g = verts[EdgeVertex(edge, k, q)];
-                g.Position.y -= depth;
+                // A skirt hangs metres below the surface, so over a shallow cave it would poke down through the ceiling
+                // as a flat face: there it stops short of the cave's air (at every LOD).
+                var drop = SkirtOverCave(request.Origin + g.Position.xz, g.Position.y, depth);
+                g.Position.y -= drop;
                 // The shader lifts skirt vertices back by this much for shadows, so skirts neither
                 // cast shadows nor sit in the shadow of the surface above them.
-                g.Extra.w = (half)depth;
+                g.Extra.w = (half)drop;
                 verts[skirtBase + edge * v + k] = g;
             }
 
@@ -260,6 +263,14 @@ namespace Punchy.Terrain
                         flow[i] = n.yz;
                     }
                 }
+                // Under a bank the sheet is hidden in the ground, unless a cave runs through the bank: there it would
+                // hang in the cave's air as a flat face across the passage.
+                if (best > GroundSample.NoWater * 0.5f && Source.Caves.IsCreated)
+                {
+                    var at = origin + new float2(x, z) * step;
+                    if (CaveSampling.NearColumn(ref Source.Caves.Value, at) && Source.CaveDistance(new float3(at.x, best, at.y)) < 0.5f)
+                        best = GroundSample.NoWater;
+                }
                 surface[i] = best;
             }
 
@@ -329,6 +340,27 @@ namespace Punchy.Terrain
             flow.Dispose();
             wetQuad.Dispose();
             return range;
+        }
+
+        /// <summary>
+        /// How far a skirt may hang below the surface at (xz, top): its full depth, or less where cave air lies within
+        /// it (found by bisection), stopping 0.3 m above that air.
+        /// </summary>
+        float SkirtOverCave(float2 xz, float top, float depth)
+        {
+            if (!Source.Caves.IsCreated || !CaveSampling.NearColumn(ref Source.Caves.Value, xz)
+                || Source.CaveDistance(new float3(xz.x, top - depth, xz.y)) >= 0.3f)
+                return depth;
+            float rock = 0f, air = depth;
+            for (int i = 0; i < 6; i++)
+            {
+                var mid = (rock + air) * 0.5f;
+                if (Source.CaveDistance(new float3(xz.x, top - mid, xz.y)) >= 0.3f)
+                    rock = mid;
+                else
+                    air = mid;
+            }
+            return math.max(rock, 0.05f);
         }
 
         /// <summary>Water surface, flow and ground height at a point (as the chunk's own vertices store them).</summary>
