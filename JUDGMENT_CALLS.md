@@ -13,6 +13,15 @@ asks Zach if needed, and records the answer here.
 
 ## Decided
 
+### J-031: Frame-rate cap?
+
+- **Asked:** 2026-10-28, by the supervisor, from the profiler's throttling finding.
+- **Also comes up when:** vsync, performance settings, benchmarks.
+- **Answer (2026-10-28):** add an optional cap: 30, 40, 60, 120 or Unlimited, default 60, saved per machine, with a
+  -fpscap launch flag. Benchmarks report the default and uncapped.
+- **Why:** Zach: good practice, prevents spikes.
+- **Revisited:** 0.
+
 ### J-030: Approve the realms layout?
 
 - **Asked:** 2026-10-28, by the world session (preview map).
