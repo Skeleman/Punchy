@@ -28,6 +28,11 @@ namespace Punchy.Fauna
         bool pressUsed;
         /// <summary>When the lunge pose ends.</summary>
         double lungeUntil;
+        /// <summary>The player last used a gamepad (rather than the keyboard and mouse).</summary>
+        bool usingGamepad;
+        /// <summary>The prompt as last built, and what it was built for (species, can carry, gamepad).</summary>
+        string lastPrompt;
+        (int, bool, bool) lastPromptKey = (int.MinValue, false, false);
         EntityQuery creatures;
         FaunaDirector director;
 
@@ -101,15 +106,36 @@ namespace Punchy.Fauna
 
             var lunging = SystemAPI.Time.ElapsedTime < lungeUntil;
             request.Pose = held != Entity.Null ? IdleAction.Carry : lunging ? IdleAction.Throw : petting ? IdleAction.Pet : IdleAction.None;
-            if (held != Entity.Null)
-                Prompt = "E  put down";
-            else if (target != Entity.Null)
+            // Named by the button on whatever was used last: the keyboard's E, or the gamepad's top face button (Y).
+            // (By real use: an idle gamepad still sends updates.)
+            if (Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame || Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+                usingGamepad = false;
+            var pad = Gamepad.current;
+            if (pad != null && (pad.leftStick.ReadValue().sqrMagnitude > 0.2f || pad.rightStick.ReadValue().sqrMagnitude > 0.2f ||
+                                pad.buttonSouth.wasPressedThisFrame || pad.buttonNorth.wasPressedThisFrame || pad.buttonEast.wasPressedThisFrame ||
+                                pad.buttonWest.wasPressedThisFrame || pad.startButton.wasPressedThisFrame))
+                usingGamepad = true;
+            var gamepad = usingGamepad;
+            var key = gamepad ? "Y" : "E";
+            // (The text is only rebuilt when what it says changes, not every frame.)
+            var promptKey = held != Entity.Null ? (-2, false, gamepad) : target != Entity.Null ? (targetSpecies, targetCarry, gamepad) : (-1, false, gamepad);
+            if (promptKey != lastPromptKey)
             {
-                if (director == null)
-                    director = Object.FindAnyObjectByType<FaunaDirector>();
-                var name = director != null ? director.SpeciesName(targetSpecies) : "animal";
-                Prompt = $"E  pet the {name}" + (targetCarry ? "        hold E  pick up" : "");
+                lastPromptKey = promptKey;
+                if (held != Entity.Null)
+                    lastPrompt = $"{key}  put down";
+                else if (target != Entity.Null)
+                {
+                    if (director == null)
+                        director = Object.FindAnyObjectByType<FaunaDirector>();
+                    var name = director != null ? director.SpeciesName(targetSpecies) : "animal";
+                    lastPrompt = $"{key}  pet the {name}" + (targetCarry ? $"        hold {key}  pick up" : "");
+                }
+                else
+                    lastPrompt = null;
             }
+            Prompt = lastPrompt;
+            InteractionPrompt.Show(Prompt != null);
 
             // The button: a tap pets, a hold picks up; holding one, a press puts it down.
             if (interact != null && !Punchy.Net.NetMenu.IsOpen)
@@ -168,6 +194,14 @@ namespace Punchy.Fauna
             var go = new GameObject("InteractionPrompt");
             DontDestroyOnLoad(go);
             instance = go.AddComponent<InteractionPrompt>();
+            instance.enabled = false;
+        }
+
+        /// <summary>On only while there's something to show (so OnGUI doesn't run every frame for nothing).</summary>
+        public static void Show(bool show)
+        {
+            if (instance != null && instance.enabled != show)
+                instance.enabled = show;
         }
 
         void OnGUI()
