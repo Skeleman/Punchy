@@ -29,6 +29,7 @@ MonoBehaviour:
   SpeleothemThickness: 0.6
   Hanging: 0.6
   Columns: 0.4
+  Drips: 0.6
   Rubble: 3
   RubbleSize: 0.6
   Moss: 0.4

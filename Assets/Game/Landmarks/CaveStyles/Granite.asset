@@ -28,6 +28,7 @@ MonoBehaviour:
   SpeleothemThickness: 0.5
   Hanging: 0.5
   Columns: 0.25
+  Drips: 0.2
   Rubble: 6
   RubbleSize: 0.8
   Moss: 0.15
@@ -36,9 +37,13 @@ MonoBehaviour:
   - Species: {fileID: 11400000, guid: bd276f49a3ba0da489507a483dad61ab, type: 2}
     Density: 4.5
     Light: 1
+    Hanging: 0
+    MaxCover: 5
   - Species: {fileID: 11400000, guid: f0bc63d3dde59f142948a597920d6c11, type: 2}
     Density: 1.5
     Light: 2
+    Hanging: 0
+    MaxCover: 5
   PoolChance: 0
   LavaPools: 0
   PoolSize: 0.32
@@ -65,3 +70,4 @@ MonoBehaviour:
   GlowScale: 1
   GlowEverywhere: 0
   CrackDarkness: 0
+  CrackBreakup: 0

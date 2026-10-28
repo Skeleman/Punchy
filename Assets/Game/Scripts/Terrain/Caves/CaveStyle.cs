@@ -50,6 +50,9 @@ namespace Punchy.Terrain
         [Range(0f, 1f)] public float Hanging = 0.55f;
         [Tooltip("Chance one reaches all the way from floor to ceiling as a column.")]
         [Range(0f, 1f)] public float Columns = 0.1f;
+        [Tooltip("Share of the hanging ones that drip water now and then, a drop falling to the floor (or a pool) with a " +
+                 "small splash. 0 for frozen or molten caves.")]
+        [Range(0f, 1f)] public float Drips = 0.4f;
 
         [Header("Rubble and moss")]
         [Tooltip("Fallen rocks per 100 m² of chamber floor, heaped against the walls and scattered across the middle. " +
