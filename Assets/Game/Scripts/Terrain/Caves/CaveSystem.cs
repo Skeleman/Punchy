@@ -283,16 +283,80 @@ namespace Punchy.Terrain
         readonly List<(float distance, Vector4 position, Vector4 color)> glowing = new List<(float, Vector4, Vector4)>();
         static readonly Vector4 LavaLight = new Vector4(1f * 2.2f, 0.42f * 2.2f, 0.1f * 2.2f, 0f);
 
-        /// <summary>Uploads the nearest glowing things to the cave shader, which lights the walls round them.</summary>
+        /// <summary>How long a light takes to come on as it joins the list (with a small swell) and to go out as it leaves (s).</summary>
+        const float HeatFadeIn = 0.8f, HeatFadeOut = 0.8f;
+        /// <summary>A light already in the list counts as this much nearer, so lights at the edge of the nearest
+        /// MaxHeat don't flicker in and out as the camera moves.</summary>
+        const float HeatStickiness = 0.85f;
+        /// <summary>Each listed light's time in the list (s), by position (glowing things don't move).</summary>
+        readonly Dictionary<Vector4, float> heatAge = new Dictionary<Vector4, float>();
+        /// <summary>Lights that have left the list, still fading out: their colour and the time left.</summary>
+        readonly Dictionary<Vector4, (Vector4 color, float left)> heatLeaving = new Dictionary<Vector4, (Vector4, float)>();
+        readonly List<Vector4> heatScratch = new List<Vector4>();
+        readonly Dictionary<Vector4, float> heatNextAge = new Dictionary<Vector4, float>();
+
+        /// <summary>
+        /// Uploads the nearest glowing things to the cave shader, which lights the walls round them. A light joining the
+        /// list fades in over HeatFadeIn with a small swell past full, and one leaving fades out (in a spare slot), so
+        /// lights don't pop on and off at the edge of the list.
+        /// </summary>
         void UploadGlowing()
         {
+            var dt = math.min(Time.unscaledDeltaTime, 0.1f);
+            for (int i = 0; i < glowing.Count; i++)
+                if (heatAge.ContainsKey(glowing[i].position))
+                    glowing[i] = (glowing[i].distance * HeatStickiness, glowing[i].position, glowing[i].color);
             glowing.Sort((a, b) => a.distance.CompareTo(b.distance));
             var count = math.min(glowing.Count, MaxHeat);
+
+            heatNextAge.Clear();
             for (int i = 0; i < count; i++)
             {
-                heat[i] = glowing[i].position;
-                heatColor[i] = glowing[i].color;
+                var (_, position, color) = glowing[i];
+                var age = (heatAge.TryGetValue(position, out var a) ? a : 0f) + dt;
+                heatNextAge[position] = age;
+                heatLeaving.Remove(position);
+                // Up to full over the first 60%, a swell of about 12% over full, settling back by the end.
+                var t = age / HeatFadeIn;
+                var envelope = math.smoothstep(0f, 0.6f, t) + 0.12f * math.smoothstep(0.3f, 0.6f, t) * (1f - math.smoothstep(0.6f, 1.2f, t));
+                heat[i] = position;
+                heatColor[i] = new Vector4(color.x * envelope, color.y * envelope, color.z * envelope, color.w);
             }
+            // Those that just left start fading out.
+            foreach (var kv in heatAge)
+                if (!heatNextAge.ContainsKey(kv.Key) && !heatLeaving.ContainsKey(kv.Key))
+                {
+                    var color = Vector4.zero;
+                    foreach (var g in glowing)
+                        if (g.position == kv.Key) { color = g.color; break; }
+                    if (color == Vector4.zero)
+                        continue;   // gone from the candidates altogether (out of range): no colour to fade
+                    heatLeaving[kv.Key] = (color, HeatFadeOut * math.saturate(kv.Value / HeatFadeIn));
+                }
+            heatAge.Clear();
+            foreach (var kv in heatNextAge)
+                heatAge[kv.Key] = kv.Value;
+
+            // Fading ones fill the spare slots (and are dropped, already dim, when there are none).
+            heatScratch.Clear();
+            foreach (var key in heatLeaving.Keys)
+                heatScratch.Add(key);
+            foreach (var key in heatScratch)
+            {
+                var (color, left) = heatLeaving[key];
+                left -= dt;
+                if (left <= 0f || count >= MaxHeat)
+                {
+                    heatLeaving.Remove(key);
+                    continue;
+                }
+                heatLeaving[key] = (color, left);
+                var fade = math.smoothstep(0f, 1f, left / HeatFadeOut);
+                heat[count] = key;
+                heatColor[count] = new Vector4(color.x * fade, color.y * fade, color.z * fade, color.w);
+                count++;
+            }
+
             Shader.SetGlobalVectorArray(HeatId, heat);
             Shader.SetGlobalVectorArray(HeatColorId, heatColor);
             Shader.SetGlobalInt(HeatCountId, count);
