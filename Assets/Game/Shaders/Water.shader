@@ -432,25 +432,33 @@ Shader "Punchy/Water"
                 if (lava > 0)
                 {
                     // Carried by any flow, and always drifting a little, so even a still pool visibly moves.
-                    float2 q = (p - flowDir * flowAmount * t * 0.15 + float2(t * 0.04, t * 0.025)) * 0.18;
+                    float2 q = (p - flowDir * flowAmount * t * 0.15 + float2(t * 0.04, t * 0.025)) * 0.28;
                     float2 w1 = float2(PunchyValueNoise(q * 1.3 + float2(t * 0.021, 0)), PunchyValueNoise(q * 1.3 + float2(5.2, -t * 0.017)));
                     float2 w2 = float2(PunchyValueNoise((q + w1 * 1.6) * 2.1 + float2(-t * 0.013, 1.7)),
                                        PunchyValueNoise((q + w1 * 1.6) * 2.1 + float2(8.3, t * 0.019)));
                     float swirl = PunchyValueNoise(q + w1 * 1.4 + w2 * 0.8 + t * 0.006) * 0.6 + PunchyValueNoise((q + w2) * 3.3 - t * 0.01) * 0.4;
-                    // Crust only on the highest tenth of the swirl, plus a thin rim where the melt meets the rock.
-                    half crust = smoothstep(0.66, 0.72, swirl);
+                    // Black plates of cooled crust over about a third of it, riding the swirl, plus a thin rim where the
+                    // melt meets the rock; the plates are split by thin cracks that still glow.
+                    half crust = smoothstep(0.55, 0.6, swirl);
+                    half crack = 1 - smoothstep(0.0, 0.035, abs(PunchyValueNoise((q + w2 * 0.5) * 7.0) - 0.5));
+                    crust *= 1 - crack * 0.85;
                     crust = max(crust, 1 - saturate(thickness / 0.2));
                     // Crust edges glow hotter, as if the melt is just closing over them.
-                    half edge = smoothstep(0.6, 0.66, swirl) * (1 - crust);
+                    half edge = smoothstep(0.49, 0.55, swirl) * (1 - crust);
                     half band = PunchyValueNoise((q + w1 * 2.0) * 4.0 + t * 0.03);
-                    // A deep orange core; yellow only on the hottest bands and the crust edges.
-                    half3 orange = lerp(half3(1.0, 0.24, 0.02), input.look.rgb, 0.25);
-                    half3 molten = lerp(orange, half3(1.0, 0.72, 0.2), saturate(smoothstep(0.6, 0.9, band) + edge * 0.8));
+                    // Red melt; orange on the warmer bands, yellow only on the hottest ones, the crust edges and the
+                    // cracks.
+                    half3 red = lerp(half3(0.9, 0.1, 0.015), input.look.rgb, 0.15);
+                    half3 molten = lerp(red, half3(1.0, 0.3, 0.03), smoothstep(0.6, 0.85, band));
+                    molten = lerp(molten, half3(1.0, 0.75, 0.22), saturate(smoothstep(0.86, 0.97, band) + edge * 0.6 + crack * 0.5));
+                    // Slow bubbles rise through the open melt and pop, brighter where they break the surface.
+                    half bubble = Bubbles(p * 1.4, t * 0.8).z * (1 - crust);
+                    molten = lerp(molten, half3(1.0, 0.6, 0.15), bubble * 0.7);
                     half pulse = 0.9 + 0.1 * sin(t * 0.7 + swirl * 6.28);
-                    // Bright enough to glow, not so bright the tonemapper washes the orange out to white.
-                    half3 hot = molten * (0.7 + 0.35 * band + 0.3 * edge) * pulse;
-                    half3 rock = half3(0.05, 0.035, 0.03);
-                    half3 rockLit = rock * (ambient + light.color * saturate(dot(n, light.direction)) * shadow) + orange * 0.08;
+                    // Bright enough to glow, not so bright the tonemapper washes the colour out to white.
+                    half3 hot = molten * (0.55 + 0.3 * band + 0.3 * edge + 0.4 * bubble) * pulse;
+                    half3 rock = half3(0.03, 0.025, 0.025);
+                    half3 rockLit = rock * (ambient + light.color * saturate(dot(n, light.direction)) * shadow) + red * 0.04;
                     half3 lavaColor = lerp(hot, rockLit, crust);
                     // A faint, rough sheen on the crust only.
                     lavaColor += reflection * fresnel * 0.06 * crust;
