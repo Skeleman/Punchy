@@ -30,6 +30,10 @@ namespace Punchy.Terrain
         [Range(0f, 1.5f)] public float Jaggedness = 0.7f;
         [Tooltip("Blocky collapse hollows in the ceiling, as a share of the jaggedness (fractured ice, bedded rock).")]
         [Range(0f, 1f)] public float Blockiness = 0.3f;
+        [Tooltip("Sharp ribs across the walls and ceiling with scooped hollows between (melt-scalloped ice).")]
+        [Range(0f, 1f)] public float Ribs;
+        [Tooltip("Space between ribs (m).")]
+        [Range(0.8f, 4f)] public float RibSpacing = 1.6f;
         [Tooltip("How flat the floor is: 1 = a level floor halfway down the passage, 0 = the passage's own round bottom.")]
         [Range(0f, 1f)] public float FloorFlatness = 0.85f;
         [Tooltip("How many ledges and steps the floor has.")]

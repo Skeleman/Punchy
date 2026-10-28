@@ -51,7 +51,7 @@ namespace Punchy.Terrain
                 var rng = new Random(math.hash(new int2(i, 7717)) | 1u);
                 var style = PickStyle(source, palette, type, inst.Position, ref rng);
                 var profile = style != null ? new float2(style.Width, style.Width * style.Height) : new float2(1f);
-                var wall = style != null ? new float2(style.Roughness, style.Grain) : new float2(1f);
+                var wall = style != null ? new float4(style.Roughness, style.Grain, style.Ribs, style.RibSpacing) : new float4(1f, 1f, 0f, 1.6f);
                 var rock = style != null ? new float4(style.Jaggedness, style.FloorFlatness, style.FloorSteps, style.Blockiness) : new float4(0.7f, 0.85f, 0.4f, 0.3f);
                 var radius = type.Radius * inst.Scale;
                 var r = type.CaveRadius * inst.Scale;

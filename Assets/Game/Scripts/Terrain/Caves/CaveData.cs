@@ -34,8 +34,8 @@ namespace Punchy.Terrain
         public int Style;
         /// <summary>Passage width and height multipliers (the style's Width, and Width × Height).</summary>
         public float2 Profile;
-        /// <summary>Wall noise strength and frequency multipliers (the style's Roughness and Grain).</summary>
-        public float2 Wall;
+        /// <summary>Wall noise strength and frequency multipliers (the style's Roughness and Grain), its Ribs and RibSpacing.</summary>
+        public float4 Wall;
         /// <summary>The style's Jaggedness, FloorFlatness, FloorSteps and Blockiness.</summary>
         public float4 Rock;
         public int FirstPool, PoolCount;
@@ -161,7 +161,7 @@ namespace Punchy.Terrain
         const float SkipBeyond = 1.5f;
 
         /// <summary>Most a cave's wall and ceiling noise can move its walls.</summary>
-        public static float WallReach(in CaveData c) => NoiseReach * c.Wall.x + JaggedReach * c.Rock.x;
+        public static float WallReach(in CaveData c) => NoiseReach * c.Wall.x + JaggedReach * c.Rock.x + 0.45f * c.Wall.z;
 
         /// <summary>
         /// How far beyond a segment's radius its box reaches, before wall noise. Past the blend and the noise, the
@@ -275,6 +275,16 @@ namespace Punchy.Terrain
                 var jag = (ridge * ridge - 0.45f) * 0.9f + (crease - 0.5f) * 0.35f;
                 var blocks = c.Rock.w > 0f ? math.min(0f, noise.snoise(math.floor(p * (1f / 1.7f)) * 0.37f + s)) * 0.6f * c.Rock.w * math.smoothstep(0.45f, 1f, up) : 0f;
                 n += (jag + blocks) * c.Rock.x * math.smoothstep(0.2f, 0.75f, up);
+            }
+            if (c.Wall.z > 0f && up > 0.06f)
+            {
+                // Ribs (melt-scalloped ice): sharp ridges RibSpacing apart, across a slant set per cave and wavering
+                // with noise, with scooped hollows between (about 0.45 m deep at full Ribs). Off the floor, so FloorUnder's march
+                // isn't affected.
+                var across = math.normalize(new float3(math.sin(s * 3.1f), 0.35f, math.cos(s * 3.1f)));
+                var t = math.dot(p, across) / c.Wall.w + noise.snoise(p * 0.15f + s) * 0.6f;
+                var rib = 1f - math.abs(math.sin(t * math.PI));
+                n += (rib * rib - 0.4f) * 0.75f * c.Wall.z * math.smoothstep(0.06f, 0.3f, up);
             }
             return n;
         }
