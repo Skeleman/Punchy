@@ -80,7 +80,11 @@ namespace Punchy.Flora
         [Tooltip("A mine's timber frame: two posts and a lintel across a passage, a metre either side of its middle and a " +
                  "metre high, scaled to fit (Bark; Thickness the timbers' radius per metre).")] MineFrame,
         [Tooltip("A torch on a wall bracket, leaning out a little: Height is the stick, Bark the stick, Foliage the " +
-                 "charred head. Cave styles light a flame on it (FireSystem).")] Torch
+                 "charred head. Cave styles light a flame on it (FireSystem).")] Torch,
+        [Tooltip("A plank bench on two stone feet, its seat 0.45 m up and 1.8 m long (Bark the planks, Foliage the " +
+                 "stone). A sitter faces +Z. Towns' Sit anchors expect these sizes at scale 1.")] Bench,
+        [Tooltip("A log lying on its side to sit on, 0.4 m high and 1.8 m long (Bark), with cut ends. A sitter faces +Z.")] Log,
+        [Tooltip("A sawn stump to sit on, 0.42 m high (Bark, with a pale cut top).")] Stump
     }
 
     public enum FoliageFinish : byte

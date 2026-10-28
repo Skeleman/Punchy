@@ -78,6 +78,15 @@ MonoBehaviour:
     Count: 2
     Angle: 0
     Clearance: 4.5
+  - Species: {fileID: 11400000, guid: bb680d1260298604d98103ae46a2b5bc, type: 2}
+    Density: 1
+    Ring: {x: 0.11666667, y: 0.11666667}
+    Scale: {x: 1.48, y: 1.48}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 4
+    Angle: 20
+    Clearance: 1.2
   Effects:
   - Kind: 0
     Offset: {x: 0, y: 0}
@@ -114,6 +123,9 @@ MonoBehaviour:
   CaveShafts: 0
   CaveStyles: []
   Settlement: {fileID: 11400000, guid: be9ac2d52fdd5504fa56143508bfeebc, type: 2}
+  Companions: []
+  CompanionRange: 150
+  OnlyAsCompanion: 0
   Residents:
   - Species: {fileID: 11400000, guid: b13923c35daf72c4c997d600178bd234, type: 2}
     Count: {x: 3, y: 5}

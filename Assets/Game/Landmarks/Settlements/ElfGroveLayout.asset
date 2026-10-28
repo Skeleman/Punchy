@@ -50,3 +50,7 @@ MonoBehaviour:
     Species: {fileID: 11400000, guid: 3f72149bcfbb9624baa908d42fe5278e, type: 2}
     Weight: 1
     Count: 1
+  - Role: 3
+    Species: {fileID: 11400000, guid: ad584df5993190d4895211b957b4d9ff, type: 2}
+    Weight: 1
+    Count: 1

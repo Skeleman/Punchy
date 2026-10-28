@@ -75,6 +75,9 @@ namespace Punchy.Flora
                     case FloraForm.Eggs: Eggs(g); break;
                     case FloraForm.MineFrame: MineFrame(g); break;
                     case FloraForm.Torch: Torch(g); break;
+                    case FloraForm.Bench: Bench(g); break;
+                    case FloraForm.Log: SeatLog(g); break;
+                    case FloraForm.Stump: Stump(g); break;
                     case FloraForm.Bones: Bones(g); break;
                     case FloraForm.Boulder: Boulder(g); break;
                     case FloraForm.Spire: Spire(g); break;
@@ -1175,6 +1178,68 @@ namespace Punchy.Flora
             var head = b.Blob(top, new Vector3(r * 1.6f, r * 2.4f, r * 1.6f), Quaternion.FromToRotation(Vector3.up, top.normalized),
                               g.Lod == 0 ? 1 : 0, 0.2f, g.R() * 100f, g.FoliageColor(), FloraPart.Bark);
             b.Occlude(head, (p, n) => 0.7f);
+        }
+
+        // Seats: fixed sizes (a sitter's hips go at the seat's height, and towns' Sit anchors expect it), scaled by the
+        // prop that places them. Low colliders so walkers go round; a sitter ignores its own seat.
+        public const float BenchSeat = 0.45f, LogSeat = 0.4f, StumpSeat = 0.42f;
+
+        /// <summary>A plank bench on two stone feet, 1.8 m long (along X), its seat 0.45 m up; a sitter faces +Z.</summary>
+        static void Bench(Grower g)
+        {
+            var b = g.B;
+            g.Height = BenchSeat;
+            g.Width = 1.8f;
+            g.TrunkRadius = 0f;
+            var stone = g.FoliageColor();
+            for (int side = -1; side <= 1; side += 2)
+                b.Box(new Vector3(side * 0.62f, (BenchSeat - 0.06f) * 0.5f, 0f), new Vector3(0.22f, BenchSeat - 0.06f, 0.36f),
+                      Quaternion.Euler(0f, g.Range(-3f, 3f), 0f), stone, FloraPart.Bark);
+            // Two planks side by side, a hair apart.
+            for (int k = 0; k < 2; k++)
+                b.Box(new Vector3(0f, BenchSeat - 0.03f, (k - 0.5f) * 0.2f), new Vector3(1.8f, 0.06f, 0.18f),
+                      Quaternion.Euler(0f, g.Range(-1f, 1f), 0f), g.Bark * g.Range(0.92f, 1.05f), FloraPart.Bark);
+            g.Colliders.Add(new Vector4(-0.5f, 0f, 0.3f, BenchSeat));
+            g.Colliders.Add(new Vector4(0.5f, 0f, 0.3f, BenchSeat));
+        }
+
+        /// <summary>A log lying along X to sit on, 1.8 m long, its top 0.4 m up; a sitter faces +Z.</summary>
+        static void SeatLog(Grower g)
+        {
+            var b = g.B;
+            var r = LogSeat * 0.5f;
+            g.Height = LogSeat;
+            g.Width = 1.8f;
+            g.TrunkRadius = 0f;
+            var bend = g.Range(-0.04f, 0.04f);
+            var first = b.VertexCount;
+            b.Tube(new List<Vector3> { new Vector3(-0.9f, r, 0f), new Vector3(0f, r, bend), new Vector3(0.9f, r, 0f) },
+                   new List<float> { r * 0.95f, r, r * 0.92f }, g.Sides(9, 6, 4), g.Bark, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, r * 0.8f));
+            // Pale sawn ends.
+            if (g.Lod < 2)
+                for (int side = -1; side <= 1; side += 2)
+                    b.Blob(new Vector3(side * 0.9f, r, 0f), new Vector3(0.02f, r * 0.9f, r * 0.9f), Quaternion.identity, 0, 0f, 0f,
+                           Color.Lerp(g.Bark, new Color(0.75f, 0.62f, 0.45f).linear, 0.7f), FloraPart.Bark);
+            g.Colliders.Add(new Vector4(-0.5f, 0f, 0.3f, LogSeat));
+            g.Colliders.Add(new Vector4(0.5f, 0f, 0.3f, LogSeat));
+        }
+
+        /// <summary>A sawn stump to sit on, its pale top 0.42 m up.</summary>
+        static void Stump(Grower g)
+        {
+            var b = g.B;
+            var r = g.Range(0.22f, 0.3f);
+            g.Height = StumpSeat;
+            g.Width = r * 2.4f;
+            g.TrunkRadius = 0f;
+            var first = b.VertexCount;
+            b.Tube(new List<Vector3> { Vector3.down * 0.05f, Vector3.up * StumpSeat * 0.5f, Vector3.up * StumpSeat },
+                   new List<float> { r * 1.25f, r * 1.02f, r }, g.Sides(9, 6, 4), g.Bark, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, StumpSeat * 0.5f));
+            b.Blob(Vector3.up * StumpSeat, new Vector3(r * 0.97f, 0.015f, r * 0.97f), Quaternion.identity, 1, 0f, 0f,
+                   Color.Lerp(g.Bark, new Color(0.78f, 0.65f, 0.47f).linear, 0.75f), FloraPart.Bark);
+            g.Colliders.Add(new Vector4(0f, 0f, r + 0.05f, StumpSeat));
         }
 
         static void Bones(Grower g)
