@@ -301,6 +301,20 @@ namespace Punchy.Fauna
                     s.Focus = threat;
                     threatened = false;
                 }
+                // Bats hanging asleep are startled off their roost by someone waving, bowing, cheering or dancing close by:
+                // out along the passages, as at dusk (they come back to roost when they're sleepy again).
+                if (b.Roosts && s.Mode == CreatureMode.Roost && s.Stage == 200 && emote != IdleAction.None &&
+                    math.distance(s.Position, player) < 15f)
+                {
+                    s.Unsettled = rng.NextFloat(40f, 80f);
+                    if (s.LairCave >= 0)
+                    {
+                        s.Stage = (byte)(100 + math.min(s.LairNode, 89));
+                        s.StageTime = 0f;
+                    }
+                    else
+                        NightLoop(ref s, ref b, ref rng);
+                }
                 if (threatened)
                 {
                     if (s.Mode != CreatureMode.Flee)
@@ -691,6 +705,7 @@ namespace Punchy.Fauna
             /// </summary>
             static void Needs(ref CreatureState s, ref CreatureBlob b, float dt)
             {
+                s.Unsettled = math.max(s.Unsettled - dt, 0f);
                 s.Hunger += dt * (0.002f + (b.Grazing + b.Hunger) * 0.003f);
                 s.Thirst += dt * b.Thirst * 0.004f;
                 s.Tired += dt * 0.0015f;
@@ -813,7 +828,8 @@ namespace Punchy.Fauna
                 // Roosting species: hang up to sleep through their sleeping time, and otherwise stay on the wing.
                 if (b.Roosts)
                 {
-                    if (sleepy > 0.5f)
+                    // (Startled off its roost, it flies about a while before it settles again.)
+                    if (sleepy > 0.5f && s.Unsettled <= 0f)
                         StartRoost(ref s, ref b, ref rng);
                     else
                         NightLoop(ref s, ref b, ref rng);

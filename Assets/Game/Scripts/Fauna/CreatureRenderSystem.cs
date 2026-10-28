@@ -67,7 +67,7 @@ namespace Punchy.Fauna
         /// Writes a roost's sleeping bats (count of them): each hangs head down from the ceiling, wings wrapped round, at
         /// a spot spread over the roost picked from its index.
         /// </summary>
-        static int Colony(in Anchor roost, int index, int count, NativeArray<SegmentInstance> output, int at)
+        static int Colony(in Anchor roost, int index, int count, float faded, NativeArray<SegmentInstance> output, int at)
         {
             var rng = new Unity.Mathematics.Random(math.hash(new int2(index, 0xBA7)) | 1u);
             var fur = new float4(0.2f, 0.15f, 0.11f, 0f);
@@ -82,15 +82,16 @@ namespace Punchy.Fauna
                 var side = new float3(math.cos(facing), 0f, math.sin(facing));
                 var hang = quaternion.LookRotationSafe(down, side);
                 // Body, head below it, and the two folded wings either side.
-                output[at++] = Part(top, hang, 0.09f * size, 0.032f * size, 0.026f * size, 1f, fur);
-                output[at++] = Part(top + down * 0.1f * size, hang, 0.015f * size, 0.022f * size, 0.02f * size, 1f, fur);
+                output[at++] = Part(top, hang, 0.09f * size, 0.032f * size, 0.026f * size, 1f, fur, faded);
+                output[at++] = Part(top + down * 0.1f * size, hang, 0.015f * size, 0.022f * size, 0.02f * size, 1f, fur, faded);
                 for (int w = -1; w <= 1; w += 2)
-                    output[at++] = Part(top + side * w * 0.025f * size, hang, 0.1f * size, 0.03f * size, 0.02f * size, 0.25f, wing);
+                    output[at++] = Part(top + side * w * 0.025f * size, hang, 0.1f * size, 0.03f * size, 0.02f * size, 0.25f, wing, faded);
             }
             return at;
         }
 
-        static SegmentInstance Part(float3 from, quaternion rotation, float length, float r0, float r1, float flatten, float4 colour) =>
+        static SegmentInstance Part(float3 from, quaternion rotation, float length, float r0, float r1, float flatten, float4 colour,
+                                    float faded = 0f) =>
             new SegmentInstance
             {
                 Position = from,
@@ -99,8 +100,36 @@ namespace Punchy.Fauna
                 RadiusStart = r0,
                 RadiusEnd = r1,
                 Flatten = flatten,
+                Pad = faded,
                 Color = colour
             };
+
+        /// <summary>
+        /// When each roost's colony was last scattered (roost index → time): someone waving, bowing, cheering or dancing
+        /// near it sends its sleeping bats off. Every machine sees the same players' poses, so they all scatter it.
+        /// </summary>
+        readonly System.Collections.Generic.Dictionary<int, float> scattered = new System.Collections.Generic.Dictionary<int, float>();
+        const float ScatterTime = 60f;
+
+        /// <summary>How far out of sight a roost's colony is (0 there, 1 gone): gone in a second, back over a few.</summary>
+        float ColonyFade(int roost, in Anchor anchor, NativeList<float3> emoting, float now)
+        {
+            foreach (var p in emoting)
+                if (math.distance(p, anchor.Position) < 15f)
+                {
+                    if (!scattered.TryGetValue(roost, out var since) || now - since > ScatterTime)
+                        scattered[roost] = now;
+                }
+            if (!scattered.TryGetValue(roost, out var at))
+                return 0f;
+            var t = now - at;
+            if (t > ScatterTime + 4f)
+            {
+                scattered.Remove(roost);
+                return 0f;
+            }
+            return math.saturate(t / 1f) * (1f - math.saturate((t - ScatterTime) / 4f));
+        }
 
         /// <summary>A spider sitting in its web (only then is the web drawn, and room made for it).</summary>
         static bool InWeb(in CreatureState s) => s.Mode == CreatureMode.Web && s.Stage >= 2 && s.Stage <= 4;
@@ -117,6 +146,7 @@ namespace Punchy.Fauna
             var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
             var offsets = new NativeArray<int>(bodies.Length, Allocator.TempJob);
             var hanging = new NativeList<float3>(8, Allocator.Temp);
+            var emoting = new NativeList<float3>(2, Allocator.Temp);
             var total = 0;
             for (int i = 0; i < bodies.Length; i++)
             {
@@ -125,6 +155,9 @@ namespace Punchy.Fauna
                          LairCount(ref bodies[i].Blob.Value) + (states[i].Task == CreatureTask.Hunt ? 1 : 0);
                 if (states[i].Mode == CreatureMode.Roost && states[i].Stage == 200)
                     hanging.Add(states[i].Position);
+                // (Bodies of players emoting: their gestures scatter colonies.)
+                if (states[i].Mode == CreatureMode.Puppet && states[i].Action >= IdleAction.Wave)
+                    emoting.Add(states[i].Position);
             }
             bodies.Dispose();
             states.Dispose();
@@ -140,6 +173,8 @@ namespace Punchy.Fauna
             // (Less any real bats hanging there now, so they don't double up with the drawn ones.)
             var colonyStart = total;
             var colonySizes = new NativeArray<int>(roosts.Length, Allocator.Temp);
+            var colonyFades = new NativeArray<float>(roosts.Length, Allocator.Temp);
+            var now = (float)SystemAPI.Time.ElapsedTime;
             for (int i = 0; i < roosts.Length; i++)
             {
                 var roost = terrain.Anchors.Value.Anchors[roosts[i]];
@@ -147,10 +182,12 @@ namespace Punchy.Fauna
                 foreach (var p in hanging)
                     if (math.distance(p, roost.Position) < roost.Size + 0.6f)
                         real++;
-                colonySizes[i] = math.max(ColonySize(roost, roosts[i], night) - real, 0);
+                colonyFades[i] = ColonyFade(roosts[i], roost, emoting, now);
+                colonySizes[i] = colonyFades[i] >= 1f ? 0 : math.max(ColonySize(roost, roosts[i], night) - real, 0);
                 total += colonySizes[i] * BatParts;
             }
             hanging.Dispose();
+            emoting.Dispose();
 
             // Footprints and feathers (TraceSystem).
             var traces = World.GetExistingSystemManaged<TraceSystem>();
@@ -175,8 +212,9 @@ namespace Punchy.Fauna
             Dependency.Complete();
             var at = colonyStart;
             for (int i = 0; i < roosts.Length; i++)
-                at = Colony(terrain.Anchors.Value.Anchors[roosts[i]], roosts[i], colonySizes[i], instances, at);
+                at = Colony(terrain.Anchors.Value.Anchors[roosts[i]], roosts[i], colonySizes[i], colonyFades[i], instances, at);
             colonySizes.Dispose();
+            colonyFades.Dispose();
             if (traceCount > 0)
                 at = traces.Write(instances, at, (float)SystemAPI.Time.ElapsedTime);
 

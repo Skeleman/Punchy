@@ -335,6 +335,8 @@ namespace Punchy.Fauna
         // Needs, 0 (satisfied) to 1 (pressing): they rise with time by the species' tastes and are eased by the
         // activity that meets them; what it decides to do next is weighted by them. Simulation only (not sent).
         public float Hunger, Thirst, Tired, Lonely;
+        /// <summary>Seconds left before a startled animal will settle again (a bat waved off its roost). Simulation only.</summary>
+        public float Unsettled;
     }
 
     /// <summary>One segment as the creature shader draws it (a tapered capsule). Must match Creature.shader.</summary>
