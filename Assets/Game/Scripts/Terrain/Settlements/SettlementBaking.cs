@@ -38,8 +38,9 @@ namespace Punchy.Terrain
             foreach (var layout in Layouts(types))
             {
                 list.AddRange(layout.Buildings);
-                // Then the water feature, one slot per layout (empty if it has none).
+                // Then the water feature and the signpost, one slot each per layout (empty if it has none).
                 list.Add(new SettlementBuilding { Role = PlotRole.Well, Species = layout.WaterFeature, Count = 1 });
+                list.Add(new SettlementBuilding { Role = PlotRole.Signpost, Species = layout.Signpost, Count = 1 });
             }
             return list;
         }
@@ -58,7 +59,7 @@ namespace Punchy.Terrain
             foreach (var layout in layouts)
             {
                 firstBuilding.Add(count);
-                count += layout.Buildings.Count + 1;
+                count += layout.Buildings.Count + 2;
             }
 
             for (int i = 0; i < landmarks.Instances.Length; i++)
@@ -71,6 +72,7 @@ namespace Punchy.Terrain
                 new Planner(source, type, type.Settlement, inst, i, settlements.Count, firstBuilding[index], streets, plots)
                     .Lay(index, settlements);
             }
+            RoadBaking.Build(source, layouts, firstBuilding, settlements, streets, plots);
             return BuildBlob(layouts, firstBuilding, settlements, streets, plots, allocator);
         }
 
@@ -559,7 +561,7 @@ namespace Punchy.Terrain
                     HasStreetSurface = layouts[i].StreetSurface != null ? 1 : 0,
                     Street = layouts[i].StreetSurface != null ? BiomeBaking.SurfaceData(layouts[i].StreetSurface) : default,
                     FirstBuilding = firstBuilding[i],
-                    BuildingCount = layouts[i].Buildings.Count + 1,
+                    BuildingCount = layouts[i].Buildings.Count + 2,
                     BuildingScale = layouts[i].BuildingScale
                 };
             var s = builder.Allocate(ref root.Settlements, settlements.Count);

@@ -28,6 +28,8 @@ MonoBehaviour:
   StreetSurface: {fileID: 11400000, guid: ecea3f6b2f4ee2b43a871edb5ff556dd, type: 2}
   BuildingScale: 1
   WaterFeature: {fileID: 11400000, guid: 7c9534dc8b6f9f44caa5189be1a27130, type: 2}
+  RoadWidth: 2.6
+  Signpost: {fileID: 11400000, guid: 4b43cc542a9e3e446a95fb86645732a1, type: 2}
   Buildings:
   - Role: 0
     Species: {fileID: 11400000, guid: 9489889349a8ee841828b661e601628b, type: 2}

@@ -34,7 +34,9 @@ namespace Punchy.Terrain
         Workshop,
         Stable,
         /// <summary>A well or fountain on the square (the layout's Water Feature), where the landmark doesn't place one.</summary>
-        Well
+        Well,
+        /// <summary>A signpost where a road leaves the settlement (the layout's Signpost).</summary>
+        Signpost
     }
 
     /// <summary>One kind of building a settlement puts on its plots.</summary>
@@ -91,6 +93,11 @@ namespace Punchy.Terrain
         [Min(0.3f)] public float BuildingScale = 1f;
         [Tooltip("A well or fountain placed on the square if the landmark doesn't place one itself.")]
         public Punchy.Flora.FloraSpecies WaterFeature;
+        [Header("Roads")]
+        [Tooltip("Width of the roads that leave this settlement for others (m). They're paved with Street Surface.")]
+        [Min(1f)] public float RoadWidth = 3.2f;
+        [Tooltip("Stands where each road leaves the settlement.")]
+        public Punchy.Flora.FloraSpecies Signpost;
         public List<SettlementBuilding> Buildings = new List<SettlementBuilding>();
     }
 }
