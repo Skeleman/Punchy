@@ -218,10 +218,12 @@ namespace Punchy.Fauna
 
             // Networked: each player's, from their command.
             var ghosts = default(NativeHashMap<int, Entity>);
+            var present = new NativeHashSet<int>(8, Allocator.Temp);
             foreach (var (command, owner, t) in SystemAPI.Query<RefRO<NetPlayerCommand>, RefRO<GhostOwner>, RefRO<LocalTransform>>().WithAll<NetPlayer>())
             {
                 var c = command.ValueRO;
                 var holder = Interactions.HolderId(owner.ValueRO.NetworkId);
+                present.Add(holder);
                 if (c.Act == 0 || handled.TryGetValue(holder, out var last) && last == c.ActSerial)
                     continue;
                 if (!ghosts.IsCreated)
@@ -233,6 +235,17 @@ namespace Punchy.Fauna
                 ghosts.TryGetValue(c.ActTarget, out var target);
                 Handle(holder, (InteractAct)c.Act, c.ActSerial, target, t.ValueRO, terrain);
             }
+            // Forget players who have left: a NetworkId is reused, and a newcomer's first request could match the old
+            // serial and be skipped. (Alone, the one player is HolderId(0) and never leaves.)
+            if (handled.Count > present.Count + 1)
+            {
+                var keys = handled.GetKeyArray(Allocator.Temp);
+                foreach (var k in keys)
+                    if (k != Interactions.HolderId(0) && !present.Contains(k))
+                        handled.Remove(k);
+                keys.Dispose();
+            }
+            present.Dispose();
         }
 
         void Handle(int holder, InteractAct act, byte serial, Entity target, in LocalTransform player, in TerrainSource terrain)
