@@ -22,6 +22,7 @@ Shader "Punchy/Grass Blades"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
+            #include "Glow.hlsl"
             #include "GroundDetail.hlsl"
 
             StructuredBuffer<Blade> _Blades;
@@ -62,7 +63,8 @@ Shader "Punchy/Grass Blades"
                 half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
                 half wrap = saturate(dot(n, light.direction) * 0.6 + 0.4);
                 half through = pow(saturate(dot(-v, light.direction)), 4) * t * 0.6;   // sunlight through the blade
-                half3 color = albedo * (light.color * shadow * (wrap + through) + SampleSH(n));
+                // Glowing plants and molten pools nearby light the grass round them too.
+                half3 color = albedo * (light.color * shadow * (wrap + through) + SampleSH(n) + PunchyGlowLight(input.positionWS, n));
 
                 color = PunchyAtmosphere(color, input.positionWS);
                 return half4(color, 1);
