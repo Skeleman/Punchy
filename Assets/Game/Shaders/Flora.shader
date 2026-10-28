@@ -8,6 +8,8 @@ Shader "Punchy/Flora"
         // Not a real setting: a material property outside UnityPerMaterial keeps these draws off the SRP Batcher,
         // which doesn't pass the per-draw unity_BaseCommandID that Flora.hlsl reads its draw's region by.
         [HideInInspector] _FloraNoBatcher("", Float) = 0
+        // 1 on CaveSystem's copy: cave plants are lit as underground wherever the camera is (see Frag).
+        [HideInInspector] _FloraInCave("", Float) = 0
     }
     SubShader
     {
@@ -63,7 +65,8 @@ Shader "Punchy/Flora"
                 int part = (int)round(input.extra.x);
                 bool leafy = part == 1 || part == 2 || part == 5;
                 bool metal = part == 4;
-                half3 n = normalize(input.normalWS);
+                // Thin tapered strands (roots, stems) can end in a degenerate normal; a NaN there blooms into a bright fleck.
+                half3 n = SafeNormalize(input.normalWS);
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
 
                 // Per-plant tint: brightness, and leaves a little yellower or bluer.
@@ -103,8 +106,11 @@ Shader "Punchy/Flora"
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
                 // Underground (cave plants, seen from a cave) the sun and sky don't reach; the player's lantern does.
-                shadow *= 1 - _PunchyUnderground;
-                half3 sky = SampleSH(n) * lerp(1, 0.06, _PunchyUnderground);
+                // Cave plants are underground whatever the camera's depth: no direct sun (nor light through leaves, nor
+                // sheen, which made roots flare against the sun from near a mouth), and only a little of the sky's
+                // ambient (the daylight spilling in at a mouth).
+                shadow *= (1 - _PunchyUnderground) * (1 - _FloraInCave);
+                half3 sky = SampleSH(n) * lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));
                 // Glowing plants and molten pools nearby (their own glow included, softly).
                 sky += PunchyGlowLight(input.positionWS, n);
                 if (_PunchyLantern.w > 0)

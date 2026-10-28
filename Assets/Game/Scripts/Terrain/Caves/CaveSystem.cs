@@ -138,6 +138,7 @@ namespace Punchy.Terrain
 
         static readonly int DetailId = Shader.PropertyToID("_PunchyCaveDetail");
         static readonly int DetailReadyId = Shader.PropertyToID("_PunchyCaveDetailReady");
+        static readonly int FloraInCaveId = Shader.PropertyToID("_FloraInCave");
         static Texture2D detail;
 
         void OnEnable()
@@ -422,6 +423,8 @@ namespace Punchy.Terrain
                 floraMaterial = flora != null && flora.Material != null ? new Material(flora.Material) { name = "Cave flora" } : null;
                 if (floraMaterial == null)
                     return;
+                // Lit as underground wherever the camera is (no sun on roots in the cave's ceiling).
+                floraMaterial.SetFloat(FloraInCaveId, 1f);
             }
             var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
             if (palette != plantsFrom)

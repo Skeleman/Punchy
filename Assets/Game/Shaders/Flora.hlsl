@@ -26,6 +26,7 @@ StructuredBuffer<uint2> _FloraVisible;
 #define UNITY_INDIRECT_DRAW_ARGS IndirectDrawIndexedArgs
 #include "UnityIndirect.cginc"
 float _FloraNoBatcher;   // see Flora.shader's Properties
+float _FloraInCave;      // 1 for cave plants (CaveSystem's copy of the material)
 float2 _PunchyWindDirection;
 half _PunchyWind;
 // 0 above ground, 1 with the camera deep in a cave; the player's lantern (xyz position, w strength) and its colour
