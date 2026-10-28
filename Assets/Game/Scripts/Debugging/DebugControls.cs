@@ -374,7 +374,7 @@ namespace Punchy.Debugging
                         continue;
                     var g = terrainQuery.GetSingleton<TerrainSource>().SampleGround(c.Position.xz);
                     var swimming = g.HasWater && c.Position.y < g.WaterSurface - 0.2f;
-                    var busy = swimming || c.Mode == CreatureMode.Climb || c.Mode == CreatureMode.Web || c.Fly > 0.5f ||
+                    var busy = swimming || c.Mode == CreatureMode.Flee && c.Speed > 2f || c.Mode == CreatureMode.Climb || c.Mode == CreatureMode.Web || c.Fly > 0.5f ||
                                c.Action != IdleAction.None || c.Mode == CreatureMode.Hunt || c.Mode == CreatureMode.Burrow || c.Mode == CreatureMode.Roost;
                     var score = math.distance(c.Position, player.Position) - (busy ? 1000f : 0f) - (c.Fly > 0.5f ? 1000f : 0f);
                     if (score < best)
