@@ -190,6 +190,7 @@ namespace Punchy.Terrain
                     Style = style != null ? styles.IndexOf(style) + 1 : 0,
                     Profile = profile,
                     Wall = wall,
+                    Facet = style != null ? new float2(style.Angularity, style.FacetSize) : float2.zero,
                     Rock = rock
                 });
             }

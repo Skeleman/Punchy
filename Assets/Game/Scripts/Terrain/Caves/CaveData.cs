@@ -38,6 +38,8 @@ namespace Punchy.Terrain
         public float4 Wall;
         /// <summary>The style's Jaggedness, FloorFlatness, FloorSteps and Blockiness.</summary>
         public float4 Rock;
+        /// <summary>The style's Angularity and FacetSize.</summary>
+        public float2 Facet;
         public int FirstPool, PoolCount;
         public int FirstStream, StreamCount;
     }
@@ -163,7 +165,7 @@ namespace Punchy.Terrain
         const float SkipBeyond = 1.5f;
 
         /// <summary>Most a cave's wall and ceiling noise can move its walls.</summary>
-        public static float WallReach(in CaveData c) => NoiseReach * c.Wall.x + JaggedReach * c.Rock.x + 0.45f * c.Wall.z;
+        public static float WallReach(in CaveData c) => NoiseReach * c.Wall.x + JaggedReach * c.Rock.x + 0.45f * c.Wall.z + 0.64f * c.Facet.y * c.Facet.x;
 
         /// <summary>
         /// How far beyond a segment's radius its box reaches, before wall noise. Past the blend and the noise, the
@@ -277,6 +279,20 @@ namespace Punchy.Terrain
                 var jag = (ridge * ridge - 0.45f) * 0.9f + (crease - 0.5f) * 0.35f;
                 var blocks = c.Rock.w > 0f ? math.min(0f, noise.snoise(math.floor(p * (1f / 1.7f)) * 0.37f + s)) * 0.6f * c.Rock.w * math.smoothstep(0.45f, 1f, up) : 0f;
                 n += (jag + blocks) * c.Rock.x * math.smoothstep(0.2f, 0.75f, up);
+            }
+            // Angular faces: three sawtooth waves across directions set per cave add up to a relief that is flat
+            // between creases, so the walls break into planes meeting at sharp edges. Continuous (the field stays
+            // steady), and off the floor like the ribs.
+            if (c.Facet.x > 0f && up > 0.06f)
+            {
+                var tri = 0f;
+                for (int i = 0; i < 3; i++)
+                {
+                    var a = c.Seed * (2.3f + i * 1.7f) + i * 2.1f;
+                    var dir = math.normalize(new float3(math.sin(a), math.cos(a * 1.3f) * 0.8f, math.cos(a)));
+                    tri += math.abs(math.frac(math.dot(p, dir) / c.Facet.y + i * 0.37f) - 0.5f);
+                }
+                n += (tri - 0.75f) * c.Facet.y * 0.85f * c.Facet.x * math.smoothstep(0.06f, 0.3f, up);
             }
             // Ribs (melt-scalloped ice), with scooped hollows between (about 0.45 m deep at full Ribs). Off the floor, so
             // FloorUnder's march isn't affected.

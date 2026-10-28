@@ -171,9 +171,15 @@ Shader "Punchy/Cave"
                 float4 detail = Detail(p, shape, s7.y, nudge);
                 n = normalize(n + nudge * s7.x * (1 - terrain) * (1 - slick));
 
-                // Crystal: each lattice cell of the wall tilts its normal its own way, so flat faces flash in turn.
+                // Faceted rock (ore, crystal): each triangle shaded with its own flat face normal (from screen
+                // derivatives), so the angular walls read as planes meeting at sharp edges, each catching the light
+                // on its own.
                 if (facets > 0)
-                    n = normalize(n + facets * 1.4 * FacetHash(int3(floor(p * 1.7))));
+                {
+                    float3 face = normalize(cross(ddy(p), ddx(p)));
+                    face *= dot(face, shape) < 0 ? -1 : 1;
+                    n = normalize(lerp(n, face, facets));
+                }
 
                 // Rock: two tones in blotches and strata, darker in the hollows (rgb carries a per-vertex tint). Raised
                 // detail takes the light tone (frost on ice), sunken detail the dark one (deep blue in its recesses).

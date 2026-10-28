@@ -34,6 +34,10 @@ namespace Punchy.Terrain
         [Range(0f, 1f)] public float Ribs;
         [Tooltip("Space between ribs (m).")]
         [Range(0.8f, 4f)] public float RibSpacing = 1.6f;
+        [Tooltip("Flat faces meeting in sharp edges across the walls and ceiling (ore bodies, crystal): 0 = none.")]
+        [Range(0f, 1f)] public float Angularity;
+        [Tooltip("Size of those faces (m).")]
+        [Range(1f, 6f)] public float FacetSize = 2.5f;
         [Tooltip("How straight the passages run (1 = dug: straight drifts of even width, side passages at right " +
                  "angles, as a mine; 0 = winding natural passages).")]
         [Range(0f, 1f)] public float Straightness;

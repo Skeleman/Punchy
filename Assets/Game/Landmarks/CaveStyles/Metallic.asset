@@ -16,12 +16,14 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 68e89c7ddec9ab245918187f5662a6c2, type: 2}
   Width: 1
   Height: 1.1
-  Roughness: 0.9
+  Roughness: 0.3
   Grain: 1.2
-  Jaggedness: 1.05
-  Blockiness: 0.4
+  Jaggedness: 0.35
+  Blockiness: 0.1
   Ribs: 0
   RibSpacing: 1.6
+  Angularity: 1
+  FacetSize: 2.2
   Straightness: 0
   Frame: {fileID: 0}
   FrameSpacing: 4
@@ -73,7 +75,7 @@ MonoBehaviour:
   FloorDark: {r: 0.08, g: 0.075, b: 0.075, a: 1}
   FloorGrit: 0.6
   FloorGloss: 0.45
-  Detail: 0.35
+  Detail: 0.08
   DetailScale: 1.8
   Sheen: 0.5
   GlowColor: {r: 1, g: 0.5, b: 0.22, a: 1}
