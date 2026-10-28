@@ -75,7 +75,7 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
 | 1 | `CLAUDE.md` | Animal behavior manager | Pointer to `GLOSSARY.md` (J-004) | Written, uncommitted, waiting on Zach's direct word |
 | 2 | `TerrainSurface.shader`, `BuildChunkMeshJob.cs` | world feature manager | Wet band above the waterline (3b), additive, animal session OK'd | Done (5e971a1) |
 | 3 | `Scenes/World.unity` | Animal behavior manager | Remove the placeholder Body/Visor capsule from Player (feedback A-3) | Done (9887b9a) |
-| 4 | `Grass.shader` | world feature manager | Glow lighting on grass (W-18), two lines, additive, animal session told | Lent |
+| 4 | `Grass.shader`, `GroundDetail.hlsl`, `GroundDetailSystem.cs` | world feature manager | Glow on grass (W-18), noise wind and density (19b/c); animal session told | Lent |
 
 ## Open questions
 
