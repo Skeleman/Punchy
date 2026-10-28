@@ -147,6 +147,18 @@ namespace Punchy.Terrain
             }
         }
 
+        /// <summary>One of a landmark's pools: its centre at its water level, and its radius (for drawing it).</summary>
+        public static void Pool(ref LandmarkSetBlob set, int instance, int index, out float3 centre, out float radius)
+        {
+            ref var inst = ref set.Instances[instance];
+            ref var type = ref set.Types[inst.Type];
+            ref var pool = ref set.Pools[type.FirstPool + index];
+            var r = type.Radius * inst.Scale;
+            var xz = ToWorld(inst, pool.Offset, r);
+            centre = new float3(xz.x, PoolLevel(ref inst, ref type, ref pool, r), xz.y);
+            radius = pool.Radius * r;
+        }
+
         /// <summary>The water level of one of a landmark's pools.</summary>
         static float PoolLevel(ref LandmarkInstance inst, ref LandmarkTypeData type, ref LandmarkPoolData pool, float radius)
         {
@@ -181,7 +193,9 @@ namespace Punchy.Terrain
                         continue;
                     var level = PoolLevel(ref inst, ref type, ref pool, hit.Radius);
                     h = math.max(h, math.lerp(level + 0.25f, h, math.smoothstep(r * 1.15f, r * 1.5f, dp)));
-                    var bowl = level - 0.1f - pool.Depth * math.smoothstep(r, r * 0.35f, dp) + math.max(dp - r, 0f) * 2f;
+                    // The bank rises gently out of the water (0.6 m per metre), so the shore line falls across the terrain
+                    // grid smoothly instead of a near-vertical step between two vertices (ragged shards of water).
+                    var bowl = level - 0.1f - pool.Depth * math.smoothstep(r, r * 0.35f, dp) + math.max(dp - r, 0f) * 0.6f;
                     h = math.min(h, bowl);
                 }
             }

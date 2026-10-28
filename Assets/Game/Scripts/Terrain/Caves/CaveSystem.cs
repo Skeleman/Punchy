@@ -204,6 +204,7 @@ namespace Punchy.Terrain
                 c.Dispose();
             dying.Clear();
             columns.Clear();
+            ReleaseLandmarkPools();
             lastCameraChunk = new int3(int.MinValue);
             Underground = 0f;
             Shader.SetGlobalFloat(UndergroundId, 0f);
@@ -540,7 +541,10 @@ namespace Punchy.Terrain
         /// A unit disc in the terrain's water vertex layout: no flow, deepest at the middle (lava cools and crusts
         /// towards the rim), in the given look and lava amount.
         /// </summary>
-        static Mesh MakePoolMesh(float4 look, float lava)
+        static Mesh MakePoolMesh(float4 look, float lava) => MakePoolMesh(look, new float2(0f, lava));
+
+        /// <summary>The same disc with a self-glow too (toxic pools): glow x, lava y.</summary>
+        static Mesh MakePoolMesh(float4 look, float2 glow)
         {
             const int rings = 6, spokes = 32;
             var vertices = new List<WaterVertex> { Vertex(float2.zero) };
@@ -575,8 +579,74 @@ namespace Punchy.Terrain
                 Position = new float3(xz.x, 0f, xz.y),
                 Data = new float4(0f, 0f, 1f - math.lengthsq(xz), 0f),
                 Look = look,
-                Glow = new float2(0f, lava)
+                Glow = glow
             };
+        }
+
+        // ------------------------------------------------------------------------------------------- landmark pools
+
+        /// <summary>A landmark's pool, drawn as a smooth disc (the terrain's water grid leaves it out).</summary>
+        struct LandmarkPool
+        {
+            public float3 Centre;
+            public float Radius;
+            public Mesh Mesh;
+        }
+
+        readonly List<LandmarkPool> landmarkPools = new List<LandmarkPool>();
+        BlobAssetReference<LandmarkSetBlob> landmarkPoolsFrom;
+
+        /// <summary>
+        /// Draws every landmark pool (oases, hot springs, toxic pools, crater lava) within LoadRadius with the terrain's
+        /// water material: a disc a tenth wider than the pool, so its rim tucks under the gentle bank, in the water look
+        /// the terrain would give it there. A small pool spanned only a few quads of the terrain's water grid, which
+        /// left a ragged edge. One mesh per pool, built when the landmarks change.
+        /// </summary>
+        void DrawLandmarkPools(in TerrainSource source, float3 camPos)
+        {
+            if (!source.Landmarks.IsCreated || configQuery.IsEmpty)
+                return;
+            var water = configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value;
+            if (water == null)
+                return;
+            if (landmarkPoolsFrom != source.Landmarks)
+            {
+                ReleaseLandmarkPools();
+                landmarkPoolsFrom = source.Landmarks;
+                ref var set = ref source.Landmarks.Value;
+                for (int i = 0; i < set.Instances.Length; i++)
+                {
+                    ref var type = ref set.Types[set.Instances[i].Type];
+                    for (int p = 0; p < type.PoolCount; p++)
+                    {
+                        LandmarkSampling.Pool(ref set, i, p, out var centre, out var radius);
+                        var look = source.WaterLook(centre.xz, source.SampleGround(centre.xz).Biomes, out var glow);
+                        var mesh = MakePoolMesh(look, glow);
+                        mesh.name = "Landmark pool";
+                        landmarkPools.Add(new LandmarkPool { Centre = centre, Radius = radius * 1.1f, Mesh = mesh });
+                    }
+                }
+            }
+            foreach (var pool in landmarkPools)
+            {
+                if (math.distance(pool.Centre, camPos) > LoadRadius + pool.Radius)
+                    continue;
+                var rp = new RenderParams(water)
+                {
+                    worldBounds = new Bounds(pool.Centre, new Vector3(pool.Radius * 2f, 1f, pool.Radius * 2f)),
+                    shadowCastingMode = ShadowCastingMode.Off,
+                    receiveShadows = true
+                };
+                Graphics.RenderMesh(rp, pool.Mesh, 0, Matrix4x4.TRS(pool.Centre, Quaternion.identity, new Vector3(pool.Radius, 1f, pool.Radius)));
+            }
+        }
+
+        void ReleaseLandmarkPools()
+        {
+            foreach (var pool in landmarkPools)
+                Destroy(pool.Mesh);
+            landmarkPools.Clear();
+            landmarkPoolsFrom = default;
         }
 
         void Update()
@@ -589,10 +659,11 @@ namespace Punchy.Terrain
                 Release();
                 lastSource = source;
             }
+            var camPos = (float3)cam.transform.position;
+            DrawLandmarkPools(source, camPos);
             if (!source.Caves.IsCreated)
                 return;
 
-            var camPos = (float3)cam.transform.position;
             UploadStyles();
             Stream(source, camPos);
             Draw();

@@ -131,7 +131,16 @@ namespace Punchy.Terrain
                 var cave = cutHoles ? Source.CaveClearance(world, h) : 100f;
                 vertex.Morph = new float4(request.MorphRange, surface.Bump, cave);
                 verts[z * v + x] = vertex;
-                water[z * v + x] = new float4(ground.WaterSurface, ground.Flow, h);
+                // Landmark pools are left out of the sheet: CaveSystem draws each as a smooth disc (a small pool spans
+                // only a few quads of this grid, which gave it a ragged edge).
+                var sheet = ground.WaterSurface;
+                if (Source.Landmarks.IsCreated)
+                {
+                    var pool = LandmarkSampling.PoolWater(ref Source.Landmarks.Value, world, out var claim);
+                    if (claim > 0f && pool >= ground.WaterSurface - 0.001f)
+                        sheet = GroundSample.NoWater;
+                }
+                water[z * v + x] = new float4(sheet, ground.Flow, h);
                 rapids[z * v + x] = ground.Rapids;
                 looks[z * v + x] = Source.WaterLook(world, ground.Biomes, out var glow);
 
