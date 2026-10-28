@@ -772,6 +772,9 @@ namespace Punchy.Fauna
                     return;
                 }
                 // Burrowers sleep down their burrow (digging one where they are if they have none yet).
+                if (b.Burrows && s.AnchorSize < 0f && s.Leash <= 0f &&
+                    math.any((float2)s.Anchor.xz != (math.floor(s.Position.xz / 16f) + 0.5f) * 16f))
+                    s.AnchorSize = 0f;   // somewhere new since it last found no room: look again
                 if (b.Burrows && sleep > 0f && sleepy > 0.5f && (s.AnchorSize > 0f || s.AnchorSize == 0f && DigBurrow(ref s, ref b, ref rng)))
                 {
                     SetMode(ref s, CreatureMode.Burrow);
@@ -1410,7 +1413,10 @@ namespace Punchy.Fauna
                     s.AnchorSize = math.max(b.BodyLength * s.Scale * 0.8f, 0.18f);
                     return true;
                 }
-                s.AnchorSize = -1f;   // no room here: don't keep trying
+                // No room here: don't keep trying in this place (Anchor remembers which), but a wild one tries again once
+                // it has moved on to another cell.
+                s.AnchorSize = -1f;
+                s.Anchor = new float3(near.x, 0f, near.y);
                 return false;
             }
 
