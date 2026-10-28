@@ -18,8 +18,10 @@ MonoBehaviour:
   Height: 1.7
   Roughness: 1.3
   Grain: 0.8
-  Jaggedness: 1.2
+  Jaggedness: 1.4
   Blockiness: 0.5
+  Ribs: 0
+  RibSpacing: 1.6
   FloorFlatness: 0.7
   FloorSteps: 0.7
   Burrows: 0
@@ -29,7 +31,7 @@ MonoBehaviour:
   Hanging: 0.5
   Columns: 0.25
   Drips: 0.2
-  Rubble: 6
+  Rubble: 15
   RubbleSize: 0.8
   Moss: 0.15
   MossColor: {r: 0.22, g: 0.32, b: 0.12, a: 1}
