@@ -112,6 +112,22 @@ namespace Punchy.Fauna
             // Hanging head down in a web, the body sits right at its anchor (the web's centre).
             var hang = s.Mode == CreatureMode.Web || s.Mode == CreatureMode.Roost ? math.saturate(-s.Vertical) : 0f;
             var rootPos = new float3(s.Position.x, ground, s.Position.z) + new float3(0f, lift * (1f - up - hang), 0f) - forward * lift * up;
+            // A crawler on a rock face, a wall or a ceiling lies on it: its back to the open, its head the way it's going
+            // (straight up the face if it's heading into it), standing off the surface on its legs.
+            var crawling = false;
+            if (b.Crawls)
+            {
+                var surfaceUp = CreatureMotion.Surface(terrain, s.Position, out var steep, out _);
+                if (steep)
+                {
+                    crawling = true;
+                    var along = forward - surfaceUp * math.dot(forward, surfaceUp);
+                    if (math.lengthsq(along) < 0.04f)
+                        along = new float3(0f, 1f, 0f) - surfaceUp * surfaceUp.y;
+                    rootRot = math.mul(quaternion.LookRotationSafe(math.normalizesafe(along, forward), surfaceUp), quaternion.RotateZ(roll));
+                    rootPos = s.Position + surfaceUp * (height - bob);
+                }
+            }
 
             // Body.
             ref var body = ref b.Segments[0];
@@ -262,7 +278,7 @@ namespace Punchy.Fauna
                 }
 
                 if (part.Role == LimbRole.Leg && part.Parent < 0 && part.SegmentCount >= 2 && part.FirstSegment + part.SegmentCount <= MaxSegments &&
-                    !busyLeg && s.Fly < 0.5f && up < 0.5f)
+                    !busyLeg && s.Fly < 0.5f && up < 0.5f && !crawling)
                 {
                     // Where the ground would be under this foot if it were the flat, sloped plane the body is
                     // standing on, versus where it really is: bend the leg by the difference.
@@ -275,6 +291,29 @@ namespace Punchy.Fauna
                     var correction = ((actual - nominal) * (1f - fold) + (folds ? 0f : lowered)) * (1f - airborne);
                     correction = math.clamp(correction, -0.45f * reach, 0.45f * reach);
                     pos += PlaceFoot(ref b, ref part, ref segPos, ref segRot, new float3(0f, correction, 0f), scale);
+
+                    // Heel and toe (an upright body walking, fading out into a run): the foot comes down heel first,
+                    // toes up, lies flat through the middle of the step, then rolls up onto its toes to push off (the
+                    // toes staying put and the heel rising, the leg bending to let it), and swings through to the next
+                    // heel strike.
+                    var walking = move * (1f - run);
+                    if (b.Upright && part.SegmentCount == 3 && walking > 0.01f)
+                    {
+                        var fs = part.FirstSegment + 2;
+                        var len = b.Segments[fs].Length * scale;
+                        var footRoll = walking * HeelToe(phase);
+                        var right = math.mul(segRot[fs], new float3(1f, 0f, 0f));
+                        var turned = math.mul(quaternion.AxisAngle(right, footRoll), segRot[fs]);
+                        if (footRoll > 0f)
+                        {
+                            // Up on the toes: the ankle lifts so the toe end stays where it was.
+                            var toe = segPos[fs] + math.mul(segRot[fs], new float3(0f, 0f, len));
+                            PlaceFoot(ref b, ref part, ref segPos, ref segRot, toe - math.mul(turned, new float3(0f, 0f, len)) - segPos[fs], scale);
+                        }
+                        segRot[fs] = turned;
+                        pos = segPos[fs] + math.mul(turned, new float3(0f, 0f, len));
+                        rot = turned;
+                    }
                 }
 
                 endPos.Add(pos);
@@ -583,6 +622,21 @@ namespace Punchy.Fauna
                 default:
                     return float3.zero;
             }
+        }
+
+        /// <summary>
+        /// A walking foot's roll through its step (radians, + toes down): toes up at the heel strike, flat through the
+        /// stance, up on the toes at push-off, then back round to toes-up for the next strike.
+        /// </summary>
+        static float HeelToe(float p)
+        {
+            if (p < 0.12f)
+                return math.lerp(-0.3f, 0f, p / 0.12f);
+            if (p < 0.3f)
+                return 0f;
+            if (p < 0.55f)
+                return math.lerp(0f, 0.55f, math.smoothstep(0.3f, 0.55f, p));
+            return math.lerp(0.55f, -0.3f, math.smoothstep(0.55f, 1f, p));
         }
 
         /// <summary>

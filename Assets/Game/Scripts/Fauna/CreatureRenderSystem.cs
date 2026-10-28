@@ -3,6 +3,7 @@ using Punchy.Terrain;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -142,8 +143,10 @@ namespace Punchy.Fauna
             if (cam == null)
                 return;
 
+            // (Copied out once: the counts below and the pose job both read these.)
             var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.TempJob);
-            var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var states = query.ToComponentDataArray<CreatureState>(Allocator.TempJob);
+            var entities = query.ToEntityArray(Allocator.TempJob);
             var offsets = new NativeArray<int>(bodies.Length, Allocator.TempJob);
             var hanging = new NativeList<float3>(8, Allocator.Temp);
             var emoting = new NativeList<float3>(2, Allocator.Temp);
@@ -159,8 +162,6 @@ namespace Punchy.Fauna
                 if (states[i].Mode == CreatureMode.Puppet && states[i].Action >= IdleAction.Wave)
                     emoting.Add(states[i].Position);
             }
-            bodies.Dispose();
-            states.Dispose();
 
             // Colonies at the roosts near the camera.
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
@@ -195,8 +196,12 @@ namespace Punchy.Fauna
             total += traceCount;
 
             var instances = new NativeArray<SegmentInstance>(total, Allocator.TempJob);
-            Dependency = new PoseJob
+            // Over the copies, a few creatures per batch, so every worker takes a share (per chunk, it was one or two).
+            new PoseJob
             {
+                States = states,
+                Bodies = bodies,
+                Entities = entities,
                 Terrain = SystemAPI.GetSingleton<TerrainSource>(),
                 Offsets = offsets,
                 Output = instances,
@@ -208,8 +213,10 @@ namespace Punchy.Fauna
                 // A little short of FaunaDirector's despawn distance (170 m), so it's gone before it's removed.
                 FadeFar = 165f,
                 Night = night
-            }.ScheduleParallel(query, Dependency);
-            Dependency.Complete();
+            }.Schedule(bodies.Length, 8).Complete();
+            bodies.Dispose();
+            states.Dispose();
+            entities.Dispose();
             var at = colonyStart;
             for (int i = 0; i < roosts.Length; i++)
                 at = Colony(terrain.Anchors.Value.Anchors[roosts[i]], roosts[i], colonySizes[i], colonyFades[i], instances, at);
@@ -253,8 +260,11 @@ namespace Punchy.Fauna
         }
 
         [BurstCompile]
-        partial struct PoseJob : IJobEntity
+        struct PoseJob : IJobParallelFor
         {
+            [ReadOnly] public NativeArray<CreatureState> States;
+            [ReadOnly] public NativeArray<CreatureBody> Bodies;
+            [ReadOnly] public NativeArray<Entity> Entities;
             public TerrainSource Terrain;
             [ReadOnly] public NativeArray<int> Offsets;
             [NativeDisableParallelForRestriction] public NativeArray<SegmentInstance> Output;
@@ -265,8 +275,11 @@ namespace Punchy.Fauna
             /// <summary>0 by day, 1 at night (ghosts are only seen at night).</summary>
             public float Night;
 
-            void Execute(Entity entity, [EntityIndexInQuery] int index, in CreatureState state, in CreatureBody body)
+            public void Execute(int index)
             {
+                var state = States[index];
+                var body = Bodies[index];
+                var entity = Entities[index];
                 var offset = Offsets[index];
                 CreatureAnimator.Evaluate(ref body.Blob.Value, state, body.Coat, Terrain, Output, offset);
                 // Appearing (its first moments: Clock counts from when it was made, here) or nearing the distance
@@ -471,8 +484,9 @@ namespace Punchy.Fauna
 
             /// <summary>
             /// An orb web round the spider, in the plane facing its heading: spokes, a spiral (as rings of chords
-            /// between the spokes), and anchor threads down to the ground and across to the tree it hangs by (see
-            /// CreatureMode.Web for the side). Only for a spider sitting in its web (room is made for it then only).
+            /// between the spokes), and anchor threads: down to the ground and across to the tree it hangs by, or out to
+            /// both things it's strung between (see CreatureMode.Web). Only for a spider sitting in its web (room is
+            /// made for it then only).
             /// </summary>
             void Web(in CreatureState state, ref CreatureBlob b, int offset)
             {
@@ -502,23 +516,34 @@ namespace Punchy.Fauna
                         Output[offset + n++] = Thread(Point(spoke[k], r), Point(next, r), thick * 0.8f, colour);
                     }
                 }
+                if (state.Stage == 4)
+                {
+                    // Strung between two things: from above and below the middle of each side, out to each one.
+                    var span = Unity.Mathematics.math.max(state.AnchorSize, radius);
+                    for (int k = 0; k < 4; k++)
+                    {
+                        var side = k < 2 ? 1f : -1f;
+                        var tilt = (k % 2 == 0 ? 0.3f : -0.3f);
+                        var start = Point(side > 0f ? tilt : Unity.Mathematics.math.PI - tilt, radius);
+                        var end = centre + right * side * span + up * Unity.Mathematics.math.sin(tilt) * radius * 1.6f;
+                        Output[offset + n++] = Thread(start, end, thick, colour);
+                    }
+                    return;
+                }
                 // Down to the ground from the lower edge, either side.
                 for (int k = 0; k < 2; k++)
                 {
                     var start = Point(Unity.Mathematics.math.PI * (k == 0 ? 1.3f : 1.7f), radius);
                     var foot = start + right * (k == 0 ? -0.3f : 0.3f) * radius;
-                    foot.y = Terrain.SampleHeight(foot.xz);
+                    foot.y = Terrain.FloorUnder(start, out _);
                     Output[offset + n++] = Thread(start, foot, thick, colour);
                 }
-                // Across to the trunk, from the top and the near side (stage 2: tree to the spider's right, 3: left);
-                // a web in the grass is tied up to stems instead.
-                var trunkSide = state.Stage == 2 ? 1f : state.Stage == 3 ? -1f : 0f;
+                // Across to the trunk, from the top and the near side (stage 2: tree to the spider's right, 3: left).
+                var trunkSide = state.Stage == 2 ? 1f : -1f;
                 for (int k = 0; k < 2; k++)
                 {
                     var start = k == 0 ? Point(Unity.Mathematics.math.PI * 0.5f, radius) : Point(trunkSide >= 0f ? 0f : Unity.Mathematics.math.PI, radius);
-                    var end = trunkSide != 0f
-                        ? centre + right * trunkSide * radius * 1.05f + up * (k == 0 ? radius * 1.4f : 0f)
-                        : start + up * radius * 0.4f + right * (k == 0 ? -0.15f : 0.15f) * radius;
+                    var end = centre + right * trunkSide * radius * 1.05f + up * (k == 0 ? radius * 1.4f : 0f);
                     Output[offset + n++] = Thread(start, end, thick, colour);
                 }
             }

@@ -198,6 +198,9 @@ namespace Punchy.Fauna
                     return;
                 ref var b = ref body.Blob.Value;
                 var rng = new Random(s.Seed | 1u);
+                // (Whether a cave visitor is in a cave: a march down the cave's distance field near one, so once a tick,
+                // where it starts the tick, rather than at each of the places that ask.)
+                underRock = UnderRock(s, ref b);
                 // The nearest player is the one it watches and runs from.
                 var player = Players[0];
                 var emote = (IdleAction)PlayerPoses[0];
@@ -415,7 +418,10 @@ namespace Punchy.Fauna
                         moving = true;
                         // (Right into its nest, when that's where it's going.)
                         var arrive = b.Nests == NestSite.Ground && math.all(s.Target == s.Anchor.xz) ? 0.2f : 1f;
-                        if (math.distance(s.Position.xz, s.Target) < arrive)
+                        // (A crawler in a cave is going to a point on a wall or the ceiling: there in three dimensions.)
+                        var crawlTo = b.Crawls && CaveWalker(s, ref b);
+                        if (crawlTo ? math.distance(s.Position, new float3(s.Target.x, s.TargetHeight, s.Target.y)) < 0.4f
+                                    : math.distance(s.Position.xz, s.Target) < arrive)
                             Pause(ref s, ref b, ref rng);
                         break;
 
@@ -636,7 +642,7 @@ namespace Punchy.Fauna
                     var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
                     var ahead = s.Position.xz + forward * math.max(1.2f, s.Speed * 0.5f) * s.Scale;
                     var landBound = (b.Habitat == Habitat.Land || flier) && !CaveWalker(s, ref b);
-                    var blocked = CaveWalker(s, ref b) ? s.Speed > 0.05f && !CaveFloor(ahead, s.Position.y)
+                    var blocked = b.Crawls && CaveWalker(s, ref b) ? false : CaveWalker(s, ref b) ? s.Speed > 0.05f && !CaveFloor(ahead, s.Position.y)
                                                 : s.Speed > 0.05f && !Walkable(ahead, b.Habitat);
                     // Animals that swim go on into water when they're on their way somewhere (not to stand in it), and a
                     // lake bed's slope doesn't stop them.
@@ -909,7 +915,25 @@ namespace Punchy.Fauna
                     // Animals with a home stay near it.
                     if (s.Leash > 0f && math.distance(candidate, s.Home) > s.Leash)
                         candidate = s.Home + rng.NextFloat2Direction() * s.Leash * rng.NextFloat(0.1f, 0.8f);
-                    if ((CaveWalker(s, ref b) ? CaveFloor(candidate, s.Position.y) : b.Habitat == Habitat.Land ? OpenGround(candidate) : Walkable(candidate, b.Habitat)) &&
+                    // A crawler in a cave: off over the rock, onto a wall or the ceiling as likely as the floor.
+                    if (b.Crawls && CaveWalker(s, ref b))
+                    {
+                        if (CrawlTarget(s, ref b, ref rng, out var spot))
+                        {
+                            SetMode(ref s, CreatureMode.Wander);
+                            s.Target = spot.xz;
+                            s.TargetHeight = spot.y;
+                        }
+                        else
+                            s.Timer = 0.5f;
+                    }
+                    // A lizard outside makes for steep, sunny rock (of a few places, the steepest).
+                    else if (b.Crawls && b.Habitat == Habitat.Land && CaveWalkerNot(s, ref b) && SteepestOf(s.Position.xz, b.WanderRadius, ref rng, out var face))
+                    {
+                        SetMode(ref s, CreatureMode.Wander);
+                        s.Target = face;
+                    }
+                    else if ((CaveWalker(s, ref b) ? CaveFloor(candidate, s.Position.y) : b.Habitat == Habitat.Land ? OpenGround(candidate) : Walkable(candidate, b.Habitat)) &&
                         (!b.LavaDweller || InLava(candidate)))
                     {
                         SetMode(ref s, CreatureMode.Wander);
@@ -1311,38 +1335,168 @@ namespace Punchy.Fauna
             }
 
             /// <summary>
-            /// A spot for a web: hung beside a tree trunk, facing a random way, its edge just off the bark; or, with no
-            /// tree about, low in the grass.
+            /// A spot for a web, only ever on something big and solid (never a mushroom or a flower): best strung across
+            /// the gap between two things 1.5–4 m apart (two trunks, a trunk and a boulder, two posts or a palisade's
+            /// stakes, a cave passage's two walls), hung no higher than the lower of them; failing that, beside one tall
+            /// trunk; failing that, none. From the place, like burrows: the same web site whenever a spider lives here.
             /// </summary>
             bool PlaceWeb(ref CreatureState s, ref CreatureBlob b, ref Random rng)
             {
                 var radius = b.WebSize * s.Scale;
-                // From the place, like burrows: the same web site whenever a spider lives here.
-                var place = LairRandom(s.Position.xz, 0xA11Eu);
+                // (Each spider of a place its own: two don't share a web.)
+                var place = LairRandom(s.Position.xz, 0xA11Eu ^ s.Individual);
                 var cellCentre = (math.floor(s.Position.xz / 16f) + 0.5f) * 16f;
+                if (CaveWalker(s, ref b))
+                    return CaveWeb(ref s, radius, cellCentre, ref place);
+                if (!HasFlora)
+                    return false;
+                var anchors = new FixedList512Bytes<FloraPlacement.WebAnchor>();
+                FloraPlacement.NearAnchors(ref Flora.Value, Terrain, cellCentre, 12f, 1.2f, ref anchors);
+
+                // Every pair the right distance apart, one of them at random (the same one each time: place's draw).
+                var found = 0;
+                float3 bestCentre = default;
+                float2 bestDir = default;
+                var bestSpan = 0f;
+                for (int i = 0; i < anchors.Length; i++)
+                for (int j = i + 1; j < anchors.Length; j++)
+                {
+                    var a = anchors[i];
+                    var c = anchors[j];
+                    var dir = c.Base.xz - a.Base.xz;
+                    var apart = math.length(dir);
+                    dir /= math.max(apart, 1e-4f);
+                    var gap = apart - a.Radius - c.Radius;
+                    if (gap < math.max(1.5f, radius * 2.2f) || gap > 4f)
+                        continue;
+                    var mid = a.Base.xz + dir * (a.Radius + gap * 0.5f);
+                    if (!Walkable(mid, Habitat.Land))
+                        continue;
+                    var ground = Terrain.SampleHeight(mid);
+                    // Its top within both: hung from the lower one's top down, its foot clear of the ground.
+                    var y = math.min(ground + radius + 0.4f, math.min(a.Top, c.Top) - 0.1f - radius);
+                    if (y - radius < ground + 0.1f)
+                        continue;
+                    found++;
+                    if (place.NextFloat() * found >= 1f)
+                        continue;
+                    bestCentre = new float3(mid.x, y, mid.y);
+                    bestDir = dir;
+                    bestSpan = gap * 0.5f;
+                }
+                if (found > 0)
+                {
+                    SetWeb(ref s, bestCentre, bestDir, bestSpan, place.NextBool());
+                    return true;
+                }
+
+                // One tall trunk: the web beside it, its edge just off the bark.
+                found = 0;
+                var trunk = -1;
+                for (int i = 0; i < anchors.Length; i++)
+                    if (anchors[i].Trunk && anchors[i].Top - anchors[i].Base.y >= 2f && place.NextFloat() * ++found < 1f)
+                        trunk = i;
+                if (trunk < 0)
+                    return false;
+                var tree = anchors[trunk];
                 var yaw = place.NextFloat(-math.PI, math.PI);
                 var right = new float2(math.cos(yaw), -math.sin(yaw));
-                float2 centre;
-                byte side;
-                if (HasFlora && FloraPlacement.FindTree(ref Flora.Value, Terrain, cellCentre, 14f, 2f, ref place, out var tree))
-                {
-                    // Trunk to the spider's left (side 1: centre to the trunk's right) or right (side 0).
-                    var toTheRight = place.NextBool();
-                    centre = tree.Base.xz + right * (toTheRight ? 1f : -1f) * (tree.TrunkRadius + radius * 1.02f);
-                    side = (byte)(toTheRight ? 1 : 0);
-                }
-                else
-                {
-                    centre = cellCentre + place.NextFloat2Direction() * place.NextFloat(1f, 4f);
-                    side = 2;
-                }
+                // Trunk to the spider's left (side 1: centre to the trunk's right) or right (side 0).
+                var toTheRight = place.NextBool();
+                var centre = tree.Base.xz + right * (toTheRight ? 1f : -1f) * (tree.Radius + radius * 1.02f);
                 if (!Walkable(centre, Habitat.Land))
                     return false;
-                s.Anchor = new float3(centre.x, Terrain.SampleHeight(centre) + radius + (side == 2 ? 0.05f : 0.25f), centre.y);
+                s.Anchor = new float3(centre.x, Terrain.SampleHeight(centre) + radius + 0.25f, centre.y);
                 s.AnchorSize = radius;
                 s.AnchorYaw = yaw;
-                s.AnchorSide = side;
+                s.AnchorSide = (byte)(toTheRight ? 1 : 0);
                 return true;
+            }
+
+            /// <summary>
+            /// A web strung between two anchors (side 2): its centre, the way across (from one to the other), and how
+            /// far each anchor's surface is from the centre (kept in AnchorSize, so every machine draws the threads
+            /// out to them). The spider faces one way out of it or the other.
+            /// </summary>
+            static void SetWeb(ref CreatureState s, float3 centre, float2 across, float span, bool flip)
+            {
+                s.Anchor = centre;
+                s.AnchorSize = span;
+                // (The web's plane faces the spider's heading, its right along the gap.)
+                s.AnchorYaw = WrapAngle(math.atan2(-across.y, across.x) + (flip ? math.PI : 0f));
+                s.AnchorSide = 2;
+            }
+
+            /// <summary>
+            /// A cave web: across a passage where its two walls are 1.5–5 m apart, a little above the floor and clear of
+            /// the roof; failing that, beside the nearest wall (as beside a trunk). Spots tried round where the spider
+            /// is (the same for the same few metres of cave, each time), on its level of the cave.
+            /// </summary>
+            bool CaveWeb(ref CreatureState s, float radius, float2 cellCentre, ref Random place)
+            {
+                if (!Terrain.Caves.IsCreated)
+                    return false;
+                var near = (math.floor(s.Position.xz / 4f) + 0.5f) * 4f;
+                var wallCentre = float3.zero;
+                var wallAcross = float3.zero;
+                var byWall = false;
+                for (int attempt = 0; attempt < 16; attempt++)
+                {
+                    var xz = near + place.NextFloat2Direction() * place.NextFloat(0f, 4f);
+                    var floor = Terrain.FloorUnder(new float3(xz.x, s.Position.y + 0.5f, xz.y), out var inCave);
+                    if (!inCave || math.abs(floor - s.Position.y) > 3f)
+                        continue;
+                    var centre = new float3(xz.x, floor + radius + 0.3f, xz.y);
+                    if (Terrain.CaveDistance(centre) > -0.2f || Terrain.CaveDistance(centre + new float3(0f, radius * 0.9f, 0f)) > 0f)
+                        continue;
+                    // Across the passage: towards the nearest wall (the way the distance field rises fastest).
+                    const float e = 0.2f;
+                    var across = math.normalizesafe(new float3(
+                        Terrain.CaveDistance(centre + new float3(e, 0f, 0f)) - Terrain.CaveDistance(centre - new float3(e, 0f, 0f)), 0f,
+                        Terrain.CaveDistance(centre + new float3(0f, 0f, e)) - Terrain.CaveDistance(centre - new float3(0f, 0f, e))),
+                        new float3(1f, 0f, 0f));
+                    // Out to each wall.
+                    float left = 0f, right = 0f;
+                    for (; left < 4f && Terrain.CaveDistance(centre - across * left) < 0f; left += 0.1f) { }
+                    for (; right < 4f && Terrain.CaveDistance(centre + across * right) < 0f; right += 0.1f) { }
+                    var gap = left + right;
+                    if (left >= 4f || right >= 4f || gap < math.max(1.5f, radius * 2.2f) || gap > 5f)
+                    {
+                        // (The first spot near a wall with room for the web beside it, in case there's no crossing.)
+                        var beside = centre + across * (right - radius * 1.02f);
+                        if (!byWall && right < 4f && right > 0.3f && Level(ref beside, radius))
+                        {
+                            byWall = true;
+                            wallCentre = beside;
+                            wallAcross = across;
+                        }
+                        continue;
+                    }
+                    var mid = centre + across * ((right - left) * 0.5f);
+                    if (!Level(ref mid, radius))
+                        continue;
+                    SetWeb(ref s, mid, across.xz, gap * 0.5f, place.NextBool());
+                    return true;
+                }
+                if (!byWall)
+                    return false;
+                // Beside the wall, the wall to the spider's right (side 0), as a web beside a trunk is drawn.
+                s.Anchor = wallCentre;
+                s.AnchorSize = radius;
+                s.AnchorYaw = math.atan2(-wallAcross.z, wallAcross.x);
+                s.AnchorSide = 0;
+                return true;
+            }
+
+            /// <summary>
+            /// A cave web's centre put at its height over the floor right under it (the floor rises towards the walls),
+            /// if there's room there for the web: clear of the rock round it and of the roof.
+            /// </summary>
+            bool Level(ref float3 centre, float radius)
+            {
+                var floor = Terrain.FloorUnder(centre + new float3(0f, 0.5f, 0f), out var inCave);
+                centre.y = floor + radius + 0.3f;
+                return inCave && Terrain.CaveDistance(centre) < -0.2f && Terrain.CaveDistance(centre + new float3(0f, radius * 0.9f, 0f)) < 0f;
             }
 
             /// <summary>
@@ -1401,7 +1555,8 @@ namespace Punchy.Fauna
                 {
                     vertical = 1f;
                     s.Speed = climbSpeed * math.saturate(s.Vertical * 1.5f - 0.3f);
-                    var floor = Terrain.SampleHeight(s.Position.xz);
+                    // (Down to whatever is under the web: the cave floor in a cave.)
+                    var floor = Terrain.FloorUnder(s.Position + new float3(0f, 0.1f, 0f), out _);
                     s.Position.y = math.max(s.Position.y - s.Speed * dt, floor);
                     if (s.Position.y <= floor + 0.01f)
                         Pause(ref s, ref b, ref rng);
@@ -2719,6 +2874,11 @@ namespace Punchy.Fauna
             void Advance(ref CreatureState s, ref CreatureBlob b, float dt, bool keepHeight = false)
             {
                 var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                if (b.Crawls && CaveWalker(s, ref b))
+                {
+                    Crawl(ref s, ref b, dt);
+                    return;
+                }
                 if (CaveWalker(s, ref b))
                 {
                     // On the passage floor, never into rock: blocked, it slides along the wall (the nearest open way
@@ -2848,18 +3008,95 @@ namespace Punchy.Fauna
 
             bool Walled(float2 at, float radius) => FloraPlacement.Blocked(ref Flora.Value, Terrain, at, radius);
 
+            bool CaveWalkerNot(in CreatureState s, ref CreatureBlob b) => !CaveWalker(s, ref b);
+
+            /// <summary>
+            /// Crawls over the cave's rock in three dimensions: straight for its target (Target, TargetHeight), then
+            /// back onto the surface it's on (its feet on the rock, its body off it), so it goes up walls and across the
+            /// ceiling as readily as along the floor.
+            /// </summary>
+            void Crawl(ref CreatureState s, ref CreatureBlob b, float dt)
+            {
+                var target = new float3(s.Target.x, s.TargetHeight, s.Target.y);
+                var way = target - s.Position;
+                var dir = math.normalizesafe(way);
+                var p = s.Position + dir * math.min(s.Speed * dt, math.length(way));
+                // Onto the rock: the distance field is the way to it (its slope points into rock, its value how far).
+                const float e = 0.1f;
+                for (int k = 0; k < 2; k++)
+                {
+                    var d = Terrain.CaveDistance(p);
+                    var grad = math.normalizesafe(new float3(
+                        Terrain.CaveDistance(p + new float3(e, 0f, 0f)) - Terrain.CaveDistance(p - new float3(e, 0f, 0f)),
+                        Terrain.CaveDistance(p + new float3(0f, e, 0f)) - Terrain.CaveDistance(p - new float3(0f, e, 0f)),
+                        Terrain.CaveDistance(p + new float3(0f, 0f, e)) - Terrain.CaveDistance(p - new float3(0f, 0f, e))));
+                    p -= grad * d;
+                }
+                s.Position = p;
+                if (math.lengthsq(dir.xz) > 0.01f)
+                    s.Yaw = math.atan2(dir.x, dir.z);
+                CreatureMotion.AdvancePhase(ref s, ref b, dt);
+            }
+
+            /// <summary>
+            /// A point on the cave's rock a few metres off in a random direction (up a wall, across the ceiling, along
+            /// the floor): marched out from the body until it meets rock.
+            /// </summary>
+            bool CrawlTarget(in CreatureState s, ref CreatureBlob b, ref Random rng, out float3 spot)
+            {
+                spot = default;
+                var from = s.Position + CreatureMotion.Surface(Terrain, s.Position, out _, out _) * 0.3f;
+                var dir = rng.NextFloat3Direction();
+                for (float t = 0.5f; t < 8f; t += 0.25f)
+                {
+                    var p = from + dir * t;
+                    if (Terrain.CaveDistance(p) >= 0f)
+                    {
+                        spot = p - dir * 0.05f;
+                        return t > 1f;
+                    }
+                }
+                return false;
+            }
+
+            /// <summary>The steepest of a few places round a point (a rock face to bask on), if any is a real slope.</summary>
+            bool SteepestOf(float2 near, float radius, ref Random rng, out float2 best)
+            {
+                best = near;
+                var flattest = 0.85f;
+                for (int k = 0; k < 5; k++)
+                {
+                    var p = near + rng.NextFloat2Direction() * radius * rng.NextFloat(0.2f, 0.8f);
+                    if (!OpenGround(p))
+                        continue;
+                    var n = Terrain.SampleNormal(p, 0.5f);
+                    if (n.y < flattest)
+                    {
+                        flattest = n.y;
+                        best = p;
+                    }
+                }
+                return flattest < 0.85f;
+            }
+
             /// <summary>
             /// Moves as a cave animal does (on the cave floor, along its walls): cave dwellers always, and a surface animal
             /// that's sometimes found in caves (CaveAffinity) while it's under rock.
             /// </summary>
-            bool CaveWalker(in CreatureState s, ref CreatureBlob b)
+            bool CaveWalker(in CreatureState s, ref CreatureBlob b) => b.CaveDweller || underRock;
+
+            /// <summary>This tick's creature is a cave visitor (CaveAffinity) under rock (see Execute).</summary>
+            bool underRock;
+
+            bool UnderRock(in CreatureState s, ref CreatureBlob b)
             {
-                if (b.CaveDweller)
-                    return true;
-                if (b.CaveAffinity <= 0f || !Terrain.Caves.IsCreated)
+                if (b.CaveDweller || b.CaveAffinity <= 0f || !Terrain.Caves.IsCreated)
+                    return false;
+                // (Up on the surface, as it nearly always is: one sample, and no march down the cave's field.)
+                if (s.Position.y >= Terrain.SampleHeight(s.Position.xz) - 1f)
                     return false;
                 Terrain.FloorUnder(s.Position + new float3(0f, 0.5f, 0f), out var inCave);
-                return inCave && s.Position.y < Terrain.SampleHeight(s.Position.xz) - 1f;
+                return inCave;
             }
 
             /// <summary>

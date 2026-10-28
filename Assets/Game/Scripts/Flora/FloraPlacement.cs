@@ -191,6 +191,14 @@ namespace Punchy.Flora
                         shape.ObstacleCount = walls.Count - shape.FirstObstacle;
                         model.Destroy();
                     }
+                    else if (obstacles && IsAnchorRock(s))
+                    {
+                        // (Its size, for spiders to tie webs to: a rock's shape is otherwise left empty.)
+                        var model = FloraGenerator.Grow(s, v);
+                        shape.Height = model.Height;
+                        shape.TrunkRadius = model.TrunkRadius;
+                        model.Destroy();
+                    }
                     shapes.Add(shape);
                 }
             }
@@ -269,6 +277,118 @@ namespace Punchy.Flora
             FloraForm.Hall or FloraForm.Shrine or FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade => true,
             _ => false
         };
+
+        /// <summary>Solid rocks and columns that can hold up a web (boulders, standing stones and tors, saguaros).</summary>
+        static bool IsAnchorRock(FloraSpecies s) => s.Solid && s.Form is FloraForm.Boulder or FloraForm.Spire or FloraForm.Saguaro;
+
+        /// <summary>Something solid a web can be tied to: its foot, how thick, and its top (world height).</summary>
+        public struct WebAnchor
+        {
+            public float3 Base;
+            public float Radius, Top;
+            /// <summary>A tree's trunk (rather than a rock or a wall).</summary>
+            public bool Trunk;
+        }
+
+        /// <summary>
+        /// Everything round a point solid and tall enough to tie a web to (at least <paramref name="minHeight"/>
+        /// high and 6 cm thick): tree trunks, big rocks and columns, and buildings' walls, posts and palisades, placed
+        /// as they're drawn. No small plants. Burst-safe; the list is filled until it's full.
+        /// </summary>
+        public static void NearAnchors(ref FloraBlob f, in TerrainSource source, float2 near, float radius, float minHeight,
+                                       ref FixedList512Bytes<WebAnchor> anchors)
+        {
+            var cellSize = f.CellSizes[TreeLayer];
+            var min = (int2)math.floor((near - radius) / cellSize);
+            var max = (int2)math.floor((near + radius) / cellSize);
+            for (int y = min.y; y <= max.y; y++)
+            for (int x = min.x; x <= max.x; x++)
+            {
+                var plant = Place(ref f, source, new int2(x, y), TreeLayer);
+                if (plant.Model < 0 || plant.Model >= f.Models.Length)
+                    continue;
+                var shape = f.Models[plant.Model];
+                if (shape.ObstacleCount > 0)
+                    continue;   // a building: its walls below
+                var height = shape.Height * plant.Scale;
+                var thick = shape.TrunkRadius * plant.Scale;
+                if (height < minHeight || thick < 0.06f || math.distance(plant.Position.xz, near) > radius)
+                    continue;
+                if (anchors.Length == anchors.Capacity)
+                    return;
+                anchors.Add(new WebAnchor { Base = plant.Position, Radius = thick, Top = plant.Position.y + height, Trunk = shape.Kind != TreeKind.None });
+            }
+            if (f.Obstacles.Length == 0)
+                return;
+            if (source.Settlements.IsCreated && f.SettlementSpecies.Length > 0)
+            {
+                ref var towns = ref source.Settlements.Value;
+                var townCell = SettlementSampling.Cell(ref towns, near);
+                if (townCell >= 0)
+                {
+                    var plots = towns.PlotCells[townCell];
+                    for (int k = plots.x; k < plots.x + plots.y; k++)
+                    {
+                        ref var plot = ref towns.Plots[towns.PlotItems[k]];
+                        if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length ||
+                            math.any(near < plot.Min - radius) || math.any(near > plot.Max + radius))
+                            continue;
+                        var building = f.SettlementSpecies[plot.Building];
+                        if (building.x < 0 || f.Models[f.Rules[building.x].FirstModel].ObstacleCount == 0)
+                            continue;
+                        var cell = (int2)math.floor(plot.Centre / f.CellSizes[building.y]);
+                        Walls(ref f, Place(ref f, source, cell, building.y), near, radius, minHeight, ref anchors);
+                    }
+                }
+            }
+            if (source.Landmarks.IsCreated && LandmarkSampling.Find(ref source.Landmarks.Value, near, out var landmark) && landmark.Type < f.LandmarkTypeCount)
+            {
+                ref var set = ref source.Landmarks.Value;
+                for (int l = 0; l < 3; l++)
+                {
+                    var placed = f.PropRanges[landmark.Type * 3 + l];
+                    for (int e = placed.x; e < placed.x + placed.y; e++)
+                    {
+                        var prop = f.Props[e];
+                        if (prop.Count == 0 || f.Models[f.Rules[prop.Species].FirstModel].ObstacleCount == 0)
+                            continue;
+                        for (int k = 0; k < prop.Count; k++)
+                        {
+                            var spot = LandmarkSampling.ToWorld(set.Instances[landmark.Instance],
+                                LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
+                            if (math.distance(spot, near) > 15f + radius)
+                                continue;
+                            Walls(ref f, Place(ref f, source, (int2)math.floor(spot / f.CellSizes[l]), l), near, radius, minHeight, ref anchors);
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>A placed building's wall cylinders near a point, as web anchors (see NearAnchors).</summary>
+        static void Walls(ref FloraBlob f, in FloraSystem.FloraInstance plant, float2 near, float radius, float minHeight,
+                          ref FixedList512Bytes<WebAnchor> anchors)
+        {
+            if (plant.Model < 0 || plant.Model >= f.Models.Length)
+                return;
+            var shape = f.Models[plant.Model];
+            float c = math.cos(plant.Yaw), sn = math.sin(plant.Yaw);
+            for (int i = shape.FirstObstacle; i < shape.FirstObstacle + shape.ObstacleCount; i++)
+            {
+                var col = f.Obstacles[i];
+                var at = plant.Position.xz + new float2(col.x * c - col.y * sn, col.x * sn + col.y * c) * plant.Scale;
+                if (col.w * plant.Scale < minHeight || col.z * plant.Scale < 0.06f || math.distance(at, near) > radius)
+                    continue;
+                if (anchors.Length == anchors.Capacity)
+                    return;
+                anchors.Add(new WebAnchor
+                {
+                    Base = new float3(at.x, plant.Position.y, at.y),
+                    Radius = col.z * plant.Scale,
+                    Top = plant.Position.y + col.w * plant.Scale
+                });
+            }
+        }
 
         /// <summary>
         /// Whether a body of this radius at <paramref name="xz"/> would be inside a building's walls: a settlement's

@@ -50,7 +50,10 @@ namespace Punchy.Net
         public Entity Prefab;
     }
 
-    /// <summary>Server: publishes each simulated creature's state on its ghost.</summary>
+    /// <summary>
+    /// Server: publishes each simulated creature's state on its ghost. A job after the brain's (not a loop here,
+    /// which would make the main thread wait for the brain to finish).
+    /// </summary>
     [BurstCompile]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -60,14 +63,19 @@ namespace Punchy.Net
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            foreach (var (s, body, net, transform) in SystemAPI.Query<RefRO<CreatureState>, RefRO<CreatureBody>, RefRW<CreatureNet>, RefRW<LocalTransform>>())
+            state.Dependency = new WriteJob().ScheduleParallel(state.Dependency);
+        }
+
+        [BurstCompile]
+        partial struct WriteJob : IJobEntity
+        {
+            void Execute(in CreatureState s, in CreatureBody body, ref CreatureNet n, ref LocalTransform transform)
             {
-                var c = s.ValueRO;
-                transform.ValueRW.Position = c.Position;
-                transform.ValueRW.Rotation = quaternion.RotateY(c.Yaw);
-                ref var n = ref net.ValueRW;
-                n.Species = body.ValueRO.Species;
-                n.Coat = (byte)body.ValueRO.Coat;
+                var c = s;
+                transform.Position = c.Position;
+                transform.Rotation = quaternion.RotateY(c.Yaw);
+                n.Species = body.Species;
+                n.Coat = (byte)body.Coat;
                 n.Individual = c.Individual;
                 n.Scale = c.Scale;
                 n.Mode = (byte)c.Mode;
@@ -151,19 +159,28 @@ namespace Punchy.Net
         public void OnUpdate(ref SystemState state)
         {
             var dt = math.max(math.min(SystemAPI.Time.DeltaTime, 0.1f), 1e-4f);
-            foreach (var (s, body, net, transform) in SystemAPI.Query<RefRW<CreatureState>, RefRO<CreatureBody>, RefRO<CreatureNet>, RefRO<LocalTransform>>()
-                         .WithAll<CreatureReplica>())
+            state.Dependency = new ReplicaJob { Dt = dt }.ScheduleParallel(state.Dependency);
+
+            // (One being carried is placed in its carrier's arms as it's drawn: HeldPoseSystem.)
+        }
+
+        [BurstCompile]
+        [WithAll(typeof(CreatureReplica))]
+        partial struct ReplicaJob : IJobEntity
+        {
+            public float Dt;
+
+            void Execute(ref CreatureState c, in CreatureBody body, in CreatureNet n, in LocalTransform transform)
             {
-                ref var c = ref s.ValueRW;
-                ref var b = ref body.ValueRO.Blob.Value;
-                var n = net.ValueRO;
-                var forward = math.mul(transform.ValueRO.Rotation, new float3(0f, 0f, 1f));
+                var dt = Dt;
+                ref var b = ref body.Blob.Value;
+                var forward = math.mul(transform.Rotation, new float3(0f, 0f, 1f));
                 var yaw = math.atan2(forward.x, forward.z);
                 var turn = yaw - c.Yaw;
                 turn -= 2f * math.PI * math.floor((turn + math.PI) / (2f * math.PI));
                 c.YawRate = turn / dt;
                 c.Yaw = yaw;
-                c.Position = transform.ValueRO.Position;
+                c.Position = transform.Position;
                 c.Clock += dt;
                 c.Scale = n.Scale > 0f ? n.Scale : 1f;
                 c.Mode = (CreatureMode)n.Mode;
@@ -186,8 +203,6 @@ namespace Punchy.Net
                 c.Holder = n.Holder;
                 CreatureMotion.AdvancePhase(ref c, ref b, dt);
             }
-
-            // (One being carried is placed in its carrier's arms as it's drawn: HeldPoseSystem.)
         }
     }
 }

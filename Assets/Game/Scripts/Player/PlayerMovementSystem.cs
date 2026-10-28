@@ -10,7 +10,7 @@ namespace Punchy.Player
     /// <summary>
     /// Moves the player across the height field: camera-relative walking/sprinting, jumping and gravity, at the pace
     /// of the body they're in. A flying body takes off with a jump and flies by the same rules as the birds
-    /// (CreatureMotion): it steers where the camera looks, climbs (jump held) or dives (sprint held) at most 35°,
+    /// (CreatureMotion): it steers where the camera looks, climbs (jump held) or dives (sprint button held) at most 35°,
     /// never slows below its minimum airspeed, glides when it isn't beating its wings, and flares to land.
     /// Ground height comes straight from TerrainSource, so the player never depends on which chunks are loaded.
     /// </summary>
@@ -21,6 +21,9 @@ namespace Punchy.Player
     [UpdateBefore(typeof(TerrainStreamingSystem))]
     public partial struct PlayerMovementSystem : ISystem
     {
+        /// <summary>A walk (the walk toggle) for a human body, m/s; other bodies by their speed next to a human.</summary>
+        public const float Stroll = 1.6f;
+
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
@@ -63,8 +66,8 @@ namespace Punchy.Player
                     continue;
                 }
 
-                var speed = settings.WalkSpeed * math.max(body.SpeedFactor, 0.1f) * (input.Sprint ? settings.SprintMultiplier : 1f) *
-                            (swimming ? settings.SwimSpeedMultiplier : 1f);
+                var pace = input.Walk ? Stroll : settings.WalkSpeed * (input.Sprint ? settings.SprintMultiplier : 1f);
+                var speed = pace * math.max(body.SpeedFactor, 0.1f) * (swimming ? settings.SwimSpeedMultiplier : 1f);
                 var from = position;
                 position.xz += input.MoveDirection * speed * dt;
                 if (swimming)
@@ -130,7 +133,7 @@ namespace Punchy.Player
             yaw += math.clamp(turn, -2.2f * dt, 2.2f * dt);
 
             var steepest = math.atan(Punchy.Fauna.CreatureMotion.MaxClimb);
-            var dive = input.Sprint;
+            var dive = input.DiveHeld;
             var climb = input.JumpHeld && !dive;
             m.Flapping = climb || math.lengthsq(input.MoveDirection) > 0.01f;
             Floor(terrain, t.Position, settings.SwimDepth, out var ground, out _);

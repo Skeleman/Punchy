@@ -1,3 +1,4 @@
+using Punchy.Terrain;
 using Unity.Mathematics;
 
 namespace Punchy.Fauna
@@ -30,6 +31,36 @@ namespace Punchy.Fauna
                 return true;
             var burst = math.lerp(0.6f, 0.15f, b.Glide);
             return math.frac(s.Clock / (2.5f + 5f * b.Glide) + (s.Individual % 97) * 0.01f) < burst;
+        }
+
+        /// <summary>
+        /// The surface a crawler is on, as the way out of it (unit): in a cave, away from the nearest rock (the cave's
+        /// distance field rises into rock); outside, the ground's normal. Steep tells whether that's more than a gentle
+        /// slope (a rock face, a wall, a ceiling), where the body turns to lie on it. The same from the position alone on
+        /// every machine.
+        /// </summary>
+        public static float3 Surface(in TerrainSource terrain, float3 at, out bool steep, out bool inCave)
+        {
+            inCave = false;
+            if (terrain.Caves.IsCreated)
+            {
+                terrain.FloorUnder(at + new float3(0f, 0.3f, 0f), out inCave);
+                inCave &= at.y < terrain.SampleHeight(at.xz) - 1f;
+            }
+            float3 up;
+            if (inCave)
+            {
+                const float e = 0.15f;
+                var grad = new float3(
+                    terrain.CaveDistance(at + new float3(e, 0f, 0f)) - terrain.CaveDistance(at - new float3(e, 0f, 0f)),
+                    terrain.CaveDistance(at + new float3(0f, e, 0f)) - terrain.CaveDistance(at - new float3(0f, e, 0f)),
+                    terrain.CaveDistance(at + new float3(0f, 0f, e)) - terrain.CaveDistance(at - new float3(0f, 0f, e)));
+                up = math.normalizesafe(-grad, new float3(0f, 1f, 0f));
+            }
+            else
+                up = terrain.SampleNormal(at.xz, 0.5f);
+            steep = up.y < 0.8f;
+            return up;
         }
 
         /// <summary>

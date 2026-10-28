@@ -51,10 +51,11 @@ namespace Punchy.Player
     public struct PlayerInput : IComponentData
     {
         public float2 MoveDirection;
-        public bool Sprint;
+        /// <summary>Sprinting or walking (toggles, one or the other; neither is the everyday jog).</summary>
+        public bool Sprint, Walk;
         public bool JumpPressed;
-        /// <summary>Jump and sprint held down (in flight: climb and dive).</summary>
-        public bool JumpHeld;
+        /// <summary>Jump and the sprint button held down (in flight: climb and dive).</summary>
+        public bool JumpHeld, DiveHeld;
         /// <summary>Where the camera looks, world XZ (in flight: the way to steer).</summary>
         public float2 CameraForward;
     }

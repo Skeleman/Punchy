@@ -34,11 +34,9 @@ namespace Punchy.Fauna
         bool pressUsed;
         /// <summary>When the lunge pose ends.</summary>
         double lungeUntil;
-        /// <summary>The player last used a gamepad (rather than the keyboard and mouse).</summary>
-        bool usingGamepad;
-        /// <summary>The prompt as last built, and what it was built for (species, can carry, gamepad).</summary>
+        /// <summary>The prompt as last built, and what it was built for (species, can carry, device switches).</summary>
         string lastPrompt;
-        (int, bool, bool) lastPromptKey = (int.MinValue, false, false);
+        (int, bool, int) lastPromptKey = (int.MinValue, false, -1);
         EntityQuery creatures;
         FaunaDirector director;
 
@@ -107,22 +105,14 @@ namespace Punchy.Fauna
             var lunging = SystemAPI.Time.ElapsedTime < lungeUntil;
             UpdateEmote(held != Entity.Null || lunging || petting);
             request.Pose = held != Entity.Null ? IdleAction.Carry : lunging ? IdleAction.Throw : petting ? IdleAction.Pet : emote;
-            // Named by the button on whatever was used last: the keyboard's E, or the gamepad's top face button (Y).
-            // (By real use: an idle gamepad still sends updates.)
-            if (Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame || Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
-                usingGamepad = false;
-            var pad = Gamepad.current;
-            if (pad != null && (pad.leftStick.ReadValue().sqrMagnitude > 0.2f || pad.rightStick.ReadValue().sqrMagnitude > 0.2f ||
-                                pad.buttonSouth.wasPressedThisFrame || pad.buttonNorth.wasPressedThisFrame || pad.buttonEast.wasPressedThisFrame ||
-                                pad.buttonWest.wasPressedThisFrame || pad.startButton.wasPressedThisFrame))
-                usingGamepad = true;
-            var gamepad = usingGamepad;
-            var key = gamepad ? "Y" : "E";
+            // Named by the button on whatever was used last (InputGlyphs: E on the keyboard, Y or Triangle on a pad).
             // (The text is only rebuilt when what it says changes, not every frame.)
-            var promptKey = held != Entity.Null ? (-2, false, gamepad) : target != Entity.Null ? (targetSpecies, targetCarry, gamepad) : (-1, false, gamepad);
+            var device = InputGlyphs.Version;
+            var promptKey = held != Entity.Null ? (-2, false, device) : target != Entity.Null ? (targetSpecies, targetCarry, device) : (-1, false, device);
             if (promptKey != lastPromptKey)
             {
                 lastPromptKey = promptKey;
+                var key = InputGlyphs.Action("Player/Interact") ?? "Interact";
                 if (held != Entity.Null)
                     lastPrompt = $"{key}  put down";
                 else if (target != Entity.Null)
