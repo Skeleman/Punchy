@@ -638,7 +638,9 @@ namespace Punchy.Fauna
                 }
                 var index = SpeciesIndex(f.Species);
                 // (Moths live round a cave's glowing plants: they come only with the cave.)
-                if (index < 0 || f.Species.Body.NearWater && !nearWater || !Suits(f.Species.Body.Habitat, depth) || f.Species.Body.DrawnToLight)
+                // (Nor a wolf, a bear or the like in a town: the guards would only be driving it off again.)
+                if (index < 0 || f.Species.Body.NearWater && !nearWater || !Suits(f.Species.Body.Habitat, depth) || f.Species.Body.DrawnToLight ||
+                    f.Species.Body.DrivenOff && InTown(source, at))
                     continue;
                 var shortfall = f.Density * areaHectares - counts[offset + index];
                 if (shortfall > bestShortfall)
@@ -664,6 +666,18 @@ namespace Punchy.Fauna
         }
 
         /// <summary>Whether water this deep (negative = dry land) suits an animal of a habitat.</summary>
+        /// <summary>Within a settlement, or 20 m of its edge.</summary>
+        static bool InTown(in TerrainSource source, float2 at)
+        {
+            if (!source.Settlements.IsCreated)
+                return false;
+            ref var towns = ref source.Settlements.Value.Settlements;
+            for (int i = 0; i < towns.Length; i++)
+                if (math.distance(towns[i].Centre, at) < towns[i].Radius + 20f)
+                    return true;
+            return false;
+        }
+
         static bool Suits(Habitat habitat, float depth) =>
             habitat == Habitat.Swims ? depth >= 0.9f : habitat == Habitat.Floats ? depth >= 0.4f : depth <= 0f;   // fliers start on the ground
 

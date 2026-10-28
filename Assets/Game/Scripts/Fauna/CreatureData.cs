@@ -38,7 +38,7 @@ namespace Punchy.Fauna
         public bool Hunted;
         public IdleActions Idles;
         public float Fidgets, Climbing;
-        public bool SpinsWebs, Burrows, CaveDweller, Roosts, Friendly, CrossesWater, Haunts, LavaDweller, DrawnToLight;
+        public bool SpinsWebs, Burrows, CaveDweller, Roosts, Friendly, CrossesWater, Haunts, LavaDweller, DrawnToLight, DrivenOff;
         public NestSite Nests;
         public float WebSize;
         public float2 FlightHeight;
@@ -411,6 +411,10 @@ namespace Punchy.Fauna
         public int Holder;
         /// <summary>What it has in hand (folk: a lantern at night). Replicated; each machine draws it.</summary>
         public HeldItem Held;
+        /// <summary>A guard: which leg of its round it's on; and how long before it goes after another beast (s).
+        /// Simulation only (not sent).</summary>
+        public byte RouteLeg;
+        public float ChaseCooldown;
 
         // Needs, 0 (satisfied) to 1 (pressing): they rise with time by the species' tastes and are eased by the
         // activity that meets them; what it decides to do next is weighted by them. Simulation only (not sent).
@@ -530,6 +534,7 @@ namespace Punchy.Fauna
             root.CaveAffinity = variant.CaveAffinity;
             root.Crawls = species.Crawls;
             root.DrawnToLight = species.DrawnToLight;
+            root.DrivenOff = species.DrivenOff;
             root.Soars = species.Soars;
             root.Breaches = species.Breaches && species.Habitat == Habitat.Swims;
             root.Hands = species.Parts.Exists(p => p != null && p.Limb != null && p.Limb.Role == LimbRole.Arm);

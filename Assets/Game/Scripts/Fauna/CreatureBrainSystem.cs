@@ -271,6 +271,23 @@ namespace Punchy.Fauna
                     threatened = true;
                     threat = predator;
                 }
+                // A wolf, a bear or the like in a town: a guard running at it (or a night guard's torch close by) sends it
+                // off out of the place.
+                if (!threatened && !aloft && b.DrivenOff && FindChaser(self, in s, out var chaser))
+                {
+                    threatened = true;
+                    threat = chaser;
+                    // It makes for the town's edge, the nearest way out, veering off from the guard (so it doesn't run
+                    // deeper in, away from one coming in from the bounds).
+                    var town = SettlementOf(s.Position.xz);
+                    if (town >= 0)
+                    {
+                        ref var t = ref Terrain.Settlements.Value.Settlements[town];
+                        var outward = math.normalizesafe(s.Position.xz - t.Centre, new float2(1f, 0f));
+                        var veer = math.normalizesafe(s.Position.xz - chaser, outward);
+                        threat = s.Position.xz - math.normalizesafe(outward + veer * 0.6f, outward) * 5f;
+                    }
+                }
                 // One bolts, they all bolt: a herd (or a flock) runs when any of it close by does, from the same thing.
                 if (!threatened && !aloft && b.FleeDistance > 0f && s.Mode != CreatureMode.Flee && FindAlarm(self, ref s, body.Species, out var alarm))
                 {
@@ -317,6 +334,20 @@ namespace Punchy.Fauna
                     }
                     else
                         NightLoop(ref s, ref b, ref rng);
+                }
+                // A beast scared inside a town (by a guard, or bolting with the rest of its pack) takes itself off
+                // somewhere else: its range moved out past the edge the way it's running, so it isn't held to ground
+                // inside the place and doesn't come straight back.
+                if (threatened && b.DrivenOff && s.Leash > 0f)
+                {
+                    var town = SettlementOf(s.Position.xz);
+                    if (town >= 0)
+                    {
+                        ref var t = ref Terrain.Settlements.Value.Settlements[town];
+                        var off = math.normalizesafe(s.Position.xz - threat, math.normalizesafe(s.Position.xz - t.Centre, new float2(1f, 0f)));
+                        if (math.distance(s.Position.xz, t.Centre) < t.Radius && math.distance(s.Home, t.Centre) < t.Radius + s.Leash)
+                            s.Home = t.Centre + math.normalizesafe(s.Position.xz + off * t.Radius - t.Centre, off) * (t.Radius + s.Leash + 10f);
+                    }
                 }
                 if (threatened)
                 {
@@ -598,7 +629,7 @@ namespace Punchy.Fauna
                         break;
 
                     case CreatureMode.Patrol:
-                        Patrol(self, ref s, ref b, ref rng, dt, walk, player, playerSpeed, emote, ref targetSpeed, ref moving, ref desiredLook);
+                        Patrol(self, ref s, ref b, ref rng, dt, walk, run, player, playerSpeed, emote, ref targetSpeed, ref moving, ref desiredLook);
                         break;
 
                     case CreatureMode.Work:
@@ -2239,127 +2270,172 @@ namespace Punchy.Fauna
                 return best;
             }
 
-            /// <summary>The street corner (the end of a town street) nearest a point, in a settlement.</summary>
-            bool NearestCorner(int settlement, float2 at, out float2 corner)
-            {
-                ref var set = ref Terrain.Settlements.Value;
-                ref var town = ref set.Settlements[settlement];
-                corner = at;
-                var best = float.MaxValue;
-                for (int k = town.FirstStreet; k < town.FirstStreet + town.StreetCount; k++)
-                {
-                    ref var st = ref set.Streets[k];
-                    if (st.Road != 0)
-                        continue;
-                    var dA = math.distancesq(st.A.xz, at);
-                    var dB = math.distancesq(st.B.xz, at);
-                    if (dA < best) { best = dA; corner = st.A.xz; }
-                    if (dB < best) { best = dB; corner = st.B.xz; }
-                }
-                return best < float.MaxValue;
-            }
-
-            /// <summary>Sets a guard going on its rounds from the street corner nearest it (false if its town has none).</summary>
+            /// <summary>Sets a guard going on its round, from the leg it's in the slice of (false if it has no town).</summary>
             bool StartPatrol(ref CreatureState s)
             {
                 var town = SettlementOf(s.Home);
-                if (town < 0 || !NearestCorner(town, s.Position.xz, out var corner))
+                if (town < 0)
+                    return false;
+                var legs = RoundLegs(s);
+                var off = s.Position.xz - Terrain.Settlements.Value.Settlements[town].Centre;
+                var leg = ((int)math.round(math.atan2(off.x, off.y) / (2f * math.PI / legs)) % legs + legs) % legs;
+                if (!RoundPoint(town, leg, legs, InnerRound(s), out var point, out var gate))
                     return false;
                 SetMode(ref s, CreatureMode.Patrol);
-                s.WorkSpot = corner;
+                s.RouteLeg = (byte)leg;
+                s.WorkSpot = point;
                 s.WorkFace = s.Position.xz;
-                s.AnchorSize = 0f;
+                s.AnchorSize = gate ? 1f : 0f;
                 return true;
             }
 
+            // A guard's round, fixed by its individual number (so the same on every machine): most walk the bounds, a
+            // loop just inside the town's edge an eighth of the way round at a time, by way of its gates; some an inner
+            // loop round the square, a quarter of the way round at a time; one way round or the other.
+            static bool InnerRound(in CreatureState s) => CreatureBlob.Trait(s.Individual, 33) > 0.4f;
+            static int RoundWay(in CreatureState s) => CreatureBlob.Trait(s.Individual, 34) > 0f ? 1 : -1;
+            static int RoundLegs(in CreatureState s) => InnerRound(s) ? 4 : 8;
+
             /// <summary>
-            /// Where a guard goes next from the corner it has reached: now and then out to one of its town's gates;
-            /// otherwise along one of the streets from this corner (any but the way it came), or, at a dead end (or a
-            /// gate), to the nearest corner it hasn't just left.
+            /// The point a leg of a round makes for: on the bounds, the town's gate in that leg's slice (seen from the
+            /// middle) if it has one there (gate true), else a point just inside the edge, drawn in until it's clear of
+            /// the houses and their yards and on dry ground; round the square, a point a quarter of the way out, likewise
+            /// clear. False if there's nowhere clear.
             /// </summary>
-            void NextWaypoint(ref CreatureState s, ref Random rng)
+            bool RoundPoint(int settlement, int leg, int legs, bool inner, out float2 point, out bool gate)
             {
-                var townIndex = SettlementOf(s.Home);
-                if (townIndex < 0)
-                    return;
-                var here = s.WorkSpot;
-                var from = s.WorkFace;
-                var atGate = s.AnchorSize > 0f;
-                s.AnchorSize = 0f;
-                s.WorkFace = here;
-                if (!atGate && rng.NextFloat() < 0.12f && PickGate(townIndex, here, ref rng, out var gate))
+                ref var town = ref Terrain.Settlements.Value.Settlements[settlement];
+                var slice = 2f * math.PI / legs;
+                var angle = leg * slice;
+                gate = false;
+                point = town.Centre;
+                if (!inner && Terrain.Anchors.IsCreated)
                 {
-                    s.WorkSpot = gate;
-                    s.AnchorSize = 1f;
-                    return;
-                }
-                ref var set = ref Terrain.Settlements.Value;
-                ref var town = ref set.Settlements[townIndex];
-                var count = 0;
-                var pick = here;
-                for (int k = town.FirstStreet; k < town.FirstStreet + town.StreetCount; k++)
-                {
-                    ref var st = ref set.Streets[k];
-                    if (st.Road != 0 || math.distancesq(st.A.xz, st.B.xz) < 1f)
-                        continue;
-                    float2 next;
-                    if (math.distancesq(st.A.xz, here) < 1f)
-                        next = st.B.xz;
-                    else if (math.distancesq(st.B.xz, here) < 1f)
-                        next = st.A.xz;
-                    else
-                        continue;
-                    if (math.distancesq(next, from) < 1f)
-                        continue;
-                    count++;
-                    if (rng.NextInt(count) == 0)
-                        pick = next;
-                }
-                if (count == 0)
-                {
-                    // A dead end, or back from a gate: on to the nearest corner it isn't standing at.
+                    ref var anchors = ref Terrain.Anchors.Value;
+                    var found = new NativeList<int>(8, Allocator.Temp);
+                    Anchors.Near(ref anchors, new float3(town.Centre.x, 0f, town.Centre.y), town.Radius * 1.3f, AnchorKind.Gate, ref found);
                     var best = float.MaxValue;
-                    for (int k = town.FirstStreet; k < town.FirstStreet + town.StreetCount; k++)
+                    for (int i = 0; i < found.Length; i++)
                     {
-                        ref var st = ref set.Streets[k];
-                        if (st.Road != 0)
+                        var a = anchors.Anchors[found[i]];
+                        var off = a.Position.xz - town.Centre;
+                        var turn = math.abs(WrapAngle(math.atan2(off.x, off.y) - angle));
+                        if (a.InCave || a.OwnerIndex != settlement || turn > slice * 0.5f || turn >= best)
                             continue;
-                        for (int e = 0; e < 2; e++)
-                        {
-                            var c = e == 0 ? st.A.xz : st.B.xz;
-                            var d = math.distancesq(c, here);
-                            if (d > 4f && math.distancesq(c, from) > 1f && d < best)
-                            {
-                                best = d;
-                                pick = c;
-                            }
-                        }
+                        best = turn;
+                        point = a.Position.xz;
+                        gate = true;
                     }
+                    found.Dispose();
+                    if (gate)
+                        return true;
                 }
-                s.WorkSpot = pick;
+                math.sincos(angle, out var sin, out var cos);
+                var dir = new float2(sin, cos);
+                for (int k = 0; k < 8; k++)
+                {
+                    var r = town.Radius * (inner ? 0.22f + 0.04f * k : 0.9f - 0.05f * k);
+                    point = town.Centre + dir * r;
+                    if (!InYard(settlement, point) && Walkable(point, Habitat.Land))
+                        return true;
+                }
+                return false;
             }
 
-            /// <summary>One of a settlement's Gate anchors (where a road leaves it), picked at random.</summary>
-            bool PickGate(int settlement, float2 near, ref Random rng, out float2 gate)
+            /// <summary>Whether a point is on a built plot of a settlement (a house and its yard, a metre round).</summary>
+            bool InYard(int settlement, float2 at)
             {
-                gate = near;
-                if (!Terrain.Anchors.IsCreated)
-                    return false;
-                ref var anchors = ref Terrain.Anchors.Value;
-                var found = new NativeList<int>(8, Allocator.Temp);
-                Anchors.Near(ref anchors, new float3(near.x, 0f, near.y), 250f, AnchorKind.Gate, ref found);
-                var count = 0;
-                for (int i = 0; i < found.Length; i++)
+                ref var set = ref Terrain.Settlements.Value;
+                ref var town = ref set.Settlements[settlement];
+                for (int i = town.FirstPlot; i < town.FirstPlot + town.PlotCount; i++)
                 {
-                    var a = anchors.Anchors[found[i]];
-                    if (a.InCave || a.OwnerIndex != settlement)
-                        continue;
-                    count++;
-                    if (rng.NextInt(count) == 0)
-                        gate = a.Position.xz;
+                    ref var plot = ref set.Plots[i];
+                    if (plot.Building >= 0 && math.all(at > plot.Min - 1f) && math.all(at < plot.Max + 1f))
+                        return true;
                 }
-                found.Dispose();
-                return count > 0;
+                return false;
+            }
+
+            /// <summary>
+            /// A beast to drive off (a wolf, a bear or the like) well inside the guard's town (10 m in from its edge: not
+            /// one just roaming by) and within 25 m of it (35 m by torchlight), that fewer than two other guards are
+            /// already after: the nearest.
+            /// </summary>
+            bool FindMenace(Entity self, in CreatureState s, out Entity menace)
+            {
+                menace = Entity.Null;
+                var town = SettlementOf(s.Home);
+                if (town < 0)
+                    return false;
+                ref var t = ref Terrain.Settlements.Value.Settlements[town];
+                var best = s.Held == HeldItem.Torch ? 35f : 25f;
+                var c = Cell(s.Position.xz);
+                for (int z = -2; z <= 2; z++)
+                for (int x = -2; x <= 2; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        if (!Bodies[j].Blob.Value.DrivenOff || States[j].Gone)
+                            continue;
+                        var at = States[j].Position.xz;
+                        var d = math.distance(at, s.Position.xz);
+                        if (d >= best || math.distance(at, t.Centre) > t.Radius - 10f || Chasers(self, Entities[j], at) >= 2)
+                            continue;
+                        best = d;
+                        menace = Entities[j];
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return menace != Entity.Null;
+            }
+
+            /// <summary>How many guards (other than this one) are running at the beast.</summary>
+            int Chasers(Entity self, Entity beast, float2 at)
+            {
+                var count = 0;
+                var c = Cell(at);
+                for (int z = -2; z <= 2; z++)
+                for (int x = -2; x <= 2; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        if (Entities[j] != self && States[j].Mode == CreatureMode.Patrol && States[j].Stage == 2 && States[j].Partner == beast)
+                            count++;
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return count;
+            }
+
+            /// <summary>
+            /// For a beast in a town: a guard running at it (noticed within 30 m), or a night guard's torch within 12 m;
+            /// and where that guard is.
+            /// </summary>
+            bool FindChaser(Entity self, in CreatureState s, out float2 at)
+            {
+                at = default;
+                var c = Cell(s.Position.xz);
+                for (int z = -2; z <= 2; z++)
+                for (int x = -2; x <= 2; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        var other = States[j];
+                        if (other.Mode != CreatureMode.Patrol)
+                            continue;
+                        var d = math.distance(other.Position.xz, s.Position.xz);
+                        if (other.Stage == 2 && other.Partner == self && d < 30f || other.Held == HeldItem.Torch && d < 12f)
+                        {
+                            at = other.Position.xz;
+                            return true;
+                        }
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return false;
             }
 
             /// <summary>Another guard pausing within a few metres (for a word), and where it is.</summary>
@@ -2387,17 +2463,86 @@ namespace Punchy.Fauna
             }
 
             /// <summary>
-            /// A guard on its rounds: to the corner it's making for (stage 0), at a steady walk; there it picks the next
-            /// one, and where the way turns (or at a gate, or now and then) stops to look about first (stage 1), longer at
-            /// a gate, looking out down the road; meeting another guard stopped there, it turns to it for a word. Anyone
-            /// running or carrying on close by, it stops to watch. Off shift, it goes on with its own day.
+            /// A guard at the point its leg of the round was making for: a while there at a gate, looking out down the
+            /// road, or at either of two lookouts (the first leg's point and the one halfway round), looking about; then
+            /// on to the next leg's point.
             /// </summary>
-            void Patrol(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, float3 player,
+            void NextOnRound(ref CreatureState s, ref Random rng)
+            {
+                var town = SettlementOf(s.Home);
+                if (town < 0)
+                    return;
+                var legs = RoundLegs(s);
+                var inner = InnerRound(s);
+                var reached = s.RouteLeg % legs;
+                var pause = s.AnchorSize > 0f ? rng.NextFloat(8f, 16f) : reached == 0 || reached == legs / 2 ? rng.NextFloat(4f, 8f) : 0f;
+                var leg = reached;
+                for (int k = 0; k < legs; k++)
+                {
+                    leg = (leg + legs + RoundWay(s)) % legs;
+                    if (RoundPoint(town, leg, legs, inner, out var point, out var gate) && math.distancesq(point, s.WorkSpot) > 1f)
+                    {
+                        s.RouteLeg = (byte)leg;
+                        s.WorkFace = s.WorkSpot;
+                        s.WorkSpot = point;
+                        s.AnchorSize = gate ? 1f : 0f;
+                        break;
+                    }
+                }
+                if (pause > 0f)
+                {
+                    s.Stage = 1;
+                    s.StageTime = 0f;
+                    s.Timer = pause;
+                }
+            }
+
+            /// <summary>
+            /// A guard on its round: to the point it's making for (stage 0), at a slow, steady pace;
+            /// at a gate or a lookout it stops to look about (stage 1), longer at a gate, looking out down the road;
+            /// meeting another guard stopped there, it turns to it for a word. Anyone running or carrying on close by, it
+            /// stops to watch. Off shift, it goes on with its own day.
+            /// </summary>
+            void Patrol(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, float run, float3 player,
                         float playerSpeed, IdleAction emote, ref float targetSpeed, ref bool moving, ref float desiredLook)
             {
                 if (!OnShift(s))
                 {
                     Pause(ref s, ref b, ref rng);
+                    return;
+                }
+                // A wolf, a bear or the like come into the town: the guard runs at it, spear levelled (stage 2), till it's
+                // off out past the town's edge, then back to its round (to the point it was making for). It never goes
+                // more than 30 m beyond the edge after one, nor for more than 40 s, and leaves any one beast to a pair;
+                // after one, a minute and a half before it goes after another (so it's now and then, not all day).
+                s.ChaseCooldown = math.max(s.ChaseCooldown - dt, 0f);
+                if (s.Stage == 2)
+                {
+                    var town = SettlementOf(s.Home);
+                    if (town >= 0 && s.StageTime < 40f && Lookup.TryGetValue(s.Partner, out var p) && !States[p].Gone)
+                    {
+                        ref var t = ref Terrain.Settlements.Value.Settlements[town];
+                        var beast = States[p].Position.xz;
+                        if (math.distance(beast, t.Centre) < t.Radius + 8f && math.distance(s.Position.xz, t.Centre) < t.Radius + 30f)
+                        {
+                            s.Target = beast;
+                            // (Not right up to it: a spear's length off, it slows to keep there.)
+                            targetSpeed = math.distance(s.Position.xz, beast) > 2.5f ? run : 0f;
+                            moving = true;
+                            desiredLook = 0f;
+                            return;
+                        }
+                    }
+                    s.Stage = 0;
+                    s.StageTime = 0f;
+                    s.Partner = Entity.Null;
+                    s.ChaseCooldown = 90f;
+                }
+                else if (s.ChaseCooldown <= 0f && FindMenace(self, in s, out var menace))
+                {
+                    s.Stage = 2;
+                    s.StageTime = 0f;
+                    s.Partner = menace;
                     return;
                 }
                 var toPlayer = player.xz - s.Position.xz;
@@ -2406,20 +2551,9 @@ namespace Punchy.Fauna
                 {
                     s.Target = s.WorkSpot;
                     moving = !watching;
-                    targetSpeed = watching ? 0f : walk * 0.85f;
+                    targetSpeed = watching ? 0f : walk * 0.7f;
                     if (math.distance(s.Position.xz, s.WorkSpot) < 0.7f)
-                    {
-                        var came = math.normalizesafe(s.WorkSpot - s.WorkFace);
-                        var gate = s.AnchorSize > 0f;
-                        NextWaypoint(ref s, ref rng);
-                        var going = math.normalizesafe(s.WorkSpot - s.WorkFace);
-                        if (gate || math.dot(came, going) < 0.85f || rng.NextFloat() < 0.08f)
-                        {
-                            s.Stage = 1;
-                            s.StageTime = 0f;
-                            s.Timer = gate ? rng.NextFloat(8f, 16f) : rng.NextFloat(2f, 6f);
-                        }
-                    }
+                        NextOnRound(ref s, ref rng);
                 }
                 else
                 {

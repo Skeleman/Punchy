@@ -138,6 +138,9 @@ namespace Punchy.Fauna
         [Tooltip("A cave flier drawn to light (moths): spawns at a cave's glowing plants and flits round one of them, never " +
                  "landing or fleeing.")]
         public bool DrawnToLight;
+        [Tooltip("A beast town guards drive off (wolves, bears, big cats): come into a town, the guards on shift run at it " +
+                 "with spears levelled and it flees out of the place.")]
+        public bool DrivenOff;
 
         [Header("Flight (habitat Flies)")]
         [Tooltip("Height above the ground it cruises at, in metres.")]

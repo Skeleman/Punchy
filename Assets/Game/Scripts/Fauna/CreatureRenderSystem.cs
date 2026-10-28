@@ -583,9 +583,12 @@ namespace Punchy.Fauna
                 var wood = new Unity.Mathematics.float4(0.16f, 0.1f, 0.05f, 0f);
                 if (state.Held == HeldItem.Spear)
                 {
-                    var dir = Unity.Mathematics.math.normalize(new Unity.Mathematics.float3(0f, 1f, 0f) + forward * 0.12f);
+                    // (Running at a beast to drive it off: levelled at it, the head well out ahead.)
+                    var levelled = state.Mode == CreatureMode.Patrol && state.Stage == 2;
+                    var dir = levelled ? Unity.Mathematics.math.normalize(forward + new Unity.Mathematics.float3(0f, 0.12f, 0f))
+                                       : Unity.Mathematics.math.normalize(new Unity.Mathematics.float3(0f, 1f, 0f) + forward * 0.12f);
                     var length = 2.1f * scale;
-                    var butt = grip - dir * length * 0.45f;
+                    var butt = grip - dir * length * (levelled ? 0.3f : 0.45f);
                     var rot = Unity.Mathematics.quaternion.LookRotationSafe(dir, forward);
                     Output[at] = new SegmentInstance { Position = butt, Rotation = rot, Length = length, RadiusStart = 0.017f * scale, RadiusEnd = 0.014f * scale, Flatten = 1f, Color = wood, Pad = faded };
                     Output[at + 1] = new SegmentInstance { Position = butt + dir * length, Rotation = rot, Length = 0.2f * scale, RadiusStart = 0.03f * scale, RadiusEnd = 0.003f * scale, Flatten = 0.4f, Color = new Unity.Mathematics.float4(0.32f, 0.33f, 0.35f, 0f), Pad = faded };
