@@ -28,16 +28,22 @@ struct Pebble
 
 uint   _InstanceCount;
 float  _DetailRadius;
+float  _DetailFull;     // every instance is kept within this distance (GroundDetailSystem.FullDensityRadius)
 float4 _PunchyPlayerPos;
 // Other players' feet (w = 1 where there is one), set by GroundDetailSystem.
 float4 _PunchyOthersPos[4];
 float2 _PunchyWindDirection;
 half   _PunchyWind;
+// The shared tiling noise (CaveSystem makes it; b is a smooth height): gusts roll across fields as it scrolls downwind.
+TEXTURE2D(_PunchyCaveDetail);
+SAMPLER(sampler_PunchyCaveDetail);
+float _PunchyCaveDetailReady;
+#include "SharedClock.hlsl"
 
-// Fraction of a tile's instances kept at a distance (matches GroundDetailSystem.Thinning).
+// Fraction of a tile's instances kept at a distance (matches GroundDetailSystem.Thinning): all of them within _DetailFull.
 float DetailThinning(float distance)
 {
-    return lerp(1.0, 0.12, smoothstep(12.0, _DetailRadius, distance));
+    return lerp(1.0, 0.12, smoothstep(_DetailFull, _DetailRadius, distance));
 }
 
 // 0..1 visibility of instance i at a distance: instances beyond the kept fraction shrink smoothly away, and
@@ -72,11 +78,18 @@ void BuildBladeVertex(Blade blade, uint instance, uint vertex, out float3 positi
     float3 across = float3(cos(blade.facing), 0, sin(blade.facing));
     float3 lean = float3(-across.z, 0, across.x);
 
-    // Wind: gusting sway along the wind direction, travelling across the field.
+    // Wind: patchy gusts rolling across the field. A tiling noise scrolled downwind sets how hard each blade is
+    // pushed and turns it a little off the wind; a small, quick flutter rides on top. On the shared clock, so every
+    // player sees the same gusts.
+    float time = _PunchyClock;
     float3 windDir = float3(_PunchyWindDirection.x, 0, _PunchyWindDirection.y);
-    float phase = _Time.y * (1.3 + _PunchyWind * 1.6) - dot(blade.position.xz, _PunchyWindDirection) * 0.12 + blade.random * 6.28;
-    float sway = (sin(phase) * 0.5 + 0.5) * (0.15 + 0.85 * _PunchyWind) + sin(phase * 2.7) * 0.06;
-    float3 wind = windDir * sway * height * 0.7;
+    float2 gustUV = blade.position.xz * 0.011 - _PunchyWindDirection * time * (0.025 + 0.06 * _PunchyWind);
+    half4 gustNoise = SAMPLE_TEXTURE2D_LOD(_PunchyCaveDetail, sampler_PunchyCaveDetail, gustUV, 0);
+    half gust = lerp(0.5, smoothstep(0.3, 0.75, gustNoise.b), _PunchyCaveDetailReady);
+    float3 gustDir = normalize(windDir + float3(gustNoise.r - 0.5, 0, gustNoise.g - 0.5) * 0.8 * _PunchyCaveDetailReady + 1e-4);
+    float flutter = sin(time * (6.5 + blade.random * 3) + blade.random * 6.28) * (0.03 + 0.05 * gust);
+    float sway = (0.1 + 0.75 * _PunchyWind) * (0.2 + 0.9 * gust) + flutter;
+    float3 wind = gustDir * sway * height * 0.7;
 
     // The player, and anyone else nearby, pushes blades aside.
     float2 away = blade.position.xz - _PunchyPlayerPos.xz;
