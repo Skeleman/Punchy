@@ -97,6 +97,7 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
 | 6 | URP renderer asset | world feature manager | SSAO tuning (W-14, J-024) | Done (c776a88) |
 | 7 | `TerrainStreamingSystem.cs` | world feature manager | Per-frame chunk-mesh cap while moving (perf batch) | Lent |
 | 10 | `Flora/FloraPlacement.cs` | world feature manager | Biome-border flora compatibility (19e) | Lent |
+| 11 | Sky shader, `WeatherSystem` moon parts | world feature manager | Moon phases and the second blue moon; Sun stays the animal session's | Lent |
 | 9 | `Scripts/Player/PlayerMovementSystem.cs` | Animal behavior manager | Player flight for flying species | Lent |
 | 8 | Shader/PSO warm-up at load, `Weather/WeatherField` redraw rate | kind-possum | Glide hitches, weather job cost; own b/ branch | Lent |
 
