@@ -48,7 +48,7 @@ MonoBehaviour:
     Phase: 0
     MirrorPhase: 0.5
     Scale: 0.5
-    Thickness: 1
+    Thickness: 1.8
     StyleGroup: 0
   - Limb: {fileID: 11400000, guid: fee2595e6d0d0af4f84039dcc2a6a682, type: 2}
     Parent: -1
@@ -58,7 +58,7 @@ MonoBehaviour:
     Phase: 0
     MirrorPhase: 0.5
     Scale: 0.45
-    Thickness: 1
+    Thickness: 2.6
     StyleGroup: 0
   - Limb: {fileID: 11400000, guid: e643fc75ab94c0248b5e3710ae391090, type: 2}
     Parent: 1
