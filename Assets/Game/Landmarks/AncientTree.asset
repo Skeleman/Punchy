@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a5407ac3b5877da49af18e077398168c, type: 3}
   m_Name: AncientTree
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.LandmarkType
-  Radius: 30
+  Radius: 40
   Scale: {x: 0.85, y: 1.15}
   MaxRelief: 6
   Elevation: {x: 3, y: 10000}
@@ -29,7 +29,7 @@ MonoBehaviour:
   WaterGlow: 0
   Ground: {fileID: 11400000, guid: ae864f77c41b8724db337b796525440a, type: 2}
   GroundRadius: 0.5
-  ClearRadius: 0.75
+  ClearRadius: 0.85
   Props:
   - Species: {fileID: 11400000, guid: 401e67ff506cc84478d4ff3a5c089733, type: 2}
     Density: 5
