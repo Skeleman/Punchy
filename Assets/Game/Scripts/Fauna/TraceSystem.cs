@@ -29,6 +29,8 @@ namespace Punchy.Fauna
             /// (1) down to Floor, where it's gone; how fast it grows (per second, of its size).</summary>
             public float3 Velocity;
             public float Falls, Floor, Grow;
+            /// <summary>Falling, drawn out into a streak by this much of its speed (s): a drop of water, not a stone.</summary>
+            public float Streak;
             /// <summary>Above 0: see-through by this much (dithered), fading out rather than shrinking at the end.</summary>
             public float Dither;
         }
@@ -286,6 +288,7 @@ namespace Punchy.Fauna
                     Velocity = new float3(out0.x, 0f, out0.y) * (column ? rng.NextFloat(0.2f, 0.8f) : rng.NextFloat(1f, 4f)) * math.sqrt(size) + new float3(0f, up, 0f),
                     Falls = 1f,
                     Floor = g.WaterSurface - r,
+                    Streak = 0.035f,
                     Dither = 0.4f
                 });
             }
@@ -442,12 +445,12 @@ namespace Punchy.Fauna
                 var rotation = t.Rotation;
                 var length = t.Length * grow;
                 var tail = t.Radius * grow;
-                if (t.Falls > 0f)
+                if (t.Streak > 0f)
                 {
                     var velocity = t.Velocity - new float3(0f, Gravity * age, 0f);
                     var speed = math.length(velocity);
                     rotation = quaternion.LookRotationSafe(velocity / math.max(speed, 1e-3f), new float3(1f, 0f, 0f));
-                    length += speed * 0.035f;
+                    length += speed * t.Streak;
                     tail *= 0.35f;
                     position -= velocity / math.max(speed, 1e-3f) * length;
                 }

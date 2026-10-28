@@ -96,7 +96,7 @@ namespace Punchy.Fauna
             // ground with the body upright; lying, over onto the back (the limbs: SitPose and LiePose).
             if (b.Upright)
             {
-                pitch += s.Sit * 0.5f;
+                pitch += s.Sit * (0.5f - 0.25f);   // (leaning back a little on its hands)
                 height = math.lerp(height + s.Sit * b.StandHeight * scale * 0.3f, 0.16f * scale, s.Sit);
                 pitch -= 1.5f * s.Lie;
             }
@@ -653,9 +653,9 @@ namespace Punchy.Fauna
             switch (part.Role)
             {
                 case LimbRole.Leg:
-                    return joint == 0 ? new float3(-1.45f, part.Side * 0.12f, 0f) : joint == 1 ? new float3(0.3f, 0f, 0f) : float3.zero;
+                    return joint == 0 ? new float3(-1.2f, part.Side * 0.12f, 0f) : joint == 1 ? new float3(0.15f, 0f, 0f) : float3.zero;
                 case LimbRole.Arm:
-                    return joint == 0 ? new float3(0.5f, 0f, part.Side * 0.15f) : float3.zero;
+                    return joint == 0 ? new float3(0.6f, 0f, part.Side * 0.2f) : float3.zero;
                 default:
                     return float3.zero;
             }

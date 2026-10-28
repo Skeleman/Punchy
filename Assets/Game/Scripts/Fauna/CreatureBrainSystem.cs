@@ -563,6 +563,9 @@ namespace Punchy.Fauna
                             // (Its time there starts when it sits down; a spot it can't reach in a minute, it gives up on.)
                             if (s.StageTime > 60f)
                                 Pause(ref s, ref b, ref rng);
+                            // (Two that chose the same spot in the same moment: the later of them finds another.)
+                            else if (Contested(self, in s) && !StartLounge(self, ref s, ref rng))
+                                Pause(ref s, ref b, ref rng);
                             else if (math.distance(s.Position.xz, s.Target) < 0.5f)
                             {
                                 s.Stage = (byte)s.TargetHeight;
@@ -573,6 +576,10 @@ namespace Punchy.Fauna
                         {
                             // Turned to the well (or the view), then down: sitting up and looking about, or lying back.
                             s.Timer -= dt;
+                            // (Shuffling the last of the way onto its own spot, so it neither crowds the next nor the wall.)
+                            var short_ = s.Target - s.Position.xz;
+                            var shuffle = math.min(math.length(short_), 0.5f * dt);
+                            s.Position.xz += math.normalizesafe(short_) * shuffle;
                             var toFace = s.Focus - s.Position.xz;
                             var wantedYaw = WrapAngle(math.atan2(toFace.x, toFace.y) - s.Yaw);
                             s.Yaw = WrapAngle(s.Yaw + math.clamp(wantedYaw, -b.TurnRate * dt, b.TurnRate * dt));
@@ -581,7 +588,7 @@ namespace Punchy.Fauna
                             else
                                 sit = 1f;
                             desiredLook = s.Stage == 3 ? 0f : idleLook;
-                            if (s.Timer <= 0f)
+                            if (s.Timer <= 0f || Contested(self, in s) && !StartLounge(self, ref s, ref rng))
                                 Pause(ref s, ref b, ref rng);
                         }
                         break;
@@ -909,7 +916,7 @@ namespace Punchy.Fauna
                 var hunt = prey != Entity.Null ? b.Hunger * 2.5f * Urge(s.Hunger) : 0f;
                 // Climbers go up trees to sit, and to sleep (they sleep up there, not on the ground).
                 var climb = b.Climbing > 0f && HasFlora && !flier ? b.Climbing * (sleepy > 0.5f ? 8f : 2.5f) : 0f;
-                // Townsfolk sit a while by the well or on the green, or lie back in the grass, by day.
+                // Townsfolk sit a while by the well, or lie back on the ground near it, by day.
                 var lounge = b.Upright && b.Hands && s.Leash > 0f && sleepy < 0.3f && Night < 0.3f && s.Task != CreatureTask.Patrol ? 0.2f * awake : 0f;
                 // Townsfolk now and then go for a swim, in the warm middle of the day.
                 var swim = b.Upright && b.Hands && s.Leash > 0f && sleepy < 0.2f && Night < 0.2f && s.Task != CreatureTask.Patrol ? 0.12f * awake : 0f;
@@ -1047,7 +1054,7 @@ namespace Punchy.Fauna
                 // (Only for species that do these: a failed drink above leaves the roll below zero.)
                 else if (climb > 0f && (roll -= climb) < 0f && StartClimb(ref s, ref b, ref rng, sleepy > 0.5f)) { }
                 else if (swim > 0f && (roll -= swim) < 0f && StartSwim(ref s, ref rng)) { }
-                else if (lounge > 0f && (roll -= lounge) < 0f && StartLounge(ref s, ref rng)) { }
+                else if (lounge > 0f && (roll -= lounge) < 0f && StartLounge(self, ref s, ref rng)) { }
                 else if (web > 0f && (roll -= web) < 0f && GoToWeb(ref s, ref b, ref rng)) { }
                 else if (fly > 0f && (roll -= fly) < 0f && StartFlight(ref s, ref b, ref rng, sleepy > 0.5f)) { }
                 else if (onGround)
@@ -1936,19 +1943,20 @@ namespace Punchy.Fauna
             // ------------------------------------------------------------------------------- taking their ease
 
             /// <summary>
-            /// Somewhere to sit or lie a while near home: on the ground by one of the town's wells or fountains (a little
-            /// to one side, facing it), or on a green (anywhere on it, facing wherever); lying back is always on a green.
-            /// False if there's nowhere in range.
+            /// Somewhere to sit or lie a while near home, on the ground by one of the town's wells or fountains: sitting in
+            /// a row before it, facing it, an arm's length or so clear of the wall; lying back in a second row further
+            /// out, feet to it. Each takes a slot of its own (by individual, the next along if that's taken), a metre or
+            /// so from the next (two for those lying), so two never sit in one another's lap. False if there's nowhere in
+            /// range, or no free slot. (Not on a town's Bench plots: those are fenced kitchen gardens as often as greens.)
             /// </summary>
-            bool StartLounge(ref CreatureState s, ref Random rng)
+            bool StartLounge(Entity self, ref CreatureState s, ref Random rng)
             {
                 if (!Terrain.Anchors.IsCreated)
                     return false;
                 ref var set = ref Terrain.Anchors.Value;
                 var lying = rng.NextFloat() < 0.4f;
-                var kind = lying || rng.NextBool() ? AnchorKind.Bench : AnchorKind.Well;
                 var near = new NativeList<int>(8, Allocator.Temp);
-                Anchors.Near(ref set, new float3(s.Home.x, s.Position.y, s.Home.y), math.max(s.Leash, 30f), kind, ref near);
+                Anchors.Near(ref set, new float3(s.Home.x, s.Position.y, s.Home.y), math.max(s.Leash, 30f), AnchorKind.Well, ref near);
                 if (near.Length == 0)
                 {
                     near.Dispose();
@@ -1956,26 +1964,66 @@ namespace Punchy.Fauna
                 }
                 var a = set.Anchors[near[rng.NextInt(near.Length)]];
                 near.Dispose();
-                float2 spot, face;
-                if (kind == AnchorKind.Well)
+                // Sitting: five along the near row. Lying: four along the far one.
+                var slots = lying ? 4 : 5;
+                var first = (int)(s.Individual % (uint)slots);
+                var room = lying ? 1.6f : 0.9f;
+                var across = new float2(-a.Facing.y, a.Facing.x);
+                for (int i = 0; i < slots; i++)
                 {
-                    var side = new float2(-a.Facing.y, a.Facing.x) * rng.NextFloat(-0.9f, 0.9f);
-                    spot = a.Position.xz + side - a.Facing * 0.4f;
-                    face = a.Position.xz + a.Facing * 3f;
+                    var k = (first + i) % slots;
+                    var spot = lying ? a.Position.xz + across * ((k - 1.5f) * 2f) - a.Facing * 4f
+                                     : a.Position.xz + across * ((k - 2) * 0.95f) - a.Facing * 1f;
+                    if (!Walkable(spot, Habitat.Land) || Taken(self, spot, room))
+                        continue;
+                    SetMode(ref s, CreatureMode.Sit);
+                    s.Target = spot;
+                    s.Focus = spot + a.Facing * 3f;
+                    s.TargetHeight = lying ? 3f : 1f;
+                    s.Timer = lying ? rng.NextFloat(80f, 200f) : rng.NextFloat(40f, 120f);
+                    return true;
                 }
-                else
+                return false;
+            }
+
+            /// <summary>Another on its way to the same spot to sit or lie, that took it first (the lower entity index).</summary>
+            bool Contested(Entity self, in CreatureState s)
+            {
+                var c = Cell(s.Target);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
                 {
-                    spot = a.Position.xz + rng.NextFloat2Direction() * rng.NextFloat(1f, 3.5f);
-                    face = spot + rng.NextFloat2Direction() * 3f;
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        if (Entities[j].Index < self.Index && States[j].Mode == CreatureMode.Sit && math.distance(States[j].Target, s.Target) < 0.9f)
+                            return true;
+                    } while (Grid.TryGetNextValue(out j, ref it));
                 }
-                if (!Walkable(spot, Habitat.Land))
-                    return false;
-                SetMode(ref s, CreatureMode.Sit);
-                s.Target = spot;
-                s.Focus = face;
-                s.TargetHeight = lying ? 3f : 1f;
-                s.Timer = lying ? rng.NextFloat(80f, 200f) : rng.NextFloat(40f, 120f);
-                return true;
+                return false;
+            }
+
+            /// <summary>Someone else there already, or on their way to sit or lie there (within room of it).</summary>
+            bool Taken(Entity self, float2 spot, float room)
+            {
+                var c = Cell(spot);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        if (Entities[j] == self)
+                            continue;
+                        var other = States[j];
+                        if (math.distance(other.Position.xz, spot) < room ||
+                            other.Mode == CreatureMode.Sit && math.distance(other.Target, spot) < room)
+                            return true;
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return false;
             }
 
             // ------------------------------------------------------------------------------- swimming
