@@ -13,6 +13,14 @@ asks Zach if needed, and records the answer here.
 
 ## Decided
 
+### J-028: Should the player have a walking speed?
+
+- **Asked:** 2026-10-28, by the animal session via the supervisor (default pace is a 6 m/s jog).
+- **Also comes up when:** movement speeds, sneaking, gait tuning.
+- **Answer (2026-10-28):** add a walk toggle (~1.6 m/s with a walking gait); the jog stays the default, sprint unchanged.
+- **Why:** (recommendation) quick travel by default, walking for towns, sneaking and screenshots.
+- **Revisited:** 0.
+
 ### J-027: Where may settlements be placed?
 
 - **Asked:** 2026-10-28, by Zach (a rule).
