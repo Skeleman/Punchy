@@ -624,13 +624,21 @@ namespace Punchy.Fauna
                 var count = rng.NextInt(math.max(0, d.Count.x), math.max(d.Count.x, d.Count.y) + 1);
                 // Hunters range well beyond the settlement, out to where the game is.
                 var leash = d.Task == CreatureTask.Hunt ? math.max(radius * 3f, 70f) : radius * d.Range;
+                // Lava dwellers go in the landmark's lava (a few tries each), not on dry ground.
+                var lava = d.Species.Body.LavaDweller;
                 for (int k = 0; k < count; k++)
                 {
                     var p = centre + rng.NextFloat2Direction() * rng.NextFloat(0.1f, 0.7f) * leash;
                     var g = source.SampleGround(p);
-                    if (g.HasWater && g.WaterSurface > g.Height)
+                    for (int t = 0; lava && t < 12 && !(g.HasWater && g.WaterSurface - g.Height > 0.5f &&
+                                                        source.LavaAt(new float3(p.x, g.WaterSurface - 0.2f, p.y)) > 0.5f); t++)
+                    {
+                        p = centre + rng.NextFloat2Direction() * rng.NextFloat(0f, 0.8f) * leash;
+                        g = source.SampleGround(p);
+                    }
+                    if (lava ? !(g.HasWater && g.WaterSurface > g.Height + 0.5f) : g.HasWater && g.WaterSurface > g.Height)
                         continue;
-                    var e = Spawn(index, new float3(p.x, g.Height, p.y));
+                    var e = Spawn(index, new float3(p.x, lava ? g.WaterSurface - 0.3f : g.Height, p.y));
                     spawnedDomestics++;
                     var state = em.GetComponentData<CreatureState>(e);
                     state.Home = centre;

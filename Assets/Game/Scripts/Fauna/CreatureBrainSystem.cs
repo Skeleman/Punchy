@@ -554,6 +554,9 @@ namespace Punchy.Fauna
                                                 : s.Speed > 0.05f && !Walkable(ahead, b.Habitat);
                     // Animals that swim go on into water when they're on their way somewhere (not to stand in it), and a
                     // lake bed's slope doesn't stop them.
+                    // A lava dweller keeps to lava (a swimmer's water test passes ordinary water too).
+                    if (b.LavaDweller && s.Speed > 0.05f && !blocked && !InLava(ahead))
+                        blocked = true;
                     // Ghosts drift over water and up slopes alike (only a cave's hole turns them).
                     if (b.Haunts)
                     {
@@ -800,7 +803,8 @@ namespace Punchy.Fauna
                     // Animals with a home stay near it.
                     if (s.Leash > 0f && math.distance(candidate, s.Home) > s.Leash)
                         candidate = s.Home + rng.NextFloat2Direction() * s.Leash * rng.NextFloat(0.1f, 0.8f);
-                    if (b.CaveDweller ? CaveFloor(candidate, s.Position.y) : Walkable(candidate, b.Habitat))
+                    if ((b.CaveDweller ? CaveFloor(candidate, s.Position.y) : Walkable(candidate, b.Habitat)) &&
+                        (!b.LavaDweller || InLava(candidate)))
                     {
                         SetMode(ref s, CreatureMode.Wander);
                         s.Target = candidate;
@@ -2517,7 +2521,9 @@ namespace Punchy.Fauna
                     // arcs up out of the water and back.
                     var g = Terrain.SampleGround(s.Position.xz);
                     var surface = g.HasWater ? g.WaterSurface : g.Height;
+                    // (A lava dweller basks at the surface, its back and head out: lava hides anything below it.)
                     var y = b.Habitat == Habitat.Floats ? surface + b.StandHeight * 0.35f * s.Scale
+                          : b.LavaDweller ? surface + b.FrontRadius * s.Scale * 0.4f
                           : surface - math.clamp((surface - g.Height) * 0.45f, 0.25f, b.SwimDepth);
                     if (s.Air > 0f)
                     {
@@ -2586,6 +2592,14 @@ namespace Punchy.Fauna
                         }
                 }
                 return best < float.MaxValue;
+            }
+
+            /// <summary>Lava deep enough to swim in (a volcano's crater lake, a lava biome's pools).</summary>
+            bool InLava(float2 xz)
+            {
+                var g = Terrain.SampleGround(xz);
+                return g.HasWater && g.WaterSurface - g.Height > 0.5f &&
+                       Terrain.LavaAt(new float3(xz.x, g.WaterSurface - 0.2f, xz.y)) > 0.5f;
             }
 
             /// <summary>How deep the water is here (0 on dry land).</summary>

@@ -98,3 +98,8 @@ MonoBehaviour:
     Count: {x: 1, y: 1}
     Range: 1
     Task: 6
+  - Settlement: {fileID: 11400000, guid: 92e39e7c029a5f7469ad94c67b3b4912, type: 2}
+    Species: {fileID: 11400000, guid: 2e005590929fde24b8c869f721b8ab86, type: 2}
+    Count: {x: 3, y: 5}
+    Range: 0.1
+    Task: 0

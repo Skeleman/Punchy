@@ -114,6 +114,8 @@ namespace Punchy.Fauna
         public bool Roosts;
         [Tooltip("Comes over to people, sits by them wagging its tail and follows them about (within its home range): dogs.")]
         public bool Friendly;
+        [Tooltip("Lives in lava (with habitat Swims): keeps to lava, never water, and comes up to bask at its surface.")]
+        public bool LavaDweller;
         [Tooltip("A ghost: drifts above the ground (and water), half seen and faintly glowing, only at night; drifts closer " +
                  "to watch a person, and is gone when they come near, to appear again further off.")]
         public bool Haunts;

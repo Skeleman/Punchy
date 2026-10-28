@@ -226,6 +226,14 @@ namespace Punchy.Fauna
                             instance.Color.w = Unity.Mathematics.math.max(instance.Color.w, 0.3f);
                         Output[offset + i] = instance;
                     }
+                // A lava dweller's bones glow like embers, all over, pulsing slowly.
+                if (body.Blob.Value.LavaDweller)
+                    for (int i = 0; i < body.SegmentCount; i++)
+                    {
+                        var instance = Output[offset + i];
+                        instance.Color.w = Unity.Mathematics.math.max(instance.Color.w, 0.28f + 0.08f * Unity.Mathematics.math.sin(Time * 1.7f + i * 0.6f));
+                        Output[offset + i] = instance;
+                    }
                 FearMarks(state, offset, body.SegmentCount, entity.Index);
                 if (InWeb(state))
                     Web(state, ref body.Blob.Value, offset + body.SegmentCount + MarkCount);

@@ -38,6 +38,8 @@ namespace Punchy.Debugging
         }
 
         readonly List<Location> locations = new List<Location>();
+        /// <summary>Landmarks' middles (for -place, not in the N list).</summary>
+        readonly List<Location> centres = new List<Location>();
         int current = -1;
         EntityQuery playerQuery, terrainQuery, paletteQuery;
         World queryWorld;
@@ -198,6 +200,17 @@ namespace Punchy.Debugging
                         current = index - 1;
                         Jump(1);
                         Debug.Log($"DebugControls: started at {locations[index].Name}");
+                    }
+                    else
+                    {
+                        var middle = centres.FindIndex(l => string.Equals(l.Name, args[i + 1], System.StringComparison.OrdinalIgnoreCase));
+                        if (middle >= 0)
+                        {
+                            locations.Add(centres[middle]);
+                            current = locations.Count - 2;
+                            Jump(1);
+                            Debug.Log($"DebugControls: started at {centres[middle].Name}");
+                        }
                     }
                 }
             }
@@ -507,8 +520,8 @@ namespace Punchy.Debugging
                 if (swimSpot.HasValue)
                 {
                     var w = source.SampleGround(swimSpot.Value);
-                    c.Position = new float3(swimSpot.Value.x, w.WaterSurface - b.StandHeight * c.Scale - b.FrontRadius * b.BodyFlatten * c.Scale * 0.55f,
-                                            swimSpot.Value.y);
+                    var below = b.LavaDweller ? -b.FrontRadius * c.Scale * 0.4f : b.StandHeight * c.Scale + b.FrontRadius * b.BodyFlatten * c.Scale * 0.55f;
+                    c.Position = new float3(swimSpot.Value.x, w.WaterSurface - below, swimSpot.Value.y);
                     c.Speed = b.WalkSpeed * c.Scale;
                     CreatureMotion.AdvancePhase(ref c, ref b, dt);
                 }
@@ -804,6 +817,9 @@ namespace Punchy.Debugging
                     var away = set.Types[t].Shape == LandmarkShape.Cliff ? -inst.Facing : math.normalizesafe(inst.Position, new float2(1f, 0f));
                     var at = inst.Position + away * radius * 1.1f;
                     locations.Add(new Location { Name = palette.Landmarks[t].name, Position = at, Yaw = Yaw(inst.Position - at) });
+                    // (And its middle, a few metres off it, for things that live there: "-place VolcanoCone:centre".)
+                    var middle = inst.Position + away * 8f;
+                    centres.Add(new Location { Name = palette.Landmarks[t].name + ":centre", Position = middle, Yaw = Yaw(inst.Position - middle) });
                 }
             }
         }
