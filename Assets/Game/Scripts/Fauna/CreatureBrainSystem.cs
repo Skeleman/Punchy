@@ -738,7 +738,7 @@ namespace Punchy.Fauna
                 var home = 0f;
                 if (b.Upright && s.Leash > 0f && s.Task != CreatureTask.Watch && FindDoor(ref s))
                 {
-                    home = sleepy > 0.5f ? 14f : 0.5f * awake;
+                    home = sleepy > 0.5f ? 14f : 0.15f * awake;
                     if (sleepy > 0.5f)
                         work = sleep = 0f;
                 }
@@ -790,7 +790,7 @@ namespace Punchy.Fauna
                 {
                     SetMode(ref s, CreatureMode.Home);
                     // (At night it stays in till morning: the time only runs by day.)
-                    s.Timer = rng.NextFloat(20f, 80f);
+                    s.Timer = rng.NextFloat(15f, 45f);
                 }
                 else if ((roll -= hunt) < 0f)
                 {
