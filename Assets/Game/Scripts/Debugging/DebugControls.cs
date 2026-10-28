@@ -58,6 +58,8 @@ namespace Punchy.Debugging
                 return;
             if (keyboard.f1Key.wasPressedThisFrame)
                 ShowReadout = !ShowReadout;
+            if (keyboard.f3Key.wasPressedThisFrame)
+                CopyPosition();
             if (keyboard.bKey.wasPressedThisFrame && Weather != null)
                 Weather.NextDayType();
             if (keyboard.yKey.wasPressedThisFrame && Cycle != null)
@@ -193,6 +195,22 @@ namespace Punchy.Debugging
             }
             if (inCave && EnsureLocations(out var source))
                 GoIntoCave(source);
+            // "-goto 120,-340" (x,z, as F3 copies it): there, on the ground (after any -place).
+            var goTo = System.Array.IndexOf(args, "-goto");
+            if (goTo >= 0 && goTo + 1 < args.Length && EnsureLocations(out var ground) && playerQuery.TryGetSingletonEntity<LocalTransform>(out var goer))
+            {
+                var parts = args[goTo + 1].Split(',');
+                if (parts.Length >= 2 &&
+                    float.TryParse(parts[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var gx) &&
+                    float.TryParse(parts[^1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var gz))
+                {
+                    var em = queryWorld.EntityManager;
+                    var t = em.GetComponentData<LocalTransform>(goer);
+                    t.Position = new float3(gx, ground.SampleHeight(new float2(gx, gz)) + 0.1f, gz);
+                    em.SetComponentData(goer, t);
+                    Debug.Log($"DebugControls: to {gx:F0},{gz:F0}");
+                }
+            }
             // "-at Pool" (any AnchorKind): on the floor by the nearest anchor of that kind (after any -place).
             var at = System.Array.IndexOf(args, "-at");
             if (at >= 0 && at + 1 < args.Length && System.Enum.TryParse<AnchorKind>(args[at + 1], true, out var kind) &&
@@ -838,6 +856,19 @@ namespace Punchy.Debugging
 
         // ---------------------------------------------------------------- readout
 
+        float copiedUntil;
+
+        /// <summary>F3: the player's position, as "-goto" takes it, onto the clipboard (for reporting a spot).</summary>
+        void CopyPosition()
+        {
+            if (playerQuery.TryGetSingleton<LocalTransform>(out var player))
+            {
+                GUIUtility.systemCopyBuffer = $"-goto {player.Position.x:F0},{player.Position.z:F0}";
+                copiedUntil = Time.unscaledTime + 2f;
+                readout = null;
+            }
+        }
+
         void OnGUI()
         {
             if (!ShowReadout || !Application.isPlaying)
@@ -864,6 +895,11 @@ namespace Punchy.Debugging
                 var ground = source.SampleGround(xz);
                 var place = current >= 0 ? locations[current].Name : "-";
                 lines.Add($"<b>{place}</b>   biome: {palette.Biomes[ground.Biomes.Dominant()].name}   height {ground.Height - source.World.SeaLevel:F0} m");
+                // Where exactly (for reporting a spot: F3 copies it; "-goto x,z" comes back to it).
+                var forward = math.mul(player.Rotation, new float3(0f, 0f, 1f));
+                var heading = (math.degrees(math.atan2(forward.x, forward.z)) + 360f) % 360f;
+                lines.Add($"x <b>{player.Position.x:F0}</b>   y <b>{player.Position.y:F0}</b>   z <b>{player.Position.z:F0}</b>   facing {heading:F0}°" +
+                          (copiedUntil > Time.unscaledTime ? "   <color=#9f9>copied</color>" : ""));
                 if (Weather != null && Weather.Field.Ready)
                     lines.Add($"day: <b>{Weather.DayTypeName}</b>   weather here: {Weather.Field.Describe(new Vector2(xz.x, xz.y))}");
             }
@@ -872,7 +908,7 @@ namespace Punchy.Debugging
                 var hours = (int)Cycle.TimeOfDay;
                 lines.Add($"time {hours:00}:{(int)((Cycle.TimeOfDay - hours) * 60f):00}   {1f / Time.smoothDeltaTime:F0} fps");
             }
-            lines.Add("<color=#bbbbbb>N/Shift+N place · B day type · Y +2 h · T fast time · ] force weather · [ clear · F1 hide</color>");
+            lines.Add("<color=#bbbbbb>N/Shift+N place · B day type · Y +2 h · T fast time · ] force weather · [ clear · F3 copy position · F1 hide</color>");
 
             return string.Join("\n", lines);
         }
