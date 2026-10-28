@@ -139,6 +139,7 @@ namespace Punchy.Terrain
         static readonly int DetailId = Shader.PropertyToID("_PunchyCaveDetail");
         static readonly int DetailReadyId = Shader.PropertyToID("_PunchyCaveDetailReady");
         static readonly int FloraInCaveId = Shader.PropertyToID("_FloraInCave");
+        static readonly int UnderRockId = Shader.PropertyToID("_UnderRock");
         static Texture2D detail;
 
         void OnEnable()
@@ -267,6 +268,9 @@ namespace Punchy.Terrain
             if (floraMaterial != null)
                 Destroy(floraMaterial);
             floraMaterial = null;
+            if (caveWater != null)
+                Destroy(caveWater);
+            caveWater = null;
             Shader.SetGlobalVector(LanternId, Vector4.zero);
         }
 
@@ -387,7 +391,7 @@ namespace Punchy.Terrain
                 if (d < LoadRadius)
                     nearPools.Add((d, i));
             }
-            var water = configQuery.IsEmpty ? null : configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value;
+            var water = UnderRockWater(configQuery.IsEmpty ? null : configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value);
             if (nearPools.Count > 0)
             {
                 if (lavaPoolMesh == null)
@@ -450,6 +454,29 @@ namespace Punchy.Terrain
         BiomePalette plantsFrom;
         Material floraMaterial;
         GraphicsBuffer plantInstances, plantVisible;
+
+        Material caveWater;
+
+        /// <summary>
+        /// A copy of the terrain's water material for cave pools and streams, marked as under rock, so their
+        /// reflections never fall back to the sky (near a mouth the camera isn't yet counted as underground). Kept in
+        /// step with the original's settings.
+        /// </summary>
+        Material UnderRockWater(Material water)
+        {
+            if (water == null)
+                return null;
+            if (caveWater == null || caveWater.shader != water.shader)
+            {
+                if (caveWater != null)
+                    Destroy(caveWater);
+                caveWater = new Material(water) { name = "Cave water" };
+            }
+            else
+                caveWater.CopyPropertiesFromMaterial(water);
+            caveWater.SetFloat(UnderRockId, 1f);
+            return caveWater;
+        }
         /// <summary>One draw per run of the same model and LOD: its mesh, and its index in plantArgs.</summary>
         readonly List<Mesh> plantDraws = new List<Mesh>();
         /// <summary>Indirect arguments per draw (instance count, and the run's start in plantVisible as startInstance,
