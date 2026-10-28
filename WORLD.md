@@ -123,11 +123,12 @@ Batches in this order; each batch gets one evaluation session, one sheet and one
 2. **Flora at biome borders**: done as hard realm edges (85ed8ef).
 3. **Realms (J-026, J-030), habitability (J-027), town count (J-032)**: done; realms on since e2267f6, 10 towns.
    Next realm work: the new sub-biomes in pairs (plan in REALMS-PLAN.md), after the items below.
-4. **Caves round 2 (in progress)**: W-23 bigger caves (done, b1c9de6; the floor misses were sub-10 cm skins); pools
-   fit their floor and cave water is under rock (done); more jagged standard caves; ribbed ice; much more floor
-   debris; metallic caves faceted; mines with a mining village; per-cave variation from the seed; egg clusters with
-   Nest anchors; cave torches with the shared flame (FireSystem.AddFlame(position, size, seed, palette, lean), also for
-   the animal session's guards' torches); cave styles per realm.
+4. **Caves round 2 (done)**: W-23 bigger caves; pools fit their floors and cave water is under rock; more jagged
+   caves and much more rubble; faceted metallic; ribbed ice (shaped and shaded); per-cave variation; egg clutches with
+   floor Nest anchors (first pass: paler, glossier, sizes in polish); the shared flame (FireSystem.AddFlame); mines
+   (straight timbered drifts, wall torches, Work anchors) with a mining camp beside each (companion landmarks);
+   MovingLights for carried lanterns. Cave styles per realm follow from biomes; realm-only styles come with the
+   sub-biome pairs.
 4b. **Seats (supervisor: right after caves round 2)**: benches on squares and by inns, logs and stumps in camps,
    fountain and well rims, hall steps, reusing log, stone and plank meshes; each with collision and a Sit anchor
    (AnchorKind.Sit appended; Position = hips on the seat, Facing out, Capacity side by side, Size = spacing).
