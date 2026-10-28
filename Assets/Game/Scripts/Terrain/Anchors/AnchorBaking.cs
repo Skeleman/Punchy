@@ -55,6 +55,13 @@ namespace Punchy.Terrain
                     Tags = 0
                 });
             }
+            // Gates: where each road leaves a settlement (by its signpost, which stands outside the town's own plots).
+            for (int p = 0; p < set.Plots.Length; p++)
+            {
+                var plot = set.Plots[p];
+                if (plot.Role == PlotRole.Signpost)
+                    Add(AnchorKind.Gate, plot.Centre + plot.Facing * 2f, plot.Facing, 1.5f, 0, plot.Settlement);
+            }
             for (int t = 0; t < set.Settlements.Length; t++)
             {
                 var town = set.Settlements[t];
@@ -67,6 +74,9 @@ namespace Punchy.Terrain
                     var door = plot.Centre + plot.Facing * (plot.Half.y * 0.75f + 0.6f);
                     switch (plot.Role)
                     {
+                        case PlotRole.Well:
+                            Add(AnchorKind.Well, plot.Centre + plot.Facing * (plot.Half.y + 0.6f), -plot.Facing, 0.8f, 2, t);
+                            break;
                         case PlotRole.Landscaping:
                             Add(AnchorKind.Bench, plot.Centre, plot.Facing, 1f, 2, t);
                             break;

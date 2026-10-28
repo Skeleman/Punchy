@@ -10,6 +10,8 @@ namespace Punchy.Terrain
         public SurfaceBlobData Street;
         /// <summary>This layout's buildings in the flattened building list (see SettlementBaking.Buildings).</summary>
         public int FirstBuilding, BuildingCount;
+        /// <summary>Scales the buildings on this layout's plots (SettlementLayout.BuildingScale).</summary>
+        public float BuildingScale;
     }
 
     /// <summary>One laid-out settlement.</summary>

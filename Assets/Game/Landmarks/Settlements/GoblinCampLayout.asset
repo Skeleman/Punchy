@@ -26,16 +26,24 @@ MonoBehaviour:
   Palisade: 1
   MaxRelief: 3
   StreetSurface: {fileID: 11400000, guid: f59bcf72585a8c64097e028bc12cab58, type: 2}
+  BuildingScale: 0.9
+  WaterFeature: {fileID: 0}
+  RoadWidth: 2.6
+  Signpost: {fileID: 11400000, guid: 4b43cc542a9e3e446a95fb86645732a1, type: 2}
   Buildings:
   - Role: 0
-    Species: {fileID: 11400000, guid: f4eaef6ef684cc34db0dbe63934e3d10, type: 2}
-    Weight: 1
-    Count: 1
-  - Role: 1
     Species: {fileID: 11400000, guid: f4eaef6ef684cc34db0dbe63934e3d10, type: 2}
     Weight: 1
     Count: 1
   - Role: 2
     Species: {fileID: 11400000, guid: 90e4d6538ba5cd247827ce6479ed4075, type: 2}
     Weight: 1
+    Count: 1
+  - Role: 1
+    Species: {fileID: 11400000, guid: 6794a16e48847b74ba53ee95038b6aae, type: 2}
+    Weight: 1
+    Count: 1
+  - Role: 0
+    Species: {fileID: 11400000, guid: 0ddbc16339c4c7746b28a0edb656d7c1, type: 2}
+    Weight: 0.35
     Count: 1

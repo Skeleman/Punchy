@@ -64,7 +64,12 @@ namespace Punchy.Flora
         [Tooltip("A shrine: a stepped stone platform under a small roof on four posts, round an altar whose stone glows in " +
                  "the accent colour. Height is to the roof's tip; Spread its width.")] Shrine,
         [Tooltip("A garden: a low wattle fence with a gap at the front, round rows of vegetables (Foliage) and a few flowers " +
-                 "(accents). Height is the fence; Spread the garden's width relative to it.")] Garden
+                 "(accents). Height is the fence; Spread the garden's width relative to it.")] Garden,
+        [Tooltip("A big folk's lodge: low and wide, hides (Foliage) draped over a frame of crossed poles (Bark) down to the " +
+                 "ground, with tusks (first accent) flanking a hide-flap door and skulls on the ridge. Height is to the ridge; " +
+                 "Spread its length.")] Lodge,
+        [Tooltip("A signpost: a post with two or three arm boards pointing different ways (Bark, boards in Foliage) and a little " +
+                 "cap. Height is the post.")] Signpost
     }
 
     public enum FoliageFinish : byte
