@@ -112,7 +112,7 @@ Shader "Punchy/Terrain Surface"
                           * (1 - saturate(input.extra.z * 2));
                 half flatness = smoothstep(0.96, 0.995, normalWS.y);
                 half puddleNoise = PunchyValueNoise(p / 2.3) * 0.65 + PunchyValueNoise(p / 0.9 + 5.1) * 0.35;
-                half puddle = smoothstep(0.62, 0.7, puddleNoise + wet * 0.35 - 0.25) * flatness * step(0.3, wet)
+                half puddle = smoothstep(0.62, 0.7, puddleNoise + wet * 0.35 - 0.25) * flatness * smoothstep(0.2, 0.5, wet)
                             * (1 - input.extra.y);
                 half sheen = max(wet, shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
 
