@@ -34,7 +34,10 @@ feature code, and it never edits files in another session's checkout.
 8. **Batch related changes (Zach, 2026-10-27):** implement related items together, evaluate them in one shot-list
    session, and send one report and one compare sheet. Keep separate commits per item. Split a batch only for risk
    or a decision Zach must make.
-9. Main PC memory: restart your Unity editor (after committing) when it grows past about 10 GB or after heavy
+9. **Everyone has a destination (Zach, 2026-10-28):** NPCs, messenger birds and wandering animals always head
+   for an identifiable goal (door, well, field, seat, gate, next town or landmark, water, lair, roost); no aimless
+   random-point wandering over distance. Most important for folk and messenger birds.
+10. Main PC memory: restart your Unity editor (after committing) when it grows past about 10 GB or after heavy
    recompile runs. Keep Play-mode tests short and exit when done. Ask the supervisor before opening a player or
    build next to the two editors.
 
