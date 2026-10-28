@@ -77,6 +77,8 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
    morning), clutter outside (rugs, pots, vases, weapon racks, tapestries, chairs), then hollow interiors.
 2. **One large city per architecture:** (a) more building types per culture; (b) settlements on non-flat terrain
    (hills, terraces, canyons); (c) more NPC jobs (farming, well water, carts, groups, prisoners, carrying goods).
+4. **Hermits:** lone folk at lone huts, cave camps and points of interest; some endlessly chased by a creature
+   (world: spots and anchors; animal: behaviour).
 3. **Equipment layers** (animal session): head, torso, back and hand slots on folk and the player; tools and gear
    picked per job (rod, rake, bucket, axe, spear, torch); per-culture loadouts; a replicated equipment mask.
 
