@@ -162,7 +162,7 @@ Input System. Windows is the only build target so far.
 - Builds go to `Builds/Windows/Punchy.exe` (git-ignored); build with `BuildPipeline.BuildPlayer` on the scenes in
   Build Settings for `StandaloneWindows64`.
 - Releases are GitHub releases with the zipped build attached (leave out
-  `Punchy_BurstDebugInformation_DoNotShip`). The repo is private, so only collaborators can download them.
+  `Punchy_BurstDebugInformation_DoNotShip`). The repo is public, so anyone can see and download them.
 - After a build, Unity rewrites some settings files (URP shader prefiltering, preloaded input assets); check
   `git status` before committing so unrelated changes don't ride along.
 
@@ -171,6 +171,9 @@ Input System. Windows is the only build target so far.
 - Keep code commented the way it is: a summary comment on each class saying what it is and why, short comments on
   non-obvious steps. Match the surrounding naming and idioms.
 - Collaborators: work on a branch or fork rather than committing to `main` directly.
+- The repo is public: everything pushed (code, assets, commit messages, docs, coordination files) can be read by
+  anyone. Never commit secrets (keys, tokens, passwords), personal information, or machine-specific paths such as
+  `C:\Users\<name>\...`.
 
 ## Multiplayer (in progress, `multiplayer` branch)
 
