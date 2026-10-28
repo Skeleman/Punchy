@@ -81,7 +81,12 @@ namespace Punchy.Flora
             public int Count;
             public int[] ModelCounts;
             public GraphicsBuffer Instances, Visible, Args, Regions, Bounds;
-            public MaterialPropertyBlock[] Props;
+            /// <summary>The draw arguments as last uploaded: each variant × LOD's mesh range, and its region of the
+            /// visible list as startInstance (the shader adds it), so draws need no per-draw property block.</summary>
+            public GraphicsBuffer.IndirectDrawIndexedArgs[] ArgsData;
+            /// <summary>This layer's copy of the flora material, holding its buffers. Every draw in the layer shares it,
+            /// so consecutive draws don't re-apply the shader (a property block per draw made each one a state change).</summary>
+            public Material Material;
 
             // Tiles being placed by jobs in the background (one batch at a time).
             public JobHandle Placing;
@@ -103,6 +108,9 @@ namespace Punchy.Flora
                 Regions?.Release();
                 Bounds?.Release();
                 Instances = Visible = Args = Regions = Bounds = null;
+                if (Material != null)
+                    UnityEngine.Object.Destroy(Material);
+                Material = null;
             }
         }
 
@@ -128,7 +136,6 @@ namespace Punchy.Flora
 
         static readonly int InstancesId = Shader.PropertyToID("_FloraInstances");
         static readonly int VisibleId = Shader.PropertyToID("_FloraVisible");
-        static readonly int RegionStartId = Shader.PropertyToID("_RegionStart");
         static readonly int ArgsId = Shader.PropertyToID("_Args");
         static readonly int RegionsId = Shader.PropertyToID("_Regions");
         static readonly int BoundsId = Shader.PropertyToID("_ModelBounds");
@@ -291,7 +298,8 @@ namespace Punchy.Flora
             layer.Args = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments | GraphicsBuffer.Target.Raw, draws, GraphicsBuffer.IndirectDrawIndexedArgs.size);
             var args = new GraphicsBuffer.IndirectDrawIndexedArgs[draws];
             var bounds = new float2[math.max(1, layer.ModelCount)];
-            layer.Props = new MaterialPropertyBlock[draws];
+            if (layer.Material == null)
+                layer.Material = new Material(Material) { name = $"Flora layer {layer.Index}" };
             for (int m = 0; m < layer.ModelCount; m++)
             {
                 var model = models[layer.ModelBase + m];
@@ -306,9 +314,9 @@ namespace Punchy.Flora
                         startIndex = mesh.GetIndexStart(0),
                         baseVertexIndex = mesh.GetBaseVertex(0)
                     };
-                    layer.Props[d] = new MaterialPropertyBlock();
                 }
             }
+            layer.ArgsData = args;
             layer.Args.SetData(args);
             layer.Bounds = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bounds.Length, sizeof(float) * 2);
             layer.Bounds.SetData(bounds);
@@ -467,13 +475,13 @@ namespace Punchy.Flora
             for (int lod = 0; lod < 3; lod++)
             {
                 regions[m * 3 + lod] = offset;
+                l.ArgsData[m * 3 + lod].startInstance = offset;
                 offset += (uint)l.ModelCounts[m];
-                var props = l.Props[m * 3 + lod];
-                props.SetBuffer(InstancesId, l.Instances);
-                props.SetBuffer(VisibleId, l.Visible);
-                props.SetInt(RegionStartId, (int)regions[m * 3 + lod]);
             }
             l.Regions.SetData(regions);
+            l.Args.SetData(l.ArgsData);
+            l.Material.SetBuffer(InstancesId, l.Instances);
+            l.Material.SetBuffer(VisibleId, l.Visible);
         }
 
         [BurstCompile]
@@ -537,10 +545,9 @@ namespace Punchy.Flora
                     {
                         if (lod == 2 && s.Lod2Distance >= s.Radius)
                             continue;
-                        var rp = new RenderParams(Material)
+                        var rp = new RenderParams(l.Material)
                         {
                             worldBounds = bounds,
-                            matProps = l.Props[m * 3 + lod],
                             shadowCastingMode = s.CastShadows && lod < 2 ? ShadowCastingMode.On : ShadowCastingMode.Off,
                             receiveShadows = true
                         };

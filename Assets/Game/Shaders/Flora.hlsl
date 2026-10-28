@@ -4,7 +4,7 @@
 #include "PlayerReveal.hlsl"
 
 // Plants drawn by FloraSystem with indirect instanced draws. Each draw is one variant at one LOD; its instances
-// are the plants FloraCull.compute found visible, stored from _RegionStart in _FloraVisible as (plant index, dither
+// are the plants FloraCull.compute found visible, stored from the draw's startInstance in _FloraVisible as (plant index, dither
 // fade). Plant meshes carry albedo in the vertex colour and, in UV0: x wind sway, y part (0 bark, 1 foliage,
 // 2 petal, 3 cactus), z leaf flutter, w ambient occlusion. Must match FloraSystem.FloraInstance.
 
@@ -21,7 +21,11 @@ struct FloraInstance
 
 StructuredBuffer<FloraInstance> _FloraInstances;
 StructuredBuffer<uint2> _FloraVisible;
-uint _RegionStart;
+// Each draw's region of _FloraVisible starts at its indirect arguments' startInstance (FloraSystem and CaveSystem
+// draw with RenderMeshIndirect), so draws share one material with no per-draw property block.
+#define UNITY_INDIRECT_DRAW_ARGS IndirectDrawIndexedArgs
+#include "UnityIndirect.cginc"
+float _FloraNoBatcher;   // see Flora.shader's Properties
 float2 _PunchyWindDirection;
 half _PunchyWind;
 // 0 above ground, 1 with the camera deep in a cave; the player's lantern (xyz position, w strength) and its colour
@@ -49,7 +53,8 @@ struct FloraVertex
 
 FloraVertex FloraTransform(FloraAttributes input)
 {
-    uint2 visible = _FloraVisible[_RegionStart + input.instanceID];
+    InitIndirectDrawArgs(0);
+    uint2 visible = _FloraVisible[GetIndirectInstanceID_Base(input.instanceID)];
     FloraInstance plant = _FloraInstances[visible.x];
 
     float c = cos(plant.yaw), s = sin(plant.yaw);

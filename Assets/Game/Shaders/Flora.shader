@@ -3,6 +3,12 @@ Shader "Punchy/Flora"
     // Procedural plants (FloraSystem): vertex-coloured, wind-blown, with soft wrapped lighting and light shining
     // through leaves and petals, a waxy sheen on cacti, snow on upward faces where the ground is snowy, wetness,
     // cloud shadows and the world atmosphere. Double-sided, since leaves and petals are single triangles.
+    Properties
+    {
+        // Not a real setting: a material property outside UnityPerMaterial keeps these draws off the SRP Batcher,
+        // which doesn't pass the per-draw unity_BaseCommandID that Flora.hlsl reads its draw's region by.
+        [HideInInspector] _FloraNoBatcher("", Float) = 0
+    }
     SubShader
     {
         Tags { "RenderType" = "Opaque" "Queue" = "Geometry" "RenderPipeline" = "UniversalPipeline" }

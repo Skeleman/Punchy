@@ -256,6 +256,9 @@ namespace Punchy.Terrain
                 if (m != null) Destroy(m);
             streamMeshes.Clear();
             ReleasePlants();
+            if (floraMaterial != null)
+                Destroy(floraMaterial);
+            floraMaterial = null;
             Shader.SetGlobalVector(LanternId, Vector4.zero);
         }
 
@@ -375,8 +378,11 @@ namespace Punchy.Terrain
         BiomePalette plantsFrom;
         Material floraMaterial;
         GraphicsBuffer plantInstances, plantVisible;
-        readonly List<(Mesh mesh, int start, int count, MaterialPropertyBlock props)> plantDraws = new List<(Mesh, int, int, MaterialPropertyBlock)>();
-        readonly List<MaterialPropertyBlock> plantProps = new List<MaterialPropertyBlock>();
+        /// <summary>One draw per run of the same model and LOD: its mesh, and its index in plantArgs.</summary>
+        readonly List<Mesh> plantDraws = new List<Mesh>();
+        /// <summary>Indirect arguments per draw (instance count, and the run's start in plantVisible as startInstance,
+        /// which the flora shader adds), so the draws share floraMaterial with no per-draw property block.</summary>
+        GraphicsBuffer plantArgs;
         readonly List<(int key, int plant)> plantKeys = new List<(int, int)>();
         /// <summary>Per species, the light its glowing parts give the walls round it (rgb strength, w reach); zero if none.</summary>
         readonly List<Vector4> speciesGlow = new List<Vector4>();
@@ -386,7 +392,6 @@ namespace Punchy.Terrain
         float3 plantsAround = new float3(float.MaxValue);
         static readonly int FloraInstancesId = Shader.PropertyToID("_FloraInstances");
         static readonly int FloraVisibleId = Shader.PropertyToID("_FloraVisible");
-        static readonly int RegionStartId = Shader.PropertyToID("_RegionStart");
 
         /// <summary>
         /// Draws the cave plants near the camera with the flora system's own material, shader and procedural meshes
@@ -406,7 +411,8 @@ namespace Punchy.Terrain
                     return;
                 nextFloraLookup = Time.unscaledTime + 1f;
                 var flora = FindFirstObjectByType<Punchy.Flora.FloraSystem>();
-                floraMaterial = flora != null ? flora.Material : null;
+                // A copy, since this sets its own plant buffers on it.
+                floraMaterial = flora != null && flora.Material != null ? new Material(flora.Material) { name = "Cave flora" } : null;
                 if (floraMaterial == null)
                     return;
             }
@@ -472,36 +478,48 @@ namespace Punchy.Terrain
 
                 // One draw per run of the same model and LOD.
                 plantDraws.Clear();
+                var args = new List<GraphicsBuffer.IndirectDrawIndexedArgs>();
                 for (int k = 0; k < count;)
                 {
                     var key = plantKeys[k].key;
                     var start = k;
                     while (k < count && plantKeys[k].key == key)
                         k++;
-                    if (plantProps.Count <= plantDraws.Count)
-                        plantProps.Add(new MaterialPropertyBlock());
-                    var props = plantProps[plantDraws.Count];
-                    props.SetBuffer(FloraInstancesId, plantInstances);
-                    props.SetBuffer(FloraVisibleId, plantVisible);
-                    props.SetInteger(RegionStartId, start);
-                    plantDraws.Add((plantModels[key / 2].Lods[key % 2], start, k - start, props));
+                    var mesh = plantModels[key / 2].Lods[key % 2];
+                    plantDraws.Add(mesh);
+                    args.Add(new GraphicsBuffer.IndirectDrawIndexedArgs
+                    {
+                        indexCountPerInstance = mesh.GetIndexCount(0),
+                        startIndex = mesh.GetIndexStart(0),
+                        baseVertexIndex = mesh.GetBaseVertex(0),
+                        instanceCount = (uint)(k - start),
+                        startInstance = (uint)start
+                    });
                 }
+                if (args.Count > 0 && (plantArgs == null || plantArgs.count < args.Count))
+                {
+                    plantArgs?.Release();
+                    plantArgs = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, math.ceilpow2(args.Count), GraphicsBuffer.IndirectDrawIndexedArgs.size);
+                }
+                if (args.Count > 0)
+                    plantArgs.SetData(args);
+                floraMaterial.SetBuffer(FloraInstancesId, plantInstances);
+                floraMaterial.SetBuffer(FloraVisibleId, plantVisible);
             }
 
             foreach (var (position, light) in nearGlowPlants)
                 glowing.Add((math.distance(position, camPos), new Vector4(position.x, position.y, position.z, 0f), light));
 
             var bounds = new Bounds(camPos, new Vector3(PlantRadius * 2f, PlantRadius * 2f, PlantRadius * 2f));
-            foreach (var (mesh, _, count, props) in plantDraws)
+            for (int d = 0; d < plantDraws.Count; d++)
             {
                 var rp = new RenderParams(floraMaterial)
                 {
                     worldBounds = bounds,
-                    matProps = props,
                     shadowCastingMode = ShadowCastingMode.Off,
                     receiveShadows = true
                 };
-                Graphics.RenderMeshPrimitives(rp, mesh, 0, count);
+                Graphics.RenderMeshIndirect(rp, plantDraws[d], plantArgs, 1, d);
             }
         }
 
@@ -515,7 +533,8 @@ namespace Punchy.Terrain
             plantDraws.Clear();
             plantInstances?.Release();
             plantVisible?.Release();
-            plantInstances = plantVisible = null;
+            plantArgs?.Release();
+            plantInstances = plantVisible = plantArgs = null;
             plantsFrom = null;
             plantsAround = new float3(float.MaxValue);
         }
