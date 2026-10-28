@@ -13,6 +13,14 @@ asks Zach if needed, and records the answer here.
 
 ## Decided
 
+### J-022: Leaf-card fringe on solid crowns (tree experiment 2)?
+
+- **Asked:** 2026-10-27, by the supervisor, after the compare sheet (7afff79, c06886e).
+- **Also comes up when:** any further leaf-card or alpha-foliage tree idea.
+- **Answer (2026-10-27):** drop it. Plain rounded crowns stay.
+- **Why:** Zach's pick (the fringe read as flat shards and was subtle).
+- **Revisited:** 0.
+
 ### J-021: Leaf-card tree canopies?
 
 - **Asked:** 2026-10-27, by the supervisor, after the world session's experiment (113c608, 86951d0).
