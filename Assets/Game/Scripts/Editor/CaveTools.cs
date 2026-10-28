@@ -151,6 +151,8 @@ namespace Punchy.EditorTools
                 for (int i = 0; i < anchors.Anchors.Length; i++)
                 {
                     var a = anchors.Anchors[i];
+                    if (!a.InCave)
+                        continue;   // town anchors: not this check's business
                     var ok = a.Kind switch
                     {
                         AnchorKind.Roost => source.CaveDistance(a.Position + new float3(0, 0.3f, 0)) > -0.2f && source.CaveDistance(a.Position - new float3(0, 1f, 0)) < 0f,
