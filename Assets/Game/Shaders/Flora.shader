@@ -46,6 +46,9 @@ Shader "Punchy/Flora"
                 half3  normalWS   : TEXCOORD1;
                 half4  color      : TEXCOORD2;   // rgb albedo, a ambient occlusion
                 float4 extra      : TEXCOORD3;   // x part, y fade, z snow, w random
+                // A window pane's own lighting-up hour (0..1), worked out per vertex and not interpolated, so every pixel
+                // of the pane agrees (hashed per pixel from the interpolated colour, single pixels flickered on and off).
+                nointerpolation float windowHour : TEXCOORD4;
             };
 
             Varyings Vert(FloraAttributes input)
@@ -57,6 +60,9 @@ Shader "Punchy/Flora"
                 o.normalWS = v.normalWS;
                 o.color = half4(input.color.rgb, input.data.w);
                 o.extra = float4(input.data.y, v.fade, v.plant.snow, v.plant.random);
+                // Keyed on the pane (each has a slightly different colour) and the building.
+                float3 key = round(input.color.rgb * 255);
+                o.windowHour = frac(sin(dot(key, float3(0.917, 0.473, 0.131)) * 10 + v.plant.random * 61.7) * 43758.5453);
                 return o;
             }
 
@@ -164,8 +170,8 @@ Shader "Punchy/Flora"
                 // each window keeps its own hour, and a few stay lit all night.
                 if (part == 6)
                 {
-                    // Its own hour: keyed on the pane (each has a slightly different colour) and the building.
-                    float h = frac(sin(dot(input.color.rgb, float3(91.7, 47.3, 13.1)) * 1000 + r * 61.7) * 43758.5453);
+                    // Its own hour (see Varyings.windowHour).
+                    float h = input.windowHour;
                     float late = saturate(-_PunchySunDirection.y * 1.6);
                     float on = smoothstep(0.25, 0.55, _PunchyNight) * (h > 0.85 ? 1 : step(late, 0.3 + 0.7 * h));
                     color += windowLight * on * 2.2;
