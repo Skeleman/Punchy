@@ -23,7 +23,7 @@ namespace Punchy.Debugging
     ///  B            next day type (sunny, partly cloudy, changeable, overcast, stormy), replacing today's weather;
     ///  Y            advance the clock two hours;  T  toggle fast time (DayNightCycle);
     ///  ] / [        force the next weather over the player / clear it (WeatherSystem);
-    ///  F1           show / hide this readout.
+    ///  F1           show / hide this readout (and the interaction prompt with it: the whole HUD).
     /// </summary>
     public class DebugControls : MonoBehaviour
     {
@@ -62,6 +62,8 @@ namespace Punchy.Debugging
                 return;
             if (keyboard.f1Key.wasPressedThisFrame)
                 ShowReadout = !ShowReadout;
+            // F1 hides the whole HUD (for screenshots): the interaction prompt goes with the readout.
+            InteractionPrompt.Hidden = !ShowReadout;
             if (keyboard.f3Key.wasPressedThisFrame)
                 CopyPosition();
             if (keyboard.bKey.wasPressedThisFrame && Weather != null)
