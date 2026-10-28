@@ -71,6 +71,13 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
 | world feature manager | Phase 4 towns: SettlementLayout design first | In progress |
 | kind-possum | Route determinism, WeatherField MapJob fix, round 5 | In progress |
 
+## Long-term goals (Zach, 2026-10-28): fill gaps with intermediate steps
+
+1. **Enterable buildings:** doors that open (world: hinged door part; animal: NPCs opening them at night and
+   morning), clutter outside (rugs, pots, vases, weapon racks, tapestries, chairs), then hollow interiors.
+2. **One large city per architecture:** (a) more building types per culture; (b) settlements on non-flat terrain
+   (hills, terraces, canyons); (c) more NPC jobs (farming, well water, carts, groups, prisoners, carrying goods).
+
 ## Shared-file queue
 
 | # | File | Session | Why | State |
