@@ -25,6 +25,10 @@ Shader "Punchy/Flora"
             #include "Sky.hlsl"
             #include "Flora.hlsl"
             #include "Glow.hlsl"
+            // The shared fine detail CaveSystem makes (rg a normal, b a height): grain on rock and bark up close.
+            TEXTURE2D(_PunchyCaveDetail);
+            SAMPLER(sampler_PunchyCaveDetail);
+            float _PunchyCaveDetailReady;
 
             struct Varyings
             {
@@ -59,6 +63,23 @@ Shader "Punchy/Flora"
                 // Per-plant tint: brightness, and leaves a little yellower or bluer.
                 half r = input.extra.w;
                 half3 albedo = input.color.rgb * (0.88 + 0.24 * r);
+
+                // Rock and bark up close: grain and fine relief from the shared detail texture (the caves' own), read
+                // three ways and blended by the surface's facing, fading out with distance.
+                float near = 1 - smoothstep(18, 45, distance(input.positionWS, GetCameraPositionWS()));
+                if (part == 0 && near > 0.01 && _PunchyCaveDetailReady > 0)
+                {
+                    float3 q = input.positionWS * 0.9;
+                    float3 w = pow(abs(n), 4);
+                    w /= w.x + w.y + w.z;
+                    half4 dx = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.zy);
+                    half4 dy = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.xz);
+                    half4 dz = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.xy);
+                    half4 detail = dx * w.x + dy * w.y + dz * w.z;
+                    albedo *= 1 + (detail.b - 0.5) * 0.5 * near;
+                    half2 bump = (detail.rg - 0.5) * 0.9 * near;
+                    n = normalize(n + float3(0, bump.x, bump.y) * w.x + float3(bump.x, 0, bump.y) * w.y + float3(bump.x, bump.y, 0) * w.z);
+                }
                 if (part == 1)
                     albedo *= lerp(half3(0.95, 1.0, 1.06), half3(1.1, 1.04, 0.82), r);
 
