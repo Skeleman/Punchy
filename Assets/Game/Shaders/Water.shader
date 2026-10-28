@@ -308,8 +308,12 @@ Shader "Punchy/Water"
                 float2 fine = fine0.rg + fine1.rg - 1;
                 float fineStrength = _DetailStrength * _PunchyCaveDetailReady * (0.35 + _PunchyWind + rapids) * distanceFade * (1 - 0.8 * murk) * (1 - lava);
                 float3 n = normalize(float3(-slope.x * strength - fine.x * fineStrength, 1, -slope.y * strength - fine.y * fineStrength));
-                // Reflections use a calmer normal, so they stay crisp instead of breaking into noise.
-                float3 nReflect = normalize(float3(-slope.x * strength * 0.4, 1, -slope.y * strength * 0.4));
+                // Reflections use a calmer normal for the broad waves, so they don't break into noise, but the fine
+                // ripples do move them: mirrored trees and clouds wobble and break up near the camera. Faded out with
+                // distance (and so the screen-space march's ray, the sky lookup and the Fresnel stay steady far off).
+                float rippleNear = 1 - smoothstep(25, 110, distance(input.positionWS, GetCameraPositionWS()));
+                float fineReflect = fineStrength * 0.7 * rippleNear;
+                float3 nReflect = normalize(float3(-slope.x * strength * 0.4 - fine.x * fineReflect, 1, -slope.y * strength * 0.4 - fine.y * fineReflect));
                 // Running water underground has no calm sky to mirror: its reflection breaks up with the flow and fades.
                 float caveRun = _PunchyUnderground * flowAmount;
                 nReflect = normalize(lerp(nReflect, n, caveRun));
@@ -359,6 +363,8 @@ Shader "Punchy/Water"
                 half shallow = exp(-thickness * 0.9) * (1 - murk) * (1 - lava);
                 half caustic = smoothstep(0.55, 0.85, fine0.b * 0.5 + fine1.b * 0.5) * shallow;
                 body += waterColor * caustic * (light.color * shadow * 0.8 + lanternLit);
+                // Ripple faces turned to the light read a touch lighter, those turned away a touch darker.
+                body *= 1 + clamp(dot(fine, light.direction.xz), -1, 1) * fineReflect * 0.6;
 
                 half fresnel = 0.02 + 0.98 * pow(1 - saturate(dot(nReflect, v)), 5);
                 // Reflect the live sky (same function as the skybox, so reflections follow the weather). Keep reflections
@@ -410,7 +416,11 @@ Shader "Punchy/Water"
                 half foamNoise = PunchyValueNoise(p * 0.9 + float2(t * 0.25, -t * 0.18)) * 0.6 + PunchyValueNoise(p * 2.7 - t * 0.4) * 0.4;
                 // The line laps: it creeps up the shore and draws back, unevenly along it.
                 half lap = 0.75 + 0.25 * sin(t * 1.4 + foamNoise * 5);
-                half foam = smoothstep(foamNoise * 0.7, 1, saturate(1 - thickness / (_FoamDistance * lap * (1 + rapids))));
+                // Where the water itself is deep, thin water in front of the bed can only be something standing in it (a
+                // swimmer, a rock): a much narrower, fainter line there.
+                half inDeep = smoothstep(0.5, 1.3, depth);
+                half foam = smoothstep(foamNoise * 0.7, 1, saturate(1 - thickness / (_FoamDistance * lap * (1 + rapids) * lerp(1, 0.3, inDeep))));
+                foam *= lerp(1, 0.55, inDeep);
                 // Not a solid white strip: clear right at the edge (a wet line, where the bed shows through), and broken
                 // into patches along it. Underground, still shallow water barely foams (a shallow stream would otherwise
                 // count as shore all over).
