@@ -39,6 +39,7 @@ namespace Punchy.Net
         [GhostField(Quantization = 100)] public float AnchorSize;
         /// <summary>Who is petting or carrying it (Interactions.HolderId; 0 = nobody).</summary>
         [GhostField] public int Holder;
+        [GhostField] public byte Held;
     }
 
     /// <summary>Client: this creature is a server ghost that FaunaDirector has given a body (CreatureState/CreatureBody).</summary>
@@ -96,6 +97,7 @@ namespace Punchy.Net
                 n.Anchor = c.Anchor;
                 n.AnchorSize = c.AnchorSize;
                 n.Holder = c.Holder;
+                n.Held = (byte)c.Held;
             }
         }
     }
@@ -203,6 +205,7 @@ namespace Punchy.Net
                 c.Anchor = n.Anchor;
                 c.AnchorSize = n.AnchorSize;
                 c.Holder = n.Holder;
+                c.Held = (HeldItem)n.Held;
                 CreatureMotion.AdvancePhase(ref c, ref b, dt);
             }
         }

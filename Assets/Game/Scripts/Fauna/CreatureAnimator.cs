@@ -247,6 +247,12 @@ namespace Punchy.Fauna
                         a.x += lean;
                     if (part.Role == LimbRole.Head && j == 0)
                         a += headTilt;
+                    // A lantern in the off hand: that arm held a little forward and bent, hardly swinging.
+                    if (part.Role == LimbRole.Arm && part.Side < 0f && s.Held == HeldItem.Lantern)
+                    {
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.75f);
+                        a.x += j == 0 ? -0.3f : j == 1 ? -0.55f : 0f;
+                    }
                     a += Secondary(ref part, in s, j, run, b.Upright);
                     a += TaskPose(ref part, in s, j);
                     // (Upright bodies have no idle actions of their own, but players' bodies take interaction poses.)

@@ -51,6 +51,8 @@ namespace Punchy.Fauna
         public bool Soars;
         /// <summary>A swimmer that bursts out to soar and dives back in (see CreatureSpecies.Breaches).</summary>
         public bool Breaches;
+        /// <summary>Has arms, so it can hold things (folk).</summary>
+        public bool Hands;
         /// <summary>Drawn and kept about from this far off; 0 = as any other (see CreatureSpecies.SeenFrom).</summary>
         public float SeenFrom;
 
@@ -286,6 +288,17 @@ namespace Punchy.Fauna
         public float Night;
     }
 
+    /// <summary>
+    /// Something held in the hand (the equipment slot's first use): drawn at the hand by CreatureRenderSystem, with the
+    /// arm posed to hold it. Numbered for the network: append, never reorder.
+    /// </summary>
+    public enum HeldItem : byte
+    {
+        None,
+        /// <summary>A lantern in the off hand, lit: folk out and about after dark.</summary>
+        Lantern
+    }
+
     /// <summary>A creature's position, heading, gait and what it's up to.</summary>
     public struct CreatureState : IComponentData
     {
@@ -359,6 +372,8 @@ namespace Punchy.Fauna
         public short LairCave, LairNode;
         /// <summary>Who is petting or carrying it (see Interactions.HolderId; 0 = nobody).</summary>
         public int Holder;
+        /// <summary>What it has in hand (folk: a lantern at night). Replicated; each machine draws it.</summary>
+        public HeldItem Held;
 
         // Needs, 0 (satisfied) to 1 (pressing): they rise with time by the species' tastes and are eased by the
         // activity that meets them; what it decides to do next is weighted by them. Simulation only (not sent).
@@ -480,6 +495,7 @@ namespace Punchy.Fauna
             root.DrawnToLight = species.DrawnToLight;
             root.Soars = species.Soars;
             root.Breaches = species.Breaches && species.Habitat == Habitat.Swims;
+            root.Hands = species.Parts.Exists(p => p != null && p.Limb != null && p.Limb.Role == LimbRole.Arm);
             root.SeenFrom = species.SeenFrom * sizeScale;
             root.Nests = species.Nests;
             root.WebSize = species.WebSize * sizeScale;

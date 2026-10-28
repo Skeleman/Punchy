@@ -718,6 +718,15 @@ namespace Punchy.Fauna
                 s.Sit += (sit - s.Sit) * math.min(1f, dt * (urgent ? 6f : 2.5f));
                 s.Vertical += (vertical - s.Vertical) * math.min(1f, dt * 3f);
                 var fly = Flying(s) && (flier || b.Breaches && s.Mode == CreatureMode.Wander && s.Stage >= 2) ? 1f : 0f;
+                // Folk out and about after dark carry a lantern: lit at dusk, put away at dawn (with a margin either way so
+                // it doesn't flicker at the turn), and not asleep, indoors, dozing at a post, or in someone's arms.
+                if (b.Hands && b.Upright)
+                {
+                    var dark = s.Held == HeldItem.Lantern ? Night > 0.4f : Night > 0.6f;
+                    var about = s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Held && !(s.Mode == CreatureMode.Home && s.Stage >= 1) &&
+                                !(s.Mode == CreatureMode.Work && s.Stage >= 1);
+                    s.Held = dark && about ? HeldItem.Lantern : HeldItem.None;
+                }
                 s.Fly += (fly - s.Fly) * math.min(1f, dt * 6f);
                 s.Seed = rng.state;
             }

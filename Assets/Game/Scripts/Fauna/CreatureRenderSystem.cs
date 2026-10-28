@@ -37,6 +37,9 @@ namespace Punchy.Fauna
         const int NestRim = 8;
         /// <summary>Room for the animal's lair: a burrow's mound or a nest.</summary>
         static int LairCount(ref CreatureBlob b) => b.Burrows ? MoundCount : b.Nests != NestSite.None ? NestCount : 0;
+        /// <summary>Capsules in a lantern (bail, cap, glass, base), and room for whatever is held.</summary>
+        const int LanternParts = 4;
+        static int HeldCount(HeldItem held) => held == HeldItem.Lantern ? LanternParts : 0;
         /// <summary>Capsules per hanging bat, the most per roost, and how near the camera colonies show.</summary>
         const int BatParts = 4, ColonyMax = 10;
         const float ColonyRange = 45f;
@@ -155,7 +158,7 @@ namespace Punchy.Fauna
             {
                 offsets[i] = total;
                 total += bodies[i].SegmentCount + MarkCount + (InWeb(states[i]) ? WebCount : 0) +
-                         LairCount(ref bodies[i].Blob.Value) + (states[i].Task == CreatureTask.Hunt ? 1 : 0);
+                         LairCount(ref bodies[i].Blob.Value) + (states[i].Task == CreatureTask.Hunt ? 1 : 0) + HeldCount(states[i].Held);
                 if (states[i].Mode == CreatureMode.Roost && states[i].Stage == 200)
                     hanging.Add(states[i].Position);
                 // (Bodies of players emoting: their gestures scatter colonies.)
@@ -326,8 +329,48 @@ namespace Punchy.Fauna
                     Mound(state, lair);
                 else if (body.Blob.Value.Nests != NestSite.None)
                     Nest(state, body.Blob.Value.Nests, lair);
+                var held = lair + LairCount(ref body.Blob.Value) + (state.Task == CreatureTask.Hunt ? 1 : 0);
                 if (state.Task == CreatureTask.Hunt)
-                    Spear(state, ref body.Blob.Value, offset, lair + LairCount(ref body.Blob.Value));
+                    Spear(state, ref body.Blob.Value, offset, held - 1);
+                if (state.Held == HeldItem.Lantern)
+                    Lantern(state, ref body.Blob.Value, offset, held, faded);
+            }
+
+            /// <summary>
+            /// A lantern hanging from the off hand by its bail: a dark iron cap and base, and between them a warm glass
+            /// core that glows. It hangs plumb, swinging gently fore and aft with the walk (and still when standing).
+            /// </summary>
+            void Lantern(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
+            {
+                for (int i = 0; i < LanternParts; i++)
+                    Output[at + i] = default;
+                var hand = -1;
+                for (int i = 0; i < b.Parts.Length; i++)
+                    if (b.Parts[i].Role == LimbRole.Arm && b.Parts[i].Side < 0f)
+                    {
+                        hand = b.Parts[i].FirstSegment + b.Parts[i].SegmentCount - 1;
+                        break;
+                    }
+                if (hand < 0)
+                    return;
+                var segment = Output[offset + hand];
+                var grip = segment.Position + Unity.Mathematics.math.mul(segment.Rotation, new Unity.Mathematics.float3(0f, 0f, segment.Length));
+                var scale = Unity.Mathematics.math.max(state.Scale, 0.3f);
+                // Swinging with the stride: back and forth along the heading, more the faster it goes.
+                var forward = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
+                var swing = Unity.Mathematics.math.sin(state.Phase * 2f * Unity.Mathematics.math.PI) * 0.35f * Unity.Mathematics.math.saturate(state.Speed / 2f);
+                var down = Unity.Mathematics.math.normalize(new Unity.Mathematics.float3(0f, -1f, 0f) + forward * swing);
+                var hang = Unity.Mathematics.quaternion.LookRotationSafe(down, forward);
+                var iron = new Unity.Mathematics.float4(0.05f, 0.045f, 0.04f, 0f);
+                var glass = new Unity.Mathematics.float4(1f, 0.62f, 0.22f, 1f);
+                var bail = 0.07f * scale;
+                var cap = grip + down * bail;
+                var core = 0.11f * scale;
+                // The bail (handle), the cap, the glass, the base.
+                Output[at] = new SegmentInstance { Position = grip, Rotation = hang, Length = bail, RadiusStart = 0.006f * scale, RadiusEnd = 0.006f * scale, Flatten = 1f, Color = iron, Pad = faded };
+                Output[at + 1] = new SegmentInstance { Position = cap, Rotation = hang, Length = 0.025f * scale, RadiusStart = 0.012f * scale, RadiusEnd = 0.045f * scale, Flatten = 1f, Color = iron, Pad = faded };
+                Output[at + 2] = new SegmentInstance { Position = cap + down * 0.02f * scale, Rotation = hang, Length = core, RadiusStart = 0.04f * scale, RadiusEnd = 0.04f * scale, Flatten = 1f, Color = glass, Pad = faded };
+                Output[at + 3] = new SegmentInstance { Position = cap + down * (0.02f * scale + core), Rotation = hang, Length = 0.02f * scale, RadiusStart = 0.048f * scale, RadiusEnd = 0.048f * scale, Flatten = 1f, Color = iron, Pad = faded };
             }
 
             /// <summary>
