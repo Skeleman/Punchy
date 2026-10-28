@@ -133,3 +133,23 @@ MonoBehaviour:
     Count: {x: 1, y: 2}
     Range: 1.2
     Task: 7
+  - Settlement: {fileID: 11400000, guid: 763d8148ce954a8428c0f6f05beea8aa, type: 2}
+    Species: {fileID: 11400000, guid: 8e349b1519701e84fbe7923c0c10f2fd, type: 2}
+    Count: {x: 0, y: 1}
+    Range: 1
+    Task: 8
+  - Settlement: {fileID: 11400000, guid: 5e0bdef9bf80b3642874f0824d52e136, type: 2}
+    Species: {fileID: 11400000, guid: 92efcd8c205109b498ebcc61830248fd, type: 2}
+    Count: {x: 0, y: 1}
+    Range: 1
+    Task: 8
+  - Settlement: {fileID: 11400000, guid: b5d2ef65eb3ccde4a9b71edc4b25bec1, type: 2}
+    Species: {fileID: 11400000, guid: 46b822fc6510e9c438d06b7c0598a487, type: 2}
+    Count: {x: 0, y: 1}
+    Range: 1
+    Task: 8
+  - Settlement: {fileID: 11400000, guid: 9db9dc76cdcb53647bfb1d44f4d04b9b, type: 2}
+    Species: {fileID: 11400000, guid: 419544623d75bcf48961c8801162cabd, type: 2}
+    Count: {x: 0, y: 1}
+    Range: 1
+    Task: 8

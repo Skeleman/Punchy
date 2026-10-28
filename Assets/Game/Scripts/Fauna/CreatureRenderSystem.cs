@@ -47,7 +47,10 @@ namespace Punchy.Fauna
         const float LanternLightRange = 60f;
         /// <summary>Capsules in what a guard holds (a spear's shaft and head; a torch's handle, flame, heart and glow).</summary>
         const int GuardParts = 4;
-        static int HeldCount(HeldItem held) => held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.Torch ? GuardParts : 0;
+        /// <summary>Capsules in a fisher's gear: the rod, the line, the float, a fish, the basket.</summary>
+        const int RodParts = 5;
+        static int HeldCount(HeldItem held) => held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.Torch ? GuardParts :
+                                               held == HeldItem.Rod ? RodParts : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 1 : -1;
         /// <summary>Capsules per hanging bat, the most per roost, and how near the camera colonies show.</summary>
@@ -361,6 +364,97 @@ namespace Punchy.Fauna
                     Lantern(state, ref body.Blob.Value, offset, held, faded);
                 else if (state.Held == HeldItem.Spear || state.Held == HeldItem.Torch)
                     Guard(state, ref body.Blob.Value, offset, held, faded, entity.Index);
+                else if (state.Held == HeldItem.Rod)
+                    Rod(state, ref body.Blob.Value, offset, held, faded, entity.Index);
+            }
+
+            /// <summary>
+            /// A fisher's gear: the rod held out over the water (swung back over the shoulder and through in a cast,
+            /// lifted high landing a fish), its line down to a float bobbing on the water where it fishes (WorkFace) or,
+            /// landing one, to a fish wriggling on the hook; and a basket on the ground beside it.
+            /// </summary>
+            void Rod(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded, int id)
+            {
+                for (int i = 0; i < RodParts; i++)
+                    Output[at + i] = default;
+                var hand = -1;
+                for (int i = 0; i < b.Parts.Length; i++)
+                    if (b.Parts[i].Role == LimbRole.Arm && b.Parts[i].Side > 0f)
+                    {
+                        hand = b.Parts[i].FirstSegment + b.Parts[i].SegmentCount - 1;
+                        break;
+                    }
+                if (hand < 0)
+                    return;
+                var segment = Output[offset + hand];
+                var grip = segment.Position + Unity.Mathematics.math.mul(segment.Rotation, new Unity.Mathematics.float3(0f, 0f, segment.Length * 0.55f));
+                var scale = Unity.Mathematics.math.max(state.Scale, 0.3f);
+                var forward = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
+                var right = new Unity.Mathematics.float3(forward.z, 0f, -forward.x);
+                // The rod's rise: out over the water; back over the shoulder in a cast; high, landing a fish.
+                var casting = state.Stage == 2 ? CreatureAnimator.CastBack(state.ActionTime) : 0f;
+                var rise = state.Stage == 3 ? 1.05f : Unity.Mathematics.math.lerp(0.55f, 2.3f, casting);
+                var dir = forward * Unity.Mathematics.math.cos(rise) + new Unity.Mathematics.float3(0f, Unity.Mathematics.math.sin(rise), 0f);
+                var length = 2.6f * scale;
+                var butt = grip - dir * 0.35f * scale;
+                var tip = butt + dir * length;
+                var dark = new Unity.Mathematics.float4(0.18f, 0.12f, 0.06f, 0f);
+                Output[at] = new SegmentInstance { Position = butt, Rotation = Unity.Mathematics.quaternion.LookRotationSafe(dir, forward), Length = length, RadiusStart = 0.013f * scale, RadiusEnd = 0.004f * scale, Flatten = 1f, Color = dark, Pad = faded };
+                // The line: to the float on the water (not while the cast is in the air), or to a fish on the hook.
+                var line = new Unity.Mathematics.float4(0.85f, 0.85f, 0.8f, 0f);
+                Unity.Mathematics.float3 end;
+                if (state.Stage == 3)
+                {
+                    end = tip - new Unity.Mathematics.float3(0f, 0.7f * scale, 0f);
+                    var wriggle = Unity.Mathematics.math.sin(Time * 14f + id) * 0.6f;
+                    var along = Unity.Mathematics.math.mul(Unity.Mathematics.quaternion.RotateY(wriggle), forward);
+                    Output[at + 3] = new SegmentInstance
+                    {
+                        Position = end - along * 0.12f * scale,
+                        Rotation = Unity.Mathematics.quaternion.LookRotationSafe(along, new Unity.Mathematics.float3(0f, 1f, 0f)),
+                        Length = 0.24f * scale,
+                        RadiusStart = 0.035f * scale,
+                        RadiusEnd = 0.012f * scale,
+                        Flatten = 0.55f,
+                        Color = new Unity.Mathematics.float4(0.55f, 0.6f, 0.62f, 0.1f),
+                        Pad = faded
+                    };
+                }
+                else if (state.Stage == 2 && state.ActionTime < 0.75f)
+                    end = tip;
+                else
+                {
+                    var water = Terrain.SampleGround(state.WorkFace);
+                    end = new Unity.Mathematics.float3(state.WorkFace.x, water.WaterSurface + 0.02f + 0.015f * Unity.Mathematics.math.sin(Time * 2.1f + id), state.WorkFace.y);
+                    Output[at + 2] = new SegmentInstance
+                    {
+                        Position = end - new Unity.Mathematics.float3(0f, 0.03f, 0f),
+                        Rotation = Unity.Mathematics.quaternion.LookRotationSafe(new Unity.Mathematics.float3(0f, 1f, 0f), forward),
+                        Length = 0.06f,
+                        RadiusStart = 0.025f,
+                        RadiusEnd = 0.025f,
+                        Flatten = 1f,
+                        Color = new Unity.Mathematics.float4(0.85f, 0.12f, 0.08f, 0f),
+                        Pad = faded
+                    };
+                }
+                var span = end - tip;
+                var reach = Unity.Mathematics.math.length(span);
+                if (reach > 0.02f)
+                    Output[at + 1] = new SegmentInstance { Position = tip, Rotation = Unity.Mathematics.quaternion.LookRotationSafe(span / reach, forward), Length = reach, RadiusStart = 0.0035f, RadiusEnd = 0.0035f, Flatten = 1f, Color = line, Pad = faded };
+                // The basket, on the ground at its side.
+                var spot = state.Position.xz + right.xz * 0.45f * scale - forward.xz * 0.15f * scale;
+                Output[at + 4] = new SegmentInstance
+                {
+                    Position = new Unity.Mathematics.float3(spot.x, Terrain.SampleHeight(spot), spot.y),
+                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(new Unity.Mathematics.float3(0f, 1f, 0f), forward),
+                    Length = 0.2f * scale,
+                    RadiusStart = 0.13f * scale,
+                    RadiusEnd = 0.16f * scale,
+                    Flatten = 1f,
+                    Color = new Unity.Mathematics.float4(0.36f, 0.24f, 0.11f, 0f),
+                    Pad = faded
+                };
             }
 
             /// <summary>

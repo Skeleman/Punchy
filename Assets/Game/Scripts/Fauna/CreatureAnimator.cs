@@ -596,10 +596,25 @@ namespace Punchy.Fauna
                     return new float3(joint == 0 ? -0.65f + 0.22f * math.sin(t * 1.5f + (right ? 0f : 1.4f)) : -0.55f, 0f, 0f);
                 case CreatureTask.Watch:
                     return new float3(joint == 0 ? 0.35f : -0.75f, 0f, 0f);   // hands clasped behind the back
+                case CreatureTask.Fish:
+                {
+                    // Both hands on the rod held out over the water; casting, the right swings it up over the shoulder
+                    // and whips it through; landing a fish, both lift it high. (The rod is drawn to match: see
+                    // CreatureRenderSystem's Rod.)
+                    if (s.Stage == 3)
+                        return new float3(joint == 0 ? -1.5f : -0.6f, 0f, 0f);
+                    if (s.Stage == 2 && right)
+                        return new float3(joint == 0 ? -0.75f - 1.85f * CastBack(s.ActionTime) : -0.5f, 0f, 0f);
+                    return new float3(joint == 0 ? -0.75f : -0.55f, 0f, 0f);
+                }
                 default:
                     return float3.zero;
             }
         }
+
+        /// <summary>How far back over the shoulder a cast has the rod (0 out over the water, 1 right back), through
+        /// the cast (0..1): up and back, then whipped through.</summary>
+        public static float CastBack(float t) => math.smoothstep(0f, 0.25f, t) * (1f - math.smoothstep(0.25f, 0.6f, t));
 
         /// <summary>
         /// A hunter's arms: creeping up, both carried low in front (the spear); aiming, the right drawn back high over

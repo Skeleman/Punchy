@@ -560,7 +560,9 @@ namespace Punchy.Fauna
                         break;
 
                     case CreatureMode.Work:
-                        s.Timer -= dt;
+                        // (A fisher's time at the water starts when it gets there, however far it had to walk.)
+                        if (s.Stage >= 1 || s.Task != CreatureTask.Fish)
+                            s.Timer -= dt;
                         if (s.Stage == 0)
                         {
                             s.Target = s.WorkSpot;
@@ -572,6 +574,8 @@ namespace Punchy.Fauna
                                 s.StageTime = 0f;
                             }
                         }
+                        else if (s.Task == CreatureTask.Fish)
+                            Fishing(ref s, ref b, ref rng, dt, ref desiredLook);
                         else
                         {
                             // At the post: turn to face the work, glance about now and then.
@@ -726,6 +730,8 @@ namespace Punchy.Fauna
                 // it doesn't flicker at the turn), and not asleep, indoors, dozing at a post, or in someone's arms.
                 if (s.Task == CreatureTask.Patrol && s.Mode == CreatureMode.Patrol)
                     s.Held = Night > 0.5f ? HeldItem.Torch : HeldItem.Spear;
+                else if (s.Task == CreatureTask.Fish && s.Mode == CreatureMode.Work && s.Stage >= 1)
+                    s.Held = HeldItem.Rod;
                 else if (b.Hands && b.Upright)
                 {
                     var dark = s.Held == HeldItem.Lantern ? Night > 0.4f : Night > 0.6f;
@@ -826,6 +832,10 @@ namespace Punchy.Fauna
                     }
                 }
 
+                // A fisher finds its spot the first time (none within reach, and it's just one of the townsfolk).
+                if (s.Task == CreatureTask.Fish && sleepy < 0.5f && math.all(s.WorkSpot == float2.zero) && !FindFishingSpot(ref s))
+                    s.Task = CreatureTask.None;
+
                 // Find company first: the options depend on it.
                 var playmate = Entity.Null;
                 if (b.Playfulness > 0f && sleepy < 0.5f && !perched)
@@ -874,8 +884,9 @@ namespace Punchy.Fauna
                 // their post.
                 // (Hunters have no post: by day they go out after game, at night they sleep at home.)
                 var posted = s.Task != CreatureTask.None && s.Task != CreatureTask.Hunt && s.Task != CreatureTask.Patrol;
-                var work = posted ? sleepy > 0.5f ? 10f : 6f : 0f;
-                if (posted && sleepy > 0.5f)
+                // (A fisher fishes by day only: at night it sleeps at home like anyone.)
+                var work = posted ? sleepy > 0.5f ? (s.Task == CreatureTask.Fish ? 0f : 10f) : 6f : 0f;
+                if (posted && sleepy > 0.5f && s.Task != CreatureTask.Fish)
                     sleep = 0f;
                 // Townsfolk go indoors through their door: for the night (all but the watch), and now and then by day.
                 var home = 0f;
@@ -931,7 +942,7 @@ namespace Punchy.Fauna
                 if ((roll -= work) < 0f)
                 {
                     SetMode(ref s, CreatureMode.Work);
-                    s.Timer = rng.NextFloat(40f, 120f);
+                    s.Timer = s.Task == CreatureTask.Fish ? rng.NextFloat(120f, 300f) : rng.NextFloat(40f, 120f);
                 }
                 else if ((roll -= home) < 0f)
                 {
@@ -1858,6 +1869,94 @@ namespace Punchy.Fauna
                                 s.ActionTime = 0f;
                                 s.ActionLength = rng.NextFloat(3f, 6f);
                             }
+                        }
+                        break;
+                }
+            }
+
+            // ------------------------------------------------------------------------------- fishers
+
+            /// <summary>
+            /// A fisher's spot: dry shore near its home (within its range) looking out over water a metre deep or more,
+            /// the same one each time (searched outward from its home, from a bearing of its own): WorkSpot the shore,
+            /// WorkFace the water a few metres out where its float goes.
+            /// </summary>
+            bool FindFishingSpot(ref CreatureState s)
+            {
+                var range = math.max(s.Leash * 0.9f, 30f);
+                var start = (s.Individual % 360u) * math.PI / 180f;
+                for (var d = 8f; d <= range; d += 6f)
+                    for (int k = 0; k < 16; k++)
+                    {
+                        var a = start + k * math.PI / 8f;
+                        var dir = new float2(math.sin(a), math.cos(a));
+                        var p = s.Home + dir * d;
+                        if (WaterDepth(p) < 1f)
+                            continue;
+                        // Back from the water to the bank.
+                        var q = p;
+                        for (int step = 0; step < 40 && !Walkable(q, Habitat.Land); step++)
+                            q -= dir * 0.5f;
+                        if (!Walkable(q, Habitat.Land))
+                            continue;
+                        s.WorkSpot = q - dir * 0.3f;
+                        s.WorkFace = q + dir * 4f;
+                        return true;
+                    }
+                return false;
+            }
+
+            /// <summary>
+            /// A fisher at the water's edge (Work, stage 1 on), facing the water: waiting with its float out (1),
+            /// glancing about now and then; now and then casting again (2: ActionTime through the swing); sometimes a
+            /// bite and a fish landed, held up on the line a moment before it goes in the basket (3), then a fresh cast.
+            /// It packs up at dusk.
+            /// </summary>
+            void Fishing(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, ref float desiredLook)
+            {
+                if (Night > 0.5f)
+                {
+                    Pause(ref s, ref b, ref rng);
+                    return;
+                }
+                var toWater = s.WorkFace - s.Position.xz;
+                var wanted = WrapAngle(math.atan2(toWater.x, toWater.y) - s.Yaw);
+                s.Yaw = WrapAngle(s.Yaw + math.clamp(wanted, -b.TurnRate * dt, b.TurnRate * dt));
+                switch (s.Stage)
+                {
+                    case 2:
+                        s.ActionTime = math.saturate(s.ActionTime + dt / 1.6f);
+                        if (s.ActionTime >= 1f)
+                        {
+                            s.Stage = 1;
+                            s.StageTime = 0f;
+                            s.ActionTime = 0f;
+                        }
+                        break;
+                    case 3:
+                        desiredLook = 0f;
+                        s.ActionTime = math.saturate(s.ActionTime + dt / 3f);
+                        if (s.ActionTime >= 1f)
+                        {
+                            s.Stage = 2;
+                            s.StageTime = 0f;
+                            s.ActionTime = 0f;
+                        }
+                        break;
+                    default:
+                        s.Stage = 1;
+                        desiredLook = math.frac(s.ModeTime / 11f) > 0.8f ? math.sin(s.ModeTime) * 0.8f : 0f;
+                        if (rng.NextFloat() < dt / 75f)
+                        {
+                            s.Stage = 3;   // a bite
+                            s.StageTime = 0f;
+                            s.ActionTime = 0f;
+                        }
+                        else if (rng.NextFloat() < dt / 25f)
+                        {
+                            s.Stage = 2;   // reel in and cast again
+                            s.StageTime = 0f;
+                            s.ActionTime = 0f;
                         }
                         break;
                 }

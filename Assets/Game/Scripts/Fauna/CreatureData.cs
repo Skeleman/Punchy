@@ -281,7 +281,9 @@ namespace Punchy.Fauna
         [UnityEngine.Tooltip("Stands keeping watch, hands behind the back (a gatekeeper).")] Watch,
         [UnityEngine.Tooltip("Goes out by day after game: creeps up on it, throws (and, for now, always misses).")] Hunt,
         [UnityEngine.Tooltip("A guard: walks the town's streets and out to its gates on its shift (by day or by night, half " +
-                             "each), spear in hand, a torch after dark; a night guard sleeps the day indoors.")] Patrol
+                             "each), spear in hand, a torch after dark; a night guard sleeps the day indoors.")] Patrol,
+        [UnityEngine.Tooltip("Fishes by day from the shore nearest home (its own spot, the same each time): waits with its " +
+                             "float out, casts again now and then, sometimes lands a fish into its basket; home at dusk.")] Fish
     }
 
     /// <summary>
@@ -312,7 +314,9 @@ namespace Punchy.Fauna
         /// <summary>A spear held upright in the right hand: a guard on its rounds by day.</summary>
         Spear,
         /// <summary>A burning torch held up in the right hand: a guard on its rounds after dark.</summary>
-        Torch
+        Torch,
+        /// <summary>A fishing rod in both hands, its line out to a float on the water (and a basket at the feet).</summary>
+        Rod
     }
 
     /// <summary>A creature's position, heading, gait and what it's up to.</summary>
