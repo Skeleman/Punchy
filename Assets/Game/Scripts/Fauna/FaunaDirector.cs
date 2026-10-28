@@ -212,24 +212,30 @@ namespace Punchy.Fauna
 
         void Build(in TerrainSource source, BiomePalette palette)
         {
+            // Each species once, by name: in a built player the Domestics table (loaded from Resources) holds its own
+            // copies of species the world's palette also lists, so the same species can arrive as two objects. (Counted
+            // twice, the indices shifted, and an editor and a build disagreed on what each index meant.)
+            var named = new HashSet<string>();
+            void AddSpecies(CreatureSpecies s)
+            {
+                if (s != null && named.Add(s.name))
+                    species.Add(s);
+            }
             biomes = palette.Biomes;
             foreach (var biome in biomes)
                 if (biome != null)
                     foreach (var f in biome.Fauna)
-                        if (f.Species != null && !species.Contains(f.Species))
-                            species.Add(f.Species);
+                        AddSpecies(f.Species);
             landmarks = palette.Landmarks ?? System.Array.Empty<LandmarkType>();
             foreach (var landmark in landmarks)
                 if (landmark != null)
                     foreach (var r in landmark.Residents)
-                        if (r.Species != null && !species.Contains(r.Species))
-                            species.Add(r.Species);
+                        AddSpecies(r.Species);
             domestics = Resources.Load<DomesticTable>("Domestics");
             Debug.Log($"FaunaDirector: domestic animals table {(domestics != null ? domestics.Entries.Count + " entries" : "missing")}");
             if (domestics != null)
                 foreach (var d in domestics.Entries)
-                    if (d.Species != null && !species.Contains(d.Species))
-                        species.Add(d.Species);
+                    AddSpecies(d.Species);
             // The index is how the network names a species, so it must mean the same animal on every machine: sort by
             // asset name, and refuse to network if two share one.
             species.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
@@ -312,7 +318,8 @@ namespace Punchy.Fauna
             return ConfigStamp() != configStamp;
         }
 
-        public int SpeciesIndex(CreatureSpecies s) => species.IndexOf(s);
+        /// <summary>A species' index (by name: a build can hold more than one copy of the same species asset).</summary>
+        public int SpeciesIndex(CreatureSpecies s) => s != null ? SpeciesIndex(s.name) : -1;
         public int SpeciesIndex(string name) => species.FindIndex(s => s.name == name);
         /// <summary>How many animals birds of prey have caught (for the test log).</summary>
         public static int Caught;
@@ -365,7 +372,7 @@ namespace Punchy.Fauna
             em.SetComponentData(e, new CreatureBody
             {
                 Blob = avatarBlob,
-                Species = species.IndexOf(PlayerSpecies),
+                Species = SpeciesIndex(PlayerSpecies),
                 SegmentCount = b.Segments.Length,
                 Coat = b.PickCoat(rng.NextFloat())
             });
@@ -517,7 +524,7 @@ namespace Punchy.Fauna
             var bestShortfall = 0f;
             foreach (var f in biome.Fauna)
             {
-                var index = f.Species != null ? species.IndexOf(f.Species) : -1;
+                var index = SpeciesIndex(f.Species);
                 if (index < 0 || f.Species.Body.NearWater && !nearWater || !Suits(f.Species.Body.Habitat, depth))
                     continue;
                 var shortfall = f.Density * areaHectares - counts[offset + index];
@@ -571,7 +578,7 @@ namespace Punchy.Fauna
                 SpawnDomestics(source, landmarks[inst.Type], inst.Position, radius);
                 foreach (var r in landmarks[inst.Type].Residents)
                 {
-                    var index = r.Species != null ? species.IndexOf(r.Species) : -1;
+                    var index = SpeciesIndex(r.Species);
                     if (index < 0)
                         continue;
                     var count = rng.NextInt(math.max(0, r.Count.x), math.max(r.Count.x, r.Count.y) + 1);
@@ -621,7 +628,7 @@ namespace Punchy.Fauna
                 // By name: the palette's landmark types (baked into the world subscene) aren't the same objects as the table's.
                 if (d.Settlement == null || d.Species == null || d.Settlement.name != settlement.name)
                     continue;
-                var index = species.IndexOf(d.Species);
+                var index = SpeciesIndex(d.Species);
                 if (index < 0)
                     continue;
                 var count = rng.NextInt(math.max(0, d.Count.x), math.max(d.Count.x, d.Count.y) + 1);
