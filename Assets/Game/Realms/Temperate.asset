@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4eca35b3bd488b438aad272212cb4b6, type: 3}
+  m_Name: Temperate
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.RealmDefinition
+  MapColor: {r: 0.42, g: 0.75, b: 0.28, a: 1}
+  Frequency: 1
+  Biomes:
+  - Biome: {fileID: 11400000, guid: b1b97ac8fbc6672418cc6308ad36b33b, type: 2}
+    Weight: 1
+  - Biome: {fileID: 11400000, guid: 277e2018d3d2abb46be2568301b07cab, type: 2}
+    Weight: 1
+  NotNextTo: []

@@ -27,6 +27,17 @@ namespace Punchy.Editor
             {
                 if (GUILayout.Button("Export noise to heightmap + biome map images"))
                     ExportAndAssign(terrain);
+                using (new EditorGUI.DisabledScope(terrain.Realms == null))
+                {
+                    if (GUILayout.Button("Export realm preview image"))
+                    {
+                        Directory.CreateDirectory(BiomeMapFolder);
+                        var path = AssetDatabase.GenerateUniqueAssetPath($"{BiomeMapFolder}/RealmPreview_seed{terrain.World.Seed}_{terrain.BiomeNoise.Seed}.png");
+                        ExportRealmPreview(terrain, path);
+                        AssetDatabase.ImportAsset(path);
+                        EditorGUIUtility.PingObject(AssetDatabase.LoadAssetAtPath<Texture2D>(path));
+                    }
+                }
             }
 
             if (terrain.HeightSource == HeightSourceKind.Heightmap || terrain.BiomeSource == BiomeSourceKind.Map)
@@ -194,6 +205,114 @@ namespace Punchy.Editor
         }
 
         [BurstCompile]
+        /// <summary>
+        /// Saves a PNG of where realms and biomes go with realms on, whatever Use Realms is set to: each biome's map
+        /// colour washed with its realm's, realm borders dark, biome borders light, sea dark. Biomes only (no rivers
+        /// or landmarks), so it's quick. Returns each realm's and biome's share of the land.
+        /// </summary>
+        public static string ExportRealmPreview(TerrainAuthoring terrain, string path, int resolution = 1024)
+        {
+            var palette = terrain.Palette();
+            var realms = terrain.Realms;
+            var noiseSettings = terrain.BiomeNoise;
+            var source = new TerrainSource
+            {
+                World = terrain.World,
+                BiomeKind = BiomeSourceKind.Noise,
+                BiomeNoise = noiseSettings,
+                SpawnCell = BiomeSampling.SpawnCell(noiseSettings),
+                Biomes = BiomeBaking.BuildBiomeSet(palette, terrain.OceanBiome != null, terrain.World.Seed, Allocator.Persistent)
+            };
+            var coast = source;
+            source.BiomeCells = BiomeSampling.BuildCellTable(noiseSettings, ref source.Biomes.Value, terrain.World.WorldSize * 0.5f + terrain.World.CoastWidth * 2f,
+                                                             Allocator.Persistent, realms.Plan(palette), xz => coast.OceanFactor(xz) < 0.5f);
+            var count = resolution * resolution;
+            var ids = new NativeArray<byte>(count, Allocator.TempJob);
+            var realmIds = new NativeArray<byte>(count, Allocator.TempJob);
+            new SampleRealmJob
+            {
+                Source = source,
+                Origin = new float2(-terrain.ExportWorldSize * 0.5f),
+                Step = terrain.ExportWorldSize / (resolution - 1),
+                Resolution = resolution,
+                Ids = ids,
+                Realms = realmIds
+            }.Schedule(count, 256).Complete();
+            var biomeOf = ids.ToArray();
+            var realmOf = realmIds.ToArray();
+            ids.Dispose();
+            realmIds.Dispose();
+            var ocean = source.Biomes.Value.OceanIndex;
+            source.Biomes.Dispose();
+            source.BiomeCells.Dispose();
+
+            var pixels = new Color32[count];
+            var realmLand = new int[realms.Realms.Count];
+            var biomeLand = new int[palette.Count];
+            var land = 0;
+            for (int i = 0; i < count; i++)
+            {
+                int x = i % resolution, y = i / resolution;
+                var b = biomeOf[i];
+                if (b == ocean)
+                {
+                    pixels[i] = new Color32(24, 40, 70, 255);
+                    continue;
+                }
+                var r = realmOf[i];
+                var realmColor = r < realms.Realms.Count && realms.Realms[r] != null ? realms.Realms[r].MapColor : Color.gray;
+                var color = Color.Lerp(realmColor, palette[b].MapColor, 0.45f);
+                // Borders: a realm change beside it (either side, so the line is two pixels) is dark; a biome change
+                // to the right or above, light.
+                var right = x + 1 < resolution ? i + 1 : i;
+                var up = y + 1 < resolution ? i + resolution : i;
+                var left = x > 0 ? i - 1 : i;
+                var down = y > 0 ? i - resolution : i;
+                bool RealmEdge(int n) => realmOf[n] != r && biomeOf[n] != ocean;
+                if (RealmEdge(right) || RealmEdge(up) || RealmEdge(left) || RealmEdge(down))
+                    color = Color.Lerp(color, Color.black, 0.8f);
+                else if (biomeOf[right] != b && biomeOf[right] != ocean || biomeOf[up] != b && biomeOf[up] != ocean)
+                    color = Color.Lerp(color, Color.white, 0.5f);
+                pixels[i] = color;
+                land++;
+                if (r < realmLand.Length)
+                    realmLand[r]++;
+                biomeLand[b]++;
+            }
+
+            var tex = new Texture2D(resolution, resolution, TextureFormat.RGB24, false);
+            tex.SetPixels32(pixels);
+            File.WriteAllBytes(path, tex.EncodeToPNG());
+            DestroyImmediate(tex);
+
+            var summary = $"{terrain.ExportWorldSize} m square, {land * 100f / count:F0}% land. Realms:";
+            for (int r = 0; r < realmLand.Length; r++)
+                summary += $" {(realms.Realms[r] != null ? realms.Realms[r].name : "-")} {realmLand[r] * 100f / math.max(land, 1):F0}%";
+            summary += "\nBiomes:";
+            for (int b = 0; b < biomeLand.Length; b++)
+                if (b != ocean)
+                    summary += $" {palette[b].name} {biomeLand[b] * 100f / math.max(land, 1):F0}%";
+            return summary;
+        }
+
+        [BurstCompile]
+        struct SampleRealmJob : IJobParallelFor
+        {
+            public TerrainSource Source;
+            public float2 Origin;
+            public float Step;
+            public int Resolution;
+            [WriteOnly] public NativeArray<byte> Ids, Realms;
+
+            public void Execute(int index)
+            {
+                var xz = Origin + new float2(index % Resolution, index / Resolution) * Step;
+                Source.SampleBiomes(xz, out var surface, out _);
+                Ids[index] = (byte)surface.Dominant();
+                Realms[index] = (byte)BiomeSampling.RealmAt(Source.BiomeNoise, Source.BiomeCells, xz);
+            }
+        }
+
         struct SampleBiomeJob : IJobParallelFor
         {
             public TerrainSource Source;
