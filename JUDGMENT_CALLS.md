@@ -13,6 +13,31 @@ asks Zach if needed, and records the answer here.
 
 ## Decided
 
+### J-018: In what order does play-test feedback get worked?
+
+- **Asked:** 2026-10-27, by the supervisor, after Zach's ~40-item play-test list.
+- **Also comes up when:** any batch of feedback, or a mix of bugs and new content.
+- **Answer (2026-10-27):** bugs first, then look polish, then new content.
+- **Why:** (recommendation).
+- **Revisited:** 0.
+
+### J-019: How do we get realistic buildings?
+
+- **Asked:** 2026-10-27, by the supervisor. The friend's repo has no licence.
+- **Also comes up when:** borrowing anything from anweather/5e-compatible-game.
+- **Answer (2026-10-27):** write Punchy's own modular buildings, inspired by the friend's ideas; no copied code.
+- **Why:** (recommendation) no licence needed.
+- **Revisited:** 0.
+
+### J-020: Where do ghosts appear?
+
+- **Asked:** 2026-10-27, by the supervisor.
+- **Also comes up when:** other night-only or spooky creatures; spooky landmarks.
+- **Answer (2026-10-27):** at night in the foggy marsh, the poison swamp, and near ruins and graveyards (new
+  landmarks).
+- **Why:** Zach's pick.
+- **Revisited:** 0.
+
 ### J-017: What does the animal session do after cave drinkers?
 
 - **Asked:** 2026-10-27, by the animal session (via the supervisor).
