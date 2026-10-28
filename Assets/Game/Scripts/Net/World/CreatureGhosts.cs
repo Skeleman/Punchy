@@ -187,21 +187,7 @@ namespace Punchy.Net
                 CreatureMotion.AdvancePhase(ref c, ref b, dt);
             }
 
-            // One we're carrying sits in our own arms, where we are now (its ghost trails behind, interpolated).
-            if (!SystemAPI.TryGetSingleton<NetworkId>(out var id))
-                return;
-            var me = Interactions.HolderId(id.Value);
-            foreach (var t in SystemAPI.Query<RefRO<LocalTransform>>().WithAll<Punchy.Player.PlayerTag>())
-            {
-                var forward = math.mul(t.ValueRO.Rotation, new float3(0f, 0f, 1f));
-                var yaw = math.atan2(forward.x, forward.z);
-                foreach (var s in SystemAPI.Query<RefRW<CreatureState>>().WithAll<CreatureReplica>())
-                    if (s.ValueRO.Mode == CreatureMode.Held && s.ValueRO.Holder == me)
-                    {
-                        s.ValueRW.Position = Interactions.Hands(t.ValueRO.Position, yaw);
-                        s.ValueRW.Yaw = yaw + math.PI * 0.5f;
-                    }
-            }
+            // (One being carried is placed in its carrier's arms as it's drawn: HeldPoseSystem.)
         }
     }
 }
