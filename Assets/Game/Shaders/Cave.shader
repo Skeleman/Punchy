@@ -236,12 +236,16 @@ Shader "Punchy/Cave"
                     float3 toPool = _PunchyCaveHeat[k].xyz - p;
                     float4 hc = _PunchyCaveHeatColor[k];
                     float dist = length(toPool);
-                    float fall = saturate(1 - dist / hc.w);
-                    fall *= fall;
-                    float3 dir = toPool / max(dist, 1e-3);
-                    half3 warm = hc.rgb * fall;
-                    light += warm * saturate(dot(n, dir) * 0.7 + 0.3);
-                    shine += warm * pow(saturate(dot(n, normalize(dir + view))), shininess) * saturate(gloss + metallic * 0.6);
+                    // Out of its reach it adds nothing: skip the rest (the slots are usually full of distant plants).
+                    [branch] if (dist < hc.w)
+                    {
+                        float fall = saturate(1 - dist / hc.w);
+                        fall *= fall;
+                        float3 dir = toPool / max(dist, 1e-3);
+                        half3 warm = hc.rgb * fall;
+                        light += warm * saturate(dot(n, dir) * 0.7 + 0.3);
+                        shine += warm * pow(saturate(dot(n, normalize(dir + view))), shininess) * saturate(gloss + metallic * 0.6);
+                    }
                 }
 
                 half3 color = diffuse * light + specColor * shine + s0.rgb * through * translucency * 0.6;

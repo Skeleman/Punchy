@@ -106,8 +106,10 @@ Shader "Punchy/Terrain Surface"
                 half wet = PunchyWetnessAt(p).r * (1 - saturate(input.extra.z * 2));
                 // Shores: ground just above the water stays wet, a dark band with an uneven upper edge. The mesh
                 // stores it as a negative skirt drop (surface vertices leave that channel 0; skirts are positive).
-                half shore = smoothstep(0.2, 0.75, saturate(-input.extra.w) + (PunchyValueNoise(p * 0.8) - 0.5) * 0.35)
-                           * (1 - saturate(input.extra.z * 2));
+                half shore = 0;
+                [branch] if (input.extra.w < -0.001)
+                    shore = smoothstep(0.2, 0.75, saturate(-input.extra.w) + (PunchyValueNoise(p * 0.8) - 0.5) * 0.35)
+                          * (1 - saturate(input.extra.z * 2));
                 half flatness = smoothstep(0.96, 0.995, normalWS.y);
                 half puddleNoise = PunchyValueNoise(p / 2.3) * 0.65 + PunchyValueNoise(p / 0.9 + 5.1) * 0.35;
                 half puddle = smoothstep(0.62, 0.7, puddleNoise + wet * 0.35 - 0.25) * flatness * step(0.3, wet)

@@ -113,6 +113,7 @@ namespace Punchy.Terrain
         List<CaveStyle> styles;
 
         static readonly int DetailId = Shader.PropertyToID("_PunchyCaveDetail");
+        static readonly int DetailReadyId = Shader.PropertyToID("_PunchyCaveDetailReady");
         static Texture2D detail;
 
         void OnEnable()
@@ -121,6 +122,8 @@ namespace Punchy.Terrain
             if (detail == null)
                 detail = MakeDetail();
             Shader.SetGlobalTexture(DetailId, detail);
+            // Water reads it too, for fine ripples; it keeps them off until this is set.
+            Shader.SetGlobalFloat(DetailReadyId, 1f);
         }
 
         /// <summary>
@@ -297,7 +300,9 @@ namespace Punchy.Terrain
                     {
                         var reach = LavaLight;
                         reach.w = pool.Radius * 5f + 4f;
-                        glowing.Add((math.distance(pool.Centre, camPos), new Vector4(pool.Centre.x, pool.Centre.y + 0.3f, pool.Centre.z, 0f), reach));
+                        // Only pools whose light could reach something near the camera take one of the 16 slots.
+                        if (math.distance(pool.Centre, camPos) < reach.w + PlantRadius)
+                            glowing.Add((math.distance(pool.Centre, camPos), new Vector4(pool.Centre.x, pool.Centre.y + 0.3f, pool.Centre.z, 0f), reach));
                     }
                 }
             }
@@ -321,6 +326,7 @@ namespace Punchy.Terrain
 
         [Tooltip("Cave plants within this distance of the camera are drawn.")]
         public float PlantRadius = 60f;
+        float nextFloraLookup;
         /// <summary>Variants grown per species (as the flora system does).</summary>
         const int PlantVariants = 3;
         /// <summary>Cave plants nearer than this use the finest mesh, the rest the middle one.</summary>
@@ -356,6 +362,10 @@ namespace Punchy.Terrain
                 return;
             if (floraMaterial == null)
             {
+                // Looking it up is slow; without one, try again only now and then.
+                if (Time.unscaledTime < nextFloraLookup)
+                    return;
+                nextFloraLookup = Time.unscaledTime + 1f;
                 var flora = FindFirstObjectByType<Punchy.Flora.FloraSystem>();
                 floraMaterial = flora != null ? flora.Material : null;
                 if (floraMaterial == null)

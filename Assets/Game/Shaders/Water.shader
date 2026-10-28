@@ -57,6 +57,7 @@ Shader "Punchy/Water"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
             #include "Sky.hlsl"
+            #include "SharedClock.hlsl"
 
             // Weather global (WeatherSystem): 0..1 wind strength at the camera.
             half _PunchyWind;
@@ -86,6 +87,8 @@ Shader "Punchy/Water"
             // The fine detail texture shared with the caves (CaveSystem makes it once): rg a tiling normal, b a height,
             // a a sparkle. Two scrolling reads of it give the water its small ripples and glitter.
             TEXTURE2D(_PunchyCaveDetail);
+            // 1 once CaveSystem has made the detail texture; until then (or without it) the fine ripples stay off.
+            float _PunchyCaveDetailReady;
             SAMPLER(sampler_PunchyCaveDetail);
 
             // Must match WaterVertex in BuildChunkMeshJob.cs.
@@ -267,7 +270,7 @@ Shader "Punchy/Water"
             half4 Frag(Varyings input, bool frontFace : SV_IsFrontFace) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
-                float t = _Time.y;
+                float t = _PunchyClock;   // the shared clock, so every player sees the same ripples
                 float2 p = input.positionWS.xz;
                 float2 flow = input.data.xy;
                 float flowAmount = saturate(length(flow));
@@ -303,7 +306,7 @@ Shader "Punchy/Water"
                 half4 fine0 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale + float2(t * 0.031, t * 0.017) - drift * _DetailScale * 0.6);
                 half4 fine1 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale * 1.7 + float2(-t * 0.022, t * 0.029) - drift * _DetailScale * 1.1);
                 float2 fine = fine0.rg + fine1.rg - 1;
-                float fineStrength = _DetailStrength * (0.35 + _PunchyWind + rapids) * distanceFade * (1 - 0.8 * murk) * (1 - lava);
+                float fineStrength = _DetailStrength * _PunchyCaveDetailReady * (0.35 + _PunchyWind + rapids) * distanceFade * (1 - 0.8 * murk) * (1 - lava);
                 float3 n = normalize(float3(-slope.x * strength - fine.x * fineStrength, 1, -slope.y * strength - fine.y * fineStrength));
                 // Reflections use a calmer normal, so they stay crisp instead of breaking into noise.
                 float3 nReflect = normalize(float3(-slope.x * strength * 0.4, 1, -slope.y * strength * 0.4));
@@ -381,7 +384,7 @@ Shader "Punchy/Water"
                 half3 color = lerp(body, reflection, fresnel) + light.color * glint * 4 * (1 - 0.6 * murk * (1 - viscous));
                 color += _PunchyLanternColor.rgb * lanternGlint * 0.8;
                 // Glitter: where both fine reads sparkle at once and the ripple catches the sun just so.
-                half glitter = smoothstep(0.55, 0.9, fine0.a * fine1.a * 1.6) * pow(saturate(dot(n, h)), 300) * shadow
+                half glitter = smoothstep(0.55, 0.9, fine0.a * fine1.a * 1.6) * _PunchyCaveDetailReady * pow(saturate(dot(n, h)), 300) * shadow
                                * _Sparkle * distanceFade * (1 - murk) * (1 - lava);
                 color += light.color * glitter * 10;
                 // Toxic pools glow from within, pulsing slowly in patches.
