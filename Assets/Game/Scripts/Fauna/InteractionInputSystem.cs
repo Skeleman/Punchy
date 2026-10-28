@@ -1,4 +1,5 @@
 using Punchy.Player;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -71,44 +72,31 @@ namespace Punchy.Fauna
             var forward = math.mul(player.Rotation, new float3(0f, 0f, 1f));
             var me = Interactions.HolderId(SystemAPI.TryGetSingleton<NetworkId>(out var id) ? id.Value : 0);
 
-            // What we're carrying or petting, and the nearest animal within reach in front of us.
-            var reachPoint = player.Position + forward * (Interactions.Reach * 0.45f);
-            var entities = creatures.ToEntityArray(Allocator.Temp);
-            var states = creatures.ToComponentDataArray<CreatureState>(Allocator.Temp);
-            var bodies = creatures.ToComponentDataArray<CreatureBody>(Allocator.Temp);
-            Entity held = Entity.Null, target = Entity.Null, lungeTarget = Entity.Null;
-            var petting = false;
-            var targetCarry = false;
-            var best = Interactions.Reach;
-            var lungeBest = Interactions.LungeReach;
-            var targetSpecies = -1;
-            for (int i = 0; i < entities.Length; i++)
+            // What we're carrying or petting, and the nearest animal within reach in front of us (a Burst pass over
+            // the creatures, no copies).
+            var scan = new NativeReference<ReachScan>(new ReachScan
             {
-                var s = states[i];
-                ref var b = ref bodies[i].Blob.Value;
-                if (s.Holder == me && s.Mode == CreatureMode.Held)
-                    held = entities[i];
-                if (s.Holder == me && s.Mode == CreatureMode.Petted)
-                    petting = true;
-                if (!Interactions.CanPet(ref b, s) || math.abs(s.Position.y - player.Position.y) > 1.5f)
-                    continue;
-                var d = math.distance(s.Position.xz, reachPoint.xz) - b.BodyLength * s.Scale * 0.5f;
-                if (d < lungeBest)
-                {
-                    lungeBest = d;
-                    lungeTarget = entities[i];
-                }
-                if (d < best)
-                {
-                    best = d;
-                    target = entities[i];
-                    targetCarry = Interactions.CanCarry(ref b, s);
-                    targetSpecies = bodies[i].Species;
-                }
-            }
-            entities.Dispose();
-            states.Dispose();
-            bodies.Dispose();
+                Best = Interactions.Reach,
+                LungeBest = Interactions.LungeReach,
+                TargetSpecies = -1
+            }, Allocator.TempJob);
+            // (Scheduled after whatever writes creature state this frame, the brain's job when alone, and waited for.)
+            Dependency = new ReachJob
+            {
+                Me = me,
+                Player = player.Position,
+                ReachPoint = player.Position + forward * (Interactions.Reach * 0.45f),
+                Result = scan
+            }.Schedule(creatures, Dependency);
+            Dependency.Complete();
+            var found = scan.Value;
+            scan.Dispose();
+            var held = found.Held;
+            var target = found.Target;
+            var lungeTarget = found.LungeTarget;
+            var petting = found.Petting;
+            var targetCarry = found.TargetCarry;
+            var targetSpecies = found.TargetSpecies;
 
             var lunging = SystemAPI.Time.ElapsedTime < lungeUntil;
             UpdateEmote(held != Entity.Null || lunging || petting);
@@ -223,6 +211,50 @@ namespace Punchy.Fauna
 
         /// <summary>A test's way in ("-emote Wave"): as if its key had been pressed.</summary>
         public static IdleAction Requested;
+
+        /// <summary>What ReachJob found: our held or petted animal, and the nearest within reach and lunge reach.</summary>
+        struct ReachScan
+        {
+            public Entity Held, Target, LungeTarget;
+            public bool Petting, TargetCarry;
+            public float Best, LungeBest;
+            public int TargetSpecies;
+        }
+
+        [BurstCompile]
+        partial struct ReachJob : IJobEntity
+        {
+            public int Me;
+            public float3 Player, ReachPoint;
+            public NativeReference<ReachScan> Result;
+
+            void Execute(Entity entity, in CreatureState s, in CreatureBody body)
+            {
+                var r = Result.Value;
+                ref var b = ref body.Blob.Value;
+                if (s.Holder == Me && s.Mode == CreatureMode.Held)
+                    r.Held = entity;
+                if (s.Holder == Me && s.Mode == CreatureMode.Petted)
+                    r.Petting = true;
+                if (Interactions.CanPet(ref b, s) && math.abs(s.Position.y - Player.y) <= 1.5f)
+                {
+                    var d = math.distance(s.Position.xz, ReachPoint.xz) - b.BodyLength * s.Scale * 0.5f;
+                    if (d < r.LungeBest)
+                    {
+                        r.LungeBest = d;
+                        r.LungeTarget = entity;
+                    }
+                    if (d < r.Best)
+                    {
+                        r.Best = d;
+                        r.Target = entity;
+                        r.TargetCarry = Interactions.CanCarry(ref b, s);
+                        r.TargetSpecies = body.Species;
+                    }
+                }
+                Result.Value = r;
+            }
+        }
 
         void Send(ref InteractionRequest request, InteractAct act, Entity target)
         {
