@@ -1440,11 +1440,11 @@ namespace Punchy.Flora
 
 
         /// <summary>
-        /// A door's height for human folk (about 1.3 times a person's height, so there's headroom); buildings are drawn
+        /// A door's height for human folk (about 1.3 times a 1.85 m person, so there's headroom); buildings are drawn
         /// for humans and each settlement scales them by its folk's size, so dwarf and goblin doors come out lower and
         /// ogre doors higher.
         /// </summary>
-        const float HumanDoor = 2.3f;
+        const float HumanDoor = 2.4f;
 
         /// <summary>A doorway in a wall facing +Z, at distance <paramref name="front"/> (see Door).</summary>
         static void Doorway(Grower g, float front, float width, float height) =>

@@ -26,7 +26,7 @@ MonoBehaviour:
   Palisade: 0
   MaxRelief: 2.5
   StreetSurface: {fileID: 11400000, guid: ecea3f6b2f4ee2b43a871edb5ff556dd, type: 2}
-  BuildingScale: 1.1
+  BuildingScale: 1.09
   WaterFeature: {fileID: 11400000, guid: 7c9534dc8b6f9f44caa5189be1a27130, type: 2}
   RoadWidth: 2.6
   Signpost: {fileID: 11400000, guid: 4b43cc542a9e3e446a95fb86645732a1, type: 2}
