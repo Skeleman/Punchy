@@ -23,6 +23,13 @@ MonoBehaviour:
   Blockiness: 0.8
   Ribs: 0.8
   RibSpacing: 2.2
+  Angularity: 0
+  FacetSize: 2.5
+  Straightness: 0
+  Frame: {fileID: 0}
+  FrameSpacing: 4
+  Torch: {fileID: 0}
+  TorchSpacing: 10
   FloorFlatness: 0.85
   FloorSteps: 0.3
   Burrows: 0
@@ -42,10 +49,11 @@ MonoBehaviour:
     Light: 2
     Hanging: 0
     MaxCover: 5
-  PoolChance: 0.25
+  PoolChance: 0.5
   LavaPools: 0
   PoolSize: 0.32
   StreamChance: 0
+  WaterfallChance: 0.5
   RockColor: {r: 0.75, g: 0.9, b: 1, a: 1}
   DarkColor: {r: 0.02, g: 0.18, b: 0.62, a: 1}
   Strata: 0.1

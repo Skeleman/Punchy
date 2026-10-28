@@ -22,6 +22,7 @@ Shader "Punchy/Landmark Plume"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
             #include "Sky.hlsl"
+            #include "Glow.hlsl"
             #include "LandmarkEffects.hlsl"
 
             struct Varyings
@@ -60,7 +61,7 @@ Shader "Punchy/Landmark Plume"
                 clip(alpha - 0.002);
 
                 Light light = GetMainLight();
-                half3 lit = e.color.rgb * (light.color * 0.6 * (1 - PunchyCloudShadow(input.positionWS)) + SampleSH(half3(0, 1, 0)));
+                half3 lit = e.color.rgb * PunchyEffectLight(e, input.positionWS, half3(0, 1, 0), light.color * 0.6 * (1 - PunchyCloudShadow(input.positionWS)), SampleSH(half3(0, 1, 0)));
                 half3 color = lit + e.color.rgb * e.color.a;
                 return half4(PunchyAtmosphere(color, input.positionWS), alpha);
             }

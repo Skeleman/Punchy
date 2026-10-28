@@ -100,6 +100,8 @@ namespace Punchy.Terrain
         [Tooltip("Chance a cave of this style has a stream running along its main passage floor, in a channel of its " +
                  "own, flowing down into the cave.")]
         [Range(0f, 1f)] public float StreamChance;
+        [Tooltip("Chance of a waterfall pouring from high on a wall into one of the cave's pools (at most two a cave).")]
+        [Range(0f, 1f)] public float WaterfallChance;
 
         [Header("Rock")]
         [ColorUsage(false)] public Color RockColor = new Color(0.48f, 0.44f, 0.4f);

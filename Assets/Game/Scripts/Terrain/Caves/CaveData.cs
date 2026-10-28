@@ -91,6 +91,21 @@ namespace Punchy.Terrain
         public float Lava;
     }
 
+    /// <summary>
+    /// An underground waterfall: water pouring from a lip high on a chamber wall, out and down into a pool. Drawn by
+    /// LandmarkEffectSystem as a waterfall curtain and a mist plume, lit as under rock.
+    /// </summary>
+    public struct CaveWaterfall
+    {
+        /// <summary>The lip, on the wall.</summary>
+        public float3 Lip;
+        public float Width;
+        /// <summary>Horizontal direction the water leaves the wall.</summary>
+        public float2 Out;
+        /// <summary>Height from the lip to the pool's surface.</summary>
+        public float Drop;
+    }
+
     /// <summary>One capsule of a passage, between two nodes, with the box its influence reaches.</summary>
     public struct CaveSegment
     {
@@ -136,6 +151,7 @@ namespace Punchy.Terrain
         public BlobArray<CaveNodeKind> Kinds;
         public BlobArray<CaveSegment> Segments;
         public BlobArray<CavePool> Pools;
+        public BlobArray<CaveWaterfall> Waterfalls;
         public BlobArray<CaveStream> Streams;
         public BlobArray<CaveStreamPoint> StreamPoints;
         public BlobArray<CavePlant> Plants;
