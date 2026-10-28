@@ -13,6 +13,15 @@ asks Zach if needed, and records the answer here.
 
 ## Decided
 
+### J-030: Approve the realms layout?
+
+- **Asked:** 2026-10-28, by the world session (preview map).
+- **Also comes up when:** realm shares, region size, island reshuffles.
+- **Answer (2026-10-28):** approved with 900 m biome regions, rebalanced: Desert down toward ~22%, Mystic up toward
+  ~10%, Wetlands toward ~18%. Final map with the sweep sheet.
+- **Why:** (recommendation).
+- **Revisited:** 0.
+
 ### J-029: Bigger buildings mean fewer per town. Grow towns?
 
 - **Asked:** 2026-10-28, by the world session after the door headroom resize.
