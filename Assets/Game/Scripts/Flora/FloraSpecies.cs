@@ -127,6 +127,9 @@ namespace Punchy.Flora
         public FoliageFinish Finish = FoliageFinish.Matte;
         [Tooltip("Flowers, berries and fruit glow by themselves.")]
         public bool GlowingAccents;
+        [Tooltip("Broadleaf trees: build the crown from leaf cards (flat clusters of leaves, cut out by their own shape) " +
+                 "lit as one soft volume, instead of leafy spheroids. Experimental; the far LOD stays a spheroid.")]
+        public bool LeafCards;
 
         [Header("Placement")]
         [Tooltip("Steepest ground it grows on, in degrees.")]
