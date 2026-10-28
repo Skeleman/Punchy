@@ -55,6 +55,7 @@ namespace Punchy.Debugging
             Watch();
             Pose();
             Interact();
+            ShotList();
             var keyboard = Keyboard.current;
             if (keyboard == null)
                 return;
@@ -138,6 +139,8 @@ namespace Punchy.Debugging
             poseRequest = null;
             interactRequest = null;
             shotDir = null;
+            shotLines.Clear();
+            shotIndex = -1;
             Time.timeScale = 1f;
         }
 #endif
@@ -152,7 +155,21 @@ namespace Punchy.Debugging
                 return;
             launchOptionsApplied = true;
             Debug.Log("DebugControls: places: " + string.Join(", ", locations.ConvertAll(l => l.Name)));
-            var args = LaunchArgs;
+            ApplyOptions(LaunchArgs);
+            // "-shotlist shots.txt": a list of shots to take one after another in this one session (see ShotList).
+            var list = System.Array.IndexOf(LaunchArgs, "-shotlist");
+            if (list >= 0 && list + 1 < LaunchArgs.Length)
+                LoadShotList(LaunchArgs[list + 1]);
+        }
+
+        /// <summary>When the latest options were applied (spawns and poses wait for the world round them to settle).</summary>
+        float optionsAt;
+        /// <summary>How long that settling takes: the world's first build, or (a later shot) the nearby chunks after a move.</summary>
+        float settle = 5f;
+
+        void ApplyOptions(string[] args)
+        {
+            optionsAt = Time.timeSinceLevelLoad;
             // "-incave": on the floor of the nearest cave's deepest chamber (after any -place).
             var inCave = System.Array.IndexOf(args, "-incave") >= 0;
             // "-nohud": no readout (for screenshots).
@@ -293,7 +310,7 @@ namespace Punchy.Debugging
         /// </summary>
         void SpawnRequested()
         {
-            if (pendingSpawns.Count == 0 || Time.timeSinceLevelLoad < 8f || !EnsureLocations(out var source) ||
+            if (pendingSpawns.Count == 0 || Time.timeSinceLevelLoad - optionsAt < settle || !EnsureLocations(out var source) ||
                 !playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return;
             var director = FindAnyObjectByType<FaunaDirector>();
@@ -457,7 +474,7 @@ namespace Punchy.Debugging
         /// <summary>Holds the "-pose" specimen two metres to the player's side, in the pose asked for, and circles the camera round it.</summary>
         void Pose()
         {
-            if (poseRequest == null || Time.timeSinceLevelLoad < 8f || !EnsureLocations(out var source) ||
+            if (poseRequest == null || Time.timeSinceLevelLoad - optionsAt < settle || !EnsureLocations(out var source) ||
                 !playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return;
             var director = FindAnyObjectByType<FaunaDirector>();
@@ -545,7 +562,7 @@ namespace Punchy.Debugging
         /// </summary>
         void Interact()
         {
-            if (interactRequest == null || Time.timeSinceLevelLoad < 12f || queryWorld == null || !queryWorld.IsCreated ||
+            if (interactRequest == null || Time.timeSinceLevelLoad - optionsAt < settle + 4f || queryWorld == null || !queryWorld.IsCreated ||
                 !playerQuery.TryGetSingletonEntity<LocalTransform>(out var playerEntity))
                 return;
             var em = queryWorld.EntityManager;
@@ -655,6 +672,94 @@ namespace Punchy.Debugging
                 interactRequest = null;
                 ThirdPersonCamera.WatchTarget = null;
             }
+        }
+
+        // ---------------------------------------------------------------- shot lists
+
+        /// <summary>
+        /// "-shotlist shots.txt" (with -shotdir): many screenshots in one session, instead of a session each. Each line
+        /// is the usual test flags for one shot (-place, -goto, -time, -pose, -spawn, -watch, -watchpitch…) plus
+        /// "-shot name" (the file, .png added) and optionally "-wait 3" (seconds after the line before the shot; default
+        /// 2, plus the world's first build for the first line). Before each line the previous one's specimen, spawns
+        /// and camera are cleared. Lines starting # are notes. In the editor, Play mode ends when the list is done.
+        /// </summary>
+        static readonly List<string[]> shotLines = new List<string[]>();
+        static int shotIndex = -1;
+        float shotStarted, shotWait, listStarted;
+
+        void LoadShotList(string path)
+        {
+            shotLines.Clear();
+            if (!System.IO.File.Exists(path))
+            {
+                Debug.LogWarning("DebugControls: no shot list at " + path);
+                return;
+            }
+            foreach (var line in System.IO.File.ReadAllLines(path))
+                if (line.Trim().Length > 0 && !line.TrimStart().StartsWith("#"))
+                    shotLines.Add(line.Split((char[])null, System.StringSplitOptions.RemoveEmptyEntries));
+            shotIndex = 0;
+            shotStarted = -1f;
+            listStarted = Time.realtimeSinceStartup;
+            Debug.Log($"DebugControls: shot list of {shotLines.Count}");
+        }
+
+        void ShotList()
+        {
+            if (shotIndex < 0 || shotDir == null || !launchOptionsApplied)
+                return;
+            if (shotIndex >= shotLines.Count)
+            {
+                Debug.Log($"DebugControls: shot list done, {shotLines.Count} shots in {Time.realtimeSinceStartup - listStarted:F1} s");
+                shotIndex = -1;
+#if UNITY_EDITOR
+                UnityEditor.EditorApplication.isPlaying = false;
+#endif
+                return;
+            }
+            var line = shotLines[shotIndex];
+            string Arg(string flag)
+            {
+                var i = System.Array.IndexOf(line, flag);
+                return i >= 0 && i + 1 < line.Length ? line[i + 1] : null;
+            }
+            if (shotStarted < 0f)
+            {
+                ClearShot();
+                ApplyOptions(line);
+                // (The first line also waits for the world's first build: optionsAt counts from the scene's start.)
+                var first = shotIndex == 0;
+                if (!first)
+                    settle = 1.5f;
+                shotWait = (first ? settle : 0f) + (float.TryParse(Arg("-wait"), System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var w) ? w : 2f) + (Arg("-pose") != null || Arg("-spawn") != null ? settle : 0f);
+                shotStarted = Time.realtimeSinceStartup;
+                return;
+            }
+            if (Time.realtimeSinceStartup - shotStarted < shotWait)
+                return;
+            Shot((Arg("-shot") ?? $"shot-{shotIndex}") + ".png");
+            Debug.Log($"DebugControls: shot {shotIndex + 1}/{shotLines.Count} '{Arg("-shot")}' after {Time.realtimeSinceStartup - shotStarted:F1} s");
+            shotIndex++;
+            shotStarted = -1f;
+        }
+
+        /// <summary>Back to a clean scene for the next shot: no specimen, spawns or watched animal; the camera free.</summary>
+        void ClearShot()
+        {
+            if (posed != Entity.Null && queryWorld != null && queryWorld.IsCreated && queryWorld.EntityManager.Exists(posed))
+                queryWorld.EntityManager.DestroyEntity(posed);
+            posed = Entity.Null;
+            swimSpot = null;
+            poseRequest = null;
+            watchSpecies = null;
+            watchPitchOverride = null;
+            interactRequest = null;
+            interactStep = -1f;
+            pendingSpawns.Clear();
+            watched = Entity.Null;
+            ThirdPersonCamera.WatchTarget = null;
+            ThirdPersonCamera.WatchSpin = 12f;
         }
 
         /// <summary>A test's own screenshot into -shotdir, at least 1280 wide (a small Game view is rendered larger).</summary>
