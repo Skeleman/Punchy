@@ -1381,6 +1381,33 @@ namespace Punchy.Debugging
             GUI.Box(new Rect(10, 10, readoutSize.x + 12, readoutSize.y + 8), readout, style);
         }
 
+        /// <summary>The player's controls, each by its button on the device in use (unbound ones left out).</summary>
+        static string ControlHints(bool flies, bool flying)
+        {
+            var hints = new List<string>();
+            void Add(string button, string what)
+            {
+                if (!string.IsNullOrEmpty(button))
+                    hints.Add($"{button} {what}");
+            }
+            static string A(string action) => Punchy.Player.InputGlyphs.Action("Player/" + action);
+            if (flying)
+            {
+                Add(A("Jump"), "(hold) climb");
+                Add(A("Sprint"), "(hold) dive");
+            }
+            else
+            {
+                Add(A("Jump"), flies ? "jump / take off" : "jump");
+                Add(A("Sprint"), "sprint on/off");
+                Add(A("Walk"), "walk on/off");
+                Add(A("Interact"), "pet · hold: pick up");
+            }
+            var emotes = Punchy.Player.InputGlyphs.Gamepad ? "D-pad up/down/right/left" : "1/2/3/4";
+            Add(emotes, "wave/bow/cheer/dance");
+            return string.Join(" · ", hints);
+        }
+
         string BuildReadout()
         {
             var lines = new List<string>();
@@ -1404,7 +1431,22 @@ namespace Punchy.Debugging
                 var hours = (int)Cycle.TimeOfDay;
                 lines.Add($"time {hours:00}:{(int)((Cycle.TimeOfDay - hours) * 60f):00}   {1f / Time.smoothDeltaTime:F0} fps");
             }
-            lines.Add("<color=#bbbbbb>N/Shift+N place · B day type · Y +2 h · T fast time · ] force weather · [ clear · F3 copy position · F1 hide</color>");
+            // The player's pace and the controls, named for the device last used (InputGlyphs). The debug keys have
+            // nothing on a gamepad, so they're shown on the keyboard only.
+            var flies = false;
+            var flying = false;
+            if (queryWorld != null && queryWorld.IsCreated)
+            {
+                using var bodyQuery = queryWorld.EntityManager.CreateEntityQuery(typeof(Punchy.Player.PlayerBody));
+                flies = bodyQuery.TryGetSingleton<Punchy.Player.PlayerBody>(out var playerBody) && playerBody.Flies;
+                using var motionQuery = queryWorld.EntityManager.CreateEntityQuery(typeof(Punchy.Player.PlayerTag), typeof(Punchy.Player.PlayerMotion));
+                flying = motionQuery.TryGetSingleton<Punchy.Player.PlayerMotion>(out var motion) && motion.Flying;
+            }
+            var pace = flying ? "flying" : Punchy.Player.PlayerInputSystem.Sprinting ? "sprint" : Punchy.Player.PlayerInputSystem.Walking ? "walk" : "jog";
+            lines.Add($"pace: <b>{pace}</b>   input: {(Punchy.Player.InputGlyphs.Gamepad ? Punchy.Player.InputGlyphs.PadKind + " gamepad" : "keyboard & mouse")}");
+            lines.Add("<color=#bbbbbb>" + ControlHints(flies, flying) + "</color>");
+            if (!Punchy.Player.InputGlyphs.Gamepad)
+                lines.Add("<color=#bbbbbb>N/Shift+N place · B day type · Y +2 h · T fast time · ] force weather · [ clear · F3 copy position · F1 hide</color>");
 
             return string.Join("\n", lines);
         }
