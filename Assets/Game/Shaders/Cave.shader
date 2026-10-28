@@ -70,12 +70,9 @@ Shader "Punchy/Cave"
             // glow rgb + crack width, (gloss, metallic, facets, translucency), (glow scale, glow everywhere, cracks),
             // floor rgb + grit, floor dark rgb + floor gloss, (detail, detail scale, sheen, moss), moss rgb.
             float4 _PunchyCaveStyles[32 * 9];
-            // The nearest glowing things (lava pools, glowing plants): xyz where the light comes from, and its colour times
-            // strength (rgb) and reach in metres (w). They light the walls round them in the shader instead of with real
-            // lights.
-            float4 _PunchyCaveHeat[16];
-            float4 _PunchyCaveHeatColor[16];
-            int _PunchyCaveHeatCount;
+            // The nearest glowing things (lava pools, glowing plants): they light the walls round them in the shader
+            // instead of with real lights (the list is declared in Glow.hlsl, shared with the terrain and plants).
+            #include "Glow.hlsl"
             // Shared tiling detail (CaveSystem makes it once): rg a fine normal, b a height, a a sparkle.
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
@@ -236,12 +233,16 @@ Shader "Punchy/Cave"
                     float3 toPool = _PunchyCaveHeat[k].xyz - p;
                     float4 hc = _PunchyCaveHeatColor[k];
                     float dist = length(toPool);
-                    float fall = saturate(1 - dist / hc.w);
-                    fall *= fall;
-                    float3 dir = toPool / max(dist, 1e-3);
-                    half3 warm = hc.rgb * fall;
-                    light += warm * saturate(dot(n, dir) * 0.7 + 0.3);
-                    shine += warm * pow(saturate(dot(n, normalize(dir + view))), shininess) * saturate(gloss + metallic * 0.6);
+                    // Out of its reach it adds nothing: skip the rest (the slots are usually full of distant plants).
+                    [branch] if (dist < hc.w)
+                    {
+                        float fall = saturate(1 - dist / hc.w);
+                        fall *= fall;
+                        float3 dir = toPool / max(dist, 1e-3);
+                        half3 warm = hc.rgb * fall;
+                        light += warm * saturate(dot(n, dir) * 0.7 + 0.3);
+                        shine += warm * pow(saturate(dot(n, normalize(dir + view))), shininess) * saturate(gloss + metallic * 0.6);
+                    }
                 }
 
                 half3 color = diffuse * light + specColor * shine + s0.rgb * through * translucency * 0.6;
@@ -254,8 +255,8 @@ Shader "Punchy/Cave"
 
                 // Light the rock gives off: a share everywhere (ice, faintly lit crystal), the rest in cracks. Cracks are
                 // borders between random 3D cells, warped so they wander, small, and only in sparse patches (the style's
-                // Cracks share of the wall), never on the floor.
-                if (any(s2.rgb > 0))
+                // Cracks share of the wall), never on the floor. They may also darken the rock (dark fissures in ice).
+                if (any(s2.rgb > 0) || s4.w > 0)
                 {
                     // The mask first: the 27-cell crack search only runs where the mask leaves any crack to draw.
                     float g = s4.x;
@@ -267,7 +268,8 @@ Shader "Punchy/Cave"
                         float3 warp = float3(PunchyValueNoise(p.xy * 0.9 + 3), PunchyValueNoise(p.yz * 0.9 - 5), PunchyValueNoise(p.zx * 0.9 + 9));
                         crack *= 1 - smoothstep(s2.w * 0.4, s2.w * 1.6, CellEdge(p * 1.3 * g + warp * 1.2));
                     }
-                    color += s2.rgb * (s4.y * (1 - floorShare * 0.5) + crack * (1 - s4.y)) * (1 - terrain);
+                    color *= 1 - crack * s4.w * 0.85;
+                    color += s2.rgb * (s4.y * (1 - floorShare * 0.5) + crack * (1 - s4.y) * (1 - s4.w)) * (1 - terrain);
                 }
                 return half4(color, 1);
             }

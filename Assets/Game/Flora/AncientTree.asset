@@ -14,11 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
   Form: 0
   Layer: 2
-  Height: {x: 24, y: 30}
+  Height: {x: 28, y: 34}
   Spread: 1.7
-  TrunkFraction: 0.4
+  TrunkFraction: 0.62
   Thickness: 0.075
-  Fullness: 0.9
+  Fullness: 0.75
   Branches: {x: 7, y: 9}
   Flexibility: 0.1
   FlowerHead: 0

@@ -1,0 +1,89 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace Punchy.Terrain
+{
+    /// <summary>How a settlement's streets run; each culture's pattern gives its towns their own silhouette.</summary>
+    public enum SettlementPattern : byte
+    {
+        /// <summary>A square in the middle with lanes running out from it (human villages).</summary>
+        Square,
+        /// <summary>Straight streets crossing at right angles round a small square (dwarf holds).</summary>
+        Grid,
+        /// <summary>A ring street round a green at the heart, with paths in (elf groves).</summary>
+        Ring,
+        /// <summary>No streets: huts round an open yard inside a palisade (goblin and ogre camps).</summary>
+        Camp
+    }
+
+    /// <summary>
+    /// What a plot is for. Baked into plots, so phase 5's buildings only have to fill them; a byte, append only.
+    /// </summary>
+    public enum PlotRole : byte
+    {
+        House,
+        /// <summary>The leader's hall, on the best side of the square.</summary>
+        Seat,
+        Shrine,
+        /// <summary>A small green plot between houses: a garden, an orchard, a few trees. Plants are kept.</summary>
+        Landscaping,
+        Inn,
+        Smithy,
+        Market,
+        Store,
+        Workshop,
+        Stable
+    }
+
+    /// <summary>One kind of building a settlement puts on its plots.</summary>
+    [System.Serializable]
+    public class SettlementBuilding
+    {
+        public PlotRole Role;
+        [Tooltip("What stands on the plot (a building flora form). Empty = the plot is levelled and left for later.")]
+        public Punchy.Flora.FloraSpecies Species;
+        [Tooltip("Among buildings of the same role, how often this one is picked.")]
+        [Min(0f)] public float Weight = 1f;
+        [Tooltip("How many plots take this role (roles other than House and Landscaping; the Seat is always one).")]
+        [Min(0)] public int Count = 1;
+    }
+
+    /// <summary>
+    /// The plan of a settlement landmark: its street pattern, plot sizes for its folk, and what goes on the plots.
+    /// SettlementBaking lays it out from the landmark's seed; TerrainSource levels plots and streets and paints the
+    /// streets; the flora system puts each plot's building on it, facing its street.
+    /// </summary>
+    [CreateAssetMenu(menuName = "Punchy/Settlement Layout")]
+    public class SettlementLayout : ScriptableObject
+    {
+        public SettlementPattern Pattern;
+        [Tooltip("How big the folk are next to humans (1). Plots, streets and the square scale with it, and phase 5's " +
+                 "doors and eaves read it from the settlement.")]
+        [Min(0.3f)] public float FolkScale = 1f;
+        [Tooltip("A house plot's frontage and depth (m, at folk scale 1).")]
+        public Vector2 PlotSize = new Vector2(8f, 9f);
+        [Tooltip("Space between neighbouring plots (m, at folk scale 1).")]
+        [Min(0f)] public float PlotGap = 2.5f;
+        [Tooltip("Space between a street's edge and the plots along it (m, at folk scale 1).")]
+        [Min(0f)] public float Setback = 1f;
+        [Tooltip("The main street's width (m, at folk scale 1).")]
+        [Min(1f)] public float StreetWidth = 4.5f;
+        [Tooltip("Other streets' and lanes' width (m, at folk scale 1).")]
+        [Min(1f)] public float LaneWidth = 3f;
+        [Tooltip("Across the square, green or yard in the middle (m, at folk scale 1).")]
+        [Min(0f)] public float SquareSize = 22f;
+        [Tooltip("Lanes out of the square (Square), or paths in from the ring street (Ring).")]
+        [Range(1, 6)] public int Lanes = 3;
+        [Tooltip("How many plots are shrines (on the square or at the edge).")]
+        [Range(0, 3)] public int Shrines = 1;
+        [Tooltip("Share of the remaining plots left green (gardens and trees).")]
+        [Range(0f, 0.5f)] public float Landscaping = 0.15f;
+        [Tooltip("A palisade round the settlement (Camp), with gates where the roads come in.")]
+        public bool Palisade;
+        [Tooltip("The most a plot's ground may rise across it (m) before it is skipped.")]
+        [Min(0.2f)] public float MaxRelief = 2.5f;
+        [Tooltip("What the streets, square and paths are paved or trodden with. Empty = left as they are.")]
+        public TerrainSurface StreetSurface;
+        public List<SettlementBuilding> Buildings = new List<SettlementBuilding>();
+    }
+}

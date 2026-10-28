@@ -126,11 +126,21 @@ namespace Punchy.Terrain
                 // Ground just above the water stays wet (a dark band along shores); stored as a negative skirt drop.
                 if (ground.HasWater)
                     vertex.Extra.w = (half)(-(1f - math.smoothstep(0.1f, 1.4f, h - ground.WaterSurface)));
-                var cave = cutHoles && CaveSampling.NearColumn(ref Source.Caves.Value, world)
-                    ? math.min(Source.CaveDistance(new float3(world.x, h + 0.05f, world.y)), 100f) : 100f;
+                // Ground with cave air just under it (a thin lip over a mouth) is cut too (see CaveClearance): the
+                // cave's own walls carry a skin of the surface there.
+                var cave = cutHoles ? Source.CaveClearance(world, h) : 100f;
                 vertex.Morph = new float4(request.MorphRange, surface.Bump, cave);
                 verts[z * v + x] = vertex;
-                water[z * v + x] = new float4(ground.WaterSurface, ground.Flow, h);
+                // Landmark pools are left out of the sheet: CaveSystem draws each as a smooth disc (a small pool spans
+                // only a few quads of this grid, which gave it a ragged edge).
+                var sheet = ground.WaterSurface;
+                if (Source.Landmarks.IsCreated)
+                {
+                    var pool = LandmarkSampling.PoolWater(ref Source.Landmarks.Value, world, out var claim);
+                    if (claim > 0f && pool >= ground.WaterSurface - 0.001f)
+                        sheet = GroundSample.NoWater;
+                }
+                water[z * v + x] = new float4(sheet, ground.Flow, h);
                 rapids[z * v + x] = ground.Rapids;
                 looks[z * v + x] = Source.WaterLook(world, ground.Biomes, out var glow);
 
@@ -146,10 +156,13 @@ namespace Punchy.Terrain
             for (int k = 0; k < v; k++)
             {
                 var g = verts[EdgeVertex(edge, k, q)];
-                g.Position.y -= depth;
+                // A skirt hangs metres below the surface, so over a shallow cave it would poke down through the ceiling
+                // as a flat face: there it stops short of the cave's air (at every LOD).
+                var drop = SkirtOverCave(request.Origin + g.Position.xz, g.Position.y, depth);
+                g.Position.y -= drop;
                 // The shader lifts skirt vertices back by this much for shadows, so skirts neither
                 // cast shadows nor sit in the shadow of the surface above them.
-                g.Extra.w = (half)depth;
+                g.Extra.w = (half)drop;
                 verts[skirtBase + edge * v + k] = g;
             }
 
@@ -180,7 +193,7 @@ namespace Punchy.Terrain
             }
 
             HeightRanges[index] = new float2(minY - depth, maxY);
-            WaterRanges[index] = BuildWater(Meshes[Requests.Length + index], water, rapids, looks, glows, q, step);
+            WaterRanges[index] = BuildWater(Meshes[Requests.Length + index], water, rapids, looks, glows, q, step, request.Origin);
             water.Dispose();
             rapids.Dispose();
             looks.Dispose();
@@ -220,7 +233,7 @@ namespace Punchy.Terrain
 
         /// <summary>Builds the water sheet; returns its (min, max) height, or (1, 0) when the chunk is dry.</summary>
         float2 BuildWater(Mesh.MeshData mesh, NativeArray<float4> water, NativeArray<float> rapids,
-                          NativeArray<float4> looks, NativeArray<float2> glows, int q, float step)
+                          NativeArray<float4> looks, NativeArray<float2> glows, int q, float step, float2 origin)
         {
             int v = q + 1;
 
@@ -234,6 +247,8 @@ namespace Punchy.Terrain
                 surface[i] = water[i].x;
                 flow[i] = water[i].yz;
             }
+            // Neighbours just across the chunk's edge count too (sampled here), or a sheet would stop short with a
+            // straight edge wherever a shore runs along a chunk border.
             for (int z = 0; z < v; z++)
             for (int x = 0; x < v; x++)
             {
@@ -241,16 +256,29 @@ namespace Punchy.Terrain
                 if (water[i].x > GroundSample.NoWater * 0.5f)
                     continue;
                 var best = GroundSample.NoWater;
+                var edge = x == 0 || z == 0 || x == v - 1 || z == v - 1;
                 for (int dz = -1; dz <= 1; dz++)
                 for (int dx = -1; dx <= 1; dx++)
                 {
                     var nx = x + dx;
                     var nz = z + dz;
-                    if (nx >= 0 && nz >= 0 && nx < v && nz < v && water[nz * v + nx].x > best && water[i].w >= water[nz * v + nx].x - 0.05f)
+                    var inside = nx >= 0 && nz >= 0 && nx < v && nz < v;
+                    if (!inside && !edge)
+                        continue;
+                    var n = inside ? water[nz * v + nx] : WaterAt(origin + new float2(nx, nz) * step);
+                    if (n.x > best && water[i].w >= n.x - 0.05f)
                     {
-                        best = water[nz * v + nx].x;
-                        flow[i] = water[nz * v + nx].yz;
+                        best = n.x;
+                        flow[i] = n.yz;
                     }
+                }
+                // Under a bank the sheet is hidden in the ground, unless a cave runs through the bank: there it would
+                // hang in the cave's air as a flat face across the passage.
+                if (best > GroundSample.NoWater * 0.5f && Source.Caves.IsCreated)
+                {
+                    var at = origin + new float2(x, z) * step;
+                    if (CaveSampling.NearColumn(ref Source.Caves.Value, at) && Source.CaveDistance(new float3(at.x, best, at.y)) < 0.5f)
+                        best = GroundSample.NoWater;
                 }
                 surface[i] = best;
             }
@@ -321,6 +349,34 @@ namespace Punchy.Terrain
             flow.Dispose();
             wetQuad.Dispose();
             return range;
+        }
+
+        /// <summary>
+        /// How far a skirt may hang below the surface at (xz, top): its full depth, or less where cave air lies within
+        /// it (found by bisection), stopping 0.3 m above that air.
+        /// </summary>
+        float SkirtOverCave(float2 xz, float top, float depth)
+        {
+            if (!Source.Caves.IsCreated || !CaveSampling.NearColumn(ref Source.Caves.Value, xz)
+                || Source.CaveDistance(new float3(xz.x, top - depth, xz.y)) >= 0.3f)
+                return depth;
+            float rock = 0f, air = depth;
+            for (int i = 0; i < 6; i++)
+            {
+                var mid = (rock + air) * 0.5f;
+                if (Source.CaveDistance(new float3(xz.x, top - mid, xz.y)) >= 0.3f)
+                    rock = mid;
+                else
+                    air = mid;
+            }
+            return math.max(rock, 0.05f);
+        }
+
+        /// <summary>Water surface, flow and ground height at a point (as the chunk's own vertices store them).</summary>
+        float4 WaterAt(float2 world)
+        {
+            var g = Source.SampleGround(world);
+            return new float4(g.WaterSurface, g.Flow, g.Height);
         }
 
         static int EdgeVertex(int edge, int k, int q)

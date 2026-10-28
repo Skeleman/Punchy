@@ -125,6 +125,8 @@ namespace Punchy.Terrain
         [Range(0.2f, 4f)] public float GlowScale = 1f;
         [Tooltip("Share of the glow given off by the whole wall rather than only the veins (ice, softly lit crystal).")]
         [Range(0f, 1f)] public float GlowEverywhere;
+        [Tooltip("How much the cracks darken the rock besides any glow in them: dark fissures in ice, black seams.")]
+        [Range(0f, 1f)] public float CrackDarkness;
 
         /// <summary>The look as four vectors for the cave shader's style table.</summary>
         public void Pack(Vector4[] table, int slot)
@@ -136,7 +138,7 @@ namespace Punchy.Terrain
             table[i + 1] = new Vector4(dark.r, dark.g, dark.b, StrataFrequency);
             table[i + 2] = new Vector4(GlowColor.r * Glow, GlowColor.g * Glow, GlowColor.b * Glow, GlowCover);
             table[i + 3] = new Vector4(Gloss, Metallic, Facets, Translucency);
-            table[i + 4] = new Vector4(GlowScale, GlowEverywhere, Cracks, 0f);
+            table[i + 4] = new Vector4(GlowScale, GlowEverywhere, Cracks, CrackDarkness);
             var floor = FloorColor.linear;
             var floorDark = FloorDark.linear;
             table[i + 5] = new Vector4(floor.r, floor.g, floor.b, FloorGrit);

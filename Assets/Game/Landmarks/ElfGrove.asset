@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a5407ac3b5877da49af18e077398168c, type: 3}
   m_Name: ElfGrove
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.LandmarkType
-  Radius: 45
+  Radius: 70
   Scale: {x: 0.95, y: 1.1}
   MaxRelief: 14
   MinRelief: 0
@@ -28,19 +28,11 @@ MonoBehaviour:
   WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
   WaterMurk: 0.3
   WaterGlow: 0
+  WaterLava: 0
   Ground: {fileID: 11400000, guid: dbf574d429d0988438ce7ac6a796029b, type: 2}
   GroundRadius: 0.8
   ClearRadius: 0.55
   Props:
-  - Species: {fileID: 11400000, guid: 9489889349a8ee841828b661e601628b, type: 2}
-    Density: 0.35
-    Ring: {x: 0.4, y: 0.85}
-    Scale: {x: 0.9, y: 1.15}
-    Centrepiece: 0
-    FaceCentre: 1
-    Count: 0
-    Angle: 0
-    Clearance: 4
   - Species: {fileID: 11400000, guid: d64f8e525fe2c0147bf884835d50180a, type: 2}
     Density: 0.5
     Ring: {x: 0.55, y: 1}
@@ -116,6 +108,12 @@ MonoBehaviour:
   CaveDepth: 8
   CaveRadius: 2.4
   ChamberRadius: 6
+  CaveChambers: 0
+  CaveBranches: 0
+  BranchLength: 30
+  CaveShafts: 0
+  CaveStyles: []
+  Settlement: {fileID: 11400000, guid: fe5315d1edf62844787329ea3ee7a35d, type: 2}
   Residents:
   - Species: {fileID: 11400000, guid: 46b822fc6510e9c438d06b7c0598a487, type: 2}
     Count: {x: 6, y: 8}

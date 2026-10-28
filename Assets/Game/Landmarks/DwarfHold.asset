@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a5407ac3b5877da49af18e077398168c, type: 3}
   m_Name: DwarfHold
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.LandmarkType
-  Radius: 40
+  Radius: 65
   Scale: {x: 0.95, y: 1.1}
   MaxRelief: 18
   MinRelief: 0
@@ -28,19 +28,11 @@ MonoBehaviour:
   WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
   WaterMurk: 0.3
   WaterGlow: 0
+  WaterLava: 0
   Ground: {fileID: 11400000, guid: 1753ba8fc7f960b43a8b3d37e34c11a4, type: 2}
-  GroundRadius: 0.75
+  GroundRadius: 0.3
   ClearRadius: 0.9
   Props:
-  - Species: {fileID: 11400000, guid: 0f3f75139a798b8428c4a8d150f31958, type: 2}
-    Density: 0.45
-    Ring: {x: 0.42, y: 0.82}
-    Scale: {x: 0.9, y: 1.15}
-    Centrepiece: 0
-    FaceCentre: 1
-    Count: 0
-    Angle: 0
-    Clearance: 4
   - Species: {fileID: 11400000, guid: e5c4e5f0e16a4f4449f5ad77eb7555cb, type: 2}
     Density: 5
     Ring: {x: 0, y: 1}
@@ -167,6 +159,12 @@ MonoBehaviour:
   CaveDepth: 8
   CaveRadius: 2.4
   ChamberRadius: 6
+  CaveChambers: 0
+  CaveBranches: 0
+  BranchLength: 30
+  CaveShafts: 0
+  CaveStyles: []
+  Settlement: {fileID: 11400000, guid: 3e638c2b6f101ab4f846cff51034f28b, type: 2}
   Residents:
   - Species: {fileID: 11400000, guid: 92efcd8c205109b498ebcc61830248fd, type: 2}
     Count: {x: 6, y: 9}

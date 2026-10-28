@@ -81,6 +81,8 @@ namespace Punchy.Editor
                     source.BiomeCells.Dispose();
                 if (source.Landmarks.IsCreated)
                     source.Landmarks.Dispose();
+                if (source.Settlements.IsCreated)
+                    source.Settlements.Dispose();
                 if (source.Caves.IsCreated)
                     source.Caves.Dispose();
             }

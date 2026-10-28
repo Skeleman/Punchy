@@ -40,6 +40,7 @@ Shader "Punchy/Terrain Surface"
             #include "TerrainSurface.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
+            #include "Glow.hlsl"
 
             struct Varyings
             {
@@ -106,11 +107,13 @@ Shader "Punchy/Terrain Surface"
                 half wet = PunchyWetnessAt(p).r * (1 - saturate(input.extra.z * 2));
                 // Shores: ground just above the water stays wet, a dark band with an uneven upper edge. The mesh
                 // stores it as a negative skirt drop (surface vertices leave that channel 0; skirts are positive).
-                half shore = smoothstep(0.2, 0.75, saturate(-input.extra.w) + (PunchyValueNoise(p * 0.8) - 0.5) * 0.35)
-                           * (1 - saturate(input.extra.z * 2));
+                half shore = 0;
+                [branch] if (input.extra.w < -0.001)
+                    shore = smoothstep(0.2, 0.75, saturate(-input.extra.w) + (PunchyValueNoise(p * 0.8) - 0.5) * 0.35)
+                          * (1 - saturate(input.extra.z * 2));
                 half flatness = smoothstep(0.96, 0.995, normalWS.y);
                 half puddleNoise = PunchyValueNoise(p / 2.3) * 0.65 + PunchyValueNoise(p / 0.9 + 5.1) * 0.35;
-                half puddle = smoothstep(0.62, 0.7, puddleNoise + wet * 0.35 - 0.25) * flatness * step(0.3, wet)
+                half puddle = smoothstep(0.62, 0.7, puddleNoise + wet * 0.35 - 0.25) * flatness * smoothstep(0.2, 0.5, wet)
                             * (1 - input.extra.y);
                 half sheen = max(wet, shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
 
@@ -126,6 +129,8 @@ Shader "Punchy/Terrain Surface"
                 inputData.shadowCoord = TransformWorldToShadowCoord(input.positionWS + float3(0, max(input.extra.w, 0), 0));
                 inputData.fogCoord = InitializeInputDataFog(float4(input.positionWS, 1.0), input.fogFactor);
                 inputData.bakedGI = SampleSH(inputData.normalWS);
+                // Glowing plants and molten pools nearby light the ground round them.
+                inputData.bakedGI += PunchyGlowLight(input.positionWS, inputData.normalWS);
                 inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
                 inputData.shadowMask = half4(1, 1, 1, 1);
 

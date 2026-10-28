@@ -113,6 +113,7 @@ namespace Punchy.Terrain
         List<CaveStyle> styles;
 
         static readonly int DetailId = Shader.PropertyToID("_PunchyCaveDetail");
+        static readonly int DetailReadyId = Shader.PropertyToID("_PunchyCaveDetailReady");
         static Texture2D detail;
 
         void OnEnable()
@@ -121,6 +122,8 @@ namespace Punchy.Terrain
             if (detail == null)
                 detail = MakeDetail();
             Shader.SetGlobalTexture(DetailId, detail);
+            // Water reads it too, for fine ripples; it keeps them off until this is set.
+            Shader.SetGlobalFloat(DetailReadyId, 1f);
         }
 
         /// <summary>
@@ -201,6 +204,8 @@ namespace Punchy.Terrain
                 c.Dispose();
             dying.Clear();
             columns.Clear();
+            ReleaseLandmarkPools();
+            surfaceGlow.Release();
             lastCameraChunk = new int3(int.MinValue);
             Underground = 0f;
             Shader.SetGlobalFloat(UndergroundId, 0f);
@@ -250,7 +255,7 @@ namespace Punchy.Terrain
         /// <summary>Cave water's look in the water vertex layout: dark, clear and cold (rgb, murk).</summary>
         static readonly float4 CaveWater = new float4(0.1f, 0.28f, 0.3f, 0.1f);
         // Streams run shallow over dark rock: darker and greener than the pools, a little murkier.
-        static readonly float4 CaveStreamWater = new float4(0.04f, 0.13f, 0.12f, 0.3f);
+        static readonly float4 CaveStreamWater = new float4(0.04f, 0.13f, 0.12f, 0.15f);
         /// <summary>One mesh per stream, built when the world's caves are first drawn (streams are few and fixed).</summary>
         readonly List<Mesh> streamMeshes = new List<Mesh>();
         EntityQuery configQuery;
@@ -297,7 +302,9 @@ namespace Punchy.Terrain
                     {
                         var reach = LavaLight;
                         reach.w = pool.Radius * 5f + 4f;
-                        glowing.Add((math.distance(pool.Centre, camPos), new Vector4(pool.Centre.x, pool.Centre.y + 0.3f, pool.Centre.z, 0f), reach));
+                        // Only pools whose light could reach something near the camera take one of the 16 slots.
+                        if (math.distance(pool.Centre, camPos) < reach.w + PlantRadius)
+                            glowing.Add((math.distance(pool.Centre, camPos), new Vector4(pool.Centre.x, pool.Centre.y + 0.3f, pool.Centre.z, 0f), reach));
                     }
                 }
             }
@@ -321,6 +328,7 @@ namespace Punchy.Terrain
 
         [Tooltip("Cave plants within this distance of the camera are drawn.")]
         public float PlantRadius = 60f;
+        float nextFloraLookup;
         /// <summary>Variants grown per species (as the flora system does).</summary>
         const int PlantVariants = 3;
         /// <summary>Cave plants nearer than this use the finest mesh, the rest the middle one.</summary>
@@ -356,6 +364,10 @@ namespace Punchy.Terrain
                 return;
             if (floraMaterial == null)
             {
+                // Looking it up is slow; without one, try again only now and then.
+                if (Time.unscaledTime < nextFloraLookup)
+                    return;
+                nextFloraLookup = Time.unscaledTime + 1f;
                 var flora = FindFirstObjectByType<Punchy.Flora.FloraSystem>();
                 floraMaterial = flora != null ? flora.Material : null;
                 if (floraMaterial == null)
@@ -369,14 +381,8 @@ namespace Punchy.Terrain
                 {
                     for (int v = 0; v < PlantVariants; v++)
                         plantModels.Add(Punchy.Flora.FloraGenerator.Grow(species, v));
-                    // The glowing colour: the foliage of a glowing finish, else the first accent of glowing accents.
-                    var glow = Vector4.zero;
-                    if (species.Finish == Punchy.Flora.FoliageFinish.Glowing)
-                        glow = (Vector4)species.Foliage.linear * 0.9f;
-                    else if (species.GlowingAccents && species.Accents.Count > 0)
-                        glow = (Vector4)species.Accents[0].linear * 0.6f;
-                    glow.w = glow == Vector4.zero ? 0f : PlantGlowReach;
-                    speciesGlow.Add(glow);
+                    // The same light the plant casts on the surface (colour and reach by how much of it glows).
+                    speciesGlow.Add(Punchy.Flora.FloraPlacement.GlowLight(species));
                 }
                 plantsFrom = palette;
             }
@@ -495,15 +501,16 @@ namespace Punchy.Terrain
                 var along = math.normalizesafe((next - prev).xz, new float2(1f, 0f));
                 // Narrowing to a trickle at both ends, rather than stopping square.
                 var taper = math.lerp(0.15f, 1f, math.saturate(math.min(k, count - 1 - k) / 2f));
-                var side = new float2(-along.y, along.x) * p.Width * 0.4f * taper;
+                // A little past where the banks rise out of the water (the edges tuck under them), so it fills the channel.
+                var side = new float2(-along.y, along.x) * p.Width * 0.58f * taper;
                 var drop = (prev.y - next.y) / math.max(math.distance(prev.xz, next.xz), 0.1f);
-                // Cave streams run steep all the way, so only the steepest steps churn white.
-                var rapids = math.saturate(drop * 1.5f - 0.15f);
+                // Cave streams run steep all the way, so only the steepest steps churn white; but a brook is never still.
+                var rapids = math.max(math.saturate(drop * 1.5f - 0.15f), 0.2f);
                 foreach (var edge in new[] { -1f, 0f, 1f })
                     vertices.Add(new WaterVertex
                     {
                         Position = p.Position + new float3(side.x, 0f, side.y) * edge,
-                        Data = new float4(along * 0.7f, edge == 0f ? p.Depth : 0.05f, rapids),
+                        Data = new float4(along, edge == 0f ? p.Depth : 0.05f, rapids),
                         Look = CaveStreamWater,
                         Glow = float2.zero
                     });
@@ -529,7 +536,10 @@ namespace Punchy.Terrain
         /// A unit disc in the terrain's water vertex layout: no flow, deepest at the middle (lava cools and crusts
         /// towards the rim), in the given look and lava amount.
         /// </summary>
-        static Mesh MakePoolMesh(float4 look, float lava)
+        static Mesh MakePoolMesh(float4 look, float lava) => MakePoolMesh(look, new float2(0f, lava));
+
+        /// <summary>The same disc with a self-glow too (toxic pools): glow x, lava y.</summary>
+        static Mesh MakePoolMesh(float4 look, float2 glow)
         {
             const int rings = 6, spokes = 32;
             var vertices = new List<WaterVertex> { Vertex(float2.zero) };
@@ -564,8 +574,99 @@ namespace Punchy.Terrain
                 Position = new float3(xz.x, 0f, xz.y),
                 Data = new float4(0f, 0f, 1f - math.lengthsq(xz), 0f),
                 Look = look,
-                Glow = new float2(0f, lava)
+                Glow = glow
             };
+        }
+
+        // ------------------------------------------------------------------------------------------- landmark pools
+
+        /// <summary>A landmark's pool, drawn as a smooth disc (the terrain's water grid leaves it out).</summary>
+        struct LandmarkPool
+        {
+            public float3 Centre;
+            public float Radius;
+            public Mesh Mesh;
+        }
+
+        readonly List<LandmarkPool> landmarkPools = new List<LandmarkPool>();
+        BlobAssetReference<LandmarkSetBlob> landmarkPoolsFrom;
+
+        /// <summary>
+        /// Draws every landmark pool (oases, hot springs, toxic pools, crater lava) within LoadRadius with the terrain's
+        /// water material: a disc a tenth wider than the pool, so its rim tucks under the gentle bank, in the water look
+        /// the terrain would give it there. A small pool spanned only a few quads of the terrain's water grid, which
+        /// left a ragged edge. One mesh per pool, built when the landmarks change.
+        /// </summary>
+        void DrawLandmarkPools(in TerrainSource source, float3 camPos)
+        {
+            if (!source.Landmarks.IsCreated || configQuery.IsEmpty)
+                return;
+            var water = configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value;
+            if (water == null)
+                return;
+            if (landmarkPoolsFrom != source.Landmarks)
+            {
+                ReleaseLandmarkPools();
+                landmarkPoolsFrom = source.Landmarks;
+                ref var set = ref source.Landmarks.Value;
+                for (int i = 0; i < set.Instances.Length; i++)
+                {
+                    ref var type = ref set.Types[set.Instances[i].Type];
+                    for (int p = 0; p < type.PoolCount; p++)
+                    {
+                        LandmarkSampling.Pool(ref set, i, p, out var centre, out var radius);
+                        var look = source.WaterLook(centre.xz, source.SampleGround(centre.xz).Biomes, out var glow);
+                        var mesh = MakePoolMesh(look, glow);
+                        mesh.name = "Landmark pool";
+                        landmarkPools.Add(new LandmarkPool { Centre = centre, Radius = radius * 1.1f, Mesh = mesh });
+                    }
+                }
+            }
+            foreach (var pool in landmarkPools)
+            {
+                if (math.distance(pool.Centre, camPos) > LoadRadius + pool.Radius)
+                    continue;
+                var rp = new RenderParams(water)
+                {
+                    worldBounds = new Bounds(pool.Centre, new Vector3(pool.Radius * 2f, 1f, pool.Radius * 2f)),
+                    shadowCastingMode = ShadowCastingMode.Off,
+                    receiveShadows = true
+                };
+                Graphics.RenderMesh(rp, pool.Mesh, 0, Matrix4x4.TRS(pool.Centre, Quaternion.identity, new Vector3(pool.Radius, 1f, pool.Radius)));
+            }
+        }
+
+        // ------------------------------------------------------------------------------------------- surface glow
+
+        readonly SurfaceGlow surfaceGlow = new SurfaceGlow();
+
+        /// <summary>
+        /// Glowing plants on the surface near the camera join the glow list (the nearest 16 lights of any kind win), so
+        /// their light falls on the ground, plants and creatures round them as cave plants' does in caves.
+        /// </summary>
+        void GatherSurfaceGlow(in TerrainSource source, float3 camPos)
+        {
+            if (paletteQuery.IsEmpty || Underground > 0.9f)
+                return;
+            var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
+            if (flora == null && Time.unscaledTime >= nextFloraLookup)
+            {
+                nextFloraLookup = Time.unscaledTime + 1f;
+                flora = FindAnyObjectByType<Punchy.Flora.FloraSystem>();
+            }
+            surfaceGlow.Update(source, palette, flora, camPos);
+            foreach (var (position, light) in surfaceGlow.Found)
+                glowing.Add((math.distance(position, camPos), new Vector4(position.x, position.y, position.z, 0f), light));
+        }
+
+        Punchy.Flora.FloraSystem flora;
+
+        void ReleaseLandmarkPools()
+        {
+            foreach (var pool in landmarkPools)
+                Destroy(pool.Mesh);
+            landmarkPools.Clear();
+            landmarkPoolsFrom = default;
         }
 
         void Update()
@@ -578,10 +679,15 @@ namespace Punchy.Terrain
                 Release();
                 lastSource = source;
             }
-            if (!source.Caves.IsCreated)
-                return;
-
             var camPos = (float3)cam.transform.position;
+            DrawLandmarkPools(source, camPos);
+            GatherSurfaceGlow(source, camPos);
+            if (!source.Caves.IsCreated)
+            {
+                UploadGlowing();
+                return;
+            }
+
             UploadStyles();
             Stream(source, camPos);
             Draw();
@@ -883,6 +989,8 @@ namespace Punchy.Terrain
             public float Voxel;
             [NativeDisableParallelForRestriction] public NativeArray<float> Field, CaveField;
             [ReadOnly] public NativeArray<float> Surface, SurfaceScale;
+            /// <summary>How softly surface air and cave air merge (m): rock thinner than about half this opens.</summary>
+            const float MouthBlend = 1.2f;
 
             public void Execute(int row)
             {
@@ -895,7 +1003,10 @@ namespace Punchy.Terrain
                     var i = (z * Points.y + y) * Points.x + x;
                     CaveField[i] = cave;
                     var column = z * Points.x + x;
-                    Field[i] = math.max((p.y - Surface[column]) * SurfaceScale[column] + 0.1f, -cave);
+                    // Air is above the surface or in the cave; a smooth union, so a lip of rock thinner than about half
+                    // a metre between them (a thin roof at a mouth) opens up instead of hanging as a floating slab. The
+                    // terrain cuts its own surface where cave air is that close below it, so the two agree.
+                    Field[i] = -CaveSampling.SmoothMin(-((p.y - Surface[column]) * SurfaceScale[column] + 0.1f), cave, MouthBlend);
                 }
             }
         }
@@ -1027,11 +1138,16 @@ namespace Punchy.Terrain
                 CaveSampling.Distance(ref set, p, out var cave);
                 var fromMouth = cave >= 0 ? math.saturate(1f - (math.distance(p, set.Caves[cave].Mouth) - 3f) / 14f) : 0f;
                 var nearSurface = math.saturate(1f - (surface - p.y - 1f) / 3f);
+                // Open to the sky (the terrain is cut away above: a trench or crater at a mouth): it's outside ground,
+                // so it takes the land's look and daylight however far below the uncut surface height it lies. Generous
+                // (up to 2 m of clearance): the terrain's cut is interpolated between its vertices, and wherever the
+                // terrain stays it hides this skin anyway.
+                var open = math.saturate((2f - Source.CaveClearance(p.xz, surface)) / 1.5f);
                 var ground = Source.SampleGround(p.xz);
                 var albedo = Source.SampleSurface(p.xz, ground, Source.SampleNormal(p.xz, 1f)).Albedo;
-                data = new float4(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), 0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f),
-                                  cave >= 0 ? set.Caves[cave].Style : 0, 0f);
-                return new float4(albedo, math.max(fromMouth, nearSurface));
+                data = new float4(math.max(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), open),
+                                  0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f), cave >= 0 ? set.Caves[cave].Style : 0, 0f);
+                return new float4(albedo, math.max(math.max(fromMouth, nearSurface), open));
             }
         }
 

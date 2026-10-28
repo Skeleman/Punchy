@@ -329,11 +329,14 @@ namespace Punchy.Terrain
                 var rng = new Random(math.hash(new int2(c, 0x57A1)) | 1u);
                 for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
                 {
-                    if (kinds[n] != CaveNodeKind.Chamber)
+                    // Chambers, and at half the density any passage wide enough to keep a way past them (so even a
+                    // small cave gets a few; the way through stays clear either way).
+                    var chamber = kinds[n] == CaveNodeKind.Chamber;
+                    if (!chamber && nodes[n].Radius * cave.Profile.x < 2.5f)
                         continue;
                     var centre = nodes[n].Position;
                     var spread = nodes[n].Radius * cave.Profile.x * 0.8f;
-                    var count = (int)math.round(density * math.PI * spread * spread / 100f * rng.NextFloat(0.7f, 1.3f));
+                    var count = (int)math.round(density * (chamber ? 1f : 0.5f) * math.PI * spread * spread / 100f * rng.NextFloat(0.7f, 1.3f));
                     for (int k = 0; k < count; k++)
                     {
                         var a = rng.NextFloat(math.PI * 2f);

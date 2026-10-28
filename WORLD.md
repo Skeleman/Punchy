@@ -172,3 +172,20 @@ nothing to sync; immutable (the animal session counts occupancy from its creatur
   into phase 4), landscaping and water, leader and religious buildings; cave sizes, per-biome styles (glacier ice
   caves, metallic and crystalline caves in the mystical forest), stalactites, underground rivers, glowing flora; an
   imp warren; creature hook points for the animal session.
+- 2026-10-27: Phase 3b water surfaces (76dcd74): fine ripples drifting with the flow, glitter, shallow caustics, a
+  thin broken lapping shore line, lantern-lit cave water, deeper orange lava. Cave streams sunk into smooth-banked
+  channels, darker, less mirror-like (882441e, 968f055). Wet, darker ground above the waterline (5e971a1; terrain
+  shader and mesh builder lent by the supervisor; stored as a negative skirt drop, vertex layout unchanged).
+- 2026-10-27: Phase 4a, **settlement layouts**. `SettlementLayout` on `LandmarkType.Settlement`; `SettlementBaking`
+  lays streets (cut into ≤10 m stretches) and plots facing them into `SettlementSetBlob` with a 32 m grid, from
+  integer-seeded randoms. Per culture: human villages a square with lanes (cobbles), dwarf holds a grid (flagstones),
+  elf groves a ring street round a green (pale paths), goblin and ogre camps huts round a yard inside a palisade
+  (radius kept for phase 5). Roles baked now for phase 5 to fill: a Seat on the square's best side, Shrines (square
+  or edge), a water feature spot mid-square, Landscaping (green plots that keep their plants), houses; the layout's
+  other roles take plots by distance from the middle. Plot sizes scale with `FolkScale` (stored on the settlement for
+  doors and eaves later). Placed props (inn, smithy, pens) keep their spots as reserved. `TerrainSource` levels
+  streets across and plots to pads, paints streets; `FloraPlacement` puts each plot's building in its cell facing
+  its street and keeps plants off streets and built plots; the random ring houses are gone. Town radii raised
+  (human 72, dwarf 65, elf 70). This seed: 7 settlements, 175 plots (human 22, dwarf 38, elf 24, goblin 25–31, ogre
+  10), baked in 75 ms. Cost: world-wide SampleGround/SampleHeight within noise (−0.4% / +2.2%), +4.3% for samples
+  inside towns.

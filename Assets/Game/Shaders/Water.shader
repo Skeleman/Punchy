@@ -57,6 +57,7 @@ Shader "Punchy/Water"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
             #include "Sky.hlsl"
+            #include "SharedClock.hlsl"
 
             // Weather global (WeatherSystem): 0..1 wind strength at the camera.
             half _PunchyWind;
@@ -86,6 +87,8 @@ Shader "Punchy/Water"
             // The fine detail texture shared with the caves (CaveSystem makes it once): rg a tiling normal, b a height,
             // a a sparkle. Two scrolling reads of it give the water its small ripples and glitter.
             TEXTURE2D(_PunchyCaveDetail);
+            // 1 once CaveSystem has made the detail texture; until then (or without it) the fine ripples stay off.
+            float _PunchyCaveDetailReady;
             SAMPLER(sampler_PunchyCaveDetail);
 
             // Must match WaterVertex in BuildChunkMeshJob.cs.
@@ -267,7 +270,7 @@ Shader "Punchy/Water"
             half4 Frag(Varyings input, bool frontFace : SV_IsFrontFace) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
-                float t = _Time.y;
+                float t = _PunchyClock;   // the shared clock, so every player sees the same ripples
                 float2 p = input.positionWS.xz;
                 float2 flow = input.data.xy;
                 float flowAmount = saturate(length(flow));
@@ -303,7 +306,7 @@ Shader "Punchy/Water"
                 half4 fine0 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale + float2(t * 0.031, t * 0.017) - drift * _DetailScale * 0.6);
                 half4 fine1 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale * 1.7 + float2(-t * 0.022, t * 0.029) - drift * _DetailScale * 1.1);
                 float2 fine = fine0.rg + fine1.rg - 1;
-                float fineStrength = _DetailStrength * (0.35 + _PunchyWind + rapids) * distanceFade * (1 - 0.8 * murk) * (1 - lava);
+                float fineStrength = _DetailStrength * _PunchyCaveDetailReady * (0.35 + _PunchyWind + rapids) * distanceFade * (1 - 0.8 * murk) * (1 - lava);
                 float3 n = normalize(float3(-slope.x * strength - fine.x * fineStrength, 1, -slope.y * strength - fine.y * fineStrength));
                 // Reflections use a calmer normal, so they stay crisp instead of breaking into noise.
                 float3 nReflect = normalize(float3(-slope.x * strength * 0.4, 1, -slope.y * strength * 0.4));
@@ -381,7 +384,7 @@ Shader "Punchy/Water"
                 half3 color = lerp(body, reflection, fresnel) + light.color * glint * 4 * (1 - 0.6 * murk * (1 - viscous));
                 color += _PunchyLanternColor.rgb * lanternGlint * 0.8;
                 // Glitter: where both fine reads sparkle at once and the ripple catches the sun just so.
-                half glitter = smoothstep(0.55, 0.9, fine0.a * fine1.a * 1.6) * pow(saturate(dot(n, h)), 300) * shadow
+                half glitter = smoothstep(0.55, 0.9, fine0.a * fine1.a * 1.6) * _PunchyCaveDetailReady * pow(saturate(dot(n, h)), 300) * shadow
                                * _Sparkle * distanceFade * (1 - murk) * (1 - lava);
                 color += light.color * glitter * 10;
                 // Toxic pools glow from within, pulsing slowly in patches.
@@ -429,25 +432,33 @@ Shader "Punchy/Water"
                 if (lava > 0)
                 {
                     // Carried by any flow, and always drifting a little, so even a still pool visibly moves.
-                    float2 q = (p - flowDir * flowAmount * t * 0.15 + float2(t * 0.04, t * 0.025)) * 0.18;
+                    float2 q = (p - flowDir * flowAmount * t * 0.15 + float2(t * 0.04, t * 0.025)) * 0.28;
                     float2 w1 = float2(PunchyValueNoise(q * 1.3 + float2(t * 0.021, 0)), PunchyValueNoise(q * 1.3 + float2(5.2, -t * 0.017)));
                     float2 w2 = float2(PunchyValueNoise((q + w1 * 1.6) * 2.1 + float2(-t * 0.013, 1.7)),
                                        PunchyValueNoise((q + w1 * 1.6) * 2.1 + float2(8.3, t * 0.019)));
                     float swirl = PunchyValueNoise(q + w1 * 1.4 + w2 * 0.8 + t * 0.006) * 0.6 + PunchyValueNoise((q + w2) * 3.3 - t * 0.01) * 0.4;
-                    // Crust only on the highest tenth of the swirl, plus a thin rim where the melt meets the rock.
-                    half crust = smoothstep(0.66, 0.72, swirl);
+                    // Black plates of cooled crust over about a third of it, riding the swirl, plus a thin rim where the
+                    // melt meets the rock; the plates are split by thin cracks that still glow.
+                    half crust = smoothstep(0.55, 0.6, swirl);
+                    half crack = 1 - smoothstep(0.0, 0.035, abs(PunchyValueNoise((q + w2 * 0.5) * 7.0) - 0.5));
+                    crust *= 1 - crack * 0.85;
                     crust = max(crust, 1 - saturate(thickness / 0.2));
                     // Crust edges glow hotter, as if the melt is just closing over them.
-                    half edge = smoothstep(0.6, 0.66, swirl) * (1 - crust);
+                    half edge = smoothstep(0.49, 0.55, swirl) * (1 - crust);
                     half band = PunchyValueNoise((q + w1 * 2.0) * 4.0 + t * 0.03);
-                    // A deep orange core; yellow only on the hottest bands and the crust edges.
-                    half3 orange = lerp(half3(1.0, 0.24, 0.02), input.look.rgb, 0.25);
-                    half3 molten = lerp(orange, half3(1.0, 0.72, 0.2), saturate(smoothstep(0.6, 0.9, band) + edge * 0.8));
+                    // Red melt; orange on the warmer bands, yellow only on the hottest ones, the crust edges and the
+                    // cracks.
+                    half3 red = lerp(half3(0.9, 0.1, 0.015), input.look.rgb, 0.15);
+                    half3 molten = lerp(red, half3(1.0, 0.3, 0.03), smoothstep(0.6, 0.85, band));
+                    molten = lerp(molten, half3(1.0, 0.75, 0.22), saturate(smoothstep(0.86, 0.97, band) + edge * 0.6 + crack * 0.5));
+                    // Slow bubbles rise through the open melt and pop, brighter where they break the surface.
+                    half bubble = Bubbles(p * 1.4, t * 0.8).z * (1 - crust);
+                    molten = lerp(molten, half3(1.0, 0.6, 0.15), bubble * 0.7);
                     half pulse = 0.9 + 0.1 * sin(t * 0.7 + swirl * 6.28);
-                    // Bright enough to glow, not so bright the tonemapper washes the orange out to white.
-                    half3 hot = molten * (0.7 + 0.35 * band + 0.3 * edge) * pulse;
-                    half3 rock = half3(0.05, 0.035, 0.03);
-                    half3 rockLit = rock * (ambient + light.color * saturate(dot(n, light.direction)) * shadow) + orange * 0.08;
+                    // Bright enough to glow, not so bright the tonemapper washes the colour out to white.
+                    half3 hot = molten * (0.55 + 0.3 * band + 0.3 * edge + 0.4 * bubble) * pulse;
+                    half3 rock = half3(0.03, 0.025, 0.025);
+                    half3 rockLit = rock * (ambient + light.color * saturate(dot(n, light.direction)) * shadow) + red * 0.04;
                     half3 lavaColor = lerp(hot, rockLit, crust);
                     // A faint, rough sheen on the crust only.
                     lavaColor += reflection * fresnel * 0.06 * crust;

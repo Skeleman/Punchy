@@ -68,6 +68,13 @@ namespace Punchy.Flora
         public BlobArray<FloraPropEntry> Props;
         /// <summary>Per landmark type × layer.</summary>
         public BlobArray<int2> PropRanges;
+        /// <summary>Per settlement building (SettlementBaking.Buildings order): species index and its layer (-1 none).</summary>
+        public BlobArray<int2> SettlementSpecies;
+        /// <summary>
+        /// Per species: the light a glowing plant gives its surroundings (rgb, linear) and how far it reaches (w, m);
+        /// all zero for plants that don't glow. See <see cref="FloraPlacement.GlowLight"/>.
+        /// </summary>
+        public BlobArray<float4> Glow;
         public int BiomeCount, LandmarkTypeCount;
         /// <summary>Every model (species variants, in FirstModel order).</summary>
         public BlobArray<FloraShape> Models;
@@ -120,6 +127,10 @@ namespace Punchy.Flora
                     foreach (var p in landmark.Props)
                         if (p.Species != null)
                             found.Add(p.Species);
+            var buildings = SettlementBaking.Buildings(landmarks);
+            foreach (var b in buildings)
+                if (b.Species != null)
+                    found.Add(b.Species);
             species.Clear();
             species.AddRange(found);
             species.Sort((a, b) => a.Layer != b.Layer ? a.Layer.CompareTo(b.Layer) : string.CompareOrdinal(a.name, b.name));
@@ -156,6 +167,9 @@ namespace Punchy.Flora
                 for (int v = 0; v < s.Variants; v++)
                     shapes.Add(FloraGenerator.Shape(s, v));
             }
+            var glow = builder.Allocate(ref root.Glow, species.Count);
+            for (int i = 0; i < species.Count; i++)
+                glow[i] = GlowLight(species[i]);
             var models = builder.Allocate(ref root.Models, shapes.Count);
             for (int m = 0; m < shapes.Count; m++)
                 models[m] = shapes[m];
@@ -204,10 +218,42 @@ namespace Punchy.Flora
             var props = builder.Allocate(ref root.Props, propList.Count);
             for (int i = 0; i < propList.Count; i++)
                 props[i] = propList[i];
+            var settlementSpecies = builder.Allocate(ref root.SettlementSpecies, buildings.Count);
+            for (int i = 0; i < buildings.Count; i++)
+                settlementSpecies[i] = buildings[i].Species != null
+                    ? new int2(species.IndexOf(buildings[i].Species), (int)buildings[i].Species.Layer)
+                    : new int2(-1, -1);
 
             var blob = builder.CreateBlobAssetReference<FloraBlob>(Allocator.Persistent);
             builder.Dispose();
             return blob;
+        }
+
+        /// <summary>
+        /// The light a glowing plant casts round itself: rgb (linear) and reach (w, m), zero if it doesn't glow. A
+        /// glowing finish shines with its foliage colour, glowing accents with the first accent's; brighter and further
+        /// the more of the plant glows and the bigger it is.
+        /// </summary>
+        public static float4 GlowLight(FloraSpecies s)
+        {
+            Color c;
+            float share;
+            if (s.Finish == FoliageFinish.Glowing)
+            {
+                c = s.Foliage;
+                share = 1f;
+            }
+            else if (s.GlowingAccents && s.Accents.Count > 0)
+            {
+                c = s.Accents[0];
+                share = math.saturate(0.3f + s.AccentAmount);
+            }
+            else
+                return float4.zero;
+            var lin = c.linear;
+            var size = math.max(s.Height.y, 0.3f);
+            var strength = share * math.clamp(1.3f + size * 0.4f, 1.3f, 3f);
+            return new float4(lin.r * strength, lin.g * strength, lin.b * strength, math.clamp(5f + size * 3f, 6f, 14f) * (0.6f + 0.4f * share));
         }
 
         /// <summary>
@@ -228,6 +274,38 @@ namespace Punchy.Flora
             var candidates = new FixedList64Bytes<int>();   // species index, or -(prop entry + 1)
             var weights = new FixedList64Bytes<float>();
             var bound = 0f;
+
+            // Settlements: each plot's building takes the cell holding the plot's centre, in its species' layer,
+            // facing its street; nothing else grows on the streets or on built plots.
+            if (source.Settlements.IsCreated && f.SettlementSpecies.Length > 0)
+            {
+                ref var towns = ref source.Settlements.Value;
+                var townCell = SettlementSampling.Cell(ref towns, ((float2)cell + 0.5f) * cellSize);
+                if (townCell >= 0)
+                {
+                    var plots = towns.PlotCells[townCell];
+                    for (int k = plots.x; k < plots.x + plots.y; k++)
+                    {
+                        ref var plot = ref towns.Plots[towns.PlotItems[k]];
+                        if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length)
+                            continue;
+                        var building = f.SettlementSpecies[plot.Building];
+                        if (building.x < 0 || building.y != layer || math.any((int2)math.floor(plot.Centre / cellSize) != cell))
+                            continue;
+                        var buildingRule = f.Rules[building.x];
+                        return new FloraSystem.FloraInstance
+                        {
+                            Position = new float3(plot.Centre.x, source.SampleHeight(plot.Centre), plot.Centre.y),
+                            Yaw = math.atan2(-plot.Facing.x, plot.Facing.y),
+                            Scale = rng.NextFloat(0.95f, 1.05f),
+                            Model = buildingRule.FirstModel + rng.NextInt(buildingRule.Variants),
+                            Random = rng.NextFloat()
+                        };
+                    }
+                    if (SettlementSampling.Keep(ref towns, xz) < 0.5f)
+                        return none;
+                }
+            }
 
             // Inside a landmark: its centrepiece takes the cell holding the centre, the biome's plants thin out
             // towards the middle, and its props join the candidates.
@@ -336,10 +414,11 @@ namespace Punchy.Flora
             if (roll >= bound)
                 return none;
 
-            // Full sample of the ground (none over a cave entrance).
-            if (source.IsCaveHole(xz))
-                return none;
+            // Full sample of the ground; nothing over or at the edge of a cave entrance (a wide plant or rock standing
+            // just outside the cut would overhang it and float).
             var ground = source.SampleGround(xz);
+            if (source.CaveClearance(xz, ground.Height) < 1.5f)
+                return none;
             // Land plants keep out of the water; aquatic ones grow only in it, at their depths.
             var depth = ground.HasWater ? ground.WaterSurface - ground.Height : -1f;
             var underwater = depth > -0.15f;

@@ -114,6 +114,8 @@ namespace Punchy.Terrain
 
         /// <summary>Natural landmarks (oases, geysers, waterfalls…): baked after rivers, applied on top of them.</summary>
         public BlobAssetReference<LandmarkSetBlob> Landmarks;
+        /// <summary>Settlements' streets and plots (baked after landmarks): levelled and paved on top of them.</summary>
+        public BlobAssetReference<SettlementSetBlob> Settlements;
         /// <summary>Caves (baked after landmarks): air pockets cut out of the rock under the surface.</summary>
         public BlobAssetReference<CaveSetBlob> Caves;
         /// <summary>
@@ -248,15 +250,21 @@ namespace Punchy.Terrain
         {
             // A loaded heightmap already contains carved channels and landmark shapes.
             if (UsesHeightmap)
-                return Heightmap.Value.Sample(xz);
+                return Settle(xz, Heightmap.Value.Sample(xz));
             SampleBiomes(xz, out _, out var shape);
             var h = ShapeHeight(xz, shape);
             if (Rivers.IsCreated)
                 h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz), RiverSettings, h);
             if (Landmarks.IsCreated)
                 h = LandmarkSampling.Shape(ref Landmarks.Value, xz, h);
-            return h;
+            return Settle(xz, h);
         }
+
+        /// <summary>
+        /// Settlements' streets and plot pads levelled into the ground. Applied last, and levelling towards a fixed
+        /// height, so applying it again (to a heightmap exported with it) changes nothing.
+        /// </summary>
+        float Settle(float2 xz, float h) => Settlements.IsCreated ? SettlementSampling.Height(ref Settlements.Value, xz, h) : h;
 
         /// <summary>Height plus biome, river and water information, computed together.</summary>
         public GroundSample SampleGround(float2 xz)
@@ -333,6 +341,8 @@ namespace Punchy.Terrain
                     ruleDepth = math.max(ruleDepth, math.lerp(farAbove, pool - g.Height, claim));
                 }
             }
+            // Settlements keep clear of water, so their levelling doesn't change the water rules above.
+            g.Height = Settle(xz, g.Height);
 
             g.WaterSurface = water;
             g.Flow = flow;
@@ -362,11 +372,18 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Whether the ground surface here is cut away by a cave entrance.</summary>
-        public bool IsCaveHole(float2 xz)
+        public bool IsCaveHole(float2 xz) => CaveClearance(xz, SampleHeight(xz)) < 0f;
+
+        /// <summary>
+        /// How far the ground surface at a spot (height h) is from cave air: negative where the terrain is cut away
+        /// for a cave entrance, either because the surface is in the cave or because cave air lies just under it (a
+        /// lip too thin to keep). 100 away from caves. The terrain mesh stores the same value per vertex.
+        /// </summary>
+        public float CaveClearance(float2 xz, float h)
         {
             if (!Caves.IsCreated || !CaveSampling.NearColumn(ref Caves.Value, xz))
-                return false;
-            return CaveDistance(new float3(xz.x, SampleHeight(xz) + 0.05f, xz.y)) < 0f;
+                return 100f;
+            return math.min(math.min(CaveDistance(new float3(xz.x, h + 0.05f, xz.y)), CaveDistance(new float3(xz.x, h - 0.6f, xz.y))), 100f);
         }
 
         /// <summary>
@@ -491,12 +508,14 @@ namespace Punchy.Terrain
             }
             if (Landmarks.IsCreated)
                 LandmarkSampling.Ground(ref Landmarks.Value, xz, context.EdgeNoise, context.ColorNoise, ref result);
+            if (Settlements.IsCreated)
+                SettlementSampling.Ground(ref Settlements.Value, xz, context.EdgeNoise, context.ColorNoise, ref result);
             return result;
         }
 
         public bool Equals(TerrainSource o) =>
             World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
-            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Caves == o.Caves && Anchors == o.Anchors;
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && Anchors == o.Anchors;
     }
 }
