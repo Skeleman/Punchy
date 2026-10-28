@@ -36,7 +36,11 @@ namespace Punchy.Terrain
         {
             var list = new List<SettlementBuilding>();
             foreach (var layout in Layouts(types))
+            {
                 list.AddRange(layout.Buildings);
+                // Then the water feature, one slot per layout (empty if it has none).
+                list.Add(new SettlementBuilding { Role = PlotRole.Well, Species = layout.WaterFeature, Count = 1 });
+            }
             return list;
         }
 
@@ -54,7 +58,7 @@ namespace Punchy.Terrain
             foreach (var layout in layouts)
             {
                 firstBuilding.Add(count);
-                count += layout.Buildings.Count;
+                count += layout.Buildings.Count + 1;
             }
 
             for (int i = 0; i < landmarks.Instances.Length; i++)
@@ -206,6 +210,25 @@ namespace Punchy.Terrain
                 if (layout.Pattern != SettlementPattern.Camp)
                     foreach (var (line, width) in lines)
                         Along(line, width);
+
+                // A well or fountain on the square, unless the landmark already places one: the first clear spot round
+                // the middle, on its own small plot (levelled, kept clear, with a Well anchor).
+                if (layout.WaterFeature != null && !PlacesWater())
+                {
+                    var size = new float2(1.6f, 1.6f) * scale;
+                    // The middle, then out along the diagonals between the main streets (a grid's cross through the
+                    // middle), then round about, to the square's edge.
+                    for (int k = 0; k < 25; k++)
+                    {
+                        var angle = road + math.PI * 0.25f + (k - 1) * math.PI * 0.5f + (k > 8 ? 0.4f * (k % 3) : 0f);
+                        var spot = centre + (k == 0 ? float2.zero : Dir(angle) * square * (0.25f + 0.05f * ((k - 1) / 4)));
+                        if (TryPlot(spot, Dir(road), size, PlotRole.Well, true))
+                        {
+                            water = spot;
+                            break;
+                        }
+                    }
+                }
 
                 AssignRoles();
                 settlements.Add(new SettlementData
@@ -359,7 +382,7 @@ namespace Punchy.Terrain
             }
 
             /// <summary>Adds a plot if it's inside the settlement, clear of streets, plots and placed props, and buildable.</summary>
-            bool TryPlot(float2 centre, float2 facing, float2 half, PlotRole role)
+            bool TryPlot(float2 centre, float2 facing, float2 half, PlotRole role, bool onSquare = false)
             {
                 var side = new float2(facing.y, -facing.x);
                 var gap = layout.PlotGap * scale * 0.5f;
@@ -374,6 +397,9 @@ namespace Punchy.Terrain
                 for (int s = firstStreet; s < streets.Count; s++)
                 {
                     var street = streets[s];
+                    // A well stands on the open square itself (a street with A == B), not on a street proper.
+                    if (onSquare && street.A.Equals(street.B))
+                        continue;
                     var clear = street.Width * 0.5f + 0.5f;
                     foreach (var c in corners)
                         if (SettlementSampling.Across(street, c, out _) < clear)
@@ -488,8 +514,19 @@ namespace Punchy.Terrain
                 order.RemoveAt(at);
             }
 
+            /// <summary>Whether the landmark type already places a well or fountain among its props.</summary>
+            bool PlacesWater()
+            {
+                foreach (var p in type.Props)
+                    if (p.Species != null && (p.Species.Form == Punchy.Flora.FloraForm.Well || p.Species.Form == Punchy.Flora.FloraForm.Fountain))
+                        return true;
+                return false;
+            }
+
             int PickBuilding(PlotRole role)
             {
+                if (role == PlotRole.Well)
+                    return layout.WaterFeature != null ? firstBuilding + layout.Buildings.Count : -1;
                 var total = 0f;
                 foreach (var b in layout.Buildings)
                     if (b.Role == role && b.Species != null)
@@ -522,7 +559,8 @@ namespace Punchy.Terrain
                     HasStreetSurface = layouts[i].StreetSurface != null ? 1 : 0,
                     Street = layouts[i].StreetSurface != null ? BiomeBaking.SurfaceData(layouts[i].StreetSurface) : default,
                     FirstBuilding = firstBuilding[i],
-                    BuildingCount = layouts[i].Buildings.Count
+                    BuildingCount = layouts[i].Buildings.Count + 1,
+                    BuildingScale = layouts[i].BuildingScale
                 };
             var s = builder.Allocate(ref root.Settlements, settlements.Count);
             for (int i = 0; i < settlements.Count; i++)

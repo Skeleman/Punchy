@@ -295,7 +295,8 @@ namespace Punchy.Flora
                         {
                             Position = new float3(plot.Centre.x, source.SampleHeight(plot.Centre), plot.Centre.y),
                             Yaw = math.atan2(-plot.Facing.x, plot.Facing.y),
-                            Scale = rng.NextFloat(0.95f, 1.05f),
+                            // Sized for its folk (the layout's BuildingScale: ogre tents bigger, goblin huts smaller).
+                            Scale = rng.NextFloat(0.95f, 1.05f) * towns.Layouts[towns.Settlements[plot.Settlement].Layout].BuildingScale,
                             Model = buildingRule.FirstModel + rng.NextInt(buildingRule.Variants),
                             Random = rng.NextFloat()
                         };

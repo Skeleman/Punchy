@@ -26,6 +26,8 @@ MonoBehaviour:
   Palisade: 0
   MaxRelief: 3
   StreetSurface: {fileID: 11400000, guid: a8cd07def73bbae4b8a8c600df5cfb32, type: 2}
+  BuildingScale: 0.95
+  WaterFeature: {fileID: 11400000, guid: a752e0633a80fdb429b3d19b14c0488f, type: 2}
   Buildings:
   - Role: 0
     Species: {fileID: 11400000, guid: 0f3f75139a798b8428c4a8d150f31958, type: 2}

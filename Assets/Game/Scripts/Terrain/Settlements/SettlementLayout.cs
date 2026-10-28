@@ -32,7 +32,9 @@ namespace Punchy.Terrain
         Market,
         Store,
         Workshop,
-        Stable
+        Stable,
+        /// <summary>A well or fountain on the square (the layout's Water Feature), where the landmark doesn't place one.</summary>
+        Well
     }
 
     /// <summary>One kind of building a settlement puts on its plots.</summary>
@@ -84,6 +86,11 @@ namespace Punchy.Terrain
         [Min(0.2f)] public float MaxRelief = 2.5f;
         [Tooltip("What the streets, square and paths are paved or trodden with. Empty = left as they are.")]
         public TerrainSurface StreetSurface;
+        [Tooltip("Scales every building on a plot: the folk's own size against the size its building species were made " +
+                 "for (ogre tents bigger, goblin huts smaller). Plots already scale with Folk Scale.")]
+        [Min(0.3f)] public float BuildingScale = 1f;
+        [Tooltip("A well or fountain placed on the square if the landmark doesn't place one itself.")]
+        public Punchy.Flora.FloraSpecies WaterFeature;
         public List<SettlementBuilding> Buildings = new List<SettlementBuilding>();
     }
 }

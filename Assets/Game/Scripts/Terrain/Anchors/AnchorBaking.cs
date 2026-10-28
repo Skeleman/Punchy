@@ -67,6 +67,9 @@ namespace Punchy.Terrain
                     var door = plot.Centre + plot.Facing * (plot.Half.y * 0.75f + 0.6f);
                     switch (plot.Role)
                     {
+                        case PlotRole.Well:
+                            Add(AnchorKind.Well, plot.Centre + plot.Facing * (plot.Half.y + 0.6f), -plot.Facing, 0.8f, 2, t);
+                            break;
                         case PlotRole.Landscaping:
                             Add(AnchorKind.Bench, plot.Centre, plot.Facing, 1f, 2, t);
                             break;

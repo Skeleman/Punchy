@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be30a536c49003f42bba655b0fd41247, type: 3}
+  m_Name: OgreLodge
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
+  Form: 32
+  Layer: 2
+  Height: {x: 9, y: 10.5}
+  Spread: 1.2
+  TrunkFraction: 0.35
+  Thickness: 0.035
+  Fullness: 0.7
+  Branches: {x: 3, y: 5}
+  Flexibility: 0.5
+  FlowerHead: 0
+  Bark: {r: 0.35, g: 0.25, b: 0.17, a: 1}
+  Foliage: {r: 0.45, g: 0.35, b: 0.24, a: 1}
+  FoliageVariation: {r: 0.52, g: 0.4, b: 0.28, a: 1}
+  Accents:
+  - {r: 1, g: 0.5, b: 0.18, a: 1}
+  - {r: 0.75, g: 0.68, b: 0.55, a: 1}
+  AccentAmount: 1
+  ColorVariation: 0.12
+  Finish: 0
+  GlowingAccents: 1
+  MaxSlope: 60
+  Elevation: {x: 0.5, y: 10000}
+  GrassAffinity: 0.5
+  ToleratesSnow: 0
+  PatchSize: 60
+  PatchCoverage: 1
+  NearWater: 1
+  OnlyNearWater: 0
+  Aquatic: 0
+  WaterDepth: {x: 0.1, y: 1.5}
+  Floats: 0
+  MinRapids: 0
+  Solid: 1
+  SizeRange: {x: 1, y: 1}
+  Variants: 2
+  Seed: 7805
