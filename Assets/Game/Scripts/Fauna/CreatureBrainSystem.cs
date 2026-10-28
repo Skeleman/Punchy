@@ -555,6 +555,10 @@ namespace Punchy.Fauna
                             Hunt(ref s, ref b, ref rng, ref targetSpeed, ref desiredLook, ref headDown, ref moving);
                         break;
 
+                    case CreatureMode.Patrol:
+                        Patrol(self, ref s, ref b, ref rng, dt, walk, player, playerSpeed, emote, ref targetSpeed, ref moving, ref desiredLook);
+                        break;
+
                     case CreatureMode.Work:
                         s.Timer -= dt;
                         if (s.Stage == 0)
@@ -628,7 +632,7 @@ namespace Punchy.Fauna
                 Fidget(self, body.Species, ref s, ref b, ref rng, dt, perched, ref sit, ref vertical, ref bow, ref desiredLook);
 
                 // Animals with a home never head out of range of it (penned animals stay in their pen, even fleeing).
-                if (s.Leash > 0f && moving)
+                if (s.Leash > 0f && moving && s.Mode != CreatureMode.Patrol)
                 {
                     var fromHome = s.Target - s.Home;
                     var far = math.length(fromHome);
@@ -720,7 +724,9 @@ namespace Punchy.Fauna
                 var fly = Flying(s) && (flier || b.Breaches && s.Mode == CreatureMode.Wander && s.Stage >= 2) ? 1f : 0f;
                 // Folk out and about after dark carry a lantern: lit at dusk, put away at dawn (with a margin either way so
                 // it doesn't flicker at the turn), and not asleep, indoors, dozing at a post, or in someone's arms.
-                if (b.Hands && b.Upright)
+                if (s.Task == CreatureTask.Patrol && s.Mode == CreatureMode.Patrol)
+                    s.Held = Night > 0.5f ? HeldItem.Torch : HeldItem.Spear;
+                else if (b.Hands && b.Upright)
                 {
                     var dark = s.Held == HeldItem.Lantern ? Night > 0.4f : Night > 0.6f;
                     var about = s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Held && !(s.Mode == CreatureMode.Home && s.Stage >= 1) &&
@@ -798,6 +804,28 @@ namespace Punchy.Fauna
                     return;
                 }
 
+                // A guard on shift goes (back) on its rounds; a night guard off shift sleeps the day away indoors (a day
+                // guard off shift has its evening and goes home to bed like anyone).
+                if (s.Task == CreatureTask.Patrol)
+                {
+                    if (OnShift(s) && StartPatrol(ref s))
+                        return;
+                    if (NightShift(s) && Night < 0.45f)
+                    {
+                        if (FindDoor(ref s))
+                        {
+                            SetMode(ref s, CreatureMode.Home);
+                            s.Timer = rng.NextFloat(300f, 600f);
+                        }
+                        else
+                        {
+                            SetMode(ref s, CreatureMode.Sleep);
+                            s.Timer = rng.NextFloat(120f, 300f);
+                        }
+                        return;
+                    }
+                }
+
                 // Find company first: the options depend on it.
                 var playmate = Entity.Null;
                 if (b.Playfulness > 0f && sleepy < 0.5f && !perched)
@@ -845,7 +873,7 @@ namespace Punchy.Fauna
                 // Workers mostly work by day, taking a short wander or rest between stints; at night they doze at
                 // their post.
                 // (Hunters have no post: by day they go out after game, at night they sleep at home.)
-                var posted = s.Task != CreatureTask.None && s.Task != CreatureTask.Hunt;
+                var posted = s.Task != CreatureTask.None && s.Task != CreatureTask.Hunt && s.Task != CreatureTask.Patrol;
                 var work = posted ? sleepy > 0.5f ? 10f : 6f : 0f;
                 if (posted && sleepy > 0.5f)
                     sleep = 0f;
@@ -1832,6 +1860,246 @@ namespace Punchy.Fauna
                             }
                         }
                         break;
+                }
+            }
+
+            // ------------------------------------------------------------------------------- guards
+
+            /// <summary>Whether a guard is on its shift: half by day, half by night (by its individual number), with a
+            /// little gap at dawn and dusk while the watch changes.</summary>
+            static bool NightShift(in CreatureState s) => ((s.Individual >> 3) & 1u) != 0;   // (bit 0 is always set)
+
+            bool OnShift(in CreatureState s) =>
+                s.Task == CreatureTask.Patrol && (NightShift(s) ? Night > 0.55f : Night < 0.45f);
+
+            /// <summary>The settlement a resident belongs to (whose middle its home is nearest), or -1.</summary>
+            int SettlementOf(float2 home)
+            {
+                if (!Terrain.Settlements.IsCreated)
+                    return -1;
+                ref var towns = ref Terrain.Settlements.Value.Settlements;
+                var best = -1;
+                var bestD = float.MaxValue;
+                for (int i = 0; i < towns.Length; i++)
+                {
+                    var d = math.distance(towns[i].Centre, home);
+                    if (d < towns[i].Radius * 1.5f && d < bestD)
+                    {
+                        bestD = d;
+                        best = i;
+                    }
+                }
+                return best;
+            }
+
+            /// <summary>The street corner (the end of a town street) nearest a point, in a settlement.</summary>
+            bool NearestCorner(int settlement, float2 at, out float2 corner)
+            {
+                ref var set = ref Terrain.Settlements.Value;
+                ref var town = ref set.Settlements[settlement];
+                corner = at;
+                var best = float.MaxValue;
+                for (int k = town.FirstStreet; k < town.FirstStreet + town.StreetCount; k++)
+                {
+                    ref var st = ref set.Streets[k];
+                    if (st.Road != 0)
+                        continue;
+                    var dA = math.distancesq(st.A.xz, at);
+                    var dB = math.distancesq(st.B.xz, at);
+                    if (dA < best) { best = dA; corner = st.A.xz; }
+                    if (dB < best) { best = dB; corner = st.B.xz; }
+                }
+                return best < float.MaxValue;
+            }
+
+            /// <summary>Sets a guard going on its rounds from the street corner nearest it (false if its town has none).</summary>
+            bool StartPatrol(ref CreatureState s)
+            {
+                var town = SettlementOf(s.Home);
+                if (town < 0 || !NearestCorner(town, s.Position.xz, out var corner))
+                    return false;
+                SetMode(ref s, CreatureMode.Patrol);
+                s.WorkSpot = corner;
+                s.WorkFace = s.Position.xz;
+                s.AnchorSize = 0f;
+                return true;
+            }
+
+            /// <summary>
+            /// Where a guard goes next from the corner it has reached: now and then out to one of its town's gates;
+            /// otherwise along one of the streets from this corner (any but the way it came), or, at a dead end (or a
+            /// gate), to the nearest corner it hasn't just left.
+            /// </summary>
+            void NextWaypoint(ref CreatureState s, ref Random rng)
+            {
+                var townIndex = SettlementOf(s.Home);
+                if (townIndex < 0)
+                    return;
+                var here = s.WorkSpot;
+                var from = s.WorkFace;
+                var atGate = s.AnchorSize > 0f;
+                s.AnchorSize = 0f;
+                s.WorkFace = here;
+                if (!atGate && rng.NextFloat() < 0.12f && PickGate(townIndex, here, ref rng, out var gate))
+                {
+                    s.WorkSpot = gate;
+                    s.AnchorSize = 1f;
+                    return;
+                }
+                ref var set = ref Terrain.Settlements.Value;
+                ref var town = ref set.Settlements[townIndex];
+                var count = 0;
+                var pick = here;
+                for (int k = town.FirstStreet; k < town.FirstStreet + town.StreetCount; k++)
+                {
+                    ref var st = ref set.Streets[k];
+                    if (st.Road != 0 || math.distancesq(st.A.xz, st.B.xz) < 1f)
+                        continue;
+                    float2 next;
+                    if (math.distancesq(st.A.xz, here) < 1f)
+                        next = st.B.xz;
+                    else if (math.distancesq(st.B.xz, here) < 1f)
+                        next = st.A.xz;
+                    else
+                        continue;
+                    if (math.distancesq(next, from) < 1f)
+                        continue;
+                    count++;
+                    if (rng.NextInt(count) == 0)
+                        pick = next;
+                }
+                if (count == 0)
+                {
+                    // A dead end, or back from a gate: on to the nearest corner it isn't standing at.
+                    var best = float.MaxValue;
+                    for (int k = town.FirstStreet; k < town.FirstStreet + town.StreetCount; k++)
+                    {
+                        ref var st = ref set.Streets[k];
+                        if (st.Road != 0)
+                            continue;
+                        for (int e = 0; e < 2; e++)
+                        {
+                            var c = e == 0 ? st.A.xz : st.B.xz;
+                            var d = math.distancesq(c, here);
+                            if (d > 4f && math.distancesq(c, from) > 1f && d < best)
+                            {
+                                best = d;
+                                pick = c;
+                            }
+                        }
+                    }
+                }
+                s.WorkSpot = pick;
+            }
+
+            /// <summary>One of a settlement's Gate anchors (where a road leaves it), picked at random.</summary>
+            bool PickGate(int settlement, float2 near, ref Random rng, out float2 gate)
+            {
+                gate = near;
+                if (!Terrain.Anchors.IsCreated)
+                    return false;
+                ref var anchors = ref Terrain.Anchors.Value;
+                var found = new NativeList<int>(8, Allocator.Temp);
+                Anchors.Near(ref anchors, new float3(near.x, 0f, near.y), 250f, AnchorKind.Gate, ref found);
+                var count = 0;
+                for (int i = 0; i < found.Length; i++)
+                {
+                    var a = anchors.Anchors[found[i]];
+                    if (a.InCave || a.OwnerIndex != settlement)
+                        continue;
+                    count++;
+                    if (rng.NextInt(count) == 0)
+                        gate = a.Position.xz;
+                }
+                found.Dispose();
+                return count > 0;
+            }
+
+            /// <summary>Another guard pausing within a few metres (for a word), and where it is.</summary>
+            bool FindGuard(Entity self, in CreatureState s, out float2 at)
+            {
+                at = default;
+                var c = Cell(s.Position.xz);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        if (Entities[j] == self || States[j].Mode != CreatureMode.Patrol || States[j].Stage != 1)
+                            continue;
+                        if (math.distance(States[j].Position.xz, s.Position.xz) < 3.5f)
+                        {
+                            at = States[j].Position.xz;
+                            return true;
+                        }
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return false;
+            }
+
+            /// <summary>
+            /// A guard on its rounds: to the corner it's making for (stage 0), at a steady walk; there it picks the next
+            /// one, and where the way turns (or at a gate, or now and then) stops to look about first (stage 1), longer at
+            /// a gate, looking out down the road; meeting another guard stopped there, it turns to it for a word. Anyone
+            /// running or carrying on close by, it stops to watch. Off shift, it goes on with its own day.
+            /// </summary>
+            void Patrol(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, float3 player,
+                        float playerSpeed, IdleAction emote, ref float targetSpeed, ref bool moving, ref float desiredLook)
+            {
+                if (!OnShift(s))
+                {
+                    Pause(ref s, ref b, ref rng);
+                    return;
+                }
+                var toPlayer = player.xz - s.Position.xz;
+                var watching = math.length(toPlayer) < 15f && (playerSpeed > 7f || emote != IdleAction.None);
+                if (s.Stage == 0)
+                {
+                    s.Target = s.WorkSpot;
+                    moving = !watching;
+                    targetSpeed = watching ? 0f : walk * 0.85f;
+                    if (math.distance(s.Position.xz, s.WorkSpot) < 0.7f)
+                    {
+                        var came = math.normalizesafe(s.WorkSpot - s.WorkFace);
+                        var gate = s.AnchorSize > 0f;
+                        NextWaypoint(ref s, ref rng);
+                        var going = math.normalizesafe(s.WorkSpot - s.WorkFace);
+                        if (gate || math.dot(came, going) < 0.85f || rng.NextFloat() < 0.08f)
+                        {
+                            s.Stage = 1;
+                            s.StageTime = 0f;
+                            s.Timer = gate ? rng.NextFloat(8f, 16f) : rng.NextFloat(2f, 6f);
+                        }
+                    }
+                }
+                else
+                {
+                    s.Timer -= dt;
+                    desiredLook = math.sin(s.StageTime * 0.9f + s.Individual % 7) * 1.1f;
+                    if (FindGuard(self, s, out var other))
+                    {
+                        // A word with the other guard (for a while, then on).
+                        var to = other - s.Position.xz;
+                        var wanted = WrapAngle(math.atan2(to.x, to.y) - s.Yaw);
+                        s.Yaw = WrapAngle(s.Yaw + math.clamp(wanted, -b.TurnRate * dt, b.TurnRate * dt));
+                        desiredLook = 0f;
+                        if (s.StageTime < 10f)
+                            s.Timer = math.max(s.Timer, 0.5f);
+                    }
+                    if (s.Timer <= 0f)
+                    {
+                        s.Stage = 0;
+                        s.StageTime = 0f;
+                    }
+                }
+                if (watching)
+                {
+                    var wanted = WrapAngle(math.atan2(toPlayer.x, toPlayer.y) - s.Yaw);
+                    if (s.Stage == 0)
+                        s.Yaw = WrapAngle(s.Yaw + math.clamp(wanted, -b.TurnRate * dt, b.TurnRate * dt));
+                    desiredLook = math.clamp(WrapAngle(math.atan2(toPlayer.x, toPlayer.y) - s.Yaw), -1.2f, 1.2f);
                 }
             }
 

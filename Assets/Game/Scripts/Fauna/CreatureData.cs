@@ -262,7 +262,12 @@ namespace Punchy.Fauna
         /// indoors out of sight (2), stepping out again (3). ActionTime is how far out of sight they are while
         /// stepping through (it rides on the ghost, so every machine dithers them the same).
         /// </summary>
-        Home
+        Home,
+        /// <summary>
+        /// A guard on its rounds (task Patrol): along the town's streets to the corner it's making for (WorkSpot,
+        /// stage 0; WorkFace is the one it came from), pausing there to look about (stage 1); a gate when AnchorSize > 0.
+        /// </summary>
+        Patrol
     }
 
     /// <summary>What a worker does at its post (posed by CreatureAnimator).</summary>
@@ -274,7 +279,9 @@ namespace Punchy.Fauna
         [UnityEngine.Tooltip("Leans on a counter, now and then raising a hand (a vendor).")] Gesture,
         [UnityEngine.Tooltip("Both hands working in front, slowly (drawing water, tending a fountain, stirring).")] Tend,
         [UnityEngine.Tooltip("Stands keeping watch, hands behind the back (a gatekeeper).")] Watch,
-        [UnityEngine.Tooltip("Goes out by day after game: creeps up on it, throws (and, for now, always misses).")] Hunt
+        [UnityEngine.Tooltip("Goes out by day after game: creeps up on it, throws (and, for now, always misses).")] Hunt,
+        [UnityEngine.Tooltip("A guard: walks the town's streets and out to its gates on its shift (by day or by night, half " +
+                             "each), spear in hand, a torch after dark; a night guard sleeps the day indoors.")] Patrol
     }
 
     /// <summary>
@@ -301,7 +308,11 @@ namespace Punchy.Fauna
     {
         None,
         /// <summary>A lantern in the off hand, lit: folk out and about after dark.</summary>
-        Lantern
+        Lantern,
+        /// <summary>A spear held upright in the right hand: a guard on its rounds by day.</summary>
+        Spear,
+        /// <summary>A burning torch held up in the right hand: a guard on its rounds after dark.</summary>
+        Torch
     }
 
     /// <summary>A creature's position, heading, gait and what it's up to.</summary>

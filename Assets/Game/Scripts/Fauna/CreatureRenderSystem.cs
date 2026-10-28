@@ -42,8 +42,12 @@ namespace Punchy.Fauna
         /// <summary>A lantern's light in the glow list: warm (linear rgb × intensity), w its reach (m); and how near the
         /// camera a lantern has to be to light anything.</summary>
         static readonly UnityEngine.Vector4 LanternLight = new UnityEngine.Vector4(1.6f, 0.9f, 0.4f, 9f);
+        /// <summary>A torch's: redder, brighter and further.</summary>
+        static readonly UnityEngine.Vector4 TorchLight = new UnityEngine.Vector4(2.4f, 1.0f, 0.3f, 11f);
         const float LanternLightRange = 60f;
-        static int HeldCount(HeldItem held) => held == HeldItem.Lantern ? LanternParts : 0;
+        static int HeldCount(HeldItem held) => held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.Torch ? 2 : 0;
+        /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
+        static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 1 : -1;
         /// <summary>Capsules per hanging bat, the most per roost, and how near the camera colonies show.</summary>
         const int BatParts = 4, ColonyMax = 10;
         const float ColonyRange = 45f;
@@ -226,14 +230,15 @@ namespace Punchy.Fauna
             float3 camAt = cam.transform.position;
             for (int i = 0; i < bodies.Length; i++)
             {
-                if (states[i].Held != HeldItem.Lantern || math.distancesq(states[i].Position, camAt) > LanternLightRange * LanternLightRange)
+                var lightPart = LightPart(states[i].Held);
+                if (lightPart < 0 || math.distancesq(states[i].Position, camAt) > LanternLightRange * LanternLightRange)
                     continue;
                 var glass = instances[offsets[i] + bodies[i].SegmentCount + MarkCount + (InWeb(states[i]) ? WebCount : 0) +
-                                      LairCount(ref bodies[i].Blob.Value) + (states[i].Task == CreatureTask.Hunt ? 1 : 0) + 2];
+                                      LairCount(ref bodies[i].Blob.Value) + (states[i].Task == CreatureTask.Hunt ? 1 : 0) + lightPart];
                 if (glass.Length <= 0f)
                     continue;
                 var centre = glass.Position + math.mul(glass.Rotation, new float3(0f, 0f, glass.Length * 0.5f));
-                Punchy.Terrain.CaveSystem.MovingLights.Add((entities[i].Index, centre, LanternLight));
+                Punchy.Terrain.CaveSystem.MovingLights.Add((entities[i].Index, centre, states[i].Held == HeldItem.Torch ? TorchLight : LanternLight));
             }
             bodies.Dispose();
             states.Dispose();
@@ -352,6 +357,58 @@ namespace Punchy.Fauna
                     Spear(state, ref body.Blob.Value, offset, held - 1);
                 if (state.Held == HeldItem.Lantern)
                     Lantern(state, ref body.Blob.Value, offset, held, faded);
+                else if (state.Held == HeldItem.Spear || state.Held == HeldItem.Torch)
+                    Guard(state, ref body.Blob.Value, offset, held, faded, entity.Index);
+            }
+
+            /// <summary>
+            /// What a guard holds in its right hand: a spear upright at its side (a wooden shaft, an iron head), its
+            /// butt near the ground; or, after dark, a torch held up and forward, its flame flickering.
+            /// </summary>
+            void Guard(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded, int id)
+            {
+                Output[at] = default;
+                Output[at + 1] = default;
+                var hand = -1;
+                for (int i = 0; i < b.Parts.Length; i++)
+                    if (b.Parts[i].Role == LimbRole.Arm && b.Parts[i].Side > 0f)
+                    {
+                        hand = b.Parts[i].FirstSegment + b.Parts[i].SegmentCount - 1;
+                        break;
+                    }
+                if (hand < 0)
+                    return;
+                var segment = Output[offset + hand];
+                var grip = segment.Position + Unity.Mathematics.math.mul(segment.Rotation, new Unity.Mathematics.float3(0f, 0f, segment.Length));
+                var scale = Unity.Mathematics.math.max(state.Scale, 0.3f);
+                var forward = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
+                var wood = new Unity.Mathematics.float4(0.16f, 0.1f, 0.05f, 0f);
+                if (state.Held == HeldItem.Spear)
+                {
+                    var dir = Unity.Mathematics.math.normalize(new Unity.Mathematics.float3(0f, 1f, 0f) + forward * 0.12f);
+                    var length = 2.1f * scale;
+                    var butt = grip - dir * length * 0.45f;
+                    var rot = Unity.Mathematics.quaternion.LookRotationSafe(dir, forward);
+                    Output[at] = new SegmentInstance { Position = butt, Rotation = rot, Length = length, RadiusStart = 0.017f * scale, RadiusEnd = 0.014f * scale, Flatten = 1f, Color = wood, Pad = faded };
+                    Output[at + 1] = new SegmentInstance { Position = butt + dir * length, Rotation = rot, Length = 0.2f * scale, RadiusStart = 0.03f * scale, RadiusEnd = 0.003f * scale, Flatten = 0.4f, Color = new Unity.Mathematics.float4(0.32f, 0.33f, 0.35f, 0f), Pad = faded };
+                    return;
+                }
+                var up = Unity.Mathematics.math.normalize(new Unity.Mathematics.float3(0f, 1f, 0f) + forward * 0.45f);
+                var handle = 0.5f * scale;
+                var bottom = grip - up * handle * 0.35f;
+                var flicker = 1f + 0.18f * Unity.Mathematics.math.sin(Time * 13f + id) + 0.1f * Unity.Mathematics.math.sin(Time * 29f + id * 0.7f);
+                Output[at] = new SegmentInstance { Position = bottom, Rotation = Unity.Mathematics.quaternion.LookRotationSafe(up, forward), Length = handle, RadiusStart = 0.02f * scale, RadiusEnd = 0.028f * scale, Flatten = 1f, Color = wood, Pad = faded };
+                Output[at + 1] = new SegmentInstance
+                {
+                    Position = bottom + up * handle,
+                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(new Unity.Mathematics.float3(0f, 1f, 0f), forward),
+                    Length = 0.2f * scale * flicker,
+                    RadiusStart = 0.05f * scale,
+                    RadiusEnd = 0.012f * scale,
+                    Flatten = 1f,
+                    Color = new Unity.Mathematics.float4(1f, 0.52f, 0.14f, 1f),
+                    Pad = faded
+                };
             }
 
             /// <summary>

@@ -271,6 +271,13 @@ namespace Punchy.Fauna
                         a.x += lean;
                     if (part.Role == LimbRole.Head && j == 0)
                         a += headTilt;
+                    // A guard's right arm: bent to hold a spear upright at its side, or raised forward with a torch.
+                    if (part.Role == LimbRole.Arm && part.Side > 0f && (s.Held == HeldItem.Spear || s.Held == HeldItem.Torch))
+                    {
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.8f);
+                        var torch = s.Held == HeldItem.Torch;
+                        a.x += j == 0 ? (torch ? -0.75f : -0.15f) : j == 1 ? (torch ? -0.9f : -1.05f) : 0f;
+                    }
                     // A lantern in the off hand: that arm held a little forward and bent, hardly swinging.
                     if (part.Role == LimbRole.Arm && part.Side < 0f && s.Held == HeldItem.Lantern)
                     {
