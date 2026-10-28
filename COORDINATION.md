@@ -31,7 +31,10 @@ feature code, and it never edits files in another session's checkout.
    stop and report it.
 6. Send questions for Zach to the supervisor, not to Zach, unless Zach must confirm something to you directly.
 7. Use the terms in `GLOSSARY.md`.
-8. Main PC memory: restart your Unity editor (after committing) when it grows past about 10 GB or after heavy
+8. **Batch related changes (Zach, 2026-10-27):** implement related items together, evaluate them in one shot-list
+   session, and send one report and one compare sheet. Keep separate commits per item. Split a batch only for risk
+   or a decision Zach must make.
+9. Main PC memory: restart your Unity editor (after committing) when it grows past about 10 GB or after heavy
    recompile runs. Keep Play-mode tests short and exit when done. Ask the supervisor before opening a player or
    build next to the two editors.
 
