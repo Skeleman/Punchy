@@ -30,8 +30,9 @@ namespace Punchy.Fauna
         const int Spokes = 12, Rings = 6, Anchors = 4;
         const int WebCount = Spokes + Spokes * Rings + Anchors;
         const int MoundCount = 7;
-        /// <summary>Capsules per nest: its floor and a ring of twigs (or grass).</summary>
-        const int NestCount = 9;
+        /// <summary>Capsules per nest: its floor, a ring of twigs (or grass), and the darkening under it.</summary>
+        const int NestCount = 10;
+        const int NestRim = 8;
         /// <summary>Room for the animal's lair: a burrow's mound or a nest.</summary>
         static int LairCount(ref CreatureBlob b) => b.Burrows ? MoundCount : b.Nests != NestSite.None ? NestCount : 0;
         /// <summary>Capsules per hanging bat, the most per roost, and how near the camera colonies show.</summary>
@@ -300,9 +301,21 @@ namespace Punchy.Fauna
                 var rng = new Unity.Mathematics.Random(state.Individual | 1u);
                 var rimHeight = ground ? r * 0.05f : r * 0.15f;
                 var thick = r * (ground ? 0.14f : top ? 0.16f : 0.18f);
-                for (int k = 1; k < NestCount; k++)
+                // Contact darkening: a dark, flat disc a little wider than the nest just under it (the ground in its
+                // shade, or the shadowed underside of a nest in a tree).
+                Output[offset + NestCount - 1] = new SegmentInstance
                 {
-                    var a = k / (float)(NestCount - 1) * Unity.Mathematics.math.PI * 2f + rng.NextFloat(-0.25f, 0.25f);
+                    Position = c + new Unity.Mathematics.float3(ground ? -r * 0.6f : -r * 0.5f, ground ? 0.004f : -r * 0.06f, 0f),
+                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(x, up),
+                    Length = ground ? r * 1.2f : r,
+                    RadiusStart = ground ? r * 0.8f : r * 0.7f,
+                    RadiusEnd = ground ? r * 0.8f : r * 0.7f,
+                    Flatten = 0.05f,
+                    Color = new Unity.Mathematics.float4(0.02f, 0.018f, 0.012f, 0f)
+                };
+                for (int k = 1; k <= NestRim; k++)
+                {
+                    var a = k / (float)NestRim * Unity.Mathematics.math.PI * 2f + rng.NextFloat(-0.25f, 0.25f);
                     var dir = new Unity.Mathematics.float3(Unity.Mathematics.math.cos(a), 0f, Unity.Mathematics.math.sin(a));
                     var along = Unity.Mathematics.math.normalize(new Unity.Mathematics.float3(-dir.z, rng.NextFloat(-0.15f, 0.15f) * (top ? 2f : 1f), dir.x));
                     var length = r * (top ? rng.NextFloat(1.1f, 1.6f) : 0.95f);
