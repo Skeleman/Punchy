@@ -54,7 +54,8 @@ namespace Punchy.Fauna
             {
                 if (s.ValueRO.Mode != CreatureMode.Held || !carriers.TryGetValue(s.ValueRO.Holder, out var carrier))
                     continue;
-                var at = Interactions.Hands(table, carrier.species, carrier.body.Position, carrier.body.Yaw);
+                var at = Interactions.Hands(table, carrier.species, carrier.body.Position, carrier.body.Yaw,
+                                            Interactions.HalfWidth(ref creature.ValueRO.Blob.Value, s.ValueRO.Scale));
                 // (The body dips with each step; the arms and what they hold go with it.)
                 if (carrier.species >= 0 && table.Blob.IsCreated && carrier.species < table.Blob.Value.Hold.Length)
                     at.y -= carrier.body.Scale * 0.04f * math.saturate(carrier.body.Speed / 2f) *

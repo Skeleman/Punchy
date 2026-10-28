@@ -1840,7 +1840,7 @@ namespace Punchy.Fauna
                     Interactions.PutDown(ref s, Terrain, s.Position, ref rng);
                     return;
                 }
-                s.Position = Interactions.Hands(Carry, holderSpecies, holder, yaw);
+                s.Position = Interactions.Hands(Carry, holderSpecies, holder, yaw, Interactions.HalfWidth(ref b, s.Scale));
                 s.Yaw = yaw + math.PI * 0.5f;
                 s.YawRate = 0f;
                 s.Timer -= dt;

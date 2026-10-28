@@ -41,7 +41,8 @@ namespace Punchy.Fauna
     }
 
     /// <summary>
-    /// Per playable body (NetAvatars.PlayableSpecies indices, as players are named): whether it can carry an animal (folk: arms to hold it with) and where
+    /// Per playable body (NetAvatars.PlayableSpecies indices, as players are named): whether it can carry an animal
+    /// (Folk) and where one sits: (height above its feet, how far in front of its middle the chest is) — Hold (folk: arms to hold it with) and where
     /// a carried animal sits, scaled to its size: (height above its feet, distance in front).
     /// </summary>
     public struct CarryBlob
@@ -96,14 +97,20 @@ namespace Punchy.Fauna
         public static bool CanHold(in CarryTable table, int species) =>
             !table.Blob.IsCreated || species < 0 || species >= table.Blob.Value.Folk.Length || table.Blob.Value.Folk[species] != 0;
 
-        /// <summary>Where an animal carried by a body of this species sits (the human's place if unknown).</summary>
-        public static float3 Hands(in CarryTable table, int species, float3 holder, float yaw)
+        /// <summary>
+        /// Where an animal carried by a body of this species sits (the human's place if unknown): at its arms' height,
+        /// out in front of its chest by the animal's own half-width (halfWidth), so it lies against the chest, not in it.
+        /// </summary>
+        public static float3 Hands(in CarryTable table, int species, float3 holder, float yaw, float halfWidth)
         {
-            var hold = new float2(0.98f, 0.38f);
+            var hold = new float2(0.98f, 0.26f);
             if (table.Blob.IsCreated && species >= 0 && species < table.Blob.Value.Hold.Length)
                 hold = table.Blob.Value.Hold[species];
-            return holder + new float3(math.sin(yaw), 0f, math.cos(yaw)) * hold.y + new float3(0f, hold.x, 0f);
+            return holder + new float3(math.sin(yaw), 0f, math.cos(yaw)) * (hold.y + halfWidth) + new float3(0f, hold.x, 0f);
         }
+
+        /// <summary>Half an animal's body width, for Hands.</summary>
+        public static float HalfWidth(ref CreatureBlob b, float scale) => math.max(b.FrontRadius, b.RearRadius) * scale;
 
         /// <summary>Used to people: friendly animals and settlements' animals (not their folk: those are upright).</summary>
         public static bool Tame(ref CreatureBlob b, in CreatureState s) => b.Friendly || s.Leash > 0f;

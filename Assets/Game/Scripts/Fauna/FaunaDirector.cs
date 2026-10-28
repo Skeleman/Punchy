@@ -306,6 +306,7 @@ namespace Punchy.Fauna
             var avatars = FindAnyObjectByType<Punchy.Net.NetAvatars>();
             var playable = avatars != null ? avatars.PlayableSpecies : new List<CreatureSpecies>();
             var stand = new float[playable.Count];
+            var chest = new float[playable.Count];
             var upright = new bool[playable.Count];
             var reference = 0.9f;
             for (int i = 0; i < playable.Count; i++)
@@ -314,7 +315,9 @@ namespace Punchy.Fauna
                     continue;
                 // (How high its arms are: legs plus half the trunk, an upright body's length being its height.)
                 var body = CreatureBlobBuilder.Build(playable[i]);
-                stand[i] = (body.Value.StandHeight + body.Value.BodyLength * 0.5f) * (playable[i].Size.x + playable[i].Size.y) * 0.5f;
+                var size = (playable[i].Size.x + playable[i].Size.y) * 0.5f;
+                stand[i] = (body.Value.StandHeight + body.Value.BodyLength * 0.5f) * size;
+                chest[i] = math.max(body.Value.FrontRadius, body.Value.RearRadius) * body.Value.BodyFlatten * size;
                 upright[i] = body.Value.Upright;
                 body.Dispose();
                 if (playable[i].name == "Human")
@@ -327,7 +330,8 @@ namespace Punchy.Fauna
             for (int i = 0; i < playable.Count; i++)
             {
                 folk[i] = (byte)(upright[i] ? 1 : 0);
-                hold[i] = new float2(0.98f, 0.38f) * (stand[i] > 0f ? stand[i] / reference : 1f);
+                // (Out by the chest's own depth and a forearm's thickness, so a stout body holds it further out.)
+                hold[i] = new float2(0.98f * (stand[i] > 0f ? stand[i] / reference : 1f), chest[i] + 0.1f);
             }
             var blob = builder.CreateBlobAssetReference<CarryBlob>(Allocator.Persistent);
             builder.Dispose();

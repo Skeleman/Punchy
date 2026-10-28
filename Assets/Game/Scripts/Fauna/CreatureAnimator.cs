@@ -154,6 +154,9 @@ namespace Punchy.Fauna
                         fold = math.max(fold, math.saturate(s.Vertical * 1.6f));
                     // In flight the legs trail back under the tail instead (below).
                     fold *= 1f - s.Fly;
+                    // Carried: legs tucked up, not dangling.
+                    if (s.Mode == CreatureMode.Held)
+                        fold = math.max(fold, 0.85f);
                 }
                 // A leg busy with an idle action (pawing, scratching) isn't planted.
                 var busyLeg = UsedByAction(ref part, in s);
