@@ -471,8 +471,9 @@ namespace Punchy.Fauna
 
             /// <summary>
             /// An orb web round the spider, in the plane facing its heading: spokes, a spiral (as rings of chords
-            /// between the spokes), and anchor threads down to the ground and across to the tree it hangs by (see
-            /// CreatureMode.Web for the side). Only for a spider sitting in its web (room is made for it then only).
+            /// between the spokes), and anchor threads: down to the ground and across to the tree it hangs by, or out to
+            /// both things it's strung between (see CreatureMode.Web). Only for a spider sitting in its web (room is
+            /// made for it then only).
             /// </summary>
             void Web(in CreatureState state, ref CreatureBlob b, int offset)
             {
@@ -502,23 +503,34 @@ namespace Punchy.Fauna
                         Output[offset + n++] = Thread(Point(spoke[k], r), Point(next, r), thick * 0.8f, colour);
                     }
                 }
+                if (state.Stage == 4)
+                {
+                    // Strung between two things: from above and below the middle of each side, out to each one.
+                    var span = Unity.Mathematics.math.max(state.AnchorSize, radius);
+                    for (int k = 0; k < 4; k++)
+                    {
+                        var side = k < 2 ? 1f : -1f;
+                        var tilt = (k % 2 == 0 ? 0.3f : -0.3f);
+                        var start = Point(side > 0f ? tilt : Unity.Mathematics.math.PI - tilt, radius);
+                        var end = centre + right * side * span + up * Unity.Mathematics.math.sin(tilt) * radius * 1.6f;
+                        Output[offset + n++] = Thread(start, end, thick, colour);
+                    }
+                    return;
+                }
                 // Down to the ground from the lower edge, either side.
                 for (int k = 0; k < 2; k++)
                 {
                     var start = Point(Unity.Mathematics.math.PI * (k == 0 ? 1.3f : 1.7f), radius);
                     var foot = start + right * (k == 0 ? -0.3f : 0.3f) * radius;
-                    foot.y = Terrain.SampleHeight(foot.xz);
+                    foot.y = Terrain.FloorUnder(start, out _);
                     Output[offset + n++] = Thread(start, foot, thick, colour);
                 }
-                // Across to the trunk, from the top and the near side (stage 2: tree to the spider's right, 3: left);
-                // a web in the grass is tied up to stems instead.
-                var trunkSide = state.Stage == 2 ? 1f : state.Stage == 3 ? -1f : 0f;
+                // Across to the trunk, from the top and the near side (stage 2: tree to the spider's right, 3: left).
+                var trunkSide = state.Stage == 2 ? 1f : -1f;
                 for (int k = 0; k < 2; k++)
                 {
                     var start = k == 0 ? Point(Unity.Mathematics.math.PI * 0.5f, radius) : Point(trunkSide >= 0f ? 0f : Unity.Mathematics.math.PI, radius);
-                    var end = trunkSide != 0f
-                        ? centre + right * trunkSide * radius * 1.05f + up * (k == 0 ? radius * 1.4f : 0f)
-                        : start + up * radius * 0.4f + right * (k == 0 ? -0.15f : 0.15f) * radius;
+                    var end = centre + right * trunkSide * radius * 1.05f + up * (k == 0 ? radius * 1.4f : 0f);
                     Output[offset + n++] = Thread(start, end, thick, colour);
                 }
             }

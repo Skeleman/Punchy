@@ -375,6 +375,8 @@ namespace Punchy.Fauna
         public static int Caught;
         public Habitat SpeciesHabitat(int index) => species[index].Body.Habitat;
         public bool SpeciesCaveDweller(int index) => species[index].Body.CaveDweller;
+        /// <summary>A species that goes into caves now and then (CaveAffinity), though it lives outside.</summary>
+        public bool SpeciesVisitsCaves(int index) => species[index].Body.CaveAffinity > 0f;
         /// <summary>A species' name as people say it ("MountainLion": "mountain lion").</summary>
         public string SpeciesName(int index)
         {

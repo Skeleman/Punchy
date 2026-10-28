@@ -219,8 +219,9 @@ namespace Punchy.Fauna
         Climb,
         /// <summary>
         /// Goes to its web (Anchor is the web's centre): walks under it (0), climbs a thread (1), then waits in it head
-        /// down. In the web, Stage says where the anchoring tree is, so every machine can draw the web from the spider
-        /// alone: 2 = trunk to the spider's right, 3 = to its left, 4 = no tree (a web low in the grass).
+        /// down. In the web, Stage says what holds it up, so every machine can draw the web from the spider alone:
+        /// 2 = a trunk to the spider's right, 3 = to its left, 4 = strung between two things either side, each
+        /// AnchorSize from the centre.
         /// </summary>
         Web,
         /// <summary>

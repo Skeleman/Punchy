@@ -436,8 +436,10 @@ namespace Punchy.Debugging
                 }
                 var wantsWater = director.SpeciesHabitat(index) == Habitat.Swims || director.SpeciesHabitat(index) == Habitat.Floats;
                 var spawned = 0;
-                // Cave dwellers go on the cave floor round the player (who should be in a cave: -incave, -at).
-                if (director.SpeciesCaveDweller(index))
+                // Cave dwellers go on the cave floor round the player (who should be in a cave: -incave, -at), and so
+                // do cave visitors when the player is in one.
+                source.FloorUnder(player.Position + new float3(0f, 0.5f, 0f), out var playerInCave);
+                if (director.SpeciesCaveDweller(index) || director.SpeciesVisitsCaves(index) && playerInCave)
                 {
                     for (int attempt = 0; attempt < 400 && spawned < count; attempt++)
                     {
