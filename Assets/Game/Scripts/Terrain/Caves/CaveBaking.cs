@@ -812,7 +812,12 @@ namespace Punchy.Terrain
                         // The water comes out of a dark notch cut into the wall, and starts inside it.
                         var width = math.min(pool.Radius * 0.6f, 1.6f);
                         var into = new float3(dir.x, 0f, dir.y);
+                        // The wall at the lip's height (it may lean in or out from where it was found lower down).
                         var wall = new float3(foot.x, lipY, foot.y) + into * 0.35f;
+                        for (int step = 0; step < 30 && source.CaveDistance(wall) < 0f; step++)
+                            wall += into * 0.1f;
+                        for (int step = 0; step < 30 && source.CaveDistance(wall - into * 0.1f) > 0f; step++)
+                            wall -= into * 0.1f;
                         var notch = Rod(wall - into * 0.3f, wall + (into + new float3(0f, 0.25f, 0f)) * 0.9f,
                                         width * 0.42f, width * 0.25f, 0.15f);
                         notch.Carve = 1f;
