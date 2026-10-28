@@ -81,6 +81,7 @@ Shader "Punchy/Creature"
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
+            #include "Glow.hlsl"
 
             struct Varyings
             {
@@ -115,7 +116,8 @@ Shader "Punchy/Creature"
                 half diffuse = saturate(dot(n, light.direction) * 0.75 + 0.25);
                 // A little soft sheen at the silhouette, like fur or feathers catching the light.
                 half rim = pow(1 - saturate(dot(n, v)), 3) * 0.25;
-                half3 color = albedo * (light.color * shadow * diffuse + SampleSH(n) * (1 + rim));
+                // (Plus the light of glowing plants and hot rock near it: W-18.)
+                half3 color = albedo * (light.color * shadow * diffuse + SampleSH(n) * (1 + rim) + PunchyGlowLight(input.positionWS, n));
                 // Glowing parts (alpha): embers, toxic markings, eye sockets. Bright enough to bloom.
                 color += input.color.rgb * input.color.a * (2.2 + 0.4 * sin(_Time.y * 2.1 + input.positionWS.x * 3.0));
                 return half4(PunchyAtmosphere(color, input.positionWS), 1);
