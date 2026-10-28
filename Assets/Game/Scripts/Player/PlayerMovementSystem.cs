@@ -150,6 +150,12 @@ namespace Punchy.Player
             floor = terrain.FloorUnder(position, out inCave);
             if (inCave)
                 return false;
+            // On a bridge: the deck, not the water under it.
+            if (terrain.Deck(position, out floor))
+            {
+                floor = math.max(floor, terrain.SampleHeight(position.xz));
+                return false;
+            }
             var ground = terrain.SampleGround(position.xz);
             floor = ground.Height;
             if (!ground.HasWater || ground.WaterSurface - swimDepth <= ground.Height)

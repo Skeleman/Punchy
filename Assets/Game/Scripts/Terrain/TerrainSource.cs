@@ -393,13 +393,22 @@ namespace Punchy.Terrain
         public bool IsRock(float3 p, float margin = 0f) =>
             p.y < SampleHeight(p.xz) - margin && CaveDistance(p) > -margin;
 
+        /// <summary>A bridge deck under a point that's on or just below it (see SettlementSampling.Deck).</summary>
+        public bool Deck(float3 p, out float deck)
+        {
+            deck = 0f;
+            return Settlements.IsCreated && SettlementSampling.Deck(ref Settlements.Value, p, out deck);
+        }
+
         /// <summary>
-        /// What's underfoot at a point. In a cave, or where the surface is cut away by an entrance, it's the cave
+        /// What's underfoot at a point. On a bridge it's the deck. In a cave, or where the surface is cut away by an entrance, it's the cave
         /// floor below the point (inCave true); otherwise it's the ground surface.
         /// </summary>
         public float FloorUnder(float3 p, out bool inCave)
         {
             inCave = false;
+            if (Deck(p, out var deck))
+                return math.max(deck, SampleHeight(p.xz));
             var surface = SampleHeight(p.xz);
             if (!Caves.IsCreated || !CaveSampling.NearColumn(ref Caves.Value, p.xz))
                 return surface;

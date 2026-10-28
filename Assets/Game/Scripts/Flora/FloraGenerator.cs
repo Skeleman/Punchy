@@ -85,6 +85,8 @@ namespace Punchy.Flora
                     case FloraForm.Garden: Garden(g); break;
                     case FloraForm.Lodge: Lodge(g); break;
                     case FloraForm.Signpost: Signpost(g); break;
+                    case FloraForm.Bridge: Bridge(g); break;
+                    case FloraForm.Palisade: Palisade(g); break;
                 }
                 if (lod == 0)
                 {
@@ -2115,6 +2117,75 @@ namespace Punchy.Flora
                 if (g.Lod == 0)
                     b.Box(rot * new Vector3(0.9f, y, 0f), new Vector3(0.12f, 0.12f, 0.04f), rot * Quaternion.Euler(0f, 0f, 45f), board, FloraPart.Bark);
             }
+        }
+
+        /// <summary>
+        /// One 4 m span of a plank bridge along its +Z, deck top at the origin: planks across two stringers, a pair of
+        /// piles down into the water, and a rail each side. Spans are laid end to end across a river, so each draws the
+        /// rail posts at its start only. No colliders: the deck is walked on through SettlementSampling.Deck.
+        /// </summary>
+        static void Bridge(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var rail = g.Range(s.Height);
+            var half = Mathf.Max(s.Spread, 1f) * 0.5f;
+            const float length = 4.1f;
+            g.Height = rail;
+            g.Width = length;
+            g.TrunkRadius = 0f;
+            var wood = g.Bark;
+            // Planks, each a slightly different shade and height so the deck doesn't read as one board.
+            var planks = g.Lod == 0 ? 14 : g.Lod == 1 ? 7 : 1;
+            for (int k = 0; k < planks; k++)
+            {
+                var z = Mathf.Lerp(-length * 0.5f, length * 0.5f, (k + 0.5f) / planks);
+                b.Box(new Vector3(g.Range(-0.04f, 0.04f), -0.06f + g.Range(-0.012f, 0.012f), z),
+                      new Vector3(half * 2f + g.Range(0f, 0.14f), 0.1f, length / planks * 0.92f), Quaternion.identity,
+                      wood * g.Range(0.82f, 1.08f), FloraPart.Bark);
+            }
+            foreach (var x in new[] { -1f, 1f })
+            {
+                // A stringer under the planks, a pile down into the riverbed, and the rail.
+                b.Box(new Vector3(x * (half - 0.25f), -0.24f, 0f), new Vector3(0.2f, 0.26f, length), Quaternion.identity, wood * 0.7f, FloraPart.Bark);
+                b.Tube(new List<Vector3> { new Vector3(x * (half - 0.25f), -5f, 0f), new Vector3(x * (half - 0.25f), -0.2f, 0f) },
+                       new List<float> { 0.16f, 0.14f }, g.Sides(6, 4, 3), wood * 0.6f, FloraPart.Bark);
+                b.Box(new Vector3(x * (half - 0.05f), rail * 0.5f, -length * 0.5f), new Vector3(0.14f, rail + 0.2f, 0.14f), Quaternion.identity, wood * 0.85f, FloraPart.Bark);
+                b.Box(new Vector3(x * (half - 0.05f), rail, 0f), new Vector3(0.1f, 0.1f, length), Quaternion.identity, wood * 0.95f, FloraPart.Bark);
+                if (g.Lod == 0)
+                    b.Box(new Vector3(x * (half - 0.05f), rail * 0.5f, 0f), new Vector3(0.06f, 0.07f, length), Quaternion.identity, wood * 0.8f, FloraPart.Bark);
+            }
+        }
+
+        /// <summary>
+        /// One 3 m length of palisade along its X: a row of sharpened logs (Bark) of uneven height sunk into the ground,
+        /// with a binding rail across the back (-Z, inside the camp). Laid end to end round a camp.
+        /// </summary>
+        static void Palisade(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            const float length = 3.1f;
+            g.Height = height;
+            g.Width = length;
+            g.TrunkRadius = 0f;
+            var logs = g.Lod == 2 ? 4 : 10;
+            for (int k = 0; k < logs; k++)
+            {
+                var x = Mathf.Lerp(-length * 0.5f, length * 0.5f, (k + 0.5f) / logs);
+                var r = length / logs * 0.5f * g.Range(0.95f, 1.15f);
+                var top = height * g.Range(0.85f, 1.1f);
+                var lean = new Vector3(g.Range(-0.06f, 0.06f), 0f, g.Range(-0.05f, 0.05f));
+                // A cone cap on a tube is as tall as the tube is wide, so a thin last ring gives a sharpened point.
+                b.Tube(new List<Vector3> { new Vector3(x, -1f, 0f), new Vector3(x, 0f, 0f) + lean * 0.2f, new Vector3(x, top - r * 2.5f, 0f) + lean, new Vector3(x, top, 0f) + lean * 1.05f },
+                       new List<float> { r, r, r * 0.95f, r * 0.12f }, g.Sides(6, 5, 4), g.Bark * g.Range(0.8f, 1.1f), FloraPart.Bark);
+            }
+            if (g.Lod < 2)
+                foreach (var y in new[] { 0.25f, 0.7f })
+                    b.Box(new Vector3(0f, height * y, -0.2f), new Vector3(length, 0.12f, 0.1f), Quaternion.identity, g.Bark * 0.6f, FloraPart.Bark);
+            for (int k = -1; k <= 1; k++)
+                g.Colliders.Add(new Vector4(k * 1f, 0f, 0.55f, height));
         }
 
         static void Smithy(Grower g)

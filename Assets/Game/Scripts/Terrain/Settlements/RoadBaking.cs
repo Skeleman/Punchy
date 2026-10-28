@@ -10,8 +10,9 @@ namespace Punchy.Terrain
     /// Roads between settlements, baked as more streets in the settlement blob (so they're levelled, paved and kept
     /// clear of plants as streets are): every settlement joined to the others along a minimum spanning tree, and a spur
     /// to each cave mouth near a settlement. Each road is routed over a coarse cost grid (gentle slopes preferred, steep
-    /// ground, deep water and cave entrances avoided, shallow water crossed as a ford left unpaved), smoothed, and cut into
-    /// short stretches. A signpost stands where each road leaves a settlement. Integer-seeded and deterministic.
+    /// ground and cave entrances avoided, shallow water crossed as a ford left unpaved, deeper rivers bridged at a cost),
+    /// smoothed, and cut into short stretches. A signpost stands where each road leaves a settlement, and camps with a
+    /// palisade get one round them once the roads' gaps through it are known. Integer-seeded and deterministic.
     /// </summary>
     public static class RoadBaking
     {
@@ -21,6 +22,12 @@ namespace Punchy.Terrain
         const float FordDepth = 0.7f;
         const float CaveReach = 700f;
         const float StretchLength = 10f;
+        /// <summary>Deepest water a road will bridge (deeper is a lake or the sea: the road goes round).</summary>
+        const float BridgeDepth = 6f;
+        const float LongestBridge = 120f;
+        /// <summary>Spacing of bridge spans (each 4.1 m long, so they overlap a little) and of palisade lengths (3.1 m).</summary>
+        const float SpanSpacing = 3.6f;
+        const float PalisadeSpacing = 3f;
 
         /// <summary>A settlement's road end: where its main street leaves it, the way out, and its index.</summary>
         struct End
@@ -31,14 +38,21 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
-        /// Adds the roads to <paramref name="streets"/> and their signposts to <paramref name="plots"/> (both appended after
-        /// every settlement's own).
+        /// Adds the roads to <paramref name="streets"/>, and their signposts and bridges and the camps' palisades to
+        /// <paramref name="plots"/> (both appended after every settlement's own).
         /// </summary>
         public static void Build(in TerrainSource source, List<SettlementLayout> layouts, List<int> firstBuilding, List<SettlementData> settlements,
                                  List<SettlementStreet> streets, List<SettlementPlot> plots)
         {
             if (settlements.Count == 0)
                 return;
+            Roads(source, layouts, firstBuilding, settlements, streets, plots);
+            Palisades(source, layouts, firstBuilding, settlements, streets, plots);
+        }
+
+        static void Roads(in TerrainSource source, List<SettlementLayout> layouts, List<int> firstBuilding, List<SettlementData> settlements,
+                          List<SettlementStreet> streets, List<SettlementPlot> plots)
+        {
             var ends = new List<End>();
             foreach (var s in settlements)
                 ends.Add(new End { At = s.Centre + s.Road * s.Radius * 0.95f, Out = s.Road, Settlement = ends.Count, Radius = s.Radius });
@@ -112,6 +126,7 @@ namespace Punchy.Terrain
                 path = Smooth(Smooth(path));
                 var layout = layouts[settlements[settlement].Layout];
                 Emit(source, path, layout.RoadWidth * settlements[settlement].Scale, settlement, settlements, streets);
+                AddBridges(source, path, settlement, settlements, layouts, firstBuilding, plots);
                 // Signposts where the road leaves each settlement it joins.
                 AddSignpost(source, path, settlement, settlements, layouts, firstBuilding, plots, false);
                 if (toTown)
@@ -180,13 +195,19 @@ namespace Punchy.Terrain
                         continue;
                     var ni = Index(n);
                     var there = grid[ni];
-                    if (there.z > 0.5f || there.y > FordDepth)
+                    if (there.z > 0.5f || there.y > BridgeDepth)
                         continue;
                     var run = math.length((float2)step) * Cell;
                     var slope = math.abs(there.x - here.x) / run;
                     if (slope > MaxSlope)
                         continue;
-                    var g = cost[current.index] + run * (1f + 25f * slope * slope + (there.y > 0f ? 4f : 0f));
+                    // Water is dear, fords and bridges alike, so a road crosses a river where it's narrow rather than
+                    // following a flat, shallow riverbed along.
+                    var wet = there.y > FordDepth ? 20f : there.y > 0f ? 15f : 0f;
+                    var g = cost[current.index] + run * (1f + 25f * slope * slope + wet);
+                    // Each bridge costs as much again to build, so a road along a river doesn't hop back and forth.
+                    if (there.y > FordDepth && here.y <= FordDepth)
+                        g += 400f;
                     if (cost.TryGetValue(ni, out var old) && old <= g)
                         continue;
                     if (cost.ContainsKey(ni))
@@ -199,6 +220,135 @@ namespace Punchy.Terrain
             return null;
 
             float Heuristic(int2 a, int2 b) => math.distance((float2)a, (float2)b) * Cell;
+        }
+
+        /// <summary>
+        /// Bridges where the road crosses water too deep to ford: each wet run with any deep water in it gets spans from
+        /// bank to bank, their decks a little above the banks and well above the water, sloping from one bank's height to
+        /// the other's.
+        /// </summary>
+        static void AddBridges(in TerrainSource source, List<float2> path, int settlement, List<SettlementData> settlements,
+                               List<SettlementLayout> layouts, List<int> firstBuilding, List<SettlementPlot> plots)
+        {
+            var town = settlements[settlement];
+            var layout = layouts[town.Layout];
+            if (layout.Bridge == null)
+                return;
+            // The road sampled every metre, so the banks are found to within one.
+            var points = new List<float2>();
+            for (int i = 0; i < path.Count - 1; i++)
+            {
+                var n = math.max(1, (int)math.ceil(math.distance(path[i], path[i + 1])));
+                for (int k = 0; k < n; k++)
+                    points.Add(math.lerp(path[i], path[i + 1], k / (float)n));
+            }
+            points.Add(path[path.Count - 1]);
+            var depths = new float[points.Count];
+            var surfaces = new float[points.Count];
+            for (int i = 0; i < points.Count; i++)
+            {
+                var g = source.SampleGround(points[i]);
+                depths[i] = g.HasWater ? g.WaterSurface - g.Height : 0f;
+                surfaces[i] = g.WaterSurface;
+            }
+            // The channel: water deeper than this (shallow margins and marsh are forded, as the road leaves them).
+            const float channel = 0.3f;
+            for (int i = 0; i < points.Count; i++)
+            {
+                if (depths[i] <= channel)
+                    continue;
+                // A run of channel: from the last shallow point before it to the first one after.
+                var start = math.max(i - 1, 0);
+                var deepest = 0f;
+                var top = float.MinValue;
+                for (; i < points.Count && depths[i] > channel; i++)
+                {
+                    deepest = math.max(deepest, depths[i]);
+                    top = math.max(top, surfaces[i]);
+                }
+                var a = points[start];
+                var b = points[math.min(i, points.Count - 1)];
+                var length = math.distance(a, b);
+                if (deepest <= FordDepth || length > LongestBridge || length < 1f)
+                    continue;
+                var along = (b - a) / length;
+                var deckA = source.SampleHeight(a) + 0.25f;
+                var deckB = source.SampleHeight(b) + 0.25f;
+                var spans = (int)math.ceil(length / SpanSpacing);
+                var first = (a + b) * 0.5f - along * (spans - 1) * SpanSpacing * 0.5f;
+                var half = new float2(math.max(layout.Bridge.Spread, 1f) * 0.5f, 2.05f);
+                var reach = math.length(half);
+                for (int k = 0; k < spans; k++)
+                {
+                    var at = first + along * k * SpanSpacing;
+                    var t = math.saturate(math.dot(at - a, along) / length);
+                    plots.Add(new SettlementPlot
+                    {
+                        Centre = at,
+                        Facing = along,
+                        Half = half,
+                        Pad = math.max(math.lerp(deckA, deckB, t), top + 0.5f),
+                        Role = PlotRole.Bridge,
+                        Building = firstBuilding[town.Layout] + layout.Buildings.Count + 2,   // the bridge slot
+                        Settlement = settlement,
+                        Min = at - reach,
+                        Max = at + reach
+                    });
+                }
+            }
+        }
+
+        /// <summary>
+        /// A palisade round each camp that has one: 3 m lengths round the ring, facing out, leaving gaps where streets
+        /// and roads pass, and none in water, over a cave entrance or against a plot.
+        /// </summary>
+        static void Palisades(in TerrainSource source, List<SettlementLayout> layouts, List<int> firstBuilding, List<SettlementData> settlements,
+                              List<SettlementStreet> streets, List<SettlementPlot> plots)
+        {
+            var built = plots.Count;
+            for (int s = 0; s < settlements.Count; s++)
+            {
+                var town = settlements[s];
+                var layout = layouts[town.Layout];
+                if (town.Palisade <= 0f || layout.PalisadeWall == null)
+                    continue;
+                var count = (int)math.floor(2f * math.PI * town.Palisade / PalisadeSpacing);
+                for (int k = 0; k < count; k++)
+                {
+                    var angle = k * 2f * math.PI / count;
+                    var outward = new float2(math.sin(angle), math.cos(angle));
+                    var at = town.Centre + outward * town.Palisade;
+                    var clear = true;
+                    foreach (var street in streets)
+                    {
+                        if (math.any(at < street.Min - 2f) || math.any(at > street.Max + 2f))
+                            continue;
+                        if (SettlementSampling.Across(street, at, out _) < street.Width * 0.5f + 1.8f)
+                        {
+                            clear = false;
+                            break;
+                        }
+                    }
+                    for (int p = 0; p < built && clear; p++)
+                        if (plots[p].Settlement == s && SettlementSampling.Outside(plots[p], at) < 1.2f)
+                            clear = false;
+                    var g = source.SampleGround(at);
+                    if (!clear || g.HasWater && g.WaterSurface > g.Height - 0.2f || source.CaveClearance(at, g.Height) < 2f)
+                        continue;
+                    plots.Add(new SettlementPlot
+                    {
+                        Centre = at,
+                        Facing = outward,
+                        Half = new float2(1.55f, 0.3f),
+                        Pad = g.Height,
+                        Role = PlotRole.Palisade,
+                        Building = firstBuilding[town.Layout] + layout.Buildings.Count + 3,   // the palisade slot
+                        Settlement = s,
+                        Min = at - 2f,
+                        Max = at + 2f
+                    });
+                }
+            }
         }
 
         /// <summary>Chaikin's corner cutting: each segment's quarter points, ends kept.</summary>
@@ -249,6 +399,7 @@ namespace Punchy.Terrain
                         B = to,
                         Width = width,
                         Settlement = settlement,
+                        Road = 1,
                         Min = math.min(from.xz, to.xz) - reach,
                         Max = math.max(from.xz, to.xz) + reach
                     });
@@ -282,7 +433,7 @@ namespace Punchy.Terrain
                     Half = half,
                     Pad = source.SampleHeight(at),
                     Role = PlotRole.Signpost,
-                    Building = firstBuilding[town.Layout] + layout.Buildings.Count + 1,
+                    Building = firstBuilding[town.Layout] + layout.Buildings.Count + 1,   // the signpost slot
                     Settlement = settlement,
                     Min = at - 1f,
                     Max = at + 1f

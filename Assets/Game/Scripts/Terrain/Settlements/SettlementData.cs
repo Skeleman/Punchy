@@ -41,6 +41,8 @@ namespace Punchy.Terrain
         public float3 A, B;
         public float Width;
         public int Settlement;
+        /// <summary>1 for a road between settlements (darker, rutted), 0 for a town's own street or square.</summary>
+        public int Road;
         public float2 Min, Max;
     }
 
@@ -131,7 +133,8 @@ namespace Punchy.Terrain
             for (int k = range.x; k < range.x + range.y; k++)
             {
                 ref var p = ref set.Plots[set.PlotItems[k]];
-                if (math.any(xz < p.Min) || math.any(xz > p.Max))
+                // Bridges and palisades stand on the ground as it is.
+                if (p.Role == PlotRole.Bridge || p.Role == PlotRole.Palisade || math.any(xz < p.Min) || math.any(xz > p.Max))
                     continue;
                 var w = 1f - math.smoothstep(0f, PadBlend, Outside(p, xz));
                 if (w > 0f)
@@ -161,8 +164,42 @@ namespace Punchy.Terrain
                     continue;
                 var street = layout.Street.Props;
                 street.Albedo *= 1f + colorNoise * layout.Street.ColorVariation;
+                if (s.Road != 0)
+                {
+                    // Roads are worn darker than town streets, with two wheel ruts and a darker verge, so they read
+                    // on pale ground from eye level.
+                    var across = Across(s, xz, out _);
+                    var rut = 1f - math.smoothstep(0.12f, 0.4f, math.abs(across - half * 0.42f));
+                    var verge = math.smoothstep(half - 1f, half - 0.2f, across);
+                    street.Albedo *= 0.8f * (1f - 0.2f * rut) * (1f - 0.18f * verge);
+                }
                 props = SurfaceProps.Lerp(props, street, w);
             }
+        }
+
+        /// <summary>
+        /// The deck of a bridge span under a point, if the point is on or above it (feet at most 0.6 m below the deck,
+        /// so walking up onto it from the bank works and swimming under it doesn't).
+        /// </summary>
+        public static bool Deck(ref SettlementSetBlob set, float3 p, out float deck)
+        {
+            deck = 0f;
+            var cell = Cell(ref set, p.xz);
+            if (cell < 0)
+                return false;
+            var found = false;
+            var range = set.PlotCells[cell];
+            for (int k = range.x; k < range.x + range.y; k++)
+            {
+                ref var plot = ref set.Plots[set.PlotItems[k]];
+                if (plot.Role != PlotRole.Bridge || math.any(p.xz < plot.Min) || math.any(p.xz > plot.Max))
+                    continue;
+                if (Outside(plot, p.xz) > 0.05f || p.y < plot.Pad - 0.6f || found && plot.Pad < deck)
+                    continue;
+                deck = plot.Pad;
+                found = true;
+            }
+            return found;
         }
 
         /// <summary>How much plants are kept here (0 on streets and built plots, 1 away from them).</summary>

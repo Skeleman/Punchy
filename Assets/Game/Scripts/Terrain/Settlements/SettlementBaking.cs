@@ -15,6 +15,8 @@ namespace Punchy.Terrain
     public static class SettlementBaking
     {
         const float GridCell = 32f;
+        /// <summary>Slots after each layout's own buildings in the flat list: water feature, signpost, bridge, palisade.</summary>
+        public const int ExtraSlots = 4;
         /// <summary>Streets are cut into stretches no longer than this, so their levelling follows the ground.</summary>
         const float StretchLength = 10f;
 
@@ -38,9 +40,11 @@ namespace Punchy.Terrain
             foreach (var layout in Layouts(types))
             {
                 list.AddRange(layout.Buildings);
-                // Then the water feature and the signpost, one slot each per layout (empty if it has none).
+                // Then the water feature, signpost, bridge and palisade, one slot each per layout (empty if it has none).
                 list.Add(new SettlementBuilding { Role = PlotRole.Well, Species = layout.WaterFeature, Count = 1 });
                 list.Add(new SettlementBuilding { Role = PlotRole.Signpost, Species = layout.Signpost, Count = 1 });
+                list.Add(new SettlementBuilding { Role = PlotRole.Bridge, Species = layout.Bridge, Count = 1 });
+                list.Add(new SettlementBuilding { Role = PlotRole.Palisade, Species = layout.PalisadeWall, Count = 1 });
             }
             return list;
         }
@@ -59,7 +63,7 @@ namespace Punchy.Terrain
             foreach (var layout in layouts)
             {
                 firstBuilding.Add(count);
-                count += layout.Buildings.Count + 2;
+                count += layout.Buildings.Count + ExtraSlots;
             }
 
             for (int i = 0; i < landmarks.Instances.Length; i++)
@@ -561,7 +565,7 @@ namespace Punchy.Terrain
                     HasStreetSurface = layouts[i].StreetSurface != null ? 1 : 0,
                     Street = layouts[i].StreetSurface != null ? BiomeBaking.SurfaceData(layouts[i].StreetSurface) : default,
                     FirstBuilding = firstBuilding[i],
-                    BuildingCount = layouts[i].Buildings.Count + 2,
+                    BuildingCount = layouts[i].Buildings.Count + ExtraSlots,
                     BuildingScale = layouts[i].BuildingScale
                 };
             var s = builder.Allocate(ref root.Settlements, settlements.Count);
