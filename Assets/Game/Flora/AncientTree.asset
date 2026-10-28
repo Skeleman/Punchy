@@ -15,11 +15,11 @@ MonoBehaviour:
   Form: 0
   Layer: 2
   Height: {x: 28, y: 34}
-  Spread: 1.7
-  TrunkFraction: 0.62
+  Spread: 1.3
+  TrunkFraction: 0.48
   Thickness: 0.075
-  Fullness: 0.75
-  Branches: {x: 7, y: 9}
+  Fullness: 0.85
+  Branches: {x: 9, y: 12}
   Flexibility: 0.1
   FlowerHead: 0
   Bark: {r: 0.23, g: 0.2, b: 0.16, a: 1}

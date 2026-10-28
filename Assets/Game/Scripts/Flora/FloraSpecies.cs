@@ -55,7 +55,10 @@ namespace Punchy.Flora
         [Tooltip("Lily pads floating in a loose cluster (Foliage), some with cupped flowers in the accent colour. " +
                  "Height is a pad's size; Spread the cluster's; Branches = pads.")] LilyPad,
         [Tooltip("A clump of tall, thin, arching blades (Foliage to Foliage Variation); Accent Amount of them carry a " +
-                 "slim cattail head in the accent colour. Branches = blades.")] Reeds
+                 "slim cattail head in the accent colour. Branches = blades.")] Reeds,
+        [Tooltip("Roots hanging down from a cave ceiling (the plant's origin is the ceiling): tapered, wandering " +
+                 "strands with a few side roots, in Bark. Height is the longest; Spread how widely they hang; " +
+                 "Branches = strands.")] Roots
     }
 
     public enum FoliageFinish : byte

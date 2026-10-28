@@ -28,6 +28,12 @@ namespace Punchy.Terrain
         public float PebbleRadius = 45f;
         [Tooltip("Blades per square metre on full-density grass, up close.")]
         public float GrassPerSquareMetre = 28f;
+        [Tooltip("Multiplies grass density (for comparing densities; -grassdensity <x> on the command line overrides it).")]
+        [Min(0.1f)] public float GrassDensityScale = 1f;
+        [Tooltip("Within this distance every blade is kept; beyond it grass thins (fewer, wider blades) to the radius.")]
+        [Min(1f)] public float FullDensityRadius = 20f;
+        [Tooltip("How much the ground under grass takes the blades' colour near the camera, so gaps between blades don't read as bare soil.")]
+        [Range(0f, 1f)] public float GroundTint = 1f;
         [Tooltip("Stones per square metre on full-density pebbly ground.")]
         public float PebblesPerSquareMetre = 3f;
         public int MaxTileBuildsPerFrame = 8;
@@ -84,13 +90,33 @@ namespace Punchy.Terrain
         static readonly int PebblesId = Shader.PropertyToID("_Pebbles");
         static readonly int CountId = Shader.PropertyToID("_InstanceCount");
         static readonly int RadiusId = Shader.PropertyToID("_DetailRadius");
+        static readonly int FullId = Shader.PropertyToID("_DetailFull");
+        static readonly int GrassTintId = Shader.PropertyToID("_PunchyGrassTint");
         static readonly int PlayerId = Shader.PropertyToID("_PunchyPlayerPos");
         static readonly int OthersId = Shader.PropertyToID("_PunchyOthersPos");
         readonly Vector4[] othersPos = new Vector4[4];
         EntityQuery othersQuery;
 
         int GridSamples => (int)TileSize + 1;
-        int MaxGrass => (int)(TileSize * TileSize * GrassPerSquareMetre);
+        int MaxGrass => (int)(TileSize * TileSize * GrassPerSquareMetre * DensityScale);
+
+        /// <summary>The density scale in use: the command line's -grassdensity if given, else the field.</summary>
+        float DensityScale
+        {
+            get
+            {
+                if (commandLineDensity < 0f)
+                {
+                    commandLineDensity = 0f;
+                    var args = System.Environment.GetCommandLineArgs();
+                    for (int i = 0; i < args.Length - 1; i++)
+                        if (args[i] == "-grassdensity" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d))
+                            commandLineDensity = math.max(d, 0.1f);
+                }
+                return commandLineDensity > 0f ? commandLineDensity : GrassDensityScale;
+            }
+        }
+        float commandLineDensity = -1f;
         int MaxPebbles => (int)(TileSize * TileSize * PebblesPerSquareMetre);
 
         void OnDisable()
@@ -113,6 +139,9 @@ namespace Punchy.Terrain
                 lastSource = source;
                 hasSource = true;
             }
+
+            Shader.SetGlobalFloat(FullId, FullDensityRadius);
+            Shader.SetGlobalVector(GrassTintId, new Vector4(GroundTint, GrassRadius, 0f, 0f));
 
             if (playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 Shader.SetGlobalVector(PlayerId, new Vector4(player.Position.x, player.Position.y, player.Position.z, 0f));
@@ -256,7 +285,7 @@ namespace Punchy.Terrain
             }
         }
 
-        static void DrawSet(GraphicsBuffer buffer, int count, MaterialPropertyBlock props, Material material, int vertices,
+        void DrawSet(GraphicsBuffer buffer, int count, MaterialPropertyBlock props, Material material, int vertices,
                             float nearest, float radius, Bounds bounds)
         {
             if (buffer == null || nearest > radius)
@@ -277,7 +306,7 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Fraction of instances kept at a distance (must match DetailThinning in GroundDetail.hlsl).</summary>
-        static float Thinning(float distance, float radius) => math.lerp(1f, 0.12f, math.smoothstep(12f, radius, distance));
+        float Thinning(float distance, float radius) => math.lerp(1f, 0.12f, math.smoothstep(FullDensityRadius, radius, distance));
 
         bool TryGetSource(out TerrainSource source)
         {

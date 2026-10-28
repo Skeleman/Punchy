@@ -50,6 +50,9 @@ namespace Punchy.Terrain
         [Range(0f, 1f)] public float Hanging = 0.55f;
         [Tooltip("Chance one reaches all the way from floor to ceiling as a column.")]
         [Range(0f, 1f)] public float Columns = 0.1f;
+        [Tooltip("Share of the hanging ones that drip water now and then, a drop falling to the floor (or a pool) with a " +
+                 "small splash. 0 for frozen or molten caves.")]
+        [Range(0f, 1f)] public float Drips = 0.4f;
 
         [Header("Rubble and moss")]
         [Tooltip("Fallen rocks per 100 m² of chamber floor, heaped against the walls and scattered across the middle. " +
@@ -127,6 +130,8 @@ namespace Punchy.Terrain
         [Range(0f, 1f)] public float GlowEverywhere;
         [Tooltip("How much the cracks darken the rock besides any glow in them: dark fissures in ice, black seams.")]
         [Range(0f, 1f)] public float CrackDarkness;
+        [Tooltip("How broken the cracks are: 0 = whole nets of cells, 1 = short scattered fragments that fade in and out.")]
+        [Range(0f, 1f)] public float CrackBreakup;
 
         /// <summary>The look as four vectors for the cave shader's style table.</summary>
         public void Pack(Vector4[] table, int slot)
@@ -145,7 +150,7 @@ namespace Punchy.Terrain
             table[i + 6] = new Vector4(floorDark.r, floorDark.g, floorDark.b, FloorGloss);
             table[i + 7] = new Vector4(Detail, DetailScale, Sheen, Moss);
             var moss = MossColor.linear;
-            table[i + 8] = new Vector4(moss.r, moss.g, moss.b, 0f);
+            table[i + 8] = new Vector4(moss.r, moss.g, moss.b, CrackBreakup);
         }
     }
 
@@ -165,6 +170,10 @@ namespace Punchy.Terrain
         [Tooltip("Plants per 100 m² of floor where the light suits them.")]
         [Range(0f, 20f)] public float Density = 2f;
         public CaveLight Light;
+        [Tooltip("Hangs from the ceiling instead of growing on the floor (roots): only where the rock overhead is " +
+                 "thinner than Max Cover and the ground above is vegetated, so not under deserts, ice or bare rock.")]
+        public bool Hanging;
+        [Min(0.5f)] public float MaxCover = 5f;
     }
 
     /// <summary>

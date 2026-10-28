@@ -41,6 +41,8 @@ Shader "Punchy/Terrain Surface"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
+            // x how much the ground under grass takes the blades' colour, y the grass radius (GroundDetailSystem).
+            float4 _PunchyGrassTint;
 
             struct Varyings
             {
@@ -136,6 +138,10 @@ Shader "Punchy/Terrain Surface"
 
                 SurfaceData surface = (SurfaceData)0;
                 half3 albedo = input.surface.rgb * (1 + (micro.z - 0.5) * 0.5 * detailFade);   // grain in the colour too
+                // Under the grass blades (near the camera, where they're drawn) the ground takes their colour, so the
+                // gaps between blades read as more grass rather than bare soil (GroundDetailSystem.GroundTint).
+                half underGrass = input.extra.y * _PunchyGrassTint.x * (1 - smoothstep(_PunchyGrassTint.y * 0.7, _PunchyGrassTint.y, distance));
+                albedo = lerp(albedo, albedo * half3(1.05, 1.16, 0.85), underGrass * 0.8);
                 albedo *= lerp(1, 0.72, wet);
                 albedo *= lerp(1, 0.55, shore * (1 - 0.4 * input.extra.y));
                 surface.albedo = lerp(albedo, albedo * 0.6, puddle);

@@ -43,6 +43,23 @@ namespace Punchy.Terrain
         /// <summary>0 above ground, 1 deep in a cave (from the camera). Weather and ambience read it.</summary>
         public static float Underground { get; private set; }
 
+        /// <summary>
+        /// Whether every cave chunk in range of the camera is built and nothing is queued or building: what tools that
+        /// take screenshots wait on, instead of a fixed delay, after moving the camera.
+        /// </summary>
+        public bool Settled
+        {
+            get
+            {
+                if (wanted.Count > 0 || dying.Count > 0)
+                    return false;
+                foreach (var b in chunks.Values)
+                    if (b.Pending)
+                        return false;
+                return true;
+            }
+        }
+
         class Built
         {
             public Mesh Mesh;
@@ -206,6 +223,7 @@ namespace Punchy.Terrain
             columns.Clear();
             ReleaseLandmarkPools();
             surfaceGlow.Release();
+            ReleaseDrips();
             lastCameraChunk = new int3(int.MinValue);
             Underground = 0f;
             Shader.SetGlobalFloat(UndergroundId, 0f);
@@ -636,6 +654,173 @@ namespace Punchy.Terrain
             }
         }
 
+        // ------------------------------------------------------------------------------------------- drips
+
+        /// <summary>One drip source, as the drip shader reads it.</summary>
+        struct Drip
+        {
+            public float4 Tip;    // xyz the tip, w the period (s)
+            public float4 Land;   // x landing height, y phase, z ring size
+        }
+
+        const int MaxDrips = 48;
+        const float DripRadius = 25f;
+        readonly List<Drip> allDrips = new List<Drip>();
+        readonly List<(float distance, Drip drip)> nearDrips = new List<(float, Drip)>();
+        readonly Drip[] dripUpload = new Drip[MaxDrips];
+        BlobAssetReference<CaveSetBlob> dripsFrom;
+        float3 dripsAround = new float3(float.MaxValue);
+        GraphicsBuffer dripBuffer;
+        int dripCount;
+        Material dripMaterial;
+        MaterialPropertyBlock dripProps;
+        static readonly int DripsId = Shader.PropertyToID("_Drips");
+
+        /// <summary>
+        /// Water drips from some stalactite tips (the style's Drips share; none in frozen or molten caves): a drop
+        /// gathers, falls and rings on the floor or a pool, each source on its own period. The sources are worked out once
+        /// per world (seeded), the nearest 48 within 25 m uploaded as the camera moves; the shader animates them on the
+        /// shared clock. The material comes from Resources (CaveDrips), so it needs no scene reference.
+        /// </summary>
+        void DrawDrips(in TerrainSource source, float3 camPos)
+        {
+            if (styles == null)
+                return;
+            if (dripMaterial == null)
+            {
+                dripMaterial = Resources.Load<Material>("CaveDrips");
+                if (dripMaterial == null)
+                    return;
+            }
+            ref var set = ref source.Caves.Value;
+            if (dripsFrom != source.Caves)
+            {
+                dripsFrom = source.Caves;
+                allDrips.Clear();
+                dripsAround = new float3(float.MaxValue);
+                // Stalactite tips first, then bare ceiling in each chamber (most caves of a dripping style have few
+                // stalactites): a few spots per chamber, by the style's Drips share.
+                for (int i = 0; i < set.Speleothems.Length; i++)
+                {
+                    ref var s = ref set.Speleothems[i];
+                    if (s.Tip.y < s.Root.y)   // hanging (not standing, not a column)
+                        AddDrip(source, s.Tip, (uint)i);
+                }
+                for (int c = 0; c < set.Caves.Length; c++)
+                {
+                    ref var cave = ref set.Caves[c];
+                    var style = cave.Style > 0 && cave.Style <= styles.Count ? styles[cave.Style - 1] : null;
+                    if (style == null || style.Drips <= 0f)
+                        continue;
+                    for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
+                    {
+                        if (set.Kinds[n] != CaveNodeKind.Chamber)
+                            continue;
+                        var rng = new Unity.Mathematics.Random(math.hash(new int2(n, 0xC3E1)) | 1u);
+                        var node = set.Nodes[n];
+                        for (int k = 0; k < 6; k++)
+                        {
+                            var q = node.Position.xz + rng.NextFloat2Direction() * node.Radius * cave.Profile.x * 0.7f * math.sqrt(rng.NextFloat());
+                            var floor = source.FloorUnder(new float3(q.x, node.Position.y, q.y), out var inCave);
+                            if (!inCave)
+                                continue;
+                            var ceiling = source.CeilingOver(new float3(q.x, floor + 0.5f, q.y));
+                            AddDrip(source, new float3(q.x, ceiling - 0.02f, q.y), 100000u + (uint)(n * 8 + k));
+                        }
+                    }
+                }
+            }
+            if (allDrips.Count == 0)
+                return;
+            if (math.distancesq(camPos, dripsAround) > 4f)
+            {
+                dripsAround = camPos;
+                nearDrips.Clear();
+                foreach (var d in allDrips)
+                {
+                    var dist = math.distance(d.Tip.xyz, camPos);
+                    if (dist < DripRadius)
+                        nearDrips.Add((dist, d));
+                }
+                nearDrips.Sort((a, b) => a.distance.CompareTo(b.distance));
+                dripCount = math.min(nearDrips.Count, MaxDrips);
+                for (int i = 0; i < dripCount; i++)
+                    dripUpload[i] = nearDrips[i].drip;
+                if (dripBuffer == null)
+                    dripBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, MaxDrips, System.Runtime.InteropServices.Marshal.SizeOf<Drip>());
+                dripBuffer.SetData(dripUpload, 0, 0, MaxDrips);
+            }
+            if (dripCount == 0)
+                return;
+            dripProps ??= new MaterialPropertyBlock();
+            dripProps.SetBuffer(DripsId, dripBuffer);
+            var rp = new RenderParams(dripMaterial)
+            {
+                worldBounds = new Bounds(camPos, new Vector3(DripRadius * 2f, DripRadius * 2f, DripRadius * 2f)),
+                matProps = dripProps,
+                shadowCastingMode = ShadowCastingMode.Off,
+                receiveShadows = false
+            };
+            Graphics.RenderPrimitives(rp, MeshTopology.Triangles, 12, dripCount);
+        }
+
+        /// <summary>
+        /// Adds a drip source at a point on a ceiling or a stalactite's tip if its cave's style drips (by its share,
+        /// seeded): falling straight down through the air to the first rock (or a water pool's surface) below.
+        /// </summary>
+        void AddDrip(in TerrainSource source, float3 tip, uint seed)
+        {
+            ref var set = ref source.Caves.Value;
+            var rng = new Unity.Mathematics.Random(math.hash(new uint2(seed, 0xD819u)) | 1u);
+            var share = rng.NextFloat();
+            // The tip's rounded end is part of the rock field, so scan down to air, then on to rock; the cave (and so
+            // its style) is the one that air belongs to.
+            var land = float.NaN;
+            var cave = -1;
+            for (float y = 0.05f; y < 25f; y += 0.1f)
+            {
+                var p = tip - new float3(0f, y, 0f);
+                if (CaveSampling.Distance(ref set, p, out var c) < 0f)
+                    cave = c;
+                else if (cave >= 0)
+                {
+                    land = p.y + 0.05f;
+                    break;
+                }
+            }
+            if (float.IsNaN(land))
+                return;
+            var style = set.Caves[cave].Style > 0 && set.Caves[cave].Style <= styles.Count ? styles[set.Caves[cave].Style - 1] : null;
+            if (style == null || share >= style.Drips)
+                return;
+            var ring = 0.25f;
+            for (int p = 0; p < set.Pools.Length; p++)
+            {
+                ref var pool = ref set.Pools[p];
+                if (pool.Lava < 0.5f && math.distance(pool.Centre.xz, tip.xz) < pool.Radius && pool.Centre.y > land)
+                {
+                    land = pool.Centre.y;
+                    ring = 0.4f;
+                }
+            }
+            if (tip.y - land < 0.3f)
+                return;
+            allDrips.Add(new Drip
+            {
+                Tip = new float4(tip, rng.NextFloat(2.5f, 7f)),
+                Land = new float4(land, rng.NextFloat(), ring, 0f)
+            });
+        }
+
+        void ReleaseDrips()
+        {
+            dripBuffer?.Release();
+            dripBuffer = null;
+            dripCount = 0;
+            allDrips.Clear();
+            dripsFrom = default;
+        }
+
         // ------------------------------------------------------------------------------------------- surface glow
 
         readonly SurfaceGlow surfaceGlow = new SurfaceGlow();
@@ -693,6 +878,7 @@ namespace Punchy.Terrain
             Draw();
             DrawPools(source, camPos);
             DrawPlants(source, camPos);
+            DrawDrips(source, camPos);
             UploadGlowing();
 
             // Underground: the camera in a cave's air, a couple of metres below the surface.

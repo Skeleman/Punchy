@@ -160,10 +160,16 @@ Shader "Punchy/Cave"
                 metallic *= 1 - terrain;
                 translucency *= 1 - terrain;
 
+                // Translucent rock (ice): slick, glassy patches on the walls where meltwater ran and froze smooth, and sheets
+                // of refrozen meltwater on the powder floor. Smooth (no frost or grit), clear and glossy.
+                float glassMask = PunchyValueNoise(p.xz * 0.18 + p.y * 0.11 + 13) * 0.65 + PunchyValueNoise(p.zy * 0.4 - 5) * 0.35;
+                float sheetMask = PunchyValueNoise(p.xz * 0.25 + 31) * 0.7 + PunchyValueNoise(p.xz * 0.9 - 7) * 0.3;
+                float slick = s3.w * saturate(smoothstep(0.55, 0.62, glassMask) * (1 - floorShare) + smoothstep(0.5, 0.57, sheetMask) * floorShare) * (1 - terrain);
+
                 // Fine surface detail: frost and grain on walls, grit on floors; one texture, three reads.
                 float3 nudge;
                 float4 detail = Detail(p, shape, s7.y, nudge);
-                n = normalize(n + nudge * s7.x * (1 - terrain));
+                n = normalize(n + nudge * s7.x * (1 - terrain) * (1 - slick));
 
                 // Crystal: each lattice cell of the wall tilts its normal its own way, so flat faces flash in turn.
                 if (facets > 0)
@@ -188,6 +194,9 @@ Shader "Punchy/Cave"
                     rock = lerp(rock, s8.rgb * (0.7 + 0.6 * detail.b), moss);
                     gloss *= 1 - moss;
                 }
+                // Slick ice: the deep, clear tone of the rock and a mirror gloss.
+                rock = lerp(rock, s1.rgb * 0.8, slick * 0.7);
+                gloss = lerp(gloss, 0.97, slick);
                 // Where it stands in for the terrain, speckle it like the terrain's own close-up detail.
                 half3 ground = input.color.rgb * (0.7 + 0.45 * blotch);
                 half3 albedo = lerp(rock, ground, terrain);
@@ -195,7 +204,7 @@ Shader "Punchy/Cave"
                 half3 specColor = lerp(half3(0.9, 0.9, 0.9), albedo * 1.6, metallic);
                 float shininess = lerp(12, 256, saturate(gloss + facets * 0.5));
                 // Frost and grit glint: the odd detail texel catches the lantern far brighter than the rest.
-                float glint = 1 + 8 * smoothstep(0.93, 0.99, detail.a) * s7.x;
+                float glint = 1 + 8 * smoothstep(0.93, 0.99, detail.a) * s7.x * (1 - slick);
                 float3 view = normalize(GetCameraPositionWS() - p);
 
                 InputData inputData = (InputData)0;
@@ -267,6 +276,13 @@ Shader "Punchy/Cave"
                     {
                         float3 warp = float3(PunchyValueNoise(p.xy * 0.9 + 3), PunchyValueNoise(p.yz * 0.9 - 5), PunchyValueNoise(p.zx * 0.9 + 9));
                         crack *= 1 - smoothstep(s2.w * 0.4, s2.w * 1.6, CellEdge(p * 1.3 * g + warp * 1.2));
+                        // Broken cracks: the lines fade in and out along their length in short fragments, and the
+                        // patch fades towards its edge instead of stopping on a line.
+                        if (s8.w > 0)
+                        {
+                            float pieces = PunchyValueNoise(p.xz * 2.3 * g + p.y * 1.9) * 0.6 + PunchyValueNoise(p.zy * 4.1 * g - 7) * 0.4;
+                            crack *= lerp(1, smoothstep(0.42, 0.62, pieces) * smoothstep(1 - s4.z, 1 - s4.z + 0.3, patch), s8.w);
+                        }
                     }
                     color *= 1 - crack * s4.w * 0.85;
                     color += s2.rgb * (s4.y * (1 - floorShare * 0.5) + crack * (1 - s4.y) * (1 - s4.w)) * (1 - terrain);
