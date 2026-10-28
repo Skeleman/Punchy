@@ -198,6 +198,9 @@ namespace Punchy.Fauna
                     return;
                 ref var b = ref body.Blob.Value;
                 var rng = new Random(s.Seed | 1u);
+                // (Whether a cave visitor is in a cave: a march down the cave's distance field near one, so once a tick,
+                // where it starts the tick, rather than at each of the places that ask.)
+                underRock = UnderRock(s, ref b);
                 // The nearest player is the one it watches and runs from.
                 var player = Players[0];
                 var emote = (IdleAction)PlayerPoses[0];
@@ -2949,11 +2952,14 @@ namespace Punchy.Fauna
             /// Moves as a cave animal does (on the cave floor, along its walls): cave dwellers always, and a surface animal
             /// that's sometimes found in caves (CaveAffinity) while it's under rock.
             /// </summary>
-            bool CaveWalker(in CreatureState s, ref CreatureBlob b)
+            bool CaveWalker(in CreatureState s, ref CreatureBlob b) => b.CaveDweller || underRock;
+
+            /// <summary>This tick's creature is a cave visitor (CaveAffinity) under rock (see Execute).</summary>
+            bool underRock;
+
+            bool UnderRock(in CreatureState s, ref CreatureBlob b)
             {
-                if (b.CaveDweller)
-                    return true;
-                if (b.CaveAffinity <= 0f || !Terrain.Caves.IsCreated)
+                if (b.CaveDweller || b.CaveAffinity <= 0f || !Terrain.Caves.IsCreated)
                     return false;
                 Terrain.FloorUnder(s.Position + new float3(0f, 0.5f, 0f), out var inCave);
                 return inCave && s.Position.y < Terrain.SampleHeight(s.Position.xz) - 1f;
