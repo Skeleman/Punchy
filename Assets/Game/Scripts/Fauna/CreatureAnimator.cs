@@ -96,7 +96,8 @@ namespace Punchy.Fauna
             // ground with the body upright; lying, over onto the back (the limbs: SitPose and LiePose).
             if (b.Upright)
             {
-                pitch += s.Sit * (0.5f - 0.25f);   // (leaning back a little on its hands)
+                // (Legs out, leaning back a little on its hands; cross-legged, sitting up.)
+                pitch += s.Sit * (0.5f - (CrossLegged(in s) ? 0.05f : 0.25f));
                 height = math.lerp(height + s.Sit * b.StandHeight * scale * 0.3f, 0.16f * scale, s.Sit);
                 pitch -= 1.5f * s.Lie;
             }
@@ -193,6 +194,7 @@ namespace Punchy.Fauna
                 var parentRot = part.Parent < 0 ? rootRot : endRot[part.Parent];
                 var pos = parentPos + math.mul(parentRot, part.Socket * scale);
                 var rot = math.mul(parentRot, part.Rest);
+                var hip = pos;
                 var phase = math.frac(s.Phase + part.Phase);
                 var hidden = part.Parent >= 0 && partHidden[part.Parent] ||
                              part.StyleGroup > 0 && CreatureBlob.Style(id, part.StyleGroup, part.StyleCount) != part.StyleIndex;
@@ -307,7 +309,7 @@ namespace Punchy.Fauna
                     if (swimming > 0f)
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + SwimPose(ref part, in s, j), swimming);
                     if (b.Upright && s.Sit > 0f)
-                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + SitPose(ref part, j), s.Sit);
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + SitPose(ref part, in s, j), s.Sit);
                     if (b.Upright && s.Lie > 0f)
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + LiePose(ref part, in s, j), s.Lie);
                     // (Upright bodies have no idle actions of their own, but players' bodies take interaction poses.)
@@ -338,6 +340,33 @@ namespace Punchy.Fauna
                         segRot[seg] = rot;
                     }
                     pos += math.mul(rot, new float3(0f, 0f, b.Segments[seg].Length * scale));
+                }
+
+                // Folk's legs out along the ground, sitting or lying back: swung up or down about the hip so the heel
+                // rests on the ground under it, wherever that is (on a slope too), rather than the leg running into it.
+                var laid = b.Upright && part.Role == LimbRole.Leg && part.Parent < 0 && part.SegmentCount >= 3 &&
+                            part.FirstSegment + part.SegmentCount <= MaxSegments
+                    ? math.max(s.Sit * (CrossLegged(in s) ? 0f : 1f), s.Lie) : 0f;
+                if (laid > 0.01f)
+                {
+                    var fs = part.FirstSegment + part.SegmentCount - 1;
+                    var heel = segPos[fs];
+                    var reach = math.length(heel - hip);
+                    var rest = GroundAt(terrain, heel.xz, s.Position.y) + b.Segments[fs].RadiusStart * scale;
+                    if (reach > 1e-3f)
+                    {
+                        var turn = (math.asin(math.clamp((rest - hip.y) / reach, -1f, 1f)) - math.asin(math.clamp((heel.y - hip.y) / reach, -1f, 1f))) * laid;
+                        var axis = math.normalizesafe(math.cross(heel - hip, new float3(0f, 1f, 0f)));
+                        var q = quaternion.AxisAngle(axis, turn);
+                        for (int j = 0; j < part.SegmentCount; j++)
+                        {
+                            var seg = part.FirstSegment + j;
+                            segPos[seg] = hip + math.mul(q, segPos[seg] - hip);
+                            segRot[seg] = math.mul(q, segRot[seg]);
+                        }
+                        pos = hip + math.mul(q, pos - hip);
+                        rot = math.mul(q, rot);
+                    }
                 }
 
                 if (part.Role == LimbRole.Leg && part.Parent < 0 && part.SegmentCount >= 2 && part.FirstSegment + part.SegmentCount <= MaxSegments &&
@@ -645,21 +674,36 @@ namespace Punchy.Fauna
         }
 
         /// <summary>
-        /// Folk sitting on the ground: legs out in front, knees a little bent and apart; leaning back a touch on hands
-        /// set behind.
+        /// Folk sitting on the ground, one of two ways (by individual, a little under half of them cross-legged):
+        /// legs out in front, knees a little bent and apart, leaning back a touch on hands set behind (the legs then
+        /// laid along the ground under them); or cross-legged, knees out to the sides, shins crossed in front, sitting
+        /// up with the hands on the knees.
         /// </summary>
-        static float3 SitPose(ref CreaturePart part, int joint)
+        static float3 SitPose(ref CreaturePart part, in CreatureState s, int joint)
         {
+            if (CrossLegged(in s))
+                switch (part.Role)
+                {
+                    case LimbRole.Leg:
+                        return joint == 0 ? new float3(-1.45f, part.Side * 0.75f, part.Side * 1.3f) : joint == 1 ? new float3(2.5f, 0f, 0f) : float3.zero;
+                    case LimbRole.Arm:
+                        return joint == 0 ? new float3(-0.3f, 0f, part.Side * 0.45f) : joint == 1 ? new float3(-0.45f, 0f, 0f) : float3.zero;
+                    default:
+                        return float3.zero;
+                }
             switch (part.Role)
             {
                 case LimbRole.Leg:
-                    return joint == 0 ? new float3(-1.2f, part.Side * 0.12f, 0f) : joint == 1 ? new float3(0.15f, 0f, 0f) : float3.zero;
+                    return joint == 0 ? new float3(-1.38f, part.Side * 0.12f, 0f) : joint == 1 ? new float3(0.1f, 0f, 0f) : float3.zero;
                 case LimbRole.Arm:
                     return joint == 0 ? new float3(0.6f, 0f, part.Side * 0.2f) : float3.zero;
                 default:
                     return float3.zero;
             }
         }
+
+        /// <summary>Whether this one sits on the ground cross-legged rather than with its legs out (fixed for life).</summary>
+        static bool CrossLegged(in CreatureState s) => CreatureBlob.Trait(s.Individual, 29) > 0.1f;
 
         /// <summary>
         /// Folk lying back in the grass: hands behind the head, legs out straight, or (some of them) one knee drawn up.
