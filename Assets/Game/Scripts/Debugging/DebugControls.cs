@@ -1433,6 +1433,12 @@ namespace Punchy.Debugging
                 var hours = (int)Cycle.TimeOfDay;
                 lines.Add($"time {hours:00}:{(int)((Cycle.TimeOfDay - hours) * 60f):00}   {1f / Time.smoothDeltaTime:F0} fps");
             }
+            // The frame-rate cap, and the button that changes it on the device in use.
+            var cap = Punchy.Settings.FrameRateCap.Current;
+            var capButton = Punchy.Player.InputGlyphs.Action("Player/Options");
+            lines.Add($"frame cap: <b>{Punchy.Settings.FrameRateCap.Describe(cap)}</b>" +
+                      (Punchy.Settings.FrameRateCap.FromCommandLine ? " (-fpscap)" : "") +
+                      (string.IsNullOrEmpty(capButton) ? "" : $"   <color=#bbbbbb>{capButton} to change</color>"));
             // The player's pace and the controls, named for the device last used (InputGlyphs). The debug keys have
             // nothing on a gamepad, so they're shown on the keyboard only.
             var flies = false;
