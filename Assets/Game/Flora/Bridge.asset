@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Bridge
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
   Form: 37
-  Layer: 1
+  Layer: 2
   Height: {x: 0.95, y: 1.05}
   Spread: 3.4
   TrunkFraction: 0.35

@@ -102,7 +102,7 @@ namespace Punchy.Terrain
         [Min(1f)] public float RoadWidth = 3.2f;
         [Tooltip("Stands where each road leaves the settlement.")]
         public Punchy.Flora.FloraSpecies Signpost;
-        [Tooltip("One 4 m span of a bridge, repeated across water too deep to ford (deck at the origin, posts down).")]
+        [Tooltip("One 6.6 m span of a bridge (tree layer), repeated across water too deep to ford (deck at the origin, posts down).")]
         public Punchy.Flora.FloraSpecies Bridge;
         [Tooltip("One 3 m length of palisade, repeated round the camp (if Palisade is on), with gaps for streets and roads.")]
         public Punchy.Flora.FloraSpecies PalisadeWall;

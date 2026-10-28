@@ -25,8 +25,9 @@ namespace Punchy.Terrain
         /// <summary>Deepest water a road will bridge (deeper is a lake or the sea: the road goes round).</summary>
         const float BridgeDepth = 6f;
         const float LongestBridge = 120f;
-        /// <summary>Spacing of bridge spans (each 4.1 m long, so they overlap a little) and of palisade lengths (3.1 m).</summary>
-        const float SpanSpacing = 3.6f;
+        /// <summary>Spacing of bridge spans (each 6.6 m long, so they overlap a little, and more than a tree-layer cell's
+        /// diagonal apart so each gets its own cell) and of palisade lengths (3.1 m).</summary>
+        const float SpanSpacing = 6.4f;
         const float PalisadeSpacing = 3f;
 
         /// <summary>A settlement's road end: where its main street leaves it, the way out, and its index.</summary>
@@ -276,7 +277,7 @@ namespace Punchy.Terrain
                 var deckB = source.SampleHeight(b) + 0.25f;
                 var spans = (int)math.ceil(length / SpanSpacing);
                 var first = (a + b) * 0.5f - along * (spans - 1) * SpanSpacing * 0.5f;
-                var half = new float2(math.max(layout.Bridge.Spread, 1f) * 0.5f, 2.05f);
+                var half = new float2(math.max(layout.Bridge.Spread, 1f) * 0.5f, 3.3f);
                 var reach = math.length(half);
                 for (int k = 0; k < spans; k++)
                 {

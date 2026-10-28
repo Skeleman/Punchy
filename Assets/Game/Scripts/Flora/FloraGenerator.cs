@@ -2120,8 +2120,9 @@ namespace Punchy.Flora
         }
 
         /// <summary>
-        /// One 4 m span of a plank bridge along its +Z, deck top at the origin: planks across two stringers, a pair of
-        /// piles down into the water, and a rail each side. Spans are laid end to end across a river, so each draws the
+        /// One 6.6 m span of a plank bridge along its +Z, deck top at the origin: planks across two stringers, two pairs
+        /// of piles down into the water, and a rail each side. It's long so that spans 6.4 m apart each get their own cell
+        /// in the tree layer, which is drawn to the horizon. Spans are laid end to end across a river, so each draws the
         /// rail posts at its start only. No colliders: the deck is walked on through SettlementSampling.Deck.
         /// </summary>
         static void Bridge(Grower g)
@@ -2130,13 +2131,13 @@ namespace Punchy.Flora
             var b = g.B;
             var rail = g.Range(s.Height);
             var half = Mathf.Max(s.Spread, 1f) * 0.5f;
-            const float length = 4.1f;
+            const float length = 6.6f;
             g.Height = rail;
             g.Width = length;
             g.TrunkRadius = 0f;
             var wood = g.Bark;
             // Planks, each a slightly different shade and height so the deck doesn't read as one board.
-            var planks = g.Lod == 0 ? 14 : g.Lod == 1 ? 7 : 1;
+            var planks = g.Lod == 0 ? 22 : g.Lod == 1 ? 11 : 1;
             for (int k = 0; k < planks; k++)
             {
                 var z = Mathf.Lerp(-length * 0.5f, length * 0.5f, (k + 0.5f) / planks);
@@ -2148,8 +2149,9 @@ namespace Punchy.Flora
             {
                 // A stringer under the planks, a pile down into the riverbed, and the rail.
                 b.Box(new Vector3(x * (half - 0.25f), -0.24f, 0f), new Vector3(0.2f, 0.26f, length), Quaternion.identity, wood * 0.7f, FloraPart.Bark);
-                b.Tube(new List<Vector3> { new Vector3(x * (half - 0.25f), -5f, 0f), new Vector3(x * (half - 0.25f), -0.2f, 0f) },
-                       new List<float> { 0.16f, 0.14f }, g.Sides(6, 4, 3), wood * 0.6f, FloraPart.Bark);
+                foreach (var z in new[] { -length * 0.25f, length * 0.25f })
+                    b.Tube(new List<Vector3> { new Vector3(x * (half - 0.25f), -5f, z), new Vector3(x * (half - 0.25f), -0.2f, z) },
+                           new List<float> { 0.16f, 0.14f }, g.Sides(6, 4, 3), wood * 0.6f, FloraPart.Bark);
                 b.Box(new Vector3(x * (half - 0.05f), rail * 0.5f, -length * 0.5f), new Vector3(0.14f, rail + 0.2f, 0.14f), Quaternion.identity, wood * 0.85f, FloraPart.Bark);
                 b.Box(new Vector3(x * (half - 0.05f), rail, 0f), new Vector3(0.1f, 0.1f, length), Quaternion.identity, wood * 0.95f, FloraPart.Bark);
                 if (g.Lod == 0)
