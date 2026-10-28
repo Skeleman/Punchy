@@ -842,7 +842,7 @@ namespace Punchy.Fauna
                     // Animals with a home stay near it.
                     if (s.Leash > 0f && math.distance(candidate, s.Home) > s.Leash)
                         candidate = s.Home + rng.NextFloat2Direction() * s.Leash * rng.NextFloat(0.1f, 0.8f);
-                    if ((b.CaveDweller ? CaveFloor(candidate, s.Position.y) : Walkable(candidate, b.Habitat)) &&
+                    if ((b.CaveDweller ? CaveFloor(candidate, s.Position.y) : b.Habitat == Habitat.Land ? OpenGround(candidate) : Walkable(candidate, b.Habitat)) &&
                         (!b.LavaDweller || InLava(candidate)))
                     {
                         SetMode(ref s, CreatureMode.Wander);
@@ -1982,15 +1982,30 @@ namespace Punchy.Fauna
             /// Picks a roost: the ceiling of the nearest cave's inner passage (within 150 m), else the underside of a
             /// branch nearby.
             /// </summary>
+            /// <summary>How many are roosting at (or on their way to) a roost: their Anchor is on it.</summary>
+            int RoostUsers(in Anchor roost)
+            {
+                var users = 0;
+                var r2 = (roost.Size + 0.5f) * (roost.Size + 0.5f);
+                for (int i = 0; i < States.Length; i++)
+                    if (States[i].Mode == CreatureMode.Roost && math.distancesq(States[i].Anchor, roost.Position) < r2)
+                        users++;
+                return users;
+            }
+
             void StartRoost(ref CreatureState s, ref CreatureBlob b, ref Random rng)
             {
                 SetMode(ref s, CreatureMode.Roost);
                 s.Timer = rng.NextFloat(60f, 200f);
                 s.LairCave = -1;
-                // A Roost anchor the caves export: a spot on a chamber ceiling, which bats share (spread over its Size).
-                if (Terrain.Anchors.IsCreated && Terrain.Caves.IsCreated &&
-                    Anchors.Pick(ref Terrain.Anchors.Value, s.Position, 150f, AnchorKind.Roost, ref rng, out var roost) &&
-                    roost.InCave && roost.OwnerIndex < Terrain.Caves.Value.Caves.Length)
+                // A Roost anchor the caves export: a spot on a chamber ceiling, which bats share (spread over its Size), up
+                // to its Capacity: a full one, it tries another.
+                var roost = default(Anchor);
+                var picked = false;
+                for (int tries = 0; tries < 4 && !picked && Terrain.Anchors.IsCreated; tries++)
+                    picked = Anchors.Pick(ref Terrain.Anchors.Value, s.Position, 150f, AnchorKind.Roost, ref rng, out roost) &&
+                             (roost.Capacity == 0 || RoostUsers(roost) < roost.Capacity);
+                if (picked && Terrain.Caves.IsCreated && roost.InCave && roost.OwnerIndex < Terrain.Caves.Value.Caves.Length)
                 {
                     ref var caves = ref Terrain.Caves.Value;
                     ref var home = ref caves.Caves[roost.OwnerIndex];
@@ -2203,7 +2218,7 @@ namespace Punchy.Fauna
                 if (toSleep)
                     return false;
                 var spot = s.Position.xz + rng.NextFloat2Direction() * range * rng.NextFloat(0.5f, 1.2f);
-                if (!Walkable(spot, Habitat.Land))
+                if (!OpenGround(spot))
                     return false;
                 SetMode(ref s, CreatureMode.Wander);
                 s.Stage = 1;
@@ -2839,6 +2854,9 @@ namespace Punchy.Fauna
             }
 
             /// <summary>Whether an animal of this habitat can go here: dry land, or water deep enough to swim or float in.</summary>
+            /// <summary>Somewhere to go on foot or to land: walkable ground that isn't inside a building's walls.</summary>
+            bool OpenGround(float2 xz) => Walkable(xz, Habitat.Land) && !(HasFlora && Walled(xz, 0.3f));
+
             bool Walkable(float2 xz, Habitat habitat)
             {
                 var g = Terrain.SampleGround(xz);
