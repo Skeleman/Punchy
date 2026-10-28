@@ -336,20 +336,6 @@ namespace Punchy.Flora
                 var avg = Color.Lerp(s.Foliage, s.FoliageVariation, 0.5f).linear;
                 b.Blob(crownCentre, crownRadii * 1.02f, Quaternion.identity, 1, 0.22f, g.Variant * 3.7f, avg, FloraPart.Foliage);
             }
-            else if (s.LeafCards)
-            {
-                // Leaf cards: each clump becomes a handful of flat leaf clusters facing roughly outwards and lying
-                // along the way the crown grows there; lit by the crown's own shape (see LeafCard).
-                var perClump = g.Lod == 0 ? 12 : 3;
-                var leaves = g.Lod == 0 ? 7 : 4;
-                foreach (var c in clumps)
-                    for (int k = 0; k < perClump; k++)
-                    {
-                        var at = c.centre + Vector3.Scale(g.Direction(), new Vector3(c.radius, c.radius * 0.7f, c.radius)) * g.Range(0.05f, 0.75f);
-                        var along = (at - trunk[3]).normalized + Vector3.up * 0.3f;
-                        LeafCard(g, at, along, c.radius * g.Range(0.8f, 1.1f), leaves, c.color, crownCentre, crownRadii);
-                    }
-            }
             else
             {
                 foreach (var c in clumps)
@@ -365,49 +351,6 @@ namespace Punchy.Flora
                 }
             }
             b.Occlude(firstLeaf, (p, n) => CrownOcclusion(p, crownCentre, crownRadii));
-        }
-
-        /// <summary>
-        /// A leaf card: a flat cluster of pointed leaves fanning out from a point, in a plane tilted to face away from
-        /// the crown's centre and lying roughly along <paramref name="along"/>. Its shape is its own cutout (real
-        /// triangles, no alpha test, so no overdraw or texture). The trick is the normals: not the card's own, but the
-        /// outward normal of the crown's ellipsoid at each vertex, with a quarter of the card's own for a little
-        /// sparkle, so the crown lights as one soft, full volume while its silhouette stays leafy and broken.
-        /// </summary>
-        static void LeafCard(Grower g, Vector3 at, Vector3 along, float size, int leaves, Color color, Vector3 crownCentre, Vector3 crownRadii)
-        {
-            var b = g.B;
-            Vector3 Outward(Vector3 p)
-            {
-                var d = p - crownCentre;
-                return new Vector3(d.x / crownRadii.x, d.y / crownRadii.y, d.z / crownRadii.z).normalized;
-            }
-            var facing = (Outward(at) + g.Direction() * 0.6f).normalized;
-            var axis = Vector3.ProjectOnPlane(along, facing);
-            if (axis.sqrMagnitude < 1e-4f)
-                axis = Vector3.Cross(facing, Vector3.up);
-            axis.Normalize();
-            var side = Vector3.Cross(facing, axis);
-            var first = b.VertexCount;
-            for (int i = 0; i < leaves; i++)
-            {
-                // Fanned about the card's axis, longest in the middle, each a slim diamond with a slight curl.
-                var spread = (i + 0.5f) / leaves - 0.5f;
-                var angle = spread * 2.4f + g.Range(-0.15f, 0.15f);
-                var dir = (axis * Mathf.Cos(angle) + side * Mathf.Sin(angle)).normalized;
-                var across = Vector3.Cross(facing, dir);
-                var length = size * (1f - Mathf.Abs(spread) * 0.7f) * g.Range(0.8f, 1.1f);
-                var root = at - axis * size * 0.15f;
-                var tint = Color.Lerp(color, color * 1.18f, g.R());
-                int v0 = b.Vertex(root, facing, tint, FloraPart.Foliage, 1f);
-                int v1 = b.Vertex(root + dir * length * 0.45f + across * length * 0.26f + facing * length * 0.05f, facing, tint, FloraPart.Foliage, 1f);
-                int v2 = b.Vertex(root + dir * length + facing * length * 0.12f, facing, tint, FloraPart.Foliage, 1f);
-                int v3 = b.Vertex(root + dir * length * 0.45f - across * length * 0.26f + facing * length * 0.05f, facing, tint, FloraPart.Foliage, 1f);
-                b.Triangle(v0, v1, v2);
-                b.Triangle(v0, v2, v3);
-            }
-            // The normal transfer: three quarters the crown's outward direction, a quarter the card's own.
-            b.BlendNormalsFrom(first, crownCentre, crownRadii, 0.75f);
         }
 
         static void Conifer(Grower g)
