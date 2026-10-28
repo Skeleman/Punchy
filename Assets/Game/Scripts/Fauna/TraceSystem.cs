@@ -122,8 +122,16 @@ namespace Punchy.Fauna
             var size = math.clamp(b.FrontRadius * s.Scale * 0.35f, 0.02f, 0.25f);
             var at = s.Position + right * foot * b.FrontRadius * s.Scale * 0.6f - forward * size;
             at.y = terrain.SampleHeight(at.xz) + 0.012f;
-            // A darker, damper shade of the ground; snow prints stay pale blue-grey.
+            // A darker, damper shade of the ground; snow prints stay pale blue-grey. On glowing ground the print glows
+            // too, a little less than the ground round it (the creature shader's glow is colour × alpha × about 2.2),
+            // so it reads as a pressed print, not a dark hole.
             var colour = surface.Snow > 0.5f ? new float3(0.62f, 0.68f, 0.78f) : surface.Albedo * 0.55f;
+            var glow = 0f;
+            if (math.cmax(surface.Emission) > 0.05f)
+            {
+                colour = colour * 0.5f + surface.Emission * 0.3f;
+                glow = 1f;
+            }
             Add(new Trace
             {
                 Position = at,
@@ -131,7 +139,7 @@ namespace Punchy.Fauna
                 Length = size * 1.2f,
                 Radius = size,
                 Flatten = 0.06f,
-                Color = new float4(colour, 0f),
+                Color = new float4(colour, glow),
                 Born = now,
                 Life = FootprintLife
             });
