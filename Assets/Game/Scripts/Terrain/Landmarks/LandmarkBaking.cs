@@ -227,6 +227,7 @@ namespace Punchy.Terrain
             var biomeRanges = new NativeArray<int2>(palette.Count, Allocator.TempJob);
             var entryTypes = new List<int>();
             var entryChances = new List<float>();
+            var entryPerRealm = new List<int>();
             var cellArea = CandidateSpacing * CandidateSpacing / 1e6f;
             for (int b = 0; b < palette.Count; b++)
             {
@@ -237,6 +238,7 @@ namespace Punchy.Terrain
                         {
                             entryTypes.Add(types.IndexOf(l.Type));
                             entryChances.Add(l.Density * cellArea);
+                            entryPerRealm.Add(math.max(1, l.PerRealm));
                         }
                 biomeRanges[b] = new int2(start, entryTypes.Count - start);
             }
@@ -353,9 +355,9 @@ namespace Punchy.Terrain
                     if (entryTypes.Contains(t) && !instances.Exists(inst => inst.Type == t))
                         Place(t, 1);
 
-                // Every settlement type a realm's biomes list gets at least one settlement in that realm, so each
-                // realm has its own folk (a human village in the temperate lands even if one already stands in the
-                // desert) wherever the land allows.
+                // Every settlement type a realm's biomes list gets at least one settlement in that realm (or the
+                // entry's Per Realm), so each realm has its own folk (a human village in the temperate lands even if
+                // one already stands in the desert) wherever the land allows.
                 var realmCount = 0;
                 for (int b = 0; b < palette.Count; b++)
                     realmCount = math.max(realmCount, biomeRealm[b] + 1);
@@ -369,16 +371,17 @@ namespace Punchy.Terrain
                         var t = entryTypes[e];
                         if (types[t].Settlement == null)
                             continue;
-                        var present = false;
+                        var present = 0;
                         foreach (var inst in instances)
                         {
                             if (inst.Type != t)
                                 continue;
                             terrain.SampleBiomes(inst.Position, out var at, out _);
-                            present |= at.Dominant() < palette.Count && biomeRealm[at.Dominant()] == r;
+                            if (at.Dominant() < palette.Count && biomeRealm[at.Dominant()] == r)
+                                present++;
                         }
-                        if (!present)
-                            Place(t, 1, r);
+                        while (present < entryPerRealm[e] && Place(t, 1, r) > 0)
+                            present++;
                     }
                 }
 

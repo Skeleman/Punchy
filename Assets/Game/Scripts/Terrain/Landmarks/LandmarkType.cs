@@ -212,6 +212,8 @@ namespace Punchy.Terrain
         public LandmarkType Type;
         [Tooltip("Landmarks per km² where the ground suits it.")]
         [Min(0f)] public float Density = 0.3f;
+        [Tooltip("Settlements only: at least this many in each realm whose biomes list it (where the land allows).")]
+        [Range(1, 3)] public int PerRealm = 1;
     }
 
     /// <summary>A landmark placed by hand.</summary>
