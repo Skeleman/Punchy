@@ -21,6 +21,9 @@ namespace Punchy.Flora
         /// <summary>Whether it casts shadows. Small props (fences, palisades, signposts, garden rows, woodpiles,
         /// stalls, flowers) don't: towns have hundreds of them, and every shadow-casting draw costs a shadow pass.</summary>
         public bool CastsShadows = true;
+        /// <summary>Height of its door at scale 1 (0 if it has none): doors are sized for human folk, about 1.3 times a
+        /// person's height, and each settlement scales its buildings by its folk's size (SettlementLayout.BuildingScale).</summary>
+        public float DoorHeight;
 
         /// <summary>Forms that cast no shadow (see CastsShadows).</summary>
         public static bool Shadowless(FloraForm form) =>
@@ -103,6 +106,7 @@ namespace Punchy.Flora
                     builder.Bounds(out model.CentreY, out model.Radius);
                     model.TrunkRadius = g.TrunkRadius;
                     model.Colliders.AddRange(g.Colliders);
+                    model.DoorHeight = g.DoorHeight;
                     model.Height = g.Height;
                 }
                 model.Lods[lod] = builder.ToMesh($"{species.name} {variant} LOD{lod}", g.Height, g.Width, species.Flexibility);
@@ -161,7 +165,7 @@ namespace Punchy.Flora
             readonly System.Random rng;
             /// <summary>Fine detail that only some levels draw (loose leaves, florets).</summary>
             public readonly System.Random Detail;
-            public float Height, Width, TrunkRadius;
+            public float Height, Width, TrunkRadius, DoorHeight;
             public readonly List<Vector4> Colliders = new List<Vector4>();
 
             /// <summary>
@@ -1430,10 +1434,17 @@ namespace Punchy.Flora
 
             // A framed door facing +Z, and a couple of windows.
             // Out past the wall's slight bulge, so the curve doesn't poke through the flat door.
-            Door(g, new Vector3(0f, 0f, radius * 1.05f), Quaternion.identity, Mathf.Min(radius * 0.5f, 1.1f), Mathf.Min(wall * 0.8f, 2.1f));
+            Door(g, new Vector3(0f, 0f, radius * 1.05f), Quaternion.identity, Mathf.Min(radius * 0.5f, 1.25f), Mathf.Min(wall * 0.8f, HumanDoor));
             Windows(g, radius * 1.05f, wall * 0.58f, 4, 0.55f, 40f);
         }
 
+
+        /// <summary>
+        /// A door's height for human folk (about 1.3 times a person's height, so there's headroom); buildings are drawn
+        /// for humans and each settlement scales them by its folk's size, so dwarf and goblin doors come out lower and
+        /// ogre doors higher.
+        /// </summary>
+        const float HumanDoor = 2.3f;
 
         /// <summary>A doorway in a wall facing +Z, at distance <paramref name="front"/> (see Door).</summary>
         static void Doorway(Grower g, float front, float width, float height) =>
@@ -1447,6 +1458,7 @@ namespace Punchy.Flora
         static void Door(Grower g, Vector3 at, Quaternion facing, float width, float height)
         {
             var b = g.B;
+            g.DoorHeight = Mathf.Max(g.DoorHeight, height);
             var wood = new Color(0.3f, 0.2f, 0.12f) * g.Range(0.85f, 1.15f);
             var frame = g.Bark * 0.55f;
             Vector3 P(float x, float y, float z) => at + facing * new Vector3(x, y, z);
@@ -1572,7 +1584,7 @@ namespace Punchy.Flora
                    new List<float> { 0.32f, 0.3f }, 4, g.Bark * 0.85f, FloraPart.Bark);
             RotateAround(b, stack, chimney, square);
 
-            Doorway(g, half + 0.02f, Mathf.Min(half * 0.6f, 1.2f), Mathf.Min(wall * 0.8f, 2f));
+            Doorway(g, half + 0.02f, Mathf.Min(half * 0.6f, 1.25f), Mathf.Min(wall * 0.8f, HumanDoor));
             // A window in the middle of each side wall and the back (the four-way Windows would put them on corners).
             if (g.HasAccent && g.Lod < 2)
                 foreach (var dir in new[] { Vector3.right, Vector3.left, Vector3.back })
@@ -1686,7 +1698,7 @@ namespace Punchy.Flora
                    new List<float> { radius * 1.25f, radius * 0.7f, 0.02f }, sides, g.FoliageColor(), FloraPart.Foliage, cap: true);
             b.Occlude(roof, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y + 0.3f)));
 
-            Doorway(g, radius * 1.1f, Mathf.Min(radius * 0.7f, 1f), Mathf.Min(walls * 0.25f, 2.2f));
+            Doorway(g, radius * 1.1f, Mathf.Min(radius * 0.7f, 1.25f), Mathf.Min(walls * 0.4f, HumanDoor));
         }
 
 
@@ -1833,7 +1845,7 @@ namespace Punchy.Flora
             b.Box(new Vector3(half * 0.6f, height * 0.85f, -front * 0.35f), new Vector3(0.6f, height * 0.5f, 0.6f), Quaternion.identity, Stone(g), FloraPart.Bark);
 
             // Door, windows (lit at night) and the porch out front.
-            Doorway(g, front + 0.02f, 1.1f, Mathf.Min(wall * 0.42f, 2.1f));
+            Doorway(g, front + 0.02f, 1.25f, Mathf.Min(wall * 0.42f, HumanDoor));
             if (g.Lod < 2)
                 foreach (var (x, y) in new[] { (-0.55f, 0.27f), (0.55f, 0.27f), (-0.55f, 0.75f), (0f, 0.75f), (0.55f, 0.75f) })
                     Window(g, new Vector3(x * half, y * wall, front + 0.03f), Quaternion.identity, 0.6f, 0.75f);
@@ -1904,7 +1916,7 @@ namespace Punchy.Flora
             }
 
             // A wide door up two steps, windows along both long walls, banners either side of the door.
-            Door(g, new Vector3(0f, plinth - 0.05f, front + 0.04f), Quaternion.identity, 1.8f, Mathf.Min(wall - plinth - 0.4f, 2.7f));
+            Door(g, new Vector3(0f, plinth - 0.05f, front + 0.04f), Quaternion.identity, 1.8f, Mathf.Min(wall - plinth - 0.4f, HumanDoor * 1.15f));
             b.Box(new Vector3(0f, plinth * 0.5f - 0.05f, front + 0.75f), new Vector3(3.2f, plinth * 0.5f, 0.8f), Quaternion.identity, stone, FloraPart.Bark);
             var light = AccentAt(g, 0);
             if (g.Lod < 2)

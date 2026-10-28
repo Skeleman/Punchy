@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.SettlementLayout
   Pattern: 3
   FolkScale: 1.7
-  PlotSize: {x: 7, y: 8}
+  PlotSize: {x: 8.400001, y: 9.6}
   PlotGap: 2
   Setback: 1
   StreetWidth: 4.5
@@ -26,7 +26,7 @@ MonoBehaviour:
   Palisade: 1
   MaxRelief: 3
   StreetSurface: {fileID: 11400000, guid: f59bcf72585a8c64097e028bc12cab58, type: 2}
-  BuildingScale: 1.4
+  BuildingScale: 1.7
   WaterFeature: {fileID: 0}
   RoadWidth: 2.4
   Signpost: {fileID: 11400000, guid: 4b43cc542a9e3e446a95fb86645732a1, type: 2}

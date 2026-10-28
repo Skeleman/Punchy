@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.SettlementLayout
   Pattern: 0
   FolkScale: 1
-  PlotSize: {x: 8, y: 9}
+  PlotSize: {x: 9.6, y: 10.8}
   PlotGap: 2.5
   Setback: 1
   StreetWidth: 4.5
