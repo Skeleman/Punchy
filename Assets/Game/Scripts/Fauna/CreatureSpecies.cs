@@ -114,6 +114,9 @@ namespace Punchy.Fauna
         public bool Roosts;
         [Tooltip("Comes over to people, sits by them wagging its tail and follows them about (within its home range): dogs.")]
         public bool Friendly;
+        [Tooltip("A land animal that swims across rivers and lakes when its way lies over water (dogs, deer, bears, horses), " +
+                 "paddling with its back at the surface.")]
+        public bool CrossesWater;
         [Tooltip("Keeps a nest (in a tree, on a treetop or on the ground) and goes back to it to sleep.")]
         public NestSite Nests;
 

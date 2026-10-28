@@ -23,12 +23,14 @@ MonoBehaviour:
   AccentGlow: 0
   Coats: []
   Size: {x: 0.9, y: 1.1}
+  HairColors: []
   Parts: []
   WalkSpeed: 1.4
   RunSpeed: 6
   Bob: {x: 0.02, y: 0.06}
   BobsPerCycle: {x: 2, y: 2}
   RunRock: 0
+  Upright: 0
   LeglessStride: {x: 0.6, y: 0.9}
   WanderRadius: 25
   IdleTime: {x: 2, y: 8}
@@ -36,6 +38,9 @@ MonoBehaviour:
   TurnRate: 140
   GroupSize: {x: 1, y: 1}
   NearWater: 0
+  Habitat: 0
+  SwimDepth: 0.6
+  Leaps: 0
   Active: 0
   Grazing: 0
   Thirst: 0.1
@@ -46,3 +51,19 @@ MonoBehaviour:
   - {fileID: 11400000, guid: be75da16c46401c42981cc0b39f59986, type: 2}
   Hunger: 0.2
   ChaseTime: 10
+  Idles: 2048
+  Fidgets: 0.5
+  Climbing: 0
+  SpinsWebs: 0
+  WebSize: 0.6
+  Burrows: 0
+  CaveDweller: 0
+  Roosts: 0
+  Friendly: 0
+  CrossesWater: 1
+  Nests: 0
+  FlightHeight: {x: 8, y: 18}
+  FlySpeed: 7
+  FlapRate: 6
+  Glide: 0
+  Perching: 0.6

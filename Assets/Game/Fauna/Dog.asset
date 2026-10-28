@@ -178,6 +178,7 @@ MonoBehaviour:
   CaveDweller: 0
   Roosts: 0
   Friendly: 1
+  CrossesWater: 1
   Nests: 0
   FlightHeight: {x: 8, y: 18}
   FlySpeed: 7

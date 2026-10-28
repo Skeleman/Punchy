@@ -38,7 +38,7 @@ namespace Punchy.Fauna
         public bool Hunted;
         public IdleActions Idles;
         public float Fidgets, Climbing;
-        public bool SpinsWebs, Burrows, CaveDweller, Roosts, Friendly;
+        public bool SpinsWebs, Burrows, CaveDweller, Roosts, Friendly, CrossesWater;
         public NestSite Nests;
         public float WebSize;
         public float2 FlightHeight;
@@ -434,6 +434,7 @@ namespace Punchy.Fauna
             root.CaveDweller = species.CaveDweller;
             root.Roosts = species.Roosts;
             root.Friendly = species.Friendly;
+            root.CrossesWater = species.CrossesWater && species.Habitat == Habitat.Land;
             root.Nests = species.Nests;
             root.WebSize = species.WebSize * sizeScale;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));

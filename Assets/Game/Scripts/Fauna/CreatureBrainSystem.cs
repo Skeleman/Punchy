@@ -523,6 +523,18 @@ namespace Punchy.Fauna
                     var landBound = (b.Habitat == Habitat.Land || flier) && !b.CaveDweller;
                     var blocked = b.CaveDweller ? s.Speed > 0.05f && !CaveFloor(ahead, s.Position.y)
                                                 : s.Speed > 0.05f && !Walkable(ahead, b.Habitat);
+                    // Animals that swim go on into water when they're on their way somewhere (not to stand in it), and a
+                    // lake bed's slope doesn't stop them.
+                    if (b.CrossesWater && blocked && s.Mode != CreatureMode.Drink && s.Mode != CreatureMode.Graze && Swimmable(ahead))
+                    {
+                        blocked = false;
+                        landBound = false;
+                    }
+                    if (b.CrossesWater && WaterDepth(s.Position.xz) > b.StandHeight * s.Scale * 0.6f)
+                    {
+                        landBound = false;
+                        s.Speed = math.min(s.Speed, run * 0.45f);   // paddling is slow
+                    }
                     // (In a cave, running or going somewhere along the passage, it follows the wall round: Advance.)
                     var followsWall = b.CaveDweller && (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Drink ||
                                                         s.Mode == CreatureMode.Wander && math.distance(s.Position.xz, s.Target) > 2f);
@@ -747,6 +759,9 @@ namespace Punchy.Fauna
                 else if (onGround)
                 {
                     var candidate = s.Position.xz + rng.NextFloat2Direction() * b.WanderRadius * rng.NextFloat(0.3f, 1f) * (flier ? 0.15f : 1f);
+                    // Animals that swim now and then set off for the far side of water in front of them.
+                    if (b.CrossesWater && s.Leash <= 0f && rng.NextFloat() < 0.3f && FarShore(s.Position.xz, ref rng, out var farShore))
+                        candidate = farShore;
                     // Animals with a home stay near it.
                     if (s.Leash > 0f && math.distance(candidate, s.Home) > s.Leash)
                         candidate = s.Home + rng.NextFloat2Direction() * s.Leash * rng.NextFloat(0.1f, 0.8f);
@@ -2438,6 +2453,18 @@ namespace Punchy.Fauna
                 {
                     if (!keepHeight)
                         s.Position.y = Terrain.SampleHeight(s.Position.xz);
+                    // Out of its depth, a land animal that swims floats with its back at the surface, legs paddling
+                    // below (bobbing gently); it eases down into the water and up out of it on the far bank.
+                    if (b.CrossesWater)
+                    {
+                        var g = Terrain.SampleGround(s.Position.xz);
+                        if (g.HasWater && g.WaterSurface > g.Height)
+                        {
+                            var floatAt = g.WaterSurface - b.StandHeight * s.Scale - b.FrontRadius * s.Scale * 0.2f +
+                                          math.sin(s.Clock * 2.3f) * 0.015f * s.Scale;
+                            s.Position.y = math.max(g.Height, floatAt);
+                        }
+                    }
                 }
                 else
                 {
@@ -2458,6 +2485,53 @@ namespace Punchy.Fauna
                     s.Position.y = y;
                 }
                 CreatureMotion.AdvancePhase(ref s, ref b, dt);
+            }
+
+            /// <summary>
+            /// Land on the far side of water within 60 m, in one of a few directions tried: the way there starts on
+            /// land, crosses water it can swim, and ends on dry land.
+            /// </summary>
+            bool FarShore(float2 from, ref Random rng, out float2 shore)
+            {
+                shore = default;
+                var start = rng.NextFloat(math.PI * 2f);
+                for (int k = 0; k < 6; k++)
+                {
+                    var a = start + k * math.PI / 3f;
+                    var dir = new float2(math.sin(a), math.cos(a));
+                    var wet = false;
+                    for (var d = 4f; d <= 60f; d += 4f)
+                    {
+                        var p = from + dir * d;
+                        if (Swimmable(p))
+                            wet = true;
+                        else if (Walkable(p, Habitat.Land))
+                        {
+                            if (!wet)
+                                continue;
+                            shore = p + dir * 3f;
+                            return Walkable(shore, Habitat.Land);
+                        }
+                        else
+                            break;   // a cave hole, lava, too shallow to count: not this way
+                    }
+                }
+                return false;
+            }
+
+            /// <summary>How deep the water is here (0 on dry land).</summary>
+            float WaterDepth(float2 xz)
+            {
+                var g = Terrain.SampleGround(xz);
+                return g.HasWater ? math.max(0f, g.WaterSurface - g.Height) : 0f;
+            }
+
+            /// <summary>Water a land animal that swims can cross: open water (not a cave's hole, not lava).</summary>
+            bool Swimmable(float2 xz)
+            {
+                var g = Terrain.SampleGround(xz);
+                return g.HasWater && g.WaterSurface > g.Height && !Terrain.IsCaveHole(xz) &&
+                       Terrain.LavaAt(new float3(xz.x, g.WaterSurface - 0.2f, xz.y)) < 0.3f;
             }
 
             /// <summary>Whether an animal of this habitat can go here: dry land, or water deep enough to swim or float in.</summary>
