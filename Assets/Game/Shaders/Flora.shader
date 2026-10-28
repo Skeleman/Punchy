@@ -82,6 +82,10 @@ Shader "Punchy/Flora"
                 }
                 if (part == 1)
                     albedo *= lerp(half3(0.95, 1.0, 1.06), half3(1.1, 1.04, 0.82), r);
+                // Windows: dark glass by day (their colour is the light they give at night, below).
+                half3 windowLight = albedo;
+                if (part == 6)
+                    albedo = half3(0.05, 0.06, 0.07) + albedo * 0.06;
 
                 // Snow settles on upward faces where the ground under the plant is snowy.
                 half snow = saturate(input.extra.z * 1.5) * smoothstep(0.15, 0.6, n.y);
@@ -139,6 +143,17 @@ Shader "Punchy/Flora"
                     float pulse = 0.75 + 0.25 * sin(_Time.y * 1.3 + r * 40 + input.positionWS.y * 2);
                     // Brighter in the dark of a cave (eyes adjusted to the dark see the glow stand out).
                     color += albedo * 1.6 * pulse * lerp(1, 2.5, _PunchyUnderground);
+                }
+
+                // Windows light up as night falls and go out one by one late at night (the deeper the sun, the later):
+                // each window keeps its own hour, and a few stay lit all night.
+                if (part == 6)
+                {
+                    // Its own hour: keyed on the pane (each has a slightly different colour) and the building.
+                    float h = frac(sin(dot(input.color.rgb, float3(91.7, 47.3, 13.1)) * 1000 + r * 61.7) * 43758.5453);
+                    float late = saturate(-_PunchySunDirection.y * 1.6);
+                    float on = smoothstep(0.25, 0.55, _PunchyNight) * (h > 0.85 ? 1 : step(late, 0.3 + 0.7 * h));
+                    color += windowLight * on * 2.2;
                 }
 
                 // A waxy sheen on cacti (and on anything wet).

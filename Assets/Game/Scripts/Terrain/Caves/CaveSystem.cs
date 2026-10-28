@@ -840,9 +840,23 @@ namespace Punchy.Terrain
                 flora = FindAnyObjectByType<Punchy.Flora.FloraSystem>();
             }
             surfaceGlow.Update(source, palette, flora, camPos);
+            var night = Shader.GetGlobalFloat(NightId);
             foreach (var (position, light) in surfaceGlow.Found)
-                glowing.Add((math.distance(position, camPos), new Vector4(position.x, position.y, position.z, 0f), light));
+            {
+                var l = light;
+                if (l.w < 0f)
+                {
+                    // Lit windows: only after dark.
+                    if (night < 0.25f)
+                        continue;
+                    l = new Vector4(l.x, l.y, l.z, 0f) * math.smoothstep(0.25f, 0.55f, night);
+                    l.w = -light.w;
+                }
+                glowing.Add((math.distance(position, camPos), new Vector4(position.x, position.y, position.z, 0f), l));
+            }
         }
+
+        static readonly int NightId = Shader.PropertyToID("_PunchyNight");
 
         Punchy.Flora.FloraSystem flora;
 

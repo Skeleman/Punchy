@@ -15,7 +15,9 @@ namespace Punchy.Flora
         Petal = 2,
         Cactus = 3,
         Metal = 4,
-        Glow = 5
+        Glow = 5,
+        /// <summary>A window pane: dark glass by day, lit in its colour at night (some go out late; see Flora.shader).</summary>
+        Window = 6
     }
 
     /// <summary>

@@ -244,7 +244,11 @@ namespace Punchy.Flora
             var lin = c.linear;
             var size = math.max(s.Height.y, 0.3f);
             var strength = share * math.clamp(1.3f + size * 0.4f, 1.3f, 3f);
-            return new float4(lin.r * strength, lin.g * strength, lin.b * strength, math.clamp(5f + size * 3f, 6f, 14f) * (0.6f + 0.4f * share));
+            var reach = math.clamp(5f + size * 3f, 6f, 14f) * (0.6f + 0.4f * share);
+            // Buildings' lit windows: only at night, marked by a negative reach.
+            if (s.Form >= FloraForm.Hut && s.Form <= FloraForm.Well)
+                return new float4(lin.r * 0.6f, lin.g * 0.6f, lin.b * 0.6f, -math.min(reach, 9f));
+            return new float4(lin.r * strength, lin.g * strength, lin.b * strength, reach);
         }
 
         /// <summary>

@@ -89,7 +89,7 @@ namespace Punchy.Terrain
             for (int s = 0; s < f.Rules.Length; s++)
             {
                 var g = f.Glow[s];
-                if (g.w <= 0f)
+                if (g.w == 0f)
                     continue;
                 anyGlow = true;
                 for (int v = 0; v < f.Rules[s].Variants; v++)
@@ -149,12 +149,12 @@ namespace Punchy.Terrain
                         if (plant.Model < 0 || plant.Model >= ModelGlow.Length)
                             continue;
                         var glow = ModelGlow[plant.Model];
-                        if (glow.w <= 0f)
+                        if (glow.w == 0f)
                             continue;
                         // Lit from about the middle of the plant; a bigger one reaches further.
                         var scale = math.max(plant.Scale, 0.3f);
                         Positions.Add(new float4(plant.Position + new float3(0f, 0.4f * scale, 0f), 0f));
-                        Colors.Add(new float4(glow.xyz, glow.w * math.sqrt(scale)));
+                        Colors.Add(new float4(glow.xyz, glow.w * math.sqrt(scale)));   // negative: night only (lit windows)
                     }
                 }
             }
