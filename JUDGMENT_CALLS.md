@@ -13,6 +13,15 @@ asks Zach if needed, and records the answer here.
 
 ## Decided
 
+### J-027: Where may settlements be placed?
+
+- **Asked:** 2026-10-28, by Zach (a rule).
+- **Also comes up when:** settlement placement, new biomes, realm re-bakes, hermit spots.
+- **Answer (2026-10-28):** no settlements in extremely hostile biomes. Ashlands is borderline: goblin (and ogre) camps
+  only. Hermits may be the rare exception.
+- **Why:** Zach.
+- **Revisited:** 0.
+
 ### J-026: Restructure biomes into realms with sub-biomes?
 
 - **Asked:** 2026-10-28, by Zach (an idea), confirmed via the supervisor.
