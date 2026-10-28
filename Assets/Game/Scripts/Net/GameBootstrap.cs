@@ -102,14 +102,14 @@ namespace Punchy.Net
 
         static string JoinAddressFromCommandLine()
         {
-            var args = Environment.GetCommandLineArgs();
+            var args = Punchy.Debugging.DebugControls.LaunchArgs;   // (in the editor, also Temp/PlayArgs.txt)
             for (int i = 0; i < args.Length - 1; i++)
                 if (args[i] == "-join")
                     return args[i + 1];
             return null;
         }
 
-        static bool HasArgument(string name) => Array.IndexOf(Environment.GetCommandLineArgs(), name) >= 0;
+        static bool HasArgument(string name) => Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, name) >= 0;
 
         static void MakeClientDefault()
         {

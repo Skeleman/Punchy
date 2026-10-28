@@ -57,11 +57,10 @@ namespace Punchy.Fauna
         // world runs the animals: the server world when hosting, the local world without netcode, none on a client
         // that joined someone else.
         World queryWorld, simWorld;
-        EntityQuery terrainQuery, paletteQuery, playerQuery, avatarQuery, playerMeshQuery, replicaQuery, newReplicaQuery;
+        EntityQuery terrainQuery, paletteQuery, playerQuery, avatarQuery, replicaQuery, newReplicaQuery;
         EntityQuery wildQuery, simCreatureQuery, netPlayerQuery, simPlayerQuery, ghostSpawnerQuery;
         CreatureSpecies avatarSpecies;
         BlobAssetReference<CreatureBlob> avatarBlob;
-        Entity hiddenPlayer;
         Entity settingsEntity, simClockEntity, floraEntity;
         /// <summary>Where trees are, for climbing, perching and webs (the same tables the plants are drawn from).</summary>
         BlobAssetReference<Punchy.Flora.FloraBlob> floraBlob;
@@ -177,12 +176,6 @@ namespace Punchy.Fauna
                 paletteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
                 playerQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
                 avatarQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerAvatar>());
-                // The player's placeholder mesh: render entities parented to the player.
-                playerMeshQuery = em.CreateEntityQuery(new EntityQueryDesc
-                {
-                    All = new[] { ComponentType.ReadOnly<Parent>(), ComponentType.ReadOnly<Unity.Rendering.MaterialMeshInfo>() },
-                    Options = EntityQueryOptions.IncludeDisabledEntities
-                });
                 replicaQuery = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureReplica>());
                 newReplicaQuery = em.CreateEntityQuery(new EntityQueryDesc
                 {
@@ -343,21 +336,21 @@ namespace Punchy.Fauna
         // ------------------------------------------------------------------------------------------- the player's body
 
         /// <summary>
-        /// Spawns the player's body if there should be one and it's missing (or the species changed), and hides the
-        /// placeholder. The body has its own runtime data, so changing species never disturbs the animals.
+        /// Spawns the player's body if it's missing (or the species changed). There's always one: with no species
+        /// chosen, a human (the player entity itself has no mesh). The body has its own runtime data, so changing
+        /// species never disturbs the animals.
         /// </summary>
         void KeepAvatar()
         {
             if (!playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return;
             var em = queryWorld.EntityManager;
+            if (PlayerSpecies == null)
+                PlayerSpecies = species.Find(s => s.name == "Human") ?? species.Find(s => s.Body.Upright);
             if (PlayerSpecies != avatarSpecies)
                 DropAvatar();
             if (PlayerSpecies == null)
                 return;
-            // A re-baked subscene brings back a new player entity, placeholder showing.
-            if (playerQuery.TryGetSingletonEntity<LocalTransform>(out var playerEntity) && playerEntity != hiddenPlayer && avatarQuery.CalculateEntityCount() > 0)
-                ShowPlayerMesh(false);
             if (avatarQuery.CalculateEntityCount() > 0)
                 return;
             if (!avatarBlob.IsCreated)
@@ -382,39 +375,16 @@ namespace Punchy.Fauna
                 Seed = rng.NextUInt() | 1u,
                 Individual = rng.NextUInt() | 1u
             });
-            ShowPlayerMesh(false);
         }
 
         void DropAvatar()
         {
             if (queryWorld != null && queryWorld.IsCreated)
-            {
                 queryWorld.EntityManager.DestroyEntity(avatarQuery);
-                ShowPlayerMesh(true);
-            }
             if (avatarBlob.IsCreated)
                 avatarBlob.Dispose();
             avatarBlob = default;
             avatarSpecies = null;
-        }
-
-        void ShowPlayerMesh(bool show)
-        {
-            if (!playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
-                return;
-            var em = queryWorld.EntityManager;
-            hiddenPlayer = show ? Entity.Null : player;
-            var meshes = playerMeshQuery.ToEntityArray(Allocator.Temp);
-            foreach (var e in meshes)
-            {
-                if (em.GetComponentData<Parent>(e).Value != player)
-                    continue;
-                if (show)
-                    em.RemoveComponent<Unity.Rendering.DisableRendering>(e);
-                else
-                    em.AddComponent<Unity.Rendering.DisableRendering>(e);
-            }
-            meshes.Dispose();
         }
 
         // ------------------------------------------------------------------------------------------- ghosts
