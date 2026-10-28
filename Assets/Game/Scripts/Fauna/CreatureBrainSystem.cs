@@ -458,6 +458,8 @@ namespace Punchy.Fauna
 
                     case CreatureMode.Held:
                         custom = true;
+                        // Legs tucked up in the arms, not dangling; birds settle their wings.
+                        lie = 1f;
                         Held(ref s, ref b, ref rng, dt);
                         break;
 

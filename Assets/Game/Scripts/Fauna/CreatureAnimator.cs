@@ -172,6 +172,9 @@ namespace Punchy.Fauna
                         var idle = b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle];
                         a = idle + (a - idle) * amplitude;
                     }
+                    // Carrying something in both arms: they hold it, rather than swinging with the stride.
+                    if (part.Role == LimbRole.Arm && s.Action == IdleAction.Carry)
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], act);
                     if (torso && j == 0)
                         a.x += lean;
                     if (part.Role == LimbRole.Head && j == 0)

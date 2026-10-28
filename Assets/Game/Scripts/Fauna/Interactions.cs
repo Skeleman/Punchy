@@ -68,7 +68,7 @@ namespace Punchy.Fauna
         /// <summary>Where a carried animal is: in the holder's arms, low against their chest (held sideways, so its
         /// shape shows).</summary>
         public static float3 Hands(float3 holder, float yaw) =>
-            holder + new float3(math.sin(yaw), 0f, math.cos(yaw)) * 0.36f + new float3(0f, 0.82f, 0f);
+            holder + new float3(math.sin(yaw), 0f, math.cos(yaw)) * 0.38f + new float3(0f, 0.98f, 0f);
 
         /// <summary>
         /// Acts on a request where the animal is simulated. Wild animals bolt from a hand reaching for them; tame ones
