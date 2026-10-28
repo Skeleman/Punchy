@@ -34,6 +34,18 @@ namespace Punchy.Terrain
         [Range(0f, 1f)] public float Ribs;
         [Tooltip("Space between ribs (m).")]
         [Range(0.8f, 4f)] public float RibSpacing = 1.6f;
+        [Tooltip("How straight the passages run (1 = dug: straight drifts of even width, side passages at right " +
+                 "angles, as a mine; 0 = winding natural passages).")]
+        [Range(0f, 1f)] public float Straightness;
+
+        [Header("Fittings (dug caves)")]
+        [Tooltip("A timber frame (flora form Mine Frame) set across the passages every Frame Spacing, scaled to fit.")]
+        public Punchy.Flora.FloraSpecies Frame;
+        [Min(1f)] public float FrameSpacing = 4f;
+        [Tooltip("A wall torch (flora form Torch) every Torch Spacing along the passages, on alternate walls, lit with a " +
+                 "flame and a warm light near the camera.")]
+        public Punchy.Flora.FloraSpecies Torch;
+        [Min(2f)] public float TorchSpacing = 10f;
         [Tooltip("How flat the floor is: 1 = a level floor halfway down the passage, 0 = the passage's own round bottom.")]
         [Range(0f, 1f)] public float FloorFlatness = 0.85f;
         [Tooltip("How many ledges and steps the floor has.")]
@@ -190,9 +202,15 @@ namespace Punchy.Terrain
         {
             var species = new List<Punchy.Flora.FloraSpecies>();
             foreach (var style in CaveStyleTable.Collect(types))
+            {
                 foreach (var f in style.Flora)
                     if (f != null && f.Species != null && !species.Contains(f.Species))
                         species.Add(f.Species);
+                if (style.Frame != null && !species.Contains(style.Frame))
+                    species.Add(style.Frame);
+                if (style.Torch != null && !species.Contains(style.Torch))
+                    species.Add(style.Torch);
+            }
             return species;
         }
     }

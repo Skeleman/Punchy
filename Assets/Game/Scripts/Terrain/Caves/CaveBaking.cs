@@ -60,6 +60,9 @@ namespace Punchy.Terrain
                 wall.x *= vary.NextFloat(0.8f, 1.2f);
                 rock.x = math.min(rock.x * vary.NextFloat(0.8f, 1.2f), 1.5f);
                 rock.z = math.saturate(rock.z + vary.NextFloat(-0.2f, 0.2f));
+                // Dug caves (mines) run straight and even; the random draws are the same either way, so natural caves
+                // come out exactly as before.
+                var wander = 1f - (style != null ? style.Straightness : 0f);
                 var radius = type.Radius * inst.Scale;
                 var r = type.CaveRadius * inst.Scale;
                 var chamber = type.ChamberRadius * inst.Scale;
@@ -97,12 +100,12 @@ namespace Punchy.Terrain
                 {
                     var t = k / (float)steps;
                     if (k > 1)
-                        heading += rng.NextFloat(-0.5f, 0.5f);
+                        heading += rng.NextFloat(-0.5f, 0.5f) * wander;
                     p += new float2(math.cos(heading), math.sin(heading)) * NodeSpacing;
                     var isChamber = k == steps || chamberAt.Contains(k);
                     var nodeRadius = k == steps ? chamber
                         : isChamber ? chamber * rng.NextFloat(0.6f, 0.85f)
-                        : r * rng.NextFloat(0.85f, 1.2f);
+                        : r * math.lerp(1f, rng.NextFloat(0.85f, 1.2f), wander);
                     // Down by the cave's depth, and always a good way under the surface above.
                     var y = floor + r * 0.4f - type.CaveDepth * math.smoothstep(0.1f, 1f, t);
                     if (k > 1)
@@ -121,7 +124,7 @@ namespace Punchy.Terrain
                 {
                     var from = attach[rng.NextInt(b < (type.CaveBranches + 1) / 2 ? mainAttach : attach.Count)];
                     var origin = nodes[from.Node].Position;
-                    var bh = from.Heading + (rng.NextBool() ? 1f : -1f) * rng.NextFloat(0.7f, 1.6f);
+                    var bh = from.Heading + (rng.NextBool() ? 1f : -1f) * math.lerp(math.PI * 0.5f, rng.NextFloat(0.7f, 1.6f), wander);
                     var length = type.BranchLength * inst.Scale * rng.NextFloat(0.6f, 1.25f);
                     var bsteps = math.max(2, (int)math.ceil(length / NodeSpacing));
                     var targetY = origin.y - rng.NextFloat(-2f, type.CaveDepth * 0.5f + 1f);
@@ -130,10 +133,10 @@ namespace Punchy.Terrain
                     for (int k = 1; k <= bsteps; k++)
                     {
                         if (k > 1)
-                            bh += rng.NextFloat(-0.45f, 0.45f);
+                            bh += rng.NextFloat(-0.45f, 0.45f) * wander;
                         bp += new float2(math.cos(bh), math.sin(bh)) * NodeSpacing;
                         var end = k == bsteps;
-                        var nodeRadius = end ? chamber * rng.NextFloat(0.45f, 0.7f) : r * rng.NextFloat(0.7f, 1.05f);
+                        var nodeRadius = end ? chamber * rng.NextFloat(0.45f, 0.7f) : r * math.lerp(0.9f, rng.NextFloat(0.7f, 1.05f), wander);
                         var y = math.min(math.lerp(origin.y, targetY, k / (float)bsteps), Ceiling(bp, nodeRadius));
                         var node = AddNode(new float3(bp.x, y, bp.y), nodeRadius, end ? CaveNodeKind.Chamber : CaveNodeKind.Passage);
                         Join(last, node);
@@ -208,6 +211,7 @@ namespace Punchy.Terrain
             PlaceSpeleothems(withCaves, caves, nodes, kinds, segments, styles, extras.Pools, extras.Speleothems);
             PlaceRubble(withCaves, caves, nodes, kinds, segments, styles, extras.Pools, extras.Speleothems);
             PlacePlants(withCaves, caves, nodes, kinds, segments, styles, CaveFloraTable.Collect(types), extras);
+            PlaceFittings(withCaves, caves, nodes, kinds, segments, styles, CaveFloraTable.Collect(types), extras);
             withWater.Dispose();
             return BuildBlob(caves, nodes, kinds, segments, extras, allocator);
         }
@@ -517,6 +521,92 @@ namespace Punchy.Terrain
                                 Variant = rng.NextInt(3),
                                 Random = rng.NextFloat()
                             });
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Dug caves' fittings, along every passage (not chambers or shafts): a timber frame across the passage every
+        /// FrameSpacing, posts against the walls (found by looking sideways from the axis at hip height), and a torch
+        /// on alternate walls every TorchSpacing at shoulder height, leaning out. Both are cave plants.
+        /// </summary>
+        static void PlaceFittings(in TerrainSource source, List<CaveData> caves, List<CaveNode> nodes, List<CaveNodeKind> kinds,
+                                  List<CaveSegment> segments, List<CaveStyle> styles, List<Punchy.Flora.FloraSpecies> flora, Extras extras)
+        {
+            for (int c = 0; c < caves.Count; c++)
+            {
+                var cave = caves[c];
+                var style = cave.Style > 0 ? styles[cave.Style - 1] : null;
+                if (style == null || style.Frame == null && style.Torch == null)
+                    continue;
+                var terrain = source;   // local functions can't capture an in parameter
+                var frame = style.Frame != null ? flora.IndexOf(style.Frame) : -1;
+                var torch = style.Torch != null ? flora.IndexOf(style.Torch) : -1;
+                var rng = new Random(math.hash(new int2(c, 0xF177)) | 1u);
+                var side = 1f;
+                var sinceTorch = style.TorchSpacing * 0.5f;
+                for (int si = cave.FirstSegment; si < cave.FirstSegment + cave.SegmentCount; si++)
+                {
+                    var seg = segments[si];
+                    if (kinds[seg.A] != CaveNodeKind.Passage && kinds[seg.B] != CaveNodeKind.Passage || kinds[seg.A] == CaveNodeKind.Shaft || kinds[seg.B] == CaveNodeKind.Shaft)
+                        continue;
+                    var a = nodes[seg.A].Position;
+                    var b = nodes[seg.B].Position;
+                    var length = math.distance(a.xz, b.xz);
+                    if (length < 0.5f)
+                        continue;
+                    var along = math.normalize((b - a).xz);
+                    var across = new float2(-along.y, along.x);
+                    // Model +Z along the passage (its posts, on X, then stand across it): yaw maps +Z to (-sin, cos).
+                    var yaw = math.atan2(-along.x, along.y);
+                    float Wall(float3 from, float2 dir)
+                    {
+                        for (var t = 0.3f; t < 12f; t += 0.1f)
+                            if (terrain.CaveDistance(from + new float3(dir.x, 0f, dir.y) * t) >= 0f)
+                                return t;
+                        return 0f;
+                    }
+                    var step = frame >= 0 ? style.FrameSpacing : style.TorchSpacing;
+                    for (var d = step * 0.5f; d < length; d += step)
+                    {
+                        var q = math.lerp(a, b, d / length);
+                        var floor = source.FloorUnder(q + new float3(0f, 0.5f, 0f), out var inCave);
+                        if (!inCave)
+                            continue;
+                        var hip = new float3(q.x, floor + 0.9f, q.z);
+                        if (source.CaveDistance(hip) >= 0f)
+                            continue;
+                        var left = Wall(hip, across);
+                        var right = Wall(hip, -across);
+                        if (frame >= 0 && left > 0f && right > 0f && left + right < 7f)
+                        {
+                            var middle = hip + new float3(across.x, 0f, across.y) * (left - right) * 0.5f;
+                            var half = (left + right) * 0.5f * 0.94f;
+                            var mid = new float3(middle.x, source.FloorUnder(middle + new float3(0f, 0.5f, 0f), out _) - 0.02f, middle.z);
+                            // Only where the lintel clears a walker's head and stays under the roof.
+                            var roof = source.CeilingOver(mid + new float3(0f, 0.5f, 0f)) - mid.y;
+                            if (half > 1.9f && half < roof - 0.1f)
+                                extras.Plants.Add(new CavePlant { Position = mid, Yaw = yaw, Scale = half, Species = frame, Variant = rng.NextInt(3), Random = rng.NextFloat() });
+                        }
+                        sinceTorch += step;
+                        if (torch >= 0 && sinceTorch >= style.TorchSpacing)
+                        {
+                            // Halfway to the next frame, so it isn't hidden behind a post.
+                            var tq = math.lerp(a, b, math.min(d + step * 0.5f, length) / length);
+                            var tfloor = source.FloorUnder(tq + new float3(0f, 0.5f, 0f), out _);
+                            var shoulder = new float3(tq.x, tfloor + 1.6f, tq.z);
+                            var dir = across * side;
+                            var t = source.CaveDistance(shoulder) < 0f ? Wall(shoulder, dir) : 0f;
+                            if (t > 0f)
+                            {
+                                var at = shoulder + new float3(dir.x, 0f, dir.y) * (t - 0.12f);
+                                // Facing out of the wall (+Z of the torch model).
+                                extras.Plants.Add(new CavePlant { Position = at, Yaw = math.atan2(dir.x, -dir.y), Scale = 1f, Species = torch, Variant = rng.NextInt(3), Random = rng.NextFloat() });
+                                sinceTorch = 0f;
+                                side = -side;
+                            }
                         }
                     }
                 }

@@ -506,6 +506,12 @@ namespace Punchy.Terrain
         /// <summary>Per species, the light its glowing parts give the walls round it (rgb strength, w reach); zero if none.</summary>
         readonly List<Vector4> speciesGlow = new List<Vector4>();
         readonly List<(float3 position, Vector4 light)> nearGlowPlants = new List<(float3, Vector4)>();
+        /// <summary>Per species: the height of its torch's head (1 at scale 1), or 0 if it isn't a torch.</summary>
+        readonly List<float> speciesTorch = new List<float>();
+        /// <summary>Torches near the camera: where the flame sits and the plant's index (its seed).</summary>
+        readonly List<(float3 flame, int plant)> nearTorches = new List<(float3, int)>();
+        /// <summary>A wall torch's light on the rock round it (warm, about 9 m).</summary>
+        static readonly Vector4 TorchLight = new Vector4(1.7f, 0.95f, 0.4f, 9f);
         /// <summary>How far a glowing plant lights the floor and walls round it (m).</summary>
         const float PlantGlowReach = 5f;
         float3 plantsAround = new float3(float.MaxValue);
@@ -547,6 +553,7 @@ namespace Punchy.Terrain
                         plantModels.Add(Punchy.Flora.FloraGenerator.Grow(species, v));
                     // The same light the plant casts on the surface (colour and reach by how much of it glows).
                     speciesGlow.Add(Punchy.Flora.FloraPlacement.GlowLight(species));
+                    speciesTorch.Add(species.Form == Punchy.Flora.FloraForm.Torch ? species.Height.y : 0f);
                 }
                 plantsFrom = palette;
             }
@@ -556,6 +563,7 @@ namespace Punchy.Terrain
                 plantsAround = camPos;
                 plantKeys.Clear();
                 nearGlowPlants.Clear();
+                nearTorches.Clear();
                 for (int i = 0; i < set.Plants.Length; i++)
                 {
                     ref var p = ref set.Plants[i];
@@ -568,6 +576,13 @@ namespace Punchy.Terrain
                     plantKeys.Add((model * 2 + (d < PlantLod0 ? 0 : 1), i));
                     if (speciesGlow[p.Species].w > 0f)
                         nearGlowPlants.Add((p.Position + new float3(0f, 0.3f * p.Scale, 0f), speciesGlow[p.Species]));
+                    if (speciesTorch[p.Species] > 0f)
+                    {
+                        // The head: up the stick and out from the wall (the model leans out along its +Z by ~20°).
+                        var head = speciesTorch[p.Species] * p.Scale;
+                        var outward = new float3(-math.sin(p.Yaw), 0f, math.cos(p.Yaw));
+                        nearTorches.Add((p.Position + new float3(0f, head * 0.94f, 0f) + outward * head * 0.34f, i));
+                    }
                 }
                 plantKeys.Sort((a, b) => a.key.CompareTo(b.key));
                 var count = plantKeys.Count;
@@ -633,6 +648,13 @@ namespace Punchy.Terrain
                 var at = new Vector4(position.x, position.y, position.z, 0f);
                 glowing.Add((math.distance(position, camPos), at, at, light));
             }
+            // Wall torches: a flame on each (every frame: FireSystem's list is per frame) and its warm light on the rock.
+            foreach (var (flame, plant) in nearTorches)
+            {
+                Punchy.Ambience.FireSystem.AddFlame(flame, 0.3f, plant, Punchy.Ambience.FireSystem.Wood);
+                var at = new Vector4(flame.x, flame.y + 0.15f, flame.z, 0f);
+                glowing.Add((math.distance(flame, camPos), at, at, TorchLight));
+            }
 
             var bounds = new Bounds(camPos, new Vector3(PlantRadius * 2f, PlantRadius * 2f, PlantRadius * 2f));
             for (int d = 0; d < plantDraws.Count; d++)
@@ -653,7 +675,9 @@ namespace Punchy.Terrain
                 m.Destroy();
             plantModels.Clear();
             speciesGlow.Clear();
+            speciesTorch.Clear();
             nearGlowPlants.Clear();
+            nearTorches.Clear();
             plantDraws.Clear();
             plantInstances?.Release();
             plantVisible?.Release();

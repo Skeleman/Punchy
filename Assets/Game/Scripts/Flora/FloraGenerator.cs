@@ -73,6 +73,8 @@ namespace Punchy.Flora
                     case FloraForm.Ocotillo: Ocotillo(g); break;
                     case FloraForm.Mushroom: Mushroom(g); break;
                     case FloraForm.Eggs: Eggs(g); break;
+                    case FloraForm.MineFrame: MineFrame(g); break;
+                    case FloraForm.Torch: Torch(g); break;
                     case FloraForm.Bones: Bones(g); break;
                     case FloraForm.Boulder: Boulder(g); break;
                     case FloraForm.Spire: Spire(g); break;
@@ -1122,6 +1124,57 @@ namespace Punchy.Flora
                                    0.01f, g.R() * 100f, color, FloraPart.Bark);
                 b.Occlude(shell, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.4f)));
             }
+        }
+
+        /// <summary>
+        /// A mine's timber frame, one metre either side of the middle and one metre to the lintel (placements scale it
+        /// to the passage): two posts, a lintel resting on them and short braces in the corners.
+        /// </summary>
+        static void MineFrame(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            g.Height = 1f;
+            g.Width = 2.2f;
+            g.TrunkRadius = 0f;
+            var r = Mathf.Max(s.Thickness, 0.02f);
+            var sides = g.Sides(6, 4, 4);
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var foot = new Vector3(side, -0.05f, 0f);
+                var lean = g.Range(-0.02f, 0.02f);
+                b.Tube(new List<Vector3> { foot, foot + new Vector3(lean, 1.02f, 0f) }, new List<float> { r * 1.05f, r }, sides, g.Bark, FloraPart.Bark);
+                if (g.Lod < 2)
+                    b.Tube(new List<Vector3> { new Vector3(side * 0.98f, 0.78f, 0f), new Vector3(side * 0.72f, 0.99f, 0f) },
+                           new List<float> { r * 0.6f, r * 0.6f }, sides, g.Bark * 0.9f, FloraPart.Bark);
+            }
+            b.Tube(new List<Vector3> { new Vector3(-1.12f, 1.02f + r, 0f), new Vector3(1.12f, 1.02f + r, 0f) },
+                   new List<float> { r * 1.1f, r * 1.1f }, sides, g.Bark * 0.95f, FloraPart.Bark);
+        }
+
+        /// <summary>A wall torch: a stick leaning out from its bracket with a charred head (the flame is FireSystem's).</summary>
+        static void Torch(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var length = g.Range(s.Height);
+            g.Height = length;
+            g.Width = 0.2f;
+            g.TrunkRadius = 0f;
+            var r = Mathf.Max(length * s.Thickness, 0.015f);
+            // Leaning out (+Z, away from the wall it's on) by about 20°.
+            var top = new Vector3(0f, length * 0.94f, length * 0.34f);
+            b.Tube(new List<Vector3> { Vector3.zero, top }, new List<float> { r * 0.8f, r }, g.Sides(6, 4, 3), g.Bark, FloraPart.Bark);
+            // The bracket: a band round the stick a third of the way up, and its arm back to the wall.
+            if (g.Lod < 2)
+            {
+                var band = top * 0.32f;
+                b.Tube(new List<Vector3> { band + new Vector3(0f, 0f, -r * 3f), band }, new List<float> { r * 0.5f, r * 0.5f }, 4, g.Accent, FloraPart.Bark);
+                b.Blob(band, new Vector3(r * 1.4f, r * 0.9f, r * 1.4f), Quaternion.identity, 0, 0f, 0f, g.Accent, FloraPart.Bark);
+            }
+            var head = b.Blob(top, new Vector3(r * 1.6f, r * 2.4f, r * 1.6f), Quaternion.FromToRotation(Vector3.up, top.normalized),
+                              g.Lod == 0 ? 1 : 0, 0.2f, g.R() * 100f, g.FoliageColor(), FloraPart.Bark);
+            b.Occlude(head, (p, n) => 0.7f);
         }
 
         static void Bones(Grower g)

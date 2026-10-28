@@ -76,7 +76,11 @@ namespace Punchy.Flora
                  "Height is the logs'.")] Palisade,
         [Tooltip("A clutch of eggs in a shallow nest (cave floors: what spiders, lizards and salamanders guard). Height is " +
                  "an egg's length, Branches the number of eggs, Spread how loosely they lie; Foliage colours the eggs, " +
-                 "Bark the nest of grit or silk.")] Eggs
+                 "Bark the nest of grit or silk.")] Eggs,
+        [Tooltip("A mine's timber frame: two posts and a lintel across a passage, a metre either side of its middle and a " +
+                 "metre high, scaled to fit (Bark; Thickness the timbers' radius per metre).")] MineFrame,
+        [Tooltip("A torch on a wall bracket, leaning out a little: Height is the stick, Bark the stick, Foliage the " +
+                 "charred head. Cave styles light a flame on it (FireSystem).")] Torch
     }
 
     public enum FoliageFinish : byte
