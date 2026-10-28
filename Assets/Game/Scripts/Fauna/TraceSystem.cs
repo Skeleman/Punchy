@@ -92,36 +92,56 @@ namespace Punchy.Fauna
             Count = math.min(Count + 1, Capacity);
         }
 
-        /// <summary>A print each time it has gone half a stride, on alternate sides, where the ground takes one.</summary>
+        /// <summary>
+        /// A print where each foot comes down (the moment its leg's cycle turns from swing to stance), at that foot as
+        /// the animator poses it, where the ground takes one. Legless bodies (snakes) leave none.
+        /// </summary>
         void Footprint(Entity e, in CreatureState s, ref CreatureBlob b, in TerrainSource terrain, float now)
         {
             if (b.Habitat == Habitat.Swims || b.Habitat == Habitat.Floats || s.Fly > 0.5f || s.Lie > 0.5f || s.Speed < 0.05f)
-                return;
-            var ground = terrain.SampleGround(s.Position.xz);
-            if (s.Position.y - ground.Height > 0.3f)
-                return;   // up a tree, on a branch, in a cave above the surface, mid-jump
-            var stride = b.WalkStride * 0.5f * math.max(s.Scale, 0.1f);
-            if (!steps.TryGetValue(e, out var last))
             {
-                steps[e] = new float4(s.Position, 1f);
+                steps.Remove(e);
                 return;
             }
-            if (math.distance(last.xyz, s.Position) < stride)
+            var ground0 = terrain.SampleGround(s.Position.xz);
+            if (s.Position.y - ground0.Height > 0.3f)
+                return;   // up a tree, on a branch, in a cave above the surface, mid-jump
+            // (The body's gait phase last frame, to see which feet came down since.)
+            if (!steps.TryGetValue(e, out var last) || last.w < 0f)
+            {
+                steps[e] = new float4(s.Position, s.Phase);
                 return;
-            var foot = -last.w;
-            steps[e] = new float4(s.Position, foot);
+            }
+            steps[e] = new float4(s.Position, s.Phase);
+            var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
+            var right = new float3(forward.z, 0f, -forward.x);
+            var scale = math.max(s.Scale, 0.1f);
+            for (int i = 0; i < b.Parts.Length; i++)
+            {
+                ref var part = ref b.Parts[i];
+                if (part.Role != LimbRole.Leg || part.Parent >= 0 || part.SegmentCount == 0)
+                    continue;
+                var was = math.frac(last.w + part.Phase);
+                var now0 = math.frac(s.Phase + part.Phase);
+                if (now0 >= was || was - now0 < 0.5f)
+                    continue;   // no touchdown (its cycle didn't wrap round to stance this frame)
+                var foot = CreatureMotion.FootAt(ref b, ref part, now0, s.Speed) * scale;
+                Print(s, ref b, terrain, s.Position + right * foot.x + forward * foot.z, forward, now);
+            }
+        }
+
+        void Print(in CreatureState s, ref CreatureBlob b, in TerrainSource terrain, float3 at, float3 forward, float now)
+        {
+            var ground = terrain.SampleGround(at.xz);
 
             // Soft ground only: snow, bare sand or earth (little grass, few pebbles), or mud at the water's edge.
-            var surface = terrain.SampleSurface(s.Position.xz, ground, terrain.SampleNormal(s.Position.xz, 1f));
+            var surface = terrain.SampleSurface(at.xz, ground, terrain.SampleNormal(at.xz, 1f));
             var bare = (1f - math.saturate(surface.Grass * 2.5f)) * (1f - math.saturate(surface.Pebbles * 1.5f)) * (1f - surface.Metallic);
             var mud = ground.HasWater && ground.WaterSurface - ground.Height > -1.2f ? 1f : 0f;
             var soft = math.max(surface.Snow, math.max(bare * 0.8f, mud));
             if (soft < 0.5f || ground.HasWater && ground.WaterSurface > ground.Height + 0.02f)
                 return;
-            var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
-            var right = new float3(forward.z, 0f, -forward.x);
             var size = math.clamp(b.FrontRadius * s.Scale * 0.35f, 0.02f, 0.25f);
-            var at = s.Position + right * foot * b.FrontRadius * s.Scale * 0.6f - forward * size;
             at.y = terrain.SampleHeight(at.xz) + 0.012f;
             // A darker, damper shade of the ground; snow prints stay pale blue-grey. On glowing ground the print glows
             // too, a little less than the ground round it (the creature shader's glow is colour × alpha × about 2.2),
@@ -163,7 +183,7 @@ namespace Punchy.Fauna
             var spacing = math.max(b.BodyLength * s.Scale * 0.35f, 0.15f);
             if (steps.TryGetValue(e, out var last) && math.distance(last.xyz, s.Position) < spacing)
                 return true;
-            steps[e] = new float4(s.Position, 1f);
+            steps[e] = new float4(s.Position, -1f);   // (-1: a wake's, not a gait phase)
             var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
             var head = s.Position + forward * b.BodyLength * s.Scale * 0.6f;
             var width = math.max(b.FrontRadius * s.Scale, 0.05f);
