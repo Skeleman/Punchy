@@ -97,6 +97,16 @@ namespace Punchy.Fauna
             var still = 1f - move;
             var breath = 0.5f + 0.5f * math.sin(s.Clock * (s.Curl > 0.5f ? 1.3f : 2.2f));
             height += breath * 0.01f * scale * still * (0.3f + s.Lie);
+            // Folk out swimming, in water deep enough: lying forward at the surface (their head held up, below).
+            var swimming = 0f;
+            if (b.Upright && s.Mode == CreatureMode.Swim)
+            {
+                var water = terrain.SampleGround(s.Position.xz);
+                if (water.HasWater)
+                    swimming = math.smoothstep(b.StandHeight * scale * 0.6f, b.StandHeight * scale * 0.9f, water.WaterSurface - water.Height);
+                pitch += 1.35f * swimming;
+                height = math.lerp(height, 0.12f * scale, swimming);
+            }
 
             // Idle actions that move the whole body: a shake rolls it, lizard push-ups bob it, sniffing dips it.
             var act = ActionEnvelope(s.ActionTime);
@@ -286,6 +296,8 @@ namespace Punchy.Fauna
                     }
                     a += Secondary(ref part, in s, j, run, b.Upright);
                     a += TaskPose(ref part, in s, j);
+                    if (swimming > 0f)
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + SwimPose(ref part, in s, j), swimming);
                     // (Upright bodies have no idle actions of their own, but players' bodies take interaction poses.)
                     if (s.Action != IdleAction.None && (!b.Upright || s.Action >= IdleAction.Pet))
                         a += ActionPose(ref part, in s, j, act);
@@ -607,6 +619,34 @@ namespace Punchy.Fauna
                         return new float3(joint == 0 ? -0.75f - 1.85f * CastBack(s.ActionTime) : -0.5f, 0f, 0f);
                     return new float3(joint == 0 ? -0.75f : -0.55f, 0f, 0f);
                 }
+                default:
+                    return float3.zero;
+            }
+        }
+
+        /// <summary>
+        /// Breaststroke, for a body lying forward in the water: the arms reach out ahead, sweep round and out, and come
+        /// back in under the chest bent; the legs draw up and kick back out together, a beat behind; the head held up
+        /// to see ahead.
+        /// </summary>
+        static float3 SwimPose(ref CreaturePart part, in CreatureState s, int joint)
+        {
+            var p = 2f * math.PI * s.Phase;
+            switch (part.Role)
+            {
+                case LimbRole.Arm:
+                    if (joint == 0)
+                        return new float3(-2.3f + 0.7f * math.sin(p), part.Side * 0.6f * math.max(0f, math.sin(p)), 0f);
+                    return joint == 1 ? new float3(-0.3f - 0.6f * (0.5f + 0.5f * math.cos(p)), 0f, 0f) : float3.zero;
+                case LimbRole.Leg:
+                {
+                    var draw = 0.5f + 0.5f * math.sin(p + math.PI);
+                    return joint == 0 ? new float3(-0.45f * draw, part.Side * 0.25f * draw, 0f) : joint == 1 ? new float3(1.3f * draw, 0f, 0f) : float3.zero;
+                }
+                case LimbRole.Neck:
+                    return new float3(-0.5f / math.max(part.SegmentCount, 1), 0f, 0f);
+                case LimbRole.Head:
+                    return new float3(-0.7f, 0f, 0f);
                 default:
                     return float3.zero;
             }

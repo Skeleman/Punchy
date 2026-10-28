@@ -555,6 +555,10 @@ namespace Punchy.Fauna
                             Hunt(ref s, ref b, ref rng, ref targetSpeed, ref desiredLook, ref headDown, ref moving);
                         break;
 
+                    case CreatureMode.Swim:
+                        Swimming(ref s, ref b, ref rng, dt, walk, idleLook, ref targetSpeed, ref moving, ref desiredLook);
+                        break;
+
                     case CreatureMode.Patrol:
                         Patrol(self, ref s, ref b, ref rng, dt, walk, player, playerSpeed, emote, ref targetSpeed, ref moving, ref desiredLook);
                         break;
@@ -636,7 +640,7 @@ namespace Punchy.Fauna
                 Fidget(self, body.Species, ref s, ref b, ref rng, dt, perched, ref sit, ref vertical, ref bow, ref desiredLook);
 
                 // Animals with a home never head out of range of it (penned animals stay in their pen, even fleeing).
-                if (s.Leash > 0f && moving && s.Mode != CreatureMode.Patrol)
+                if (s.Leash > 0f && moving && s.Mode != CreatureMode.Patrol && s.Mode != CreatureMode.Swim)
                 {
                     var fromHome = s.Target - s.Home;
                     var far = math.length(fromHome);
@@ -672,6 +676,12 @@ namespace Punchy.Fauna
                     var landBound = (b.Habitat == Habitat.Land || flier) && !CaveWalker(s, ref b);
                     var blocked = b.Crawls && CaveWalker(s, ref b) ? false : CaveWalker(s, ref b) ? s.Speed > 0.05f && !CaveFloor(ahead, s.Position.y)
                                                 : s.Speed > 0.05f && !Walkable(ahead, b.Habitat);
+                    // Folk out swimming keep to the water while they swim, and wade out onto the bank when they're done.
+                    if (s.Mode == CreatureMode.Swim && s.Stage >= 1)
+                    {
+                        blocked = s.Stage == 1 && s.Speed > 0.05f && !Swimmable(ahead);
+                        landBound = false;
+                    }
                     // Animals that swim go on into water when they're on their way somewhere (not to stand in it), and a
                     // lake bed's slope doesn't stop them.
                     // A lava dweller keeps to lava (a swimmer's water test passes ordinary water too).
@@ -856,6 +866,8 @@ namespace Punchy.Fauna
                 var hunt = prey != Entity.Null ? b.Hunger * 2.5f * Urge(s.Hunger) : 0f;
                 // Climbers go up trees to sit, and to sleep (they sleep up there, not on the ground).
                 var climb = b.Climbing > 0f && HasFlora && !flier ? b.Climbing * (sleepy > 0.5f ? 8f : 2.5f) : 0f;
+                // Townsfolk now and then go for a swim, in the warm middle of the day.
+                var swim = b.Upright && b.Hands && s.Leash > 0f && sleepy < 0.2f && Night < 0.2f && s.Task != CreatureTask.Patrol ? 0.12f * awake : 0f;
                 if (climb > 0f && sleepy > 0.5f)
                     sleep *= 0.2f;
                 // Web spinners spend most of their time in their web.
@@ -904,7 +916,7 @@ namespace Punchy.Fauna
                     s.Timer = rng.NextFloat(60f, 100f);
                     return;
                 }
-                var roll = rng.NextFloat(wander + graze + rest + sleep + drink + play + hunt + work + climb + web + fly + home);
+                var roll = rng.NextFloat(wander + graze + rest + sleep + drink + play + hunt + work + climb + web + fly + home + swim);
 
                 // Friendly animals go over to a person nearby (within their home range) more often than not.
                 // (Someone arriving at the edge of its home range counts: it goes as far as its range lets it.)
@@ -989,6 +1001,7 @@ namespace Punchy.Fauna
                 }
                 // (Only for species that do these: a failed drink above leaves the roll below zero.)
                 else if (climb > 0f && (roll -= climb) < 0f && StartClimb(ref s, ref b, ref rng, sleepy > 0.5f)) { }
+                else if (swim > 0f && (roll -= swim) < 0f && StartSwim(ref s, ref rng)) { }
                 else if (web > 0f && (roll -= web) < 0f && GoToWeb(ref s, ref b, ref rng)) { }
                 else if (fly > 0f && (roll -= fly) < 0f && StartFlight(ref s, ref b, ref rng, sleepy > 0.5f)) { }
                 else if (onGround)
@@ -1870,6 +1883,102 @@ namespace Punchy.Fauna
                                 s.ActionLength = rng.NextFloat(3f, 6f);
                             }
                         }
+                        break;
+                }
+            }
+
+            // ------------------------------------------------------------------------------- swimming
+
+            /// <summary>
+            /// Water good for a swim near where it is: calm (no rapids), deep enough to swim (1.6 m), not lava or a
+            /// cave's hole, and warm (no snow on the bank). Sets off to the bank there (WorkSpot) with the middle of the
+            /// swim at Focus. False if there's none within 60 m.
+            /// </summary>
+            bool StartSwim(ref CreatureState s, ref Random rng)
+            {
+                var start = rng.NextFloat(math.PI * 2f);
+                for (var d = 6f; d <= 60f; d += 6f)
+                    for (int k = 0; k < 12; k++)
+                    {
+                        var a = start + k * math.PI / 6f;
+                        var dir = new float2(math.sin(a), math.cos(a));
+                        var p = s.Position.xz + dir * d;
+                        var g = Terrain.SampleGround(p);
+                        if (!g.HasWater || g.WaterSurface - g.Height < 1.6f || g.Rapids > 0.15f || !Swimmable(p))
+                            continue;
+                        var q = p;
+                        for (int step = 0; step < 40 && !Walkable(q, Habitat.Land); step++)
+                            q -= dir * 0.5f;
+                        if (!Walkable(q, Habitat.Land) || Terrain.SampleSurface(q, Terrain.SampleGround(q), Terrain.SampleNormal(q, 1f)).Snow > 0.2f)
+                            continue;
+                        SetMode(ref s, CreatureMode.Swim);
+                        s.WorkSpot = q;
+                        s.Focus = p;
+                        s.Target = q;
+                        s.Timer = rng.NextFloat(60f, 150f);
+                        return true;
+                    }
+                return false;
+            }
+
+            /// <summary>
+            /// Out for a swim: to the bank (0), in and swimming about from point to point in the deep water round Focus
+            /// at a gentle breaststroke (1), back to the bank when the time's up or the day draws in (2), and standing
+            /// on the bank a while drying off, looking about (3).
+            /// </summary>
+            void Swimming(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, float idleLook,
+                          ref float targetSpeed, ref bool moving, ref float desiredLook)
+            {
+                switch (s.Stage)
+                {
+                    case 0:
+                        s.Target = s.WorkSpot;
+                        targetSpeed = walk;
+                        moving = true;
+                        if (math.distance(s.Position.xz, s.WorkSpot) < 0.8f)
+                        {
+                            NextStage(ref s);
+                            s.Target = s.Focus;
+                        }
+                        break;
+                    case 1:
+                        s.Timer -= dt;
+                        targetSpeed = 0.9f * s.Scale;
+                        moving = true;
+                        if (math.distance(s.Position.xz, s.Target) < 1f)
+                        {
+                            // Somewhere else in the deep water round the middle.
+                            for (int k = 0; k < 6; k++)
+                            {
+                                var p = s.Focus + rng.NextFloat2Direction() * rng.NextFloat(2f, 10f);
+                                if (WaterDepth(p) > 1.3f && Swimmable(p))
+                                {
+                                    s.Target = p;
+                                    break;
+                                }
+                            }
+                        }
+                        if (s.Timer <= 0f || Night > 0.4f)
+                        {
+                            NextStage(ref s);
+                            s.Target = s.WorkSpot;
+                        }
+                        break;
+                    case 2:
+                        s.Target = s.WorkSpot;
+                        targetSpeed = 0.9f * s.Scale;
+                        moving = true;
+                        if (math.distance(s.Position.xz, s.WorkSpot) < 0.8f)
+                        {
+                            NextStage(ref s);
+                            s.Timer = rng.NextFloat(15f, 35f);
+                        }
+                        break;
+                    default:
+                        s.Timer -= dt;
+                        desiredLook = idleLook;
+                        if (s.Timer <= 0f)
+                            Pause(ref s, ref b, ref rng);
                         break;
                 }
             }
@@ -3512,6 +3621,18 @@ namespace Punchy.Fauna
                     // Out of its depth, a land animal that swims sits low: only its head, neck and a strip of back
                     // above the surface (a bear's broad back shows more than a deer's), legs paddling below, bobbing
                     // gently. Wading in, it settles from standing on the bottom into that as the water deepens.
+                    // Folk out swimming lie in the water, back just under the surface, bobbing; wading in or out they
+                    // stand on the bottom (settling into the swim as the water deepens).
+                    if (b.Upright && s.Mode == CreatureMode.Swim)
+                    {
+                        var g = Terrain.SampleGround(s.Position.xz);
+                        if (g.HasWater && g.WaterSurface > g.Height)
+                        {
+                            var deep = math.smoothstep(b.StandHeight * s.Scale * 0.6f, b.StandHeight * s.Scale * 0.9f, g.WaterSurface - g.Height);
+                            var floatAt = g.WaterSurface - 0.2f * s.Scale + math.sin(s.Clock * 1.9f) * 0.02f * s.Scale;
+                            s.Position.y = math.lerp(g.Height, floatAt, deep);
+                        }
+                    }
                     if (b.CrossesWater)
                     {
                         var g = Terrain.SampleGround(s.Position.xz);

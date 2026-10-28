@@ -267,7 +267,12 @@ namespace Punchy.Fauna
         /// A guard on its rounds (task Patrol): along the town's streets to the corner it's making for (WorkSpot,
         /// stage 0; WorkFace is the one it came from), pausing there to look about (stage 1); a gate when AnchorSize > 0.
         /// </summary>
-        Patrol
+        Patrol,
+        /// <summary>
+        /// Folk gone for a swim on a warm day: to the bank where they go in (WorkSpot, stage 0), swimming about in the
+        /// water round Focus (1), back to the bank (2), standing drying off (3).
+        /// </summary>
+        Swim
     }
 
     /// <summary>What a worker does at its post (posed by CreatureAnimator).</summary>
