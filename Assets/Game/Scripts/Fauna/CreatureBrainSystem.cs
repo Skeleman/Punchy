@@ -251,7 +251,7 @@ namespace Punchy.Fauna
                 // A bird in the air judges the player by real distance (high overhead is far), and keeps on with a hunt
                 // unless the player is really close.
                 // (In a cave, too: someone walking on the ground overhead isn't near.)
-                var threatDistance = flier && Flying(s) || b.CaveDweller ? math.distance(s.Position, player) : playerDistance;
+                var threatDistance = flier && Flying(s) || CaveWalker(s, ref b) ? math.distance(s.Position, player) : playerDistance;
                 var nerve = s.Mode == CreatureMode.Hunt && flier ? 0.4f : 1f;
                 // Someone cheering or dancing about is noticed (and run from) further off; waving, a little.
                 var commotion = emote == IdleAction.Cheer || emote == IdleAction.Dance ? 1.8f : emote == IdleAction.Wave ? 1.25f : 1f;
@@ -314,7 +314,7 @@ namespace Punchy.Fauna
                             s.Target = s.Position.xz + dir * rng.NextFloat(30f, 50f) + rng.NextFloat2Direction() * 8f;
                             s.TargetHeight = Terrain.SampleHeight(s.Target);
                         }
-                        else if (b.CaveDweller)
+                        else if (CaveWalker(s, ref b))
                             s.Target = CaveEscape(s, threat, ref rng);
                         else
                             s.Target = s.Position.xz + dir * 30f + rng.NextFloat2Direction() * 6f;
@@ -418,7 +418,7 @@ namespace Punchy.Fauna
                         moving = true;
                         // In a cave: on along the passages, a point at a time (and another way if it's stuck at a
                         // wall: StageTime counts the time without getting anywhere).
-                        if (b.CaveDweller)
+                        if (CaveWalker(s, ref b))
                         {
                             if (s.Speed > 0.15f)
                                 s.StageTime = 0f;
@@ -621,8 +621,8 @@ namespace Punchy.Fauna
                     // Stay out of water and off cliffs: stop (or, running, veer) when the way ahead is bad.
                     var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
                     var ahead = s.Position.xz + forward * math.max(1.2f, s.Speed * 0.5f) * s.Scale;
-                    var landBound = (b.Habitat == Habitat.Land || flier) && !b.CaveDweller;
-                    var blocked = b.CaveDweller ? s.Speed > 0.05f && !CaveFloor(ahead, s.Position.y)
+                    var landBound = (b.Habitat == Habitat.Land || flier) && !CaveWalker(s, ref b);
+                    var blocked = CaveWalker(s, ref b) ? s.Speed > 0.05f && !CaveFloor(ahead, s.Position.y)
                                                 : s.Speed > 0.05f && !Walkable(ahead, b.Habitat);
                     // Animals that swim go on into water when they're on their way somewhere (not to stand in it), and a
                     // lake bed's slope doesn't stop them.
@@ -646,7 +646,7 @@ namespace Punchy.Fauna
                         s.Speed = math.min(s.Speed, run * 0.45f);   // paddling is slow
                     }
                     // (In a cave, running or going somewhere along the passage, it follows the wall round: Advance.)
-                    var followsWall = b.CaveDweller && (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Drink ||
+                    var followsWall = CaveWalker(s, ref b) && (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Drink ||
                                                         s.Mode == CreatureMode.Wander && math.distance(s.Position.xz, s.Target) > 2f);
                     if (!followsWall && (blocked || landBound && s.Speed > 0.05f && SlopeAhead(s.Position.xz, ahead) > 0.8f))
                     {
@@ -873,7 +873,7 @@ namespace Punchy.Fauna
                     SetMode(ref s, CreatureMode.Graze);
                     s.Timer = rng.NextFloat(8f, 25f);
                 }
-                else if ((roll -= drink) < 0f && (b.CaveDweller ? FindCaveWater(ref s, ref b, ref rng, out var shore, out var water)
+                else if ((roll -= drink) < 0f && (CaveWalker(s, ref b) ? FindCaveWater(ref s, ref b, ref rng, out var shore, out var water)
                                                                  : FindWater(ref s, ref b, ref rng, out shore, out water)))
                 {
                     SetMode(ref s, CreatureMode.Drink);
@@ -893,7 +893,7 @@ namespace Punchy.Fauna
                     // Animals with a home stay near it.
                     if (s.Leash > 0f && math.distance(candidate, s.Home) > s.Leash)
                         candidate = s.Home + rng.NextFloat2Direction() * s.Leash * rng.NextFloat(0.1f, 0.8f);
-                    if ((b.CaveDweller ? CaveFloor(candidate, s.Position.y) : b.Habitat == Habitat.Land ? OpenGround(candidate) : Walkable(candidate, b.Habitat)) &&
+                    if ((CaveWalker(s, ref b) ? CaveFloor(candidate, s.Position.y) : b.Habitat == Habitat.Land ? OpenGround(candidate) : Walkable(candidate, b.Habitat)) &&
                         (!b.LavaDweller || InLava(candidate)))
                     {
                         SetMode(ref s, CreatureMode.Wander);
@@ -2703,7 +2703,7 @@ namespace Punchy.Fauna
             void Advance(ref CreatureState s, ref CreatureBlob b, float dt, bool keepHeight = false)
             {
                 var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
-                if (b.CaveDweller)
+                if (CaveWalker(s, ref b))
                 {
                     // On the passage floor, never into rock: blocked, it slides along the wall (the nearest open way
                     // to either side of its heading, turning towards it), or stops.
@@ -2831,6 +2831,20 @@ namespace Punchy.Fauna
                 math.distancesq(s.Position.xz, s.Target) > 4f;
 
             bool Walled(float2 at, float radius) => FloraPlacement.Blocked(ref Flora.Value, Terrain, at, radius);
+
+            /// <summary>
+            /// Moves as a cave animal does (on the cave floor, along its walls): cave dwellers always, and a surface animal
+            /// that's sometimes found in caves (CaveAffinity) while it's under rock.
+            /// </summary>
+            bool CaveWalker(in CreatureState s, ref CreatureBlob b)
+            {
+                if (b.CaveDweller)
+                    return true;
+                if (b.CaveAffinity <= 0f || !Terrain.Caves.IsCreated)
+                    return false;
+                Terrain.FloorUnder(s.Position + new float3(0f, 0.5f, 0f), out var inCave);
+                return inCave && s.Position.y < Terrain.SampleHeight(s.Position.xz) - 1f;
+            }
 
             /// <summary>
             /// Land on the far side of water within 60 m, in one of a few directions tried: the way there starts on

@@ -750,13 +750,20 @@ namespace Punchy.Fauna
                 for (int sp = 0; sp < species.Count; sp++)
                 {
                     var body = species[sp].Body;
-                    if (!body.CaveDweller)
+                    // Now and then a surface animal (a bear in its den, a wolf, a fox), if it lives round the mouth:
+                    // one or two in the chambers near the mouth.
+                    var visitor = !body.CaveDweller && species[sp].CaveAffinity > 0f;
+                    if (!body.CaveDweller && !visitor)
                         continue;
-                    var count = rng.NextInt(math.max(1, body.GroupSize.x), math.max(body.GroupSize.x, body.GroupSize.y) + 1);
+                    if (visitor && (rng.NextFloat() >= species[sp].CaveAffinity || !LivesAt(source, sp, cave.Mouth.xz)))
+                        continue;
+                    var count = visitor ? rng.NextInt(1, 3)
+                              : rng.NextInt(math.max(1, body.GroupSize.x), math.max(body.GroupSize.x, body.GroupSize.y) + 1);
                     for (int k = 0; k < count; k++)
                     {
-                        // On the floor somewhere in the inner two thirds of the passage.
-                        var node = set.Nodes[cave.FirstNode + rng.NextInt(cave.NodeCount / 3, cave.NodeCount)];
+                        // On the floor somewhere in the inner two thirds of the passage (a visitor, the outer half).
+                        var node = set.Nodes[cave.FirstNode + (visitor ? rng.NextInt(1, math.max(2, cave.NodeCount / 2))
+                                                                       : rng.NextInt(cave.NodeCount / 3, cave.NodeCount))];
                         var at = node.Position + new float3(rng.NextFloat(-0.5f, 0.5f), 0f, rng.NextFloat(-0.5f, 0.5f)) * node.Radius;
                         var floor = source.FloorUnder(at, out var inCave);
                         // (Really under the rock: not where a passage opens to the sky.)
@@ -765,6 +772,18 @@ namespace Punchy.Fauna
                     }
                 }
             }
+        }
+
+        /// <summary>Whether a species is among the animals of the biome at a point.</summary>
+        bool LivesAt(in TerrainSource source, int speciesIndex, float2 at)
+        {
+            var biome = source.SampleGround(at).Biomes.Dominant();
+            if (biome < 0 || biome >= biomes.Length || biomes[biome] == null)
+                return false;
+            foreach (var f in biomes[biome].Fauna)
+                if (f.Species != null && f.Species.name == species[speciesIndex].name)
+                    return true;
+            return false;
         }
 
         /// <summary>

@@ -58,8 +58,11 @@ MonoBehaviour:
   WebSize: 0.6
   Burrows: 0
   CaveDweller: 0
+  CaveAffinity: 0.2
   Roosts: 0
   Friendly: 0
+  LavaDweller: 0
+  Haunts: 0
   CrossesWater: 1
   Nests: 0
   FlightHeight: {x: 8, y: 18}
