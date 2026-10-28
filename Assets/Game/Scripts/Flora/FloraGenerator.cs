@@ -1730,6 +1730,28 @@ namespace Punchy.Flora
             }
             // A trough inside.
             b.Box(new Vector3(-radius * 0.45f, 0.22f, -radius * 0.35f), new Vector3(1.4f, 0.44f, 0.5f), Quaternion.Euler(0f, 30f, 0f), g.Bark * 0.7f, FloraPart.Bark);
+            // The rails stop the player (all but the gate).
+            for (int k = 0; k < posts; k++)
+            {
+                var p = tops[k];
+                var q = tops[(k + 1) % posts];
+                if ((p + q).z * 0.5f <= radius * 0.85f)
+                    FenceColliders(g, p, q, height);
+            }
+        }
+
+        /// <summary>
+        /// Colliders along a fence line from a to b: small upright cylinders about 0.9 m apart, close enough that the
+        /// player (whose own radius adds to theirs) can't slip between them, even sprinting at an angle.
+        /// </summary>
+        static void FenceColliders(Grower g, Vector3 a, Vector3 b, float height)
+        {
+            var count = Mathf.Max(1, Mathf.CeilToInt(Vector3.Distance(a, b) / 0.9f));
+            for (int k = 0; k <= count; k++)
+            {
+                var p = Vector3.Lerp(a, b, k / (float)count);
+                g.Colliders.Add(new Vector4(p.x, p.z, 0.25f, height));
+            }
         }
 
         static void Stall(Grower g)
@@ -1980,6 +2002,15 @@ namespace Punchy.Flora
                         if (side == 0 && Mathf.Abs(x) < 0.7f)
                             continue;   // the gate gap
                         b.Box(rot * new Vector3(x, fence * 0.45f, half), new Vector3(0.08f, fence * 0.95f, 0.08f), rot, wood * g.Range(0.85f, 1.1f), FloraPart.Bark);
+                    }
+                    if (g.Lod == 0)
+                    {
+                        // The fence stops the player, except at the gate.
+                        if (side == 0)
+                            foreach (var dir in new[] { -1f, 1f })
+                                FenceColliders(g, rot * new Vector3(dir * half, 0f, half), rot * new Vector3(dir * 0.75f, 0f, half), fence);
+                        else
+                            FenceColliders(g, rot * new Vector3(-half, 0f, half), rot * new Vector3(half, 0f, half), fence);
                     }
                     foreach (var y in new[] { fence * 0.35f, fence * 0.75f })
                     {

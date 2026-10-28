@@ -593,7 +593,9 @@ namespace Punchy.Flora
                     foreach (var inst in tile)
                     {
                         var model = models[inst.Model];
-                        if (!model.Species.Solid || model.TrunkRadius <= 0f || math.distance(inst.Position.xz, centre) > CollisionRange)
+                        // Solid with a trunk, or with colliders of its own (rocks, buildings, fences: those have no trunk).
+                        if (!model.Species.Solid || model.TrunkRadius <= 0f && model.Colliders.Count == 0
+                            || math.distance(inst.Position.xz, centre) > CollisionRange)
                             continue;
                         if (model.Colliders.Count == 0)
                         {
