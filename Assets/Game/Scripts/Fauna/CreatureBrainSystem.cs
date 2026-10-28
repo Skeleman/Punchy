@@ -3629,7 +3629,8 @@ namespace Punchy.Fauna
                         if (g.HasWater && g.WaterSurface > g.Height)
                         {
                             var deep = math.smoothstep(b.StandHeight * s.Scale * 0.6f, b.StandHeight * s.Scale * 0.9f, g.WaterSurface - g.Height);
-                            var floatAt = g.WaterSurface - 0.2f * s.Scale + math.sin(s.Clock * 1.9f) * 0.02f * s.Scale;
+                            // (Low: the back a hand's breadth under, only the shoulders and the raised head out.)
+                            var floatAt = g.WaterSurface - 0.24f * s.Scale + math.sin(s.Clock * 1.9f) * 0.02f * s.Scale;
                             s.Position.y = math.lerp(g.Height, floatAt, deep);
                         }
                     }

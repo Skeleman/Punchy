@@ -284,26 +284,29 @@ namespace Punchy.Fauna
                     Dither = 0.4f
                 });
             }
-            // Foam: a ring of flat pieces round the splash, spreading out and stretching as it goes.
-            const int ring = 18;
+            // Foam: patches of it in a broken ring round the splash, thin and see-through, spreading out and gone in
+            // a second or two.
+            const int ring = 22;
             for (int k = 0; k < ring; k++)
             {
-                var angle = k * math.PI * 2f / ring;
+                if (rng.NextFloat() < 0.4f)
+                    continue;
+                var angle = (k + rng.NextFloat(-0.3f, 0.3f)) * math.PI * 2f / ring;
                 var out0 = new float3(math.cos(angle), 0f, math.sin(angle));
-                var start = size * 1.2f;
+                var start = size * rng.NextFloat(1f, 1.4f);
                 Add(new Trace
                 {
                     Position = centre + new float3(0f, 0.03f, 0f) + out0 * start,
                     Rotation = quaternion.LookRotationSafe(new float3(-out0.z, 0f, out0.x), new float3(0f, 1f, 0f)),
-                    Length = 2f * math.PI * start / ring,
-                    Radius = size * 0.09f,
+                    Length = 2f * math.PI * start / ring * rng.NextFloat(0.4f, 0.9f),
+                    Radius = size * rng.NextFloat(0.03f, 0.06f),
                     Flatten = 0.1f,
                     Color = foam,
                     Born = now,
-                    Life = 3f,
-                    Velocity = out0 * (1.5f + size),
+                    Life = rng.NextFloat(1.2f, 1.9f),
+                    Velocity = out0 * (1.5f + size) * rng.NextFloat(0.8f, 1.1f),
                     Grow = (1.5f + size) / start,
-                    Dither = 0.35f
+                    Dither = 0.5f
                 });
             }
             // Mist: a low, wide, faint haze hugging the water round the splash, spreading and thinning.

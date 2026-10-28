@@ -105,7 +105,7 @@ namespace Punchy.Fauna
                 if (water.HasWater)
                     swimming = math.smoothstep(b.StandHeight * scale * 0.6f, b.StandHeight * scale * 0.9f, water.WaterSurface - water.Height);
                 pitch += 1.35f * swimming;
-                height = math.lerp(height, 0.12f * scale, swimming);
+                height = math.lerp(height, 0.05f * scale, swimming);
             }
 
             // Idle actions that move the whole body: a shake rolls it, lizard push-ups bob it, sniffing dips it.
@@ -644,9 +644,9 @@ namespace Punchy.Fauna
                     return joint == 0 ? new float3(-0.45f * draw, part.Side * 0.25f * draw, 0f) : joint == 1 ? new float3(1.3f * draw, 0f, 0f) : float3.zero;
                 }
                 case LimbRole.Neck:
-                    return new float3(-0.5f / math.max(part.SegmentCount, 1), 0f, 0f);
+                    return new float3(-0.75f / math.max(part.SegmentCount, 1), 0f, 0f);
                 case LimbRole.Head:
-                    return new float3(-0.7f, 0f, 0f);
+                    return new float3(-0.9f, 0f, 0f);
                 default:
                     return float3.zero;
             }

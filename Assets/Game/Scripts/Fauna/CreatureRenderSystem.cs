@@ -47,8 +47,10 @@ namespace Punchy.Fauna
         const float LanternLightRange = 60f;
         /// <summary>Capsules in what a guard holds (a spear's shaft and head; a torch's handle, flame, heart and glow).</summary>
         const int GuardParts = 4;
-        /// <summary>Capsules in a fisher's gear: the rod, the line, the float, a fish, the basket.</summary>
-        const int RodParts = 5;
+        /// <summary>Capsules in a fisher's gear: the rod, the line, the float, a fish, and the basket (its staves, its
+        /// rim, the dark inside and the base).</summary>
+        const int BasketStaves = 8;
+        const int RodParts = 4 + BasketStaves * 2 + 2;
         static int HeldCount(HeldItem held) => held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.Torch ? GuardParts :
                                                held == HeldItem.Rod ? RodParts : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
@@ -442,17 +444,69 @@ namespace Punchy.Fauna
                 var reach = Unity.Mathematics.math.length(span);
                 if (reach > 0.02f)
                     Output[at + 1] = new SegmentInstance { Position = tip, Rotation = Unity.Mathematics.quaternion.LookRotationSafe(span / reach, forward), Length = reach, RadiusStart = 0.0035f, RadiusEnd = 0.0035f, Flatten = 1f, Color = line, Pad = faded };
-                // The basket, on the ground at its side.
+                // The basket, on the ground at its side: an open wicker basket, a ring of staves flaring a little to a
+                // rim, dark inside.
                 var spot = state.Position.xz + right.xz * 0.45f * scale - forward.xz * 0.15f * scale;
-                Output[at + 4] = new SegmentInstance
+                var foot = new Unity.Mathematics.float3(spot.x, Terrain.SampleHeight(spot), spot.y);
+                var radius = 0.14f * scale;
+                var height = 0.2f * scale;
+                var up = new Unity.Mathematics.float3(0f, 1f, 0f);
+                var wicker = new Unity.Mathematics.float4(0.42f, 0.3f, 0.14f, 0f);
+                var weave = new Unity.Mathematics.float4(0.5f, 0.37f, 0.18f, 0f);
+                for (int k = 0; k < BasketStaves; k++)
                 {
-                    Position = new Unity.Mathematics.float3(spot.x, Terrain.SampleHeight(spot), spot.y),
-                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(new Unity.Mathematics.float3(0f, 1f, 0f), forward),
-                    Length = 0.2f * scale,
-                    RadiusStart = 0.13f * scale,
-                    RadiusEnd = 0.16f * scale,
-                    Flatten = 1f,
-                    Color = new Unity.Mathematics.float4(0.36f, 0.24f, 0.11f, 0f),
+                    var a = (k + 0.5f) * 2f * Unity.Mathematics.math.PI / BasketStaves;
+                    var outward = new Unity.Mathematics.float3(Unity.Mathematics.math.cos(a), 0f, Unity.Mathematics.math.sin(a));
+                    var bottom = foot + outward * radius * 0.85f;
+                    var top = foot + outward * radius * 1.12f + up * height;
+                    Output[at + 4 + k] = new SegmentInstance
+                    {
+                        Position = bottom,
+                        Rotation = Unity.Mathematics.quaternion.LookRotationSafe(Unity.Mathematics.math.normalize(top - bottom), outward),
+                        Length = Unity.Mathematics.math.distance(top, bottom),
+                        RadiusStart = 0.045f * scale,
+                        RadiusEnd = 0.05f * scale,
+                        Flatten = 0.45f,
+                        Color = wicker,
+                        Pad = faded
+                    };
+                    var b0 = (k + 0f) * 2f * Unity.Mathematics.math.PI / BasketStaves;
+                    var b1 = (k + 1f) * 2f * Unity.Mathematics.math.PI / BasketStaves;
+                    var r0 = foot + up * height + new Unity.Mathematics.float3(Unity.Mathematics.math.cos(b0), 0f, Unity.Mathematics.math.sin(b0)) * radius * 1.14f;
+                    var r1 = foot + up * height + new Unity.Mathematics.float3(Unity.Mathematics.math.cos(b1), 0f, Unity.Mathematics.math.sin(b1)) * radius * 1.14f;
+                    Output[at + 4 + BasketStaves + k] = new SegmentInstance
+                    {
+                        Position = r0,
+                        Rotation = Unity.Mathematics.quaternion.LookRotationSafe(Unity.Mathematics.math.normalize(r1 - r0), up),
+                        Length = Unity.Mathematics.math.distance(r0, r1),
+                        RadiusStart = 0.016f * scale,
+                        RadiusEnd = 0.016f * scale,
+                        Flatten = 1f,
+                        Color = weave,
+                        Pad = faded
+                    };
+                }
+                // The dark inside, just under the rim, and the base it stands on.
+                Output[at + 4 + BasketStaves * 2] = new SegmentInstance
+                {
+                    Position = foot + up * (height * 0.85f) - forward * radius,
+                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(forward, up),
+                    Length = radius * 2f,
+                    RadiusStart = radius,
+                    RadiusEnd = radius,
+                    Flatten = 0.05f,
+                    Color = new Unity.Mathematics.float4(0.1f, 0.07f, 0.03f, 0f),
+                    Pad = faded
+                };
+                Output[at + 4 + BasketStaves * 2 + 1] = new SegmentInstance
+                {
+                    Position = foot + up * 0.01f - forward * radius,
+                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(forward, up),
+                    Length = radius * 2f,
+                    RadiusStart = radius * 0.9f,
+                    RadiusEnd = radius * 0.9f,
+                    Flatten = 0.08f,
+                    Color = wicker,
                     Pad = faded
                 };
             }
