@@ -43,6 +43,10 @@ Shader "Punchy/Terrain Surface"
             #include "Glow.hlsl"
             // x how much the ground under grass takes the blades' colour, y the grass radius (GroundDetailSystem).
             float4 _PunchyGrassTint;
+            // The shared fine detail CaveSystem makes (rg a normal, b a height): grain on rock faces up close.
+            TEXTURE2D(_PunchyCaveDetail);
+            SAMPLER(sampler_PunchyCaveDetail);
+            float _PunchyCaveDetailReady;
 
             struct Varyings
             {
@@ -121,6 +125,22 @@ Shader "Punchy/Terrain Surface"
 
                 half relief = detailFade * 0.45 * (1 - puddle);
                 normalWS = normalize(normalWS - half3(micro.x, 0, micro.y) * relief);
+                // Rock faces (steep ground) up close: the caves' shared grain and fine relief, read three ways, so cliffs
+                // carry the same detail as cave walls.
+                half rockShade = 1;
+                half steep = (1 - smoothstep(0.55, 0.8, normalWS.y)) * (1 - smoothstep(40, 90, distance)) * (input.extra.w <= 0.01);
+                if (steep > 0.01 && _PunchyCaveDetailReady > 0)
+                {
+                    float3 q = input.positionWS * 0.6;
+                    float3 tw = pow(abs(normalWS), 4);
+                    tw /= tw.x + tw.y + tw.z;
+                    half4 rd = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.zy) * tw.x
+                             + SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.xz) * tw.y
+                             + SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.xy) * tw.z;
+                    half2 rb = (rd.rg - 0.5) * 0.8 * steep;
+                    normalWS = normalize(normalWS + float3(0, rb.x, rb.y) * tw.x + float3(rb.x, 0, rb.y) * tw.y + float3(rb.x, rb.y, 0) * tw.z);
+                    rockShade = 1 + (rd.b - 0.5) * 0.6 * steep;
+                }
 
                 InputData inputData = (InputData)0;
                 inputData.positionWS = input.positionWS;
@@ -138,6 +158,7 @@ Shader "Punchy/Terrain Surface"
 
                 SurfaceData surface = (SurfaceData)0;
                 half3 albedo = input.surface.rgb * (1 + (micro.z - 0.5) * 0.5 * detailFade);   // grain in the colour too
+                albedo *= rockShade;
                 // Under the grass blades (near the camera, where they're drawn) the ground takes their colour, so the
                 // gaps between blades read as more grass rather than bare soil (GroundDetailSystem.GroundTint).
                 half underGrass = input.extra.y * _PunchyGrassTint.x * (1 - smoothstep(_PunchyGrassTint.y * 0.7, _PunchyGrassTint.y, distance));

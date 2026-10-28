@@ -80,6 +80,8 @@ namespace Punchy.Flora
                     case FloraForm.LilyPad: LilyPad(g); break;
                     case FloraForm.Reeds: Reeds(g); break;
                     case FloraForm.Roots: Roots(g); break;
+                    case FloraForm.Hall: Hall(g); break;
+                    case FloraForm.Shrine: Shrine(g); break;
                 }
                 if (lod == 0)
                 {
@@ -1386,7 +1388,7 @@ namespace Punchy.Flora
             var b = g.B;
             var height = g.Range(s.Height);
             var radius = height * s.Spread * 0.5f;
-            var wall = height * 0.45f;
+            var wall = height * 0.55f;
             g.Height = height;
             g.Width = radius * 2.5f;
             g.TrunkRadius = radius;
@@ -1411,25 +1413,62 @@ namespace Punchy.Flora
                    new List<float> { overhang, overhang * 0.55f, 0.05f }, sides, roofColor, FloraPart.Bark, cap: true);
             b.Occlude(roof, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.2f)));
 
-            // Doorway facing +Z: a dark arch set into the wall, with a lintel.
-            var doorHeight = Mathf.Min(wall * 0.85f, 1.9f);
-            var door = new Vector3(0f, doorHeight * 0.5f, radius * 0.97f);
-            b.Blob(door, new Vector3(radius * 0.28f, doorHeight * 0.5f, 0.12f), Quaternion.identity, 1, 0.02f, 0f,
-                   new Color(0.02f, 0.017f, 0.015f), FloraPart.Bark, 0.2f);
-            if (g.Lod < 2)
-                b.Tube(new List<Vector3> { door + new Vector3(-radius * 0.35f, doorHeight * 0.5f + 0.05f, 0.08f), door + new Vector3(radius * 0.35f, doorHeight * 0.5f + 0.05f, 0.08f) },
-                       new List<float> { 0.07f, 0.07f }, 5, g.Bark * 0.55f, FloraPart.Bark);
+            // A framed door facing +Z, and a couple of windows.
+            // Out past the wall's slight bulge, so the curve doesn't poke through the flat door.
+            Door(g, new Vector3(0f, 0f, radius * 1.05f), Quaternion.identity, Mathf.Min(radius * 0.5f, 1.1f), Mathf.Min(wall * 0.8f, 2.1f));
+            Windows(g, radius * 1.05f, wall * 0.58f, 4, 0.55f, 40f);
         }
 
 
-        /// <summary>A doorway: a dark slab set into a wall facing +Z, at distance <paramref name="front"/>.</summary>
-        static void Doorway(Grower g, float front, float width, float height)
+        /// <summary>A doorway in a wall facing +Z, at distance <paramref name="front"/> (see Door).</summary>
+        static void Doorway(Grower g, float front, float width, float height) =>
+            Door(g, new Vector3(0f, 0f, front), Quaternion.identity, width, height);
+
+        /// <summary>
+        /// A door standing in a wall, its foot at <paramref name="at"/>, facing out along <paramref name="facing"/>'s +Z:
+        /// a timber frame (two jambs and a lintel standing proud of the wall), a plank door set back in it with a
+        /// handle and iron straps, and a stone step. Far away, just the door's dark rectangle.
+        /// </summary>
+        static void Door(Grower g, Vector3 at, Quaternion facing, float width, float height)
         {
-            g.B.Blob(new Vector3(0f, height * 0.5f, front), new Vector3(width * 0.5f, height * 0.5f, 0.1f), Quaternion.identity, 1, 0.02f, 0f,
-                     new Color(0.02f, 0.017f, 0.015f), FloraPart.Bark, 0.2f);
+            var b = g.B;
+            var wood = new Color(0.3f, 0.2f, 0.12f) * g.Range(0.85f, 1.15f);
+            var frame = g.Bark * 0.55f;
+            Vector3 P(float x, float y, float z) => at + facing * new Vector3(x, y, z);
+            if (g.Lod == 2)
+            {
+                b.Box(P(0f, height * 0.5f, 0.02f), new Vector3(width, height, 0.06f), facing, wood * 0.6f, FloraPart.Bark);
+                return;
+            }
+            var post = Mathf.Clamp(width * 0.12f, 0.1f, 0.18f);
+            // The leaf: vertical planks with thin gaps, set back a little in the frame.
+            var planks = 4;
+            var plank = (width - 0.03f * (planks - 1)) / planks;
+            for (int k = 0; k < planks; k++)
+            {
+                var x = -width * 0.5f + plank * 0.5f + k * (plank + 0.03f);
+                b.Box(P(x, height * 0.5f, -0.02f), new Vector3(plank, height, 0.08f), facing, wood * g.Range(0.9f, 1.1f), FloraPart.Bark);
+            }
+            // Dark gaps behind the planks, two iron straps and a handle.
+            b.Box(P(0f, height * 0.5f, -0.08f), new Vector3(width, height, 0.04f), facing, new Color(0.03f, 0.025f, 0.02f), FloraPart.Bark, 0.4f);
+            if (g.Lod == 0)
+            {
+                foreach (var y in new[] { height * 0.22f, height * 0.78f })
+                    b.Box(P(0f, y, 0.03f), new Vector3(width * 0.92f, 0.07f, 0.02f), facing, new Color(0.12f, 0.12f, 0.13f), FloraPart.Bark);
+                b.Box(P(width * 0.3f, height * 0.48f, 0.06f), new Vector3(0.05f, 0.14f, 0.05f), facing, new Color(0.15f, 0.14f, 0.13f), FloraPart.Bark);
+            }
+            // Frame: jambs and a lintel standing proud of the wall.
+            foreach (var side in new[] { -1f, 1f })
+                b.Box(P(side * (width * 0.5f + post * 0.5f), height * 0.5f + 0.05f, 0.04f), new Vector3(post, height + 0.1f, 0.2f), facing, frame, FloraPart.Bark);
+            b.Box(P(0f, height + post * 0.5f, 0.05f), new Vector3(width + post * 2.6f, post, 0.24f), facing, frame, FloraPart.Bark);
+            // A stone step.
+            b.Box(P(0f, 0.06f, 0.32f), new Vector3(width + post * 2f, 0.16f, 0.5f), facing, new Color(0.45f, 0.44f, 0.41f) * g.Range(0.9f, 1.1f), FloraPart.Bark);
         }
 
-        /// <summary>Small square windows round a wall at a height, in the accent colour (lit at night if glowing).</summary>
+        /// <summary>
+        /// Windows round a wall at a height: a timber frame with a sill and a cross bar, round a pane in the accent
+        /// colour (FloraPart.Window: dark glass by day, lit at night).
+        /// </summary>
         static void Windows(Grower g, float radius, float y, int count, float size, float skipAngle)
         {
             if (!g.HasAccent || g.Lod == 2)
@@ -1440,9 +1479,28 @@ namespace Punchy.Flora
                 if (Mathf.Abs(Mathf.DeltaAngle(a * Mathf.Rad2Deg, 90f)) < skipAngle)
                     continue;   // keep clear of the door (+Z is 90° here)
                 var dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
-                g.B.Blob(dir * radius + Vector3.up * y, new Vector3(size, size * 1.2f, size) * 0.5f, Quaternion.LookRotation(dir), 0, 0f, 0f,
-                         g.Accent, FloraPart.Petal);
+                Window(g, dir * radius + Vector3.up * y, Quaternion.LookRotation(dir), size, size * 1.25f);
             }
+        }
+
+        /// <summary>One window facing out along <paramref name="facing"/>'s +Z, centred at <paramref name="at"/>.</summary>
+        static void Window(Grower g, Vector3 at, Quaternion facing, float width, float height, Color? light = null)
+        {
+            var b = g.B;
+            var frame = g.Bark * 0.55f;
+            // Each pane's colour a touch different: the shader keys its own lighting-up hour on it.
+            b.Box(at, new Vector3(width, height, 0.06f), facing, (light ?? g.Accent) * g.Range(0.96f, 1.04f), FloraPart.Window);
+            if (g.Lod > 0)
+                return;
+            var bar = Mathf.Clamp(width * 0.1f, 0.04f, 0.08f);
+            Vector3 P(float x, float y, float z) => at + facing * new Vector3(x, y, z);
+            foreach (var side in new[] { -1f, 1f })
+            {
+                b.Box(P(side * (width + bar) * 0.5f, 0f, 0.03f), new Vector3(bar, height + bar * 2f, 0.1f), facing, frame, FloraPart.Bark);
+                b.Box(P(0f, side * (height + bar) * 0.5f, 0.03f), new Vector3(width + bar * 2f, bar, 0.1f), facing, frame, FloraPart.Bark);
+            }
+            b.Box(P(0f, 0f, 0.035f), new Vector3(bar * 0.6f, height, 0.04f), facing, frame, FloraPart.Bark);
+            b.Box(P(0f, -height * 0.5f - bar, 0.08f), new Vector3(width + bar * 3f, bar * 0.8f, 0.18f), facing, frame, FloraPart.Bark);
         }
 
         static void StoneHouse(Grower g)
@@ -1451,7 +1509,7 @@ namespace Punchy.Flora
             var b = g.B;
             var height = g.Range(s.Height);
             var half = height * s.Spread * 0.5f;      // half the wall's width
-            var wall = height * 0.55f;
+            var wall = height * 0.65f;
             g.Height = height;
             g.Width = half * 2.8f;
             g.TrunkRadius = half * 1.1f;
@@ -1478,7 +1536,17 @@ namespace Punchy.Flora
             RotateAround(b, stack, chimney, square);
 
             Doorway(g, half + 0.02f, Mathf.Min(half * 0.6f, 1.2f), Mathf.Min(wall * 0.8f, 2f));
-            Windows(g, half + 0.03f, wall * 0.55f, 4, 0.5f, 30f);
+            // A window in the middle of each side wall and the back (the four-way Windows would put them on corners).
+            if (g.HasAccent && g.Lod < 2)
+                foreach (var dir in new[] { Vector3.right, Vector3.left, Vector3.back })
+                    Window(g, dir * (half + 0.03f) + Vector3.up * wall * 0.55f, Quaternion.LookRotation(dir), 0.6f, 0.75f);
+            // ...and one either side of the door.
+            if (g.HasAccent && g.Lod < 2 && half > 1.6f)
+                foreach (var x in new[] { -1f, 1f })
+                    Window(g, new Vector3(x * half * 0.62f, wall * 0.55f, half + 0.03f), Quaternion.identity, 0.6f, 0.75f);
+            // Collision: a square, not the circle round its middle, so its corners stop you too.
+            for (int k = 0; k < 4; k++)
+                g.Colliders.Add(new Vector4((k & 1) == 0 ? -half * 0.5f : half * 0.5f, (k & 2) == 0 ? -half * 0.5f : half * 0.5f, half * 0.55f, wall));
         }
 
         /// <summary>Rotates vertices added since <paramref name="first"/> about the vertical axis through the origin.</summary>
@@ -1709,7 +1777,7 @@ namespace Punchy.Flora
             Doorway(g, front + 0.02f, 1.1f, Mathf.Min(wall * 0.42f, 2.1f));
             if (g.Lod < 2)
                 foreach (var (x, y) in new[] { (-0.55f, 0.27f), (0.55f, 0.27f), (-0.55f, 0.75f), (0f, 0.75f), (0.55f, 0.75f) })
-                    b.Box(new Vector3(x * half, y * wall, front + 0.03f), new Vector3(0.6f, 0.7f, 0.06f), Quaternion.identity, AccentAt(g, 0), FloraPart.Petal);
+                    Window(g, new Vector3(x * half, y * wall, front + 0.03f), Quaternion.identity, 0.6f, 0.75f);
             var porch = 2.4f;
             b.Box(new Vector3(0f, 0.15f, front + porch * 0.5f), new Vector3(half * 1.8f, 0.3f, porch), Quaternion.identity, g.Bark * 0.75f, FloraPart.Bark);
             b.Beam(new Vector3(0f, wall * 0.48f, front), new Vector3(0f, wall * 0.4f, front + porch + 0.3f), half * 1.9f, 0.12f, roof, FloraPart.Bark);
@@ -1719,6 +1787,132 @@ namespace Punchy.Flora
             // A sign hanging from the porch roof.
             if (g.Lod < 2)
                 b.Box(new Vector3(half * 0.55f, wall * 0.3f, front + porch + 0.2f), new Vector3(0.9f, 0.55f, 0.06f), Quaternion.identity, AccentAt(g, 1), FloraPart.Bark);
+        }
+
+        /// <summary>
+        /// A leader's hall, its door facing +Z: a long timber hall on a stone plinth, corner and wall posts, a steep
+        /// gabled roof with its ridge along X and crossed beams at each gable, a wide door up two steps, lit windows (first
+        /// accent) along the front and back, and two banners (second accent) flanking the door. Collision covers its
+        /// length.
+        /// </summary>
+        static void Hall(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var half = height * s.Spread * 0.5f;      // half its length (along X)
+            var front = half * 0.55f;                 // half its depth (along Z)
+            var plinth = 0.6f;
+            var wall = plinth + height * 0.38f;
+            g.Height = height;
+            g.Width = half * 2.4f;
+            g.TrunkRadius = front;
+            var timber = g.Bark * 0.5f;
+            var stone = Stone(g) * g.Range(0.9f, 1.1f);
+
+            // Stone plinth, then timber walls with posts.
+            var first = b.VertexCount;
+            b.Box(new Vector3(0f, plinth * 0.5f - 0.15f, 0f), new Vector3(half * 2f + 0.4f, plinth + 0.3f, front * 2f + 0.4f), Quaternion.identity, stone, FloraPart.Bark);
+            b.Box(new Vector3(0f, (plinth + wall) * 0.5f, 0f), new Vector3(half * 2f, wall - plinth, front * 2f), Quaternion.identity, g.Bark, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, wall * 0.4f));
+            if (g.Lod < 2)
+            {
+                var posts = Mathf.Max(2, Mathf.RoundToInt(half / 1.6f));
+                for (int k = 0; k <= posts; k++)
+                {
+                    var x = Mathf.Lerp(-half, half, k / (float)posts);
+                    foreach (var z in new[] { -1f, 1f })
+                        b.Box(new Vector3(x, (plinth + wall) * 0.5f, z * (front + 0.06f)), new Vector3(0.28f, wall - plinth, 0.2f), Quaternion.identity, timber, FloraPart.Bark);
+                }
+                b.Box(new Vector3(0f, wall - 0.12f, 0f), new Vector3(half * 2f + 0.12f, 0.25f, front * 2f + 0.12f), Quaternion.identity, timber, FloraPart.Bark);
+            }
+
+            // Steep gabled roof along X, overhanging; gable ends filled; crossed beams rising past the ridge at each end.
+            var roof = g.FoliageColor();
+            var ridge = height;
+            foreach (var z in new[] { -1f, 1f })
+                b.Beam(new Vector3(0f, wall - 0.35f, z * (front + 0.9f)), new Vector3(0f, ridge + 0.1f, 0f), half * 2f + 1.2f, 0.22f, roof, FloraPart.Bark);
+            foreach (var x in new[] { -1f, 1f })
+            {
+                var v0 = b.Vertex(new Vector3(x * half, wall, -front), Vector3.right * x, g.Bark, FloraPart.Bark, 0.9f);
+                var v1 = b.Vertex(new Vector3(x * half, wall, front), Vector3.right * x, g.Bark, FloraPart.Bark, 0.9f);
+                var v2 = b.Vertex(new Vector3(x * half, ridge, 0f), Vector3.right * x, g.Bark, FloraPart.Bark, 0.9f);
+                b.Triangle(v0, v1, v2);
+                if (g.Lod < 2)
+                    foreach (var z in new[] { -1f, 1f })
+                        b.Beam(new Vector3(x * (half + 0.6f), wall + (ridge - wall) * 0.55f, z * front * 0.55f), new Vector3(x * (half + 0.6f), ridge + 1.1f, -z * 0.5f),
+                               0.22f, 0.18f, timber, FloraPart.Bark);
+            }
+
+            // A wide door up two steps, windows along both long walls, banners either side of the door.
+            Door(g, new Vector3(0f, plinth - 0.05f, front + 0.04f), Quaternion.identity, 1.8f, Mathf.Min(wall - plinth - 0.4f, 2.7f));
+            b.Box(new Vector3(0f, plinth * 0.5f - 0.05f, front + 0.75f), new Vector3(3.2f, plinth * 0.5f, 0.8f), Quaternion.identity, stone, FloraPart.Bark);
+            var light = AccentAt(g, 0);
+            if (g.Lod < 2)
+            {
+                var windows = Mathf.Max(2, Mathf.RoundToInt(half / 2.2f));
+                for (int k = 0; k < windows; k++)
+                {
+                    var x = Mathf.Lerp(-half * 0.75f, half * 0.75f, (k + 0.5f) / windows);
+                    if (Mathf.Abs(x) < 1.6f)
+                        continue;   // clear of the door
+                    var y = plinth + (wall - plinth) * 0.55f;
+                    Window(g, new Vector3(x, y, front + 0.09f), Quaternion.identity, 0.7f, 1f, light);
+                    Window(g, new Vector3(x, y, -front - 0.09f), Quaternion.LookRotation(Vector3.back), 0.7f, 1f, light);
+                }
+                foreach (var x in new[] { -2.2f, 2.2f })
+                {
+                    var foot = new Vector3(x, 0f, front + 1.4f);
+                    b.Tube(new List<Vector3> { foot + Vector3.down * 0.2f, foot + Vector3.up * (wall + 1.2f) }, new List<float> { 0.08f, 0.06f }, g.Sides(6, 4, 3), timber, FloraPart.Bark);
+                    b.Box(foot + new Vector3(x * 0.12f, wall + 0.2f, 0f), new Vector3(0.9f, 1.8f, 0.04f), Quaternion.identity, AccentAt(g, 1), FloraPart.Bark);
+                }
+            }
+
+            // Collision: a row of cylinders along its length.
+            var count = Mathf.Max(2, Mathf.CeilToInt(half / front));
+            for (int k = 0; k < count; k++)
+                g.Colliders.Add(new Vector4(Mathf.Lerp(-half + front * 0.9f, half - front * 0.9f, count == 1 ? 0.5f : k / (count - 1f)), 0f, front * 1.05f, wall));
+        }
+
+        /// <summary>
+        /// A shrine, facing +Z: a stepped stone platform, four posts carrying a small pyramid roof, and an altar under it
+        /// with a stone that glows in the accent colour, a pair of offering bowls in front.
+        /// </summary>
+        static void Shrine(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var half = height * s.Spread * 0.5f;
+            g.Height = height;
+            g.Width = half * 2.6f;
+            g.TrunkRadius = half * 0.5f;
+            var stone = Stone(g) * g.Range(0.95f, 1.15f);
+            var timber = g.Bark * 0.6f;
+
+            // Two stone steps up to the platform.
+            var first = b.VertexCount;
+            b.Box(new Vector3(0f, 0.1f, 0f), new Vector3(half * 2.4f, 0.45f, half * 2.4f), Quaternion.identity, stone * 0.92f, FloraPart.Bark);
+            b.Box(new Vector3(0f, 0.38f, 0f), new Vector3(half * 2f, 0.25f, half * 2f), Quaternion.identity, stone, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, 0.5f));
+            var floor = 0.5f;
+            var eave = floor + height * 0.55f;
+            // Posts and the roof.
+            foreach (var x in new[] { -1f, 1f })
+            foreach (var z in new[] { -1f, 1f })
+                b.Tube(new List<Vector3> { new Vector3(x * half * 0.82f, floor, z * half * 0.82f), new Vector3(x * half * 0.82f, eave, z * half * 0.82f) },
+                       new List<float> { 0.12f, 0.1f }, g.Sides(6, 4, 3), timber, FloraPart.Bark);
+            var roof = b.VertexCount;
+            b.Tube(new List<Vector3> { Vector3.up * (eave - 0.1f), Vector3.up * height }, new List<float> { half * 1.45f, 0.05f }, 4, g.FoliageColor(), FloraPart.Bark, cap: true);
+            RotateFrom(b, roof, Quaternion.Euler(0f, 45f, 0f));
+            b.Occlude(roof, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y + 0.3f)));
+            // The altar and its glowing stone.
+            b.Box(new Vector3(0f, floor + 0.45f, 0f), new Vector3(half * 0.9f, 0.9f, half * 0.6f), Quaternion.identity, stone * 1.1f, FloraPart.Bark);
+            b.Blob(new Vector3(0f, floor + 1.1f, 0f), new Vector3(0.22f, 0.26f, 0.22f), Quaternion.identity, g.Lod == 0 ? 1 : 0, 0.15f, 3f, g.Accent, FloraPart.Glow);
+            if (g.Lod == 0)
+                foreach (var x in new[] { -0.45f, 0.45f })
+                    b.Tube(new List<Vector3> { new Vector3(x, floor + 0.02f, half * 0.55f), new Vector3(x, floor + 0.14f, half * 0.55f) },
+                           new List<float> { 0.1f, 0.14f }, 6, stone * 0.8f, FloraPart.Bark, cap: true);
         }
 
         static void Smithy(Grower g)

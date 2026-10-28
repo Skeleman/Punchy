@@ -58,7 +58,11 @@ namespace Punchy.Flora
                  "slim cattail head in the accent colour. Branches = blades.")] Reeds,
         [Tooltip("Roots hanging down from a cave ceiling (the plant's origin is the ceiling): tapered, wandering " +
                  "strands with a few side roots, in Bark. Height is the longest; Spread how widely they hang; " +
-                 "Branches = strands.")] Roots
+                 "Branches = strands.")] Roots,
+        [Tooltip("A leader's hall: a long timber hall on a stone plinth under a steep gabled roof with crossed ridge beams, " +
+                 "a wide door, lit windows (first accent) and banners (second accent). Height is to the ridge; Spread its length.")] Hall,
+        [Tooltip("A shrine: a stepped stone platform under a small roof on four posts, round an altar whose stone glows in " +
+                 "the accent colour. Height is to the roof's tip; Spread its width.")] Shrine
     }
 
     public enum FoliageFinish : byte
