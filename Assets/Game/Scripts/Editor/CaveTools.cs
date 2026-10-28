@@ -169,7 +169,7 @@ namespace Punchy.EditorTools
             // Floors: FloorUnder against a plain 5 cm scan down from where it starts looking (a little above the
             // point), at points in cave air.
             var rng = new Unity.Mathematics.Random(99);
-            int tested = 0, off = 0;
+            int tested = 0, off = 0, hairline = 0;
             for (int k = 0; k < 3000; k++)
             {
                 var node = set.Nodes[rng.NextInt(set.Nodes.Length)];
@@ -180,10 +180,20 @@ namespace Punchy.EditorTools
                 tested++;
                 while (y > p.y - 60f && source.CaveDistance(new float3(p.x, y - 0.05f, p.z)) < 0f)
                     y -= 0.05f;
-                if (math.abs(source.FloorUnder(p, out _) - y) > 0.1f)
+                var floor = source.FloorUnder(p, out _);
+                if (math.abs(floor - y) <= 0.1f)
+                    continue;
+                // Through a skin of rock under 10 cm thick (where two passages nearly touch): too thin for the cave
+                // mesh to show, so not a floor anyone could stand on. Counted apart from real misses.
+                var peak = -1f;
+                for (var t = y; t > floor + 0.05f && floor < y; t -= 0.02f)
+                    peak = math.max(peak, source.CaveDistance(new float3(p.x, t, p.z)));
+                if (floor < y && peak < 0.1f)
+                    hairline++;
+                else
                     off++;
             }
-            sb.AppendLine($"floors: {tested} points, {off} differ from a 5 cm scan by more than 10 cm");
+            sb.AppendLine($"floors: {tested} points, {off} differ from a 5 cm scan by more than 10 cm (and {hairline} through rock under 10 cm thick)");
             return Log(sb.ToString().TrimEnd());
         }
 

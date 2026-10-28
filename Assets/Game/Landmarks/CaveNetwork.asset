@@ -53,14 +53,14 @@ MonoBehaviour:
     Clearance: 4
   Effects: []
   Cave: 1
-  CaveLength: 90
-  CaveDepth: 18
+  CaveLength: 150
+  CaveDepth: 28
   CaveRadius: 2.8
-  ChamberRadius: 9
-  CaveChambers: 3
-  CaveBranches: 7
-  BranchLength: 35
-  CaveShafts: 2
+  ChamberRadius: 14
+  CaveChambers: 4
+  CaveBranches: 9
+  BranchLength: 45
+  CaveShafts: 3
   CaveStyles:
   - {fileID: 11400000, guid: c945975c60104c3439c424a48ff19913, type: 2}
   - {fileID: 11400000, guid: 9a2e7fee5b6994848b970dea7982cd93, type: 2}
@@ -71,4 +71,5 @@ MonoBehaviour:
   - {fileID: 11400000, guid: e3d5f597355700e4b9271156ec0afa6a, type: 2}
   - {fileID: 11400000, guid: cf4d1d524b94e8f4a989de0d8e626641, type: 2}
   - {fileID: 11400000, guid: 3f1381ab941965a4d824eef5805d8654, type: 2}
+  Settlement: {fileID: 0}
   Residents: []

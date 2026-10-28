@@ -139,6 +139,7 @@ namespace Punchy.Terrain
         static readonly int DetailId = Shader.PropertyToID("_PunchyCaveDetail");
         static readonly int DetailReadyId = Shader.PropertyToID("_PunchyCaveDetailReady");
         static readonly int FloraInCaveId = Shader.PropertyToID("_FloraInCave");
+        static readonly int UnderRockId = Shader.PropertyToID("_UnderRock");
         static Texture2D detail;
 
         void OnEnable()
@@ -267,6 +268,9 @@ namespace Punchy.Terrain
             if (floraMaterial != null)
                 Destroy(floraMaterial);
             floraMaterial = null;
+            if (caveWater != null)
+                Destroy(caveWater);
+            caveWater = null;
             Shader.SetGlobalVector(LanternId, Vector4.zero);
         }
 
@@ -279,8 +283,19 @@ namespace Punchy.Terrain
         const int MaxHeat = 16;
         readonly Vector4[] heat = new Vector4[MaxHeat];
         readonly Vector4[] heatColor = new Vector4[MaxHeat];
-        /// <summary>This frame's glowing things near the camera: lava pools and glowing plants.</summary>
-        readonly List<(float distance, Vector4 position, Vector4 color)> glowing = new List<(float, Vector4, Vector4)>();
+        /// <summary>
+        /// This frame's glowing things near the camera: lava pools, glowing plants, lit windows and moving lights. Key:
+        /// what tracks a light's fade from frame to frame (its position, for things that don't move).
+        /// </summary>
+        readonly List<(float distance, Vector4 key, Vector4 position, Vector4 color)> glowing = new List<(float, Vector4, Vector4, Vector4)>();
+
+        /// <summary>
+        /// Lights that move (a lantern a walker carries), for the glow list: other systems add theirs each frame, with
+        /// an id that stays the same while the light lives (so its fade-in carries on as it moves), its position and
+        /// its light (rgb linear times intensity, w its reach in metres, as for glowing plants). CaveSystem takes the
+        /// nearest with everything else and clears the list once it has uploaded them. Main thread only.
+        /// </summary>
+        public static readonly List<(int id, Vector3 position, Vector4 color)> MovingLights = new List<(int, Vector3, Vector4)>();
         static readonly Vector4 LavaLight = new Vector4(1f * 2.2f, 0.42f * 2.2f, 0.1f * 2.2f, 0f);
 
         /// <summary>How long a light takes to come on as it joins the list (with a small swell) and to go out as it leaves (s).</summary>
@@ -288,10 +303,10 @@ namespace Punchy.Terrain
         /// <summary>A light already in the list counts as this much nearer, so lights at the edge of the nearest
         /// MaxHeat don't flicker in and out as the camera moves.</summary>
         const float HeatStickiness = 0.85f;
-        /// <summary>Each listed light's time in the list (s), by position (glowing things don't move).</summary>
+        /// <summary>Each listed light's time in the list (s), by key.</summary>
         readonly Dictionary<Vector4, float> heatAge = new Dictionary<Vector4, float>();
-        /// <summary>Lights that have left the list, still fading out: their colour and the time left.</summary>
-        readonly Dictionary<Vector4, (Vector4 color, float left)> heatLeaving = new Dictionary<Vector4, (Vector4, float)>();
+        /// <summary>Lights that have left the list, still fading out where they were last: colour, position, time left.</summary>
+        readonly Dictionary<Vector4, (Vector4 color, Vector4 position, float left)> heatLeaving = new Dictionary<Vector4, (Vector4, Vector4, float)>();
         readonly List<Vector4> heatScratch = new List<Vector4>();
         readonly Dictionary<Vector4, float> heatNextAge = new Dictionary<Vector4, float>();
 
@@ -300,22 +315,28 @@ namespace Punchy.Terrain
         /// list fades in over HeatFadeIn with a small swell past full, and one leaving fades out (in a spare slot), so
         /// lights don't pop on and off at the edge of the list.
         /// </summary>
-        void UploadGlowing()
+        void UploadGlowing(float3 camPos)
         {
+            // Moving lights, keyed by their id (a y no position has keeps them apart from the still ones).
+            foreach (var (id, position, color) in MovingLights)
+                glowing.Add((math.distance((float3)position, camPos), new Vector4(id, float.MaxValue, 0f, 0f),
+                             new Vector4(position.x, position.y, position.z, 0f), color));
+            MovingLights.Clear();
+
             var dt = math.min(Time.unscaledDeltaTime, 0.1f);
             for (int i = 0; i < glowing.Count; i++)
-                if (heatAge.ContainsKey(glowing[i].position))
-                    glowing[i] = (glowing[i].distance * HeatStickiness, glowing[i].position, glowing[i].color);
+                if (heatAge.ContainsKey(glowing[i].key))
+                    glowing[i] = (glowing[i].distance * HeatStickiness, glowing[i].key, glowing[i].position, glowing[i].color);
             glowing.Sort((a, b) => a.distance.CompareTo(b.distance));
             var count = math.min(glowing.Count, MaxHeat);
 
             heatNextAge.Clear();
             for (int i = 0; i < count; i++)
             {
-                var (_, position, color) = glowing[i];
-                var age = (heatAge.TryGetValue(position, out var a) ? a : 0f) + dt;
-                heatNextAge[position] = age;
-                heatLeaving.Remove(position);
+                var (_, key, position, color) = glowing[i];
+                var age = (heatAge.TryGetValue(key, out var a) ? a : 0f) + dt;
+                heatNextAge[key] = age;
+                heatLeaving.Remove(key);
                 // Up to full over the first 60%, a swell of about 12% over full, settling back by the end.
                 var t = age / HeatFadeIn;
                 var envelope = math.smoothstep(0f, 0.6f, t) + 0.12f * math.smoothstep(0.3f, 0.6f, t) * (1f - math.smoothstep(0.6f, 1.2f, t));
@@ -326,12 +347,12 @@ namespace Punchy.Terrain
             foreach (var kv in heatAge)
                 if (!heatNextAge.ContainsKey(kv.Key) && !heatLeaving.ContainsKey(kv.Key))
                 {
-                    var color = Vector4.zero;
+                    Vector4 color = Vector4.zero, position = Vector4.zero;
                     foreach (var g in glowing)
-                        if (g.position == kv.Key) { color = g.color; break; }
+                        if (g.key == kv.Key) { color = g.color; position = g.position; break; }
                     if (color == Vector4.zero)
                         continue;   // gone from the candidates altogether (out of range): no colour to fade
-                    heatLeaving[kv.Key] = (color, HeatFadeOut * math.saturate(kv.Value / HeatFadeIn));
+                    heatLeaving[kv.Key] = (color, position, HeatFadeOut * math.saturate(kv.Value / HeatFadeIn));
                 }
             heatAge.Clear();
             foreach (var kv in heatNextAge)
@@ -343,16 +364,16 @@ namespace Punchy.Terrain
                 heatScratch.Add(key);
             foreach (var key in heatScratch)
             {
-                var (color, left) = heatLeaving[key];
+                var (color, position, left) = heatLeaving[key];
                 left -= dt;
                 if (left <= 0f || count >= MaxHeat)
                 {
                     heatLeaving.Remove(key);
                     continue;
                 }
-                heatLeaving[key] = (color, left);
+                heatLeaving[key] = (color, position, left);
                 var fade = math.smoothstep(0f, 1f, left / HeatFadeOut);
-                heat[count] = key;
+                heat[count] = position;
                 heatColor[count] = new Vector4(color.x * fade, color.y * fade, color.z * fade, color.w);
                 count++;
             }
@@ -387,7 +408,7 @@ namespace Punchy.Terrain
                 if (d < LoadRadius)
                     nearPools.Add((d, i));
             }
-            var water = configQuery.IsEmpty ? null : configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value;
+            var water = UnderRockWater(configQuery.IsEmpty ? null : configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value);
             if (nearPools.Count > 0)
             {
                 if (lavaPoolMesh == null)
@@ -416,7 +437,10 @@ namespace Punchy.Terrain
                         reach.w = pool.Radius * 5f + 4f;
                         // Only pools whose light could reach something near the camera take one of the 16 slots.
                         if (math.distance(pool.Centre, camPos) < reach.w + PlantRadius)
-                            glowing.Add((math.distance(pool.Centre, camPos), new Vector4(pool.Centre.x, pool.Centre.y + 0.3f, pool.Centre.z, 0f), reach));
+                            {
+                            var at = new Vector4(pool.Centre.x, pool.Centre.y + 0.3f, pool.Centre.z, 0f);
+                            glowing.Add((math.distance(pool.Centre, camPos), at, at, reach));
+                        }
                     }
                 }
             }
@@ -450,6 +474,29 @@ namespace Punchy.Terrain
         BiomePalette plantsFrom;
         Material floraMaterial;
         GraphicsBuffer plantInstances, plantVisible;
+
+        Material caveWater;
+
+        /// <summary>
+        /// A copy of the terrain's water material for cave pools and streams, marked as under rock, so their
+        /// reflections never fall back to the sky (near a mouth the camera isn't yet counted as underground). Kept in
+        /// step with the original's settings.
+        /// </summary>
+        Material UnderRockWater(Material water)
+        {
+            if (water == null)
+                return null;
+            if (caveWater == null || caveWater.shader != water.shader)
+            {
+                if (caveWater != null)
+                    Destroy(caveWater);
+                caveWater = new Material(water) { name = "Cave water" };
+            }
+            else
+                caveWater.CopyPropertiesFromMaterial(water);
+            caveWater.SetFloat(UnderRockId, 1f);
+            return caveWater;
+        }
         /// <summary>One draw per run of the same model and LOD: its mesh, and its index in plantArgs.</summary>
         readonly List<Mesh> plantDraws = new List<Mesh>();
         /// <summary>Indirect arguments per draw (instance count, and the run's start in plantVisible as startInstance,
@@ -582,7 +629,10 @@ namespace Punchy.Terrain
             }
 
             foreach (var (position, light) in nearGlowPlants)
-                glowing.Add((math.distance(position, camPos), new Vector4(position.x, position.y, position.z, 0f), light));
+            {
+                var at = new Vector4(position.x, position.y, position.z, 0f);
+                glowing.Add((math.distance(position, camPos), at, at, light));
+            }
 
             var bounds = new Bounds(camPos, new Vector3(PlantRadius * 2f, PlantRadius * 2f, PlantRadius * 2f));
             for (int d = 0; d < plantDraws.Count; d++)
@@ -988,7 +1038,8 @@ namespace Punchy.Terrain
                     l = new Vector4(l.x, l.y, l.z, 0f) * math.smoothstep(0.25f, 0.55f, night);
                     l.w = -light.w;
                 }
-                glowing.Add((math.distance(position, camPos), new Vector4(position.x, position.y, position.z, 0f), l));
+                var at = new Vector4(position.x, position.y, position.z, 0f);
+                glowing.Add((math.distance(position, camPos), at, at, l));
             }
         }
 
@@ -1008,7 +1059,10 @@ namespace Punchy.Terrain
         {
             var cam = Camera.main;
             if (cam == null || Material == null || !TryGetWorld(out var source))
+            {
+                MovingLights.Clear();
                 return;
+            }
             if (!source.Equals(lastSource))
             {
                 Release();
@@ -1019,7 +1073,7 @@ namespace Punchy.Terrain
             GatherSurfaceGlow(source, camPos);
             if (!source.Caves.IsCreated)
             {
-                UploadGlowing();
+                UploadGlowing(camPos);
                 return;
             }
 
@@ -1029,7 +1083,7 @@ namespace Punchy.Terrain
             DrawPools(source, camPos);
             DrawPlants(source, camPos);
             DrawDrips(source, camPos);
-            UploadGlowing();
+            UploadGlowing(camPos);
 
             // Underground: the camera in a cave's air, a couple of metres below the surface.
             var deep = source.CaveDistance(camPos) < 0f ? math.saturate((source.SampleHeight(camPos.xz) - camPos.y - 1f) / 3f) : 0f;
