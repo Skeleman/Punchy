@@ -13,6 +13,15 @@ asks Zach if needed, and records the answer here.
 
 ## Decided
 
+### J-025: Which animals can be picked up?
+
+- **Asked:** 2026-10-28, by the supervisor, after Zach could only pick up cats.
+- **Also comes up when:** new small species; carry rules; animal-bodied players.
+- **Answer (2026-10-28):** chickens reliably; small dogs and puppies; small wild animals when asleep or approached
+  slowly; pigeons and ducks on the ground. Never while playing as an animal; held height follows the carrier.
+- **Why:** Zach's picks.
+- **Revisited:** 0.
+
 ### J-024: May the world session tune the global ambient occlusion (SSAO) for contact darkening?
 
 - **Asked:** 2026-10-27, by the world session (W-14), via the supervisor.
