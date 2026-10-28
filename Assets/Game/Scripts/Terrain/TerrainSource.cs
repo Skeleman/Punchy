@@ -296,9 +296,13 @@ namespace Punchy.Terrain
                     g.Height = RiverSampling.Carve(river, RiverSettings, g.Height);
                 g.River = RiverSampling.ChannelMask(river);
                 var edge = river.Width * 0.5f + RiverSampling.SurfaceMargin;
+                // The river's own surface here and how much it claims this point (for its outlet from a lake, below).
+                var riverLevel = float.MinValue;
+                var riverClaim = 0f;
                 if (river.Found && river.Distance < edge)
                 {
                     var surfaceLevel = RiverSampling.WaterSurface(river);
+                    riverLevel = surfaceLevel;
                     if (surfaceLevel > water)
                     {
                         water = surfaceLevel;
@@ -306,19 +310,46 @@ namespace Punchy.Terrain
                         g.Rapids = math.smoothstep(0.015f, 0.08f, river.Gradient);
                     }
                     var fade = 1f - math.smoothstep(edge - RiverSampling.SurfaceMargin * 0.5f, edge, river.Distance);
+                    riverClaim = fade;
                     ruleDepth = math.max(ruleDepth, math.lerp(farAbove, surfaceLevel - g.Height, fade));
                 }
 
                 var lake = RiverSampling.Lake(ref Rivers.Value, xz, out var lakeSurface);
                 if (lake > 0f)
                 {
-                    if (lakeSurface > water)
+                    // Where a river leaves a lake lower than the lake's surface (its outlet), the river's surface rises
+                    // to the lake's across the lake's edge, as rapids, instead of stepping up along the edge of the
+                    // lake's cells.
+                    var level = lakeSurface;
+                    if (riverClaim > 0f && riverLevel < lakeSurface && lake < 1f)
                     {
-                        water = lakeSurface;
+                        var ramp = math.lerp(riverLevel, lakeSurface, math.smoothstep(0f, 1f, lake));
+                        level = math.lerp(lakeSurface, ramp, riverClaim);
+                    }
+                    if (level > water)
+                    {
+                        var outlet = level < lakeSurface - 0.01f;
+                        water = level;
+                        flow = outlet ? flow : float2.zero;
+                        g.Rapids = outlet ? math.max(g.Rapids, math.saturate((lakeSurface - riverLevel) * 0.6f) * riverClaim) : 0f;
+                    }
+                    ruleDepth = math.max(ruleDepth, math.lerp(farAbove, level - g.Height, math.smoothstep(0f, 0.4f, lake)));
+                }
+                // A bay or beach pocket lying below a lake's surface that the lake's coarse cells miss: lake too, if
+                // the ground between it and the lake is under that surface (so the water connects). Not in a river's
+                // own channel (an outlet keeps its ramp above).
+                if (lake < 1f && riverClaim <= 0f)
+                {
+                    var shore = RiverSampling.ShoreLevel(ref Rivers.Value, xz);
+                    if (shore > g.Height + 0.05f && shore > water
+                        && RiverSampling.NearestLakeAbove(ref Rivers.Value, xz, g.Height + 0.05f, out var lakeCentre, out var bayLevel)
+                        && bayLevel > water && ConnectsBelow(xz, lakeCentre, bayLevel))
+                    {
+                        water = bayLevel;
                         flow = float2.zero;
                         g.Rapids = 0f;
+                        ruleDepth = math.max(ruleDepth, bayLevel - g.Height);
                     }
-                    ruleDepth = math.max(ruleDepth, math.lerp(farAbove, lakeSurface - g.Height, math.smoothstep(0f, 0.4f, lake)));
                 }
                 // A river flowing through a lake is just lake there.
                 g.River *= 1f - math.saturate(lake * 2f);
@@ -418,6 +449,15 @@ namespace Punchy.Terrain
         {
             deck = 0f;
             return Settlements.IsCreated && SettlementSampling.Deck(ref Settlements.Value, p, out deck);
+        }
+
+        /// <summary>Whether the ground on the way from a to b (sampled at a quarter, half and three quarters) is all below a level.</summary>
+        bool ConnectsBelow(float2 a, float2 b, float level)
+        {
+            for (int k = 1; k <= 3; k++)
+                if (SampleHeight(math.lerp(a, b, k * 0.25f)) >= level)
+                    return false;
+            return true;
         }
 
         /// <summary>
