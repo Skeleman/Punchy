@@ -145,6 +145,16 @@ MonoBehaviour:
   Climbing: 0
   SpinsWebs: 1
   WebSize: 0.9
+  Burrows: 0
+  CaveDweller: 0
+  Crawls: 1
+  CaveAffinity: 0
+  Roosts: 0
+  Friendly: 0
+  LavaDweller: 0
+  Haunts: 0
+  CrossesWater: 0
+  Nests: 0
   FlightHeight: {x: 8, y: 18}
   FlySpeed: 7
   FlapRate: 6

@@ -415,7 +415,10 @@ namespace Punchy.Fauna
                         moving = true;
                         // (Right into its nest, when that's where it's going.)
                         var arrive = b.Nests == NestSite.Ground && math.all(s.Target == s.Anchor.xz) ? 0.2f : 1f;
-                        if (math.distance(s.Position.xz, s.Target) < arrive)
+                        // (A crawler in a cave is going to a point on a wall or the ceiling: there in three dimensions.)
+                        var crawlTo = b.Crawls && CaveWalker(s, ref b);
+                        if (crawlTo ? math.distance(s.Position, new float3(s.Target.x, s.TargetHeight, s.Target.y)) < 0.4f
+                                    : math.distance(s.Position.xz, s.Target) < arrive)
                             Pause(ref s, ref b, ref rng);
                         break;
 
@@ -636,7 +639,7 @@ namespace Punchy.Fauna
                     var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
                     var ahead = s.Position.xz + forward * math.max(1.2f, s.Speed * 0.5f) * s.Scale;
                     var landBound = (b.Habitat == Habitat.Land || flier) && !CaveWalker(s, ref b);
-                    var blocked = CaveWalker(s, ref b) ? s.Speed > 0.05f && !CaveFloor(ahead, s.Position.y)
+                    var blocked = b.Crawls && CaveWalker(s, ref b) ? false : CaveWalker(s, ref b) ? s.Speed > 0.05f && !CaveFloor(ahead, s.Position.y)
                                                 : s.Speed > 0.05f && !Walkable(ahead, b.Habitat);
                     // Animals that swim go on into water when they're on their way somewhere (not to stand in it), and a
                     // lake bed's slope doesn't stop them.
@@ -909,7 +912,25 @@ namespace Punchy.Fauna
                     // Animals with a home stay near it.
                     if (s.Leash > 0f && math.distance(candidate, s.Home) > s.Leash)
                         candidate = s.Home + rng.NextFloat2Direction() * s.Leash * rng.NextFloat(0.1f, 0.8f);
-                    if ((CaveWalker(s, ref b) ? CaveFloor(candidate, s.Position.y) : b.Habitat == Habitat.Land ? OpenGround(candidate) : Walkable(candidate, b.Habitat)) &&
+                    // A crawler in a cave: off over the rock, onto a wall or the ceiling as likely as the floor.
+                    if (b.Crawls && CaveWalker(s, ref b))
+                    {
+                        if (CrawlTarget(s, ref b, ref rng, out var spot))
+                        {
+                            SetMode(ref s, CreatureMode.Wander);
+                            s.Target = spot.xz;
+                            s.TargetHeight = spot.y;
+                        }
+                        else
+                            s.Timer = 0.5f;
+                    }
+                    // A lizard outside makes for steep, sunny rock (of a few places, the steepest).
+                    else if (b.Crawls && b.Habitat == Habitat.Land && CaveWalkerNot(s, ref b) && SteepestOf(s.Position.xz, b.WanderRadius, ref rng, out var face))
+                    {
+                        SetMode(ref s, CreatureMode.Wander);
+                        s.Target = face;
+                    }
+                    else if ((CaveWalker(s, ref b) ? CaveFloor(candidate, s.Position.y) : b.Habitat == Habitat.Land ? OpenGround(candidate) : Walkable(candidate, b.Habitat)) &&
                         (!b.LavaDweller || InLava(candidate)))
                     {
                         SetMode(ref s, CreatureMode.Wander);
@@ -2719,6 +2740,11 @@ namespace Punchy.Fauna
             void Advance(ref CreatureState s, ref CreatureBlob b, float dt, bool keepHeight = false)
             {
                 var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                if (b.Crawls && CaveWalker(s, ref b))
+                {
+                    Crawl(ref s, ref b, dt);
+                    return;
+                }
                 if (CaveWalker(s, ref b))
                 {
                     // On the passage floor, never into rock: blocked, it slides along the wall (the nearest open way
@@ -2847,6 +2873,77 @@ namespace Punchy.Fauna
                 math.distancesq(s.Position.xz, s.Target) > 4f;
 
             bool Walled(float2 at, float radius) => FloraPlacement.Blocked(ref Flora.Value, Terrain, at, radius);
+
+            bool CaveWalkerNot(in CreatureState s, ref CreatureBlob b) => !CaveWalker(s, ref b);
+
+            /// <summary>
+            /// Crawls over the cave's rock in three dimensions: straight for its target (Target, TargetHeight), then
+            /// back onto the surface it's on (its feet on the rock, its body off it), so it goes up walls and across the
+            /// ceiling as readily as along the floor.
+            /// </summary>
+            void Crawl(ref CreatureState s, ref CreatureBlob b, float dt)
+            {
+                var target = new float3(s.Target.x, s.TargetHeight, s.Target.y);
+                var way = target - s.Position;
+                var dir = math.normalizesafe(way);
+                var p = s.Position + dir * math.min(s.Speed * dt, math.length(way));
+                // Onto the rock: the distance field is the way to it (its slope points into rock, its value how far).
+                const float e = 0.1f;
+                for (int k = 0; k < 2; k++)
+                {
+                    var d = Terrain.CaveDistance(p);
+                    var grad = math.normalizesafe(new float3(
+                        Terrain.CaveDistance(p + new float3(e, 0f, 0f)) - Terrain.CaveDistance(p - new float3(e, 0f, 0f)),
+                        Terrain.CaveDistance(p + new float3(0f, e, 0f)) - Terrain.CaveDistance(p - new float3(0f, e, 0f)),
+                        Terrain.CaveDistance(p + new float3(0f, 0f, e)) - Terrain.CaveDistance(p - new float3(0f, 0f, e))));
+                    p -= grad * d;
+                }
+                s.Position = p;
+                if (math.lengthsq(dir.xz) > 0.01f)
+                    s.Yaw = math.atan2(dir.x, dir.z);
+                CreatureMotion.AdvancePhase(ref s, ref b, dt);
+            }
+
+            /// <summary>
+            /// A point on the cave's rock a few metres off in a random direction (up a wall, across the ceiling, along
+            /// the floor): marched out from the body until it meets rock.
+            /// </summary>
+            bool CrawlTarget(in CreatureState s, ref CreatureBlob b, ref Random rng, out float3 spot)
+            {
+                spot = default;
+                var from = s.Position + CreatureMotion.Surface(Terrain, s.Position, out _, out _) * 0.3f;
+                var dir = rng.NextFloat3Direction();
+                for (float t = 0.5f; t < 8f; t += 0.25f)
+                {
+                    var p = from + dir * t;
+                    if (Terrain.CaveDistance(p) >= 0f)
+                    {
+                        spot = p - dir * 0.05f;
+                        return t > 1f;
+                    }
+                }
+                return false;
+            }
+
+            /// <summary>The steepest of a few places round a point (a rock face to bask on), if any is a real slope.</summary>
+            bool SteepestOf(float2 near, float radius, ref Random rng, out float2 best)
+            {
+                best = near;
+                var flattest = 0.85f;
+                for (int k = 0; k < 5; k++)
+                {
+                    var p = near + rng.NextFloat2Direction() * radius * rng.NextFloat(0.2f, 0.8f);
+                    if (!OpenGround(p))
+                        continue;
+                    var n = Terrain.SampleNormal(p, 0.5f);
+                    if (n.y < flattest)
+                    {
+                        flattest = n.y;
+                        best = p;
+                    }
+                }
+                return flattest < 0.85f;
+            }
 
             /// <summary>
             /// Moves as a cave animal does (on the cave floor, along its walls): cave dwellers always, and a surface animal

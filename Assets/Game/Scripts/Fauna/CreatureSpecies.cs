@@ -110,6 +110,9 @@ namespace Punchy.Fauna
         public bool Burrows;
         [Tooltip("Lives inside caves: appears on cave floors when a player comes near a cave, and stays in.")]
         public bool CaveDweller;
+        [Tooltip("Crawls on any surface (lizards, spiders): steep rock faces outside, walls and ceilings in caves, its body " +
+                 "turned to lie on the surface.")]
+        public bool Crawls;
         [Tooltip("How likely a surface animal is to be found in a cave (bears, wolves, foxes): 0 never. A cave near where " +
                  "it lives may have one or two in its chambers near the mouth, and under rock it moves as cave animals do.")]
         [Range(0f, 1f)] public float CaveAffinity;

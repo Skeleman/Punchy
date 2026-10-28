@@ -45,6 +45,8 @@ namespace Punchy.Fauna
         public float FlySpeed, FlapRate, Glide, Perching;
         /// <summary>A surface animal sometimes found in caves (see CreatureSpecies.CaveAffinity).</summary>
         public float CaveAffinity;
+        /// <summary>Crawls on any surface (see CreatureSpecies.Crawls).</summary>
+        public bool Crawls;
 
         public BlobArray<CreaturePart> Parts;
         public BlobArray<CreatureSegment> Segments;
@@ -467,6 +469,7 @@ namespace Punchy.Fauna
             root.Haunts = species.Haunts;
             root.LavaDweller = species.LavaDweller;
             root.CaveAffinity = variant.CaveAffinity;
+            root.Crawls = species.Crawls;
             root.Nests = species.Nests;
             root.WebSize = species.WebSize * sizeScale;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));
