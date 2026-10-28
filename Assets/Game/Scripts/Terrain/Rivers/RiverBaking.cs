@@ -115,6 +115,21 @@ namespace Punchy.Terrain
                 Copy(ref builder, ref root.Width, width);
                 Copy(ref builder, ref root.Nearest, nearest);
                 Copy(ref builder, ref root.LakeDepth, lakes);
+                // Each cell's highest lake level within two cells (for bays the cell grid misses).
+                var shore = builder.Allocate(ref root.ShoreLevel, count);
+                for (int i = 0; i < count; i++)
+                {
+                    int x = i % resolution, z = i / resolution;
+                    var best = float.MinValue;
+                    for (int dz = math.max(z - 2, 0); dz <= math.min(z + 2, resolution - 1); dz++)
+                    for (int dx = math.max(x - 2, 0); dx <= math.min(x + 2, resolution - 1); dx++)
+                    {
+                        var n = dz * resolution + dx;
+                        if (lakes[n] > 0f)
+                            best = math.max(best, lakeLevel[n]);
+                    }
+                    shore[i] = best;
+                }
                 var blob = builder.CreateBlobAssetReference<RiverMapBlob>(allocator);
                 builder.Dispose();
                 return blob;

@@ -70,7 +70,7 @@ namespace Punchy.Flora
                  "Spread its length.")] Lodge,
         [Tooltip("A signpost: a post with two or three arm boards pointing different ways (Bark, boards in Foliage) and a little " +
                  "cap. Height is the post.")] Signpost,
-        [Tooltip("One 4 m span of a plank bridge (Bark), deck top at the origin, piles down into the water and a rail each " +
+        [Tooltip("One 6.6 m span of a plank bridge (Bark), deck top at the origin, piles down into the water and a rail each " +
                  "side. Height is the rail; Spread the deck's width (m).")] Bridge,
         [Tooltip("One 3 m length of palisade: a row of sharpened logs (Bark) sunk into the ground with binding rails behind. " +
                  "Height is the logs'.")] Palisade
@@ -145,6 +145,9 @@ namespace Punchy.Flora
         public FoliageFinish Finish = FoliageFinish.Matte;
         [Tooltip("Flowers, berries and fruit glow by themselves.")]
         public bool GlowingAccents;
+        [Tooltip("How much the glowing parts shimmer (± share of their brightness, slowly, out of step plant to plant). " +
+                 "0 = a steady glow (crystals).")]
+        [Range(0f, 1f)] public float GlowPulse = 0.12f;
 
         [Header("Placement")]
         [Tooltip("Steepest ground it grows on, in degrees.")]

@@ -13,8 +13,9 @@ MonoBehaviour:
   m_Name: ElfGroveLayout
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.SettlementLayout
   Pattern: 2
+  Culture: 4
   FolkScale: 1.1
-  PlotSize: {x: 8, y: 8}
+  PlotSize: {x: 9.6, y: 9.6}
   PlotGap: 5
   Setback: 1
   StreetWidth: 3
@@ -26,7 +27,7 @@ MonoBehaviour:
   Palisade: 0
   MaxRelief: 2.5
   StreetSurface: {fileID: 11400000, guid: ecea3f6b2f4ee2b43a871edb5ff556dd, type: 2}
-  BuildingScale: 1
+  BuildingScale: 1.09
   WaterFeature: {fileID: 11400000, guid: 7c9534dc8b6f9f44caa5189be1a27130, type: 2}
   RoadWidth: 2.6
   Signpost: {fileID: 11400000, guid: 4b43cc542a9e3e446a95fb86645732a1, type: 2}

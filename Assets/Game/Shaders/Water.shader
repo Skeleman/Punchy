@@ -89,6 +89,8 @@ Shader "Punchy/Water"
             TEXTURE2D(_PunchyCaveDetail);
             // 1 once CaveSystem has made the detail texture; until then (or without it) the fine ripples stay off.
             float _PunchyCaveDetailReady;
+            // 1 to draw the fine detail at all, 0 to skip it (CaveSystem, from -waterdetail).
+            float _PunchyWaterDetail;
             SAMPLER(sampler_PunchyCaveDetail);
 
             // Must match WaterVertex in BuildChunkMeshJob.cs.
@@ -309,8 +311,16 @@ Shader "Punchy/Water"
                 const float detailCycle = 4.0;
                 float phaseA = frac(t / detailCycle), phaseB = frac(t / detailCycle + 0.5);
                 float2 driftStep = flowDir * flowAmount * riverSpeed * detailCycle;
-                half4 fine0 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale + float2(t * 0.031, t * 0.017) - driftStep * phaseA * _DetailScale * 0.6);
-                half4 fine1 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale * 1.7 + float2(-t * 0.022, t * 0.029) - driftStep * phaseB * _DetailScale * 1.1);
+                // With the detail off (-waterdetail 0, for profiling), the reads are skipped and the flat values below
+                // leave no ripples, caustics or glitter.
+                half4 fine0 = half4(0.5, 0.5, 0, 0);
+                half4 fine1 = fine0;
+                UNITY_BRANCH
+                if (_PunchyWaterDetail > 0.5)
+                {
+                    fine0 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale + float2(t * 0.031, t * 0.017) - driftStep * phaseA * _DetailScale * 0.6);
+                    fine1 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale * 1.7 + float2(-t * 0.022, t * 0.029) - driftStep * phaseB * _DetailScale * 1.1);
+                }
                 // On still water both reads count fully; on flowing water each fades in and out with its cycle.
                 // (A triangle 0..1..0 over the cycle, doubled, averages 1, like a still read.)
                 float fadeA = lerp(1, 2 * (1 - abs(1 - 2 * phaseA)), flowAmount);

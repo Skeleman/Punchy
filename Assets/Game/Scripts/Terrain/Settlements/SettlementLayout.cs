@@ -65,6 +65,9 @@ namespace Punchy.Terrain
     public class SettlementLayout : ScriptableObject
     {
         public SettlementPattern Pattern;
+        [Tooltip("Whose settlement this is: it's only built where the biome under its centre allows this folk " +
+                 "(BiomeDefinition.Cultures). A Camp pattern counts as a camp for Camps Only biomes.")]
+        public FolkCulture Culture = FolkCulture.Human;
         [Tooltip("How big the folk are next to humans (1). Plots, streets and the square scale with it, and phase 5's " +
                  "doors and eaves read it from the settlement.")]
         [Min(0.3f)] public float FolkScale = 1f;
@@ -102,7 +105,7 @@ namespace Punchy.Terrain
         [Min(1f)] public float RoadWidth = 3.2f;
         [Tooltip("Stands where each road leaves the settlement.")]
         public Punchy.Flora.FloraSpecies Signpost;
-        [Tooltip("One 4 m span of a bridge, repeated across water too deep to ford (deck at the origin, posts down).")]
+        [Tooltip("One 6.6 m span of a bridge (tree layer), repeated across water too deep to ford (deck at the origin, posts down).")]
         public Punchy.Flora.FloraSpecies Bridge;
         [Tooltip("One 3 m length of palisade, repeated round the camp (if Palisade is on), with gaps for streets and roads.")]
         public Punchy.Flora.FloraSpecies PalisadeWall;

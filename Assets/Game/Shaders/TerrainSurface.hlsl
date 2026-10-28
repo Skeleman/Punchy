@@ -28,11 +28,12 @@ struct TerrainAttributes
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
-// Cave entrances: the surface is cut away a little inside a cave's air, so it overhangs the cave walls' top edge by a
-// thin lip (hiding the seam). Every pass must do this, or the hole would cast shadows or block the depth texture.
-void TerrainCaveClip(float caveDistance)
+// Cave entrances: the surface is cut where the cave walls' field opens (TerrainSource.MouthCut, per vertex); the walls'
+// own skin of the surface runs on under the terrain round it, so the cut edge never shows a gap. Every pass must do
+// this, or the hole would cast shadows or block the depth texture.
+void TerrainCaveClip(float mouthCut)
 {
-    clip(caveDistance + 0.25);
+    clip(mouthCut);
 }
 
 // Geomorphing: vertices slide onto the next-coarser LOD's surface as they approach the distance where their

@@ -94,6 +94,13 @@ namespace Punchy.Terrain
         [Tooltip("Cave chunks building at once at most. Each holds a few MB of fields while it builds, and too many " +
                  "crowd the terrain's own jobs off the workers.")]
         [Min(1)] public int MaxBuilding = 4;
+        [Tooltip("Above this camera speed (m/s: gliding, riding) caves build only within Fast Radius, one chunk at a " +
+                 "time: cave walls can't be seen from the air, and their jobs would land on the frames the terrain is " +
+                 "meshing in.")]
+        public float FastSpeed = 10f;
+        public float FastRadius = 150f;
+        float cameraSpeed;
+        float3 lastStreamCamera = new float3(float.MaxValue);
 
         /// <summary>Cave walls are built in cubes this many metres across (rounded to whole voxels).</summary>
         const float ChunkMetres = 32f;
@@ -131,6 +138,7 @@ namespace Punchy.Terrain
 
         static readonly int DetailId = Shader.PropertyToID("_PunchyCaveDetail");
         static readonly int DetailReadyId = Shader.PropertyToID("_PunchyCaveDetailReady");
+        static readonly int FloraInCaveId = Shader.PropertyToID("_FloraInCave");
         static Texture2D detail;
 
         void OnEnable()
@@ -141,6 +149,25 @@ namespace Punchy.Terrain
             Shader.SetGlobalTexture(DetailId, detail);
             // Water reads it too, for fine ripples; it keeps them off until this is set.
             Shader.SetGlobalFloat(DetailReadyId, 1f);
+            Shader.SetGlobalFloat(WaterDetailId, WaterDetail ? 1f : 0f);
+        }
+
+        static readonly int WaterDetailId = Shader.PropertyToID("_PunchyWaterDetail");
+
+        /// <summary>
+        /// Whether water draws its fine detail (ripples, caustics, glitter): on unless the command line says
+        /// -waterdetail 0, so a profiling build can compare both in one run.
+        /// </summary>
+        static bool WaterDetail
+        {
+            get
+            {
+                var args = System.Environment.GetCommandLineArgs();
+                for (int i = 0; i < args.Length - 1; i++)
+                    if (args[i] == "-waterdetail")
+                        return args[i + 1] != "0";
+                return true;
+            }
         }
 
         /// <summary>
@@ -237,6 +264,9 @@ namespace Punchy.Terrain
                 if (m != null) Destroy(m);
             streamMeshes.Clear();
             ReleasePlants();
+            if (floraMaterial != null)
+                Destroy(floraMaterial);
+            floraMaterial = null;
             Shader.SetGlobalVector(LanternId, Vector4.zero);
         }
 
@@ -253,16 +283,80 @@ namespace Punchy.Terrain
         readonly List<(float distance, Vector4 position, Vector4 color)> glowing = new List<(float, Vector4, Vector4)>();
         static readonly Vector4 LavaLight = new Vector4(1f * 2.2f, 0.42f * 2.2f, 0.1f * 2.2f, 0f);
 
-        /// <summary>Uploads the nearest glowing things to the cave shader, which lights the walls round them.</summary>
+        /// <summary>How long a light takes to come on as it joins the list (with a small swell) and to go out as it leaves (s).</summary>
+        const float HeatFadeIn = 0.8f, HeatFadeOut = 0.8f;
+        /// <summary>A light already in the list counts as this much nearer, so lights at the edge of the nearest
+        /// MaxHeat don't flicker in and out as the camera moves.</summary>
+        const float HeatStickiness = 0.85f;
+        /// <summary>Each listed light's time in the list (s), by position (glowing things don't move).</summary>
+        readonly Dictionary<Vector4, float> heatAge = new Dictionary<Vector4, float>();
+        /// <summary>Lights that have left the list, still fading out: their colour and the time left.</summary>
+        readonly Dictionary<Vector4, (Vector4 color, float left)> heatLeaving = new Dictionary<Vector4, (Vector4, float)>();
+        readonly List<Vector4> heatScratch = new List<Vector4>();
+        readonly Dictionary<Vector4, float> heatNextAge = new Dictionary<Vector4, float>();
+
+        /// <summary>
+        /// Uploads the nearest glowing things to the cave shader, which lights the walls round them. A light joining the
+        /// list fades in over HeatFadeIn with a small swell past full, and one leaving fades out (in a spare slot), so
+        /// lights don't pop on and off at the edge of the list.
+        /// </summary>
         void UploadGlowing()
         {
+            var dt = math.min(Time.unscaledDeltaTime, 0.1f);
+            for (int i = 0; i < glowing.Count; i++)
+                if (heatAge.ContainsKey(glowing[i].position))
+                    glowing[i] = (glowing[i].distance * HeatStickiness, glowing[i].position, glowing[i].color);
             glowing.Sort((a, b) => a.distance.CompareTo(b.distance));
             var count = math.min(glowing.Count, MaxHeat);
+
+            heatNextAge.Clear();
             for (int i = 0; i < count; i++)
             {
-                heat[i] = glowing[i].position;
-                heatColor[i] = glowing[i].color;
+                var (_, position, color) = glowing[i];
+                var age = (heatAge.TryGetValue(position, out var a) ? a : 0f) + dt;
+                heatNextAge[position] = age;
+                heatLeaving.Remove(position);
+                // Up to full over the first 60%, a swell of about 12% over full, settling back by the end.
+                var t = age / HeatFadeIn;
+                var envelope = math.smoothstep(0f, 0.6f, t) + 0.12f * math.smoothstep(0.3f, 0.6f, t) * (1f - math.smoothstep(0.6f, 1.2f, t));
+                heat[i] = position;
+                heatColor[i] = new Vector4(color.x * envelope, color.y * envelope, color.z * envelope, color.w);
             }
+            // Those that just left start fading out.
+            foreach (var kv in heatAge)
+                if (!heatNextAge.ContainsKey(kv.Key) && !heatLeaving.ContainsKey(kv.Key))
+                {
+                    var color = Vector4.zero;
+                    foreach (var g in glowing)
+                        if (g.position == kv.Key) { color = g.color; break; }
+                    if (color == Vector4.zero)
+                        continue;   // gone from the candidates altogether (out of range): no colour to fade
+                    heatLeaving[kv.Key] = (color, HeatFadeOut * math.saturate(kv.Value / HeatFadeIn));
+                }
+            heatAge.Clear();
+            foreach (var kv in heatNextAge)
+                heatAge[kv.Key] = kv.Value;
+
+            // Fading ones fill the spare slots (and are dropped, already dim, when there are none).
+            heatScratch.Clear();
+            foreach (var key in heatLeaving.Keys)
+                heatScratch.Add(key);
+            foreach (var key in heatScratch)
+            {
+                var (color, left) = heatLeaving[key];
+                left -= dt;
+                if (left <= 0f || count >= MaxHeat)
+                {
+                    heatLeaving.Remove(key);
+                    continue;
+                }
+                heatLeaving[key] = (color, left);
+                var fade = math.smoothstep(0f, 1f, left / HeatFadeOut);
+                heat[count] = key;
+                heatColor[count] = new Vector4(color.x * fade, color.y * fade, color.z * fade, color.w);
+                count++;
+            }
+
             Shader.SetGlobalVectorArray(HeatId, heat);
             Shader.SetGlobalVectorArray(HeatColorId, heatColor);
             Shader.SetGlobalInt(HeatCountId, count);
@@ -356,8 +450,11 @@ namespace Punchy.Terrain
         BiomePalette plantsFrom;
         Material floraMaterial;
         GraphicsBuffer plantInstances, plantVisible;
-        readonly List<(Mesh mesh, int start, int count, MaterialPropertyBlock props)> plantDraws = new List<(Mesh, int, int, MaterialPropertyBlock)>();
-        readonly List<MaterialPropertyBlock> plantProps = new List<MaterialPropertyBlock>();
+        /// <summary>One draw per run of the same model and LOD: its mesh, and its index in plantArgs.</summary>
+        readonly List<Mesh> plantDraws = new List<Mesh>();
+        /// <summary>Indirect arguments per draw (instance count, and the run's start in plantVisible as startInstance,
+        /// which the flora shader adds), so the draws share floraMaterial with no per-draw property block.</summary>
+        GraphicsBuffer plantArgs;
         readonly List<(int key, int plant)> plantKeys = new List<(int, int)>();
         /// <summary>Per species, the light its glowing parts give the walls round it (rgb strength, w reach); zero if none.</summary>
         readonly List<Vector4> speciesGlow = new List<Vector4>();
@@ -367,7 +464,6 @@ namespace Punchy.Terrain
         float3 plantsAround = new float3(float.MaxValue);
         static readonly int FloraInstancesId = Shader.PropertyToID("_FloraInstances");
         static readonly int FloraVisibleId = Shader.PropertyToID("_FloraVisible");
-        static readonly int RegionStartId = Shader.PropertyToID("_RegionStart");
 
         /// <summary>
         /// Draws the cave plants near the camera with the flora system's own material, shader and procedural meshes
@@ -387,9 +483,12 @@ namespace Punchy.Terrain
                     return;
                 nextFloraLookup = Time.unscaledTime + 1f;
                 var flora = FindFirstObjectByType<Punchy.Flora.FloraSystem>();
-                floraMaterial = flora != null ? flora.Material : null;
+                // A copy, since this sets its own plant buffers on it.
+                floraMaterial = flora != null && flora.Material != null ? new Material(flora.Material) { name = "Cave flora" } : null;
                 if (floraMaterial == null)
                     return;
+                // Lit as underground wherever the camera is (no sun on roots in the cave's ceiling).
+                floraMaterial.SetFloat(FloraInCaveId, 1f);
             }
             var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
             if (palette != plantsFrom)
@@ -453,36 +552,48 @@ namespace Punchy.Terrain
 
                 // One draw per run of the same model and LOD.
                 plantDraws.Clear();
+                var args = new List<GraphicsBuffer.IndirectDrawIndexedArgs>();
                 for (int k = 0; k < count;)
                 {
                     var key = plantKeys[k].key;
                     var start = k;
                     while (k < count && plantKeys[k].key == key)
                         k++;
-                    if (plantProps.Count <= plantDraws.Count)
-                        plantProps.Add(new MaterialPropertyBlock());
-                    var props = plantProps[plantDraws.Count];
-                    props.SetBuffer(FloraInstancesId, plantInstances);
-                    props.SetBuffer(FloraVisibleId, plantVisible);
-                    props.SetInteger(RegionStartId, start);
-                    plantDraws.Add((plantModels[key / 2].Lods[key % 2], start, k - start, props));
+                    var mesh = plantModels[key / 2].Lods[key % 2];
+                    plantDraws.Add(mesh);
+                    args.Add(new GraphicsBuffer.IndirectDrawIndexedArgs
+                    {
+                        indexCountPerInstance = mesh.GetIndexCount(0),
+                        startIndex = mesh.GetIndexStart(0),
+                        baseVertexIndex = mesh.GetBaseVertex(0),
+                        instanceCount = (uint)(k - start),
+                        startInstance = (uint)start
+                    });
                 }
+                if (args.Count > 0 && (plantArgs == null || plantArgs.count < args.Count))
+                {
+                    plantArgs?.Release();
+                    plantArgs = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, math.ceilpow2(args.Count), GraphicsBuffer.IndirectDrawIndexedArgs.size);
+                }
+                if (args.Count > 0)
+                    plantArgs.SetData(args);
+                floraMaterial.SetBuffer(FloraInstancesId, plantInstances);
+                floraMaterial.SetBuffer(FloraVisibleId, plantVisible);
             }
 
             foreach (var (position, light) in nearGlowPlants)
                 glowing.Add((math.distance(position, camPos), new Vector4(position.x, position.y, position.z, 0f), light));
 
             var bounds = new Bounds(camPos, new Vector3(PlantRadius * 2f, PlantRadius * 2f, PlantRadius * 2f));
-            foreach (var (mesh, _, count, props) in plantDraws)
+            for (int d = 0; d < plantDraws.Count; d++)
             {
                 var rp = new RenderParams(floraMaterial)
                 {
                     worldBounds = bounds,
-                    matProps = props,
                     shadowCastingMode = ShadowCastingMode.Off,
                     receiveShadows = true
                 };
-                Graphics.RenderMeshPrimitives(rp, mesh, 0, count);
+                Graphics.RenderMeshIndirect(rp, plantDraws[d], plantArgs, 1, d);
             }
         }
 
@@ -496,7 +607,8 @@ namespace Punchy.Terrain
             plantDraws.Clear();
             plantInstances?.Release();
             plantVisible?.Release();
-            plantInstances = plantVisible = null;
+            plantArgs?.Release();
+            plantInstances = plantVisible = plantArgs = null;
             plantsFrom = null;
             plantsAround = new float3(float.MaxValue);
         }
@@ -660,7 +772,7 @@ namespace Punchy.Terrain
         struct Drip
         {
             public float4 Tip;    // xyz the tip, w the period (s)
-            public float4 Land;   // x landing height, y phase, z ring size
+            public float4 Land;   // x landing height, y phase, z ring size, w 1 on water (ring) or 0 on rock (splash)
         }
 
         const int MaxDrips = 48;
@@ -761,7 +873,7 @@ namespace Punchy.Terrain
                 shadowCastingMode = ShadowCastingMode.Off,
                 receiveShadows = false
             };
-            Graphics.RenderPrimitives(rp, MeshTopology.Triangles, 12, dripCount);
+            Graphics.RenderPrimitives(rp, MeshTopology.Triangles, 36, dripCount);
         }
 
         /// <summary>
@@ -794,6 +906,7 @@ namespace Punchy.Terrain
             if (style == null || share >= style.Drips)
                 return;
             var ring = 0.25f;
+            var onWater = 0f;
             for (int p = 0; p < set.Pools.Length; p++)
             {
                 ref var pool = ref set.Pools[p];
@@ -801,6 +914,29 @@ namespace Punchy.Terrain
                 {
                     land = pool.Centre.y;
                     ring = 0.4f;
+                    onWater = 1f;
+                }
+            }
+            // Or a stream's surface (within half its width of its line, and above where it would land).
+            for (int s = 0; s < set.Streams.Length && onWater == 0f; s++)
+            {
+                ref var stream = ref set.Streams[s];
+                if (math.any(tip.xz < stream.Min) || math.any(tip.xz > stream.Max))
+                    continue;
+                for (int k = stream.FirstPoint; k < stream.FirstPoint + stream.PointCount - 1; k++)
+                {
+                    var a = set.StreamPoints[k];
+                    var b = set.StreamPoints[k + 1];
+                    var ab = b.Position.xz - a.Position.xz;
+                    var t = math.saturate(math.dot(tip.xz - a.Position.xz, ab) / math.max(math.lengthsq(ab), 1e-6f));
+                    var on = math.lerp(a.Position, b.Position, t);
+                    if (math.distance(tip.xz, on.xz) < math.lerp(a.Width, b.Width, t) * 0.5f && on.y > land - 0.3f)
+                    {
+                        land = on.y;
+                        ring = 0.3f;
+                        onWater = 1f;
+                        break;
+                    }
                 }
             }
             if (tip.y - land < 0.3f)
@@ -808,7 +944,7 @@ namespace Punchy.Terrain
             allDrips.Add(new Drip
             {
                 Tip = new float4(tip, rng.NextFloat(2.5f, 7f)),
-                Land = new float4(land, rng.NextFloat(), ring, 0f)
+                Land = new float4(land, rng.NextFloat(), ring, onWater)
             });
         }
 
@@ -948,8 +1084,12 @@ namespace Punchy.Terrain
 
         // ------------------------------------------------------------------------------------------- building
 
-        /// <summary>Walls are kept only where the cave's distance is under this at a cell corner (MeshJob's nearCave).</summary>
-        const float WallReach = 1.2f;
+        /// <summary>
+        /// Walls are kept only where the cave's distance is under this at a cell corner (MeshJob's nearCave). Wide enough
+        /// that round a mouth the walls' skin of the ground surface runs on under the terrain past wherever the terrain's
+        /// per-vertex cut (TerrainSource.MouthCut) can end, so there's never a gap between them.
+        /// </summary>
+        const float WallReach = 2.5f;
 
         /// <summary>
         /// Lists every chunk a cave's walls can reach, by column. Done once per baked world: chunks follow the
@@ -1047,13 +1187,23 @@ namespace Punchy.Terrain
                     dying.RemoveAt(i);
                 }
 
+            // The camera's speed, smoothed over about half a second (a teleport reads as briefly fast).
+            var dt = math.max(Time.unscaledDeltaTime, 1e-4f);
+            var moved = lastStreamCamera.x == float.MaxValue ? 0f : math.distance(camPos, lastStreamCamera);
+            lastStreamCamera = camPos;
+            cameraSpeed = math.lerp(cameraSpeed, moved / dt, 1f - math.exp(-dt * 2f));
+            var fast = cameraSpeed > FastSpeed;
+
             var building = dying.Count;
             foreach (var b in chunks.Values)
                 if (b.Pending)
                     building++;
-            for (int n = 0; n < BuildsPerFrame && building < MaxBuilding && wanted.Count > 0; n++, building++)
+            for (int n = 0; n < BuildsPerFrame && building < (fast ? 1 : MaxBuilding) && wanted.Count > 0; n++, building++)
             {
                 var key = wanted[wanted.Count - 1];
+                // Moving fast: only the near ones (the list is nearest last, so the rest wait).
+                if (fast && ChunkDistance(key, camPos) > FastRadius)
+                    break;
                 wanted.RemoveAt(wanted.Count - 1);
                 if (!chunks.ContainsKey(key))
                     chunks[key] = StartBuild(source, key);
@@ -1189,8 +1339,6 @@ namespace Punchy.Terrain
             public float Voxel;
             [NativeDisableParallelForRestriction] public NativeArray<float> Field, CaveField;
             [ReadOnly] public NativeArray<float> Surface, SurfaceScale;
-            /// <summary>How softly surface air and cave air merge (m): rock thinner than about half this opens.</summary>
-            const float MouthBlend = 1.2f;
 
             public void Execute(int row)
             {
@@ -1205,8 +1353,8 @@ namespace Punchy.Terrain
                     var column = z * Points.x + x;
                     // Air is above the surface or in the cave; a smooth union, so a lip of rock thinner than about half
                     // a metre between them (a thin roof at a mouth) opens up instead of hanging as a floating slab. The
-                    // terrain cuts its own surface where cave air is that close below it, so the two agree.
-                    Field[i] = -CaveSampling.SmoothMin(-((p.y - Surface[column]) * SurfaceScale[column] + 0.1f), cave, MouthBlend);
+                    // terrain cuts its own surface from this same field (TerrainSource.MouthCut), so the two agree.
+                    Field[i] = -CaveSampling.SmoothMin(-((p.y - Surface[column]) * SurfaceScale[column] + 0.1f), cave, CaveSampling.MouthBlend);
                 }
             }
         }

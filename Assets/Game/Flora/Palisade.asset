@@ -30,6 +30,7 @@ MonoBehaviour:
   ColorVariation: 0.12
   Finish: 0
   GlowingAccents: 0
+  GlowPulse: 0.12
   MaxSlope: 30
   Elevation: {x: 0.5, y: 10000}
   GrassAffinity: 0.5
@@ -42,7 +43,7 @@ MonoBehaviour:
   WaterDepth: {x: 0.1, y: 1.5}
   Floats: 0
   MinRapids: 0
-  Solid: 0
+  Solid: 1
   SizeRange: {x: 1, y: 1}
   Variants: 3
   Seed: 7919

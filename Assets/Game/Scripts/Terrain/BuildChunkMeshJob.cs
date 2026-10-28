@@ -126,9 +126,9 @@ namespace Punchy.Terrain
                 // Ground just above the water stays wet (a dark band along shores); stored as a negative skirt drop.
                 if (ground.HasWater)
                     vertex.Extra.w = (half)(-(1f - math.smoothstep(0.1f, 1.4f, h - ground.WaterSurface)));
-                // Ground with cave air just under it (a thin lip over a mouth) is cut too (see CaveClearance): the
-                // cave's own walls carry a skin of the surface there.
-                var cave = cutHoles ? Source.CaveClearance(world, h) : 100f;
+                // Cut where the cave walls' field opens (see TerrainSource.MouthCut): the walls carry a skin of the
+                // surface round the opening, under the terrain.
+                var cave = cutHoles ? MouthCut(world, h, step) : 100f;
                 vertex.Morph = new float4(request.MorphRange, surface.Bump, cave);
                 verts[z * v + x] = vertex;
                 // Landmark pools are left out of the sheet: CaveSystem draws each as a smooth disc (a small pool spans
@@ -352,13 +352,38 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
+        /// The terrain's cut at a vertex: the lowest MouthCut at it and half a quad away each way. An opening narrower
+        /// than a quad (the slit at the top of a mouth) lies between vertices that all read as rock, and the triangles
+        /// spanning it would stay, a strip of ground bridging the slit; this way the triangles round it are cut, and
+        /// the cave walls' skin under the terrain fills in.
+        /// </summary>
+        float MouthCut(float2 xz, float h, float step)
+        {
+            var cut = Source.MouthCut(xz, h);
+            if (cut >= 100f)
+                return cut;
+            var r = step * 0.5f;
+            for (int k = 0; k < 4; k++)
+            {
+                var o = xz + new float2(k == 0 ? r : k == 1 ? -r : 0f, k == 2 ? r : k == 3 ? -r : 0f);
+                cut = math.min(cut, Source.MouthCut(o, Source.SampleHeight(o)));
+            }
+            return cut;
+        }
+
+        /// <summary>
         /// How far a skirt may hang below the surface at (xz, top): its full depth, or less where cave air lies within
-        /// it (found by bisection), stopping 0.3 m above that air.
+        /// it (found by bisection), stopping 0.3 m above that air, and none within a few metres of a mouth.
         /// </summary>
         float SkirtOverCave(float2 xz, float top, float depth)
         {
-            if (!Source.Caves.IsCreated || !CaveSampling.NearColumn(ref Source.Caves.Value, xz)
-                || Source.CaveDistance(new float3(xz.x, top - depth, xz.y)) >= 0.3f)
+            if (!Source.Caves.IsCreated || !CaveSampling.NearColumn(ref Source.Caves.Value, xz))
+                return depth;
+            // Round a mouth, none at all: a skirt there hangs into the opening as a long flat ribbon (seen from inside the
+            // mouth). The cave walls' skin of the surface (CaveSystem.WallReach) covers any crack it would have hidden.
+            if (Source.CaveClearance(xz, top) < 4f)
+                return 0f;
+            if (Source.CaveDistance(new float3(xz.x, top - depth, xz.y)) >= 0.3f)
                 return depth;
             float rock = 0f, air = depth;
             for (int i = 0; i < 6; i++)

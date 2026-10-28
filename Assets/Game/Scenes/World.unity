@@ -325,13 +325,15 @@ MonoBehaviour:
   BiomeSource: 0
   BiomeNoise:
     Seed: 7
-    CellSize: 1400
+    CellSize: 900
     BlendDistance: 120
     ShapeBlendDistance: 450
-    WarpStrength: 350
+    WarpStrength: 225
     ClimateSize: 3000
     ClimateInfluence: 1
   BiomeMap: {fileID: 11400000, guid: 8cb615cae7d51ee4dbbedac337765658, type: 2}
+  Realms: {fileID: 11400000, guid: 268d472d61d9be84b8cc01a6a408259a, type: 2}
+  UseRealms: 1
   Rivers:
     Enabled: 1
     CellSize: 16

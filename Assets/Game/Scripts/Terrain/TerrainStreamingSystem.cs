@@ -48,6 +48,12 @@ namespace Punchy.Terrain
         const int VertexBudget = 14000;
         /// <summary>Frames a batch may run before the main thread waits for it.</summary>
         const int MaxBuildFrames = 4;
+        /// <summary>Above this focus speed (m/s: gliding, riding) batches are half the size, so a stream of chunks
+        /// coming into range is meshed a little at a time instead of in big batches that crowd out everything else.</summary>
+        const float FastSpeed = 10f;
+        float focusSpeed;
+        float2 lastFocus = new float2(float.MaxValue);
+        double lastFocusTime;
 
         readonly Dictionary<int2, LoadedChunk> loaded = new Dictionary<int2, LoadedChunk>();
         readonly Stack<(Mesh mesh, BatchMeshID id)> meshPool = new Stack<(Mesh, BatchMeshID)>();
@@ -123,6 +129,16 @@ namespace Punchy.Terrain
             // The terrain shader geomorphs vertices by their distance from this same point.
             Shader.SetGlobalVector(TerrainFocusId, new Vector4(focus.x, focus.y, 0f, 0f));
 
+            // The focus's speed since the last batch started (batches can be frames apart), smoothed over about half a
+            // second (a teleport reads as briefly fast).
+            var now = SystemAPI.Time.ElapsedTime;
+            var dt = math.max((float)(now - lastFocusTime), 1e-4f);
+            var moved = lastFocus.x == float.MaxValue ? 0f : math.distance(focus, lastFocus);
+            lastFocus = focus;
+            lastFocusTime = now;
+            focusSpeed = math.lerp(focusSpeed, moved / dt, 1f - math.exp(-dt * 2f));
+            var budget = focusSpeed > FastSpeed ? VertexBudget / 2 : VertexBudget;
+
             UnloadDistantChunks(config, focus);
             CollectWantedChunks(config, focus);
             if (wanted.Count == 0)
@@ -135,7 +151,7 @@ namespace Punchy.Terrain
             {
                 var quads = config.QuadsForLod(wanted[count].Lod);
                 vertices += BuildChunkMeshJob.VertexCount(quads);
-                if (count > 0 && vertices > VertexBudget)
+                if (count > 0 && vertices > budget)
                     break;
                 count++;
             }

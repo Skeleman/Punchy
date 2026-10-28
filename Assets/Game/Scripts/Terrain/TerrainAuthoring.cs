@@ -41,6 +41,11 @@ namespace Punchy.Terrain
         public BiomeNoiseSettings BiomeNoise = BiomeNoiseSettings.Default;
         [Tooltip("Used when Biome Source is Map. Create one with the Export button below.")]
         public BiomeMapAsset BiomeMap;
+        [Tooltip("Realms (Frost, Fire, Desert…) that noise placement divides the island into before picking biomes. " +
+                 "The realm preview button below shows them whether or not Use Realms is on.")]
+        public RealmSet Realms;
+        [Tooltip("Place noise biomes by realm (re-bakes and reshuffles the island). Off = every region picks from all biomes.")]
+        public bool UseRealms;
 
         [Header("Rivers")]
         public RiverSettings Rivers = RiverSettings.Default;
@@ -94,7 +99,11 @@ namespace Punchy.Terrain
             {
                 source.Biomes = BiomeBaking.BuildBiomeSet(palette, OceanBiome != null, World.Seed, allocator);
                 if (!biomeMap.IsCreated)
-                    source.BiomeCells = BiomeSampling.BuildCellTable(BiomeNoise, ref source.Biomes.Value, World.WorldSize * 0.5f + World.CoastWidth * 2f, allocator);
+                {
+                    var coast = source;
+                    source.BiomeCells = BiomeSampling.BuildCellTable(BiomeNoise, ref source.Biomes.Value, World.WorldSize * 0.5f + World.CoastWidth * 2f, allocator,
+                                                                     UseRealms && Realms != null ? Realms.Plan(palette) : null, xz => coast.OceanFactor(xz) < 0.5f);
+                }
             }
             if (Rivers.Enabled && palette.Count > 0)
                 source.Rivers = RiverBaking.Build(source, Rivers, allocator);
@@ -136,6 +145,13 @@ namespace Punchy.Terrain
                     foreach (var layer in biome.Layers)
                         DependsOn(layer.Surface);
                 }
+                // Realms decide which biome each region gets, when they're on.
+                if (authoring.UseRealms && authoring.Realms != null)
+                {
+                    DependsOn(authoring.Realms);
+                    foreach (var realm in authoring.Realms.Realms)
+                        DependsOn(realm);
+                }
                 var landmarks = authoring.LandmarkTypes();
                 foreach (var type in landmarks)
                 {
@@ -153,7 +169,15 @@ namespace Punchy.Terrain
                 }
                 if (palette.Count == 0)
                     Debug.LogWarning("Terrain has no biomes assigned; it will be flat and grey.", authoring);
-                AddComponentObject(entity, new BiomePalette { Biomes = palette.ToArray(), Landmarks = landmarks.ToArray() });
+                int[] biomeRealms = null;
+                if (authoring.UseRealms && authoring.Realms != null)
+                {
+                    var plan = authoring.Realms.Plan(palette);
+                    biomeRealms = new int[palette.Count];
+                    for (int b = 0; b < palette.Count; b++)
+                        biomeRealms[b] = System.Array.FindIndex(plan.Members, m => System.Array.IndexOf(m, b) >= 0);
+                }
+                AddComponentObject(entity, new BiomePalette { Biomes = palette.ToArray(), Landmarks = landmarks.ToArray(), BiomeRealms = biomeRealms });
 
                 var heightmap = default(BlobAssetReference<HeightmapBlob>);
                 if (authoring.HeightSource == HeightSourceKind.Heightmap)

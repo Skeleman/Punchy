@@ -105,6 +105,44 @@ a time.
      proves cheap.
    - **Auroras**: night-sky curtains, biased to cold, high biomes (Glacier, Tundra).
 
+## Queue (from the supervisor and Zach, 2026-10-28)
+
+Batches in this order; each batch gets one evaluation session, one sheet and one report, with a commit per item.
+
+1. **Fix batch (in progress)**:
+   - cave-mouth seams and debris (done: 22133cb; small flaps left at the slit tops of a few mouths);
+   - bright cave roots;
+   - glow flora: a gentle pulse per species (crystals 0), phase per plant, and the glow-list lights fading in and out
+     with a small swell, with hysteresis at the edge of the nearest 16;
+   - hot-rock (Ashlands, volcano slope) glow 30–40% lower;
+   - water: rectangular holes in concave bays (sweep the shorelines) and a water-level step at bridges;
+   - lit windows z-fighting;
+   - doors and buildings scaled from each folk's height (door ≈ 1.3× standing height);
+   - collision on fences, pens and palisades;
+   - cave drips splash on rock and ring only on water.
+2. **Flora at biome borders**: no spill between very different biomes (FloraPlacement loan #10). May be subsumed by realms.
+3. **Realms plan (J-026)**: a plan only at first; two-level biomes (Frost, Fire, Desert, Wetlands, Temperate, Mystic,
+   Coast) with new sub-biomes, landmarks, caves and a cost section. Send it to the supervisor before any build.
+4. **Caves round 2** (plan first): W-23 bigger caves (parked as a patch; floor-check misses rose from 1 to 35 per 2,700
+   points, to fix first); more jagged standard caves; ribbed ice; much more floor debris; metallic caves faceted;
+   mines with a mining village; per-cave variation from the seed; egg clusters with Nest anchors; cave torches.
+5. **Polish batch**:
+   - grainy sand and dirt, and leafy noise on tree crowns;
+   - fire (pit, flame cards, colour palettes) and settlement centrepieces;
+   - wild beehives with a Hive anchor;
+   - moon phases and a rare blue moon (Sky.hlsl and the moon parts of WeatherSystem on loan #11; the animal session owns
+     the Sun);
+   - glacier ice arches.
+6. **Small landmarks**: W-24 ruins and graveyards; hermit huts and camps; W-25 cold fog; W-26 salt-flat landmarks.
+7. **Long term (when the queue runs dry, always batched)**:
+   - Goal 1, enterable buildings: hinged doors with a Door anchor; outdoor clutter and seats with Sit anchors
+     (benches, stools, logs, flat rocks); then hollow interiors.
+   - Goal 2: one large city per folk: more building types, settlements on uneven ground (stepped pads, stilts, cliff
+     edges), then the cities themselves (dwarf mountainside, elf canopy, human walled river city, goblin canyon, ogre
+     crater).
+   - A road query for travellers (next junction, Gate or landmark, signpost choices), when the animal session asks.
+   - Fewer distinct prop species (perf (c)), only if towns are still slow, and with Zach's sheet.
+
 ## Anchors (agreed with the animal session)
 
 The only contract between this branch's geometry and creature behaviour (see GLOSSARY.md). Baked from the seed, so

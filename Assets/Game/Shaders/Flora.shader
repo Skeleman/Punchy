@@ -3,6 +3,14 @@ Shader "Punchy/Flora"
     // Procedural plants (FloraSystem): vertex-coloured, wind-blown, with soft wrapped lighting and light shining
     // through leaves and petals, a waxy sheen on cacti, snow on upward faces where the ground is snowy, wetness,
     // cloud shadows and the world atmosphere. Double-sided, since leaves and petals are single triangles.
+    Properties
+    {
+        // Not a real setting: a material property outside UnityPerMaterial keeps these draws off the SRP Batcher,
+        // which doesn't pass the per-draw unity_BaseCommandID that Flora.hlsl reads its draw's region by.
+        [HideInInspector] _FloraNoBatcher("", Float) = 0
+        // 1 on CaveSystem's copy: cave plants are lit as underground wherever the camera is (see Frag).
+        [HideInInspector] _FloraInCave("", Float) = 0
+    }
     SubShader
     {
         Tags { "RenderType" = "Opaque" "Queue" = "Geometry" "RenderPipeline" = "UniversalPipeline" }
@@ -25,6 +33,7 @@ Shader "Punchy/Flora"
             #include "Sky.hlsl"
             #include "Flora.hlsl"
             #include "Glow.hlsl"
+            #include "SharedClock.hlsl"
             // The shared fine detail CaveSystem makes (rg a normal, b a height): grain on rock and bark up close.
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
@@ -37,6 +46,9 @@ Shader "Punchy/Flora"
                 half3  normalWS   : TEXCOORD1;
                 half4  color      : TEXCOORD2;   // rgb albedo, a ambient occlusion
                 float4 extra      : TEXCOORD3;   // x part, y fade, z snow, w random
+                // A window pane's own lighting-up hour (0..1), worked out per vertex and not interpolated, so every pixel
+                // of the pane agrees (hashed per pixel from the interpolated colour, single pixels flickered on and off).
+                nointerpolation float windowHour : TEXCOORD4;
             };
 
             Varyings Vert(FloraAttributes input)
@@ -48,6 +60,9 @@ Shader "Punchy/Flora"
                 o.normalWS = v.normalWS;
                 o.color = half4(input.color.rgb, input.data.w);
                 o.extra = float4(input.data.y, v.fade, v.plant.snow, v.plant.random);
+                // Keyed on the pane (each has a slightly different colour) and the building.
+                float3 key = round(input.color.rgb * 255);
+                o.windowHour = frac(sin(dot(key, float3(0.917, 0.473, 0.131)) * 10 + v.plant.random * 61.7) * 43758.5453);
                 return o;
             }
 
@@ -57,7 +72,8 @@ Shader "Punchy/Flora"
                 int part = (int)round(input.extra.x);
                 bool leafy = part == 1 || part == 2 || part == 5;
                 bool metal = part == 4;
-                half3 n = normalize(input.normalWS);
+                // Thin tapered strands (roots, stems) can end in a degenerate normal; a NaN there blooms into a bright fleck.
+                half3 n = SafeNormalize(input.normalWS);
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
 
                 // Per-plant tint: brightness, and leaves a little yellower or bluer.
@@ -97,8 +113,11 @@ Shader "Punchy/Flora"
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
                 // Underground (cave plants, seen from a cave) the sun and sky don't reach; the player's lantern does.
-                shadow *= 1 - _PunchyUnderground;
-                half3 sky = SampleSH(n) * lerp(1, 0.06, _PunchyUnderground);
+                // Cave plants are underground whatever the camera's depth: no direct sun (nor light through leaves, nor
+                // sheen, which made roots flare against the sun from near a mouth), and only a little of the sky's
+                // ambient (the daylight spilling in at a mouth).
+                shadow *= (1 - _PunchyUnderground) * (1 - _FloraInCave);
+                half3 sky = SampleSH(n) * lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));
                 // Glowing plants and molten pools nearby (their own glow included, softly).
                 sky += PunchyGlowLight(input.positionWS, n);
                 if (_PunchyLantern.w > 0)
@@ -137,10 +156,12 @@ Shader "Punchy/Flora"
                     color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * ao * lerp(1, 0.06, _PunchyUnderground);
                 }
 
-                // Glowing parts shine by themselves with a slow, uneven pulse (bright enough to bloom at night).
+                // Glowing parts shine by themselves (bright enough to bloom at night), with a gentle, slow shimmer of
+                // the species' own amount (carried as a fraction on the part; 0 for crystals), out of step plant to plant.
                 if (part == 5)
                 {
-                    float pulse = 0.75 + 0.25 * sin(_Time.y * 1.3 + r * 40 + input.positionWS.y * 2);
+                    float amount = saturate((input.extra.x - 5) / 0.4);
+                    float pulse = 1 + amount * sin(_PunchyClock * 0.55 + r * 40 + input.positionWS.y * 0.7);
                     // Brighter in the dark of a cave (eyes adjusted to the dark see the glow stand out).
                     color += albedo * 1.6 * pulse * lerp(1, 2.5, _PunchyUnderground);
                 }
@@ -149,8 +170,8 @@ Shader "Punchy/Flora"
                 // each window keeps its own hour, and a few stay lit all night.
                 if (part == 6)
                 {
-                    // Its own hour: keyed on the pane (each has a slightly different colour) and the building.
-                    float h = frac(sin(dot(input.color.rgb, float3(91.7, 47.3, 13.1)) * 1000 + r * 61.7) * 43758.5453);
+                    // Its own hour (see Varyings.windowHour).
+                    float h = input.windowHour;
                     float late = saturate(-_PunchySunDirection.y * 1.6);
                     float on = smoothstep(0.25, 0.55, _PunchyNight) * (h > 0.85 ? 1 : step(late, 0.3 + 0.7 * h));
                     color += windowLight * on * 2.2;

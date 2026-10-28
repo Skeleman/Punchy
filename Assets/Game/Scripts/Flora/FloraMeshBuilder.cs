@@ -35,6 +35,8 @@ namespace Punchy.Flora
 
         /// <summary>What foliage and petals are drawn as (a species' finish: metallic or glowing leaves).</summary>
         public FloraPart FoliageAs = FloraPart.Foliage, PetalAs = FloraPart.Petal;
+        /// <summary>The species' glow shimmer (FloraSpecies.GlowPulse), stored on its glowing parts' vertices.</summary>
+        public float GlowPulse;
 
         public int VertexCount => positions.Count;
         public int IndexCount => indices.Count;
@@ -57,7 +59,8 @@ namespace Punchy.Flora
             positions.Add(p);
             normals.Add(n);
             colors.Add(c);
-            data.Add(new Vector4(0f, (float)part, flutter, Mathf.Clamp01(ao)));
+            // Glowing parts carry their shimmer as a fraction on the part (the shader rounds the part).
+            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : 0f), flutter, Mathf.Clamp01(ao)));
             return positions.Count - 1;
         }
 

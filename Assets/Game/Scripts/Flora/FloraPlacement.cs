@@ -69,6 +69,8 @@ namespace Punchy.Flora
         public BlobArray<FloraBiomeEntry> Entries;
         /// <summary>Per biome × layer: (first entry, count).</summary>
         public BlobArray<int2> Ranges;
+        /// <summary>Per biome, its realm (BiomePalette.BiomeRealms), or -1 (no realms, or the ocean).</summary>
+        public BlobArray<int> BiomeRealm;
         public BlobArray<FloraPropEntry> Props;
         /// <summary>Per landmark type × layer.</summary>
         public BlobArray<int2> PropRanges;
@@ -228,6 +230,9 @@ namespace Punchy.Flora
             var entries = builder.Allocate(ref root.Entries, list.Count);
             for (int i = 0; i < list.Count; i++)
                 entries[i] = list[i];
+            var biomeRealm = builder.Allocate(ref root.BiomeRealm, root.BiomeCount);
+            for (int b = 0; b < root.BiomeCount; b++)
+                biomeRealm[b] = palette.BiomeRealms != null && b < palette.BiomeRealms.Length ? palette.BiomeRealms[b] : -1;
 
             root.LandmarkTypeCount = landmarks.Length;
             var propList = new List<FloraPropEntry>();
@@ -510,8 +515,9 @@ namespace Punchy.Flora
             var xz = ((float2)cell + rng.NextFloat2()) * cellSize;
             var roll = rng.NextFloat();
             var area = cellSize * cellSize / 100f;
-            var candidates = new FixedList64Bytes<int>();   // species index, or -(prop entry + 1)
-            var weights = new FixedList64Bytes<float>();
+            // Room for 31 (a four-biome border plus a landmark's props; a fuller list would silently drop species).
+            var candidates = new FixedList128Bytes<int>();   // species index, or -(prop entry + 1)
+            var weights = new FixedList128Bytes<float>();
             var bound = 0f;
 
             // Settlements: each plot's building takes the cell holding the plot's centre, in its species' layer,
@@ -628,10 +634,18 @@ namespace Punchy.Flora
 
             // Cheap first pass: which species could grow here, at most how likely.
             source.SampleBiomes(xz, out var biomes, out _);
+            // Realms meet with a hard edge: a biome's plants only grow where its realm has most of the ground (its
+            // biomes' summed weight, from the same sample). Inside a realm, biomes still blend.
+            var realmOf = int4.zero - 1;
+            for (int b = 0; b < 4; b++)
+                if (biomes.Weights[b] > 0f && biomes.Ids[b] < f.BiomeCount)
+                    realmOf[b] = f.BiomeRealm[biomes.Ids[b]];
             for (int b = 0; b < 4; b++)
             {
                 var w = biomes.Weights[b];
                 if (w <= 0f || biomes.Ids[b] >= f.BiomeCount)
+                    continue;
+                if (realmOf[b] >= 0 && math.csum(math.select(float4.zero, biomes.Weights, realmOf == realmOf[b])) < 0.5f)
                     continue;
                 var range = f.Ranges[biomes.Ids[b] * 3 + layer];
                 for (int e = range.x; e < range.x + range.y; e++)
@@ -672,7 +686,7 @@ namespace Punchy.Flora
             var dry = 1f - math.saturate(ground.River * 1.5f);
 
             var total = 0f;
-            var shrink = new FixedList64Bytes<float>();
+            var shrink = new FixedList128Bytes<float>();
             for (int c = 0; c < candidates.Length; c++)
             {
                 // Props go where the landmark puts them, whatever the ground, except too steep for the species
