@@ -302,10 +302,20 @@ Shader "Punchy/Water"
                 // Fine ripples: two reads of the shared detail texture drifting different ways (and downstream on a
                 // river), stronger in wind and white water, fading with distance; on the shading normal only, so
                 // reflections stay crisp. Their sparkle channels line up here and there for glitter in the sun.
-                float2 drift = flowDir * flowAmount * riverSpeed * t;
-                half4 fine0 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale + float2(t * 0.031, t * 0.017) - drift * _DetailScale * 0.6);
-                half4 fine1 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale * 1.7 + float2(-t * 0.022, t * 0.029) - drift * _DetailScale * 1.1);
-                float2 fine = fine0.rg + fine1.rg - 1;
+                // The downstream drift is cycled, not left to grow: river speed varies across a river (with depth), so
+                // a drift of speed × time would pull neighbouring pixels further apart in the texture every second,
+                // turning the detail to noise and the texture reads incoherent (slow) after a few minutes. Each read
+                // drifts over its own 4 s cycle, half a cycle apart, and fades out as it jumps back.
+                const float detailCycle = 4.0;
+                float phaseA = frac(t / detailCycle), phaseB = frac(t / detailCycle + 0.5);
+                float2 driftStep = flowDir * flowAmount * riverSpeed * detailCycle;
+                half4 fine0 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale + float2(t * 0.031, t * 0.017) - driftStep * phaseA * _DetailScale * 0.6);
+                half4 fine1 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale * 1.7 + float2(-t * 0.022, t * 0.029) - driftStep * phaseB * _DetailScale * 1.1);
+                // On still water both reads count fully; on flowing water each fades in and out with its cycle.
+                // (A triangle 0..1..0 over the cycle, doubled, averages 1, like a still read.)
+                float fadeA = lerp(1, 2 * (1 - abs(1 - 2 * phaseA)), flowAmount);
+                float fadeB = lerp(1, 2 * (1 - abs(1 - 2 * phaseB)), flowAmount);
+                float2 fine = (fine0.rg - 0.5) * fadeA + (fine1.rg - 0.5) * fadeB;
                 float fineStrength = _DetailStrength * _PunchyCaveDetailReady * (0.35 + _PunchyWind + rapids) * distanceFade * (1 - 0.8 * murk) * (1 - lava);
                 float3 n = normalize(float3(-slope.x * strength - fine.x * fineStrength, 1, -slope.y * strength - fine.y * fineStrength));
                 // Reflections use a calmer normal for the broad waves, so they don't break into noise, but the fine
