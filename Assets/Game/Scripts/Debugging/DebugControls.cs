@@ -91,7 +91,9 @@ namespace Punchy.Debugging
         static string shotDir;
         float interactStep = -1f;
         Entity interactTarget;
-        EntityQuery creatureQuery;
+        EntityQuery creatureQuery, requestQuery;
+        FaunaDirector interactDirector;
+        World requestWorld;
         World creatureWorld;
         FaunaDirector watchDirector;
         // Flight check on the watched animal: its steepest climb or descent while airborne (vertical over horizontal speed).
@@ -586,21 +588,27 @@ namespace Punchy.Debugging
             var em = queryWorld.EntityManager;
             var parts = interactRequest.Split(':');
             var carry = parts.Length > 1 && parts[1] == "carry";
-            var director = FindAnyObjectByType<FaunaDirector>();
-            var index = director != null ? director.SpeciesIndex(parts[0]) : -1;
+            if (interactDirector == null)
+                interactDirector = FindAnyObjectByType<FaunaDirector>();
+            var index = interactDirector != null ? interactDirector.SpeciesIndex(parts[0]) : -1;
             if (index < 0)
             {
                 Debug.LogWarning($"DebugControls: no species '{parts[0]}' to interact with");
                 interactRequest = null;
                 return;
             }
+            // (The queries made once per world, not every frame.)
             if (creatureWorld != queryWorld)
             {
                 creatureWorld = queryWorld;
                 creatureQuery = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
             }
+            if (requestWorld != queryWorld)
+            {
+                requestWorld = queryWorld;
+                requestQuery = em.CreateEntityQuery(ComponentType.ReadWrite<InteractionRequest>());
+            }
             var player = em.GetComponentData<LocalTransform>(playerEntity);
-            var requestQuery = em.CreateEntityQuery(ComponentType.ReadWrite<InteractionRequest>());
             if (!requestQuery.TryGetSingleton<InteractionRequest>(out var request))
                 return;
             void Send(InteractAct act)
