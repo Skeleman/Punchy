@@ -255,29 +255,33 @@ namespace Punchy.Fauna
             var size = math.max(b.FrontRadius * s.Scale, 0.2f);
             var rng = new Unity.Mathematics.Random(math.hash(new float2(now, e.Index)) | 1u);
             var centre = new float3(s.Position.x, g.WaterSurface, s.Position.z);
-            var water = new float4(0.8f, 0.88f, 0.93f, 0f);
+            // (Water-tinted and see-through; only the odd one catches the light white.)
+            var water = new float4(0.55f, 0.7f, 0.74f, 0f);
+            var crest = new float4(0.95f, 0.97f, 0.98f, 0.25f);
             var foam = new float4(0.94f, 0.96f, 0.97f, 0f);
-            // Droplets: up and out, as fast as the serpent is big (a few metres high for one this size).
+            // Droplets: up and out, as fast as the serpent is big (a few metres high for one this size), and a column of
+            // them straight up from where it broke the surface; each drawn as a streak along the way it's flying.
             var lift = 5f + 3f * math.sqrt(size);
-            for (int k = 0; k < 56; k++)
+            for (int k = 0; k < 110; k++)
             {
+                var column = k < 24;
                 var out0 = rng.NextFloat2Direction();
-                var up = lift * rng.NextFloat(0.5f, 1.2f);
-                var r = size * rng.NextFloat(0.12f, 0.35f);
+                var up = lift * (column ? rng.NextFloat(1.1f, 1.6f) : rng.NextFloat(0.4f, 1.1f));
+                var r = size * rng.NextFloat(0.04f, 0.11f);
                 Add(new Trace
                 {
-                    Position = centre + new float3(out0.x, 0f, out0.y) * size * rng.NextFloat(0.3f, 1.2f),
+                    Position = centre + new float3(out0.x, 0f, out0.y) * size * (column ? rng.NextFloat(0f, 0.4f) : rng.NextFloat(0.3f, 1.2f)),
                     Rotation = quaternion.identity,
-                    Length = r * 0.5f,
+                    Length = r,
                     Radius = r,
                     Flatten = 1f,
-                    Color = water,
+                    Color = rng.NextFloat() < 0.15f ? crest : water,
                     Born = now,
                     Life = 2f * up / Gravity + 0.1f,
-                    Velocity = new float3(out0.x, 0f, out0.y) * rng.NextFloat(1f, 4f) * math.sqrt(size) + new float3(0f, up, 0f),
+                    Velocity = new float3(out0.x, 0f, out0.y) * (column ? rng.NextFloat(0.2f, 0.8f) : rng.NextFloat(1f, 4f)) * math.sqrt(size) + new float3(0f, up, 0f),
                     Falls = 1f,
                     Floor = g.WaterSurface - r,
-                    Dither = 0.3f
+                    Dither = 0.4f
                 });
             }
             // Foam: a ring of flat pieces round the splash, spreading out and stretching as it goes.
@@ -292,33 +296,34 @@ namespace Punchy.Fauna
                     Position = centre + new float3(0f, 0.03f, 0f) + out0 * start,
                     Rotation = quaternion.LookRotationSafe(new float3(-out0.z, 0f, out0.x), new float3(0f, 1f, 0f)),
                     Length = 2f * math.PI * start / ring,
-                    Radius = size * 0.18f,
+                    Radius = size * 0.09f,
                     Flatten = 0.1f,
                     Color = foam,
                     Born = now,
                     Life = 3f,
                     Velocity = out0 * (1.5f + size),
                     Grow = (1.5f + size) / start,
-                    Dither = 0.15f
+                    Dither = 0.35f
                 });
             }
-            // Mist: a few big soft puffs drifting up off the water.
-            for (int k = 0; k < 5; k++)
+            // Mist: a low, wide, faint haze hugging the water round the splash, spreading and thinning.
+            for (int k = 0; k < 6; k++)
             {
-                var off = rng.NextFloat2Direction() * size * rng.NextFloat(0f, 1.2f);
+                var out0 = rng.NextFloat2Direction();
+                var off = out0 * size * rng.NextFloat(0.5f, 1.6f);
                 Add(new Trace
                 {
-                    Position = centre + new float3(off.x, size * 0.5f, off.y),
-                    Rotation = quaternion.identity,
-                    Length = size * 0.5f,
-                    Radius = size * rng.NextFloat(0.8f, 1.3f),
-                    Flatten = 1f,
+                    Position = centre + new float3(off.x, 0.15f + size * 0.1f, off.y),
+                    Rotation = quaternion.LookRotationSafe(new float3(out0.x, 0f, out0.y), new float3(0f, 1f, 0f)),
+                    Length = size * 1.2f,
+                    Radius = size * rng.NextFloat(0.9f, 1.4f),
+                    Flatten = 0.22f,
                     Color = foam,
                     Born = now,
-                    Life = 2.2f,
-                    Velocity = new float3(off.x * 0.4f, rng.NextFloat(0.8f, 1.6f), off.y * 0.4f),
-                    Grow = 0.6f,
-                    Dither = 0.65f
+                    Life = 2.6f,
+                    Velocity = new float3(off.x, 0.25f, off.y) * 0.5f,
+                    Grow = 0.45f,
+                    Dither = 0.9f
                 });
             }
         }
@@ -388,12 +393,25 @@ namespace Punchy.Fauna
                     continue;
                 }
                 var grow = 1f + t.Grow * age;
+                // A falling drop is a streak along the way it's going, drawn out the faster it flies, tapering behind.
+                var rotation = t.Rotation;
+                var length = t.Length * grow;
+                var tail = t.Radius * grow;
+                if (t.Falls > 0f)
+                {
+                    var velocity = t.Velocity - new float3(0f, Gravity * age, 0f);
+                    var speed = math.length(velocity);
+                    rotation = quaternion.LookRotationSafe(velocity / math.max(speed, 1e-3f), new float3(1f, 0f, 0f));
+                    length += speed * 0.035f;
+                    tail *= 0.35f;
+                    position -= velocity / math.max(speed, 1e-3f) * length;
+                }
                 output[at++] = new SegmentInstance
                 {
                     Position = position,
-                    Rotation = t.Rotation,
-                    Length = t.Length * grow,
-                    RadiusStart = t.Radius * grow,
+                    Rotation = rotation,
+                    Length = length,
+                    RadiusStart = tail,
                     RadiusEnd = t.Radius * grow,
                     Flatten = t.Flatten,
                     Pad = math.lerp(1f, t.Dither, fade),
