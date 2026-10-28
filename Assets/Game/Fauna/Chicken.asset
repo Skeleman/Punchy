@@ -28,19 +28,19 @@ MonoBehaviour:
     AccentGlow: 0
     Weight: 3
   - Name: Brown
-    Base: {r: 0.58, g: 0.36, b: 0.18, a: 1}
-    Accent: {r: 0.32, g: 0.2, b: 0.11, a: 1}
+    Base: {r: 0.62, g: 0.4, b: 0.2, a: 1}
+    Accent: {r: 0.4, g: 0.24, b: 0.12, a: 1}
     AccentGlow: 0
     Weight: 3
-  - Name: Speckled
-    Base: {r: 0.3, g: 0.3, b: 0.3, a: 1}
-    Accent: {r: 0.9, g: 0.9, b: 0.88, a: 1}
+  - Name: Red-brown
+    Base: {r: 0.58, g: 0.24, b: 0.11, a: 1}
+    Accent: {r: 0.3, g: 0.14, b: 0.07, a: 1}
     AccentGlow: 0
-    Weight: 1
+    Weight: 2
   Size: {x: 2.2, y: 2.6}
   HairColors: []
   Parts:
-  - Limb: {fileID: 11400000, guid: c9353264e2115d240afe20ef59feeaa3, type: 2}
+  - Limb: {fileID: 11400000, guid: 71655c8f590ee804f92676854aebea4a, type: 2}
     Parent: -1
     Socket: {x: 0.5, y: -0.6, z: 0}
     Direction: {x: 90, y: 0, z: 0}
@@ -48,7 +48,27 @@ MonoBehaviour:
     Phase: 0
     MirrorPhase: 0.5
     Scale: 0.5
-    Thickness: 1.8
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: fe15c9552af341d49adfa933ec93eae3, type: 2}
+    Parent: 0
+    Socket: {x: 0, y: 0, z: -0.03}
+    Direction: {x: 0, y: 35, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.5
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: fe15c9552af341d49adfa933ec93eae3, type: 2}
+    Parent: 0
+    Socket: {x: 0, y: 0, z: -0.03}
+    Direction: {x: 0, y: -35, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.5
+    Thickness: 1
     StyleGroup: 0
   - Limb: {fileID: 11400000, guid: fee2595e6d0d0af4f84039dcc2a6a682, type: 2}
     Parent: -1
@@ -58,10 +78,10 @@ MonoBehaviour:
     Phase: 0
     MirrorPhase: 0.5
     Scale: 0.45
-    Thickness: 2.6
+    Thickness: 2.2
     StyleGroup: 0
   - Limb: {fileID: 11400000, guid: e643fc75ab94c0248b5e3710ae391090, type: 2}
-    Parent: 1
+    Parent: 3
     Socket: {x: 0, y: 0, z: 0}
     Direction: {x: 50, y: 0, z: 0}
     Mirror: 0
@@ -71,19 +91,29 @@ MonoBehaviour:
     Thickness: 1
     StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 6e02047a4eb1c6844862edf9267ec349, type: 2}
-    Parent: 2
-    Socket: {x: 0, y: -0.004, z: 0.02}
-    Direction: {x: 8, y: 0, z: 0}
+    Parent: 4
+    Socket: {x: 0, y: -0.004, z: 0.015}
+    Direction: {x: 12, y: 0, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.65
+    Thickness: 1.1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 8d43a1a8fa413104082c4f46c7400b02, type: 2}
+    Parent: 4
+    Socket: {x: 0, y: 0.022, z: -0.035}
+    Direction: {x: -70, y: 0, z: 90}
     Mirror: 0
     Phase: 0
     MirrorPhase: 0.5
     Scale: 1
     Thickness: 1
     StyleGroup: 0
-  - Limb: {fileID: 11400000, guid: 5b9fe227ae1a2be4c9fcbc3727325ce2, type: 2}
-    Parent: 2
-    Socket: {x: 0, y: 0.025, z: -0.02}
-    Direction: {x: -110, y: 0, z: 0}
+  - Limb: {fileID: 11400000, guid: 33b441e7ee47cde4bb9ea217cc8cd7bd, type: 2}
+    Parent: 4
+    Socket: {x: 0, y: -0.016, z: -0.004}
+    Direction: {x: 95, y: 0, z: 0}
     Mirror: 0
     Phase: 0
     MirrorPhase: 0.5
@@ -91,24 +121,24 @@ MonoBehaviour:
     Thickness: 1
     StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 8db8692701365314db1a0b5e9ab1cbd1, type: 2}
-    Parent: 2
+    Parent: 4
     Socket: {x: 0.022, y: 0.01, z: -0.018}
     Direction: {x: 0, y: 0, z: 0}
     Mirror: 1
     Phase: 0
-    MirrorPhase: 0.5
+    MirrorPhase: 0
     Scale: 0.5
     Thickness: 1
     StyleGroup: 0
   - Limb: {fileID: 11400000, guid: fe76f58551e55a740ba27ee474f98714, type: 2}
     Parent: -1
-    Socket: {x: 0, y: 0.3, z: -1}
-    Direction: {x: 5, y: 180, z: 0}
+    Socket: {x: 0, y: 0.4, z: -1}
+    Direction: {x: -35, y: 180, z: 0}
     Mirror: 0
     Phase: 0
     MirrorPhase: 0.5
-    Scale: 0.3
-    Thickness: 1
+    Scale: 0.45
+    Thickness: 1.4
     StyleGroup: 0
   WalkSpeed: 0.6
   RunSpeed: 4
