@@ -2552,7 +2552,37 @@ namespace Punchy.Fauna
                     CreatureMotion.AdvancePhase(ref s, ref b, dt);
                     return;
                 }
-                s.Position.xz += forward * s.Speed * dt;
+                var to = s.Position.xz + forward * s.Speed * dt;
+                if (s.Speed > 0f && WalksRoundWalls(in s, ref b, keepHeight))
+                {
+                    // Buildings are solid: walled off, it walks along the wall (the nearest open way to either side,
+                    // turning towards it), so it goes round the building rather than through it; boxed in, it stops.
+                    // (One already inside, spawned there, walks out.)
+                    var radius = math.max(b.FrontRadius * s.Scale, 0.2f);
+                    if (Walled(to, radius) && !Walled(s.Position.xz, radius))
+                    {
+                        var step = s.Speed * dt;
+                        var moved = false;
+                        for (int k = 1; k <= 7 && !moved; k++)
+                            for (int side = -1; side <= 1 && !moved; side += 2)
+                            {
+                                var angle = s.Yaw + side * k * 0.45f;
+                                var slide = s.Position.xz + new float2(math.sin(angle), math.cos(angle)) * step;
+                                if (!Walled(slide, radius))
+                                {
+                                    to = slide;
+                                    s.Yaw = WrapAngle(s.Yaw + WrapAngle(angle - s.Yaw) * 0.3f);
+                                    moved = true;
+                                }
+                            }
+                        if (!moved)
+                        {
+                            to = s.Position.xz;
+                            s.Speed = 0f;
+                        }
+                    }
+                }
+                s.Position.xz = to;
                 if (b.Haunts)
                 {
                     // Drifting half a metre above the ground or water, rising and sinking slowly.
@@ -2602,6 +2632,17 @@ namespace Punchy.Fauna
                 }
                 CreatureMotion.AdvancePhase(ref s, ref b, dt);
             }
+
+            /// <summary>
+            /// Whether buildings' walls stop it: anything walking (not a ghost, nor a bird on the wing or a climber),
+            /// except in the last couple of metres to where it's going (a work spot at a counter, a door).
+            /// </summary>
+            bool WalksRoundWalls(in CreatureState s, ref CreatureBlob b, bool keepHeight) =>
+                HasFlora && !b.Haunts && !keepHeight && s.Mode != CreatureMode.Held &&
+                (b.Habitat == Habitat.Land || b.Habitat == Habitat.Flies && s.Fly < 0.5f) &&
+                math.distancesq(s.Position.xz, s.Target) > 4f;
+
+            bool Walled(float2 at, float radius) => FloraPlacement.Blocked(ref Flora.Value, Terrain, at, radius);
 
             /// <summary>
             /// Land on the far side of water within 60 m, in one of a few directions tried: the way there starts on

@@ -272,7 +272,7 @@ namespace Punchy.Fauna
                                  Punchy.Flora.FloraPlacement.CellSize(flora.Shrubs.TileSize, flora.Shrubs.CellSize),
                                  Punchy.Flora.FloraPlacement.CellSize(flora.Trees.TileSize, flora.Trees.CellSize))
                     : new float3(0.7f, 2f, 4.5f);
-                floraBlob = Punchy.Flora.FloraPlacement.Build(palette, cells, floraSpecies);
+                floraBlob = Punchy.Flora.FloraPlacement.Build(palette, cells, floraSpecies, obstacles: true);
                 floraEntity = simWorld.EntityManager.CreateEntity();
                 simWorld.EntityManager.SetName(floraEntity, "Flora Lookup");
                 simWorld.EntityManager.AddComponentData(floraEntity, new Punchy.Flora.FloraLookup { Blob = floraBlob });
