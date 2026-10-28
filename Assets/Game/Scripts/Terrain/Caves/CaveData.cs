@@ -131,6 +131,8 @@ namespace Punchy.Terrain
         /// (RootRadius across), Seed being this value (see <see cref="CaveSampling.Block"/>).
         /// </summary>
         public float Block;
+        /// <summary>1: not rock but a hollow cut into the rock (a waterfall's notch): the rod's shape is taken out of it.</summary>
+        public float Carve;
         /// <summary>World-space box around it (with a margin).</summary>
         public float3 Min, Max;
     }
@@ -403,7 +405,10 @@ namespace Punchy.Terrain
             return best;
         }
 
-        /// <summary>Only near the air do speleothems matter: they turn air into rock, never rock into air.</summary>
+        /// <summary>
+        /// Only near the air do speleothems matter: they turn air into rock, and the few carved ones (waterfall notches,
+        /// within a metre of the wall) rock into air.
+        /// </summary>
         const float SpeleothemReach = 2f;
 
         /// <summary>Takes the speleothems near a point out of the air: a smooth maximum with each one's rock.</summary>
@@ -418,7 +423,8 @@ namespace Punchy.Terrain
                 ref var s = ref set.Speleothems[set.SpeleothemItems[k]];
                 if (math.any(p < s.Min) || math.any(p > s.Max))
                     continue;
-                air = -SmoothMin(-air, s.Block != 0f ? Block(s, p) : Rod(s, p), math.max(s.Fillet, 0.05f));
+                air = s.Carve > 0f ? SmoothMin(air, Rod(s, p), math.max(s.Fillet, 0.05f))
+                                   : -SmoothMin(-air, s.Block != 0f ? Block(s, p) : Rod(s, p), math.max(s.Fillet, 0.05f));
             }
             return air;
         }

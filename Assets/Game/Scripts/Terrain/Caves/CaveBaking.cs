@@ -809,10 +809,18 @@ namespace Punchy.Terrain
                         var lipY = math.min(ceiling - 0.4f, pool.Centre.y + 7f);
                         if (lipY - pool.Centre.y < 2f)
                             continue;
+                        // The water comes out of a dark notch cut into the wall, and starts inside it.
+                        var width = math.min(pool.Radius * 0.6f, 1.6f);
+                        var into = new float3(dir.x, 0f, dir.y);
+                        var wall = new float3(foot.x, lipY, foot.y) + into * 0.35f;
+                        var notch = Rod(wall - into * 0.3f, wall + (into + new float3(0f, 0.25f, 0f)) * 0.9f,
+                                        width * 0.42f, width * 0.25f, 0.15f);
+                        notch.Carve = 1f;
+                        extras.Speleothems.Add(notch);
                         extras.Waterfalls.Add(new CaveWaterfall
                         {
-                            Lip = new float3(foot.x, lipY, foot.y),
-                            Width = math.min(pool.Radius * 0.6f, 1.6f),
+                            Lip = wall + into * 0.25f,
+                            Width = width,
                             Out = -dir,
                             Drop = lipY - pool.Centre.y
                         });
@@ -849,7 +857,8 @@ namespace Punchy.Terrain
         static bool UnderRock(float3 p, List<CaveSpeleothem> rods)
         {
             foreach (var s in rods)
-                if (math.all(p >= s.Min - 0.6f) && math.all(p <= s.Max + 0.6f) && (s.Block != 0f ? CaveSampling.Block(s, p) : CaveSampling.Rod(s, p)) < 0.6f)
+                if (s.Carve == 0f && math.all(p >= s.Min - 0.6f) && math.all(p <= s.Max + 0.6f) &&
+                    (s.Block != 0f ? CaveSampling.Block(s, p) : CaveSampling.Rod(s, p)) < 0.6f)
                     return true;
             return false;
         }

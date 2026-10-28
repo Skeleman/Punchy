@@ -63,6 +63,8 @@ Shader "Punchy/Landmark Waterfall"
                 float edges = smoothstep(0, 0.12, uv.x) * smoothstep(1, 0.88, uv.x);
                 float ragged = smoothstep(0.25, 0.55, streak + 0.35 - abs(uv.x - 0.5) * 0.6);
                 half alpha = e.timing.z * edges * lerp(lerp(0.55, 0.12, e.underRock), 1, streak) * lerp(ragged, 1, 0.5) * smoothstep(0, 0.03, uv.y);
+                // Under rock the top frays out of the notch rather than starting on a straight edge.
+                alpha *= lerp(1, smoothstep(0, 0.12, uv.y + (streak - 0.5) * 0.1), e.underRock);
                 clip(alpha - 0.01);
 
                 float3 n = normalize(front ? input.normalWS : -input.normalWS);
@@ -70,6 +72,8 @@ Shader "Punchy/Landmark Waterfall"
                 half3 albedo = lerp(e.color.rgb, half3(0.92, 0.95, 0.97), foam);
                 half diffuse = saturate(dot(n, light.direction)) * 0.6 + 0.4;
                 half3 color = albedo * PunchyEffectLight(e, input.positionWS, n, light.color * diffuse * (1 - PunchyCloudShadow(input.positionWS)), SampleSH(n));
+                // Bright threads where the water runs thickest.
+                color *= 1 + smoothstep(0.6, 0.9, streak) * 0.7 * e.underRock;
                 return half4(PunchyAtmosphere(color, input.positionWS), alpha);
             }
             ENDHLSL

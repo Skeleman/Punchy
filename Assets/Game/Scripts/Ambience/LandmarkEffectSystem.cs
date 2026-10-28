@@ -23,6 +23,8 @@ namespace Punchy.Ambience
         public float Range = 700f;
         /// <summary>Cave waterfalls are drawn within this distance (small, and underground).</summary>
         const float CaveRange = 120f;
+        /// <summary>How far a cave's waterfall carries out from its notch as it falls (m).</summary>
+        const float FallReach = 0.9f;
 
         /// <summary>One effect. Must match LandmarkEffects.hlsl.</summary>
         [StructLayout(LayoutKind.Sequential)]
@@ -140,22 +142,40 @@ namespace Punchy.Ambience
             {
                 if (i < 0)
                 {
-                    // A cave's waterfall: a small curtain from the lip into its pool, and mist where it lands, lit as
-                    // under rock.
+                    // A cave's waterfall: a small curtain from its notch in the wall into its pool, churning white
+                    // water and a foam patch where it lands, and mist over them, lit as under rock.
                     var fall = source.Caves.Value.Waterfalls[-i - 1];
                     var curtain = new Emitter
                     {
                         Position = fall.Lip,
                         Seed = math.frac(-i * 0.618f),
                         Color = new float4(0.3f, 0.43f, 0.47f, 0f),
-                        Shape = new float4(0.6f, fall.Width, 0.6f, 2f),
+                        Shape = new float4(FallReach, fall.Width, 0.6f, 2f),
                         Timing = new float4(0f, 0.25f, 0.75f, 20f),
                         Out = fall.Out,
                         Drop = fall.Drop,
                         UnderRock = 1f
                     };
                     falls.Add(curtain);
-                    var landing = fall.Lip + new float3(fall.Out.x, 0f, fall.Out.y) * 0.6f - new float3(0f, fall.Drop, 0f);
+                    var landing = fall.Lip + new float3(fall.Out.x, 0f, fall.Out.y) * FallReach - new float3(0f, fall.Drop, 0f);
+                    plumes.Add(new Emitter
+                    {
+                        Position = landing,
+                        Seed = math.frac(-i * 0.511f),
+                        Color = new float4(0.95f, 0.97f, 1f, 0f),
+                        Shape = new float4(0.6f, fall.Width * 0.6f, 0.3f, 0.8f),
+                        Timing = new float4(0f, 0.25f, 0.75f, 24f),
+                        UnderRock = 1f
+                    });
+                    plumes.Add(new Emitter
+                    {
+                        Position = landing + new float3(0f, 0.05f, 0f),
+                        Seed = math.frac(-i * 0.733f),
+                        Color = new float4(0.9f, 0.95f, 1f, 0f),
+                        Shape = new float4(0.12f, fall.Width * 1.1f, 0.45f, 1.8f),
+                        Timing = new float4(0f, 0.25f, 0.55f, 24f),
+                        UnderRock = 1f
+                    });
                     plumes.Add(new Emitter
                     {
                         Position = landing,
@@ -165,7 +185,7 @@ namespace Punchy.Ambience
                         Timing = new float4(0f, 0.25f, 0.16f, 20f),
                         UnderRock = 1f
                     });
-                    maxParticles = math.max(maxParticles, 20);
+                    maxParticles = math.max(maxParticles, 24);
                     min = math.min(min, landing - 3f);
                     max = math.max(max, fall.Lip + 3f);
                     continue;
