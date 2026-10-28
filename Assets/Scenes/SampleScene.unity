@@ -275,6 +275,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Ambience.LandmarkEffectSystem
   PlumeMaterial: {fileID: 2100000, guid: 434032e05e0f19d49bcd568db496944f, type: 2}
+  FlameMaterial: {fileID: 2100000, guid: 956c4c2f24bd95b4bb1592e465158af5, type: 2}
   WaterfallMaterial: {fileID: 2100000, guid: 21076a954b94f5844bcee518fb0d76a2, type: 2}
   Range: 700
 --- !u!1 &330585543
