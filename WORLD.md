@@ -109,7 +109,7 @@ a time.
 
 Batches in this order; each batch gets one evaluation session, one sheet and one report, with a commit per item.
 
-1. **Fix batch (in progress)**:
+1. **Fix batch (done)**:
    - cave-mouth seams and debris (done: 22133cb; small flaps left at the slit tops of a few mouths);
    - bright cave roots;
    - glow flora: a gentle pulse per species (crystals 0), phase per plant, and the glow-list lights fading in and out
@@ -120,13 +120,25 @@ Batches in this order; each batch gets one evaluation session, one sheet and one
    - doors and buildings scaled from each folk's height (door ≈ 1.3× standing height);
    - collision on fences, pens and palisades;
    - cave drips splash on rock and ring only on water.
-2. **Flora at biome borders**: no spill between very different biomes (FloraPlacement loan #10). May be subsumed by realms.
-3. **Realms plan (J-026)**: a plan only at first; two-level biomes (Frost, Fire, Desert, Wetlands, Temperate, Mystic,
-   Coast) with new sub-biomes, landmarks, caves and a cost section. Send it to the supervisor before any build.
-4. **Caves round 2** (plan first): W-23 bigger caves (parked as a patch; floor-check misses rose from 1 to 35 per 2,700
-   points, to fix first); more jagged standard caves; ribbed ice; much more floor debris; metallic caves faceted;
-   mines with a mining village; per-cave variation from the seed; egg clusters with Nest anchors; cave torches.
+2. **Flora at biome borders**: done as hard realm edges (85ed8ef).
+3. **Realms (J-026, J-030), habitability (J-027), town count (J-032)**: done; realms on since e2267f6, 10 towns.
+   Next realm work: the new sub-biomes in pairs (plan in REALMS-PLAN.md), after the items below.
+4. **Caves round 2 (done)**: W-23 bigger caves; pools fit their floors and cave water is under rock; more jagged
+   caves and much more rubble; faceted metallic; ribbed ice (shaped and shaded); per-cave variation; egg clutches with
+   floor Nest anchors (first pass: paler, glossier, sizes in polish); the shared flame (FireSystem.AddFlame); mines
+   (straight timbered drifts, wall torches, Work anchors) with a mining camp beside each (companion landmarks);
+   MovingLights for carried lanterns. Cave styles per realm follow from biomes; realm-only styles come with the
+   sub-biome pairs.
+4b. **Seats (done)**: benches round town squares and before inns, logs and stumps round camp yards, fountain rims and
+   hall steps, each with a Sit anchor (AnchorKind.Sit: hips on the seat, facing out, Capacity side by side, Size the
+   spacing); open greens (a shade tree) with Green anchors, fenced gardens none; Bench no longer baked.
 5. **Polish batch**:
+   - more debris: loose boulders and scree as flora props (one rock mesh family, a few sizes; chunky ones per
+     chamber, small scatter near walls, collision only on the big ones);
+   - metallic caves that read as metal: dark iron, copper or silver with strong facet specular, veins catching light;
+   - egg clutches paler and glossier, in a few sizes;
+   - towns: a ring street or perimeter lane linking the spoke ends (cross-lanes in bigger towns), for guards,
+     travellers and the cities goal;
    - grainy sand and dirt, and leafy noise on tree crowns;
    - fire (pit, flame cards, colour palettes) and settlement centrepieces;
    - wild beehives with a Hive anchor;

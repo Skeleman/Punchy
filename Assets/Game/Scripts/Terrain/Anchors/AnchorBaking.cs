@@ -41,11 +41,15 @@ namespace Punchy.Terrain
         {
             ref var set = ref source.Settlements.Value;
             var src = source;
-            void Add(AnchorKind kind, float2 at, float2 facing, float size, int capacity, int settlement)
+            var buildings = SettlementBaking.Buildings(types);
+            void Add(AnchorKind kind, float2 at, float2 facing, float size, int capacity, int settlement) =>
+                AddUp(kind, at, 0f, facing, size, capacity, settlement);
+            // At a height above the ground there (a seat).
+            void AddUp(AnchorKind kind, float2 at, float up, float2 facing, float size, int capacity, int settlement)
             {
                 anchors.Add(new Anchor
                 {
-                    Position = new float3(at.x, src.SampleHeight(at), at.y),
+                    Position = new float3(at.x, src.SampleHeight(at) + up, at.y),
                     Facing = facing,
                     Size = size,
                     Owner = Anchor.OwnerSettlement(settlement),
@@ -54,6 +58,17 @@ namespace Punchy.Terrain
                     Biome = (byte)Dominant(src.SampleGround(at).Biomes),
                     Tags = 0
                 });
+            }
+            // Seats round a fountain's rim (0.7 m up at scale 1), facing out.
+            void RimSeats(float2 centre, Punchy.Flora.FloraSpecies fountain, float scale, int settlement)
+            {
+                var rim = ((fountain.Height.x + fountain.Height.y) * 0.25f * fountain.Spread + 0.1f) * scale;
+                for (int k = 0; k < 4; k++)
+                {
+                    var a = k * math.PI * 0.5f + 0.4f;
+                    var dir = new float2(math.cos(a), math.sin(a));
+                    AddUp(AnchorKind.Sit, centre + dir * rim, 0.7f * scale, dir, 0.6f, 2, settlement);
+                }
             }
             // Gates: where each road leaves a settlement (by its signpost, which stands outside the town's own plots).
             for (int p = 0; p < set.Plots.Length; p++)
@@ -68,26 +83,44 @@ namespace Punchy.Terrain
                 for (int p = town.FirstPlot; p < town.FirstPlot + town.PlotCount; p++)
                 {
                     var plot = set.Plots[p];
-                    if (plot.Building < 0)
+                    // Plots without a building are left green (and only greens use that).
+                    if (plot.Building < 0 && plot.Role != PlotRole.Landscaping)
                         continue;
                     // The building's front is about three quarters of the way to the plot's street edge.
                     var door = plot.Centre + plot.Facing * (plot.Half.y * 0.75f + 0.6f);
                     switch (plot.Role)
                     {
                         case PlotRole.Well:
+                        {
                             Add(AnchorKind.Well, plot.Centre + plot.Facing * (plot.Half.y + 0.6f), -plot.Facing, 0.8f, 2, t);
+                            var feature = plot.Building < buildings.Count ? buildings[plot.Building].Species : null;
+                            if (feature != null && feature.Form == Punchy.Flora.FloraForm.Fountain)
+                                RimSeats(plot.Centre, feature, set.Layouts[town.Layout].BuildingScale, t);
                             break;
+                        }
                         case PlotRole.Landscaping:
-                            Add(AnchorKind.Bench, plot.Centre, plot.Facing, 1f, 2, t);
+                        {
+                            // Open greens only: fenced kitchen gardens and pens aren't for lounging in.
+                            var green = plot.Building >= 0 && plot.Building < buildings.Count ? buildings[plot.Building].Species : null;
+                            if (green == null || green.Form != Punchy.Flora.FloraForm.Garden && green.Form != Punchy.Flora.FloraForm.Pen)
+                                Add(AnchorKind.Green, plot.Centre, plot.Facing, math.cmin(plot.Half), 4, t);
                             break;
+                        }
                         case PlotRole.Shrine:
                             // Standing before the altar, facing it.
                             Add(AnchorKind.Altar, plot.Centre + plot.Facing * 1.6f, -plot.Facing, 0.8f, 2, t);
                             break;
                         case PlotRole.Seat:
+                        {
                             Add(AnchorKind.Door, door + plot.Facing * 0.8f, plot.Facing, 0.7f, 1, t);
                             Add(AnchorKind.Seat, door + plot.Facing * 2.5f, plot.Facing, 0.6f, 1, t);
+                            // The hall's steps: its stone plinth (0.6 m at scale 1), either side of the door, facing out.
+                            var across = new float2(-plot.Facing.y, plot.Facing.x);
+                            var step = set.Layouts[town.Layout].BuildingScale * 0.6f;
+                            for (int side = -1; side <= 1; side += 2)
+                                AddUp(AnchorKind.Sit, door + plot.Facing * 0.15f + across * side * 1.9f, step, plot.Facing, 0.6f, 2, t);
                             break;
+                        }
                         default:
                             Add(AnchorKind.Door, door, plot.Facing, 0.6f, 1, t);
                             break;
@@ -100,7 +133,31 @@ namespace Punchy.Terrain
                     continue;
                 foreach (var prop in type.Props)
                 {
-                    if (prop.Species == null || prop.Species.Form != Punchy.Flora.FloraForm.Well && prop.Species.Form != Punchy.Flora.FloraForm.Fountain)
+                    if (prop.Species == null)
+                        continue;
+                    // Seats the landmark places (benches round the square, logs round a camp's yard): one Sit each, on
+                    // the seat, facing the way the prop faces (towards the middle).
+                    var seat = prop.Species.Form switch
+                    {
+                        Punchy.Flora.FloraForm.Bench => Punchy.Flora.FloraGenerator.BenchSeat,
+                        Punchy.Flora.FloraForm.Log => Punchy.Flora.FloraGenerator.LogSeat,
+                        Punchy.Flora.FloraForm.Stump => Punchy.Flora.FloraGenerator.StumpSeat,
+                        _ => 0f
+                    };
+                    if (seat > 0f)
+                    {
+                        for (int k = 0; k < prop.Count; k++)
+                        {
+                            var spot = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), town.Radius);
+                            var toCentre = math.normalizesafe(inst.Position - spot);
+                            AddUp(AnchorKind.Sit, spot, seat * prop.Scale.x, prop.FaceCentre ? toCentre : -toCentre, 0.6f,
+                                  prop.Species.Form == Punchy.Flora.FloraForm.Stump ? 1 : 2, t);
+                        }
+                        continue;
+                    }
+                    if (prop.Species.Form == Punchy.Flora.FloraForm.Fountain && prop.Centrepiece)
+                        RimSeats(inst.Position, prop.Species, prop.Scale.x, t);
+                    if (prop.Species.Form != Punchy.Flora.FloraForm.Well && prop.Species.Form != Punchy.Flora.FloraForm.Fountain)
                         continue;
                     if (prop.Centrepiece)
                         Add(AnchorKind.Well, inst.Position + inst.Facing * 1.6f, -inst.Facing, 0.8f, 2, t);
@@ -114,7 +171,10 @@ namespace Punchy.Terrain
             }
         }
 
-        /// <summary>A Glow anchor at every glowing cave plant (creatures drawn to light gather there), owned by its cave.</summary>
+        /// <summary>
+        /// A Glow anchor at every glowing cave plant (creatures drawn to light gather there), and a Nest anchor at every
+        /// clutch of eggs, owned by its cave.
+        /// </summary>
         static void AddGlowAnchors(in TerrainSource source, List<Punchy.Flora.FloraSpecies> flora, List<Anchor> anchors)
         {
             ref var set = ref source.Caves.Value;
@@ -124,7 +184,9 @@ namespace Punchy.Terrain
                 if (plant.Species < 0 || plant.Species >= flora.Count)
                     continue;
                 var species = flora[plant.Species];
-                if (species.Finish != Punchy.Flora.FoliageFinish.Glowing && !species.GlowingAccents)
+                // A clutch of eggs is a nest on the floor (spiders, lizards and salamanders tend it), one creature at a time.
+                var eggs = species.Form == Punchy.Flora.FloraForm.Eggs;
+                if (!eggs && species.Finish != Punchy.Flora.FoliageFinish.Glowing && !species.GlowingAccents)
                     continue;
                 CaveSampling.Distance(ref set, plant.Position + new float3(0f, 0.5f, 0f), out var cave);
                 if (cave < 0)
@@ -133,10 +195,10 @@ namespace Punchy.Terrain
                 {
                     Position = plant.Position,
                     Facing = new float2(math.cos(plant.Yaw), math.sin(plant.Yaw)),
-                    Size = 1.5f,
+                    Size = eggs ? 0.6f : 1.5f,
                     Owner = Anchor.OwnerCave(cave),
-                    Kind = AnchorKind.Glow,
-                    Capacity = 0,
+                    Kind = eggs ? AnchorKind.Nest : AnchorKind.Glow,
+                    Capacity = (byte)(eggs ? 1 : 0),
                     Biome = (byte)Dominant(source.SampleGround(plant.Position.xz).Biomes),
                     Tags = (byte)(Anchor.Shelter | (set.Caves[cave].Style & 0x7F))
                 });
@@ -187,6 +249,17 @@ namespace Punchy.Terrain
                     var dir = Direction(ref rng);
                     if (WallPoint(source, new float3(centre.x, math.lerp(floor, ceiling, 0.65f), centre.z), dir, out var ledge))
                         anchors.Add(Make(AnchorKind.Nest, ledge, -dir, 0.4f, 1));
+                    // Mines: an ore face to work at in every chamber (miners stand a pace off the wall, facing it).
+                    if (style != null && style.Frame != null)
+                    {
+                        var face = Direction(ref rng);
+                        if (WallPoint(source, new float3(centre.x, floor + 1f, centre.z), face, out var ore))
+                        {
+                            var stand = ore - new float3(face.x, 0f, face.y) * 0.8f;
+                            var standFloor = source.FloorUnder(stand + new float3(0f, 0.5f, 0f), out _);
+                            anchors.Add(Make(AnchorKind.Work, new float3(stand.x, standFloor + 0.3f, stand.z), face, 1f, 2));
+                        }
+                    }
                     if (style == null || style.Burrows)
                     {
                         dir = Direction(ref rng);
@@ -229,6 +302,15 @@ namespace Punchy.Terrain
                         if (inCave && source.CaveDistance(new float3(spot.x, ground + 0.5f, spot.y)) < -0.3f)
                             anchors.Add(Make(AnchorKind.Pool, new float3(spot.x, ground, spot.y), -bank, 0.8f, 2));
                     }
+                }
+
+                // Mines: a work spot just inside the mouth, facing out (where ore is carried out and timber in).
+                if (style != null && style.Frame != null && cave.NodeCount > 1)
+                {
+                    var inside = set.Nodes[cave.FirstNode + 1].Position;
+                    var insideFloor = source.FloorUnder(inside + new float3(0f, 0.5f, 0f), out var underRock);
+                    if (underRock)
+                        anchors.Add(Make(AnchorKind.Work, new float3(inside.x, insideFloor + 0.3f, inside.z), (cave.Mouth - inside).xz, 1.5f, 3));
                 }
 
                 // A nest on the wall just inside the mouth, where the daylight still reaches.

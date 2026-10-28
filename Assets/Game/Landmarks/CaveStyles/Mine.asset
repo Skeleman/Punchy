@@ -1,0 +1,72 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b92d8651f7a54b46b75fb6e4f0c3de3, type: 3}
+  m_Name: Mine
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.CaveStyle
+  Biomes:
+  - {fileID: 11400000, guid: b6dbd4f6350cf6743b5cf90b12731cfe, type: 2}
+  - {fileID: 11400000, guid: efa1fb2872ceb1d45b6ee561e78c8774, type: 2}
+  - {fileID: 11400000, guid: 3c3b1f5dd38bdb84f949fc2b75db975a, type: 2}
+  Width: 0.85
+  Height: 1.15
+  Roughness: 0.6
+  Grain: 1
+  Jaggedness: 0.35
+  Blockiness: 0.2
+  Ribs: 0
+  RibSpacing: 1.6
+  Straightness: 0.85
+  Frame: {fileID: 11400000, guid: 16183855535b3ff439302e4442acec7c, type: 2}
+  FrameSpacing: 4
+  Torch: {fileID: 11400000, guid: 5f4e3146770f50e408e6443bc18325e9, type: 2}
+  TorchSpacing: 10
+  FloorFlatness: 1
+  FloorSteps: 0.1
+  Burrows: 0
+  SpeleothemDensity: 0.5
+  SpeleothemLength: 0.4
+  SpeleothemThickness: 0.55
+  Hanging: 0.5
+  Columns: 0.35
+  Drips: 0.2
+  Rubble: 10
+  RubbleSize: 0.5
+  Moss: 0.3
+  MossColor: {r: 0.22, g: 0.32, b: 0.12, a: 1}
+  Flora: []
+  PoolChance: 0
+  LavaPools: 0
+  PoolSize: 0.32
+  StreamChance: 0
+  RockColor: {r: 0.42, g: 0.36, b: 0.3, a: 1}
+  DarkColor: {r: 0.2, g: 0.16, b: 0.13, a: 1}
+  Strata: 0.3
+  StrataFrequency: 0.37
+  Gloss: 0.1
+  Metallic: 0
+  Facets: 0
+  Translucency: 0
+  FloorColor: {r: 0.38, g: 0.32, b: 0.25, a: 1}
+  FloorDark: {r: 0.22, g: 0.18, b: 0.14, a: 1}
+  FloorGrit: 0.5
+  FloorGloss: 0.1
+  Detail: 0.3
+  DetailScale: 1.2
+  Sheen: 0
+  GlowColor: {r: 1, g: 0.72, b: 0.22, a: 1}
+  Glow: 0.28
+  GlowCover: 0.03
+  Cracks: 0.3
+  GlowScale: 2.6
+  GlowEverywhere: 0
+  CrackDarkness: 0.15
+  CrackBreakup: 0

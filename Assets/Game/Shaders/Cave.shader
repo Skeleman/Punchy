@@ -62,7 +62,7 @@ Shader "Punchy/Cave"
                 float3 positionWS : TEXCOORD0;
                 float3 normalWS : TEXCOORD1;
                 float4 color : TEXCOORD2;
-                float2 data : TEXCOORD3;
+                float3 data : TEXCOORD3;   // x terrain blend, y rock tint, z rib shade
                 nointerpolation float style : TEXCOORD4;
             };
 
@@ -84,7 +84,7 @@ Shader "Punchy/Cave"
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 o.color = input.color;
-                o.data = input.data.xy;
+                o.data = input.data.xyw;
                 o.style = input.data.z;
                 return o;
             }
@@ -255,6 +255,9 @@ Shader "Punchy/Cave"
                 }
 
                 half3 color = diffuse * light + specColor * shine + s0.rgb * through * translucency * 0.6;
+                // Ribs: their hollows darker and crests lighter, whatever look the wall has (rock, ice or the terrain's
+                // skin in a shallow cave), so they read in flat light.
+                color *= 1 - clamp(input.data.z * 2.4, -0.3, 0.75);
                 // Sheen: a soft rim where the wall turns away, lit by whatever light reaches it, with a faint floor of
                 // its own so even near-black rock (obsidian) keeps its shape out of the lantern's reach.
                 color += lerp(s0.rgb, 1, 0.3) * pow(1 - saturate(dot(n, view)), 3) * s7.z * (light * 0.5 + 0.035);

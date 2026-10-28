@@ -16,6 +16,8 @@ namespace Punchy.Ambience
     public class LandmarkEffectSystem : MonoBehaviour
     {
         public Material PlumeMaterial;
+        [Tooltip("Material (Punchy/Flame) for the flames FireSystem collects each frame: torches, campfires.")]
+        public Material FlameMaterial;
         public Material WaterfallMaterial;
         [Tooltip("Effects of landmarks within this distance of the camera are drawn.")]
         public float Range = 700f;
@@ -62,6 +64,8 @@ namespace Punchy.Ambience
 
         void Update()
         {
+            // Flames lit this frame by anyone (torches, campfires): drawn whatever else happens here.
+            FireSystem.Draw(FlameMaterial);
             var cam = Camera.main;
             if (cam == null || PlumeMaterial == null || WaterfallMaterial == null || !TryGetWorld(out var source, out var palette))
                 return;

@@ -23,7 +23,14 @@ namespace Punchy.Terrain
         Pool,
         Hearth, Yard,
         /// <summary>A glowing plant (cave mushrooms, crystals): moths, salamanders and the like gather by its light.</summary>
-        Glow
+        Glow,
+        /// <summary>
+        /// A seat (bench, log, stump, fountain rim, hall step). Position is where the hips go: on the seat, y its height;
+        /// Facing the way a sitter faces; Capacity sitters side by side, Size the spacing between them along the seat.
+        /// </summary>
+        Sit,
+        /// <summary>An open green (grass, a few trees): fine to sit or lie on. Size is its radius, Capacity how many.</summary>
+        Green
     }
 
     /// <summary>

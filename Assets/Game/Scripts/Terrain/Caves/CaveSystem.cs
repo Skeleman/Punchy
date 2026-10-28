@@ -506,6 +506,12 @@ namespace Punchy.Terrain
         /// <summary>Per species, the light its glowing parts give the walls round it (rgb strength, w reach); zero if none.</summary>
         readonly List<Vector4> speciesGlow = new List<Vector4>();
         readonly List<(float3 position, Vector4 light)> nearGlowPlants = new List<(float3, Vector4)>();
+        /// <summary>Per species: the height of its torch's head (1 at scale 1), or 0 if it isn't a torch.</summary>
+        readonly List<float> speciesTorch = new List<float>();
+        /// <summary>Torches near the camera: where the flame sits and the plant's index (its seed).</summary>
+        readonly List<(float3 flame, int plant)> nearTorches = new List<(float3, int)>();
+        /// <summary>A wall torch's light on the rock round it (warm, about 9 m).</summary>
+        static readonly Vector4 TorchLight = new Vector4(1.7f, 0.95f, 0.4f, 9f);
         /// <summary>How far a glowing plant lights the floor and walls round it (m).</summary>
         const float PlantGlowReach = 5f;
         float3 plantsAround = new float3(float.MaxValue);
@@ -547,6 +553,7 @@ namespace Punchy.Terrain
                         plantModels.Add(Punchy.Flora.FloraGenerator.Grow(species, v));
                     // The same light the plant casts on the surface (colour and reach by how much of it glows).
                     speciesGlow.Add(Punchy.Flora.FloraPlacement.GlowLight(species));
+                    speciesTorch.Add(species.Form == Punchy.Flora.FloraForm.Torch ? species.Height.y : 0f);
                 }
                 plantsFrom = palette;
             }
@@ -556,6 +563,7 @@ namespace Punchy.Terrain
                 plantsAround = camPos;
                 plantKeys.Clear();
                 nearGlowPlants.Clear();
+                nearTorches.Clear();
                 for (int i = 0; i < set.Plants.Length; i++)
                 {
                     ref var p = ref set.Plants[i];
@@ -568,6 +576,13 @@ namespace Punchy.Terrain
                     plantKeys.Add((model * 2 + (d < PlantLod0 ? 0 : 1), i));
                     if (speciesGlow[p.Species].w > 0f)
                         nearGlowPlants.Add((p.Position + new float3(0f, 0.3f * p.Scale, 0f), speciesGlow[p.Species]));
+                    if (speciesTorch[p.Species] > 0f)
+                    {
+                        // The head: up the stick and out from the wall (the model leans out along its +Z by ~20°).
+                        var head = speciesTorch[p.Species] * p.Scale;
+                        var outward = new float3(-math.sin(p.Yaw), 0f, math.cos(p.Yaw));
+                        nearTorches.Add((p.Position + new float3(0f, head * 0.94f, 0f) + outward * head * 0.34f, i));
+                    }
                 }
                 plantKeys.Sort((a, b) => a.key.CompareTo(b.key));
                 var count = plantKeys.Count;
@@ -633,6 +648,13 @@ namespace Punchy.Terrain
                 var at = new Vector4(position.x, position.y, position.z, 0f);
                 glowing.Add((math.distance(position, camPos), at, at, light));
             }
+            // Wall torches: a flame on each (every frame: FireSystem's list is per frame) and its warm light on the rock.
+            foreach (var (flame, plant) in nearTorches)
+            {
+                Punchy.Ambience.FireSystem.AddFlame(flame, 0.3f, plant, Punchy.Ambience.FireSystem.Wood);
+                var at = new Vector4(flame.x, flame.y + 0.15f, flame.z, 0f);
+                glowing.Add((math.distance(flame, camPos), at, at, TorchLight));
+            }
 
             var bounds = new Bounds(camPos, new Vector3(PlantRadius * 2f, PlantRadius * 2f, PlantRadius * 2f));
             for (int d = 0; d < plantDraws.Count; d++)
@@ -653,7 +675,9 @@ namespace Punchy.Terrain
                 m.Destroy();
             plantModels.Clear();
             speciesGlow.Clear();
+            speciesTorch.Clear();
             nearGlowPlants.Clear();
+            nearTorches.Clear();
             plantDraws.Clear();
             plantInstances?.Release();
             plantVisible?.Release();
@@ -1530,7 +1554,8 @@ namespace Punchy.Terrain
             /// <summary>
             /// rgb the terrain's colour at this spot; alpha how much daylight reaches (the entrance and near the
             /// surface). Data: x how much to look like the terrain (1 at the surface, fading out a few metres
-            /// underground), y a slight brightness tint for the cave rock, z the cave's style slot.
+            /// underground), y a slight brightness tint for the cave rock, z the cave's style slot, w how much darker
+            /// (negative: lighter) ribs make it here.
             /// </summary>
             float4 Look(float3 p, out float4 data)
             {
@@ -1547,8 +1572,17 @@ namespace Punchy.Terrain
                 var open = math.saturate((2f - Source.CaveClearance(p.xz, surface)) / 1.5f);
                 var ground = Source.SampleGround(p.xz);
                 var albedo = Source.SampleSurface(p.xz, ground, Source.SampleNormal(p.xz, 1f)).Albedo;
+                // Ribbed caves: how much darker the hollow between two ribs is (crests a touch lighter), applied to
+                // every look the wall takes, so the ribs read even in the flat light of a shallow ice cave; none where
+                // the cave opens to the sky, so mouths still match the terrain.
+                var ribShade = 0f;
+                if (cave >= 0 && set.Caves[cave].Wall.z > 0f)
+                {
+                    var rib = CaveSampling.Rib(set.Caves[cave], p);
+                    ribShade = (0.55f - 0.75f * rib * rib) * set.Caves[cave].Wall.z * (1f - open);
+                }
                 data = new float4(math.max(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), open),
-                                  0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f), cave >= 0 ? set.Caves[cave].Style : 0, 0f);
+                                  0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f), cave >= 0 ? set.Caves[cave].Style : 0, ribShade);
                 return new float4(albedo, math.max(math.max(fromMouth, nearSurface), open));
             }
         }

@@ -73,7 +73,18 @@ namespace Punchy.Flora
         [Tooltip("One 6.6 m span of a plank bridge (Bark), deck top at the origin, piles down into the water and a rail each " +
                  "side. Height is the rail; Spread the deck's width (m).")] Bridge,
         [Tooltip("One 3 m length of palisade: a row of sharpened logs (Bark) sunk into the ground with binding rails behind. " +
-                 "Height is the logs'.")] Palisade
+                 "Height is the logs'.")] Palisade,
+        [Tooltip("A clutch of eggs in a shallow nest (cave floors: what spiders, lizards and salamanders guard). Height is " +
+                 "an egg's length, Branches the number of eggs, Spread how loosely they lie; Foliage colours the eggs, " +
+                 "Bark the nest of grit or silk.")] Eggs,
+        [Tooltip("A mine's timber frame: two posts and a lintel across a passage, a metre either side of its middle and a " +
+                 "metre high, scaled to fit (Bark; Thickness the timbers' radius per metre).")] MineFrame,
+        [Tooltip("A torch on a wall bracket, leaning out a little: Height is the stick, Bark the stick, Foliage the " +
+                 "charred head. Cave styles light a flame on it (FireSystem).")] Torch,
+        [Tooltip("A plank bench on two stone feet, its seat 0.45 m up and 1.8 m long (Bark the planks, Foliage the " +
+                 "stone). A sitter faces +Z. Towns' Sit anchors expect these sizes at scale 1.")] Bench,
+        [Tooltip("A log lying on its side to sit on, 0.4 m high and 1.8 m long (Bark), with cut ends. A sitter faces +Z.")] Log,
+        [Tooltip("A sawn stump to sit on, 0.42 m high (Bark, with a pale cut top).")] Stump
     }
 
     public enum FoliageFinish : byte

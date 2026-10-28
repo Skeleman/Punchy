@@ -279,7 +279,8 @@ namespace Punchy.Flora
         {
             FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tent or FloraForm.Tower or FloraForm.Stall or FloraForm.Inn or
             FloraForm.Smithy or FloraForm.Forum or FloraForm.Fountain or FloraForm.Woodpile or FloraForm.Well or
-            FloraForm.Hall or FloraForm.Shrine or FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade => true,
+            FloraForm.Hall or FloraForm.Shrine or FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade or
+            FloraForm.Bench or FloraForm.Log or FloraForm.Stump => true,
             _ => false
         };
 
@@ -519,6 +520,7 @@ namespace Punchy.Flora
             var candidates = new FixedList128Bytes<int>();   // species index, or -(prop entry + 1)
             var weights = new FixedList128Bytes<float>();
             var bound = 0f;
+            var paved = false;
 
             // Settlements: each plot's building takes the cell holding the plot's centre, in its species' layer,
             // facing its street; nothing else grows on the streets or on built plots.
@@ -550,8 +552,9 @@ namespace Punchy.Flora
                             Random = rng.NextFloat()
                         };
                     }
-                    if (SettlementSampling.Keep(ref towns, xz) < 0.5f)
-                        return none;
+                    // Streets and built plots grow nothing, though a landmark's placed props (benches on the square,
+                    // logs round a camp's yard) still stand there: decided after them, below.
+                    paved = SettlementSampling.Keep(ref towns, xz) < 0.5f;
                 }
             }
 
@@ -631,6 +634,9 @@ namespace Punchy.Flora
                     bound += d;
                 }
             }
+
+            if (paved)
+                return none;
 
             // Cheap first pass: which species could grow here, at most how likely.
             source.SampleBiomes(xz, out var biomes, out _);

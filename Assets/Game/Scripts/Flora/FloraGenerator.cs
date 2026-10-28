@@ -72,6 +72,12 @@ namespace Punchy.Flora
                     case FloraForm.PricklyPear: PricklyPear(g); break;
                     case FloraForm.Ocotillo: Ocotillo(g); break;
                     case FloraForm.Mushroom: Mushroom(g); break;
+                    case FloraForm.Eggs: Eggs(g); break;
+                    case FloraForm.MineFrame: MineFrame(g); break;
+                    case FloraForm.Torch: Torch(g); break;
+                    case FloraForm.Bench: Bench(g); break;
+                    case FloraForm.Log: SeatLog(g); break;
+                    case FloraForm.Stump: Stump(g); break;
                     case FloraForm.Bones: Bones(g); break;
                     case FloraForm.Boulder: Boulder(g); break;
                     case FloraForm.Spire: Spire(g); break;
@@ -1087,6 +1093,153 @@ namespace Punchy.Flora
                         b.Diamond(spot, capRadius * 0.12f, g.Accent, FloraPart.Petal);
                     }
             }
+        }
+
+        /// <summary>
+        /// A clutch of eggs: smooth ovals in a golden-angle spiral, standing and leaning out from the middle, heaped a
+        /// little higher there, in a low nest of grit or silk (solid shells: no leaf shading).
+        /// </summary>
+        static void Eggs(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var egg = g.Range(s.Height);
+            var count = Mathf.Max(1, g.Count(s.Branches));
+            var spread = egg * (0.35f + 0.16f * Mathf.Sqrt(count)) * Mathf.Max(s.Spread, 0.3f);
+            g.Height = egg * 0.9f;
+            g.Width = spread * 2.3f;
+            g.TrunkRadius = 0f;
+
+            var nest = b.Blob(Vector3.up * egg * 0.02f, new Vector3(spread * 1.2f, egg * 0.18f, spread * 1.2f), Quaternion.identity,
+                              g.Lod == 0 ? 1 : 0, 0.15f, g.R() * 100f, g.Bark, FloraPart.Bark);
+            b.Occlude(nest, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y)));
+            var turn = g.R() * 6.28f;
+            for (int i = 0; i < count; i++)
+            {
+                var along = Mathf.Sqrt((i + 0.5f) / count);
+                var flat = g.Flat(turn + i * 2.39996f);
+                var heap = (1f - along) * egg * 0.35f;
+                var centre = flat * spread * along * 0.9f + Vector3.up * (egg * 0.42f + heap);
+                // Lying tilted out from the middle, each at its own angle, the outer ones further over.
+                var tilt = Quaternion.AngleAxis(Mathf.Lerp(8f, 35f, along) + g.Range(-8f, 8f), Vector3.Cross(Vector3.up, flat));
+                var color = g.FoliageColor();
+                var shell = b.Blob(centre, new Vector3(egg * 0.34f, egg * 0.5f, egg * 0.34f), tilt, g.Lod == 0 ? 2 : g.Lod == 1 ? 1 : 0,
+                                   0.01f, g.R() * 100f, color, FloraPart.Bark);
+                b.Occlude(shell, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.4f)));
+            }
+        }
+
+        /// <summary>
+        /// A mine's timber frame, one metre either side of the middle and one metre to the lintel (placements scale it
+        /// to the passage): two posts, a lintel resting on them and short braces in the corners.
+        /// </summary>
+        static void MineFrame(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            g.Height = 1f;
+            g.Width = 2.2f;
+            g.TrunkRadius = 0f;
+            var r = Mathf.Max(s.Thickness, 0.02f);
+            var sides = g.Sides(6, 4, 4);
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var foot = new Vector3(side, -0.05f, 0f);
+                var lean = g.Range(-0.02f, 0.02f);
+                b.Tube(new List<Vector3> { foot, foot + new Vector3(lean, 1.02f, 0f) }, new List<float> { r * 1.05f, r }, sides, g.Bark, FloraPart.Bark);
+                if (g.Lod < 2)
+                    b.Tube(new List<Vector3> { new Vector3(side * 0.98f, 0.78f, 0f), new Vector3(side * 0.72f, 0.99f, 0f) },
+                           new List<float> { r * 0.6f, r * 0.6f }, sides, g.Bark * 0.9f, FloraPart.Bark);
+            }
+            b.Tube(new List<Vector3> { new Vector3(-1.12f, 1.02f + r, 0f), new Vector3(1.12f, 1.02f + r, 0f) },
+                   new List<float> { r * 1.1f, r * 1.1f }, sides, g.Bark * 0.95f, FloraPart.Bark);
+        }
+
+        /// <summary>A wall torch: a stick leaning out from its bracket with a charred head (the flame is FireSystem's).</summary>
+        static void Torch(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var length = g.Range(s.Height);
+            g.Height = length;
+            g.Width = 0.2f;
+            g.TrunkRadius = 0f;
+            var r = Mathf.Max(length * s.Thickness, 0.015f);
+            // Leaning out (+Z, away from the wall it's on) by about 20°.
+            var top = new Vector3(0f, length * 0.94f, length * 0.34f);
+            b.Tube(new List<Vector3> { Vector3.zero, top }, new List<float> { r * 0.8f, r }, g.Sides(6, 4, 3), g.Bark, FloraPart.Bark);
+            // The bracket: a band round the stick a third of the way up, and its arm back to the wall.
+            if (g.Lod < 2)
+            {
+                var band = top * 0.32f;
+                b.Tube(new List<Vector3> { band + new Vector3(0f, 0f, -r * 3f), band }, new List<float> { r * 0.5f, r * 0.5f }, 4, g.Accent, FloraPart.Bark);
+                b.Blob(band, new Vector3(r * 1.4f, r * 0.9f, r * 1.4f), Quaternion.identity, 0, 0f, 0f, g.Accent, FloraPart.Bark);
+            }
+            var head = b.Blob(top, new Vector3(r * 1.6f, r * 2.4f, r * 1.6f), Quaternion.FromToRotation(Vector3.up, top.normalized),
+                              g.Lod == 0 ? 1 : 0, 0.2f, g.R() * 100f, g.FoliageColor(), FloraPart.Bark);
+            b.Occlude(head, (p, n) => 0.7f);
+        }
+
+        // Seats: fixed sizes (a sitter's hips go at the seat's height, and towns' Sit anchors expect it), scaled by the
+        // prop that places them. Low colliders so walkers go round; a sitter ignores its own seat.
+        public const float BenchSeat = 0.45f, LogSeat = 0.4f, StumpSeat = 0.42f;
+
+        /// <summary>A plank bench on two stone feet, 1.8 m long (along X), its seat 0.45 m up; a sitter faces +Z.</summary>
+        static void Bench(Grower g)
+        {
+            var b = g.B;
+            g.Height = BenchSeat;
+            g.Width = 1.8f;
+            g.TrunkRadius = 0f;
+            var stone = g.FoliageColor();
+            for (int side = -1; side <= 1; side += 2)
+                b.Box(new Vector3(side * 0.62f, (BenchSeat - 0.06f) * 0.5f, 0f), new Vector3(0.22f, BenchSeat - 0.06f, 0.36f),
+                      Quaternion.Euler(0f, g.Range(-3f, 3f), 0f), stone, FloraPart.Bark);
+            // Two planks side by side, a hair apart.
+            for (int k = 0; k < 2; k++)
+                b.Box(new Vector3(0f, BenchSeat - 0.03f, (k - 0.5f) * 0.2f), new Vector3(1.8f, 0.06f, 0.18f),
+                      Quaternion.Euler(0f, g.Range(-1f, 1f), 0f), g.Bark * g.Range(0.92f, 1.05f), FloraPart.Bark);
+            g.Colliders.Add(new Vector4(-0.5f, 0f, 0.3f, BenchSeat));
+            g.Colliders.Add(new Vector4(0.5f, 0f, 0.3f, BenchSeat));
+        }
+
+        /// <summary>A log lying along X to sit on, 1.8 m long, its top 0.4 m up; a sitter faces +Z.</summary>
+        static void SeatLog(Grower g)
+        {
+            var b = g.B;
+            var r = LogSeat * 0.5f;
+            g.Height = LogSeat;
+            g.Width = 1.8f;
+            g.TrunkRadius = 0f;
+            var bend = g.Range(-0.04f, 0.04f);
+            var first = b.VertexCount;
+            b.Tube(new List<Vector3> { new Vector3(-0.9f, r, 0f), new Vector3(0f, r, bend), new Vector3(0.9f, r, 0f) },
+                   new List<float> { r * 0.95f, r, r * 0.92f }, g.Sides(9, 6, 4), g.Bark, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, r * 0.8f));
+            // Pale sawn ends.
+            if (g.Lod < 2)
+                for (int side = -1; side <= 1; side += 2)
+                    b.Blob(new Vector3(side * 0.9f, r, 0f), new Vector3(0.02f, r * 0.9f, r * 0.9f), Quaternion.identity, 0, 0f, 0f,
+                           Color.Lerp(g.Bark, new Color(0.75f, 0.62f, 0.45f).linear, 0.7f), FloraPart.Bark);
+            g.Colliders.Add(new Vector4(-0.5f, 0f, 0.3f, LogSeat));
+            g.Colliders.Add(new Vector4(0.5f, 0f, 0.3f, LogSeat));
+        }
+
+        /// <summary>A sawn stump to sit on, its pale top 0.42 m up.</summary>
+        static void Stump(Grower g)
+        {
+            var b = g.B;
+            var r = g.Range(0.22f, 0.3f);
+            g.Height = StumpSeat;
+            g.Width = r * 2.4f;
+            g.TrunkRadius = 0f;
+            var first = b.VertexCount;
+            b.Tube(new List<Vector3> { Vector3.down * 0.05f, Vector3.up * StumpSeat * 0.5f, Vector3.up * StumpSeat },
+                   new List<float> { r * 1.25f, r * 1.02f, r }, g.Sides(9, 6, 4), g.Bark, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, StumpSeat * 0.5f));
+            b.Blob(Vector3.up * StumpSeat, new Vector3(r * 0.97f, 0.015f, r * 0.97f), Quaternion.identity, 1, 0f, 0f,
+                   Color.Lerp(g.Bark, new Color(0.78f, 0.65f, 0.47f).linear, 0.75f), FloraPart.Bark);
+            g.Colliders.Add(new Vector4(0f, 0f, r + 0.05f, StumpSeat));
         }
 
         static void Bones(Grower g)

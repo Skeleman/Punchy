@@ -1,0 +1,264 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a5407ac3b5877da49af18e077398168c, type: 3}
+  m_Name: HumanMiningCamp
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.LandmarkType
+  Radius: 42
+  Scale: {x: 0.95, y: 1.1}
+  MaxRelief: 40
+  MinRelief: 0
+  Elevation: {x: 3, y: 10000}
+  Shape: 0
+  Height: 0
+  ShapeRadius: 0.7
+  Edge: 0.2
+  Flatten: 0.9
+  Roughness: 0
+  Pools: []
+  OverrideWater: 0
+  WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
+  WaterMurk: 0.3
+  WaterGlow: 0
+  WaterLava: 0
+  Ground: {fileID: 11400000, guid: f397da19159900045997c350ec927c49, type: 2}
+  GroundRadius: 0.3
+  ClearRadius: 0.9
+  Props:
+  - Species: {fileID: 11400000, guid: b6d022bd9487a0744bddd69571f71986, type: 2}
+    Density: 5
+    Ring: {x: 0, y: 1}
+    Scale: {x: 0.8, y: 0.8}
+    Centrepiece: 1
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
+  - Species: {fileID: 11400000, guid: f331a1997509e4a4595d284791070693, type: 2}
+    Density: 2
+    Ring: {x: 0.85, y: 1}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
+  - Species: {fileID: 11400000, guid: 28a71e688d796f14b9919018c61ac083, type: 2}
+    Density: 0.8
+    Ring: {x: 0.2, y: 0.9}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
+  - Species: {fileID: 11400000, guid: 81a46fee0c08d634a88c0ab7564c6005, type: 2}
+    Density: 5
+    Ring: {x: 0.62, y: 0.62}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: 0
+    Clearance: 9
+  - Species: {fileID: 11400000, guid: e456a1b994cf93d4f913e83b12a3612a, type: 2}
+    Density: 5
+    Ring: {x: 0.6, y: 0.6}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: 140
+    Clearance: 7
+  - Species: {fileID: 11400000, guid: 8a81c2bce59a2c54594a0ed5b9f56c7d, type: 2}
+    Density: 5
+    Ring: {x: 0.56, y: 0.56}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: 235
+    Clearance: 4.5
+  - Species: {fileID: 11400000, guid: a752e0633a80fdb429b3d19b14c0488f, type: 2}
+    Density: 5
+    Ring: {x: 0.24, y: 0.24}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: 300
+    Clearance: 2.8
+  - Species: {fileID: 11400000, guid: e4d4c4689e1f8e943aae290fcd828078, type: 2}
+    Density: 1
+    Ring: {x: 0.11428572, y: 0.11428572}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 2
+    Angle: 90
+    Clearance: 1.2
+  Effects:
+  - Kind: 0
+    Offset: {x: 0, y: 0}
+    Height: 12
+    Width: 1.5
+    Size: 1.4
+    Particles: 30
+    Lifetime: 7
+    Color: {r: 0.35, g: 0.33, b: 0.31, a: 1}
+    Opacity: 0.3
+    Glow: 0
+    Period: 0
+    Duty: 0.25
+  - Kind: 0
+    Offset: {x: 0, y: 0}
+    Height: 2
+    Width: 0.6
+    Size: 0.07
+    Particles: 30
+    Lifetime: 1.5
+    Color: {r: 1, g: 0.5, b: 0.15, a: 1}
+    Opacity: 1
+    Glow: 5
+    Period: 0
+    Duty: 0.25
+  - Kind: 0
+    Offset: {x: -0.5132498, y: 0.43066773}
+    Height: 10
+    Width: 1.2
+    Size: 1.2
+    Particles: 25
+    Lifetime: 6
+    Color: {r: 0.35, g: 0.33, b: 0.31, a: 1}
+    Opacity: 0.35
+    Glow: 0
+    Period: 0
+    Duty: 0.25
+  - Kind: 0
+    Offset: {x: -0.45962667, y: 0.3856726}
+    Height: 1.5
+    Width: 0.5
+    Size: 0.06
+    Particles: 20
+    Lifetime: 1.2
+    Color: {r: 1, g: 0.5, b: 0.15, a: 1}
+    Opacity: 1
+    Glow: 5
+    Period: 0
+    Duty: 0.25
+  - Kind: 0
+    Offset: {x: 0.6, y: 0}
+    Height: 8
+    Width: 1
+    Size: 1
+    Particles: 20
+    Lifetime: 6
+    Color: {r: 0.35, g: 0.33, b: 0.31, a: 1}
+    Opacity: 0.25
+    Glow: 0
+    Period: 0
+    Duty: 0.25
+  Cave: 0
+  CaveLength: 40
+  CaveDepth: 8
+  CaveRadius: 2.4
+  ChamberRadius: 6
+  CaveChambers: 0
+  CaveBranches: 0
+  BranchLength: 30
+  CaveShafts: 0
+  CaveStyles: []
+  Settlement: {fileID: 11400000, guid: b1f7147a8b4e3e04e95ccc335d5d0caf, type: 2}
+  Companions: []
+  CompanionRange: 150
+  OnlyAsCompanion: 1
+  Residents:
+  - Species: {fileID: 11400000, guid: 8e349b1519701e84fbe7923c0c10f2fd, type: 2}
+    Count: {x: 4, y: 6}
+    Leash: 0
+    HomeRing: 0
+    HomeAngle: 0
+    Task: 0
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}
+  - Species: {fileID: 11400000, guid: 92efcd8c205109b498ebcc61830248fd, type: 2}
+    Count: {x: 0, y: 1}
+    Leash: 0
+    HomeRing: 0
+    HomeAngle: 0
+    Task: 0
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}
+  - Species: {fileID: 11400000, guid: 46b822fc6510e9c438d06b7c0598a487, type: 2}
+    Count: {x: 0, y: 1}
+    Leash: 0
+    HomeRing: 0
+    HomeAngle: 0
+    Task: 0
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}
+  - Species: {fileID: 11400000, guid: 419544623d75bcf48961c8801162cabd, type: 2}
+    Count: {x: 0, y: 1}
+    Leash: 0
+    HomeRing: 0
+    HomeAngle: 0
+    Task: 0
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}
+  - Species: {fileID: 11400000, guid: 8e349b1519701e84fbe7923c0c10f2fd, type: 2}
+    Count: {x: 1, y: 1}
+    Leash: 0
+    HomeRing: 0.545
+    HomeAngle: 140
+    Task: 1
+    FaceRing: 0.6
+    FaceAngle: 140
+    Size: {x: 0, y: 0}
+  - Species: {fileID: 11400000, guid: 8e349b1519701e84fbe7923c0c10f2fd, type: 2}
+    Count: {x: 1, y: 1}
+    Leash: 0
+    HomeRing: 0.49
+    HomeAngle: 0
+    Task: 5
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}
+  - Species: {fileID: 11400000, guid: 8e349b1519701e84fbe7923c0c10f2fd, type: 2}
+    Count: {x: 1, y: 1}
+    Leash: 0
+    HomeRing: 0.48
+    HomeAngle: 234
+    Task: 2
+    FaceRing: 0.505
+    FaceAngle: 236
+    Size: {x: 0, y: 0}
+  - Species: {fileID: 11400000, guid: 8e349b1519701e84fbe7923c0c10f2fd, type: 2}
+    Count: {x: 1, y: 1}
+    Leash: 0
+    HomeRing: 0.273
+    HomeAngle: 300
+    Task: 4
+    FaceRing: 0.24
+    FaceAngle: 300
+    Size: {x: 0, y: 0}
+  - Species: {fileID: 11400000, guid: d3f5b20b4d342d14d826ea54366e1847, type: 2}
+    Count: {x: 2, y: 4}
+    Leash: 0
+    HomeRing: 0
+    HomeAngle: 0
+    Task: 0
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}
