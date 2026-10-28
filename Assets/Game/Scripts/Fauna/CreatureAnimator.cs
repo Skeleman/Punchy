@@ -198,10 +198,11 @@ namespace Punchy.Fauna
                     if (serpent)
                     {
                         // Each segment turned to the wave's direction at its middle; the joint turns by the change.
+                        // (In the air the wave runs up and down the body, not side to side: a sky serpent's.)
                         var length = b.Segments[seg].Length * scale;
                         var k = 2f * math.PI / wave;
                         var direction = math.atan(0.12f * wave * k * math.cos(k * (s.Phase * wave - (back + length * 0.5f))));
-                        a = new float3(0f, direction - heading, 0f);
+                        a = new float3((direction - heading) * s.Fly, (direction - heading) * (1f - s.Fly), 0f);
                         heading = direction;
                         back += length;
                     }
@@ -267,7 +268,8 @@ namespace Punchy.Fauna
                     if (folds && s.Fly > 0f && s.Vertical > 0f && j == 0)
                         a.x -= 0.5f * s.Fly * math.saturate(s.Vertical * 2f);
                     rot = math.mul(rot, quaternion.EulerZXY(a));
-                    if (part.FollowGround)
+                    // (Swimming or in the air, the chain keeps the body's line rather than draping to the ground.)
+                    if (part.FollowGround && !aquatic && s.Fly < 0.5f)
                         rot = LieOnGround(in terrain, pos, rot, b.Segments[seg].Length * scale, b.Segments[seg].RadiusEnd * b.Segments[seg].Flatten * scale);
                     if (seg < MaxSegments)
                     {

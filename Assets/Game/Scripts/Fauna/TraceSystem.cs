@@ -39,12 +39,15 @@ namespace Punchy.Fauna
         /// <summary>Per creature: where its last print was, and which foot made it (w: +1 or -1); its last action.</summary>
         NativeHashMap<Entity, float4> steps;
         NativeHashMap<Entity, byte> actions;
+        /// <summary>Per sky serpent: whether it was under the water last frame (a splash where it crosses).</summary>
+        NativeHashMap<Entity, bool> under;
 
         protected override void OnCreate()
         {
             Traces = new NativeArray<Trace>(Capacity, Allocator.Persistent);
             steps = new NativeHashMap<Entity, float4>(256, Allocator.Persistent);
             actions = new NativeHashMap<Entity, byte>(256, Allocator.Persistent);
+            under = new NativeHashMap<Entity, bool>(8, Allocator.Persistent);
             query = GetEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
             RequireForUpdate<TerrainSource>();
         }
@@ -54,6 +57,7 @@ namespace Punchy.Fauna
             if (Traces.IsCreated) Traces.Dispose();
             if (steps.IsCreated) steps.Dispose();
             if (actions.IsCreated) actions.Dispose();
+            if (under.IsCreated) under.Dispose();
         }
 
         protected override void OnUpdate()
@@ -70,12 +74,19 @@ namespace Punchy.Fauna
             for (int i = 0; i < entities.Length; i++)
             {
                 var s = states[i];
-                if (math.distancesq(s.Position, camPos) > Range * Range)
+                ref var b = ref bodies[i].Blob.Value;
+                // (Huge animals seen from far off leave their marks as far: a serpent's splash across the lake.)
+                var range = math.max(Range, b.SeenFrom);
+                if (math.distancesq(s.Position, camPos) > range * range)
                 {
                     steps.Remove(entities[i]);
                     continue;
                 }
-                ref var b = ref bodies[i].Blob.Value;
+                if (b.Breaches)
+                {
+                    Splash(entities[i], s, ref b, terrain, now);
+                    continue;
+                }
                 Feather(entities[i], s, ref b, terrain, now);
                 if (!Wake(entities[i], s, ref b, terrain, now))
                     Footprint(entities[i], s, ref b, terrain, now);
@@ -217,6 +228,59 @@ namespace Punchy.Fauna
                 });
             }
             return true;
+        }
+
+        const float SplashLife = 1.6f;
+
+        /// <summary>
+        /// A sky serpent bursting out of the water or diving back in: where it crosses the surface, a ring of spray
+        /// thrown out flat across the water and a few columns of it up into the air, sized to the serpent, falling away
+        /// in a second or two.
+        /// </summary>
+        void Splash(Entity e, in CreatureState s, ref CreatureBlob b, in TerrainSource terrain, float now)
+        {
+            var g = terrain.SampleGround(s.Position.xz);
+            var isUnder = g.HasWater && s.Position.y < g.WaterSurface;
+            var known = under.TryGetValue(e, out var was);
+            under[e] = isUnder;
+            if (!known || was == isUnder || !g.HasWater)
+                return;
+            var size = math.max(b.FrontRadius * s.Scale, 0.2f);
+            var rng = new Unity.Mathematics.Random(math.hash(new float2(now, e.Index)) | 1u);
+            var centre = new float3(s.Position.x, g.WaterSurface + 0.02f, s.Position.z);
+            var spray = new float4(0.86f, 0.92f, 0.96f, 0f);
+            for (int k = 0; k < 14; k++)
+            {
+                var angle = k * math.PI * 2f / 14f + rng.NextFloat(-0.15f, 0.15f);
+                var out0 = new float3(math.cos(angle), 0f, math.sin(angle));
+                Add(new Trace
+                {
+                    Position = centre + out0 * size * rng.NextFloat(1f, 1.8f),
+                    Rotation = quaternion.LookRotationSafe(out0, new float3(0f, 1f, 0f)),
+                    Length = size * rng.NextFloat(2.5f, 4f),
+                    Radius = size * 0.22f,
+                    Flatten = 0.15f,
+                    Color = spray,
+                    Born = now,
+                    Life = SplashLife * rng.NextFloat(0.8f, 1.2f)
+                });
+            }
+            for (int k = 0; k < 10; k++)
+            {
+                var off = rng.NextFloat2Direction() * size * rng.NextFloat(0.5f, 2f);
+                var lean = math.normalize(new float3(off.x * 0.15f, 1f, off.y * 0.15f));
+                Add(new Trace
+                {
+                    Position = centre + new float3(off.x, 0f, off.y),
+                    Rotation = quaternion.LookRotationSafe(lean, new float3(1f, 0f, 0f)),
+                    Length = size * rng.NextFloat(2f, 8f),
+                    Radius = size * rng.NextFloat(0.1f, 0.28f),
+                    Flatten = 1f,
+                    Color = spray,
+                    Born = now,
+                    Life = SplashLife * rng.NextFloat(0.6f, 1f)
+                });
+            }
         }
 
         /// <summary>A feather drifts to the ground when a bird finishes preening or shaking.</summary>

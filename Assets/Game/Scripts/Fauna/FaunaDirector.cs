@@ -623,6 +623,19 @@ namespace Punchy.Fauna
             var bestShortfall = 0f;
             foreach (var f in biome.Fauna)
             {
+                // A sky serpent: over deep water only, one at a time near a player, by its own chance (not the
+                // shortfall, which the fish there would always win).
+                if (f.Species.Body.Breaches)
+                {
+                    var serpent = SpeciesIndex(f.Species);
+                    if (serpent >= 0 && depth >= 6f && counts[offset + serpent] == 0 && rng.NextFloat() < f.Density * areaHectares)
+                    {
+                        best = serpent;
+                        bestShortfall = 1f;
+                        break;
+                    }
+                    continue;
+                }
                 var index = SpeciesIndex(f.Species);
                 // (Moths live round a cave's glowing plants: they come only with the cave.)
                 if (index < 0 || f.Species.Body.NearWater && !nearWater || !Suits(f.Species.Body.Habitat, depth) || f.Species.Body.DrawnToLight)

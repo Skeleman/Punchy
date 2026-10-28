@@ -407,11 +407,19 @@ namespace Punchy.Fauna
                                 Flit(ref s, ref rng);
                             break;
                         }
-                        if (flier && s.Stage >= 1)
+                        if ((flier || b.Breaches) && s.Stage >= 1)
                         {
                             custom = true;
                             if (s.Stage == 2)
                                 Soar(ref s, ref b, ref rng, dt);
+                            // A sky serpent diving back in: once under, swimming again.
+                            if (b.Breaches && s.Stage == 3 && FlyTo(ref s, ref b, s.Target, s.TargetHeight, b.FlySpeed, dt, ref vertical))
+                            {
+                                Pause(ref s, ref b, ref rng);
+                                break;
+                            }
+                            if (b.Breaches && s.Stage == 3)
+                                break;
                             if (FlyTo(ref s, ref b, s.Target, s.TargetHeight, b.FlySpeed, dt, ref vertical))
                             {
                                 // Bats don't land: they hawk for insects in loops all night, then go to roost.
@@ -709,7 +717,7 @@ namespace Punchy.Fauna
                 s.Curl += (curl - s.Curl) * math.min(1f, dt * (curl > s.Curl ? 0.6f : 4f));
                 s.Sit += (sit - s.Sit) * math.min(1f, dt * (urgent ? 6f : 2.5f));
                 s.Vertical += (vertical - s.Vertical) * math.min(1f, dt * 3f);
-                var fly = Flying(s) && flier ? 1f : 0f;
+                var fly = Flying(s) && (flier || b.Breaches && s.Mode == CreatureMode.Wander && s.Stage >= 2) ? 1f : 0f;
                 s.Fly += (fly - s.Fly) * math.min(1f, dt * 6f);
                 s.Seed = rng.state;
             }
@@ -768,6 +776,18 @@ namespace Punchy.Fauna
                 var sleepy = SleepTime(ref b);
                 var awake = 1f - sleepy * 0.8f;
                 var flier = b.Habitat == Habitat.Flies;
+
+                // A sky serpent, awake under the water, now and then bursts up and out to soar a while.
+                if (b.Breaches && sleepy < 0.5f && rng.NextFloat() < 0.3f)
+                {
+                    SetMode(ref s, CreatureMode.Wander);
+                    s.Stage = 2;
+                    s.Focus = s.Position.xz;
+                    s.TargetHeight = Cruise(s, ref b, s.Focus);
+                    s.Timer = rng.NextFloat(90f, 240f);
+                    s.Target = s.Focus;
+                    return;
+                }
 
                 // Find company first: the options depend on it.
                 var playmate = Entity.Null;
@@ -2583,6 +2603,15 @@ namespace Punchy.Fauna
             void Soar(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
             {
                 s.Timer -= dt;
+                if (s.Timer <= 0f && b.Breaches)
+                {
+                    // Back down into the deep water under the circle (where it came up), nose first.
+                    s.Stage = 3;
+                    s.Target = s.Focus;
+                    var water = Terrain.SampleGround(s.Focus);
+                    s.TargetHeight = math.max(water.WaterSurface - b.SwimDepth * s.Scale * 0.5f, water.Height + 0.5f);
+                    return;
+                }
                 if (s.Timer <= 0f)
                 {
                     if (StartFlight(ref s, ref b, ref rng, false))

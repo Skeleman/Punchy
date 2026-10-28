@@ -49,6 +49,8 @@ namespace Punchy.Fauna
         public bool Crawls;
         /// <summary>Circles high over one place (see CreatureSpecies.Soars).</summary>
         public bool Soars;
+        /// <summary>A swimmer that bursts out to soar and dives back in (see CreatureSpecies.Breaches).</summary>
+        public bool Breaches;
         /// <summary>Drawn and kept about from this far off; 0 = as any other (see CreatureSpecies.SeenFrom).</summary>
         public float SeenFrom;
 
@@ -477,6 +479,7 @@ namespace Punchy.Fauna
             root.Crawls = species.Crawls;
             root.DrawnToLight = species.DrawnToLight;
             root.Soars = species.Soars;
+            root.Breaches = species.Breaches && species.Habitat == Habitat.Swims;
             root.SeenFrom = species.SeenFrom * sizeScale;
             root.Nests = species.Nests;
             root.WebSize = species.WebSize * sizeScale;

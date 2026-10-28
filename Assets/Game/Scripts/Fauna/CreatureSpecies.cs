@@ -151,6 +151,11 @@ namespace Punchy.Fauna
         [Tooltip("Soars: most flights are long spells circling high over one place on still wings (rocs, vultures), " +
                  "before it moves on or comes down.")]
         public bool Soars;
+        [Tooltip("A swimmer that takes to the air (sky serpents): lives deep in big lakes and the sea, now and then bursts " +
+                 "out of the water in a spray to soar for minutes (by the Flight settings), then dives back in. Found only " +
+                 "over water at least 6 m deep, at most one near each player, its Density the chance a look over deep " +
+                 "water finds one.")]
+        public bool Breaches;
 
         /// <summary>The species whose body, gait and behaviour this one uses (itself unless it's a variant).</summary>
         public CreatureSpecies Body
