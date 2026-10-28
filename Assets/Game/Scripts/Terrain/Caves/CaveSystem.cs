@@ -114,6 +114,67 @@ namespace Punchy.Terrain
 
         static readonly int DetailId = Shader.PropertyToID("_PunchyCaveDetail");
         static readonly int DetailReadyId = Shader.PropertyToID("_PunchyCaveDetailReady");
+        static readonly int LeafAtlasId = Shader.PropertyToID("_PunchyLeafAtlas");
+        static readonly int LeafAtlasReadyId = Shader.PropertyToID("_PunchyLeafAtlasReady");
+        static Texture2D leafAtlas;
+
+        /// <summary>
+        /// The leaf-cluster atlas every tree's leaf cards share (Flora.hlsl): 2 × 2 cells, each a spray of 5-8 pointed
+        /// leaves fanning from a stem near the cell's bottom. Alpha is the cutout; red shades each leaf, lighter towards
+        /// its tip and darker along its vein; the vertex colour tints it per species. Seeded, so the same everywhere.
+        /// </summary>
+        static Texture2D MakeLeafAtlas()
+        {
+            const int size = 256, cellSize = size / 2;
+            var pixels = new Color32[size * size];
+            var rng = new Unity.Mathematics.Random(0x1EAF5u);
+            for (int cell = 0; cell < 4; cell++)
+            {
+                var origin = new float2(cell % 2, cell / 2) * cellSize;
+                var stem = origin + new float2(cellSize * 0.5f, cellSize * 0.12f);
+                var leaves = rng.NextInt(5, 9);
+                for (int l = 0; l < leaves; l++)
+                {
+                    // Fanned upwards from the stem, the middle ones longest.
+                    var spread = (l + 0.5f) / leaves - 0.5f;
+                    var angle = math.PI * 0.5f + spread * 2.3f + rng.NextFloat(-0.15f, 0.15f);
+                    var dir = new float2(math.cos(angle), math.sin(angle));
+                    var length = cellSize * (0.62f - math.abs(spread) * 0.35f) * rng.NextFloat(0.85f, 1.05f);
+                    var width = length * rng.NextFloat(0.26f, 0.34f);
+                    var start = stem + dir * cellSize * rng.NextFloat(0.02f, 0.1f);
+                    var lo = (int2)math.floor(math.min(start, start + dir * length) - width);
+                    var hi = (int2)math.ceil(math.max(start, start + dir * length) + width);
+                    lo = math.clamp(lo, (int2)origin + 2, (int2)origin + cellSize - 3);
+                    hi = math.clamp(hi, (int2)origin + 2, (int2)origin + cellSize - 3);
+                    for (int y = lo.y; y <= hi.y; y++)
+                    for (int x = lo.x; x <= hi.x; x++)
+                    {
+                        var d = new float2(x + 0.5f, y + 0.5f) - start;
+                        var t = math.dot(d, dir) / length;
+                        if (t < 0f || t > 1f)
+                            continue;
+                        // A pointed leaf: widest a little below the middle, tapering to the tip.
+                        var half = width * 0.5f * math.sin(math.PI * math.pow(t, 0.8f));
+                        var across = math.abs(d.x * dir.y - d.y * dir.x);
+                        if (across > half)
+                            continue;
+                        var vein = math.smoothstep(0f, 0.12f, across / math.max(half, 1e-3f));
+                        var shade = math.saturate(0.55f + 0.35f * t) * math.lerp(0.75f, 1f, vein);
+                        pixels[y * size + x] = new Color32((byte)(shade * 255f), (byte)(shade * 255f), (byte)(shade * 255f), 255);
+                    }
+                }
+            }
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, true)
+            {
+                name = "Leaf atlas",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Trilinear,
+                hideFlags = HideFlags.DontSave
+            };
+            tex.SetPixels32(pixels);
+            tex.Apply(true);
+            return tex;
+        }
         static Texture2D detail;
 
         void OnEnable()
@@ -124,6 +185,10 @@ namespace Punchy.Terrain
             Shader.SetGlobalTexture(DetailId, detail);
             // Water reads it too, for fine ripples; it keeps them off until this is set.
             Shader.SetGlobalFloat(DetailReadyId, 1f);
+            if (leafAtlas == null)
+                leafAtlas = MakeLeafAtlas();
+            Shader.SetGlobalTexture(LeafAtlasId, leafAtlas);
+            Shader.SetGlobalFloat(LeafAtlasReadyId, 1f);
         }
 
         /// <summary>

@@ -74,6 +74,32 @@ FloraVertex FloraTransform(FloraAttributes input)
     return o;
 }
 
+// Leaf cards (FloraPart.Card): a fringe of alpha-cut leaf-cluster quads round a crown. Each vertex's part channel holds
+// 6 + atlas cell × 4 + corner, so cards need no extra vertex data; the shared atlas (CaveSystem makes it, 2 × 2 cells
+// of leaf clusters, alpha the cutout, red the leaf shading) is tinted by the vertex colour.
+TEXTURE2D(_PunchyLeafAtlas);
+SAMPLER(sampler_PunchyLeafAtlas);
+float _PunchyLeafAtlasReady;
+
+// Whether a vertex is on a leaf card, and its atlas UV (0 elsewhere).
+bool FloraCard(float part, out float2 uv)
+{
+    uv = 0;
+    if (part < 5.5)
+        return false;
+    uint code = (uint)round(part - 6);
+    uint cell = code / 4, corner = code % 4;
+    uv = (float2(cell % 2, cell / 2) + float2(corner % 2, corner / 2)) * 0.5;
+    return true;
+}
+
+// Cuts a leaf card to its leaves (and drops cards entirely until the atlas exists).
+void FloraCardClip(float2 uv)
+{
+    half a = SAMPLE_TEXTURE2D(_PunchyLeafAtlas, sampler_PunchyLeafAtlas, uv).a;
+    clip(_PunchyLeafAtlasReady > 0 ? a - 0.5 : -1);
+}
+
 // Screen-space dither (interleaved gradient noise) for LOD crossfades.
 float FloraDitherValue(float4 positionCS)
 {

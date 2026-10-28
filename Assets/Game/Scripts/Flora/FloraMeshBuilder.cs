@@ -15,7 +15,12 @@ namespace Punchy.Flora
         Petal = 2,
         Cactus = 3,
         Metal = 4,
-        Glow = 5
+        Glow = 5,
+        /// <summary>
+        /// A leaf card: an alpha-cut leaf-cluster quad. Its vertices carry Card + atlas cell × 4 + corner (see
+        /// FloraGenerator.LeafFringe and FloraCard in Flora.hlsl).
+        /// </summary>
+        Card = 6
     }
 
     /// <summary>
