@@ -772,7 +772,7 @@ namespace Punchy.Terrain
         struct Drip
         {
             public float4 Tip;    // xyz the tip, w the period (s)
-            public float4 Land;   // x landing height, y phase, z ring size
+            public float4 Land;   // x landing height, y phase, z ring size, w 1 on water (ring) or 0 on rock (splash)
         }
 
         const int MaxDrips = 48;
@@ -873,7 +873,7 @@ namespace Punchy.Terrain
                 shadowCastingMode = ShadowCastingMode.Off,
                 receiveShadows = false
             };
-            Graphics.RenderPrimitives(rp, MeshTopology.Triangles, 12, dripCount);
+            Graphics.RenderPrimitives(rp, MeshTopology.Triangles, 36, dripCount);
         }
 
         /// <summary>
@@ -906,6 +906,7 @@ namespace Punchy.Terrain
             if (style == null || share >= style.Drips)
                 return;
             var ring = 0.25f;
+            var onWater = 0f;
             for (int p = 0; p < set.Pools.Length; p++)
             {
                 ref var pool = ref set.Pools[p];
@@ -913,6 +914,29 @@ namespace Punchy.Terrain
                 {
                     land = pool.Centre.y;
                     ring = 0.4f;
+                    onWater = 1f;
+                }
+            }
+            // Or a stream's surface (within half its width of its line, and above where it would land).
+            for (int s = 0; s < set.Streams.Length && onWater == 0f; s++)
+            {
+                ref var stream = ref set.Streams[s];
+                if (math.any(tip.xz < stream.Min) || math.any(tip.xz > stream.Max))
+                    continue;
+                for (int k = stream.FirstPoint; k < stream.FirstPoint + stream.PointCount - 1; k++)
+                {
+                    var a = set.StreamPoints[k];
+                    var b = set.StreamPoints[k + 1];
+                    var ab = b.Position.xz - a.Position.xz;
+                    var t = math.saturate(math.dot(tip.xz - a.Position.xz, ab) / math.max(math.lengthsq(ab), 1e-6f));
+                    var on = math.lerp(a.Position, b.Position, t);
+                    if (math.distance(tip.xz, on.xz) < math.lerp(a.Width, b.Width, t) * 0.5f && on.y > land - 0.3f)
+                    {
+                        land = on.y;
+                        ring = 0.3f;
+                        onWater = 1f;
+                        break;
+                    }
                 }
             }
             if (tip.y - land < 0.3f)
@@ -920,7 +944,7 @@ namespace Punchy.Terrain
             allDrips.Add(new Drip
             {
                 Tip = new float4(tip, rng.NextFloat(2.5f, 7f)),
-                Land = new float4(land, rng.NextFloat(), ring, 0f)
+                Land = new float4(land, rng.NextFloat(), ring, onWater)
             });
         }
 
