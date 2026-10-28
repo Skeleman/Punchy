@@ -37,12 +37,23 @@ MonoBehaviour:
   - Species: {fileID: 11400000, guid: bd276f49a3ba0da489507a483dad61ab, type: 2}
     Density: 12
     Light: 1
+    Hanging: 0
+    MaxCover: 5
   - Species: {fileID: 11400000, guid: f0bc63d3dde59f142948a597920d6c11, type: 2}
     Density: 6
     Light: 0
+    Hanging: 0
+    MaxCover: 5
   - Species: {fileID: 11400000, guid: a9cbbae6f97c066488f4202fc7884908, type: 2}
     Density: 3
     Light: 2
+    Hanging: 0
+    MaxCover: 5
+  - Species: {fileID: 11400000, guid: 42b8e81c8452c27458a4ce054bee8f23, type: 2}
+    Density: 7
+    Light: 0
+    Hanging: 1
+    MaxCover: 8
   PoolChance: 0.5
   LavaPools: 0
   PoolSize: 0.32
@@ -69,3 +80,4 @@ MonoBehaviour:
   GlowScale: 1
   GlowEverywhere: 0
   CrackDarkness: 0
+  CrackBreakup: 0

@@ -484,13 +484,26 @@ namespace Punchy.Terrain
                             if (InTheWay(q, -0.6f, n, nodes, segments, cave) || InPool(q, 0.3f, extras.Pools, cave) || InStream(q, extras, cave))
                                 continue;
                             var floor = source.FloorUnder(new float3(q.x, centre.y, q.y), out var inCave);
-                            if (!inCave || source.CaveDistance(new float3(q.x, floor + 0.5f, q.y)) > -0.3f
-                                || UnderRock(new float3(q.x, floor, q.y), extras.Speleothems))
+                            if (!inCave || source.CaveDistance(new float3(q.x, floor + 0.5f, q.y)) > -0.3f)
+                                continue;
+                            var at = new float3(q.x, floor - 0.03f, q.y);
+                            if (entry.Hanging)
+                            {
+                                // From the ceiling, where the rock above is thin and the ground over it grows plants.
+                                var ceiling = source.CeilingOver(new float3(q.x, floor + 0.3f, q.y));
+                                var ground = source.SampleGround(q);
+                                // Head room: most strands (three quarters of the longest) clear a walker's head.
+                                if (ground.Height - ceiling > entry.MaxCover || ceiling - floor < entry.Species.Height.y * entry.Species.SizeRange.y * 0.75f + 1.8f
+                                    || source.SampleSurface(q, ground, source.SampleNormal(q, 1f)).Grass < 0.15f)
+                                    continue;
+                                at = new float3(q.x, ceiling + 0.05f, q.y);
+                            }
+                            if (UnderRock(at, extras.Speleothems))
                                 continue;
                             var size = entry.Species.SizeRange;
                             extras.Plants.Add(new CavePlant
                             {
-                                Position = new float3(q.x, floor - 0.03f, q.y),
+                                Position = at,
                                 Yaw = rng.NextFloat(math.PI * 2f),
                                 Scale = math.lerp(size.x, size.y, rng.NextFloat()),
                                 Species = flora.IndexOf(entry.Species),

@@ -167,6 +167,10 @@ namespace Punchy.Terrain
         [Tooltip("Plants per 100 m² of floor where the light suits them.")]
         [Range(0f, 20f)] public float Density = 2f;
         public CaveLight Light;
+        [Tooltip("Hangs from the ceiling instead of growing on the floor (roots): only where the rock overhead is " +
+                 "thinner than Max Cover and the ground above is vegetated, so not under deserts, ice or bare rock.")]
+        public bool Hanging;
+        [Min(0.5f)] public float MaxCover = 5f;
     }
 
     /// <summary>
