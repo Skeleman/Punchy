@@ -145,6 +145,9 @@ namespace Punchy.Flora
         public FoliageFinish Finish = FoliageFinish.Matte;
         [Tooltip("Flowers, berries and fruit glow by themselves.")]
         public bool GlowingAccents;
+        [Tooltip("How much the glowing parts shimmer (± share of their brightness, slowly, out of step plant to plant). " +
+                 "0 = a steady glow (crystals).")]
+        [Range(0f, 1f)] public float GlowPulse = 0.12f;
 
         [Header("Placement")]
         [Tooltip("Steepest ground it grows on, in degrees.")]

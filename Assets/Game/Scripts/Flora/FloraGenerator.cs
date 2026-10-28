@@ -54,6 +54,7 @@ namespace Punchy.Flora
                 builder.FoliageAs = species.Finish == FoliageFinish.Metallic ? FloraPart.Metal
                                   : species.Finish == FoliageFinish.Glowing ? FloraPart.Glow : FloraPart.Foliage;
                 builder.PetalAs = species.GlowingAccents ? FloraPart.Glow : FloraPart.Petal;
+                builder.GlowPulse = species.GlowPulse;
                 var g = new Grower(species, variant, lod, seed, builder);
                 switch (species.Form)
                 {

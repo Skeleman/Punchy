@@ -33,6 +33,7 @@ Shader "Punchy/Flora"
             #include "Sky.hlsl"
             #include "Flora.hlsl"
             #include "Glow.hlsl"
+            #include "SharedClock.hlsl"
             // The shared fine detail CaveSystem makes (rg a normal, b a height): grain on rock and bark up close.
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
@@ -149,10 +150,12 @@ Shader "Punchy/Flora"
                     color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * ao * lerp(1, 0.06, _PunchyUnderground);
                 }
 
-                // Glowing parts shine by themselves with a slow, uneven pulse (bright enough to bloom at night).
+                // Glowing parts shine by themselves (bright enough to bloom at night), with a gentle, slow shimmer of
+                // the species' own amount (carried as a fraction on the part; 0 for crystals), out of step plant to plant.
                 if (part == 5)
                 {
-                    float pulse = 0.75 + 0.25 * sin(_Time.y * 1.3 + r * 40 + input.positionWS.y * 2);
+                    float amount = saturate((input.extra.x - 5) / 0.4);
+                    float pulse = 1 + amount * sin(_PunchyClock * 0.55 + r * 40 + input.positionWS.y * 0.7);
                     // Brighter in the dark of a cave (eyes adjusted to the dark see the glow stand out).
                     color += albedo * 1.6 * pulse * lerp(1, 2.5, _PunchyUnderground);
                 }
