@@ -169,7 +169,15 @@ namespace Punchy.Terrain
                 }
                 if (palette.Count == 0)
                     Debug.LogWarning("Terrain has no biomes assigned; it will be flat and grey.", authoring);
-                AddComponentObject(entity, new BiomePalette { Biomes = palette.ToArray(), Landmarks = landmarks.ToArray() });
+                int[] biomeRealms = null;
+                if (authoring.UseRealms && authoring.Realms != null)
+                {
+                    var plan = authoring.Realms.Plan(palette);
+                    biomeRealms = new int[palette.Count];
+                    for (int b = 0; b < palette.Count; b++)
+                        biomeRealms[b] = System.Array.FindIndex(plan.Members, m => System.Array.IndexOf(m, b) >= 0);
+                }
+                AddComponentObject(entity, new BiomePalette { Biomes = palette.ToArray(), Landmarks = landmarks.ToArray(), BiomeRealms = biomeRealms });
 
                 var heightmap = default(BlobAssetReference<HeightmapBlob>);
                 if (authoring.HeightSource == HeightSourceKind.Heightmap)
