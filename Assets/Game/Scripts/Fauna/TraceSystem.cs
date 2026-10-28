@@ -77,7 +77,8 @@ namespace Punchy.Fauna
                 }
                 ref var b = ref bodies[i].Blob.Value;
                 Feather(entities[i], s, ref b, terrain, now);
-                Footprint(entities[i], s, ref b, terrain, now);
+                if (!Wake(entities[i], s, ref b, terrain, now))
+                    Footprint(entities[i], s, ref b, terrain, now);
             }
             entities.Dispose();
             states.Dispose();
@@ -142,6 +143,48 @@ namespace Punchy.Fauna
                 Born = now,
                 Life = FootprintLife
             });
+        }
+
+        const float WakeLife = 2.2f;
+
+        /// <summary>
+        /// A land animal swimming leaves a V of ripples behind its head: a pair of pale streaks on the surface every
+        /// little way, angled back either side, that spread and fade in a couple of seconds. True while it's in the water.
+        /// </summary>
+        bool Wake(Entity e, in CreatureState s, ref CreatureBlob b, in TerrainSource terrain, float now)
+        {
+            if (!b.CrossesWater)
+                return false;
+            var g = terrain.SampleGround(s.Position.xz);
+            if (!g.HasWater || s.Position.y > g.WaterSurface - b.StandHeight * s.Scale * 0.5f)
+                return false;
+            if (s.Speed < 0.1f)
+                return true;
+            var spacing = math.max(b.BodyLength * s.Scale * 0.35f, 0.15f);
+            if (steps.TryGetValue(e, out var last) && math.distance(last.xyz, s.Position) < spacing)
+                return true;
+            steps[e] = new float4(s.Position, 1f);
+            var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
+            var head = s.Position + forward * b.BodyLength * s.Scale * 0.6f;
+            var width = math.max(b.FrontRadius * s.Scale, 0.05f);
+            for (int side = -1; side <= 1; side += 2)
+            {
+                // Back and out from the head at about 30°.
+                var back = math.normalize(-forward + new float3(forward.z, 0f, -forward.x) * side * 0.6f);
+                var at = new float3(head.x, g.WaterSurface + 0.015f, head.z) + back * width;
+                Add(new Trace
+                {
+                    Position = at,
+                    Rotation = quaternion.LookRotationSafe(back, new float3(0f, 1f, 0f)),
+                    Length = width * 2.2f,
+                    Radius = width * 0.18f,
+                    Flatten = 0.12f,
+                    Color = new float4(0.82f, 0.88f, 0.92f, 0f),
+                    Born = now,
+                    Life = WakeLife
+                });
+            }
+            return true;
         }
 
         /// <summary>A feather drifts to the ground when a bird finishes preening or shaking.</summary>

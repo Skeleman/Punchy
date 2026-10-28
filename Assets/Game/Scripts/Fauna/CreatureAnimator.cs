@@ -55,6 +55,13 @@ namespace Punchy.Fauna
                 gradient = (front - back) / (2f * halfLength);   // rise per metre forward
             }
             var pitch = math.clamp(-math.atan(gradient), -0.45f, 0.45f) * (1f - airborne);
+            // Swimming (a land animal low in deep water): nose up a little, to keep its head out.
+            if (b.CrossesWater)
+            {
+                var water = terrain.SampleGround(s.Position.xz);
+                if (water.HasWater && s.Position.y < water.WaterSurface - b.StandHeight * scale * 0.5f)
+                    pitch -= 0.22f;
+            }
             // A leaping fish noses up out of the water and dives back in nose first.
             if (s.Air > 0f)
                 pitch -= math.cos(math.PI * s.Air) * 0.9f;

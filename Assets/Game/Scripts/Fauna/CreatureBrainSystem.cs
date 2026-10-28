@@ -256,6 +256,15 @@ namespace Punchy.Fauna
                     s.Focus = threat;
                 }
 
+                // Swimming with nowhere to go (it stopped, or wanted to graze or rest): it makes for the nearest shore.
+                if (b.CrossesWater && !threatened && s.Mode != CreatureMode.Wander && s.Mode != CreatureMode.Flee &&
+                    s.Mode != CreatureMode.Hunt && s.Mode != CreatureMode.Play && s.Mode != CreatureMode.Greet && s.Mode != CreatureMode.Held &&
+                    WaterDepth(s.Position.xz) > b.StandHeight * s.Scale * 0.8f && NearestShore(s.Position.xz, out var ashore))
+                {
+                    SetMode(ref s, CreatureMode.Wander);
+                    s.Target = ashore;
+                }
+
                 var targetSpeed = 0f;
                 var desiredLook = 0f;
                 var moving = false;
@@ -2453,16 +2462,18 @@ namespace Punchy.Fauna
                 {
                     if (!keepHeight)
                         s.Position.y = Terrain.SampleHeight(s.Position.xz);
-                    // Out of its depth, a land animal that swims floats with its back at the surface, legs paddling
-                    // below (bobbing gently); it eases down into the water and up out of it on the far bank.
+                    // Out of its depth, a land animal that swims sits low: only its head, neck and a strip of back
+                    // above the surface (a bear's broad back shows more than a deer's), legs paddling below, bobbing
+                    // gently. Wading in, it settles from standing on the bottom into that as the water deepens.
                     if (b.CrossesWater)
                     {
                         var g = Terrain.SampleGround(s.Position.xz);
                         if (g.HasWater && g.WaterSurface > g.Height)
                         {
-                            var floatAt = g.WaterSurface - b.StandHeight * s.Scale - b.FrontRadius * s.Scale * 0.2f +
+                            var swim = SwimDepth(ref b, s.Scale, g.WaterSurface - g.Height);
+                            var floatAt = g.WaterSurface - b.StandHeight * s.Scale - b.FrontRadius * b.BodyFlatten * s.Scale * 0.55f +
                                           math.sin(s.Clock * 2.3f) * 0.015f * s.Scale;
-                            s.Position.y = math.max(g.Height, floatAt);
+                            s.Position.y = math.lerp(g.Height, floatAt, swim);
                         }
                     }
                 }
@@ -2517,6 +2528,30 @@ namespace Punchy.Fauna
                     }
                 }
                 return false;
+            }
+
+            /// <summary>How far a land animal that swims has gone from wading (0) to swimming (1) at this depth.</summary>
+            static float SwimDepth(ref CreatureBlob b, float scale, float depth) =>
+                math.smoothstep(b.StandHeight * scale * 0.6f, b.StandHeight * scale * 1.1f, depth);
+
+            /// <summary>The nearest dry land within 80 m, looking out in 12 directions.</summary>
+            bool NearestShore(float2 from, out float2 shore)
+            {
+                shore = default;
+                var best = float.MaxValue;
+                for (int k = 0; k < 12; k++)
+                {
+                    var a = k * math.PI / 6f;
+                    var dir = new float2(math.sin(a), math.cos(a));
+                    for (var d = 3f; d <= 80f && d < best; d += 3f)
+                        if (Walkable(from + dir * d, Habitat.Land))
+                        {
+                            best = d;
+                            shore = from + dir * (d + 2f);
+                            break;
+                        }
+                }
+                return best < float.MaxValue;
             }
 
             /// <summary>How deep the water is here (0 on dry land).</summary>

@@ -80,6 +80,7 @@ namespace Punchy.Debugging
         /// beating its wings if flying).</summary>
         static string poseRequest;
         Entity posed;
+        float2? swimSpot;
         /// <summary>"-interact Cat:carry" (or ":pet"): walks up to the nearest one, pets it or picks it up, and puts it
         /// down again a while later, as if the keys were pressed (alone, hosting or joined).</summary>
         static string interactRequest;
@@ -371,7 +372,9 @@ namespace Punchy.Debugging
                     var c = em.GetComponentData<CreatureState>(e);
                     if (hasTask && c.Task != watchTask)
                         continue;
-                    var busy = c.Mode == CreatureMode.Climb || c.Mode == CreatureMode.Web || c.Fly > 0.5f ||
+                    var g = terrainQuery.GetSingleton<TerrainSource>().SampleGround(c.Position.xz);
+                    var swimming = g.HasWater && c.Position.y < g.WaterSurface - 0.2f;
+                    var busy = swimming || c.Mode == CreatureMode.Climb || c.Mode == CreatureMode.Web || c.Fly > 0.5f ||
                                c.Action != IdleAction.None || c.Mode == CreatureMode.Hunt || c.Mode == CreatureMode.Burrow || c.Mode == CreatureMode.Roost;
                     var score = math.distance(c.Position, player.Position) - (busy ? 1000f : 0f) - (c.Fly > 0.5f ? 1000f : 0f);
                     if (score < best)
@@ -488,6 +491,27 @@ namespace Punchy.Debugging
             {
                 c.Anchor = c.Position;
                 c.AnchorSize = math.max(size * 0.7f, 0.08f) * (b.Nests == NestSite.Treetop ? 1.4f : 1f);
+            }
+            // Swimming: out in deep water near the player (start by a lake or river), paddling on the spot.
+            if (how == "swim")
+            {
+                if (!swimSpot.HasValue)
+                    for (var d = 3f; d < 60f && !swimSpot.HasValue; d += 2f)
+                        for (int k = 0; k < 12 && !swimSpot.HasValue; k++)
+                        {
+                            var at = player.Position.xz + new float2(math.sin(k * 0.5236f), math.cos(k * 0.5236f)) * d;
+                            var w = source.SampleGround(at);
+                            if (w.HasWater && w.WaterSurface - w.Height > b.StandHeight * c.Scale * 2f)
+                                swimSpot = at;
+                        }
+                if (swimSpot.HasValue)
+                {
+                    var w = source.SampleGround(swimSpot.Value);
+                    c.Position = new float3(swimSpot.Value.x, w.WaterSurface - b.StandHeight * c.Scale - b.FrontRadius * b.BodyFlatten * c.Scale * 0.55f,
+                                            swimSpot.Value.y);
+                    c.Speed = b.WalkSpeed * c.Scale;
+                    CreatureMotion.AdvancePhase(ref c, ref b, dt);
+                }
             }
             c.Clock += dt;
             if (glide)
