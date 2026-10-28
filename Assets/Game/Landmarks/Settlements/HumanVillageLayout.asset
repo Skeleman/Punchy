@@ -43,3 +43,7 @@ MonoBehaviour:
     Species: {fileID: 11400000, guid: 71d1f02f3ce27f84b85a1556a6c4cca5, type: 2}
     Weight: 1
     Count: 1
+  - Role: 3
+    Species: {fileID: 11400000, guid: 962d1dfd7cc5f4e41b652ae09fa3183b, type: 2}
+    Weight: 1
+    Count: 0

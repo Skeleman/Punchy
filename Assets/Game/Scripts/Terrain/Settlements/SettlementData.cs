@@ -182,7 +182,8 @@ namespace Punchy.Terrain
             for (int k = range.x; k < range.x + range.y; k++)
             {
                 ref var p = ref set.Plots[set.PlotItems[k]];
-                if (p.Role == PlotRole.Landscaping || math.any(xz < p.Min) || math.any(xz > p.Max))
+                // Green plots keep their plants, unless a garden stands on them.
+                if (p.Role == PlotRole.Landscaping && p.Building < 0 || math.any(xz < p.Min) || math.any(xz > p.Max))
                     continue;
                 keep = math.min(keep, math.smoothstep(0.5f, 2f, Outside(p, xz)));
             }
