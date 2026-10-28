@@ -141,6 +141,25 @@ namespace Punchy.Terrain
             Shader.SetGlobalTexture(DetailId, detail);
             // Water reads it too, for fine ripples; it keeps them off until this is set.
             Shader.SetGlobalFloat(DetailReadyId, 1f);
+            Shader.SetGlobalFloat(WaterDetailId, WaterDetail ? 1f : 0f);
+        }
+
+        static readonly int WaterDetailId = Shader.PropertyToID("_PunchyWaterDetail");
+
+        /// <summary>
+        /// Whether water draws its fine detail (ripples, caustics, glitter): on unless the command line says
+        /// -waterdetail 0, so a profiling build can compare both in one run.
+        /// </summary>
+        static bool WaterDetail
+        {
+            get
+            {
+                var args = System.Environment.GetCommandLineArgs();
+                for (int i = 0; i < args.Length - 1; i++)
+                    if (args[i] == "-waterdetail")
+                        return args[i + 1] != "0";
+                return true;
+            }
         }
 
         /// <summary>
