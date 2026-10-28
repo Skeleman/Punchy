@@ -65,6 +65,9 @@ namespace Punchy.Terrain
     public class SettlementLayout : ScriptableObject
     {
         public SettlementPattern Pattern;
+        [Tooltip("Whose settlement this is: it's only built where the biome under its centre allows this folk " +
+                 "(BiomeDefinition.Cultures). A Camp pattern counts as a camp for Camps Only biomes.")]
+        public FolkCulture Culture = FolkCulture.Human;
         [Tooltip("How big the folk are next to humans (1). Plots, streets and the square scale with it, and phase 5's " +
                  "doors and eaves read it from the settlement.")]
         [Min(0.3f)] public float FolkScale = 1f;

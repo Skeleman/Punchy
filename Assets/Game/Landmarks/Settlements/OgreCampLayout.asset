@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: OgreCampLayout
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.SettlementLayout
   Pattern: 3
+  Culture: 16
   FolkScale: 1.7
   PlotSize: {x: 8.400001, y: 9.6}
   PlotGap: 2

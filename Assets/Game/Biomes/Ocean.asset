@@ -30,6 +30,7 @@ MonoBehaviour:
   WaterMurk: 0
   WaterColor: {r: 0.2, g: 0.35, b: 0.2, a: 1}
   WaterGlow: 0
+  WaterLava: 0
   Weather: []
   BaseSurface: {fileID: 11400000, guid: 52309ffcc63888a4fa04169f80fd4edb, type: 2}
   Layers:
@@ -55,6 +56,8 @@ MonoBehaviour:
   Butterflies: 0
   Particles: []
   Flora: []
+  Habitability: 0
+  Cultures: 0
   Landmarks: []
   Fauna:
   - Species: {fileID: 11400000, guid: 2955219e47ad0664b8afa7195c7db5a2, type: 2}

@@ -104,6 +104,8 @@ MonoBehaviour:
   - Type: {fileID: 11400000, guid: 27a1ceebb4c0878498b62c3d35774e37, type: 2}
     Density: 1.5
   Flora: []
+  Habitability: 0
+  Cultures: 0
   Landmarks:
   - Type: {fileID: 11400000, guid: 0f21af3c3ff261a4090accd0165cce42, type: 2}
     Density: 0.5

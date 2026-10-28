@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: DwarfHoldLayout
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.SettlementLayout
   Pattern: 1
+  Culture: 2
   FolkScale: 0.85
   PlotSize: {x: 10.8, y: 10.8}
   PlotGap: 1.5

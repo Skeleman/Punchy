@@ -116,6 +116,8 @@ MonoBehaviour:
     Density: 14
   - Species: {fileID: 11400000, guid: b4f7c4f36bf84cb4698a26e36ae5f49a, type: 2}
     Density: 3
+  Habitability: 2
+  Cultures: 13
   Landmarks:
   - Type: {fileID: 11400000, guid: 1e5cfd2810af44c44a53ffde36c33098, type: 2}
     Density: 2

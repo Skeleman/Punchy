@@ -11,6 +11,27 @@ namespace Punchy.Terrain
         [Tooltip("Parallel wind-shaped crests with a gentle windward side and a steep lee face.")] Dunes
     }
 
+    /// <summary>Which settlements a biome takes (with its <see cref="FolkCulture"/> list).</summary>
+    public enum Habitability : byte
+    {
+        [Tooltip("No settlements (a glacier top, a poison swamp).")] None,
+        [Tooltip("Only camps (palisaded goblin and ogre camps), not towns.")] CampsOnly,
+        [Tooltip("Any settlement of an allowed folk.")] Any
+    }
+
+    /// <summary>The folk a settlement belongs to (SettlementLayout.Culture); biomes list which may settle there.</summary>
+    [Flags]
+    public enum FolkCulture
+    {
+        Human = 1,
+        Dwarf = 2,
+        Elf = 4,
+        Goblin = 8,
+        Ogre = 16,
+        SnowFolk = 32,
+        FishFolk = 64
+    }
+
     /// <summary>
     /// A region type (temperate, desert, tundra, ocean…). Sets the ground's elevation and shape inside its
     /// region, how much rain it feeds to rivers, and which surfaces cover it: a base surface plus rule-driven layers.
@@ -90,6 +111,11 @@ namespace Punchy.Terrain
         public List<Punchy.Flora.BiomeFlora> Flora = new List<Punchy.Flora.BiomeFlora>();
 
         [Header("Landmarks")]
+        [Tooltip("Who may settle here. A settlement only goes where the biome under its centre allows its folk " +
+                 "(hermit spots and other landmarks ignore this).")]
+        public Habitability Habitability = Habitability.Any;
+        [Tooltip("The folk whose settlements may be built here.")]
+        public FolkCulture Cultures = (FolkCulture)~0;
         [Tooltip("Natural landmarks that appear here (oases, rock formations, dens…). Baked into the terrain.")]
         public List<BiomeLandmark> Landmarks = new List<BiomeLandmark>();
 

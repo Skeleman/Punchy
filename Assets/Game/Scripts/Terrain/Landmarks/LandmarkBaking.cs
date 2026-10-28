@@ -41,7 +41,12 @@ namespace Punchy.Terrain
         {
             public float Radius, MinRelief, MaxRelief;
             public float2 Elevation;
+            /// <summary>A settlement's folk (FolkCulture bit), or 0 for other landmarks; Camp: a palisaded camp.</summary>
+            public int Culture, Camp;
         }
+
+        /// <summary>Set in a biome's culture mask when it takes camps only (Habitability.CampsOnly).</summary>
+        const int CampsOnlyFlag = 1 << 30;
 
         [BurstCompile]
         struct EvaluateJob : IJobParallelFor
@@ -59,6 +64,12 @@ namespace Punchy.Terrain
             /// its ashlands) can spill over the patch's edge.
             /// </summary>
             public float OuterWeight;
+            /// <summary>Per biome: the folk that may settle there, plus <see cref="CampsOnlyFlag"/>.</summary>
+            [ReadOnly] public NativeArray<int> BiomeCultures;
+            /// <summary>Per biome: its realm (from the cell table), or -1.</summary>
+            [ReadOnly] public NativeArray<int> BiomeRealm;
+            /// <summary>Only spots in this realm (the pass that gives every realm a settlement), or -1.</summary>
+            public int ForcedRealm;
             [ReadOnly] public NativeArray<int2> BiomeRanges;
             [ReadOnly] public NativeArray<int> EntryTypes;
             [ReadOnly] public NativeArray<float> EntryChances;
@@ -92,12 +103,25 @@ namespace Punchy.Terrain
                     return;
 
                 var rules = Types[type];
+                // Settlements only where the biome under the centre allows their folk (and only camps where it takes
+                // camps only).
+                if (rules.Culture != 0)
+                {
+                    var allowed = BiomeCultures[biome];
+                    if ((allowed & rules.Culture) == 0 || (allowed & CampsOnlyFlag) != 0 && rules.Camp == 0)
+                        return;
+                }
+                var realm = BiomeRealm[biome];
+                if (ForcedRealm >= 0 && realm != ForcedRealm)
+                    return;
                 var radius = rules.Radius * FootprintScale;
                 var elevation = g.Height - Source.World.SeaLevel;
                 if (elevation < rules.Elevation.x || elevation > rules.Elevation.y || Wet(g))
                     return;
 
-                // The whole footprint (and a margin) must be dry, in the same biome and not too uneven.
+                // The whole footprint (and a margin) must be dry, in the same biome and not too uneven. A settlement
+                // only has to stay in its realm (a village may spread over grassland and forest alike).
+                var byRealm = rules.Culture != 0 && realm >= 0;
                 float lo = g.Height, hi = g.Height;
                 for (int ring = 1; ring <= 2; ring++)
                 for (int k = 0; k < 12; k++)
@@ -105,7 +129,7 @@ namespace Punchy.Terrain
                     var a = k / 12f * math.PI * 2f + ring * 0.26f;
                     var q = p + new float2(math.cos(a), math.sin(a)) * radius * (ring == 1 ? 0.55f : 1.15f);
                     var gq = Source.SampleGround(q);
-                    if (Wet(gq) || Weight(gq.Biomes, biome) < (ring == 1 ? 0.6f : OuterWeight))
+                    if (Wet(gq) || (byRealm ? RealmWeight(gq.Biomes, realm) : Weight(gq.Biomes, biome)) < (ring == 1 ? 0.6f : OuterWeight))
                         return;
                     if (ring == 1 || k % 2 == 0)
                     {
@@ -143,6 +167,15 @@ namespace Punchy.Terrain
                         w += b.Weights[k];
                 return w;
             }
+
+            float RealmWeight(in BiomeWeights b, int realm)
+            {
+                var w = 0f;
+                for (int k = 0; k < 4; k++)
+                    if (b.Weights[k] > 0f && b.Ids[k] < BiomeRealm.Length && BiomeRealm[b.Ids[k]] == realm)
+                        w += b.Weights[k];
+                return w;
+            }
         }
 
         public static BlobAssetReference<LandmarkSetBlob> Build(in TerrainSource source, IReadOnlyList<BiomeDefinition> palette,
@@ -170,6 +203,25 @@ namespace Punchy.Terrain
                         Seed = rng.NextFloat(-100f, 100f)
                     });
                 }
+
+            // Per biome: who may settle there, and its realm (every cell's biome belongs to the cell's realm).
+            var biomeCultures = new NativeArray<int>(palette.Count, Allocator.TempJob);
+            var biomeRealm = new NativeArray<int>(palette.Count, Allocator.TempJob);
+            for (int b = 0; b < palette.Count; b++)
+            {
+                biomeRealm[b] = -1;
+                var biome = palette[b];
+                if (biome != null)
+                    biomeCultures[b] = biome.Habitability == Habitability.None ? 0
+                        : (int)biome.Cultures & ~CampsOnlyFlag | (biome.Habitability == Habitability.CampsOnly ? CampsOnlyFlag : 0);
+            }
+            if (source.BiomeCells.IsCreated)
+            {
+                ref var table = ref source.BiomeCells.Value;
+                for (int i = 0; i < table.Realms.Length; i++)
+                    if (table.Realms[i] != BiomeSampling.NoRealm && table.Ids[i] < palette.Count)
+                        biomeRealm[table.Ids[i]] = table.Realms[i];
+            }
 
             // Per biome: which types can appear, and each one's chance per candidate spot.
             var biomeRanges = new NativeArray<int2>(palette.Count, Allocator.TempJob);
@@ -212,7 +264,18 @@ namespace Punchy.Terrain
                 }
                 var rules = new NativeArray<TypeRules>(types.Count, Allocator.TempJob);
                 for (int t = 0; t < types.Count; t++)
-                    rules[t] = new TypeRules { Radius = types[t].Radius, MinRelief = types[t].MinRelief, MaxRelief = types[t].MaxRelief, Elevation = types[t].Elevation };
+                {
+                    var layout = types[t].Settlement;
+                    rules[t] = new TypeRules
+                    {
+                        Radius = types[t].Radius,
+                        MinRelief = types[t].MinRelief,
+                        MaxRelief = types[t].MaxRelief,
+                        Elevation = types[t].Elevation,
+                        Culture = layout != null ? (int)layout.Culture : 0,
+                        Camp = layout != null && layout.Pattern == SettlementPattern.Camp ? 1 : 0
+                    };
+                }
                 var outType = new NativeArray<int>(count, Allocator.TempJob);
                 var outBase = new NativeArray<float>(count, Allocator.TempJob);
                 var outUphill = new NativeArray<float2>(count, Allocator.TempJob);
@@ -223,7 +286,7 @@ namespace Punchy.Terrain
 
                 // Evaluates every spot (rolling for a type, or trying the forced one), then accepts the suitable ones
                 // in random order, skipping any that would crowd one already accepted. Returns how many were added.
-                int Place(int forced, int limit)
+                int Place(int forced, int limit, int forcedRealm = -1)
                 {
                     new EvaluateJob
                     {
@@ -233,6 +296,9 @@ namespace Punchy.Terrain
                         FootprintScale = 1.2f,
                         Forced = forced,
                         OuterWeight = forced >= 0 ? 0.1f : 0.6f,
+                        BiomeCultures = biomeCultures,
+                        BiomeRealm = biomeRealm,
+                        ForcedRealm = forcedRealm,
                         BiomeRanges = biomeRanges,
                         EntryTypes = entryTypeArray,
                         EntryChances = chances,
@@ -287,6 +353,35 @@ namespace Punchy.Terrain
                     if (entryTypes.Contains(t) && !instances.Exists(inst => inst.Type == t))
                         Place(t, 1);
 
+                // Every settlement type a realm's biomes list gets at least one settlement in that realm, so each
+                // realm has its own folk (a human village in the temperate lands even if one already stands in the
+                // desert) wherever the land allows.
+                var realmCount = 0;
+                for (int b = 0; b < palette.Count; b++)
+                    realmCount = math.max(realmCount, biomeRealm[b] + 1);
+                for (int r = 0; r < realmCount; r++)
+                for (int b = 0; b < palette.Count; b++)
+                {
+                    if (biomeRealm[b] != r)
+                        continue;
+                    for (int e = biomeRanges[b].x; e < biomeRanges[b].x + biomeRanges[b].y; e++)
+                    {
+                        var t = entryTypes[e];
+                        if (types[t].Settlement == null)
+                            continue;
+                        var present = false;
+                        foreach (var inst in instances)
+                        {
+                            if (inst.Type != t)
+                                continue;
+                            terrain.SampleBiomes(inst.Position, out var at, out _);
+                            present |= at.Dominant() < palette.Count && biomeRealm[at.Dominant()] == r;
+                        }
+                        if (!present)
+                            Place(t, 1, r);
+                    }
+                }
+
                 points.Dispose();
                 rolls.Dispose();
                 scales.Dispose();
@@ -297,6 +392,8 @@ namespace Punchy.Terrain
                 entryTypeArray.Dispose();
                 chances.Dispose();
             }
+            biomeCultures.Dispose();
+            biomeRealm.Dispose();
             biomeRanges.Dispose();
 
             if (instances.Count == 0)

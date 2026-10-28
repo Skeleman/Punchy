@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: HumanVillageLayout
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.SettlementLayout
   Pattern: 0
+  Culture: 1
   FolkScale: 1
   PlotSize: {x: 9.6, y: 10.8}
   PlotGap: 2.5

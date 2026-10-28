@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: ElfGroveLayout
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.SettlementLayout
   Pattern: 2
+  Culture: 4
   FolkScale: 1.1
   PlotSize: {x: 9.6, y: 9.6}
   PlotGap: 5
