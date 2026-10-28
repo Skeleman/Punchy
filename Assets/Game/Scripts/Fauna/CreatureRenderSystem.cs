@@ -285,7 +285,9 @@ namespace Punchy.Fauna
                 // Appearing (its first moments: Clock counts from when it was made, here) or nearing the distance
                 // where it's let go: dithered in and out by the shader, so nothing pops.
                 var fadeIn = Unity.Mathematics.math.saturate(state.Clock / FadeInTime);
-                var fadeOut = Unity.Mathematics.math.saturate((FadeFar - Unity.Mathematics.math.distance(state.Position, CameraPosition)) / FadeOutRange);
+                // (Huge animals, seen across the land, from their own distance.)
+                var fadeFar = Unity.Mathematics.math.max(FadeFar, body.Blob.Value.SeenFrom);
+                var fadeOut = Unity.Mathematics.math.saturate((fadeFar - Unity.Mathematics.math.distance(state.Position, CameraPosition)) / FadeOutRange);
                 var faded = 1f - fadeIn * fadeOut;
                 // Stepping through a door: dithered out going in, gone indoors, dithered back in coming out.
                 if (state.Mode == CreatureMode.Home && state.Stage >= 1)

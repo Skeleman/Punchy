@@ -134,10 +134,12 @@ namespace Punchy.Net
                     players[owner.ValueRO.NetworkId] = transform.ValueRO.Position;
             if (players.Count == 0)
                 return;
-            var radiusSq = Radius * Radius;
-            foreach (var (ghost, transform) in SystemAPI.Query<RefRO<GhostInstance>, RefRO<LocalTransform>>().WithAll<CreatureNet>())
+            foreach (var (ghost, transform, body) in SystemAPI.Query<RefRO<GhostInstance>, RefRO<LocalTransform>, RefRO<CreatureBody>>().WithAll<CreatureNet>())
             {
                 var xz = transform.ValueRO.Position.xz;
+                // (Huge animals seen from far off are sent from that far.)
+                var radius = math.max(Radius, body.ValueRO.Blob.Value.SeenFrom + 20f);
+                var radiusSq = radius * radius;
                 foreach (var player in players)
                     if (math.distancesq(player.Value.xz, xz) > radiusSq)
                         set.TryAdd(new RelevantGhostForConnection(player.Key, ghost.ValueRO.ghostId), 1);

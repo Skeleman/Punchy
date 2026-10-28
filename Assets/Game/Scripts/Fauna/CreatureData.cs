@@ -47,6 +47,10 @@ namespace Punchy.Fauna
         public float CaveAffinity;
         /// <summary>Crawls on any surface (see CreatureSpecies.Crawls).</summary>
         public bool Crawls;
+        /// <summary>Circles high over one place (see CreatureSpecies.Soars).</summary>
+        public bool Soars;
+        /// <summary>Drawn and kept about from this far off; 0 = as any other (see CreatureSpecies.SeenFrom).</summary>
+        public float SeenFrom;
 
         public BlobArray<CreaturePart> Parts;
         public BlobArray<CreatureSegment> Segments;
@@ -472,6 +476,8 @@ namespace Punchy.Fauna
             root.CaveAffinity = variant.CaveAffinity;
             root.Crawls = species.Crawls;
             root.DrawnToLight = species.DrawnToLight;
+            root.Soars = species.Soars;
+            root.SeenFrom = species.SeenFrom * sizeScale;
             root.Nests = species.Nests;
             root.WebSize = species.WebSize * sizeScale;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));

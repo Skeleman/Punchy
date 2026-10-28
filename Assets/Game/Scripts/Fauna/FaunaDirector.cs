@@ -566,7 +566,9 @@ namespace Punchy.Fauna
             {
                 var xz = states[i].Position.xz;
                 // Far from everyone, or caught by a bird of prey; never one someone is carrying (wherever they go).
-                if ((players.Count == 0 || NearestPlayer(xz) > DespawnDistance || states[i].Gone) && states[i].Mode != CreatureMode.Held)
+                // (Huge animals seen from far off are let go only beyond that.)
+                var letGo = math.max(DespawnDistance, bodies[i].Blob.Value.SeenFrom + 20f);
+                if ((players.Count == 0 || NearestPlayer(xz) > letGo || states[i].Gone) && states[i].Mode != CreatureMode.Held)
                 {
                     if (states[i].Gone)
                         Caught++;

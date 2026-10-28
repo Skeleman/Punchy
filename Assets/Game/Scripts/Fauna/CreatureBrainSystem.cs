@@ -410,6 +410,8 @@ namespace Punchy.Fauna
                         if (flier && s.Stage >= 1)
                         {
                             custom = true;
+                            if (s.Stage == 2)
+                                Soar(ref s, ref b, ref rng, dt);
                             if (FlyTo(ref s, ref b, s.Target, s.TargetHeight, b.FlySpeed, dt, ref vertical))
                             {
                                 // Bats don't land: they hawk for insects in loops all night, then go to roost.
@@ -2531,6 +2533,17 @@ namespace Punchy.Fauna
             bool StartFlight(ref CreatureState s, ref CreatureBlob b, ref Random rng, bool toSleep)
             {
                 var range = math.max(b.WanderRadius, 20f);
+                // A soarer mostly goes up to circle a while over somewhere near (not straight after a spell of it).
+                if (b.Soars && !toSleep && s.Stage != 2 && rng.NextFloat() < 0.75f)
+                {
+                    SetMode(ref s, CreatureMode.Wander);
+                    s.Stage = 2;
+                    s.Focus = s.Position.xz + rng.NextFloat2Direction() * range * rng.NextFloat(0.2f, 0.8f);
+                    s.TargetHeight = Cruise(s, ref b, s.Focus);
+                    s.Timer = rng.NextFloat(60f, 240f);
+                    s.Target = s.Focus;
+                    return true;
+                }
                 if (toSleep && b.Nests != NestSite.None && b.Nests != NestSite.Ground && s.AnchorSize > 0f)
                 {
                     // Home to its nest.
@@ -2560,6 +2573,29 @@ namespace Punchy.Fauna
                 s.Target = spot;
                 s.TargetHeight = Terrain.SampleHeight(spot);
                 return true;
+            }
+
+            /// <summary>
+            /// Soaring: round and round over its centre (Focus) at its own radius and turning its own way, steering for a
+            /// point a little ahead on the circle so it never slows as if to land; when its time is up, off to come down
+            /// somewhere.
+            /// </summary>
+            void Soar(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
+            {
+                s.Timer -= dt;
+                if (s.Timer <= 0f)
+                {
+                    if (StartFlight(ref s, ref b, ref rng, false))
+                        return;
+                    s.Timer = 10f;   // (nowhere to come down just here: round again)
+                }
+                var radius = math.lerp(30f, 70f, CreatureBlob.Trait(s.Individual, 21) * 0.5f + 0.5f);
+                var way = CreatureBlob.Trait(s.Individual, 22) > 0f ? 1f : -1f;
+                var from = s.Position.xz - s.Focus;
+                var angle = math.atan2(from.y, from.x) + 0.6f * way;
+                s.Target = s.Focus + new float2(math.cos(angle), math.sin(angle)) * radius;
+                // (Its height over the circle: its cruising height over the middle, held as the ground falls away.)
+                s.TargetHeight = math.max(s.TargetHeight, Cruise(s, ref b, s.Position.xz));
             }
 
             /// <summary>Touches down: on a branch it settles to rest a while, on the ground it looks about.</summary>

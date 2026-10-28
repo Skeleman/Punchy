@@ -188,3 +188,5 @@ MonoBehaviour:
     Density: 0.1
   - Species: {fileID: 11400000, guid: 9f55f2cb168921445872a5632fd97816, type: 2}
     Density: 0.05
+  - Species: {fileID: 11400000, guid: 9e6b507a383d6534781dbfede88d7ca3, type: 2}
+    Density: 0.004

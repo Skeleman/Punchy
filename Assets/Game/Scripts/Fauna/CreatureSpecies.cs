@@ -66,6 +66,9 @@ namespace Punchy.Fauna
         public float FleeDistance = 12f;
         [Tooltip("Degrees per second.")]
         public float TurnRate = 140f;
+        [Tooltip("Drawn, kept about and sent to other players from this far off (metres), for huge animals seen across " +
+                 "the land (rocs, sky serpents). 0 = as near as any other animal.")]
+        [Min(0f)] public float SeenFrom;
         [Tooltip("Number that appear together.")]
         public Vector2Int GroupSize = new Vector2Int(1, 1);
         [Tooltip("Only appears close to rivers, lakes and the sea (frogs).")]
@@ -145,6 +148,9 @@ namespace Punchy.Fauna
         [Range(0f, 1f)] public float Glide;
         [Tooltip("How often it lands in a tree rather than on the ground.")]
         [Range(0f, 1f)] public float Perching = 0.6f;
+        [Tooltip("Soars: most flights are long spells circling high over one place on still wings (rocs, vultures), " +
+                 "before it moves on or comes down.")]
+        public bool Soars;
 
         /// <summary>The species whose body, gait and behaviour this one uses (itself unless it's a variant).</summary>
         public CreatureSpecies Body
