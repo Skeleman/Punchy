@@ -291,7 +291,9 @@ namespace Punchy.Weather
             // A redraw still running (a slow frame) just delays the next one; its wetness catches up through pendingDt.
             if (redrawTimer <= 0f && !mapPending)
             {
-                redrawTimer = 0.1f;
+                // Five times a second: cells move at most about 13 m/s, under 3 m a redraw against 64 m map texels, and
+                // the clouds' visible drift comes from _PunchyCloudOffset every frame, so the maps never step visibly.
+                redrawTimer = 0.2f;
                 ScheduleRedraw(pendingDt, soakSeconds, drySeconds);
                 pendingDt = 0f;
             }
@@ -611,7 +613,7 @@ namespace Punchy.Weather
             // Every couple of seconds, refresh the map-wide average used for the far sky.
             if (--climateCountdown <= 0)
             {
-                climateCountdown = 20;
+                climateCountdown = 10;   // redraws are 0.2 s apart
                 double cover = 0, dark = 0, cloudBase = 0, thickness = 0;
                 for (int i = 0; i < weatherPixels.Length; i += 7)
                 {
