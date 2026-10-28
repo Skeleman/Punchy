@@ -133,11 +133,7 @@ namespace Punchy.Fauna
             var speed = grounded ? moved / dt : 0f;
             c.Speed += (speed - c.Speed) * math.min(1f, dt * 12f);
             if (grounded)
-            {
-                var run = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), c.Speed / c.Scale);
-                var stride = math.lerp(b.WalkStride, b.RunStride, run) * c.Scale;
-                c.Phase = math.frac(c.Phase + moved / stride);
-            }
+                c.Phase = math.frac(c.Phase + CreatureMotion.StepPhase(ref b, c, moved));
         }
 
         /// <summary>

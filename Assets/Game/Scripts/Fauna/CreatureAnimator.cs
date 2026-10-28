@@ -74,6 +74,9 @@ namespace Punchy.Fauna
             var twist = 1f + CreatureBlob.Trait(id, 4) * 0.6f;
             var headTilt = new float3(CreatureBlob.Trait(id, 6) * 0.1f, 0f, CreatureBlob.Trait(id, 7) * 0.07f);
 
+            // Past a run, folk sprint: leaning well in, and lifting clear of the ground between steps.
+            var sprint = b.Sprint(s.Speed);
+            pitch += sprint * 0.3f;
             var bobs = math.lerp(b.BobsPerCycle.x, b.BobsPerCycle.y, run);
             var bob = math.lerp(b.Bob.x, b.Bob.y, run) * bounce * move * scale * (0.5f - 0.5f * math.cos(2f * math.PI * bobs * s.Phase));
             pitch += b.RunRock * run * move * math.sin(2f * math.PI * s.Phase);
@@ -105,7 +108,7 @@ namespace Punchy.Fauna
             var rootRot = math.mul(quaternion.RotateY(s.Yaw), math.mul(quaternion.RotateX(pitch), quaternion.RotateZ(roll)));
             // Pitched up against a trunk, the body keeps its legs' length out from it (behind it) rather than above.
             var up = math.saturate(s.Vertical);
-            var lift = height - bob;
+            var lift = height - bob + sprint * 0.08f * scale * (0.5f + 0.5f * math.cos(4f * math.PI * s.Phase));
             // Hanging head down in a web, the body sits right at its anchor (the web's centre).
             var hang = s.Mode == CreatureMode.Web || s.Mode == CreatureMode.Roost ? math.saturate(-s.Vertical) : 0f;
             var rootPos = new float3(s.Position.x, ground, s.Position.z) + new float3(0f, lift * (1f - up - hang), 0f) - forward * lift * up;
@@ -194,8 +197,27 @@ namespace Punchy.Fauna
                                                       b.Poses[k + CreatureBlob.WalkLift], jointPhase);
                         a = math.lerp(b.Poses[k + CreatureBlob.Idle], flap, s.Fly);
                     }
+                    else if (part.Role == LimbRole.Leg && sprint > 0f)
+                    {
+                        // A sprinting leg: the longer stride, and in the swing the knee driven high and the heel kicked up.
+                        a = b.LegAngles(seg, jointPhase, gaitMove, run, sprint);
+                        if (jointPhase >= 0.5f)
+                        {
+                            var swing = math.sin((jointPhase - 0.5f) * 2f * math.PI);
+                            if (j == 0) a.x -= 0.55f * sprint * swing;
+                            else if (j == 1) a.x += 1.1f * sprint * swing;
+                        }
+                    }
                     else
                         a = b.Angles(seg, jointPhase, gaitMove, run);
+                    // A sprinter's arms pump hard, elbows bent.
+                    if (part.Role == LimbRole.Arm && sprint > 0f)
+                    {
+                        var rest = b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle];
+                        a = rest + (a - rest) * (1f + 0.5f * sprint);
+                        if (j == 1)
+                            a.x -= 0.85f * sprint;
+                    }
                     if (amplitude != 1f)
                     {
                         var idle = b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle];
@@ -213,6 +235,10 @@ namespace Punchy.Fauna
                     // (Upright bodies have no idle actions of their own, but players' bodies take interaction poses.)
                     if (s.Action != IdleAction.None && (!b.Upright || s.Action >= IdleAction.Pet))
                         a += ActionPose(ref part, in s, j, act);
+                    // An upright body's elbow bends one way only (negative pitch, forward): never past straight, nor
+                    // folded beyond 150°, however much swing, sprint or pose is added up.
+                    if (b.Upright && part.Role == LimbRole.Arm && j == 1)
+                        a.x = math.clamp(a.x, -2.6f, 0f);
                     if (seg < segHidden.Length)
                         segHidden[seg] = hidden;
                     if (fold > 0f)

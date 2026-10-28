@@ -72,6 +72,85 @@ namespace Punchy.Debugging
                 Jump(keyboard.shiftKey.isPressed ? -1 : 1);
         }
 
+        void LateUpdate() => FootDrift();
+
+        // ---------------------------------------------------------------- foot drift
+
+        /// <summary>"-footdrift": measures foot sliding on the player's body (logged every 5 s while moving).</summary>
+        static bool footDrift;
+        readonly System.Collections.Generic.List<float> footDrifts = new System.Collections.Generic.List<float>();
+        readonly float3[] footStart = new float3[8];
+        readonly bool[] footPlanted = new bool[8];
+        readonly float[] footWorst = new float[8], footLowest = new float[8];
+        float footSpeed, footLogAt;
+        int footFrames;
+
+        /// <summary>
+        /// Poses the player's body as the renderer does and follows each foot (the end of each leg chain from the
+        /// body): while a foot is planted (in its stance, within 4 cm of its lowest point of late) its world position
+        /// should stay put.
+        /// Logs how far planted feet drifted over each stance (mean, 90th percentile, worst) and the mean speed.
+        /// </summary>
+        void FootDrift()
+        {
+            if (!footDrift || queryWorld == null || !queryWorld.IsCreated || !terrainQuery.TryGetSingleton<TerrainSource>(out var terrain))
+                return;
+            var em = queryWorld.EntityManager;
+            using var q = em.CreateEntityQuery(typeof(PlayerAvatar), typeof(CreatureState), typeof(CreatureBody));
+            if (q.CalculateEntityCount() != 1)
+                return;
+            var s = q.GetSingleton<CreatureState>();
+            var body = q.GetSingleton<CreatureBody>();
+            ref var b = ref body.Blob.Value;
+            var output = new NativeArray<SegmentInstance>(b.Segments.Length + 64, Allocator.Temp);
+            CreatureAnimator.Evaluate(ref b, s, body.Coat, terrain, output, 0);
+            var foot = 0;
+            for (int p = 0; p < b.Parts.Length && foot < 8; p++)
+            {
+                ref var part = ref b.Parts[p];
+                if (part.Role != LimbRole.Leg || part.Parent >= 0 || part.SegmentCount == 0)
+                    continue;
+                var seg = output[part.FirstSegment + part.SegmentCount - 1];
+                var tip = seg.Position + math.mul(seg.Rotation, new float3(0f, 0f, seg.Length));
+                footLowest[foot] = footFrames == 0 ? tip.y : math.min(footLowest[foot] + Time.deltaTime * 0.05f, tip.y);
+                // (On the ground in the gait's stance half, not just low: a low swing isn't a planted foot.)
+                var down = tip.y < footLowest[foot] + 0.04f && s.Speed > 0.2f && math.frac(s.Phase + part.Phase) < 0.5f;
+                if (down && !footPlanted[foot])
+                {
+                    footPlanted[foot] = true;
+                    footStart[foot] = tip;
+                    footWorst[foot] = 0f;
+                }
+                else if (down)
+                    footWorst[foot] = math.max(footWorst[foot], math.distance(tip.xz, footStart[foot].xz));
+                else if (footPlanted[foot])
+                {
+                    footPlanted[foot] = false;
+                    footDrifts.Add(footWorst[foot]);
+                }
+                foot++;
+            }
+            output.Dispose();
+            footSpeed += s.Speed;
+            footFrames++;
+            if (Time.time < footLogAt)
+                return;
+            footLogAt = Time.time + 5f;
+            if (footDrifts.Count > 0)
+            {
+                footDrifts.Sort();
+                float sum = 0f;
+                foreach (var d in footDrifts)
+                    sum += d;
+                Debug.Log($"DebugControls: foot drift over {footDrifts.Count} stances: mean {sum / footDrifts.Count * 100f:F1} cm, " +
+                          $"p90 {footDrifts[(int)(footDrifts.Count * 0.9f)] * 100f:F1} cm, worst {footDrifts[footDrifts.Count - 1] * 100f:F1} cm; " +
+                          $"speed {footSpeed / math.max(footFrames, 1):F2} m/s");
+            }
+            footDrifts.Clear();
+            footSpeed = 0f;
+            footFrames = 0;
+        }
+
         // Once per run (statics survive the scene reloads that hosting and joining do).
         static bool launchOptionsApplied;
         /// <summary>"-watch Squirrel": the camera follows the nearest animal of that species (for testing behaviours).</summary>
@@ -175,6 +254,7 @@ namespace Punchy.Debugging
             optionsAt = Time.timeSinceLevelLoad;
             // "-incave": on the floor of the nearest cave's deepest chamber (after any -place).
             var inCave = System.Array.IndexOf(args, "-incave") >= 0;
+            footDrift = System.Array.IndexOf(args, "-footdrift") >= 0;
             // "-nohud": no readout (for screenshots).
             if (System.Array.IndexOf(args, "-nohud") >= 0)
             {

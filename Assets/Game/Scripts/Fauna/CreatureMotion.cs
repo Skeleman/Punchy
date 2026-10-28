@@ -33,6 +33,79 @@ namespace Punchy.Fauna
         }
 
         /// <summary>
+        /// How far through its gait cycle a body goes for covering a distance on foot, keeping planted feet planted:
+        /// the feet on the ground (first half of their cycle) sweep back at the rate their legs' key poses (as blended
+        /// for this speed, as the animator blends them) move them at this point of the cycle, and the body passes over
+        /// them at the same rate. (An average stride would let them slide: a foot's sweep along its arc isn't even.)
+        /// </summary>
+        public static float StepPhase(ref CreatureBlob b, in CreatureState s, float distance)
+        {
+            var scale = math.max(s.Scale, 0.01f);
+            var move = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), s.Speed);
+            var run = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), s.Speed);
+            var sprint = b.Sprint(s.Speed);
+            var stride = math.lerp(b.WalkStride, b.RunStride, run) * (1f + CreatureBlob.SprintStride * sprint);
+            var sweep = 0f;
+            var planted = 0;
+            for (int i = 0; i < b.Parts.Length; i++)
+            {
+                ref var part = ref b.Parts[i];
+                if (part.Role != LimbRole.Leg || part.Parent >= 0 || part.SegmentCount == 0)
+                    continue;
+                var p = math.frac(s.Phase + part.Phase);
+                if (p >= 0.5f)
+                    continue;   // swinging through the air
+                const float step = 0.01f;
+                float p0 = math.max(p - step, 0f), p1 = math.min(p + step, 0.4999f);
+                // (The body rocks fore and aft as it runs (RunRock), swinging the planted foot with it: included.)
+                var rock0 = b.RunRock * run * move * math.sin(2f * math.PI * (s.Phase + p0 - p));
+                var rock1 = b.RunRock * run * move * math.sin(2f * math.PI * (s.Phase + p1 - p));
+                sweep += (FootZ(ref b, ref part, p0, move, run, sprint, rock0) - FootZ(ref b, ref part, p1, move, run, sprint, rock1)) / (p1 - p0);
+                planted++;
+            }
+            // (A foot barely sweeping, or none planted, as in a run's flight: the stride's average pace.)
+            var perCycle = planted > 0 && sweep / planted > 0.25f * stride ? sweep / planted : stride;
+            return distance / math.max(perCycle * scale, 1e-3f);
+        }
+
+        /// <summary>
+        /// Where a leg's foot is in the body's frame (unscaled; x right, z forward) at a point of its cycle, posed as the
+        /// animator poses it for this speed.
+        /// </summary>
+        public static float3 FootAt(ref CreatureBlob b, ref CreaturePart part, float p, float speed)
+        {
+            var move = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), speed);
+            var run = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), speed);
+            var sprint = b.Sprint(speed);
+            var pos = part.Socket;
+            var rot = part.Rest;
+            for (int j = 0; j < part.SegmentCount; j++)
+            {
+                var seg = part.FirstSegment + j;
+                rot = math.mul(rot, quaternion.EulerZXY(b.LegAngles(seg, math.frac(p - j * part.JointPhaseStep), move, run, sprint)));
+                pos += math.mul(rot, new float3(0f, 0f, b.Segments[seg].Length));
+            }
+            return pos;
+        }
+
+        /// <summary>
+        /// How far forward a leg's foot is (unscaled) at a point in its cycle, with the body pitched by rock (radians,
+        /// nose up as the animator pitches it).
+        /// </summary>
+        static float FootZ(ref CreatureBlob b, ref CreaturePart part, float p, float move, float run, float sprint, float rock)
+        {
+            var pos = part.Socket;
+            var rot = part.Rest;
+            for (int j = 0; j < part.SegmentCount; j++)
+            {
+                var seg = part.FirstSegment + j;
+                rot = math.mul(rot, quaternion.EulerZXY(b.LegAngles(seg, math.frac(p - j * part.JointPhaseStep), move, run, sprint)));
+                pos += math.mul(rot, new float3(0f, 0f, b.Segments[seg].Length));
+            }
+            return math.mul(quaternion.RotateX(rock), pos).z;
+        }
+
+        /// <summary>
         /// Advances the gait: by the distance covered (so feet don't slide), or in flight by the wingbeat (held at the
         /// top of the stroke while gliding). Also eases the tail and ear spring out of turns.
         /// </summary>
@@ -47,12 +120,7 @@ namespace Punchy.Fauna
                     s.Phase += (0.12f - s.Phase) * math.min(1f, dt * 4f);   // wings spread, held
             }
             else
-            {
-                var scale = math.max(s.Scale, 0.01f);
-                var run = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), s.Speed / scale);
-                var stride = math.lerp(b.WalkStride, b.RunStride, run) * scale;
-                s.Phase = math.frac(s.Phase + s.Speed * dt / stride);
-            }
+                s.Phase = math.frac(s.Phase + StepPhase(ref b, s, s.Speed * dt));
             s.Sway += (-s.YawRate * 0.35f - s.Sway) * math.min(1f, dt * 4f);
         }
     }

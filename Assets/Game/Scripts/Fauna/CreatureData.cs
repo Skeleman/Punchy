@@ -97,6 +97,25 @@ namespace Punchy.Fauna
         }
 
         /// <summary>Blend of a part's key poses for one segment at gait phase p (0..1).</summary>
+        /// <summary>
+        /// How far into a sprint an upright body is (0 up to its run speed, 1 well past it): folk past a run sprint, a gait
+        /// of its own (longer strides, leaning in, knees driven high, arms pumping, both feet off the ground between steps).
+        /// </summary>
+        public float Sprint(float speed) => Upright ? math.smoothstep(RunSpeed * 1.05f, RunSpeed * 1.6f, speed) : 0f;
+
+        /// <summary>A sprinting leg's sweep, longer than its run's by this share.</summary>
+        public const float SprintStride = 0.35f;
+
+        /// <summary>A leg's joint angles at a point of its cycle, with the sprint's longer stride.</summary>
+        public float3 LegAngles(int segment, float p, float move, float run, float sprint)
+        {
+            var a = Angles(segment, p, move, run);
+            if (sprint <= 0f)
+                return a;
+            var idle = Poses[segment * PoseCount + Idle];
+            return idle + (a - idle) * (1f + SprintStride * sprint);
+        }
+
         public float3 Angles(int segment, float p, float move, float run)
         {
             var i = segment * PoseCount;
