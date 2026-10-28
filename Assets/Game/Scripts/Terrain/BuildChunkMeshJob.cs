@@ -180,7 +180,7 @@ namespace Punchy.Terrain
             }
 
             HeightRanges[index] = new float2(minY - depth, maxY);
-            WaterRanges[index] = BuildWater(Meshes[Requests.Length + index], water, rapids, looks, glows, q, step);
+            WaterRanges[index] = BuildWater(Meshes[Requests.Length + index], water, rapids, looks, glows, q, step, request.Origin);
             water.Dispose();
             rapids.Dispose();
             looks.Dispose();
@@ -220,7 +220,7 @@ namespace Punchy.Terrain
 
         /// <summary>Builds the water sheet; returns its (min, max) height, or (1, 0) when the chunk is dry.</summary>
         float2 BuildWater(Mesh.MeshData mesh, NativeArray<float4> water, NativeArray<float> rapids,
-                          NativeArray<float4> looks, NativeArray<float2> glows, int q, float step)
+                          NativeArray<float4> looks, NativeArray<float2> glows, int q, float step, float2 origin)
         {
             int v = q + 1;
 
@@ -234,6 +234,8 @@ namespace Punchy.Terrain
                 surface[i] = water[i].x;
                 flow[i] = water[i].yz;
             }
+            // Neighbours just across the chunk's edge count too (sampled here), or a sheet would stop short with a
+            // straight edge wherever a shore runs along a chunk border.
             for (int z = 0; z < v; z++)
             for (int x = 0; x < v; x++)
             {
@@ -241,15 +243,20 @@ namespace Punchy.Terrain
                 if (water[i].x > GroundSample.NoWater * 0.5f)
                     continue;
                 var best = GroundSample.NoWater;
+                var edge = x == 0 || z == 0 || x == v - 1 || z == v - 1;
                 for (int dz = -1; dz <= 1; dz++)
                 for (int dx = -1; dx <= 1; dx++)
                 {
                     var nx = x + dx;
                     var nz = z + dz;
-                    if (nx >= 0 && nz >= 0 && nx < v && nz < v && water[nz * v + nx].x > best && water[i].w >= water[nz * v + nx].x - 0.05f)
+                    var inside = nx >= 0 && nz >= 0 && nx < v && nz < v;
+                    if (!inside && !edge)
+                        continue;
+                    var n = inside ? water[nz * v + nx] : WaterAt(origin + new float2(nx, nz) * step);
+                    if (n.x > best && water[i].w >= n.x - 0.05f)
                     {
-                        best = water[nz * v + nx].x;
-                        flow[i] = water[nz * v + nx].yz;
+                        best = n.x;
+                        flow[i] = n.yz;
                     }
                 }
                 surface[i] = best;
@@ -321,6 +328,13 @@ namespace Punchy.Terrain
             flow.Dispose();
             wetQuad.Dispose();
             return range;
+        }
+
+        /// <summary>Water surface, flow and ground height at a point (as the chunk's own vertices store them).</summary>
+        float4 WaterAt(float2 world)
+        {
+            var g = Source.SampleGround(world);
+            return new float4(g.WaterSurface, g.Flow, g.Height);
         }
 
         static int EdgeVertex(int edge, int k, int q)
