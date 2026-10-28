@@ -39,6 +39,10 @@ namespace Punchy.Fauna
         static int LairCount(ref CreatureBlob b) => b.Burrows ? MoundCount : b.Nests != NestSite.None ? NestCount : 0;
         /// <summary>Capsules in a lantern (bail, cap, glass, base), and room for whatever is held.</summary>
         const int LanternParts = 4;
+        /// <summary>A lantern's light in the glow list: warm (linear rgb × intensity), w its reach (m); and how near the
+        /// camera a lantern has to be to light anything.</summary>
+        static readonly UnityEngine.Vector4 LanternLight = new UnityEngine.Vector4(1.6f, 0.9f, 0.4f, 9f);
+        const float LanternLightRange = 60f;
         static int HeldCount(HeldItem held) => held == HeldItem.Lantern ? LanternParts : 0;
         /// <summary>Capsules per hanging bat, the most per roost, and how near the camera colonies show.</summary>
         const int BatParts = 4, ColonyMax = 10;
@@ -217,6 +221,20 @@ namespace Punchy.Fauna
                 FadeFar = 165f,
                 Night = night
             }.Schedule(bodies.Length, 8).Complete();
+            // Lanterns near the camera light the ground round them: each joins the glow list as a moving light (by its
+            // carrier, so its fade-in carries on as it moves), at the middle of its glass as just posed.
+            float3 camAt = cam.transform.position;
+            for (int i = 0; i < bodies.Length; i++)
+            {
+                if (states[i].Held != HeldItem.Lantern || math.distancesq(states[i].Position, camAt) > LanternLightRange * LanternLightRange)
+                    continue;
+                var glass = instances[offsets[i] + bodies[i].SegmentCount + MarkCount + (InWeb(states[i]) ? WebCount : 0) +
+                                      LairCount(ref bodies[i].Blob.Value) + (states[i].Task == CreatureTask.Hunt ? 1 : 0) + 2];
+                if (glass.Length <= 0f)
+                    continue;
+                var centre = glass.Position + math.mul(glass.Rotation, new float3(0f, 0f, glass.Length * 0.5f));
+                Punchy.Terrain.CaveSystem.MovingLights.Add((entities[i].Index, centre, LanternLight));
+            }
             bodies.Dispose();
             states.Dispose();
             entities.Dispose();
