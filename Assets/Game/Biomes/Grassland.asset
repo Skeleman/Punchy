@@ -173,18 +173,25 @@ MonoBehaviour:
   Landmarks:
   - Type: {fileID: 11400000, guid: 26dab19dfda28e44d90b840882490003, type: 2}
     Density: 2
+    PerRealm: 1
   - Type: {fileID: 11400000, guid: d06c0e451edc1164d8dc74cb3326a70b, type: 2}
     Density: 2.4
+    PerRealm: 1
   - Type: {fileID: 11400000, guid: c58d770cef38d1245bff31af1d708bc0, type: 2}
     Density: 2
+    PerRealm: 1
   - Type: {fileID: 11400000, guid: 763d8148ce954a8428c0f6f05beea8aa, type: 2}
     Density: 0.5
+    PerRealm: 2
   - Type: {fileID: 11400000, guid: 0f21af3c3ff261a4090accd0165cce42, type: 2}
     Density: 0.3
+    PerRealm: 1
   - Type: {fileID: 11400000, guid: 51c63ce05e3feab468de0aaaefef529a, type: 2}
     Density: 0.6
+    PerRealm: 1
   - Type: {fileID: 11400000, guid: bcab05481a0b9b24998783c2371beb08, type: 2}
     Density: 0.12
+    PerRealm: 1
   Fauna:
   - Species: {fileID: 11400000, guid: dceed473a78c0514ca16da942a240239, type: 2}
     Density: 0.6
