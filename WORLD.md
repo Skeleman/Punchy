@@ -109,7 +109,7 @@ a time.
 
 Batches in this order; each batch gets one evaluation session, one sheet and one report, with a commit per item.
 
-1. **Fix batch (in progress)**:
+1. **Fix batch (done)**:
    - cave-mouth seams and debris (done: 22133cb; small flaps left at the slit tops of a few mouths);
    - bright cave roots;
    - glow flora: a gentle pulse per species (crystals 0), phase per plant, and the glow-list lights fading in and out
@@ -120,12 +120,17 @@ Batches in this order; each batch gets one evaluation session, one sheet and one
    - doors and buildings scaled from each folk's height (door ≈ 1.3× standing height);
    - collision on fences, pens and palisades;
    - cave drips splash on rock and ring only on water.
-2. **Flora at biome borders**: no spill between very different biomes (FloraPlacement loan #10). May be subsumed by realms.
-3. **Realms plan (J-026)**: a plan only at first; two-level biomes (Frost, Fire, Desert, Wetlands, Temperate, Mystic,
-   Coast) with new sub-biomes, landmarks, caves and a cost section. Send it to the supervisor before any build.
-4. **Caves round 2** (plan first): W-23 bigger caves (parked as a patch; floor-check misses rose from 1 to 35 per 2,700
-   points, to fix first); more jagged standard caves; ribbed ice; much more floor debris; metallic caves faceted;
-   mines with a mining village; per-cave variation from the seed; egg clusters with Nest anchors; cave torches.
+2. **Flora at biome borders**: done as hard realm edges (85ed8ef).
+3. **Realms (J-026, J-030), habitability (J-027), town count (J-032)**: done; realms on since e2267f6, 10 towns.
+   Next realm work: the new sub-biomes in pairs (plan in REALMS-PLAN.md), after the items below.
+4. **Caves round 2 (in progress)**: W-23 bigger caves (done, b1c9de6; the floor misses were sub-10 cm skins); pools
+   fit their floor and cave water is under rock (done); more jagged standard caves; ribbed ice; much more floor
+   debris; metallic caves faceted; mines with a mining village; per-cave variation from the seed; egg clusters with
+   Nest anchors; cave torches with the shared flame (FireSystem.AddFlame(position, size, seed, palette, lean), also for
+   the animal session's guards' torches); cave styles per realm.
+4b. **Seats (supervisor: right after caves round 2)**: benches on squares and by inns, logs and stumps in camps,
+   fountain and well rims, hall steps, reusing log, stone and plank meshes; each with collision and a Sit anchor
+   (AnchorKind.Sit appended; Position = hips on the seat, Facing out, Capacity side by side, Size = spacing).
 5. **Polish batch**:
    - grainy sand and dirt, and leafy noise on tree crowns;
    - fire (pit, flame cards, colour palettes) and settlement centrepieces;
