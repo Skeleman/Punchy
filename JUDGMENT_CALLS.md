@@ -13,6 +13,16 @@ asks Zach if needed, and records the answer here.
 
 ## Decided
 
+### J-026: Restructure biomes into realms with sub-biomes?
+
+- **Asked:** 2026-10-28, by Zach (an idea), confirmed via the supervisor.
+- **Also comes up when:** adding biomes; adjacency or border issues; anything that reshuffles the island.
+- **Answer (2026-10-28):** yes, design then build. The island reshuffle and fingerprint change are accepted. First-pass new
+  sub-biomes: Fungal Forest (giant mushrooms), Mesa Canyonlands, Jungle, Glass Desert, Ember Forest, Floating Isles,
+  Crystal Spires, Electric Wastelands (arcing obsidian spires, floating magnetic debris). Invented biomes welcome.
+- **Why:** Zach: fewer clashing neighbours, and more creative biomes.
+- **Revisited:** 0.
+
 ### J-025: Which animals can be picked up?
 
 - **Asked:** 2026-10-28, by the supervisor, after Zach could only pick up cats.
