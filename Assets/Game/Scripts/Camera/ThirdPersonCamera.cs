@@ -34,6 +34,8 @@ namespace Punchy.CameraRig
 
         float yaw;
         float pitch = 20f;
+        /// <summary>In a cave: how far out the camera is now (it comes in at once for rock, out again slowly).</summary>
+        float caveArm = 8f;
 
         /// <summary>Points the camera: yaw is the compass direction it looks towards, in degrees.</summary>
         public void SetView(float newYaw, float newPitch)
@@ -87,25 +89,29 @@ namespace Punchy.CameraRig
             // Don't let the camera dip under hills or water; if it has to rise, keep looking at the player.
             if (terrainQuery.TryGetSingleton<TerrainSource>(out var terrain))
             {
-                // In a cave, pull the camera in rather than through the rock.
+                // In a cave, the camera looks wherever the player turns it (up at the ceiling, down a shaft), on a
+                // spring arm: it comes in along its line to just short of any rock in the way, at once, and eases
+                // back out when the way clears (so bumpy walls don't pump it in and out).
                 var head = new Unity.Mathematics.float3(target.x, target.y, target.z);
                 if (terrain.CaveDistance(head) < 0f)
                 {
-                    // Passages are low: trail behind at about head height rather than looking down from above.
-                    rotation = Quaternion.Euler(Mathf.Clamp(pitch, -5f, 12f), yaw, 0f);
-                    position = target - rotation * Vector3.forward * Distance;
                     var back = position - target;
                     var length = back.magnitude;
+                    var clear = length;
                     for (var t = 0.25f; t <= length; t += 0.25f)
                     {
                         var p = target + back * (t / length);
                         if (terrain.IsRock(new Unity.Mathematics.float3(p.x, p.y, p.z), 0.35f))
                         {
-                            position = target + back * (Mathf.Max(t - 0.45f, 0.3f) / length);
+                            clear = Mathf.Max(t - 0.45f, 0.3f);
                             break;
                         }
                     }
+                    caveArm = clear < caveArm ? clear : Mathf.MoveTowards(caveArm, clear, Time.deltaTime * 3f);
+                    position = target + back * (Mathf.Min(caveArm, length) / Mathf.Max(length, 1e-4f));
                 }
+                else
+                    caveArm = Distance;
                 if (terrain.CaveDistance(new Unity.Mathematics.float3(position.x, position.y, position.z)) < 0f)
                 {
                     transform.SetPositionAndRotation(position, rotation);

@@ -164,6 +164,13 @@ namespace Punchy.Debugging
                     Cycle.TimeOfDay = Mathf.Repeat(hours, 24f);
                 if (args[i] == "-watch")
                     watchSpecies = args[i + 1];
+                // "-viewpitch 60": the player's own camera looking down from that angle (-20: up), as if the mouse moved.
+                if (args[i] == "-viewpitch" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var viewPitch))
+                {
+                    var rig = FindAnyObjectByType<ThirdPersonCamera>();
+                    if (rig != null)
+                        rig.SetView(rig.transform.eulerAngles.y, viewPitch);
+                }
                 // "-watchpitch 45": watch from above (to see over leaves), rather than low or level.
                 if (args[i] == "-watchpitch" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var watchPitch))
                     watchPitchOverride = watchPitch;
