@@ -205,6 +205,7 @@ namespace Punchy.Terrain
             dying.Clear();
             columns.Clear();
             ReleaseLandmarkPools();
+            surfaceGlow.Release();
             lastCameraChunk = new int3(int.MinValue);
             Underground = 0f;
             Shader.SetGlobalFloat(UndergroundId, 0f);
@@ -380,14 +381,8 @@ namespace Punchy.Terrain
                 {
                     for (int v = 0; v < PlantVariants; v++)
                         plantModels.Add(Punchy.Flora.FloraGenerator.Grow(species, v));
-                    // The glowing colour: the foliage of a glowing finish, else the first accent of glowing accents.
-                    var glow = Vector4.zero;
-                    if (species.Finish == Punchy.Flora.FoliageFinish.Glowing)
-                        glow = (Vector4)species.Foliage.linear * 0.9f;
-                    else if (species.GlowingAccents && species.Accents.Count > 0)
-                        glow = (Vector4)species.Accents[0].linear * 0.6f;
-                    glow.w = glow == Vector4.zero ? 0f : PlantGlowReach;
-                    speciesGlow.Add(glow);
+                    // The same light the plant casts on the surface (colour and reach by how much of it glows).
+                    speciesGlow.Add(Punchy.Flora.FloraPlacement.GlowLight(species));
                 }
                 plantsFrom = palette;
             }
@@ -641,6 +636,31 @@ namespace Punchy.Terrain
             }
         }
 
+        // ------------------------------------------------------------------------------------------- surface glow
+
+        readonly SurfaceGlow surfaceGlow = new SurfaceGlow();
+
+        /// <summary>
+        /// Glowing plants on the surface near the camera join the glow list (the nearest 16 lights of any kind win), so
+        /// their light falls on the ground, plants and creatures round them as cave plants' does in caves.
+        /// </summary>
+        void GatherSurfaceGlow(in TerrainSource source, float3 camPos)
+        {
+            if (paletteQuery.IsEmpty || Underground > 0.9f)
+                return;
+            var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
+            if (flora == null && Time.unscaledTime >= nextFloraLookup)
+            {
+                nextFloraLookup = Time.unscaledTime + 1f;
+                flora = FindAnyObjectByType<Punchy.Flora.FloraSystem>();
+            }
+            surfaceGlow.Update(source, palette, flora, camPos);
+            foreach (var (position, light) in surfaceGlow.Found)
+                glowing.Add((math.distance(position, camPos), new Vector4(position.x, position.y, position.z, 0f), light));
+        }
+
+        Punchy.Flora.FloraSystem flora;
+
         void ReleaseLandmarkPools()
         {
             foreach (var pool in landmarkPools)
@@ -661,8 +681,12 @@ namespace Punchy.Terrain
             }
             var camPos = (float3)cam.transform.position;
             DrawLandmarkPools(source, camPos);
+            GatherSurfaceGlow(source, camPos);
             if (!source.Caves.IsCreated)
+            {
+                UploadGlowing();
                 return;
+            }
 
             UploadStyles();
             Stream(source, camPos);

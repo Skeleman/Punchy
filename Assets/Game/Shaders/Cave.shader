@@ -70,12 +70,9 @@ Shader "Punchy/Cave"
             // glow rgb + crack width, (gloss, metallic, facets, translucency), (glow scale, glow everywhere, cracks),
             // floor rgb + grit, floor dark rgb + floor gloss, (detail, detail scale, sheen, moss), moss rgb.
             float4 _PunchyCaveStyles[32 * 9];
-            // The nearest glowing things (lava pools, glowing plants): xyz where the light comes from, and its colour times
-            // strength (rgb) and reach in metres (w). They light the walls round them in the shader instead of with real
-            // lights.
-            float4 _PunchyCaveHeat[16];
-            float4 _PunchyCaveHeatColor[16];
-            int _PunchyCaveHeatCount;
+            // The nearest glowing things (lava pools, glowing plants): they light the walls round them in the shader
+            // instead of with real lights (the list is declared in Glow.hlsl, shared with the terrain and plants).
+            #include "Glow.hlsl"
             // Shared tiling detail (CaveSystem makes it once): rg a fine normal, b a height, a a sparkle.
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);

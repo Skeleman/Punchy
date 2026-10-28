@@ -70,6 +70,11 @@ namespace Punchy.Flora
         public BlobArray<int2> PropRanges;
         /// <summary>Per settlement building (SettlementBaking.Buildings order): species index and its layer (-1 none).</summary>
         public BlobArray<int2> SettlementSpecies;
+        /// <summary>
+        /// Per species: the light a glowing plant gives its surroundings (rgb, linear) and how far it reaches (w, m);
+        /// all zero for plants that don't glow. See <see cref="FloraPlacement.GlowLight"/>.
+        /// </summary>
+        public BlobArray<float4> Glow;
         public int BiomeCount, LandmarkTypeCount;
         /// <summary>Every model (species variants, in FirstModel order).</summary>
         public BlobArray<FloraShape> Models;
@@ -153,6 +158,9 @@ namespace Punchy.Flora
                 for (int v = 0; v < s.Variants; v++)
                     shapes.Add(FloraGenerator.Shape(s, v));
             }
+            var glow = builder.Allocate(ref root.Glow, species.Count);
+            for (int i = 0; i < species.Count; i++)
+                glow[i] = GlowLight(species[i]);
             var models = builder.Allocate(ref root.Models, shapes.Count);
             for (int m = 0; m < shapes.Count; m++)
                 models[m] = shapes[m];
@@ -210,6 +218,33 @@ namespace Punchy.Flora
             var blob = builder.CreateBlobAssetReference<FloraBlob>(Allocator.Persistent);
             builder.Dispose();
             return blob;
+        }
+
+        /// <summary>
+        /// The light a glowing plant casts round itself: rgb (linear) and reach (w, m), zero if it doesn't glow. A
+        /// glowing finish shines with its foliage colour, glowing accents with the first accent's; brighter and further
+        /// the more of the plant glows and the bigger it is.
+        /// </summary>
+        public static float4 GlowLight(FloraSpecies s)
+        {
+            Color c;
+            float share;
+            if (s.Finish == FoliageFinish.Glowing)
+            {
+                c = s.Foliage;
+                share = 1f;
+            }
+            else if (s.GlowingAccents && s.Accents.Count > 0)
+            {
+                c = s.Accents[0];
+                share = math.saturate(0.3f + s.AccentAmount);
+            }
+            else
+                return float4.zero;
+            var lin = c.linear;
+            var size = math.max(s.Height.y, 0.3f);
+            var strength = share * math.clamp(1.3f + size * 0.4f, 1.3f, 3f);
+            return new float4(lin.r * strength, lin.g * strength, lin.b * strength, math.clamp(5f + size * 3f, 6f, 14f) * (0.6f + 0.4f * share));
         }
 
         /// <summary>

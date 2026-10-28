@@ -40,6 +40,7 @@ Shader "Punchy/Terrain Surface"
             #include "TerrainSurface.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
+            #include "Glow.hlsl"
 
             struct Varyings
             {
@@ -128,6 +129,8 @@ Shader "Punchy/Terrain Surface"
                 inputData.shadowCoord = TransformWorldToShadowCoord(input.positionWS + float3(0, max(input.extra.w, 0), 0));
                 inputData.fogCoord = InitializeInputDataFog(float4(input.positionWS, 1.0), input.fogFactor);
                 inputData.bakedGI = SampleSH(inputData.normalWS);
+                // Glowing plants and molten pools nearby light the ground round them.
+                inputData.bakedGI += PunchyGlowLight(input.positionWS, inputData.normalWS);
                 inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
                 inputData.shadowMask = half4(1, 1, 1, 1);
 
