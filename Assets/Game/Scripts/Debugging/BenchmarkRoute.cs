@@ -67,6 +67,8 @@ namespace Punchy.Debugging
             yield return new WaitForSecondsRealtime(Settle);
 
             yield return Stop("town", () => JumpTo(controls, "HumanVillage") && SetWeather("Partly cloudy", 11));
+            // Walking through the village (streets, plots, roads leading out), at walking pace.
+            yield return Stop("townwalk", () => JumpTo(controls, "HumanVillage") && SetWeather("Partly cloudy", 24), 6f, 0.1f, 30f);
             yield return Stop("forest", () => JumpTo(controls, "OakGrove") && SetWeather("Partly cloudy", 12));
             yield return Stop("cave", () => PlaceInBiggestCave() && SetWeather("Partly cloudy", 13));
             yield return Stop("lavacave", () => PlaceInBiggestCave("LavaTube") && SetWeather("Partly cloudy", 22));
@@ -116,6 +118,10 @@ namespace Punchy.Debugging
             var only = System.Array.IndexOf(args, "-benchstops");
             if (only >= 0 && only + 1 < args.Length && System.Array.IndexOf(args[only + 1].Split(','), name) < 0)
                 yield break;
+            // -benchlong <stop> <seconds>: measure that stop for longer (effects that build up over time).
+            var longArg = System.Array.IndexOf(args, "-benchlong");
+            if (longArg >= 0 && longArg + 2 < args.Length && args[longArg + 1] == name)
+                measure = float.Parse(args[longArg + 2], System.Globalization.CultureInfo.InvariantCulture);
             if (!arrive())
             {
                 Debug.LogWarning($"BenchRoute: {name}: couldn't get there, skipped");
