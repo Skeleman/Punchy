@@ -386,8 +386,10 @@ namespace Punchy.Fauna
                 var c = state.Anchor;
                 var ground = site == NestSite.Ground;
                 var top = site == NestSite.Treetop;
-                // (Linear colours: dry grass; dark twigs.)
-                var twigs = ground ? new Unity.Mathematics.float4(0.34f, 0.26f, 0.095f, 0f) : new Unity.Mathematics.float4(0.1f, 0.06f, 0.025f, 0f);
+                // (Linear colours: dry grass; grey-brown mud; dark twigs.)
+                var twigs = ground ? new Unity.Mathematics.float4(0.34f, 0.26f, 0.095f, 0f)
+                          : site == NestSite.Ledge ? new Unity.Mathematics.float4(0.16f, 0.12f, 0.08f, 0f)
+                          : new Unity.Mathematics.float4(0.1f, 0.06f, 0.025f, 0f);
                 var x = new Unity.Mathematics.float3(1f, 0f, 0f);
                 var up = new Unity.Mathematics.float3(0f, 1f, 0f);
                 // The floor: a flat disc just under the bird's feet.

@@ -130,6 +130,9 @@ namespace Punchy.Fauna
         public bool CrossesWater;
         [Tooltip("Keeps a nest (in a tree, on a treetop or on the ground) and goes back to it to sleep.")]
         public NestSite Nests;
+        [Tooltip("A cave flier drawn to light (moths): spawns at a cave's glowing plants and flits round one of them, never " +
+                 "landing or fleeing.")]
+        public bool DrawnToLight;
 
         [Header("Flight (habitat Flies)")]
         [Tooltip("Height above the ground it cruises at, in metres.")]
@@ -170,7 +173,8 @@ namespace Punchy.Fauna
         None,
         [Tooltip("A cup of twigs against the trunk, low in the crown (songbirds, crows).")] Branch,
         [Tooltip("A big platform of sticks on top of a tree (ospreys, eagles).")] Treetop,
-        [Tooltip("A scrape lined with grass, on flat ground (quail, chickens, ducks).")] Ground
+        [Tooltip("A scrape lined with grass, on flat ground (quail, chickens, ducks).")] Ground,
+        [Tooltip("A mud cup on a rock wall, just inside a cave mouth (swallows): the cave's Nest anchor, shared by the colony.")] Ledge
     }
 
     /// <summary>Little things an animal does while standing about (which of them a species does).</summary>

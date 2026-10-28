@@ -622,7 +622,8 @@ namespace Punchy.Fauna
             foreach (var f in biome.Fauna)
             {
                 var index = SpeciesIndex(f.Species);
-                if (index < 0 || f.Species.Body.NearWater && !nearWater || !Suits(f.Species.Body.Habitat, depth))
+                // (Moths live round a cave's glowing plants: they come only with the cave.)
+                if (index < 0 || f.Species.Body.NearWater && !nearWater || !Suits(f.Species.Body.Habitat, depth) || f.Species.Body.DrawnToLight)
                     continue;
                 var shortfall = f.Density * areaHectares - counts[offset + index];
                 if (shortfall > bestShortfall)
@@ -799,6 +800,25 @@ namespace Punchy.Fauna
                         continue;
                     var count = visitor ? rng.NextInt(1, 3)
                               : rng.NextInt(math.max(1, body.GroupSize.x), math.max(body.GroupSize.x, body.GroupSize.y) + 1);
+                    // Moths: a few round each of the cave's glowing plants (none in a cave without any).
+                    if (body.DrawnToLight)
+                    {
+                        if (!source.Anchors.IsCreated)
+                            continue;
+                        ref var anchors = ref source.Anchors.Value;
+                        for (int a = 0; a < anchors.Anchors.Length; a++)
+                        {
+                            var glow = anchors.Anchors[a];
+                            if (glow.Kind != AnchorKind.Glow || !glow.InCave || glow.OwnerIndex != i)
+                                continue;
+                            for (int k = 0; k < count; k++)
+                            {
+                                Spawn(sp, glow.Position + new float3(rng.NextFloat(-0.6f, 0.6f), rng.NextFloat(0.4f, 1.4f), rng.NextFloat(-0.6f, 0.6f)));
+                                caveCount++;
+                            }
+                        }
+                        continue;
+                    }
                     for (int k = 0; k < count; k++)
                     {
                         // On the floor somewhere in the inner two thirds of the passage (a visitor, the outer half).

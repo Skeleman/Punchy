@@ -399,13 +399,23 @@ namespace Punchy.Fauna
                         break;
 
                     case CreatureMode.Wander:
+                        // A moth round its light: from point to point (in a cave, under the rock: no cruising height).
+                        if (b.DrawnToLight)
+                        {
+                            custom = true;
+                            if (FlitTo(ref s, ref b, dt, ref vertical))
+                                Flit(ref s, ref rng);
+                            break;
+                        }
                         if (flier && s.Stage >= 1)
                         {
                             custom = true;
                             if (FlyTo(ref s, ref b, s.Target, s.TargetHeight, b.FlySpeed, dt, ref vertical))
                             {
                                 // Bats don't land: they hawk for insects in loops all night, then go to roost.
-                                if (b.Roosts && SleepTime(ref b) < 0.5f)
+                                if (b.DrawnToLight)
+                                    Flit(ref s, ref rng);
+                                else if (b.Roosts && SleepTime(ref b) < 0.5f)
                                     NightLoop(ref s, ref b, ref rng);
                                 else if (b.Roosts)
                                     StartRoost(ref s, ref b, ref rng);
@@ -748,6 +758,11 @@ namespace Punchy.Fauna
 
             void Decide(Entity self, ref CreatureState s, ref CreatureBlob b, int species, ref Random rng, bool perched, float3 player)
             {
+                if (b.DrawnToLight)
+                {
+                    Flit(ref s, ref rng);
+                    return;
+                }
                 var sleepy = SleepTime(ref b);
                 var awake = 1f - sleepy * 0.8f;
                 var flier = b.Habitat == Habitat.Flies;
@@ -1577,7 +1592,60 @@ namespace Punchy.Fauna
                 var near = s.Leash > 0f ? s.Home : (math.floor(s.Position.xz / 16f) + 0.5f) * 16f;
                 var place = LairRandom(near, 0x4E57u ^ (s.Leash > 0f ? s.Individual : 0u));
                 var size = math.max(b.BodyLength * s.Scale * 0.7f, 0.08f);
-                if (b.Nests == NestSite.Ground)
+                if (b.Nests == NestSite.Ledge)
+                {
+                    // The Nest anchor nearest home (a cave mouth's wall): the colony's cups spread along the wall either
+                    // side of it and a little up and down, each standing out from the rock.
+                    if (!Terrain.Anchors.IsCreated)
+                        return false;
+                    var ledges = new NativeList<int>(8, Allocator.Temp);
+                    Anchors.Near(ref Terrain.Anchors.Value, new float3(near.x, s.Position.y, near.y), 60f, AnchorKind.Nest, ref ledges);
+                    var found = -1;
+                    for (int k = 0; k < ledges.Length; k++)
+                        if (found < 0 || math.distancesq(Terrain.Anchors.Value.Anchors[ledges[k]].Position.xz, near) <
+                                         math.distancesq(Terrain.Anchors.Value.Anchors[found].Position.xz, near))
+                            found = ledges[k];
+                    ledges.Dispose();
+                    if (found >= 0)
+                    {
+                        var ledge = Terrain.Anchors.Value.Anchors[found];
+                        var along = new float2(-ledge.Facing.y, ledge.Facing.x);
+                        var spot = ledge.Position.xz + along * place.NextFloat(-1.4f, 1.4f);
+                        var cup = new float3(spot.x, ledge.Position.y + place.NextFloat(-0.4f, 0.6f), spot.y);
+                        // Onto the rock itself (the wall curves away from the anchor, or out into the way): in to the
+                        // wall from there, or out of it, the cup just proud of the surface; failing that, at the anchor.
+                        var into = new float3(-ledge.Facing.x, 0f, -ledge.Facing.y);
+                        var inRock = Terrain.CaveDistance(cup) >= 0f;
+                        var onRock = false;
+                        for (int k = 1; k <= 25 && !onRock; k++)
+                        {
+                            var probe = cup + into * ((inRock ? -0.1f : 0.1f) * k);
+                            if (Terrain.CaveDistance(probe) >= 0f != inRock)
+                            {
+                                // The surface lies between this probe and the one before: halved down to a few
+                                // millimetres (air on one side, rock on the other).
+                                var air = inRock ? probe : probe - into * 0.1f;
+                                var rock = inRock ? probe - into * -0.1f : probe;
+                                for (int h = 0; h < 5; h++)
+                                {
+                                    var mid = (air + rock) * 0.5f;
+                                    if (Terrain.CaveDistance(mid) >= 0f)
+                                        rock = mid;
+                                    else
+                                        air = mid;
+                                }
+                                cup = air - into * size * 0.6f;
+                                onRock = true;
+                            }
+                        }
+                        if (!onRock)
+                            cup = ledge.Position + into * (0.3f - size * 0.6f);
+                        s.Anchor = cup;
+                        s.AnchorSize = size;
+                        return true;
+                    }
+                }
+                else if (b.Nests == NestSite.Ground)
                 {
                     for (int attempt = 0; attempt < 6; attempt++)
                     {
@@ -1612,6 +1680,44 @@ namespace Punchy.Fauna
                 }
                 s.AnchorSize = -1f;   // nowhere for one here: don't keep trying
                 return false;
+            }
+
+            /// <summary>
+            /// A moth's life: round and round a light. Its light is a Glow anchor (a glowing plant) near where it first
+            /// looks, kept in Anchor; it flits to a point near it, and on getting there, to another.
+            /// </summary>
+            void Flit(ref CreatureState s, ref Random rng)
+            {
+                if (s.AnchorSize == 0f)
+                {
+                    if (Terrain.Anchors.IsCreated && Anchors.Pick(ref Terrain.Anchors.Value, s.Position, 25f, AnchorKind.Glow, ref rng, out var glow))
+                        s.Anchor = glow.Position + new float3(0f, 0.5f, 0f);
+                    else
+                        s.Anchor = s.Position + new float3(0f, 1f, 0f);   // no light: it flits about where it is
+                    s.AnchorSize = -1f;   // (not a lair to draw)
+                }
+                SetMode(ref s, CreatureMode.Wander);
+                s.Stage = 1;
+                s.Target = s.Anchor.xz + rng.NextFloat2Direction() * rng.NextFloat(0.15f, 1.1f);
+                s.TargetHeight = s.Anchor.y + rng.NextFloat(-0.3f, 1.2f);
+            }
+
+            /// <summary>
+            /// A moth's flight: straight at its point in three dimensions at its own pace, fluttering (no glide, no
+            /// cruising height, no landing), turning to face the way it goes. True once it's there.
+            /// </summary>
+            bool FlitTo(ref CreatureState s, ref CreatureBlob b, float dt, ref float vertical)
+            {
+                var to = new float3(s.Target.x, s.TargetHeight, s.Target.y) - s.Position;
+                var distance = math.length(to);
+                s.Position += to * math.min(1f, b.FlySpeed * dt / math.max(distance, 1e-4f));
+                var wanted = distance < 0.02f ? 0f : WrapAngle(math.atan2(to.x, to.z) - s.Yaw);
+                var turn = math.clamp(wanted, -b.TurnRate * 1.5f * dt, b.TurnRate * 1.5f * dt);
+                s.Yaw = WrapAngle(s.Yaw + turn);
+                s.YawRate = turn / math.max(dt, 1e-4f);
+                s.Speed = b.FlySpeed;
+                vertical = math.clamp(to.y / math.max(distance, 1e-3f), -0.5f, 0.5f) * 0.5f;
+                return distance < 0.05f;
             }
 
             /// <summary>Picks a burrow mouth on flat, dry ground a few metres off (near home, for residents).</summary>
