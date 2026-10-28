@@ -94,6 +94,13 @@ namespace Punchy.Terrain
         [Tooltip("Cave chunks building at once at most. Each holds a few MB of fields while it builds, and too many " +
                  "crowd the terrain's own jobs off the workers.")]
         [Min(1)] public int MaxBuilding = 4;
+        [Tooltip("Above this camera speed (m/s: gliding, riding) caves build only within Fast Radius, one chunk at a " +
+                 "time: cave walls can't be seen from the air, and their jobs would land on the frames the terrain is " +
+                 "meshing in.")]
+        public float FastSpeed = 10f;
+        public float FastRadius = 150f;
+        float cameraSpeed;
+        float3 lastStreamCamera = new float3(float.MaxValue);
 
         /// <summary>Cave walls are built in cubes this many metres across (rounded to whole voxels).</summary>
         const float ChunkMetres = 32f;
@@ -1085,13 +1092,23 @@ namespace Punchy.Terrain
                     dying.RemoveAt(i);
                 }
 
+            // The camera's speed, smoothed over about half a second (a teleport reads as briefly fast).
+            var dt = math.max(Time.unscaledDeltaTime, 1e-4f);
+            var moved = lastStreamCamera.x == float.MaxValue ? 0f : math.distance(camPos, lastStreamCamera);
+            lastStreamCamera = camPos;
+            cameraSpeed = math.lerp(cameraSpeed, moved / dt, 1f - math.exp(-dt * 2f));
+            var fast = cameraSpeed > FastSpeed;
+
             var building = dying.Count;
             foreach (var b in chunks.Values)
                 if (b.Pending)
                     building++;
-            for (int n = 0; n < BuildsPerFrame && building < MaxBuilding && wanted.Count > 0; n++, building++)
+            for (int n = 0; n < BuildsPerFrame && building < (fast ? 1 : MaxBuilding) && wanted.Count > 0; n++, building++)
             {
                 var key = wanted[wanted.Count - 1];
+                // Moving fast: only the near ones (the list is nearest last, so the rest wait).
+                if (fast && ChunkDistance(key, camPos) > FastRadius)
+                    break;
                 wanted.RemoveAt(wanted.Count - 1);
                 if (!chunks.ContainsKey(key))
                     chunks[key] = StartBuild(source, key);
