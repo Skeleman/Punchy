@@ -82,6 +82,8 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
    (hills, terraces, canyons); (c) more NPC jobs (farming, well water, carts, groups, prisoners, carrying goods).
 4. **Hermits:** lone folk at lone huts, cave camps and points of interest; some endlessly chased by a creature
    (world: spots and anchors; animal: behaviour).
+5. **New folk races:** fish folk in the sea (reef or underwater settlement) and snow folk in the cold (igloo
+   villages). Animal session: races; world session: settlements.
 3. **Equipment layers** (animal session): head, torso, back and hand slots on folk and the player; tools and gear
    picked per job (rod, rake, bucket, axe, spear, torch); per-culture loadouts; a replicated equipment mask.
 
