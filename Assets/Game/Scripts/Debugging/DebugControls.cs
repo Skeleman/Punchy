@@ -497,7 +497,7 @@ namespace Punchy.Debugging
             em.SetComponentData(posed, c);
             ThirdPersonCamera.WatchTarget = (Vector3)c.Position + Vector3.up * size * 0.5f;
             ThirdPersonCamera.WatchPitch = viewPitch;
-            ThirdPersonCamera.WatchDistance = math.clamp(size * 7f, 0.5f, 6f);
+            ThirdPersonCamera.WatchDistance = math.clamp(size * 4f, 0.5f, 6f);
         }
 
         /// <summary>
