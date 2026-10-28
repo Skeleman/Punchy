@@ -35,7 +35,14 @@ namespace Punchy.Fauna
         public float MinSpawnDistance = 40f;
         [Tooltip("Animals further than this from every player are removed.")]
         public float DespawnDistance = 170f;
-        public int MaxCreatures = 300;
+        [Tooltip("At most this many wild animals (the ones that come and go round the players).")]
+        [UnityEngine.Serialization.FormerlySerializedAs("MaxCreatures")]
+        public int MaxWild = 300;
+        [Tooltip("At most this many settled ones (settlements' residents and their domestic animals), counted apart so " +
+                 "a big town never stops the wild ones appearing.")]
+        public int MaxSettled = 400;
+        [Tooltip("At most this many cave dwellers.")]
+        public int MaxCave = 120;
         [Tooltip("Spawn attempts per second (per player).")]
         public float SpawnRate = 6f;
 
@@ -75,6 +82,10 @@ namespace Punchy.Fauna
         TerrainSource lastSource;
         /// <summary>Per player, how many of each species are within Radius of them (player-major).</summary>
         int[] counts;
+        /// <summary>How many there are of each kind (wild, settled, cave), as last counted (Despawn) plus those since.</summary>
+        int wildCount, settledCount, caveCount;
+        /// <summary>Species index by asset name (SpeciesIndex: no string or closure per look-up).</summary>
+        readonly Dictionary<string, int> speciesByName = new Dictionary<string, int>();
         long configStamp;
         float nextConfigCheck;
         Unity.Mathematics.Random rng = new Unity.Mathematics.Random(0x9E3779B9u);
@@ -119,6 +130,7 @@ namespace Punchy.Fauna
                 if (b.IsCreated) b.Dispose();
             blobs.Clear();
             species.Clear();
+            speciesByName.Clear();
             occupied.Clear();
             occupiedCaves.Clear();
             Caught = 0;
@@ -246,6 +258,9 @@ namespace Punchy.Fauna
             for (int i = 1; i < species.Count; i++)
                 if (species[i].name == species[i - 1].name)
                     Debug.LogError($"FaunaDirector: two species are both named '{species[i].name}'; creature indices would be ambiguous over the network.");
+            speciesByName.Clear();
+            for (int i = 0; i < species.Count; i++)
+                speciesByName[species[i].name] = i;
             // Who hunts whom: a listed species covers its variants too.
             var hunted = new bool[species.Count];
             var preyLists = new List<int>[species.Count];
@@ -370,7 +385,7 @@ namespace Punchy.Fauna
 
         /// <summary>A species' index (by name: a build can hold more than one copy of the same species asset).</summary>
         public int SpeciesIndex(CreatureSpecies s) => s != null ? SpeciesIndex(s.name) : -1;
-        public int SpeciesIndex(string name) => species.FindIndex(s => s.name == name);
+        public int SpeciesIndex(string name) => name != null && speciesByName.TryGetValue(name, out var i) ? i : -1;
         /// <summary>How many animals birds of prey have caught (for the test log).</summary>
         public static int Caught;
         public Habitat SpeciesHabitat(int index) => species[index].Body.Habitat;
@@ -471,24 +486,33 @@ namespace Punchy.Fauna
             if (queryWorld == simWorld || newReplicaQuery.IsEmpty)
                 return;
             var em = queryWorld.EntityManager;
-            var ghosts = newReplicaQuery.ToEntityArray(Allocator.Temp);
+            var arrived = newReplicaQuery.ToEntityArray(Allocator.Temp);
+            var ghosts = new NativeList<Entity>(arrived.Length, Allocator.Temp);
+            foreach (var e in arrived)
+            {
+                var net = em.GetComponentData<CreatureNet>(e);
+                if (net.Species >= 0 && net.Species < blobs.Count)
+                    ghosts.Add(e);
+            }
+            arrived.Dispose();
+            // (All of them given their components in one go: one archetype move for the lot, not three each.)
+            em.AddComponent(ghosts.AsArray(), new ComponentTypeSet(ComponentType.ReadWrite<CreatureBody>(), ComponentType.ReadWrite<CreatureState>(),
+                                                                   ComponentType.ReadWrite<CreatureReplica>()));
             foreach (var e in ghosts)
             {
                 var net = em.GetComponentData<CreatureNet>(e);
-                if (net.Species < 0 || net.Species >= blobs.Count)
-                    continue;
                 var blob = blobs[net.Species];
                 ref var b = ref blob.Value;
                 var t = em.GetComponentData<LocalTransform>(e);
                 var forward = math.mul(t.Rotation, new float3(0f, 0f, 1f));
-                em.AddComponentData(e, new CreatureBody
+                em.SetComponentData(e, new CreatureBody
                 {
                     Blob = blob,
                     Species = net.Species,
                     SegmentCount = b.Segments.Length,
                     Coat = math.min(net.Coat, math.max(0, b.Coats.Length - 1))
                 });
-                em.AddComponentData(e, new CreatureState
+                em.SetComponentData(e, new CreatureState
                 {
                     Position = t.Position,
                     Yaw = math.atan2(forward.x, forward.z),
@@ -498,7 +522,6 @@ namespace Punchy.Fauna
                     Seed = net.Individual | 1u,
                     Individual = net.Individual
                 });
-                em.AddComponent<CreatureReplica>(e);
             }
             ghosts.Dispose();
         }
@@ -538,6 +561,7 @@ namespace Punchy.Fauna
                 counts = new int[size];
             System.Array.Clear(counts, 0, counts.Length);
             var far = new NativeList<Entity>(Allocator.Temp);
+            wildCount = settledCount = caveCount = 0;
             for (int i = 0; i < entities.Length; i++)
             {
                 var xz = states[i].Position.xz;
@@ -549,6 +573,13 @@ namespace Punchy.Fauna
                     far.Add(entities[i]);
                     continue;
                 }
+                // (Of its kind: settled ones are leashed to a home, cave dwellers live in the dark.)
+                if (states[i].Leash > 0f)
+                    settledCount++;
+                else if (bodies[i].Blob.Value.CaveDweller)
+                    caveCount++;
+                else
+                    wildCount++;
                 var s = bodies[i].Species;
                 if (s < 0 || s >= species.Count)
                     continue;
@@ -566,7 +597,7 @@ namespace Punchy.Fauna
 
         void TrySpawn(in TerrainSource source, int playerIndex)
         {
-            if (wildQuery.CalculateEntityCount() >= MaxCreatures || species.Count == 0)
+            if (wildCount >= MaxWild || species.Count == 0)
                 return;
             var player = players[playerIndex].xz;
             // A random spot in the ring around the player; whichever of its biome's species is furthest below its
@@ -639,6 +670,9 @@ namespace Punchy.Fauna
                 if (inst.Type >= landmarks.Length || landmarks[inst.Type] == null || occupied.Contains(i) ||
                     NearestPlayer(inst.Position) > Radius)
                     continue;
+                // (Full of settled folk and animals already: this one is peopled once some are let go.)
+                if (settledCount >= MaxSettled)
+                    break;
                 occupied.Add(i);
                 var radius = set.Types[inst.Type].Radius * inst.Scale;
                 SpawnDomestics(source, landmarks[inst.Type], inst.Position, radius);
@@ -663,6 +697,7 @@ namespace Punchy.Fauna
                         if (g.HasWater && g.WaterSurface > g.Height)
                             continue;
                         var e = Spawn(index, new float3(p.x, g.Height, p.y));
+                        settledCount++;
                         var state = em.GetComponentData<CreatureState>(e);
                         state.Home = home;
                         state.Leash = leash;
@@ -716,6 +751,7 @@ namespace Punchy.Fauna
                         continue;
                     var e = Spawn(index, new float3(p.x, lava ? g.WaterSurface - 0.3f : g.Height, p.y));
                     spawnedDomestics++;
+                    settledCount++;
                     var state = em.GetComponentData<CreatureState>(e);
                     state.Home = centre;
                     state.Leash = leash;
@@ -748,6 +784,8 @@ namespace Punchy.Fauna
                 ref var cave = ref set.Caves[i];
                 if (occupiedCaves.Contains(i) || cave.NodeCount < 2 || NearestPlayer(cave.Mouth.xz) > Radius)
                     continue;
+                if (caveCount >= MaxCave)
+                    break;
                 occupiedCaves.Add(i);
                 for (int sp = 0; sp < species.Count; sp++)
                 {
@@ -770,7 +808,13 @@ namespace Punchy.Fauna
                         var floor = source.FloorUnder(at, out var inCave);
                         // (Really under the rock: not where a passage opens to the sky.)
                         if (inCave && source.CaveDistance(new float3(at.x, floor + 0.3f, at.z)) < -0.05f)
+                        {
                             Spawn(sp, new float3(at.x, floor, at.z));
+                            if (visitor)
+                                wildCount++;
+                            else
+                                caveCount++;
+                        }
                     }
                 }
             }
@@ -800,8 +844,8 @@ namespace Punchy.Fauna
             if (simWorld.IsServer() && ghostSpawnerQuery.TryGetSingleton<CreatureGhostSpawner>(out var spawner))
             {
                 e = em.Instantiate(spawner.Prefab);
-                em.AddComponent<CreatureState>(e);
-                em.AddComponent<CreatureBody>(e);
+                // (Both at once: one move to the new archetype, not two.)
+                em.AddComponent(e, new ComponentTypeSet(ComponentType.ReadWrite<CreatureState>(), ComponentType.ReadWrite<CreatureBody>()));
             }
             else
                 e = em.CreateEntity(typeof(CreatureState), typeof(CreatureBody));
