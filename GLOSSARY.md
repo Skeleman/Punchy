@@ -78,8 +78,8 @@ it real. To add or change a term, edit this file in the same commit as the code 
   with a **Task** (`CreatureTask`: Hammer, Chop, Gesture, Tend, Watch) done at its **Work spot**. **Domestic** (new):
   an animal resident of a settlement (dog, cat, chickens, rooftop birds).
 - **Brain**: `CreatureBrainSystem`, running only in the **simulation world**. Between activities it **Decides**: picks
-  a **Mode** (`CreatureMode`: Idle, Wander, Flee, Graze, Drink, Rest, Sleep, Play, Hunt, Work, Climb, Web, plus Puppet
-  for tests) weighted by the species' **Tastes** (Grazing, Thirst, Playfulness, Laziness, Hunger, Climbing…).
+  a **Mode** (`CreatureMode`: Idle, Wander, Flee, Graze, Drink, Rest, Sleep, Play, Hunt, Work, Climb, Web, Home (folk going indoors
+  through a Door anchor), plus Puppet for tests) weighted by the species' **Tastes** (Grazing, Thirst, Playfulness, Laziness, Hunger, Climbing…).
   A **Stage** is a step within a mode (walk to the tree, climb, sit…).
 - **Posture**: a blended whole-body pose eased by the brain and replicated (`Lie`, `HeadDown`, `Bow`, `Curl`, `Sit`,
   `Vertical`, `Fly`). **Idle action**: one of a species' **Habits** (`IdleAction`: PawGround, Groom, Scratch, Shake,

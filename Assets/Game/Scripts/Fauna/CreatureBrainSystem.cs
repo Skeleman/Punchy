@@ -527,6 +527,10 @@ namespace Punchy.Fauna
                     case CreatureMode.Burrow:
                         GoToGround(ref s, ref b, ref rng, dt, walk, run, playerDistance, ref targetSpeed, ref moving, ref custom, ref vertical);
                         break;
+
+                    case CreatureMode.Home:
+                        GoIndoors(ref s, ref b, ref rng, dt, walk, ref targetSpeed, ref moving, ref custom);
+                        break;
                 }
 
                 Needs(ref s, ref b, dt);
@@ -651,6 +655,7 @@ namespace Punchy.Fauna
                     case CreatureMode.Rest: s.Tired -= dt * 0.02f; break;
                     case CreatureMode.Sleep: s.Tired -= dt * 0.04f; break;
                     case CreatureMode.Burrow: if (s.Stage == 2) s.Tired -= dt * 0.03f; break;
+                    case CreatureMode.Home: if (s.Stage == 2) s.Tired -= dt * 0.04f; break;
                     case CreatureMode.Roost: if (s.Stage == 200) s.Tired -= dt * 0.04f; break;
                     case CreatureMode.Climb: if (s.Stage == 3) s.Tired -= dt * 0.02f; break;
                     case CreatureMode.Play: s.Lonely -= dt * 0.05f; break;
@@ -729,6 +734,14 @@ namespace Punchy.Fauna
                 var work = posted ? sleepy > 0.5f ? 10f : 6f : 0f;
                 if (posted && sleepy > 0.5f)
                     sleep = 0f;
+                // Townsfolk go indoors through their door: for the night (all but the watch), and now and then by day.
+                var home = 0f;
+                if (b.Upright && s.Leash > 0f && s.Task != CreatureTask.Watch && FindDoor(ref s))
+                {
+                    home = sleepy > 0.5f ? 14f : 0.5f * awake;
+                    if (sleepy > 0.5f)
+                        work = sleep = 0f;
+                }
                 if (s.Task == CreatureTask.Hunt && sleepy < 0.5f && rng.NextFloat() < 0.6f && FindGame(self, ref s, 100f, out var game))
                 {
                     SetMode(ref s, CreatureMode.Hunt);
@@ -737,7 +750,7 @@ namespace Punchy.Fauna
                     s.Timer = rng.NextFloat(60f, 100f);
                     return;
                 }
-                var roll = rng.NextFloat(wander + graze + rest + sleep + drink + play + hunt + work + climb + web + fly);
+                var roll = rng.NextFloat(wander + graze + rest + sleep + drink + play + hunt + work + climb + web + fly + home);
 
                 // Friendly animals go over to a person nearby (within their home range) more often than not.
                 // (Someone arriving at the edge of its home range counts: it goes as far as its range lets it.)
@@ -772,6 +785,12 @@ namespace Punchy.Fauna
                 {
                     SetMode(ref s, CreatureMode.Work);
                     s.Timer = rng.NextFloat(40f, 120f);
+                }
+                else if ((roll -= home) < 0f)
+                {
+                    SetMode(ref s, CreatureMode.Home);
+                    // (At night it stays in till morning: the time only runs by day.)
+                    s.Timer = rng.NextFloat(20f, 80f);
                 }
                 else if ((roll -= hunt) < 0f)
                 {
@@ -1450,6 +1469,102 @@ namespace Punchy.Fauna
                                 s.ActionLength = rng.NextFloat(3f, 6f);
                             }
                         }
+                        break;
+                }
+            }
+
+            /// <summary>
+            /// A door to go in by: one of the three Door anchors of its settlement nearest where it is (which of them,
+            /// by its individual number, so neighbours spread over the houses round them). False if there are none in
+            /// its range.
+            /// </summary>
+            bool FindDoor(ref CreatureState s)
+            {
+                if (!Terrain.Anchors.IsCreated)
+                    return false;
+                ref var set = ref Terrain.Anchors.Value;
+                var doors = new NativeList<int>(16, Allocator.Temp);
+                Anchors.Near(ref set, s.Position, 30f, AnchorKind.Door, ref doors);
+                if (doors.Length == 0)
+                    Anchors.Near(ref set, new float3(s.Home.x, s.Position.y, s.Home.y), s.Leash + 10f, AnchorKind.Door, ref doors);
+                if (doors.Length == 0)
+                {
+                    doors.Dispose();
+                    return false;
+                }
+                // The nearest three, nearest first (a few insertion passes: the list is short).
+                var nearest = new FixedList32Bytes<int>();
+                for (int k = 0; k < doors.Length; k++)
+                {
+                    var d = math.distancesq(set.Anchors[doors[k]].Position.xz, s.Position.xz);
+                    var at = nearest.Length;
+                    while (at > 0 && math.distancesq(set.Anchors[nearest[at - 1]].Position.xz, s.Position.xz) > d)
+                        at--;
+                    if (at < 3)
+                    {
+                        nearest.Insert(at, doors[k]);
+                        if (nearest.Length > 3)
+                            nearest.RemoveAt(3);
+                    }
+                }
+                doors.Dispose();
+                var door = set.Anchors[nearest[(int)(s.Individual % (uint)nearest.Length)]];
+                s.Anchor = door.Position;
+                s.AnchorYaw = math.atan2(door.Facing.x, door.Facing.y);
+                return true;
+            }
+
+            /// <summary>
+            /// Goes indoors: walks to its door, steps in (fading from sight), stays in (through the night, or a while by
+            /// day), then steps out again and gets on with its day. A door it can't get to, it gives up on.
+            /// </summary>
+            void GoIndoors(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, ref float targetSpeed, ref bool moving,
+                           ref bool custom)
+            {
+                var door = s.Anchor.xz;
+                var outward = new float2(math.sin(s.AnchorYaw), math.cos(s.AnchorYaw));
+                const float through = 0.9f;   // seconds to step through
+                switch (s.Stage)
+                {
+                    case 0:
+                        s.Target = door;
+                        targetSpeed = walk;
+                        moving = true;
+                        if (math.distance(s.Position.xz, door) < 0.4f)
+                            NextStage(ref s);
+                        else if (s.ModeTime > 60f)
+                            Pause(ref s, ref b, ref rng);
+                        break;
+                    case 1:
+                        custom = true;
+                        s.Yaw = WrapAngle(s.AnchorYaw + math.PI);
+                        s.Speed = 0.6f;
+                        s.Position.xz = door - outward * (0.7f * math.saturate(s.StageTime / through));
+                        s.Position.y = Terrain.SampleHeight(s.Position.xz);
+                        s.ActionTime = math.saturate(s.StageTime / through);
+                        CreatureMotion.AdvancePhase(ref s, ref b, dt);
+                        if (s.StageTime >= through)
+                            NextStage(ref s);
+                        break;
+                    case 2:
+                        custom = true;
+                        s.Speed = 0f;
+                        s.ActionTime = 1f;
+                        if (SleepTime(ref b) < 0.5f)
+                            s.Timer -= dt;
+                        if (s.Timer <= 0f)
+                            NextStage(ref s);
+                        break;
+                    default:
+                        custom = true;
+                        s.Yaw = s.AnchorYaw;
+                        s.Speed = 0.6f;
+                        s.Position.xz = door - outward * (0.7f * (1f - math.saturate(s.StageTime / through)));
+                        s.Position.y = Terrain.SampleHeight(s.Position.xz);
+                        s.ActionTime = 1f - math.saturate(s.StageTime / through);
+                        CreatureMotion.AdvancePhase(ref s, ref b, dt);
+                        if (s.StageTime >= through)
+                            Pause(ref s, ref b, ref rng);
                         break;
                 }
             }

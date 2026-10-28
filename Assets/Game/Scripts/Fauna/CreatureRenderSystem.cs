@@ -208,6 +208,9 @@ namespace Punchy.Fauna
                 var fadeIn = Unity.Mathematics.math.saturate(state.Clock / FadeInTime);
                 var fadeOut = Unity.Mathematics.math.saturate((FadeFar - Unity.Mathematics.math.distance(state.Position, CameraPosition)) / FadeOutRange);
                 var faded = 1f - fadeIn * fadeOut;
+                // Stepping through a door: dithered out going in, gone indoors, dithered back in coming out.
+                if (state.Mode == CreatureMode.Home && state.Stage >= 1)
+                    faded = Unity.Mathematics.math.max(faded, state.Stage == 2 ? 1f : state.ActionTime);
                 // A ghost is only half there (shimmering), and not there at all by day.
                 if (body.Blob.Value.Haunts)
                 {

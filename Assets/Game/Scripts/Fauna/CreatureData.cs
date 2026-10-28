@@ -219,7 +219,13 @@ namespace Punchy.Fauna
         /// </summary>
         Petted,
         /// <summary>Picked up and carried by a person (Holder), held in their arms; it may squirm free.</summary>
-        Held
+        Held,
+        /// <summary>
+        /// Folk going indoors through their door (Anchor; AnchorYaw: the way out): to the door (0), stepping in (1),
+        /// indoors out of sight (2), stepping out again (3). ActionTime is how far out of sight they are while
+        /// stepping through (it rides on the ghost, so every machine dithers them the same).
+        /// </summary>
+        Home
     }
 
     /// <summary>What a worker does at its post (posed by CreatureAnimator).</summary>
