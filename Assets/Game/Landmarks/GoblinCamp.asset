@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a5407ac3b5877da49af18e077398168c, type: 3}
   m_Name: GoblinCamp
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.LandmarkType
-  Radius: 34
+  Radius: 40
   Scale: {x: 0.9, y: 1.1}
   MaxRelief: 10
   MinRelief: 0
