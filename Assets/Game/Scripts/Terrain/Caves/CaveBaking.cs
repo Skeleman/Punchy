@@ -614,6 +614,13 @@ namespace Punchy.Terrain
                         var floor = source.FloorUnder(new float3(xz.x, centre.y, xz.y), out var inCave);
                         if (!inCave || floor < centre.y - r * 2f)
                             continue;
+                        // The water is a flat disc just under the floor at its centre, so the floor must rise (or at
+                        // least not fall) all round its rim, or the disc's edge would hang over a sloping floor: shrink
+                        // it until it fits, or leave the pool out.
+                        while (radius >= 1.2f && !RimHolds(source, new float3(xz.x, floor - 0.12f, xz.y), radius))
+                            radius *= 0.75f;
+                        if (radius < 1.2f)
+                            continue;
                         pools.Add(new CavePool
                         {
                             Centre = new float3(xz.x, floor - 0.12f, xz.y),
@@ -626,6 +633,25 @@ namespace Punchy.Terrain
                 cave.PoolCount = pools.Count - cave.FirstPool;
                 caves[c] = cave;
             }
+        }
+
+        /// <summary>Whether the cave floor stays above a pool's surface all round its rim and just inside it.</summary>
+        static bool RimHolds(in TerrainSource source, float3 surface, float radius)
+        {
+            for (int k = 0; k < 12; k++)
+            {
+                var a = k / 12f * math.PI * 2f;
+                var dir = new float2(math.cos(a), math.sin(a));
+                foreach (var f in new[] { 0.75f, 1.05f })
+                {
+                    var q = surface.xz + dir * radius * f;
+                    var floor = source.FloorUnder(new float3(q.x, surface.y + 1.5f, q.y), out var inCave);
+                    // Under the rim the floor may dip a little below the water (it's the shore), but not away.
+                    if (!inCave || floor < surface.y - (f < 1f ? 0.6f : 0.02f))
+                        return false;
+                }
+            }
+            return true;
         }
 
         /// <summary>
