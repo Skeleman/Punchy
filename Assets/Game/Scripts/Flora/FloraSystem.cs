@@ -80,6 +80,9 @@ namespace Punchy.Flora
             public bool Dirty;
             public int Count;
             public int[] ModelCounts;
+            /// <summary>Per model, the box its placed plants' bases span and their largest scale (for draw bounds).</summary>
+            public float3[] ModelMin, ModelMax;
+            public float[] ModelMaxScale;
             public GraphicsBuffer Instances, Visible, Args, Regions, Bounds;
             /// <summary>The draw arguments as last uploaded: each variant × LOD's mesh range, and its region of the
             /// visible list as startInstance (the shader adds it), so draws need no per-draw property block.</summary>
@@ -452,9 +455,24 @@ namespace Punchy.Flora
                 n += tile.Length;
             }
             var counts = new NativeArray<int>(l.ModelCount, Allocator.TempJob);
-            new CountModelsJob { Plants = all, ModelBase = l.ModelBase, Counts = counts }.Run();
+            var mins = new NativeArray<float3>(l.ModelCount, Allocator.TempJob);
+            var maxs = new NativeArray<float3>(l.ModelCount, Allocator.TempJob);
+            var scales = new NativeArray<float>(l.ModelCount, Allocator.TempJob);
+            new CountModelsJob { Plants = all, ModelBase = l.ModelBase, Counts = counts, Min = mins, Max = maxs, MaxScale = scales }.Run();
             counts.CopyTo(l.ModelCounts);
+            if (l.ModelMin == null || l.ModelMin.Length != l.ModelCount)
+            {
+                l.ModelMin = new float3[l.ModelCount];
+                l.ModelMax = new float3[l.ModelCount];
+                l.ModelMaxScale = new float[l.ModelCount];
+            }
+            mins.CopyTo(l.ModelMin);
+            maxs.CopyTo(l.ModelMax);
+            scales.CopyTo(l.ModelMaxScale);
             counts.Dispose();
+            mins.Dispose();
+            maxs.Dispose();
+            scales.Dispose();
 
             if (l.Instances == null || l.Instances.count < total)
             {
@@ -490,11 +508,24 @@ namespace Punchy.Flora
             [ReadOnly] public NativeArray<FloraInstance> Plants;
             public int ModelBase;
             public NativeArray<int> Counts;
+            public NativeArray<float3> Min, Max;
+            public NativeArray<float> MaxScale;
 
             public void Execute()
             {
+                for (int m = 0; m < Min.Length; m++)
+                {
+                    Min[m] = new float3(float.MaxValue);
+                    Max[m] = new float3(float.MinValue);
+                }
                 for (int i = 0; i < Plants.Length; i++)
-                    Counts[Plants[i].Model - ModelBase]++;
+                {
+                    var m = Plants[i].Model - ModelBase;
+                    Counts[m]++;
+                    Min[m] = math.min(Min[m], Plants[i].Position);
+                    Max[m] = math.max(Max[m], Plants[i].Position);
+                    MaxScale[m] = math.max(MaxScale[m], Plants[i].Scale);
+                }
             }
         }
 
@@ -535,15 +566,31 @@ namespace Punchy.Flora
                 Culling.SetBuffer(cull, BoundsId, l.Bounds);
                 Culling.Dispatch(cull, (l.Count + 63) / 64, 1, 1);
 
-                var bounds = new Bounds(camPos, Vector3.one * (s.Radius * 2f + 400f));
+                // Each model's draws are bounded by where its plants actually are, so Unity culls them per pass and
+                // shadow cascade, and a level of detail none of them can be at (by distance, with room for the
+                // crossfades) isn't drawn at all: a draw costs a pass even when the GPU cull leaves it no plants.
+                float3 eye = camPos;
+                float Near(float d) => d * 1.1f + 5f;
                 for (int m = 0; m < l.ModelCount; m++)
                 {
                     if (l.ModelCounts[m] == 0)
                         continue;
                     var model = models[l.ModelBase + m];
+                    var reach = (model.Radius + math.abs(model.CentreY)) * l.ModelMaxScale[m];
+                    var min = l.ModelMin[m] - reach;
+                    var max = l.ModelMax[m] + reach;
+                    var nearest = math.distance(math.clamp(eye, min, max), eye);
+                    var farthest = math.length(math.max(math.abs(eye - min), math.abs(eye - max)));
+                    if (nearest > Near(s.Radius))
+                        continue;
+                    var bounds = new Bounds((Vector3)((min + max) * 0.5f), (Vector3)(max - min));
                     for (int lod = 0; lod < 3; lod++)
                     {
                         if (lod == 2 && s.Lod2Distance >= s.Radius)
+                            continue;
+                        var lodNear = lod == 0 ? 0f : lod == 1 ? s.Lod1Distance : s.Lod2Distance;
+                        var lodFar = lod == 0 ? s.Lod1Distance : lod == 1 && s.Lod2Distance < s.Radius ? s.Lod2Distance : s.Radius;
+                        if (nearest > Near(lodFar) || farthest < lodNear * 0.9f - 5f)
                             continue;
                         var rp = new RenderParams(l.Material)
                         {
