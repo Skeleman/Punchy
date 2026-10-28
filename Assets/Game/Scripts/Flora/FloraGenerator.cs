@@ -306,8 +306,10 @@ namespace Punchy.Flora
             for (int i = 0; i < fill; i++)
             {
                 var u = g.Direction();
+                // Wide crowns spread their fill out flat; giants (the great tree) keep some depth to layer in.
+
                 if (spreadRatio > 1.5f)
-                    u.y *= 0.5f;
+                    u.y *= height < 20f ? 0.5f : 0.8f;
                 var p = crownCentre + Vector3.Scale(u * g.Range(0.1f, fillReach), crownRadii);
                 clumps.Add((p, Clump(0.17f, 0.24f), g.FoliageColor(), g.R() * 100f));
             }
@@ -343,7 +345,9 @@ namespace Punchy.Flora
                     var radii = new Vector3(c.radius, c.radius * 0.78f, c.radius);
                     // Crowns made of many clumps (wide canopies) use simpler clumps; the silhouette carries them.
                     var many = clumps.Count > 20;
-                    var detail = g.Lod == 0 ? (many ? 1 : 2) : (many ? 0 : 1);
+
+                    // ...but a giant is seen big from far off, so its clumps stay round.
+                    var detail = (g.Lod == 0 ? (many ? 1 : 2) : (many ? 0 : 1)) + (height >= 20f ? 1 : 0);
                     var first = b.Blob(c.centre, radii, Quaternion.identity, detail, 0.22f, c.seed, c.color, FloraPart.Foliage);
                     b.BlendNormalsFrom(first, crownCentre, crownRadii, 0.55f);
                     if (g.Lod == 0)
