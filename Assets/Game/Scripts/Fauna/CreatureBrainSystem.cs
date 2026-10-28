@@ -73,10 +73,13 @@ namespace Punchy.Fauna
             var bodies = creatures.ToComponentDataArray<CreatureBody>(Allocator.TempJob);
             var lookup = new NativeHashMap<Entity, int>(entities.Length, Allocator.TempJob);
             var grid = new NativeParallelMultiHashMap<int2, int>(entities.Length, Allocator.TempJob);
+            var hunters = new NativeList<int>(4, Allocator.TempJob);
             for (int i = 0; i < entities.Length; i++)
             {
                 lookup.Add(entities[i], i);
                 grid.Add(Cell(states[i].Position.xz), i);
+                if (states[i].Mode == CreatureMode.Hunt && states[i].Stage >= FolkHunting.Stalk)
+                    hunters.Add(i);
             }
             var hasFlora = SystemAPI.TryGetSingleton<FloraLookup>(out var flora) && flora.Blob.IsCreated;
 
@@ -94,8 +97,10 @@ namespace Punchy.Fauna
                 States = states,
                 Bodies = bodies,
                 Lookup = lookup,
-                Grid = grid
+                Grid = grid,
+                Hunters = hunters.AsArray()
             }.ScheduleParallel(state.Dependency);
+            hunters.Dispose(state.Dependency);
             entities.Dispose(state.Dependency);
             states.Dispose(state.Dependency);
             bodies.Dispose(state.Dependency);
@@ -133,6 +138,8 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<CreatureBody> Bodies;
             [ReadOnly] public NativeHashMap<Entity, int> Lookup;
             [ReadOnly] public NativeParallelMultiHashMap<int2, int> Grid;
+            /// <summary>Snapshot indices of the hunters out after game now (FolkHunting stages).</summary>
+            [ReadOnly] public NativeArray<int> Hunters;
 
             void Execute(Entity self, ref CreatureState s, in CreatureBody body)
             {
@@ -1492,25 +1499,19 @@ namespace Punchy.Fauna
             /// </summary>
             bool FindHunter(Entity self, ref CreatureState s, float alert, out float2 at)
             {
+                // (Only the hunters out now are looked at: usually none, so it costs nothing.)
                 at = default;
-                var c = Cell(s.Position.xz);
-                for (int z = -3; z <= 3; z++)
-                for (int x = -3; x <= 3; x++)
+                for (int h = 0; h < Hunters.Length; h++)
                 {
-                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                    var other = States[Hunters[h]];
+                    if (other.Partner != self)
                         continue;
-                    do
+                    var range = other.Stage == FolkHunting.Stalk ? 5f * alert : other.Stage == FolkHunting.Aim ? 15f * alert : 40f;
+                    if (math.distance(other.Position.xz, s.Position.xz) < range)
                     {
-                        var other = States[j];
-                        if (other.Mode != CreatureMode.Hunt || other.Partner != self || other.Stage < FolkHunting.Stalk)
-                            continue;
-                        var range = other.Stage == FolkHunting.Stalk ? 5f * alert : other.Stage == FolkHunting.Aim ? 15f * alert : 40f;
-                        if (math.distance(other.Position.xz, s.Position.xz) < range)
-                        {
-                            at = other.Position.xz;
-                            return true;
-                        }
-                    } while (Grid.TryGetNextValue(out j, ref it));
+                        at = other.Position.xz;
+                        return true;
+                    }
                 }
                 return false;
             }
