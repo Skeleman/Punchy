@@ -40,6 +40,22 @@ namespace Punchy.Fauna
         public IdleAction Pose;
     }
 
+    /// <summary>
+    /// Per playable body (NetAvatars.PlayableSpecies indices, as players are named): whether it can carry an animal (folk: arms to hold it with) and where
+    /// a carried animal sits, scaled to its size: (height above its feet, distance in front).
+    /// </summary>
+    public struct CarryBlob
+    {
+        public BlobArray<byte> Folk;
+        public BlobArray<float2> Hold;
+    }
+
+    /// <summary>The carry table, in the simulation world and on clients (made by FaunaDirector).</summary>
+    public struct CarryTable : IComponentData
+    {
+        public BlobAssetReference<CarryBlob> Blob;
+    }
+
     public static class Interactions
     {
         /// <summary>How far in front of the player an animal can be reached.</summary>
@@ -58,24 +74,47 @@ namespace Punchy.Fauna
             s.Mode != CreatureMode.Climb && s.Mode != CreatureMode.Web && s.Mode != CreatureMode.Burrow &&
             s.Mode != CreatureMode.Roost && s.Mode != CreatureMode.Puppet && s.Mode != CreatureMode.Held;
 
-        /// <summary>Small enough to pick up (cats, chickens, rabbits, songbirds…).</summary>
-        public static bool CanCarry(ref CreatureBlob b, in CreatureState s) =>
-            CanPet(ref b, s) && b.Habitat != Habitat.Floats && b.BodyLength * s.Scale <= 0.5f;
+        /// <summary>The longest body that can be picked up; friendly animals (small dogs, puppies) a little longer.</summary>
+        public const float CarryLength = 0.5f, FriendlyCarryLength = 0.65f;
+
+        /// <summary>
+        /// Small enough to pick up (cats, chickens, small dogs, rabbits, songbirds…), and somewhere it can be: a duck on
+        /// the bank, not on the water (onLand).
+        /// </summary>
+        public static bool CanCarry(ref CreatureBlob b, in CreatureState s, bool onLand) =>
+            CanPet(ref b, s) && (b.Habitat != Habitat.Floats || onLand) &&
+            b.BodyLength * s.Scale <= (b.Friendly ? FriendlyCarryLength : CarryLength);
+
+        /// <summary>Whether it stands on dry ground (a floating bird come ashore), for CanCarry.</summary>
+        public static bool OnLand(in TerrainSource terrain, float3 at)
+        {
+            var g = terrain.SampleGround(at.xz);
+            return !g.HasWater || g.WaterSurface < g.Height + 0.05f;
+        }
+
+        /// <summary>Whether a body of this species can carry: folk can, animals can't (they nuzzle instead). Unknown: yes.</summary>
+        public static bool CanHold(in CarryTable table, int species) =>
+            !table.Blob.IsCreated || species < 0 || species >= table.Blob.Value.Folk.Length || table.Blob.Value.Folk[species] != 0;
+
+        /// <summary>Where an animal carried by a body of this species sits (the human's place if unknown).</summary>
+        public static float3 Hands(in CarryTable table, int species, float3 holder, float yaw)
+        {
+            var hold = new float2(0.98f, 0.38f);
+            if (table.Blob.IsCreated && species >= 0 && species < table.Blob.Value.Hold.Length)
+                hold = table.Blob.Value.Hold[species];
+            return holder + new float3(math.sin(yaw), 0f, math.cos(yaw)) * hold.y + new float3(0f, hold.x, 0f);
+        }
 
         /// <summary>Used to people: friendly animals and settlements' animals (not their folk: those are upright).</summary>
         public static bool Tame(ref CreatureBlob b, in CreatureState s) => b.Friendly || s.Leash > 0f;
 
-        /// <summary>Where a carried animal is: in the holder's arms, low against their chest (held sideways, so its
-        /// shape shows).</summary>
-        public static float3 Hands(float3 holder, float yaw) =>
-            holder + new float3(math.sin(yaw), 0f, math.cos(yaw)) * 0.38f + new float3(0f, 0.98f, 0f);
 
         /// <summary>
         /// Acts on a request where the animal is simulated. Wild animals bolt from a hand reaching for them; tame ones
         /// let themselves be petted or picked up (a few would rather walk off).
         /// </summary>
         public static void Apply(ref CreatureState s, ref CreatureBlob b, in TerrainSource terrain, InteractAct act, int holder,
-                                 float3 player, float yaw)
+                                 float3 player, float yaw, bool holderIsFolk)
         {
             var rng = new Random(s.Seed | 1u);
             switch (act)
@@ -83,10 +122,22 @@ namespace Punchy.Fauna
                 case InteractAct.Pet:
                 case InteractAct.PickUp:
                     var carry = act == InteractAct.PickUp;
-                    if (carry ? !CanCarry(ref b, s) : !CanPet(ref b, s))
+                    // (Only folk can carry: an animal's body has nothing to hold one with.)
+                    if (carry ? !holderIsFolk || !CanCarry(ref b, s, OnLand(terrain, s.Position)) : !CanPet(ref b, s))
                         break;
                     if (!Tame(ref b, s))
                     {
+                        // A small wild one can be caught if it hasn't noticed: asleep, or crept up on (the brain lets a
+                        // slow, quiet approach come close; one that's already running is away). It soon squirms free.
+                        if (carry && s.Mode != CreatureMode.Flee)
+                        {
+                            SetMode(ref s, CreatureMode.Held);
+                            s.Timer = rng.NextFloat(2f, 5f);
+                            s.Holder = holder;
+                            s.Focus = player.xz;
+                            s.Speed = 0f;
+                            break;
+                        }
                         Bolt(ref s, ref b, terrain, player, ref rng);
                         break;
                     }
@@ -208,13 +259,18 @@ namespace Punchy.Fauna
         public void OnUpdate(ref SystemState state)
         {
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
+            var table = SystemAPI.TryGetSingleton<CarryTable>(out var carryTable) ? carryTable : default;
             states.Update(ref state);
             bodies.Update(ref state);
 
             // Alone: the local player's request.
             if (SystemAPI.TryGetSingleton<InteractionRequest>(out var request) && request.Act != InteractAct.None)
+            {
+                var species = SystemAPI.TryGetSingleton<LocalPlayerSpecies>(out var local) ? local.Index : -1;
                 foreach (var t in SystemAPI.Query<RefRO<LocalTransform>>().WithAll<PlayerTag>())
-                    Handle(Interactions.HolderId(0), request.Act, request.Serial, request.Target, t.ValueRO, terrain);
+                    Handle(Interactions.HolderId(0), request.Act, request.Serial, request.Target, t.ValueRO, terrain,
+                           Interactions.CanHold(table, species));
+            }
 
             // Networked: each player's, from their command.
             var ghosts = default(NativeHashMap<int, Entity>);
@@ -233,7 +289,7 @@ namespace Punchy.Fauna
                         ghosts[ghost.ValueRO.ghostId] = entity;
                 }
                 ghosts.TryGetValue(c.ActTarget, out var target);
-                Handle(holder, (InteractAct)c.Act, c.ActSerial, target, t.ValueRO, terrain);
+                Handle(holder, (InteractAct)c.Act, c.ActSerial, target, t.ValueRO, terrain, Interactions.CanHold(table, c.Species));
             }
             // Forget players who have left: a NetworkId is reused, and a newcomer's first request could match the old
             // serial and be skipped. (Alone, the one player is HolderId(0) and never leaves.)
@@ -248,7 +304,7 @@ namespace Punchy.Fauna
             present.Dispose();
         }
 
-        void Handle(int holder, InteractAct act, byte serial, Entity target, in LocalTransform player, in TerrainSource terrain)
+        void Handle(int holder, InteractAct act, byte serial, Entity target, in LocalTransform player, in TerrainSource terrain, bool folk)
         {
             if (handled.TryGetValue(holder, out var last) && last == serial)
                 return;
@@ -262,7 +318,7 @@ namespace Punchy.Fauna
             var reach = act == InteractAct.Startle ? Interactions.LungeReach : Interactions.Reach;
             if (act != InteractAct.PutDown && math.distance(s.Position.xz, player.Position.xz) > reach + 1.5f)
                 return;
-            Interactions.Apply(ref s, ref bodies[target].Blob.Value, terrain, act, holder, player.Position, yaw);
+            Interactions.Apply(ref s, ref bodies[target].Blob.Value, terrain, act, holder, player.Position, yaw, folk);
             states[target] = s;
         }
     }

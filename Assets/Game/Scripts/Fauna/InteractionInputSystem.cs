@@ -45,6 +45,7 @@ namespace Punchy.Fauna
         protected override void OnCreate()
         {
             EntityManager.CreateSingleton<InteractionRequest>("InteractionRequest");
+            RequireForUpdate<Punchy.Terrain.TerrainSource>();
             creatures = GetEntityQuery(new EntityQueryDesc
             {
                 All = new[] { ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>() },
@@ -81,9 +82,14 @@ namespace Punchy.Fauna
                 TargetSpecies = -1
             }, Allocator.TempJob);
             // (Scheduled after whatever writes creature state this frame, the brain's job when alone, and waited for.)
+            // (An animal body can't carry: it nuzzles instead, so no "pick up" for it.)
+            var folk = Interactions.CanHold(SystemAPI.TryGetSingleton<CarryTable>(out var table) ? table : default,
+                                            SystemAPI.TryGetSingleton<Punchy.Net.LocalPlayerSpecies>(out var local) ? local.Index : -1);
             Dependency = new ReachJob
             {
                 Me = me,
+                Folk = folk,
+                Terrain = SystemAPI.GetSingleton<Punchy.Terrain.TerrainSource>(),
                 Player = player.Position,
                 ReachPoint = player.Position + forward * (Interactions.Reach * 0.45f),
                 Result = scan
@@ -225,6 +231,8 @@ namespace Punchy.Fauna
         partial struct ReachJob : IJobEntity
         {
             public int Me;
+            public bool Folk;
+            public Punchy.Terrain.TerrainSource Terrain;
             public float3 Player, ReachPoint;
             public NativeReference<ReachScan> Result;
 
@@ -248,7 +256,7 @@ namespace Punchy.Fauna
                     {
                         r.Best = d;
                         r.Target = entity;
-                        r.TargetCarry = Interactions.CanCarry(ref b, s);
+                        r.TargetCarry = Folk && Interactions.CanCarry(ref b, s, Interactions.OnLand(Terrain, s.Position));
                         r.TargetSpecies = body.Species;
                     }
                 }

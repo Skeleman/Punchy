@@ -62,6 +62,7 @@ namespace Punchy.Fauna
         CreatureSpecies avatarSpecies;
         BlobAssetReference<CreatureBlob> avatarBlob;
         Entity settingsEntity, simClockEntity, floraEntity;
+        BlobAssetReference<CarryBlob> carryBlob;
         /// <summary>Where trees are, for climbing, perching and webs (the same tables the plants are drawn from).</summary>
         BlobAssetReference<Punchy.Flora.FloraBlob> floraBlob;
         readonly List<Punchy.Flora.FloraSpecies> floraSpecies = new List<Punchy.Flora.FloraSpecies>();
@@ -98,6 +99,9 @@ namespace Punchy.Fauna
             if (floraBlob.IsCreated)
                 floraBlob.Dispose();
             floraBlob = default;
+            if (carryBlob.IsCreated)
+                carryBlob.Dispose();
+            carryBlob = default;
             if (queryWorld != null && queryWorld.IsCreated)
             {
                 var em = queryWorld.EntityManager;
@@ -264,10 +268,13 @@ namespace Punchy.Fauna
             em.SetName(settingsEntity, "Fauna Render Settings");
             em.AddComponentObject(settingsEntity, new FaunaRenderSettings { Material = Material, Capsule = capsule });
             em.AddComponentData(settingsEntity, new FaunaClock());
+            carryBlob = BuildCarryTable();
+            em.AddComponentData(settingsEntity, new CarryTable { Blob = carryBlob });
             if (simWorld != null && simWorld != queryWorld)
             {
                 simClockEntity = simWorld.EntityManager.CreateEntity(typeof(FaunaClock));
                 simWorld.EntityManager.SetName(simClockEntity, "Fauna Clock");
+                simWorld.EntityManager.AddComponentData(simClockEntity, new CarryTable { Blob = carryBlob });
             }
             if (simWorld != null)
             {
@@ -286,6 +293,45 @@ namespace Punchy.Fauna
             lastSource = source;
             configStamp = ConfigStamp();
             built = true;
+        }
+
+        /// <summary>
+        /// Who can carry and where a carried animal sits, per playable body (players are named by their index in
+        /// NetAvatars.PlayableSpecies): folk carry, at the height and reach of a human's arms (0.98 m up, 0.38 m out)
+        /// scaled by how high their arms are next to a human's, so a goblin holds it lower and an ogre higher. Taken
+        /// from the species, so every machine puts it in the same place.
+        /// </summary>
+        BlobAssetReference<CarryBlob> BuildCarryTable()
+        {
+            var avatars = FindAnyObjectByType<Punchy.Net.NetAvatars>();
+            var playable = avatars != null ? avatars.PlayableSpecies : new List<CreatureSpecies>();
+            var stand = new float[playable.Count];
+            var upright = new bool[playable.Count];
+            var reference = 0.9f;
+            for (int i = 0; i < playable.Count; i++)
+            {
+                if (playable[i] == null)
+                    continue;
+                // (How high its arms are: legs plus half the trunk, an upright body's length being its height.)
+                var body = CreatureBlobBuilder.Build(playable[i]);
+                stand[i] = (body.Value.StandHeight + body.Value.BodyLength * 0.5f) * (playable[i].Size.x + playable[i].Size.y) * 0.5f;
+                upright[i] = body.Value.Upright;
+                body.Dispose();
+                if (playable[i].name == "Human")
+                    reference = math.max(stand[i], 0.1f);
+            }
+            var builder = new BlobBuilder(Allocator.Temp);
+            ref var root = ref builder.ConstructRoot<CarryBlob>();
+            var folk = builder.Allocate(ref root.Folk, playable.Count);
+            var hold = builder.Allocate(ref root.Hold, playable.Count);
+            for (int i = 0; i < playable.Count; i++)
+            {
+                folk[i] = (byte)(upright[i] ? 1 : 0);
+                hold[i] = new float2(0.98f, 0.38f) * (stand[i] > 0f ? stand[i] / reference : 1f);
+            }
+            var blob = builder.CreateBlobAssetReference<CarryBlob>(Allocator.Persistent);
+            builder.Dispose();
+            return blob;
         }
 
         /// <summary>

@@ -42,6 +42,8 @@ namespace Punchy.Fauna
     {
         const float CellSize = 16f;
         EntityQuery creatures;
+        /// <summary>Where each player was last frame (by Holder id), for how fast they're going.</summary>
+        NativeHashMap<int, float3> lastPlayerPositions;
 
         [BurstCompile]
         public void OnCreate(ref SystemState state)
@@ -49,6 +51,14 @@ namespace Punchy.Fauna
             state.RequireForUpdate<TerrainSource>();
             state.RequireForUpdate<CreatureState>();
             creatures = SystemAPI.QueryBuilder().WithAll<CreatureState, CreatureBody>().Build();
+            lastPlayerPositions = new NativeHashMap<int, float3>(8, Allocator.Persistent);
+        }
+
+        [BurstCompile]
+        public void OnDestroy(ref SystemState state)
+        {
+            if (lastPlayerPositions.IsCreated)
+                lastPlayerPositions.Dispose();
         }
 
         [BurstCompile]
@@ -60,16 +70,38 @@ namespace Punchy.Fauna
             var playerIds = new NativeList<int>(4, Allocator.TempJob);
             var playerYaws = new NativeList<float>(4, Allocator.TempJob);
             var playerPoses = new NativeList<byte>(4, Allocator.TempJob);
+            // (And which body each has, for where a carried animal sits.)
+            var playerSpecies = new NativeList<int>(4, Allocator.TempJob);
             foreach (var (t, owner, command) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<Unity.NetCode.GhostOwner>, RefRO<NetPlayerCommand>>().WithAll<NetPlayer>())
+            {
                 AddPlayer(t.ValueRO, Interactions.HolderId(owner.ValueRO.NetworkId), command.ValueRO.Pose, ref players, ref playerIds, ref playerYaws, ref playerPoses);
+                playerSpecies.Add(command.ValueRO.Species);
+            }
             if (players.Length == 0)
             {
                 var pose = SystemAPI.TryGetSingleton<InteractionRequest>(out var request) ? (byte)request.Pose : (byte)0;
+                var species = SystemAPI.TryGetSingleton<LocalPlayerSpecies>(out var local) ? local.Index : -1;
                 foreach (var t in SystemAPI.Query<RefRO<LocalTransform>>().WithAll<PlayerTag>())
+                {
                     AddPlayer(t.ValueRO, Interactions.HolderId(0), pose, ref players, ref playerIds, ref playerYaws, ref playerPoses);
+                    playerSpecies.Add(species);
+                }
             }
             if (players.Length == 0)
+            {
                 AddPlayer(LocalTransform.FromPosition(new float3(1e9f, 0f, 1e9f)), 0, 0, ref players, ref playerIds, ref playerYaws, ref playerPoses);
+                playerSpecies.Add(-1);
+            }
+            // How fast each is going (from where they were last frame): a slow, quiet approach lets wild animals be crept up on.
+            var frameDt = math.max(SystemAPI.Time.DeltaTime, 1e-3f);
+            var playerSpeeds = new NativeArray<float>(players.Length, Allocator.TempJob);
+            for (int p = 0; p < players.Length; p++)
+            {
+                // (A jump of more than a few metres in a frame is a teleport, not speed.)
+                if (lastPlayerPositions.TryGetValue(playerIds[p], out var was) && math.distance(was, players[p]) < 5f)
+                    playerSpeeds[p] = math.distance(was.xz, players[p].xz) / frameDt;
+                lastPlayerPositions[playerIds[p]] = players[p];
+            }
 
             // Snapshot of everyone, for seeing each other.
             var entities = creatures.ToEntityArray(Allocator.TempJob);
@@ -96,6 +128,9 @@ namespace Punchy.Fauna
                 PlayerIds = playerIds.AsArray(),
                 PlayerYaws = playerYaws.AsArray(),
                 PlayerPoses = playerPoses.AsArray(),
+                PlayerSpecies = playerSpecies.AsArray(),
+                PlayerSpeeds = playerSpeeds,
+                Carry = SystemAPI.TryGetSingleton<CarryTable>(out var carryTable) ? carryTable : default,
                 Dt = math.min(SystemAPI.Time.DeltaTime, 0.1f),
                 Night = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Night : 0f,
                 Entities = entities,
@@ -115,6 +150,8 @@ namespace Punchy.Fauna
             playerIds.Dispose(state.Dependency);
             playerYaws.Dispose(state.Dependency);
             playerPoses.Dispose(state.Dependency);
+            playerSpecies.Dispose(state.Dependency);
+            playerSpeeds.Dispose(state.Dependency);
         }
 
         static void AddPlayer(in LocalTransform t, int id, byte pose, ref NativeList<float3> players, ref NativeList<int> ids, ref NativeList<float> yaws,
@@ -142,6 +179,10 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<float> PlayerYaws;
             /// <summary>Each player's pose (an IdleAction): emotes are answered.</summary>
             [ReadOnly] public NativeArray<byte> PlayerPoses;
+            /// <summary>Each player's body (species index, -1 unknown) and ground speed.</summary>
+            [ReadOnly] public NativeArray<int> PlayerSpecies;
+            [ReadOnly] public NativeArray<float> PlayerSpeeds;
+            public CarryTable Carry;
             public float Dt, Night;
             [ReadOnly] public NativeArray<Entity> Entities;
             [ReadOnly] public NativeArray<CreatureState> States;
@@ -160,11 +201,13 @@ namespace Punchy.Fauna
                 // The nearest player is the one it watches and runs from.
                 var player = Players[0];
                 var emote = (IdleAction)PlayerPoses[0];
+                var playerSpeed = PlayerSpeeds[0];
                 for (int p = 1; p < Players.Length; p++)
                     if (math.distancesq(Players[p].xz, s.Position.xz) < math.distancesq(player.xz, s.Position.xz))
                     {
                         player = Players[p];
                         emote = (IdleAction)PlayerPoses[p];
+                        playerSpeed = PlayerSpeeds[p];
                     }
                 if (emote < IdleAction.Wave)
                     emote = IdleAction.None;
@@ -199,6 +242,11 @@ namespace Punchy.Fauna
                 // Asleep, it notices only at half the distance; perched birds let you a bit closer.
                 var alert = (s.Mode == CreatureMode.Sleep ? 0.5f : 1f) * (perched ? 0.5f : 1f);
                 var away = s.Position.xz - player.xz;
+                // Someone walking up slowly (not running) is noticed half as far off; from behind or the side, only at
+                // the last moment, so a small animal can be crept up on and caught.
+                var facing = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                if (playerSpeed < 2.5f)
+                    alert *= math.dot(facing, math.normalizesafe(-away)) < 0.3f ? 0.1f : 0.5f;
                 var playerDistance = math.length(away);
                 // A bird in the air judges the player by real distance (high overhead is far), and keeps on with a hunt
                 // unless the player is really close.
@@ -1712,17 +1760,21 @@ namespace Punchy.Fauna
             }
 
             /// <summary>Where the player with this Holder id is, and which way they face (false if they've gone).</summary>
-            bool FindHolder(int holder, out float3 position, out float yaw)
+            bool FindHolder(int holder, out float3 position, out float yaw) => FindHolder(holder, out position, out yaw, out _);
+
+            bool FindHolder(int holder, out float3 position, out float yaw, out int species)
             {
                 for (int p = 0; p < PlayerIds.Length; p++)
                     if (PlayerIds[p] == holder)
                     {
                         position = Players[p];
                         yaw = PlayerYaws[p];
+                        species = PlayerSpecies[p];
                         return true;
                     }
                 position = default;
                 yaw = 0f;
+                species = -1;
                 return false;
             }
 
@@ -1783,12 +1835,12 @@ namespace Punchy.Fauna
             void Held(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
             {
                 s.Speed = 0f;
-                if (!FindHolder(s.Holder, out var holder, out var yaw))
+                if (!FindHolder(s.Holder, out var holder, out var yaw, out var holderSpecies))
                 {
                     Interactions.PutDown(ref s, Terrain, s.Position, ref rng);
                     return;
                 }
-                s.Position = Interactions.Hands(holder, yaw);
+                s.Position = Interactions.Hands(Carry, holderSpecies, holder, yaw);
                 s.Yaw = yaw + math.PI * 0.5f;
                 s.YawRate = 0f;
                 s.Timer -= dt;
