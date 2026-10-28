@@ -95,3 +95,15 @@ Each one is a small landmark with a Home anchor. That's 5 new forms (igloo, lean
 3. **Caves round 2** after the realms core, so cave styles can be assigned per realm, but before the new sub-biomes' own cave styles. Mines and per-cave variation go in round 2.
 
 **The animal session gets the sub-biome list for fauna.** Kind-possum benches after realms core and after each pair.
+
+### 6. Rules from kind-possum's cost review (2026-10-28), binding
+1. No realtime lights for glow, arcs, embers, firestorm, fire whirls, Moonglade, glowing caps: emissive + bloom only; arc flashes go in the sky/ambient term like lightning.
+2. Glass, crystal, ice, glass-desert surfaces stay opaque; fake translucency with fresnel/emissive.
+3. New surface looks as material properties / per-surface params, not shader keywords (PSO hitches). If a keyword is unavoidable, tell kind-possum first.
+4. Floating Isles decorative first; when walkable, gate the isle test in FloorUnder behind its own grid lookup (like Deck); no isle shadows beyond cascade 2.
+5. The realm weight for hard flora edges comes from the same 9-cell BiomeCellTableBlob sample, never a second lookup per Place.
+6. Audit item 4 (weather init [preset, biome] table) lands before the firestorm.
+Watch: flora at realm borders (kind-possum adds a border stop once the preview map exists); jungle Tree-layer instances/ha <= Temperate forest; vertex-motion debris must deform in the shadow pass too; entities file flag at 25 MB, build at 160 MB.
+
+### 7. Living plants (supervisor, for Fungal Forest and Jungle)
+The animal session's six living plants (snapping flower, scuttling bush, puffball snapper, wandering toadstool, strangler vine on trunks, sleeping lily pads in pools) need LivingPlant anchors: small ground clearings among matching undergrowth that flora placement leaves clear, plus trunk spots and pool spots. Agree the anchor details with the animal session when that pair starts.
