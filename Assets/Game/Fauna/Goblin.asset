@@ -205,17 +205,17 @@ MonoBehaviour:
     StyleGroup: 1
   - Limb: {fileID: 11400000, guid: 87dfeb3512baffa468bc30d9c94d54ba, type: 2}
     Parent: 2
-    Socket: {x: 0, y: 0.022999998, z: 0.0138}
+    Socket: {x: 0, y: 0.02875, z: 0.0322}
     Direction: {x: 0, y: 0, z: 0}
     Mirror: 0
     Phase: 0
     MirrorPhase: 0
     Scale: 1.15
-    Thickness: 1
+    Thickness: 1.1
     StyleGroup: 1
   - Limb: {fileID: 11400000, guid: 69a4671c47d80fc478e19bcc62eae563, type: 2}
     Parent: 16
-    Socket: {x: 0, y: 0.09199999, z: -0.0023000003}
+    Socket: {x: 0, y: 0.08625, z: -0.020700002}
     Direction: {x: 210, y: 0, z: 0}
     Mirror: 0
     Phase: 0
