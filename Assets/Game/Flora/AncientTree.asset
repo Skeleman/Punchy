@@ -31,6 +31,7 @@ MonoBehaviour:
   ColorVariation: 0.12
   Finish: 0
   GlowingAccents: 1
+  LeafCards: 1
   MaxSlope: 60
   Elevation: {x: 0.5, y: 10000}
   GrassAffinity: 0.5

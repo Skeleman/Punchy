@@ -28,6 +28,7 @@ MonoBehaviour:
   Accents: []
   AccentAmount: 0.3
   ColorVariation: 0.12
+  LeafCards: 1
   MaxSlope: 30
   Elevation: {x: 1, y: 125}
   GrassAffinity: 0.6
