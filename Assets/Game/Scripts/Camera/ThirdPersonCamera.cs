@@ -21,6 +21,8 @@ namespace Punchy.CameraRig
         public static float WatchPitch = 15f;
         /// <summary>Testing: how far from the watched animal (close for small ones).</summary>
         public static float WatchDistance = 3.5f;
+        /// <summary>Testing: how fast the camera circles the watched point (degrees a second; 0 holds it still).</summary>
+        public static float WatchSpin = 12f;
         public float MinDistance = 3f;
         public float MaxDistance = 30f;
         public float TargetHeight = 1.6f;
@@ -64,7 +66,7 @@ namespace Punchy.CameraRig
             if (WatchTarget.HasValue)
             {
                 playerPosition = WatchTarget.Value - Vector3.up * TargetHeight;
-                yaw += Time.deltaTime * 12f;
+                yaw += Time.deltaTime * WatchSpin;
                 pitch = Mathf.MoveTowards(pitch, WatchPitch, Time.deltaTime * 30f);
                 Distance = Mathf.MoveTowards(Distance, WatchDistance, Time.deltaTime * 4f);
             }

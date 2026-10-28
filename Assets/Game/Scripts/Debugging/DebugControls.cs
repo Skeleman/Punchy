@@ -532,9 +532,11 @@ namespace Punchy.Debugging
             else if (how == "fly")
                 CreatureMotion.AdvancePhase(ref c, ref b, dt);
             em.SetComponentData(posed, c);
-            ThirdPersonCamera.WatchTarget = (Vector3)c.Position + Vector3.up * size * 0.5f;
+            // (Upright bodies, people, framed head and shoulders: their body length is just the hips.)
+            var standing = b.Upright ? b.StandHeight * c.Scale : 0f;
+            ThirdPersonCamera.WatchTarget = (Vector3)c.Position + Vector3.up * (b.Upright ? standing * 1.55f : size * 0.5f);
             ThirdPersonCamera.WatchPitch = viewPitch;
-            ThirdPersonCamera.WatchDistance = math.clamp(size * 4f, 0.5f, 6f);
+            ThirdPersonCamera.WatchDistance = b.Upright ? math.max(standing * 0.9f, 0.6f) : math.clamp(size * 4f, 0.5f, 6f);
         }
 
         /// <summary>
