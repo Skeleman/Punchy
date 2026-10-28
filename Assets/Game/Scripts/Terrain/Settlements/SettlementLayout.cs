@@ -36,7 +36,11 @@ namespace Punchy.Terrain
         /// <summary>A well or fountain on the square (the layout's Water Feature), where the landmark doesn't place one.</summary>
         Well,
         /// <summary>A signpost where a road leaves the settlement (the layout's Signpost).</summary>
-        Signpost
+        Signpost,
+        /// <summary>One span of a road's bridge over water (the layout's Bridge): not levelled; its deck is walkable.</summary>
+        Bridge,
+        /// <summary>One length of the palisade round a camp (the layout's Palisade Wall): not levelled.</summary>
+        Palisade
     }
 
     /// <summary>One kind of building a settlement puts on its plots.</summary>
@@ -98,6 +102,10 @@ namespace Punchy.Terrain
         [Min(1f)] public float RoadWidth = 3.2f;
         [Tooltip("Stands where each road leaves the settlement.")]
         public Punchy.Flora.FloraSpecies Signpost;
+        [Tooltip("One 4 m span of a bridge, repeated across water too deep to ford (deck at the origin, posts down).")]
+        public Punchy.Flora.FloraSpecies Bridge;
+        [Tooltip("One 3 m length of palisade, repeated round the camp (if Palisade is on), with gaps for streets and roads.")]
+        public Punchy.Flora.FloraSpecies PalisadeWall;
         public List<SettlementBuilding> Buildings = new List<SettlementBuilding>();
     }
 }

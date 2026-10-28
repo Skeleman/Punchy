@@ -30,6 +30,8 @@ MonoBehaviour:
   WaterFeature: {fileID: 11400000, guid: a752e0633a80fdb429b3d19b14c0488f, type: 2}
   RoadWidth: 3.4
   Signpost: {fileID: 11400000, guid: 4b43cc542a9e3e446a95fb86645732a1, type: 2}
+  Bridge: {fileID: 11400000, guid: 6fd3b583e4717e64ea5a0270c7ea34e4, type: 2}
+  PalisadeWall: {fileID: 0}
   Buildings:
   - Role: 0
     Species: {fileID: 11400000, guid: 0f3f75139a798b8428c4a8d150f31958, type: 2}

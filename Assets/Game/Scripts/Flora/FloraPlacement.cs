@@ -291,12 +291,14 @@ namespace Punchy.Flora
                         if (building.x < 0 || building.y != layer || math.any((int2)math.floor(plot.Centre / cellSize) != cell))
                             continue;
                         var buildingRule = f.Rules[building.x];
+                        // A bridge span sits at its deck height over the water, at its own size so spans meet end to end.
+                        var bridge = plot.Role == PlotRole.Bridge;
                         return new FloraSystem.FloraInstance
                         {
-                            Position = new float3(plot.Centre.x, source.SampleHeight(plot.Centre), plot.Centre.y),
+                            Position = new float3(plot.Centre.x, bridge ? plot.Pad : source.SampleHeight(plot.Centre), plot.Centre.y),
                             Yaw = math.atan2(-plot.Facing.x, plot.Facing.y),
                             // Sized for its folk (the layout's BuildingScale: ogre tents bigger, goblin huts smaller).
-                            Scale = rng.NextFloat(0.95f, 1.05f) * towns.Layouts[towns.Settlements[plot.Settlement].Layout].BuildingScale,
+                            Scale = bridge ? 1f : rng.NextFloat(0.95f, 1.05f) * towns.Layouts[towns.Settlements[plot.Settlement].Layout].BuildingScale,
                             Model = buildingRule.FirstModel + rng.NextInt(buildingRule.Variants),
                             Random = rng.NextFloat()
                         };
