@@ -42,8 +42,8 @@ MonoBehaviour:
     Mirror: 1
     Phase: 0
     MirrorPhase: 0.5
-    Scale: 2.4
-    Thickness: 0.6
+    Scale: 1.5
+    Thickness: 1
     StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 3ecb190472011a641862f4ffbcaca104, type: 2}
     Parent: -1
@@ -52,8 +52,8 @@ MonoBehaviour:
     Mirror: 1
     Phase: 0
     MirrorPhase: 0.5
-    Scale: 2.4
-    Thickness: 0.6
+    Scale: 1.5
+    Thickness: 1
     StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 4518175697e57f845adef14c025ae4c8, type: 2}
     Parent: -1
@@ -126,7 +126,7 @@ MonoBehaviour:
     Thickness: 1.6
     StyleGroup: 0
   WalkSpeed: 0.8
-  RunSpeed: 3
+  RunSpeed: 2.4
   Bob: {x: 0.004, y: 0.01}
   BobsPerCycle: {x: 2, y: 2}
   RunRock: 0
