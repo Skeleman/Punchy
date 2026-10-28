@@ -3092,8 +3092,11 @@ namespace Punchy.Fauna
             {
                 if (b.CaveDweller || b.CaveAffinity <= 0f || !Terrain.Caves.IsCreated)
                     return false;
+                // (Up on the surface, as it nearly always is: one sample, and no march down the cave's field.)
+                if (s.Position.y >= Terrain.SampleHeight(s.Position.xz) - 1f)
+                    return false;
                 Terrain.FloorUnder(s.Position + new float3(0f, 0.5f, 0f), out var inCave);
-                return inCave && s.Position.y < Terrain.SampleHeight(s.Position.xz) - 1f;
+                return inCave;
             }
 
             /// <summary>

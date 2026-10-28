@@ -103,9 +103,6 @@ namespace Punchy.Fauna
                 steps.Remove(e);
                 return;
             }
-            var ground0 = terrain.SampleGround(s.Position.xz);
-            if (s.Position.y - ground0.Height > 0.3f)
-                return;   // up a tree, on a branch, in a cave above the surface, mid-jump
             // (The body's gait phase last frame, to see which feet came down since.)
             if (!steps.TryGetValue(e, out var last) || last.w < 0f)
             {
@@ -113,6 +110,21 @@ namespace Punchy.Fauna
                 return;
             }
             steps[e] = new float4(s.Position, s.Phase);
+            // Only when a foot came down this frame is the ground looked at (most frames none does).
+            var touchdown = false;
+            for (int i = 0; i < b.Parts.Length && !touchdown; i++)
+            {
+                ref var leg = ref b.Parts[i];
+                if (leg.Role != LimbRole.Leg || leg.Parent >= 0 || leg.SegmentCount == 0)
+                    continue;
+                var before = math.frac(last.w + leg.Phase);
+                var after = math.frac(s.Phase + leg.Phase);
+                touchdown = after < before && before - after >= 0.5f;
+            }
+            if (!touchdown)
+                return;
+            if (s.Position.y - terrain.SampleHeight(s.Position.xz) > 0.3f)
+                return;   // up a tree, on a branch, in a cave above the surface, mid-jump
             var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
             var right = new float3(forward.z, 0f, -forward.x);
             var scale = math.max(s.Scale, 0.1f);
