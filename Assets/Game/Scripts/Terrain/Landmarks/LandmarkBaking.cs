@@ -53,6 +53,12 @@ namespace Punchy.Terrain
             public float FootprintScale;
             /// <summary>Type every spot tries (where its biome lists it), or -1 to roll for one.</summary>
             public int Forced;
+            /// <summary>
+            /// How much of the footprint's outer ring must still be the centre's biome (0.6). The pass that makes sure
+            /// every type appears somewhere lowers it, so a big landmark in a small biome patch (a volcano cone among
+            /// its ashlands) can spill over the patch's edge.
+            /// </summary>
+            public float OuterWeight;
             [ReadOnly] public NativeArray<int2> BiomeRanges;
             [ReadOnly] public NativeArray<int> EntryTypes;
             [ReadOnly] public NativeArray<float> EntryChances;
@@ -99,7 +105,7 @@ namespace Punchy.Terrain
                     var a = k / 12f * math.PI * 2f + ring * 0.26f;
                     var q = p + new float2(math.cos(a), math.sin(a)) * radius * (ring == 1 ? 0.55f : 1.15f);
                     var gq = Source.SampleGround(q);
-                    if (Wet(gq) || Weight(gq.Biomes, biome) < 0.6f)
+                    if (Wet(gq) || Weight(gq.Biomes, biome) < (ring == 1 ? 0.6f : OuterWeight))
                         return;
                     if (ring == 1 || k % 2 == 0)
                     {
@@ -226,6 +232,7 @@ namespace Punchy.Terrain
                         Rolls = rolls,
                         FootprintScale = 1.2f,
                         Forced = forced,
+                        OuterWeight = forced >= 0 ? 0.1f : 0.6f,
                         BiomeRanges = biomeRanges,
                         EntryTypes = entryTypeArray,
                         EntryChances = chances,
