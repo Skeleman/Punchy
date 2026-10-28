@@ -372,11 +372,18 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Whether the ground surface here is cut away by a cave entrance.</summary>
-        public bool IsCaveHole(float2 xz)
+        public bool IsCaveHole(float2 xz) => CaveClearance(xz, SampleHeight(xz)) < 0f;
+
+        /// <summary>
+        /// How far the ground surface at a spot (height h) is from cave air: negative where the terrain is cut away
+        /// for a cave entrance, either because the surface is in the cave or because cave air lies just under it (a
+        /// lip too thin to keep). 100 away from caves. The terrain mesh stores the same value per vertex.
+        /// </summary>
+        public float CaveClearance(float2 xz, float h)
         {
             if (!Caves.IsCreated || !CaveSampling.NearColumn(ref Caves.Value, xz))
-                return false;
-            return CaveDistance(new float3(xz.x, SampleHeight(xz) + 0.05f, xz.y)) < 0f;
+                return 100f;
+            return math.min(math.min(CaveDistance(new float3(xz.x, h + 0.05f, xz.y)), CaveDistance(new float3(xz.x, h - 0.6f, xz.y))), 100f);
         }
 
         /// <summary>

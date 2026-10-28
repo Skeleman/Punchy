@@ -893,6 +893,8 @@ namespace Punchy.Terrain
             public float Voxel;
             [NativeDisableParallelForRestriction] public NativeArray<float> Field, CaveField;
             [ReadOnly] public NativeArray<float> Surface, SurfaceScale;
+            /// <summary>How softly surface air and cave air merge (m): rock thinner than about half this opens.</summary>
+            const float MouthBlend = 1.2f;
 
             public void Execute(int row)
             {
@@ -905,7 +907,10 @@ namespace Punchy.Terrain
                     var i = (z * Points.y + y) * Points.x + x;
                     CaveField[i] = cave;
                     var column = z * Points.x + x;
-                    Field[i] = math.max((p.y - Surface[column]) * SurfaceScale[column] + 0.1f, -cave);
+                    // Air is above the surface or in the cave; a smooth union, so a lip of rock thinner than about half
+                    // a metre between them (a thin roof at a mouth) opens up instead of hanging as a floating slab. The
+                    // terrain cuts its own surface where cave air is that close below it, so the two agree.
+                    Field[i] = -CaveSampling.SmoothMin(-((p.y - Surface[column]) * SurfaceScale[column] + 0.1f), cave, MouthBlend);
                 }
             }
         }
@@ -1037,11 +1042,16 @@ namespace Punchy.Terrain
                 CaveSampling.Distance(ref set, p, out var cave);
                 var fromMouth = cave >= 0 ? math.saturate(1f - (math.distance(p, set.Caves[cave].Mouth) - 3f) / 14f) : 0f;
                 var nearSurface = math.saturate(1f - (surface - p.y - 1f) / 3f);
+                // Open to the sky (the terrain is cut away above: a trench or crater at a mouth): it's outside ground,
+                // so it takes the land's look and daylight however far below the uncut surface height it lies. Generous
+                // (up to 2 m of clearance): the terrain's cut is interpolated between its vertices, and wherever the
+                // terrain stays it hides this skin anyway.
+                var open = math.saturate((2f - Source.CaveClearance(p.xz, surface)) / 1.5f);
                 var ground = Source.SampleGround(p.xz);
                 var albedo = Source.SampleSurface(p.xz, ground, Source.SampleNormal(p.xz, 1f)).Albedo;
-                data = new float4(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), 0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f),
-                                  cave >= 0 ? set.Caves[cave].Style : 0, 0f);
-                return new float4(albedo, math.max(fromMouth, nearSurface));
+                data = new float4(math.max(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), open),
+                                  0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f), cave >= 0 ? set.Caves[cave].Style : 0, 0f);
+                return new float4(albedo, math.max(math.max(fromMouth, nearSurface), open));
             }
         }
 

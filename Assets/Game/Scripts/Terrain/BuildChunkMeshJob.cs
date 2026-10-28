@@ -126,8 +126,9 @@ namespace Punchy.Terrain
                 // Ground just above the water stays wet (a dark band along shores); stored as a negative skirt drop.
                 if (ground.HasWater)
                     vertex.Extra.w = (half)(-(1f - math.smoothstep(0.1f, 1.4f, h - ground.WaterSurface)));
-                var cave = cutHoles && CaveSampling.NearColumn(ref Source.Caves.Value, world)
-                    ? math.min(Source.CaveDistance(new float3(world.x, h + 0.05f, world.y)), 100f) : 100f;
+                // Ground with cave air just under it (a thin lip over a mouth) is cut too (see CaveClearance): the
+                // cave's own walls carry a skin of the surface there.
+                var cave = cutHoles ? Source.CaveClearance(world, h) : 100f;
                 vertex.Morph = new float4(request.MorphRange, surface.Bump, cave);
                 verts[z * v + x] = vertex;
                 water[z * v + x] = new float4(ground.WaterSurface, ground.Flow, h);

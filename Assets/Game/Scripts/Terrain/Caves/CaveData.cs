@@ -420,7 +420,7 @@ namespace Punchy.Terrain
             return false;
         }
 
-        static float SmoothMin(float a, float b, float k)
+        internal static float SmoothMin(float a, float b, float k)
         {
             var h = math.saturate(0.5f + 0.5f * (b - a) / k);
             return math.lerp(b, a, h) - k * h * (1f - h);

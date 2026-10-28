@@ -370,10 +370,11 @@ namespace Punchy.Flora
             if (roll >= bound)
                 return none;
 
-            // Full sample of the ground (none over a cave entrance).
-            if (source.IsCaveHole(xz))
-                return none;
+            // Full sample of the ground; nothing over or at the edge of a cave entrance (a wide plant or rock standing
+            // just outside the cut would overhang it and float).
             var ground = source.SampleGround(xz);
+            if (source.CaveClearance(xz, ground.Height) < 1.5f)
+                return none;
             // Land plants keep out of the water; aquatic ones grow only in it, at their depths.
             var depth = ground.HasWater ? ground.WaterSurface - ground.Height : -1f;
             var underwater = depth > -0.15f;
