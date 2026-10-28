@@ -269,8 +269,9 @@ namespace Punchy.Flora
             var xz = ((float2)cell + rng.NextFloat2()) * cellSize;
             var roll = rng.NextFloat();
             var area = cellSize * cellSize / 100f;
-            var candidates = new FixedList64Bytes<int>();   // species index, or -(prop entry + 1)
-            var weights = new FixedList64Bytes<float>();
+            // Room for 31 (a four-biome border plus a landmark's props; a fuller list would silently drop species).
+            var candidates = new FixedList128Bytes<int>();   // species index, or -(prop entry + 1)
+            var weights = new FixedList128Bytes<float>();
             var bound = 0f;
 
             // Settlements: each plot's building takes the cell holding the plot's centre, in its species' layer,
@@ -431,7 +432,7 @@ namespace Punchy.Flora
             var dry = 1f - math.saturate(ground.River * 1.5f);
 
             var total = 0f;
-            var shrink = new FixedList64Bytes<float>();
+            var shrink = new FixedList128Bytes<float>();
             for (int c = 0; c < candidates.Length; c++)
             {
                 // Props go where the landmark puts them, whatever the ground, except too steep for the species
