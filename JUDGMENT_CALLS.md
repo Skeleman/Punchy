@@ -13,6 +13,14 @@ asks Zach if needed, and records the answer here.
 
 ## Decided
 
+### J-024: May the world session tune the global ambient occlusion (SSAO) for contact darkening?
+
+- **Asked:** 2026-10-27, by the world session (W-14), via the supervisor.
+- **Also comes up when:** any change to renderer or quality settings.
+- **Answer (2026-10-27):** yes. Tune SSAO with before/after shots; baked contact rings under big rocks and props only if needed.
+- **Why:** (recommendation) nearly free, since SSAO already runs.
+- **Revisited:** 0.
+
 ### J-022: Leaf-card fringe on solid crowns (tree experiment 2)?
 
 - **Asked:** 2026-10-27, by the supervisor, after the compare sheet (7afff79, c06886e).
