@@ -114,7 +114,10 @@ namespace Punchy.Terrain
             }
         }
 
-        /// <summary>A Glow anchor at every glowing cave plant (creatures drawn to light gather there), owned by its cave.</summary>
+        /// <summary>
+        /// A Glow anchor at every glowing cave plant (creatures drawn to light gather there), and a Nest anchor at every
+        /// clutch of eggs, owned by its cave.
+        /// </summary>
         static void AddGlowAnchors(in TerrainSource source, List<Punchy.Flora.FloraSpecies> flora, List<Anchor> anchors)
         {
             ref var set = ref source.Caves.Value;
@@ -124,7 +127,9 @@ namespace Punchy.Terrain
                 if (plant.Species < 0 || plant.Species >= flora.Count)
                     continue;
                 var species = flora[plant.Species];
-                if (species.Finish != Punchy.Flora.FoliageFinish.Glowing && !species.GlowingAccents)
+                // A clutch of eggs is a nest on the floor (spiders, lizards and salamanders tend it), one creature at a time.
+                var eggs = species.Form == Punchy.Flora.FloraForm.Eggs;
+                if (!eggs && species.Finish != Punchy.Flora.FoliageFinish.Glowing && !species.GlowingAccents)
                     continue;
                 CaveSampling.Distance(ref set, plant.Position + new float3(0f, 0.5f, 0f), out var cave);
                 if (cave < 0)
@@ -133,10 +138,10 @@ namespace Punchy.Terrain
                 {
                     Position = plant.Position,
                     Facing = new float2(math.cos(plant.Yaw), math.sin(plant.Yaw)),
-                    Size = 1.5f,
+                    Size = eggs ? 0.6f : 1.5f,
                     Owner = Anchor.OwnerCave(cave),
-                    Kind = AnchorKind.Glow,
-                    Capacity = 0,
+                    Kind = eggs ? AnchorKind.Nest : AnchorKind.Glow,
+                    Capacity = (byte)(eggs ? 1 : 0),
                     Biome = (byte)Dominant(source.SampleGround(plant.Position.xz).Biomes),
                     Tags = (byte)(Anchor.Shelter | (set.Caves[cave].Style & 0x7F))
                 });

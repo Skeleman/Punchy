@@ -72,6 +72,7 @@ namespace Punchy.Flora
                     case FloraForm.PricklyPear: PricklyPear(g); break;
                     case FloraForm.Ocotillo: Ocotillo(g); break;
                     case FloraForm.Mushroom: Mushroom(g); break;
+                    case FloraForm.Eggs: Eggs(g); break;
                     case FloraForm.Bones: Bones(g); break;
                     case FloraForm.Boulder: Boulder(g); break;
                     case FloraForm.Spire: Spire(g); break;
@@ -1086,6 +1087,40 @@ namespace Punchy.Flora
                         var spot = top + tilt * (Vector3.up * capHeight * 0.25f + Vector3.Scale(u.normalized, new Vector3(capRadius, capHeight, capRadius)) * 1.01f);
                         b.Diamond(spot, capRadius * 0.12f, g.Accent, FloraPart.Petal);
                     }
+            }
+        }
+
+        /// <summary>
+        /// A clutch of eggs: smooth ovals in a golden-angle spiral, standing and leaning out from the middle, heaped a
+        /// little higher there, in a low nest of grit or silk (solid shells: no leaf shading).
+        /// </summary>
+        static void Eggs(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var egg = g.Range(s.Height);
+            var count = Mathf.Max(1, g.Count(s.Branches));
+            var spread = egg * (0.35f + 0.16f * Mathf.Sqrt(count)) * Mathf.Max(s.Spread, 0.3f);
+            g.Height = egg * 0.9f;
+            g.Width = spread * 2.3f;
+            g.TrunkRadius = 0f;
+
+            var nest = b.Blob(Vector3.up * egg * 0.02f, new Vector3(spread * 1.2f, egg * 0.18f, spread * 1.2f), Quaternion.identity,
+                              g.Lod == 0 ? 1 : 0, 0.15f, g.R() * 100f, g.Bark, FloraPart.Bark);
+            b.Occlude(nest, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y)));
+            var turn = g.R() * 6.28f;
+            for (int i = 0; i < count; i++)
+            {
+                var along = Mathf.Sqrt((i + 0.5f) / count);
+                var flat = g.Flat(turn + i * 2.39996f);
+                var heap = (1f - along) * egg * 0.35f;
+                var centre = flat * spread * along * 0.9f + Vector3.up * (egg * 0.42f + heap);
+                // Lying tilted out from the middle, each at its own angle, the outer ones further over.
+                var tilt = Quaternion.AngleAxis(Mathf.Lerp(8f, 35f, along) + g.Range(-8f, 8f), Vector3.Cross(Vector3.up, flat));
+                var color = g.FoliageColor();
+                var shell = b.Blob(centre, new Vector3(egg * 0.34f, egg * 0.5f, egg * 0.34f), tilt, g.Lod == 0 ? 2 : g.Lod == 1 ? 1 : 0,
+                                   0.01f, g.R() * 100f, color, FloraPart.Bark);
+                b.Occlude(shell, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.4f)));
             }
         }
 

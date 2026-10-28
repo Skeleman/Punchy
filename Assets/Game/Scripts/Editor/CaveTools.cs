@@ -159,6 +159,9 @@ namespace Punchy.EditorTools
                         AnchorKind.Burrow or AnchorKind.Pool => math.abs(source.FloorUnder(a.Position + new float3(0, 0.5f, 0), out _) - a.Position.y) < 0.2f,
                         // Plants may sit on rubble or a slope: within 40 cm of the floor.
                         AnchorKind.Glow => math.abs(source.FloorUnder(a.Position + new float3(0, 0.5f, 0), out _) - a.Position.y) < 0.4f,
+                        // Nests: on a wall ledge, or a clutch of eggs on the floor.
+                        AnchorKind.Nest => source.CaveDistance(a.Position) < 0f && source.CaveDistance(a.Position) > -0.6f ||
+                                           math.abs(source.FloorUnder(a.Position + new float3(0, 0.5f, 0), out _) - a.Position.y) < 0.4f,
                         _ => source.CaveDistance(a.Position) < 0f && source.CaveDistance(a.Position) > -0.6f
                     };
                     if (!ok) misplaced++;

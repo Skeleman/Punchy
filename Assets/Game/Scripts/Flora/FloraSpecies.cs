@@ -73,7 +73,10 @@ namespace Punchy.Flora
         [Tooltip("One 6.6 m span of a plank bridge (Bark), deck top at the origin, piles down into the water and a rail each " +
                  "side. Height is the rail; Spread the deck's width (m).")] Bridge,
         [Tooltip("One 3 m length of palisade: a row of sharpened logs (Bark) sunk into the ground with binding rails behind. " +
-                 "Height is the logs'.")] Palisade
+                 "Height is the logs'.")] Palisade,
+        [Tooltip("A clutch of eggs in a shallow nest (cave floors: what spiders, lizards and salamanders guard). Height is " +
+                 "an egg's length, Branches the number of eggs, Spread how loosely they lie; Foliage colours the eggs, " +
+                 "Bark the nest of grit or silk.")] Eggs
     }
 
     public enum FoliageFinish : byte

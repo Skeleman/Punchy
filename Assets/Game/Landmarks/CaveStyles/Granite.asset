@@ -46,6 +46,11 @@ MonoBehaviour:
     Light: 2
     Hanging: 0
     MaxCover: 5
+  - Species: {fileID: 11400000, guid: 6cb925e2af94dd0488d2c0dee02aa655, type: 2}
+    Density: 0.8
+    Light: 2
+    Hanging: 0
+    MaxCover: 1.5
   PoolChance: 0
   LavaPools: 0
   PoolSize: 0.32
