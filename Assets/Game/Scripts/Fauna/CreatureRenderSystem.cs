@@ -149,7 +149,12 @@ namespace Punchy.Fauna
                 Offsets = offsets,
                 Output = instances,
                 Time = (float)SystemAPI.Time.ElapsedTime,
-                CameraRight = cam.transform.right
+                CameraRight = cam.transform.right,
+                CameraPosition = cam.transform.position,
+                FadeInTime = 1.2f,
+                FadeOutRange = 25f,
+                // A little short of FaunaDirector's despawn distance (170 m), so it's gone before it's removed.
+                FadeFar = 165f
             }.ScheduleParallel(query, Dependency);
             Dependency.Complete();
             var at = colonyStart;
@@ -186,12 +191,26 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<int> Offsets;
             [NativeDisableParallelForRestriction] public NativeArray<SegmentInstance> Output;
             public float Time;
-            public Unity.Mathematics.float3 CameraRight;
+            public Unity.Mathematics.float3 CameraRight, CameraPosition;
+            /// <summary>Faded in over this long after it's made; out over this far before it's let go.</summary>
+            public float FadeInTime, FadeOutRange, FadeFar;
 
             void Execute(Entity entity, [EntityIndexInQuery] int index, in CreatureState state, in CreatureBody body)
             {
                 var offset = Offsets[index];
                 CreatureAnimator.Evaluate(ref body.Blob.Value, state, body.Coat, Terrain, Output, offset);
+                // Appearing (its first moments: Clock counts from when it was made, here) or nearing the distance
+                // where it's let go: dithered in and out by the shader, so nothing pops.
+                var fadeIn = Unity.Mathematics.math.saturate(state.Clock / FadeInTime);
+                var fadeOut = Unity.Mathematics.math.saturate((FadeFar - Unity.Mathematics.math.distance(state.Position, CameraPosition)) / FadeOutRange);
+                var faded = 1f - fadeIn * fadeOut;
+                if (faded > 0f)
+                    for (int i = 0; i < body.SegmentCount; i++)
+                    {
+                        var instance = Output[offset + i];
+                        instance.Pad = faded;
+                        Output[offset + i] = instance;
+                    }
                 FearMarks(state, offset, body.SegmentCount, entity.Index);
                 if (InWeb(state))
                     Web(state, ref body.Blob.Value, offset + body.SegmentCount + MarkCount);

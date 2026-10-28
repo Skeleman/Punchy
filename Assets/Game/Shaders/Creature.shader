@@ -2,7 +2,8 @@ Shader "Punchy/Creature"
 {
     // Animals (CreatureRenderSystem): every body segment is an instance of one unit capsule mesh, stretched to the
     // segment's length, tapered from its start radius to its end radius, flattened, then placed and rotated.
-    // Soft wrapped lighting, shadows, cloud shadows, wetness and the atmosphere.
+    // Soft wrapped lighting, shadows, cloud shadows, wetness and the atmosphere. A creature appearing or leaving
+    // dithers in or out (the segment's pad).
     SubShader
     {
         Tags { "RenderType" = "Opaque" "Queue" = "Geometry" "RenderPipeline" = "UniversalPipeline" }
@@ -19,7 +20,7 @@ Shader "Punchy/Creature"
             float radiusStart;
             float radiusEnd;
             float flatten;
-            float pad;
+            float pad;         // how far faded out (0 shown, 1 gone): a creature appearing or leaving
             float4 color;
         };
 
@@ -37,6 +38,19 @@ Shader "Punchy/Creature"
             float3 t = 2 * cross(q.xyz, v);
             return v + q.w * t + cross(q.xyz, t);
         }
+
+        // Fading in or out, as a screen-door dither (a 4x4 ordered pattern of dropped pixels): no blending or sorting,
+        // the same in every pass, so shadows fade with the body.
+        void FadeClip(float fade, float2 pixel)
+        {
+            if (fade <= 0)
+                return;
+            static const float pattern[16] = { 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 };
+            uint2 p = uint2(pixel) % 4;
+            clip(1 - fade - (pattern[p.y * 4 + p.x] + 0.5) / 16.0);
+        }
+
+        float SegmentFade(CreatureAttributes input) { return _Segments[input.instanceID].pad; }
 
         void SegmentVertex(CreatureAttributes input, out float3 positionWS, out float3 normalWS, out float4 color)
         {
@@ -74,6 +88,7 @@ Shader "Punchy/Creature"
                 float3 positionWS : TEXCOORD0;
                 half3 normalWS : TEXCOORD1;
                 half4 color : TEXCOORD2;
+                float fade : TEXCOORD3;
             };
 
             Varyings Vert(CreatureAttributes input)
@@ -85,11 +100,13 @@ Shader "Punchy/Creature"
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.normalWS = n;
                 o.color = c;
+                o.fade = SegmentFade(input);
                 return o;
             }
 
             half4 Frag(Varyings input) : SV_Target
             {
+                FadeClip(input.fade, input.positionCS.xy);
                 half3 n = normalize(input.normalWS);
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 half3 albedo = input.color.rgb * lerp(1, 0.75, PunchyWetnessAt(input.positionWS.xz).r);
@@ -123,7 +140,13 @@ Shader "Punchy/Creature"
             float3 _LightDirection;
             float3 _LightPosition;
 
-            float4 Vert(CreatureAttributes input) : SV_POSITION
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float fade : TEXCOORD0;
+            };
+
+            Varyings Vert(CreatureAttributes input)
             {
                 float3 p, n;
                 float4 c;
@@ -133,10 +156,17 @@ Shader "Punchy/Creature"
             #else
                 float3 lightDirection = _LightDirection;
             #endif
-                return ApplyShadowClamping(TransformWorldToHClip(ApplyShadowBias(p, n, lightDirection)));
+                Varyings o;
+                o.positionCS = ApplyShadowClamping(TransformWorldToHClip(ApplyShadowBias(p, n, lightDirection)));
+                o.fade = SegmentFade(input);
+                return o;
             }
 
-            half4 Frag() : SV_Target { return 0; }
+            half4 Frag(Varyings input) : SV_Target
+            {
+                FadeClip(input.fade, input.positionCS.xy);
+                return 0;
+            }
             ENDHLSL
         }
 
@@ -152,15 +182,28 @@ Shader "Punchy/Creature"
             #pragma vertex Vert
             #pragma fragment Frag
 
-            float4 Vert(CreatureAttributes input) : SV_POSITION
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float fade : TEXCOORD0;
+            };
+
+            Varyings Vert(CreatureAttributes input)
             {
                 float3 p, n;
                 float4 c;
                 SegmentVertex(input, p, n, c);
-                return TransformWorldToHClip(p);
+                Varyings o;
+                o.positionCS = TransformWorldToHClip(p);
+                o.fade = SegmentFade(input);
+                return o;
             }
 
-            half Frag(float4 positionCS : SV_POSITION) : SV_Target { return positionCS.z; }
+            half Frag(Varyings input) : SV_Target
+            {
+                FadeClip(input.fade, input.positionCS.xy);
+                return input.positionCS.z;
+            }
             ENDHLSL
         }
 
@@ -182,6 +225,7 @@ Shader "Punchy/Creature"
             {
                 float4 positionCS : SV_POSITION;
                 half3 normalWS : TEXCOORD0;
+                float fade : TEXCOORD1;
             };
 
             Varyings Vert(CreatureAttributes input)
@@ -192,6 +236,7 @@ Shader "Punchy/Creature"
                 Varyings o;
                 o.positionCS = TransformWorldToHClip(p);
                 o.normalWS = n;
+                o.fade = SegmentFade(input);
                 return o;
             }
 
@@ -201,6 +246,7 @@ Shader "Punchy/Creature"
             #endif
             )
             {
+                FadeClip(input.fade, input.positionCS.xy);
                 outNormalWS = half4(NormalizeNormalPerPixel(input.normalWS), 0);
             #ifdef _WRITE_RENDERING_LAYERS
                 outRenderingLayers = EncodeMeshRenderingLayer();
