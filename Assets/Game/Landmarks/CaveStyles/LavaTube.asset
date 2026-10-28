@@ -23,6 +23,11 @@ MonoBehaviour:
   Blockiness: 0
   Ribs: 0
   RibSpacing: 1.6
+  Straightness: 0
+  Frame: {fileID: 0}
+  FrameSpacing: 4
+  Torch: {fileID: 0}
+  TorchSpacing: 10
   FloorFlatness: 0.75
   FloorSteps: 0.1
   Burrows: 0
@@ -34,6 +39,7 @@ MonoBehaviour:
   Drips: 0
   Rubble: 5
   RubbleSize: 0.5
+  Boulder: {fileID: 11400000, guid: 86ecf3f6d6439604dbcad59755eb6017, type: 2}
   Moss: 0
   MossColor: {r: 0.22, g: 0.32, b: 0.12, a: 1}
   Flora:

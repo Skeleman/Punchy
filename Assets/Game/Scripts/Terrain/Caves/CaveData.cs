@@ -107,6 +107,8 @@ namespace Punchy.Terrain
         /// <summary>The root (inside the floor or ceiling) and the tip.</summary>
         public float3 Root, Tip;
         public float RootRadius, TipRadius;
+        /// <summary>How softly it blends into the rock it stands on (m): 0.5 for stalagmites, less for loose rock.</summary>
+        public float Fillet;
         /// <summary>World-space box around it (with a margin).</summary>
         public float3 Min, Max;
     }
@@ -366,8 +368,6 @@ namespace Punchy.Terrain
 
         /// <summary>Only near the air do speleothems matter: they turn air into rock, never rock into air.</summary>
         const float SpeleothemReach = 2f;
-        /// <summary>How softly a speleothem's root blends into the floor or ceiling (m).</summary>
-        const float RootFillet = 0.5f;
 
         /// <summary>Takes the speleothems near a point out of the air: a smooth maximum with each one's rock.</summary>
         static float Speleothems(ref CaveSetBlob set, float3 p, float air)
@@ -381,7 +381,7 @@ namespace Punchy.Terrain
                 ref var s = ref set.Speleothems[set.SpeleothemItems[k]];
                 if (math.any(p < s.Min) || math.any(p > s.Max))
                     continue;
-                air = -SmoothMin(-air, Rod(s, p), RootFillet);
+                air = -SmoothMin(-air, Rod(s, p), math.max(s.Fillet, 0.05f));
             }
             return air;
         }

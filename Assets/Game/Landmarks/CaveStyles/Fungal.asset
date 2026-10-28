@@ -23,6 +23,11 @@ MonoBehaviour:
   Blockiness: 0.2
   Ribs: 0
   RibSpacing: 1.6
+  Straightness: 0
+  Frame: {fileID: 0}
+  FrameSpacing: 4
+  Torch: {fileID: 0}
+  TorchSpacing: 10
   FloorFlatness: 0.85
   FloorSteps: 0.3
   Burrows: 1
@@ -34,6 +39,7 @@ MonoBehaviour:
   Drips: 0.5
   Rubble: 9
   RubbleSize: 0.5
+  Boulder: {fileID: 11400000, guid: 86ecf3f6d6439604dbcad59755eb6017, type: 2}
   Moss: 0.8
   MossColor: {r: 0.18, g: 0.3, b: 0.12, a: 1}
   Flora:
@@ -67,6 +73,11 @@ MonoBehaviour:
     Light: 2
     Hanging: 0
     MaxCover: 1.5
+  - Species: {fileID: 11400000, guid: 28a71e688d796f14b9919018c61ac083, type: 2}
+    Density: 4
+    Light: 0
+    Hanging: 0
+    MaxCover: 5
   PoolChance: 0.6
   LavaPools: 0
   PoolSize: 0.32

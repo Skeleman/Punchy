@@ -22,6 +22,11 @@ MonoBehaviour:
   Blockiness: 0.5
   Ribs: 0
   RibSpacing: 1.6
+  Straightness: 0
+  Frame: {fileID: 0}
+  FrameSpacing: 4
+  Torch: {fileID: 0}
+  TorchSpacing: 10
   FloorFlatness: 0.8
   FloorSteps: 0.5
   Burrows: 0
@@ -49,6 +54,11 @@ MonoBehaviour:
   - Species: {fileID: 11400000, guid: 17cfe4343a148844db935df7595a8316, type: 2}
     Density: 3
     Light: 2
+    Hanging: 0
+    MaxCover: 5
+  - Species: {fileID: 11400000, guid: 28a71e688d796f14b9919018c61ac083, type: 2}
+    Density: 4
+    Light: 0
     Hanging: 0
     MaxCover: 5
   PoolChance: 0.3
