@@ -89,6 +89,8 @@ namespace Punchy.Fauna
         [Range(0f, 1f)] public float Thirst = 0.3f;
         [Tooltip("How keen it is to play chase with others of its kind.")]
         [Range(0f, 1f)] public float Playfulness;
+        [Tooltip("A child (folk): out by day with a stick to poke at things or a stone to throw, between games of chase.")]
+        public bool Child;
         [Tooltip("How often it lies down to rest.")]
         [Range(0f, 1f)] public float Laziness = 0.25f;
         [Tooltip("Animals it chases (any variant of a listed species counts).")]
@@ -217,7 +219,9 @@ namespace Punchy.Fauna
         None, PawGround, Groom, Scratch, Shake, Stretch, Sniff, Sit, SitUp, TailFlick, Preen, HeadBob, LookAround, Howl,
         Pet, Carry, Throw,
         // Emotes: a player's (InteractionInputSystem), and folk answering one.
-        Wave, Bow, Cheer, Dance
+        Wave, Bow, Cheer, Dance,
+        // A child poking at the ground with a stick (not an idle action any species picks).
+        Poke
     }
 
     public enum ActiveTime : byte

@@ -49,6 +49,8 @@ namespace Punchy.Fauna
         NativeHashMap<Entity, byte> actions;
         /// <summary>Per sky serpent: whether it was under the water last frame (a splash where it crosses).</summary>
         NativeHashMap<Entity, bool> under;
+        /// <summary>Per child throwing a stone: how far into its throw it was last frame.</summary>
+        NativeHashMap<Entity, float> throws;
 
         protected override void OnCreate()
         {
@@ -56,6 +58,7 @@ namespace Punchy.Fauna
             steps = new NativeHashMap<Entity, float4>(256, Allocator.Persistent);
             actions = new NativeHashMap<Entity, byte>(256, Allocator.Persistent);
             under = new NativeHashMap<Entity, bool>(8, Allocator.Persistent);
+            throws = new NativeHashMap<Entity, float>(16, Allocator.Persistent);
             query = GetEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
             RequireForUpdate<TerrainSource>();
         }
@@ -66,6 +69,7 @@ namespace Punchy.Fauna
             if (steps.IsCreated) steps.Dispose();
             if (actions.IsCreated) actions.Dispose();
             if (under.IsCreated) under.Dispose();
+            if (throws.IsCreated) throws.Dispose();
         }
 
         protected override void OnUpdate()
@@ -96,6 +100,7 @@ namespace Punchy.Fauna
                     continue;
                 }
                 Feather(entities[i], s, ref b, terrain, now);
+                Stone(entities[i], s, terrain, now);
                 if (!Wake(entities[i], s, ref b, terrain, now))
                     Footprint(entities[i], s, ref b, terrain, now);
             }
@@ -329,6 +334,43 @@ namespace Punchy.Fauna
                     Dither = 0.9f
                 });
             }
+        }
+
+        /// <summary>
+        /// A child's stone, thrown: the moment its throw lets go (worked out on every machine from the replicated throw),
+        /// a stone flies from about the child's hand, up and out ahead, and drops back to the ground.
+        /// </summary>
+        void Stone(Entity e, in CreatureState s, in TerrainSource terrain, float now)
+        {
+            if (s.Held != HeldItem.Stone || s.Action != IdleAction.Throw)
+            {
+                throws.Remove(e);
+                return;
+            }
+            throws.TryGetValue(e, out var was);
+            throws[e] = s.ActionTime;
+            if (was > CreatureRenderSystem.ThrowRelease || s.ActionTime < CreatureRenderSystem.ThrowRelease)
+                return;
+            var scale = math.max(s.Scale, 0.3f);
+            var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
+            var from = s.Position + new float3(0f, 0.85f * scale, 0f) + forward * 0.3f * scale;
+            var rng = new Unity.Mathematics.Random(math.hash(new float2(now, e.Index)) | 1u);
+            var velocity = forward * rng.NextFloat(5f, 7f) + new float3(0f, rng.NextFloat(3f, 4.5f), 0f);
+            Add(new Trace
+            {
+                Position = from,
+                Rotation = quaternion.identity,
+                Length = 0.03f * scale,
+                Radius = 0.06f * scale,
+                Flatten = 0.8f,
+                Color = new float4(0.45f, 0.44f, 0.42f, 0f),
+                Born = now,
+                Life = 3f,
+                Velocity = velocity,
+                Falls = 1f,
+                Floor = terrain.SampleHeight(s.Position.xz) + 0.02f,
+                Dither = 0.01f
+            });
         }
 
         /// <summary>A feather drifts to the ground when a bird finishes preening or shaking.</summary>

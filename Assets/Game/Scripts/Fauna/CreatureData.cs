@@ -53,6 +53,8 @@ namespace Punchy.Fauna
         public bool Breaches;
         /// <summary>Has arms, so it can hold things (folk).</summary>
         public bool Hands;
+        /// <summary>A child (see CreatureSpecies.Child): a variant's own.</summary>
+        public bool Child;
         /// <summary>Drawn and kept about from this far off; 0 = as any other (see CreatureSpecies.SeenFrom).</summary>
         public float SeenFrom;
 
@@ -327,7 +329,11 @@ namespace Punchy.Fauna
         /// <summary>A burning torch held up in the right hand: a guard on its rounds after dark.</summary>
         Torch,
         /// <summary>A fishing rod in both hands, its line out to a float on the water (and a basket at the feet).</summary>
-        Rod
+        Rod,
+        /// <summary>A stick in the right hand: a child's, for poking at things.</summary>
+        Stick,
+        /// <summary>A stone in the right hand: a child's, for throwing (another picked up after each throw).</summary>
+        Stone
     }
 
     /// <summary>A creature's position, heading, gait and what it's up to.</summary>
@@ -527,6 +533,7 @@ namespace Punchy.Fauna
             root.Soars = species.Soars;
             root.Breaches = species.Breaches && species.Habitat == Habitat.Swims;
             root.Hands = species.Parts.Exists(p => p != null && p.Limb != null && p.Limb.Role == LimbRole.Arm);
+            root.Child = variant.Child;
             root.SeenFrom = species.SeenFrom * sizeScale;
             root.Nests = species.Nests;
             root.WebSize = species.WebSize * sizeScale;

@@ -47,12 +47,15 @@ namespace Punchy.Fauna
         const float LanternLightRange = 60f;
         /// <summary>Capsules in what a guard holds (a spear's shaft and head; a torch's handle, flame, heart and glow).</summary>
         const int GuardParts = 4;
+        /// <summary>When in a throw (its ActionTime) the stone leaves the hand: TraceSystem throws it from there.</summary>
+        public const float ThrowRelease = 0.3f;
+
         /// <summary>Capsules in a fisher's gear: the rod, the line, the float, a fish, and the basket (its staves, its
         /// rim, the dark inside and the base).</summary>
         const int BasketStaves = 8;
         const int RodParts = 4 + BasketStaves * 2 + 2;
         static int HeldCount(HeldItem held) => held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.Torch ? GuardParts :
-                                               held == HeldItem.Rod ? RodParts : 0;
+                                               held == HeldItem.Rod ? RodParts : held == HeldItem.Stick || held == HeldItem.Stone ? 1 : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 1 : -1;
         /// <summary>Capsules per hanging bat, the most per roost, and how near the camera colonies show.</summary>
@@ -368,6 +371,50 @@ namespace Punchy.Fauna
                     Guard(state, ref body.Blob.Value, offset, held, faded, entity.Index);
                 else if (state.Held == HeldItem.Rod)
                     Rod(state, ref body.Blob.Value, offset, held, faded, entity.Index);
+                else if (state.Held == HeldItem.Stick || state.Held == HeldItem.Stone)
+                    Plaything(state, ref body.Blob.Value, offset, held, faded);
+            }
+
+            /// <summary>
+            /// A child's plaything in its right hand: a crooked stick held out ahead and down, or a stone in the fist
+            /// (gone from the hand from the moment it's thrown until another's picked up).
+            /// </summary>
+            void Plaything(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
+            {
+                Output[at] = default;
+                var hand = -1;
+                for (int i = 0; i < b.Parts.Length; i++)
+                    if (b.Parts[i].Role == LimbRole.Arm && b.Parts[i].Side > 0f)
+                    {
+                        hand = b.Parts[i].FirstSegment + b.Parts[i].SegmentCount - 1;
+                        break;
+                    }
+                if (hand < 0)
+                    return;
+                var segment = Output[offset + hand];
+                var grip = segment.Position + Unity.Mathematics.math.mul(segment.Rotation, new Unity.Mathematics.float3(0f, 0f, segment.Length * 0.6f));
+                var scale = Unity.Mathematics.math.max(state.Scale, 0.3f);
+                if (state.Held == HeldItem.Stone)
+                {
+                    if (state.Action == IdleAction.Throw && state.ActionTime > ThrowRelease && state.ActionTime < 0.9f)
+                        return;
+                    Output[at] = new SegmentInstance { Position = grip, Rotation = segment.Rotation, Length = 0.03f * scale, RadiusStart = 0.06f * scale, RadiusEnd = 0.05f * scale, Flatten = 0.8f, Color = new Unity.Mathematics.float4(0.45f, 0.44f, 0.42f, 0f), Pad = faded };
+                    return;
+                }
+                // The stick goes on from the hand the way the forearm points, dipping a little towards the ground.
+                var along = Unity.Mathematics.math.mul(segment.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                var dir = Unity.Mathematics.math.normalizesafe(along + new Unity.Mathematics.float3(0f, -0.25f, 0f));
+                Output[at] = new SegmentInstance
+                {
+                    Position = grip - dir * 0.06f * scale,
+                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(dir, new Unity.Mathematics.float3(0f, 1f, 0f)),
+                    Length = 0.8f * scale,
+                    RadiusStart = 0.014f * scale,
+                    RadiusEnd = 0.009f * scale,
+                    Flatten = 0.85f,
+                    Color = new Unity.Mathematics.float4(0.24f, 0.16f, 0.08f, 0f),
+                    Pad = faded
+                };
             }
 
             /// <summary>

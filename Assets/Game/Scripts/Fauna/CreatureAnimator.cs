@@ -521,6 +521,14 @@ namespace Punchy.Fauna
                     if (part.Role == LimbRole.Head) return new float3((0.45f + 0.06f * stroke) * e, 0f, 0f);
                     break;
                 }
+                case IdleAction.Poke:
+                    // A child jabbing at the ground ahead with a stick: the right arm down and forward, jabbing; head down
+                    // to watch.
+                    if (part.Role == LimbRole.Arm && part.Side > 0f)
+                        return joint == 0 ? new float3((-0.85f + 0.25f * math.max(0f, math.sin(s.Clock * 9f))) * e, 0f, 0f) : joint == 1 ? new float3(-0.15f * e, 0f, 0f) : float3.zero;
+                    if (part.Role == LimbRole.Head) return new float3(0.45f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Neck) return new float3(0.3f * e, 0f, 0f);
+                    break;
                 case IdleAction.Throw:
                     // A player lunging at game: right arm thrown forward, leaning into it (a body with no arms lunges
                     // head first).

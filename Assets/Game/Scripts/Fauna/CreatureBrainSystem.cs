@@ -669,6 +669,15 @@ namespace Punchy.Fauna
                 // Little things done while standing about: start one now and then, keep it going, and take up the
                 // posture it needs.
                 Fidget(self, body.Species, ref s, ref b, ref rng, dt, perched, ref sit, ref vertical, ref bow, ref desiredLook);
+                // A child standing about now and then pokes at the ground with its stick, or throws its stone.
+                if (b.Child && s.Action == IdleAction.None && s.Mode == CreatureMode.Idle && s.Speed < 0.1f && rng.NextFloat() < dt * 0.25f &&
+                    (s.Held == HeldItem.Stick || s.Held == HeldItem.Stone))
+                {
+                    s.Action = s.Held == HeldItem.Stick ? IdleAction.Poke : IdleAction.Throw;
+                    s.ActionTime = 0f;
+                    s.ActionLength = s.Held == HeldItem.Stick ? rng.NextFloat(2f, 3.5f) : 1.2f;
+                    s.Timer = math.max(s.Timer, s.ActionLength + 0.5f);
+                }
 
                 // Animals with a home never head out of range of it (penned animals stay in their pen, even fleeing).
                 if (s.Leash > 0f && moving && s.Mode != CreatureMode.Patrol && s.Mode != CreatureMode.Swim)
@@ -773,6 +782,9 @@ namespace Punchy.Fauna
                     s.Held = Night > 0.5f ? HeldItem.Torch : HeldItem.Spear;
                 else if (s.Task == CreatureTask.Fish && s.Mode == CreatureMode.Work && s.Stage >= 1)
                     s.Held = HeldItem.Rod;
+                // A child out by day has a stick or a stone (its own kind of plaything), not indoors or asleep.
+                else if (b.Child && b.Hands && Night < 0.5f && s.Mode != CreatureMode.Sleep && !(s.Mode == CreatureMode.Home && s.Stage >= 1))
+                    s.Held = ((s.Individual >> 5) & 1u) != 0 ? HeldItem.Stick : HeldItem.Stone;
                 else if (b.Hands && b.Upright)
                 {
                     var dark = s.Held == HeldItem.Lantern ? Night > 0.4f : Night > 0.6f;
