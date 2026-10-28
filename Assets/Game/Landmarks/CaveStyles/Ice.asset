@@ -63,3 +63,4 @@ MonoBehaviour:
   GlowScale: 1.3
   GlowEverywhere: 0.55
   CrackDarkness: 0.9
+  CrackBreakup: 0

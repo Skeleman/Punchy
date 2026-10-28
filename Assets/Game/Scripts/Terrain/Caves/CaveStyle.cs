@@ -127,6 +127,8 @@ namespace Punchy.Terrain
         [Range(0f, 1f)] public float GlowEverywhere;
         [Tooltip("How much the cracks darken the rock besides any glow in them: dark fissures in ice, black seams.")]
         [Range(0f, 1f)] public float CrackDarkness;
+        [Tooltip("How broken the cracks are: 0 = whole nets of cells, 1 = short scattered fragments that fade in and out.")]
+        [Range(0f, 1f)] public float CrackBreakup;
 
         /// <summary>The look as four vectors for the cave shader's style table.</summary>
         public void Pack(Vector4[] table, int slot)
@@ -145,7 +147,7 @@ namespace Punchy.Terrain
             table[i + 6] = new Vector4(floorDark.r, floorDark.g, floorDark.b, FloorGloss);
             table[i + 7] = new Vector4(Detail, DetailScale, Sheen, Moss);
             var moss = MossColor.linear;
-            table[i + 8] = new Vector4(moss.r, moss.g, moss.b, 0f);
+            table[i + 8] = new Vector4(moss.r, moss.g, moss.b, CrackBreakup);
         }
     }
 

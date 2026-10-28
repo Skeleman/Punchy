@@ -267,6 +267,13 @@ Shader "Punchy/Cave"
                     {
                         float3 warp = float3(PunchyValueNoise(p.xy * 0.9 + 3), PunchyValueNoise(p.yz * 0.9 - 5), PunchyValueNoise(p.zx * 0.9 + 9));
                         crack *= 1 - smoothstep(s2.w * 0.4, s2.w * 1.6, CellEdge(p * 1.3 * g + warp * 1.2));
+                        // Broken cracks: the lines fade in and out along their length in short fragments, and the
+                        // patch fades towards its edge instead of stopping on a line.
+                        if (s8.w > 0)
+                        {
+                            float pieces = PunchyValueNoise(p.xz * 2.3 * g + p.y * 1.9) * 0.6 + PunchyValueNoise(p.zy * 4.1 * g - 7) * 0.4;
+                            crack *= lerp(1, smoothstep(0.42, 0.62, pieces) * smoothstep(1 - s4.z, 1 - s4.z + 0.3, patch), s8.w);
+                        }
                     }
                     color *= 1 - crack * s4.w * 0.85;
                     color += s2.rgb * (s4.y * (1 - floorShare * 0.5) + crack * (1 - s4.y) * (1 - s4.w)) * (1 - terrain);
