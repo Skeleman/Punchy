@@ -87,6 +87,11 @@ a time.
    - The imp species asset and any creature AI they need come from the animal session; I provide the warren, its
      layout and its anchors.
 7. **Later:** settlement growth along roads, outlying farms, ruins.
+   - **Coastal towns** (Zach, after roads and the warren, before world events): a settlement variant on sea or big-lake
+     shores. Mine: shore placement, dock and pier forms (planks on posts over the water), a boathouse, net- and
+     fish-drying racks, crates and barrels, Dock and Mooring anchors, and moored rowboats as static flora forms.
+     Animal session: fishermen (Fish and Mend-nets tasks) and any moving boats (bobbing, multiplayer sync); agree the
+     interface first. Reuse the shared building parts and the water shader.
 8. **Late: world events** (after towns, roads and the warren; not started). Agree ownership first: sky and weather
    rendering and WeatherSystem's Sun belong to other sessions, so auroras and shooting stars may be theirs, eruptions
    and impacts mine. All seed- and shared-clock-driven, so every player sees the same event without extra sync;
@@ -189,3 +194,11 @@ nothing to sync; immutable (the animal session counts occupancy from its creatur
   (human 72, dwarf 65, elf 70). This seed: 7 settlements, 175 plots (human 22, dwarf 38, elf 24, goblin 25–31, ogre
   10), baked in 75 ms. Cost: world-wide SampleGround/SampleHeight within noise (−0.4% / +2.2%), +4.3% for samples
   inside towns.
+- 2026-10-27/28: Zach's play-test feedback (FEEDBACK-2026-10-27.md). Bugs: cave mouths (one cut rule,
+  CaveClearance), the skirt through an ice-cave ceiling, water edges at chunk borders, cave streams, landmark pools as
+  discs, volcano crystal haze. Polish: lava, ice and lava cracks, crisper water and ripple-driven reflections, puddles
+  fading in, more columns, the great tree, glow lighting on terrain/flora/grass/creatures (Glow.hlsl, SurfaceGlow),
+  rock and cliff detail, ice-cave variation, roots and drips, SSAO, rocks tilting to slopes. Grass gusts and cheap
+  density tricks (density stays 1x). Leaf cards and leaf fringe tried and dropped (J-021, J-022). Phase 5a-c: framed
+  doors, real windows lit at night, the leader's hall, shrines, gardens, dressed stone, town anchors (Door, Seat,
+  Altar, Bench, Well). v0.6.0 released with world-features at c4ad333.
