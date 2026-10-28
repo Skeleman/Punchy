@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Temperate
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.RealmDefinition
   MapColor: {r: 0.42, g: 0.75, b: 0.28, a: 1}
-  Frequency: 1
+  Frequency: 20
   Biomes:
   - Biome: {fileID: 11400000, guid: b1b97ac8fbc6672418cc6308ad36b33b, type: 2}
     Weight: 1

@@ -482,7 +482,8 @@ namespace Punchy.Terrain
         /// Each biome cell's realm. The cells are grouped into realm regions, and each region's land cells vote with
         /// the realms their own biomes belong to, so realms go where their biomes already are (volcanoes keep their
         /// ashlands, glaciers their tundra). The rarest realm picks first, taking the region where its biomes are most
-        /// common, so every realm with biomes on the island gets a region; the rest go to their top vote (× frequency).
+        /// common, so every realm with biomes on the island gets a region; the rest go to the best-voted realm still
+        /// under its target share (frequency).
         /// Last, along any border between two realms that mustn't touch, one side's cells become the buffer realm.
         /// </summary>
         static int[] CellRealms(in BiomeNoiseSettings s, ref BiomeSetBlob set, RealmPlan realms, int2 min, int2 size, int[] baseIds,
@@ -504,6 +505,7 @@ namespace Punchy.Terrain
             var regionOf = new int[baseIds.Length];
             var votes = new float[regionCount * count];
             var land = new int[regionCount];
+            var cellLand = new bool[baseIds.Length];
             for (int i = 0; i < baseIds.Length; i++)
             {
                 var local = regionCells[i] - lo;
@@ -511,6 +513,7 @@ namespace Punchy.Terrain
                 var cell = min + new int2(i % size.x, i / size.x);
                 if (isLand != null && !isLand((cell + CellJitter(cell, s.Seed)) * s.CellSize))
                     continue;
+                cellLand[i] = true;
                 land[g]++;
                 for (int r = 0; r < count; r++)
                 {
@@ -552,10 +555,61 @@ namespace Punchy.Terrain
                 if (best >= 0)
                     regionRealm[best] = r;
             }
+            // The rest, clearest first (largest share of one realm's biomes): each goes to the best-voted realm still
+            // under its target share of the land (its frequency over all realms' with biomes here), or failing that
+            // to its top vote. So frequency sets how much of the island a realm gets, not just who wins a tie.
+            var claimed = new float[count];
+            float totalLand = 0f, totalFrequency = 0f;
+            for (int g = 0; g < regionCount; g++)
+            {
+                totalLand += land[g];
+                if (regionRealm[g] >= 0)
+                    claimed[regionRealm[g]] += land[g];
+            }
+            for (int r = 0; r < count; r++)
+                if (totals[r] > 0f)
+                    totalFrequency += realms.Frequency[r];
+            var clarity = new float[regionCount];
+            var rest = new System.Collections.Generic.List<int>();
+            for (int g = 0; g < regionCount; g++)
+            {
+                if (regionRealm[g] >= 0 || land[g] == 0)
+                    continue;
+                for (int r = 0; r < count; r++)
+                    clarity[g] = math.max(clarity[g], votes[g * count + r] / land[g]);
+                rest.Add(g);
+            }
+            rest.Sort((a, b) => clarity[a] != clarity[b] ? clarity[b].CompareTo(clarity[a]) : a.CompareTo(b));
+            foreach (var g in rest)
+            {
+                int best = -1, top = -1;
+                float bestVotes = 0f, topVotes = 0f;
+                for (int r = 0; r < count; r++)
+                {
+                    var v = votes[g * count + r];
+                    if (v <= 0f || realms.Frequency[r] <= 0f)
+                        continue;
+                    if (v > topVotes)
+                    {
+                        topVotes = v;
+                        top = r;
+                    }
+                    var room = realms.Frequency[r] / math.max(totalFrequency, 1e-6f) * totalLand - claimed[r];
+                    if (room >= land[g] * 0.5f && v > bestVotes)
+                    {
+                        bestVotes = v;
+                        best = r;
+                    }
+                }
+                regionRealm[g] = best >= 0 ? best : top;
+                if (regionRealm[g] >= 0)
+                    claimed[regionRealm[g]] += land[g];
+            }
             for (int g = 0; g < regionCount; g++)
             {
                 if (regionRealm[g] >= 0)
                     continue;
+                // Sea regions: their top vote.
                 var bestScore = 0f;
                 for (int r = 0; r < count; r++)
                 {
@@ -597,6 +651,7 @@ namespace Punchy.Terrain
                     if (around[r] > around[realm[i]])
                         realm[i] = r;
             }
+            Balance(realms, size, realm, cellLand, totalFrequency);
             if (realms.Buffer < 0)
                 return realm;
             // Buffer strips: where two realms that mustn't touch meet, the bigger realm's cells become the buffer (so a
@@ -622,6 +677,74 @@ namespace Punchy.Terrain
                 }
             }
             return result;
+        }
+
+        /// <summary>
+        /// Evens realms out towards their target shares of the land (frequency over the total), a cell at a time,
+        /// since a whole region is too coarse a step: the realm furthest under its target takes a land cell of a
+        /// realm over its target, on their border (the one with most of the growing realm around it), never next to
+        /// a realm it mustn't touch. Stops when no realm under target can grow.
+        /// </summary>
+        static void Balance(RealmPlan realms, int2 size, int[] realm, bool[] cellLand, float totalFrequency)
+        {
+            var count = realms.Frequency.Length;
+            var have = new int[count];
+            var landCells = 0;
+            for (int i = 0; i < realm.Length; i++)
+            {
+                if (!cellLand[i])
+                    continue;
+                have[realm[i]]++;
+                landCells++;
+            }
+            var target = new float[count];
+            for (int r = 0; r < count; r++)
+                target[r] = have[r] > 0 ? realms.Frequency[r] / math.max(totalFrequency, 1e-6f) * landCells : 0f;
+            var stuck = new bool[count];
+            for (int step = 0; step < landCells; step++)
+            {
+                // The realm furthest under its target that can still grow.
+                var grow = -1;
+                for (int r = 0; r < count; r++)
+                    if (!stuck[r] && target[r] - have[r] >= 1f && (grow < 0 || target[r] - have[r] > target[grow] - have[grow]))
+                        grow = r;
+                if (grow < 0)
+                    return;
+                var best = -1;
+                var bestAround = 1;
+                for (int i = 0; i < realm.Length; i++)
+                {
+                    var from = realm[i];
+                    if (!cellLand[i] || from == grow || have[from] - target[from] < 1f)
+                        continue;
+                    int x = i % size.x, y = i / size.x, around = 0;
+                    var forbidden = false;
+                    for (int n = 0; n < 9 && !forbidden; n++)
+                    {
+                        int nx = x + n % 3 - 1, ny = y + n / 3 - 1;
+                        if (n == 4 || nx < 0 || ny < 0 || nx >= size.x || ny >= size.y)
+                            continue;
+                        var other = realm[ny * size.x + nx];
+                        forbidden = realms.Avoid[grow, other];
+                        if (other == grow)
+                            around++;
+                    }
+                    // At least two of the growing realm beside it, so it grows as a front, not in fingers.
+                    if (!forbidden && around > bestAround)
+                    {
+                        bestAround = around;
+                        best = i;
+                    }
+                }
+                if (best < 0)
+                {
+                    stuck[grow] = true;
+                    continue;
+                }
+                have[realm[best]]--;
+                realm[best] = grow;
+                have[grow]++;
+            }
         }
 
         /// <summary>A region's biome within its realm: random, weighted by the realm's weights × frequency × climate.</summary>

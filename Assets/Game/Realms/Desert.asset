@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Desert
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.RealmDefinition
   MapColor: {r: 0.95, g: 0.78, b: 0.4, a: 1}
-  Frequency: 1
+  Frequency: 22
   Biomes:
   - Biome: {fileID: 11400000, guid: 85ee83dd85b5ba542b880bbcf85da039, type: 2}
     Weight: 1

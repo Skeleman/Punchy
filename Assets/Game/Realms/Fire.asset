@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Fire
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.RealmDefinition
   MapColor: {r: 0.85, g: 0.22, b: 0.08, a: 1}
-  Frequency: 1
+  Frequency: 12
   Biomes:
   - Biome: {fileID: 11400000, guid: 3abd880b4b52a0d45ac7f2b3a687cee8, type: 2}
     Weight: 1

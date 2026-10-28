@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Mystic
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.RealmDefinition
   MapColor: {r: 0.65, g: 0.42, b: 0.92, a: 1}
-  Frequency: 1
+  Frequency: 10
   Biomes:
   - Biome: {fileID: 11400000, guid: 68e89c7ddec9ab245918187f5662a6c2, type: 2}
     Weight: 1

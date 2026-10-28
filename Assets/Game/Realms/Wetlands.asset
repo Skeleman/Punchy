@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Wetlands
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.RealmDefinition
   MapColor: {r: 0.25, g: 0.45, b: 0.35, a: 1}
-  Frequency: 1
+  Frequency: 18
   Biomes:
   - Biome: {fileID: 11400000, guid: 796e3aff2526932459f9855a9d99abee, type: 2}
     Weight: 1

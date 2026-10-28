@@ -14,7 +14,8 @@ namespace Punchy.Terrain
     {
         [Tooltip("Colour of this realm on the realm preview map.")]
         public Color MapColor = Color.magenta;
-        [Tooltip("How common this realm is, relative to the others (before climate).")]
+        [Tooltip("How much of the island this realm aims for, relative to the others (its share of the total). " +
+                 "Realms still only go where their biomes vote for them, so it's a target, not a promise.")]
         [Min(0f)] public float Frequency = 1f;
         [Tooltip("The biomes inside this realm, each with a weight (times the biome's own Frequency and climate fit). " +
                  "A realm's climate is its biomes': it goes where any of them would fit.")]
