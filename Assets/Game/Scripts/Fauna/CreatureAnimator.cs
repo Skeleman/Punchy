@@ -92,6 +92,14 @@ namespace Punchy.Fauna
             // Sitting: rump down on folded hind legs, chest up.
             pitch -= s.Sit * 0.5f;
             height -= s.Sit * b.StandHeight * scale * 0.3f;
+            // Folk sit and lie their own way, not rump-down like a four-legged body: sitting, the hips down near the
+            // ground with the body upright; lying, over onto the back (the limbs: SitPose and LiePose).
+            if (b.Upright)
+            {
+                pitch += s.Sit * 0.5f;
+                height = math.lerp(height + s.Sit * b.StandHeight * scale * 0.3f, 0.16f * scale, s.Sit);
+                pitch -= 1.5f * s.Lie;
+            }
             // Climbing a trunk or sitting up tall (up), diving or hanging head down in a web (down).
             pitch -= s.Vertical * math.PI * 0.47f;
             var still = 1f - move;
@@ -195,7 +203,7 @@ namespace Punchy.Fauna
                 // Legs hanging beneath the body fold up when it lies down (front legs half-fold for a play bow);
                 // splayed legs (lizards, spiders) keep their feet planted and bend at the knees instead.
                 var fold = 0f;
-                var folds = part.Role == LimbRole.Leg && part.Parent < 0 && math.mul(part.Rest, new float3(0f, 0f, 1f)).y < -0.7f;
+                var folds = part.Role == LimbRole.Leg && part.Parent < 0 && math.mul(part.Rest, new float3(0f, 0f, 1f)).y < -0.7f && !b.Upright;
                 var hind = part.Socket.z < 0f;
                 if (folds)
                 {
@@ -298,6 +306,10 @@ namespace Punchy.Fauna
                     a += TaskPose(ref part, in s, j);
                     if (swimming > 0f)
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + SwimPose(ref part, in s, j), swimming);
+                    if (b.Upright && s.Sit > 0f)
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + SitPose(ref part, j), s.Sit);
+                    if (b.Upright && s.Lie > 0f)
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + LiePose(ref part, in s, j), s.Lie);
                     // (Upright bodies have no idle actions of their own, but players' bodies take interaction poses.)
                     if (s.Action != IdleAction.None && (!b.Upright || s.Action >= IdleAction.Pet))
                         a += ActionPose(ref part, in s, j, act);
@@ -329,7 +341,7 @@ namespace Punchy.Fauna
                 }
 
                 if (part.Role == LimbRole.Leg && part.Parent < 0 && part.SegmentCount >= 2 && part.FirstSegment + part.SegmentCount <= MaxSegments &&
-                    !busyLeg && s.Fly < 0.5f && up < 0.5f && !crawling)
+                    !busyLeg && s.Fly < 0.5f && up < 0.5f && !crawling && (!b.Upright || s.Sit + s.Lie < 0.3f))
                 {
                     // Where the ground would be under this foot if it were the flat, sloped plane the body is
                     // standing on, versus where it really is: bend the leg by the difference.
@@ -619,6 +631,43 @@ namespace Punchy.Fauna
                         return new float3(joint == 0 ? -0.75f - 1.85f * CastBack(s.ActionTime) : -0.5f, 0f, 0f);
                     return new float3(joint == 0 ? -0.75f : -0.55f, 0f, 0f);
                 }
+                default:
+                    return float3.zero;
+            }
+        }
+
+        /// <summary>
+        /// Folk sitting on the ground: legs out in front, knees a little bent and apart; leaning back a touch on hands
+        /// set behind.
+        /// </summary>
+        static float3 SitPose(ref CreaturePart part, int joint)
+        {
+            switch (part.Role)
+            {
+                case LimbRole.Leg:
+                    return joint == 0 ? new float3(-1.45f, part.Side * 0.12f, 0f) : joint == 1 ? new float3(0.3f, 0f, 0f) : float3.zero;
+                case LimbRole.Arm:
+                    return joint == 0 ? new float3(0.5f, 0f, part.Side * 0.15f) : float3.zero;
+                default:
+                    return float3.zero;
+            }
+        }
+
+        /// <summary>
+        /// Folk lying back in the grass: hands behind the head, legs out straight, or (some of them) one knee drawn up.
+        /// </summary>
+        static float3 LiePose(ref CreaturePart part, in CreatureState s, int joint)
+        {
+            switch (part.Role)
+            {
+                case LimbRole.Arm:
+                    return joint == 0 ? new float3(-2.8f, 0f, 0f) : joint == 1 ? new float3(-1.8f, 0f, 0f) : float3.zero;
+                case LimbRole.Leg:
+                    if (part.Side > 0f && CreatureBlob.Trait(s.Individual, 17) > 0f)
+                        return joint == 0 ? new float3(-0.7f, 0f, 0f) : joint == 1 ? new float3(1.3f, 0f, 0f) : float3.zero;
+                    return float3.zero;
+                case LimbRole.Head:
+                    return new float3(0.25f, 0f, 0f);
                 default:
                     return float3.zero;
             }

@@ -272,7 +272,13 @@ namespace Punchy.Fauna
         /// Folk gone for a swim on a warm day: to the bank where they go in (WorkSpot, stage 0), swimming about in the
         /// water round Focus (1), back to the bank (2), standing drying off (3).
         /// </summary>
-        Swim
+        Swim,
+        /// <summary>
+        /// Folk taking their ease: to the spot (Target, stage 0; the posture it's going for in TargetHeight), then sitting
+        /// on the ground facing Focus (1: by the well, on the green), or lying back in the grass (3). (2 is kept for
+        /// sitting on a seat, once there are seats to sit on.)
+        /// </summary>
+        Sit
     }
 
     /// <summary>What a worker does at its post (posed by CreatureAnimator).</summary>
