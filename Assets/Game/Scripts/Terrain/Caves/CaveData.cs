@@ -148,6 +148,9 @@ namespace Punchy.Terrain
     public static class CaveSampling
     {
         public const float Blend = 1.5f;
+        /// <summary>How softly surface air and cave air merge at a mouth (m): rock thinner than about half this opens.
+        /// Shared by the walls (CaveSystem.FieldJob) and the terrain's cut (TerrainSource.MouthCut), so they agree.</summary>
+        public const float MouthBlend = 1.2f;
         /// <summary>Most the wall noise moves a wall at Roughness 1 (both octaves at full strength).</summary>
         public const float NoiseReach = 0.75f;
         /// <summary>Most the ceiling's ridges, fractures and blocks move it at Jaggedness 1.</summary>

@@ -354,8 +354,8 @@ namespace Punchy.Terrain
                 var ground = Source.SampleGround(xz);
                 var normal = Source.SampleNormal(xz, 1f);
                 var surface = Source.SampleSurface(xz, ground, normal);
-                // Nothing grows over a cave entrance.
-                var bare = Source.IsCaveHole(xz);
+                // Nothing grows over a cave entrance, nor right at its edge (a blade there would hang over the opening).
+                var bare = Source.MouthCut(xz, ground.Height) < 0.15f;
                 Points[i] = new GroundPoint
                 {
                     Height = ground.Height,

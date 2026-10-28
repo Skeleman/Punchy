@@ -993,8 +993,12 @@ namespace Punchy.Terrain
 
         // ------------------------------------------------------------------------------------------- building
 
-        /// <summary>Walls are kept only where the cave's distance is under this at a cell corner (MeshJob's nearCave).</summary>
-        const float WallReach = 1.2f;
+        /// <summary>
+        /// Walls are kept only where the cave's distance is under this at a cell corner (MeshJob's nearCave). Wide enough
+        /// that round a mouth the walls' skin of the ground surface runs on under the terrain past wherever the terrain's
+        /// per-vertex cut (TerrainSource.MouthCut) can end, so there's never a gap between them.
+        /// </summary>
+        const float WallReach = 2.5f;
 
         /// <summary>
         /// Lists every chunk a cave's walls can reach, by column. Done once per baked world: chunks follow the
@@ -1244,8 +1248,6 @@ namespace Punchy.Terrain
             public float Voxel;
             [NativeDisableParallelForRestriction] public NativeArray<float> Field, CaveField;
             [ReadOnly] public NativeArray<float> Surface, SurfaceScale;
-            /// <summary>How softly surface air and cave air merge (m): rock thinner than about half this opens.</summary>
-            const float MouthBlend = 1.2f;
 
             public void Execute(int row)
             {
@@ -1260,8 +1262,8 @@ namespace Punchy.Terrain
                     var column = z * Points.x + x;
                     // Air is above the surface or in the cave; a smooth union, so a lip of rock thinner than about half
                     // a metre between them (a thin roof at a mouth) opens up instead of hanging as a floating slab. The
-                    // terrain cuts its own surface where cave air is that close below it, so the two agree.
-                    Field[i] = -CaveSampling.SmoothMin(-((p.y - Surface[column]) * SurfaceScale[column] + 0.1f), cave, MouthBlend);
+                    // terrain cuts its own surface from this same field (TerrainSource.MouthCut), so the two agree.
+                    Field[i] = -CaveSampling.SmoothMin(-((p.y - Surface[column]) * SurfaceScale[column] + 0.1f), cave, CaveSampling.MouthBlend);
                 }
             }
         }

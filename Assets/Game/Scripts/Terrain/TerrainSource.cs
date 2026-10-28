@@ -372,12 +372,32 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Whether the ground surface here is cut away by a cave entrance.</summary>
-        public bool IsCaveHole(float2 xz) => CaveClearance(xz, SampleHeight(xz)) < 0f;
+        public bool IsCaveHole(float2 xz) => MouthCut(xz, SampleHeight(xz)) < 0f;
+
+        /// <summary>
+        /// Whether the cave walls keep rock just under the ground surface here (positive, at most 0.25) or a mouth opens
+        /// (negative): the same field CaveSystem builds the walls from (surface air and cave air merged smoothly over
+        /// CaveSampling.MouthBlend, so a roof thinner than about half a metre opens), sampled 35 cm into the ground. The terrain is
+        /// cut where this is negative, so its edge and the walls' rim agree; the walls carry a skin of the surface for a
+        /// couple of metres round (CaveSystem.WallReach), under the terrain, so the terrain's per-vertex cut never shows a
+        /// gap. 100 away from caves.
+        /// </summary>
+        public float MouthCut(float2 xz, float h)
+        {
+            if (!Caves.IsCreated || !CaveSampling.NearColumn(ref Caves.Value, xz))
+                return 100f;
+            // Into the ground along its normal, as the walls' field measures depth across the slope: mouths open in cliff
+            // faces, where straight down is somewhere else entirely.
+            const float depth = 0.35f;
+            var normal = SampleNormal(xz, 0.5f);
+            var cave = CaveDistance(new float3(xz.x, h, xz.y) - normal * depth);
+            return math.min(CaveSampling.SmoothMin(depth - 0.1f, cave, CaveSampling.MouthBlend), 100f);
+        }
 
         /// <summary>
         /// How far the ground surface at a spot (height h) is from cave air: negative where the terrain is cut away
         /// for a cave entrance, either because the surface is in the cave or because cave air lies just under it (a
-        /// lip too thin to keep). 100 away from caves. The terrain mesh stores the same value per vertex.
+        /// lip too thin to keep). 100 away from caves. (The terrain is cut by MouthCut, which follows the cave walls exactly.)
         /// </summary>
         public float CaveClearance(float2 xz, float h)
         {
