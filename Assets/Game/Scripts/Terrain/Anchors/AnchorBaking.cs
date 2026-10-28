@@ -25,9 +25,83 @@ namespace Punchy.Terrain
                 AddCaveAnchors(source, CaveStyleTable.Collect(types), anchors);
                 AddGlowAnchors(source, CaveFloraTable.Collect(types), anchors);
             }
+            if (source.Settlements.IsCreated)
+                AddTownAnchors(source, types, anchors);
             if (anchors.Count == 0)
                 return default;
             return BuildBlob(anchors, allocator);
+        }
+
+        /// <summary>
+        /// Town anchors, owned by their settlement: a Door just in front of every building on a plot (facing out, so
+        /// residents can come and go through it), a Seat before the leader's hall, an Altar facing each shrine, a Bench in
+        /// each garden, and a Well at each well or fountain the landmark places.
+        /// </summary>
+        static void AddTownAnchors(in TerrainSource source, IReadOnlyList<LandmarkType> types, List<Anchor> anchors)
+        {
+            ref var set = ref source.Settlements.Value;
+            var src = source;
+            void Add(AnchorKind kind, float2 at, float2 facing, float size, int capacity, int settlement)
+            {
+                anchors.Add(new Anchor
+                {
+                    Position = new float3(at.x, src.SampleHeight(at), at.y),
+                    Facing = facing,
+                    Size = size,
+                    Owner = Anchor.OwnerSettlement(settlement),
+                    Kind = kind,
+                    Capacity = (byte)capacity,
+                    Biome = (byte)Dominant(src.SampleGround(at).Biomes),
+                    Tags = 0
+                });
+            }
+            for (int t = 0; t < set.Settlements.Length; t++)
+            {
+                var town = set.Settlements[t];
+                for (int p = town.FirstPlot; p < town.FirstPlot + town.PlotCount; p++)
+                {
+                    var plot = set.Plots[p];
+                    if (plot.Building < 0)
+                        continue;
+                    // The building's front is about three quarters of the way to the plot's street edge.
+                    var door = plot.Centre + plot.Facing * (plot.Half.y * 0.75f + 0.6f);
+                    switch (plot.Role)
+                    {
+                        case PlotRole.Landscaping:
+                            Add(AnchorKind.Bench, plot.Centre, plot.Facing, 1f, 2, t);
+                            break;
+                        case PlotRole.Shrine:
+                            // Standing before the altar, facing it.
+                            Add(AnchorKind.Altar, plot.Centre + plot.Facing * 1.6f, -plot.Facing, 0.8f, 2, t);
+                            break;
+                        case PlotRole.Seat:
+                            Add(AnchorKind.Door, door + plot.Facing * 0.8f, plot.Facing, 0.7f, 1, t);
+                            Add(AnchorKind.Seat, door + plot.Facing * 2.5f, plot.Facing, 0.6f, 1, t);
+                            break;
+                        default:
+                            Add(AnchorKind.Door, door, plot.Facing, 0.6f, 1, t);
+                            break;
+                    }
+                }
+                // Wells and fountains: wherever the landmark type places one.
+                ref var inst = ref source.Landmarks.Value.Instances[town.Landmark];
+                var type = inst.Type < types.Count ? types[inst.Type] : null;
+                if (type == null)
+                    continue;
+                foreach (var prop in type.Props)
+                {
+                    if (prop.Species == null || prop.Species.Form != Punchy.Flora.FloraForm.Well && prop.Species.Form != Punchy.Flora.FloraForm.Fountain)
+                        continue;
+                    if (prop.Centrepiece)
+                        Add(AnchorKind.Well, inst.Position + inst.Facing * 1.6f, -inst.Facing, 0.8f, 2, t);
+                    for (int k = 0; k < prop.Count; k++)
+                    {
+                        var spot = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), town.Radius);
+                        var toCentre = math.normalizesafe(inst.Position - spot);
+                        Add(AnchorKind.Well, spot + toCentre * 1.4f, -toCentre, 0.6f, 2, t);
+                    }
+                }
+            }
         }
 
         /// <summary>A Glow anchor at every glowing cave plant (creatures drawn to light gather there), owned by its cave.</summary>

@@ -82,6 +82,7 @@ namespace Punchy.Flora
                     case FloraForm.Roots: Roots(g); break;
                     case FloraForm.Hall: Hall(g); break;
                     case FloraForm.Shrine: Shrine(g); break;
+                    case FloraForm.Garden: Garden(g); break;
                 }
                 if (lod == 0)
                 {
@@ -1524,6 +1525,28 @@ namespace Punchy.Flora
             RotateFrom(b, first, square);
             b.Occlude(first, (p, n) => GroundOcclusion(p, wall * 0.5f));
 
+            // Wall detail: dressed quoins up each corner (alternating long and short blocks), a plinth course round
+            // the foot, and a string course under the eaves.
+            if (g.Lod < 2)
+            {
+                var dressed = g.Bark * 1.18f;
+                var course = 0.42f;
+                for (int c = 0; c < 4; c++)
+                {
+                    var cx = (c & 1) == 0 ? -half : half;
+                    var cz = (c & 2) == 0 ? -half : half;
+                    for (int k = 0; (k + 0.5f) * course < wall - 0.2f; k++)
+                    {
+                        var longOnX = k % 2 == 0;
+                        var size = new Vector3(longOnX ? 0.7f : 0.35f, course * 0.92f, longOnX ? 0.35f : 0.7f);
+                        var at = new Vector3(cx - Mathf.Sign(cx) * (size.x * 0.5f - 0.04f), (k + 0.5f) * course, cz - Mathf.Sign(cz) * (size.z * 0.5f - 0.04f));
+                        b.Box(at, size, Quaternion.identity, dressed * g.Range(0.92f, 1.08f), FloraPart.Bark);
+                    }
+                }
+                b.Box(new Vector3(0f, 0.2f, 0f), new Vector3(half * 2f + 0.14f, 0.4f, half * 2f + 0.14f), Quaternion.identity, g.Bark * 0.72f, FloraPart.Bark);
+                b.Box(new Vector3(0f, wall - 0.15f, 0f), new Vector3(half * 2f + 0.12f, 0.16f, half * 2f + 0.12f), Quaternion.identity, dressed, FloraPart.Bark);
+            }
+
             // Low pyramid roof with an overhang, and a chimney.
             var roof = b.VertexCount;
             b.Tube(new List<Vector3> { Vector3.up * (wall - 0.1f), Vector3.up * height }, new List<float> { corner * 1.2f, 0.05f }, 4, g.FoliageColor(), FloraPart.Bark, cap: true);
@@ -1913,6 +1936,68 @@ namespace Punchy.Flora
                 foreach (var x in new[] { -0.45f, 0.45f })
                     b.Tube(new List<Vector3> { new Vector3(x, floor + 0.02f, half * 0.55f), new Vector3(x, floor + 0.14f, half * 0.55f) },
                            new List<float> { 0.1f, 0.14f }, 6, stone * 0.8f, FloraPart.Bark, cap: true);
+        }
+
+        /// <summary>
+        /// A garden, its gate facing +Z: a low wattle fence (posts and two rails) round a square with a gap at the front,
+        /// rows of vegetables across it (leafy clumps in the foliage colours), and a few flowers in the accents.
+        /// </summary>
+        static void Garden(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var fence = g.Range(s.Height);
+            var half = fence * s.Spread * 0.5f;
+            g.Height = fence;
+            g.Width = half * 2f;
+            g.TrunkRadius = 0f;
+            var wood = g.Bark;
+
+            // The fence: posts round the square, rails between them, a gap in the middle of the front.
+            if (g.Lod < 2)
+            {
+                var posts = Mathf.Max(3, Mathf.RoundToInt(half / 0.9f));
+                for (int side = 0; side < 4; side++)
+                {
+                    var rot = Quaternion.Euler(0f, side * 90f, 0f);
+                    for (int k = 0; k <= posts; k++)
+                    {
+                        var x = Mathf.Lerp(-half, half, k / (float)posts);
+                        if (side == 0 && Mathf.Abs(x) < 0.7f)
+                            continue;   // the gate gap
+                        b.Box(rot * new Vector3(x, fence * 0.45f, half), new Vector3(0.08f, fence * 0.95f, 0.08f), rot, wood * g.Range(0.85f, 1.1f), FloraPart.Bark);
+                    }
+                    foreach (var y in new[] { fence * 0.35f, fence * 0.75f })
+                    {
+                        if (side == 0)
+                        {
+                            foreach (var dir in new[] { -1f, 1f })
+                                b.Box(rot * new Vector3(dir * (half + 0.7f) * 0.5f, y, half), new Vector3(half - 0.7f, 0.05f, 0.05f), rot, wood, FloraPart.Bark);
+                        }
+                        else
+                            b.Box(rot * new Vector3(0f, y, half), new Vector3(half * 2f, 0.05f, 0.05f), rot, wood, FloraPart.Bark);
+                    }
+                }
+            }
+
+            // Rows of vegetables, running front to back, with a path down the middle from the gate.
+            var rows = Mathf.Max(2, Mathf.RoundToInt(half / 0.7f));
+            for (int r = 0; r < rows; r++)
+            {
+                var x = Mathf.Lerp(-half + 0.5f, half - 0.5f, r / (rows - 1f));
+                if (Mathf.Abs(x) < 0.45f)
+                    continue;
+                var count = Mathf.Max(2, Mathf.RoundToInt((half * 2f - 1f) / (g.Lod == 2 ? 1.4f : 0.6f)));
+                for (int k = 0; k < count; k++)
+                {
+                    var z = Mathf.Lerp(-half + 0.5f, half - 0.6f, k / (count - 1f));
+                    var size = g.Range(0.18f, 0.3f);
+                    var color = g.FoliageColor();
+                    if (g.HasAccent && g.R() < s.AccentAmount * 0.2f)
+                        color = g.Accent;
+                    b.Blob(new Vector3(x + g.Range(-0.06f, 0.06f), size * 0.6f, z), new Vector3(size, size * 0.8f, size), Quaternion.identity, g.Lod == 0 ? 1 : 0, 0.3f, g.R() * 50f, color, FloraPart.Foliage);
+                }
+            }
         }
 
         static void Smithy(Grower g)
