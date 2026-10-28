@@ -17,7 +17,8 @@ asks Zach if needed, and records the answer here.
 
 - **Asked:** 2026-10-28, by the animal session via the supervisor (default pace is a 6 m/s jog).
 - **Also comes up when:** movement speeds, sneaking, gait tuning.
-- **Answer (2026-10-28):** add a walk toggle (~1.6 m/s with a walking gait); the jog stays the default, sprint unchanged.
+- **Answer (2026-10-28):** add a walk toggle (~1.6 m/s with a walking gait); the jog stays the default. Sprint
+  becomes a toggle too and switches off when the character stops moving.
 - **Why:** (recommendation) quick travel by default, walking for towns, sneaking and screenshots.
 - **Revisited:** 0.
 
