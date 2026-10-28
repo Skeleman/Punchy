@@ -17,7 +17,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 20ddf4d9933283446b410b041eced8ef, type: 2}
   Width: 1.1
   Height: 1.1
-  Roughness: 0.35
+  Roughness: 0.5
   Grain: 0.6
   Jaggedness: 0.8
   Blockiness: 0.8
