@@ -13,6 +13,14 @@ asks Zach if needed, and records the answer here.
 
 ## Decided
 
+### J-029: Bigger buildings mean fewer per town. Grow towns?
+
+- **Asked:** 2026-10-28, by the world session after the door headroom resize.
+- **Also comes up when:** building scale changes; settlement layouts; cities.
+- **Answer (2026-10-28):** grow settlement radii so building counts return to roughly what they were.
+- **Why:** (recommendation).
+- **Revisited:** 0.
+
 ### J-028: Should the player have a walking speed?
 
 - **Asked:** 2026-10-28, by the animal session via the supervisor (default pace is a 6 m/s jog).
