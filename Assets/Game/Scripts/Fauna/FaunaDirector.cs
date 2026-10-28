@@ -707,7 +707,8 @@ namespace Punchy.Fauna
                         var node = set.Nodes[cave.FirstNode + rng.NextInt(cave.NodeCount / 3, cave.NodeCount)];
                         var at = node.Position + new float3(rng.NextFloat(-0.5f, 0.5f), 0f, rng.NextFloat(-0.5f, 0.5f)) * node.Radius;
                         var floor = source.FloorUnder(at, out var inCave);
-                        if (inCave)
+                        // (Really under the rock: not where a passage opens to the sky.)
+                        if (inCave && source.CaveDistance(new float3(at.x, floor + 0.3f, at.z)) < -0.05f)
                             Spawn(sp, new float3(at.x, floor, at.z));
                     }
                 }

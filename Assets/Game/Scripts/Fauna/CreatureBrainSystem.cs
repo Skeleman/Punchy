@@ -179,7 +179,8 @@ namespace Punchy.Fauna
                 var playerDistance = math.length(away);
                 // A bird in the air judges the player by real distance (high overhead is far), and keeps on with a hunt
                 // unless the player is really close.
-                var threatDistance = flier && Flying(s) ? math.distance(s.Position, player) : playerDistance;
+                // (In a cave, too: someone walking on the ground overhead isn't near.)
+                var threatDistance = flier && Flying(s) || b.CaveDweller ? math.distance(s.Position, player) : playerDistance;
                 var nerve = s.Mode == CreatureMode.Hunt && flier ? 0.4f : 1f;
                 var threatened = !aloft && b.FleeDistance > 0f && threatDistance < b.FleeDistance * s.Scale * alert * nerve * tame;
                 var threat = player.xz;
@@ -240,6 +241,8 @@ namespace Punchy.Fauna
                             s.Target = s.Position.xz + dir * rng.NextFloat(30f, 50f) + rng.NextFloat2Direction() * 8f;
                             s.TargetHeight = Terrain.SampleHeight(s.Target);
                         }
+                        else if (b.CaveDweller)
+                            s.Target = CaveEscape(s, threat, ref rng);
                         else
                             s.Target = s.Position.xz + dir * 30f + rng.NextFloat2Direction() * 6f;
                     }
@@ -309,7 +312,19 @@ namespace Punchy.Fauna
                         }
                         targetSpeed = run;
                         moving = true;
-                        if (threatened && math.distance(s.Position.xz, s.Target) < 2f)
+                        // In a cave: on along the passages, a point at a time (and another way if it's stuck at a
+                        // wall: StageTime counts the time without getting anywhere).
+                        if (b.CaveDweller)
+                        {
+                            if (s.Speed > 0.15f)
+                                s.StageTime = 0f;
+                            if (threatened && (math.distance(s.Position.xz, s.Target) < 1.5f || s.StageTime > 1f))
+                            {
+                                s.Target = CaveEscape(s, s.Focus, ref rng);
+                                s.StageTime = 0f;
+                            }
+                        }
+                        else if (threatened && math.distance(s.Position.xz, s.Target) < 2f)
                             s.Target = s.Position.xz + math.normalizesafe(s.Position.xz - s.Focus, new float2(1f, 0f)) * 30f;
                         else if (!threatened && (s.ModeTime > 3f || math.distance(s.Position.xz, s.Target) < 2f))
                             Pause(ref s, ref b, ref rng);
@@ -499,7 +514,10 @@ namespace Punchy.Fauna
                     var landBound = (b.Habitat == Habitat.Land || flier) && !b.CaveDweller;
                     var blocked = b.CaveDweller ? s.Speed > 0.05f && !CaveFloor(ahead, s.Position.y)
                                                 : s.Speed > 0.05f && !Walkable(ahead, b.Habitat);
-                    if (blocked || landBound && s.Speed > 0.05f && SlopeAhead(s.Position.xz, ahead) > 0.8f)
+                    // (In a cave, running or going somewhere along the passage, it follows the wall round: Advance.)
+                    var followsWall = b.CaveDweller && (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Drink ||
+                                                        s.Mode == CreatureMode.Wander && math.distance(s.Position.xz, s.Target) > 2f);
+                    if (!followsWall && (blocked || landBound && s.Speed > 0.05f && SlopeAhead(s.Position.xz, ahead) > 0.8f))
                     {
                         s.Speed *= 0.5f;
                         if (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Play && s.Stage == 1)
@@ -1656,11 +1674,62 @@ namespace Punchy.Fauna
                 return true;
             }
 
-            /// <summary>Whether a cave dweller at this height can step here: cave floor at about the same level.</summary>
-            bool CaveFloor(float2 xz, float y)
+            /// <summary>
+            /// Where a cave dweller runs to next: a point along the passages (a cave node within 15 m, on about its level),
+            /// the one that puts most distance between it and the threat without heading towards it; straight away
+            /// if there's none (the wall-sliding in Advance keeps it off the rock either way).
+            /// </summary>
+            float2 CaveEscape(in CreatureState s, float2 threat, ref Random rng)
             {
-                var floor = Terrain.FloorUnder(new float3(xz.x, y + 0.3f, xz.y), out var inCave);
-                return inCave && math.abs(floor - y) < 0.8f;
+                var away = math.normalizesafe(s.Position.xz - threat, rng.NextFloat2Direction());
+                var best = s.Position.xz + away * 12f;
+                if (!Terrain.Caves.IsCreated)
+                    return best;
+                ref var set = ref Terrain.Caves.Value;
+                var bestScore = float.MinValue;
+                for (int n = 0; n < set.Nodes.Length; n++)
+                {
+                    var p = set.Nodes[n].Position;
+                    var to = p.xz - s.Position.xz;
+                    var d = math.length(to);
+                    // Near ones: the next stretch of passage (it picks another on arriving).
+                    if (d < 2.5f || d > 15f || math.abs(p.y - s.Position.y) > 4f)
+                        continue;
+                    // Not past the threat: the way to it mustn't lead towards what it's running from.
+                    if (math.dot(to / d, away) < -0.2f)
+                        continue;
+                    // (A little chance in it, so one stuck at a wall tries another way.)
+                    var score = math.distance(p.xz, threat) - d * 0.3f + rng.NextFloat(0f, 4f);
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        best = p.xz;
+                    }
+                }
+                return best;
+            }
+
+            /// <summary>
+            /// Whether a cave dweller at this height can step here: cave floor at about the same level, under the rock
+            /// (not out of the mouth into the open: cave dwellers stay in their cave).
+            /// </summary>
+            bool CaveFloor(float2 xz, float y) => CaveFloorAt(xz, y, out _);
+
+            /// <summary>
+            /// The cave floor under a point at about body height above <paramref name="y"/>, if there's cave air there
+            /// (so not in the rock: inside solid rock FloorUnder answers "in a cave" with the floor where the point
+            /// is) and the floor is near that level, under the rock (not out of the mouth).
+            /// </summary>
+            bool CaveFloorAt(float2 xz, float y, out float floor)
+            {
+                floor = y;
+                var above = new float3(xz.x, y + 0.6f, xz.y);
+                if (Terrain.CaveDistance(above) >= 0f)
+                    return false;
+                floor = Terrain.FloorUnder(above, out var inCave);
+                // (Up a step of up to half a metre; down off a ledge of up to 3 m. A real floor is below the point
+                // asked from: FloorUnder answers with the point's own height when its search starts in rock.)
+                return inCave && floor < above.y - 0.05f && floor - y < 0.5f && y - floor < 3f && floor < Terrain.SampleHeight(xz) - 1f;
             }
 
             /// <summary>A short, low loop to somewhere nearby: a bat hawking for insects.</summary>
@@ -2324,10 +2393,45 @@ namespace Punchy.Fauna
             void Advance(ref CreatureState s, ref CreatureBlob b, float dt, bool keepHeight = false)
             {
                 var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
-                s.Position.xz += forward * s.Speed * dt;
                 if (b.CaveDweller)
-                    s.Position.y = Terrain.FloorUnder(s.Position, out _);
-                else if (b.Habitat == Habitat.Land || b.Habitat == Habitat.Flies)
+                {
+                    // On the passage floor, never into rock: blocked, it slides along the wall (the nearest open way
+                    // to either side of its heading, turning towards it), or stops.
+                    var step = s.Speed * dt;
+                    var next = s.Position.xz + forward * step;
+                    if (step > 0f && !CaveFloor(next, s.Position.y))
+                    {
+                        var moved = false;
+                        // (All the way round if need be: cornered, it turns back the way it came.)
+                        for (int k = 1; k <= 7 && !moved; k++)
+                            for (int side = -1; side <= 1 && !moved; side += 2)
+                            {
+                                var angle = s.Yaw + side * k * 0.45f;
+                                var slide = s.Position.xz + new float2(math.sin(angle), math.cos(angle)) * step;
+                                if (CaveFloor(slide, s.Position.y))
+                                {
+                                    next = slide;
+                                    s.Yaw = WrapAngle(s.Yaw + WrapAngle(angle - s.Yaw) * 0.3f);
+                                    moved = true;
+                                }
+                            }
+                        if (!moved)
+                        {
+                            next = s.Position.xz;
+                            s.Speed = 0f;
+                        }
+                    }
+                    s.Position.xz = next;
+                    // (Only a floor in the cave: outside it FloorUnder gives the surface, which would lift it through
+                    // the rock to the ground overhead.)
+                    // Onto the floor: up a step at once, down off a ledge falling.
+                    if (CaveFloorAt(s.Position.xz, s.Position.y, out var floorY))
+                        s.Position.y = floorY > s.Position.y ? floorY : math.max(floorY, s.Position.y - dt * 6f);
+                    CreatureMotion.AdvancePhase(ref s, ref b, dt);
+                    return;
+                }
+                s.Position.xz += forward * s.Speed * dt;
+                if (b.Habitat == Habitat.Land || b.Habitat == Habitat.Flies)
                 {
                     if (!keepHeight)
                         s.Position.y = Terrain.SampleHeight(s.Position.xz);

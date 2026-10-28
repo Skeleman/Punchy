@@ -305,7 +305,7 @@ namespace Punchy.Debugging
                     {
                         var xz = player.Position.xz + rng.NextFloat2Direction() * rng.NextFloat(2f, 15f);
                         var floor = source.FloorUnder(new float3(xz.x, player.Position.y + 0.5f, xz.y), out var inCave);
-                        if (!inCave || math.abs(floor - player.Position.y) > 2f)
+                        if (!inCave || math.abs(floor - player.Position.y) > 2f || source.CaveDistance(new float3(xz.x, floor + 0.3f, xz.y)) >= -0.05f)
                             continue;
                         director.Spawn(index, new float3(xz.x, floor, xz.y));
                         spawned++;
