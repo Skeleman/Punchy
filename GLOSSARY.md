@@ -86,6 +86,12 @@ it real. To add or change a term, edit this file in the same commit as the code 
   Stretch, Sniff, Sit, SitUp, TailFlick, Preen, HeadBob, LookAround, Howl), done while calm.
 - **Flee**, **Alarm** (one of a herd bolting sets off the rest), **Flock** (birds following one that takes off),
   **Dive** (a bird of prey's hunt on fish), **Caught** (`CreatureState.Gone`: removed by the Director).
+- **Destination** (principle, from Zach): anything that moves a distance is going somewhere identifiable. Folk always
+  pick a named target (a door, the well, the hall, a stall, a field, a seat, a gate, the next town), walk there with
+  purpose, do something, then pick the next; no random-point wandering for folk. Messenger birds arrive from and leave
+  for real places. Animals head for what their Needs ask for (water, grazing, lair, a sunny rock, a roost); short local
+  milling while grazing is fine. The current goal shows in the `-watch` log. Existing wandering is retrofitted
+  gradually, folk first.
 - **Need** (new): a drive that rises over time (hunger, thirst, rest, safety, social). Needs give animals agency
   instead of wandering.
 - **Lair** (new): an animal's home: nest, den, burrow, roost, web. Seed-derived lairs persist (cheap to regenerate);
