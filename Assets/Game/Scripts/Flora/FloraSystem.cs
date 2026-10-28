@@ -548,7 +548,8 @@ namespace Punchy.Flora
                         var rp = new RenderParams(l.Material)
                         {
                             worldBounds = bounds,
-                            shadowCastingMode = s.CastShadows && lod < 2 ? ShadowCastingMode.On : ShadowCastingMode.Off,
+                            // Small props (fences, palisades, signposts...) cast none: the shadow pass's cost is per draw.
+                            shadowCastingMode = s.CastShadows && model.CastsShadows && lod < 2 ? ShadowCastingMode.On : ShadowCastingMode.Off,
                             receiveShadows = true
                         };
                         Graphics.RenderMeshIndirect(rp, model.Lods[lod], l.Args, 1, m * 3 + lod);

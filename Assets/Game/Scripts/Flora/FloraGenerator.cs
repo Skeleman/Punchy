@@ -18,6 +18,14 @@ namespace Punchy.Flora
         /// plant's base, radius, height of the top), before the plant's own rotation and scale. Empty = the trunk.
         /// </summary>
         public readonly List<Vector4> Colliders = new List<Vector4>();
+        /// <summary>Whether it casts shadows. Small props (fences, palisades, signposts, garden rows, woodpiles,
+        /// stalls, flowers) don't: towns have hundreds of them, and every shadow-casting draw costs a shadow pass.</summary>
+        public bool CastsShadows = true;
+
+        /// <summary>Forms that cast no shadow (see CastsShadows).</summary>
+        public static bool Shadowless(FloraForm form) =>
+            form is FloraForm.Pen or FloraForm.Palisade or FloraForm.Signpost or FloraForm.Garden or FloraForm.Woodpile
+                 or FloraForm.Stall or FloraForm.Flowers;
 
         public void Destroy()
         {
@@ -38,6 +46,7 @@ namespace Punchy.Flora
         {
             var model = new FloraModel { Species = species };
             var builder = new FloraMeshBuilder();
+            model.CastsShadows = !FloraModel.Shadowless(species.Form);
             var seed = (int)Hash((uint)species.Seed, (uint)variant, StableHash(species.name));
             for (int lod = 0; lod < 3; lod++)
             {
