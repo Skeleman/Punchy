@@ -33,7 +33,6 @@ Shader "Punchy/Flora"
                 half3  normalWS   : TEXCOORD1;
                 half4  color      : TEXCOORD2;   // rgb albedo, a ambient occlusion
                 float4 extra      : TEXCOORD3;   // x part, y fade, z snow, w random
-                float2 cardUV     : TEXCOORD4;   // leaf cards' atlas UV
             };
 
             Varyings Vert(FloraAttributes input)
@@ -44,10 +43,7 @@ Shader "Punchy/Flora"
                 o.positionCS = TransformWorldToHClip(v.positionWS);
                 o.normalWS = v.normalWS;
                 o.color = half4(input.color.rgb, input.data.w);
-                float part = input.data.y;
-                if (FloraCard(part, o.cardUV))
-                    part = 6;
-                o.extra = float4(part, v.fade, v.plant.snow, v.plant.random);
+                o.extra = float4(input.data.y, v.fade, v.plant.snow, v.plant.random);
                 return o;
             }
 
@@ -55,14 +51,7 @@ Shader "Punchy/Flora"
             {
                 FloraDither(input.positionCS, input.extra.y, input.positionWS);
                 int part = (int)round(input.extra.x);
-                bool card = part == 6;
-                half cardShade = 1;
-                if (card)
-                {
-                    FloraCardClip(input.cardUV);
-                    cardShade = SAMPLE_TEXTURE2D(_PunchyLeafAtlas, sampler_PunchyLeafAtlas, input.cardUV).r;
-                }
-                bool leafy = part == 1 || part == 2 || part == 5 || card;
+                bool leafy = part == 1 || part == 2 || part == 5;
                 bool metal = part == 4;
                 half3 n = normalize(input.normalWS);
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
@@ -70,10 +59,8 @@ Shader "Punchy/Flora"
                 // Per-plant tint: brightness, and leaves a little yellower or bluer.
                 half r = input.extra.w;
                 half3 albedo = input.color.rgb * (0.88 + 0.24 * r);
-                if (part == 1 || card)
+                if (part == 1)
                     albedo *= lerp(half3(0.95, 1.0, 1.06), half3(1.1, 1.04, 0.82), r);
-                // Leaf cards: each leaf a little lighter towards its tip, darker along the vein (from the atlas).
-                albedo *= lerp(1, cardShade * 1.1, card ? 0.6 : 0);
 
                 // Snow settles on upward faces where the ground under the plant is snowy.
                 half snow = saturate(input.extra.z * 1.5) * smoothstep(0.15, 0.6, n.y);
@@ -184,11 +171,6 @@ Shader "Punchy/Flora"
             #endif
                 Varyings o;
                 o.positionCS = ApplyShadowClamping(TransformWorldToHClip(ApplyShadowBias(v.positionWS, v.normalWS, lightDirectionWS)));
-                // Leaf cards cast no shadow (the crown core does): moved outside the clip volume, so the shadow
-                // pass never runs their alpha test.
-                float2 cardUV;
-                if (FloraCard(input.data.y, cardUV))
-                    o.positionCS = float4(2, 2, 2, 1);
                 o.fade = v.fade;
                 return o;
             }
@@ -222,7 +204,6 @@ Shader "Punchy/Flora"
                 float4 positionCS : SV_POSITION;
                 float fade : TEXCOORD0;
                 float3 positionWS : TEXCOORD1;
-                float3 card : TEXCOORD2;   // xy atlas UV, z 1 on a leaf card
             };
 
             Varyings Vert(FloraAttributes input)
@@ -232,15 +213,12 @@ Shader "Punchy/Flora"
                 o.positionCS = TransformWorldToHClip(v.positionWS);
                 o.fade = v.fade;
                 o.positionWS = v.positionWS;
-                o.card.z = FloraCard(input.data.y, o.card.xy) ? 1 : 0;
                 return o;
             }
 
             half Frag(Varyings input) : SV_Target
             {
                 FloraDither(input.positionCS, input.fade, input.positionWS);
-                if (input.card.z > 0.5)
-                    FloraCardClip(input.card.xy);
                 return input.positionCS.z;
             }
             ENDHLSL
@@ -268,7 +246,6 @@ Shader "Punchy/Flora"
                 float fade : TEXCOORD0;
                 float3 positionWS : TEXCOORD1;
                 half3 normalWS : TEXCOORD2;
-                float3 card : TEXCOORD3;   // xy atlas UV, z 1 on a leaf card
             };
 
             Varyings Vert(FloraAttributes input)
@@ -279,7 +256,6 @@ Shader "Punchy/Flora"
                 o.fade = v.fade;
                 o.positionWS = v.positionWS;
                 o.normalWS = v.normalWS;
-                o.card.z = FloraCard(input.data.y, o.card.xy) ? 1 : 0;
                 return o;
             }
 
@@ -290,8 +266,6 @@ Shader "Punchy/Flora"
             )
             {
                 FloraDither(input.positionCS, input.fade, input.positionWS);
-                if (input.card.z > 0.5)
-                    FloraCardClip(input.card.xy);
                 // Leaves are double-sided: the back face's normal points the other way.
                 half3 n = NormalizeNormalPerPixel(input.normalWS);
                 outNormalWS = half4(front ? n : -n, 0);

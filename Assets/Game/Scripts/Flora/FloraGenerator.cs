@@ -351,62 +351,10 @@ namespace Punchy.Flora
                     var first = b.Blob(c.centre, radii, Quaternion.identity, detail, 0.22f, c.seed, c.color, FloraPart.Foliage);
                     b.BlendNormalsFrom(first, crownCentre, crownRadii, 0.55f);
                     if (g.Lod == 0)
-                    {
                         b.Leaves(c.centre, radii, (int)(16 + 26 * s.Fullness), c.radius * 0.3f, g.Detail, c.color, c.color * 1.15f);
-                        if (s.LeafFringe)
-                            LeafFringe(b, g.Detail, c.centre, radii, c.radius, c.color, crownCentre, crownRadii);
-                    }
                 }
             }
             b.Occlude(firstLeaf, (p, n) => CrownOcclusion(p, crownCentre, crownRadii));
-        }
-
-        /// <summary>
-        /// A fringe of leaf cards round one clump of a crown: alpha-cut leaf-cluster quads standing on and just outside
-        /// the clump's surface, angled outwards with some jitter, only on the side facing out of the crown (none
-        /// inside it, few underneath), so the crown's silhouette breaks into leaves while its core stays solid. Their
-        /// normals lean towards the crown's outward direction as the core's do, so they shade as part of it. Each
-        /// vertex's part encodes its atlas corner (see FloraPart.Card). Uses the detail random stream, so the tree's
-        /// shape (and everything animals read from it) is unchanged.
-        /// </summary>
-        static void LeafFringe(FloraMeshBuilder b, System.Random rng, Vector3 centre, Vector3 radii, float radius, Color color,
-                               Vector3 crownCentre, Vector3 crownRadii)
-        {
-            float R() => (float)rng.NextDouble();
-            var outOfCrown = Vector3.Scale(centre - crownCentre, new Vector3(1f / crownRadii.x, 1f / crownRadii.y, 1f / crownRadii.z));
-            outOfCrown = outOfCrown.sqrMagnitude > 1e-4f ? outOfCrown.normalized : Vector3.up;
-            var cards = 14;
-            for (int i = 0; i < cards; i++)
-            {
-                var u = FloraMeshBuilder.RandomDirection(rng);
-                // Only where the clump faces out of the crown; thin underneath.
-                if (Vector3.Dot(u, outOfCrown) < -0.15f || u.y < -0.35f && R() < 0.7f)
-                    continue;
-                var size = radius * (0.75f + 0.4f * R());
-                var at = centre + Vector3.Scale(u, radii) * 0.9f + u * size * 0.35f;
-                var facing = (u + FloraMeshBuilder.RandomDirection(rng) * 0.45f).normalized;
-                var right = Vector3.Cross(facing, Vector3.up);
-                if (right.sqrMagnitude < 1e-3f)
-                    right = Vector3.right;
-                right.Normalize();
-                var up = Vector3.Cross(right, facing);
-                var spin = R() * Mathf.PI * 2f;
-                var a = (right * Mathf.Cos(spin) + up * Mathf.Sin(spin)) * size * 0.5f;
-                var c = Vector3.Cross(facing, a);
-                var cell = (int)(R() * 4f) % 4;
-                var tint = Color.Lerp(color, color * 1.12f, R());
-                var normal = Vector3.Lerp(facing, outOfCrown, 0.5f).normalized;
-                var first = b.VertexCount;
-                for (int corner = 0; corner < 4; corner++)
-                {
-                    var p = at + a * ((corner & 1) == 0 ? -1f : 1f) + c * ((corner & 2) == 0 ? -1f : 1f);
-                    b.Vertex(p, normal, tint, (FloraPart)((int)FloraPart.Card + cell * 4 + corner), 1f, 1f);
-                }
-                b.Triangle(first, first + 2, first + 1);
-                b.Triangle(first + 1, first + 2, first + 3);
-                // Shade with the core: three quarters the crown's outward direction.
-                b.BlendNormalsFrom(first, crownCentre, crownRadii, 0.75f);
-            }
         }
 
         static void Conifer(Grower g)
