@@ -17,7 +17,9 @@ namespace Punchy.Flora
         Metal = 4,
         Glow = 5,
         /// <summary>A window pane: dark glass by day, lit in its colour at night (some go out late; see Flora.shader).</summary>
-        Window = 6
+        Window = 6,
+        /// <summary>Glassy crystal (FoliageFinish.Glass; see Flora.shader).</summary>
+        Glass = 7
     }
 
     /// <summary>

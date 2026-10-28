@@ -484,6 +484,12 @@ namespace Punchy.Flora
                 c = s.Foliage;
                 share = 1f;
             }
+            else if (s.Finish == FoliageFinish.Glass)
+            {
+                // Glass crystals glow faintly from inside.
+                c = s.Foliage;
+                share = 0.45f;
+            }
             else if (s.GlowingAccents && s.Accents.Count > 0)
             {
                 c = s.Accents[0];

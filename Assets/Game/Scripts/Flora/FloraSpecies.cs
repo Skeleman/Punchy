@@ -91,7 +91,9 @@ namespace Punchy.Flora
     {
         [Tooltip("Ordinary leaves.")] Matte,
         [Tooltip("Polished metal: sharp highlights and glittering glints.")] Metallic,
-        [Tooltip("Shines by itself, gently pulsing; visible at night.")] Glowing
+        [Tooltip("Shines by itself, gently pulsing; visible at night.")] Glowing,
+        [Tooltip("Glassy crystal: a dark clear body with a faint glow inside, a bright rim where it turns away, sharp " +
+                 "highlights and a shift of hue at the edges as if light bent through it. Opaque (drawn solid).")] Glass
     }
 
     public enum FlowerHead : byte

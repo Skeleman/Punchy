@@ -186,7 +186,8 @@ namespace Punchy.Terrain
                 var species = flora[plant.Species];
                 // A clutch of eggs is a nest on the floor (spiders, lizards and salamanders tend it), one creature at a time.
                 var eggs = species.Form == Punchy.Flora.FloraForm.Eggs;
-                if (!eggs && species.Finish != Punchy.Flora.FoliageFinish.Glowing && !species.GlowingAccents)
+                if (!eggs && species.Finish != Punchy.Flora.FoliageFinish.Glowing && species.Finish != Punchy.Flora.FoliageFinish.Glass &&
+                    !species.GlowingAccents)
                     continue;
                 CaveSampling.Distance(ref set, plant.Position + new float3(0f, 0.5f, 0f), out var cave);
                 if (cave < 0)

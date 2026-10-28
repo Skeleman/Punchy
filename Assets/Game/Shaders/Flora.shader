@@ -156,6 +156,28 @@ Shader "Punchy/Flora"
                     color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * ao * lerp(1, 0.06, _PunchyUnderground);
                 }
 
+                // Glass (crystals): a dark clear body lit faintly from inside, a bright rim where the surface turns
+                // away whose hue shifts (light bent through it), the sky reflected at grazing angles, and sharp
+                // highlights from the sun and the lantern. Drawn solid: the look of glass without its cost.
+                if (part == 7)
+                {
+                    half facingV = saturate(dot(n, v));
+                    half rim = pow(1 - facingV, 3);
+                    half3 bent = lerp(albedo, albedo.gbr * 0.6 + albedo * 0.6, 0.45);
+                    color = albedo * (light.color * shadow * diffuse * 0.25 + sky * 0.45) * ao;
+                    color += albedo * (0.12 + 0.25 * (1 - facingV)) * lerp(1, 2.5, max(_PunchyUnderground, _FloraInCave));
+                    color += lerp(bent, 1, 0.35) * rim * (SampleSH(reflect(-v, n)) * lerp(1, 0.15, _PunchyUnderground) + sky * 0.6 + 0.08) * 1.4;
+                    half3 hSun = normalize(light.direction + v);
+                    color += light.color * shadow * pow(saturate(dot(n, hSun)), 320) * 5;
+                    if (_PunchyLantern.w > 0)
+                    {
+                        float3 toLantern = _PunchyLantern.xyz - input.positionWS;
+                        float reachL = saturate(1 - length(toLantern) / _PunchyLanternColor.w);
+                        half3 hL = normalize(normalize(toLantern) + v);
+                        color += _PunchyLanternColor.rgb * _PunchyLantern.w * reachL * pow(saturate(dot(n, hL)), 200) * 4;
+                    }
+                }
+
                 // Glowing parts shine by themselves (bright enough to bloom at night), with a gentle, slow shimmer of
                 // the species' own amount (carried as a fraction on the part; 0 for crystals), out of step plant to plant.
                 if (part == 5)
