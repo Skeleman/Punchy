@@ -12,26 +12,25 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: be30a536c49003f42bba655b0fd41247, type: 3}
   m_Name: OgreLodge
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
-  Form: 32
+  Form: 35
   Layer: 2
-  Height: {x: 9, y: 10.5}
-  Spread: 1.2
+  Height: {x: 6.5, y: 7.5}
+  Spread: 1.9
   TrunkFraction: 0.35
   Thickness: 0.035
   Fullness: 0.7
   Branches: {x: 3, y: 5}
   Flexibility: 0.5
   FlowerHead: 0
-  Bark: {r: 0.35, g: 0.25, b: 0.17, a: 1}
-  Foliage: {r: 0.45, g: 0.35, b: 0.24, a: 1}
-  FoliageVariation: {r: 0.52, g: 0.4, b: 0.28, a: 1}
+  Bark: {r: 0.32, g: 0.24, b: 0.16, a: 1}
+  Foliage: {r: 0.5, g: 0.38, b: 0.26, a: 1}
+  FoliageVariation: {r: 0.38, g: 0.3, b: 0.22, a: 1}
   Accents:
-  - {r: 1, g: 0.5, b: 0.18, a: 1}
-  - {r: 0.75, g: 0.68, b: 0.55, a: 1}
+  - {r: 0.86, g: 0.82, b: 0.7, a: 1}
   AccentAmount: 1
   ColorVariation: 0.12
   Finish: 0
-  GlowingAccents: 1
+  GlowingAccents: 0
   MaxSlope: 60
   Elevation: {x: 0.5, y: 10000}
   GrassAffinity: 0.5

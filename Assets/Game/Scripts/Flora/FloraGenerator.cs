@@ -83,6 +83,8 @@ namespace Punchy.Flora
                     case FloraForm.Hall: Hall(g); break;
                     case FloraForm.Shrine: Shrine(g); break;
                     case FloraForm.Garden: Garden(g); break;
+                    case FloraForm.Lodge: Lodge(g); break;
+                    case FloraForm.Signpost: Signpost(g); break;
                 }
                 if (lod == 0)
                 {
@@ -1997,6 +1999,121 @@ namespace Punchy.Flora
                         color = g.Accent;
                     b.Blob(new Vector3(x + g.Range(-0.06f, 0.06f), size * 0.6f, z), new Vector3(size, size * 0.8f, size), Quaternion.identity, g.Lod == 0 ? 1 : 0, 0.3f, g.R() * 50f, color, FloraPart.Foliage);
                 }
+            }
+        }
+
+        /// <summary>
+        /// A big folk's lodge, its door facing +Z: crossed pole pairs along its length carrying a ridge pole, hides
+        /// sagging between them down to the ground (patchy, each hide its own shade), a hide flap over the door between two
+        /// great tusks, and skulls on the ridge ends. Low and wide; collision along its length.
+        /// </summary>
+        static void Lodge(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var half = height * s.Spread * 0.5f;     // half its length, along X
+            var foot = height * 0.95f;               // half its width at the ground, along Z
+            g.Height = height;
+            g.Width = half * 2.4f;
+            g.TrunkRadius = foot * 0.7f;
+            var pole = g.Bark;
+            var bays = Mathf.Max(3, Mathf.RoundToInt(half / 1.8f));
+
+            // Pole pairs crossing above the ridge, and the ridge pole.
+            for (int k = 0; k <= bays; k++)
+            {
+                var x = Mathf.Lerp(-half, half, k / (float)bays) + g.Range(-0.15f, 0.15f);
+                foreach (var z in new[] { -1f, 1f })
+                    b.Tube(new List<Vector3> { new Vector3(x, -0.2f, z * foot), new Vector3(x, height, 0f), new Vector3(x, height + 0.7f, -z * 0.45f) },
+                           new List<float> { 0.16f, 0.12f, 0.08f }, g.Sides(6, 4, 3), pole * g.Range(0.85f, 1.1f), FloraPart.Bark);
+            }
+            b.Tube(new List<Vector3> { new Vector3(-half - 0.6f, height - 0.05f, 0f), new Vector3(half + 0.6f, height - 0.05f, 0f) },
+                   new List<float> { 0.13f, 0.13f }, g.Sides(6, 4, 3), pole, FloraPart.Bark);
+
+            // Hides: one sagging panel per bay and side, from the ridge to the ground, and the two ends closed.
+            var rows = g.Sides(4, 2, 1);
+            var first = b.VertexCount;
+            for (int k = 0; k < bays; k++)
+            {
+                var x0 = Mathf.Lerp(-half, half, k / (float)bays);
+                var x1 = Mathf.Lerp(-half, half, (k + 1f) / bays);
+                foreach (var z in new[] { -1f, 1f })
+                {
+                    var hide = Color.Lerp(s.Foliage.linear, s.FoliageVariation.linear, g.R()) * g.Range(0.85f, 1.1f);
+                    var start = b.VertexCount;
+                    for (int r = 0; r <= rows; r++)
+                    {
+                        var t = r / (float)rows;
+                        var sag = Mathf.Sin(t * Mathf.PI) * 0.35f;
+                        var p = new Vector3(0f, Mathf.Lerp(height, -0.1f, t), Mathf.Lerp(0f, z * foot, t));
+                        var n = new Vector3(0f, foot, z * height).normalized;
+                        p -= n * sag;
+                        b.Vertex(new Vector3(x0 + 0.05f, p.y, p.z), n, hide, FloraPart.Bark, Mathf.Lerp(1f, 0.75f, t));
+                        b.Vertex(new Vector3(x1 - 0.05f, p.y, p.z), n, hide, FloraPart.Bark, Mathf.Lerp(1f, 0.75f, t));
+                    }
+                    for (int r = 0; r < rows; r++)
+                    {
+                        int a = start + r * 2;
+                        if (z > 0) { b.Triangle(a, a + 1, a + 2); b.Triangle(a + 1, a + 3, a + 2); }
+                        else { b.Triangle(a, a + 2, a + 1); b.Triangle(a + 1, a + 2, a + 3); }
+                    }
+                }
+            }
+            foreach (var x in new[] { -1f, 1f })
+            {
+                var hide = Color.Lerp(s.Foliage.linear, s.FoliageVariation.linear, g.R()) * 0.9f;
+                var v0 = b.Vertex(new Vector3(x * half, -0.1f, -foot), Vector3.right * x, hide, FloraPart.Bark, 0.8f);
+                var v1 = b.Vertex(new Vector3(x * half, -0.1f, foot), Vector3.right * x, hide, FloraPart.Bark, 0.8f);
+                var v2 = b.Vertex(new Vector3(x * half, height, 0f), Vector3.right * x, hide, FloraPart.Bark, 0.9f);
+                if (x > 0) b.Triangle(v0, v2, v1); else b.Triangle(v0, v1, v2);
+            }
+            b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.3f));
+
+            // The door: a darker hide flap in the middle bay on the +Z side, between two great tusks; skulls on the ridge.
+            var bone = AccentAt(g, 0);
+            var doorZ = foot * 0.55f + 0.1f;
+            var doorY = height * 0.45f;
+            b.Box(new Vector3(0f, doorY * 0.5f, doorZ), new Vector3(1.6f, doorY, 0.08f), Quaternion.Euler(-Mathf.Atan2(foot, height) * Mathf.Rad2Deg * 0.4f, 0f, 0f),
+                  s.Foliage.linear * 0.5f, FloraPart.Bark, 0.6f);
+            if (g.Lod < 2)
+            {
+                foreach (var x in new[] { -1.3f, 1.3f })
+                {
+                    var root = new Vector3(x, -0.1f, foot * 0.62f + 0.4f);
+                    b.Tube(new List<Vector3> { root, root + new Vector3(x * 0.15f, height * 0.35f, 0.5f), root + new Vector3(-x * 0.35f, height * 0.6f, 0.2f) },
+                           new List<float> { 0.22f, 0.14f, 0.03f }, g.Sides(7, 5, 3), bone, FloraPart.Bark, cap: true);
+                }
+                foreach (var x in new[] { -half - 0.6f, half + 0.6f })
+                    b.Blob(new Vector3(x, height + 0.15f, 0f), new Vector3(0.35f, 0.3f, 0.42f), Quaternion.identity, g.Lod == 0 ? 1 : 0, 0.2f, x, bone, FloraPart.Bark);
+            }
+
+            var count = Mathf.Max(2, Mathf.CeilToInt(half / foot) + 1);
+            for (int k = 0; k < count; k++)
+                g.Colliders.Add(new Vector4(Mathf.Lerp(-half + foot * 0.6f, half - foot * 0.6f, k / (count - 1f)), 0f, foot * 0.75f, height * 0.6f));
+        }
+
+        /// <summary>A signpost: a post, two or three arm boards at different heights pointing different ways, a cap.</summary>
+        static void Signpost(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            g.Height = height;
+            g.Width = 1.6f;
+            g.TrunkRadius = 0.08f;
+            b.Box(new Vector3(0f, height * 0.5f - 0.2f, 0f), new Vector3(0.14f, height + 0.4f, 0.14f), Quaternion.identity, g.Bark, FloraPart.Bark);
+            b.Box(new Vector3(0f, height + 0.04f, 0f), new Vector3(0.24f, 0.08f, 0.24f), Quaternion.identity, g.Bark * 0.7f, FloraPart.Bark);
+            var arms = g.Range(0f, 1f) < 0.5f ? 2 : 3;
+            for (int k = 0; k < arms; k++)
+            {
+                var yaw = (k * 2.1f + g.Range(-0.3f, 0.3f)) * Mathf.Rad2Deg;
+                var rot = Quaternion.Euler(0f, yaw, 0f);
+                var y = height - 0.25f - k * 0.32f;
+                var board = Color.Lerp(s.Foliage.linear, s.FoliageVariation.linear, g.R());
+                b.Box(rot * new Vector3(0.45f, y, 0f), new Vector3(0.85f, 0.2f, 0.04f), rot, board, FloraPart.Bark);
+                if (g.Lod == 0)
+                    b.Box(rot * new Vector3(0.9f, y, 0f), new Vector3(0.12f, 0.12f, 0.04f), rot * Quaternion.Euler(0f, 0f, 45f), board, FloraPart.Bark);
             }
         }
 
