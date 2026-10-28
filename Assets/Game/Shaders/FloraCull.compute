@@ -16,6 +16,7 @@ struct FloraInstance
     int model;
     float random;
     float snow;
+    float2 tilt;   // the ground normal's x and z: rocks lie on the slope
 };
 
 StructuredBuffer<FloraInstance> _FloraInstances;

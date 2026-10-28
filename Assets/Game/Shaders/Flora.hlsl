@@ -16,6 +16,7 @@ struct FloraInstance
     int model;
     float random;
     float snow;
+    float2 tilt;   // the ground normal's x and z: rocks lie on the slope
 };
 
 StructuredBuffer<FloraInstance> _FloraInstances;
@@ -55,6 +56,17 @@ FloraVertex FloraTransform(FloraAttributes input)
     float3 p = input.positionOS * plant.scale;
     p = float3(p.x * c - p.z * s, p.y, p.x * s + p.z * c);
     float3 n = float3(input.normalOS.x * c - input.normalOS.z * s, input.normalOS.y, input.normalOS.x * s + input.normalOS.z * c);
+
+    // Ground tilt (rocks): turn the plant's up onto the ground normal, about the horizontal axis between them.
+    if (any(plant.tilt != 0))
+    {
+        float3 up = float3(plant.tilt.x, sqrt(saturate(1 - dot(plant.tilt, plant.tilt))), plant.tilt.y);
+        float3 axis = normalize(float3(up.z, 0, -up.x));
+        float cosA = up.y, sinA = sqrt(saturate(1 - cosA * cosA));
+        // Rodrigues' rotation of p and n about axis by the angle between (0, 1, 0) and up.
+        p = p * cosA + cross(axis, p) * sinA + axis * dot(axis, p) * (1 - cosA);
+        n = n * cosA + cross(axis, n) * sinA + axis * dot(axis, n) * (1 - cosA);
+    }
 
     // Wind: the whole plant leans and sways with gusts that travel across the land; leaves also flutter.
     float3 windDir = float3(_PunchyWindDirection.x, 0, _PunchyWindDirection.y);

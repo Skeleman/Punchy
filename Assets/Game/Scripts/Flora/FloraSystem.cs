@@ -67,6 +67,8 @@ namespace Punchy.Flora
             public int Model;      // -1 = empty cell
             public float Random;
             public float Snow;
+            /// <summary>Ground tilt: the ground normal's x and z (rocks lie on the slope; 0 for everything upright).</summary>
+            public float2 Tilt;
         }
 
         class Layer

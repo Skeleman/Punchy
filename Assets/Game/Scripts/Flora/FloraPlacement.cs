@@ -25,6 +25,8 @@ namespace Punchy.Flora
         public int Aquatic, Floats;
         public float2 WaterDepth;
         public float MinRapids;
+        /// <summary>How far it lies over onto the slope it stands on (rocks 0.85; upright plants 0).</summary>
+        public float Tilt;
     }
 
     public struct FloraBiomeEntry
@@ -153,7 +155,8 @@ namespace Punchy.Flora
                     Aquatic = s.Aquatic ? 1 : 0,
                     Floats = s.Floats ? 1 : 0,
                     WaterDepth = s.WaterDepth,
-                    MinRapids = s.MinRapids
+                    MinRapids = s.MinRapids,
+                    Tilt = s.Form == FloraForm.Boulder ? 0.85f : 0f
                 };
                 for (int v = 0; v < s.Variants; v++)
                     shapes.Add(FloraGenerator.Shape(s, v));
@@ -513,7 +516,9 @@ namespace Punchy.Flora
                 Scale = scale * (0.55f + 0.45f * shrink[pick]),
                 Model = rule.FirstModel + rng.NextInt(rule.Variants),
                 Random = rng.NextFloat(),
-                Snow = surface.Snow
+                Snow = surface.Snow,
+                // Rocks lie over onto the slope they stand on.
+                Tilt = normal.xz * rule.Tilt
             };
         }
 
