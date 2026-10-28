@@ -80,7 +80,9 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
 | 3 | `Scenes/World.unity` | Animal behavior manager | Remove the placeholder Body/Visor capsule from Player (feedback A-3) | Done (9887b9a) |
 | 4 | `Grass.shader`, `GroundDetail.hlsl`, `GroundDetailSystem.cs` | world feature manager | Glow on grass (W-18), noise wind and density (19b/c); animal session told | Done (709aad7) |
 | 5 | `FloraSystem.cs`, `Flora.hlsl`, flora culling compute | world feature manager | Tilt field for rocks (W-16), one commit, animal session told | Lent |
-| 6 | URP renderer asset | world feature manager | SSAO tuning (W-14, J-024) | Lent |
+| 6 | URP renderer asset | world feature manager | SSAO tuning (W-14, J-024) | Done (c776a88) |
+| 7 | `TerrainStreamingSystem.cs` | world feature manager | Per-frame chunk-mesh cap while moving (perf batch) | Lent |
+| 8 | Shader/PSO warm-up at load, `Weather/WeatherField` redraw rate | kind-possum | Glide hitches, weather job cost; own b/ branch | Lent |
 
 ## Open questions
 
