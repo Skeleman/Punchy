@@ -258,8 +258,8 @@ Shader "Punchy/Cave"
 
                 // Light the rock gives off: a share everywhere (ice, faintly lit crystal), the rest in cracks. Cracks are
                 // borders between random 3D cells, warped so they wander, small, and only in sparse patches (the style's
-                // Cracks share of the wall), never on the floor.
-                if (any(s2.rgb > 0))
+                // Cracks share of the wall), never on the floor. They may also darken the rock (dark fissures in ice).
+                if (any(s2.rgb > 0) || s4.w > 0)
                 {
                     // The mask first: the 27-cell crack search only runs where the mask leaves any crack to draw.
                     float g = s4.x;
@@ -271,7 +271,8 @@ Shader "Punchy/Cave"
                         float3 warp = float3(PunchyValueNoise(p.xy * 0.9 + 3), PunchyValueNoise(p.yz * 0.9 - 5), PunchyValueNoise(p.zx * 0.9 + 9));
                         crack *= 1 - smoothstep(s2.w * 0.4, s2.w * 1.6, CellEdge(p * 1.3 * g + warp * 1.2));
                     }
-                    color += s2.rgb * (s4.y * (1 - floorShare * 0.5) + crack * (1 - s4.y)) * (1 - terrain);
+                    color *= 1 - crack * s4.w * 0.85;
+                    color += s2.rgb * (s4.y * (1 - floorShare * 0.5) + crack * (1 - s4.y) * (1 - s4.w)) * (1 - terrain);
                 }
                 return half4(color, 1);
             }

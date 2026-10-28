@@ -58,7 +58,8 @@ MonoBehaviour:
   Sheen: 0.7
   GlowColor: {r: 0.15, g: 0.45, b: 1, a: 1}
   Glow: 0.5
-  GlowCover: 0.025
-  Cracks: 0.08
-  GlowScale: 0.8
+  GlowCover: 0.035
+  Cracks: 0.35
+  GlowScale: 1.3
   GlowEverywhere: 0.55
+  CrackDarkness: 0.9
