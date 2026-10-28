@@ -217,6 +217,10 @@ namespace Punchy.Debugging
                     PlaceInCave(caveSource, args[i + 1].Substring(5));
                 else if (args[i] == "-place" && args[i + 1].StartsWith("tree:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var treeSource))
                     PlaceByTree(treeSource, args[i + 1].Substring(5));
+                else if (args[i] == "-place" && string.Equals(args[i + 1], "meadow", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var meadowSource))
+                    PlaceInMeadow(meadowSource);
+                else if (args[i] == "-place" && string.Equals(args[i + 1], "clearlake", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var lakeSource))
+                    PlaceByClearLake(lakeSource);
                 else if (args[i] == "-place")
                 {
                     // An exact name first (the landmark itself), else the first that contains it.
@@ -878,6 +882,94 @@ namespace Punchy.Debugging
                     return;
                 }
             Debug.LogWarning($"DebugControls: no lone {speciesName} near");
+        }
+
+        /// <summary>
+        /// "-place meadow": the nearest flat, grassy stretch of Grassland, the camera at eye height looking a little
+        /// down across it; the player parked out of shot.
+        /// </summary>
+        void PlaceInMeadow(in TerrainSource source)
+        {
+            if (!playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(player);
+            var start = t.Position.xz;
+            for (int ring = 1; ring <= 200; ring++)
+                for (int k = 0; k < ring * 8; k++)
+                {
+                    var angle = k * 2f * math.PI / (ring * 8);
+                    var at = start + new float2(math.cos(angle), math.sin(angle)) * ring * 25f;
+                    if (!IsMeadow(source, palette, at, 0.98f, 0.9f, true))
+                        continue;
+                    var flat = true;
+                    for (int d = 0; d < 8 && flat; d++)
+                    {
+                        var a = d * math.PI / 4f;
+                        flat = IsMeadow(source, palette, at + new float2(math.cos(a), math.sin(a)) * 15f, 0.97f, 0.7f, false);
+                    }
+                    if (!flat)
+                        continue;
+                    var height = source.SampleHeight(at);
+                    var park = at - new float2(0f, 30f);
+                    t.Position = new float3(park.x, source.SampleHeight(park) + 0.05f, park.y);
+                    em.SetComponentData(player, t);
+                    PoseCamera(new Vector3(at.x, height + 1.7f, at.y), Quaternion.LookRotation(new Vector3(0f, -0.25f, 1f)));
+                    Debug.Log($"DebugControls: in a meadow at ({at.x:F0}, {height:F0}, {at.y:F0})");
+                    return;
+                }
+            Debug.LogWarning("DebugControls: no meadow near");
+        }
+
+        static bool IsMeadow(in TerrainSource source, BiomePalette palette, float2 at, float flatness, float grass, bool grassland)
+        {
+            var g = source.SampleGround(at);
+            if (g.HasWater)
+                return false;
+            if (grassland && palette.Biomes[g.Biomes.Dominant()].name != "Grassland")
+                return false;
+            var n = source.SampleNormal(at, 1f);
+            return n.y >= flatness && source.SampleSurface(at, g, n).Grass >= grass;
+        }
+
+        /// <summary>
+        /// "-place clearlake": on a dry bank beside the nearest clear (not murky) lake at least 1.5 m deep, facing
+        /// the water.
+        /// </summary>
+        void PlaceByClearLake(in TerrainSource source)
+        {
+            if (!playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(player);
+            var start = t.Position.xz;
+            for (int ring = 1; ring <= 400; ring++)
+                for (int k = 0; k < ring * 8; k++)
+                {
+                    var angle = k * 2f * math.PI / (ring * 8);
+                    var at = start + new float2(math.cos(angle), math.sin(angle)) * ring * 12f;
+                    var g = source.SampleGround(at);
+                    if (!g.HasWater || g.WaterSurface - g.Height < 1.5f || g.River > 0.02f || source.WaterLook(at, g.Biomes, out _).w > 0.05f)
+                        continue;
+                    for (int d = 0; d < 16; d++)
+                    {
+                        var a = d * math.PI / 8f;
+                        var dir = new float2(math.cos(a), math.sin(a));
+                        var stand = at + dir * 8f;
+                        var s = source.SampleGround(stand);
+                        if (s.HasWater && s.WaterSurface > s.Height - 0.1f)
+                            continue;
+                        if (s.Height - g.WaterSurface > 4f)
+                            continue;
+                        t.Position = new float3(stand.x, s.Height + 0.05f, stand.y);
+                        t.Rotation = quaternion.RotateY(math.atan2(-dir.x, -dir.y));
+                        em.SetComponentData(player, t);
+                        Debug.Log($"DebugControls: by a clear lake at ({at.x:F0}, {at.y:F0}), {g.WaterSurface - g.Height:F1} m deep");
+                        return;
+                    }
+                }
+            Debug.LogWarning("DebugControls: no clear lake near");
         }
 
         static bool IsTree(ref FloraBlob flora, in TerrainSource source, int2 cell)
