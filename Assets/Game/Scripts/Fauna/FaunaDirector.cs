@@ -65,6 +65,9 @@ namespace Punchy.Fauna
         /// <summary>Where trees are, for climbing, perching and webs (the same tables the plants are drawn from).</summary>
         BlobAssetReference<Punchy.Flora.FloraBlob> floraBlob;
         readonly List<Punchy.Flora.FloraSpecies> floraSpecies = new List<Punchy.Flora.FloraSpecies>();
+        /// <summary>The plant placement animals use (where a machine simulates them), and its species in rule order (tests).</summary>
+        public BlobAssetReference<Punchy.Flora.FloraBlob> FloraPlacementBlob => floraBlob;
+        public IReadOnlyList<Punchy.Flora.FloraSpecies> FloraSpeciesList => floraSpecies;
         Mesh capsule;
         float spawnBudget;
         bool built;

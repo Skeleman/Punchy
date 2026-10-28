@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Punchy.CameraRig;
 using Punchy.Fauna;
+using Punchy.Flora;
 using Punchy.Player;
 using Punchy.Terrain;
 using Punchy.Weather;
@@ -206,7 +207,17 @@ namespace Punchy.Debugging
                 // "-shotdir C:\shots": tests that take their own screenshots (-interact) save them there.
                 if (args[i] == "-shotdir")
                     shotDir = args[i + 1];
-                if (args[i] == "-place")
+                // "-cam x,y,z,yaw,pitch" or "-camlook x,y,z,tx,ty,tz": the camera put there directly (its follow off till
+                // the next shot), for framing a shot exactly.
+                if ((args[i] == "-cam" || args[i] == "-camlook") && ParseFloats(args[i + 1]) is float[] c && c.Length >= 5)
+                    PoseCamera(new Vector3(c[0], c[1], c[2]), args[i] == "-cam"
+                        ? Quaternion.Euler(c[4], c[3], 0f)
+                        : Quaternion.LookRotation(new Vector3(c[3], c[4], c.Length > 5 ? c[5] : 0f) - new Vector3(c[0], c[1], c[2])));
+                if (args[i] == "-place" && args[i + 1].StartsWith("cave:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var caveSource))
+                    PlaceInCave(caveSource, args[i + 1].Substring(5));
+                else if (args[i] == "-place" && args[i + 1].StartsWith("tree:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var treeSource))
+                    PlaceByTree(treeSource, args[i + 1].Substring(5));
+                else if (args[i] == "-place")
                 {
                     // An exact name first (the landmark itself), else the first that contains it.
                     var index = locations.FindIndex(l => string.Equals(l.Name, args[i + 1], System.StringComparison.OrdinalIgnoreCase));
@@ -738,15 +749,150 @@ namespace Punchy.Debugging
             }
             if (Time.realtimeSinceStartup - shotStarted < shotWait)
                 return;
+            // Underground, also until the caves round the camera are built (up to 10 s more).
+            var caves = CaveSystem.Underground > 0.5f ? FindAnyObjectByType<CaveSystem>() : null;
+            if (caves != null && !caves.Settled && Time.realtimeSinceStartup - shotStarted < shotWait + 10f)
+                return;
             Shot((Arg("-shot") ?? $"shot-{shotIndex}") + ".png");
             Debug.Log($"DebugControls: shot {shotIndex + 1}/{shotLines.Count} '{Arg("-shot")}' after {Time.realtimeSinceStartup - shotStarted:F1} s");
             shotIndex++;
             shotStarted = -1f;
         }
 
+        static float[] ParseFloats(string text)
+        {
+            var parts = text.Split(',');
+            var values = new float[parts.Length];
+            for (int i = 0; i < parts.Length; i++)
+                if (!float.TryParse(parts[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out values[i]))
+                    return null;
+            return values;
+        }
+
+        /// <summary>The camera set to a pose directly, with whatever moves it switched off (back on in ClearShot).</summary>
+        void PoseCamera(Vector3 position, Quaternion rotation)
+        {
+            var cam = Camera.main;
+            if (cam == null)
+                return;
+            foreach (var b in cam.GetComponents<MonoBehaviour>())
+                b.enabled = false;
+            cam.transform.SetPositionAndRotation(position, rotation);
+            cameraPosed = true;
+        }
+
+        bool cameraPosed;
+
+        /// <summary>
+        /// "-place cave:Ice" (any cave style): in the first cave of that style, on the floor of its first chamber,
+        /// facing back along the passage.
+        /// </summary>
+        void PlaceInCave(in TerrainSource source, string styleName)
+        {
+            if (!source.Caves.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
+            var styles = CaveStyleTable.Collect(palette.Landmarks);
+            var style = styles.FindIndex(s => s != null && string.Equals(s.name, styleName, System.StringComparison.OrdinalIgnoreCase));
+            if (style < 0)
+            {
+                Debug.LogWarning($"DebugControls: no cave style '{styleName}' ({string.Join(", ", styles.ConvertAll(s => s != null ? s.name : "-"))})");
+                return;
+            }
+            ref var set = ref source.Caves.Value;
+            for (int c = 0; c < set.Caves.Length; c++)
+            {
+                if (set.Caves[c].Style != style + 1)
+                    continue;
+                ref var cave = ref set.Caves[c];
+                for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
+                {
+                    if (set.Kinds[n] != CaveNodeKind.Chamber)
+                        continue;
+                    var node = set.Nodes[n].Position;
+                    var floor = source.FloorUnder(node + new float3(0f, 0.5f, 0f), out _);
+                    var back = n > cave.FirstNode ? set.Nodes[n - 1].Position - node : new float3(0f, 0f, 1f);
+                    var em = queryWorld.EntityManager;
+                    var t = em.GetComponentData<LocalTransform>(player);
+                    t.Position = new float3(node.x, floor + 0.05f, node.z);
+                    t.Rotation = quaternion.RotateY(math.atan2(back.x, back.z));
+                    em.SetComponentData(player, t);
+                    Debug.Log($"DebugControls: in a {styleName} cave ({c}), chamber at ({node.x:F0}, {floor:F0}, {node.z:F0})");
+                    return;
+                }
+            }
+            Debug.LogWarning($"DebugControls: no {styleName} cave with a chamber");
+        }
+
+        /// <summary>
+        /// "-place tree:Oak" (any tree species): beside the nearest tree of that species that stands alone (no other
+        /// tree within three cells), the camera framing it from a little way off.
+        /// </summary>
+        void PlaceByTree(in TerrainSource source, string speciesName)
+        {
+            var director = FindAnyObjectByType<FaunaDirector>();
+            if (director == null || !director.FloraPlacementBlob.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var list = director.FloraSpeciesList;
+            var index = -1;
+            for (int i = 0; i < list.Count; i++)
+                if (list[i] != null && string.Equals(list[i].name, speciesName, System.StringComparison.OrdinalIgnoreCase))
+                    index = i;
+            if (index < 0)
+            {
+                Debug.LogWarning($"DebugControls: no plant species '{speciesName}'");
+                return;
+            }
+            ref var flora = ref director.FloraPlacementBlob.Value;
+            var first = flora.Rules[index].FirstModel;
+            var last = first + flora.Rules[index].Variants;
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(player);
+            var cellSize = flora.CellSizes[FloraPlacement.TreeLayer];
+            var centre = (int2)math.floor(t.Position.xz / cellSize);
+            // Outwards in rings, to 400 cells out.
+            for (int r = 0; r < 400; r++)
+                for (int dz = -r; dz <= r; dz++)
+                for (int dx = -r; dx <= r; dx++)
+                {
+                    if (math.max(math.abs(dx), math.abs(dz)) != r)
+                        continue;
+                    var cell = centre + new int2(dx, dz);
+                    var plant = FloraPlacement.Place(ref flora, source, cell, FloraPlacement.TreeLayer);
+                    if (plant.Model < first || plant.Model >= last)
+                        continue;
+                    var alone = true;
+                    for (int z = -3; z <= 3 && alone; z++)
+                        for (int x = -3; x <= 3 && alone; x++)
+                            if ((x != 0 || z != 0) && IsTree(ref flora, source, cell + new int2(x, z)))
+                                alone = false;
+                    if (!alone)
+                        continue;
+                    var at = plant.Position;
+                    var height = flora.Models[plant.Model].Height * plant.Scale;
+                    t.Position = new float3(at.x + 6f, source.SampleHeight(at.xz + new float2(6f, 0f)) + 0.05f, at.z);
+                    em.SetComponentData(player, t);
+                    var eye = (Vector3)at + new Vector3(16f, 7f, -16f);
+                    PoseCamera(eye, Quaternion.LookRotation((Vector3)at + Vector3.up * height * 0.6f - eye));
+                    Debug.Log($"DebugControls: by a lone {speciesName} at ({at.x:F0}, {at.z:F0}), {height:F0} m tall");
+                    return;
+                }
+            Debug.LogWarning($"DebugControls: no lone {speciesName} near");
+        }
+
+        static bool IsTree(ref FloraBlob flora, in TerrainSource source, int2 cell)
+        {
+            var plant = FloraPlacement.Place(ref flora, source, cell, FloraPlacement.TreeLayer);
+            return plant.Model >= 0 && plant.Model < flora.Models.Length && flora.Models[plant.Model].Kind != TreeKind.None;
+        }
+
         /// <summary>Back to a clean scene for the next shot: no specimen, spawns or watched animal; the camera free.</summary>
         void ClearShot()
         {
+            if (cameraPosed && Camera.main != null)
+                foreach (var b in Camera.main.GetComponents<MonoBehaviour>())
+                    b.enabled = true;
+            cameraPosed = false;
             if (posed != Entity.Null && queryWorld != null && queryWorld.IsCreated && queryWorld.EntityManager.Exists(posed))
                 queryWorld.EntityManager.DestroyEntity(posed);
             posed = Entity.Null;
