@@ -306,13 +306,13 @@ asks Zach if needed, and records the answer here.
 - **Why:** Zach: "Yes" (to the proposed target and RC plus multiplayer test).
 - **Revisited:** 0.
 
-### J-035 (open, for Zach): Restart the memory-killed fish/ghost recompile?
+### J-035: Restart the memory-killed fish/ghost recompile?
 
 - **Asked:** 2026-10-29 ~03:40, by the animal session (via the supervisor).
 - **Context:** Claude Code killed the animal session's recompile of playable fish + ghost when the main PC hit
   ~3 GB free with both editors open. The harness rule says such a step restarts only on the user's word. The
   change is parked uncompiled on a local WIP branch.
-- **Answer:** pending (morning).
+- **Answer (2026-10-29):** go. Zach: "Go ahead and restart the editor so fish and ghosts can get worked on".
 - **Revisited:** 0.
 
 ### J-036: Ship v0.8.0 with the glide and town-GPU regressions?
