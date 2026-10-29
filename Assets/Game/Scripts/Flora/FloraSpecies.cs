@@ -100,7 +100,10 @@ namespace Punchy.Flora
                  "base, with electric arcs (the first accent, or blue-white) crackling between their tips. Height its height, " +
                  "Spread how far apart the prongs stand, Thickness their radius over height.")] ArcSpire,
         [Tooltip("Floating debris (magnetic anomaly): Branches lumps of rock (Bark) hovering round a cracked mound, slowly " +
-                 "orbiting it and bobbing. Height the highest a piece floats, Spread the ring's radius over height. Not solid.")] Debris
+                 "orbiting it and bobbing. Height the highest a piece floats, Spread the ring's radius over height. Not solid.")] Debris,
+        [Tooltip("A ruined stone house: roofless walls (Bark) crumbled to uneven heights, one of them almost gone, a doorway " +
+                 "gap facing +Z, rubble (Branches = stones) round the foot and moss (the first accent, Accent Amount of the " +
+                 "broken tops). Height is the tallest wall left; Spread the width relative to it.")] Ruin
     }
 
     public enum FoliageFinish : byte

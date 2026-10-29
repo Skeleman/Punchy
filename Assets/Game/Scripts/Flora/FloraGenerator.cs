@@ -111,6 +111,7 @@ namespace Punchy.Flora
                     case FloraForm.Columns: Columns(g); break;
                     case FloraForm.Hut: Hut(g); break;
                     case FloraForm.StoneHouse: StoneHouse(g); break;
+                    case FloraForm.Ruin: Ruin(g); break;
                     case FloraForm.Tent: Tent(g); break;
                     case FloraForm.Tower: Tower(g); break;
                     case FloraForm.Pen: Pen(g); break;
@@ -1253,7 +1254,7 @@ namespace Punchy.Flora
             FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tent or FloraForm.Tower or FloraForm.Stall or FloraForm.Inn or
             FloraForm.Smithy or FloraForm.Forum or FloraForm.Fountain or FloraForm.Well or FloraForm.Hall or FloraForm.Shrine or
             FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade or FloraForm.Pen or FloraForm.Garden or
-            FloraForm.Signpost or FloraForm.Bench or FloraForm.Stump => true,
+            FloraForm.Signpost or FloraForm.Bench or FloraForm.Stump or FloraForm.Ruin => true,
             _ => false
         };
 
@@ -2525,6 +2526,82 @@ namespace Punchy.Flora
             // Collision: a square, not the circle round its middle, so its corners stop you too.
             for (int k = 0; k < 4; k++)
                 g.Colliders.Add(new Vector4((k & 1) == 0 ? -half * 0.5f : half * 0.5f, (k & 2) == 0 ? -half * 0.5f : half * 0.5f, half * 0.55f, wall));
+        }
+
+        /// <summary>
+        /// A ruined stone house: four walls of stone piers, each wall's tops sloping down towards one end (the way walls
+        /// fall, from a corner) with a ragged edge, one wall nearly gone, a gap for the door at +Z, a window hole in a
+        /// tall side wall, moss on some broken tops and fallen stones round the foot. No roof.
+        /// </summary>
+        static void Ruin(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var half = height * s.Spread * 0.5f;
+            g.Height = height;
+            g.Width = half * 2.8f;
+            g.TrunkRadius = half * 1.1f;
+            const float thick = 0.55f;
+            var pier = g.Sides(1, 2, 4) * 0.55f;      // finer piers up close, so the broken edge reads as stones
+            var doorHalf = Mathf.Min(half * 0.3f, 0.7f);
+            var gone = g.Variant % 4;                   // the wall that has nearly all fallen
+
+            var first = b.VertexCount;
+            for (int w = 0; w < 4; w++)
+            {
+                var facing = Quaternion.Euler(0f, w * 90f, 0f);     // wall 0 faces +Z, the front
+                var keep = w == gone ? g.Range(0.06f, 0.2f) : g.Range(0.45f, 1f);
+                var length = half * 2f + thick;
+                var n = Mathf.Max(2, Mathf.RoundToInt(length / pier));
+                var step = length / n;
+                var fromLeft = g.R() < 0.5f;
+                for (int i = 0; i < n; i++)
+                {
+                    var x = -length * 0.5f + (i + 0.5f) * step;
+                    if (w == 0 && Mathf.Abs(x) < doorHalf)
+                        continue;
+                    var u = (i + 0.5f) / n;
+                    var top = Mathf.Max(0.25f, height * keep * Mathf.Lerp(0.3f, 1f, fromLeft ? u : 1f - u) * g.Range(0.75f, 1.05f));
+                    var colour = Color.Lerp(g.Bark, g.Bark * 1.15f, g.R());
+                    // A window hole: a pier in the middle of a tall side wall, split round the opening.
+                    if (w != 0 && i == n / 2 && top > 2.3f && g.Lod < 2)
+                    {
+                        b.Box(facing * new Vector3(x, 0.4f, half), new Vector3(step * 1.02f, 1.1f, thick), facing, colour, FloraPart.Bark);
+                        b.Box(facing * new Vector3(x, (1.85f + top) * 0.5f, half), new Vector3(step * 1.02f, top - 1.85f, thick), facing, colour, FloraPart.Bark);
+                    }
+                    else
+                        b.Box(facing * new Vector3(x, top * 0.5f - 0.15f, half), new Vector3(step * 1.02f, top + 0.3f, thick), facing, colour, FloraPart.Bark);
+                    if (g.HasAccent && g.Lod < 2 && g.R() < s.AccentAmount)
+                        b.Box(facing * new Vector3(x, top + 0.03f, half), new Vector3(step * 0.95f, 0.07f, thick * 1.06f), facing, g.Accent, FloraPart.Foliage);
+                    if (top > 0.7f)
+                    {
+                        var c = facing * new Vector3(x, 0f, half);
+                        g.Colliders.Add(new Vector4(c.x, c.z, Mathf.Max(step, thick) * 0.6f, top));
+                    }
+                }
+            }
+            b.Recolor(first, (p, c) => p.y < 0.5f ? c * 0.8f : c);   // darker footing
+            b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.5f));
+
+            // Fallen stones, most of them below the wall that came down.
+            if (g.Lod < 2)
+            {
+                var rubble = b.VertexCount;
+                var fallen = Quaternion.Euler(0f, gone * 90f, 0f);
+                var stones = g.Count(s.Branches);
+                for (int k = 0; k < stones; k++)
+                {
+                    var size = g.Range(0.2f, 0.5f);
+                    var at = k % 3 != 0
+                        ? fallen * new Vector3(g.Range(-half, half), 0f, half + g.Range(-0.8f, 1.6f))
+                        : new Vector3(g.Range(-half, half) * 1.3f, 0f, g.Range(-half, half) * 1.3f);
+                    at.y = size * 0.25f;
+                    b.Box(at, new Vector3(size * g.Range(1f, 1.8f), size, size * g.Range(0.8f, 1.2f)),
+                          Quaternion.Euler(g.Range(-15f, 15f), g.R() * 360f, g.Range(-15f, 15f)), Color.Lerp(g.Bark * 0.85f, g.Bark * 1.1f, g.R()), FloraPart.Bark);
+                }
+                b.Occlude(rubble, (p, n) => GroundOcclusion(p, 0.5f));
+            }
         }
 
         /// <summary>Rotates vertices added since <paramref name="first"/> about the vertical axis through the origin.</summary>
