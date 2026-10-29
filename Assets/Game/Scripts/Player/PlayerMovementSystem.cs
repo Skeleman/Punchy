@@ -190,26 +190,44 @@ namespace Punchy.Player
         /// A ghost's frame: drifting at a height above the ground or the water (jump to rise, up to 4 m; sprint to sink
         /// back down), floating over everything with no gravity, turning to face the way it drifts.
         /// </summary>
+        /// <summary>A ghost rises no higher than this above what's under it.</summary>
+        const float HoverCeiling = 300f;
+
         static void Hover(ref LocalTransform t, ref PlayerMotion m, in PlayerBody body, in PlayerInput input, in TerrainSource terrain,
                           in PlayerMotor settings, float dt)
         {
             var position = t.Position;
-            position.xz += input.MoveDirection * settings.WalkSpeed * math.max(body.SpeedFactor, 0.1f) * 0.8f * dt;
+            // Drifting with the move keys, faster sprinting.
+            position.xz += input.MoveDirection * settings.WalkSpeed * math.max(body.SpeedFactor, 0.1f) * (input.Sprint ? 1.8f : 0.8f) * dt;
             var ground = terrain.SampleGround(position.xz);
             var under = ground.HasWater ? math.max(ground.Height, ground.WaterSurface) : ground.Height;
             if (terrain.FloorUnder(position, out var inCave) is var floor && inCave)
                 under = floor;
-            // (The height it keeps: m.Pitch holds it, eased up and down.)
-            if (input.JumpHeld)
-                m.Pitch = math.min(m.Pitch + dt * 1.5f, 4f);
-            else if (input.DiveHeld)
-                m.Pitch = math.max(m.Pitch - dt * 2f, 0f);
-            var bob = 0.08f * math.sin((float)m.Airspeed);
+            // Straight up holding jump, straight down holding crouch, eased in and out; let go, it hangs where it is.
+            var wanted = input.JumpHeld ? 4f : input.CrouchHeld ? -4f : 0f;
+            m.VerticalVelocity += (wanted - m.VerticalVelocity) * math.min(1f, dt * 4f);
+            position.y += m.VerticalVelocity * dt;
+            // (Never below half a metre over the ground or water, nor above the ceiling; in a cave, under its rock.)
+            var lowest = under + 0.5f;
+            if (position.y < lowest)
+            {
+                position.y += (lowest - position.y) * math.min(1f, dt * 6f);
+                m.VerticalVelocity = math.max(m.VerticalVelocity, 0f);
+            }
+            if (position.y > under + HoverCeiling)
+            {
+                position.y = under + HoverCeiling;
+                m.VerticalVelocity = math.min(m.VerticalVelocity, 0f);
+            }
+            if (inCave && terrain.CaveDistance(position + new float3(0f, 0.8f, 0f)) > -0.4f)
+            {
+                position.y = t.Position.y;
+                m.VerticalVelocity = math.min(m.VerticalVelocity, 0f);
+            }
+            // A slow bob while hanging still.
             m.Airspeed += dt * 1.7f;
-            var target = under + 0.5f + m.Pitch + bob;
-            position.y += (target - position.y) * math.min(1f, dt * 3f);
-            m.Grounded = m.Pitch < 0.05f;
-            m.VerticalVelocity = 0f;
+            position.y += math.cos((float)m.Airspeed) * 0.08f * 1.7f * dt * (1f - math.saturate(math.abs(m.VerticalVelocity)));
+            m.Grounded = position.y - lowest < 0.1f;
             t.Position = position;
             Face(ref t, input, settings, dt);
         }

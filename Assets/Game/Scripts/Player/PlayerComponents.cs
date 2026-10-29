@@ -72,6 +72,8 @@ namespace Punchy.Player
         public bool JumpPressed;
         /// <summary>Jump and the sprint button held down (in flight: climb and dive).</summary>
         public bool JumpHeld, DiveHeld;
+        /// <summary>The crouch button held down (a hovering body: sinking).</summary>
+        public bool CrouchHeld;
         /// <summary>Where the camera looks, world XZ (in flight: the way to steer).</summary>
         public float2 CameraForward;
     }

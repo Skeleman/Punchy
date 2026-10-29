@@ -42,7 +42,8 @@ it real. To add or change a term, edit this file in the same commit as the code 
   in and hang webs from. **Rock**: a Boulder, Spire or Crystal form.
 - **Structure**: any built form (Hut, StoneHouse, Tower, Tent, walls, fences, stalls, signs). **Building**: a
   structure someone lives or works in; its size is set by its folk's scale.
-- **Prop**: anything a landmark or plot places on purpose (`LandmarkProp`), as opposed to biome-scattered plants.
+- **Prop**: any generated non-plant object (rocks, buildings, furniture, cloth); **Flora** is kept for plants. (A
+  landmark's or plot's deliberately placed ones are `LandmarkProp`s.)
 - **Placement**: `FloraPlacement`, the pure function from a cell to the plant in it, shared by drawing
   (`FloraSystem`) and animals (`FloraLookup` in the simulation world), so both agree on every tree.
 
