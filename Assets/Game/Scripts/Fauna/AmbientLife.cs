@@ -62,6 +62,10 @@ namespace Punchy.Fauna
         static readonly Dictionary<int2, Resident[]> cells = new Dictionary<int2, Resident[]>();
         static readonly List<Ambient> now = new List<Ambient>();
         static int frame = -1;
+        /// <summary>Off for the whole run with the launch flag "-noambientlife" (for benches: the same build without it).</summary>
+        static readonly bool Off = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-noambientlife") >= 0;
+        static readonly Unity.Profiling.ProfilerMarker NearMarker = new Unity.Profiling.ProfilerMarker("AmbientLife.Near");
+        static readonly Unity.Profiling.ProfilerMarker SettleMarker = new Unity.Profiling.ProfilerMarker("AmbientLife.Settle");
 
         /// <summary>Forgets every cell at the start of play (statics outlive a play session in the editor, and the island
         /// may have changed since).</summary>
@@ -80,8 +84,9 @@ namespace Punchy.Fauna
                 return now;
             frame = UnityEngine.Time.frameCount;
             now.Clear();
-            if (world == null)
+            if (world == null || Off)
                 return now;
+            using var marker = NearMarker.Auto();
             var em = world.EntityManager;
             using var tq = em.CreateEntityQuery(typeof(TerrainSource));
             using var fq = em.CreateEntityQuery(typeof(FloraLookup));
@@ -146,6 +151,7 @@ namespace Punchy.Fauna
         /// <summary>Who lives in a cell: from the seed alone, so the same on every machine.</summary>
         static Resident[] Settle(int2 cell, in TerrainSource terrain, ref FloraBlob flora)
         {
+            using var marker = SettleMarker.Auto();
             var list = new List<Resident>();
             var seed = math.hash(new int3(cell, 0x5EED)) | 1u;
             var rng = new Unity.Mathematics.Random(seed);
@@ -314,7 +320,10 @@ namespace Punchy.Fauna
                 var g = r.TreeBase.xz + dir.xz * (r.CrownRadius + rng.NextFloat(0.5f, 2f));
                 return new float3(g.x, terrain.SampleHeight(g), g.y);
             }
-            // (Out at the crown's edge and low in it, where a bird can be seen, not buried in the leaves.)
+            // (Where a bird can be seen, not buried in the leaves: on top of the crown, against the sky, or out at its
+            // lower edge.)
+            if (rng.NextFloat() < 0.5f)
+                return r.TreeBase + dir * (r.TrunkRadius + r.CrownRadius * rng.NextFloat(0.3f, 0.6f)) + new float3(0f, r.CrownTop + 0.05f, 0f);
             var height = math.lerp(r.CrownBase, r.CrownTop, rng.NextFloat(0f, 0.2f));
             return r.TreeBase + dir * (r.TrunkRadius + r.CrownRadius * rng.NextFloat(1.0f, 1.15f)) + new float3(0f, height, 0f);
         }

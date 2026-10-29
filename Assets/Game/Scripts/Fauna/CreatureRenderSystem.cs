@@ -232,7 +232,7 @@ namespace Punchy.Fauna
                 case AmbientKind.Woodpecker:
                 {
                     var wood = a.Kind == AmbientKind.Woodpecker;
-                    var s = wood ? 1.4f : 1f;
+                    var s = wood ? 1.12f : 1f;
                     // (A woodpecker clings upright to the bark.)
                     var bodyDir = wood ? math.normalize(up + f * 0.3f) : f;
                     var body = quaternion.LookRotationSafe(bodyDir, wood ? -f : up);
