@@ -232,7 +232,7 @@ namespace Punchy.Terrain
 
         /// <summary>
         /// A stream along the main passage of caves whose style rolls for one, from the second node in (clear of the
-        /// mouth) down to the end chamber. Points every 1.5 m along the passage floor; the surface follows the floor
+        /// mouth) down to the end chamber, ending in a pool (F-30). Points every 1.5 m along the passage floor; the surface follows the floor
         /// but never rises along the flow, so where the floor climbs the channel cuts deeper.
         /// </summary>
         static void PlaceStreams(in TerrainSource source, List<CaveData> caves, List<CaveNode> nodes, List<CaveSegment> segments,
@@ -274,7 +274,32 @@ namespace Punchy.Terrain
                         }
                     }
                     if (extras.StreamPoints.Count - first >= 4)
+                    {
                         extras.Streams.Add(new CaveStream { FirstPoint = first, PointCount = extras.StreamPoints.Count - first, Min = min, Max = max });
+                        // Every stream ends in a pool at its own level, shrunk until the floor holds it all round (or
+                        // left out), added to this cave's pools (later caves' ranges move up one).
+                        var end = extras.StreamPoints[extras.StreamPoints.Count - 1];
+                        var radius = math.clamp(end.Width * 1.6f, 1.2f, 2.5f);
+                        while (radius >= 1.2f && !RimHolds(source, end.Position, radius))
+                            radius *= 0.8f;
+                        if (radius >= 1.2f)
+                        {
+                            extras.Pools.Insert(cave.FirstPool + cave.PoolCount, new CavePool
+                            {
+                                Centre = end.Position,
+                                Radius = radius,
+                                Depth = math.min(1.2f, radius * 0.4f),
+                                Lava = 0f
+                            });
+                            cave.PoolCount++;
+                            for (int later = c + 1; later < caves.Count; later++)
+                            {
+                                var next = caves[later];
+                                next.FirstPool++;
+                                caves[later] = next;
+                            }
+                        }
+                    }
                     else
                         extras.StreamPoints.RemoveRange(first, extras.StreamPoints.Count - first);
                 }
