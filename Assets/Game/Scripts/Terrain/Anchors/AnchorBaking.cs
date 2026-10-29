@@ -28,7 +28,10 @@ namespace Punchy.Terrain
             if (source.Settlements.IsCreated)
                 AddTownAnchors(source, types, anchors);
             if (source.Landmarks.IsCreated)
+            {
                 AddHiveAnchors(source, types, anchors);
+                AddWildAnchors(source, types, anchors);
+            }
             if (anchors.Count == 0)
                 return default;
             return BuildBlob(anchors, allocator);
@@ -239,6 +242,102 @@ namespace Punchy.Terrain
                             Tags = 0
                         });
                     }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Anchors for people living rough, owned by the landmark, for types that ask (LandmarkType.Anchors).
+        /// A campsite: a Camp at its fire facing the landmark's way (towards the road; Capacity its beds), a Hearth, two
+        /// Beds on the far side of the fire with their feet towards it, and a Sit on each seat it places.
+        /// A hermit's place: Home inside the hut (the placed building that faces the centre), its Door 0.6 m out from the
+        /// door itself, a Work spot by the woodpile facing it, the Garden, a Hearth at the fire in the middle and a Sit on
+        /// each seat. Placed props only: their spots are known, where scattered ones are not.
+        /// </summary>
+        static void AddWildAnchors(in TerrainSource source, IReadOnlyList<LandmarkType> types, List<Anchor> anchors)
+        {
+            ref var set = ref source.Landmarks.Value;
+            var src = source;
+            for (int i = 0; i < set.Instances.Length; i++)
+            {
+                ref var inst = ref set.Instances[i];
+                var type = inst.Type < types.Count ? types[inst.Type] : null;
+                if (type == null || type.Anchors == WildAnchors.None)
+                    continue;
+                var radius = set.Types[inst.Type].Radius * inst.Scale;
+                var owner = Anchor.OwnerLandmark(i);
+                var centre = inst.Position;
+                var facing = inst.Facing;
+                void Add(AnchorKind kind, float2 at, float up, float2 dir, float size, int capacity, byte tags = 0) => anchors.Add(new Anchor
+                {
+                    Position = new float3(at.x, src.SampleHeight(at) + up, at.y),
+                    Facing = math.normalizesafe(dir, new float2(0f, 1f)),
+                    Size = size,
+                    Owner = owner,
+                    Kind = kind,
+                    Capacity = (byte)capacity,
+                    Biome = (byte)Dominant(src.SampleGround(at).Biomes),
+                    Tags = tags
+                });
+
+                foreach (var prop in type.Props)
+                {
+                    var species = prop.Species;
+                    if (species == null)
+                        continue;
+                    var scale = (prop.Scale.x + math.max(prop.Scale.x, prop.Scale.y)) * 0.5f;
+                    var size = (species.Height.x + species.Height.y) * 0.5f * scale;
+                    // The fire in the middle: a hearth to gather round, a pace out from its stones.
+                    if (prop.Centrepiece)
+                    {
+                        if (species.Form == Punchy.Flora.FloraForm.FirePit)
+                            Add(AnchorKind.Hearth, centre, 0f, facing, size + 1f, type.Anchors == WildAnchors.Campsite ? 4 : 3);
+                        continue;
+                    }
+                    for (int k = 0; k < prop.Count; k++)
+                    {
+                        var spot = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), radius);
+                        var toCentre = math.normalizesafe(centre - spot);
+                        var seat = species.Form switch
+                        {
+                            Punchy.Flora.FloraForm.Bench => Punchy.Flora.FloraGenerator.BenchSeat,
+                            Punchy.Flora.FloraForm.Log => Punchy.Flora.FloraGenerator.LogSeat,
+                            Punchy.Flora.FloraForm.Stump => Punchy.Flora.FloraGenerator.StumpSeat,
+                            _ => 0f
+                        };
+                        if (seat > 0f)
+                        {
+                            Add(AnchorKind.Sit, spot, seat * scale, prop.FaceCentre ? toCentre : -toCentre, 0.6f,
+                                species.Form == Punchy.Flora.FloraForm.Stump ? 1 : 2);
+                            continue;
+                        }
+                        if (type.Anchors != WildAnchors.Hermit)
+                            continue;
+                        var front = Punchy.Flora.FloraGenerator.DoorFront(species);
+                        if (front > 0f && prop.FaceCentre)
+                        {
+                            Add(AnchorKind.Home, spot, 0.1f, toCentre, 0.8f, 1, Anchor.Shelter);
+                            Add(AnchorKind.Door, spot + toCentre * (front * scale + 0.6f), 0f, toCentre, 0.6f, 1);
+                        }
+                        else if (species.Form == Punchy.Flora.FloraForm.Woodpile)
+                            Add(AnchorKind.Work, spot + toCentre * (size * species.Spread * 0.5f + 1.2f), 0f, -toCentre, 0.8f, 1);
+                        else if (species.Form == Punchy.Flora.FloraForm.Garden)
+                            Add(AnchorKind.Garden, spot, 0f, toCentre, size * species.Spread * 0.5f, 1);
+                    }
+                }
+
+                if (type.Anchors == WildAnchors.Campsite)
+                {
+                    // Two bedrolls on the far side of the fire from the road, 2.5 m out, their feet towards it.
+                    const int beds = 2;
+                    var away = math.atan2(-facing.y, -facing.x);
+                    for (int b = 0; b < beds; b++)
+                    {
+                        var a = away + (b - (beds - 1) * 0.5f) * 0.9f;
+                        var dir = new float2(math.cos(a), math.sin(a));
+                        Add(AnchorKind.Bed, centre + dir * 2.5f, 0f, -dir, 0.9f, 1);
+                    }
+                    Add(AnchorKind.Camp, centre, 0f, facing, math.min(radius * 0.5f, 6f), beds);
                 }
             }
         }

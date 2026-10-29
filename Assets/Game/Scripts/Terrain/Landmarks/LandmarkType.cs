@@ -219,6 +219,20 @@ namespace Punchy.Terrain
         [Header("Residents")]
         [Tooltip("Animals that live here; they appear when the player comes near.")]
         public List<LandmarkResident> Residents = new List<LandmarkResident>();
+
+        [Tooltip("Anchors it exports for people living rough (AnchorBaking.AddWildAnchors): none, a roadside campsite's " +
+                 "or a hermit's.")]
+        public WildAnchors Anchors;
+    }
+
+    /// <summary>Which set of anchors a wild landmark exports (see AnchorBaking.AddWildAnchors).</summary>
+    public enum WildAnchors : byte
+    {
+        None,
+        [Tooltip("A Camp at the fire (its centrepiece) facing the landmark's way, a Hearth, two Beds beyond the fire and " +
+                 "a Sit per seat.")] Campsite,
+        [Tooltip("Home in the hut (a placed prop facing the centre) and its Door, a Work spot at the woodpile, the Garden, " +
+                 "a Hearth at the fire in the middle and a Sit per seat.")] Hermit
     }
 
     /// <summary>A landmark type appearing in a biome, and how often.</summary>
