@@ -2,8 +2,10 @@ using System.Collections.Generic;
 using Punchy.Net;
 using Punchy.Player;
 using Punchy.Terrain;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.NetCode;
 using Unity.Transforms;
@@ -93,6 +95,23 @@ namespace Punchy.Fauna
         CritterTable critterTable;
         readonly Dictionary<uint, Entity> critters = new Dictionary<uint, Entity>();
         readonly List<AmbientLife.CritterSpot> critterSpots = new List<AmbientLife.CritterSpot>();
+        /// <summary>
+        /// Each 16 m cell's critter spots, worked out once: they come from the cell, the ground and the flora alone, and
+        /// finding them (a tree search and dozens of ground samples a cell) cost a 100-270 ms stall every half second
+        /// when redone on the main thread for every cell round every player. Now new cells are worked out in a Burst job
+        /// off the main thread (SettleCritterCells), and cells far from everyone are dropped.
+        /// </summary>
+        readonly Dictionary<int2, AmbientLife.CritterSpot[]> critterCells = new Dictionary<int2, AmbientLife.CritterSpot[]>();
+        readonly List<int2> critterCellsGone = new List<int2>();
+        readonly List<int2> critterMissing = new List<int2>();
+        /// <summary>Cells handed to one settling job, at most.</summary>
+        const int CritterCellsPerJob = 64;
+        TerrainSource critterSource;
+        JobHandle settleHandle;
+        bool settling;
+        NativeArray<int2> settleCells;
+        NativeList<AmbientLife.CritterSpot> settleSpots;
+        NativeArray<int> settleEnds;
         float nextCritterCheck;
         /// <summary>Species index by asset name (SpeciesIndex: no string or closure per look-up).</summary>
         readonly Dictionary<string, int> speciesByName = new Dictionary<string, int>();
@@ -108,6 +127,9 @@ namespace Punchy.Fauna
 
         void Teardown()
         {
+            // (The settling job reads the flora blob disposed below.)
+            EndSettling();
+            critterCells.Clear();
             if (simWorld != null && simWorld.IsCreated)
             {
                 var em = simWorld.EntityManager;
@@ -149,7 +171,20 @@ namespace Punchy.Fauna
             built = false;
         }
 
+        // (Benches and profiles see the director's own work, and which of its passes a spike is in.)
+        static readonly Unity.Profiling.ProfilerMarker UpdateMarker = new Unity.Profiling.ProfilerMarker("FaunaDirector.Update");
+        static readonly Unity.Profiling.ProfilerMarker DespawnMarker = new Unity.Profiling.ProfilerMarker("FaunaDirector.Despawn");
+        static readonly Unity.Profiling.ProfilerMarker ResidentsMarker = new Unity.Profiling.ProfilerMarker("FaunaDirector.Residents");
+        static readonly Unity.Profiling.ProfilerMarker CrittersMarker = new Unity.Profiling.ProfilerMarker("FaunaDirector.Critters");
+        static readonly Unity.Profiling.ProfilerMarker WildMarker = new Unity.Profiling.ProfilerMarker("FaunaDirector.Wild");
+
         void Update()
+        {
+            using (UpdateMarker.Auto())
+                UpdateDirector();
+        }
+
+        void UpdateDirector()
         {
             if (Material == null || !TryGetWorld(out var source, out var palette))
                 return;
@@ -169,19 +204,27 @@ namespace Punchy.Fauna
                 simWorld.EntityManager.SetComponentData(simClockEntity, clock);
 
             GatherPlayers();
-            Despawn();
+            using (DespawnMarker.Auto())
+                Despawn();
             if (players.Count == 0)
                 return;
             if (Time.time >= nextResidentCheck)
             {
                 nextResidentCheck = Time.time + 0.5f;
-                SpawnResidents(source);
-                SpawnCaveDwellers(source);
+                using (ResidentsMarker.Auto())
+                {
+                    SpawnResidents(source);
+                    SpawnCaveDwellers(source);
+                }
             }
-            if (Time.time >= nextCritterCheck)
+            using (CrittersMarker.Auto())
             {
-                nextCritterCheck = Time.time + 0.5f;
-                SpawnCritters(source);
+                SettleCritterCells(source);
+                if (Time.time >= nextCritterCheck)
+                {
+                    nextCritterCheck = Time.time + 0.5f;
+                    SpawnCritters(source);
+                }
             }
             if (Time.time >= nextTraveller)
             {
@@ -194,11 +237,12 @@ namespace Punchy.Fauna
                 SpawnMessenger(source);
             }
             spawnBudget = math.min(spawnBudget + SpawnRate * players.Count * Time.deltaTime, 3f * players.Count);
-            while (spawnBudget >= 1f)
-            {
-                spawnBudget -= 1f;
-                TrySpawn(source, rng.NextInt(players.Count));
-            }
+            using (WildMarker.Auto())
+                while (spawnBudget >= 1f)
+                {
+                    spawnBudget -= 1f;
+                    TrySpawn(source, rng.NextInt(players.Count));
+                }
         }
 
         bool TryGetWorld(out TerrainSource source, out BiomePalette palette)
@@ -921,6 +965,106 @@ namespace Punchy.Fauna
         /// Not where a player is right on top of it. They're homed on their spot (leashed close) and run on the brain's
         /// light critter round; Despawn lets them go beyond CritterLetGo, and the spot is free again.
         /// </summary>
+        /// <summary>Works out the critter spots of a list of cells, in order; Ends[i] is where cell i's spots end.</summary>
+        [BurstCompile]
+        struct SettleCellsJob : IJob
+        {
+            public TerrainSource Source;
+            public BlobAssetReference<Punchy.Flora.FloraBlob> Flora;
+            [ReadOnly] public NativeArray<int2> Cells;
+            public NativeList<AmbientLife.CritterSpot> Spots;
+            public NativeArray<int> Ends;
+
+            public void Execute()
+            {
+                for (int i = 0; i < Cells.Length; i++)
+                {
+                    AmbientLife.CritterSpots(Cells[i], Source, ref Flora.Value, ref Spots);
+                    Ends[i] = Spots.Length;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Keeps the critter cells round the players worked out: collects a finished settling job's cells into the cache,
+        /// then hands the next batch of unknown cells (nearest a player first) to a new job. The main thread only does the
+        /// bookkeeping, so the critter tier never stalls a frame.
+        /// </summary>
+        void SettleCritterCells(in TerrainSource source)
+        {
+            if (settling)
+            {
+                if (!settleHandle.IsCompleted)
+                    return;
+                settleHandle.Complete();
+                // (Unless the world changed meanwhile: then they're not this world's spots.)
+                if (critterSource.Equals(source))
+                {
+                    var from = 0;
+                    for (int i = 0; i < settleCells.Length; i++)
+                    {
+                        var spots = new AmbientLife.CritterSpot[settleEnds[i] - from];
+                        for (int k = 0; k < spots.Length; k++)
+                            spots[k] = settleSpots[from + k];
+                        critterCells[settleCells[i]] = spots;
+                        from = settleEnds[i];
+                    }
+                }
+                EndSettling();
+            }
+            if (critterTable == null || simWorld == null || players.Count == 0)
+                return;
+            if (!critterSource.Equals(source))
+            {
+                critterCells.Clear();
+                critterSource = source;
+            }
+            using var fq = simWorld.EntityManager.CreateEntityQuery(typeof(Punchy.Flora.FloraLookup));
+            if (fq.IsEmpty)
+                return;
+            var flora = fq.GetSingleton<Punchy.Flora.FloraLookup>();
+            if (!flora.Blob.IsCreated)
+                return;
+            // Rings outwards round each player in turn, so the nearest cells come first.
+            const float cell = 16f;
+            critterMissing.Clear();
+            var reach = (int)math.ceil(CritterRadius / cell);
+            for (int ring = 0; ring <= reach && critterMissing.Count < CritterCellsPerJob; ring++)
+            foreach (var player in players)
+            {
+                var centre = (int2)math.floor(player.xz / cell);
+                for (int y = -ring; y <= ring; y++)
+                for (int x = -ring; x <= ring; x++)
+                {
+                    var key = centre + new int2(x, y);
+                    if (math.max(math.abs(x), math.abs(y)) == ring && critterMissing.Count < CritterCellsPerJob &&
+                        !critterCells.ContainsKey(key) && !critterMissing.Contains(key))
+                        critterMissing.Add(key);
+                }
+            }
+            if (critterMissing.Count == 0)
+                return;
+            settleCells = new NativeArray<int2>(critterMissing.Count, Allocator.Persistent);
+            for (int i = 0; i < critterMissing.Count; i++)
+                settleCells[i] = critterMissing[i];
+            settleSpots = new NativeList<AmbientLife.CritterSpot>(critterMissing.Count * 4, Allocator.Persistent);
+            settleEnds = new NativeArray<int>(critterMissing.Count, Allocator.Persistent);
+            settleHandle = new SettleCellsJob { Source = source, Flora = flora.Blob, Cells = settleCells, Spots = settleSpots, Ends = settleEnds }.Schedule();
+            settling = true;
+        }
+
+        /// <summary>Finishes any settling job and frees its lists.</summary>
+        void EndSettling()
+        {
+            if (!settling)
+                return;
+            settleHandle.Complete();
+            settleCells.Dispose();
+            settleSpots.Dispose();
+            settleEnds.Dispose();
+            settling = false;
+        }
+
         void SpawnCritters(in TerrainSource source)
         {
             if (critterTable == null || simWorld == null || species.Count == 0)
@@ -942,6 +1086,21 @@ namespace Punchy.Fauna
             var night = Cycle != null ? Cycle.Night : 0f;
             var share = math.max(24, MaxCritters / math.max(players.Count, 1));
             const float cell = 16f;
+            // (A new world: none of the old spots hold.)
+            if (!critterSource.Equals(source))
+            {
+                critterCells.Clear();
+                critterSource = source;
+            }
+            if (critterCells.Count > 600)
+            {
+                critterCellsGone.Clear();
+                foreach (var key in critterCells.Keys)
+                    if (NearestPlayer(((float2)key + 0.5f) * cell) > CritterLetGo + cell * 2f)
+                        critterCellsGone.Add(key);
+                foreach (var key in critterCellsGone)
+                    critterCells.Remove(key);
+            }
             foreach (var player in players)
             {
                 if (critterCount >= MaxCritters)
@@ -959,7 +1118,12 @@ namespace Punchy.Fauna
                 var max = (int2)math.floor((player.xz + CritterRadius) / cell);
                 for (int y = min.y; y <= max.y; y++)
                 for (int x = min.x; x <= max.x; x++)
-                    AmbientLife.CritterSpots(new int2(x, y), source, ref flora.Blob.Value, critterSpots);
+                {
+                    var key = new int2(x, y);
+                    // (Cells not worked out yet are settled a few a frame by SettleCritterCells.)
+                    if (critterCells.TryGetValue(key, out var spots))
+                        critterSpots.AddRange(spots);
+                }
                 critterSpots.Sort((a, b) => math.distancesq(a.Position.xz, player.xz).CompareTo(math.distancesq(b.Position.xz, player.xz)));
                 foreach (var spot in critterSpots)
                 {
