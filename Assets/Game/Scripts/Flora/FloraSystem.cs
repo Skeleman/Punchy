@@ -89,6 +89,11 @@ namespace Punchy.Flora
             public float3[] ModelMin, ModelMax;
             public float[] ModelMaxScale;
             public GraphicsBuffer Instances, Visible, Args, Regions, Bounds;
+            /// <summary>
+            /// The draw arguments the culling shader counts instances into (structured, so D3D11 can write it: an
+            /// IndirectArguments buffer can't also be Raw there), copied into Args for the draws once culled.
+            /// </summary>
+            public GraphicsBuffer Counts;
             /// <summary>The draw arguments as last uploaded: each variant × LOD's mesh range, and its region of the
             /// visible list as startInstance (the shader adds it), so draws need no per-draw property block.</summary>
             public GraphicsBuffer.IndirectDrawIndexedArgs[] ArgsData;
@@ -113,9 +118,10 @@ namespace Punchy.Flora
                 Instances?.Release();
                 Visible?.Release();
                 Args?.Release();
+                Counts?.Release();
                 Regions?.Release();
                 Bounds?.Release();
-                Instances = Visible = Args = Regions = Bounds = null;
+                Instances = Visible = Args = Counts = Regions = Bounds = null;
                 if (Material != null)
                     UnityEngine.Object.Destroy(Material);
                 Material = null;
@@ -335,7 +341,8 @@ namespace Punchy.Flora
         void CreateDrawBuffers(Layer layer)
         {
             var draws = math.max(1, layer.ModelCount * 3);
-            layer.Args = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments | GraphicsBuffer.Target.Raw, draws, GraphicsBuffer.IndirectDrawIndexedArgs.size);
+            layer.Args = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments | GraphicsBuffer.Target.CopyDestination, draws, GraphicsBuffer.IndirectDrawIndexedArgs.size);
+            layer.Counts = new GraphicsBuffer(GraphicsBuffer.Target.Structured | GraphicsBuffer.Target.CopySource, draws, GraphicsBuffer.IndirectDrawIndexedArgs.size);
             var args = new GraphicsBuffer.IndirectDrawIndexedArgs[draws];
             var bounds = new float2[math.max(1, layer.ModelCount)];
             if (layer.Material == null)
@@ -358,6 +365,7 @@ namespace Punchy.Flora
             }
             layer.ArgsData = args;
             layer.Args.SetData(args);
+            layer.Counts.SetData(args);
             layer.Bounds = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bounds.Length, sizeof(float) * 2);
             layer.Bounds.SetData(bounds);
             layer.Regions = new GraphicsBuffer(GraphicsBuffer.Target.Structured, draws, sizeof(uint));
@@ -535,6 +543,7 @@ namespace Punchy.Flora
             }
             l.Regions.SetData(regions);
             l.Args.SetData(l.ArgsData);
+            l.Counts.SetData(l.ArgsData);
             l.Material.SetBuffer(InstancesId, l.Instances);
             l.Material.SetBuffer(VisibleId, l.Visible);
         }
@@ -587,7 +596,7 @@ namespace Punchy.Flora
                 var s = l.Settings;
                 var draws = l.ModelCount * 3;
                 Culling.SetInt(DrawCountId, draws);
-                Culling.SetBuffer(clear, ArgsId, l.Args);
+                Culling.SetBuffer(clear, ArgsId, l.Counts);
                 Culling.Dispatch(clear, (draws + 63) / 64, 1, 1);
 
                 Culling.SetInt(CountId, l.Count);
@@ -598,10 +607,11 @@ namespace Punchy.Flora
                 Culling.SetVector(ShadowId, new Vector4(s.CastShadows ? shadowDistance : 0f, ShadowMargin, 0f, 0f));
                 Culling.SetBuffer(cull, InstancesId, l.Instances);
                 Culling.SetBuffer(cull, VisibleId, l.Visible);
-                Culling.SetBuffer(cull, ArgsId, l.Args);
+                Culling.SetBuffer(cull, ArgsId, l.Counts);
                 Culling.SetBuffer(cull, RegionsId, l.Regions);
                 Culling.SetBuffer(cull, BoundsId, l.Bounds);
                 Culling.Dispatch(cull, (l.Count + 63) / 64, 1, 1);
+                Graphics.CopyBuffer(l.Counts, l.Args);
 
                 // Each model's draws are bounded by where its plants actually are, so Unity culls them per pass and
                 // shadow cascade, and a level of detail none of them can be at (by distance, with room for the
