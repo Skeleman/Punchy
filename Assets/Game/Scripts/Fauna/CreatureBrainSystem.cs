@@ -861,24 +861,21 @@ namespace Punchy.Fauna
                 }
                 else
                     CreatureMotion.AdvancePhase(ref s, ref b, dt);
-                // A glance at something near and interesting, over whatever else it was looking at; birds snap their
-                // heads round in steps rather than turning smoothly.
+                // A glance at something near and interesting, over whatever else it was looking at. Not while the head is
+                // busy with something of its own (preening, grazing, drinking, a head-down posture, reading...): then
+                // the look eases back to straight ahead and leaves the head to the action.
                 var desiredPitch = 0f;
-                if (s.Task != CreatureTask.Critter)
+                if (HeadBusy(s))
+                {
+                    s.LookFor = 0f;
+                    desiredLook = 0f;
+                }
+                else if (s.Task != CreatureTask.Critter)
                     Glance(self, ref s, ref b, ref rng, dt, player, playerSpeed, emote, ref desiredLook, out desiredPitch);
-                if (b.Habitat == Habitat.Flies || b.Nests != NestSite.None)
-                {
-                    if (math.abs(desiredLook - s.Look) > 0.3f || math.abs(desiredPitch - s.LookPitch) > 0.25f)
-                    {
-                        s.Look = desiredLook;
-                        s.LookPitch = desiredPitch;
-                    }
-                }
-                else
-                {
-                    s.Look += (desiredLook - s.Look) * math.min(1f, dt * 3f);
-                    s.LookPitch += (desiredPitch - s.LookPitch) * math.min(1f, dt * 3f);
-                }
+                // Never a snap: eased, and no faster than a bird's 180 or a mammal's 120 degrees a second.
+                var turnRate = (b.Habitat == Habitat.Flies || b.Nests != NestSite.None ? 3.1f : 2.1f) * dt;
+                s.Look += math.clamp((desiredLook - s.Look) * math.min(1f, dt * 5f), -turnRate, turnRate);
+                s.LookPitch += math.clamp((desiredPitch - s.LookPitch) * math.min(1f, dt * 5f), -turnRate, turnRate);
 
                 // Ease into postures: lying down takes a moment, springing up to run doesn't.
                 var lieRate = lie > s.Lie ? 0.8f : urgent ? 5f : 1.5f;
@@ -2477,6 +2474,17 @@ namespace Punchy.Fauna
                     s.LookFor = watching ? rng.NextFloat(3f, 6f) : rng.NextFloat(1f, 4f);
                 }
             }
+
+            /// <summary>
+            /// Whether the head is busy with something that moves it itself, so a glance would fight it: preening,
+            /// sniffing, grooming, scratching, howling, a head-bob, a petting or carrying pose, grazing or drinking, a
+            /// head-down posture, or taking or reading a message. (A child's poke or throw sets its own look.)
+            /// </summary>
+            static bool HeadBusy(in CreatureState s) =>
+                s.Action == IdleAction.Preen || s.Action == IdleAction.Sniff || s.Action == IdleAction.Groom || s.Action == IdleAction.Scratch ||
+                s.Action == IdleAction.Howl || s.Action == IdleAction.HeadBob || s.Action == IdleAction.Pet || s.Action == IdleAction.Carry ||
+                s.Mode == CreatureMode.Graze || s.Mode == CreatureMode.Drink || s.HeadDown > 0.3f ||
+                s.Mode == CreatureMode.Idle && (s.Stage == MessageTake || s.Stage == MessageRead);
 
             /// <summary>About where a creature's eyes are, above its feet.</summary>
             static float HeadHeight(in CreatureState s, ref CreatureBlob b) => b.StandHeight * math.max(s.Scale, 0.1f) * (b.Upright ? 1.8f : 1.2f);
