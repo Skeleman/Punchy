@@ -2341,7 +2341,8 @@ namespace Punchy.Flora
                 return;
             }
             var post = Mathf.Clamp(width * 0.12f, 0.1f, 0.18f);
-            // The leaf: vertical planks with thin gaps, set back a little in the frame.
+            // The leaf: vertical planks with thin gaps, set back a little in the frame, hung on its left edge.
+            var leaf = b.VertexCount;
             var planks = 4;
             var plank = (width - 0.03f * (planks - 1)) / planks;
             for (int k = 0; k < planks; k++)
@@ -2349,14 +2350,16 @@ namespace Punchy.Flora
                 var x = -width * 0.5f + plank * 0.5f + k * (plank + 0.03f);
                 b.Box(P(x, height * 0.5f, -0.02f), new Vector3(plank, height, 0.08f), facing, wood * g.Range(0.9f, 1.1f), FloraPart.Bark);
             }
-            // Dark gaps behind the planks, two iron straps and a handle.
-            b.Box(P(0f, height * 0.5f, -0.08f), new Vector3(width, height, 0.04f), facing, new Color(0.03f, 0.025f, 0.02f), FloraPart.Bark, 0.4f);
+            // Two iron straps and a handle, on the leaf.
             if (g.Lod == 0)
             {
                 foreach (var y in new[] { height * 0.22f, height * 0.78f })
                     b.Box(P(0f, y, 0.03f), new Vector3(width * 0.92f, 0.07f, 0.02f), facing, new Color(0.12f, 0.12f, 0.13f), FloraPart.Bark);
                 b.Box(P(width * 0.3f, height * 0.48f, 0.06f), new Vector3(0.05f, 0.14f, 0.05f), facing, new Color(0.15f, 0.14f, 0.13f), FloraPart.Bark);
             }
+            b.Hinge(leaf, P(-width * 0.5f, 0f, 0f), facing * Vector3.right, facing.eulerAngles.y * Mathf.Deg2Rad);
+            // The dark doorway behind the leaf (what shows when it swings open).
+            b.Box(P(0f, height * 0.5f, -0.08f), new Vector3(width, height, 0.04f), facing, new Color(0.03f, 0.025f, 0.02f), FloraPart.Bark, 0.4f);
             // Frame: jambs and a lintel standing proud of the wall.
             foreach (var side in new[] { -1f, 1f })
                 b.Box(P(side * (width * 0.5f + post * 0.5f), height * 0.5f + 0.05f, 0.04f), new Vector3(post, height + 0.1f, 0.2f), facing, frame, FloraPart.Bark);

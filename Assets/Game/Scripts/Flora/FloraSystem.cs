@@ -229,6 +229,7 @@ namespace Punchy.Flora
                     Upload(l);
             UpdateObstacles();
             UpdateSupports();
+            FloraDoors.Upload();
             if (!hidden)
             {
                 Draw(cam);

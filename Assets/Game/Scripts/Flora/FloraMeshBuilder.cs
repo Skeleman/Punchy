@@ -28,7 +28,9 @@ namespace Punchy.Flora
         /// (see FloraMeshBuilder.Cloth, Flora.hlsl).</summary>
         Cloth = 10,
         /// <summary>An electric arc: bright, crackling in bursts and jumping about (Flora.hlsl, Flora.shader).</summary>
-        Arc = 11
+        Arc = 11,
+        /// <summary>A door leaf that swings about its hinge (FloraMeshBuilder.Hinge, Flora.hlsl, FloraDoors).</summary>
+        Door = 12
     }
 
     /// <summary>
@@ -578,6 +580,24 @@ namespace Punchy.Flora
         /// bobbing up and down by up to <paramref name="bob"/> metres (carried in the flutter channel below -100,
         /// Flora.hlsl): floating debris.
         /// </summary>
+        /// <summary>
+        /// Makes the vertices from <paramref name="firstVertex"/> a door leaf (FloraPart.Door) hung on a vertical hinge
+        /// at <paramref name="hinge"/>, its width running along <paramref name="across"/>, facing out at
+        /// <paramref name="yaw"/> (radians, the door's turn about up). Each vertex carries its distance from the hinge
+        /// (x) and the yaw (z, so no leaf flutter), and Flora.hlsl swings the leaf outwards by how open it is.
+        /// </summary>
+        public void Hinge(int firstVertex, Vector3 hinge, Vector3 across, float yaw)
+        {
+            for (int v = firstVertex; v < data.Count; v++)
+            {
+                var d = data[v];
+                d.x = Vector3.Dot(positions[v] - hinge, across);
+                d.y = (float)FloraPart.Door;
+                d.z = Mathf.Repeat(yaw, Mathf.PI * 2f);
+                data[v] = d;
+            }
+        }
+
         public void Orbit(int firstVertex, float bob)
         {
             for (int v = firstVertex; v < data.Count; v++)
