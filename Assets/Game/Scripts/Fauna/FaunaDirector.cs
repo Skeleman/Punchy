@@ -91,6 +91,29 @@ namespace Punchy.Fauna
         int[] counts;
         /// <summary>How many there are of each kind (wild, settled, cave), as last counted (Despawn) plus those since.</summary>
         int wildCount, settledCount, caveCount, critterCount;
+
+        /// <summary>Which count a waiting animal goes towards (Despawn's tally).</summary>
+        enum SpawnTier : byte { Wild, Settled, Cave, Critter }
+
+        /// <summary>An animal waiting to be made: where, and what to set up on it once it exists.</summary>
+        struct PendingSpawn
+        {
+            public int Species;
+            public float3 Position;
+            public float Yaw;
+            public SpawnTier Tier;
+            public System.Action<Entity> Then;
+        }
+
+        [Tooltip("Animals made per frame from the waiting queue: a town, a cave or a batch of critters arrives over a few " +
+                 "frames instead of all in one.")]
+        public int SpawnsPerFrame = 8;
+        readonly Queue<PendingSpawn> pendingSpawns = new Queue<PendingSpawn>();
+        /// <summary>How many are waiting, of each tier (counted with those already made, so the caps hold).</summary>
+        readonly int[] pendingTiers = new int[4];
+        /// <summary>Critter spots with an animal on its way.</summary>
+        readonly HashSet<uint> pendingCritterSpots = new HashSet<uint>();
+        EntityArchetype plainArchetype;
         /// <summary>The critter species (Resources/Critters), and which critter spots are taken, by whom.</summary>
         CritterTable critterTable;
         readonly Dictionary<uint, Entity> critters = new Dictionary<uint, Entity>();
@@ -130,6 +153,10 @@ namespace Punchy.Fauna
             // (The settling job reads the flora blob disposed below.)
             EndSettling();
             critterCells.Clear();
+            pendingSpawns.Clear();
+            System.Array.Clear(pendingTiers, 0, pendingTiers.Length);
+            pendingCritterSpots.Clear();
+            plainArchetype = default;
             if (simWorld != null && simWorld.IsCreated)
             {
                 var em = simWorld.EntityManager;
@@ -206,6 +233,7 @@ namespace Punchy.Fauna
             GatherPlayers();
             using (DespawnMarker.Auto())
                 Despawn();
+            DrainSpawns();
             if (players.Count == 0)
                 return;
             if (Time.time >= nextResidentCheck)
@@ -686,6 +714,11 @@ namespace Punchy.Fauna
                     if (math.distance(players[p].xz, xz) <= Radius)
                         counts[p * species.Count + s]++;
             }
+            // (Those still waiting to be made count too.)
+            wildCount += pendingTiers[(int)SpawnTier.Wild];
+            settledCount += pendingTiers[(int)SpawnTier.Settled];
+            caveCount += pendingTiers[(int)SpawnTier.Cave];
+            critterCount += pendingTiers[(int)SpawnTier.Critter];
             if (far.Length > 0)
                 em.DestroyEntity(far.AsArray());
             far.Dispose();
@@ -866,7 +899,6 @@ namespace Punchy.Fauna
             foreach (var i in scratch)
                 occupied.Remove(i);
 
-            var em = simWorld.EntityManager;
             for (int i = 0; i < set.Instances.Length; i++)
             {
                 ref var inst = ref set.Instances[i];
@@ -877,6 +909,7 @@ namespace Punchy.Fauna
                 if (settledCount >= MaxSettled)
                     break;
                 occupied.Add(i);
+                var place = inst;
                 var radius = set.Types[inst.Type].Radius * inst.Scale;
                 SpawnDomestics(source, landmarks[inst.Type], inst.Position, radius);
                 foreach (var r in landmarks[inst.Type].Residents)
@@ -891,7 +924,9 @@ namespace Punchy.Fauna
                     var stationed = r.Leash > 0f || worker;
                     var home = stationed ? LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(r.HomeRing, r.HomeAngle), radius) : inst.Position;
                     var leash = r.Leash > 0f ? r.Leash : worker ? 7f : radius * 0.8f;
-                    for (int k = 0; k < count; k++)
+                    var face = worker ? LandmarkSampling.ToWorld(place, LandmarkLayout.Spot(r.FaceRing, r.FaceAngle), radius) : float2.zero;
+                    var task = r.Task;
+                    for (int k = 0; k < count && settledCount < MaxSettled; k++)
                     {
                         var p = worker ? home + rng.NextFloat2Direction() * 0.2f
                               : r.Leash > 0f ? home + rng.NextFloat2Direction() * rng.NextFloat(0f, leash * 0.7f)
@@ -899,22 +934,26 @@ namespace Punchy.Fauna
                         var g = source.SampleGround(p);
                         if (g.HasWater && g.WaterSurface > g.Height)
                             continue;
-                        var e = Spawn(index, new float3(p.x, g.Height, p.y));
-                        settledCount++;
-                        var state = em.GetComponentData<CreatureState>(e);
-                        state.Home = home;
-                        state.Leash = leash;
-                        if (r.Size.y > 0f)
-                            state.Scale = rng.NextFloat(r.Size.x, math.max(r.Size.x, r.Size.y));
-                        if (worker)
+                        var scale = r.Size.y > 0f ? rng.NextFloat(r.Size.x, math.max(r.Size.x, r.Size.y)) : 0f;
+                        var timer = rng.NextFloat(40f, 120f);
+                        Enqueue(index, new float3(p.x, g.Height, p.y), SpawnTier.Settled, e =>
                         {
-                            state.Task = r.Task;
-                            state.WorkSpot = home;
-                            state.WorkFace = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(r.FaceRing, r.FaceAngle), radius);
-                            state.Mode = CreatureMode.Work;
-                            state.Timer = rng.NextFloat(40f, 120f);
-                        }
-                        em.SetComponentData(e, state);
+                            var em = simWorld.EntityManager;
+                            var state = em.GetComponentData<CreatureState>(e);
+                            state.Home = home;
+                            state.Leash = leash;
+                            if (scale > 0f)
+                                state.Scale = scale;
+                            if (worker)
+                            {
+                                state.Task = task;
+                                state.WorkSpot = home;
+                                state.WorkFace = face;
+                                state.Mode = CreatureMode.Work;
+                                state.Timer = timer;
+                            }
+                            em.SetComponentData(e, state);
+                        });
                     }
                 }
             }
@@ -1270,7 +1309,7 @@ namespace Punchy.Fauna
                     if (mine >= share || critterCount >= MaxCritters)
                         break;
                     var d = math.distance(spot.Position.xz, player.xz);
-                    if (d > CritterRadius || d < 6f || critters.ContainsKey(spot.Id))
+                    if (d > CritterRadius || d < 6f || critters.ContainsKey(spot.Id) || pendingCritterSpots.Contains(spot.Id))
                         continue;
                     var kind = spot.Kind;
                     // (Owls and frogs come out at night; songbirds and woodpeckers by day; mice either.)
@@ -1288,18 +1327,26 @@ namespace Punchy.Fauna
                     var index = SpeciesIndex(sp);
                     if (index < 0)
                         continue;
-                    var e = Spawn(index, spot.Position, rng.NextFloat(6.28f));
-                    var state = em.GetComponentData<CreatureState>(e);
-                    state.Position = spot.Position;
-                    state.Task = CreatureTask.Critter;
-                    state.Home = spot.Position.xz;
-                    state.Leash = kind == AmbientLife.CritterKind.Songbird ? 18f : 8f;
-                    // (Settled on its perch a while before it does anything.)
-                    state.Mode = CreatureMode.Rest;
-                    state.Timer = rng.NextFloat(4f, 15f);
-                    em.SetComponentData(e, state);
-                    critters[spot.Id] = e;
-                    critterCount++;
+                    var at = spot.Position;
+                    var id = spot.Id;
+                    var leash = kind == AmbientLife.CritterKind.Songbird ? 18f : 8f;
+                    var timer = rng.NextFloat(4f, 15f);
+                    pendingCritterSpots.Add(id);
+                    Enqueue(index, at, SpawnTier.Critter, e =>
+                    {
+                        var em = simWorld.EntityManager;
+                        var state = em.GetComponentData<CreatureState>(e);
+                        state.Position = at;
+                        state.Task = CreatureTask.Critter;
+                        state.Home = at.xz;
+                        state.Leash = leash;
+                        // (Settled on its perch a while before it does anything.)
+                        state.Mode = CreatureMode.Rest;
+                        state.Timer = timer;
+                        em.SetComponentData(e, state);
+                        critters[id] = e;
+                        pendingCritterSpots.Remove(id);
+                    }, rng.NextFloat(6.28f));
                     mine++;
                 }
             }
@@ -1310,8 +1357,6 @@ namespace Punchy.Fauna
         {
             if (domestics == null)
                 return;
-            var spawnedDomestics = 0;
-            var em = simWorld.EntityManager;
             foreach (var d in domestics.Entries)
             {
                 // By name: the palette's landmark types (baked into the world subscene) aren't the same objects as the table's.
@@ -1337,18 +1382,18 @@ namespace Punchy.Fauna
                     }
                     if (lava ? !(g.HasWater && g.WaterSurface > g.Height + 0.5f) : g.HasWater && g.WaterSurface > g.Height)
                         continue;
-                    var e = Spawn(index, new float3(p.x, lava ? g.WaterSurface - 0.3f : g.Height, p.y));
-                    spawnedDomestics++;
-                    settledCount++;
-                    var state = em.GetComponentData<CreatureState>(e);
-                    state.Home = centre;
-                    state.Leash = leash;
-                    state.Task = d.Task;
-                    em.SetComponentData(e, state);
+                    var task = d.Task;
+                    Enqueue(index, new float3(p.x, lava ? g.WaterSurface - 0.3f : g.Height, p.y), SpawnTier.Settled, e =>
+                    {
+                        var em = simWorld.EntityManager;
+                        var state = em.GetComponentData<CreatureState>(e);
+                        state.Home = centre;
+                        state.Leash = leash;
+                        state.Task = task;
+                        em.SetComponentData(e, state);
+                    });
                 }
             }
-            if (spawnedDomestics > 0)
-                Debug.Log($"FaunaDirector: {spawnedDomestics} domestic animals at {settlement.name}");
         }
 
         /// <summary>
@@ -1402,10 +1447,7 @@ namespace Punchy.Fauna
                                 continue;
                             // (The cap holds within a cave too: a big cave has hundreds of glowing plants.)
                             for (int k = 0; k < count && caveCount < MaxCave; k++)
-                            {
-                                Spawn(sp, glow.Position + new float3(rng.NextFloat(-0.6f, 0.6f), rng.NextFloat(0.4f, 1.4f), rng.NextFloat(-0.6f, 0.6f)));
-                                caveCount++;
-                            }
+                                Enqueue(sp, glow.Position + new float3(rng.NextFloat(-0.6f, 0.6f), rng.NextFloat(0.4f, 1.4f), rng.NextFloat(-0.6f, 0.6f)), SpawnTier.Cave);
                         }
                         continue;
                     }
@@ -1418,13 +1460,7 @@ namespace Punchy.Fauna
                         var floor = source.FloorUnder(at, out var inCave);
                         // (Really under the rock: not where a passage opens to the sky.)
                         if (inCave && source.CaveDistance(new float3(at.x, floor + 0.3f, at.z)) < -0.05f)
-                        {
-                            Spawn(sp, new float3(at.x, floor, at.z));
-                            if (visitor)
-                                wildCount++;
-                            else
-                                caveCount++;
-                        }
+                            Enqueue(sp, new float3(at.x, floor, at.z), visitor ? SpawnTier.Wild : SpawnTier.Cave);
                     }
                 }
             }
@@ -1449,7 +1485,6 @@ namespace Punchy.Fauna
         public Entity Spawn(int speciesIndex, float3 position, float yaw = float.NaN)
         {
             var em = simWorld.EntityManager;
-            ref var b = ref blobs[speciesIndex].Value;
             Entity e;
             if (simWorld.IsServer() && ghostSpawnerQuery.TryGetSingleton<CreatureGhostSpawner>(out var spawner))
             {
@@ -1459,6 +1494,64 @@ namespace Punchy.Fauna
             }
             else
                 e = em.CreateEntity(typeof(CreatureState), typeof(CreatureBody));
+            Init(e, speciesIndex, position, yaw);
+            return e;
+        }
+
+        /// <summary>
+        /// Puts an animal in the queue to be made (DrainSpawns, a few a frame), counted at once towards its tier's cap;
+        /// then, once it exists, runs what sets it up (home, leash, task...).
+        /// </summary>
+        void Enqueue(int speciesIndex, float3 position, SpawnTier tier, System.Action<Entity> then = null, float yaw = float.NaN)
+        {
+            pendingSpawns.Enqueue(new PendingSpawn { Species = speciesIndex, Position = position, Yaw = yaw, Tier = tier, Then = then });
+            pendingTiers[(int)tier]++;
+            switch (tier)
+            {
+                case SpawnTier.Settled: settledCount++; break;
+                case SpawnTier.Cave: caveCount++; break;
+                case SpawnTier.Critter: critterCount++; break;
+                default: wildCount++; break;
+            }
+        }
+
+        /// <summary>
+        /// Makes up to SpawnsPerFrame waiting animals, together: one batch of entities (ghosts on a server) given their
+        /// creature components in one go, rather than two structural changes each.
+        /// </summary>
+        void DrainSpawns()
+        {
+            var n = math.min(pendingSpawns.Count, math.max(SpawnsPerFrame, 1));
+            if (n == 0)
+                return;
+            var em = simWorld.EntityManager;
+            NativeArray<Entity> made;
+            if (simWorld.IsServer() && ghostSpawnerQuery.TryGetSingleton<CreatureGhostSpawner>(out var spawner))
+            {
+                made = em.Instantiate(spawner.Prefab, n, Allocator.Temp);
+                em.AddComponent(made, new ComponentTypeSet(ComponentType.ReadWrite<CreatureState>(), ComponentType.ReadWrite<CreatureBody>()));
+            }
+            else
+            {
+                if (!plainArchetype.Valid)
+                    plainArchetype = em.CreateArchetype(typeof(CreatureState), typeof(CreatureBody));
+                made = em.CreateEntity(plainArchetype, n, Allocator.Temp);
+            }
+            for (int i = 0; i < n; i++)
+            {
+                var p = pendingSpawns.Dequeue();
+                pendingTiers[(int)p.Tier]--;
+                Init(made[i], p.Species, p.Position, p.Yaw);
+                p.Then?.Invoke(made[i]);
+            }
+            made.Dispose();
+        }
+
+        /// <summary>A new animal's body and starting state, at a point.</summary>
+        void Init(Entity e, int speciesIndex, float3 position, float yaw)
+        {
+            var em = simWorld.EntityManager;
+            ref var b = ref blobs[speciesIndex].Value;
             em.SetComponentData(e, new CreatureBody
             {
                 Blob = blobs[speciesIndex],
@@ -1485,7 +1578,6 @@ namespace Punchy.Fauna
             });
             if (em.HasComponent<LocalTransform>(e))
                 em.SetComponentData(e, LocalTransform.FromPosition(position));
-            return e;
         }
 
         // ------------------------------------------------------------------------------------------- mesh
