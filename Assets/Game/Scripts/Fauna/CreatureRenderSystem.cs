@@ -575,7 +575,7 @@ namespace Punchy.Fauna
 
             var instances = new NativeArray<SegmentInstance>(total, Allocator.TempJob);
             // Over the copies, a few creatures per batch, so every worker takes a share (per chunk, it was one or two).
-            new PoseJob
+            var posing = new PoseJob
             {
                 States = states,
                 Bodies = bodies,
@@ -591,7 +591,32 @@ namespace Punchy.Fauna
                 // A little short of FaunaDirector's despawn distance (170 m), so it's gone before it's removed.
                 FadeFar = 165f,
                 Night = night
-            }.Schedule(bodies.Length, 8).Complete();
+            }.Schedule(bodies.Length, 8);
+            // While the creatures are posed on the workers, the rest is drawn here into its own array (the colonies, the
+            // bees, the small life, the birds overhead, the traces), copied in after them once they're done, rather than
+            // the main thread waiting on the posing first.
+            var extras = new NativeArray<SegmentInstance>(total - colonyStart, Allocator.TempJob);
+            var at = 0;
+            for (int i = 0; i < roosts.Length; i++)
+                at = Colony(terrain.Anchors.Value.Anchors[roosts[i]], roosts[i], colonySizes[i], colonyFades[i], extras, at);
+            colonySizes.Dispose();
+            colonyFades.Dispose();
+            for (int i = 0; i < hives.Length; i++)
+            {
+                var hive = terrain.Anchors.Value.Anchors[hives[i]];
+                var angry = hiveAngry.TryGetValue(hives[i], out var since) ? now - since : -1f;
+                var faded = math.saturate((math.distance(camAt0, hive.Position) - SwarmRange * 0.75f) / (SwarmRange * 0.25f));
+                at = Swarm(hive, hives[i], day, now, angry, swarmTargets[i], faded, terrain, extras, at);
+            }
+            swarmTargets.Dispose();
+            foreach (var critter in critters)
+                at = Critter(critter, (float)SystemAPI.Time.ElapsedTime, extras, at);
+            at = WriteSkyBirds(skyClock, extras, at);
+            if (traceCount > 0)
+                at = traces.Write(extras, at, (float)SystemAPI.Time.ElapsedTime);
+            posing.Complete();
+            NativeArray<SegmentInstance>.Copy(extras, 0, instances, colonyStart, extras.Length);
+            extras.Dispose();
             // Lanterns and torches near the camera light the ground round them: each joins the glow list as a moving
             // light (by its carrier, so its fade-in carries on as it moves), at the middle of a lantern's glass as just
             // posed, or a torch's flame. A torch's flame itself is the world's (FireSystem), lit each frame at the top
@@ -629,24 +654,6 @@ namespace Punchy.Fauna
             bodies.Dispose();
             states.Dispose();
             entities.Dispose();
-            var at = colonyStart;
-            for (int i = 0; i < roosts.Length; i++)
-                at = Colony(terrain.Anchors.Value.Anchors[roosts[i]], roosts[i], colonySizes[i], colonyFades[i], instances, at);
-            colonySizes.Dispose();
-            colonyFades.Dispose();
-            for (int i = 0; i < hives.Length; i++)
-            {
-                var hive = terrain.Anchors.Value.Anchors[hives[i]];
-                var angry = hiveAngry.TryGetValue(hives[i], out var since) ? now - since : -1f;
-                var faded = math.saturate((math.distance(camAt, hive.Position) - SwarmRange * 0.75f) / (SwarmRange * 0.25f));
-                at = Swarm(hive, hives[i], day, now, angry, swarmTargets[i], faded, terrain, instances, at);
-            }
-            swarmTargets.Dispose();
-            foreach (var critter in critters)
-                at = Critter(critter, (float)SystemAPI.Time.ElapsedTime, instances, at);
-            at = WriteSkyBirds(skyClock, instances, at);
-            if (traceCount > 0)
-                at = traces.Write(instances, at, (float)SystemAPI.Time.ElapsedTime);
 
             if (buffer == null || buffer.count < total)
             {
