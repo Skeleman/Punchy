@@ -153,3 +153,13 @@ MonoBehaviour:
     Count: {x: 0, y: 1}
     Range: 1
     Task: 8
+  - Settlement: {fileID: 11400000, guid: eb1675c48543d0a4d9f5e420d61695e6, type: 2}
+    Species: {fileID: 11400000, guid: 92efcd8c205109b498ebcc61830248fd, type: 2}
+    Count: {x: 2, y: 3}
+    Range: 0.6
+    Task: 9
+  - Settlement: {fileID: 11400000, guid: 1a51505d1a065444897844632b0f8a32, type: 2}
+    Species: {fileID: 11400000, guid: 8e349b1519701e84fbe7923c0c10f2fd, type: 2}
+    Count: {x: 2, y: 3}
+    Range: 0.6
+    Task: 9

@@ -764,7 +764,7 @@ namespace Punchy.Fauna
                     continue;
                 var count = rng.NextInt(math.max(0, d.Count.x), math.max(d.Count.x, d.Count.y) + 1);
                 // Hunters range well beyond the settlement, out to where the game is (fishers to the water).
-                var leash = d.Task == CreatureTask.Hunt || d.Task == CreatureTask.Fish ? math.max(radius * 3f, 70f) : radius * d.Range;
+                var leash = d.Task == CreatureTask.Hunt || d.Task == CreatureTask.Fish || d.Task == CreatureTask.Mine ? math.max(radius * 3f, 70f) : radius * d.Range;
                 // Lava dwellers go in the landmark's lava (a few tries each), not on dry ground.
                 var lava = d.Species.Body.LavaDweller;
                 for (int k = 0; k < count; k++)

@@ -316,6 +316,12 @@ namespace Punchy.Fauna
                         a += (j == 0 ? (toBack ? new float3(-2.5f, 0f, -0.35f) : new float3(-0.35f, 0f, 0.75f))
                             : j == 1 ? (toBack ? new float3(-1.4f, 0f, 0f) : new float3(-1.0f, 0f, 0f)) : float3.zero) * reach;
                     }
+                    // A sack of ore carried in both arms against the chest.
+                    if (part.Role == LimbRole.Arm && s.Held == HeldItem.OreSack)
+                    {
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.85f);
+                        a += j == 0 ? new float3(-0.95f, 0f, -part.Side * 0.25f) : j == 1 ? new float3(-1.25f, 0f, 0f) : float3.zero;
+                    }
                     // A lantern in the off hand: that arm held a little forward and bent, hardly swinging.
                     if (part.Role == LimbRole.Arm && part.Side < 0f && s.Held == HeldItem.Lantern)
                     {
@@ -643,11 +649,17 @@ namespace Punchy.Fauna
         /// A worker's arms at its post (only once it's there and standing). Arms hang down from the shoulder:
         /// negative pitch raises them forwards, positive swings them back; mirrored arms keep the same pitch.
         /// </summary>
+        /// <summary>A miner's stage at the ore face, swinging its pick (CreatureBrainSystem's mining round).</summary>
+        public const byte MinerAtFace = 101;
+
         static float3 TaskPose(ref CreaturePart part, in CreatureState s, int joint)
         {
             if (part.Role == LimbRole.Arm && joint <= 1 && s.Mode == CreatureMode.Hunt && s.Task == CreatureTask.Hunt)
                 return HuntPose(part.Side > 0f, s.Stage, joint);
             if (part.Role != LimbRole.Arm || s.Mode != CreatureMode.Work || s.Stage == 0 || s.Task == CreatureTask.None || joint > 1)
+                return float3.zero;
+            // (A miner swings its pick only at the ore face, not on its way there and back.)
+            if (s.Task == CreatureTask.Mine && s.Stage != MinerAtFace)
                 return float3.zero;
             var right = part.Side > 0f;
             var t = s.Clock + (s.Individual % 100) * 0.13f;
@@ -655,9 +667,11 @@ namespace Punchy.Fauna
             {
                 case CreatureTask.Hammer:
                 case CreatureTask.Chop:
+                case CreatureTask.Mine:
                 {
-                    // Raise slowly, strike fast; a hammer is one-handed (the other hand holds the work), an axe two.
-                    var swinging = right || s.Task == CreatureTask.Chop;
+                    // Raise slowly, strike fast; a hammer is one-handed (the other hand holds the work), an axe or a
+                    // miner's pick two.
+                    var swinging = right || s.Task == CreatureTask.Chop || s.Task == CreatureTask.Mine;
                     if (!swinging)
                         return new float3(joint == 0 ? -0.7f : -0.7f, 0f, 0f);
                     var p = math.frac(t * (s.Task == CreatureTask.Chop ? 0.55f : 0.85f));

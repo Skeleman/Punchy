@@ -57,6 +57,8 @@ namespace Punchy.Fauna
         /// breastplate, sash and shoulder pads. The torch's handle is always the first (its flame is lit from it).
         /// </summary>
         const int GuardParts = 14;
+        /// <summary>Capsules in a miner's gear: its pick (the haft, the head's two points) and a sack of ore.</summary>
+        const int MinerParts = 4;
         /// <summary>When in a throw (its ActionTime) the stone leaves the hand: TraceSystem throws it from there.</summary>
         public const float ThrowRelease = 0.3f;
 
@@ -66,7 +68,8 @@ namespace Punchy.Fauna
         const int RodParts = 4 + BasketStaves * 2 + 2;
         static int HeldCount(HeldItem held, CreatureTask task) => task == CreatureTask.Hunt && (held == HeldItem.Spear || held == HeldItem.SpearDrawn) ? 0 :
                                                held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.SpearDrawn || held == HeldItem.Torch ? GuardParts :
-                                               held == HeldItem.Rod ? RodParts : held == HeldItem.Stick || held == HeldItem.Stone ? 1 : 0;
+                                               held == HeldItem.Rod ? RodParts : held == HeldItem.Stick || held == HeldItem.Stone ? 1 :
+                                               held == HeldItem.Pickaxe || held == HeldItem.OreSack ? MinerParts : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 0 : -1;
         /// <summary>Capsules per hanging bat, the most per roost, and how near the camera colonies show.</summary>
@@ -412,6 +415,66 @@ namespace Punchy.Fauna
                     Rod(state, ref body.Blob.Value, offset, held, faded, entity.Index);
                 else if (state.Held == HeldItem.Stick || state.Held == HeldItem.Stone)
                     Plaything(state, ref body.Blob.Value, offset, held, faded);
+                else if (state.Held == HeldItem.Pickaxe || state.Held == HeldItem.OreSack)
+                    Miner(state, ref body.Blob.Value, offset, held, faded);
+            }
+
+            /// <summary>
+            /// A miner's gear: its pick across its back on the way in and out, in its hands swinging at the ore face
+            /// (the head's two points out either side of the haft's end); and carrying ore out, a full sack hugged to its
+            /// chest.
+            /// </summary>
+            void Miner(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
+            {
+                for (int i = 0; i < MinerParts; i++)
+                    Output[at + i] = default;
+                int hand = -1, chest = -1;
+                for (int i = 0; i < b.Parts.Length; i++)
+                {
+                    ref var part = ref b.Parts[i];
+                    if (part.Role == LimbRole.Arm && part.Side > 0f && hand < 0)
+                        hand = part.FirstSegment + part.SegmentCount - 1;
+                    else if (part.Parent < 0 && part.Role != LimbRole.Leg && part.Role != LimbRole.Arm && chest < 0)
+                        chest = part.FirstSegment + part.SegmentCount - 1;
+                }
+                if (hand < 0 || chest < 0)
+                    return;
+                var scale = Unity.Mathematics.math.max(state.Scale, 0.3f);
+                var forward = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
+                var right = new Unity.Mathematics.float3(forward.z, 0f, -forward.x);
+                var wood = new Unity.Mathematics.float4(0.18f, 0.12f, 0.06f, 0f);
+                var iron = new Unity.Mathematics.float4(0.3f, 0.3f, 0.32f, 0f);
+                var torso = Output[offset + chest];
+                var axis = Unity.Mathematics.math.mul(torso.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                var r = Unity.Mathematics.math.max(torso.RadiusStart, torso.RadiusEnd);
+                var length = 0.8f * scale;
+                float3 butt, dir;
+                if (state.Mode == CreatureMode.Work && state.Stage == CreatureAnimator.MinerAtFace && state.Held == HeldItem.Pickaxe)
+                {
+                    // In both hands, held at the end of the haft, along the arms' swing.
+                    var h = Output[offset + hand];
+                    dir = Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                    butt = h.Position + dir * h.Length * 0.4f - dir * 0.08f * scale;
+                }
+                else
+                {
+                    // Across the back, from low on the left to high on the right.
+                    dir = Unity.Mathematics.math.normalize(axis + right * 0.75f);
+                    butt = torso.Position + axis * torso.Length * 0.5f - forward * r * 1.3f - dir * length * 0.5f;
+                }
+                var tip = butt + dir * length;
+                var across = Unity.Mathematics.math.normalizesafe(Unity.Mathematics.math.cross(dir, right), forward);
+                Output[at] = Piece(butt, dir, right, length, 0.02f * scale, 0.022f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                Output[at + 1] = Piece(tip, across, right, 0.22f * scale, 0.035f * scale, 0.005f * scale, 0.6f, iron, faded, SegmentMaterial.Metal);
+                Output[at + 2] = Piece(tip, -across, right, 0.18f * scale, 0.035f * scale, 0.008f * scale, 0.6f, iron, faded, SegmentMaterial.Metal);
+                if (state.Held == HeldItem.OreSack)
+                {
+                    // A lumpy sack of ore held to the chest, low.
+                    var front = Unity.Mathematics.math.normalize(forward - axis * Unity.Mathematics.math.dot(forward, axis));
+                    var at3 = torso.Position + front * r * 1.25f;
+                    Output[at + 3] = Piece(at3 - axis * 0.06f * scale, axis, front, 0.14f * scale, 0.16f * scale, 0.12f * scale, 0.85f,
+                                           new Unity.Mathematics.float4(0.36f, 0.3f, 0.2f, 0f), faded, SegmentMaterial.Cloth);
+                }
             }
 
             /// <summary>

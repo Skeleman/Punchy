@@ -636,6 +636,13 @@ namespace Punchy.Fauna
                         break;
 
                     case CreatureMode.Work:
+                        // (A miner has no post: its day is a round, into the mine and back out with ore.)
+                        if (s.Task == CreatureTask.Mine)
+                        {
+                            custom = true;
+                            Mining(ref s, ref b, ref rng, dt, walk);
+                            break;
+                        }
                         // (A fisher's time at the water starts when it gets there, however far it had to walk.)
                         if (s.Stage >= 1 || s.Task != CreatureTask.Fish)
                             s.Timer -= dt;
@@ -824,6 +831,12 @@ namespace Punchy.Fauna
                     s.Held = Night > 0.5f ? HeldItem.Torch : s.Held == HeldItem.SpearDrawn ? HeldItem.SpearDrawn : HeldItem.Spear;
                 else if (s.Task == CreatureTask.Fish && s.Mode == CreatureMode.Work && s.Stage >= 1)
                     s.Held = HeldItem.Rod;
+                // (A miner at work has its pick, or a sack of ore: Mining says which.)
+                else if (s.Task == CreatureTask.Mine && s.Mode == CreatureMode.Work)
+                {
+                    if (s.Held != HeldItem.Pickaxe && s.Held != HeldItem.OreSack)
+                        s.Held = HeldItem.Pickaxe;
+                }
                 // A hunter by day wears its spear across its back, and draws it when it goes after game (put away
                 // when it's done): the same half-second reach as a guard's weapon. (After dark, a lantern below.)
                 else if (s.Task == CreatureTask.Hunt && b.Hands && Night < 0.5f)
@@ -999,8 +1012,9 @@ namespace Punchy.Fauna
                 // (Hunters have no post: by day they go out after game, at night they sleep at home.)
                 var posted = s.Task != CreatureTask.None && s.Task != CreatureTask.Hunt && s.Task != CreatureTask.Patrol;
                 // (A fisher fishes by day only: at night it sleeps at home like anyone.)
-                var work = posted ? sleepy > 0.5f ? (s.Task == CreatureTask.Fish ? 0f : 10f) : 6f : 0f;
-                if (posted && sleepy > 0.5f && s.Task != CreatureTask.Fish)
+                var dayWork = s.Task == CreatureTask.Fish || s.Task == CreatureTask.Mine;
+                var work = posted ? sleepy > 0.5f ? (dayWork ? 0f : 10f) : 6f : 0f;
+                if (posted && sleepy > 0.5f && !dayWork)
                     sleep = 0f;
                 // Townsfolk go indoors through their door: for the night (all but the watch), and now and then by day.
                 var home = 0f;
@@ -2123,6 +2137,198 @@ namespace Punchy.Fauna
                     } while (Grid.TryGetNextValue(out j, ref it));
                 }
                 return false;
+            }
+
+            // ------------------------------------------------------------------------------- mining
+
+            /// <summary>
+            /// A miner's day: from its camp to the mouth of the nearest mine (stage 1), in along the passage node by node
+            /// (10 + node), to the ore face (100) and there swinging its pick a while (101: MinerAtFace); then a sack of
+            /// ore out again node by node (110 + node), up out of the mouth and back to the camp (200), where it sets the
+            /// sack down (201) and goes back for more. At dusk it makes its way out, without a load, and home. Its mine
+            /// and its face (its own, chosen by its individual number, the same each day) are its LairCave and
+            /// LairNode, the face's spot its Anchor. It walks itself, on the floor under it: the cave's in the mine,
+            /// the ground outside.
+            /// </summary>
+            void Mining(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk)
+            {
+                if (!Terrain.Caves.IsCreated)
+                {
+                    Pause(ref s, ref b, ref rng);
+                    return;
+                }
+                if (s.Stage == 0)
+                {
+                    if (!FindOreFace(ref s))
+                    {
+                        Pause(ref s, ref b, ref rng);
+                        return;
+                    }
+                    s.Stage = 1;
+                    s.StageTime = 0f;
+                    s.Held = HeldItem.Pickaxe;
+                }
+                ref var set = ref Terrain.Caves.Value;
+                ref var cave = ref set.Caves[s.LairCave];
+                var dusk = Night > 0.45f;
+                var pace = walk * (s.Held == HeldItem.OreSack ? 0.8f : 1f);
+                // (At dusk, on the way in or at the face: turn about and make for the way out, as it is.)
+                if (dusk && (s.Stage >= 10 && s.Stage <= 101))
+                {
+                    var at = s.Stage == 100 || s.Stage == MinerAtFace ? s.LairNode : s.Stage - 10;
+                    s.Stage = (byte)(110 + math.clamp(at, 0, 88));
+                    s.StageTime = 0f;
+                }
+                if (s.Stage == 1)
+                {
+                    if (WalkOn(ref s, ref b, cave.Mouth, pace, dt) < 1f)
+                        Next(ref s, 11);
+                }
+                else if (s.Stage >= 10 && s.Stage < 100)
+                {
+                    var node = s.Stage - 10;
+                    if (WalkOn(ref s, ref b, set.Nodes[cave.FirstNode + node].Position, pace, dt) < 1.2f)
+                        Next(ref s, node >= s.LairNode ? (byte)100 : (byte)(s.Stage + 1));
+                }
+                else if (s.Stage == 100)
+                {
+                    if (WalkOn(ref s, ref b, s.Anchor, pace, dt) < 0.4f)
+                    {
+                        Next(ref s, MinerAtFace);
+                        s.Timer = rng.NextFloat(40f, 90f);
+                    }
+                }
+                else if (s.Stage == MinerAtFace)
+                {
+                    // At the face, swinging at it (the swing is the Mine task's pose), till the sack's full.
+                    s.Speed = 0f;
+                    var wanted = WrapAngle(s.AnchorYaw - s.Yaw);
+                    s.Yaw = WrapAngle(s.Yaw + math.clamp(wanted, -b.TurnRate * dt, b.TurnRate * dt));
+                    s.Timer -= dt;
+                    if (s.Timer <= 0f)
+                    {
+                        s.Held = HeldItem.OreSack;
+                        Next(ref s, (byte)(110 + math.clamp(s.LairNode, 0, 88)));
+                    }
+                }
+                else if (s.Stage >= 110 && s.Stage < 199)
+                {
+                    var node = s.Stage - 110;
+                    if (WalkOn(ref s, ref b, set.Nodes[cave.FirstNode + node].Position, pace, dt) < 1.2f)
+                        Next(ref s, node <= 1 ? (byte)199 : (byte)(s.Stage - 1));
+                }
+                else if (s.Stage == 199)
+                {
+                    if (WalkOn(ref s, ref b, cave.Mouth, pace, dt) < 1f)
+                        Next(ref s, 200);
+                }
+                else if (s.Stage == 200)
+                {
+                    var home = new float3(s.Home.x, Terrain.SampleHeight(s.Home), s.Home.y);
+                    if (WalkOn(ref s, ref b, home, pace, dt) < 1.5f)
+                    {
+                        Next(ref s, 201);
+                        s.Timer = rng.NextFloat(3f, 6f);
+                    }
+                }
+                else
+                {
+                    // Setting the sack down at the camp; back for more while it's day, else done for the day.
+                    s.Speed = 0f;
+                    s.Timer -= dt;
+                    if (s.Timer <= 0f)
+                    {
+                        s.Held = HeldItem.None;
+                        if (dusk)
+                            Pause(ref s, ref b, ref rng);
+                        else
+                        {
+                            s.Held = HeldItem.Pickaxe;
+                            Next(ref s, 1);
+                        }
+                    }
+                }
+                // (A stage that can't be got through in two minutes, four for the walks between the camp and the mine,
+                // it gives up on: home, and try again later.)
+                var limit = s.Stage == 1 || s.Stage == 200 ? 240f : 120f;
+                if (s.Mode == CreatureMode.Work && s.Stage != MinerAtFace && s.Stage != 201 && s.StageTime > limit)
+                {
+                    s.Held = HeldItem.None;
+                    Pause(ref s, ref b, ref rng);
+                }
+
+                static void Next(ref CreatureState s, byte stage)
+                {
+                    s.Stage = stage;
+                    s.StageTime = 0f;
+                }
+            }
+
+            const byte MinerAtFace = CreatureAnimator.MinerAtFace;
+
+            /// <summary>
+            /// The ore face a miner works (one of the mines' Work anchors in a chamber, not the one by the mouth, within
+            /// 400 m of its camp; which one by its individual number), and its mine and the chamber's node; false if
+            /// there's none.
+            /// </summary>
+            bool FindOreFace(ref CreatureState s)
+            {
+                if (!Terrain.Anchors.IsCreated)
+                    return false;
+                ref var anchors = ref Terrain.Anchors.Value;
+                ref var caves = ref Terrain.Caves.Value;
+                var found = new NativeList<int>(16, Allocator.Temp);
+                Anchors.Near(ref anchors, new float3(s.Home.x, s.Position.y, s.Home.y), 400f, AnchorKind.Work, ref found);
+                var faces = new FixedList128Bytes<int>();
+                for (int i = 0; i < found.Length && faces.Length < 30; i++)
+                {
+                    var a = anchors.Anchors[found[i]];
+                    if (a.InCave && a.Size < 1.2f && a.OwnerIndex < caves.Caves.Length)
+                        faces.Add(found[i]);
+                }
+                found.Dispose();
+                if (faces.Length == 0)
+                    return false;
+                var face = anchors.Anchors[faces[(int)(s.Individual % (uint)faces.Length)]];
+                ref var cave = ref caves.Caves[face.OwnerIndex];
+                var best = float.MaxValue;
+                var node = 1;
+                for (int n = 1; n < cave.NodeCount; n++)
+                {
+                    var d = math.distance(caves.Nodes[cave.FirstNode + n].Position, face.Position);
+                    if (d < best)
+                    {
+                        best = d;
+                        node = n;
+                    }
+                }
+                s.LairCave = (short)face.OwnerIndex;
+                s.LairNode = (short)math.min(node, 88);
+                s.Anchor = face.Position;
+                s.AnchorYaw = math.atan2(face.Facing.x, face.Facing.y);
+                return true;
+            }
+
+            /// <summary>
+            /// A step towards a point at a walking pace, turning to face the way, on the floor under it (the cave's
+            /// under rock, the ground's outside); how far it still is, across.
+            /// </summary>
+            float WalkOn(ref CreatureState s, ref CreatureBlob b, float3 target, float speed, float dt)
+            {
+                var to = target.xz - s.Position.xz;
+                var d = math.length(to);
+                if (d > 1e-3f)
+                {
+                    s.Position.xz += to / d * math.min(d, speed * dt);
+                    var wanted = WrapAngle(math.atan2(to.x, to.y) - s.Yaw);
+                    s.Yaw = WrapAngle(s.Yaw + math.clamp(wanted, -b.TurnRate * dt, b.TurnRate * dt));
+                }
+                s.Speed = d > 0.05f ? speed : 0f;
+                // (From a little above where it is, or where it's going if that's higher: up a slope, out of a pit.)
+                var from = new float3(s.Position.x, math.max(s.Position.y, target.y) + 0.8f, s.Position.z);
+                s.Position.y = Terrain.FloorUnder(from, out _);
+                CreatureMotion.AdvancePhase(ref s, ref b, dt);
+                return d;
             }
 
             // ------------------------------------------------------------------------------- swimming

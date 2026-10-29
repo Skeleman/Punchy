@@ -299,7 +299,10 @@ namespace Punchy.Fauna
         [UnityEngine.Tooltip("A guard: walks the town's streets and out to its gates on its shift (by day or by night, half " +
                              "each), spear in hand, a torch after dark; a night guard sleeps the day indoors.")] Patrol,
         [UnityEngine.Tooltip("Fishes by day from the shore nearest home (its own spot, the same each time): waits with its " +
-                             "float out, casts again now and then, sometimes lands a fish into its basket; home at dusk.")] Fish
+                             "float out, casts again now and then, sometimes lands a fish into its basket; home at dusk.")] Fish,
+        [UnityEngine.Tooltip("Mines by day: walks from its camp into the nearest mine and along its passages to an ore face (its " +
+                             "own, the same each day), swings its pick at it a while, carries a sack of ore back out to the " +
+                             "camp, and goes back for more; home at dusk.")] Mine
     }
 
     /// <summary>
@@ -353,7 +356,11 @@ namespace Punchy.Fauna
         /// <summary>A stone in the right hand: a child's, for throwing (another picked up after each throw).</summary>
         Stone,
         /// <summary>A guard's weapon drawn and in its right hand: danger about (a beast in town, someone carrying on).</summary>
-        SpearDrawn
+        SpearDrawn,
+        /// <summary>A miner's pick: worn across its back on the way, in both hands swinging at the ore face.</summary>
+        Pickaxe,
+        /// <summary>A sack of ore carried in both arms, out of the mine to the camp (the pick on its back).</summary>
+        OreSack
     }
 
     /// <summary>A town guard's weapon, by its folk: how long, and where it's worn sheathed.</summary>
