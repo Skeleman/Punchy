@@ -63,6 +63,16 @@ namespace Punchy.Fauna
         static readonly List<Ambient> now = new List<Ambient>();
         static int frame = -1;
 
+        /// <summary>Forgets every cell at the start of play (statics outlive a play session in the editor, and the island
+        /// may have changed since).</summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void Reset()
+        {
+            cells.Clear();
+            now.Clear();
+            frame = -1;
+        }
+
         /// <summary>The life round the listener this frame (worked out once a frame, however many ask).</summary>
         public static List<Ambient> Near(World world, float3 ear)
         {
@@ -305,8 +315,8 @@ namespace Punchy.Fauna
                 return new float3(g.x, terrain.SampleHeight(g), g.y);
             }
             // (Out at the crown's edge and low in it, where a bird can be seen, not buried in the leaves.)
-            var height = math.lerp(r.CrownBase, r.CrownTop, rng.NextFloat(0.05f, 0.35f));
-            return r.TreeBase + dir * (r.TrunkRadius + r.CrownRadius * rng.NextFloat(0.85f, 1.05f)) + new float3(0f, height, 0f);
+            var height = math.lerp(r.CrownBase, r.CrownTop, rng.NextFloat(0f, 0.2f));
+            return r.TreeBase + dir * (r.TrunkRadius + r.CrownRadius * rng.NextFloat(1.0f, 1.15f)) + new float3(0f, height, 0f);
         }
     }
 }
