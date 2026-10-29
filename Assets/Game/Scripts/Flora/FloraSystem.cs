@@ -135,6 +135,15 @@ namespace Punchy.Flora
         World queryWorld;
         EntityQuery terrainQuery, paletteQuery, playerQuery;
         Entity obstacleEntity;
+        /// <summary>Every model's support grid (a SupportGrids singleton) and, per model, its grid's index (-1 none).</summary>
+        BlobAssetReference<SupportGridSet> supportSet;
+        int[] modelGrid;
+        EntityQuery remoteQuery;
+        /// <summary>The players the support buffer was last gathered round, and when.</summary>
+        readonly List<float2> supportCentres = new List<float2>();
+        float nextSupport;
+        /// <summary>Walkable tops are gathered within this distance of every player.</summary>
+        const float SupportRange = 40f;
         float2 lastObstacleCentre = new float2(float.MaxValue);
         bool obstaclesDirty;
 
@@ -179,6 +188,18 @@ namespace Punchy.Flora
             species.Clear();
             if (placement.IsCreated) placement.Dispose();
             placement = default;
+            // Nothing may read the grids once they're gone.
+            if (queryWorld != null && queryWorld.IsCreated && obstacleEntity != Entity.Null && queryWorld.EntityManager.Exists(obstacleEntity))
+            {
+                if (queryWorld.EntityManager.HasComponent<SupportGrids>(obstacleEntity))
+                    queryWorld.EntityManager.RemoveComponent<SupportGrids>(obstacleEntity);
+                if (queryWorld.EntityManager.HasBuffer<FloraSupport>(obstacleEntity))
+                    queryWorld.EntityManager.GetBuffer<FloraSupport>(obstacleEntity).Clear();
+            }
+            if (supportSet.IsCreated) supportSet.Dispose();
+            supportSet = default;
+            modelGrid = null;
+            supportCentres.Clear();
             built = false;
         }
 
@@ -207,6 +228,7 @@ namespace Punchy.Flora
                 if (l.Dirty)
                     Upload(l);
             UpdateObstacles();
+            UpdateSupports();
             if (!hidden)
                 Draw(cam);
         }
@@ -226,6 +248,7 @@ namespace Punchy.Flora
                 terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
                 paletteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
                 playerQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
+                remoteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Fauna.RemoteAvatar>(), ComponentType.ReadOnly<Punchy.Fauna.CreatureState>());
                 queryWorld = world;
                 obstacleEntity = Entity.Null;
             }
@@ -282,6 +305,7 @@ namespace Punchy.Flora
             foreach (var s in species)
                 for (int v = 0; v < s.Variants; v++)
                     models.Add(FloraGenerator.Grow(s, v));
+            BuildSupportGrids();
             ref var rules = ref placement.Value.Rules;
 
             var settings = new[] { Ground, Shrubs, Trees };
@@ -615,6 +639,109 @@ namespace Punchy.Flora
         }
 
         // ------------------------------------------------------------------------------------------- collisions
+
+        /// <summary>Packs every model's support grid into one blob (SupportGrids, on the obstacle entity).</summary>
+        void BuildSupportGrids()
+        {
+            modelGrid = new int[models.Count];
+            var builder = new BlobBuilder(Allocator.Temp);
+            ref var root = ref builder.ConstructRoot<SupportGridSet>();
+            int grids = 0, values = 0, water = 0;
+            for (int m = 0; m < models.Count; m++)
+            {
+                var g = models[m].Support;
+                modelGrid[m] = g != null ? grids++ : -1;
+                if (g == null)
+                    continue;
+                values += g.Values.Length;
+                if (g.Water != null)
+                    water += g.Water.Length;
+            }
+            var infos = builder.Allocate(ref root.Grids, grids);
+            var v = builder.Allocate(ref root.Values, values);
+            var w = builder.Allocate(ref root.Water, math.max(water, 1));
+            int gi = 0, vi = 0, wi = 0;
+            foreach (var model in models)
+            {
+                var g = model.Support;
+                if (g == null)
+                    continue;
+                infos[gi++] = new SupportGridInfo
+                {
+                    Min = g.Min, Cell = g.Cell, Res = new int2(g.Res.x, g.Res.y), First = vi, WaterFirst = g.Water != null ? wi : -1,
+                    Reach = g.Reach, Error = g.Error
+                };
+                for (int i = 0; i < g.Values.Length; i++)
+                    v[vi++] = g.Values[i];
+                if (g.Water != null)
+                    for (int i = 0; i < g.Water.Length; i++)
+                        w[wi++] = g.Water[i];
+            }
+            supportSet = builder.CreateBlobAssetReference<SupportGridSet>(Allocator.Persistent);
+            builder.Dispose();
+            obstaclesDirty = true;
+            supportCentres.Clear();
+        }
+
+        /// <summary>
+        /// Refreshes the walkable tops round every player, local and remote (so a remote player standing on a roof stands
+        /// on it on this screen too): the placed props and buildings with support grids within SupportRange of any of
+        /// them. Gathered again when someone has moved a few metres, or twice a second.
+        /// </summary>
+        void UpdateSupports()
+        {
+            if (!supportSet.IsCreated || modelGrid == null || obstacleEntity == Entity.Null)
+                return;
+            var em = queryWorld.EntityManager;
+            var centres = new List<float2>();
+            if (playerQuery.TryGetSingleton<LocalTransform>(out var player))
+                centres.Add(player.Position.xz);
+            if (!remoteQuery.IsEmpty)
+                using (var remotes = remoteQuery.ToComponentDataArray<Punchy.Fauna.CreatureState>(Allocator.Temp))
+                    foreach (var r in remotes)
+                        centres.Add(r.Position.xz);
+            var moved = centres.Count != supportCentres.Count;
+            for (int i = 0; !moved && i < centres.Count; i++)
+                moved = math.distance(centres[i], supportCentres[i]) > 2f;
+            if (!moved && Time.unscaledTime < nextSupport)
+                return;
+            nextSupport = Time.unscaledTime + 0.5f;
+            supportCentres.Clear();
+            supportCentres.AddRange(centres);
+
+            if (!em.HasComponent<SupportGrids>(obstacleEntity))
+                em.AddComponentData(obstacleEntity, new SupportGrids { Set = supportSet });
+            else
+                em.SetComponentData(obstacleEntity, new SupportGrids { Set = supportSet });
+            if (!em.HasBuffer<FloraSupport>(obstacleEntity))
+                em.AddBuffer<FloraSupport>(obstacleEntity);
+            var buffer = em.GetBuffer<FloraSupport>(obstacleEntity);
+            buffer.Clear();
+            for (int li = 1; li < 3; li++)
+            {
+                var l = layers[li];
+                var size = l.Settings.TileSize;
+                foreach (var kv in l.Tiles)
+                {
+                    var tileMin = (float2)kv.Key * size;
+                    var near = false;
+                    foreach (var c in centres)
+                        near |= math.all(c > tileMin - SupportRange) && math.all(c < tileMin + size + SupportRange);
+                    if (!near)
+                        continue;
+                    foreach (var inst in kv.Value)
+                    {
+                        if (inst.Model < 0 || inst.Model >= modelGrid.Length || modelGrid[inst.Model] < 0)
+                            continue;
+                        var close = false;
+                        foreach (var c in centres)
+                            close |= math.distancesq(inst.Position.xz, c) < SupportRange * SupportRange;
+                        if (close)
+                            buffer.Add(new FloraSupport { Position = inst.Position, Yaw = inst.Yaw, Scale = inst.Scale, Grid = modelGrid[inst.Model] });
+                    }
+                }
+            }
+        }
 
         void UpdateObstacles()
         {

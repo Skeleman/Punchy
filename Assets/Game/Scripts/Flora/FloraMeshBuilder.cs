@@ -398,6 +398,150 @@ namespace Punchy.Flora
                     positions[i] -= new Vector3(0f, depth, 0f);
         }
 
+        /// <summary>
+        /// The walkable tops of what's been built (see PropSupport): over the footprint of its upward-facing triangles
+        /// (those tilted more than about 57 degrees from level don't count: walls, steep faces, undersides), per cell the
+        /// heights of every surface there, merged where within 0.4 m and kept highest first, up to
+        /// SupportGrids.Layers (surfaces narrower than a cell, a finial or a thin beam, aren't something to stand on and
+        /// fall between the samples); and separately the water surface (triangles of the parts <paramref name="water"/> picks).
+        /// Parts <paramref name="solid"/> rejects (leaves, petals, glow) are ignored. Checks itself against the
+        /// triangles at random points and reports the worst gap. Null if there's nothing to stand on.
+        /// </summary>
+        public SupportGridData SupportGrid(Func<FloraPart, bool> solid, Func<FloraPart, bool> water)
+        {
+            var up = new List<int>();
+            var wet = new List<int>();
+            Vector2 min = new Vector2(float.MaxValue, float.MaxValue), max = new Vector2(float.MinValue, float.MinValue);
+            for (int t = 0; t + 2 < indices.Count; t += 3)
+            {
+                var a = positions[indices[t]]; var b = positions[indices[t + 1]]; var c = positions[indices[t + 2]];
+                // Facing up (by its vertices' outward normals, so undersides don't count) and near level.
+                var up3 = (normals[indices[t]] + normals[indices[t + 1]] + normals[indices[t + 2]]).normalized;
+                if (Vector3.Cross(b - a, c - a).sqrMagnitude < 1e-10f || up3.y < 0.55f)
+                    continue;
+                var part = (FloraPart)Mathf.RoundToInt(data[indices[t]].y);
+                if (water(part))
+                    wet.Add(t);
+                else if (solid(part))
+                    up.Add(t);
+                else
+                    continue;
+                foreach (var p in new[] { a, b, c })
+                {
+                    min = Vector2.Min(min, new Vector2(p.x, p.z));
+                    max = Vector2.Max(max, new Vector2(p.x, p.z));
+                }
+            }
+            if (up.Count == 0)
+                return null;
+            var extent = Mathf.Max(max.x - min.x, max.y - min.y);
+            var cell = Mathf.Max(extent / 40f, 0.15f);
+            var res = new Vector2Int(Mathf.Clamp(Mathf.CeilToInt((max.x - min.x) / cell) + 1, 1, 48), Mathf.Clamp(Mathf.CeilToInt((max.y - min.y) / cell) + 1, 1, 48));
+            cell = Mathf.Max(cell, Mathf.Max((max.x - min.x) / Mathf.Max(res.x - 1, 1), (max.y - min.y) / Mathf.Max(res.y - 1, 1)));
+            var heights = new List<float>[res.x * res.y];
+            var waterTop = new float[res.x * res.y];
+            for (int i = 0; i < waterTop.Length; i++)
+                waterTop[i] = float.NaN;
+
+            void Rasterise(int t, Action<int, float> add)
+            {
+                var a = positions[indices[t]]; var b = positions[indices[t + 1]]; var c = positions[indices[t + 2]];
+                var lo = Vector2.Min(Vector2.Min(new Vector2(a.x, a.z), new Vector2(b.x, b.z)), new Vector2(c.x, c.z));
+                var hi = Vector2.Max(Vector2.Max(new Vector2(a.x, a.z), new Vector2(b.x, b.z)), new Vector2(c.x, c.z));
+                var c0 = new Vector2Int(Mathf.Max(0, Mathf.FloorToInt((lo.x - min.x) / cell)), Mathf.Max(0, Mathf.FloorToInt((lo.y - min.y) / cell)));
+                var c1 = new Vector2Int(Mathf.Min(res.x - 1, Mathf.FloorToInt((hi.x - min.x) / cell)), Mathf.Min(res.y - 1, Mathf.FloorToInt((hi.y - min.y) / cell)));
+                for (int z = c0.y; z <= c1.y; z++)
+                for (int x = c0.x; x <= c1.x; x++)
+                {
+                    var q = new Vector2(min.x + (x + 0.5f) * cell, min.y + (z + 0.5f) * cell);
+                    if (HeightOn(a, b, c, q, out var y)) add(z * res.x + x, y);
+                }
+            }
+            foreach (var t in up)
+                Rasterise(t, (i, y) => (heights[i] ??= new List<float>()).Add(y));
+            foreach (var t in wet)
+                Rasterise(t, (i, y) => waterTop[i] = float.IsNaN(waterTop[i]) ? y : Mathf.Max(waterTop[i], y));
+
+            const int layers = 3;
+            var values = new float[res.x * res.y * layers];
+            for (int i = 0; i < values.Length; i++)
+                values[i] = float.NaN;
+            for (int i = 0; i < heights.Length; i++)
+            {
+                if (heights[i] == null)
+                    continue;
+                heights[i].Sort((p, q) => q.CompareTo(p));
+                var kept = 0;
+                var last = float.MaxValue;
+                foreach (var y in heights[i])
+                {
+                    if (last - y < 0.4f)
+                        continue;   // the same surface (the highest of the cluster is kept)
+                    values[i * layers + kept++] = y;
+                    last = y;
+                    if (kept == layers)
+                        break;
+                }
+            }
+
+            // Self-check: the true top at random points against the cell's top layer, away from edges (where the true
+            // top jumps within half a cell, the error is the cell size's aliasing, bounded by it, not a wrong height).
+            var rng = new System.Random(indices.Count);
+            var worst = 0f;
+            float Truth(Vector2 at)
+            {
+                var best = float.MinValue;
+                foreach (var t in up)
+                    if (HeightOn(positions[indices[t]], positions[indices[t + 1]], positions[indices[t + 2]], at, out var y))
+                        best = Mathf.Max(best, y);
+                return best;
+            }
+            for (int k = 0; k < 64; k++)
+            {
+                var q = new Vector2(Mathf.Lerp(min.x, max.x, (float)rng.NextDouble()), Mathf.Lerp(min.y, max.y, (float)rng.NextDouble()));
+                var truth = Truth(q);
+                if (truth == float.MinValue)
+                    continue;
+                var edge = false;
+                // Round the point out to its cell's centre and corners (up to 0.71 cells away).
+                for (int e = 0; e < 8 && !edge; e++)
+                {
+                    var a8 = e * Mathf.PI * 0.25f;
+                    var around = Truth(q + new Vector2(Mathf.Cos(a8), Mathf.Sin(a8)) * cell * 0.75f);
+                    edge = around == float.MinValue || Mathf.Abs(around - truth) > 0.3f;
+                }
+                if (edge)
+                    continue;
+                var x = Mathf.Clamp(Mathf.FloorToInt((q.x - min.x) / cell), 0, res.x - 1);
+                var z = Mathf.Clamp(Mathf.FloorToInt((q.y - min.y) / cell), 0, res.y - 1);
+                var top = values[(z * res.x + x) * layers];
+                if (!float.IsNaN(top))
+                    worst = Mathf.Max(worst, Mathf.Abs(top - truth));
+            }
+            return new SupportGridData
+            {
+                Min = min, Cell = cell, Res = res, Values = values, Water = wet.Count > 0 ? waterTop : null,
+                Reach = Mathf.Max(Mathf.Max(Mathf.Abs(min.x), Mathf.Abs(max.x)), Mathf.Max(Mathf.Abs(min.y), Mathf.Abs(max.y))) * 1.42f,
+                Error = worst
+            };
+        }
+
+        /// <summary>The triangle's height over a point in xz, if the point is inside it.</summary>
+        static bool HeightOn(Vector3 a, Vector3 b, Vector3 c, Vector2 q, out float y)
+        {
+            y = 0f;
+            var v0 = new Vector2(b.x - a.x, b.z - a.z); var v1 = new Vector2(c.x - a.x, c.z - a.z); var v2 = new Vector2(q.x - a.x, q.y - a.z);
+            var den = v0.x * v1.y - v1.x * v0.y;
+            if (Mathf.Abs(den) < 1e-9f)
+                return false;
+            var v = (v2.x * v1.y - v1.x * v2.y) / den;
+            var w = (v0.x * v2.y - v2.x * v0.y) / den;
+            if (v < -1e-4f || w < -1e-4f || v + w > 1.0001f)
+                return false;
+            y = a.y + v * (b.y - a.y) + w * (c.y - a.y);
+            return true;
+        }
+
         /// <summary>Bounding sphere around (0, centreY, 0).</summary>
         public void Bounds(out float centreY, out float radius)
         {

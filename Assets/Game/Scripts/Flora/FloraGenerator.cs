@@ -4,8 +4,23 @@ using UnityEngine;
 namespace Punchy.Flora
 {
     /// <summary>One grown variant of a species, at three levels of detail.</summary>
+    /// <summary>A model's walkable tops, built from its mesh (FloraMeshBuilder.SupportGrid; see PropSupport).</summary>
+    public class SupportGridData
+    {
+        public Vector2 Min;
+        public float Cell;
+        public Vector2Int Res;
+        /// <summary>Res.x × Res.y × SupportGrids.Layers heights, highest first per cell, NaN where none.</summary>
+        public float[] Values;
+        /// <summary>Res.x × Res.y water heights (NaN where none), or null.</summary>
+        public float[] Water;
+        public float Reach, Error;
+    }
+
     public class FloraModel
     {
+        /// <summary>Its walkable tops, for forms people can climb and stand on (rocks, buildings, rims), else null.</summary>
+        public SupportGridData Support;
         public FloraSpecies Species;
         public readonly Mesh[] Lods = new Mesh[3];
         /// <summary>Bounding sphere centre height and radius (unscaled).</summary>
@@ -118,6 +133,15 @@ namespace Punchy.Flora
                     builder.Skirt(FoundationDepth);
                 if (lod == 0)
                 {
+                    if (Standable(species.Form))
+                    {
+                        // Clear ice arches stand like rock; a fountain's water (drawn as metal) is for wading.
+                        var fountain = species.Form == FloraForm.Fountain;
+                        model.Support = builder.SupportGrid(
+                            part => part == FloraPart.Bark || part == FloraPart.Cactus || part == FloraPart.Comb || part == FloraPart.Metal && !fountain ||
+                                    part == FloraPart.Glass && species.Form == FloraForm.IceArch,
+                            part => fountain && part == FloraPart.Metal);
+                    }
                     builder.Bounds(out model.CentreY, out model.Radius);
                     model.TrunkRadius = g.TrunkRadius;
                     model.Colliders.AddRange(g.Colliders);
@@ -1188,6 +1212,14 @@ namespace Punchy.Flora
                     }
             }
         }
+
+        /// <summary>Forms people can climb onto and stand on (their tops go into PropSupport).</summary>
+        public static bool Standable(FloraForm form) => Founded(form) || form switch
+        {
+            FloraForm.Boulder or FloraForm.Spire or FloraForm.Den or FloraForm.Log or FloraForm.Woodpile or FloraForm.IceArch or
+            FloraForm.FirePit => true,
+            _ => false
+        };
 
         /// <summary>How far built things' foundations reach below the ground they stand on (m, before scaling).</summary>
         public const float FoundationDepth = 1.6f;
@@ -2824,7 +2856,7 @@ namespace Punchy.Flora
             var radius = height * s.Spread * 0.5f;
             g.Height = height;
             g.Width = radius * 2.1f;
-            g.TrunkRadius = radius;
+            g.TrunkRadius = 0f;   // the basin is wadeable and its rim a ledge (PropSupport); only the pillar blocks
             var sides = g.Sides(18, 12, 8);
 
             // The basin wall, its rim, and the water inside.
@@ -2837,6 +2869,7 @@ namespace Punchy.Flora
 
             // A pillar holding up a smaller bowl, brimming, with a finial on top.
             b.Tube(new List<Vector3> { Vector3.up * 0.5f, Vector3.up * height * 0.72f }, new List<float> { 0.22f, 0.16f }, g.Sides(8, 6, 4), g.Bark, FloraPart.Bark);
+            g.Colliders.Add(new Vector4(0f, 0f, 0.3f, height * 0.72f));
             b.Blob(Vector3.up * height * 0.75f, new Vector3(radius * 0.38f, 0.14f, radius * 0.38f), Quaternion.identity, g.Sides(2, 1, 1), 0f, 0f, g.Bark, FloraPart.Bark);
             b.Blob(Vector3.up * (height * 0.75f + 0.1f), new Vector3(radius * 0.34f, 0.03f, radius * 0.34f), Quaternion.identity, 1, 0f, 0f, water, FloraPart.Metal);
             b.Tube(new List<Vector3> { Vector3.up * height * 0.78f, Vector3.up * height }, new List<float> { 0.09f, 0.03f }, g.Sides(6, 4, 3), g.Bark, FloraPart.Bark, cap: true);
@@ -2891,7 +2924,8 @@ namespace Punchy.Flora
             var sides = g.Sides(16, 10, 7);
             g.Height = height;
             g.Width = radius * 2.6f;
-            g.TrunkRadius = radius + 0.05f;
+            g.TrunkRadius = 0f;   // stand on the rim (PropSupport); the shaft itself is walled off
+            g.Colliders.Add(new Vector4(0f, 0f, radius - 0.16f, 0.8f));
 
             // The wall (outer and inner faces, and a rim), with dark water well down inside.
             var first = b.VertexCount;
