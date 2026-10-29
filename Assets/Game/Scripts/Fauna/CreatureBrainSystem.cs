@@ -616,7 +616,7 @@ namespace Punchy.Fauna
                             if (s.StageTime > 60f)
                                 Pause(ref s, ref b, ref rng);
                             // (Two that chose the same spot in the same moment: the later of them finds another.)
-                            else if (Contested(self, in s) && !(AtHearth(s.TargetHeight) ? StartHearth(self, ref s, ref rng) : StartLounge(self, ref s, ref rng)))
+                            else if (Contested(self, in s) && !Resettle(self, ref s, ref rng))
                                 Pause(ref s, ref b, ref rng);
                             // (Close is enough: it shuffles the rest of the way on, which for a seat is past the front
                             // of the seat itself, solid to walkers.)
@@ -645,8 +645,7 @@ namespace Punchy.Fauna
                                 sit = 1f;
                             desiredLook = s.Stage == 3 ? 0f : idleLook;
                             var hearth = AtHearth(s.Stage);
-                            if (s.Timer <= 0f || hearth && !Gathering(in s, ref b) ||
-                                Contested(self, in s) && !(hearth ? StartHearth(self, ref s, ref rng) : StartLounge(self, ref s, ref rng)))
+                            if (s.Timer <= 0f || hearth && !Gathering(in s, ref b) || Contested(self, in s) && !Resettle(self, ref s, ref rng))
                                 Pause(ref s, ref b, ref rng);
                         }
                         break;
@@ -758,8 +757,11 @@ namespace Punchy.Fauna
                 // Little things done while standing about: start one now and then, keep it going, and take up the
                 // posture it needs.
                 Fidget(self, body.Species, ref s, ref b, ref rng, dt, perched, ref sit, ref vertical, ref bow, ref desiredLook);
-                // A child standing about now and then pokes at the ground with its stick, or throws its stone.
-                if (b.Child && s.Action == IdleAction.None && s.Mode == CreatureMode.Idle && s.Speed < 0.1f && rng.NextFloat() < dt * 0.25f &&
+                // A child standing about now and then pokes at the ground with its stick, or throws its stone; more
+                // often sitting in a play ring, into the middle of it.
+                var playing = s.Mode == CreatureMode.Sit && s.Stage == CreatureAnimator.PlayRing;
+                if (b.Child && s.Action == IdleAction.None && (s.Mode == CreatureMode.Idle || playing) && s.Speed < 0.1f &&
+                    rng.NextFloat() < dt * (playing ? 0.4f : 0.25f) &&
                     (s.Held == HeldItem.Stick || s.Held == HeldItem.Stone))
                 {
                     s.Action = s.Held == HeldItem.Stick ? IdleAction.Poke : IdleAction.Throw;
@@ -1084,6 +1086,9 @@ namespace Punchy.Fauna
                 // long while).
                 if (b.RaidsHives && sleepy < 0.3f && s.ChaseCooldown <= 0f && rng.NextFloat() < 0.08f && StartRaid(ref s, ref rng))
                     return;
+                // Children by day now and then sit down in a ring on a green to play with their sticks and stones.
+                if (b.Child && sleepy < 0.3f && Night < 0.4f && s.Leash > 0f && rng.NextFloat() < 0.3f && StartPlayRing(self, ref s, ref rng))
+                    return;
                 // Townsfolk gather round the town's fire at dusk, as many as it has room for (the rest go in as usual).
                 if (Gathering(in s, ref b) && rng.NextFloat() < 0.8f && StartHearth(self, ref s, ref rng))
                     return;
@@ -1258,7 +1263,8 @@ namespace Punchy.Fauna
                 // (Being petted or held, it carries on with what it was given to do: a wag, a wriggle; nothing new. A
                 // guard drawing its weapon or putting it away finishes, whatever it's doing.)
                 var keeps = calm || s.Mode == CreatureMode.Petted || s.Mode == CreatureMode.Held ||
-                            s.Action == IdleAction.Draw || s.Action == IdleAction.Sheathe;
+                            s.Action == IdleAction.Draw || s.Action == IdleAction.Sheathe ||
+                            s.Mode == CreatureMode.Sit && s.Stage == CreatureAnimator.PlayRing;
                 if (s.Action != IdleAction.None)
                 {
                     s.ActionTime += dt / math.max(s.ActionLength, 0.1f);
@@ -2267,6 +2273,53 @@ namespace Punchy.Fauna
                 }
                 near.Dispose();
                 return found;
+            }
+
+            /// <summary>Another place of the same kind, for one beaten to its spot: at the fire, in the play ring, or to lounge.</summary>
+            bool Resettle(Entity self, ref CreatureState s, ref Random rng) =>
+                AtHearth(s.TargetHeight) ? StartHearth(self, ref s, ref rng) :
+                s.TargetHeight == CreatureAnimator.PlayRing ? StartPlayRing(self, ref s, ref rng) : StartLounge(self, ref s, ref rng);
+
+            /// <summary>
+            /// A place in the children's play ring: on the green nearest its home (the same green for every child of the
+            /// town, so they find each other there), to one side of its shade tree, six places round, sitting facing the
+            /// middle. A while there, poking at the ground with its stick or tossing its stone into the middle (see the
+            /// child's play above). False if there's no green in reach or the ring is full.
+            /// </summary>
+            bool StartPlayRing(Entity self, ref CreatureState s, ref Random rng)
+            {
+                if (!Terrain.Anchors.IsCreated)
+                    return false;
+                ref var set = ref Terrain.Anchors.Value;
+                var near = new NativeList<int>(8, Allocator.Temp);
+                Anchors.Near(ref set, new float3(s.Home.x, s.Position.y, s.Home.y), math.max(s.Leash, 30f), AnchorKind.Green, ref near);
+                var best = -1;
+                for (int i = 0; i < near.Length; i++)
+                    if (!set.Anchors[near[i]].InCave && (best < 0 || math.distancesq(set.Anchors[near[i]].Position.xz, s.Home) <
+                                                                     math.distancesq(set.Anchors[best].Position.xz, s.Home)))
+                        best = near[i];
+                near.Dispose();
+                if (best < 0)
+                    return false;
+                var a = set.Anchors[best];
+                var centre = a.Position.xz + new float2(-a.Facing.y, a.Facing.x) * math.max(a.Size * 0.5f, 3f);
+                const int places = 6;
+                var first = (int)(s.Individual % places);
+                for (int i = 0; i < places; i++)
+                {
+                    var k = (first + i) % places;
+                    math.sincos(k * 2f * math.PI / places + (a.Owner & 7) * 0.5f, out var sin, out var cos);
+                    var spot = centre + new float2(sin, cos) * 0.85f;
+                    if (!Walkable(spot, Habitat.Land) || Taken(self, spot, 0.55f))
+                        continue;
+                    SetMode(ref s, CreatureMode.Sit);
+                    s.Target = spot;
+                    s.Focus = centre;
+                    s.TargetHeight = CreatureAnimator.PlayRing;
+                    s.Timer = rng.NextFloat(40f, 100f);
+                    return true;
+                }
+                return false;
             }
 
             /// <summary>Another on its way to the same spot to sit or lie, that took it first (the lower entity index).</summary>

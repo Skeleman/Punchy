@@ -692,6 +692,8 @@ namespace Punchy.Fauna
         public const byte MinerAtFace = 101;
         /// <summary>Sitting-mode stages at the town's fire: standing by it, sitting on the ground by it, on a seat near it.</summary>
         public const byte HearthStand = 5, HearthGround = 6, HearthSeat = 7;
+        /// <summary>Sitting-mode stage of a child sitting in a play ring on a green (with its stick or stone).</summary>
+        public const byte PlayRing = 8;
         /// <summary>Idle-mode stages of one of the townsfolk a messenger bird has come to: waiting for it (the forearm
         /// up for it to land on), taking the message from its leg, reading it.</summary>
         public const byte MessageWait = 60, MessageTake = 61, MessageRead = 62;
