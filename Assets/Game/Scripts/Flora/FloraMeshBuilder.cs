@@ -19,7 +19,9 @@ namespace Punchy.Flora
         /// <summary>A window pane: dark glass by day, lit in its colour at night (some go out late; see Flora.shader).</summary>
         Window = 6,
         /// <summary>Glassy crystal (FoliageFinish.Glass; see Flora.shader).</summary>
-        Glass = 7
+        Glass = 7,
+        /// <summary>Honeycomb wax: glossy, with faint hexagonal cells up close (wild beehives; see Flora.shader).</summary>
+        Comb = 8
     }
 
     /// <summary>

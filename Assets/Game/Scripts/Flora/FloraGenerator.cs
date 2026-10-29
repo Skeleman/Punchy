@@ -1331,8 +1331,9 @@ namespace Punchy.Flora
         public static float HiveHeight(FloraSpecies s) => (s.Height.x + s.Height.y) * 0.5f * s.TrunkFraction * 0.7f;
 
         /// <summary>
-        /// A wild bees' comb hanging from the trunk (after Broadleaf), under the crown at HiveHeight: a few lobes of
-        /// honey-gold wax narrowing downwards, darkest at the top where it joins the bark, with a dark mouth near its foot.
+        /// A wild bees' nest hanging from the trunk (after Broadleaf), under the crown at HiveHeight: a drape of
+        /// honey-amber comb in overlapping layers, widening then narrowing to a teardrop, darkest where it joins the bark,
+        /// with a dark entrance slit low on its face and a drip of honey from its foot.
         /// </summary>
         static void Hive(Grower g)
         {
@@ -1352,24 +1353,34 @@ namespace Punchy.Flora
                     break;
                 }
             var side = g.Flat(g.R() * 6.28f);
-            var size = Mathf.Clamp(radius * 1.6f, 0.3f, 0.6f);
+            var size = Mathf.Clamp(radius * 1.8f, 0.35f, 0.7f);
             var wax = AccentAt(g, 0);
-            var root = at + side * radius * 0.85f;
-            for (int k = 0; k < 4; k++)
+            var root = at + side * radius * 0.8f;
+            var facing = Quaternion.LookRotation(side);
+            const int layers = 6;
+            var bottom = root;
+            for (int k = 0; k < layers; k++)
             {
-                var down = k * size * 0.42f;
-                var lobe = size * (1f - k * 0.18f);
-                var centre = root + side * lobe * 0.45f - Vector3.up * (down + lobe * 0.3f) + g.Flat(g.R() * 6.28f) * lobe * 0.12f;
-                var shade = Mathf.Lerp(0.55f, 1.05f, k / 3f) * g.Range(0.92f, 1.08f);
-                var first = b.Blob(centre, new Vector3(lobe * 0.55f, lobe * 0.5f, lobe * 0.55f), Quaternion.identity,
-                                   g.Lod == 0 ? 1 : 0, 0.25f, g.R() * 50f, wax * shade, FloraPart.Cactus);
-                b.Occlude(first, (p, n) => Mathf.Lerp(0.5f, 1f, Mathf.Clamp01(n.y * 0.5f + 0.6f)));
+                // Layers hang one below another, each overlapping the last: wide in the middle, a teardrop's point below.
+                var t = k / (float)(layers - 1);
+                var width = size * Mathf.Sin(Mathf.Lerp(0.35f, 2.9f, t)) * 0.75f + size * 0.12f;
+                var centre = root + side * (width * 0.55f) - Vector3.up * (t * size * 1.6f) + g.Flat(g.R() * 6.28f) * width * 0.06f;
+                var shade = Mathf.Lerp(0.6f, 1.08f, Mathf.Sqrt(t)) * g.Range(0.92f, 1.06f);
+                var first = b.Blob(centre, new Vector3(width * 0.62f, size * 0.24f, width * 0.5f), facing,
+                                   g.Lod == 0 ? 1 : 0, 0.18f, g.R() * 50f, wax * shade, g.Lod < 2 ? FloraPart.Comb : FloraPart.Cactus);
+                b.Occlude(first, (p, n) => Mathf.Lerp(0.5f, 1f, Mathf.Clamp01(n.y * 0.4f + 0.65f)));
+                bottom = centre;
             }
             if (g.Lod < 2)
             {
-                var mouth = root + side * size * 0.75f - Vector3.up * size * 1.15f;
-                b.Blob(mouth, new Vector3(size * 0.16f, size * 0.1f, size * 0.16f), Quaternion.identity, 0, 0f, 0f,
-                       new Color(0.03f, 0.025f, 0.02f), FloraPart.Bark);
+                // The entrance: a dark slit low on the face; and a drip of honey from the point.
+                var mouth = root + side * size * 0.82f - Vector3.up * size * 1.0f;
+                b.Blob(mouth, new Vector3(size * 0.22f, size * 0.06f, size * 0.1f), facing, 0, 0f, 0f,
+                       new Color(0.02f, 0.015f, 0.01f), FloraPart.Bark);
+                var drip = bottom - Vector3.up * size * 0.12f;
+                b.Tube(new List<Vector3> { drip, drip - Vector3.up * size * 0.35f }, new List<float> { size * 0.05f, size * 0.025f },
+                       g.Sides(5, 4, 3), wax * 1.15f, FloraPart.Comb);
+                b.Blob(drip - Vector3.up * size * 0.37f, Vector3.one * size * 0.045f, Quaternion.identity, 0, 0f, 0f, wax * 1.2f, FloraPart.Comb);
             }
         }
 

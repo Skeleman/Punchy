@@ -219,11 +219,22 @@ Shader "Punchy/Flora"
                 }
 
                 // A waxy sheen on cacti and egg shells (and on anything wet), from the sun and, near it, the lantern.
-                half gloss = part == 3 ? 0.35 : wet * 0.5;
+                // Honeycomb (part 8): faint hexagonal cells up close, and glossier than wax.
+                if (part == 8)
+                {
+                    float2 q = float2(input.positionWS.x + input.positionWS.z, input.positionWS.y) * 28;
+                    float2 hexA = fmod(abs(q), float2(1.732, 1)) - float2(0.866, 0.5);
+                    float2 hexB = fmod(abs(q + float2(0.866, 0.5)), float2(1.732, 1)) - float2(0.866, 0.5);
+                    float2 h2 = dot(hexA, hexA) < dot(hexB, hexB) ? hexA : hexB;
+                    float rim = max(abs(h2.y), dot(abs(h2), float2(0.866, 0.5)));
+                    half cellNear = 1 - smoothstep(4, 10, distance(input.positionWS, GetCameraPositionWS()));
+                    color *= 1 - smoothstep(0.38, 0.47, rim) * 0.35 * cellNear;
+                }
+                half gloss = part == 3 ? 0.35 : part == 8 ? 0.55 : wet * 0.5;
                 if (gloss > 0)
                 {
                     half3 h = normalize(light.direction + v);
-                    color += light.color * shadow * pow(saturate(dot(n, h)), part == 3 ? 24 : 60) * gloss * 0.3 * ao;
+                    color += light.color * shadow * pow(saturate(dot(n, h)), part == 3 ? 24 : part == 8 ? 40 : 60) * gloss * 0.3 * ao;
                     if (_PunchyLantern.w > 0)
                     {
                         float3 toLantern = _PunchyLantern.xyz - input.positionWS;
