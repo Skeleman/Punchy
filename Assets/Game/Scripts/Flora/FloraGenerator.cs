@@ -1352,7 +1352,9 @@ namespace Punchy.Flora
                     radius = Mathf.Lerp(g.TrunkRadii[i - 1], g.TrunkRadii[i], t);
                     break;
                 }
-            var side = g.Flat(g.R() * 6.28f);
+            // Always on the tree's front (+Z): placement turns hive trees to face their landmark, so the comb's
+            // side is known (the Hive anchor's Facing).
+            var side = Vector3.forward;
             var size = Mathf.Clamp(radius * 1.8f, 0.35f, 0.7f);
             var wax = AccentAt(g, 0);
             var root = at + side * radius * 0.8f;

@@ -32,8 +32,9 @@ namespace Punchy.Terrain
         /// <summary>An open green (grass, a few trees): fine to sit or lie on. Size is its radius, Capacity how many.</summary>
         Green,
         /// <summary>
-        /// A wild bees' nest: a comb on a tree trunk (Bee Tree landmarks). Position is the trunk's centre at the comb's
-        /// height; Size reaches round the trunk past the comb (which faces some way round it), Capacity is the swarm.
+        /// A wild bees' nest: a comb on a tree trunk (hive trees in oak groves, ancient trees, fairy rings). Position is
+        /// the trunk's centre at the comb's height; Facing the side of the trunk the comb hangs on; Size reaches round
+        /// the trunk past the comb; Capacity is the swarm.
         /// </summary>
         Hive
     }
