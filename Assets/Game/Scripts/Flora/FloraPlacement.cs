@@ -31,6 +31,11 @@ namespace Punchy.Flora
         public int Dirt;
         /// <summary>1 for hive trees: placed in a landmark, they face its way, so their comb is on a known side.</summary>
         public int FaceLandmark;
+        /// <summary>
+        /// How far its footprint reaches at scale 1 (m): the trunk for trees, about half its spread otherwise. Settlement
+        /// plots (buildings, fences, palisades, pens) win over anything whose footprint would overlap them (OnBuiltPlot).
+        /// </summary>
+        public float Footprint;
     }
 
     public struct FloraBiomeEntry
@@ -183,7 +188,8 @@ namespace Punchy.Flora
                     MinRapids = s.MinRapids,
                     Tilt = s.Form == FloraForm.Boulder ? 0.85f : 0f,
                     Dirt = FloraGenerator.Founded(s.Form) ? 1 : 0,
-                    FaceLandmark = s.Form == FloraForm.HiveTree ? 1 : 0
+                    FaceLandmark = s.Form == FloraForm.HiveTree ? 1 : 0,
+                    Footprint = Footprint(s)
                 };
                 for (int v = 0; v < s.Variants; v++)
                 {
@@ -300,6 +306,46 @@ namespace Punchy.Flora
             }
             var c = (uint3)math.round(math.saturate(sum / 5f) * 255f);
             return c.x | (c.y << 8) | (c.z << 16) | ((uint)math.clamp(math.round(band * 100f), 1f, 255f) << 24);
+        }
+
+        /// <summary>FloraRules.Footprint for a species (from its settings, without growing it).</summary>
+        static float Footprint(FloraSpecies s)
+        {
+            var height = (s.Height.x + s.Height.y) * 0.5f;
+            var tree = s.Form == FloraForm.BroadleafTree || s.Form == FloraForm.Conifer || s.Form == FloraForm.Palm || s.Form == FloraForm.HiveTree;
+            return tree ? height * s.Thickness : math.min(height * s.Spread * 0.5f, 6f);
+        }
+
+        /// <summary>
+        /// Whether a footprint of this radius (plus half a metre) at <paramref name="xz"/> overlaps a settlement plot that
+        /// is built on (a building, a fence or palisade run, a pen; not a bridge), in the plot's own turned rectangle.
+        /// Buildings and fences win: whatever else would stand in them isn't placed (scattered plants and rocks, a
+        /// neighbouring landmark's props, road clutter), rather than the fence giving way.
+        /// </summary>
+        static bool OnBuiltPlot(ref FloraBlob f, in TerrainSource source, float2 xz, float radius)
+        {
+            if (!source.Settlements.IsCreated || f.SettlementSpecies.Length == 0)
+                return false;
+            ref var towns = ref source.Settlements.Value;
+            var townCell = SettlementSampling.Cell(ref towns, xz);
+            if (townCell < 0)
+                return false;
+            radius += 0.5f;
+            var plots = towns.PlotCells[townCell];
+            for (int k = plots.x; k < plots.x + plots.y; k++)
+            {
+                ref var plot = ref towns.Plots[towns.PlotItems[k]];
+                if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length || plot.Role == PlotRole.Bridge)
+                    continue;
+                var d = xz - plot.Centre;
+                // The plot's own building stands at its centre: that's not an overlap.
+                if (math.lengthsq(d) < 1e-4f)
+                    continue;
+                if (math.abs(math.dot(d, new float2(-plot.Facing.y, plot.Facing.x))) < plot.Half.x + radius &&
+                    math.abs(math.dot(d, plot.Facing)) < plot.Half.y + radius)
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>The yaw that turns a model's front (+Z) to face a direction (yaw maps +Z to (-sin, cos)).</summary>
@@ -641,6 +687,8 @@ namespace Punchy.Flora
                             if (l == layer && math.all((int2)math.floor(spot / cellSize) == cell))
                             {
                                 var placedRule = f.Rules[prop.Species];
+                                if (OnBuiltPlot(ref f, source, spot, placedRule.Footprint * prop.Scale.y))
+                                    return none;
                                 var toCentre = set.Instances[landmark.Instance].Position - spot;
                                 var placedYaw = prop.FaceCentre != 0 ? math.atan2(-toCentre.x, toCentre.y) : rng.NextFloat(math.PI * 2f);
                                 if (placedRule.FaceLandmark != 0)
@@ -674,6 +722,8 @@ namespace Punchy.Flora
                         {
                             var centreRule = f.Rules[prop.Species];
                             var centreYaw = rng.NextFloat(math.PI * 2f);   // drawn even when unused, so later draws don't shift
+                            if (OnBuiltPlot(ref f, source, centre, centreRule.Footprint * prop.Scale.y))
+                                return none;
                             if (centreRule.FaceLandmark != 0)
                                 centreYaw = FacingYaw(set.Instances[landmark.Instance].Facing);
                             return new FloraSystem.FloraInstance
@@ -836,6 +886,8 @@ namespace Punchy.Flora
                     yaw = math.atan2(-towardsCentre.x, towardsCentre.y) + rng.NextFloat(-0.15f, 0.15f);
             }
             var rule = f.Rules[picked];
+            if (OnBuiltPlot(ref f, source, xz, rule.Footprint * scale))
+                return none;
             return new FloraSystem.FloraInstance
             {
                 Position = new float3(xz.x, rule.Floats != 0 && ground.HasWater ? ground.WaterSurface + 0.01f : ground.Height, xz.y),
