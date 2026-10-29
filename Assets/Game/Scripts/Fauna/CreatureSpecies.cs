@@ -17,6 +17,14 @@ namespace Punchy.Fauna
         public CreatureSpecies VariantOf;
         [Tooltip("Variants only: size relative to the species they're based on.")]
         [Min(0.05f)] public float VariantScale = 1f;
+        [Tooltip("Variants only: the head's size relative to the body it's based on (and all on it: eyes, ears, hair). " +
+                 "Children: about 1.6.")]
+        [Min(0.1f)] public float VariantHead = 1f;
+        [Tooltip("Variants only: how thick the torso and limbs are relative to the body they're based on (children: " +
+                 "chunkier, about 1.3).")]
+        [Min(0.1f)] public float VariantThickness = 1f;
+        [Tooltip("Variants only: leg length relative to the body it's based on (children: shorter, about 0.8).")]
+        [Min(0.1f)] public float VariantLegs = 1f;
 
         [Header("Body")]
         [Tooltip("Length of the torso, nose-end to tail-end of the trunk, in metres.")]
@@ -66,6 +74,9 @@ namespace Punchy.Fauna
         public float FleeDistance = 12f;
         [Tooltip("Degrees per second.")]
         public float TurnRate = 140f;
+        [Tooltip("Drawn, kept about and sent to other players from this far off (metres), for huge animals seen across " +
+                 "the land (rocs, sky serpents). 0 = as near as any other animal.")]
+        [Min(0f)] public float SeenFrom;
         [Tooltip("Number that appear together.")]
         public Vector2Int GroupSize = new Vector2Int(1, 1);
         [Tooltip("Only appears close to rivers, lakes and the sea (frogs).")]
@@ -86,6 +97,8 @@ namespace Punchy.Fauna
         [Range(0f, 1f)] public float Thirst = 0.3f;
         [Tooltip("How keen it is to play chase with others of its kind.")]
         [Range(0f, 1f)] public float Playfulness;
+        [Tooltip("A child (folk): out by day with a stick to poke at things or a stone to throw, between games of chase.")]
+        public bool Child;
         [Tooltip("How often it lies down to rest.")]
         [Range(0f, 1f)] public float Laziness = 0.25f;
         [Tooltip("Animals it chases (any variant of a listed species counts).")]
@@ -130,6 +143,21 @@ namespace Punchy.Fauna
         public bool CrossesWater;
         [Tooltip("Keeps a nest (in a tree, on a treetop or on the ground) and goes back to it to sleep.")]
         public NestSite Nests;
+        [Tooltip("A cave flier drawn to light (moths): spawns at a cave's glowing plants and flits round one of them, never " +
+                 "landing or fleeing.")]
+        public bool DrawnToLight;
+        [Tooltip("A beast town guards drive off (wolves, bears, big cats): come into a town, the guards on shift run at it " +
+                 "with spears levelled and it flees out of the place.")]
+        public bool DrivenOff;
+
+        [Header("Town guards (folk)")]
+        [Tooltip("How this folk's town guards are kitted out, so a guard is known at a glance across the town: the shape " +
+                 "of helmet, and the weapon carried by day (a torch by night). Only guards wear it.")]
+        public GuardKit GuardKit;
+        [Tooltip("Their armour: a breastplate and shoulder pads in metal or leather.")]
+        public Color GuardArmour = new Color(0.55f, 0.57f, 0.6f);
+        [Tooltip("Their sash, down the front: the town's colour (as on its hall's banners), so its guards read as one.")]
+        public Color GuardSash = new Color(0.62f, 0.12f, 0.1f);
 
         [Header("Flight (habitat Flies)")]
         [Tooltip("Height above the ground it cruises at, in metres.")]
@@ -142,6 +170,22 @@ namespace Punchy.Fauna
         [Range(0f, 1f)] public float Glide;
         [Tooltip("How often it lands in a tree rather than on the ground.")]
         [Range(0f, 1f)] public float Perching = 0.6f;
+        [Tooltip("Soars: most flights are long spells circling high over one place on still wings (rocs, vultures), " +
+                 "before it moves on or comes down.")]
+        public bool Soars;
+        [Tooltip("A swimmer that takes to the air (sky serpents): lives deep in big lakes and the sea, now and then bursts " +
+                 "out of the water in a spray to soar for minutes (by the Flight settings), then dives back in. Found only " +
+                 "over water at least 6 m deep, at most one near each player, its Density the chance a look over deep " +
+                 "water finds one.")]
+        public bool Breaches;
+        [Tooltip("Goes after wild honey (bears): now and then by day, rarely, walks to a hive near it, rears up at the comb " +
+                 "with the bees mobbing it, then makes off well away from it.")]
+        public bool RaidsHives;
+
+        [Header("Sound")]
+        [Tooltip("Its calls (CreatureAudioSystem plays them near the listener, each individual on its own clock): a hen's " +
+                 "cluck, a duck's quack, a dog's bark. A variant with none uses the species it's based on.")]
+        public List<CreatureCall> Calls = new List<CreatureCall>();
 
         /// <summary>The species whose body, gait and behaviour this one uses (itself unless it's a variant).</summary>
         public CreatureSpecies Body
@@ -170,7 +214,8 @@ namespace Punchy.Fauna
         None,
         [Tooltip("A cup of twigs against the trunk, low in the crown (songbirds, crows).")] Branch,
         [Tooltip("A big platform of sticks on top of a tree (ospreys, eagles).")] Treetop,
-        [Tooltip("A scrape lined with grass, on flat ground (quail, chickens, ducks).")] Ground
+        [Tooltip("A scrape lined with grass, on flat ground (quail, chickens, ducks).")] Ground,
+        [Tooltip("A mud cup on a rock wall, just inside a cave mouth (swallows): the cave's Nest anchor, shared by the colony.")] Ledge
     }
 
     /// <summary>Little things an animal does while standing about (which of them a species does).</summary>
@@ -202,7 +247,13 @@ namespace Punchy.Fauna
         None, PawGround, Groom, Scratch, Shake, Stretch, Sniff, Sit, SitUp, TailFlick, Preen, HeadBob, LookAround, Howl,
         Pet, Carry, Throw,
         // Emotes: a player's (InteractionInputSystem), and folk answering one.
-        Wave, Bow, Cheer, Dance
+        Wave, Bow, Cheer, Dance,
+        // A child poking at the ground with a stick (not an idle action any species picks).
+        Poke,
+        // A guard drawing its weapon from its sheath (on its back or at its hip), or putting it away.
+        Draw, Sheathe,
+        // A player climbing up onto a ledge: hands on the rim, pulling up, a knee coming up over.
+        Mantle
     }
 
     public enum ActiveTime : byte
@@ -210,6 +261,25 @@ namespace Punchy.Fauna
         [Tooltip("Sleeps at night.")] Day,
         [Tooltip("Sleeps by day.")] Night,
         [Tooltip("Awake at all hours, taking naps.")] Always
+    }
+
+    /// <summary>When a call is made.</summary>
+    public enum CallTime : byte { Any, Day, Night, Dawn }
+
+    /// <summary>One of a species' calls: which sound, how often (seconds between, by individual), how high, how loud and
+    /// how far it carries, and at what time of day.</summary>
+    [Serializable]
+    public class CreatureCall
+    {
+        public Punchy.Audio.SoundId Sound;
+        [Tooltip("Seconds between calls (each individual somewhere in the range).")]
+        public Vector2 Interval = new Vector2(8f, 20f);
+        [Tooltip("Pitch multiplier range (each individual somewhere in it; smaller bodies higher).")]
+        public Vector2 Pitch = new Vector2(0.95f, 1.05f);
+        [Range(0f, 1f)] public float Volume = 0.6f;
+        [Tooltip("How far it's heard (m).")]
+        [Min(1f)] public float Reach = 30f;
+        public CallTime When = CallTime.Any;
     }
 
     [Serializable]

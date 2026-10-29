@@ -14,6 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
   VariantOf: {fileID: 0}
   VariantScale: 1
+  VariantHead: 1
+  VariantThickness: 1
+  VariantLegs: 1
   BodyLength: 1.55
   BodyRadius: 0.29
   BodyTaper: 0.92
@@ -105,12 +108,12 @@ MonoBehaviour:
     StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 8db8692701365314db1a0b5e9ab1cbd1, type: 2}
     Parent: 3
-    Socket: {x: 0.06, y: 0.03, z: -0.2}
+    Socket: {x: 0.084, y: 0.045, z: -0.16}
     Direction: {x: 0, y: 0, z: 0}
     Mirror: 1
     Phase: 0
     MirrorPhase: 0
-    Scale: 1.1
+    Scale: 2.5
     Thickness: 1
     StyleGroup: 0
   - Limb: {fileID: 11400000, guid: b4e18c70a87f12945b2939ceae5889a9, type: 2}
@@ -133,6 +136,16 @@ MonoBehaviour:
     Scale: 2.8
     Thickness: 1.5
     StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: ace0a2f60dc21a7469a0c017797aa157, type: 2}
+    Parent: 3
+    Socket: {x: 0.07694816, y: 0.04122223, z: -0.16239999}
+    Direction: {x: 0, y: 0, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0
+    Scale: 2.8
+    Thickness: 1
+    StyleGroup: 0
   WalkSpeed: 1.6
   RunSpeed: 17
   Bob: {x: 0.015, y: 0.06}
@@ -144,6 +157,7 @@ MonoBehaviour:
   IdleTime: {x: 3, y: 10}
   FleeDistance: 30
   TurnRate: 95
+  SeenFrom: 0
   GroupSize: {x: 6, y: 12}
   NearWater: 0
   Habitat: 0
@@ -153,6 +167,7 @@ MonoBehaviour:
   Grazing: 0.9
   Thirst: 0.5
   Playfulness: 0.4
+  Child: 0
   Laziness: 0.3
   Hunts: []
   Hunger: 0.3
@@ -164,12 +179,37 @@ MonoBehaviour:
   WebSize: 0.6
   Burrows: 0
   CaveDweller: 0
+  Crawls: 0
+  CaveAffinity: 0
   Roosts: 0
   Friendly: 0
+  LavaDweller: 0
+  Haunts: 0
   CrossesWater: 1
   Nests: 0
+  DrawnToLight: 0
+  DrivenOff: 0
+  GuardKit: 0
+  GuardArmour: {r: 0.55, g: 0.57, b: 0.6, a: 1}
+  GuardSash: {r: 0.62, g: 0.12, b: 0.1, a: 1}
   FlightHeight: {x: 8, y: 18}
   FlySpeed: 7
   FlapRate: 6
   Glide: 0
   Perching: 0.6
+  Soars: 0
+  Breaches: 0
+  RaidsHives: 0
+  Calls:
+  - Sound: 29
+    Interval: {x: 15, y: 40}
+    Pitch: {x: 0.9, y: 1.05}
+    Volume: 0.6
+    Reach: 25
+    When: 0
+  - Sound: 30
+    Interval: {x: 45, y: 100}
+    Pitch: {x: 0.95, y: 1.05}
+    Volume: 0.7
+    Reach: 60
+    When: 1

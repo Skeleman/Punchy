@@ -14,6 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
   VariantOf: {fileID: 0}
   VariantScale: 1
+  VariantHead: 1
+  VariantThickness: 1
+  VariantLegs: 1
   BodyLength: 0.85
   BodyRadius: 0.15
   BodyTaper: 0.9
@@ -92,12 +95,12 @@ MonoBehaviour:
     StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 8db8692701365314db1a0b5e9ab1cbd1, type: 2}
     Parent: 3
-    Socket: {x: 0.05, y: 0.03, z: -0.12}
+    Socket: {x: 0.052, y: 0.034, z: -0.12}
     Direction: {x: 0, y: 0, z: 0}
     Mirror: 1
     Phase: 0
     MirrorPhase: 0.5
-    Scale: 1.2
+    Scale: 1.45
     Thickness: 1
     StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 9a256dd557a96e641bb260a5bf7a0fae, type: 2}
@@ -121,6 +124,7 @@ MonoBehaviour:
   IdleTime: {x: 2, y: 8}
   FleeDistance: 25
   TurnRate: 140
+  SeenFrom: 0
   GroupSize: {x: 2, y: 4}
   NearWater: 0
   Habitat: 0
@@ -130,6 +134,7 @@ MonoBehaviour:
   Grazing: 0
   Thirst: 0.4
   Playfulness: 0.5
+  Child: 0
   Laziness: 0.4
   Hunts:
   - {fileID: 11400000, guid: 89a61bfb5e05e3b489180d7e6ff44009, type: 2}
@@ -146,6 +151,7 @@ MonoBehaviour:
   WebSize: 0.6
   Burrows: 0
   CaveDweller: 0
+  Crawls: 0
   CaveAffinity: 0.2
   Roosts: 0
   Friendly: 0
@@ -153,8 +159,17 @@ MonoBehaviour:
   Haunts: 0
   CrossesWater: 1
   Nests: 0
+  DrawnToLight: 0
+  DrivenOff: 1
+  GuardKit: 0
+  GuardArmour: {r: 0.55, g: 0.57, b: 0.6, a: 1}
+  GuardSash: {r: 0.62, g: 0.12, b: 0.1, a: 1}
   FlightHeight: {x: 8, y: 18}
   FlySpeed: 7
   FlapRate: 6
   Glide: 0
   Perching: 0.6
+  Soars: 0
+  Breaches: 0
+  RaidsHives: 0
+  Calls: []

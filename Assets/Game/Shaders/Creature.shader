@@ -3,7 +3,8 @@ Shader "Punchy/Creature"
     // Animals (CreatureRenderSystem): every body segment is an instance of one unit capsule mesh, stretched to the
     // segment's length, tapered from its start radius to its end radius, flattened, then placed and rotated.
     // Soft wrapped lighting, shadows, cloud shadows, wetness and the atmosphere. A creature appearing or leaving
-    // dithers in or out (the segment's pad).
+    // dithers in or out (the segment's pad). Gear (helmets, armour, sashes, weapons) is shaded for what it's made of
+    // (the segment's material): metal, leather, cloth, wood, bone.
     SubShader
     {
         Tags { "RenderType" = "Opaque" "Queue" = "Geometry" "RenderPipeline" = "UniversalPipeline" }
@@ -22,9 +23,13 @@ Shader "Punchy/Creature"
             float flatten;
             float pad;         // how far faded out (0 shown, 1 gone): a creature appearing or leaving
             float4 color;
+            float4 material;   // x: what it's made of (SegmentMaterial: body, cloth, leather, metal, wood, bone); y: the
+                               // height of the ground the creature stands on (for grounding: a body's segments only)
         };
 
         StructuredBuffer<Segment> _Segments;
+        float _PunchyPlainGear;
+        float _PunchyNoGrounding;   // (debug: bodies ungrounded, for before/after shots)
         // Where this draw's instances start in _Segments (the shadowless draw of colonies and traces follows the bodies).
         uint _SegmentOffset;
 
@@ -53,6 +58,27 @@ Shader "Punchy/Creature"
         }
 
         float SegmentFade(CreatureAttributes input) { return _Segments[input.instanceID + _SegmentOffset].pad; }
+
+        // Also where on the segment the point is, in the segment's own frame (metres: across, across, along; so a pattern on
+        // it stays put as it moves), how far along it (0 to 1), and what it's made of.
+        void SegmentVertexMaterial(CreatureAttributes input, out float3 positionWS, out float3 normalWS, out float4 color,
+                                   out float3 surface, out float along, out float material, out float ground)
+        {
+            Segment s = _Segments[input.instanceID + _SegmentOffset];
+            float t = input.shape.z;
+            float r = lerp(s.radiusStart, s.radiusEnd, t);
+            float2 around = input.shape.xy;
+            float3 local = float3(around.x * r * input.cap.y, around.y * r * input.cap.y * s.flatten, t * s.length + input.cap.x * r);
+            float slope = (s.radiusStart - s.radiusEnd) / max(s.length + r, 1e-3);
+            float3 n = float3(around.x * input.cap.y, around.y * input.cap.y / max(s.flatten, 0.05), input.cap.x + slope * input.cap.y);
+            positionWS = s.position + Rotate(s.rotation, local);
+            normalWS = Rotate(s.rotation, normalize(n));
+            color = s.color;
+            surface = local;
+            along = saturate(local.z / max(s.length + 2 * r, 1e-3) + r / max(s.length + 2 * r, 1e-3));
+            material = s.material.x;
+            ground = s.material.y;
+        }
 
         void SegmentVertex(CreatureAttributes input, out float3 positionWS, out float3 normalWS, out float4 color)
         {
@@ -84,6 +110,8 @@ Shader "Punchy/Creature"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
+            #include "Metal.hlsl"
+            #include "Grounding.hlsl"
 
             struct Varyings
             {
@@ -92,6 +120,10 @@ Shader "Punchy/Creature"
                 half3 normalWS : TEXCOORD1;
                 half4 color : TEXCOORD2;
                 float fade : TEXCOORD3;
+                float3 surface : TEXCOORD4;
+                float along : TEXCOORD5;
+                nointerpolation float material : TEXCOORD6;
+                nointerpolation float ground : TEXCOORD7;
             };
 
             Varyings Vert(CreatureAttributes input)
@@ -99,12 +131,87 @@ Shader "Punchy/Creature"
                 Varyings o;
                 float3 n;
                 float4 c;
-                SegmentVertex(input, o.positionWS, n, c);
+                SegmentVertexMaterial(input, o.positionWS, n, c, o.surface, o.along, o.material, o.ground);
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.normalWS = n;
                 o.color = c;
                 o.fade = SegmentFade(input);
                 return o;
+            }
+
+            // Value noise in 3D (hashed lattice, smoothly blended): fixed patterns on a segment's surface, the same on
+            // every machine and every frame.
+            float Hash3(float3 p)
+            {
+                p = frac(p * 0.3183099 + 0.1);
+                p *= 17.0;
+                return frac(p.x * p.y * p.z * (p.x + p.y + p.z));
+            }
+
+            float Noise3(float3 p)
+            {
+                float3 i = floor(p);
+                float3 f = frac(p);
+                f = f * f * (3 - 2 * f);
+                return lerp(lerp(lerp(Hash3(i), Hash3(i + float3(1, 0, 0)), f.x), lerp(Hash3(i + float3(0, 1, 0)), Hash3(i + float3(1, 1, 0)), f.x), f.y),
+                            lerp(lerp(Hash3(i + float3(0, 0, 1)), Hash3(i + float3(1, 0, 1)), f.x), lerp(Hash3(i + float3(0, 1, 1)), Hash3(i + float3(1, 1, 1)), f.x), f.y), f.z);
+            }
+
+            // What gear is made of, shaded so it reads for what it is from across a town, not just close to: metal
+            // mirrors the sky and the ground and flashes in the sun; leather has a soft sheen, cloth none; wood is
+            // grained along its length; bone is ivory and waxy. (Bodies keep their own soft light, in Frag.)
+            half3 Material(uint material, half3 albedo, half3 n, float3 v, Light light, half shadow, float3 surface, float along, float3 positionWS)
+            {
+                half3 sun = light.color * shadow;
+                half ndl = dot(n, light.direction);
+                half ndv = saturate(dot(n, v));
+                half3 ambient = SampleSH(n) + PunchyGlowLight(positionWS, n);
+                float angle = atan2(surface.y, surface.x);
+                if (material == 3)
+                {
+                    // Metal: the shared look (Metal.hlsl, as Flora's metal parts): tinted reflections of the sky, a sharp
+                    // highlight and glints, on a diffuse dimmed to under half, here on a hammered face (the normal
+                    // nudged a little, cell by cell).
+                    float3 dent = float3(Noise3(surface * 38), Noise3(surface * 38 + 7.1), Noise3(surface * 38 + 13.7)) - 0.5;
+                    half3 m = normalize(n + (half3)dent * 0.5);
+                    return albedo * 0.45 * (sun * saturate(ndl * 0.75 + 0.25) + ambient) +
+                           PunchyMetalShade(albedo, m, (half3)v, surface, light.color, light.direction, shadow, 1, 0);
+                }
+                if (material == 2)
+                {
+                    // Leather: fine grain, worn darker towards its ends, a line of stitches down one side, a soft sheen.
+                    half grain = 0.88 + 0.24 * Noise3(surface * 55);
+                    half worn = lerp(0.72, 1, saturate(min(along, 1 - along) * 5));
+                    half stitch = abs(angle - 1.5708) < 0.06 && frac(surface.z * 28) < 0.55 ? 0.55 : 1;
+                    half sheen = pow(1 - ndv, 2.5) * 0.22;
+                    half gloss = pow(saturate(dot(reflect(-v, n), light.direction)), 10) * 0.18;
+                    half diffuse = saturate(ndl * 0.8 + 0.2);
+                    return albedo * grain * worn * stitch * (sun * diffuse + ambient) + (sun * gloss + ambient * sheen) * 0.6;
+                }
+                if (material == 1)
+                {
+                    // Cloth: matte, a weave too fine to see far off but a soft rise and fall of folds that is.
+                    half weave = 0.93 + 0.07 * sin(surface.x * 140) * sin(surface.z * 140);
+                    half folds = 0.86 + 0.14 * sin(surface.z * 16 + angle * 2.5 + Noise3(surface * 4) * 3);
+                    half diffuse = saturate(ndl * 0.75 + 0.25);
+                    return albedo * weave * folds * (sun * diffuse + ambient * 1.05);
+                }
+                if (material == 4)
+                {
+                    // Wood: grain running along its length, wavering, with darker streaks.
+                    half grain = sin(angle * 7 + surface.z * 1.3 + Noise3(float3(surface.xy * 6, surface.z * 0.8)) * 5);
+                    half streak = 0.8 + 0.2 * grain + 0.1 * (Noise3(float3(surface.xy * 30, surface.z * 2)) - 0.5);
+                    half diffuse = saturate(ndl * 0.75 + 0.25);
+                    half gloss = pow(saturate(dot(reflect(-v, n), light.direction)), 16) * 0.08;
+                    return albedo * streak * (sun * diffuse + ambient) + sun * gloss;
+                }
+                // Bone: towards ivory, a waxy sheen, small dark pits.
+                half3 ivory = lerp(albedo, half3(0.86, 0.81, 0.68), 0.35);
+                half pits = Noise3(surface * 95) > 0.78 ? 0.7 : 1;
+                half sheen = pow(1 - ndv, 2) * 0.2;
+                half gloss = pow(saturate(dot(reflect(-v, n), light.direction)), 20) * 0.3;
+                half diffuse = saturate(ndl * 0.7 + 0.3);
+                return ivory * pits * (sun * diffuse + ambient) + sun * gloss + ambient * sheen * 0.5;
             }
 
             half4 Frag(Varyings input) : SV_Target
@@ -115,11 +222,24 @@ Shader "Punchy/Creature"
                 half3 albedo = input.color.rgb * lerp(1, 0.75, PunchyWetnessAt(input.positionWS.xz).r);
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
-                half diffuse = saturate(dot(n, light.direction) * 0.75 + 0.25);
-                // A little soft sheen at the silhouette, like fur or feathers catching the light.
-                half rim = pow(1 - saturate(dot(n, v)), 3) * 0.25;
-                // (Plus the light of glowing plants and hot rock near it: W-18.)
-                half3 color = albedo * (light.color * shadow * diffuse + SampleSH(n) * (1 + rim) + PunchyGlowLight(input.positionWS, n));
+                half3 color;
+                // (_PunchyPlainGear, set by a debug probe: everything shaded as a body, for before/after shots.)
+                uint material = _PunchyPlainGear > 0.5 ? 0 : (uint)(input.material + 0.5);
+                if (material == 0)
+                {
+                    half diffuse = saturate(dot(n, light.direction) * 0.75 + 0.25);
+                    // A little soft sheen at the silhouette, like fur or feathers catching the light.
+                    half rim = pow(1 - saturate(dot(n, v)), 3) * 0.25;
+                    // (Plus the light of glowing plants and hot rock near it: W-18.)
+                    // Grounded (Grounding.hlsl): darker underneath (belly, chin, the undersides of limbs) and where it
+                    // meets the ground; the ambient light dimmed fully, the sun's in part.
+                    half ground = _PunchyNoGrounding > 0.5 ? 1 : PunchyCreatureGrounding(input.positionWS.y - input.ground, n.y);
+                    color = albedo * (light.color * shadow * diffuse * lerp(1, ground, 0.5) + SampleSH(n) * (1 + rim) * ground + PunchyGlowLight(input.positionWS, n));
+                }
+                else
+                    // (Gear is grounded by its downward faces only: it carries no ground height.)
+                    color = Material(material, albedo, n, v, light, shadow, input.surface, input.along, input.positionWS) *
+                            lerp(1, PunchyCreatureGrounding(100, n.y), 0.75);
                 // Glowing parts (alpha): embers, toxic markings, eye sockets. Bright enough to bloom.
                 color += input.color.rgb * input.color.a * (2.2 + 0.4 * sin(_Time.y * 2.1 + input.positionWS.x * 3.0));
                 return half4(PunchyAtmosphere(color, input.positionWS), 1);

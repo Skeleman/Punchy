@@ -133,6 +133,7 @@ namespace Punchy.Fauna
                 Carry = SystemAPI.TryGetSingleton<CarryTable>(out var carryTable) ? carryTable : default,
                 Dt = math.min(SystemAPI.Time.DeltaTime, 0.1f),
                 Night = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Night : 0f,
+                Hour = SystemAPI.TryGetSingleton<FaunaClock>(out var hourClock) ? hourClock.Hour : 12f,
                 Entities = entities,
                 States = states,
                 Bodies = bodies,
@@ -183,7 +184,7 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<int> PlayerSpecies;
             [ReadOnly] public NativeArray<float> PlayerSpeeds;
             public CarryTable Carry;
-            public float Dt, Night;
+            public float Dt, Night, Hour;
             [ReadOnly] public NativeArray<Entity> Entities;
             [ReadOnly] public NativeArray<CreatureState> States;
             [ReadOnly] public NativeArray<CreatureBody> Bodies;
@@ -237,7 +238,9 @@ namespace Punchy.Fauna
                 var aloft = s.Mode == CreatureMode.Climb && s.Stage >= 1 || s.Mode == CreatureMode.Web && s.Stage >= 1 ||
                             s.Mode == CreatureMode.Burrow && s.Stage >= 1 || s.Mode == CreatureMode.Roost ||
                             // (In someone's hands, it isn't afraid of them.)
-                            s.Mode == CreatureMode.Held || s.Mode == CreatureMode.Petted;
+                            s.Mode == CreatureMode.Held || s.Mode == CreatureMode.Petted ||
+                            // (Nor a messenger bird of the folk it's come to.)
+                            s.Task == CreatureTask.Messenger;
                 // Settlements' animals are used to people: they let them come close (not predators, though).
                 var tame = s.Leash > 0f && !b.Upright ? 0.3f : 1f;
 
@@ -270,6 +273,23 @@ namespace Punchy.Fauna
                 {
                     threatened = true;
                     threat = predator;
+                }
+                // A wolf, a bear or the like in a town: a guard running at it (or a night guard's torch close by) sends it
+                // off out of the place.
+                if (!threatened && !aloft && b.DrivenOff && FindChaser(self, in s, out var chaser))
+                {
+                    threatened = true;
+                    threat = chaser;
+                    // It makes for the town's edge, the nearest way out, veering off from the guard (so it doesn't run
+                    // deeper in, away from one coming in from the bounds).
+                    var town = SettlementOf(s.Position.xz);
+                    if (town >= 0)
+                    {
+                        ref var t = ref Terrain.Settlements.Value.Settlements[town];
+                        var outward = math.normalizesafe(s.Position.xz - t.Centre, new float2(1f, 0f));
+                        var veer = math.normalizesafe(s.Position.xz - chaser, outward);
+                        threat = s.Position.xz - math.normalizesafe(outward + veer * 0.6f, outward) * 5f;
+                    }
                 }
                 // One bolts, they all bolt: a herd (or a flock) runs when any of it close by does, from the same thing.
                 if (!threatened && !aloft && b.FleeDistance > 0f && s.Mode != CreatureMode.Flee && FindAlarm(self, ref s, body.Species, out var alarm))
@@ -317,6 +337,20 @@ namespace Punchy.Fauna
                     }
                     else
                         NightLoop(ref s, ref b, ref rng);
+                }
+                // A beast scared inside a town (by a guard, or bolting with the rest of its pack) takes itself off
+                // somewhere else: its range moved out past the edge the way it's running, so it isn't held to ground
+                // inside the place and doesn't come straight back.
+                if (threatened && b.DrivenOff && s.Leash > 0f)
+                {
+                    var town = SettlementOf(s.Position.xz);
+                    if (town >= 0)
+                    {
+                        ref var t = ref Terrain.Settlements.Value.Settlements[town];
+                        var off = math.normalizesafe(s.Position.xz - threat, math.normalizesafe(s.Position.xz - t.Centre, new float2(1f, 0f)));
+                        if (math.distance(s.Position.xz, t.Centre) < t.Radius && math.distance(s.Home, t.Centre) < t.Radius + s.Leash)
+                            s.Home = t.Centre + math.normalizesafe(s.Position.xz + off * t.Radius - t.Centre, off) * (t.Radius + s.Leash + 10f);
+                    }
                 }
                 if (threatened)
                 {
@@ -370,6 +404,19 @@ namespace Punchy.Fauna
                     s.Target = ashore;
                 }
 
+                // A messenger bird coming to this one: it stops what it's doing to meet it.
+                if (b.Upright && b.Hands && s.Leash > 0f && (Free(s.Mode) || s.Mode == CreatureMode.Greet) && !(s.Mode == CreatureMode.Idle && s.Stage >= MessageWait) &&
+                    rng.NextFloat() < 0.25f && FindMessenger(self, in s, out var messenger))
+                {
+                    SetMode(ref s, CreatureMode.Idle);
+                    s.Stage = MessageWait;
+                    s.Partner = messenger;
+                    s.Timer = 40f;
+                }
+
+                if (b.RaidsHives)
+                    s.ChaseCooldown = math.max(s.ChaseCooldown - dt, 0f);
+
                 var targetSpeed = 0f;
                 var desiredLook = 0f;
                 var moving = false;
@@ -390,6 +437,11 @@ namespace Punchy.Fauna
                 switch (s.Mode)
                 {
                     case CreatureMode.Idle:
+                        if (s.Stage >= MessageWait)
+                        {
+                            Receiving(ref s, ref b, ref rng, dt);
+                            break;
+                        }
                         // An idle action under way finishes before it moves on.
                         if (s.Action == IdleAction.None)
                             s.Timer -= dt;
@@ -399,13 +451,33 @@ namespace Punchy.Fauna
                         break;
 
                     case CreatureMode.Wander:
-                        if (flier && s.Stage >= 1)
+                        // A moth round its light: from point to point (in a cave, under the rock: no cruising height).
+                        if (b.DrawnToLight)
                         {
                             custom = true;
+                            if (FlitTo(ref s, ref b, dt, ref vertical))
+                                Flit(ref s, ref rng);
+                            break;
+                        }
+                        if ((flier || b.Breaches) && s.Stage >= 1)
+                        {
+                            custom = true;
+                            if (s.Stage == 2)
+                                Soar(ref s, ref b, ref rng, dt);
+                            // A sky serpent diving back in: once under, swimming again.
+                            if (b.Breaches && s.Stage == 3 && FlyTo(ref s, ref b, s.Target, s.TargetHeight, b.FlySpeed, dt, ref vertical))
+                            {
+                                Pause(ref s, ref b, ref rng);
+                                break;
+                            }
+                            if (b.Breaches && s.Stage == 3)
+                                break;
                             if (FlyTo(ref s, ref b, s.Target, s.TargetHeight, b.FlySpeed, dt, ref vertical))
                             {
                                 // Bats don't land: they hawk for insects in loops all night, then go to roost.
-                                if (b.Roosts && SleepTime(ref b) < 0.5f)
+                                if (b.DrawnToLight)
+                                    Flit(ref s, ref rng);
+                                else if (b.Roosts && SleepTime(ref b) < 0.5f)
                                     NightLoop(ref s, ref b, ref rng);
                                 else if (b.Roosts)
                                     StartRoost(ref s, ref b, ref rng);
@@ -535,8 +607,85 @@ namespace Punchy.Fauna
                             Hunt(ref s, ref b, ref rng, ref targetSpeed, ref desiredLook, ref headDown, ref moving);
                         break;
 
+                    case CreatureMode.Sit:
+                        if (s.Stage == 0)
+                        {
+                            targetSpeed = walk;
+                            moving = true;
+                            // (Its time there starts when it sits down; a spot it can't reach in a minute, it gives up on.)
+                            if (s.StageTime > 60f)
+                                Pause(ref s, ref b, ref rng);
+                            // (Two that chose the same spot in the same moment: the later of them finds another.)
+                            else if (Contested(self, in s) && !Resettle(self, ref s, ref rng))
+                                Pause(ref s, ref b, ref rng);
+                            // (Close is enough: it shuffles the rest of the way on, which for a seat is past the front
+                            // of the seat itself, solid to walkers.)
+                            else if (math.distance(s.Position.xz, s.Target) < (s.TargetHeight == 4f || s.TargetHeight == CreatureAnimator.HearthSeat ? 0.9f : 0.5f))
+                            {
+                                s.Stage = (byte)s.TargetHeight;
+                                s.StageTime = 0f;
+                            }
+                        }
+                        else
+                        {
+                            // Turned to the well (or the view, or the way its seat faces), then down: sitting up and
+                            // looking about, or lying back.
+                            s.Timer -= dt;
+                            // (Shuffling the last of the way onto its own spot, so it neither crowds the next nor the wall.)
+                            var short_ = s.Target - s.Position.xz;
+                            var shuffle = math.min(math.length(short_), 0.5f * dt);
+                            s.Position.xz += math.normalizesafe(short_) * shuffle;
+                            var toFace = s.Focus - s.Position.xz;
+                            var wantedYaw = WrapAngle(math.atan2(toFace.x, toFace.y) - s.Yaw);
+                            s.Yaw = WrapAngle(s.Yaw + math.clamp(wantedYaw, -b.TurnRate * dt, b.TurnRate * dt));
+                            // (At the town's fire, some stand.)
+                            if (s.Stage == 3)
+                                lie = 1f;
+                            else if (s.Stage != CreatureAnimator.HearthStand)
+                                sit = 1f;
+                            desiredLook = s.Stage == 3 ? 0f : idleLook;
+                            var hearth = AtHearth(s.Stage);
+                            if (s.Timer <= 0f || hearth && !Gathering(in s, ref b) || Contested(self, in s) && !Resettle(self, ref s, ref rng))
+                                Pause(ref s, ref b, ref rng);
+                        }
+                        break;
+
+                    case CreatureMode.Swim:
+                        Swimming(ref s, ref b, ref rng, dt, walk, idleLook, ref targetSpeed, ref moving, ref desiredLook);
+                        break;
+
+                    case CreatureMode.Patrol:
+                        Patrol(self, ref s, ref b, ref rng, dt, walk, run, player, playerSpeed, emote, ref targetSpeed, ref moving, ref desiredLook);
+                        break;
+
                     case CreatureMode.Work:
-                        s.Timer -= dt;
+                        // (A miner has no post: its day is a round, into the mine and back out with ore.)
+                        if (s.Task == CreatureTask.Mine)
+                        {
+                            custom = true;
+                            Mining(ref s, ref b, ref rng, dt, walk);
+                            break;
+                        }
+                        if (s.Task == CreatureTask.Travel)
+                        {
+                            custom = true;
+                            Travelling(ref s, ref b, ref rng, dt, walk);
+                            break;
+                        }
+                        if (s.Task == CreatureTask.Messenger)
+                        {
+                            custom = true;
+                            Messenger(ref s, ref b, ref rng, dt, ref vertical);
+                            break;
+                        }
+                        if (s.Stage >= CreatureAnimator.RaidWalk && s.Stage <= CreatureAnimator.RaidLick)
+                        {
+                            Raiding(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref sit, ref vertical, ref desiredLook, ref headDown, ref bow);
+                            break;
+                        }
+                        // (A fisher's time at the water starts when it gets there, however far it had to walk.)
+                        if (s.Stage >= 1 || s.Task != CreatureTask.Fish)
+                            s.Timer -= dt;
                         if (s.Stage == 0)
                         {
                             s.Target = s.WorkSpot;
@@ -548,6 +697,8 @@ namespace Punchy.Fauna
                                 s.StageTime = 0f;
                             }
                         }
+                        else if (s.Task == CreatureTask.Fish)
+                            Fishing(ref s, ref b, ref rng, dt, ref desiredLook);
                         else
                         {
                             // At the post: turn to face the work, glance about now and then.
@@ -606,9 +757,26 @@ namespace Punchy.Fauna
                 // Little things done while standing about: start one now and then, keep it going, and take up the
                 // posture it needs.
                 Fidget(self, body.Species, ref s, ref b, ref rng, dt, perched, ref sit, ref vertical, ref bow, ref desiredLook);
+                // A child standing about now and then pokes at the ground with its stick, or throws its stone; more
+                // often sitting in a play ring, into the middle of it.
+                var playing = s.Mode == CreatureMode.Sit && s.Stage == CreatureAnimator.PlayRing;
+                if (b.Child && s.Action == IdleAction.None && (s.Mode == CreatureMode.Idle || playing) && s.Speed < 0.1f &&
+                    rng.NextFloat() < dt * (playing ? 0.4f : 0.25f) &&
+                    (s.Held == HeldItem.Stick || s.Held == HeldItem.Stone))
+                {
+                    s.Action = s.Held == HeldItem.Stick ? IdleAction.Poke : IdleAction.Throw;
+                    s.ActionTime = 0f;
+                    s.ActionLength = s.Held == HeldItem.Stick ? rng.NextFloat(2f, 3.5f) : 1.2f;
+                    // (Watching where its stone lands, a few metres ahead, or the ground it pokes at.)
+                    var ahead = s.Position.xz + new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * (s.Held == HeldItem.Stone ? 3.5f : 0.6f);
+                    s.LookKind = 0;
+                    s.LookAt = new float3(ahead.x, Terrain.SampleHeight(ahead), ahead.y);
+                    s.LookFor = s.ActionLength + 0.5f;
+                    s.Timer = math.max(s.Timer, s.ActionLength + 0.5f);
+                }
 
                 // Animals with a home never head out of range of it (penned animals stay in their pen, even fleeing).
-                if (s.Leash > 0f && moving)
+                if (s.Leash > 0f && moving && s.Mode != CreatureMode.Patrol && s.Mode != CreatureMode.Swim)
                 {
                     var fromHome = s.Target - s.Home;
                     var far = math.length(fromHome);
@@ -644,6 +812,12 @@ namespace Punchy.Fauna
                     var landBound = (b.Habitat == Habitat.Land || flier) && !CaveWalker(s, ref b);
                     var blocked = b.Crawls && CaveWalker(s, ref b) ? false : CaveWalker(s, ref b) ? s.Speed > 0.05f && !CaveFloor(ahead, s.Position.y)
                                                 : s.Speed > 0.05f && !Walkable(ahead, b.Habitat);
+                    // Folk out swimming keep to the water while they swim, and wade out onto the bank when they're done.
+                    if (s.Mode == CreatureMode.Swim && s.Stage >= 1)
+                    {
+                        blocked = s.Stage == 1 && s.Speed > 0.05f && !Swimmable(ahead);
+                        landBound = false;
+                    }
                     // Animals that swim go on into water when they're on their way somewhere (not to stand in it), and a
                     // lake bed's slope doesn't stop them.
                     // A lava dweller keeps to lava (a swimmer's water test passes ordinary water too).
@@ -687,7 +861,21 @@ namespace Punchy.Fauna
                 }
                 else
                     CreatureMotion.AdvancePhase(ref s, ref b, dt);
-                s.Look += (desiredLook - s.Look) * math.min(1f, dt * 3f);
+                // A glance at something near and interesting, over whatever else it was looking at. Not while the head is
+                // busy with something of its own (preening, grazing, drinking, a head-down posture, reading...): then
+                // the look eases back to straight ahead and leaves the head to the action.
+                var desiredPitch = 0f;
+                if (HeadBusy(s))
+                {
+                    s.LookFor = 0f;
+                    desiredLook = 0f;
+                }
+                else if (s.Task != CreatureTask.Critter)
+                    Glance(self, ref s, ref b, ref rng, dt, player, playerSpeed, emote, ref desiredLook, out desiredPitch);
+                // Never a snap: eased, and no faster than a bird's 180 or a mammal's 120 degrees a second.
+                var turnRate = (b.Habitat == Habitat.Flies || b.Nests != NestSite.None ? 3.1f : 2.1f) * dt;
+                s.Look += math.clamp((desiredLook - s.Look) * math.min(1f, dt * 5f), -turnRate, turnRate);
+                s.LookPitch += math.clamp((desiredPitch - s.LookPitch) * math.min(1f, dt * 5f), -turnRate, turnRate);
 
                 // Ease into postures: lying down takes a moment, springing up to run doesn't.
                 var lieRate = lie > s.Lie ? 0.8f : urgent ? 5f : 1.5f;
@@ -697,7 +885,52 @@ namespace Punchy.Fauna
                 s.Curl += (curl - s.Curl) * math.min(1f, dt * (curl > s.Curl ? 0.6f : 4f));
                 s.Sit += (sit - s.Sit) * math.min(1f, dt * (urgent ? 6f : 2.5f));
                 s.Vertical += (vertical - s.Vertical) * math.min(1f, dt * 3f);
-                var fly = Flying(s) && flier ? 1f : 0f;
+                var fly = Flying(s) && (flier || b.Breaches && s.Mode == CreatureMode.Wander && s.Stage >= 2) ? 1f : 0f;
+                // Folk out and about after dark carry a lantern: lit at dusk, put away at dawn (with a margin either way so
+                // it doesn't flicker at the turn), and not asleep, indoors, dozing at a post, or in someone's arms.
+                // (A guard by day has its weapon, worn or drawn: Patrol works out which.)
+                if (s.Task == CreatureTask.Patrol && s.Mode == CreatureMode.Patrol)
+                    s.Held = Night > 0.5f ? HeldItem.Torch : s.Held == HeldItem.SpearDrawn ? HeldItem.SpearDrawn : HeldItem.Spear;
+                else if (s.Task == CreatureTask.Fish && s.Mode == CreatureMode.Work && s.Stage >= 1)
+                    s.Held = HeldItem.Rod;
+                // A traveller has its staff by day, a lantern after dark.
+                else if (s.Task == CreatureTask.Travel && s.Mode == CreatureMode.Work)
+                    s.Held = Night > 0.5f ? HeldItem.Lantern : HeldItem.Staff;
+                // Reading a message just taken from a messenger bird. (The bird's own letter, Messenger sees to.)
+                else if (s.Mode == CreatureMode.Idle && s.Stage == MessageRead && b.Hands)
+                    s.Held = HeldItem.Letter;
+                // (A miner at work has its pick, or a sack of ore: Mining says which.)
+                else if (s.Task == CreatureTask.Mine && s.Mode == CreatureMode.Work)
+                {
+                    if (s.Held != HeldItem.Pickaxe && s.Held != HeldItem.OreSack)
+                        s.Held = HeldItem.Pickaxe;
+                }
+                // A hunter by day wears its spear across its back, and draws it when it goes after game (put away
+                // when it's done): the same half-second reach as a guard's weapon. (After dark, a lantern below.)
+                else if (s.Task == CreatureTask.Hunt && b.Hands && Night < 0.5f)
+                {
+                    if (s.Held != HeldItem.Spear && s.Held != HeldItem.SpearDrawn)
+                        s.Held = HeldItem.Spear;
+                    var hunting = s.Mode == CreatureMode.Hunt;
+                    if (s.Action == IdleAction.None && hunting != (s.Held == HeldItem.SpearDrawn))
+                    {
+                        s.Held = hunting ? HeldItem.SpearDrawn : HeldItem.Spear;
+                        s.Action = hunting ? IdleAction.Draw : IdleAction.Sheathe;
+                        s.ActionTime = 0f;
+                        s.ActionLength = 0.5f;
+                    }
+                }
+                // A child out by day has a stick or a stone (its own kind of plaything), not indoors or asleep.
+                else if (b.Child && b.Hands && Night < 0.5f && s.Mode != CreatureMode.Sleep && !(s.Mode == CreatureMode.Home && s.Stage >= 1))
+                    s.Held = ((s.Individual >> 5) & 1u) != 0 ? HeldItem.Stick : HeldItem.Stone;
+                else if (b.Hands && b.Upright)
+                {
+                    var dark = s.Held == HeldItem.Lantern ? Night > 0.4f : Night > 0.6f;
+                    // (By the town's fire it has no need of one: put away.)
+                    var about = s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Held && !(s.Mode == CreatureMode.Home && s.Stage >= 1) &&
+                                !(s.Mode == CreatureMode.Work && s.Stage >= 1) && !(s.Mode == CreatureMode.Sit && AtHearth(s.Stage));
+                    s.Held = dark && about ? HeldItem.Lantern : HeldItem.None;
+                }
                 s.Fly += (fly - s.Fly) * math.min(1f, dt * 6f);
                 s.Seed = rng.state;
             }
@@ -748,13 +981,57 @@ namespace Punchy.Fauna
 
             void Decide(Entity self, ref CreatureState s, ref CreatureBlob b, int species, ref Random rng, bool perched, float3 player)
             {
+                if (b.DrawnToLight)
+                {
+                    Flit(ref s, ref rng);
+                    return;
+                }
                 var sleepy = SleepTime(ref b);
                 var awake = 1f - sleepy * 0.8f;
                 var flier = b.Habitat == Habitat.Flies;
 
+                // A sky serpent, awake under the water, now and then bursts up and out to soar a while.
+                if (b.Breaches && sleepy < 0.5f && rng.NextFloat() < 0.3f)
+                {
+                    SetMode(ref s, CreatureMode.Wander);
+                    s.Stage = 2;
+                    s.Focus = s.Position.xz;
+                    s.TargetHeight = Cruise(s, ref b, s.Focus);
+                    s.Timer = rng.NextFloat(180f, 480f);   // (long spells: it spends much of its day in the air)
+                    s.Target = s.Focus;
+                    return;
+                }
+
+                // A guard on shift goes (back) on its rounds; a night guard off shift sleeps the day away indoors (a day
+                // guard off shift has its evening and goes home to bed like anyone).
+                if (s.Task == CreatureTask.Patrol)
+                {
+                    if (OnShift(s) && StartPatrol(ref s))
+                        return;
+                    if (NightShift(s) && Night < 0.45f)
+                    {
+                        if (FindDoor(ref s))
+                        {
+                            SetMode(ref s, CreatureMode.Home);
+                            s.Timer = rng.NextFloat(300f, 600f);
+                        }
+                        else
+                        {
+                            SetMode(ref s, CreatureMode.Sleep);
+                            s.Timer = rng.NextFloat(120f, 300f);
+                        }
+                        return;
+                    }
+                }
+
+                // A fisher finds its spot the first time (none within reach, and it's just one of the townsfolk).
+                if (s.Task == CreatureTask.Fish && sleepy < 0.5f && math.all(s.WorkSpot == float2.zero) && !FindFishingSpot(ref s))
+                    s.Task = CreatureTask.None;
+
                 // Find company first: the options depend on it.
                 var playmate = Entity.Null;
-                if (b.Playfulness > 0f && sleepy < 0.5f && !perched)
+                // (A critter runs light: no company to look for.)
+                if (b.Playfulness > 0f && sleepy < 0.5f && !perched && s.Task != CreatureTask.Critter)
                     FindKin(self, ref s, species, 15f, out playmate);
                 var prey = Entity.Null;
                 if (b.Prey.Length > 0 && b.Hunger > 0f && sleepy < 0.5f)
@@ -772,6 +1049,10 @@ namespace Punchy.Fauna
                 var hunt = prey != Entity.Null ? b.Hunger * 2.5f * Urge(s.Hunger) : 0f;
                 // Climbers go up trees to sit, and to sleep (they sleep up there, not on the ground).
                 var climb = b.Climbing > 0f && HasFlora && !flier ? b.Climbing * (sleepy > 0.5f ? 8f : 2.5f) : 0f;
+                // Townsfolk sit a while by the well, or lie back on the ground near it, by day.
+                var lounge = b.Upright && b.Hands && s.Leash > 0f && sleepy < 0.3f && Night < 0.3f && s.Task != CreatureTask.Patrol ? 0.2f * awake : 0f;
+                // Townsfolk now and then go for a swim, in the warm middle of the day.
+                var swim = b.Upright && b.Hands && s.Leash > 0f && sleepy < 0.2f && Night < 0.2f && s.Task != CreatureTask.Patrol ? 0.12f * awake : 0f;
                 if (climb > 0f && sleepy > 0.5f)
                     sleep *= 0.2f;
                 // Web spinners spend most of their time in their web.
@@ -799,9 +1080,11 @@ namespace Punchy.Fauna
                 // Workers mostly work by day, taking a short wander or rest between stints; at night they doze at
                 // their post.
                 // (Hunters have no post: by day they go out after game, at night they sleep at home.)
-                var posted = s.Task != CreatureTask.None && s.Task != CreatureTask.Hunt;
-                var work = posted ? sleepy > 0.5f ? 10f : 6f : 0f;
-                if (posted && sleepy > 0.5f)
+                var posted = s.Task != CreatureTask.None && s.Task != CreatureTask.Hunt && s.Task != CreatureTask.Patrol && s.Task != CreatureTask.Critter;
+                // (A fisher fishes by day only: at night it sleeps at home like anyone.)
+                var dayWork = s.Task == CreatureTask.Fish || s.Task == CreatureTask.Mine;
+                var work = posted ? sleepy > 0.5f ? (dayWork ? 0f : 10f) : 6f : 0f;
+                if (posted && sleepy > 0.5f && !dayWork)
                     sleep = 0f;
                 // Townsfolk go indoors through their door: for the night (all but the watch), and now and then by day.
                 var home = 0f;
@@ -819,7 +1102,17 @@ namespace Punchy.Fauna
                     s.Timer = rng.NextFloat(60f, 100f);
                     return;
                 }
-                var roll = rng.NextFloat(wander + graze + rest + sleep + drink + play + hunt + work + climb + web + fly + home);
+                // A bear by day, now and then, goes after a wild hive's honey (rarely: after a raid it leaves hives be a
+                // long while).
+                if (b.RaidsHives && sleepy < 0.3f && s.ChaseCooldown <= 0f && rng.NextFloat() < 0.08f && StartRaid(ref s, ref rng))
+                    return;
+                // Children by day now and then sit down in a ring on a green to play with their sticks and stones.
+                if (b.Child && sleepy < 0.3f && Night < 0.4f && s.Leash > 0f && rng.NextFloat() < 0.3f && StartPlayRing(self, ref s, ref rng))
+                    return;
+                // Townsfolk gather round the town's fire at dusk, as many as it has room for (the rest go in as usual).
+                if (Gathering(in s, ref b) && rng.NextFloat() < 0.8f && StartHearth(self, ref s, ref rng))
+                    return;
+                var roll = rng.NextFloat(wander + graze + rest + sleep + drink + play + hunt + work + climb + web + fly + home + swim + lounge);
 
                 // Friendly animals go over to a person nearby (within their home range) more often than not.
                 // (Someone arriving at the edge of its home range counts: it goes as far as its range lets it.)
@@ -857,7 +1150,7 @@ namespace Punchy.Fauna
                 if ((roll -= work) < 0f)
                 {
                     SetMode(ref s, CreatureMode.Work);
-                    s.Timer = rng.NextFloat(40f, 120f);
+                    s.Timer = s.Task == CreatureTask.Fish ? rng.NextFloat(120f, 300f) : rng.NextFloat(40f, 120f);
                 }
                 else if ((roll -= home) < 0f)
                 {
@@ -904,6 +1197,8 @@ namespace Punchy.Fauna
                 }
                 // (Only for species that do these: a failed drink above leaves the roll below zero.)
                 else if (climb > 0f && (roll -= climb) < 0f && StartClimb(ref s, ref b, ref rng, sleepy > 0.5f)) { }
+                else if (swim > 0f && (roll -= swim) < 0f && StartSwim(ref s, ref rng)) { }
+                else if (lounge > 0f && (roll -= lounge) < 0f && StartLounge(self, ref s, ref rng)) { }
                 else if (web > 0f && (roll -= web) < 0f && GoToWeb(ref s, ref b, ref rng)) { }
                 else if (fly > 0f && (roll -= fly) < 0f && StartFlight(ref s, ref b, ref rng, sleepy > 0.5f)) { }
                 else if (onGround)
@@ -985,8 +1280,11 @@ namespace Punchy.Fauna
                 var calm = s.Mode == CreatureMode.Idle || s.Mode == CreatureMode.Rest ||
                            s.Mode == CreatureMode.Climb && s.Stage == 3 ||
                            s.Mode == CreatureMode.Greet && s.Speed < 0.2f;
-                // (Being petted or held, it carries on with what it was given to do: a wag, a wriggle; nothing new.)
-                var keeps = calm || s.Mode == CreatureMode.Petted || s.Mode == CreatureMode.Held;
+                // (Being petted or held, it carries on with what it was given to do: a wag, a wriggle; nothing new. A
+                // guard drawing its weapon or putting it away finishes, whatever it's doing.)
+                var keeps = calm || s.Mode == CreatureMode.Petted || s.Mode == CreatureMode.Held ||
+                            s.Action == IdleAction.Draw || s.Action == IdleAction.Sheathe ||
+                            s.Mode == CreatureMode.Sit && s.Stage == CreatureAnimator.PlayRing;
                 if (s.Action != IdleAction.None)
                 {
                     s.ActionTime += dt / math.max(s.ActionLength, 0.1f);
@@ -1577,8 +1875,88 @@ namespace Punchy.Fauna
                 var near = s.Leash > 0f ? s.Home : (math.floor(s.Position.xz / 16f) + 0.5f) * 16f;
                 var place = LairRandom(near, 0x4E57u ^ (s.Leash > 0f ? s.Individual : 0u));
                 var size = math.max(b.BodyLength * s.Scale * 0.7f, 0.08f);
-                if (b.Nests == NestSite.Ground)
+                if (b.Nests == NestSite.Ledge)
                 {
+                    // The Nest anchor nearest home (a cave mouth's wall): the colony's cups spread along the wall either
+                    // side of it and a little up and down, each standing out from the rock.
+                    if (!Terrain.Anchors.IsCreated)
+                        return false;
+                    var ledges = new NativeList<int>(8, Allocator.Temp);
+                    Anchors.Near(ref Terrain.Anchors.Value, new float3(near.x, s.Position.y, near.y), 60f, AnchorKind.Nest, ref ledges);
+                    var found = -1;
+                    // (Not an egg clutch on a cave floor, which the world marks as a Nest too: those are Size 0.6, a
+                    // ledge 0.4.)
+                    for (int k = 0; k < ledges.Length; k++)
+                        if (Terrain.Anchors.Value.Anchors[ledges[k]].Size > 0.5f)
+                            continue;
+                        else if (found < 0 || math.distancesq(Terrain.Anchors.Value.Anchors[ledges[k]].Position.xz, near) <
+                                         math.distancesq(Terrain.Anchors.Value.Anchors[found].Position.xz, near))
+                            found = ledges[k];
+                    ledges.Dispose();
+                    if (found >= 0)
+                    {
+                        var ledge = Terrain.Anchors.Value.Anchors[found];
+                        var along = new float2(-ledge.Facing.y, ledge.Facing.x);
+                        var spot = ledge.Position.xz + along * place.NextFloat(-1.4f, 1.4f);
+                        var cup = new float3(spot.x, ledge.Position.y + place.NextFloat(-0.4f, 0.6f), spot.y);
+                        // Onto the rock itself (the wall curves away from the anchor, or out into the way): in to the
+                        // wall from there, or out of it, the cup just proud of the surface; failing that, at the anchor.
+                        var into = new float3(-ledge.Facing.x, 0f, -ledge.Facing.y);
+                        var inRock = Terrain.CaveDistance(cup) >= 0f;
+                        var onRock = false;
+                        for (int k = 1; k <= 25 && !onRock; k++)
+                        {
+                            var probe = cup + into * ((inRock ? -0.1f : 0.1f) * k);
+                            if (Terrain.CaveDistance(probe) >= 0f != inRock)
+                            {
+                                // The surface lies between this probe and the one before: halved down to a few
+                                // millimetres (air on one side, rock on the other).
+                                var air = inRock ? probe : probe - into * 0.1f;
+                                var rock = inRock ? probe - into * -0.1f : probe;
+                                for (int h = 0; h < 5; h++)
+                                {
+                                    var mid = (air + rock) * 0.5f;
+                                    if (Terrain.CaveDistance(mid) >= 0f)
+                                        rock = mid;
+                                    else
+                                        air = mid;
+                                }
+                                cup = air - into * size * 0.6f;
+                                onRock = true;
+                            }
+                        }
+                        if (!onRock)
+                            cup = ledge.Position + into * (0.3f - size * 0.6f);
+                        s.Anchor = cup;
+                        s.AnchorSize = size;
+                        return true;
+                    }
+                }
+                else if (b.Nests == NestSite.Ground)
+                {
+                    // A town bird's (a hen's): against a house wall beside its door, not out on the square.
+                    if (s.Leash > 0f && Terrain.Anchors.IsCreated)
+                    {
+                        var doors = new NativeList<int>(8, Allocator.Temp);
+                        Anchors.Near(ref Terrain.Anchors.Value, new float3(near.x, s.Position.y, near.y), math.max(s.Leash, 20f), AnchorKind.Door, ref doors);
+                        var placed = false;
+                        for (int attempt = 0; attempt < 6 && doors.Length > 0 && !placed; attempt++)
+                        {
+                            var door = Terrain.Anchors.Value.Anchors[doors[place.NextInt(doors.Length)]];
+                            if (door.InCave)
+                                continue;
+                            var across = new float2(-door.Facing.y, door.Facing.x) * (place.NextBool() ? 1f : -1f);
+                            var spot = door.Position.xz + across * place.NextFloat(1.2f, 2.2f) - door.Facing * 0.3f;
+                            if (!Walkable(spot, Habitat.Land))
+                                continue;
+                            s.Anchor = new float3(spot.x, Terrain.SampleHeight(spot), spot.y);
+                            s.AnchorSize = size;
+                            placed = true;
+                        }
+                        doors.Dispose();
+                        if (placed)
+                            return true;
+                    }
                     for (int attempt = 0; attempt < 6; attempt++)
                     {
                         var spot = near + place.NextFloat2Direction() * place.NextFloat(1f, 6f);
@@ -1612,6 +1990,44 @@ namespace Punchy.Fauna
                 }
                 s.AnchorSize = -1f;   // nowhere for one here: don't keep trying
                 return false;
+            }
+
+            /// <summary>
+            /// A moth's life: round and round a light. Its light is a Glow anchor (a glowing plant) near where it first
+            /// looks, kept in Anchor; it flits to a point near it, and on getting there, to another.
+            /// </summary>
+            void Flit(ref CreatureState s, ref Random rng)
+            {
+                if (s.AnchorSize == 0f)
+                {
+                    if (Terrain.Anchors.IsCreated && Anchors.Pick(ref Terrain.Anchors.Value, s.Position, 25f, AnchorKind.Glow, ref rng, out var glow))
+                        s.Anchor = glow.Position + new float3(0f, 0.5f, 0f);
+                    else
+                        s.Anchor = s.Position + new float3(0f, 1f, 0f);   // no light: it flits about where it is
+                    s.AnchorSize = -1f;   // (not a lair to draw)
+                }
+                SetMode(ref s, CreatureMode.Wander);
+                s.Stage = 1;
+                s.Target = s.Anchor.xz + rng.NextFloat2Direction() * rng.NextFloat(0.15f, 1.1f);
+                s.TargetHeight = s.Anchor.y + rng.NextFloat(-0.3f, 1.2f);
+            }
+
+            /// <summary>
+            /// A moth's flight: straight at its point in three dimensions at its own pace, fluttering (no glide, no
+            /// cruising height, no landing), turning to face the way it goes. True once it's there.
+            /// </summary>
+            bool FlitTo(ref CreatureState s, ref CreatureBlob b, float dt, ref float vertical)
+            {
+                var to = new float3(s.Target.x, s.TargetHeight, s.Target.y) - s.Position;
+                var distance = math.length(to);
+                s.Position += to * math.min(1f, b.FlySpeed * dt / math.max(distance, 1e-4f));
+                var wanted = distance < 0.02f ? 0f : WrapAngle(math.atan2(to.x, to.z) - s.Yaw);
+                var turn = math.clamp(wanted, -b.TurnRate * 1.5f * dt, b.TurnRate * 1.5f * dt);
+                s.Yaw = WrapAngle(s.Yaw + turn);
+                s.YawRate = turn / math.max(dt, 1e-4f);
+                s.Speed = b.FlySpeed;
+                vertical = math.clamp(to.y / math.max(distance, 1e-3f), -0.5f, 0.5f) * 0.5f;
+                return distance < 0.05f;
             }
 
             /// <summary>Picks a burrow mouth on flat, dry ground a few metres off (near home, for residents).</summary>
@@ -1698,6 +2114,1495 @@ namespace Punchy.Fauna
                 }
             }
 
+            // ------------------------------------------------------------------------------- taking their ease
+
+            /// <summary>
+            /// Somewhere to sit or lie a while near home. Sitting: on a seat (a bench, a log, a stump, a fountain's rim,
+            /// a hall's step: Sit anchors), or on the grass of a green, or on the ground by a well or fountain; mostly a
+            /// seat, if there's one free. Lying back: on a green, or failing that the ground by a well. Each takes a slot
+            /// of its own (by individual, the next along if that's taken), so two never sit in one another's lap:
+            /// <list type="bullet">
+            /// <item>a seat: one sitter to each place along it;</item>
+            /// <item>a green: round its shade tree, a few metres out, facing out from it;</item>
+            /// <item>a well: sitting in a row before it, facing it, an arm's length clear of the wall; lying in a second
+            /// row further out, feet to it.</item>
+            /// </list>
+            /// False if there's nowhere in range, or no free slot.
+            /// </summary>
+            bool StartLounge(Entity self, ref CreatureState s, ref Random rng)
+            {
+                if (!Terrain.Anchors.IsCreated)
+                    return false;
+                var lying = rng.NextFloat() < 0.4f;
+                var roll = rng.NextFloat();
+                // The order it looks in: lying, a green then a well; sitting, mostly a seat first.
+                var order = lying ? new int3(1, 2, -1) : roll < 0.55f ? new int3(0, 1, 2) : roll < 0.8f ? new int3(1, 0, 2) : new int3(2, 0, 1);
+                for (int o = 0; o < 3; o++)
+                {
+                    var kind = order[o] == 0 ? AnchorKind.Sit : order[o] == 1 ? AnchorKind.Green : order[o] == 2 ? AnchorKind.Well : (AnchorKind)255;
+                    if ((byte)kind != 255 && LoungeAt(self, ref s, ref rng, kind, lying))
+                        return true;
+                }
+                return false;
+            }
+
+            /// <summary>A free slot at one of the anchors of a kind near home (a few tried, at random), taken.</summary>
+            bool LoungeAt(Entity self, ref CreatureState s, ref Random rng, AnchorKind kind, bool lying)
+            {
+                ref var set = ref Terrain.Anchors.Value;
+                var near = new NativeList<int>(8, Allocator.Temp);
+                Anchors.Near(ref set, new float3(s.Home.x, s.Position.y, s.Home.y), math.max(s.Leash, 30f), kind, ref near);
+                var found = false;
+                for (int tries = 0; tries < 3 && near.Length > 0 && !found; tries++)
+                {
+                    var pick = rng.NextInt(near.Length);
+                    var a = set.Anchors[near[pick]];
+                    near.RemoveAtSwapBack(pick);
+                    if (a.InCave)
+                        continue;
+                    var across = new float2(-a.Facing.y, a.Facing.x);
+                    var slots = kind == AnchorKind.Sit ? math.max((int)a.Capacity, 1) : kind == AnchorKind.Green ? math.max((int)a.Capacity, 4) : lying ? 4 : 5;
+                    var room = kind == AnchorKind.Sit ? math.max(a.Size * 0.8f, 0.3f) : lying ? 1.6f : 0.9f;
+                    var first = (int)(s.Individual % (uint)slots);
+                    for (int i = 0; i < slots && !found; i++)
+                    {
+                        var k = (first + i) % slots;
+                        float2 spot, face;
+                        if (kind == AnchorKind.Sit)
+                        {
+                            spot = a.Position.xz + across * ((k - (slots - 1) * 0.5f) * a.Size);
+                            face = spot + a.Facing * 3f;
+                        }
+                        else if (kind == AnchorKind.Green)
+                        {
+                            math.sincos(k * 2f * math.PI / slots + (a.Owner & 7) * 0.4f, out var sin, out var cos);
+                            var outward = new float2(sin, cos);
+                            spot = a.Position.xz + outward * math.max(a.Size * 0.6f, 2.5f);
+                            face = spot + outward * 3f;
+                        }
+                        else
+                        {
+                            spot = lying ? a.Position.xz + across * ((k - 1.5f) * 2f) - a.Facing * 4f
+                                         : a.Position.xz + across * ((k - 2) * 0.95f) - a.Facing * 1f;
+                            face = spot + a.Facing * 3f;
+                        }
+                        if ((kind != AnchorKind.Sit && !Walkable(spot, Habitat.Land)) || Taken(self, spot, room))
+                            continue;
+                        SetMode(ref s, CreatureMode.Sit);
+                        s.Target = spot;
+                        s.Focus = face;
+                        // (On a seat: its height goes in Anchor, which every machine has, for the posture.)
+                        s.TargetHeight = kind == AnchorKind.Sit ? 4f : lying ? 3f : 1f;
+                        if (kind == AnchorKind.Sit)
+                            s.Anchor = new float3(spot.x, a.Position.y, spot.y);
+                        s.Timer = lying ? rng.NextFloat(80f, 200f) : rng.NextFloat(40f, 120f);
+                        found = true;
+                    }
+                }
+                near.Dispose();
+                return found;
+            }
+
+            /// <summary>
+            /// Whether this one would be at the town's fire now: townsfolk (not the watch or the guards, nor a traveller
+            /// still on the road), from sunset until, by individual, a quarter to ten to ten past.
+            /// </summary>
+            bool Gathering(in CreatureState s, ref CreatureBlob b) =>
+                b.Upright && b.Hands && s.Leash > 0f && s.Task != CreatureTask.Patrol && s.Task != CreatureTask.Watch &&
+                s.Task != CreatureTask.Travel && Hour >= 17.8f && Hour < 21.95f + 0.2f * CreatureBlob.Trait(s.Individual, 41);
+
+            static bool AtHearth(float stage) => stage >= CreatureAnimator.HearthStand && stage <= CreatureAnimator.HearthSeat;
+
+            /// <summary>
+            /// A place at the town's fire (its Hearth anchor) taken: round the ring, a free one of its places (Capacity of
+            /// them, by individual and the next along if that's taken), sitting on the ground (legs out or cross-legged)
+            /// or standing, facing the fire; or now and then a seat close by that faces it. It stays till it's time to go
+            /// in (Gathering). False if there's no fire in reach, or no room at it.
+            /// </summary>
+            bool StartHearth(Entity self, ref CreatureState s, ref Random rng)
+            {
+                if (!Terrain.Anchors.IsCreated)
+                    return false;
+                ref var set = ref Terrain.Anchors.Value;
+                var near = new NativeList<int>(4, Allocator.Temp);
+                Anchors.Near(ref set, new float3(s.Home.x, s.Position.y, s.Home.y), math.max(s.Leash, 30f) + 20f, AnchorKind.Hearth, ref near);
+                var found = false;
+                var stand = rng.NextFloat() < 0.4f;
+                var seat = rng.NextFloat() < 0.3f;
+                for (int h = 0; h < near.Length && !found; h++)
+                {
+                    var a = set.Anchors[near[h]];
+                    if (a.InCave)
+                        continue;
+                    var fire = a.Position.xz;
+                    if (seat && HearthSeat(self, ref s, ref rng, fire, a.Size))
+                    {
+                        found = true;
+                        break;
+                    }
+                    var slots = math.max((int)a.Capacity, 1);
+                    var first = (int)(s.Individual % (uint)slots);
+                    for (int i = 0; i < slots && !found; i++)
+                    {
+                        var k = (first + i) % slots;
+                        math.sincos(k * 2f * math.PI / slots + (a.Owner & 7) * 0.4f, out var sin, out var cos);
+                        var spot = fire + new float2(sin, cos) * (a.Size + (stand ? 0.1f : 0.25f));
+                        if (!Walkable(spot, Habitat.Land) || Taken(self, spot, 0.9f))
+                            continue;
+                        SetMode(ref s, CreatureMode.Sit);
+                        s.Target = spot;
+                        s.Focus = fire;
+                        s.TargetHeight = stand ? CreatureAnimator.HearthStand : CreatureAnimator.HearthGround;
+                        s.Timer = 9999f;   // (till it's time to go in)
+                        found = true;
+                    }
+                }
+                near.Dispose();
+                return found;
+            }
+
+            /// <summary>A free place on a seat (bench, log, stump) near the fire and facing it, taken.</summary>
+            bool HearthSeat(Entity self, ref CreatureState s, ref Random rng, float2 fire, float ring)
+            {
+                ref var set = ref Terrain.Anchors.Value;
+                var near = new NativeList<int>(8, Allocator.Temp);
+                Anchors.Near(ref set, new float3(fire.x, s.Position.y, fire.y), ring + 6f, AnchorKind.Sit, ref near);
+                var found = false;
+                for (int n = 0; n < near.Length && !found; n++)
+                {
+                    var a = set.Anchors[near[n]];
+                    if (a.InCave || math.dot(a.Facing, math.normalizesafe(fire - a.Position.xz)) < 0.3f)
+                        continue;
+                    var across = new float2(-a.Facing.y, a.Facing.x);
+                    var slots = math.max((int)a.Capacity, 1);
+                    var first = (int)(s.Individual % (uint)slots);
+                    for (int i = 0; i < slots && !found; i++)
+                    {
+                        var k = (first + i) % slots;
+                        var spot = a.Position.xz + across * ((k - (slots - 1) * 0.5f) * a.Size);
+                        if (Taken(self, spot, math.max(a.Size * 0.8f, 0.3f)))
+                            continue;
+                        SetMode(ref s, CreatureMode.Sit);
+                        s.Target = spot;
+                        s.Focus = spot + a.Facing * 3f;
+                        s.TargetHeight = CreatureAnimator.HearthSeat;
+                        s.Anchor = new float3(spot.x, a.Position.y, spot.y);
+                        s.Timer = 9999f;
+                        found = true;
+                    }
+                }
+                near.Dispose();
+                return found;
+            }
+
+            /// <summary>Another place of the same kind, for one beaten to its spot: at the fire, in the play ring, or to lounge.</summary>
+            bool Resettle(Entity self, ref CreatureState s, ref Random rng) =>
+                AtHearth(s.TargetHeight) ? StartHearth(self, ref s, ref rng) :
+                s.TargetHeight == CreatureAnimator.PlayRing ? StartPlayRing(self, ref s, ref rng) : StartLounge(self, ref s, ref rng);
+
+            /// <summary>
+            /// A place in the children's play ring: on the green nearest its home (the same green for every child of the
+            /// town, so they find each other there), to one side of its shade tree, six places round, sitting facing the
+            /// middle. A while there, poking at the ground with its stick or tossing its stone into the middle (see the
+            /// child's play above). False if there's no green in reach or the ring is full.
+            /// </summary>
+            bool StartPlayRing(Entity self, ref CreatureState s, ref Random rng)
+            {
+                if (!Terrain.Anchors.IsCreated)
+                    return false;
+                ref var set = ref Terrain.Anchors.Value;
+                var near = new NativeList<int>(8, Allocator.Temp);
+                Anchors.Near(ref set, new float3(s.Home.x, s.Position.y, s.Home.y), math.max(s.Leash, 30f), AnchorKind.Green, ref near);
+                var best = -1;
+                for (int i = 0; i < near.Length; i++)
+                    if (!set.Anchors[near[i]].InCave && (best < 0 || math.distancesq(set.Anchors[near[i]].Position.xz, s.Home) <
+                                                                     math.distancesq(set.Anchors[best].Position.xz, s.Home)))
+                        best = near[i];
+                near.Dispose();
+                if (best < 0)
+                    return false;
+                var a = set.Anchors[best];
+                var centre = a.Position.xz + new float2(-a.Facing.y, a.Facing.x) * math.max(a.Size * 0.5f, 3f);
+                const int places = 6;
+                var first = (int)(s.Individual % places);
+                for (int i = 0; i < places; i++)
+                {
+                    var k = (first + i) % places;
+                    math.sincos(k * 2f * math.PI / places + (a.Owner & 7) * 0.5f, out var sin, out var cos);
+                    var spot = centre + new float2(sin, cos) * 0.85f;
+                    if (!Walkable(spot, Habitat.Land) || Taken(self, spot, 0.55f))
+                        continue;
+                    SetMode(ref s, CreatureMode.Sit);
+                    s.Target = spot;
+                    s.Focus = centre;
+                    s.TargetHeight = CreatureAnimator.PlayRing;
+                    s.Timer = rng.NextFloat(40f, 100f);
+                    return true;
+                }
+                return false;
+            }
+
+            /// <summary>Another on its way to the same spot to sit or lie, that took it first (the lower entity index).</summary>
+            bool Contested(Entity self, in CreatureState s)
+            {
+                var c = Cell(s.Target);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        if (Entities[j].Index < self.Index && States[j].Mode == CreatureMode.Sit && math.distance(States[j].Target, s.Target) < 0.9f)
+                            return true;
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return false;
+            }
+
+            /// <summary>Someone else there already, or on their way to sit or lie there (within room of it).</summary>
+            bool Taken(Entity self, float2 spot, float room)
+            {
+                var c = Cell(spot);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        if (Entities[j] == self)
+                            continue;
+                        var other = States[j];
+                        if (math.distance(other.Position.xz, spot) < room ||
+                            other.Mode == CreatureMode.Sit && math.distance(other.Target, spot) < room)
+                            return true;
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return false;
+            }
+
+            // ------------------------------------------------------------------------------- looking
+
+            /// <summary>
+            /// Glances: now and then (prey animals more often), not busy fleeing, hunting, asleep or held, it glances at the
+            /// most interesting thing near (within 12 m) and in front of it: another creature (more so one that's busy or
+            /// moving fast) or the player (more so sprinting or emoting). It follows that with its head for one to four
+            /// seconds (a predator watching its prey, longer), turning no further than 70° round and 35° up or down, then
+            /// looks away a while. The target is kept in the state (LookAt and the rest) for anything else that wants it.
+            /// </summary>
+            void Glance(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float3 player, float playerSpeed,
+                        IdleAction emote, ref float desiredLook, out float desiredPitch)
+            {
+                desiredPitch = 0f;
+                var prey = !b.Upright && b.FleeDistance > 0f;
+                s.LookCool -= dt;
+                if (s.LookFor > 0f)
+                {
+                    s.LookFor -= dt;
+                    if (s.LookKind == 1 && Lookup.TryGetValue(s.LookEntity, out var j))
+                        s.LookAt = States[j].Position + new float3(0f, HeadHeight(States[j], ref Bodies[j].Blob.Value), 0f);
+                    else if (s.LookKind == 1)
+                        s.LookFor = 0f;
+                    else if (s.LookKind == 2)
+                        s.LookAt = player + new float3(0f, 1.6f, 0f);
+                    var to = s.LookAt - (s.Position + new float3(0f, HeadHeight(s, ref b), 0f));
+                    var yaw = WrapAngle(math.atan2(to.x, to.z) - s.Yaw);
+                    // (Gone round behind it: let it go.)
+                    if (math.abs(yaw) > 1.9f)
+                        s.LookFor = 0f;
+                    else
+                    {
+                        desiredLook = math.clamp(yaw, -1.22f, 1.22f);
+                        desiredPitch = math.clamp(math.atan2(to.y, math.max(math.length(to.xz), 0.1f)), -0.6f, 0.6f);
+                    }
+                    if (s.LookFor <= 0f)
+                        s.LookCool = prey ? rng.NextFloat(1f, 3f) : rng.NextFloat(3f, 8f);
+                    return;
+                }
+                var calm = s.Mode == CreatureMode.Idle || s.Mode == CreatureMode.Wander && !Flying(s) || s.Mode == CreatureMode.Graze ||
+                           s.Mode == CreatureMode.Rest || s.Mode == CreatureMode.Sit || s.Mode == CreatureMode.Work || s.Mode == CreatureMode.Greet ||
+                           // (A guard on its round looks about too: most of all at someone sprinting or emoting near it.)
+                           s.Mode == CreatureMode.Patrol && s.Stage != 2;
+                if (s.LookCool > 0f || !calm || rng.NextFloat() >= dt * (prey ? 0.5f : 0.2f))
+                    return;
+                var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                var best = 0f;
+                var target = -1;
+                var c = Cell(s.Position.xz);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        if (Entities[j] == self)
+                            continue;
+                        var o = States[j];
+                        var away = o.Position.xz - s.Position.xz;
+                        var d = math.length(away);
+                        if (d > 12f || d < 0.3f || math.dot(away / d, forward) < 0.1f)
+                            continue;
+                        var score = (o.Action != IdleAction.None || o.Speed > 2f ? 2f : 1f) / d;
+                        if (score > best)
+                        {
+                            best = score;
+                            target = j;
+                        }
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                var toPlayer = player.xz - s.Position.xz;
+                var dp = math.length(toPlayer);
+                var playerScore = dp < 12f && dp > 0.3f && math.dot(toPlayer / dp, forward) > 0.1f
+                    ? (playerSpeed > 4f || emote != IdleAction.None ? 3f : 1.2f) / dp : 0f;
+                if (playerScore > best)
+                {
+                    s.LookKind = 2;
+                    s.LookAt = player + new float3(0f, 1.6f, 0f);
+                    s.LookFor = rng.NextFloat(1f, 4f);
+                }
+                else if (target >= 0)
+                {
+                    s.LookKind = 1;
+                    s.LookEntity = Entities[target];
+                    s.LookAt = States[target].Position + new float3(0f, HeadHeight(States[target], ref Bodies[target].Blob.Value), 0f);
+                    // (A predator keeps its eyes on prey longer.)
+                    var watching = false;
+                    for (int k = 0; k < b.Prey.Length && !watching; k++)
+                        watching = b.Prey[k] == Bodies[target].Species;
+                    s.LookFor = watching ? rng.NextFloat(3f, 6f) : rng.NextFloat(1f, 4f);
+                }
+            }
+
+            /// <summary>
+            /// Whether the head is busy with something that moves it itself, so a glance would fight it: preening,
+            /// sniffing, grooming, scratching, howling, a head-bob, a petting or carrying pose, grazing or drinking, a
+            /// head-down posture, or taking or reading a message. (A child's poke or throw sets its own look.)
+            /// </summary>
+            static bool HeadBusy(in CreatureState s) =>
+                s.Action == IdleAction.Preen || s.Action == IdleAction.Sniff || s.Action == IdleAction.Groom || s.Action == IdleAction.Scratch ||
+                s.Action == IdleAction.Howl || s.Action == IdleAction.HeadBob || s.Action == IdleAction.Pet || s.Action == IdleAction.Carry ||
+                s.Mode == CreatureMode.Graze || s.Mode == CreatureMode.Drink || s.HeadDown > 0.3f ||
+                s.Mode == CreatureMode.Idle && (s.Stage == MessageTake || s.Stage == MessageRead);
+
+            /// <summary>About where a creature's eyes are, above its feet.</summary>
+            static float HeadHeight(in CreatureState s, ref CreatureBlob b) => b.StandHeight * math.max(s.Scale, 0.1f) * (b.Upright ? 1.8f : 1.2f);
+
+            // ------------------------------------------------------------------------------- hive raids
+
+            const float RaidCooldown = 900f;
+
+            /// <summary>Off to the nearest wild hive within 60 m (to the foot of the trunk under its comb), if there is one.</summary>
+            bool StartRaid(ref CreatureState s, ref Random rng)
+            {
+                if (!Terrain.Anchors.IsCreated)
+                    return false;
+                ref var set = ref Terrain.Anchors.Value;
+                var near = new NativeList<int>(2, Allocator.Temp);
+                Anchors.Near(ref set, s.Position, 60f, AnchorKind.Hive, ref near);
+                var best = -1;
+                for (int i = 0; i < near.Length; i++)
+                    if (!set.Anchors[near[i]].InCave && (best < 0 || math.distancesq(set.Anchors[near[i]].Position, s.Position) <
+                                                                     math.distancesq(set.Anchors[best].Position, s.Position)))
+                        best = near[i];
+                near.Dispose();
+                if (best < 0)
+                    return false;
+                var hive = set.Anchors[best];
+                var trunk = math.max(hive.Size - 1f, 0.1f);
+                SetMode(ref s, CreatureMode.Work);
+                s.Stage = CreatureAnimator.RaidWalk;
+                s.Focus = hive.Position.xz + hive.Facing * trunk;
+                s.Target = hive.Position.xz + hive.Facing * (trunk + 0.05f);
+                s.Timer = 120f;
+                // (Even if it never gets there: no other raid for a long while.)
+                s.ChaseCooldown = RaidCooldown;
+                return true;
+            }
+
+            /// <summary>
+            /// A bear after a hive's honey: walks to the foot of the trunk under the comb (RaidWalk); rears up at it, pawing
+            /// and swaying, while the bees mob it (RaidAtComb); then makes off, running at first, to somewhere 70 to 100 m
+            /// from the hive (RaidLeave), and takes up its day there.
+            /// </summary>
+            void Raiding(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, float run,
+                         ref float targetSpeed, ref bool moving, ref float sit, ref float vertical, ref float desiredLook, ref float headDown, ref float bow)
+            {
+                s.Timer -= dt;
+                if (s.Stage == CreatureAnimator.RaidWalk)
+                {
+                    targetSpeed = walk;
+                    moving = true;
+                    if (math.distance(s.Position.xz, s.Target) < 0.4f)
+                    {
+                        NextStage(ref s);
+                        s.Timer = rng.NextFloat(6f, 10f);
+                    }
+                    else if (s.Timer <= 0f)
+                        Pause(ref s, ref b, ref rng);
+                }
+                else if (s.Stage == CreatureAnimator.RaidAtComb)
+                {
+                    s.Speed = 0f;
+                    // (Shuffling the last of the way in, up against the bark.)
+                    var short_ = s.Target - s.Position.xz;
+                    s.Position.xz += math.normalizesafe(short_) * math.min(math.length(short_), 0.5f * dt);
+                    var to = s.Focus - s.Position.xz;
+                    s.Yaw = WrapAngle(s.Yaw + math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -b.TurnRate * dt, b.TurnRate * dt));
+                    // Up on its hind legs against the trunk, leaning in, front paws braced up it and scraping at it,
+                    // head tipped up to the comb.
+                    sit = 0.6f;
+                    vertical = 0.78f + 0.06f * math.sin(s.StageTime * 5f);
+                    desiredLook = 0.25f * math.sin(s.StageTime * 2.3f);
+                    // Down comes a chunk of comb: down on all fours to lick at it.
+                    if (s.Timer <= 0f)
+                    {
+                        s.Stage = CreatureAnimator.RaidLick;
+                        s.StageTime = 0f;
+                        s.Held = HeldItem.Honey;
+                        s.Timer = rng.NextFloat(4f, 6f);
+                    }
+                }
+                else if (s.Stage == CreatureAnimator.RaidLick)
+                {
+                    // Licking at it, nose down to it (the front end bowed: a bear has no neck to speak of), till the bees
+                    // drive it off.
+                    s.Speed = 0f;
+                    headDown = 1f;
+                    bow = 0.8f + 0.2f * math.sin(s.StageTime * 7f);
+                    desiredLook = 0.2f * math.sin(s.StageTime * 6f);
+                    if (s.Timer <= 0f)
+                    {
+                        s.Held = HeldItem.None;
+                        // Away from the hive, a little to one side or the other.
+                        var away = math.normalizesafe(s.Position.xz - s.Focus, rng.NextFloat2Direction());
+                        var turn = rng.NextFloat(-0.6f, 0.6f);
+                        math.sincos(turn, out var sn, out var cs);
+                        away = new float2(away.x * cs - away.y * sn, away.x * sn + away.y * cs);
+                        var spot = s.Position.xz + away * rng.NextFloat(70f, 100f);
+                        for (int tries = 0; tries < 4 && !Walkable(spot, Habitat.Land); tries++)
+                            spot = s.Position.xz + rng.NextFloat2Direction() * rng.NextFloat(70f, 100f);
+                        s.Stage = CreatureAnimator.RaidLeave;
+                        s.StageTime = 0f;
+                        s.Target = spot;
+                        s.Timer = 120f;
+                    }
+                }
+                else
+                {
+                    // (Running from the bees at first.)
+                    targetSpeed = s.StageTime < 6f ? run : walk;
+                    moving = true;
+                    if (math.distance(s.Position.xz, s.Target) < 2f || s.Timer <= 0f)
+                        Pause(ref s, ref b, ref rng);
+                }
+            }
+
+            // ------------------------------------------------------------------------------- messenger birds
+
+            /// <summary>Idle-mode stages of one of the townsfolk a messenger bird has come to: waiting for it, taking the
+            /// message, reading it.</summary>
+            const byte MessageWait = CreatureAnimator.MessageWait, MessageTake = CreatureAnimator.MessageTake, MessageRead = CreatureAnimator.MessageRead;
+
+            /// <summary>Where a messenger bird perches on the forearm one of the townsfolk holds up for it (see the
+            /// animator's MessageWait pose): out in front of them at chest height, a little to their left.</summary>
+            float3 Perch(in CreatureState them, ref CreatureBlob tb)
+            {
+                var f = new float2(math.sin(them.Yaw), math.cos(them.Yaw));
+                var left = new float2(-f.y, f.x);
+                var scale = math.max(them.Scale, 0.3f);
+                var xz = them.Position.xz + f * 0.42f * scale + left * 0.12f * scale;
+                return new float3(xz.x, them.Position.y + tb.StandHeight * scale * PerchHeight, xz.y);
+            }
+
+            const float PerchHeight = 1.3f;
+
+            /// <summary>
+            /// A messenger bird with a message: in over the town to one of the townsfolk about the place (the nearest to
+            /// it, re-chosen if that one goes in), down to land on the forearm they hold up for it (0); there, waiting while they
+            /// take it (1); then up and away towards the town it's making for next (2), where it's an ordinary bird again.
+            /// </summary>
+            void Messenger(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, ref float vertical)
+            {
+                var hasThem = Lookup.TryGetValue(s.Partner, out var r);
+                if (s.Stage == 0)
+                {
+                    if (!hasThem || !Receiver(States[r], ref Bodies[r].Blob.Value, s.Home) && !(States[r].Mode == CreatureMode.Idle && States[r].Stage == MessageWait))
+                    {
+                        // (Nobody free just now: round over the town, looking again now and then, for two minutes.)
+                        s.Partner = rng.NextFloat() < dt * 2f ? FindReceiver(s.Position.xz, s.Home) : Entity.Null;
+                        if (s.StageTime > 120f)
+                        {
+                            NextStage(ref s);
+                            s.Stage = 2;
+                        }
+                        var angle = s.StageTime * 0.25f;
+                        var round = s.Home + new float2(math.cos(angle), math.sin(angle)) * 15f;
+                        FlyTo(ref s, ref b, round, Cruise(s, ref b, round) + 8f, b.FlySpeed, dt, ref vertical);
+                        return;
+                    }
+                    var perch = Perch(States[r], ref Bodies[r].Blob.Value);
+                    if (FlyTo(ref s, ref b, perch.xz, perch.y, b.FlySpeed, dt, ref vertical))
+                        NextStage(ref s);
+                    else if (s.StageTime > 120f)
+                    {
+                        NextStage(ref s);
+                        s.Stage = 2;
+                    }
+                }
+                else if (s.Stage == 1)
+                {
+                    // On the forearm (kept there as it moves), facing them.
+                    s.Speed = 0f;
+                    if (hasThem)
+                    {
+                        s.Position = Perch(States[r], ref Bodies[r].Blob.Value);
+                        var to = States[r].Position.xz - s.Position.xz;
+                        s.Yaw = WrapAngle(s.Yaw + math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -b.TurnRate * dt, b.TurnRate * dt));
+                    }
+                    // Off once the message is taken (or nobody comes for it).
+                    var taken = hasThem && States[r].Mode == CreatureMode.Idle && States[r].Stage == MessageRead;
+                    if (taken)
+                        s.Held = HeldItem.None;
+                    if (taken || s.StageTime > 10f)
+                        NextStage(ref s);
+                }
+                else
+                {
+                    if (FlyTo(ref s, ref b, s.WorkSpot, Cruise(s, ref b, s.WorkSpot) + 10f, b.FlySpeed, dt, ref vertical))
+                    {
+                        s.Task = CreatureTask.None;
+                        s.Held = HeldItem.None;
+                        Pause(ref s, ref b, ref rng);
+                    }
+                }
+            }
+
+            /// <summary>One of the townsfolk who could take a message: grown, about the town (not indoors, asleep, at a post
+            /// or on guard), near its middle.</summary>
+            static bool Receiver(in CreatureState o, ref CreatureBlob ob, float2 town) =>
+                ob.Upright && ob.Hands && !ob.Child && o.Leash > 0f && (Free(o.Mode) || o.Mode == CreatureMode.Greet) &&
+                !(o.Mode == CreatureMode.Idle && o.Stage >= MessageWait) &&
+                o.Task != CreatureTask.Patrol && o.Task != CreatureTask.Watch && math.distance(o.Position.xz, town) < 60f;
+
+            /// <summary>The one of the townsfolk nearest the bird who could take its message, or none.</summary>
+            Entity FindReceiver(float2 from, float2 town)
+            {
+                var best = Entity.Null;
+                var d = float.MaxValue;
+                for (int j = 0; j < States.Length; j++)
+                {
+                    if (!Receiver(States[j], ref Bodies[j].Blob.Value, town))
+                        continue;
+                    var dj = math.distancesq(States[j].Position.xz, from);
+                    if (dj < d)
+                    {
+                        d = dj;
+                        best = Entities[j];
+                    }
+                }
+                return best;
+            }
+
+            /// <summary>A messenger bird coming down to this one (within a cell or so).</summary>
+            bool FindMessenger(Entity self, in CreatureState s, out Entity bird)
+            {
+                bird = Entity.Null;
+                var c = Cell(s.Position.xz);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        var o = States[j];
+                        if (o.Task == CreatureTask.Messenger && o.Mode == CreatureMode.Work && o.Stage <= 1 && o.Partner == self &&
+                            math.distance(o.Position.xz, s.Position.xz) < 25f)
+                        {
+                            bird = Entities[j];
+                            return true;
+                        }
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return false;
+            }
+
+            /// <summary>
+            /// One of the townsfolk a messenger bird has come to: stands and turns to it as it comes down, holding up a
+            /// forearm for it to land on (60); once it's on it, takes the message from its leg with the other hand (61);
+            /// then reads it a while (62), and goes about its day.
+            /// </summary>
+            void Receiving(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
+            {
+                var hasBird = Lookup.TryGetValue(s.Partner, out var j);
+                var bird = hasBird ? States[j] : default;
+                // (Eyes on the bird, as it comes in and while it's there.)
+                if (hasBird && s.Stage < MessageRead)
+                {
+                    s.LookKind = 1;
+                    s.LookEntity = s.Partner;
+                    s.LookFor = math.max(s.LookFor, 0.3f);
+                }
+                // (Turned to the bird as it comes in; holding still for the last few metres, so it has a steady arm to land on.)
+                if (hasBird)
+                {
+                    var to = bird.Position.xz - s.Position.xz;
+                    if (s.Stage == MessageWait && math.lengthsq(to) > 9f)
+                        s.Yaw = WrapAngle(s.Yaw + math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -b.TurnRate * dt, b.TurnRate * dt));
+                }
+                if (s.Stage == MessageWait)
+                {
+                    s.Timer -= dt;
+                    if (!hasBird || bird.Task != CreatureTask.Messenger || bird.Stage == 2 || s.Timer <= 0f)
+                        Pause(ref s, ref b, ref rng);
+                    else if (bird.Stage == 1 && math.distance(bird.Position.xz, s.Position.xz) < 1.5f)
+                        NextStage(ref s);
+                }
+                else if (s.Stage == MessageTake)
+                {
+                    if (s.StageTime > 1.4f)
+                    {
+                        NextStage(ref s);
+                        s.Timer = rng.NextFloat(8f, 14f);
+                    }
+                }
+                else
+                {
+                    s.Timer -= dt;
+                    if (s.Timer <= 0f)
+                        Pause(ref s, ref b, ref rng);
+                }
+            }
+
+            // ------------------------------------------------------------------------------- travelling
+
+            /// <summary>
+            /// A traveller on the road: along it stretch by stretch (its stretch in TargetHeight, which way in
+            /// AnchorSide: 1 towards each stretch's B), at a brisk walk; at a fork, on along whichever stretch carries on
+            /// from where it stands (any but the way it came). Where the road ends (in the town it was making for) it has
+            /// arrived: it stays a while there as a visitor, the town's streets its home.
+            /// </summary>
+            void Travelling(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk)
+            {
+                if (!Terrain.Settlements.IsCreated)
+                {
+                    Pause(ref s, ref b, ref rng);
+                    return;
+                }
+                ref var set = ref Terrain.Settlements.Value;
+                var k = (int)s.TargetHeight;
+                if (k < 0 || k >= set.Streets.Length)
+                {
+                    Arrived(ref s, ref b, ref rng);
+                    return;
+                }
+                var onward = s.AnchorSide == 1;
+                var goal = onward ? set.Streets[k].B : set.Streets[k].A;
+                if (WalkOn(ref s, ref b, goal, walk * 1.15f, dt) > 0.8f)
+                    return;
+                // The next stretch: the neighbour in the list, if it carries on from here, else any road stretch that does.
+                var next = -1;
+                var nextOnward = onward;
+                var n = onward ? k + 1 : k - 1;
+                if (n >= 0 && n < set.Streets.Length && set.Streets[n].Road != 0 &&
+                    math.distancesq((onward ? set.Streets[n].A : set.Streets[n].B).xz, goal.xz) < 2f)
+                    next = n;
+                for (int i = 0; i < set.Streets.Length && next < 0; i++)
+                {
+                    ref var st = ref set.Streets[i];
+                    if (i == k || st.Road == 0)
+                        continue;
+                    if (math.distancesq(st.A.xz, goal.xz) < 2f)
+                    {
+                        next = i;
+                        nextOnward = true;
+                    }
+                    else if (math.distancesq(st.B.xz, goal.xz) < 2f)
+                    {
+                        next = i;
+                        nextOnward = false;
+                    }
+                }
+                if (next < 0)
+                {
+                    Arrived(ref s, ref b, ref rng);
+                    return;
+                }
+                s.TargetHeight = next;
+                s.AnchorSide = (byte)(nextOnward ? 1 : 0);
+            }
+
+            /// <summary>A traveller at its road's end: a visitor in the town now, about its streets for a while.</summary>
+            void Arrived(ref CreatureState s, ref CreatureBlob b, ref Random rng)
+            {
+                s.Task = CreatureTask.None;
+                s.Home = s.Position.xz;
+                s.Leash = 30f;
+                s.Held = HeldItem.None;
+                Pause(ref s, ref b, ref rng);
+            }
+
+            // ------------------------------------------------------------------------------- mining
+
+            /// <summary>
+            /// A miner's day: from its camp to the mouth of the nearest mine (stage 1), in along the passage node by node
+            /// (10 + node), to the ore face (100) and there swinging its pick a while (101: MinerAtFace); then a sack of
+            /// ore out again node by node (110 + node), up out of the mouth and back to the camp (200), where it sets the
+            /// sack down (201) and goes back for more. At dusk it makes its way out, without a load, and home. Its mine
+            /// and its face (its own, chosen by its individual number, the same each day) are its LairCave and
+            /// LairNode, the face's spot its Anchor. It walks itself, on the floor under it: the cave's in the mine,
+            /// the ground outside.
+            /// </summary>
+            void Mining(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk)
+            {
+                if (!Terrain.Caves.IsCreated)
+                {
+                    Pause(ref s, ref b, ref rng);
+                    return;
+                }
+                if (s.Stage == 0)
+                {
+                    if (!FindOreFace(ref s))
+                    {
+                        Pause(ref s, ref b, ref rng);
+                        return;
+                    }
+                    s.Stage = 1;
+                    s.StageTime = 0f;
+                    s.Held = HeldItem.Pickaxe;
+                }
+                ref var set = ref Terrain.Caves.Value;
+                ref var cave = ref set.Caves[s.LairCave];
+                var dusk = Night > 0.45f;
+                var pace = walk * (s.Held == HeldItem.OreSack ? 0.8f : 1f);
+                // (At dusk, on the way in or at the face: turn about and make for the way out, as it is.)
+                if (dusk && (s.Stage >= 10 && s.Stage <= 101))
+                {
+                    var at = s.Stage == 100 || s.Stage == MinerAtFace ? s.LairNode : s.Stage - 10;
+                    s.Stage = (byte)(110 + math.clamp(at, 0, 88));
+                    s.StageTime = 0f;
+                }
+                if (s.Stage == 1)
+                {
+                    if (WalkOn(ref s, ref b, cave.Mouth, pace, dt) < 1f)
+                        Next(ref s, 11);
+                }
+                else if (s.Stage >= 10 && s.Stage < 100)
+                {
+                    var node = s.Stage - 10;
+                    if (WalkOn(ref s, ref b, set.Nodes[cave.FirstNode + node].Position, pace, dt) < 1.2f)
+                        Next(ref s, node >= s.LairNode ? (byte)100 : (byte)(s.Stage + 1));
+                }
+                else if (s.Stage == 100)
+                {
+                    if (WalkOn(ref s, ref b, s.Anchor, pace, dt) < 0.4f)
+                    {
+                        Next(ref s, MinerAtFace);
+                        s.Timer = rng.NextFloat(40f, 90f);
+                    }
+                }
+                else if (s.Stage == MinerAtFace)
+                {
+                    // At the face, swinging at it (the swing is the Mine task's pose), till the sack's full.
+                    s.Speed = 0f;
+                    var wanted = WrapAngle(s.AnchorYaw - s.Yaw);
+                    s.Yaw = WrapAngle(s.Yaw + math.clamp(wanted, -b.TurnRate * dt, b.TurnRate * dt));
+                    s.Timer -= dt;
+                    if (s.Timer <= 0f)
+                    {
+                        s.Held = HeldItem.OreSack;
+                        Next(ref s, (byte)(110 + math.clamp(s.LairNode, 0, 88)));
+                    }
+                }
+                else if (s.Stage >= 110 && s.Stage < 199)
+                {
+                    var node = s.Stage - 110;
+                    if (WalkOn(ref s, ref b, set.Nodes[cave.FirstNode + node].Position, pace, dt) < 1.2f)
+                        Next(ref s, node <= 1 ? (byte)199 : (byte)(s.Stage - 1));
+                }
+                else if (s.Stage == 199)
+                {
+                    if (WalkOn(ref s, ref b, cave.Mouth, pace, dt) < 1f)
+                        Next(ref s, 200);
+                }
+                else if (s.Stage == 200)
+                {
+                    var home = new float3(s.Home.x, Terrain.SampleHeight(s.Home), s.Home.y);
+                    if (WalkOn(ref s, ref b, home, pace, dt) < 1.5f)
+                    {
+                        Next(ref s, 201);
+                        s.Timer = rng.NextFloat(3f, 6f);
+                    }
+                }
+                else
+                {
+                    // Setting the sack down at the camp; back for more while it's day, else done for the day.
+                    s.Speed = 0f;
+                    s.Timer -= dt;
+                    if (s.Timer <= 0f)
+                    {
+                        s.Held = HeldItem.None;
+                        if (dusk)
+                            Pause(ref s, ref b, ref rng);
+                        else
+                        {
+                            s.Held = HeldItem.Pickaxe;
+                            Next(ref s, 1);
+                        }
+                    }
+                }
+                // (A stage that can't be got through in two minutes, four for the walks between the camp and the mine,
+                // it gives up on: home, and try again later.)
+                var limit = s.Stage == 1 || s.Stage == 200 ? 240f : 120f;
+                if (s.Mode == CreatureMode.Work && s.Stage != MinerAtFace && s.Stage != 201 && s.StageTime > limit)
+                {
+                    s.Held = HeldItem.None;
+                    Pause(ref s, ref b, ref rng);
+                }
+
+                static void Next(ref CreatureState s, byte stage)
+                {
+                    s.Stage = stage;
+                    s.StageTime = 0f;
+                }
+            }
+
+            const byte MinerAtFace = CreatureAnimator.MinerAtFace;
+
+            /// <summary>
+            /// The ore face a miner works (one of the mines' Work anchors in a chamber, not the one by the mouth, within
+            /// 400 m of its camp; which one by its individual number), and its mine and the chamber's node; false if
+            /// there's none.
+            /// </summary>
+            bool FindOreFace(ref CreatureState s)
+            {
+                if (!Terrain.Anchors.IsCreated)
+                    return false;
+                ref var anchors = ref Terrain.Anchors.Value;
+                ref var caves = ref Terrain.Caves.Value;
+                var found = new NativeList<int>(16, Allocator.Temp);
+                Anchors.Near(ref anchors, new float3(s.Home.x, s.Position.y, s.Home.y), 400f, AnchorKind.Work, ref found);
+                var faces = new FixedList128Bytes<int>();
+                for (int i = 0; i < found.Length && faces.Length < 30; i++)
+                {
+                    var a = anchors.Anchors[found[i]];
+                    if (a.InCave && a.Size < 1.2f && a.OwnerIndex < caves.Caves.Length)
+                        faces.Add(found[i]);
+                }
+                found.Dispose();
+                if (faces.Length == 0)
+                    return false;
+                var face = anchors.Anchors[faces[(int)(s.Individual % (uint)faces.Length)]];
+                ref var cave = ref caves.Caves[face.OwnerIndex];
+                var best = float.MaxValue;
+                var node = 1;
+                for (int n = 1; n < cave.NodeCount; n++)
+                {
+                    var d = math.distance(caves.Nodes[cave.FirstNode + n].Position, face.Position);
+                    if (d < best)
+                    {
+                        best = d;
+                        node = n;
+                    }
+                }
+                s.LairCave = (short)face.OwnerIndex;
+                s.LairNode = (short)math.min(node, 88);
+                s.Anchor = face.Position;
+                s.AnchorYaw = math.atan2(face.Facing.x, face.Facing.y);
+                return true;
+            }
+
+            /// <summary>
+            /// A step towards a point at a walking pace, turning to face the way, on the floor under it (the cave's
+            /// under rock, the ground's outside); how far it still is, across.
+            /// </summary>
+            float WalkOn(ref CreatureState s, ref CreatureBlob b, float3 target, float speed, float dt)
+            {
+                var to = target.xz - s.Position.xz;
+                var d = math.length(to);
+                if (d > 1e-3f)
+                {
+                    s.Position.xz += to / d * math.min(d, speed * dt);
+                    var wanted = WrapAngle(math.atan2(to.x, to.y) - s.Yaw);
+                    s.Yaw = WrapAngle(s.Yaw + math.clamp(wanted, -b.TurnRate * dt, b.TurnRate * dt));
+                }
+                s.Speed = d > 0.05f ? speed : 0f;
+                // (From a little above where it is, or where it's going if that's higher: up a slope, out of a pit.)
+                var from = new float3(s.Position.x, math.max(s.Position.y, target.y) + 0.8f, s.Position.z);
+                s.Position.y = Terrain.FloorUnder(from, out _);
+                CreatureMotion.AdvancePhase(ref s, ref b, dt);
+                return d;
+            }
+
+            // ------------------------------------------------------------------------------- swimming
+
+            /// <summary>
+            /// Water good for a swim near where it is: calm (no rapids), deep enough to swim (1.6 m), not lava or a
+            /// cave's hole, and warm (no snow on the bank). Sets off to the bank there (WorkSpot) with the middle of the
+            /// swim at Focus. False if there's none within 60 m.
+            /// </summary>
+            bool StartSwim(ref CreatureState s, ref Random rng)
+            {
+                var start = rng.NextFloat(math.PI * 2f);
+                for (var d = 6f; d <= 60f; d += 6f)
+                    for (int k = 0; k < 12; k++)
+                    {
+                        var a = start + k * math.PI / 6f;
+                        var dir = new float2(math.sin(a), math.cos(a));
+                        var p = s.Position.xz + dir * d;
+                        var g = Terrain.SampleGround(p);
+                        if (!g.HasWater || g.WaterSurface - g.Height < 1.6f || g.Rapids > 0.15f || !Swimmable(p))
+                            continue;
+                        var q = p;
+                        for (int step = 0; step < 40 && !Walkable(q, Habitat.Land); step++)
+                            q -= dir * 0.5f;
+                        if (!Walkable(q, Habitat.Land) || Terrain.SampleSurface(q, Terrain.SampleGround(q), Terrain.SampleNormal(q, 1f)).Snow > 0.2f)
+                            continue;
+                        SetMode(ref s, CreatureMode.Swim);
+                        s.WorkSpot = q;
+                        s.Focus = p;
+                        s.Target = q;
+                        s.Timer = rng.NextFloat(60f, 150f);
+                        return true;
+                    }
+                return false;
+            }
+
+            /// <summary>
+            /// Out for a swim: to the bank (0), in and swimming about from point to point in the deep water round Focus
+            /// at a gentle breaststroke (1), back to the bank when the time's up or the day draws in (2), and standing
+            /// on the bank a while drying off, looking about (3).
+            /// </summary>
+            void Swimming(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, float idleLook,
+                          ref float targetSpeed, ref bool moving, ref float desiredLook)
+            {
+                switch (s.Stage)
+                {
+                    case 0:
+                        s.Target = s.WorkSpot;
+                        targetSpeed = walk;
+                        moving = true;
+                        if (math.distance(s.Position.xz, s.WorkSpot) < 0.8f)
+                        {
+                            NextStage(ref s);
+                            s.Target = s.Focus;
+                        }
+                        break;
+                    case 1:
+                        s.Timer -= dt;
+                        targetSpeed = 0.9f * s.Scale;
+                        moving = true;
+                        if (math.distance(s.Position.xz, s.Target) < 1f)
+                        {
+                            // Somewhere else in the deep water round the middle.
+                            for (int k = 0; k < 6; k++)
+                            {
+                                var p = s.Focus + rng.NextFloat2Direction() * rng.NextFloat(2f, 10f);
+                                if (WaterDepth(p) > 1.3f && Swimmable(p))
+                                {
+                                    s.Target = p;
+                                    break;
+                                }
+                            }
+                        }
+                        if (s.Timer <= 0f || Night > 0.4f)
+                        {
+                            NextStage(ref s);
+                            s.Target = s.WorkSpot;
+                        }
+                        break;
+                    case 2:
+                        s.Target = s.WorkSpot;
+                        targetSpeed = 0.9f * s.Scale;
+                        moving = true;
+                        if (math.distance(s.Position.xz, s.WorkSpot) < 0.8f)
+                        {
+                            NextStage(ref s);
+                            s.Timer = rng.NextFloat(15f, 35f);
+                        }
+                        break;
+                    default:
+                        s.Timer -= dt;
+                        desiredLook = idleLook;
+                        if (s.Timer <= 0f)
+                            Pause(ref s, ref b, ref rng);
+                        break;
+                }
+            }
+
+            // ------------------------------------------------------------------------------- fishers
+
+            /// <summary>
+            /// A fisher's spot: dry shore near its home (within its range) looking out over water a metre deep or more,
+            /// the same one each time (searched outward from its home, from a bearing of its own): WorkSpot the shore,
+            /// WorkFace the water a few metres out where its float goes.
+            /// </summary>
+            bool FindFishingSpot(ref CreatureState s)
+            {
+                var range = math.max(s.Leash * 0.9f, 30f);
+                var start = (s.Individual % 360u) * math.PI / 180f;
+                for (var d = 8f; d <= range; d += 6f)
+                    for (int k = 0; k < 16; k++)
+                    {
+                        var a = start + k * math.PI / 8f;
+                        var dir = new float2(math.sin(a), math.cos(a));
+                        var p = s.Home + dir * d;
+                        if (WaterDepth(p) < 1f)
+                            continue;
+                        // Back from the water to the bank.
+                        var q = p;
+                        for (int step = 0; step < 40 && !Walkable(q, Habitat.Land); step++)
+                            q -= dir * 0.5f;
+                        if (!Walkable(q, Habitat.Land))
+                            continue;
+                        s.WorkSpot = q - dir * 0.3f;
+                        s.WorkFace = q + dir * 4f;
+                        return true;
+                    }
+                return false;
+            }
+
+            /// <summary>
+            /// A fisher at the water's edge (Work, stage 1 on), facing the water: waiting with its float out (1),
+            /// glancing about now and then; now and then casting again (2: ActionTime through the swing); sometimes a
+            /// bite and a fish landed, held up on the line a moment before it goes in the basket (3), then a fresh cast.
+            /// It packs up at dusk.
+            /// </summary>
+            void Fishing(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, ref float desiredLook)
+            {
+                if (Night > 0.5f)
+                {
+                    Pause(ref s, ref b, ref rng);
+                    return;
+                }
+                var toWater = s.WorkFace - s.Position.xz;
+                var wanted = WrapAngle(math.atan2(toWater.x, toWater.y) - s.Yaw);
+                s.Yaw = WrapAngle(s.Yaw + math.clamp(wanted, -b.TurnRate * dt, b.TurnRate * dt));
+                switch (s.Stage)
+                {
+                    case 2:
+                        s.ActionTime = math.saturate(s.ActionTime + dt / 1.6f);
+                        if (s.ActionTime >= 1f)
+                        {
+                            s.Stage = 1;
+                            s.StageTime = 0f;
+                            s.ActionTime = 0f;
+                        }
+                        break;
+                    case 3:
+                        desiredLook = 0f;
+                        s.ActionTime = math.saturate(s.ActionTime + dt / 3f);
+                        if (s.ActionTime >= 1f)
+                        {
+                            s.Stage = 2;
+                            s.StageTime = 0f;
+                            s.ActionTime = 0f;
+                        }
+                        break;
+                    default:
+                        s.Stage = 1;
+                        desiredLook = math.frac(s.ModeTime / 11f) > 0.8f ? math.sin(s.ModeTime) * 0.8f : 0f;
+                        if (rng.NextFloat() < dt / 75f)
+                        {
+                            s.Stage = 3;   // a bite
+                            s.StageTime = 0f;
+                            s.ActionTime = 0f;
+                        }
+                        else if (rng.NextFloat() < dt / 25f)
+                        {
+                            s.Stage = 2;   // reel in and cast again
+                            s.StageTime = 0f;
+                            s.ActionTime = 0f;
+                        }
+                        break;
+                }
+            }
+
+            // ------------------------------------------------------------------------------- guards
+
+            /// <summary>Whether a guard is on its shift: half by day, half by night (by its individual number), with a
+            /// little gap at dawn and dusk while the watch changes.</summary>
+            static bool NightShift(in CreatureState s) => ((s.Individual >> 3) & 1u) != 0;   // (bit 0 is always set)
+
+            bool OnShift(in CreatureState s) =>
+                s.Task == CreatureTask.Patrol && (NightShift(s) ? Night > 0.55f : Night < 0.45f);
+
+            /// <summary>The settlement a resident belongs to (whose middle its home is nearest), or -1.</summary>
+            int SettlementOf(float2 home)
+            {
+                if (!Terrain.Settlements.IsCreated)
+                    return -1;
+                ref var towns = ref Terrain.Settlements.Value.Settlements;
+                var best = -1;
+                var bestD = float.MaxValue;
+                for (int i = 0; i < towns.Length; i++)
+                {
+                    var d = math.distance(towns[i].Centre, home);
+                    if (d < towns[i].Radius * 1.5f && d < bestD)
+                    {
+                        bestD = d;
+                        best = i;
+                    }
+                }
+                return best;
+            }
+
+            /// <summary>Sets a guard going on its round, from the leg it's in the slice of (false if it has no town).</summary>
+            bool StartPatrol(ref CreatureState s)
+            {
+                var town = SettlementOf(s.Home);
+                if (town < 0)
+                    return false;
+                var legs = RoundLegs(s);
+                var off = s.Position.xz - Terrain.Settlements.Value.Settlements[town].Centre;
+                var leg = ((int)math.round(math.atan2(off.x, off.y) / (2f * math.PI / legs)) % legs + legs) % legs;
+                if (!RoundPoint(town, leg, legs, InnerRound(s), out var point, out var gate))
+                    return false;
+                SetMode(ref s, CreatureMode.Patrol);
+                s.RouteLeg = (byte)leg;
+                s.WorkSpot = point;
+                s.WorkFace = s.Position.xz;
+                s.AnchorSize = gate ? 1f : 0f;
+                return true;
+            }
+
+            // A guard's round, fixed by its individual number (so the same on every machine): most walk the bounds, a
+            // loop just inside the town's edge an eighth of the way round at a time, by way of its gates; some an inner
+            // loop round the square, a quarter of the way round at a time; one way round or the other.
+            static bool InnerRound(in CreatureState s) => CreatureBlob.Trait(s.Individual, 33) > 0.4f;
+            static int RoundWay(in CreatureState s) => CreatureBlob.Trait(s.Individual, 34) > 0f ? 1 : -1;
+            static int RoundLegs(in CreatureState s) => InnerRound(s) ? 4 : 8;
+
+            /// <summary>
+            /// The point a leg of a round makes for: on the bounds, the town's gate in that leg's slice (seen from the
+            /// middle) if it has one there (gate true), else a point just inside the edge, drawn in (or turned aside a
+            /// little) until it's clear of the houses and their yards and on dry ground; round the square, a point about
+            /// a quarter of the way out, likewise clear, or failing that the square's edge. False if there's nowhere
+            /// clear on the bounds.
+            /// </summary>
+            bool RoundPoint(int settlement, int leg, int legs, bool inner, out float2 point, out bool gate)
+            {
+                ref var town = ref Terrain.Settlements.Value.Settlements[settlement];
+                var slice = 2f * math.PI / legs;
+                var angle = leg * slice;
+                gate = false;
+                point = town.Centre;
+                if (!inner && Terrain.Anchors.IsCreated)
+                {
+                    ref var anchors = ref Terrain.Anchors.Value;
+                    var found = new NativeList<int>(8, Allocator.Temp);
+                    Anchors.Near(ref anchors, new float3(town.Centre.x, 0f, town.Centre.y), town.Radius * 1.3f, AnchorKind.Gate, ref found);
+                    var best = float.MaxValue;
+                    for (int i = 0; i < found.Length; i++)
+                    {
+                        var a = anchors.Anchors[found[i]];
+                        var off = a.Position.xz - town.Centre;
+                        var turn = math.abs(WrapAngle(math.atan2(off.x, off.y) - angle));
+                        if (a.InCave || a.OwnerIndex != settlement || turn > slice * 0.5f || turn >= best)
+                            continue;
+                        best = turn;
+                        point = a.Position.xz;
+                        gate = true;
+                    }
+                    found.Dispose();
+                    if (gate)
+                        return true;
+                }
+                // (Straight out from the middle first, then a little to either side within the slice: a spoke of
+                // houses can fill the line from the middle out.)
+                for (int side = 0; side < 5; side++)
+                {
+                    var turn = (side == 0 ? 0f : (side % 2 == 1 ? 1f : -1f) * (side < 3 ? 0.2f : 0.4f)) * slice;
+                    math.sincos(angle + turn, out var sin, out var cos);
+                    var dir = new float2(sin, cos);
+                    for (int k = 0; k < 8; k++)
+                    {
+                        var r = town.Radius * (inner ? 0.22f + 0.04f * k : 0.9f - 0.05f * k);
+                        point = town.Centre + dir * r;
+                        if (!InYard(settlement, point) && Walkable(point, Habitat.Land))
+                            return true;
+                    }
+                }
+                // Round the square, nowhere clear in the slice: the square's own edge there (open ground), so the
+                // round is always a whole ring.
+                if (inner)
+                {
+                    math.sincos(angle, out var sin, out var cos);
+                    point = town.Centre + new float2(sin, cos) * town.Radius * 0.15f;
+                    return true;
+                }
+                return false;
+            }
+
+            /// <summary>Whether a point is on a built plot of a settlement (a house and its yard, a metre round).</summary>
+            bool InYard(int settlement, float2 at)
+            {
+                ref var set = ref Terrain.Settlements.Value;
+                ref var town = ref set.Settlements[settlement];
+                for (int i = town.FirstPlot; i < town.FirstPlot + town.PlotCount; i++)
+                {
+                    ref var plot = ref set.Plots[i];
+                    if (plot.Building >= 0 && math.all(at > plot.Min - 1f) && math.all(at < plot.Max + 1f))
+                        return true;
+                }
+                return false;
+            }
+
+            /// <summary>
+            /// A beast to drive off (a wolf, a bear or the like) well inside the guard's town (10 m in from its edge: not
+            /// one just roaming by) and within 25 m of it (35 m by torchlight), that fewer than two other guards are
+            /// already after: the nearest.
+            /// </summary>
+            bool FindMenace(Entity self, in CreatureState s, out Entity menace)
+            {
+                menace = Entity.Null;
+                var town = SettlementOf(s.Home);
+                if (town < 0)
+                    return false;
+                ref var t = ref Terrain.Settlements.Value.Settlements[town];
+                var best = s.Held == HeldItem.Torch ? 35f : 25f;
+                var c = Cell(s.Position.xz);
+                for (int z = -2; z <= 2; z++)
+                for (int x = -2; x <= 2; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        if (!Bodies[j].Blob.Value.DrivenOff || States[j].Gone)
+                            continue;
+                        var at = States[j].Position.xz;
+                        var d = math.distance(at, s.Position.xz);
+                        if (d >= best || math.distance(at, t.Centre) > t.Radius - 10f || Chasers(self, Entities[j], at) >= 2)
+                            continue;
+                        best = d;
+                        menace = Entities[j];
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return menace != Entity.Null;
+            }
+
+            /// <summary>How many guards (other than this one) are running at the beast.</summary>
+            int Chasers(Entity self, Entity beast, float2 at)
+            {
+                var count = 0;
+                var c = Cell(at);
+                for (int z = -2; z <= 2; z++)
+                for (int x = -2; x <= 2; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        if (Entities[j] != self && States[j].Mode == CreatureMode.Patrol && States[j].Stage == 2 && States[j].Partner == beast)
+                            count++;
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return count;
+            }
+
+            /// <summary>
+            /// For a beast in a town: a guard running at it (noticed within 30 m), or a night guard's torch within 12 m;
+            /// and where that guard is.
+            /// </summary>
+            bool FindChaser(Entity self, in CreatureState s, out float2 at)
+            {
+                at = default;
+                var c = Cell(s.Position.xz);
+                for (int z = -2; z <= 2; z++)
+                for (int x = -2; x <= 2; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        var other = States[j];
+                        if (other.Mode != CreatureMode.Patrol)
+                            continue;
+                        var d = math.distance(other.Position.xz, s.Position.xz);
+                        if (other.Stage == 2 && other.Partner == self && d < 30f || other.Held == HeldItem.Torch && d < 12f)
+                        {
+                            at = other.Position.xz;
+                            return true;
+                        }
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return false;
+            }
+
+            /// <summary>Another guard pausing within a few metres (for a word), and where it is.</summary>
+            bool FindGuard(Entity self, in CreatureState s, out float2 at)
+            {
+                at = default;
+                var c = Cell(s.Position.xz);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        if (Entities[j] == self || States[j].Mode != CreatureMode.Patrol || States[j].Stage != 1)
+                            continue;
+                        if (math.distance(States[j].Position.xz, s.Position.xz) < 3.5f)
+                        {
+                            at = States[j].Position.xz;
+                            return true;
+                        }
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return false;
+            }
+
+            /// <summary>
+            /// A guard at the point its leg of the round was making for: a while there at a gate, looking out down the
+            /// road, or at either of two lookouts (the first leg's point and the one halfway round), looking about; then
+            /// on to the next leg's point.
+            /// </summary>
+            void NextOnRound(ref CreatureState s, ref Random rng)
+            {
+                var town = SettlementOf(s.Home);
+                if (town < 0)
+                    return;
+                var legs = RoundLegs(s);
+                var inner = InnerRound(s);
+                var reached = s.RouteLeg % legs;
+                var pause = s.AnchorSize > 0f ? rng.NextFloat(8f, 16f) : reached == 0 || reached == legs / 2 ? rng.NextFloat(4f, 8f) : 0f;
+                var leg = reached;
+                for (int k = 0; k < legs; k++)
+                {
+                    leg = (leg + legs + RoundWay(s)) % legs;
+                    if (RoundPoint(town, leg, legs, inner, out var point, out var gate) && math.distancesq(point, s.WorkSpot) > 1f)
+                    {
+                        s.RouteLeg = (byte)leg;
+                        s.WorkFace = s.WorkSpot;
+                        s.WorkSpot = point;
+                        s.AnchorSize = gate ? 1f : 0f;
+                        break;
+                    }
+                }
+                if (pause > 0f)
+                {
+                    s.Stage = 1;
+                    s.StageTime = 0f;
+                    s.Timer = pause;
+                }
+            }
+
+            /// <summary>
+            /// A guard on its round: to the point it's making for (stage 0), at a slow, steady pace;
+            /// at a gate or a lookout it stops to look about (stage 1), longer at a gate, looking out down the road;
+            /// meeting another guard stopped there, it turns to it for a word. Anyone running or carrying on close by, it
+            /// stops to watch. Off shift, it goes on with its own day.
+            /// </summary>
+            void Patrol(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, float run, float3 player,
+                        float playerSpeed, IdleAction emote, ref float targetSpeed, ref bool moving, ref float desiredLook)
+            {
+                if (!OnShift(s))
+                {
+                    Pause(ref s, ref b, ref rng);
+                    return;
+                }
+                // Its weapon: worn in its sheath on its rounds; drawn when there's something to see to (a beast to drive
+                // off, someone running or carrying on close by), and put away again once all's been quiet a few
+                // seconds. Drawing or sheathing is a half-second reach (Draw, Sheathe: the action time every machine
+                // sees), the weapon passing from sheath to hand at the middle of it. (By night a torch fills its hand;
+                // an elf's bow stays on its back.)
+                if (Night <= 0.5f && b.GuardKit != GuardKit.Elf && b.Hands)
+                {
+                    var near = player.xz - s.Position.xz;
+                    var alert = s.Stage == 2 || math.length(near) < 15f && (playerSpeed > 7f || emote != IdleAction.None);
+                    s.WeaponCalm = alert ? 0f : s.WeaponCalm + dt;
+                    if (s.Action == IdleAction.None && alert && s.Held == HeldItem.Spear)
+                    {
+                        s.Held = HeldItem.SpearDrawn;
+                        s.Action = IdleAction.Draw;
+                        s.ActionTime = 0f;
+                        s.ActionLength = 0.5f;
+                    }
+                    else if (s.Action == IdleAction.None && !alert && s.Held == HeldItem.SpearDrawn && s.WeaponCalm > 4f)
+                    {
+                        s.Held = HeldItem.Spear;
+                        s.Action = IdleAction.Sheathe;
+                        s.ActionTime = 0f;
+                        s.ActionLength = 0.5f;
+                    }
+                }
+                // A wolf, a bear or the like come into the town: the guard runs at it, spear levelled (stage 2), till it's
+                // off out past the town's edge, then back to its round (to the point it was making for). It never goes
+                // more than 30 m beyond the edge after one, nor for more than 40 s, and leaves any one beast to a pair;
+                // after one, a minute and a half before it goes after another (so it's now and then, not all day).
+                s.ChaseCooldown = math.max(s.ChaseCooldown - dt, 0f);
+                if (s.Stage == 2)
+                {
+                    var town = SettlementOf(s.Home);
+                    if (town >= 0 && s.StageTime < 40f && Lookup.TryGetValue(s.Partner, out var p) && !States[p].Gone)
+                    {
+                        ref var t = ref Terrain.Settlements.Value.Settlements[town];
+                        var beast = States[p].Position.xz;
+                        if (math.distance(beast, t.Centre) < t.Radius + 8f && math.distance(s.Position.xz, t.Centre) < t.Radius + 30f)
+                        {
+                            s.Target = beast;
+                            // (Not right up to it: a spear's length off, it slows to keep there.)
+                            targetSpeed = math.distance(s.Position.xz, beast) > 2.5f ? run : 0f;
+                            moving = true;
+                            desiredLook = 0f;
+                            return;
+                        }
+                    }
+                    s.Stage = 0;
+                    s.StageTime = 0f;
+                    s.Partner = Entity.Null;
+                    s.ChaseCooldown = 90f;
+                }
+                else if (s.ChaseCooldown <= 0f && FindMenace(self, in s, out var menace))
+                {
+                    s.Stage = 2;
+                    s.StageTime = 0f;
+                    s.Partner = menace;
+                    return;
+                }
+                var toPlayer = player.xz - s.Position.xz;
+                var watching = math.length(toPlayer) < 15f && (playerSpeed > 7f || emote != IdleAction.None);
+                if (s.Stage == 0)
+                {
+                    s.Target = s.WorkSpot;
+                    moving = !watching;
+                    targetSpeed = watching ? 0f : walk * 0.7f;
+                    if (math.distance(s.Position.xz, s.WorkSpot) < 0.7f)
+                        NextOnRound(ref s, ref rng);
+                }
+                else
+                {
+                    s.Timer -= dt;
+                    desiredLook = math.sin(s.StageTime * 0.9f + s.Individual % 7) * 1.1f;
+                    if (FindGuard(self, s, out var other))
+                    {
+                        // A word with the other guard (for a while, then on).
+                        var to = other - s.Position.xz;
+                        var wanted = WrapAngle(math.atan2(to.x, to.y) - s.Yaw);
+                        s.Yaw = WrapAngle(s.Yaw + math.clamp(wanted, -b.TurnRate * dt, b.TurnRate * dt));
+                        desiredLook = 0f;
+                        if (s.StageTime < 10f)
+                            s.Timer = math.max(s.Timer, 0.5f);
+                    }
+                    if (s.Timer <= 0f)
+                    {
+                        s.Stage = 0;
+                        s.StageTime = 0f;
+                    }
+                }
+                if (watching)
+                {
+                    var wanted = WrapAngle(math.atan2(toPlayer.x, toPlayer.y) - s.Yaw);
+                    if (s.Stage == 0)
+                        s.Yaw = WrapAngle(s.Yaw + math.clamp(wanted, -b.TurnRate * dt, b.TurnRate * dt));
+                    desiredLook = math.clamp(WrapAngle(math.atan2(toPlayer.x, toPlayer.y) - s.Yaw), -1.2f, 1.2f);
+                }
+            }
+
             /// <summary>
             /// A door to go in by: one of the three Door anchors of its settlement nearest where it is (which of them,
             /// by its individual number, so neighbours spread over the houses round them). False if there are none in
@@ -1777,7 +3682,9 @@ namespace Punchy.Fauna
                         s.ActionTime = 1f;
                         if (SleepTime(ref b) < 0.5f)
                             s.Timer -= dt;
-                        if (s.Timer <= 0f)
+                        // (A guard comes out when its watch begins, however long it meant to stay in: a night guard
+                        // asleep through the day is out again at dusk.)
+                        if (s.Timer <= 0f || OnShift(s))
                             NextStage(ref s);
                         break;
                     default:
@@ -2292,12 +4199,24 @@ namespace Punchy.Fauna
                 NightLoop(ref s, ref b, ref rng);
             }
 
+            /// <summary>
+            /// A bat's jinking: its heading swings off the line to its target and back, a couple of times a second
+            /// (after insects), each bat on its own beat. None near the target, so it still lands and hangs up.
+            /// </summary>
+            static float Swerve(in CreatureState s, ref CreatureBlob b, float distance)
+            {
+                if (!b.Roosts || s.Fly < 0.5f)
+                    return 0f;
+                var own = (s.Individual % 89) * 0.37f;
+                return (0.7f * math.sin(s.Clock * 2.3f + own) + 0.45f * math.sin(s.Clock * 5.3f + own * 1.7f)) * math.saturate((distance - 2f) / 4f);
+            }
+
             /// <summary>Flies straight at a point (no ground to keep clear of: inside a cave). Returns the distance left.</summary>
             float FlyDirect(ref CreatureState s, ref CreatureBlob b, float3 target, float speed, float dt, ref float vertical)
             {
                 var to = target - s.Position;
                 var distance = math.length(to);
-                var wanted = WrapAngle(math.atan2(to.x, to.z) - s.Yaw);
+                var wanted = WrapAngle(math.atan2(to.x, to.z) - s.Yaw) + Swerve(s, ref b, distance);
                 var turn = math.clamp(wanted, -b.TurnRate * 2f * dt, b.TurnRate * 2f * dt);
                 s.Yaw = WrapAngle(s.Yaw + turn);
                 s.YawRate = turn / math.max(dt, 1e-4f);
@@ -2416,6 +4335,7 @@ namespace Punchy.Fauna
             /// <summary>Whether a flying species is in the air now (flying somewhere, fleeing or hunting).</summary>
             static bool Flying(in CreatureState s) =>
                 (s.Mode == CreatureMode.Wander || s.Mode == CreatureMode.Hunt) && s.Stage >= 1 || s.Mode == CreatureMode.Flee ||
+                s.Mode == CreatureMode.Work && s.Task == CreatureTask.Messenger && s.Stage != 1 ||
                 s.Mode == CreatureMode.Roost && s.Stage != 200;
 
             /// <summary>
@@ -2425,6 +4345,17 @@ namespace Punchy.Fauna
             bool StartFlight(ref CreatureState s, ref CreatureBlob b, ref Random rng, bool toSleep)
             {
                 var range = math.max(b.WanderRadius, 20f);
+                // A soarer mostly goes up to circle a while over somewhere near (not straight after a spell of it).
+                if (b.Soars && !toSleep && s.Stage != 2 && rng.NextFloat() < 0.75f)
+                {
+                    SetMode(ref s, CreatureMode.Wander);
+                    s.Stage = 2;
+                    s.Focus = s.Position.xz + rng.NextFloat2Direction() * range * rng.NextFloat(0.2f, 0.8f);
+                    s.TargetHeight = Cruise(s, ref b, s.Focus);
+                    s.Timer = rng.NextFloat(60f, 240f);
+                    s.Target = s.Focus;
+                    return true;
+                }
                 if (toSleep && b.Nests != NestSite.None && b.Nests != NestSite.Ground && s.AnchorSize > 0f)
                 {
                     // Home to its nest.
@@ -2454,6 +4385,41 @@ namespace Punchy.Fauna
                 s.Target = spot;
                 s.TargetHeight = Terrain.SampleHeight(spot);
                 return true;
+            }
+
+            /// <summary>
+            /// Soaring: round and round over its centre (Focus) at its own radius and turning its own way, steering for a
+            /// point a little ahead on the circle so it never slows as if to land; when its time is up, off to come down
+            /// somewhere.
+            /// </summary>
+            void Soar(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
+            {
+                s.Timer -= dt;
+                if (s.Timer <= 0f && b.Breaches)
+                {
+                    // Back down into the deep water under the circle (where it came up), nose first.
+                    s.Stage = 3;
+                    s.Target = s.Focus;
+                    var water = Terrain.SampleGround(s.Focus);
+                    s.TargetHeight = math.max(water.WaterSurface - b.SwimDepth * s.Scale * 0.5f, water.Height + 0.5f);
+                    return;
+                }
+                if (s.Timer <= 0f)
+                {
+                    if (StartFlight(ref s, ref b, ref rng, false))
+                        return;
+                    s.Timer = 10f;   // (nowhere to come down just here: round again)
+                }
+                // A sky serpent now and then climbs to a higher pass, or sinks to a lower one, over the same water.
+                if (b.Breaches && rng.NextFloat() < dt / 40f)
+                    s.TargetHeight = Cruise(s, ref b, s.Focus) + rng.NextFloat(0f, 45f);
+                var radius = math.lerp(30f, 70f, CreatureBlob.Trait(s.Individual, 21) * 0.5f + 0.5f);
+                var way = CreatureBlob.Trait(s.Individual, 22) > 0f ? 1f : -1f;
+                var from = s.Position.xz - s.Focus;
+                var angle = math.atan2(from.y, from.x) + 0.6f * way;
+                s.Target = s.Focus + new float2(math.cos(angle), math.sin(angle)) * radius;
+                // (Its height over the circle: its cruising height over the middle, held as the ground falls away.)
+                s.TargetHeight = math.max(s.TargetHeight, Cruise(s, ref b, s.Position.xz));
             }
 
             /// <summary>Touches down: on a branch it settles to rest a while, on the ground it looks about.</summary>
@@ -2487,7 +4453,7 @@ namespace Punchy.Fauna
                 var to = target - s.Position.xz;
                 var distance = math.length(to);
                 // (Right over the spot the bearing means nothing: hold the heading.)
-                var wanted = distance < 0.1f ? 0f : WrapAngle(math.atan2(to.x, to.y) - s.Yaw);
+                var wanted = distance < 0.1f ? 0f : WrapAngle(math.atan2(to.x, to.y) - s.Yaw) + Swerve(s, ref b, distance);
                 var turnRate = b.TurnRate * 1.5f;
                 var turn = math.clamp(wanted, -turnRate * dt, turnRate * dt);
                 s.Yaw = WrapAngle(s.Yaw + turn);
@@ -2962,6 +4928,19 @@ namespace Punchy.Fauna
                     // Out of its depth, a land animal that swims sits low: only its head, neck and a strip of back
                     // above the surface (a bear's broad back shows more than a deer's), legs paddling below, bobbing
                     // gently. Wading in, it settles from standing on the bottom into that as the water deepens.
+                    // Folk out swimming lie in the water, back just under the surface, bobbing; wading in or out they
+                    // stand on the bottom (settling into the swim as the water deepens).
+                    if (b.Upright && s.Mode == CreatureMode.Swim)
+                    {
+                        var g = Terrain.SampleGround(s.Position.xz);
+                        if (g.HasWater && g.WaterSurface > g.Height)
+                        {
+                            var deep = math.smoothstep(b.StandHeight * s.Scale * 0.6f, b.StandHeight * s.Scale * 0.9f, g.WaterSurface - g.Height);
+                            // (Low: the back a hand's breadth under, only the shoulders and the raised head out.)
+                            var floatAt = g.WaterSurface - 0.24f * s.Scale + math.sin(s.Clock * 1.9f) * 0.02f * s.Scale;
+                            s.Position.y = math.lerp(g.Height, floatAt, deep);
+                        }
+                    }
                     if (b.CrossesWater)
                     {
                         var g = Terrain.SampleGround(s.Position.xz);

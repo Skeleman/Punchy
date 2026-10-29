@@ -121,6 +121,7 @@ MonoBehaviour:
   IdleTime: {x: 4, y: 14}
   FleeDistance: 12
   TurnRate: 80
+  SeenFrom: 0
   GroupSize: {x: 1, y: 1}
   NearWater: 0
   Habitat: 0
@@ -130,6 +131,7 @@ MonoBehaviour:
   Grazing: 0.4
   Thirst: 0.4
   Playfulness: 0.2
+  Child: 0
   Laziness: 0.55
   Hunts:
   - {fileID: 11400000, guid: a6c6bb705c9f3ab44adc7460ae96114d, type: 2}
@@ -142,6 +144,7 @@ MonoBehaviour:
   WebSize: 0.6
   Burrows: 0
   CaveDweller: 0
+  Crawls: 0
   CaveAffinity: 0.3
   Roosts: 0
   Friendly: 0
@@ -149,8 +152,13 @@ MonoBehaviour:
   Haunts: 0
   CrossesWater: 1
   Nests: 0
+  DrawnToLight: 0
+  DrivenOff: 1
   FlightHeight: {x: 8, y: 18}
   FlySpeed: 7
   FlapRate: 6
   Glide: 0
   Perching: 0.6
+  Soars: 0
+  Breaches: 0
+  RaidsHives: 1

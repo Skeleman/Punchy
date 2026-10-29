@@ -60,7 +60,13 @@ namespace Punchy.Fauna
                     Drive(ref s.ValueRW, ref body.ValueRO.Blob.Value, player, motion.Grounded, dt);
                     // On the wing: wings out, nose up or down with the climb.
                     Wings(ref s.ValueRW, ref body.ValueRO.Blob.Value, motion.Flying, motion.Pitch, motion.Flapping, dt);
-                    Pose(ref s.ValueRW, ref body.ValueRO.Blob.Value, pose, dt);
+                    // (Climbing onto a ledge: the climbing pose over whatever else, run through as the climb goes.)
+                    Pose(ref s.ValueRW, ref body.ValueRO.Blob.Value, motion.Mantle > 0f ? IdleAction.Mantle : pose, dt);
+                    if (motion.Mantle > 0f)
+                    {
+                        s.ValueRW.Action = IdleAction.Mantle;
+                        s.ValueRW.ActionTime = 0.12f + 0.73f * math.saturate(motion.Mantle);
+                    }
                 }
 
             transforms.Update(ref state);

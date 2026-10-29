@@ -14,6 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
   VariantOf: {fileID: 0}
   VariantScale: 1
+  VariantHead: 1
+  VariantThickness: 1
+  VariantLegs: 1
   BodyLength: 0.85
   BodyRadius: 0.15
   BodyTaper: 0.95
@@ -97,12 +100,12 @@ MonoBehaviour:
     StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 8db8692701365314db1a0b5e9ab1cbd1, type: 2}
     Parent: 3
-    Socket: {x: 0.05, y: 0.03, z: -0.04}
+    Socket: {x: 0.04, y: 0.046, z: -0.02}
     Direction: {x: 0, y: 0, z: 0}
     Mirror: 1
     Phase: 0
     MirrorPhase: 0.5
-    Scale: 1.1
+    Scale: 1.9
     Thickness: 1
     StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 8d51aa229c1545949a7f2be69d1443bb, type: 2}
@@ -113,6 +116,16 @@ MonoBehaviour:
     Phase: 0
     MirrorPhase: 0.5
     Scale: 1
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: e37d454bcc201b946adcebca95a33dc2, type: 2}
+    Parent: 3
+    Socket: {x: 0.035406746, y: 0.040717762, z: -0.0221}
+    Direction: {x: 0, y: 0, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 2.4
     Thickness: 1
     StyleGroup: 0
   WalkSpeed: 1.1
@@ -126,6 +139,7 @@ MonoBehaviour:
   IdleTime: {x: 3, y: 12}
   FleeDistance: 8
   TurnRate: 120
+  SeenFrom: 0
   GroupSize: {x: 1, y: 1}
   NearWater: 0
   Habitat: 0
@@ -135,9 +149,13 @@ MonoBehaviour:
   Grazing: 0
   Thirst: 0.3
   Playfulness: 0.3
+  Child: 0
   Laziness: 0.9
-  Hunts: []
-  Hunger: 0
+  Hunts:
+  - {fileID: 11400000, guid: 67dbea075c2b2aa42b1c93042c048409, type: 2}
+  - {fileID: 11400000, guid: 7bfe1e836abed0c4c899d5d08bd4f2e4, type: 2}
+  - {fileID: 11400000, guid: 8c1d9ca02541a3244baf69032c8cc21d, type: 2}
+  Hunger: 0.3
   ChaseTime: 10
   Idles: 2394
   Fidgets: 0.8
@@ -146,11 +164,31 @@ MonoBehaviour:
   WebSize: 0.6
   Burrows: 0
   CaveDweller: 0
+  Crawls: 0
+  CaveAffinity: 0
   Roosts: 0
   Friendly: 0
+  LavaDweller: 0
+  Haunts: 0
+  CrossesWater: 0
   Nests: 0
+  DrawnToLight: 0
+  DrivenOff: 0
+  GuardKit: 0
+  GuardArmour: {r: 0.55, g: 0.57, b: 0.6, a: 1}
+  GuardSash: {r: 0.62, g: 0.12, b: 0.1, a: 1}
   FlightHeight: {x: 8, y: 18}
   FlySpeed: 7
   FlapRate: 6
   Glide: 0
   Perching: 0.6
+  Soars: 0
+  Breaches: 0
+  RaidsHives: 0
+  Calls:
+  - Sound: 28
+    Interval: {x: 25, y: 60}
+    Pitch: {x: 0.95, y: 1.15}
+    Volume: 0.5
+    Reach: 20
+    When: 0

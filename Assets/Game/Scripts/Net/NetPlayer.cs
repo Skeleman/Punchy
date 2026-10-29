@@ -146,8 +146,10 @@ namespace Punchy.Net
         public void OnUpdate(ref SystemState state)
         {
             var command = new NetPlayerCommand { Species = -1 };
+            var mantling = false;
             foreach (var (t, motion) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<PlayerMotion>>().WithAll<PlayerTag>())
             {
+                mantling = motion.ValueRO.Mantle > 0f;
                 var forward = math.mul(t.ValueRO.Rotation, new float3(0f, 0f, 1f));
                 command.Position = t.ValueRO.Position;
                 command.Yaw = math.atan2(forward.x, forward.z);
@@ -168,7 +170,8 @@ namespace Punchy.Net
                 command.Act = (byte)interaction.Act;
                 command.ActSerial = interaction.Serial;
                 command.ActTarget = interaction.TargetGhost;
-                command.Pose = (byte)interaction.Pose;
+                // (Climbing onto a ledge shows as the climbing pose.)
+                command.Pose = mantling ? (byte)Punchy.Fauna.IdleAction.Mantle : (byte)interaction.Pose;
             }
             foreach (var input in SystemAPI.Query<RefRW<NetPlayerCommand>>().WithAll<NetPlayer, GhostOwnerIsLocal>())
                 input.ValueRW = command;

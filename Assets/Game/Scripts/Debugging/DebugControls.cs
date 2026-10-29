@@ -23,7 +23,7 @@ namespace Punchy.Debugging
     ///  B            next day type (sunny, partly cloudy, changeable, overcast, stormy), replacing today's weather;
     ///  Y            advance the clock two hours;  T  toggle fast time (DayNightCycle);
     ///  ] / [        force the next weather over the player / clear it (WeatherSystem);
-    ///  F1           show / hide this readout.
+    ///  F1           show / hide this readout (and the interaction prompt with it: the whole HUD).
     /// </summary>
     public class DebugControls : MonoBehaviour
     {
@@ -62,6 +62,8 @@ namespace Punchy.Debugging
                 return;
             if (keyboard.f1Key.wasPressedThisFrame)
                 ShowReadout = !ShowReadout;
+            // F1 hides the whole HUD (for screenshots): the interaction prompt goes with the readout.
+            InteractionPrompt.Hidden = !ShowReadout;
             if (keyboard.f3Key.wasPressedThisFrame)
                 CopyPosition();
             if (keyboard.bKey.wasPressedThisFrame && Weather != null)
@@ -1433,6 +1435,12 @@ namespace Punchy.Debugging
                 var hours = (int)Cycle.TimeOfDay;
                 lines.Add($"time {hours:00}:{(int)((Cycle.TimeOfDay - hours) * 60f):00}   {1f / Time.smoothDeltaTime:F0} fps");
             }
+            // The frame-rate cap, and the button that changes it on the device in use.
+            var cap = Punchy.Settings.FrameRateCap.Current;
+            var capButton = Punchy.Player.InputGlyphs.Action("Player/Options");
+            lines.Add($"frame cap: <b>{Punchy.Settings.FrameRateCap.Describe(cap)}</b>" +
+                      (Punchy.Settings.FrameRateCap.FromCommandLine ? " (-fpscap)" : "") +
+                      (string.IsNullOrEmpty(capButton) ? "" : $"   <color=#bbbbbb>{capButton} to change</color>"));
             // The player's pace and the controls, named for the device last used (InputGlyphs). The debug keys have
             // nothing on a gamepad, so they're shown on the keyboard only.
             var flies = false;

@@ -29,6 +29,8 @@ namespace Punchy.Net
         [GhostField(Quantization = 1000)] public float Scale;
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Speed;
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Look;
+        /// <summary>The head's look up or down (a glance at something above or below).</summary>
+        [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float LookPitch;
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Lie, HeadDown, Bow, Curl, Air;
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Sit, Vertical, Fly;
         /// <summary>Not smoothed: it jumps back to 0 when a new action starts.</summary>
@@ -39,6 +41,7 @@ namespace Punchy.Net
         [GhostField(Quantization = 100)] public float AnchorSize;
         /// <summary>Who is petting or carrying it (Interactions.HolderId; 0 = nobody).</summary>
         [GhostField] public int Holder;
+        [GhostField] public byte Held;
     }
 
     /// <summary>Client: this creature is a server ghost that FaunaDirector has given a body (CreatureState/CreatureBody).</summary>
@@ -83,6 +86,7 @@ namespace Punchy.Net
                 n.Stage = c.Stage;
                 n.Speed = c.Speed;
                 n.Look = c.Look;
+                n.LookPitch = c.LookPitch;
                 n.Lie = c.Lie;
                 n.HeadDown = c.HeadDown;
                 n.Bow = c.Bow;
@@ -96,6 +100,7 @@ namespace Punchy.Net
                 n.Anchor = c.Anchor;
                 n.AnchorSize = c.AnchorSize;
                 n.Holder = c.Holder;
+                n.Held = (byte)c.Held;
             }
         }
     }
@@ -112,6 +117,8 @@ namespace Punchy.Net
     {
         /// <summary>A bit beyond FaunaDirector's despawn distance, so nothing a player could see is ever held back.</summary>
         public const float Radius = 200f;
+        /// <summary>Critters (FaunaDirector's critter tier) are sent only to players within this of them.</summary>
+        public const float CritterRadius = 60f;
 
         [BurstCompile]
         public void OnCreate(ref SystemState state)
@@ -134,10 +141,13 @@ namespace Punchy.Net
                     players[owner.ValueRO.NetworkId] = transform.ValueRO.Position;
             if (players.Count == 0)
                 return;
-            var radiusSq = Radius * Radius;
-            foreach (var (ghost, transform) in SystemAPI.Query<RefRO<GhostInstance>, RefRO<LocalTransform>>().WithAll<CreatureNet>())
+            foreach (var (ghost, transform, body, net) in SystemAPI.Query<RefRO<GhostInstance>, RefRO<LocalTransform>, RefRO<CreatureBody>, RefRO<CreatureNet>>())
             {
                 var xz = transform.ValueRO.Position.xz;
+                // (Huge animals seen from far off are sent from that far; critters, the small life round a player, only
+                // to players near them.)
+                var radius = net.ValueRO.Task == (byte)CreatureTask.Critter ? CritterRadius : math.max(Radius, body.ValueRO.Blob.Value.SeenFrom + 20f);
+                var radiusSq = radius * radius;
                 foreach (var player in players)
                     if (math.distancesq(player.Value.xz, xz) > radiusSq)
                         set.TryAdd(new RelevantGhostForConnection(player.Key, ghost.ValueRO.ghostId), 1);
@@ -188,6 +198,7 @@ namespace Punchy.Net
                 c.Stage = n.Stage;
                 c.Speed = n.Speed;
                 c.Look = n.Look;
+                c.LookPitch = n.LookPitch;
                 c.Lie = n.Lie;
                 c.HeadDown = n.HeadDown;
                 c.Bow = n.Bow;
@@ -201,6 +212,7 @@ namespace Punchy.Net
                 c.Anchor = n.Anchor;
                 c.AnchorSize = n.AnchorSize;
                 c.Holder = n.Holder;
+                c.Held = (HeldItem)n.Held;
                 CreatureMotion.AdvancePhase(ref c, ref b, dt);
             }
         }

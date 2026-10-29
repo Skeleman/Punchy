@@ -38,7 +38,10 @@ namespace Punchy.Fauna
         public bool Hunted;
         public IdleActions Idles;
         public float Fidgets, Climbing;
-        public bool SpinsWebs, Burrows, CaveDweller, Roosts, Friendly, CrossesWater, Haunts, LavaDweller;
+        public bool SpinsWebs, Burrows, CaveDweller, Roosts, Friendly, CrossesWater, Haunts, LavaDweller, DrawnToLight, DrivenOff;
+        /// <summary>Its town guards' kit (helmet, weapon) and the colours of their armour and sash (linear).</summary>
+        public GuardKit GuardKit;
+        public float4 GuardArmour, GuardSash;
         public NestSite Nests;
         public float WebSize;
         public float2 FlightHeight;
@@ -47,6 +50,18 @@ namespace Punchy.Fauna
         public float CaveAffinity;
         /// <summary>Crawls on any surface (see CreatureSpecies.Crawls).</summary>
         public bool Crawls;
+        /// <summary>Circles high over one place (see CreatureSpecies.Soars).</summary>
+        public bool Soars;
+        /// <summary>A swimmer that bursts out to soar and dives back in (see CreatureSpecies.Breaches).</summary>
+        public bool Breaches;
+        /// <summary>Raids wild hives now and then (see CreatureSpecies.RaidsHives).</summary>
+        public bool RaidsHives;
+        /// <summary>Has arms, so it can hold things (folk).</summary>
+        public bool Hands;
+        /// <summary>A child (see CreatureSpecies.Child): a variant's own.</summary>
+        public bool Child;
+        /// <summary>Drawn and kept about from this far off; 0 = as any other (see CreatureSpecies.SeenFrom).</summary>
+        public float SeenFrom;
 
         public BlobArray<CreaturePart> Parts;
         public BlobArray<CreatureSegment> Segments;
@@ -159,6 +174,11 @@ namespace Punchy.Fauna
         public bool FollowGround;
         /// <summary>Style option group (0 = always shown), this part's option in it, and how many options it has.</summary>
         public int StyleGroup, StyleIndex, StyleCount;
+        /// <summary>A leg's give: how much further its hip-to-ankle span can stretch beyond the standing pose (m, at
+        /// size 1), so how far the ground can fall away under it before the hips must come down.</summary>
+        public float Slack;
+        /// <summary>Where a leg's foot stands from its hip in the standing pose, in the body's frame (m, at size 1).</summary>
+        public float3 Stance;
     }
 
     public struct CreatureSegment
@@ -249,7 +269,23 @@ namespace Punchy.Fauna
         /// indoors out of sight (2), stepping out again (3). ActionTime is how far out of sight they are while
         /// stepping through (it rides on the ghost, so every machine dithers them the same).
         /// </summary>
-        Home
+        Home,
+        /// <summary>
+        /// A guard on its rounds (task Patrol): along the town's streets to the corner it's making for (WorkSpot,
+        /// stage 0; WorkFace is the one it came from), pausing there to look about (stage 1); a gate when AnchorSize > 0.
+        /// </summary>
+        Patrol,
+        /// <summary>
+        /// Folk gone for a swim on a warm day: to the bank where they go in (WorkSpot, stage 0), swimming about in the
+        /// water round Focus (1), back to the bank (2), standing drying off (3).
+        /// </summary>
+        Swim,
+        /// <summary>
+        /// Folk taking their ease: to the spot (Target, stage 0; the posture it's going for in TargetHeight), then sitting
+        /// on the ground facing Focus (1: by the well, on the green), or lying back in the grass (3). (2 is kept for
+        /// sitting on a seat, once there are seats to sit on.)
+        /// </summary>
+        Sit
     }
 
     /// <summary>What a worker does at its post (posed by CreatureAnimator).</summary>
@@ -261,7 +297,23 @@ namespace Punchy.Fauna
         [UnityEngine.Tooltip("Leans on a counter, now and then raising a hand (a vendor).")] Gesture,
         [UnityEngine.Tooltip("Both hands working in front, slowly (drawing water, tending a fountain, stirring).")] Tend,
         [UnityEngine.Tooltip("Stands keeping watch, hands behind the back (a gatekeeper).")] Watch,
-        [UnityEngine.Tooltip("Goes out by day after game: creeps up on it, throws (and, for now, always misses).")] Hunt
+        [UnityEngine.Tooltip("Goes out by day after game: creeps up on it, throws (and, for now, always misses).")] Hunt,
+        [UnityEngine.Tooltip("A guard: walks the town's streets and out to its gates on its shift (by day or by night, half " +
+                             "each), spear in hand, a torch after dark; a night guard sleeps the day indoors.")] Patrol,
+        [UnityEngine.Tooltip("Fishes by day from the shore nearest home (its own spot, the same each time): waits with its " +
+                             "float out, casts again now and then, sometimes lands a fish into its basket; home at dusk.")] Fish,
+        [UnityEngine.Tooltip("Mines by day: walks from its camp into the nearest mine and along its passages to an ore face (its " +
+                             "own, the same each day), swings its pick at it a while, carries a sack of ore back out to the " +
+                             "camp, and goes back for more; home at dusk.")] Mine,
+        [UnityEngine.Tooltip("A traveller on the roads between towns (FaunaDirector puts one on a road now and then, out of " +
+                             "sight): walks briskly along it, staff in hand and pack on its back, to the town at its end, and " +
+                             "stays there a while as a visitor.")] Travel,
+        [UnityEngine.Tooltip("A messenger bird (FaunaDirector sends one to a town a player is in, now and then): flies in " +
+                             "from the direction of another town with a rolled message, lands by one of the townsfolk, who " +
+                             "takes it and reads it, and flies off towards another town.")] Messenger,
+        [UnityEngine.Tooltip("A critter: one of the small life round a player (songbirds, owls, woodpeckers, frogs, mice), " +
+                             "put at its spot from the seed by FaunaDirector's critter tier, near players only, and run on a " +
+                             "light brain (no needs, no company or prey to look for).")] Critter
     }
 
     /// <summary>
@@ -278,6 +330,77 @@ namespace Punchy.Fauna
     {
         /// <summary>0 by day, 1 at night.</summary>
         public float Night;
+        /// <summary>The time of day, 0 to 24 (18 at sunset).</summary>
+        public float Hour;
+    }
+
+    /// <summary>
+    /// Something held in the hand (the equipment slot's first use): drawn at the hand by CreatureRenderSystem, with the
+    /// arm posed to hold it. Numbered for the network: append, never reorder.
+    /// </summary>
+    public enum GuardKit : byte
+    {
+        /// <summary>A kettle hat, a spear.</summary>
+        Human,
+        /// <summary>A rounded helm with horns, an axe.</summary>
+        Dwarf,
+        /// <summary>A tall helm with a leaf-shaped crest, a bow across the back.</summary>
+        Elf,
+        /// <summary>A pot for a helmet, a crude club and a scrap shield.</summary>
+        Goblin,
+        /// <summary>A skull for a cap, a great club over the shoulder.</summary>
+        Ogre
+    }
+
+    public enum HeldItem : byte
+    {
+        None,
+        /// <summary>A lantern in the off hand, lit: folk out and about after dark.</summary>
+        Lantern,
+        /// <summary>A guard's weapon (its folk's: GuardKit), worn in its sheath on the back or at the hip: a guard on
+        /// its rounds by day. (Drawn, it's SpearDrawn.)</summary>
+        Spear,
+        /// <summary>A burning torch held up in the right hand: a guard on its rounds after dark.</summary>
+        Torch,
+        /// <summary>A fishing rod in both hands, its line out to a float on the water (and a basket at the feet).</summary>
+        Rod,
+        /// <summary>A stick in the right hand: a child's, for poking at things.</summary>
+        Stick,
+        /// <summary>A stone in the right hand: a child's, for throwing (another picked up after each throw).</summary>
+        Stone,
+        /// <summary>A guard's weapon drawn and in its right hand: danger about (a beast in town, someone carrying on).</summary>
+        SpearDrawn,
+        /// <summary>A miner's pick: worn across its back on the way, in both hands swinging at the ore face.</summary>
+        Pickaxe,
+        /// <summary>A sack of ore carried in both arms, out of the mine to the camp (the pick on its back).</summary>
+        OreSack,
+        /// <summary>A traveller's walking staff in the right hand (and a pack on its back).</summary>
+        Staff,
+        /// <summary>A rolled message: on a messenger bird's leg, then in the hands of the one who took it, reading it.</summary>
+        Letter,
+        /// <summary>A chunk of honeycomb a raiding bear knocked down, on the ground at its nose while it licks at it.</summary>
+        Honey
+    }
+
+    /// <summary>A town guard's weapon, by its folk: how long, and where it's worn sheathed.</summary>
+    public static class GuardWeapons
+    {
+        /// <summary>The weapon's length (m, at scale 1): spear, axe, bow, club, great club.</summary>
+        public static float Length(GuardKit kit) => kit switch
+        {
+            GuardKit.Dwarf => 0.95f,
+            GuardKit.Elf => 1.1f,
+            GuardKit.Goblin => 0.55f,
+            GuardKit.Ogre => 1.15f,
+            _ => 2.1f
+        };
+
+        /// <summary>
+        /// Worn across the back if it's long for its bearer (over 0.6 of its height, about twice its hip height),
+        /// else at the hip: the same on every machine, from the folk's kit and the bearer's size alone.
+        /// </summary>
+        public static bool OnBack(GuardKit kit, float scale, float standHeight) =>
+            Length(kit) * scale > 0.6f * 2f * standHeight * scale;
     }
 
     /// <summary>A creature's position, heading, gait and what it's up to.</summary>
@@ -291,8 +414,18 @@ namespace Punchy.Fauna
         public float YawRate;
         /// <summary>Spring state for tails and ears (lags the turns).</summary>
         public float Sway;
-        /// <summary>Head turn relative to the body, radians.</summary>
+        /// <summary>Head turn relative to the body, radians; and up (+) or down (−), radians.</summary>
         public float Look;
+        public float LookPitch;
+        /// <summary>
+        /// What it's looking at, for a glance (Look/LookPitch turn the head there): a point (LookKind 0), a creature it
+        /// follows (1: LookEntity), or the player (2); for LookFor more seconds, then none for LookCool. Set by the
+        /// brain (CreatureBrainSystem.Glance), readable by any behaviour that wants to know where it's looking.
+        /// </summary>
+        public float3 LookAt;
+        public Entity LookEntity;
+        public float LookFor, LookCool;
+        public byte LookKind;
         public float Scale;
         public float2 Target;
         public float Timer;
@@ -353,6 +486,14 @@ namespace Punchy.Fauna
         public short LairCave, LairNode;
         /// <summary>Who is petting or carrying it (see Interactions.HolderId; 0 = nobody).</summary>
         public int Holder;
+        /// <summary>What it has in hand (folk: a lantern at night). Replicated; each machine draws it.</summary>
+        public HeldItem Held;
+        /// <summary>A guard: which leg of its round it's on; and how long before it goes after another beast (s).
+        /// Simulation only (not sent).</summary>
+        public byte RouteLeg;
+        public float ChaseCooldown;
+        /// <summary>A guard with its weapon drawn: how long since anything needed it (it's put away after a while).</summary>
+        public float WeaponCalm;
 
         // Needs, 0 (satisfied) to 1 (pressing): they rise with time by the species' tastes and are eased by the
         // activity that meets them; what it decides to do next is weighted by them. Simulation only (not sent).
@@ -370,6 +511,25 @@ namespace Punchy.Fauna
         public quaternion Rotation;
         public float RadiusStart, RadiusEnd, Flatten, Pad;
         public float4 Color;
+        /// <summary>x: what it's made of (a SegmentMaterial, as a float), shaded to match; yzw spare.</summary>
+        public float4 Material;
+    }
+
+    /// <summary>What a drawn segment is made of, for the creature shader (stored as a float in SegmentInstance.Material.x).</summary>
+    public enum SegmentMaterial : byte
+    {
+        /// <summary>A body as it always was: skin, fur, feathers, scales (soft, wrapped light).</summary>
+        Body,
+        /// <summary>Matte, a fine weave, soft folds.</summary>
+        Cloth,
+        /// <summary>A soft sheen, fine grain, worn darker at the ends, a line of stitches.</summary>
+        Leather,
+        /// <summary>Glossy: the shared metal look (Metal.hlsl, as the world's metal parts): the sky reflected, a sharp highlight, glints; a hammered surface.</summary>
+        Metal,
+        /// <summary>Grain streaks along its length.</summary>
+        Wood,
+        /// <summary>Ivory, a waxy sheen, small pits.</summary>
+        Bone
     }
 
     /// <summary>A specimen held in a pose for a test ("-pose"): the brain leaves it alone; DebugControls poses it.</summary>
@@ -432,8 +592,13 @@ namespace Punchy.Fauna
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<CreatureBlob>();
             root.BodyLength = species.BodyLength;
-            root.FrontRadius = species.BodyRadius;
-            root.RearRadius = species.BodyRadius * species.BodyTaper;
+            // A variant's own proportions (a child's big head, chunky limbs and short legs) on the body it's based on.
+            var own = variant != species;
+            var headScale = own ? variant.VariantHead : 1f;
+            var thickness = own ? variant.VariantThickness : 1f;
+            var legScale = own ? variant.VariantLegs : 1f;
+            root.FrontRadius = species.BodyRadius * thickness;
+            root.RearRadius = species.BodyRadius * species.BodyTaper * thickness;
             root.BodyFlatten = species.BodyFlatten;
             root.WalkSpeed = species.WalkSpeed;
             root.RunSpeed = math.max(species.RunSpeed, species.WalkSpeed * 1.3f);
@@ -471,6 +636,18 @@ namespace Punchy.Fauna
             root.LavaDweller = species.LavaDweller;
             root.CaveAffinity = variant.CaveAffinity;
             root.Crawls = species.Crawls;
+            root.DrawnToLight = species.DrawnToLight;
+            root.DrivenOff = species.DrivenOff;
+            root.GuardKit = species.GuardKit;
+            // (Alpha 0: a segment colour's alpha is how much it glows, and armour doesn't.)
+            root.GuardArmour = new float4(((Vector4)species.GuardArmour.linear).x, ((Vector4)species.GuardArmour.linear).y, ((Vector4)species.GuardArmour.linear).z, 0f);
+            root.GuardSash = new float4(((Vector4)species.GuardSash.linear).x, ((Vector4)species.GuardSash.linear).y, ((Vector4)species.GuardSash.linear).z, 0f);
+            root.Soars = species.Soars;
+            root.Breaches = species.Breaches && species.Habitat == Habitat.Swims;
+            root.RaidsHives = species.RaidsHives;
+            root.Hands = species.Parts.Exists(p => p != null && p.Limb != null && p.Limb.Role == LimbRole.Arm);
+            root.Child = variant.Child;
+            root.SeenFrom = species.SeenFrom * sizeScale;
             root.Nests = species.Nests;
             root.WebSize = species.WebSize * sizeScale;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));
@@ -514,6 +691,8 @@ namespace Punchy.Fauna
             };
 
             var cursor = 1;
+            // (Whether each part is the head or on it: those all take the head's scale, sockets on it too.)
+            var onHead = new bool[parts.Count];
             for (int i = 0; i < parts.Count; i++)
             {
                 var e = parts[i];
@@ -521,6 +700,13 @@ namespace Punchy.Fauna
                 var limb = slot.Limb;
                 var side = e.Mirrored ? -1f : 1f;
                 var socket = (float3)slot.Socket;
+                onHead[i] = limb.Role == LimbRole.Head || e.Parent >= 0 && onHead[e.Parent];
+                if (e.Parent >= 0 && onHead[e.Parent])
+                    socket *= headScale;
+                var lengthScale = onHead[i] ? headScale : limb.Role == LimbRole.Leg ? legScale : 1f;
+                var radiusScale = onHead[i] ? headScale : thickness;
+                // (The head's own neck, before its last segment, only thickens: a big head, not a long neck.)
+                var neck = limb.Role == LimbRole.Head ? limb.Segments.Count - 1 : 0;
                 if (e.Parent < 0)
                 {
                     // Body units → metres: across the radius at that point along the body, along the half-length.
@@ -553,9 +739,9 @@ namespace Punchy.Fauna
                     var seg = limb.Segments[s];
                     segArray[cursor] = new CreatureSegment
                     {
-                        Length = seg.Length * slot.Scale,
-                        RadiusStart = seg.RadiusStart * slot.Scale * slot.Thickness,
-                        RadiusEnd = seg.RadiusEnd * slot.Scale * slot.Thickness,
+                        Length = seg.Length * slot.Scale * (s < neck ? 1f : lengthScale),
+                        RadiusStart = seg.RadiusStart * slot.Scale * slot.Thickness * (s < neck ? thickness : radiusScale),
+                        RadiusEnd = seg.RadiusEnd * slot.Scale * slot.Thickness * (s < neck ? thickness : radiusScale),
                         Flatten = seg.Flatten,
                         Accent = seg.Accent,
                         Fixed = seg.UseFixedColor ? 1 : 0,
@@ -575,7 +761,36 @@ namespace Punchy.Fauna
             var blob = builder.CreateBlobAssetReference<CreatureBlob>(Allocator.Persistent);
             builder.Dispose();
             MeasureGait(ref blob.Value, species.LeglessStride);
+            MeasureLegs(ref blob.Value);
             return blob;
+        }
+
+        /// <summary>
+        /// Each leg's give (Slack): its thigh and shin at full stretch against the span from hip to ankle in the
+        /// standing pose, chained as the animator chains them (the rest orientation, then each joint's idle angles).
+        /// </summary>
+        static void MeasureLegs(ref CreatureBlob b)
+        {
+            for (int i = 0; i < b.Parts.Length; i++)
+            {
+                ref var part = ref b.Parts[i];
+                if (part.Role != LimbRole.Leg || part.Parent >= 0 || part.SegmentCount < 2)
+                    continue;
+                int s0 = part.FirstSegment, s1 = s0 + 1;
+                var rot = math.mul(part.Rest, quaternion.EulerZXY(b.Poses[s0 * CreatureBlob.PoseCount + CreatureBlob.Idle]));
+                var knee = math.mul(rot, new float3(0f, 0f, b.Segments[s0].Length));
+                rot = math.mul(rot, quaternion.EulerZXY(b.Poses[s1 * CreatureBlob.PoseCount + CreatureBlob.Idle]));
+                var ankle = knee + math.mul(rot, new float3(0f, 0f, b.Segments[s1].Length));
+                part.Slack = math.max(b.Segments[s0].Length + b.Segments[s1].Length - math.length(ankle), 0f);
+                // (On down the rest of the leg, to its foot.)
+                var foot = ankle;
+                for (int j = 2; j < part.SegmentCount; j++)
+                {
+                    rot = math.mul(rot, quaternion.EulerZXY(b.Poses[(s0 + j) * CreatureBlob.PoseCount + CreatureBlob.Idle]));
+                    foot += math.mul(rot, new float3(0f, 0f, b.Segments[s0 + j].Length));
+                }
+                part.Stance = foot;
+            }
         }
 
         /// <summary>How many slots before <paramref name="slotIndex"/> share its style group (its option number).</summary>
