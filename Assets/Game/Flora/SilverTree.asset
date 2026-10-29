@@ -36,6 +36,7 @@ MonoBehaviour:
   Hanging: 0.35
   HangingColor: {r: 0.62, g: 0.68, b: 0.66, a: 1}
   HangingLength: {x: 0.6, y: 1.8}
+  HangingWisps: 1
   Cocoons: 0
   BarkFace: 0
   GlowingVeins: 1

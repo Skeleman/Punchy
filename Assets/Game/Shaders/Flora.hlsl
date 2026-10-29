@@ -128,11 +128,15 @@ FloraVertex FloraTransform(FloraAttributes input)
         float along = (input.positionOS.x + input.positionOS.z) * 1.3;
         float wave = sin(t - free * 4.2 + along);
         float flutter = sin(t * 2.6 - free * 9.0 + input.positionOS.y * 4.1) * free;
-        float amount = free * (0.04 + 0.32 * strength) * plant.scale;
+        float amount = free * (0.06 + 0.4 * strength) * plant.scale;
         float3 windDir3 = float3(_PunchyWindDirection.x, 0, _PunchyWindDirection.y);
-        p += n * (wave * 0.8 + flutter * 0.35) * amount;
-        p += windDir3 * free * strength * 0.55 * plant.scale;   // streaming out downwind
-        p.y -= free * strength * strength * 0.25 * plant.scale;   // and lifting less than it streams
+        p += n * (wave * 0.8 + flutter * 0.5) * amount;
+        // Blown out from where it hangs: turned downwind by an angle that rises quickly with the wind (about 35
+        // degrees on a breezy day, 65 in a storm, a few in calm), so it streams out and lifts as well.
+        float angle = 1.15 * pow(saturate((strength - 0.05) / 0.8), 0.6) * (0.85 + 0.15 * wave);
+        float reach = free * 1.5 * plant.scale;
+        p += windDir3 * reach * sin(angle);
+        p.y += reach * (1 - cos(angle));
     }
 
     FloraVertex o;

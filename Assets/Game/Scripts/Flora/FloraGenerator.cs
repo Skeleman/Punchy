@@ -1504,17 +1504,24 @@ namespace Punchy.Flora
                 for (int k = 0; k < strands; k++)
                 {
                     var top = AlongLimb(limb, g.Range(0.35f, 1f));
-                    // Down past the underside of the crown (where the limb leaves the trunk), then the strand's own length.
-                    var length = g.Range(s.HangingLength.x, s.HangingLength.y) + Mathf.Max(top.y - limb[0].y, 0f);
+                    // Down past the underside of the crown (where the limb leaves the trunk), then the strand's own
+                    // length, varying a lot strand to strand.
+                    var length = g.Range(s.HangingLength.x, s.HangingLength.y) * g.Range(0.5f, 1.25f) + Mathf.Max(top.y - limb[0].y, 0f);
                     var drift = g.Flat(g.R() * 6.28f) * length * 0.12f;
                     var bow = g.Flat(g.R() * 6.28f) * g.Range(0.1f, 0.3f);
+                    // A slow wander and a twist about the line of fall, so no strand hangs dead straight.
+                    var side = g.Flat(g.R() * 6.28f);
+                    var side2 = Vector3.Cross(Vector3.up, side);
+                    float bends = g.Range(1.2f, 2.5f), phase = g.R() * 6.28f, wander = g.Range(0.08f, 0.18f);
                     var path = new List<Vector3>();
                     var radii = new List<float>();
                     for (int j = 0; j < points; j++)
                     {
                         var t = j / (points - 1f);
-                        path.Add(top + drift * t * t + bow * Mathf.Sin(t * Mathf.PI) + Vector3.down * length * t);
-                        radii.Add(Mathf.Lerp(0.05f, 0.025f, t));
+                        var twist = (side * Mathf.Sin(t * bends * Mathf.PI + phase) + side2 * Mathf.Cos(t * bends * 1.7f * Mathf.PI + phase) * 0.6f) * wander * t;
+                        path.Add(top + drift * t * t + bow * Mathf.Sin(t * Mathf.PI) + twist + Vector3.down * length * t);
+                        // Tapering to a fine tip.
+                        radii.Add(Mathf.Lerp(0.05f, 0.008f, Mathf.Pow(t, 0.8f)));
                     }
                     var anchor = top.y;
                     Rope(g, path, radii, p => (anchor - p.y) * 0.08f);
@@ -1555,12 +1562,33 @@ namespace Punchy.Flora
         }
 
         /// <summary>One vine (see Hanging): the rope, leaves in twos and threes every half metre or so (a metre at LOD1),
-        /// flat and tilted every way off the rope so they read as leaves rather than beads, and the sway.</summary>
+        /// flat and tilted every way off the rope so they read as leaves rather than beads, and the sway. Wispy species
+        /// (FloraSpecies.HangingWisps) get a few fine threads fanning a little apart instead, with no leaves.</summary>
         static void Rope(Grower g, List<Vector3> path, List<float> radii, System.Func<Vector3, float> swing)
         {
             var b = g.B;
             var first = b.VertexCount;
             var leaf = g.S.HangingColor.linear * g.Range(0.85f, 1.15f);
+            if (g.S.HangingWisps)
+            {
+                var threads = g.Lod == 0 ? 4 : 2;
+                for (int k = 0; k < threads; k++)
+                {
+                    var fan = g.Flat(g.R() * 6.28f) * g.Range(0.04f, 0.14f);
+                    var cut = g.Range(0.55f, 1f);
+                    var thread = new List<Vector3>();
+                    var fine = new List<float>();
+                    for (int j = 0; j < path.Count; j++)
+                    {
+                        var t = j / (path.Count - 1f);
+                        thread.Add(path[0] + (path[j] - path[0]) * cut + fan * t);
+                        fine.Add(Mathf.Lerp(0.014f, 0.003f, t));
+                    }
+                    b.Tube(thread, fine, 3, leaf * g.Range(0.8f, 1.2f), FloraPart.Foliage);
+                }
+                b.Sway(first, swing);
+                return;
+            }
             b.Tube(path, radii, g.Sides(5, 4, 3), leaf * 0.7f, FloraPart.Foliage);
             var step = g.Lod == 0 ? 0.5f : 1f;
             var walked = g.Range(0.2f, step);
