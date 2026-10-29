@@ -304,7 +304,8 @@ Shader "Punchy/Flora"
                 // the species' own amount (carried as a fraction on the part; 0 for crystals), out of step plant to plant.
                 if (part == 5)
                 {
-                    float amount = saturate((input.extra.x - 5) / 0.4);
+                    // A steady glow beyond 100 m, where the shimmer can't be seen.
+                    float amount = saturate((input.extra.x - 5) / 0.4) * (1 - smoothstep(80, 100, distance(input.positionWS, GetCameraPositionWS())));
                     float pulse = 1 + amount * sin(_PunchyClock * 0.55 + r * 40 + input.positionWS.y * 0.7);
                     // Brighter in the dark of a cave (eyes adjusted to the dark see the glow stand out).
                     color += albedo * 1.6 * pulse * lerp(1, 2.5, _PunchyUnderground);
