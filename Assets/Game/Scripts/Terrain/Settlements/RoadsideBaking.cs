@@ -19,6 +19,8 @@ namespace Punchy.Terrain
         const float Apart = 260f;
         /// <summary>Clear ground between a landmark's edge and the road beside it (m).</summary>
         const float Verge = 3f;
+        /// <summary>No fork signpost within this far of a settlement's edge (m).</summary>
+        const float TownClear = 80f;
 
         /// <summary>A road's centreline, its width and the settlement it belongs to (RoadBaking).</summary>
         public struct RoadPath
@@ -288,10 +290,13 @@ namespace Punchy.Terrain
                     Max = math.max(from.xz, to.xz) + reach
                 });
                 // A signpost at the fork, on the spur's side a few paces along, facing the road (the road's own
-                // settlement's signpost).
+                // settlement's signpost); none within TownClear of a settlement's edge (F-43).
                 var town = settlements[road.Settlement];
                 var layout = layouts[town.Layout];
-                if (layout.Signpost != null)
+                var nearTown = false;
+                foreach (var s in settlements)
+                    nearTown |= math.distance(at, s.Centre) < s.Radius + TownClear;
+                if (layout.Signpost != null && !nearTown)
                 {
                     var post = at + normal * (road.Width * 0.5f + 1.2f) + tangent * 3f;
                     plots.Add(new SettlementPlot
