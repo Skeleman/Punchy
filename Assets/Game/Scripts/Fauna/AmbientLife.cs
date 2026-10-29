@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 using Punchy.Flora;
 using Punchy.Terrain;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -73,9 +75,73 @@ namespace Punchy.Fauna
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void Reset()
         {
+            EndSettling();
             cells.Clear();
             now.Clear();
             frame = -1;
+        }
+
+        // Settling new cells (a tree search and eight ground and surface samples each) runs in a Burst job off the main
+        // thread, a batch of the nearest missing cells at a time, collected a frame or so later: a glide over new ground
+        // used to settle a whole row of cells on the main thread in one frame (20-25 ms).
+        const int CellsPerJob = 16;
+        static JobHandle settleHandle;
+        static bool settling;
+        static TerrainSource settleSource;
+        static NativeArray<int2> settleCells;
+        static NativeList<Resident> settleResidents;
+        static NativeArray<int> settleEnds;
+        static readonly List<int2> missing = new List<int2>();
+
+        [BurstCompile]
+        struct SettleJob : IJob
+        {
+            public TerrainSource Terrain;
+            public BlobAssetReference<FloraBlob> Flora;
+            [ReadOnly] public NativeArray<int2> Cells;
+            public NativeList<Resident> Residents;
+            public NativeArray<int> Ends;
+
+            public void Execute()
+            {
+                for (int i = 0; i < Cells.Length; i++)
+                {
+                    Settle(Cells[i], Terrain, ref Flora.Value, ref Residents);
+                    Ends[i] = Residents.Length;
+                }
+            }
+        }
+
+        /// <summary>Takes a finished settling job's cells into the cache (if still the same island).</summary>
+        static void CollectSettled(in TerrainSource terrain)
+        {
+            if (!settling || !settleHandle.IsCompleted)
+                return;
+            settleHandle.Complete();
+            if (settleSource.Equals(terrain))
+            {
+                var from = 0;
+                for (int i = 0; i < settleCells.Length; i++)
+                {
+                    var residents = new Resident[settleEnds[i] - from];
+                    for (int k = 0; k < residents.Length; k++)
+                        residents[k] = settleResidents[from + k];
+                    cells[settleCells[i]] = residents;
+                    from = settleEnds[i];
+                }
+            }
+            EndSettling();
+        }
+
+        static void EndSettling()
+        {
+            if (!settling)
+                return;
+            settleHandle.Complete();
+            settleCells.Dispose();
+            settleResidents.Dispose();
+            settleEnds.Dispose();
+            settling = false;
         }
 
         /// <summary>The life round the listener this frame (worked out once a frame, however many ask).</summary>
@@ -108,14 +174,24 @@ namespace Punchy.Fauna
                 if (!pq.IsEmpty)
                     player = pq.GetSingleton<Unity.Transforms.LocalTransform>().Position;
 
+            CollectSettled(terrain);
+            // (High above the ground, flying or gliding, the small life below is out of sight and earshot.)
+            if (ear.y - terrain.SampleHeight(ear.xz) > Range)
+                return now;
+
             var min = (int2)math.floor((ear.xz - Range) / CellSize);
             var max = (int2)math.floor((ear.xz + Range) / CellSize);
+            missing.Clear();
             for (int y = min.y; y <= max.y; y++)
             for (int x = min.x; x <= max.x; x++)
             {
                 var cell = new int2(x, y);
+                // (Cells not worked out yet come in a frame or two later, from the settling job.)
                 if (!cells.TryGetValue(cell, out var residents))
-                    cells[cell] = residents = Settle(cell, terrain, ref flora.Blob.Value);
+                {
+                    missing.Add(cell);
+                    continue;
+                }
                 foreach (var r in residents)
                 {
                     var d = math.distance(r.Spot.xz, ear.xz);
@@ -123,6 +199,20 @@ namespace Punchy.Fauna
                         continue;
                     now.Add(Move(r, t, player, terrain));
                 }
+            }
+            if (missing.Count > 0 && !settling)
+            {
+                var centreCell = ear.xz / CellSize - 0.5f;
+                missing.Sort((a, b) => math.distancesq((float2)a, centreCell).CompareTo(math.distancesq((float2)b, centreCell)));
+                var n = math.min(missing.Count, CellsPerJob);
+                settleCells = new NativeArray<int2>(n, Allocator.Persistent);
+                for (int i = 0; i < n; i++)
+                    settleCells[i] = missing[i];
+                settleResidents = new NativeList<Resident>(n * 4, Allocator.Persistent);
+                settleEnds = new NativeArray<int>(n, Allocator.Persistent);
+                settleSource = terrain;
+                settleHandle = new SettleJob { Terrain = terrain, Flora = flora.Blob, Cells = settleCells, Residents = settleResidents, Ends = settleEnds }.Schedule();
+                settling = true;
             }
             // (Cells long out of range forgotten.)
             if (cells.Count > 400)
@@ -149,11 +239,9 @@ namespace Punchy.Fauna
             _ => false
         };
 
-        /// <summary>Who lives in a cell: from the seed alone, so the same on every machine.</summary>
-        static Resident[] Settle(int2 cell, in TerrainSource terrain, ref FloraBlob flora)
+        /// <summary>Who lives in a cell: from the seed alone, so the same on every machine. (Burst: the settling job.)</summary>
+        static void Settle(int2 cell, in TerrainSource terrain, ref FloraBlob flora, ref NativeList<Resident> list)
         {
-            using var marker = SettleMarker.Auto();
-            var list = new List<Resident>();
             var seed = math.hash(new int3(cell, 0x5EED)) | 1u;
             var rng = new Unity.Mathematics.Random(seed);
             var centre = ((float2)cell + 0.5f) * CellSize;
@@ -181,7 +269,6 @@ namespace Punchy.Fauna
                                                 Spot = new float3(spot.x, ground.Height, spot.y) });
                 }
             }
-            return list.ToArray();
         }
 
         // ------------------------------------------------------------------------------- critter spots

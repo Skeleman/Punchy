@@ -841,9 +841,19 @@ namespace Punchy.Flora
                 struck[bolt.A + bolt.B * 3.1f] = bolt.Struck;
             bolts.Clear();
             var tips = new List<float3>();
+            // Only the tiles within reach: the tree layer holds the island out to the horizon, far too many plants to
+            // walk each time the camera moves (gliding, that's every frame or two).
             for (int li = 1; li < 3 && li < layers.Length; li++)
-                foreach (var kv in layers[li].Tiles)
-                    foreach (var inst in kv.Value)
+            {
+                var size = layers[li].Settings.TileSize;
+                var c0 = (int2)math.floor((camXZ - BoltRange) / size);
+                var c1 = (int2)math.floor((camXZ + BoltRange) / size);
+                for (int ty = c0.y; ty <= c1.y; ty++)
+                for (int tx = c0.x; tx <= c1.x; tx++)
+                {
+                    if (!layers[li].Tiles.TryGetValue(new int2(tx, ty), out var tile))
+                        continue;
+                    foreach (var inst in tile)
                     {
                         if (inst.Model < 0 || inst.Model >= models.Count || models[inst.Model].Species == null || models[inst.Model].Species.Form != FloraForm.ArcSpire)
                             continue;
@@ -851,6 +861,8 @@ namespace Punchy.Flora
                             continue;
                         tips.Add(inst.Position + new float3(0f, models[inst.Model].Height * inst.Scale * 0.85f, 0f));
                     }
+                }
+            }
             // In a fixed order, so the pairing doesn't depend on how the tiles happened to stream in.
             tips.Sort((a, b) => a.x != b.x ? a.x.CompareTo(b.x) : a.z.CompareTo(b.z));
             for (int i = 0; i < tips.Count; i++)
