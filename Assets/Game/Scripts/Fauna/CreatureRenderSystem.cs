@@ -343,6 +343,54 @@ namespace Punchy.Fauna
 
         Punchy.Weather.DayNightCycle skyCycle;
 
+        // ------------------------------------------------------------------------------- doors
+
+        /// <summary>How open each door a resident is passing through is this frame, and last frame's (to shut the rest).</summary>
+        readonly System.Collections.Generic.Dictionary<float3, float> doorsNow = new System.Collections.Generic.Dictionary<float3, float>();
+        readonly System.Collections.Generic.Dictionary<float3, float> doorsBefore = new System.Collections.Generic.Dictionary<float3, float>();
+
+        /// <summary>
+        /// Folk going in and coming out swing their door (FloraDoors, on every machine from the replicated state): it
+        /// opens as they come up to it, stands open while they step through (Home stages 1 and 3; ActionTime runs the step),
+        /// and swings shut behind them. Doors nobody is using go back to their own rhythm.
+        /// </summary>
+        void SwingDoors(NativeArray<CreatureState> states)
+        {
+            doorsNow.Clear();
+            for (int i = 0; i < states.Length; i++)
+            {
+                var c = states[i];
+                if (c.Mode != CreatureMode.Home)
+                    continue;
+                var door = c.Anchor;
+                float amount;
+                if (c.Stage == 0)
+                {
+                    // Coming up to it: opening over the last metre and a half.
+                    var d = math.distance(c.Position.xz, door.xz);
+                    if (d > 1.5f)
+                        continue;
+                    amount = math.saturate((1.5f - d) / 1.1f);
+                }
+                else if (c.Stage == 1)
+                    amount = 1f - math.smoothstep(0.75f, 1f, c.ActionTime);   // through, and shut behind it
+                else if (c.Stage == 2)
+                    continue;
+                else
+                    amount = math.smoothstep(0f, 0.15f, c.ActionTime) + (1f - math.smoothstep(0f, 0.15f, c.ActionTime)) *
+                             (1f - math.saturate(math.distance(c.Position.xz, door.xz) / 1.5f));
+                doorsNow[door] = math.max(doorsNow.TryGetValue(door, out var was) ? was : 0f, amount);
+            }
+            foreach (var kv in doorsNow)
+                Punchy.Flora.FloraDoors.SetOpen(kv.Key, kv.Value);
+            foreach (var kv in doorsBefore)
+                if (!doorsNow.ContainsKey(kv.Key))
+                    Punchy.Flora.FloraDoors.SetOpen(kv.Key, 0f);
+            doorsBefore.Clear();
+            foreach (var kv in doorsNow)
+                doorsBefore[kv.Key] = kv.Value;
+        }
+
         /// <summary>
         /// Seconds on the shared clock, counting whole days (the day and time of day every machine shares; a paused
         /// clock, for screenshots, runs on local time), and the hour.
@@ -404,6 +452,7 @@ namespace Punchy.Fauna
                     entities = e2;
                 }
             }
+            SwingDoors(states);
             var offsets = new NativeArray<int>(bodies.Length, Allocator.TempJob);
             var hanging = new NativeList<float3>(8, Allocator.Temp);
             var emoting = new NativeList<float3>(2, Allocator.Temp);
