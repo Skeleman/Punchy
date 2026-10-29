@@ -63,6 +63,11 @@ feature code, and it never edits files in another session's checkout.
    main PC `Builds/Windows/Punchy.exe` (player) and `Builds/Dev/Punchy.exe` (development); kind-possum its own two
    fixed paths. To keep an older build, archive a copy elsewhere, but run only from the fixed path. Never click or
    change firewall prompts or rules yourself.
+12c. **Bench cadence (Zach via the animal session, 2026-10-29):** kind-possum runs one short smoke bench (town walk
+   plus glide: avg and 1% lows) per lane batch push, not per feature. Full profiles only when a smoke bench
+   regresses, then bisect between batches. Full multiplayer and GPU passes before each release candidate. Reports
+   are numbers only unless something regressed. Bench stops must use fixed, named places that exist on every
+   island version, or compare same-island builds only (tonight's v0.7.0 vs RC compare was apples to oranges).
 13. **Waiting on someone:** before blocking on another session, ask that session whether you actually need to
    wait. If they don't answer within the hour, ask the supervisor.
 
