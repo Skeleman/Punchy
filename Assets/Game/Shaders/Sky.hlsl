@@ -29,7 +29,8 @@ float  _PunchyHazeDensity;     // base exponential-squared haze per metre (hides
 
 float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
-float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share, blue moon (0..1)
+float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share
+float3 _PunchyBlueMoon;        // towards the second, smaller blue moon
 half3  _PunchySunColor;        // sun colour × brightness (0 once set)
 half3  _PunchySkyZenith;
 half3  _PunchySkyHorizon;      // also the fog colour, so distant terrain fades seamlessly into the sky
@@ -380,26 +381,41 @@ half3 PunchyStars(float3 dir)
     return smoothstep(0.25, 0, d) * twinkle * lerp(half3(0.8, 0.85, 1.0), half3(1.0, 0.9, 0.75), frac(h * 731));
 }
 
-// The moon's disc where a direction falls on it: lit by the phase as a sphere (the terminator sweeping across it),
-// with a faint earthshine on its dark side and a few darker seas; blue-white under a blue moon. 0 off the disc.
-half3 PunchyMoonDisc(float3 dir)
+// A moon's disc where a direction falls on it: a sphere of angular radius `radius` towards `m`, lit from `toLight`
+// (in disc space: x right, y up, z towards the viewer), with a soft terminator, a few darker seas and a trace of
+// earthshine on its dark side. `cover` (out) is how much of the sky behind it the disc hides. 0 off the disc.
+half3 PunchyMoonFace(float3 dir, float3 m, float radius, float3 toLight, half3 tint, out half cover)
 {
-    float3 m = _PunchyMoonDirection;
     float moonDot = dot(dir, m);
-    float edge = smoothstep(0.99982, 0.99987, moonDot);
-    if (edge <= 0)
+    float edgeCos = cos(radius);
+    cover = smoothstep(edgeCos - radius * radius * 0.08, edgeCos + radius * radius * 0.08, moonDot);
+    if (cover <= 0)
         return 0;
     float3 right = normalize(cross(float3(0, 1, 0), m));
     float3 up = cross(m, right);
     float3 v = dir - m * moonDot;
-    float2 uv = float2(dot(v, right), dot(v, up)) / 0.0172;   // -1..1 across the disc
-    float3 n = normalize(float3(uv, sqrt(saturate(1 - dot(uv, uv)))));   // towards the viewer is +z
-    float a = _PunchyMoonPhase.x * 6.2832;
-    float3 toSun = float3(sin(a), 0.15 * sin(a), -cos(a));   // full (0.5): facing us; new (0): behind
-    half lit = smoothstep(-0.04, 0.08, dot(n, normalize(toSun)));
+    float2 uv = float2(dot(v, right), dot(v, up)) / sin(radius);   // -1..1 across the disc
+    float3 n = float3(uv, sqrt(saturate(1 - dot(uv, uv))));
+    half lit = smoothstep(-0.04, 0.08, dot(n, normalize(toLight)));
     half seas = 1 - 0.22 * smoothstep(0.35, 0.65, PunchyValueNoise(uv * 2.3 + 7.1));
-    half3 tint = lerp(half3(0.9, 0.92, 1.0), half3(0.62, 0.78, 1.15), _PunchyMoonPhase.z);
-    return tint * edge * (lit * seas + 0.012) * 1.6;
+    return tint * cover * (lit * seas + 0.012) * 1.6;
+}
+
+// Both moons where a direction falls on them: the big moon lit by its phase, the small blue one by the sun from
+// wherever it stands. `cover` (out) is how much they hide the sky behind.
+half3 PunchyMoonDisc(float3 dir, out half cover)
+{
+    float a = _PunchyMoonPhase.x * 6.2832;
+    half bigCover, blueCover;
+    half3 moons = PunchyMoonFace(dir, _PunchyMoonDirection, 0.0172, float3(sin(a), 0.15 * sin(a), -cos(a)), half3(0.9, 0.92, 1.0), bigCover);
+    // The blue moon: lit from the sun's real direction, seen in its own disc's frame.
+    float3 b = _PunchyBlueMoon;
+    float3 right = normalize(cross(float3(0, 1, 0), b));
+    float3 up = cross(b, right);
+    float3 toSun = float3(dot(_PunchySunDirection, right), dot(_PunchySunDirection, up), -dot(_PunchySunDirection, b));
+    moons += PunchyMoonFace(dir, b, 0.0095, toSun, half3(0.55, 0.75, 1.25), blueCover) * (1 - bigCover);
+    cover = max(bigCover, blueCover);
+    return moons;
 }
 
 // The sky without the volumetric clouds: gradient, sun and moon, stars, cirrus, horizon haze. With
@@ -421,11 +437,12 @@ half3 PunchySkyColor(float3 dir, bool withDiscs, bool approximateClouds)
         half3 night = PunchyStars(dir) * _PunchyNight;
         if (withDiscs)
         {
-            night += PunchyMoonDisc(dir) * _PunchyNight;
+            half moonCover;
+            night += PunchyMoonDisc(dir, moonCover) * _PunchyNight;
             sky += _PunchySunColor * smoothstep(0.9994, 0.9997, sunDot) * 12 * clearness;
         }
         // The glow round the moon brightens with its lit share (none round a new moon), bluer under a blue moon.
-        half3 halo = lerp(half3(0.35, 0.42, 0.6), half3(0.3, 0.45, 0.8), _PunchyMoonPhase.z) * (0.08 + 0.92 * _PunchyMoonPhase.y);
+        half3 halo = half3(0.35, 0.42, 0.6) * (0.08 + 0.92 * _PunchyMoonPhase.y);
         // The moon's own face (its dark side too) hides the glow behind it.
         halo *= 1 - smoothstep(0.99982, 0.99987, moonDot) * withDiscs;
         sky += halo * pow(moonDot, 40) * 0.25 * _PunchyNight + night;

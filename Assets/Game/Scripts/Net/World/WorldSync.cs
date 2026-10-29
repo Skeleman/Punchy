@@ -19,6 +19,8 @@ namespace Punchy.Net
         [GhostField(Quantization = 100)] public float PressureTime;
         [GhostField(Quantization = 10)] public float2 PressureOffset;
         [GhostField(Quantization = 100000)] public float2 CloudOffset;
+        /// <summary>Whole days since the start: with the time of day it sets both moons' phases.</summary>
+        [GhostField] public int Day;
     }
 
     /// <summary>One of the host's weather cells (WeatherField.CellState).</summary>
@@ -142,6 +144,7 @@ namespace Punchy.Net
             carried = new WorldState
             {
                 TimeOfDay = Cycle != null ? Cycle.TimeOfDay : 12f,
+                Day = Cycle != null ? Cycle.Day : 0,
                 DayType = Weather.DayTypeIndex,
                 WindAngle = Weather.WindAngle,
                 PressureTime = Weather.Field.PressureTime,
@@ -158,7 +161,10 @@ namespace Punchy.Net
             if (Weather == null || !Weather.Field.Ready)
                 return false;
             if (Cycle != null)
+            {
                 Cycle.TimeOfDay = carried.TimeOfDay;
+                Cycle.Day = carried.Day;
+            }
             if (Weather.DayTypeIndex != carried.DayType)
                 Weather.SetDayType(carried.DayType, false);
             Weather.WindAngle = carried.WindAngle;
@@ -212,6 +218,7 @@ namespace Punchy.Net
             em.SetComponentData(stateGhost, new WorldState
             {
                 TimeOfDay = Cycle != null ? Cycle.TimeOfDay : 12f,
+                Day = Cycle != null ? Cycle.Day : 0,
                 DayType = Weather.DayTypeIndex,
                 WindAngle = Weather.WindAngle,
                 PressureTime = field.Ready ? field.PressureTime : 0f,
@@ -314,7 +321,10 @@ namespace Punchy.Net
                 return;
             var state = em.GetComponentData<WorldState>(ghost);
             if (Cycle != null)
+            {
                 Cycle.TimeOfDay = state.TimeOfDay;
+                Cycle.Day = state.Day;
+            }
             if (Weather == null)
                 return;
             if (Weather.DayTypeIndex != state.DayType)
