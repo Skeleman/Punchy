@@ -338,6 +338,12 @@ namespace Punchy.Fauna
                     else
                         NightLoop(ref s, ref b, ref rng);
                 }
+                // Rooted to the spot: it never runs from anything; what comes within reach, it snaps at.
+                if (b.Rooted)
+                {
+                    threatened = false;
+                    Snap(self, ref s, ref b, player, ref rng);
+                }
                 // A beast scared inside a town (by a guard, or bolting with the rest of its pack) takes itself off
                 // somewhere else: its range moved out past the edge the way it's running, so it isn't held to ground
                 // inside the place and doesn't come straight back.
@@ -372,7 +378,7 @@ namespace Punchy.Fauna
                     }
                     s.Focus = threat;
                 }
-                else if (emote != IdleAction.None)
+                else if (emote != IdleAction.None && !b.Rooted)
                     Answer(ref s, ref b, ref rng, emote, player, playerDistance, dt);
 
                 // A ghost abroad at night: someone coming close and it's gone, to appear again further off (dithering
@@ -574,6 +580,12 @@ namespace Punchy.Fauna
                         lie = b.Upright || flier ? 0f : 1f;
                         sit = flier ? 0.6f : 0f;
                         desiredLook = idleLook;
+                        // Passing for a plant: legs tucked right under, head still.
+                        if (b.Disguised)
+                        {
+                            curl = 1f;
+                            desiredLook = 0f;
+                        }
                         if (s.Timer <= 0f)
                             Pause(ref s, ref b, ref rng);
                         break;
@@ -1028,6 +1040,22 @@ namespace Punchy.Fauna
                 if (s.Task == CreatureTask.Fish && sleepy < 0.5f && math.all(s.WorkSpot == float2.zero) && !FindFishingSpot(ref s))
                     s.Task = CreatureTask.None;
 
+                // Rooted to the spot: it only waits, awake or (in its sleeping hours) closed up asleep.
+                if (b.Rooted)
+                {
+                    SetMode(ref s, sleepy > 0.5f ? CreatureMode.Sleep : CreatureMode.Idle);
+                    s.Timer = sleepy > 0.5f ? rng.NextFloat(90f, 300f) : rng.NextFloat(5f, 15f);
+                    return;
+                }
+                // Passing for a plant: it mostly sits still, and only now and then (in its waking hours) creeps off
+                // somewhere new.
+                if (b.Disguised && (sleepy > 0.5f || rng.NextFloat() < 0.85f))
+                {
+                    SetMode(ref s, sleepy > 0.5f ? CreatureMode.Sleep : CreatureMode.Rest);
+                    s.Timer = rng.NextFloat(30f, 90f);
+                    return;
+                }
+
                 // Find company first: the options depend on it.
                 var playmate = Entity.Null;
                 // (A critter runs light: no company to look for.)
@@ -1294,7 +1322,8 @@ namespace Punchy.Fauna
                         s.ActionTime = 0f;
                     }
                 }
-                else if (calm && b.Idles != IdleActions.None && s.Speed < 0.1f && rng.NextFloat() < dt * b.Fidgets * 0.15f)
+                else if (calm && b.Idles != IdleActions.None && s.Speed < 0.1f && !(b.Disguised && s.Mode == CreatureMode.Rest) &&
+                         rng.NextFloat() < dt * b.Fidgets * 0.15f)
                     StartAction(ref s, ref b, ref rng, lying, perched || s.Mode == CreatureMode.Climb, Night);
                 // A howl is taken up by the rest of the pack, one after another.
                 else if (calm && !lying && (b.Idles & IdleActions.Howl) != 0 && s.Speed < 0.1f && Night > 0.5f &&
@@ -1480,6 +1509,61 @@ namespace Punchy.Fauna
                     s.Stage = 1;
                     targetSpeed = b.RunSpeed * s.Scale;
                 }
+            }
+
+            /// <summary>
+            /// A rooted creature: the nearest thing within its reach (Flee Distance; half that asleep), the player or
+            /// another animal, and now and then (every third of a second or so while it stays) it whips round and
+            /// snaps at it, waking if it was asleep.
+            /// </summary>
+            void Snap(Entity self, ref CreatureState s, ref CreatureBlob b, float3 player, ref Random rng)
+            {
+                if (s.Action == IdleAction.Snap || b.FleeDistance <= 0f || rng.NextFloat() > Dt * 3f)
+                    return;
+                var reach = b.FleeDistance * s.Scale * (s.Mode == CreatureMode.Sleep ? 0.5f : 1f);
+                var best = reach;
+                var at = float2.zero;
+                var found = false;
+                var d = math.distance(player, s.Position);
+                if (d < best)
+                {
+                    best = d;
+                    at = player.xz;
+                    found = true;
+                }
+                var c = Cell(s.Position.xz);
+                var r = (int)math.ceil(reach / CellSize);
+                for (int z = -r; z <= r; z++)
+                for (int x = -r; x <= r; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        if (Entities[j] == self || Bodies[j].Blob.Value.Rooted)
+                            continue;
+                        var e = math.distance(States[j].Position, s.Position);
+                        if (e < best)
+                        {
+                            best = e;
+                            at = States[j].Position.xz;
+                            found = true;
+                        }
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                if (!found)
+                    return;
+                if (s.Mode != CreatureMode.Idle)
+                {
+                    SetMode(ref s, CreatureMode.Idle);
+                    s.Timer = rng.NextFloat(5f, 15f);
+                }
+                var to = at - s.Position.xz;
+                if (math.lengthsq(to) > 1e-4f)
+                    s.Yaw = math.atan2(to.x, to.y);
+                s.Action = IdleAction.Snap;
+                s.ActionTime = 0f;
+                s.ActionLength = 0.7f;
             }
 
             static void Tired(ref CreatureState s, ref Random rng)

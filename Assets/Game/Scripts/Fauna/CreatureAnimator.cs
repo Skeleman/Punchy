@@ -621,6 +621,16 @@ namespace Punchy.Fauna
                     if (part.Role == LimbRole.Head) return new float3(0.45f * e, 0f, 0f);
                     if (part.Role == LimbRole.Neck) return new float3(0.3f * e, 0f, 0f);
                     break;
+                case IdleAction.Snap:
+                {
+                    // A rooted snapper striking: the stem (its neck) whips out over what came near and the head bites
+                    // down, quick; then it draws slowly back up. Its jaws (ears) clap shut at the bite.
+                    var strike = math.smoothstep(0f, 0.12f, t) * (1f - math.smoothstep(0.35f, 1f, t));
+                    if (part.Role == LimbRole.Neck) return new float3(1.1f * strike / n, 0f, 0f);
+                    if (part.Role == LimbRole.Head) return new float3(0.5f * strike, 0f, 0f);
+                    if (part.Role == LimbRole.Ear) return new float3(0.7f * strike, 0f, 0f);
+                    break;
+                }
                 case IdleAction.Throw:
                     // A player lunging at game: right arm thrown forward, leaning into it (a body with no arms lunges
                     // head first).

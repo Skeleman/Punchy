@@ -158,6 +158,12 @@ namespace Punchy.Fauna
         public Color GuardArmour = new Color(0.55f, 0.57f, 0.6f);
         [Tooltip("Their sash, down the front: the town's colour (as on its hall's banners), so its guards read as one.")]
         public Color GuardSash = new Color(0.62f, 0.12f, 0.1f);
+        [Tooltip("Rooted to the spot where it grew (a snapping flower): never walks or runs, and snaps at anything that comes " +
+                 "within its Flee Distance (the player or another animal) instead of running from it.")]
+        public bool Rooted;
+        [Tooltip("Passes for a plant (a scuttling bush): mostly sits still with its legs tucked under it, not looking about " +
+                 "or fidgeting, until something comes within its Flee Distance; then it runs, to settle somewhere else.")]
+        public bool Disguised;
 
         [Header("Flight (habitat Flies)")]
         [Tooltip("Height above the ground it cruises at, in metres.")]
@@ -253,7 +259,9 @@ namespace Punchy.Fauna
         // A guard drawing its weapon from its sheath (on its back or at its hip), or putting it away.
         Draw, Sheathe,
         // A player climbing up onto a ledge: hands on the rim, pulling up, a knee coming up over.
-        Mantle
+        Mantle,
+        // A rooted creature striking at something within reach (not an idle action any species picks).
+        Snap
     }
 
     public enum ActiveTime : byte

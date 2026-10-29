@@ -62,6 +62,10 @@ namespace Punchy.Fauna
         public bool Child;
         /// <summary>Drawn and kept about from this far off; 0 = as any other (see CreatureSpecies.SeenFrom).</summary>
         public float SeenFrom;
+        /// <summary>Never moves, and snaps at what comes near (see CreatureSpecies.Rooted).</summary>
+        public bool Rooted;
+        /// <summary>Sits still as a plant until startled (see CreatureSpecies.Disguised).</summary>
+        public bool Disguised;
 
         public BlobArray<CreaturePart> Parts;
         public BlobArray<CreatureSegment> Segments;
@@ -648,6 +652,8 @@ namespace Punchy.Fauna
             root.Hands = species.Parts.Exists(p => p != null && p.Limb != null && p.Limb.Role == LimbRole.Arm);
             root.Child = variant.Child;
             root.SeenFrom = species.SeenFrom * sizeScale;
+            root.Rooted = species.Rooted;
+            root.Disguised = species.Disguised;
             root.Nests = species.Nests;
             root.WebSize = species.WebSize * sizeScale;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));
