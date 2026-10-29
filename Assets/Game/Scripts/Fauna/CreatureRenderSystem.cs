@@ -76,6 +76,16 @@ namespace Punchy.Fauna
         const int BatParts = 4, ColonyMax = 10;
         const float ColonyRange = 45f;
         Unity.Collections.NativeList<int> roosts;
+        /// <summary>
+        /// Bees at the wild hives near the camera (Hive anchors): drawn only, like the colonies, never simulated or
+        /// sent. By day SwarmRound circle the comb and SwarmForagers fly out to the ground near it and back; at night a
+        /// few crawl on the comb. Someone coming close sets SwarmChasers on them for a few seconds.
+        /// </summary>
+        const int SwarmRound = 26, SwarmForagers = 6, SwarmNight = 8, SwarmChasers = 9;
+        const float SwarmRange = 40f, SwarmAngerDistance = 5f, SwarmChaseTime = 6f, SwarmCalmTime = 20f;
+        Unity.Collections.NativeList<int> hives;
+        /// <summary>When each hive (by anchor index) last set its bees on someone: per machine, for looks only.</summary>
+        readonly System.Collections.Generic.Dictionary<int, float> hiveAngry = new System.Collections.Generic.Dictionary<int, float>();
 
         protected override void OnCreate()
         {
@@ -87,6 +97,7 @@ namespace Punchy.Fauna
         protected override void OnDestroy()
         {
             if (roosts.IsCreated) roosts.Dispose();
+            if (hives.IsCreated) hives.Dispose();
             buffer?.Release();
             buffer = null;
         }
@@ -122,6 +133,74 @@ namespace Punchy.Fauna
                 output[at++] = Part(top + down * 0.1f * size, hang, 0.015f * size, 0.022f * size, 0.02f * size, 1f, fur, faded);
                 for (int w = -1; w <= 1; w += 2)
                     output[at++] = Part(top + side * w * 0.025f * size, hang, 0.1f * size, 0.03f * size, 0.02f * size, 0.25f, wing, faded);
+            }
+            return at;
+        }
+
+        /// <summary>
+        /// Writes a hive's bees, one tiny capsule each, along the way it's flying: by day SwarmRound weaving round the
+        /// comb (on the trunk, the way the anchor faces) and SwarmForagers each out to a spot on the ground 8 to 20 m off and
+        /// back on its own round trip, hovering there a while; at night SwarmNight crawling slowly over the comb.
+        /// Angry (seconds since someone came too close, while under SwarmChaseTime), SwarmChasers of the round leave it
+        /// to buzz round that one's head, and go back.
+        /// </summary>
+        static int Swarm(in Anchor hive, int index, bool day, float now, float angry, float3 player, float faded,
+                         TerrainSource terrain, NativeArray<SegmentInstance> output, int at)
+        {
+            var rng = new Unity.Mathematics.Random(math.hash(new int2(index, 0xB33)) | 1u);
+            var colour = new float4(0.5f, 0.33f, 0.04f, 0f);
+            // (The comb hangs on the trunk the way the anchor faces: its Size is the trunk's radius and a metre.)
+            var trunk = math.max(hive.Size - 1f, 0.1f);
+            var comb = hive.Position + new float3(hive.Facing.x, 0f, hive.Facing.y) * (trunk + 0.3f);
+            var count = day ? SwarmRound + SwarmForagers : SwarmNight;
+            var up = new float3(0f, 1f, 0f);
+            for (int k = 0; k < count; k++)
+            {
+                var phase = rng.NextFloat(0f, 100f);
+                var speed = rng.NextFloat(1.5f, 3f) * (rng.NextBool() ? 1f : -1f);
+                var reach = rng.NextFloat(0.3f, 1.1f);
+                float3 at3, ahead;
+                if (!day)
+                {
+                    // Crawling on the comb.
+                    var a = phase + now * 0.15f * speed;
+                    at3 = comb + new float3(math.cos(a) * 0.2f, math.sin(a * 1.3f) * 0.3f, math.sin(a) * 0.2f);
+                    ahead = new float3(-math.sin(a), 0f, math.cos(a));
+                }
+                else if (k >= SwarmRound)
+                {
+                    // A forager's round trip: out (the first 40%), round the flower it's at (to 60%), and back.
+                    var trip = rng.NextFloat(20f, 40f);
+                    var u = math.frac(now / trip + phase);
+                    var dir = rng.NextFloat2Direction();
+                    var spot2 = comb.xz + dir * rng.NextFloat(8f, 20f);
+                    var spot = new float3(spot2.x, terrain.SampleHeight(spot2) + 0.4f, spot2.y);
+                    var out_ = math.smoothstep(0f, 0.4f, u) * (1f - math.smoothstep(0.6f, 1f, u));
+                    var lift = math.sin(out_ * math.PI) * 1.5f;
+                    at3 = math.lerp(comb, spot, out_) + up * lift;
+                    var hover = now * 4f + phase;
+                    at3 += new float3(math.cos(hover), math.sin(hover * 1.7f) * 0.5f, math.sin(hover)) * 0.12f;
+                    ahead = math.normalizesafe((spot - comb) * (u < 0.5f ? 1f : -1f), new float3(1f, 0f, 0f));
+                }
+                else
+                {
+                    // Weaving round the comb.
+                    var a = phase + now * speed;
+                    var r = 0.35f + 0.9f * reach;
+                    at3 = comb + new float3(math.cos(a) * r, math.sin(a * 1.9f + phase) * 0.35f, math.sin(a) * r);
+                    ahead = new float3(-math.sin(a), 0f, math.cos(a)) * math.sign(speed);
+                    // Angry: off round the head of whoever came close, and back.
+                    if (k < SwarmChasers && angry >= 0f && angry < SwarmChaseTime)
+                    {
+                        var go = math.smoothstep(0f, 0.8f, angry) * (1f - math.smoothstep(SwarmChaseTime - 1.2f, SwarmChaseTime, angry));
+                        var b = now * 6f + phase;
+                        var head = player + new float3(math.cos(b) * 0.45f, 1.45f + math.sin(b * 1.4f) * 0.25f, math.sin(b) * 0.45f);
+                        at3 = math.lerp(at3, head, go);
+                        ahead = math.lerp(ahead, new float3(-math.sin(b), 0f, math.cos(b)), go);
+                    }
+                }
+                output[at++] = Part(at3 - math.normalizesafe(ahead, new float3(1f, 0f, 0f)) * 0.009f, quaternion.LookRotationSafe(math.normalizesafe(ahead, new float3(1f, 0f, 0f)), up),
+                                    0.028f, 0.011f, 0.009f, 1f, colour, faded);
             }
             return at;
         }
@@ -225,6 +304,25 @@ namespace Punchy.Fauna
             hanging.Dispose();
             emoting.Dispose();
 
+            // Bees at the hives near the camera, set on whoever comes too close by day.
+            if (!hives.IsCreated)
+                hives = new Unity.Collections.NativeList<int>(4, Allocator.Persistent);
+            hives.Clear();
+            if (terrain.Anchors.IsCreated)
+                Punchy.Terrain.Anchors.Near(ref terrain.Anchors.Value, cam.transform.position, SwarmRange, AnchorKind.Hive, ref hives);
+            var day = night < 0.5f;
+            var swarmPlayer = new float3(float.MaxValue);
+            foreach (var t in SystemAPI.Query<RefRO<Unity.Transforms.LocalTransform>>().WithAll<Punchy.Player.PlayerTag>())
+                swarmPlayer = t.ValueRO.Position;
+            for (int i = 0; i < hives.Length; i++)
+            {
+                var hive = terrain.Anchors.Value.Anchors[hives[i]];
+                var last = hiveAngry.TryGetValue(hives[i], out var since) ? since : -1000f;
+                if (day && now - last > SwarmChaseTime + SwarmCalmTime && math.distance(swarmPlayer, hive.Position) < SwarmAngerDistance + hive.Size)
+                    hiveAngry[hives[i]] = now;
+                total += day ? SwarmRound + SwarmForagers : SwarmNight;
+            }
+
             // Footprints and feathers (TraceSystem).
             var traces = World.GetExistingSystemManaged<TraceSystem>();
             var traceCount = traces != null ? traces.Count : 0;
@@ -291,6 +389,13 @@ namespace Punchy.Fauna
                 at = Colony(terrain.Anchors.Value.Anchors[roosts[i]], roosts[i], colonySizes[i], colonyFades[i], instances, at);
             colonySizes.Dispose();
             colonyFades.Dispose();
+            for (int i = 0; i < hives.Length; i++)
+            {
+                var hive = terrain.Anchors.Value.Anchors[hives[i]];
+                var angry = hiveAngry.TryGetValue(hives[i], out var since) ? now - since : -1f;
+                var faded = math.saturate((math.distance(camAt, hive.Position) - SwarmRange * 0.75f) / (SwarmRange * 0.25f));
+                at = Swarm(hive, hives[i], day, now, angry, swarmPlayer, faded, terrain, instances, at);
+            }
             if (traceCount > 0)
                 at = traces.Write(instances, at, (float)SystemAPI.Time.ElapsedTime);
 
