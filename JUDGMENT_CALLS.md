@@ -293,3 +293,15 @@ asks Zach if needed, and records the answer here.
   (CC0 or self-made only if recordings are needed), derived from synced state so nothing new is sent.
 - **Why:** Zach: "Yeah, let's do sound."
 - **Revisited:** 0.
+
+### J-034: What goes in v0.8.0, and how is it tested?
+
+- **Asked:** 2026-10-28, by the supervisor.
+- **Also comes up when:** any later release.
+- **Answer (2026-10-28):** v0.8.0 = everything up to the world session's Mesa/Glass/Electric wiring and the
+  animal session's small batch (butterflies, village counts, eyes, wingbeats, caps). Both lanes freeze pushes
+  after their cut-off; the supervisor cuts a release-candidate branch merging both; kind-possum and the main PC run
+  a two-machine Relay test (join mid-day, rejoin, creatures/critters, look, mantle, carry, guards, messengers,
+  audio, bandwidth). Only test-found bugs go into the RC. The supervisor publishes on Zach's go.
+- **Why:** Zach: "Yes" (to the proposed target and RC plus multiplayer test).
+- **Revisited:** 0.
