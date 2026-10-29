@@ -37,9 +37,12 @@ case "$job" in
     c=$(short $1); base=${2:+$(short $2)}
     build $c Build Bench-$c || fail "build $c failed"
     [ -n "$base" ] && { build $base Build Bench-$base || fail "build $base failed"; }
+    one() { runcsv Bench-$1 smoke-$1 "$1" $cap $r -benchstops townwalk,glide -fpscap $cap; }
     for r in 1 2; do for cap in 60 0; do
-      runcsv Bench-$c smoke-$c "$c" $cap $r -benchstops townwalk,glide -fpscap $cap
-      [ -n "$base" ] && runcsv Bench-$base smoke-$base "$base" $cap $r -benchstops townwalk,glide -fpscap $cap
+      # ABBA: the new build first in round 1, the base first in round 2, so neither always runs first (warmer, later)
+      if [ -z "$base" ]; then one $c
+      elif [ $r -eq 1 ]; then one $c; one $base
+      else one $base; one $c; fi
     done; done
     if [ -n "$base" ]; then compare "$R/smoke-$base.csv" "$R/smoke-$c.csv" "$c vs $base"
     elif [ -f "$BASE/current.csv" ]; then compare "$BASE/current.csv" "$R/smoke-$c.csv" "$c vs baseline $(cat $BASE/current.commit 2>/dev/null)"
@@ -55,9 +58,9 @@ case "$job" in
   ab)
     a=$(short $1); b=$(short $2); stops=${3:-town,townwalk,glide}
     build $a Build Bench-$a || fail "build $a failed"; build $b Build Bench-$b || fail "build $b failed"
-    for r in 1 2; do
-      runcsv Bench-$a ab-$a "$a" 0 $r -benchstops $stops -fpscap 0
-      runcsv Bench-$b ab-$b "$b" 0 $r -benchstops $stops -fpscap 0
+    one() { runcsv Bench-$1 ab-$1 "$1" 0 $r -benchstops $stops -fpscap 0; }
+    for r in 1 2; do   # ABBA, as in smoke
+      if [ $r -eq 1 ]; then one $a; one $b; else one $b; one $a; fi
     done
     compare "$R/ab-$a.csv" "$R/ab-$b.csv" "$b vs $a"
     ;;

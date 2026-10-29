@@ -221,9 +221,9 @@ mpsmoke() { # outdir commit: the host's numbers alone vs with a client on this m
   local out=$1 c=$2
   fixed $out || fail "copy to Builds/Bench failed"
   rm -f "$R/mp-$c-solo.csv" "$R/mp-$c-joined.csv"
-  for r in 1 2; do
-    runcsv $out mp-$c-solo solo 60 $r -host -benchwait 45 -benchstops town,townwalk -fpscap 60
-    # joined: the client is the same exe (one firewall rule), capped so its own cost stays out of the way. A join gives up
+  solo() { runcsv $out mp-$c-solo solo 60 $r -host -benchwait 45 -benchstops town,townwalk -fpscap 60; }
+  joined() {
+    # the client is the same exe (one firewall rule), capped so its own cost stays out of the way. A join gives up
     # after 15 s (NetMenu.JoinTimeout), so it starts only once the host's world is up; no host world in 2 min, no client.
     local hostlog="$R/q-mp-$c-joined-c60-$r.log"; rm -f "$hostlog"
     ( for i in $(seq 1 120); do
@@ -235,6 +235,9 @@ mpsmoke() { # outdir commit: the host's numbers alone vs with a client on this m
       done ) &
     runcsv $out mp-$c-joined joined 60 $r -host -benchwait 45 -benchstops town,townwalk -fpscap 60
     strays >/dev/null; wait
+  }
+  for r in 1 2; do   # ABBA, as in bench.sh smoke
+    if [ $r -eq 1 ]; then solo; joined; else joined; solo; fi
   done
   local joined=$(awk -F, 'NR > 1 && $14 < 2 { bad++ } END { print bad + 0 }' "$R/mp-$c-joined.csv")
   [ "$joined" -gt 0 ] && report "MP: the client didn't show up on the host in $joined stop(s): check q-mp-$c-client-*.log (dialogs: $(dialogs))"
