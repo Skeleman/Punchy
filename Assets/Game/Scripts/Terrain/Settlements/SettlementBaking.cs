@@ -141,6 +141,7 @@ namespace Punchy.Terrain
                 var setback = layout.Setback * scale;
                 var water = centre;
                 var palisade = 0f;
+                var infill = float2.zero;   // (inner, outer) ring to fill with scattered plots after the street-side ones
 
                 // The open space in the middle, then the Seat facing it from the side away from the road.
                 Open(centre, square);
@@ -160,25 +161,34 @@ namespace Punchy.Terrain
                         }
                         if (layout.PerimeterLane && layout.Lanes >= 2)
                         {
-                            // A lane round the town crossing every lane out of the square, gently wobbling (noise, not
-                            // the town's random draws, so nothing else in the town shifts).
-                            var ring = math.max(radius * 0.72f, square * 0.5f + 2f * (depth + setback) + lane);
-                            var sides = math.max(10, (int)math.ceil(math.PI * 2f * ring / StretchLength));
+                            // A lane round the town crossing every lane out of the square: a loose, irregular loop, a
+                            // little oval and swelling and pinching as it goes, as if worn in by use rather than set out
+                            // (shaped by noise, not the town's random draws).
+                            var ring = math.max(radius * 0.68f, square * 0.5f + 2f * (depth + setback) + lane);
+                            var sides = math.max(24, (int)math.ceil(math.PI * 2f * ring / (StretchLength * 0.5f)));
+                            var stretchAngle = landmark * 1.7f;
                             var points = new List<float2>();
                             for (int k = 0; k <= sides; k++)
                             {
-                                var wobble = 1f + 0.05f * noise.snoise(new float2(k % sides, landmark + 31.7f) * 0.6f);
-                                points.Add(centre + Dir(road + k * math.PI * 2f / sides) * ring * wobble);
+                                var a = road + k * math.PI * 2f / sides;
+                                var shape = 1f + 0.12f * math.cos(2f * (a - stretchAngle))
+                                              + 0.08f * noise.snoise(new float2(math.cos(a), math.sin(a)) * 0.9f + landmark * 3.1f);
+                                points.Add(centre + Dir(a) * ring * math.min(shape, 0.98f * radius * 0.95f / ring));
                             }
                             Street(points, lane);
-                            // Big towns: cross lanes between neighbouring lanes, nearer the middle.
+                            // Big towns: cross lanes between neighbouring lanes nearer the middle, each leaving its lane
+                            // at its own distance, and one of them stopping short (a lane that ends among the houses).
                             if (radius > 70f * scale && spokes.Count >= 3)
                                 for (int k = 0; k < spokes.Count; k++)
                                 {
                                     var (a0, a1) = spokes[k];
                                     var (b0, b1) = spokes[(k + 1) % spokes.Count];
-                                    Street(PointAt(centre, a0, a1, radius * 0.45f), PointAt(centre, b0, b1, radius * 0.45f), lane * 0.85f);
+                                    var from = PointAt(centre, a0, a1, radius * (0.4f + 0.12f * noise.snoise(new float2(k, landmark + 7.3f))));
+                                    var to = PointAt(centre, b0, b1, radius * (0.42f + 0.12f * noise.snoise(new float2(k + 0.5f, landmark + 9.1f))));
+                                    Street(from, k == 1 ? math.lerp(from, to, 0.55f) : to, lane * 0.85f);
                                 }
+                            // Houses filling in between the square and the ring, not only along the lanes.
+                            infill = new float2(square * 0.5f + depth + setback * 2f, ring * 0.92f);
                         }
                         Seat(centre, Away(road, layout.Lanes), square * 0.5f + setback);
                         Around(centre, square * 0.5f + setback);
@@ -244,6 +254,8 @@ namespace Punchy.Terrain
                 if (layout.Pattern != SettlementPattern.Camp)
                     foreach (var (line, width) in lines)
                         Along(line, width);
+                if (infill.y > infill.x)
+                    Infill(centre, infill.x, infill.y);
 
                 // A well or fountain on the square, unless the landmark already places one: the first clear spot round
                 // the middle, on its own small plot (levelled, kept clear, with a Well anchor).
@@ -389,9 +401,13 @@ namespace Punchy.Terrain
                 }
             }
 
-            /// <summary>Plots along both sides of a street's whole line, facing it.</summary>
+            /// <summary>
+            /// Plots along both sides of a street's whole line, facing it. In villages that grew (Square) the spacing
+            /// varies, with now and then a gap, and each plot sits a little nearer or farther and slightly turned.
+            /// </summary>
             void Along(List<float2> line, float width)
             {
+                var grown = layout.Pattern == SettlementPattern.Square;
                 var half = new float2(layout.PlotSize.x, layout.PlotSize.y) * 0.5f * scale;
                 var step = half.x * 2f + layout.PlotGap * scale;
                 var off = width * 0.5f + layout.Setback * scale + half.y;
@@ -404,14 +420,48 @@ namespace Punchy.Terrain
                     if (length < 1e-3f)
                         continue;
                     var along = ab / length;
-                    for (; t <= walked + length; t += step)
+                    for (; t <= walked + length; t += grown ? step * rng.NextFloat(0.85f, 1.4f) : step)
                         for (int side = -1; side <= 1; side += 2)
                         {
+                            if (grown && rng.NextFloat() < 0.12f)
+                                continue;
                             var normal = new float2(-along.y, along.x) * side;
-                            TryPlot(line[i - 1] + along * (t - walked) + normal * off, -normal, half, PlotRole.House);
+                            var facing = -normal;
+                            var at = line[i - 1] + along * (t - walked) + normal * off;
+                            if (grown)
+                            {
+                                var turn = math.radians(rng.NextFloat(-9f, 9f));
+                                facing = new float2(facing.x * math.cos(turn) - facing.y * math.sin(turn), facing.x * math.sin(turn) + facing.y * math.cos(turn));
+                                at += normal * rng.NextFloat(0f, 2.5f) * scale;
+                            }
+                            TryPlot(at, facing, half, PlotRole.House);
                         }
                     walked += length;
                 }
+            }
+
+            /// <summary>
+            /// Plots filling in between two rings (a village's square and its ring lane): wherever there's room, facing
+            /// roughly towards the middle, a good share of them gardens and pens rather than houses.
+            /// </summary>
+            void Infill(float2 centre, float inner, float outer)
+            {
+                var half = new float2(layout.PlotSize.x, layout.PlotSize.y) * 0.5f * scale;
+                var first = plots.Count;
+                for (int k = 0; k < 80; k++)
+                {
+                    var a = rng.NextFloat(math.PI * 2f);
+                    var r = math.sqrt(rng.NextFloat(inner * inner, outer * outer));
+                    TryPlot(centre + Dir(a) * r, -Dir(a + rng.NextFloat(-0.5f, 0.5f)), half, PlotRole.House);
+                }
+                // Half of what grew in among the houses is gardens, pens and greens.
+                for (int p = first; p < plots.Count; p++)
+                    if (rng.NextFloat() < 0.45f)
+                    {
+                        var plot = plots[p];
+                        plot.Role = PlotRole.Landscaping;
+                        plots[p] = plot;
+                    }
             }
 
             /// <summary>Huts scattered between two rings, facing the middle.</summary>
