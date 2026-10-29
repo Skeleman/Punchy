@@ -136,6 +136,11 @@ namespace Punchy.Audio
             var at = s.Position + new float3(math.cos(s.Yaw) * side * 0.12f * scale, 0.02f, -math.sin(s.Yaw) * side * 0.12f * scale);
             var ground = terrain.SampleGround(at.xz);
             var wet = ground.HasWater && ground.WaterSurface > s.Position.y + 0.02f;   // (wading)
+            // (Or in a fountain's basin: PropSupport knows its water.)
+            if (!wet && SystemAPI.TryGetSingleton<Punchy.Flora.SupportGrids>(out var grids) && grids.Set.IsCreated &&
+                SystemAPI.TryGetSingletonBuffer<Punchy.Flora.FloraSupport>(out var props, true) &&
+                Punchy.Flora.PropSupport.Sample(ref grids.Set.Value, props, s.Position, 0.1f, 0.3f, out var hit) && hit.Wading)
+                wet = hit.WaterHeight > s.Position.y + 0.02f;
             var id = wet ? SoundId.StepWet : heavy ? SoundId.Clop : SoundId.Step;
             var volume = (s.Mode == CreatureMode.Puppet ? 0.55f : 0.35f) * math.lerp(0.6f, 1.2f, math.saturate(s.Speed / 4f));
             GameAudio.PlayOneShot(id, at, math.lerp(1.15f, 0.85f, math.saturate(scale - 0.5f)), volume, StepReach,
