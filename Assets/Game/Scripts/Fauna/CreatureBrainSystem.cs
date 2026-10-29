@@ -2387,7 +2387,7 @@ namespace Punchy.Fauna
                 SetMode(ref s, CreatureMode.Work);
                 s.Stage = CreatureAnimator.RaidWalk;
                 s.Focus = hive.Position.xz + hive.Facing * trunk;
-                s.Target = hive.Position.xz + hive.Facing * (trunk + 0.2f);
+                s.Target = hive.Position.xz + hive.Facing * (trunk + 0.05f);
                 s.Timer = 120f;
                 // (Even if it never gets there: no other raid for a long while.)
                 s.ChaseCooldown = RaidCooldown;
@@ -2426,7 +2426,7 @@ namespace Punchy.Fauna
                     // Up on its hind legs against the trunk, leaning in, front paws braced up it and scraping at it,
                     // head tipped up to the comb.
                     sit = 0.6f;
-                    vertical = 0.9f + 0.06f * math.sin(s.StageTime * 5f);
+                    vertical = 0.78f + 0.06f * math.sin(s.StageTime * 5f);
                     desiredLook = 0.25f * math.sin(s.StageTime * 2.3f);
                     // Down comes a chunk of comb: down on all fours to lick at it.
                     if (s.Timer <= 0f)
