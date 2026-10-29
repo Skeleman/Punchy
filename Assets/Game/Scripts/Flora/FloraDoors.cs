@@ -50,7 +50,8 @@ namespace Punchy.Flora
             for (int i = 0; i < Max; i++)
                 upload[i] = i < open.Count ? open[i] : Vector4.zero;
             Shader.SetGlobalVectorArray(OpenId, upload);
-            Shader.SetGlobalInt(CountId, open.Count);
+            // (An int in the shader: SetGlobalInt would set a float, which it reads as 0.)
+            Shader.SetGlobalInteger(CountId, open.Count);
             // Daylight for the doors' own rhythm (the sky's night, which flora passes don't all include).
             Shader.SetGlobalFloat(DayId, 1f - Shader.GetGlobalFloat(NightId));
         }

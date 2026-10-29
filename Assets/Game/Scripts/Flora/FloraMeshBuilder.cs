@@ -383,6 +383,8 @@ namespace Punchy.Flora
                 var up = Mathf.Clamp01(p.y / Mathf.Max(height, 0.01f));
                 var outward = new Vector2(p.x, p.z).magnitude / Mathf.Max(width * 0.5f, 0.01f);
                 var d = data[v];
+                if (Mathf.RoundToInt(d.y) == (int)FloraPart.Door)
+                    continue;   // a door leaf's x is its distance from the hinge (Hinge), and it doesn't sway
                 d.x = flexibility * Mathf.Pow(up, 1.6f) * (1f + 0.6f * outward);
                 data[v] = d;
             }
