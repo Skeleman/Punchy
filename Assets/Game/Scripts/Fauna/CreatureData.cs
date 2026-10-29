@@ -488,7 +488,7 @@ namespace Punchy.Fauna
         Cloth,
         /// <summary>A soft sheen, fine grain, worn darker at the ends, a line of stitches.</summary>
         Leather,
-        /// <summary>Glossy: the sky and ground reflected, a bright highlight, a rim of light, a hammered surface.</summary>
+        /// <summary>Glossy: the shared metal look (Metal.hlsl, as the world's metal parts): the sky reflected, a sharp highlight, glints; a hammered surface.</summary>
         Metal,
         /// <summary>Grain streaks along its length.</summary>
         Wood,

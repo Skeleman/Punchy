@@ -107,6 +107,7 @@ Shader "Punchy/Creature"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
+            #include "Metal.hlsl"
 
             struct Varyings
             {
@@ -163,24 +164,13 @@ Shader "Punchy/Creature"
                 float angle = atan2(surface.y, surface.x);
                 if (material == 3)
                 {
-                    // Metal: a hammered face (the normal nudged a little, cell by cell), the sky and the ground in it,
-                    // a hot highlight in the sun's direction, brighter at glancing angles, darker where it turns away.
+                    // Metal: the shared look (Metal.hlsl, as Flora's metal parts): tinted reflections of the sky, a sharp
+                    // highlight and glints, on a diffuse dimmed to under half, here on a hammered face (the normal
+                    // nudged a little, cell by cell).
                     float3 dent = float3(Noise3(surface * 38), Noise3(surface * 38 + 7.1), Noise3(surface * 38 + 13.7)) - 0.5;
                     half3 m = normalize(n + (half3)dent * 0.5);
-                    float3 r = reflect(-v, m);
-                    // (Polished metal reads by its banding: the bright sky above the horizon, a dark band at it, the
-                    // ground dark below. That shows even from across a town, and even in shade.)
-                    half3 sky = SampleSH(half3(0, 1, 0)) * 1.3 + PunchyGlowLight(positionWS, r);
-                    half3 ground = SampleSH(half3(0, -1, 0)) * 0.22;
-                    // (Its banding follows where the surface faces as much as what it reflects, so a plate facing the
-                    // viewer still shows its bright top, dark band and darker underside.)
-                    float key = r.y * 0.45 + m.y * 0.75;
-                    half3 env = key > 0 ? lerp(sky * 0.22, sky, smoothstep(0.0, 0.5, key)) : lerp(sky * 0.22, ground, smoothstep(0.0, 0.3, -key));
-                    half fresnel = 0.6 + 0.4 * pow(1 - ndv, 4);
-                    half highlight = pow(saturate(dot(r, light.direction)), 48) * 5 + pow(saturate(dot(r, light.direction)), 6) * 0.4;
-                    half3 diffuse = albedo * 0.12 * (sun * saturate(ndl) + ambient);
-                    half3 color = diffuse + albedo * (env * fresnel + sun * highlight);
-                    return color * 0.8 * lerp(0.5, 1, saturate(ndv * 2.5));
+                    return albedo * 0.45 * (sun * saturate(ndl * 0.75 + 0.25) + ambient) +
+                           PunchyMetalShade(albedo, m, (half3)v, surface, light.color, light.direction, shadow, 1, 0);
                 }
                 if (material == 2)
                 {
