@@ -681,7 +681,7 @@ namespace Punchy.Fauna
                         }
                         if (s.Stage >= CreatureAnimator.RaidWalk && s.Stage <= CreatureAnimator.RaidLick)
                         {
-                            Raiding(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref sit, ref vertical, ref desiredLook, ref headDown);
+                            Raiding(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref sit, ref vertical, ref desiredLook, ref headDown, ref bow);
                             break;
                         }
                         // (A fisher's time at the water starts when it gets there, however far it had to walk.)
@@ -2334,7 +2334,7 @@ namespace Punchy.Fauna
                 SetMode(ref s, CreatureMode.Work);
                 s.Stage = CreatureAnimator.RaidWalk;
                 s.Focus = hive.Position.xz + hive.Facing * trunk;
-                s.Target = hive.Position.xz + hive.Facing * (trunk + 0.35f);
+                s.Target = hive.Position.xz + hive.Facing * (trunk + 0.2f);
                 s.Timer = 120f;
                 // (Even if it never gets there: no other raid for a long while.)
                 s.ChaseCooldown = RaidCooldown;
@@ -2347,7 +2347,7 @@ namespace Punchy.Fauna
             /// from the hive (RaidLeave), and takes up its day there.
             /// </summary>
             void Raiding(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, float run,
-                         ref float targetSpeed, ref bool moving, ref float sit, ref float vertical, ref float desiredLook, ref float headDown)
+                         ref float targetSpeed, ref bool moving, ref float sit, ref float vertical, ref float desiredLook, ref float headDown, ref float bow)
             {
                 s.Timer -= dt;
                 if (s.Stage == CreatureAnimator.RaidWalk)
@@ -2386,9 +2386,11 @@ namespace Punchy.Fauna
                 }
                 else if (s.Stage == CreatureAnimator.RaidLick)
                 {
-                    // Licking at it, nose down, till the bees drive it off.
+                    // Licking at it, nose down to it (the front end bowed: a bear has no neck to speak of), till the bees
+                    // drive it off.
                     s.Speed = 0f;
                     headDown = 1f;
+                    bow = 0.8f + 0.2f * math.sin(s.StageTime * 7f);
                     desiredLook = 0.2f * math.sin(s.StageTime * 6f);
                     if (s.Timer <= 0f)
                     {
