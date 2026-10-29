@@ -934,9 +934,9 @@ namespace Punchy.Flora
                     // Water plants: just the right depth (and patches, if the species has them).
                     var inDepth = depth >= r.WaterDepth.x && depth <= r.WaterDepth.y ? 1f : 0f;
                     var fw = weights[c] * inDepth;
-                    // Floating plants drift away in a current: they keep to still water.
-                    if (r.Floats != 0)
-                        fw *= 1f - 0.9f * math.saturate(math.length(ground.Flow));
+                    // Floating plants drift away in a current: they keep to still water, never a river (F-24).
+                    if (r.Floats != 0 && (ground.River > 0.02f || math.lengthsq(ground.Flow) > 1e-4f))
+                        fw = 0f;
                     if (r.MinRapids > 0f)
                         fw *= math.smoothstep(r.MinRapids - 0.1f, r.MinRapids + 0.1f, ground.Rapids);
                     if (r.PatchCoverage < 1f)
