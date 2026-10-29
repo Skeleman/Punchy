@@ -6,7 +6,7 @@ namespace Punchy.Flora
 {
     /// <summary>
     /// Doors that something has opened (a villager going in or out): up to <see cref="Max"/> at once, each by where its
-    /// door stands (a Door anchor's position is close enough: the shader matches a leaf by its hinge within 2 m) and
+    /// door stands (a Door anchor's position is close enough: the shader matches a leaf it stands in front of, within 7 m) and
     /// how far open (0 shut, 1 wide open). Flora.hlsl swings those leaves (FloraPart.Door) about their hinges; with
     /// nothing set, doors keep their own rhythm (a few stand ajar by day, all shut at night). Cosmetic and per machine:
     /// callers set it on every machine from what they already know (the residents' positions), so nothing is sent.

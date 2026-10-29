@@ -84,9 +84,18 @@ FloraVertex FloraTransform(FloraAttributes input)
         float3 hs = hingeOS * plant.scale;
         float3 hingeWS = plant.position + float3(hs.x * c - hs.z * s, hs.y, hs.x * s + hs.z * c);
         float open = _PunchyDoorDay * step(0.75, frac(plant.random * 13.7)) * 0.3;
+        // A set door matches a leaf if it stands out in front of it (a Door anchor is out on the plot, up to several
+        // metres from a small house's door), across no further than the doorway, and at about its height. Doors of
+        // the houses opposite face the other way, so they never match.
+        float3 acrossWS = float3(across.x * c - across.z * s, 0, across.x * s + across.z * c);
+        float3 outWS = float3(outwards.x * c - outwards.z * s, 0, outwards.x * s + outwards.z * c);
         for (int i = 0; i < _PunchyDoorCount; i++)
-            if (distance(hingeWS.xz, _PunchyDoorOpen[i].xz) < 2.0 && abs(hingeWS.y - _PunchyDoorOpen[i].y) < 2.5)
+        {
+            float3 v = _PunchyDoorOpen[i].xyz - hingeWS;
+            float side = dot(v.xz, acrossWS.xz), ahead = dot(v.xz, outWS.xz);
+            if (side > -1.0 && side < 3.0 && ahead > -0.5 && ahead < 7.0 && abs(v.y) < 2.5)
                 open = max(open, _PunchyDoorOpen[i].w);
+        }
         float phi = open * 1.65;
         float3 rel = positionOS - hingeOS;
         float u = dot(rel, across), d = dot(rel, outwards);
@@ -114,7 +123,8 @@ FloraVertex FloraTransform(FloraAttributes input)
     float3 windDir = float3(_PunchyWindDirection.x, 0, _PunchyWindDirection.y);
     float phase = _Time.y * (0.7 + _PunchyWind * 1.1) - dot(plant.position.xz, _PunchyWindDirection) * 0.04 + plant.random * 6.28;
     float gust = (0.6 + 0.4 * sin(phase) * sin(phase * 0.37 + 1.3)) * (0.08 + 0.92 * _PunchyWind);
-    float sway = input.data.x * (0.05 + 0.045 * p.y);
+    // (A door leaf's x is its distance from the hinge, not how much it bends.)
+    float sway = ((int)round(input.data.y) == 12 ? 0 : input.data.x) * (0.05 + 0.045 * p.y);
     p += windDir * sway * gust * 2.2;
     p.y -= sway * gust * sway * 0.6;   // bending, not stretching
     float flutter = ((int)round(input.data.y) == 12 ? 0 : max(input.data.z, 0)) * (0.15 + _PunchyWind) * 0.022 * plant.scale;
