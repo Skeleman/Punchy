@@ -147,15 +147,43 @@ namespace Punchy.Terrain
                 switch (layout.Pattern)
                 {
                     case SettlementPattern.Square:
+                    {
                         // Lanes out of the square, the first the main street (where the road comes in).
+                        var spokes = new List<(float2 from, float2 to)>();
                         for (int k = 0; k < layout.Lanes; k++)
                         {
                             var a = road + k * math.PI * 2f / layout.Lanes + (k == 0 ? 0f : rng.NextFloat(-0.25f, 0.25f));
-                            Street(centre + Dir(a) * square * 0.5f, centre + Dir(a + rng.NextFloat(-0.15f, 0.15f)) * radius * 0.95f, k == 0 ? street : lane);
+                            var from = centre + Dir(a) * square * 0.5f;
+                            var to = centre + Dir(a + rng.NextFloat(-0.15f, 0.15f)) * radius * 0.95f;
+                            Street(from, to, k == 0 ? street : lane);
+                            spokes.Add((from, to));
+                        }
+                        if (layout.PerimeterLane && layout.Lanes >= 2)
+                        {
+                            // A lane round the town crossing every lane out of the square, gently wobbling (noise, not
+                            // the town's random draws, so nothing else in the town shifts).
+                            var ring = math.max(radius * 0.72f, square * 0.5f + 2f * (depth + setback) + lane);
+                            var sides = math.max(10, (int)math.ceil(math.PI * 2f * ring / StretchLength));
+                            var points = new List<float2>();
+                            for (int k = 0; k <= sides; k++)
+                            {
+                                var wobble = 1f + 0.05f * noise.snoise(new float2(k % sides, landmark + 31.7f) * 0.6f);
+                                points.Add(centre + Dir(road + k * math.PI * 2f / sides) * ring * wobble);
+                            }
+                            Street(points, lane);
+                            // Big towns: cross lanes between neighbouring lanes, nearer the middle.
+                            if (radius > 70f * scale && spokes.Count >= 3)
+                                for (int k = 0; k < spokes.Count; k++)
+                                {
+                                    var (a0, a1) = spokes[k];
+                                    var (b0, b1) = spokes[(k + 1) % spokes.Count];
+                                    Street(PointAt(centre, a0, a1, radius * 0.45f), PointAt(centre, b0, b1, radius * 0.45f), lane * 0.85f);
+                                }
                         }
                         Seat(centre, Away(road, layout.Lanes), square * 0.5f + setback);
                         Around(centre, square * 0.5f + setback);
                         break;
+                    }
                     case SettlementPattern.Grid:
                     {
                         // A main street through the middle along the road, parallel streets either side and cross
@@ -253,6 +281,18 @@ namespace Punchy.Terrain
                     Road = Dir(road),
                     Palisade = palisade
                 });
+            }
+
+            /// <summary>The point on a straight lane (from, to) at a distance from the centre (or its end).</summary>
+            static float2 PointAt(float2 centre, float2 from, float2 to, float distance)
+            {
+                for (int i = 1; i <= 32; i++)
+                {
+                    var p = math.lerp(from, to, i / 32f);
+                    if (math.distance(p, centre) >= distance)
+                        return p;
+                }
+                return to;
             }
 
             /// <summary>The angle between the two lanes nearest the side opposite the road (the square's best side).</summary>
