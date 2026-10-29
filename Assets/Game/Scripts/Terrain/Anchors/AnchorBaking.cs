@@ -406,7 +406,14 @@ namespace Punchy.Terrain
                         if (source.CaveDistance(from + d3 * mid) >= -0.3f) t = mid; else previous = mid;
                     }
                     wall = from + d3 * previous;
-                    return previous > 0.5f;
+                    // Wall noise can also leave it short of the rock: creep on until close (wall anchors touch it).
+                    var dw = source.CaveDistance(wall);
+                    for (int k = 0; k < 20 && dw < -0.5f; k++)
+                    {
+                        wall += d3 * 0.05f;
+                        dw = source.CaveDistance(wall);
+                    }
+                    return previous > 0.5f && dw < 0f;
                 }
                 previous = t;
                 t += math.max(0.1f, -d * 0.8f);

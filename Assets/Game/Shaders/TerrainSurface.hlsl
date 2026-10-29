@@ -6,6 +6,7 @@
 //   TEXCOORD0  x = metallic,     y = grass density, z = snow depth, w = skirt drop (metres; 0 on the surface)
 //   TEXCOORD1  rgb = emission (HDR), w = geomorph offset (coarse-LOD height − height)
 //   TEXCOORD2  xy = distance from the terrain focus where the geomorph starts / completes, z = surface bumpiness
+//   TEXCOORD3  x = rock strata amount
 // Grass density and snow depth are read by the (future) grass and snow-trail systems, not by this shader.
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
@@ -25,6 +26,7 @@ struct TerrainAttributes
     half4  extra      : TEXCOORD0;
     half4  emission   : TEXCOORD1;
     float4 morph      : TEXCOORD2;   // xy geomorph range, z surface bumpiness, w distance to cave air
+    half2  strata     : TEXCOORD3;   // x rock strata amount
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 

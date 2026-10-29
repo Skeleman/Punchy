@@ -138,9 +138,20 @@ Shader "Punchy/Flora"
                 // Cloth: lit by the surface the wind has waved (its folds catch the light), facing the viewer.
                 if (part == 10)
                     n = dot(facet, v) < 0 ? -facet : facet;
-                // Built things (those with a dirt band): weathering that stays at every range (PunchyWeathering).
-                if (part == 0 && input.ground.a > 0)
+                // Built things (those with a dirt band) and banded rock: weathering that stays at every range
+                // (PunchyWeathering).
+                bool strata = part == 0 && frac(input.extra.x) > 0.04 && frac(input.extra.x) < 0.15;
+                if (part == 0 && input.ground.a > 0 || strata)
                     albedo *= PunchyWeathering(input.positionWS, n, footprint, r);
+                // Banded rock (FloraSpecies.RockStrata): exactly the terrain's strata (TerrainSurface.shader), same
+                // world heights and colours, so a rock prop's layers line up with the cliff beside it.
+                if (strata)
+                {
+                    float2 sp = input.positionWS.xz;
+                    float sy = input.positionWS.y + (PunchyValueNoise(sp * 0.02) - 0.5) * 6 + (PunchyValueNoise(sp * 0.11) - 0.5) * 1.2;
+                    half band = PunchyValueNoise(float2(sy / 4.5, 7.1)) * 0.7 + PunchyValueNoise(float2(sy / 1.1, 3.3)) * 0.3;
+                    albedo *= lerp(1, lerp(half3(0.55, 0.45, 0.42), half3(1.45, 1.3, 1.08), smoothstep(0.3, 0.7, band)), 0.9);
+                }
                 // Rock and bark up close: grain and fine relief from the shared detail texture (the caves' own), read
                 // three ways and blended by the surface's facing, fading out with distance.
                 float near = 1 - smoothstep(18, 45, distance(input.positionWS, GetCameraPositionWS()));
@@ -274,6 +285,14 @@ Shader "Punchy/Flora"
                 }
 
                 // A bark face's eyes (part 9): a faint glow in its colour that blinks shut for a moment every few seconds.
+                // Electric arcs (part 11): blue-white, crackling on and off in bursts, bright enough to bloom.
+                if (part == 11)
+                {
+                    float tick = floor(_PunchyClock * 13 + r * 50);
+                    half on = frac(sin(tick * 12.9898 + r * 78.2) * 43758.5453) > 0.35 ? 1 : 0.12;
+                    half burst = smoothstep(0.45, 0.85, 0.5 + 0.5 * sin(_PunchyClock * 0.9 + r * 20));
+                    color = albedo * (0.4 + 3.6 * on * (0.3 + 0.7 * burst));
+                }
                 if (part == 9)
                 {
                     float beat = frac(_PunchyClock * 0.17 + r * 5.3);

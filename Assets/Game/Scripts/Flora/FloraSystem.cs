@@ -230,7 +230,10 @@ namespace Punchy.Flora
             UpdateObstacles();
             UpdateSupports();
             if (!hidden)
+            {
                 Draw(cam);
+                DrawBolts(camXZ);
+            }
         }
 
         // ------------------------------------------------------------------------------------------- setup
@@ -741,6 +744,119 @@ namespace Punchy.Flora
                     }
                 }
             }
+        }
+
+        // ------------------------------------------------------------------------------------------- bolts
+
+        /// <summary>Spire pairs within reach of each other near the camera, as tip-to-tip matrices for the bolt shader.</summary>
+        readonly List<Matrix4x4> bolts = new List<Matrix4x4>();
+        float2 boltCentre = new float2(float.MaxValue);
+        float nextBolts;
+        Mesh boltMesh;
+        Material boltMaterial;
+        bool boltsLoaded;
+        /// <summary>Bolts are found among arcing spires within this distance of the camera.</summary>
+        const float BoltRange = 160f;
+
+        /// <summary>
+        /// Electric bolts between neighbouring arcing spires (FloraForm.ArcSpire): every spire near the camera pairs with
+        /// its nearest neighbour 6-20 m away (about half of them, by a hash of the pair, so not every spire is wired),
+        /// and ArcBolt.shader fires each pair now and then on the shared clock. Pairs come from the placed spires alone,
+        /// so every machine draws the same ones.
+        /// </summary>
+        void DrawBolts(float2 camXZ)
+        {
+            if (!boltsLoaded)
+            {
+                boltsLoaded = true;
+                boltMaterial = Resources.Load<Material>("ArcBolt");
+                boltMesh = BoltMesh();
+            }
+            if (boltMaterial == null)
+                return;
+            // Again when the camera has moved, and every couple of seconds (tiles stream in after a jump).
+            if (math.distance(camXZ, boltCentre) > 20f || Time.unscaledTime > nextBolts)
+            {
+                boltCentre = camXZ;
+                nextBolts = Time.unscaledTime + 2f;
+                GatherBolts(camXZ);
+            }
+            if (bolts.Count == 0)
+                return;
+            var rp = new RenderParams(boltMaterial) { shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false,
+                                                       worldBounds = new Bounds(new Vector3(camXZ.x, 0f, camXZ.y), Vector3.one * 2f * BoltRange + Vector3.up * 2000f) };
+            Graphics.RenderMeshInstanced(rp, boltMesh, 0, bolts);
+        }
+
+        void GatherBolts(float2 camXZ)
+        {
+            bolts.Clear();
+            var tips = new List<float3>();
+            for (int li = 1; li < 3 && li < layers.Length; li++)
+                foreach (var kv in layers[li].Tiles)
+                    foreach (var inst in kv.Value)
+                    {
+                        if (inst.Model < 0 || inst.Model >= models.Count || models[inst.Model].Species == null || models[inst.Model].Species.Form != FloraForm.ArcSpire)
+                            continue;
+                        if (math.distancesq(inst.Position.xz, camXZ) > BoltRange * BoltRange)
+                            continue;
+                        tips.Add(inst.Position + new float3(0f, models[inst.Model].Height * inst.Scale * 0.85f, 0f));
+                    }
+            // In a fixed order, so the pairing doesn't depend on how the tiles happened to stream in.
+            tips.Sort((a, b) => a.x != b.x ? a.x.CompareTo(b.x) : a.z.CompareTo(b.z));
+            for (int i = 0; i < tips.Count; i++)
+            {
+                int best = -1;
+                var bestDistance = float.MaxValue;
+                for (int j = 0; j < tips.Count; j++)
+                {
+                    if (j == i) continue;
+                    var d = math.distance(tips[i].xz, tips[j].xz);
+                    if (d >= 6f && d <= 20f && d < bestDistance) { bestDistance = d; best = j; }
+                }
+                // Each pair once (from its lower end), and only about half of them.
+                if (best < i || best < 0)
+                    continue;
+                var h = math.hash(new int4((int2)math.round(tips[i].xz), (int2)math.round(tips[best].xz)));
+                if ((h & 1) == 0)
+                    continue;
+                var a = (Vector3)tips[i];
+                var b = (Vector3)tips[best];
+                bolts.Add(Matrix4x4.TRS(a, Quaternion.LookRotation(b - a), new Vector3(1f, 1f, Vector3.Distance(a, b))));
+            }
+        }
+
+        /// <summary>Two crossed ribbons along +z from 0 to 1 (ArcBolt.shader bends and widens them).</summary>
+        static Mesh BoltMesh()
+        {
+            const int segments = 24;
+            var positions = new List<Vector3>();
+            var uvs = new List<Vector4>();
+            var indices = new List<int>();
+            for (int ribbon = 0; ribbon < 2; ribbon++)
+            {
+                var first = positions.Count;
+                for (int s = 0; s <= segments; s++)
+                {
+                    var t = s / (float)segments;
+                    foreach (var side in new[] { -1f, 1f })
+                    {
+                        positions.Add(new Vector3(0f, 0f, t));
+                        uvs.Add(new Vector4(t, side, ribbon, 0f));
+                    }
+                }
+                for (int s = 0; s < segments; s++)
+                {
+                    int a = first + s * 2;
+                    indices.AddRange(new[] { a, a + 1, a + 2, a + 1, a + 3, a + 2 });
+                }
+            }
+            var mesh = new Mesh { name = "Arc bolt" };
+            mesh.SetVertices(positions);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(indices, 0);
+            mesh.bounds = new Bounds(new Vector3(0f, 0f, 0.5f), new Vector3(4f, 4f, 2f));
+            return mesh;
         }
 
         void UpdateObstacles()

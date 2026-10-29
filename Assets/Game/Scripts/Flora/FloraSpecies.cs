@@ -92,7 +92,15 @@ namespace Punchy.Flora
                  "HiveHeight of the trunk (first accent the comb's colour). Use one variant so the comb's height is " +
                  "known; Bee Tree landmarks put a Hive anchor round it.")] HiveTree,
         [Tooltip("A glacier ice arch: a jagged bow of ice from two feet (Height its height, Spread its span over height, " +
-                 "Thickness the legs' radius over height), in Foliage; Finish Glass draws it as clear ice. Walk under it.")] IceArch
+                 "Thickness the legs' radius over height), in Foliage; Finish Glass draws it as clear ice. Walk under it.")] IceArch,
+        [Tooltip("A fulgurite (lightning-fused sand): a knobbly glass tube twisting up out of a sand-crusted mound, forking " +
+                 "Branches times, crusted with sand along its length (Height its height, Thickness the tube's radius over " +
+                 "height; the tube in Foliage, so Finish Glass makes it glass; the crust in Bark).")] Fulgurite,
+        [Tooltip("An arcing spire (electric wastelands): Branches prongs of dark glinting stone (Bark) rising from a cracked " +
+                 "base, with electric arcs (the first accent, or blue-white) crackling between their tips. Height its height, " +
+                 "Spread how far apart the prongs stand, Thickness their radius over height.")] ArcSpire,
+        [Tooltip("Floating debris (magnetic anomaly): Branches lumps of rock (Bark) hovering round a cracked mound, slowly " +
+                 "orbiting it and bobbing. Height the highest a piece floats, Spread the ring's radius over height. Not solid.")] Debris
     }
 
     public enum FoliageFinish : byte
@@ -190,6 +198,9 @@ namespace Punchy.Flora
         [Range(0f, 1f)] public float BarkFace;
         [Tooltip("Bark veined with cool light that flows slowly up the trunk (weird biomes), instead of ember seams.")]
         public bool GlowingVeins;
+        [Tooltip("Rock: banded strata by height, the same bands and colours as terrain surfaces with Strata (mesa cliffs), " +
+                 "so rock props line up with the canyon walls round them; with the built things' weathering too.")]
+        public bool RockStrata;
         [Tooltip("Mushrooms: caps that breathe, slowly swelling and settling.")]
         public bool Breathes;
 

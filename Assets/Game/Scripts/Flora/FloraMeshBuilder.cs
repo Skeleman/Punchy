@@ -26,7 +26,9 @@ namespace Punchy.Flora
         Eye = 9,
         /// <summary>Cloth (banners, awnings, hide flaps) that waves in the wind; how free each vertex is rides on the part
         /// (see FloraMeshBuilder.Cloth, Flora.hlsl).</summary>
-        Cloth = 10
+        Cloth = 10,
+        /// <summary>An electric arc: bright, crackling in bursts and jumping about (Flora.hlsl, Flora.shader).</summary>
+        Arc = 11
     }
 
     /// <summary>
@@ -50,6 +52,8 @@ namespace Punchy.Flora
         public bool BarkSeams;
         /// <summary>Bark veined with cool flowing light (FloraSpecies.GlowingVeins): marked as Bark + 0.4.</summary>
         public bool BarkVeins;
+        /// <summary>Rock banded like the canyon walls (FloraSpecies.RockStrata): marked as Bark + 0.08.</summary>
+        public bool BarkStrata;
 
         public int VertexCount => positions.Count;
         public int IndexCount => indices.Count;
@@ -73,7 +77,7 @@ namespace Punchy.Flora
             normals.Add(n);
             colors.Add(c);
             // Glowing parts carry their shimmer as a fraction on the part (the shader rounds the part).
-            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : 0f),
+            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : part == FloraPart.Bark && BarkStrata ? 0.08f : 0f),
                                  flutter, Mathf.Clamp01(ao)));
             return positions.Count - 1;
         }
@@ -569,6 +573,21 @@ namespace Punchy.Flora
         /// flutter channel below -10, Flora.hlsl), by how far each may swing in metres: hanging vines and ropes, more
         /// the further down they hang.
         /// </summary>
+        /// <summary>
+        /// Gives the vertices from <paramref name="firstVertex"/> a slow orbit round the plant's centre on the shared clock,
+        /// bobbing up and down by up to <paramref name="bob"/> metres (carried in the flutter channel below -100,
+        /// Flora.hlsl): floating debris.
+        /// </summary>
+        public void Orbit(int firstVertex, float bob)
+        {
+            for (int v = firstVertex; v < data.Count; v++)
+            {
+                var d = data[v];
+                d.z = -100f - Mathf.Max(bob, 0f);
+                data[v] = d;
+            }
+        }
+
         public void Sway(int firstVertex, Func<Vector3, float> amount)
         {
             for (int v = firstVertex; v < data.Count; v++)

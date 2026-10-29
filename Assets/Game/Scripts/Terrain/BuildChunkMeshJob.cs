@@ -18,6 +18,7 @@ namespace Punchy.Terrain
         public half4 Extra;     // metallic, grass density, snow depth, skirt drop (0 on the surface)
         public half4 Emission;  // emission rgb (linear HDR), geomorph offset (coarse height − height)
         public float4 Morph;    // geomorph start / complete distance from the focus; z surface bumpiness; w distance to cave air
+        public half2 Strata;    // rock strata amount, unused
 
         public static readonly VertexAttributeDescriptor[] Layout =
         {
@@ -26,7 +27,8 @@ namespace Punchy.Terrain
             new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.Float16, 4),
             new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 4),
             new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float16, 4),
-            new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.Float32, 4)
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.Float32, 4),
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord3, VertexAttributeFormat.Float16, 2)
         };
 
         public void SetSurface(in SurfaceProps s)
@@ -34,6 +36,7 @@ namespace Punchy.Terrain
             Surface = new half4(new float4(s.Albedo, s.Smoothness));
             Extra = new half4(new float4(s.Metallic, s.Grass, s.Snow, 0f));
             Emission = new half4(new float4(s.Emission, 0f));
+            Strata = new half2(new float2(s.Strata, 0f));
         }
     }
 

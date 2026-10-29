@@ -151,6 +151,7 @@ namespace Punchy.Terrain
                     Grass = s.GrassDensity,
                     Bump = s.Bumpiness,
                     Pebbles = s.Pebbles,
+                    Strata = s.Strata,
                     Snow = s.SnowDepth
                 },
                 ColorVariation = s.ColorVariation
