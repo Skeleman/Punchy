@@ -39,6 +39,9 @@ namespace Punchy.Fauna
         public IdleActions Idles;
         public float Fidgets, Climbing;
         public bool SpinsWebs, Burrows, CaveDweller, Roosts, Friendly, CrossesWater, Haunts, LavaDweller, DrawnToLight, DrivenOff;
+        /// <summary>Its town guards' kit (helmet, weapon) and the colours of their armour and sash (linear).</summary>
+        public GuardKit GuardKit;
+        public float4 GuardArmour, GuardSash;
         public NestSite Nests;
         public float WebSize;
         public float2 FlightHeight;
@@ -319,6 +322,20 @@ namespace Punchy.Fauna
     /// Something held in the hand (the equipment slot's first use): drawn at the hand by CreatureRenderSystem, with the
     /// arm posed to hold it. Numbered for the network: append, never reorder.
     /// </summary>
+    public enum GuardKit : byte
+    {
+        /// <summary>A kettle hat, a spear.</summary>
+        Human,
+        /// <summary>A rounded helm with horns, an axe.</summary>
+        Dwarf,
+        /// <summary>A tall helm with a leaf-shaped crest, a bow across the back.</summary>
+        Elf,
+        /// <summary>A pot for a helmet, a crude club and a scrap shield.</summary>
+        Goblin,
+        /// <summary>A skull for a cap, a great club over the shoulder.</summary>
+        Ogre
+    }
+
     public enum HeldItem : byte
     {
         None,
@@ -535,6 +552,9 @@ namespace Punchy.Fauna
             root.Crawls = species.Crawls;
             root.DrawnToLight = species.DrawnToLight;
             root.DrivenOff = species.DrivenOff;
+            root.GuardKit = species.GuardKit;
+            root.GuardArmour = (Vector4)species.GuardArmour.linear;
+            root.GuardSash = (Vector4)species.GuardSash.linear;
             root.Soars = species.Soars;
             root.Breaches = species.Breaches && species.Habitat == Habitat.Swims;
             root.Hands = species.Parts.Exists(p => p != null && p.Limb != null && p.Limb.Role == LimbRole.Arm);

@@ -248,6 +248,7 @@ MonoBehaviour:
   IdleTime: {x: 3, y: 10}
   FleeDistance: 0
   TurnRate: 110
+  SeenFrom: 0
   GroupSize: {x: 1, y: 1}
   NearWater: 0
   Habitat: 0
@@ -257,6 +258,7 @@ MonoBehaviour:
   Grazing: 0
   Thirst: 0
   Playfulness: 0.03
+  Child: 0
   Laziness: 0.5
   Hunts: []
   Hunger: 0
@@ -268,14 +270,23 @@ MonoBehaviour:
   WebSize: 0.6
   Burrows: 0
   CaveDweller: 0
+  Crawls: 0
+  CaveAffinity: 0
   Roosts: 0
   Friendly: 0
   LavaDweller: 0
   Haunts: 0
   CrossesWater: 0
   Nests: 0
+  DrawnToLight: 0
+  DrivenOff: 0
+  GuardKit: 4
+  GuardArmour: {r: 0.3, g: 0.26, b: 0.24, a: 1}
+  GuardSash: {r: 0.42, g: 0.12, b: 0.45, a: 1}
   FlightHeight: {x: 8, y: 18}
   FlySpeed: 7
   FlapRate: 6
   Glide: 0
   Perching: 0.6
+  Soars: 0
+  Breaches: 0

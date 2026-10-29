@@ -50,8 +50,11 @@ namespace Punchy.Fauna
         /// <summary>A torch's flame: its height (m), and how far it streams back as the bearer moves (m at the tip per
         /// m/s, at most).</summary>
         const float TorchFlameSize = 0.35f, TorchFlameLean = 0.05f, TorchFlameMaxLean = 0.3f;
-        /// <summary>Capsules in what a guard holds (a spear's shaft and head; a torch's handle, flame, heart and glow).</summary>
-        const int GuardParts = 4;
+        /// <summary>
+        /// Capsules in a guard's kit: what it holds (a weapon, or a torch), a shield or a bow on its back, its helmet,
+        /// breastplate, sash and shoulder pads. The torch's handle is always the first (its flame is lit from it).
+        /// </summary>
+        const int GuardParts = 14;
         /// <summary>When in a throw (its ActionTime) the stone leaves the hand: TraceSystem throws it from there.</summary>
         public const float ThrowRelease = 0.3f;
 
@@ -583,47 +586,233 @@ namespace Punchy.Fauna
             }
 
             /// <summary>
-            /// What a guard holds in its right hand: a spear upright at its side (a wooden shaft, an iron head), its
-            /// butt near the ground; or, after dark, a torch held up and forward (the handle: its flame is FireSystem's).
+            /// A town guard's kit, by its folk (GuardKit), so a guard is known at a glance across the town: a helmet of
+            /// its folk's shape, a breastplate and shoulder pads (metal or leather), a sash in the town's colour down the
+            /// front, and in a closed fist its folk's weapon (a spear, an axe, a club; an elf's bow on its back instead,
+            /// a goblin's scrap shield on its other arm, an ogre's great club over its shoulder), or after dark a torch
+            /// held up and forward (the handle: its flame is FireSystem's). Running at a beast, the weapon is levelled
+            /// at it, or raised.
             /// </summary>
             void Guard(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded, int id)
             {
                 for (int i = 0; i < GuardParts; i++)
                     Output[at + i] = default;
-                var hand = -1;
+                int hand = -1, offHand = -1, head = -1, chest = -1, shoulderR = -1, shoulderL = -1;
                 for (int i = 0; i < b.Parts.Length; i++)
-                    if (b.Parts[i].Role == LimbRole.Arm && b.Parts[i].Side > 0f)
+                {
+                    ref var part = ref b.Parts[i];
+                    if (part.Role == LimbRole.Arm && part.Side > 0f && hand < 0)
                     {
-                        hand = b.Parts[i].FirstSegment + b.Parts[i].SegmentCount - 1;
-                        break;
+                        hand = part.FirstSegment + part.SegmentCount - 1;
+                        shoulderR = part.FirstSegment;
                     }
+                    else if (part.Role == LimbRole.Arm && part.Side < 0f && offHand < 0)
+                    {
+                        offHand = part.FirstSegment + part.SegmentCount - 1;
+                        shoulderL = part.FirstSegment;
+                    }
+                    else if (part.Role == LimbRole.Head && head < 0)
+                        head = part.FirstSegment + part.SegmentCount - 1;   // (the head itself, past the neck)
+                    else if (part.Parent < 0 && part.Role != LimbRole.Leg && part.Role != LimbRole.Arm && chest < 0)
+                        chest = part.FirstSegment + part.SegmentCount - 1;
+                }
                 if (hand < 0)
                     return;
-                var segment = Output[offset + hand];
-                // (Held in the palm, a little short of the fingertips, so the hand closes round it.)
-                var grip = segment.Position + Unity.Mathematics.math.mul(segment.Rotation, new Unity.Mathematics.float3(0f, 0f, segment.Length * 0.55f));
+                var k = 0;
                 var scale = Unity.Mathematics.math.max(state.Scale, 0.3f);
                 var forward = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
+                var right = new Unity.Mathematics.float3(forward.z, 0f, -forward.x);
+                var upward = new Unity.Mathematics.float3(0f, 1f, 0f);
                 var wood = new Unity.Mathematics.float4(0.16f, 0.1f, 0.05f, 0f);
-                if (state.Held == HeldItem.Spear)
+                var iron = new Unity.Mathematics.float4(0.32f, 0.33f, 0.35f, 0f);
+                var bone = new Unity.Mathematics.float4(0.78f, 0.74f, 0.62f, 0f);
+                var armour = b.GuardArmour;
+                var levelled = state.Mode == CreatureMode.Patrol && state.Stage == 2;
+
+                // The hand closed round what it holds: a fist, shorter and rounder than the open hand.
+                var fist = Output[offset + hand];
+                fist.Length *= 0.5f;
+                fist.RadiusStart *= 1.25f;
+                fist.RadiusEnd *= 1.35f;
+                Output[offset + hand] = fist;
+                var grip = fist.Position + Unity.Mathematics.math.mul(fist.Rotation, new Unity.Mathematics.float3(0f, 0f, fist.Length * 0.6f));
+
+                if (state.Held == HeldItem.Torch)
                 {
-                    // (Running at a beast to drive it off: levelled at it, the head well out ahead.)
-                    var levelled = state.Mode == CreatureMode.Patrol && state.Stage == 2;
-                    var dir = levelled ? Unity.Mathematics.math.normalize(forward + new Unity.Mathematics.float3(0f, 0.12f, 0f))
-                                       : Unity.Mathematics.math.normalize(new Unity.Mathematics.float3(0f, 1f, 0f) + forward * 0.12f);
-                    var length = 2.1f * scale;
-                    var butt = grip - dir * length * (levelled ? 0.3f : 0.45f);
-                    var rot = Unity.Mathematics.quaternion.LookRotationSafe(dir, forward);
-                    Output[at] = new SegmentInstance { Position = butt, Rotation = rot, Length = length, RadiusStart = 0.017f * scale, RadiusEnd = 0.014f * scale, Flatten = 1f, Color = wood, Pad = faded };
-                    Output[at + 1] = new SegmentInstance { Position = butt + dir * length, Rotation = rot, Length = 0.2f * scale, RadiusStart = 0.03f * scale, RadiusEnd = 0.003f * scale, Flatten = 0.4f, Color = new Unity.Mathematics.float4(0.32f, 0.33f, 0.35f, 0f), Pad = faded };
-                    return;
+                    var up = Unity.Mathematics.math.normalize(upward + forward * 0.45f);
+                    var handle = 0.5f * scale;
+                    var bottom = grip - up * handle * 0.35f;
+                    Output[at + k++] = Piece(bottom, up, forward, handle, 0.02f * scale, 0.028f * scale, 1f, wood, faded);
+                    // (Its flame is lit on the main thread, from the top of this handle: FireSystem's, like any other.)
                 }
-                var up = Unity.Mathematics.math.normalize(new Unity.Mathematics.float3(0f, 1f, 0f) + forward * 0.45f);
-                var handle = 0.5f * scale;
-                var bottom = grip - up * handle * 0.35f;
-                Output[at] = new SegmentInstance { Position = bottom, Rotation = Unity.Mathematics.quaternion.LookRotationSafe(up, forward), Length = handle, RadiusStart = 0.02f * scale, RadiusEnd = 0.028f * scale, Flatten = 1f, Color = wood, Pad = faded };
-                // (Its flame is lit on the main thread, from the top of this handle: FireSystem's, like any other.)
+                else if (state.Held == HeldItem.Spear)
+                {
+                    switch (b.GuardKit)
+                    {
+                        case GuardKit.Dwarf:
+                        {
+                            // An axe: a short haft, a broad blade at its head facing forward.
+                            var dir = levelled ? Unity.Mathematics.math.normalize(upward + forward * 0.7f) : Unity.Mathematics.math.normalize(upward + forward * 0.15f);
+                            var length = 0.95f * scale;
+                            var butt = grip - dir * length * 0.3f;
+                            Output[at + k++] = Piece(butt, dir, forward, length, 0.022f * scale, 0.02f * scale, 1f, wood, faded);
+                            var blade = butt + dir * length * 0.86f;
+                            Output[at + k++] = Piece(blade, Unity.Mathematics.math.normalize(forward - dir * 0.1f), right, 0.13f * scale, 0.05f * scale, 0.1f * scale, 0.18f, iron, faded);
+                            break;
+                        }
+                        case GuardKit.Goblin:
+                        {
+                            // A crude club, thick at the end, carried low.
+                            var dir = levelled ? Unity.Mathematics.math.normalize(upward + forward * 0.8f) : Unity.Mathematics.math.normalize(upward * 0.6f + forward * 0.5f);
+                            var length = 0.55f * scale;
+                            Output[at + k++] = Piece(grip - dir * 0.06f * scale, dir, forward, length, 0.025f * scale, 0.07f * scale, 1f, wood, faded);
+                            break;
+                        }
+                        case GuardKit.Ogre:
+                        {
+                            // A great club over the shoulder (raised overhead, running at a beast).
+                            var dir = levelled ? Unity.Mathematics.math.normalize(upward + forward * 0.25f) : Unity.Mathematics.math.normalize(upward * 0.55f - forward * 0.75f);
+                            var length = 1.15f * scale;
+                            Output[at + k++] = Piece(grip - dir * 0.08f * scale, dir, forward, length, 0.045f * scale, 0.13f * scale, 1f, wood, faded);
+                            break;
+                        }
+                        case GuardKit.Elf:
+                            // (The bow is on its back, below; nothing in hand by day.)
+                            break;
+                        default:
+                        {
+                            // A spear, upright at its side, its butt near the ground; levelled, running at a beast.
+                            var dir = levelled ? Unity.Mathematics.math.normalize(forward + upward * 0.12f) : Unity.Mathematics.math.normalize(upward + forward * 0.12f);
+                            var length = 2.1f * scale;
+                            var butt = grip - dir * length * (levelled ? 0.3f : 0.45f);
+                            Output[at + k++] = Piece(butt, dir, forward, length, 0.017f * scale, 0.014f * scale, 1f, wood, faded);
+                            Output[at + k++] = Piece(butt + dir * length, dir, forward, 0.2f * scale, 0.03f * scale, 0.003f * scale, 0.4f, iron, faded);
+                            break;
+                        }
+                    }
+                }
+
+                // The chest: a breastplate over it, the sash down its front, pads on the shoulders.
+                if (chest >= 0)
+                {
+                    var c = Output[offset + chest];
+                    var axis = Unity.Mathematics.math.mul(c.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                    var r = Unity.Mathematics.math.max(c.RadiusStart, c.RadiusEnd);
+                    var plate = c;
+                    plate.RadiusStart *= 1.12f;
+                    plate.RadiusEnd *= 1.12f;
+                    plate.Color = armour;
+                    plate.Pad = faded;
+                    Output[at + k++] = plate;
+                    var front = Unity.Mathematics.math.normalize(forward - axis * Unity.Mathematics.math.dot(forward, axis));
+                    var top = c.Position + axis * c.Length;
+                    Output[at + k++] = Piece(top - axis * r * 0.45f + front * r * 1.05f, -axis, front, c.Length * 1.4f, r * 0.3f, r * 0.26f, 0.15f, b.GuardSash, faded);
+                    // An elf's bow across its back: an arc from low on one side to high on the other, and its string.
+                    if (b.GuardKit == GuardKit.Elf)
+                    {
+                        var centre = c.Position + axis * c.Length * 0.5f - front * r * 1.25f;
+                        var across = Unity.Mathematics.math.normalize(axis + right * 0.9f);
+                        var bowLength = 1.1f * scale;
+                        var lower = centre - across * bowLength * 0.5f;
+                        var mid = centre - front * 0.08f * scale;
+                        var upper = centre + across * bowLength * 0.5f;
+                        Output[at + k++] = Piece(lower, Unity.Mathematics.math.normalize(mid - lower), front, Unity.Mathematics.math.distance(lower, mid), 0.012f * scale, 0.02f * scale, 1f, wood, faded);
+                        Output[at + k++] = Piece(mid, Unity.Mathematics.math.normalize(upper - mid), front, Unity.Mathematics.math.distance(upper, mid), 0.02f * scale, 0.012f * scale, 1f, wood, faded);
+                        Output[at + k++] = Piece(lower, across, front, bowLength, 0.003f * scale, 0.003f * scale, 1f, bone, faded);
+                    }
+                    for (int side = 0; side < 2; side++)
+                    {
+                        var arm = side == 0 ? shoulderR : shoulderL;
+                        if (arm < 0)
+                            continue;
+                        var sh = Output[offset + arm];
+                        var outward = side == 0 ? right : -right;
+                        Output[at + k++] = Piece(sh.Position + upward * sh.RadiusStart * 0.4f, outward, upward, 0.02f * scale,
+                                                 sh.RadiusStart * 1.9f, sh.RadiusStart * 1.6f, 0.55f, armour, faded);
+                    }
+                }
+
+                // A goblin's scrap shield on its other forearm.
+                if (b.GuardKit == GuardKit.Goblin && offHand >= 0)
+                {
+                    var fore = Output[offset + offHand - 1];
+                    var at2 = fore.Position + Unity.Mathematics.math.mul(fore.Rotation, new Unity.Mathematics.float3(0f, 0f, fore.Length * 0.5f)) - right * 0.06f * scale;
+                    Output[at + k++] = Piece(at2, forward, -right, 0.01f * scale, 0.24f * scale, 0.22f * scale, 0.12f, new Unity.Mathematics.float4(0.36f, 0.3f, 0.24f, 0f), faded);
+                }
+
+                // The helmet, its folk's shape (the hair under it hidden: whatever grows from the top of the head, not
+                // beards and moustaches below).
+                if (head >= 0 && k + 4 <= GuardParts)
+                {
+                    for (int i = 0; i < b.Parts.Length; i++)
+                    {
+                        ref var part = ref b.Parts[i];
+                        if (part.Socket.y < 0f || part.SegmentCount == 0 || b.Segments[part.FirstSegment].Hair == 0)
+                            continue;
+                        for (int j = 0; j < part.SegmentCount; j++)
+                            Output[offset + part.FirstSegment + j] = default;
+                    }
+                    var h = Output[offset + head];
+                    var ax = Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                    var r = Unity.Mathematics.math.max(h.RadiusStart, h.RadiusEnd);
+                    var crown = h.Position + ax * h.Length;
+                    var face = Unity.Mathematics.math.normalize(forward - ax * Unity.Mathematics.math.dot(forward, ax));
+                    var side = Unity.Mathematics.math.normalize(Unity.Mathematics.math.cross(ax, face));
+                    // (A dome: wide round the head, flattened along it, sitting on the crown.)
+                    var dome = Piece(crown + ax * r * 0.12f, face, ax, 0f, r * 1.18f, r * 1.18f, 0.72f, armour, faded);
+                    switch (b.GuardKit)
+                    {
+                        case GuardKit.Dwarf:
+                            Output[at + k++] = dome;
+                            for (int e = -1; e <= 1; e += 2)
+                                Output[at + k++] = Piece(crown + side * e * r * 0.85f, Unity.Mathematics.math.normalize(side * e * 0.8f + ax * 0.7f), face,
+                                                         r * 1.3f, r * 0.32f, r * 0.04f, 1f, bone, faded);
+                            break;
+                        case GuardKit.Elf:
+                            Output[at + k++] = dome;
+                            // A tall crest, broad from front to back and thin across, swept back like a leaf.
+                            Output[at + k++] = Piece(crown + ax * r * 0.4f, Unity.Mathematics.math.normalize(ax - face * 0.35f), side, r * 2.6f, r * 0.95f, r * 0.08f, 0.14f, b.GuardSash, faded);
+                            break;
+                        case GuardKit.Goblin:
+                            // A dented pot, tipped askew.
+                            var tip = Unity.Mathematics.math.normalize(ax + side * 0.3f - face * 0.1f);
+                            Output[at + k++] = Piece(crown - tip * r * 0.55f, tip, face, r * 0.95f, r * 1.12f, r * 1.2f, 0.92f, new Unity.Mathematics.float4(0.3f, 0.29f, 0.27f, 0f), faded);
+                            break;
+                        case GuardKit.Ogre:
+                        {
+                            // A great beast's skull: a bone cap, a heavy brow, and two short horns.
+                            var skull = dome;
+                            skull.Color = bone;
+                            Output[at + k++] = skull;
+                            Output[at + k++] = Piece(crown + face * r * 0.75f - side * r * 0.85f, side, ax, r * 1.7f, r * 0.3f, r * 0.3f, 0.7f, bone, faded);
+                            for (int e = -1; e <= 1; e += 2)
+                                Output[at + k++] = Piece(crown + side * e * r * 0.7f + face * r * 0.3f, Unity.Mathematics.math.normalize(side * e * 0.5f + ax * 0.6f + face * 0.4f), face,
+                                                         r * 0.7f, r * 0.25f, r * 0.05f, 1f, bone, faded);
+                            break;
+                        }
+                        default:
+                            // A kettle hat: a dome with a broad brim all round.
+                            Output[at + k++] = dome;
+                            Output[at + k++] = Piece(crown - ax * r * 0.3f, face, ax, 0f, r * 1.95f, r * 1.95f, 0.07f, armour, faded);
+                            break;
+                    }
+                }
             }
+
+            /// <summary>One capsule of a kit: from a point along a direction, its flattening across "flat" (local y).</summary>
+            static SegmentInstance Piece(Unity.Mathematics.float3 from, Unity.Mathematics.float3 along, Unity.Mathematics.float3 flat, float length,
+                                         float radiusStart, float radiusEnd, float flatten, Unity.Mathematics.float4 color, float faded) =>
+                new SegmentInstance
+                {
+                    Position = from,
+                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(along, flat),
+                    Length = length,
+                    RadiusStart = radiusStart,
+                    RadiusEnd = radiusEnd,
+                    Flatten = flatten,
+                    Color = color,
+                    Pad = faded
+                };
 
             /// <summary>
             /// A lantern hanging from the off hand by its bail: a dark iron cap and base, and between them a warm glass

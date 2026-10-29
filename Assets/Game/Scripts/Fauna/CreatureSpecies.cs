@@ -142,6 +142,15 @@ namespace Punchy.Fauna
                  "with spears levelled and it flees out of the place.")]
         public bool DrivenOff;
 
+        [Header("Town guards (folk)")]
+        [Tooltip("How this folk's town guards are kitted out, so a guard is known at a glance across the town: the shape " +
+                 "of helmet, and the weapon carried by day (a torch by night). Only guards wear it.")]
+        public GuardKit GuardKit;
+        [Tooltip("Their armour: a breastplate and shoulder pads in metal or leather.")]
+        public Color GuardArmour = new Color(0.55f, 0.57f, 0.6f);
+        [Tooltip("Their sash, down the front: the town's colour (as on its hall's banners), so its guards read as one.")]
+        public Color GuardSash = new Color(0.62f, 0.12f, 0.1f);
+
         [Header("Flight (habitat Flies)")]
         [Tooltip("Height above the ground it cruises at, in metres.")]
         public Vector2 FlightHeight = new Vector2(8f, 18f);
