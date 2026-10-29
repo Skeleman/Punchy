@@ -321,7 +321,10 @@ asks Zach if needed, and records the answer here.
 - **Answer:** no, held. Glide 1% low 10-12 vs ~30 (v0.7.0) and uncapped town GPU 14.9 vs 8.5 ms are big and
   repeatable, which J-006 says to hold for. kind-possum profiles glide and bisects both; fixes go on rc/v0.8.0.
   Zach can overrule in the morning.
-- **Revisited:** 0.
+- **Update (2026-10-29):** glide was AmbientLife.Settle (fixed, 194a57d). The town/glide GPU "step" is the island
+  layout (5b/5c reshuffle put a bigger village and dense forest at the bench stops), not a regression. The gate is
+  J-006 on the RC island, measured on 09c9b55 (depth priming).
+- **Revisited:** 1.
 
 ### J-037: Restart sessions to shrink context?
 
