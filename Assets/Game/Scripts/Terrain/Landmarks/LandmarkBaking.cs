@@ -415,8 +415,38 @@ namespace Punchy.Terrain
                     byName.Add(t);
                 byName.Sort((a, b) => typeHashes[a].CompareTo(typeHashes[b]));
                 foreach (var t in byName)
-                    if (entryTypes.Contains(t) && !types[t].OnlyAsCompanion && !instances.Exists(inst => inst.Type == t))
-                        Place(t, 1);
+                    if (entryTypes.Contains(t) && !types[t].OnlyAsCompanion && !instances.Exists(inst => inst.Type == t) && Place(t, 1) == 0)
+                        PlaceFiner(t);
+
+                // A type that found no free spot on the candidate grid (its only suitable one taken by a bigger
+                // neighbour, say) searches three more grids offset by half a cell before giving up, so "at least once
+                // wherever the land allows" still holds when it's crowded out.
+                void PlaceFiner(int type)
+                {
+                    var saved = new float2[count];
+                    var savedKeys = new uint[count];
+                    for (int i = 0; i < count; i++)
+                    {
+                        saved[i] = points[i];
+                        savedKeys[i] = keys[i];
+                    }
+                    for (int o = 1; o < 4; o++)
+                    {
+                        var offset = new float2(o & 1, o >> 1) * CandidateSpacing * 0.5f;
+                        for (int i = 0; i < count; i++)
+                        {
+                            points[i] = saved[i] + offset;
+                            keys[i] = math.hash(new uint2(savedKeys[i], (uint)o * 0x9E37u)) | 1u;
+                        }
+                        if (Place(type, 1) > 0)
+                            break;
+                    }
+                    for (int i = 0; i < count; i++)
+                    {
+                        points[i] = saved[i];
+                        keys[i] = savedKeys[i];
+                    }
+                }
 
                 // Companions: beside each landmark that has them (a mining village by its mine), the first that the
                 // biome there lists and that finds a spot in range.
