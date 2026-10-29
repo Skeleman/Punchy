@@ -57,6 +57,8 @@ namespace Punchy.Fauna
         /// breastplate, sash and shoulder pads. The torch's handle is always the first (its flame is lit from it).
         /// </summary>
         const int GuardParts = 18;
+        /// <summary>Creatures behind the camera nearer than this are still posed (their shadows can fall in view).</summary>
+        const float BehindCullRange = 25f;
         /// <summary>Capsules in a miner's gear: its pick (the haft, the head's two points) and a sack of ore.</summary>
         const int MinerParts = 4;
         /// <summary>When in a throw (its ActionTime) the stone leaves the hand: TraceSystem throws it from there.</summary>
@@ -434,17 +436,30 @@ namespace Punchy.Fauna
             var entities = query.ToEntityArray(Allocator.TempJob);
             // Deep in a cave, out of sight of every mouth (CaveSystem.SurfaceHidden): the creatures up on the surface are
             // neither posed nor drawn. (Players' bodies always are.)
-            if (Punchy.Terrain.CaveSystem.SurfaceHidden >= 0.99f && SystemAPI.TryGetSingleton<TerrainSource>(out var hiddenFrom))
+            // And anything well behind the camera (past BehindCullRange, so the shadows of those close behind still fall
+            // in view) is neither posed nor drawn: about half of them at any moment, the biggest share of the pose cost.
+            var hidden = Punchy.Terrain.CaveSystem.SurfaceHidden >= 0.99f;
+            SystemAPI.TryGetSingleton<TerrainSource>(out var hiddenFrom);
+            float3 camPos = cam.transform.position, camFwd = cam.transform.forward;
+            // (Behind: more than about 100 degrees off the way the camera looks, well outside any view it has.)
+            const float behindCos = -0.17f;
             {
                 var keep = 0;
                 for (int i = 0; i < bodies.Length; i++)
-                    if (states[i].Mode == CreatureMode.Puppet || states[i].Position.y < hiddenFrom.SampleHeight(states[i].Position.xz) - 1f)
+                {
+                    var to = states[i].Position - camPos;
+                    var far = math.lengthsq(to) > BehindCullRange * BehindCullRange;
+                    var behind = far && math.dot(math.normalizesafe(to), camFwd) < behindCos &&
+                                 math.length(to) > bodies[i].Blob.Value.SeenFrom * 0.5f;
+                    var underground = hidden && !(states[i].Position.y < hiddenFrom.SampleHeight(states[i].Position.xz) - 1f);
+                    if (states[i].Mode == CreatureMode.Puppet || !behind && !underground)
                     {
                         bodies[keep] = bodies[i];
                         states[keep] = states[i];
                         entities[keep] = entities[i];
                         keep++;
                     }
+                }
                 if (keep < bodies.Length)
                 {
                     var b2 = new NativeArray<CreatureBody>(keep, Allocator.TempJob);
