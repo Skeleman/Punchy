@@ -85,6 +85,10 @@ namespace Punchy.Terrain
         [Min(0f)] public float SquareSize = 22f;
         [Tooltip("Lanes out of the square (Square), or paths in from the ring street (Ring).")]
         [Range(1, 6)] public int Lanes = 3;
+        [Tooltip("Square: a lane round the town linking the ends of the lanes out of the square, and in big towns (radius " +
+                 "over 70 m at folk scale 1) cross lanes between neighbouring lanes nearer the middle, so there are real " +
+                 "rounds to walk.")]
+        public bool PerimeterLane = true;
         [Tooltip("How many plots are shrines (on the square or at the edge).")]
         [Range(0, 3)] public int Shrines = 1;
         [Tooltip("Share of the remaining plots left green (gardens and trees).")]

@@ -87,7 +87,12 @@ namespace Punchy.Flora
         [Tooltip("A sawn stump to sit on, 0.42 m high (Bark, with a pale cut top).")] Stump,
         [Tooltip("A fire pit: a ring of stones (Bark; Height the ring's radius, Branches how many) round an ash bed with " +
                  "charred logs (Foliage) leaning together and glowing embers (first accent; set Glowing Accents so they " +
-                 "light the ground). The flames themselves are the landmark's Flame effect.")] FirePit
+                 "light the ground). The flames themselves are the landmark's Flame effect.")] FirePit,
+        [Tooltip("A broadleaf tree (as BroadleafTree) with a wild bees' comb hanging from its trunk under the crown, at " +
+                 "HiveHeight of the trunk (first accent the comb's colour). Use one variant so the comb's height is " +
+                 "known; Bee Tree landmarks put a Hive anchor round it.")] HiveTree,
+        [Tooltip("A glacier ice arch: a jagged bow of ice from two feet (Height its height, Spread its span over height, " +
+                 "Thickness the legs' radius over height), in Foliage; Finish Glass draws it as clear ice. Walk under it.")] IceArch
     }
 
     public enum FoliageFinish : byte

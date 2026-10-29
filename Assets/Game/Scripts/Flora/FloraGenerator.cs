@@ -80,6 +80,8 @@ namespace Punchy.Flora
                     case FloraForm.Log: SeatLog(g); break;
                     case FloraForm.Stump: Stump(g); break;
                     case FloraForm.FirePit: FirePit(g); break;
+                    case FloraForm.HiveTree: Broadleaf(g); Hive(g); break;
+                    case FloraForm.IceArch: IceArch(g); break;
                     case FloraForm.Bones: Bones(g); break;
                     case FloraForm.Boulder: Boulder(g); break;
                     case FloraForm.Spire: Spire(g); break;
@@ -176,6 +178,9 @@ namespace Punchy.Flora
             /// <summary>Fine detail that only some levels draw (loose leaves, florets).</summary>
             public readonly System.Random Detail;
             public float Height, Width, TrunkRadius, DoorHeight;
+            /// <summary>A tree's trunk centreline and radii, bottom to top (Broadleaf), for things that hang on it.</summary>
+            public List<Vector3> TrunkPath;
+            public List<float> TrunkRadii;
             public readonly List<Vector4> Colliders = new List<Vector4>();
 
             /// <summary>
@@ -287,6 +292,8 @@ namespace Punchy.Flora
                 trunk.Add(new Vector3(0f, Mathf.Lerp(-0.6f, top, t), 0f) + lean * (t * t) + (i > 0 ? wiggle : Vector3.zero));
                 trunkRadii.Add(r0 * Mathf.Lerp(1f, 0.3f, t) * (i == 0 ? 1.45f : i == 1 ? 1.1f : 1f));
             }
+            g.TrunkPath = trunk;
+            g.TrunkRadii = trunkRadii;
 
             var crownCentre = new Vector3(lean.x * 0.6f, (crownBase + height) * 0.5f, lean.z * 0.6f);
             var crownRadii = new Vector3(width * 0.5f, (height - crownBase) * 0.5f, width * 0.5f);
@@ -1318,6 +1325,117 @@ namespace Punchy.Flora
                 }
             }
             g.Colliders.Add(new Vector4(0f, 0f, radius * 1.1f, radius * 0.4f));
+        }
+
+        /// <summary>Where a hive tree's comb hangs, as a share of its height (see FloraGenerator.Hive).</summary>
+        public static float HiveHeight(FloraSpecies s) => (s.Height.x + s.Height.y) * 0.5f * s.TrunkFraction * 0.7f;
+
+        /// <summary>
+        /// A wild bees' nest hanging from the trunk (after Broadleaf), under the crown at HiveHeight: a drape of
+        /// honey-amber comb in overlapping layers, widening then narrowing to a teardrop, darkest where it joins the bark,
+        /// with a dark entrance slit low on its face and a drip of honey from its foot.
+        /// </summary>
+        static void Hive(Grower g)
+        {
+            if (g.TrunkPath == null)
+                return;
+            var b = g.B;
+            var y = HiveHeight(g.S);
+            // The trunk's centre and radius at that height.
+            var at = g.TrunkPath[0];
+            var radius = g.TrunkRadii[0];
+            for (int i = 1; i < g.TrunkPath.Count; i++)
+                if (g.TrunkPath[i].y >= y)
+                {
+                    var t = Mathf.InverseLerp(g.TrunkPath[i - 1].y, g.TrunkPath[i].y, y);
+                    at = Vector3.Lerp(g.TrunkPath[i - 1], g.TrunkPath[i], t);
+                    radius = Mathf.Lerp(g.TrunkRadii[i - 1], g.TrunkRadii[i], t);
+                    break;
+                }
+            var side = g.Flat(g.R() * 6.28f);
+            var size = Mathf.Clamp(radius * 1.8f, 0.35f, 0.7f);
+            var wax = AccentAt(g, 0);
+            var root = at + side * radius * 0.8f;
+            var facing = Quaternion.LookRotation(side);
+            const int layers = 6;
+            var bottom = root;
+            for (int k = 0; k < layers; k++)
+            {
+                // Layers hang one below another, each overlapping the last: wide in the middle, a teardrop's point below.
+                var t = k / (float)(layers - 1);
+                var width = size * Mathf.Sin(Mathf.Lerp(0.35f, 2.9f, t)) * 0.75f + size * 0.12f;
+                var centre = root + side * (width * 0.55f) - Vector3.up * (t * size * 1.6f) + g.Flat(g.R() * 6.28f) * width * 0.06f;
+                var shade = Mathf.Lerp(0.6f, 1.08f, Mathf.Sqrt(t)) * g.Range(0.92f, 1.06f);
+                var first = b.Blob(centre, new Vector3(width * 0.62f, size * 0.24f, width * 0.5f), facing,
+                                   g.Lod == 0 ? 1 : 0, 0.18f, g.R() * 50f, wax * shade, g.Lod < 2 ? FloraPart.Comb : FloraPart.Cactus);
+                b.Occlude(first, (p, n) => Mathf.Lerp(0.5f, 1f, Mathf.Clamp01(n.y * 0.4f + 0.65f)));
+                bottom = centre;
+            }
+            if (g.Lod < 2)
+            {
+                // The entrance: a dark slit low on the face; and a drip of honey from the point.
+                var mouth = root + side * size * 0.82f - Vector3.up * size * 1.0f;
+                b.Blob(mouth, new Vector3(size * 0.22f, size * 0.06f, size * 0.1f), facing, 0, 0f, 0f,
+                       new Color(0.02f, 0.015f, 0.01f), FloraPart.Bark);
+                var drip = bottom - Vector3.up * size * 0.12f;
+                b.Tube(new List<Vector3> { drip, drip - Vector3.up * size * 0.35f }, new List<float> { size * 0.05f, size * 0.025f },
+                       g.Sides(5, 4, 3), wax * 1.15f, FloraPart.Comb);
+                b.Blob(drip - Vector3.up * size * 0.37f, Vector3.one * size * 0.045f, Quaternion.identity, 0, 0f, 0f, wax * 1.2f, FloraPart.Comb);
+            }
+        }
+
+        /// <summary>
+        /// A glacier ice arch facing +Z: a bow of ice from one foot to the other along X, thick and splayed at the feet,
+        /// thinner over the top, its thickness and line broken up ring by ring so it reads as carved by melt rather
+        /// than turned, with icicles under the crown. Drawn as glass (clear ice) when the species' finish is Glass, else as
+        /// rock in its colour. The legs carry colliders, so the way under it stays open.
+        /// </summary>
+        static void IceArch(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var half = height * Mathf.Max(s.Spread, 0.5f) * 0.5f;
+            var leg = height * Mathf.Max(s.Thickness, 0.05f);
+            g.Height = height;
+            g.Width = half * 2f + leg * 2f;
+            g.TrunkRadius = 0f;
+            var part = s.Finish == FoliageFinish.Glass ? FloraPart.Glass : FloraPart.Bark;
+            var lean = g.Range(-0.12f, 0.12f) * half;
+            var rings = g.Lod == 0 ? 18 : g.Lod == 1 ? 11 : 7;
+            var sides = g.Sides(9, 7, 5);
+            var path = new List<Vector3>();
+            var radii = new List<float>();
+            for (int i = 0; i <= rings; i++)
+            {
+                var t = i / (float)rings;
+                var a = t * Mathf.PI;
+                // A half ellipse from foot to foot (feet a little below the ground), leaning slightly one way.
+                var p = new Vector3(-Mathf.Cos(a) * half, Mathf.Sin(a) * height - 0.3f, Mathf.Sin(a) * lean);
+                p += new Vector3(g.Range(-0.08f, 0.08f), g.Range(-0.06f, 0.06f), g.Range(-0.1f, 0.1f)) * leg;
+                path.Add(p);
+                var thick = Mathf.Lerp(1f, 0.55f, Mathf.Sin(a));
+                radii.Add(leg * thick * (i == 0 || i == rings ? 1.35f : 1f) * g.Range(0.88f, 1.1f));
+            }
+            var first = b.VertexCount;
+            b.Tube(path, radii, sides, g.FoliageColor(), part);
+            // Darker underneath, where the bow shades itself.
+            b.Occlude(first, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y * 0.5f + 0.6f)));
+            if (g.Lod < 2)
+            {
+                // Icicles under the crown.
+                for (int k = 0; k < 6; k++)
+                {
+                    var t = g.Range(0.3f, 0.7f);
+                    var a = t * Mathf.PI;
+                    var top = new Vector3(-Mathf.Cos(a) * half, Mathf.Sin(a) * height - 0.3f - leg * 0.45f, Mathf.Sin(a) * lean);
+                    var length = leg * g.Range(0.8f, 2.2f);
+                    b.Tube(new List<Vector3> { top, top + Vector3.down * length }, new List<float> { leg * 0.16f, leg * 0.02f },
+                           g.Sides(5, 4, 3), g.FoliageColor(), part);
+                }
+            }
+            foreach (var x in new[] { -half, half })
+                g.Colliders.Add(new Vector4(x, 0f, leg * 1.3f, height * 0.4f));
         }
 
         static void Bones(Grower g)

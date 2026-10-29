@@ -218,14 +218,16 @@ namespace Punchy.Ambience
                     };
                     if (effect.Kind == LandmarkEffectKind.Flame)
                     {
-                        // Tongues of fire spread round the spot, each its own size and seed.
+                        // One fire: a tall tongue in the middle and the rest clustered close round it, overlapping,
+                        // shorter towards the edge.
                         var tongues = math.max(1, effect.Particles);
+                        var reach = effect.Width * inst.Scale * 0.25f;
                         for (int k = 0; k < tongues; k++)
                         {
                             var a = k * 2.39996f + emitter.Seed * 6.28f;
-                            var spread = tongues == 1 ? 0f : effect.Width * inst.Scale * 0.5f * math.sqrt((k + 0.5f) / tongues);
+                            var spread = k == 0 ? 0f : reach * math.sqrt(k / (float)tongues);
                             var p = new float3(at.x + math.cos(a) * spread, y + 0.05f, at.y + math.sin(a) * spread);
-                            var size = effect.Size * inst.Scale * (1f - 0.35f * (spread / math.max(effect.Width * inst.Scale * 0.5f, 0.01f)));
+                            var size = effect.Size * inst.Scale * (k == 0 ? 1.3f : 1f - 0.3f * spread / math.max(reach, 0.01f));
                             fires.Add((p, size, (int)(math.abs(inst.Seed) * 31 + e * 7 + k), (int)effect.Flame));
                         }
                         e++;
