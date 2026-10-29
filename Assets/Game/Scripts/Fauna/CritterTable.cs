@@ -15,6 +15,8 @@ namespace Punchy.Fauna
         [Tooltip("On a low bough at night.")] public CreatureSpecies Owl;
         [Tooltip("At the water's edge at night.")] public CreatureSpecies Frog;
         [Tooltip("In the grass, day or night.")] public CreatureSpecies Mouse;
+        [Header("Wild folk (FaunaDirector.SpawnWildFolk)")]
+        [Tooltip("The one who lives alone at a hermit's shelter (a Home anchor).")] public CreatureSpecies Hermit;
 
         public IEnumerable<CreatureSpecies> All()
         {
@@ -23,6 +25,7 @@ namespace Punchy.Fauna
             yield return Owl;
             yield return Frog;
             yield return Mouse;
+            yield return Hermit;
         }
     }
 }

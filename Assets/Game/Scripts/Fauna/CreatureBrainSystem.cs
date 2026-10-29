@@ -2624,7 +2624,8 @@ namespace Punchy.Fauna
                 if (!Terrain.Anchors.IsCreated)
                     return false;
                 ref var set = ref Terrain.Anchors.Value;
-                if (sleepy > 0.5f)
+                // (By the hour, not by sleepiness: a hermit sits up by its fire after dark, then turns in.)
+                if (Hour >= 21.5f || Hour < 6f)
                 {
                     var door = NearestAnchor(AnchorKind.Door, s.Home, 8f);
                     if (door >= 0)
@@ -2700,7 +2701,11 @@ namespace Punchy.Fauna
                     s.Timer = rng.NextFloat(40f, 100f);
                     return true;
                 }
-                return false;
+                // Otherwise a potter round its place.
+                SetMode(ref s, CreatureMode.Wander);
+                s.Target = s.Home + rng.NextFloat2Direction() * rng.NextFloat(3f, 10f);
+                s.Timer = rng.NextFloat(10f, 25f);
+                return true;
             }
 
             /// <summary>
