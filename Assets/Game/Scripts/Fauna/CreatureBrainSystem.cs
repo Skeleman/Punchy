@@ -405,7 +405,7 @@ namespace Punchy.Fauna
                 }
 
                 // A messenger bird coming to this one: it stops what it's doing to meet it.
-                if (b.Upright && b.Hands && s.Leash > 0f && Free(s.Mode) && !(s.Mode == CreatureMode.Idle && s.Stage >= MessageWait) &&
+                if (b.Upright && b.Hands && s.Leash > 0f && (Free(s.Mode) || s.Mode == CreatureMode.Greet) && !(s.Mode == CreatureMode.Idle && s.Stage >= MessageWait) &&
                     rng.NextFloat() < 0.25f && FindMessenger(self, in s, out var messenger))
                 {
                     SetMode(ref s, CreatureMode.Idle);
@@ -2301,11 +2301,24 @@ namespace Punchy.Fauna
 
             /// <summary>Idle-mode stages of one of the townsfolk a messenger bird has come to: waiting for it, taking the
             /// message, reading it.</summary>
-            const byte MessageWait = 60, MessageTake = 61, MessageRead = 62;
+            const byte MessageWait = CreatureAnimator.MessageWait, MessageTake = CreatureAnimator.MessageTake, MessageRead = CreatureAnimator.MessageRead;
+
+            /// <summary>Where a messenger bird perches on the forearm one of the townsfolk holds up for it (see the
+            /// animator's MessageWait pose): out in front of them at chest height, a little to their left.</summary>
+            float3 Perch(in CreatureState them, ref CreatureBlob tb)
+            {
+                var f = new float2(math.sin(them.Yaw), math.cos(them.Yaw));
+                var left = new float2(-f.y, f.x);
+                var scale = math.max(them.Scale, 0.3f);
+                var xz = them.Position.xz + f * 0.42f * scale + left * 0.12f * scale;
+                return new float3(xz.x, them.Position.y + tb.StandHeight * scale * PerchHeight, xz.y);
+            }
+
+            const float PerchHeight = 1.3f;
 
             /// <summary>
             /// A messenger bird with a message: in over the town to one of the townsfolk about the place (the nearest to
-            /// it, re-chosen if that one goes in), down to land in front of them (0); on the ground, waiting while they
+            /// it, re-chosen if that one goes in), down to land on the forearm they hold up for it (0); there, waiting while they
             /// take it (1); then up and away towards the town it's making for next (2), where it's an ordinary bird again.
             /// </summary>
             void Messenger(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, ref float vertical)
@@ -2315,18 +2328,20 @@ namespace Punchy.Fauna
                 {
                     if (!hasThem || !Receiver(States[r], ref Bodies[r].Blob.Value, s.Home) && !(States[r].Mode == CreatureMode.Idle && States[r].Stage == MessageWait))
                     {
-                        s.Partner = FindReceiver(s.Position.xz, s.Home);
-                        if (s.Partner == Entity.Null || s.StageTime > 120f)
+                        // (Nobody free just now: round over the town, looking again now and then, for two minutes.)
+                        s.Partner = rng.NextFloat() < dt * 2f ? FindReceiver(s.Position.xz, s.Home) : Entity.Null;
+                        if (s.StageTime > 120f)
                         {
                             NextStage(ref s);
                             s.Stage = 2;
                         }
-                        FlyTo(ref s, ref b, s.Home, Cruise(s, ref b, s.Home), b.FlySpeed, dt, ref vertical);
+                        var angle = s.StageTime * 0.25f;
+                        var round = s.Home + new float2(math.cos(angle), math.sin(angle)) * 15f;
+                        FlyTo(ref s, ref b, round, Cruise(s, ref b, round) + 8f, b.FlySpeed, dt, ref vertical);
                         return;
                     }
-                    var them = States[r];
-                    var front = them.Position.xz + math.normalizesafe(s.Position.xz - them.Position.xz) * 0.7f;
-                    if (FlyTo(ref s, ref b, front, Terrain.SampleHeight(front), b.FlySpeed, dt, ref vertical))
+                    var perch = Perch(States[r], ref Bodies[r].Blob.Value);
+                    if (FlyTo(ref s, ref b, perch.xz, perch.y, b.FlySpeed, dt, ref vertical))
                         NextStage(ref s);
                     else if (s.StageTime > 120f)
                     {
@@ -2336,9 +2351,11 @@ namespace Punchy.Fauna
                 }
                 else if (s.Stage == 1)
                 {
+                    // On the forearm (kept there as it moves), facing them.
                     s.Speed = 0f;
                     if (hasThem)
                     {
+                        s.Position = Perch(States[r], ref Bodies[r].Blob.Value);
                         var to = States[r].Position.xz - s.Position.xz;
                         s.Yaw = WrapAngle(s.Yaw + math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -b.TurnRate * dt, b.TurnRate * dt));
                     }
@@ -2346,7 +2363,7 @@ namespace Punchy.Fauna
                     var taken = hasThem && States[r].Mode == CreatureMode.Idle && States[r].Stage == MessageRead;
                     if (taken)
                         s.Held = HeldItem.None;
-                    if (taken && s.StageTime > 1f || s.StageTime > 10f)
+                    if (taken || s.StageTime > 10f)
                         NextStage(ref s);
                 }
                 else
@@ -2363,7 +2380,8 @@ namespace Punchy.Fauna
             /// <summary>One of the townsfolk who could take a message: grown, about the town (not indoors, asleep, at a post
             /// or on guard), near its middle.</summary>
             static bool Receiver(in CreatureState o, ref CreatureBlob ob, float2 town) =>
-                ob.Upright && ob.Hands && !ob.Child && o.Leash > 0f && Free(o.Mode) && !(o.Mode == CreatureMode.Idle && o.Stage >= MessageWait) &&
+                ob.Upright && ob.Hands && !ob.Child && o.Leash > 0f && (Free(o.Mode) || o.Mode == CreatureMode.Greet) &&
+                !(o.Mode == CreatureMode.Idle && o.Stage >= MessageWait) &&
                 o.Task != CreatureTask.Patrol && o.Task != CreatureTask.Watch && math.distance(o.Position.xz, town) < 60f;
 
             /// <summary>The one of the townsfolk nearest the bird who could take its message, or none.</summary>
@@ -2410,18 +2428,19 @@ namespace Punchy.Fauna
             }
 
             /// <summary>
-            /// One of the townsfolk a messenger bird has come to: stands and turns to it as it comes down (60); once it's
-            /// landed in front, bends to take the message from its leg (61); then reads it a while (62), and goes about
-            /// its day.
+            /// One of the townsfolk a messenger bird has come to: stands and turns to it as it comes down, holding up a
+            /// forearm for it to land on (60); once it's on it, takes the message from its leg with the other hand (61);
+            /// then reads it a while (62), and goes about its day.
             /// </summary>
             void Receiving(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
             {
                 var hasBird = Lookup.TryGetValue(s.Partner, out var j);
                 var bird = hasBird ? States[j] : default;
+                // (Turned to the bird as it comes in; holding still for the last few metres, so it has a steady arm to land on.)
                 if (hasBird)
                 {
                     var to = bird.Position.xz - s.Position.xz;
-                    if (s.Stage < MessageRead && math.lengthsq(to) > 1e-4f)
+                    if (s.Stage == MessageWait && math.lengthsq(to) > 9f)
                         s.Yaw = WrapAngle(s.Yaw + math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -b.TurnRate * dt, b.TurnRate * dt));
                 }
                 if (s.Stage == MessageWait)
@@ -2429,20 +2448,14 @@ namespace Punchy.Fauna
                     s.Timer -= dt;
                     if (!hasBird || bird.Task != CreatureTask.Messenger || bird.Stage == 2 || s.Timer <= 0f)
                         Pause(ref s, ref b, ref rng);
-                    else if (bird.Stage == 1 && math.distance(bird.Position.xz, s.Position.xz) < 2.5f)
-                    {
+                    else if (bird.Stage == 1 && math.distance(bird.Position.xz, s.Position.xz) < 1.5f)
                         NextStage(ref s);
-                        s.Action = IdleAction.Pet;
-                        s.ActionTime = 0f;
-                        s.ActionLength = 1.6f;
-                    }
                 }
                 else if (s.Stage == MessageTake)
                 {
-                    if (s.StageTime > 1.6f)
+                    if (s.StageTime > 1.4f)
                     {
                         NextStage(ref s);
-                        s.Action = IdleAction.None;
                         s.Timer = rng.NextFloat(8f, 14f);
                     }
                 }

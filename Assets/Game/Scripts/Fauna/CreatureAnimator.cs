@@ -322,6 +322,19 @@ namespace Punchy.Fauna
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.7f);
                         a.x += j == 0 ? -0.3f : j == 1 ? -0.7f : 0f;
                     }
+                    // Meeting a messenger bird: the left forearm raised out in front at chest height, bent, for it to land
+                    // on; once it's there, the right hand across to take the roll from its leg.
+                    if (b.Upright && part.Role == LimbRole.Arm && s.Mode == CreatureMode.Idle && (s.Stage == MessageWait || s.Stage == MessageTake))
+                    {
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.9f);
+                        if (part.Side < 0f)
+                            a += j == 0 ? new float3(-0.85f, 0f, part.Side * 0.15f) : j == 1 ? new float3(-0.75f, 0f, 0f) : float3.zero;
+                        else if (s.Stage == MessageTake)
+                        {
+                            var reach = math.smoothstep(0f, 0.5f, s.StageTime);
+                            a += (j == 0 ? new float3(-1.25f, 0f, part.Side * 0.6f) : j == 1 ? new float3(-0.7f, 0f, 0f) : float3.zero) * reach;
+                        }
+                    }
                     // Reading a message: both hands up in front holding it open, head bent to it.
                     if (b.Upright && s.Held == HeldItem.Letter && part.Role == LimbRole.Arm)
                     {
@@ -669,6 +682,9 @@ namespace Punchy.Fauna
         public const byte MinerAtFace = 101;
         /// <summary>Sitting-mode stages at the town's fire: standing by it, sitting on the ground by it, on a seat near it.</summary>
         public const byte HearthStand = 5, HearthGround = 6, HearthSeat = 7;
+        /// <summary>Idle-mode stages of one of the townsfolk a messenger bird has come to: waiting for it (the forearm
+        /// up for it to land on), taking the message from its leg, reading it.</summary>
+        public const byte MessageWait = 60, MessageTake = 61, MessageRead = 62;
 
         static float3 TaskPose(ref CreaturePart part, in CreatureState s, int joint)
         {
