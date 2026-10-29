@@ -49,6 +49,38 @@ MonoBehaviour:
     Count: 2
     Angle: 70
     Clearance: 2
-  Effects: []
+  - Species: {fileID: 11400000, guid: 0813c1a5fdee47a381b99c50f1f94e75, type: 2}
+    Density: 0
+    Ring: {x: 0.25, y: 0.25}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: 154
+    Clearance: 1
+  - Species: {fileID: 11400000, guid: 0813c1a5fdee47a381b99c50f1f94e75, type: 2}
+    Density: 0
+    Ring: {x: 0.25, y: 0.25}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: 206
+    Clearance: 1
+  Effects:
+  - Kind: 2
+    Offset: {x: 0, y: 0}
+    Height: 1
+    Width: 0.8
+    Size: 0.8
+    Particles: 5
+    Lifetime: 1
+    Color: {r: 1, g: 0.6, b: 0.2, a: 1}
+    Opacity: 1
+    Glow: 1
+    Period: 0
+    Duty: 0.25
+    Flame: 0
+    NightOnly: 1
   Residents: []
   Anchors: 1

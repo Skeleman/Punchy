@@ -47,7 +47,8 @@ namespace Punchy.Ambience
         readonly List<Emitter> plumes = new List<Emitter>();
         readonly List<Emitter> falls = new List<Emitter>();
         /// <summary>Nearby landmarks' flames (position, size; seed, palette), handed to FireSystem every frame.</summary>
-        readonly List<(Vector3 at, float size, int seed, int palette)> fires = new List<(Vector3, float, int, int)>();
+        readonly List<(Vector3 at, float size, int seed, int palette, bool night)> fires = new List<(Vector3, float, int, int, bool)>();
+        static readonly int NightId = Shader.PropertyToID("_PunchyNight");
         readonly List<int> nearby = new List<int>(), lastNearby = new List<int>();
         GraphicsBuffer plumeBuffer, fallBuffer;
         MaterialPropertyBlock plumeProps, fallProps;
@@ -92,9 +93,14 @@ namespace Punchy.Ambience
                 Gather(source, palette.Landmarks, cam.transform.position);
             }
             var eye = cam.transform.position;
+            // Night-only fires catch as the light goes (the sky's night past a fifth) and die down at dawn.
+            var lit = math.saturate((Shader.GetGlobalFloat(NightId) - 0.2f) / 0.3f);
             foreach (var f in fires)
-                if ((f.at - eye).sqrMagnitude < FlameRange * FlameRange)
-                    FireSystem.AddFlame(f.at, f.size, f.seed, f.palette);
+            {
+                var size = f.night ? f.size * lit : f.size;
+                if (size > 0.02f && (f.at - eye).sqrMagnitude < FlameRange * FlameRange)
+                    FireSystem.AddFlame(f.at, size, f.seed, f.palette);
+            }
             Draw();
         }
 
@@ -228,7 +234,7 @@ namespace Punchy.Ambience
                             var spread = k == 0 ? 0f : reach * math.sqrt(k / (float)tongues);
                             var p = new float3(at.x + math.cos(a) * spread, y + 0.05f, at.y + math.sin(a) * spread);
                             var size = effect.Size * inst.Scale * (k == 0 ? 1.3f : 1f - 0.3f * spread / math.max(reach, 0.01f));
-                            fires.Add((p, size, (int)(math.abs(inst.Seed) * 31 + e * 7 + k), (int)effect.Flame));
+                            fires.Add((p, size, (int)(math.abs(inst.Seed) * 31 + e * 7 + k), (int)effect.Flame, effect.NightOnly));
                         }
                         e++;
                         continue;

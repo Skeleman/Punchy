@@ -248,8 +248,8 @@ namespace Punchy.Terrain
 
         /// <summary>
         /// Anchors for people living rough, owned by the landmark, for types that ask (LandmarkType.Anchors).
-        /// A campsite: a Camp at its fire facing the landmark's way (towards the road; Capacity its beds), a Hearth, two
-        /// Beds on the far side of the fire with their feet towards it, and a Sit on each seat it places.
+        /// A campsite: a Camp at its fire facing the landmark's way (towards the road; Capacity its beds), a Hearth, a Bed
+        /// on each bedroll it places (feet towards the fire: they face the centre), and a Sit on each seat.
         /// A hermit's place: Home inside the hut (the placed building that faces the centre), its Door 0.6 m out from the
         /// door itself, a Work spot by the woodpile facing it, the Garden, a Hearth at the fire in the middle and a Sit on
         /// each seat. Placed props only: their spots are known, where scattered ones are not.
@@ -268,6 +268,7 @@ namespace Punchy.Terrain
                 var owner = Anchor.OwnerLandmark(i);
                 var centre = inst.Position;
                 var facing = inst.Facing;
+                var beds = 0;
                 void Add(AnchorKind kind, float2 at, float up, float2 dir, float size, int capacity, byte tags = 0) => anchors.Add(new Anchor
                 {
                     Position = new float3(at.x, src.SampleHeight(at) + up, at.y),
@@ -311,6 +312,12 @@ namespace Punchy.Terrain
                                 species.Form == Punchy.Flora.FloraForm.Stump ? 1 : 2);
                             continue;
                         }
+                        if (species.Form == Punchy.Flora.FloraForm.Bedroll && prop.FaceCentre)
+                        {
+                            Add(AnchorKind.Bed, spot, 0f, toCentre, size * 0.5f, 1);
+                            beds++;
+                            continue;
+                        }
                         if (type.Anchors != WildAnchors.Hermit)
                             continue;
                         var front = Punchy.Flora.FloraGenerator.DoorFront(species);
@@ -327,18 +334,7 @@ namespace Punchy.Terrain
                 }
 
                 if (type.Anchors == WildAnchors.Campsite)
-                {
-                    // Two bedrolls on the far side of the fire from the road, 2.5 m out, their feet towards it.
-                    const int beds = 2;
-                    var away = math.atan2(-facing.y, -facing.x);
-                    for (int b = 0; b < beds; b++)
-                    {
-                        var a = away + (b - (beds - 1) * 0.5f) * 0.9f;
-                        var dir = new float2(math.cos(a), math.sin(a));
-                        Add(AnchorKind.Bed, centre + dir * 2.5f, 0f, -dir, 0.9f, 1);
-                    }
                     Add(AnchorKind.Camp, centre, 0f, facing, math.min(radius * 0.5f, 6f), beds);
-                }
             }
         }
 
