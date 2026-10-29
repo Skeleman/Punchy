@@ -23,11 +23,13 @@ Shader "Punchy/Creature"
             float flatten;
             float pad;         // how far faded out (0 shown, 1 gone): a creature appearing or leaving
             float4 color;
-            float4 material;   // x: what it's made of (SegmentMaterial: body, cloth, leather, metal, wood, bone)
+            float4 material;   // x: what it's made of (SegmentMaterial: body, cloth, leather, metal, wood, bone); y: the
+                               // height of the ground the creature stands on (for grounding: a body's segments only)
         };
 
         StructuredBuffer<Segment> _Segments;
         float _PunchyPlainGear;
+        float _PunchyNoGrounding;   // (debug: bodies ungrounded, for before/after shots)
         // Where this draw's instances start in _Segments (the shadowless draw of colonies and traces follows the bodies).
         uint _SegmentOffset;
 
@@ -60,7 +62,7 @@ Shader "Punchy/Creature"
         // Also where on the segment the point is, in the segment's own frame (metres: across, across, along; so a pattern on
         // it stays put as it moves), how far along it (0 to 1), and what it's made of.
         void SegmentVertexMaterial(CreatureAttributes input, out float3 positionWS, out float3 normalWS, out float4 color,
-                                   out float3 surface, out float along, out float material)
+                                   out float3 surface, out float along, out float material, out float ground)
         {
             Segment s = _Segments[input.instanceID + _SegmentOffset];
             float t = input.shape.z;
@@ -75,6 +77,7 @@ Shader "Punchy/Creature"
             surface = local;
             along = saturate(local.z / max(s.length + 2 * r, 1e-3) + r / max(s.length + 2 * r, 1e-3));
             material = s.material.x;
+            ground = s.material.y;
         }
 
         void SegmentVertex(CreatureAttributes input, out float3 positionWS, out float3 normalWS, out float4 color)
@@ -108,6 +111,7 @@ Shader "Punchy/Creature"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
             #include "Metal.hlsl"
+            #include "Grounding.hlsl"
 
             struct Varyings
             {
@@ -119,6 +123,7 @@ Shader "Punchy/Creature"
                 float3 surface : TEXCOORD4;
                 float along : TEXCOORD5;
                 nointerpolation float material : TEXCOORD6;
+                nointerpolation float ground : TEXCOORD7;
             };
 
             Varyings Vert(CreatureAttributes input)
@@ -126,7 +131,7 @@ Shader "Punchy/Creature"
                 Varyings o;
                 float3 n;
                 float4 c;
-                SegmentVertexMaterial(input, o.positionWS, n, c, o.surface, o.along, o.material);
+                SegmentVertexMaterial(input, o.positionWS, n, c, o.surface, o.along, o.material, o.ground);
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.normalWS = n;
                 o.color = c;
@@ -226,10 +231,15 @@ Shader "Punchy/Creature"
                     // A little soft sheen at the silhouette, like fur or feathers catching the light.
                     half rim = pow(1 - saturate(dot(n, v)), 3) * 0.25;
                     // (Plus the light of glowing plants and hot rock near it: W-18.)
-                    color = albedo * (light.color * shadow * diffuse + SampleSH(n) * (1 + rim) + PunchyGlowLight(input.positionWS, n));
+                    // Grounded (Grounding.hlsl): darker underneath (belly, chin, the undersides of limbs) and where it
+                    // meets the ground; the ambient light dimmed fully, the sun's in part.
+                    half ground = _PunchyNoGrounding > 0.5 ? 1 : PunchyCreatureGrounding(input.positionWS.y - input.ground, n.y);
+                    color = albedo * (light.color * shadow * diffuse * lerp(1, ground, 0.5) + SampleSH(n) * (1 + rim) * ground + PunchyGlowLight(input.positionWS, n));
                 }
                 else
-                    color = Material(material, albedo, n, v, light, shadow, input.surface, input.along, input.positionWS);
+                    // (Gear is grounded by its downward faces only: it carries no ground height.)
+                    color = Material(material, albedo, n, v, light, shadow, input.surface, input.along, input.positionWS) *
+                            lerp(1, PunchyCreatureGrounding(100, n.y), 0.75);
                 // Glowing parts (alpha): embers, toxic markings, eye sockets. Bright enough to bloom.
                 color += input.color.rgb * input.color.a * (2.2 + 0.4 * sin(_Time.y * 2.1 + input.positionWS.x * 3.0));
                 return half4(PunchyAtmosphere(color, input.positionWS), 1);

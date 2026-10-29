@@ -26,4 +26,16 @@ half PunchyGrounding(float height, half normalY, half solid)
     return contact * broad * down;
 }
 
+// Creatures (Creature.shader): only the tight contact shadow where a foot or a belly meets the ground, and their
+// downward faces (bellies, chins, the undersides of limbs) a little less dark than a rock's; no broad rise from the
+// ground, which would darken whole legs. `height` is above the ground the creature stands on.
+static const half PunchyCreatureDown = 0.7;     // a creature's face pointing straight down
+
+half PunchyCreatureGrounding(float height, half normalY)
+{
+    half contact = lerp(PunchyGroundContact, 1, smoothstep(0, 0.12, abs(height)));
+    half down = lerp(1, PunchyCreatureDown, saturate(-normalY));
+    return contact * down;
+}
+
 #endif

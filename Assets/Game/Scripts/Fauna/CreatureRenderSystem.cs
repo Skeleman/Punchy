@@ -64,7 +64,8 @@ namespace Punchy.Fauna
         /// rim, the dark inside and the base).</summary>
         const int BasketStaves = 8;
         const int RodParts = 4 + BasketStaves * 2 + 2;
-        static int HeldCount(HeldItem held) => held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.SpearDrawn || held == HeldItem.Torch ? GuardParts :
+        static int HeldCount(HeldItem held, CreatureTask task) => task == CreatureTask.Hunt && (held == HeldItem.Spear || held == HeldItem.SpearDrawn) ? 0 :
+                                               held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.SpearDrawn || held == HeldItem.Torch ? GuardParts :
                                                held == HeldItem.Rod ? RodParts : held == HeldItem.Stick || held == HeldItem.Stone ? 1 : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 0 : -1;
@@ -186,7 +187,7 @@ namespace Punchy.Fauna
             {
                 offsets[i] = total;
                 total += bodies[i].SegmentCount + MarkCount + (InWeb(states[i]) ? WebCount : 0) +
-                         LairCount(ref bodies[i].Blob.Value) + (states[i].Task == CreatureTask.Hunt ? 1 : 0) + HeldCount(states[i].Held);
+                         LairCount(ref bodies[i].Blob.Value) + (states[i].Task == CreatureTask.Hunt ? 1 : 0) + HeldCount(states[i].Held, states[i].Task);
                 if (states[i].Mode == CreatureMode.Roost && states[i].Stage == 200)
                     hanging.Add(states[i].Position);
                 // (Bodies of players emoting: their gestures scatter colonies.)
@@ -349,6 +350,13 @@ namespace Punchy.Fauna
                 // (Feet fitted to the ground only near the camera: past 40 m nobody can tell, and it's most of the cost.)
                 CreatureAnimator.Evaluate(ref body.Blob.Value, state, body.Coat, Terrain, Output, offset,
                                           Unity.Mathematics.math.distancesq(state.Position, CameraPosition) < FootDetailRange * FootDetailRange);
+                // (The ground it stands on, for the shader's grounding: darker where it meets it.)
+                for (int i = 0; i < body.SegmentCount; i++)
+                {
+                    var seg = Output[offset + i];
+                    seg.Material.y = state.Position.y;
+                    Output[offset + i] = seg;
+                }
                 // Appearing (its first moments: Clock counts from when it was made, here) or nearing the distance
                 // where it's let go: dithered in and out by the shader, so nothing pops.
                 var fadeIn = Unity.Mathematics.math.saturate(state.Clock / FadeInTime);
@@ -398,7 +406,7 @@ namespace Punchy.Fauna
                     Spear(state, ref body.Blob.Value, offset, held - 1);
                 if (state.Held == HeldItem.Lantern)
                     Lantern(state, ref body.Blob.Value, offset, held, faded);
-                else if (state.Held == HeldItem.Spear || state.Held == HeldItem.SpearDrawn || state.Held == HeldItem.Torch)
+                else if (state.Task == CreatureTask.Patrol && (state.Held == HeldItem.Spear || state.Held == HeldItem.SpearDrawn || state.Held == HeldItem.Torch))
                     Guard(state, ref body.Blob.Value, offset, held, faded, entity.Index);
                 else if (state.Held == HeldItem.Rod)
                     Rod(state, ref body.Blob.Value, offset, held, faded, entity.Index);
@@ -443,7 +451,7 @@ namespace Punchy.Fauna
                     RadiusStart = 0.014f * scale,
                     RadiusEnd = 0.009f * scale,
                     Flatten = 0.85f,
-                    Color = new Unity.Mathematics.float4(0.24f, 0.16f, 0.08f, 0f),
+                    Color = new Unity.Mathematics.float4(0.24f, 0.16f, 0.08f, 0f), Material = new Unity.Mathematics.float4((float)SegmentMaterial.Wood, 0f, 0f, 0f),
                     Pad = faded
                 };
             }
@@ -479,7 +487,7 @@ namespace Punchy.Fauna
                 var butt = grip - dir * 0.35f * scale;
                 var tip = butt + dir * length;
                 var dark = new Unity.Mathematics.float4(0.18f, 0.12f, 0.06f, 0f);
-                Output[at] = new SegmentInstance { Position = butt, Rotation = Unity.Mathematics.quaternion.LookRotationSafe(dir, forward), Length = length, RadiusStart = 0.013f * scale, RadiusEnd = 0.004f * scale, Flatten = 1f, Color = dark, Pad = faded };
+                Output[at] = new SegmentInstance { Position = butt, Rotation = Unity.Mathematics.quaternion.LookRotationSafe(dir, forward), Length = length, RadiusStart = 0.013f * scale, RadiusEnd = 0.004f * scale, Flatten = 1f, Color = dark, Material = new Unity.Mathematics.float4((float)SegmentMaterial.Wood, 0f, 0f, 0f), Pad = faded };
                 // The line: to the float on the water (not while the cast is in the air), or to a fish on the hook.
                 var line = new Unity.Mathematics.float4(0.85f, 0.85f, 0.8f, 0f);
                 Unity.Mathematics.float3 end;
@@ -521,7 +529,7 @@ namespace Punchy.Fauna
                 var span = end - tip;
                 var reach = Unity.Mathematics.math.length(span);
                 if (reach > 0.02f)
-                    Output[at + 1] = new SegmentInstance { Position = tip, Rotation = Unity.Mathematics.quaternion.LookRotationSafe(span / reach, forward), Length = reach, RadiusStart = 0.0035f, RadiusEnd = 0.0035f, Flatten = 1f, Color = line, Pad = faded };
+                    Output[at + 1] = new SegmentInstance { Position = tip, Rotation = Unity.Mathematics.quaternion.LookRotationSafe(span / reach, forward), Length = reach, RadiusStart = 0.0035f, RadiusEnd = 0.0035f, Flatten = 1f, Color = line, Material = new Unity.Mathematics.float4((float)SegmentMaterial.Cloth, 0f, 0f, 0f), Pad = faded };
                 // The basket, on the ground at its side: an open wicker basket, a ring of staves flaring a little to a
                 // rim, dark inside.
                 var spot = state.Position.xz + right.xz * 0.45f * scale - forward.xz * 0.15f * scale;
@@ -545,7 +553,7 @@ namespace Punchy.Fauna
                         RadiusStart = 0.045f * scale,
                         RadiusEnd = 0.05f * scale,
                         Flatten = 0.45f,
-                        Color = wicker,
+                        Color = wicker, Material = new Unity.Mathematics.float4((float)SegmentMaterial.Wood, 0f, 0f, 0f),
                         Pad = faded
                     };
                     var b0 = (k + 0f) * 2f * Unity.Mathematics.math.PI / BasketStaves;
@@ -560,7 +568,7 @@ namespace Punchy.Fauna
                         RadiusStart = 0.016f * scale,
                         RadiusEnd = 0.016f * scale,
                         Flatten = 1f,
-                        Color = weave,
+                        Color = weave, Material = new Unity.Mathematics.float4((float)SegmentMaterial.Wood, 0f, 0f, 0f),
                         Pad = faded
                     };
                 }
@@ -573,7 +581,7 @@ namespace Punchy.Fauna
                     RadiusStart = radius,
                     RadiusEnd = radius,
                     Flatten = 0.05f,
-                    Color = new Unity.Mathematics.float4(0.1f, 0.07f, 0.03f, 0f),
+                    Color = new Unity.Mathematics.float4(0.1f, 0.07f, 0.03f, 0f), Material = new Unity.Mathematics.float4((float)SegmentMaterial.Wood, 0f, 0f, 0f),
                     Pad = faded
                 };
                 Output[at + 4 + BasketStaves * 2 + 1] = new SegmentInstance
@@ -584,7 +592,7 @@ namespace Punchy.Fauna
                     RadiusStart = radius * 0.9f,
                     RadiusEnd = radius * 0.9f,
                     Flatten = 0.08f,
-                    Color = wicker,
+                    Color = wicker, Material = new Unity.Mathematics.float4((float)SegmentMaterial.Wood, 0f, 0f, 0f),
                     Pad = faded
                 };
             }
@@ -685,8 +693,9 @@ namespace Punchy.Fauna
                             handFrom = 0.07f;
                             break;
                         default:
-                            handDir = levelled ? Unity.Mathematics.math.normalize(forward + upward * 0.12f) : Unity.Mathematics.math.normalize(upward + forward * 0.12f);
-                            handFrom = levelled ? 0.3f : 0.45f;
+                            // (Levelled: tilted up a little and held near its middle, so its butt doesn't trail low behind.)
+                            handDir = levelled ? Unity.Mathematics.math.normalize(forward + upward * 0.28f) : Unity.Mathematics.math.normalize(upward + forward * 0.12f);
+                            handFrom = levelled ? 0.42f : 0.45f;
                             break;
                     }
                     // Worn: across the back, from low on the left to high on the right, or hanging at the left hip, head up.
@@ -902,16 +911,18 @@ namespace Punchy.Fauna
                 var cap = grip + down * bail;
                 var core = 0.11f * scale;
                 // The bail (handle), the cap, the glass, the base.
-                Output[at] = new SegmentInstance { Position = grip, Rotation = hang, Length = bail, RadiusStart = 0.006f * scale, RadiusEnd = 0.006f * scale, Flatten = 1f, Color = iron, Pad = faded };
-                Output[at + 1] = new SegmentInstance { Position = cap, Rotation = hang, Length = 0.025f * scale, RadiusStart = 0.012f * scale, RadiusEnd = 0.045f * scale, Flatten = 1f, Color = iron, Pad = faded };
+                Output[at] = new SegmentInstance { Position = grip, Rotation = hang, Length = bail, RadiusStart = 0.006f * scale, RadiusEnd = 0.006f * scale, Flatten = 1f, Color = iron, Pad = faded, Material = new Unity.Mathematics.float4((float)SegmentMaterial.Metal, 0f, 0f, 0f) };
+                Output[at + 1] = new SegmentInstance { Position = cap, Rotation = hang, Length = 0.025f * scale, RadiusStart = 0.012f * scale, RadiusEnd = 0.045f * scale, Flatten = 1f, Color = iron, Pad = faded, Material = new Unity.Mathematics.float4((float)SegmentMaterial.Metal, 0f, 0f, 0f) };
                 Output[at + 2] = new SegmentInstance { Position = cap + down * 0.02f * scale, Rotation = hang, Length = core, RadiusStart = 0.04f * scale, RadiusEnd = 0.04f * scale, Flatten = 1f, Color = glass, Pad = faded };
-                Output[at + 3] = new SegmentInstance { Position = cap + down * (0.02f * scale + core), Rotation = hang, Length = 0.02f * scale, RadiusStart = 0.048f * scale, RadiusEnd = 0.048f * scale, Flatten = 1f, Color = iron, Pad = faded };
+                Output[at + 3] = new SegmentInstance { Position = cap + down * (0.02f * scale + core), Rotation = hang, Length = 0.02f * scale, RadiusStart = 0.048f * scale, RadiusEnd = 0.048f * scale, Flatten = 1f, Color = iron, Pad = faded, Material = new Unity.Mathematics.float4((float)SegmentMaterial.Metal, 0f, 0f, 0f) };
             }
 
             /// <summary>
-            /// A hunter's spear, in the right hand: carried pointing ahead and a little down while creeping, held level
-            /// over the shoulder at the game while aiming; gone at the throw (it's been thrown), back in hand after.
-            /// (Drawn for every hunter: the Hunt task is replicated, so each machine draws it.)
+            /// A hunter's spear: worn across its back about the town (and after dark, a lantern in hand), drawn when it
+            /// goes after game (the same half-second reach as a guard's, Draw and Sheathe), then carried pointing ahead
+            /// and a little down while creeping, held level over the shoulder at the game while aiming; gone at the
+            /// throw (it's been thrown), back in hand after. (Drawn for every hunter: the Hunt task is replicated, so
+            /// each machine draws it.)
             /// </summary>
             void Spear(in CreatureState state, ref CreatureBlob b, int offset, int at)
             {
@@ -938,9 +949,37 @@ namespace Punchy.Fauna
                                                        Unity.Mathematics.math.cos(yaw) * Unity.Mathematics.math.cos(pitch));
                 var length = 1.8f * state.Scale;
                 var colour = new Unity.Mathematics.float4(0.16f, 0.1f, 0.05f, 0f);   // (linear) dark wood
+                var held = grip - dir * length * 0.4f;
+                // Worn, or on its way between back and hand: across the back, from low on the left to high on the right.
+                var u = state.ActionTime;
+                var inHand = state.Held == HeldItem.SpearDrawn ? (state.Action == IdleAction.Draw ? Unity.Mathematics.math.smoothstep(0.35f, 0.65f, u) : 1f)
+                           : state.Held == HeldItem.Spear && state.Action == IdleAction.Sheathe ? 1f - Unity.Mathematics.math.smoothstep(0.35f, 0.65f, u)
+                           : state.Held == HeldItem.Spear || state.Held == HeldItem.Lantern ? 0f : 1f;
+                if (inHand < 1f)
+                {
+                    var forward = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(yaw), 0f, Unity.Mathematics.math.cos(yaw));
+                    var right = new Unity.Mathematics.float3(forward.z, 0f, -forward.x);
+                    var chest = -1;
+                    for (int i = 0; i < b.Parts.Length; i++)
+                        if (b.Parts[i].Parent < 0 && b.Parts[i].Role != LimbRole.Leg && b.Parts[i].Role != LimbRole.Arm)
+                        {
+                            chest = b.Parts[i].FirstSegment + b.Parts[i].SegmentCount - 1;
+                            break;
+                        }
+                    if (chest >= 0)
+                    {
+                        var torso = Output[offset + chest];
+                        var axis = Unity.Mathematics.math.mul(torso.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                        var r = Unity.Mathematics.math.max(torso.RadiusStart, torso.RadiusEnd);
+                        var wornDir = Unity.Mathematics.math.normalize(axis + right * 0.75f);
+                        var wornStart = torso.Position + axis * torso.Length * 0.5f - forward * r * 1.3f - wornDir * length * 0.5f;
+                        dir = Unity.Mathematics.math.normalizesafe(Unity.Mathematics.math.lerp(wornDir, dir, inHand), dir);
+                        held = Unity.Mathematics.math.lerp(wornStart, held, inHand);
+                    }
+                }
                 Output[at] = new SegmentInstance
                 {
-                    Position = grip - dir * length * 0.4f,
+                    Position = held,
                     Rotation = Unity.Mathematics.quaternion.LookRotationSafe(dir, new Unity.Mathematics.float3(0f, 1f, 0f)),
                     Length = length,
                     RadiusStart = 0.016f * state.Scale,

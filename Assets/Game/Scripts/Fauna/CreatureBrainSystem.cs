@@ -824,6 +824,21 @@ namespace Punchy.Fauna
                     s.Held = Night > 0.5f ? HeldItem.Torch : s.Held == HeldItem.SpearDrawn ? HeldItem.SpearDrawn : HeldItem.Spear;
                 else if (s.Task == CreatureTask.Fish && s.Mode == CreatureMode.Work && s.Stage >= 1)
                     s.Held = HeldItem.Rod;
+                // A hunter by day wears its spear across its back, and draws it when it goes after game (put away
+                // when it's done): the same half-second reach as a guard's weapon. (After dark, a lantern below.)
+                else if (s.Task == CreatureTask.Hunt && b.Hands && Night < 0.5f)
+                {
+                    if (s.Held != HeldItem.Spear && s.Held != HeldItem.SpearDrawn)
+                        s.Held = HeldItem.Spear;
+                    var hunting = s.Mode == CreatureMode.Hunt;
+                    if (s.Action == IdleAction.None && hunting != (s.Held == HeldItem.SpearDrawn))
+                    {
+                        s.Held = hunting ? HeldItem.SpearDrawn : HeldItem.Spear;
+                        s.Action = hunting ? IdleAction.Draw : IdleAction.Sheathe;
+                        s.ActionTime = 0f;
+                        s.ActionLength = 0.5f;
+                    }
+                }
                 // A child out by day has a stick or a stone (its own kind of plaything), not indoors or asleep.
                 else if (b.Child && b.Hands && Night < 0.5f && s.Mode != CreatureMode.Sleep && !(s.Mode == CreatureMode.Home && s.Stage >= 1))
                     s.Held = ((s.Individual >> 5) & 1u) != 0 ? HeldItem.Stick : HeldItem.Stone;

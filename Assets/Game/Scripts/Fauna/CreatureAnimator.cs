@@ -300,7 +300,7 @@ namespace Punchy.Fauna
                     // A guard's right arm: bent to hold its weapon upright at its side once it's drawn, or raised forward
                     // with a torch; running at a beast, the weapon levelled at it, held low and forward at the hip. (With
                     // the weapon worn, or an elf's bow on its back, the arms swing free.)
-                    if (part.Role == LimbRole.Arm && part.Side > 0f && (s.Held == HeldItem.SpearDrawn && b.GuardKit != GuardKit.Elf || s.Held == HeldItem.Torch))
+                    if (part.Role == LimbRole.Arm && part.Side > 0f && s.Task == CreatureTask.Patrol && (s.Held == HeldItem.SpearDrawn && b.GuardKit != GuardKit.Elf || s.Held == HeldItem.Torch))
                     {
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.8f);
                         var torch = s.Held == HeldItem.Torch;
@@ -312,7 +312,7 @@ namespace Punchy.Fauna
                     if (part.Role == LimbRole.Arm && part.Side > 0f && (s.Action == IdleAction.Draw || s.Action == IdleAction.Sheathe))
                     {
                         var reach = math.sin(math.saturate(s.ActionTime) * math.PI);
-                        var toBack = GuardWeapons.OnBack(b.GuardKit, s.Scale, b.StandHeight);
+                        var toBack = s.Task == CreatureTask.Hunt || GuardWeapons.OnBack(b.GuardKit, s.Scale, b.StandHeight);   // (a hunter's spear is always on its back)
                         a += (j == 0 ? (toBack ? new float3(-2.5f, 0f, -0.35f) : new float3(-0.35f, 0f, 0.75f))
                             : j == 1 ? (toBack ? new float3(-1.4f, 0f, 0f) : new float3(-1.0f, 0f, 0f)) : float3.zero) * reach;
                     }
