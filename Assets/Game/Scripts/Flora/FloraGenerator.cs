@@ -1504,7 +1504,8 @@ namespace Punchy.Flora
                     var t = g.Range(0.35f, 1f);
                     var i = Mathf.Min(Mathf.FloorToInt(t * (limb.Count - 1)), limb.Count - 2);
                     var top = Vector3.Lerp(limb[i], limb[i + 1], t * (limb.Count - 1) - i);
-                    var length = g.Range(s.HangingLength.x, s.HangingLength.y);
+                    // Down past the underside of the crown (where the limb leaves the trunk), then the strand's own length.
+                    var length = g.Range(s.HangingLength.x, s.HangingLength.y) + Mathf.Max(top.y - limb[0].y, 0f);
                     var drift = g.Flat(g.R() * 6.28f) * length * 0.08f;
                     var color = s.HangingColor.linear * g.Range(0.8f, 1.15f);
                     b.Tube(new List<Vector3> { top, top + drift * 0.5f + Vector3.down * length * 0.5f, top + drift + Vector3.down * length },
