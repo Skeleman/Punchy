@@ -56,7 +56,7 @@ namespace Punchy.Fauna
         /// Capsules in a guard's kit: what it holds (a weapon, or a torch), a shield or a bow on its back, its helmet,
         /// breastplate, sash and shoulder pads. The torch's handle is always the first (its flame is lit from it).
         /// </summary>
-        const int GuardParts = 14;
+        const int GuardParts = 18;
         /// <summary>Capsules in a miner's gear: its pick (the haft, the head's two points) and a sack of ore.</summary>
         const int MinerParts = 4;
         /// <summary>When in a throw (its ActionTime) the stone leaves the hand: TraceSystem throws it from there.</summary>
@@ -1216,6 +1216,9 @@ namespace Punchy.Fauna
                     var to = c.Position - axis * r * 0.4f - right * wide * 0.75f + front * deep * 0.6f;
                     Output[at + k++] = Piece(from, Unity.Mathematics.math.normalize(over - from), front, Unity.Mathematics.math.distance(from, over), band, band, 0.25f, b.GuardSash, faded, SegmentMaterial.Cloth);
                     Output[at + k++] = Piece(over, Unity.Mathematics.math.normalize(to - over), front, Unity.Mathematics.math.distance(over, to), band, band, 0.25f, b.GuardSash, faded, SegmentMaterial.Cloth);
+                    // The sash's knot at the hip, its tail hanging loose: two lengths of cloth, blown in the wind and
+                    // swinging back as the guard runs.
+                    k = Hanging(to, front, band * 1.1f, band * 0.8f, 0.16f * scale, in state, forward, b.GuardSash, faded, SegmentMaterial.Cloth, at, k);
                     // An elf's bow across its back: an arc from low on one side to high on the other, and its string.
                     if (b.GuardKit == GuardKit.Elf)
                     {
@@ -1240,6 +1243,13 @@ namespace Punchy.Fauna
                         var ogre = b.GuardKit == GuardKit.Ogre;
                         Output[at + k++] = Piece(sh.Position + upward * sh.RadiusStart * 0.4f, outward, upward, 0.02f * scale,
                                                  sh.RadiusStart * 1.9f, sh.RadiusStart * 1.6f, 0.55f, ogre ? iron : armour, faded, ogre ? SegmentMaterial.Metal : armourMaterial);
+                    }
+                    // An ogre guard's hide cape, from across its shoulders down its back, heavy but stirring in the wind.
+                    if (b.GuardKit == GuardKit.Ogre)
+                    {
+                        var nape = top - front * deep * 0.9f;
+                        k = Hanging(nape + axis * r * 0.15f, -front, wide * 0.85f, wide * 1.1f, c.Length * 1.1f + r, in state, forward,
+                                    new Unity.Mathematics.float4(0.36f, 0.27f, 0.18f, 0f), faded, SegmentMaterial.Leather, at, k, 0.5f);
                     }
                 }
 
@@ -1313,6 +1323,34 @@ namespace Punchy.Fauna
             }
 
             /// <summary>One capsule of a kit: from a point along a direction, its flattening across "flat" (local y), and what it's made of.</summary>
+            /// <summary>
+            /// A loose length of cloth or hide hanging from a point in two pieces: down, pushed by the wind's rolling
+            /// gusts (the trees' and hair's, CreatureAnimator.Wind) and swung back by the wearer's speed, the lower piece
+            /// more than the upper. Stiff (0..1) holds it closer to hanging straight. Returns the next free slot.
+            /// </summary>
+            int Hanging(Unity.Mathematics.float3 from, Unity.Mathematics.float3 face, float width, float widthEnd, float length,
+                        in CreatureState state, Unity.Mathematics.float3 forward, Unity.Mathematics.float4 color, float faded,
+                        SegmentMaterial material, int at, int k, float stiff = 0f)
+            {
+                if (k + 2 > GuardParts)
+                    return k;
+                var w = CreatureAnimator.Wind.Data;
+                var dir = Unity.Mathematics.math.normalizesafe(new Unity.Mathematics.float2(w.y, w.z), new Unity.Mathematics.float2(1f, 0f));
+                var phase = w.w * (0.7f + w.x * 1.1f) - Unity.Mathematics.math.dot(state.Position.xz, dir) * 0.04f + (state.Individual % 628u) * 0.01f;
+                var gust = (0.6f + 0.4f * Unity.Mathematics.math.sin(phase) * Unity.Mathematics.math.sin(phase * 0.37f + 1.3f)) * (0.08f + 0.92f * w.x);
+                var flutter = Unity.Mathematics.math.sin(w.w * 6f + state.Individual * 0.1f) * 0.15f * gust;
+                var down = new Unity.Mathematics.float3(0f, -1f, 0f);
+                var push = new Unity.Mathematics.float3(dir.x, 0f, dir.y) * (gust * 0.9f + flutter) - forward * Unity.Mathematics.math.min(state.Speed * 0.12f, 0.8f);
+                push *= 1f - stiff;
+                var upper = Unity.Mathematics.math.normalize(down + push * 0.6f);
+                var lower = Unity.Mathematics.math.normalize(down + push * 1.2f);
+                var mid = from + upper * length * 0.5f;
+                var widthMid = (width + widthEnd) * 0.5f;
+                Output[at + k++] = Piece(from, upper, face, length * 0.5f, width, widthMid, 0.12f, color, faded, material);
+                Output[at + k++] = Piece(mid, lower, face, length * 0.5f, widthMid, widthEnd, 0.12f, color, faded, material);
+                return k;
+            }
+
             static SegmentInstance Piece(Unity.Mathematics.float3 from, Unity.Mathematics.float3 along, Unity.Mathematics.float3 flat, float length,
                                          float radiusStart, float radiusEnd, float flatten, Unity.Mathematics.float4 color, float faded,
                                          SegmentMaterial material) =>
