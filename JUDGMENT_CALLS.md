@@ -343,4 +343,6 @@ asks Zach if needed, and records the answer here.
   Unity update to keep D3D12, then chose D3D11 after kind-possum's with-flora numbers (town 1% low 59 vs 32;
   2-3 ms less CPU, smaller spikes). The 6000.5.11 upgrade is shelved for when D3D12 features are wanted.
 - **Why:** Zach: "After seeing the performance numbers, I suppose I need to go with the dx11 build."
+- **Later (2026-10-29):** stay on D3D11 until a stable Unity 6.7 (LTS); skip 6.6. Revisit D3D12 then, with the
+  friend project's fixes to try (Agility SDK update, end the process on quit).
 - **Revisited:** 1 (he changed his mind once on new data).
