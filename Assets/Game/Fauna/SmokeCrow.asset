@@ -22,13 +22,13 @@ MonoBehaviour:
   BodyTaper: 0.8
   BodyFlatten: 1
   Base: {r: 0.2, g: 0.2, b: 0.21, a: 1}
-  Accent: {r: 1, g: 0.45, b: 0.08, a: 1}
-  AccentGlow: 0.3
+  Accent: {r: 0.42, g: 0.2, b: 0.1, a: 1}
+  AccentGlow: 0.2
   Coats:
   - Name: SmokeCrow
     Base: {r: 0.2, g: 0.2, b: 0.21, a: 1}
-    Accent: {r: 1, g: 0.45, b: 0.08, a: 1}
-    AccentGlow: 0.3
+    Accent: {r: 0.42, g: 0.2, b: 0.1, a: 1}
+    AccentGlow: 0.2
     Weight: 1
   Size: {x: 2.3, y: 2.7}
   HairColors: []
@@ -149,6 +149,8 @@ MonoBehaviour:
   GuardKit: 0
   GuardArmour: {r: 0.55, g: 0.57, b: 0.6, a: 1}
   GuardSash: {r: 0.62, g: 0.12, b: 0.1, a: 1}
+  Rooted: 0
+  Disguised: 0
   FlightHeight: {x: 8, y: 16}
   FlySpeed: 8
   FlapRate: 4.5
