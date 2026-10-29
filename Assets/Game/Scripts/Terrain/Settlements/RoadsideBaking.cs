@@ -106,36 +106,56 @@ namespace Punchy.Terrain
                     for (int k = 0; k < n; k++)
                         points.Add(math.lerp(a, b, k / (float)n));
                 }
-                var lastPost = new float2[2] { new float2(float.MaxValue), new float2(float.MaxValue) };
-                for (int i = 0; i < points.Count - 1; i++)
+                for (int side = 0; side < sides; side++)
                 {
-                    var d = math.distance(points[i], town.Centre);
-                    if (d < town.Radius * 1.05f)
-                        continue;
-                    if (d > town.Radius + FenceReach)
-                        break;
-                    var tangent = math.normalizesafe(points[i + 1] - points[i]);
-                    for (int side = 0; side < sides; side++)
+                    var sign = side == 0 ? first : -first;
+                    // The fence line a little off the road on this side, from the settlement's edge out.
+                    var line = new List<float2>();
+                    for (int i = 0; i < points.Count - 1; i++)
                     {
-                        var sign = side == 0 ? first : -first;
-                        if (math.distance(points[i], lastPost[side]) < FenceSpacing)
+                        var d = math.distance(points[i], town.Centre);
+                        if (d < town.Radius * 1.05f)
+                        {
+                            if (line.Count > 0)
+                                break;
                             continue;
-                        var normal = new float2(-tangent.y, tangent.x) * sign;
-                        var at = points[i] + normal * (road.Width * 0.5f + 1.6f);
-                        lastPost[side] = points[i];
-                        if (!FenceClear(at, builtPlots))
+                        }
+                        if (d > town.Radius + FenceReach)
+                            break;
+                        var tangent = math.normalizesafe(points[i + 1] - points[i]);
+                        line.Add(points[i] + new float2(-tangent.y, tangent.x) * sign * (road.Width * 0.5f + 1.6f));
+                    }
+                    if (line.Count < 2)
+                        continue;
+                    // Posts exactly FenceSpacing apart along it (so round a bend too), each length turned to run from
+                    // its post straight to the next.
+                    var post = line[0];
+                    for (int j = 1; j < line.Count; )
+                    {
+                        if (math.distance(line[j], post) < FenceSpacing)
+                        {
+                            j++;
                             continue;
+                        }
+                        var along = math.normalizesafe(line[j] - post);
+                        var next = post + along * FenceSpacing;
+                        var from = post;
+                        post = next;
+                        if (!FenceClear(from, builtPlots) || !FenceClear((from + next) * 0.5f, builtPlots) || !FenceClear(next, builtPlots))
+                            continue;
+                        var centre = from + along * (FenceSpacing * 0.5f);
                         plots.Add(new SettlementPlot
                         {
-                            Centre = at,
-                            Facing = -normal,
+                            Centre = centre,
+                            // Its +X along the run (the post at its -X end stands on this post).
+                            Facing = new float2(-along.y, along.x),
                             Half = new float2(1.55f, 0.3f),
-                            Pad = src.SampleHeight(at),
+                            Pad = src.SampleHeight(centre),
                             Role = PlotRole.Fence,
                             Building = firstBuilding[town.Layout] + layout.Buildings.Count + 4,   // the road fence slot
                             Settlement = s,
-                            Min = at - 2f,
-                            Max = at + 2f
+                            Min = centre - 2f,
+                            Max = centre + 2f
                         });
                     }
                 }

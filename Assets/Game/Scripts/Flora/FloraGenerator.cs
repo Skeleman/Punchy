@@ -2669,7 +2669,8 @@ namespace Punchy.Flora
 
         /// <summary>
         /// One 3 m length of rail fence along X, laid end to end: a split post at its start (-X end), leaning a touch,
-        /// and two rails on to where the next length's post stands, each sagging a little in the middle.
+        /// and two rails on into the next length's post (a little past where it stands, so a slightly wider spacing on a
+        /// bend still meets it), each sagging a little in the middle.
         /// </summary>
         static void RailFence(Grower g)
         {
@@ -2682,17 +2683,21 @@ namespace Punchy.Flora
             g.TrunkRadius = 0f;
             var wood = g.Bark;
             var post = new Vector3(-length * 0.5f, 0f, 0f);
-            var lean = new Vector3(g.Range(-0.04f, 0.04f), 0f, g.Range(-0.04f, 0.04f));
+            var lean = new Vector3(g.Range(-0.02f, 0.02f), 0f, g.Range(-0.02f, 0.02f));
             b.Box(post + Vector3.up * (height * 0.5f - 0.1f) + lean * 0.5f, new Vector3(0.14f, height + 0.2f, 0.14f),
                   Quaternion.Euler(lean.z * 40f, g.Range(0f, 90f), -lean.x * 40f), wood * g.Range(0.85f, 1.05f), FloraPart.Bark);
             if (g.Lod < 2)
                 b.Box(post + Vector3.up * (height + 0.02f) + lean, new Vector3(0.16f, 0.04f, 0.16f), Quaternion.identity, s.Foliage.linear, FloraPart.Bark);
             g.Perches.Add(post + Vector3.up * (height + 0.04f) + lean);
+            // A slimmer, shorter post at its far end: hidden inside the next length's own post where the run goes on,
+            // closing it off where the run stops.
+            b.Box(post + Vector3.right * length + Vector3.up * (height * 0.5f - 0.12f), new Vector3(0.11f, height + 0.12f, 0.11f),
+                  Quaternion.identity, wood * 0.9f, FloraPart.Bark);
             foreach (var y in new[] { 0.42f, 0.82f })
             {
                 var sag = g.Range(0.01f, 0.05f);
                 var a = post + Vector3.up * height * y + new Vector3(0.05f, 0f, 0.09f);
-                var c = a + Vector3.right * length;
+                var c = a + Vector3.right * (length + 0.1f);
                 var mid = (a + c) * 0.5f + Vector3.down * sag;
                 b.Beam(a, mid, 0.07f, 0.05f, wood * g.Range(0.8f, 1f), FloraPart.Bark);
                 b.Beam(mid, c, 0.07f, 0.05f, wood * g.Range(0.8f, 1f), FloraPart.Bark);

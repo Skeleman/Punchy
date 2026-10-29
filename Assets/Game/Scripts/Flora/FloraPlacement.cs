@@ -747,8 +747,9 @@ namespace Punchy.Flora
                         {
                             Position = new float3(plot.Centre.x, bridge ? plot.Pad : FloorHeight(source, plot), plot.Centre.y),
                             Yaw = math.atan2(-plot.Facing.x, plot.Facing.y),
-                            // Sized for its folk (the layout's BuildingScale: ogre tents bigger, goblin huts smaller).
-                            Scale = bridge ? 1f : rng.NextFloat(0.95f, 1.05f) * towns.Layouts[towns.Settlements[plot.Settlement].Layout].BuildingScale,
+                            // Sized for its folk (the layout's BuildingScale: ogre tents bigger, goblin huts smaller); bridge
+                            // spans and fence lengths at their own size, so they meet end to end.
+                            Scale = bridge || plot.Role == PlotRole.Fence ? 1f : rng.NextFloat(0.95f, 1.05f) * towns.Layouts[towns.Settlements[plot.Settlement].Layout].BuildingScale,
                             Model = buildingRule.FirstModel + rng.NextInt(buildingRule.Variants),
                             Random = rng.NextFloat(),
                             Ground = bridge ? 0u : DirtColor(source, buildingRule, plot.Centre, math.cmax(plot.Half), 0.9f)
