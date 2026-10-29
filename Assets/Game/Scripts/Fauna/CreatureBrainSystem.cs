@@ -1870,6 +1870,29 @@ namespace Punchy.Fauna
                 }
                 else if (b.Nests == NestSite.Ground)
                 {
+                    // A town bird's (a hen's): against a house wall beside its door, not out on the square.
+                    if (s.Leash > 0f && Terrain.Anchors.IsCreated)
+                    {
+                        var doors = new NativeList<int>(8, Allocator.Temp);
+                        Anchors.Near(ref Terrain.Anchors.Value, new float3(near.x, s.Position.y, near.y), math.max(s.Leash, 20f), AnchorKind.Door, ref doors);
+                        var placed = false;
+                        for (int attempt = 0; attempt < 6 && doors.Length > 0 && !placed; attempt++)
+                        {
+                            var door = Terrain.Anchors.Value.Anchors[doors[place.NextInt(doors.Length)]];
+                            if (door.InCave)
+                                continue;
+                            var across = new float2(-door.Facing.y, door.Facing.x) * (place.NextBool() ? 1f : -1f);
+                            var spot = door.Position.xz + across * place.NextFloat(1.2f, 2.2f) - door.Facing * 0.3f;
+                            if (!Walkable(spot, Habitat.Land))
+                                continue;
+                            s.Anchor = new float3(spot.x, Terrain.SampleHeight(spot), spot.y);
+                            s.AnchorSize = size;
+                            placed = true;
+                        }
+                        doors.Dispose();
+                        if (placed)
+                            return true;
+                    }
                     for (int attempt = 0; attempt < 6; attempt++)
                     {
                         var spot = near + place.NextFloat2Direction() * place.NextFloat(1f, 6f);
