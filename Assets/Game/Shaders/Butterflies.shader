@@ -4,7 +4,7 @@
     // butterfly, hinged on the body and flapping; coloured wings with darker veins and margins.
     SubShader
     {
-        Tags { "RenderType" = "Opaque" "Queue" = "Transparent-50" "RenderPipeline" = "UniversalPipeline" }
+        Tags { "RenderType" = "Opaque" "Queue" = "Geometry" "RenderPipeline" = "UniversalPipeline" }
         Cull Off
 
         Pass
