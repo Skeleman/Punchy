@@ -44,6 +44,15 @@ namespace Punchy.Terrain
         public static float Underground { get; private set; }
 
         /// <summary>
+        /// How completely the surface world is out of sight, 0..1: Underground, faded out near any cave mouth (0 within
+        /// SurfaceFadeNear of a mouth, 1 past SurfaceFadeFar), so a view out of a mouth still shows the outside. Systems
+        /// drawing things on the surface (flora, terrain beyond the camera's own neighbourhood, creatures) skip them at
+        /// 1. The one rule everyone keys on.
+        /// </summary>
+        public static float SurfaceHidden { get; private set; }
+        const float SurfaceFadeNear = 25f, SurfaceFadeFar = 45f;
+
+        /// <summary>
         /// Whether every cave chunk in range of the camera is built and nothing is queued or building: what tools that
         /// take screenshots wait on, instead of a fixed delay, after moving the camera.
         /// </summary>
@@ -72,6 +81,8 @@ namespace Punchy.Terrain
             public bool Pending;
             /// <summary>Whether its walls cast sun shadows: only chunks reaching up near the surface can shade anything the sun lights.</summary>
             public bool CastsShadows;
+            /// <summary>Wholly under the ground and well away from every mouth: nothing outside a cave can see it.</summary>
+            public bool Buried;
 
             public void Dispose()
             {
@@ -254,6 +265,7 @@ namespace Punchy.Terrain
             ReleaseDrips();
             lastCameraChunk = new int3(int.MinValue);
             Underground = 0f;
+            SurfaceHidden = 0f;
             Shader.SetGlobalFloat(UndergroundId, 0f);
             if (lantern != null)
                 lantern.enabled = false;
@@ -1103,7 +1115,8 @@ namespace Punchy.Terrain
 
             UploadStyles();
             Stream(source, camPos);
-            Draw();
+            // Outside every cave's air, buried chunks can't be seen.
+            Draw(source.CaveDistance(camPos) >= 0f);
             DrawPools(source, camPos);
             DrawPlants(source, camPos);
             DrawDrips(source, camPos);
@@ -1113,6 +1126,12 @@ namespace Punchy.Terrain
             var deep = source.CaveDistance(camPos) < 0f ? math.saturate((source.SampleHeight(camPos.xz) - camPos.y - 1f) / 3f) : 0f;
             Underground = Mathf.MoveTowards(Underground, deep, Time.deltaTime * 1.5f);
             Shader.SetGlobalFloat(UndergroundId, Underground);
+            // The surface is out of sight deep in a cave, away from every mouth.
+            var nearestMouth = float.MaxValue;
+            ref var caveSet = ref source.Caves.Value;
+            for (int c = 0; c < caveSet.Caves.Length; c++)
+                nearestMouth = math.min(nearestMouth, math.distance(camPos, caveSet.Caves[c].Mouth));
+            SurfaceHidden = Underground * math.smoothstep(SurfaceFadeNear, SurfaceFadeFar, nearestMouth);
             UpdateLantern(source);
             UpdateOtherLanterns(source, cam.transform.position);
         }
@@ -1314,7 +1333,10 @@ namespace Punchy.Terrain
                     var lowestGround = float.MaxValue;
                     for (int i = 0; i < b.Surface.Length; i++)
                         lowestGround = math.min(lowestGround, b.Surface[i]);
-                    b.CastsShadows = min.y + chunkSize + chunkVoxel > lowestGround - 4f || NearMouth(source, min, min + chunkSize);
+                    b.CastsShadows = min.y + chunkSize + chunkVoxel > lowestGround - 4f || NearMouth(source, min, min + chunkSize, MouthLight);
+                    // Buried: wholly a few metres under the ground and out of sight of every mouth (a view in through a
+                    // mouth reaches a winding passage only so far), so it's skipped while the camera is outside caves.
+                    b.Buried = min.y + chunkSize + chunkVoxel < lowestGround - 4f && !NearMouth(source, min, min + chunkSize, BuriedReach);
                 }
                 b.Field.Dispose();
                 b.CaveField.Dispose();
@@ -1330,14 +1352,16 @@ namespace Punchy.Terrain
 
         /// <summary>Daylight from a mouth lights walls up to about 17 m in (Look's fromMouth), so walls within 20 m shade.</summary>
         const float MouthLight = 20f;
+        /// <summary>How far in from a mouth a cave chunk can be seen from outside (beyond it, from the surface it's buried).</summary>
+        const float BuriedReach = 32f;
 
-        static bool NearMouth(in TerrainSource source, float3 min, float3 max)
+        static bool NearMouth(in TerrainSource source, float3 min, float3 max, float reach)
         {
             ref var set = ref source.Caves.Value;
             for (int c = 0; c < set.Caves.Length; c++)
             {
                 var mouth = set.Caves[c].Mouth;
-                if (math.distance(math.clamp(mouth, min, max), mouth) < MouthLight)
+                if (math.distance(math.clamp(mouth, min, max), mouth) < reach)
                     return true;
             }
             return false;
@@ -1587,11 +1611,11 @@ namespace Punchy.Terrain
             }
         }
 
-        void Draw()
+        void Draw(bool outside)
         {
             foreach (var b in chunks.Values)
             {
-                if (b.Mesh == null)
+                if (b.Mesh == null || outside && b.Buried)
                     continue;
                 var rp = new RenderParams(Material)
                 {

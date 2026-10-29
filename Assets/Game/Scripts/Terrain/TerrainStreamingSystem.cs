@@ -59,6 +59,11 @@ namespace Punchy.Terrain
         double lastFocusTime;
 
         readonly Dictionary<int2, LoadedChunk> loaded = new Dictionary<int2, LoadedChunk>();
+        /// <summary>Whether far chunks are hidden for a camera deep in a cave (see HideFarChunks).</summary>
+        bool surfaceHidden;
+        /// <summary>Chunks within this distance of the camera keep drawing while the surface is hidden (the ground over a
+        /// cave's own roof, which a shallow cave's walls meet).</summary>
+        const float HiddenKeep = 60f;
         readonly Stack<(Mesh mesh, BatchMeshID id)> meshPool = new Stack<(Mesh, BatchMeshID)>();
         readonly List<int2> scratchCoords = new List<int2>();
         readonly List<BuildItem> wanted = new List<BuildItem>();
@@ -129,6 +134,14 @@ namespace Punchy.Terrain
                     return;
                 FinishBuild(config);
             }
+
+            // Deep in a cave (CaveSystem.SurfaceHidden) the surface is out of sight: chunks beyond the camera's own
+            // neighbourhood stop drawing, and nothing new streams in until the surface comes back into view.
+            var hidden = CaveSystem.SurfaceHidden >= 0.99f;
+            if (hidden != surfaceHidden)
+                HideFarChunks(hidden);
+            if (hidden)
+                return;
 
             var focus = focusQuery.TryGetSingleton<LocalTransform>(out var focusTransform)
                 ? focusTransform.Position.xz
@@ -412,6 +425,33 @@ namespace Punchy.Terrain
             var mesh = new Mesh { name = "TerrainChunk" };
             mesh.MarkDynamic();
             return (mesh, graphics.RegisterMesh(mesh));
+        }
+
+        /// <summary>
+        /// Hides (or shows again) the chunks farther than HiddenKeep from the camera, for a camera deep in a cave
+        /// (DisableRendering on their entities).
+        /// </summary>
+        void HideFarChunks(bool hide)
+        {
+            surfaceHidden = hide;
+            var cam = Camera.main;
+            var eye = cam != null ? ((float3)cam.transform.position).xz : float2.zero;
+            var chunkSize = SystemAPI.GetSingleton<TerrainConfig>().ChunkSize;
+            foreach (var kv in loaded)
+            {
+                var centre = ((float2)kv.Key + 0.5f) * chunkSize;
+                var far = math.distance(centre, eye) > HiddenKeep + chunkSize * 0.71f;
+                foreach (var e in new[] { kv.Value.Entity, kv.Value.WaterEntity })
+                {
+                    if (e == Entity.Null)
+                        continue;
+                    var off = EntityManager.HasComponent<DisableRendering>(e);
+                    if (hide && far && !off)
+                        EntityManager.AddComponent<DisableRendering>(e);
+                    else if ((!hide || !far) && off)
+                        EntityManager.RemoveComponent<DisableRendering>(e);
+                }
+            }
         }
 
         Entity CreateRenderEntity(int2 coord, float2 origin, in RenderMeshDescription desc, BatchMaterialID material, BatchMeshID mesh, string name)
