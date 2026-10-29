@@ -48,14 +48,14 @@ namespace Punchy.Terrain
                 var type = (uint)inst.Type < (uint)types.Count ? types[inst.Type] : null;
                 if (type == null || !type.Cave)
                     continue;
-                var rng = new Random(math.hash(new int2(i, 7717)) | 1u);
+                var rng = new Random(math.hash(new uint2(inst.Key, 7717u)) | 1u);
                 var style = PickStyle(source, palette, type, inst.Position, ref rng);
                 var profile = style != null ? new float2(style.Width, style.Width * style.Height) : new float2(1f);
                 var wall = style != null ? new float4(style.Roughness, style.Grain, style.Ribs, style.RibSpacing) : new float4(1f, 1f, 0f, 1.6f);
                 var rock = style != null ? new float4(style.Jaggedness, style.FloorFlatness, style.FloorSteps, style.Blockiness) : new float4(0.7f, 0.85f, 0.4f, 0.3f);
                 // Each cave its own take on its style, from its seed: a little wider or lower, rougher or smoother, more
                 // or less broken, with more or fewer steps (so two limestone caves don't look cast from one mould).
-                var vary = new Random(math.hash(new int2(i, 0x5A17)) | 1u);
+                var vary = new Random(math.hash(new uint2(inst.Key, 0x5A17u)) | 1u);
                 profile *= new float2(vary.NextFloat(0.88f, 1.12f), vary.NextFloat(0.85f, 1.15f));
                 wall.x *= vary.NextFloat(0.8f, 1.2f);
                 rock.x = math.min(rock.x * vary.NextFloat(0.8f, 1.2f), 1.5f);
@@ -187,6 +187,7 @@ namespace Punchy.Terrain
                     Max = max,
                     Mouth = mouth,
                     Seed = rng.NextFloat(-50f, 50f),
+                    Key = inst.Key,
                     Style = style != null ? styles.IndexOf(style) + 1 : 0,
                     Profile = profile,
                     Wall = wall,
@@ -242,7 +243,7 @@ namespace Punchy.Terrain
                 var cave = caves[c];
                 cave.FirstStream = extras.Streams.Count;
                 var style = cave.Style > 0 ? styles[cave.Style - 1] : null;
-                var rng = new Random(math.hash(new int2(c, 0x5711)) | 1u);
+                var rng = new Random(math.hash(new uint2(caves[c].Key, 0x5711u)) | 1u);
                 if (style != null && style.StreamChance > 0f && rng.NextFloat() < style.StreamChance && cave.NodeCount >= 4)
                 {
                     // The main passage: laid out first, each node joined to the one before it; it ends where that
@@ -343,7 +344,7 @@ namespace Punchy.Terrain
                 var density = style != null ? style.SpeleothemDensity : 4f;
                 if (density <= 0f)
                     continue;
-                var rng = new Random(math.hash(new int2(c, 0x57A1)) | 1u);
+                var rng = new Random(math.hash(new uint2(caves[c].Key, 0x57A1u)) | 1u);
                 for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
                 {
                     // Chambers, and at half the density any passage wide enough to keep a way past them (so even a
@@ -400,7 +401,7 @@ namespace Punchy.Terrain
                 if (density <= 0f)
                     continue;
                 var size = style != null ? style.RubbleSize : 0.6f;
-                var rng = new Random(math.hash(new int2(c, 0x2B1E)) | 1u);
+                var rng = new Random(math.hash(new uint2(caves[c].Key, 0x2B1Eu)) | 1u);
                 for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
                 {
                     if (kinds[n] != CaveNodeKind.Chamber)
@@ -496,7 +497,7 @@ namespace Punchy.Terrain
                 var style = cave.Style > 0 ? styles[cave.Style - 1] : null;
                 if (style == null || style.Flora.Count == 0)
                     continue;
-                var rng = new Random(math.hash(new int2(c, 0xF10A)) | 1u);
+                var rng = new Random(math.hash(new uint2(caves[c].Key, 0xF10Au)) | 1u);
                 var shafts = new List<float2>();
                 for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
                     if (kinds[n] == CaveNodeKind.Shaft)
@@ -584,7 +585,7 @@ namespace Punchy.Terrain
                 var terrain = source;   // local functions can't capture an in parameter
                 var frame = style.Frame != null ? flora.IndexOf(style.Frame) : -1;
                 var torch = style.Torch != null ? flora.IndexOf(style.Torch) : -1;
-                var rng = new Random(math.hash(new int2(c, 0xF177)) | 1u);
+                var rng = new Random(math.hash(new uint2(caves[c].Key, 0xF177u)) | 1u);
                 var side = 1f;
                 var sinceTorch = style.TorchSpacing * 0.5f;
                 for (int si = cave.FirstSegment; si < cave.FirstSegment + cave.SegmentCount; si++)
@@ -754,7 +755,7 @@ namespace Punchy.Terrain
                 var cave = caves[c];
                 cave.FirstPool = pools.Count;
                 var style = cave.Style > 0 ? styles[cave.Style - 1] : null;
-                var rng = new Random(math.hash(new int2(c, 0x9001)) | 1u);
+                var rng = new Random(math.hash(new uint2(caves[c].Key, 0x9001u)) | 1u);
                 if (style != null && style.PoolChance > 0f && rng.NextFloat() < style.PoolChance)
                 {
                     var chambers = new List<int>();
@@ -811,7 +812,7 @@ namespace Punchy.Terrain
                 var style = cave.Style > 0 ? styles[cave.Style - 1] : null;
                 if (style == null || style.WaterfallChance <= 0f)
                     continue;
-                var rng = new Random(math.hash(new int2(c, 0xFA11)) | 1u);
+                var rng = new Random(math.hash(new uint2(caves[c].Key, 0xFA11u)) | 1u);
                 var made = 0;
                 for (int i = cave.FirstPool; i < cave.FirstPool + cave.PoolCount && made < 2; i++)
                 {

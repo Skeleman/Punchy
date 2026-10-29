@@ -39,6 +39,12 @@ namespace Punchy.Terrain
         /// <summary>Natural ground height at the centre (what Flatten levels to).</summary>
         public float BaseHeight;
         public float Seed;
+        /// <summary>
+        /// A stable hash of where it came from (its candidate spot, or a hand-placed landmark's position): everything
+        /// derived from a landmark (its cave, its town's layout, its anchors) seeds from this, not from its index, so
+        /// adding or removing other landmarks doesn't reshuffle it.
+        /// </summary>
+        public uint Key;
     }
 
     /// <summary>

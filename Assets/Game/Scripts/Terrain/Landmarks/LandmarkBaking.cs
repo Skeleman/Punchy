@@ -15,6 +15,11 @@ namespace Punchy.Terrain
     /// that misses out by chance is then given the first suitable spot found for it, so each appears at least once
     /// wherever the land allows. Runs after rivers are routed, so landmarks keep clear of rivers and lakes rather
     /// than redirecting them.
+    /// Stable seeds: every spot's jitter, size, angle and order come from a hash of its grid cell (not a running random
+    /// sequence), and each type rolls for itself at each spot from a hash of the spot and its own name, the winner
+    /// being the type that beat its chance by most. So adding a type to a biome list only takes the spots it wins
+    /// (and moves what those crowd); the rest of the island stays put. Instances carry a Key that everything
+    /// downstream seeds from.
     /// </summary>
     public static class LandmarkBaking
     {
@@ -55,7 +60,10 @@ namespace Punchy.Terrain
         {
             public TerrainSource Source;
             [ReadOnly] public NativeArray<float2> Points;
-            [ReadOnly] public NativeArray<float> Rolls;
+            /// <summary>Per spot: its stable hash (see Build).</summary>
+            [ReadOnly] public NativeArray<uint> Keys;
+            /// <summary>Per type: NameHash.</summary>
+            [ReadOnly] public NativeArray<uint> TypeHashes;
             /// <summary>Footprints are checked at this multiple of the radius (the largest size they could be).</summary>
             public float FootprintScale;
             /// <summary>Type every spot tries (where its biome lists it), or -1 to roll for one.</summary>
@@ -93,16 +101,34 @@ namespace Punchy.Terrain
                 if (weight < 0.9f || biome >= BiomeRanges.Length)
                     return;
 
+                // Each listed type rolls for itself here (a hash of the spot and its name) against its own chance;
+                // of those that pass, the one that passed by most wins (lowest roll / chance, ties by name hash).
                 var range = BiomeRanges[biome];
-                var roll = Rolls[i];
                 var type = -1;
+                var best = float.MaxValue;
+                var bestHash = uint.MaxValue;
                 for (int e = range.x; e < range.x + range.y; e++)
                 {
-                    roll -= EntryChances[e];
-                    if (Forced >= 0 ? EntryTypes[e] == Forced : roll < 0f)
+                    var t = EntryTypes[e];
+                    if (Forced >= 0)
                     {
-                        type = EntryTypes[e];
-                        break;
+                        if (t == Forced)
+                        {
+                            type = t;
+                            break;
+                        }
+                        continue;
+                    }
+                    var chance = EntryChances[e];
+                    var u = (math.hash(new uint2(Keys[i], TypeHashes[t])) >> 8) * (1f / 16777216f);
+                    if (u >= chance)
+                        continue;
+                    var ratio = u / chance;
+                    if (ratio < best || ratio == best && TypeHashes[t] < bestHash)
+                    {
+                        best = ratio;
+                        bestHash = TypeHashes[t];
+                        type = t;
                     }
                 }
                 if (type < 0)
@@ -186,12 +212,24 @@ namespace Punchy.Terrain
             }
         }
 
+        /// <summary>A stable hash of a landmark type's name (FNV-1a), so its rolls don't depend on its place in any list.</summary>
+        public static uint NameHash(LandmarkType type)
+        {
+            var h = 2166136261u;
+            foreach (var ch in type.name)
+            {
+                h ^= ch;
+                h *= 16777619u;
+            }
+            return h;
+        }
+
         public static BlobAssetReference<LandmarkSetBlob> Build(in TerrainSource source, IReadOnlyList<BiomeDefinition> palette,
                                                                  List<LandmarkType> types, IReadOnlyList<PlacedLandmark> placed,
                                                                  Allocator allocator)
         {
             var instances = new List<LandmarkInstance>();
-            var rng = new Unity.Mathematics.Random(math.hash(new uint2(source.World.Seed, 0x1A4D3A2Bu)) | 1u);
+            var worldSeed = source.World.Seed;
 
             // Hand-placed landmarks first: generated ones keep clear of them.
             if (placed != null)
@@ -201,6 +239,8 @@ namespace Punchy.Terrain
                         continue;
                     var angle = math.radians(p.Rotation);
                     var position = (float2)p.Position;
+                    var key = math.hash(new uint4(worldSeed, math.asuint(position.x), math.asuint(position.y), 0x9A1Cu)) | 1u;
+                    var rng = new Unity.Mathematics.Random(key);
                     instances.Add(new LandmarkInstance
                     {
                         Position = position,
@@ -208,7 +248,8 @@ namespace Punchy.Terrain
                         Scale = math.max(p.Scale, 0.05f),
                         Type = types.IndexOf(p.Type),
                         BaseHeight = source.SampleHeight(position),
-                        Seed = rng.NextFloat(-100f, 100f)
+                        Seed = rng.NextFloat(-100f, 100f),
+                        Key = key
                     });
                 }
 
@@ -257,21 +298,26 @@ namespace Punchy.Terrain
                 var perSide = (int)math.ceil(half * 2f / CandidateSpacing);
                 var count = perSide * perSide;
                 var points = new NativeArray<float2>(count, Allocator.TempJob);
-                var rolls = new NativeArray<float>(count, Allocator.TempJob);
+                var keys = new NativeArray<uint>(count, Allocator.TempJob);
                 var scales = new NativeArray<float>(count, Allocator.TempJob);
                 var angles = new float[count];
                 var seeds = new float[count];
                 var priority = new uint[count];
+                // Each spot's own values, from a hash of its cell and the world seed.
                 for (int z = 0, i = 0; z < perSide; z++)
                 for (int x = 0; x < perSide; x++, i++)
                 {
+                    keys[i] = math.hash(new uint4(worldSeed, (uint)x, (uint)z, 0x1A4D3A2Bu)) | 1u;
+                    var rng = new Unity.Mathematics.Random(keys[i]);
                     points[i] = new float2(-half) + (new float2(x, z) + rng.NextFloat2(0.15f, 0.85f)) * CandidateSpacing;
-                    rolls[i] = rng.NextFloat();
                     scales[i] = rng.NextFloat();
                     angles[i] = rng.NextFloat(math.PI * 2f);
                     seeds[i] = rng.NextFloat(-100f, 100f);
                     priority[i] = rng.NextUInt();
                 }
+                var typeHashes = new NativeArray<uint>(types.Count, Allocator.TempJob);
+                for (int t = 0; t < types.Count; t++)
+                    typeHashes[t] = NameHash(types[t]);
                 var rules = new NativeArray<TypeRules>(types.Count, Allocator.TempJob);
                 for (int t = 0; t < types.Count; t++)
                 {
@@ -303,7 +349,8 @@ namespace Punchy.Terrain
                     {
                         Source = terrain,
                         Points = points,
-                        Rolls = rolls,
+                        Keys = keys,
+                        TypeHashes = typeHashes,
                         FootprintScale = 1.2f,
                         Forced = forced,
                         OuterWeight = forced >= 0 ? 0.1f : 0.6f,
@@ -353,7 +400,8 @@ namespace Punchy.Terrain
                             Scale = scale,
                             Type = outType[i],
                             BaseHeight = outBase[i],
-                            Seed = seeds[i]
+                            Seed = seeds[i],
+                            Key = keys[i]
                         });
                         added++;
                     }
@@ -361,7 +409,12 @@ namespace Punchy.Terrain
                 }
 
                 Place(-1, int.MaxValue);
+                // Types that missed out, in name-hash order (not list order, which a new type would shift).
+                var byName = new List<int>();
                 for (int t = 0; t < types.Count; t++)
+                    byName.Add(t);
+                byName.Sort((a, b) => typeHashes[a].CompareTo(typeHashes[b]));
+                foreach (var t in byName)
                     if (entryTypes.Contains(t) && !types[t].OnlyAsCompanion && !instances.Exists(inst => inst.Type == t))
                         Place(t, 1);
 
@@ -371,8 +424,12 @@ namespace Punchy.Terrain
                 // few (put back afterwards).
                 const int Ring = 48;
                 var savedPoints = new float2[math.min(Ring, count)];
+                var savedKeys = new uint[savedPoints.Length];
                 for (int j = 0; j < savedPoints.Length; j++)
+                {
                     savedPoints[j] = points[j];
+                    savedKeys[j] = keys[j];
+                }
                 var placedSoFar = instances.Count;
                 for (int k = 0; k < placedSoFar; k++)
                 {
@@ -385,6 +442,7 @@ namespace Punchy.Terrain
                         var a = j * 2.39996f + host.Seed;
                         var d = hostType.CompanionRange * math.lerp(0.55f, 1f, math.frac(j * 0.618034f));
                         points[j] = host.Position + new float2(math.cos(a), math.sin(a)) * d;
+                        keys[j] = math.hash(new uint3(host.Key, (uint)j, 0xC0A1u)) | 1u;
                     }
                     foreach (var companion in hostType.Companions)
                     {
@@ -394,7 +452,10 @@ namespace Punchy.Terrain
                     }
                 }
                 for (int j = 0; j < savedPoints.Length; j++)
+                {
                     points[j] = savedPoints[j];
+                    keys[j] = savedKeys[j];
+                }
 
                 // Every settlement type a realm's biomes list gets at least one settlement in that realm (or the
                 // entry's Per Realm), so each realm has its own folk (a human village in the temperate lands even if
@@ -427,7 +488,8 @@ namespace Punchy.Terrain
                 }
 
                 points.Dispose();
-                rolls.Dispose();
+                keys.Dispose();
+                typeHashes.Dispose();
                 scales.Dispose();
                 rules.Dispose();
                 outType.Dispose();
