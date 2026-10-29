@@ -184,7 +184,7 @@ namespace Punchy.Fauna
                 var now0 = math.frac(s.Phase + part.Phase);
                 if (now0 >= was || was - now0 < 0.5f)
                     continue;   // no touchdown (its cycle didn't wrap round to stance this frame)
-                var foot = CreatureMotion.FootAt(ref b, ref part, now0, s.Speed) * scale;
+                var foot = CreatureMotion.FootAt(ref b, ref part, now0, s.GaitSpeed) * scale;
                 Print(s, ref b, terrain, s.Position + right * foot.x + forward * foot.z, forward, now);
             }
         }

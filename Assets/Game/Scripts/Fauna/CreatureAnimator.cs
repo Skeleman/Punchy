@@ -43,8 +43,9 @@ namespace Punchy.Fauna
                                     NativeArray<SegmentInstance> output, int offset, bool detail = true)
         {
             var scale = s.Scale;
-            var move = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), s.Speed);
-            var run = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), s.Speed);
+            // (Posed for the eased speed, so a sudden start or stop doesn't swap the pose under a planted foot.)
+            var move = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), s.GaitSpeed);
+            var run = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), s.GaitSpeed);
 
             // Body on the ground: height from the legs, pitch from the ground ahead and behind.
             var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
@@ -90,7 +91,7 @@ namespace Punchy.Fauna
             var headTilt = new float3(CreatureBlob.Trait(id, 6) * 0.1f, 0f, CreatureBlob.Trait(id, 7) * 0.07f);
 
             // Past a run, folk sprint: leaning well in, and lifting clear of the ground between steps.
-            var sprint = b.Sprint(s.Speed);
+            var sprint = b.Sprint(s.GaitSpeed);
             pitch += sprint * 0.3f;
             var bobs = math.lerp(b.BobsPerCycle.x, b.BobsPerCycle.y, run);
             var bob = math.lerp(b.Bob.x, b.Bob.y, run) * bounce * move * scale * (0.5f - 0.5f * math.cos(2f * math.PI * bobs * s.Phase));

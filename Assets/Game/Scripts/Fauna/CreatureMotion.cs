@@ -72,9 +72,9 @@ namespace Punchy.Fauna
         public static float StepPhase(ref CreatureBlob b, in CreatureState s, float distance)
         {
             var scale = math.max(s.Scale, 0.01f);
-            var move = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), s.Speed);
-            var run = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), s.Speed);
-            var sprint = b.Sprint(s.Speed);
+            var move = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), s.GaitSpeed);
+            var run = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), s.GaitSpeed);
+            var sprint = b.Sprint(s.GaitSpeed);
             var stride = math.lerp(b.WalkStride, b.RunStride, run) * (1f + CreatureBlob.SprintStride * sprint);
             var sweep = 0f;
             var planted = 0;
@@ -94,8 +94,10 @@ namespace Punchy.Fauna
                 sweep += (FootZ(ref b, ref part, p0, move, run, sprint, rock0) - FootZ(ref b, ref part, p1, move, run, sprint, rock1)) / (p1 - p0);
                 planted++;
             }
-            // (A foot barely sweeping, or none planted, as in a run's flight: the stride's average pace.)
-            var perCycle = planted > 0 && sweep / planted > 0.25f * stride ? sweep / planted : stride;
+            // (None planted, as in a run's flight: the stride's average pace. Feet barely sweeping, just setting off with
+            // the swing still small: quicker steps, up to five times the stride's pace, rather than the body outrunning
+            // its feet.)
+            var perCycle = planted > 0 ? math.max(sweep / planted, 0.2f * stride) : stride;
             return distance / math.max(perCycle * scale, 1e-3f);
         }
 
@@ -153,6 +155,58 @@ namespace Punchy.Fauna
             else
                 s.Phase = math.frac(s.Phase + StepPhase(ref b, s, s.Speed * dt));
             s.Sway += (-s.YawRate * 0.35f - s.Sway) * math.min(1f, dt * 4f);
+        }
+
+        /// <summary>How quickly a body on foot gets up to speed (m/s²): a full run in a third of a second.</summary>
+        public static float Acceleration(ref CreatureBlob b) => math.max(b.RunSpeed, 0.5f) * 3f;
+
+        /// <summary>
+        /// Holds a body on foot to its acceleration from the speed it was going (GaitSpeed): setting off, or breaking
+        /// into a run, it builds up rather than leaping to full speed while its legs are still posed for standing or a
+        /// walk. Slowing down and stopping stay immediate. For the movers to call before they step.
+        /// </summary>
+        public static void Accelerate(ref CreatureState s, ref CreatureBlob b, float dt)
+        {
+            if (s.Fly < 0.5f)
+                s.Speed = math.min(s.Speed, s.GaitSpeed + Acceleration(ref b) * dt);
+        }
+
+        /// <summary>
+        /// Eases the speed its legs are posed for (GaitSpeed) towards its real speed, at most a full run in a third of a
+        /// second, and keeps its planted feet planted while the pose changes: blending towards another speed's pose moves
+        /// a planted foot in the body's frame, so the gait runs on by as much as sweeps it back again. (Not backwards:
+        /// a foot the new pose pulls back slides that little.) Once a frame, after the gait has advanced.
+        /// </summary>
+        public static void EaseGait(ref CreatureState s, ref CreatureBlob b, float dt)
+        {
+            var before = s.GaitSpeed;
+            var rate = Acceleration(ref b) * dt;
+            s.GaitSpeed = before + math.clamp(s.Speed - before, -rate, rate);
+            if (s.Fly > 0.5f || math.abs(s.GaitSpeed - before) < 1e-4f)
+                return;
+            float move0 = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), before),
+                  move1 = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), s.GaitSpeed);
+            float run0 = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), before),
+                  run1 = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), s.GaitSpeed);
+            float sprint0 = b.Sprint(before), sprint1 = b.Sprint(s.GaitSpeed);
+            var shift = 0f;
+            var planted = 0;
+            for (int i = 0; i < b.Parts.Length; i++)
+            {
+                ref var part = ref b.Parts[i];
+                if (part.Role != LimbRole.Leg || part.Parent >= 0 || part.SegmentCount == 0)
+                    continue;
+                var p = math.frac(s.Phase + part.Phase);
+                if (p < 0.03f || p > 0.47f)
+                    continue;   // swinging, or just touching down or lifting off
+                shift += FootZ(ref b, ref part, p, move1, run1, sprint1, 0f) - FootZ(ref b, ref part, p, move0, run0, sprint0, 0f);
+                planted++;
+            }
+            if (planted == 0 || shift <= 0f)
+                return;
+            // (The phase a metre's worth of foot sweep takes at the new pose; per unit body size, as FootZ is.)
+            var perMetre = StepPhase(ref b, s, s.Scale);
+            s.Phase = math.frac(s.Phase + math.min(shift / planted * perMetre, 0.25f));
         }
     }
 }

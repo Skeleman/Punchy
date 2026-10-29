@@ -159,6 +159,7 @@ namespace Punchy.Fauna
             // Speed from how far it actually went; the gait holds still in the air.
             var speed = grounded ? moved / dt : 0f;
             c.Speed += (speed - c.Speed) * math.min(1f, dt * 12f);
+            c.GaitSpeed = c.Speed;   // (already eased)
             if (grounded)
                 c.Phase = math.frac(c.Phase + CreatureMotion.StepPhase(ref b, c, moved));
         }

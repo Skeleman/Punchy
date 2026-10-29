@@ -195,6 +195,14 @@ namespace Punchy.Fauna
 
             void Execute(Entity self, ref CreatureState s, in CreatureBody body)
             {
+                Think(self, ref s, in body);
+                // (The legs' pose follows whatever speed it ended the tick at, whichever way it got there.)
+                if (!s.Gone)
+                    CreatureMotion.EaseGait(ref s, ref body.Blob.Value, Dt);
+            }
+
+            void Think(Entity self, ref CreatureState s, in CreatureBody body)
+            {
                 if (s.Gone)
                     return;
                 ref var b = ref body.Blob.Value;
@@ -1716,6 +1724,7 @@ namespace Punchy.Fauna
                 TurnTowards(ref s, ref b, at, dt);
                 var facing = math.saturate(math.cos(WrapAngle(math.atan2(to.x, to.y) - s.Yaw)) * 1.5f);
                 s.Speed = math.min(speed * facing, distance / math.max(dt, 1e-4f));
+                CreatureMotion.Accelerate(ref s, ref b, dt);
                 s.Position.xz += new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * s.Speed * dt;
                 return math.length(at - s.Position.xz);
             }
@@ -3338,6 +3347,9 @@ namespace Punchy.Fauna
             {
                 var to = target.xz - s.Position.xz;
                 var d = math.length(to);
+                s.Speed = speed;
+                CreatureMotion.Accelerate(ref s, ref b, dt);
+                speed = s.Speed;
                 if (d > 1e-3f)
                 {
                     s.Position.xz += to / d * math.min(d, speed * dt);
@@ -5156,6 +5168,7 @@ namespace Punchy.Fauna
             void Advance(ref CreatureState s, ref CreatureBlob b, float dt, bool keepHeight = false)
             {
                 var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                CreatureMotion.Accelerate(ref s, ref b, dt);
                 if (b.Crawls && CaveWalker(s, ref b))
                 {
                     Crawl(ref s, ref b, dt);

@@ -419,6 +419,11 @@ namespace Punchy.Fauna
         /// <summary>Heading in radians; forward is (sin, 0, cos).</summary>
         public float Yaw;
         public float Speed;
+        /// <summary>
+        /// The speed its legs are posed for: Speed eased at a creature's own acceleration (CreatureMotion.EaseGait), so a
+        /// sudden start, stop or burst doesn't swap the gait's pose under a planted foot. Local only, never sent.
+        /// </summary>
+        public float GaitSpeed;
         public float Phase;
         public float YawRate;
         /// <summary>Spring state for tails and ears (lags the turns).</summary>
