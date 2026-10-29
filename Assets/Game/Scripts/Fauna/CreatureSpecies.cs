@@ -261,7 +261,9 @@ namespace Punchy.Fauna
         // A player climbing up onto a ledge: hands on the rim, pulling up, a knee coming up over.
         Mantle,
         // A rooted creature striking at something within reach (not an idle action any species picks).
-        Snap
+        Snap,
+        // A player sitting down or lying back where they are, or on a seat (postures held until they move).
+        SitDown, LieBack
     }
 
     public enum ActiveTime : byte
