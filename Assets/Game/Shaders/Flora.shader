@@ -197,6 +197,17 @@ Shader "Punchy/Flora"
                     }
                 }
 
+                // Bark with glowing seams (FloraSpecies.GlowingSeams, marked as Bark + 0.25): a network of thin cracks
+                // where value noise crosses its midline, pulsing slowly along the trunk, hot as embers under char.
+                if (part == 0 && input.extra.x > 0.15)
+                {
+                    float3 q = input.positionWS * float3(2.2, 0.9, 2.2);
+                    float vein = abs(PunchyValueNoise(q.xz + q.y * 1.7 + r * 13.0) - 0.5) + abs(PunchyValueNoise(q.zy * 1.3 + 4.1) - 0.5) * 0.6;
+                    half crack = 1 - smoothstep(0.02, 0.07, vein);
+                    half pulse = 0.65 + 0.35 * sin(_PunchyClock * 1.3 - input.positionWS.y * 0.8 + r * 20);
+                    color = color * (1 - crack * 0.6) + half3(1.0, 0.36, 0.08) * crack * pulse * 2.4;
+                }
+
                 // Glowing parts shine by themselves (bright enough to bloom at night), with a gentle, slow shimmer of
                 // the species' own amount (carried as a fraction on the part; 0 for crystals), out of step plant to plant.
                 if (part == 5)

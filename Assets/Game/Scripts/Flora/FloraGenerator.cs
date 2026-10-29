@@ -59,6 +59,7 @@ namespace Punchy.Flora
                                   : species.Finish == FoliageFinish.Glass ? FloraPart.Glass : FloraPart.Foliage;
                 builder.PetalAs = species.GlowingAccents ? FloraPart.Glow : FloraPart.Petal;
                 builder.GlowPulse = species.GlowPulse;
+                builder.BarkSeams = species.GlowingSeams;
                 var g = new Grower(species, variant, lod, seed, builder);
                 switch (species.Form)
                 {
@@ -1082,6 +1083,9 @@ namespace Punchy.Flora
                 var top = offset + lean * h + Vector3.up * h;
                 var tilt = Quaternion.FromToRotation(Vector3.up, (Vector3.up + lean).normalized);
 
+                // A giant mushroom's main stem stops walkers like a trunk.
+                if (i == 0 && h > 2f)
+                    g.TrunkRadius = stemRadius * 1.25f;
                 var firstStem = b.VertexCount;
                 b.Tube(new List<Vector3> { offset + Vector3.down * 0.02f, offset + lean * h * 0.45f + Vector3.up * h * 0.55f, top },
                        new List<float> { stemRadius * 1.25f, stemRadius, stemRadius * 0.9f }, g.Sides(7, 5, 3), g.Bark, FloraPart.Bark);

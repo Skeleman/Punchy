@@ -169,6 +169,9 @@ namespace Punchy.Flora
         [Tooltip("How much the glowing parts shimmer (± share of their brightness, slowly, out of step plant to plant). " +
                  "0 = a steady glow (crystals).")]
         [Range(0f, 1f)] public float GlowPulse = 0.12f;
+        [Tooltip("Bark (trunk, branches, stems) cracked with glowing seams that pulse slowly, like embers under char " +
+                 "(Ember Forest) or veins of light (weird biomes). Shader only: no extra geometry.")]
+        public bool GlowingSeams;
 
         [Header("Placement")]
         [Tooltip("Steepest ground it grows on, in degrees.")]
