@@ -41,6 +41,44 @@ Shader "Punchy/Flora"
             SAMPLER(sampler_PunchyCaveDetail);
             float _PunchyCaveDetailReady;
 
+            /// How much of a detail octave of this period (m) to keep, given how many metres one pixel covers: all of it
+            /// while a period spans eight pixels or more, none once it's down to three (where it would shimmer).
+            half PunchyOctave(float period, float footprint)
+            {
+                return smoothstep(3, 8, period / max(footprint, 1e-4));
+            }
+
+            /// Weathering on built things that holds up at any range: the procedural equivalent of mipmapping. Courses
+            /// of blocks (stone rows, planks, thatch layers: 0.3 m rows of 0.6 m blocks, and 1.2 m bands that outlast
+            /// them), mottling at 0.7, 2.5 and 9 m, and rain streaks down the walls. Each octave drops out as it gets
+            /// too fine for the pixels (PunchyOctave) and those left are scaled up to the same contrast, so a far wall
+            /// keeps a few octaves of variation instead of fading to one flat colour. Returns an albedo multiplier.
+            half3 PunchyWeathering(float3 p, half3 n, float footprint, half r)
+            {
+                p += r * 37;
+                float3 q;
+                half w0 = PunchyOctave(0.7, footprint), w1 = PunchyOctave(2.5, footprint), w2 = PunchyOctave(9, footprint);
+                q = p / 0.7; half m0 = PunchyValueNoise(q.xz + q.y * 0.7) * 0.6 + PunchyValueNoise(q.zy * 1.3 + 5.1) * 0.4;
+                q = p / 2.5; half m1 = PunchyValueNoise(q.xz + q.y * 0.7 + 11.3) * 0.6 + PunchyValueNoise(q.zy * 1.3 + 2.7) * 0.4;
+                q = p / 9.0; half m2 = PunchyValueNoise(q.xz + q.y * 0.7 + 23.9) * 0.6 + PunchyValueNoise(q.zy * 1.3 + 8.2) * 0.4;
+                // Along the surface, across the slope (walls and roofs alike).
+                float across = dot(p.xz, normalize(float2(-n.z, n.x) + 1e-4));
+                half wb = PunchyOctave(0.3, footprint), wc = PunchyOctave(1.2, footprint);
+                int row = (int)floor(p.y / 0.3);
+                half block = PunchyCellHash(int2(row, (int)floor(across / 0.6 + (row & 1) * 0.5)));
+                half band = PunchyCellHash(int2((int)floor(p.y / 1.2), 7919));
+                half sum = w0 * (m0 - 0.5) + w1 * (m1 - 0.5) * 1.2 + w2 * (m2 - 0.5) * 1.4 + wb * (block - 0.5) * 0.9 + wc * (band - 0.5) * 0.8;
+                half weight = w0 + w1 * 1.2 + w2 * 1.4 + wb * 0.9 + wc * 0.8;
+                half m = sum / max(weight, 0.5) * 2.2;   // about -0.5..0.5 whatever survives
+                // Warmer and lighter one way, cooler and darker the other.
+                half3 tint = lerp(half3(0.82, 0.85, 0.9), half3(1.14, 1.09, 0.99), saturate(m + 0.5));
+                // Streaks down the walls (not roofs): narrow across, long down, darker below sills and eaves.
+                half wall = 1 - smoothstep(0.35, 0.7, abs(n.y));
+                half ws = PunchyOctave(0.45, footprint);
+                half streak = smoothstep(0.55, 0.85, PunchyValueNoise(float2(across / 0.45, p.y / 3.5))) * lerp(0.5, 1, ws);
+                return tint * (1 - streak * wall * 0.22);
+            }
+
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
@@ -93,6 +131,11 @@ Shader "Punchy/Flora"
                 half r = input.extra.w;
                 half3 albedo = input.color.rgb * (0.88 + 0.24 * r);
 
+                // How many metres one pixel covers here (outside any branch, so the derivatives are good).
+                float footprint = length(fwidth(input.positionWS));
+                // Built things (those with a dirt band): weathering that stays at every range (PunchyWeathering).
+                if (part == 0 && input.ground.a > 0)
+                    albedo *= PunchyWeathering(input.positionWS, n, footprint, r);
                 // Rock and bark up close: grain and fine relief from the shared detail texture (the caves' own), read
                 // three ways and blended by the surface's facing, fading out with distance.
                 float near = 1 - smoothstep(18, 45, distance(input.positionWS, GetCameraPositionWS()));
