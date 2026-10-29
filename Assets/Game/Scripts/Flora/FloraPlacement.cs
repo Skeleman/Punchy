@@ -1003,9 +1003,23 @@ namespace Punchy.Flora
                 if (math.abs(source.SampleHeight(xz + foot) - ground.Height) > 1f || math.abs(source.SampleHeight(xz - foot) - ground.Height) > 1f)
                     return none;
             }
+            var baseHeight = rule.Floats != 0 && ground.HasWater ? ground.WaterSurface + 0.01f : ground.Height;
+            if (rule.Tilt > 0f)
+            {
+                // Rocks sink by how much the ground falls away all round (a peak or a ridge's crest), which tilting onto
+                // the slope can't follow, so their sides don't hang in the air (F-49). On an even slope this is 0.
+                var ring = rule.Footprint * scale * 2f;
+                var mean = 0f;
+                for (int k = 0; k < 6; k++)
+                {
+                    var a = k * math.PI / 3f;
+                    mean += source.SampleHeight(xz + new float2(math.cos(a), math.sin(a)) * ring);
+                }
+                baseHeight -= math.clamp(ground.Height - mean / 6f, 0f, rule.Footprint * scale * 1.2f);
+            }
             return new FloraSystem.FloraInstance
             {
-                Position = new float3(xz.x, rule.Floats != 0 && ground.HasWater ? ground.WaterSurface + 0.01f : ground.Height, xz.y),
+                Position = new float3(xz.x, baseHeight, xz.y),
                 Yaw = yaw,
                 // Plants grow smaller towards the top of their range (a tree line).
                 Scale = scale * (0.55f + 0.45f * shrink[pick]),
