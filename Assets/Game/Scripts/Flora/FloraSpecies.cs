@@ -198,6 +198,9 @@ namespace Punchy.Flora
         [Range(0f, 1f)] public float BarkFace;
         [Tooltip("Bark veined with cool light that flows slowly up the trunk (weird biomes), instead of ember seams.")]
         public bool GlowingVeins;
+        [Tooltip("Rock: banded strata by height, the same bands and colours as terrain surfaces with Strata (mesa cliffs), " +
+                 "so rock props line up with the canyon walls round them; with the built things' weathering too.")]
+        public bool RockStrata;
         [Tooltip("Mushrooms: caps that breathe, slowly swelling and settling.")]
         public bool Breathes;
 

@@ -76,6 +76,7 @@ namespace Punchy.Flora
                 builder.GlowPulse = species.GlowPulse;
                 builder.BarkSeams = species.GlowingSeams;
                 builder.BarkVeins = species.GlowingVeins;
+                builder.BarkStrata = species.RockStrata;
                 var g = new Grower(species, variant, lod, seed, builder);
                 switch (species.Form)
                 {

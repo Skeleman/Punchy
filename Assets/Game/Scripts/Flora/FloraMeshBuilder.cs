@@ -52,6 +52,8 @@ namespace Punchy.Flora
         public bool BarkSeams;
         /// <summary>Bark veined with cool flowing light (FloraSpecies.GlowingVeins): marked as Bark + 0.4.</summary>
         public bool BarkVeins;
+        /// <summary>Rock banded like the canyon walls (FloraSpecies.RockStrata): marked as Bark + 0.08.</summary>
+        public bool BarkStrata;
 
         public int VertexCount => positions.Count;
         public int IndexCount => indices.Count;
@@ -75,7 +77,7 @@ namespace Punchy.Flora
             normals.Add(n);
             colors.Add(c);
             // Glowing parts carry their shimmer as a fraction on the part (the shader rounds the part).
-            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : 0f),
+            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : part == FloraPart.Bark && BarkStrata ? 0.08f : 0f),
                                  flutter, Mathf.Clamp01(ao)));
             return positions.Count - 1;
         }
