@@ -239,6 +239,23 @@ namespace Punchy.Fauna
                     into.Add(new CritterSpot { Kind = CritterKind.Owl, Id = rng.NextUInt() | 1u, Position = at, Tree = tree.Base });
                 }
             }
+            // Songbirds on the rooftops, chimneys and signposts in the cell (Perch anchors), now and then.
+            if (terrain.Anchors.IsCreated)
+            {
+                var perches = new NativeList<int>(8, Allocator.Temp);
+                Anchors.Near(ref terrain.Anchors.Value, new float3(centre.x, terrain.SampleHeight(centre), centre.y), CellSize * 0.75f + 20f, AnchorKind.Perch, ref perches);
+                foreach (var i in perches)
+                {
+                    ref var a = ref terrain.Anchors.Value.Anchors[i];
+                    // (Each perch belongs to the one cell it's in, and is the same perch on every machine.)
+                    if (a.InCave || math.any((int2)math.floor(a.Position.xz / CellSize) != cell))
+                        continue;
+                    var perchRng = new Unity.Mathematics.Random(math.hash(new int2(i, 0x9E2C)) | 1u);
+                    if (perchRng.NextFloat() < 0.35f)
+                        into.Add(new CritterSpot { Kind = CritterKind.Songbird, Id = perchRng.NextUInt() | 1u, Position = a.Position + new float3(0f, 0.02f, 0f) });
+                }
+                perches.Dispose();
+            }
             var frogs = 0;
             for (int k = 0; k < 8; k++)
             {
