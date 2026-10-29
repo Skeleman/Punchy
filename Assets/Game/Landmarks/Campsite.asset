@@ -51,7 +51,7 @@ MonoBehaviour:
     Clearance: 2
   - Species: {fileID: 11400000, guid: 0813c1a5fdee47a381b99c50f1f94e75, type: 2}
     Density: 0
-    Ring: {x: 0.25, y: 0.25}
+    Ring: {x: 0.2, y: 0.2}
     Scale: {x: 1, y: 1}
     Centrepiece: 0
     FaceCentre: 1
@@ -60,7 +60,7 @@ MonoBehaviour:
     Clearance: 1
   - Species: {fileID: 11400000, guid: 0813c1a5fdee47a381b99c50f1f94e75, type: 2}
     Density: 0
-    Ring: {x: 0.25, y: 0.25}
+    Ring: {x: 0.2, y: 0.2}
     Scale: {x: 1, y: 1}
     Centrepiece: 0
     FaceCentre: 1
