@@ -48,10 +48,13 @@ namespace Punchy.Terrain
         const int VertexBudget = 14000;
         /// <summary>Frames a batch may run before the main thread waits for it.</summary>
         const int MaxBuildFrames = 4;
-        /// <summary>Above this focus speed (m/s: gliding, riding) batches are half the size, so a stream of chunks
-        /// coming into range is meshed a little at a time instead of in big batches that crowd out everything else.</summary>
+        /// <summary>Above this focus speed (m/s: gliding, riding) batches are a quarter the size (still at least one
+        /// chunk), so a stream of chunks coming into range is meshed a little every frame instead of in bursts that
+        /// crowd out everything else, and chunks ahead of the way it's heading come first.</summary>
         const float FastSpeed = 10f;
         float focusSpeed;
+        /// <summary>The focus's smoothed horizontal heading (unit length, or zero when still).</summary>
+        float2 focusHeading;
         float2 lastFocus = new float2(float.MaxValue);
         double lastFocusTime;
 
@@ -137,17 +140,32 @@ namespace Punchy.Terrain
             // second (a teleport reads as briefly fast).
             var now = SystemAPI.Time.ElapsedTime;
             var dt = math.max((float)(now - lastFocusTime), 1e-4f);
-            var moved = lastFocus.x == float.MaxValue ? 0f : math.distance(focus, lastFocus);
+            var step = lastFocus.x == float.MaxValue ? float2.zero : focus - lastFocus;
+            var moved = math.length(step);
             lastFocus = focus;
             lastFocusTime = now;
             focusSpeed = math.lerp(focusSpeed, moved / dt, 1f - math.exp(-dt * 2f));
-            var budget = focusSpeed > FastSpeed ? VertexBudget / 2 : VertexBudget;
+            if (moved > 1e-3f && moved < 200f)
+                focusHeading = math.normalizesafe(math.lerp(focusHeading, step / moved, 1f - math.exp(-dt * 3f)));
+            var fast = focusSpeed > FastSpeed;
+            var budget = fast ? VertexBudget / 4 : VertexBudget;
 
             UnloadDistantChunks(config, focus);
             CollectWantedChunks(config, focus);
             if (wanted.Count == 0)
                 return;
 
+            // Fast: chunks ahead count as up to 40% nearer and those behind up to 40% farther, so small batches go
+            // where the view is heading first.
+            if (fast && math.lengthsq(focusHeading) > 0.5f)
+                for (int i = 0; i < wanted.Count; i++)
+                {
+                    var w = wanted[i];
+                    var centre = ((float2)w.Coord + 0.5f) * config.ChunkSize;
+                    var ahead = math.dot(math.normalizesafe(centre - focus), focusHeading);
+                    w.Distance *= 1f - 0.4f * ahead;
+                    wanted[i] = w;
+                }
             wanted.Sort((a, b) => a.Distance.CompareTo(b.Distance));
             var count = 0;
             var vertices = 0;
