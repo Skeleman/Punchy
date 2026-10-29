@@ -92,7 +92,10 @@ namespace Punchy.Flora
                  "HiveHeight of the trunk (first accent the comb's colour). Use one variant so the comb's height is " +
                  "known; Bee Tree landmarks put a Hive anchor round it.")] HiveTree,
         [Tooltip("A glacier ice arch: a jagged bow of ice from two feet (Height its height, Spread its span over height, " +
-                 "Thickness the legs' radius over height), in Foliage; Finish Glass draws it as clear ice. Walk under it.")] IceArch
+                 "Thickness the legs' radius over height), in Foliage; Finish Glass draws it as clear ice. Walk under it.")] IceArch,
+        [Tooltip("A fulgurite (lightning-fused sand): a knobbly glass tube twisting up out of a sand-crusted mound, forking " +
+                 "Branches times, crusted with sand along its length (Height its height, Thickness the tube's radius over " +
+                 "height; the tube in Foliage, so Finish Glass makes it glass; the crust in Bark).")] Fulgurite
     }
 
     public enum FoliageFinish : byte

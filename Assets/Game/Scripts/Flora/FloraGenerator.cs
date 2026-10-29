@@ -99,6 +99,7 @@ namespace Punchy.Flora
                     case FloraForm.FirePit: FirePit(g); break;
                     case FloraForm.HiveTree: Broadleaf(g); Hive(g); break;
                     case FloraForm.IceArch: IceArch(g); break;
+                    case FloraForm.Fulgurite: Fulgurite(g); break;
                     case FloraForm.Bones: Bones(g); break;
                     case FloraForm.Boulder: Boulder(g); break;
                     case FloraForm.Spire: Spire(g); break;
@@ -2068,6 +2069,61 @@ namespace Punchy.Flora
                 var radii = new List<float> { r, r * 0.92f, 0.002f };
                 b.Tube(path, radii, 6, color, FloraPart.Foliage);
             }
+        }
+
+        /// <summary>
+        /// A fulgurite (FloraForm.Fulgurite): a knobbly tube of glass wandering up out of a crusted sand mound, tapering,
+        /// with a fork or two partway up, and lumps of sand crust clinging along it.
+        /// </summary>
+        static void Fulgurite(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            g.Height = height;
+            g.Width = height * 0.5f;
+            g.TrunkRadius = height * s.Thickness * 1.4f;
+
+            var mound = height * 0.16f;
+            var first = b.VertexCount;
+            b.Blob(Vector3.up * mound * 0.1f, new Vector3(mound, mound * 0.45f, mound * 0.85f), Quaternion.Euler(0f, g.R() * 360f, 0f),
+                   g.Sides(2, 1, 0), 0.35f, g.R() * 100f, g.Bark, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, mound));
+
+            void Branch(Vector3 root, Vector3 dir, float length, float radius, bool fork)
+            {
+                var points = g.Sides(7, 5, 3);
+                var path = new List<Vector3>();
+                var radii = new List<float>();
+                var at = root;
+                for (int j = 0; j < points; j++)
+                {
+                    var t = j / (points - 1f);
+                    path.Add(at);
+                    radii.Add(radius * Mathf.Lerp(1f, 0.3f, t) * g.Range(0.7f, 1.3f));
+                    // Wandering, but always rising.
+                    dir = (dir + g.Flat(g.R() * 6.28f) * 0.35f + Vector3.up * 0.12f).normalized;
+                    at += dir * length / (points - 1);
+                }
+                radii[points - 1] = radius * 0.12f;
+                b.Tube(path, radii, g.Sides(6, 5, 4), g.FoliageColor(), FloraPart.Foliage);
+                if (g.Lod < 2)
+                    for (int k = 0; k < points - 1; k++)
+                        if (g.R() < 0.55f)
+                            b.Blob(path[k] + g.Flat(g.R() * 6.28f) * radii[k] * 0.75f, Vector3.one * radii[k] * g.Range(0.5f, 0.9f), Quaternion.identity, 0, 0.3f,
+                                   g.R() * 50f, g.Bark * g.Range(0.9f, 1.1f), FloraPart.Bark);
+                if (!fork)
+                    return;
+                var forks = g.Count(s.Branches);
+                for (int f = 0; f < forks; f++)
+                {
+                    var k = Mathf.Clamp(1 + (int)(g.R() * (points - 3)), 1, points - 2);
+                    var along = (path[k + 1] - path[k]).normalized;
+                    var side = Quaternion.AngleAxis(g.Range(20f, 40f), Vector3.Cross(along, g.Flat(g.R() * 6.28f)).normalized) * along;
+                    Branch(path[k], side, length * g.Range(0.3f, 0.55f), radii[k] * 0.7f, false);
+                }
+            }
+            Branch(Vector3.down * 0.1f, Vector3.up, height, height * s.Thickness, true);
         }
 
         static void Columns(Grower g)
