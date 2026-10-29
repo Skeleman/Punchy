@@ -166,7 +166,20 @@ Batches in this order; each batch gets one evaluation session, one sheet and one
    and pens filling the interior; varied setback and spacing (clusters, gaps, a few turned slightly); the ring smoothed
    into an irregular loop following the terrain; a lane or two ending at a building instead of closing the loop.
 6. **Small landmarks**: W-24 ruins and graveyards; hermit huts and camps; W-25 cold fog; W-26 salt-flat landmarks.
-   Then the sub-biome pairs (Fungal + Ember first).
+   Then the sub-biome pairs (Fungal + Ember first). Their content is authored unwired (no biome or realm list
+   entries) until 5b lands; then only the list entries are added.
+6b. **Tree add-ons and weird-biome motion (Zach, "eventually"; folded into the sub-biome pairs)**: each cheap and
+   optional per species, shared meshes and parameters, no new landmark types; kind-possum benches the first batch.
+   - Add-ons as optional parts on existing tree forms, chosen per species with a chance: bracket fungus shelves on
+     trunks (glowing in Fungal); hanging vines and lianas (Jungle, Wetlands); moss beards (Wetlands, Mystic); lichen
+     patches; bird nests in forks; cocoons hanging from branches (twitching); crystal growths on branches (Mystic,
+     Glass); charred, cracked bark with glowing seams (Ember).
+   - Motion, shader-driven from _PunchyClock (synced, cheap): glowing veins pulsing along trunks and roots (Mystic,
+     Electric, Fungal); faces in the bark (a hollow-eyed knot that slowly blinks, or turns faintly toward a nearby
+     player, cosmetic per machine); trees swaying or leaning toward a passing player, curling and uncurling;
+     mushrooms that breathe (caps swelling and shrinking) and puff spores when you're near; fronds that recoil from
+     you (touch-me-not); chiming crystal trees once the audio system has an API.
+   - Beetles crawling on trunks and flying off: the animal session's (drawn-only critters, like the bees).
 7. **Long term (when the queue runs dry, always batched)**:
    - Goal 1, enterable buildings: hinged doors with a Door anchor; outdoor clutter and seats with Sit anchors
      (benches, stools, logs, flat rocks); then hollow interiors.
