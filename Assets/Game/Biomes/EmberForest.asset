@@ -114,7 +114,22 @@ MonoBehaviour:
     Density: 0.3
   Habitability: 1
   Cultures: 24
-  Landmarks: []
+  Landmarks:
+  - Type: {fileID: 11400000, guid: bad3790244695dc439d77b3e847182ac, type: 2}
+    Density: 1.2
+    PerRealm: 1
+  - Type: {fileID: 11400000, guid: 8175ea536cdeb5148a16e3d7b6aa82a6, type: 2}
+    Density: 1
+    PerRealm: 1
+  - Type: {fileID: 11400000, guid: 835336737195be64a8d3c46d1ef30a96, type: 2}
+    Density: 0.8
+    PerRealm: 1
+  - Type: {fileID: 11400000, guid: 1e5cfd2810af44c44a53ffde36c33098, type: 2}
+    Density: 0.4
+    PerRealm: 1
+  - Type: {fileID: 11400000, guid: 0f21af3c3ff261a4090accd0165cce42, type: 2}
+    Density: 0.3
+    PerRealm: 1
   Fauna:
   - Species: {fileID: 11400000, guid: 7373782e991263741bf9d3a93f8aafe5, type: 2}
     Density: 0.25
