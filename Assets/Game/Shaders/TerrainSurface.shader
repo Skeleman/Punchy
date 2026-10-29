@@ -68,6 +68,15 @@ Shader "Punchy/Terrain Surface"
                 return PunchyValueNoise(p / 0.7) * 0.6 + PunchyValueNoise(p / 0.21 + 17.3) * 0.4;
             }
 
+            // -0.5..0.5 per cell of p (an integer hash: far from the origin a sin hash breaks up).
+            half Grain(float2 p)
+            {
+                uint2 cell = (uint2)(int2)floor(p);
+                uint h = cell.x * 73856093u ^ cell.y * 19349663u;
+                h = (h ^ (h >> 13)) * 1274126177u;
+                return (h >> 22) / 1023.0 - 0.5;
+            }
+
             float3 MicroDetail(float2 p)   // xy = slope (dh/dx, dh/dz), z = height
             {
                 const float e = 0.04;
@@ -158,6 +167,13 @@ Shader "Punchy/Terrain Surface"
 
                 SurfaceData surface = (SurfaceData)0;
                 half3 albedo = input.surface.rgb * (1 + (micro.z - 0.5) * 0.5 * detailFade);   // grain in the colour too
+                // Up close, bare ground (sand, dirt, gravel) is grainy: single grains a shade lighter or darker, at two sizes
+                // (about 3 and 7 cm, hashed by cell so they hold still), gone before they could shimmer, and not under grass.
+                if (detailFade > 0.001)
+                {
+                    half grain = Grain(p * 37) * 0.6 + Grain(float2(p.x * 0.866 - p.y * 0.5, p.x * 0.5 + p.y * 0.866) * 15 + 11.3) * 0.4;   // turned: no grid
+                    albedo *= 1 + grain * 0.5 * (1 - smoothstep(6, 22, distance)) * (1 - input.extra.y) * detailFade;
+                }
                 albedo *= rockShade;
                 // Under the grass blades (near the camera, where they're drawn) the ground takes their colour, so the
                 // gaps between blades read as more grass rather than bare soil (GroundDetailSystem.GroundTint).
