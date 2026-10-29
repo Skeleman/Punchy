@@ -66,6 +66,7 @@ namespace Punchy.Weather
 
         static readonly int SunDirectionId = Shader.PropertyToID("_PunchySunDirection");
         static readonly int MoonDirectionId = Shader.PropertyToID("_PunchyMoonDirection");
+        static readonly int MoonPhaseId = Shader.PropertyToID("_PunchyMoonPhase");
         static readonly int SunColorId = Shader.PropertyToID("_PunchySunColor");
         static readonly int ZenithId = Shader.PropertyToID("_PunchySkyZenith");
         static readonly int HorizonId = Shader.PropertyToID("_PunchySkyHorizon");
@@ -427,6 +428,9 @@ namespace Punchy.Weather
 
             Shader.SetGlobalVector(SunDirectionId, sunDirection);
             Shader.SetGlobalVector(MoonDirectionId, moonDirection);
+            // Phase, lit share and blue moon for the moon's disc (Sky.hlsl); a full moon without a cycle.
+            Shader.SetGlobalVector(MoonPhaseId, Cycle != null ? new Vector4(Cycle.MoonPhase, Cycle.MoonLit, Cycle.BlueMoon, 0f)
+                                                              : new Vector4(0.5f, 1f, 0f, 0f));
             Shader.SetGlobalColor(SunColorId, discColor * (1f - 0.8f * s.Dust));
             Shader.SetGlobalColor(ZenithId, sky.Zenith);
             Shader.SetGlobalColor(HorizonId, sky.Horizon);
@@ -455,7 +459,10 @@ namespace Punchy.Weather
             // light where the clouds actually are). Moonlight keeps nights from going pitch black.
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
             var ambientScale = math.lerp(0.9f, 1.15f, s.Overcast) * (1f - 0.35f * s.Darkness);
-            var moonFloor = new Color(0.025f, 0.03f, 0.05f) * (Cycle != null ? Cycle.Night : 0f);
+            // The floor follows the moon's phase too (darker round a new moon), bluer under a blue moon.
+            var moonFloor = Cycle != null
+                ? Color.Lerp(new Color(0.025f, 0.03f, 0.05f), new Color(0.02f, 0.032f, 0.065f), Cycle.BlueMoon) * Cycle.Night * Mathf.Lerp(0.45f, 1f, Cycle.MoonLit)
+                : Color.black;
             RenderSettings.ambientSkyColor = sky.Zenith * ambientScale + moonFloor;
             RenderSettings.ambientEquatorColor = sky.Horizon * (ambientScale * 0.85f) + moonFloor;
             RenderSettings.ambientGroundColor = sky.Ground * (ambientScale * 0.6f) + moonFloor * 0.5f;

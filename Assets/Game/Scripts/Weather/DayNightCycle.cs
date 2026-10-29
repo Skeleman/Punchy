@@ -43,6 +43,12 @@ namespace Punchy.Weather
         public Color MoonColor = new Color(0.55f, 0.65f, 0.95f);
         [Tooltip("Moonlight strength relative to full sunlight.")]
         [Range(0f, 0.5f)] public float MoonBrightness = 0.12f;
+        [Tooltip("Days from one full moon to the next. Day 0 (a fresh launch) is a full moon.")]
+        [Range(2, 30)] public int LunarDays = 8;
+        [Tooltip("Every this many full moons is a blue moon.")]
+        [Range(2, 20)] public int BlueMoonEvery = 7;
+        [Tooltip("Whole days since the start (counted as midnight passes). With the time of day it gives the moon's phase.")]
+        public int Day;
 
         /// <summary>Unit vector towards the sun.</summary>
         public Vector3 SunDirection { get; private set; }
@@ -58,6 +64,37 @@ namespace Punchy.Weather
         public Color ClearHorizon { get; private set; }
         /// <summary>0 by day, 1 at full night.</summary>
         public float Night { get; private set; }
+        /// <summary>The moon's phase, 0..1: 0 new, 0.5 full.</summary>
+        public float MoonPhase { get; private set; }
+        /// <summary>The share of the moon's face that is lit, 0..1 (moonlight scales with it).</summary>
+        public float MoonLit { get; private set; }
+        /// <summary>1 on the nights round a blue moon (every BlueMoonEvery-th full moon), easing in and out.</summary>
+        public float BlueMoon { get; private set; }
+
+        /// <summary>Command line: -moonphase 0..1 pins the phase (benches, shots); -bluemoon makes it blue.</summary>
+        float pinnedPhase = -1f;
+        bool forceBlue;
+        float lastTime = -1f;
+
+        void Awake()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i] == "-moonphase" && i + 1 < args.Length &&
+                    float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var phase))
+                    pinnedPhase = Mathf.Repeat(phase, 1f);
+                if (args[i] == "-bluemoon")
+                    forceBlue = true;
+            }
+        }
+
+        /// <summary>Pins the moon's phase (0..1, negative to follow the days again) and whether it's blue.</summary>
+        public void PinMoon(float phase, bool blue)
+        {
+            pinnedPhase = phase < 0f ? -1f : Mathf.Repeat(phase, 1f);
+            forceBlue = blue;
+        }
 
         void Update()
         {
@@ -75,6 +112,18 @@ namespace Punchy.Weather
 
         public void Evaluate()
         {
+            // Midnight passing (however the time got there: advancing, or copied from the host) starts a new day.
+            if (lastTime >= 0f && TimeOfDay < lastTime - 12f)
+                Day++;
+            lastTime = TimeOfDay;
+            // The moon: full on day 0, waning, new halfway through the cycle, waxing back. Every BlueMoonEvery-th full
+            // moon is blue on the nights round it.
+            var days = Day + TimeOfDay / 24f;
+            MoonPhase = pinnedPhase >= 0f ? pinnedPhase : Mathf.Repeat(0.5f + days / LunarDays, 1f);
+            MoonLit = 0.5f - 0.5f * Mathf.Cos(MoonPhase * Mathf.PI * 2f);
+            var fullMoon = Mathf.FloorToInt((days + LunarDays * 0.5f) / LunarDays);   // which full moon is nearest
+            var nearFull = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.12f, 0.04f, Mathf.Abs(MoonPhase - 0.5f)));
+            BlueMoon = forceBlue ? 1f : fullMoon % BlueMoonEvery == BlueMoonEvery - 1 ? nearFull : 0f;
             // The sun turns once a day in a plane tilted south by the latitude; it rises at 6:00.
             var angle = (TimeOfDay - 6f) / 24f * Mathf.PI * 2f;
             var tilt = Latitude * Mathf.Deg2Rad;
@@ -92,7 +141,9 @@ namespace Punchy.Weather
             // Whichever body is up lights the scene. Around sunset both are near the horizon and dim, so the
             // switch is invisible.
             var sunStrength = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.02f, 0.15f, SunDirection.y));
-            var moonStrength = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 0.15f, MoonDirection.y)) * MoonBrightness;
+            // Moonlight follows the phase: a thin crescent gives little, a new moon almost none.
+            var moonStrength = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 0.15f, MoonDirection.y)) * MoonBrightness *
+                               Mathf.Lerp(0.08f, 1f, MoonLit);
             if (SunDirection.y > -0.02f)
             {
                 LightDirection = SunDirection;
@@ -102,7 +153,7 @@ namespace Punchy.Weather
             else
             {
                 LightDirection = MoonDirection;
-                LightColor = MoonColor;
+                LightColor = Color.Lerp(MoonColor, new Color(0.45f, 0.62f, 1f), BlueMoon);
                 LightStrength = moonStrength;
             }
         }
