@@ -173,11 +173,17 @@ Batches in this order; each batch gets one evaluation session, one sheet and one
    then mushrooms that breathe; the firestorm after kind-possum's audit item 4.
 6c. **Walkable tops (Zach: climb and stand on houses and rocks)**: per-variant support shapes built at generation
    (rocks: a few stacked or convex prisms with top heights; houses: a wall box plus roof planes or a prism; flat tops
-   for wells, fountain rims, benches, stalls) and a cheap Burst-friendly query from a spatial hash,
+   for wells and benches and stalls; fountains fully: stand on the rim, step down into the basin at wading depth
+   (splashing as in shallow water), climb the central pillar and bowl; wells by the rim) and a cheap Burst-friendly query from a spatial hash,
    `PropSupport.Sample(pos, radius) -> (hit, topHeight, normal)` beside the blocking test, seed-derived; possibly
    folded into FloorUnder so everything that stands agrees (mind the hot path). The animal session's
    PlayerMovementSystem (loan #9) uses it: landing, step-ups, jumps, a mantle for 1.2-1.8 m ledges. Publish the
    contract; kind-possum checks the query cost.
+6d. **World sound hooks (after the animal session adds the generators; API on animal-behaviours f1bf080,
+   Punchy.Audio.GameAudio)**: FireCrackle loops at fire pits and campfires, TorchHiss at mine torches, WaterfallRush at
+   cave and surface falls (pitch by size), Splash when wading into fountain basins and pools, CaveDrip at drip spots,
+   TownMurmur on town squares by day, MineAmbience in mines. Driven from anchors and positions near the camera (not
+   networked), with GameAudio.Audible checked first.
 6b. **Tree add-ons and weird-biome motion (Zach, "eventually"; folded into the sub-biome pairs)**: each cheap and
    optional per species, shared meshes and parameters, no new landmark types; kind-possum benches the first batch.
    - Add-ons as optional parts on existing tree forms, chosen per species with a chance: bracket fungus shelves on
