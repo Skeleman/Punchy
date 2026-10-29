@@ -120,7 +120,7 @@ namespace Punchy.Terrain
                         continue;
                     }
                     var chance = EntryChances[e];
-                    var u = (math.hash(new uint2(Keys[i], TypeHashes[t])) >> 8) * (1f / 16777216f);
+                    var u = (BiomeSampling.Scramble(math.hash(new uint2(Keys[i], TypeHashes[t]))) >> 8) * (1f / 16777216f);
                     if (u >= chance)
                         continue;
                     var ratio = u / chance;

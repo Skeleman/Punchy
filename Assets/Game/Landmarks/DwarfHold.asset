@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.LandmarkType
   Radius: 70
   Scale: {x: 0.95, y: 1.1}
-  MaxRelief: 18
+  MaxRelief: 28
   MinRelief: 0
   Elevation: {x: 3, y: 10000}
   Shape: 0
