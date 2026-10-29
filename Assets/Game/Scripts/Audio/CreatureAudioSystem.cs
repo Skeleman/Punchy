@@ -88,7 +88,12 @@ namespace Punchy.Audio
             }
 
             if (!SystemAPI.TryGetSingleton<TerrainSource>(out var terrain))
+            {
+                GameAudio.HasTerrain = false;
                 return;
+            }
+            GameAudio.Terrain = terrain;
+            GameAudio.HasTerrain = true;
             Creatures(ear, terrain);
             Hives(ear, terrain, night);
             Countryside(ear);

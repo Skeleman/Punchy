@@ -1,4 +1,7 @@
 using System.Collections.Generic;
+using Punchy.Terrain;
+using Unity.Mathematics;
+using Random = UnityEngine.Random;
 using UnityEngine;
 
 namespace Punchy.Audio
@@ -16,6 +19,10 @@ namespace Punchy.Audio
     /// Voices go to what's loudest where the listener is (volume over distance): when all are busy a new sound takes the
     /// faintest one-shot if it's louder, or is dropped. Sounds beyond their reach aren't played at all. Every machine
     /// plays its own sounds from what it already knows (see CreatureAudioSystem): nothing about sound is sent.
+    /// Caves: rock between the listener and a sound keeps it out. Deep in a cave the outside world goes quiet (the
+    /// surface's sounds fade with CaveSystem.SurfaceHidden, so near a mouth the outside is still heard), and from above
+    /// ground nothing deep in a cave is heard. Underground everything echoes, longer the bigger the cave around the
+    /// listener (one reverb zone kept on the listener, sized from the cave's air around it).
     /// Created by itself on load; nothing needs to be in a scene.
     /// </summary>
     public class GameAudio : MonoBehaviour
@@ -58,6 +65,13 @@ namespace Punchy.Audio
         readonly List<Voice> voices = new List<Voice>();
         int nextHandle = 1;
 
+        /// <summary>The ground, for the caves (set each frame by CreatureAudioSystem once there is one).</summary>
+        public static TerrainSource Terrain;
+        public static bool HasTerrain;
+        AudioReverbZone echo;
+        /// <summary>How far, on average, the cave's air reaches from the listener (metres), and when it was last measured.</summary>
+        float caveSize = 4f, sizedAt = -1f;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Create()
         {
@@ -82,6 +96,12 @@ namespace Punchy.Audio
                 source.maxDistance = 40f;
                 voices.Add(new Voice { Source = source });
             }
+            echo = new GameObject("Cave echo").AddComponent<AudioReverbZone>();
+            echo.transform.SetParent(transform, false);
+            echo.reverbPreset = AudioReverbPreset.User;
+            echo.minDistance = 500f;
+            echo.maxDistance = 600f;
+            echo.enabled = false;
             // (The whole bank in one go off the main thread: a fraction of a second, ready by the time anything plays.)
             making = System.Threading.Tasks.Task.Run(() =>
             {
@@ -113,6 +133,7 @@ namespace Punchy.Audio
                 }
                 making = null;
             }
+            Echo();
             // Loops follow the group and master levels as they change.
             foreach (var voice in voices)
                 if (voice.Loop && voice.Source.isPlaying)
@@ -125,6 +146,88 @@ namespace Punchy.Audio
                 foreach (var clip in clips)
                     if (clip != null)
                         Destroy(clip);
+        }
+
+        /// <summary>
+        /// The cave echo, faded in with how far underground the listener is: the decay and the delays of the first
+        /// reflections and the echo grow with the cave's size (a passage rings briefly, a cavern booms on), measured twice
+        /// a second while underground.
+        /// </summary>
+        void Echo()
+        {
+            var under = HasTerrain ? CaveSystem.Underground : 0f;
+            echo.enabled = under > 0.01f;
+            if (!echo.enabled)
+                return;
+            var ear = Ear;
+            echo.transform.position = ear;
+            if (Time.time - sizedAt > 0.5f)
+            {
+                sizedAt = Time.time;
+                caveSize = CaveSize(ear);
+            }
+            var size = math.saturate((caveSize - 2f) / 18f);   // 0 a tight passage (2 m), 1 a cavern (20 m and up)
+            echo.room = Mathf.RoundToInt(Mathf.Lerp(-10000f, -400f, Mathf.Sqrt(under)));
+            echo.roomHF = -600;
+            echo.decayTime = Mathf.Lerp(0.9f, 5f, size);
+            echo.decayHFRatio = 0.6f;
+            echo.reflections = Mathf.RoundToInt(Mathf.Lerp(-300f, -900f, size));
+            echo.reflectionsDelay = Mathf.Lerp(0.007f, 0.06f, size);
+            echo.reverb = Mathf.RoundToInt(Mathf.Lerp(-200f, 300f, size));
+            echo.reverbDelay = Mathf.Lerp(0.011f, 0.09f, size);
+            echo.diffusion = 100f;
+            echo.density = 100f;
+        }
+
+        /// <summary>The size the echo was last sized for (metres of cave air around the listener, on average).</summary>
+        public static float CaveSizeHeard => instance != null ? instance.caveSize : 0f;
+
+        /// <summary>
+        /// How far the cave's air reaches from a point, on average over 14 directions (the axes and the diagonals),
+        /// marched through the cave's distance field to the rock (at most 40 m each way).
+        /// </summary>
+        static float CaveSize(Vector3 at)
+        {
+            var total = 0f;
+            var n = 0;
+            for (int x = -1; x <= 1; x++)
+                for (int y = -1; y <= 1; y++)
+                    for (int z = -1; z <= 1; z++)
+                    {
+                        var axes = math.abs(x) + math.abs(y) + math.abs(z);
+                        if (axes != 1 && axes != 3)
+                            continue;
+                        var dir = math.normalize(new float3(x, y, z));
+                        var t = 0f;
+                        for (int step = 0; step < 24 && t < 40f; step++)
+                        {
+                            var d = Terrain.CaveDistance((float3)at + dir * t);
+                            if (d >= 0f)
+                                break;
+                            t += math.max(-d, 0.3f);
+                        }
+                        total += math.min(t, 40f);
+                        n++;
+                    }
+            return total / n;
+        }
+
+        /// <summary>
+        /// How much of a sound at this point gets through to the listener past the caves' rock, 0..1: a sound out on the
+        /// surface fades to a murmur as the listener goes underground, and out away from every mouth (SurfaceHidden); one deep in a cave (in its air, more than
+        /// a couple of metres down) is only heard from underground. (Either cave: the rock between two isn't worth the
+        /// cost of finding.)
+        /// </summary>
+        public static float ThroughRock(Vector3 at)
+        {
+            if (!HasTerrain || !Terrain.Caves.IsCreated)
+                return 1f;
+            var inCave = Terrain.CaveDistance(at) < 0.3f;
+            // (Down a cave the outside is only a murmur even by a mouth, and gone away from every mouth.)
+            if (!inCave)
+                return 1f - math.max(CaveSystem.SurfaceHidden, 0.8f * CaveSystem.Underground);
+            var depth = Terrain.SampleHeight(new float2(at.x, at.z)) - at.y;
+            return math.max(CaveSystem.Underground, 1f - math.saturate((depth - 2f) / 4f));
         }
 
         /// <summary>Where sounds are heard from: the listener (the camera).</summary>
@@ -181,6 +284,9 @@ namespace Punchy.Audio
             var distance = Vector3.Distance(at, Ear);
             if (distance > reach)
                 return false;
+            volume *= ThroughRock(at);
+            if (volume < 0.01f)
+                return false;
             var priority = volume / (1f + distance / 10f);
             var voice = instance.Take(priority);
             if (voice == null)
@@ -204,7 +310,7 @@ namespace Punchy.Audio
             var voice = instance.Take(float.MaxValue);
             if (voice == null)
                 return 0;
-            instance.Setup(voice, clips[0], at, pitch, volume, reach, group);
+            instance.Setup(voice, clips[0], at, pitch, volume * ThroughRock(at), reach, group);
             voice.Loop = true;
             voice.Priority = float.MaxValue;
             voice.Handle = instance.nextHandle++;
@@ -223,8 +329,8 @@ namespace Punchy.Audio
                 if (voice.Loop && voice.Handle == handle)
                 {
                     voice.Source.transform.position = at;
-                    voice.Volume = volume;
-                    voice.Source.volume = volume * Volume[(int)voice.Group] * Master;
+                    voice.Volume = volume * ThroughRock(at);
+                    voice.Source.volume = voice.Volume * Volume[(int)voice.Group] * Master;
                 }
         }
 
