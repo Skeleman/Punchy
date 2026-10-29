@@ -72,7 +72,9 @@ namespace Punchy.Fauna
         // that joined someone else.
         World queryWorld, simWorld;
         EntityQuery terrainQuery, paletteQuery, playerQuery, avatarQuery, replicaQuery, newReplicaQuery;
-        EntityQuery wildQuery, simCreatureQuery, netPlayerQuery, simPlayerQuery, ghostSpawnerQuery;
+        EntityQuery wildQuery, simCreatureQuery, netPlayerQuery, simPlayerQuery, ghostSpawnerQuery, floraQuery;
+        /// <summary>When the far ones are next let go (and the counts tallied): four times a second is plenty.</summary>
+        float nextDespawn;
         CreatureSpecies avatarSpecies;
         BlobAssetReference<CreatureBlob> avatarBlob;
         Entity settingsEntity, simClockEntity, floraEntity;
@@ -231,8 +233,12 @@ namespace Punchy.Fauna
                 simWorld.EntityManager.SetComponentData(simClockEntity, clock);
 
             GatherPlayers();
-            using (DespawnMarker.Auto())
-                Despawn();
+            if (Time.time >= nextDespawn)
+            {
+                nextDespawn = Time.time + 0.25f;
+                using (DespawnMarker.Auto())
+                    Despawn();
+            }
             DrainSpawns();
             if (players.Count == 0)
                 return;
@@ -320,6 +326,7 @@ namespace Punchy.Fauna
                     netPlayerQuery = sem.CreateEntityQuery(ComponentType.ReadOnly<NetPlayer>(), ComponentType.ReadOnly<LocalTransform>());
                     simPlayerQuery = sem.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
                     ghostSpawnerQuery = sem.CreateEntityQuery(ComponentType.ReadOnly<CreatureGhostSpawner>());
+                    floraQuery = sem.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Flora.FloraLookup>());
                 }
                 built = false;
             }
@@ -1028,9 +1035,8 @@ namespace Punchy.Fauna
             if (!source.Settlements.IsCreated || simWorld == null)
                 return;
             var em = simWorld.EntityManager;
-            using (var q = em.CreateEntityQuery(typeof(CreatureState)))
             {
-                var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+                var states = wildQuery.ToComponentDataArray<CreatureState>(Allocator.Temp);
                 var flying = false;
                 for (int i = 0; i < states.Length && !flying; i++)
                     flying = states[i].Task == CreatureTask.Messenger;
@@ -1082,9 +1088,8 @@ namespace Punchy.Fauna
             if (!source.Settlements.IsCreated || simWorld == null)
                 return;
             var em = simWorld.EntityManager;
-            using (var q = em.CreateEntityQuery(typeof(CreatureState)))
             {
-                var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+                var states = wildQuery.ToComponentDataArray<CreatureState>(Allocator.Temp);
                 var travelling = 0;
                 for (int i = 0; i < states.Length; i++)
                     if (states[i].Task == CreatureTask.Travel)
@@ -1198,10 +1203,9 @@ namespace Punchy.Fauna
                 critterCells.Clear();
                 critterSource = source;
             }
-            using var fq = simWorld.EntityManager.CreateEntityQuery(typeof(Punchy.Flora.FloraLookup));
-            if (fq.IsEmpty)
+            if (floraQuery.IsEmpty)
                 return;
-            var flora = fq.GetSingleton<Punchy.Flora.FloraLookup>();
+            var flora = floraQuery.GetSingleton<Punchy.Flora.FloraLookup>();
             if (!flora.Blob.IsCreated)
                 return;
             // Rings outwards round each player in turn, so the nearest cells come first.
@@ -1249,10 +1253,9 @@ namespace Punchy.Fauna
             if (critterTable == null || simWorld == null || species.Count == 0)
                 return;
             var em = simWorld.EntityManager;
-            using var fq = em.CreateEntityQuery(typeof(Punchy.Flora.FloraLookup));
-            if (fq.IsEmpty)
+            if (floraQuery.IsEmpty)
                 return;
-            var flora = fq.GetSingleton<Punchy.Flora.FloraLookup>();
+            var flora = floraQuery.GetSingleton<Punchy.Flora.FloraLookup>();
             if (!flora.Blob.IsCreated)
                 return;
             // (Spots whose creature has gone: free again.)
@@ -1400,6 +1403,8 @@ namespace Punchy.Fauna
         /// Cave dwellers appear along the inner passages of a cave when a player comes within Radius of its mouth, a
         /// few of each kind; like residents, they're forgotten once everyone is well away.
         /// </summary>
+        readonly List<int> caveGlows = new List<int>();
+
         void SpawnCaveDwellers(in TerrainSource source)
         {
             if (!source.Caves.IsCreated)
@@ -1420,6 +1425,8 @@ namespace Punchy.Fauna
                 if (caveCount >= MaxCave)
                     break;
                 occupiedCaves.Add(i);
+                caveGlows.Clear();
+                var glowsFound = false;
                 for (int sp = 0; sp < species.Count && caveCount < MaxCave; sp++)
                 {
                     var body = species[sp].Body;
@@ -1440,11 +1447,17 @@ namespace Punchy.Fauna
                         if (!source.Anchors.IsCreated)
                             continue;
                         ref var anchors = ref source.Anchors.Value;
-                        for (int a = 0; a < anchors.Anchors.Length; a++)
+                        // (This cave's glowing plants, looked up once for all the kinds drawn to them.)
+                        if (!glowsFound)
+                        {
+                            glowsFound = true;
+                            for (int a = 0; a < anchors.Anchors.Length; a++)
+                                if (anchors.Anchors[a].Kind == AnchorKind.Glow && anchors.Anchors[a].InCave && anchors.Anchors[a].OwnerIndex == i)
+                                    caveGlows.Add(a);
+                        }
+                        foreach (var a in caveGlows)
                         {
                             var glow = anchors.Anchors[a];
-                            if (glow.Kind != AnchorKind.Glow || !glow.InCave || glow.OwnerIndex != i)
-                                continue;
                             // (The cap holds within a cave too: a big cave has hundreds of glowing plants.)
                             for (int k = 0; k < count && caveCount < MaxCave; k++)
                                 Enqueue(sp, glow.Position + new float3(rng.NextFloat(-0.6f, 0.6f), rng.NextFloat(0.4f, 1.4f), rng.NextFloat(-0.6f, 0.6f)), SpawnTier.Cave);

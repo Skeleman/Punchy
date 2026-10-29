@@ -65,6 +65,12 @@ namespace Punchy.Fauna
         static readonly Dictionary<int2, Resident[]> cells = new Dictionary<int2, Resident[]>();
         static readonly List<Ambient> now = new List<Ambient>();
         static int frame = -1;
+        /// <summary>The queries and scene objects Near reads, kept between frames (made again for another world).</summary>
+        static World queried;
+        static EntityQuery terrainQuery, floraQuery, playerQuery;
+        static Punchy.Weather.DayNightCycle cycle;
+        static Punchy.Ambience.AmbienceSystem ambience;
+        static int lookedFor = -1000;
         /// <summary>Off for the whole run with the launch flag "-noambientlife" (for benches: the same build without it).</summary>
         static readonly bool Off = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-noambientlife") >= 0;
         static readonly Unity.Profiling.ProfilerMarker NearMarker = new Unity.Profiling.ProfilerMarker("AmbientLife.Near");
@@ -156,24 +162,35 @@ namespace Punchy.Fauna
                 return now;
             using var marker = NearMarker.Auto();
             var em = world.EntityManager;
-            using var tq = em.CreateEntityQuery(typeof(TerrainSource));
-            using var fq = em.CreateEntityQuery(typeof(FloraLookup));
-            if (tq.IsEmpty || fq.IsEmpty)
+            if (queried != world)
+            {
+                queried = world;
+                terrainQuery = em.CreateEntityQuery(typeof(TerrainSource));
+                floraQuery = em.CreateEntityQuery(typeof(FloraLookup));
+                playerQuery = em.CreateEntityQuery(typeof(Punchy.Player.PlayerTag), typeof(Unity.Transforms.LocalTransform));
+            }
+            if (terrainQuery.IsEmpty || floraQuery.IsEmpty)
                 return now;
-            var terrain = tq.GetSingleton<TerrainSource>();
-            var flora = fq.GetSingleton<FloraLookup>();
+            var terrain = terrainQuery.GetSingleton<TerrainSource>();
+            var flora = floraQuery.GetSingleton<FloraLookup>();
             if (!flora.Blob.IsCreated || CaveSystem.Underground > 0.5f)
                 return now;
-            var cycle = Object.FindAnyObjectByType<Punchy.Weather.DayNightCycle>();
-            var ambience = Object.FindAnyObjectByType<Punchy.Ambience.AmbienceSystem>();
+            // (The sky's clock and the ambience: found once, and looked for again now and then while missing.)
+            if ((cycle == null || ambience == null) && frame - lookedFor > 60)
+            {
+                lookedFor = frame;
+                if (cycle == null)
+                    cycle = Object.FindAnyObjectByType<Punchy.Weather.DayNightCycle>();
+                if (ambience == null)
+                    ambience = Object.FindAnyObjectByType<Punchy.Ambience.AmbienceSystem>();
+            }
             var night = cycle != null ? cycle.Night : 0f;
             var heat = ambience != null ? ambience.Heat : 0f;
             // The shared clock: the time of day in real seconds (a paused clock, for screenshots, runs on local time).
             var t = cycle == null || cycle.Paused ? UnityEngine.Time.time : cycle.TimeOfDay * cycle.DayLengthMinutes * 2.5f;
             var player = ear;
-            using (var pq = em.CreateEntityQuery(typeof(Punchy.Player.PlayerTag), typeof(Unity.Transforms.LocalTransform)))
-                if (!pq.IsEmpty)
-                    player = pq.GetSingleton<Unity.Transforms.LocalTransform>().Position;
+            if (!playerQuery.IsEmpty)
+                player = playerQuery.GetSingleton<Unity.Transforms.LocalTransform>().Position;
 
             CollectSettled(terrain);
             // (High above the ground, flying or gliding, the small life below is out of sight and earshot.)
