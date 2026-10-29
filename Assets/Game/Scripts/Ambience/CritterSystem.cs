@@ -117,7 +117,8 @@ namespace Punchy.Ambience
             }
 
             var amounts = Shader.GetGlobalVector(CrittersId);
-            if (amounts.x <= 0f && amounts.y <= 0f)
+            // (Deep in a cave the surface is out of sight: no tiles streamed or drawn; CaveSystem.SurfaceHidden.)
+            if (amounts.x <= 0f && amounts.y <= 0f || CaveSystem.SurfaceHidden >= 0.99f)
                 return;
             var camXZ = new float2(cam.transform.position.x, cam.transform.position.z);
             Stream(source, camXZ);

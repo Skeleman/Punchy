@@ -85,7 +85,8 @@ namespace Punchy.Fauna
                 return now;
             frame = UnityEngine.Time.frameCount;
             now.Clear();
-            if (world == null || Off)
+            // (Deep in a cave, out of sight and earshot of the surface: none.)
+            if (world == null || Off || CaveSystem.SurfaceHidden >= 0.99f)
                 return now;
             using var marker = NearMarker.Auto();
             var em = world.EntityManager;
