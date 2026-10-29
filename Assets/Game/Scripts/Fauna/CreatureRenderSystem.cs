@@ -47,6 +47,8 @@ namespace Punchy.Fauna
         const float LanternLightRange = 60f;
         /// <summary>How far off a torch's flame is lit (further than its light reaches: a torch is seen across a town).</summary>
         const float TorchFlameRange = 150f;
+        /// <summary>How near the camera feet are fitted to the ground (CreatureAnimator.Evaluate's detail).</summary>
+        const float FootDetailRange = 40f;
         /// <summary>A torch's flame: its height (m), and how far it streams back as the bearer moves (m at the tip per
         /// m/s, at most).</summary>
         const float TorchFlameSize = 0.35f, TorchFlameLean = 0.05f, TorchFlameMaxLean = 0.3f;
@@ -344,7 +346,9 @@ namespace Punchy.Fauna
                 var body = Bodies[index];
                 var entity = Entities[index];
                 var offset = Offsets[index];
-                CreatureAnimator.Evaluate(ref body.Blob.Value, state, body.Coat, Terrain, Output, offset);
+                // (Feet fitted to the ground only near the camera: past 40 m nobody can tell, and it's most of the cost.)
+                CreatureAnimator.Evaluate(ref body.Blob.Value, state, body.Coat, Terrain, Output, offset,
+                                          Unity.Mathematics.math.distancesq(state.Position, CameraPosition) < FootDetailRange * FootDetailRange);
                 // Appearing (its first moments: Clock counts from when it was made, here) or nearing the distance
                 // where it's let go: dithered in and out by the shader, so nothing pops.
                 var fadeIn = Unity.Mathematics.math.saturate(state.Clock / FadeInTime);

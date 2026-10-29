@@ -27,8 +27,11 @@ namespace Punchy.Fauna
     {
         const int MaxSegments = 128;
 
+        /// <param name="detail">Near the camera: the legs fitted to the ground under each foot (the hips lowered on a
+        /// slope, each foot reaching for the ground, tipped with it, rolling heel to toe). Further off, where none of
+        /// that shows, they keep to the body's plane, saving the ground samples.</param>
         public static void Evaluate(ref CreatureBlob b, in CreatureState s, int coat, in TerrainSource terrain,
-                                    NativeArray<SegmentInstance> output, int offset)
+                                    NativeArray<SegmentInstance> output, int offset, bool detail = true)
         {
             var scale = s.Scale;
             var move = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), s.Speed);
@@ -158,7 +161,7 @@ namespace Punchy.Fauna
             // ground: under each leg's foot as it stands now, how far the ground falls below the body's plane, against
             // how much further that leg can stretch. (The legs' own correction below then bends the others by as much.)
             var sink = 0f;
-            if (!aquatic && !crawling && airborne < 0.5f && s.Fly < 0.5f && math.abs(s.Vertical) < 0.3f && s.Lie < 0.5f)
+            if (detail && !aquatic && !crawling && airborne < 0.5f && s.Fly < 0.5f && math.abs(s.Vertical) < 0.3f && s.Lie < 0.5f)
             {
                 for (int i = 0; i < b.Parts.Length; i++)
                 {
@@ -385,7 +388,7 @@ namespace Punchy.Fauna
                 }
 
                 if (part.Role == LimbRole.Leg && part.Parent < 0 && part.SegmentCount >= 2 && part.FirstSegment + part.SegmentCount <= MaxSegments &&
-                    !busyLeg && s.Fly < 0.5f && up < 0.5f && !crawling && (!b.Upright || s.Sit + s.Lie < 0.3f))
+                    detail && !busyLeg && s.Fly < 0.5f && up < 0.5f && !crawling && (!b.Upright || s.Sit + s.Lie < 0.3f))
                 {
                     // Where the ground would be under this foot if it were the flat, sloped plane the body is
                     // standing on, versus where it really is: bend the leg by the difference.
