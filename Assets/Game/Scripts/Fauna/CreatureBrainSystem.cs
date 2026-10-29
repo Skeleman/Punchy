@@ -863,7 +863,9 @@ namespace Punchy.Fauna
                     CreatureMotion.AdvancePhase(ref s, ref b, dt);
                 // A glance at something near and interesting, over whatever else it was looking at; birds snap their
                 // heads round in steps rather than turning smoothly.
-                Glance(self, ref s, ref b, ref rng, dt, player, playerSpeed, emote, ref desiredLook, out var desiredPitch);
+                var desiredPitch = 0f;
+                if (s.Task != CreatureTask.Critter)
+                    Glance(self, ref s, ref b, ref rng, dt, player, playerSpeed, emote, ref desiredLook, out desiredPitch);
                 if (b.Habitat == Habitat.Flies || b.Nests != NestSite.None)
                 {
                     if (math.abs(desiredLook - s.Look) > 0.3f || math.abs(desiredPitch - s.LookPitch) > 0.25f)
@@ -1031,7 +1033,8 @@ namespace Punchy.Fauna
 
                 // Find company first: the options depend on it.
                 var playmate = Entity.Null;
-                if (b.Playfulness > 0f && sleepy < 0.5f && !perched)
+                // (A critter runs light: no company to look for.)
+                if (b.Playfulness > 0f && sleepy < 0.5f && !perched && s.Task != CreatureTask.Critter)
                     FindKin(self, ref s, species, 15f, out playmate);
                 var prey = Entity.Null;
                 if (b.Prey.Length > 0 && b.Hunger > 0f && sleepy < 0.5f)
@@ -1080,7 +1083,7 @@ namespace Punchy.Fauna
                 // Workers mostly work by day, taking a short wander or rest between stints; at night they doze at
                 // their post.
                 // (Hunters have no post: by day they go out after game, at night they sleep at home.)
-                var posted = s.Task != CreatureTask.None && s.Task != CreatureTask.Hunt && s.Task != CreatureTask.Patrol;
+                var posted = s.Task != CreatureTask.None && s.Task != CreatureTask.Hunt && s.Task != CreatureTask.Patrol && s.Task != CreatureTask.Critter;
                 // (A fisher fishes by day only: at night it sleeps at home like anyone.)
                 var dayWork = s.Task == CreatureTask.Fish || s.Task == CreatureTask.Mine;
                 var work = posted ? sleepy > 0.5f ? (dayWork ? 0f : 10f) : 6f : 0f;

@@ -45,6 +45,11 @@ namespace Punchy.Fauna
         public int MaxCave = 120;
         [Tooltip("Spawn attempts per second (per player).")]
         public float SpawnRate = 6f;
+        [Tooltip("At most this many critters (the small life put round players from the seed: songbirds, owls, frogs, " +
+                 "mice), shared fairly among the players with critter spots near them.")]
+        public int MaxCritters = 128;
+        [Tooltip("Critters are put at their spots within this distance of a player, and let go beyond CritterLetGo.")]
+        public float CritterRadius = 50f, CritterLetGo = 65f;
 
         readonly List<CreatureSpecies> species = new List<CreatureSpecies>();
         /// <summary>Settlements' dogs, cats, chickens and pigeons (from Resources).</summary>
@@ -83,7 +88,12 @@ namespace Punchy.Fauna
         /// <summary>Per player, how many of each species are within Radius of them (player-major).</summary>
         int[] counts;
         /// <summary>How many there are of each kind (wild, settled, cave), as last counted (Despawn) plus those since.</summary>
-        int wildCount, settledCount, caveCount;
+        int wildCount, settledCount, caveCount, critterCount;
+        /// <summary>The critter species (Resources/Critters), and which critter spots are taken, by whom.</summary>
+        CritterTable critterTable;
+        readonly Dictionary<uint, Entity> critters = new Dictionary<uint, Entity>();
+        readonly List<AmbientLife.CritterSpot> critterSpots = new List<AmbientLife.CritterSpot>();
+        float nextCritterCheck;
         /// <summary>Species index by asset name (SpeciesIndex: no string or closure per look-up).</summary>
         readonly Dictionary<string, int> speciesByName = new Dictionary<string, int>();
         long configStamp;
@@ -167,6 +177,11 @@ namespace Punchy.Fauna
                 nextResidentCheck = Time.time + 0.5f;
                 SpawnResidents(source);
                 SpawnCaveDwellers(source);
+            }
+            if (Time.time >= nextCritterCheck)
+            {
+                nextCritterCheck = Time.time + 0.5f;
+                SpawnCritters(source);
             }
             if (Time.time >= nextTraveller)
             {
@@ -257,6 +272,10 @@ namespace Punchy.Fauna
                 if (landmark != null)
                     foreach (var r in landmark.Residents)
                         AddSpecies(r.Species);
+            critterTable = Resources.Load<CritterTable>("Critters");
+            if (critterTable != null)
+                foreach (var c in critterTable.All())
+                    AddSpecies(c);
             domestics = Resources.Load<DomesticTable>("Domestics");
             Debug.Log($"FaunaDirector: domestic animals table {(domestics != null ? domestics.Entries.Count + " entries" : "missing")}");
             if (domestics != null)
@@ -578,10 +597,19 @@ namespace Punchy.Fauna
                 counts = new int[size];
             System.Array.Clear(counts, 0, counts.Length);
             var far = new NativeList<Entity>(Allocator.Temp);
-            wildCount = settledCount = caveCount = 0;
+            wildCount = settledCount = caveCount = critterCount = 0;
             for (int i = 0; i < entities.Length; i++)
             {
                 var xz = states[i].Position.xz;
+                // Critters: their own tier, let go much nearer (they're put back at their spots when someone comes near).
+                if (states[i].Task == CreatureTask.Critter)
+                {
+                    if ((players.Count == 0 || NearestPlayer(xz) > CritterLetGo || states[i].Gone) && states[i].Mode != CreatureMode.Held)
+                        far.Add(entities[i]);
+                    else
+                        critterCount++;
+                    continue;
+                }
                 // Far from everyone, or caught by a bird of prey; never one someone is carrying (wherever they go).
                 // (Huge animals seen from far off are let go only beyond that.)
                 var letGo = math.max(DespawnDistance, bodies[i].Blob.Value.SeenFrom + 20f);
@@ -884,6 +912,93 @@ namespace Punchy.Fauna
             state.Leash = 0f;
             state.Timer = 900f;
             em.SetComponentData(e, state);
+        }
+
+        /// <summary>
+        /// The critter tier: round each player, the critter spots (AmbientLife.CritterSpots, from the seed) within
+        /// CritterRadius that are free and are for this time of day get their real creature, nearest first, up to that
+        /// player's fair share of MaxCritters (shared among the players with spots near them, never below a floor of 24).
+        /// Not where a player is right on top of it. They're homed on their spot (leashed close) and run on the brain's
+        /// light critter round; Despawn lets them go beyond CritterLetGo, and the spot is free again.
+        /// </summary>
+        void SpawnCritters(in TerrainSource source)
+        {
+            if (critterTable == null || simWorld == null || species.Count == 0)
+                return;
+            var em = simWorld.EntityManager;
+            using var fq = em.CreateEntityQuery(typeof(Punchy.Flora.FloraLookup));
+            if (fq.IsEmpty)
+                return;
+            var flora = fq.GetSingleton<Punchy.Flora.FloraLookup>();
+            if (!flora.Blob.IsCreated)
+                return;
+            // (Spots whose creature has gone: free again.)
+            var gone = new List<uint>();
+            foreach (var kv in critters)
+                if (!em.Exists(kv.Value))
+                    gone.Add(kv.Key);
+            foreach (var id in gone)
+                critters.Remove(id);
+            var night = Cycle != null ? Cycle.Night : 0f;
+            var share = math.max(24, MaxCritters / math.max(players.Count, 1));
+            const float cell = 16f;
+            foreach (var player in players)
+            {
+                if (critterCount >= MaxCritters)
+                    return;
+                // How many this player already has round it.
+                var mine = 0;
+                foreach (var kv in critters)
+                    if (em.HasComponent<CreatureState>(kv.Value) &&
+                        math.distance(em.GetComponentData<CreatureState>(kv.Value).Position.xz, player.xz) < CritterRadius)
+                        mine++;
+                if (mine >= share)
+                    continue;
+                critterSpots.Clear();
+                var min = (int2)math.floor((player.xz - CritterRadius) / cell);
+                var max = (int2)math.floor((player.xz + CritterRadius) / cell);
+                for (int y = min.y; y <= max.y; y++)
+                for (int x = min.x; x <= max.x; x++)
+                    AmbientLife.CritterSpots(new int2(x, y), source, ref flora.Blob.Value, critterSpots);
+                critterSpots.Sort((a, b) => math.distancesq(a.Position.xz, player.xz).CompareTo(math.distancesq(b.Position.xz, player.xz)));
+                foreach (var spot in critterSpots)
+                {
+                    if (mine >= share || critterCount >= MaxCritters)
+                        break;
+                    var d = math.distance(spot.Position.xz, player.xz);
+                    if (d > CritterRadius || d < 6f || critters.ContainsKey(spot.Id))
+                        continue;
+                    var kind = spot.Kind;
+                    // (Owls and frogs come out at night; songbirds and woodpeckers by day; mice either.)
+                    var day = night < 0.4f;
+                    if ((kind == AmbientLife.CritterKind.Owl || kind == AmbientLife.CritterKind.Frog) == day && kind != AmbientLife.CritterKind.Mouse)
+                        continue;
+                    var sp = kind switch
+                    {
+                        AmbientLife.CritterKind.Songbird => critterTable.Songbird,
+                        AmbientLife.CritterKind.Woodpecker => critterTable.Woodpecker,
+                        AmbientLife.CritterKind.Owl => critterTable.Owl,
+                        AmbientLife.CritterKind.Frog => critterTable.Frog,
+                        _ => critterTable.Mouse
+                    };
+                    var index = SpeciesIndex(sp);
+                    if (index < 0)
+                        continue;
+                    var e = Spawn(index, spot.Position, rng.NextFloat(6.28f));
+                    var state = em.GetComponentData<CreatureState>(e);
+                    state.Position = spot.Position;
+                    state.Task = CreatureTask.Critter;
+                    state.Home = spot.Position.xz;
+                    state.Leash = kind == AmbientLife.CritterKind.Songbird ? 18f : 8f;
+                    // (Settled on its perch a while before it does anything.)
+                    state.Mode = CreatureMode.Rest;
+                    state.Timer = rng.NextFloat(4f, 15f);
+                    em.SetComponentData(e, state);
+                    critters[spot.Id] = e;
+                    critterCount++;
+                    mine++;
+                }
+            }
         }
 
         /// <summary>The settlement's domestic animals, about its middle, homed on it and leashed to it.</summary>

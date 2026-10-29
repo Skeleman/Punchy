@@ -156,27 +156,17 @@ namespace Punchy.Fauna
             var seed = math.hash(new int3(cell, 0x5EED)) | 1u;
             var rng = new Unity.Mathematics.Random(seed);
             var centre = ((float2)cell + 0.5f) * CellSize;
-            // A tree in the cell: songbirds, and now and then a woodpecker, an owl, cicadas.
+            // A tree in the cell: cicadas on it now and then. (Its birds, owls and woodpeckers are real creatures now: the
+            // critter tier, CritterSpots below.)
             var treeRng = new Unity.Mathematics.Random(seed ^ 0x7EE);
-            if (FloraPlacement.FindTree(ref flora, terrain, centre, CellSize * 0.5f, 3f, ref treeRng, out var tree))
-            {
-                var r = new Resident
+            if (FloraPlacement.FindTree(ref flora, terrain, centre, CellSize * 0.5f, 3f, ref treeRng, out var tree) && rng.NextFloat() < 0.5f)
+                list.Add(new Resident
                 {
+                    Kind = AmbientKind.Cicada, Seed = rng.NextUInt() | 1u,
                     TreeBase = tree.Base, CrownBase = tree.CrownBase, CrownTop = tree.Height, CrownRadius = math.max(tree.CrownRadius, 0.6f),
                     TrunkRadius = tree.TrunkRadius, Spot = tree.Base
-                };
-                var birds = rng.NextFloat() < 0.75f ? 1 + rng.NextInt(3) : 0;
-                for (int i = 0; i < birds; i++)
-                {
-                    r.Kind = AmbientKind.Songbird;
-                    r.Seed = rng.NextUInt() | 1u;
-                    list.Add(r);
-                }
-                if (rng.NextFloat() < 0.15f) { r.Kind = AmbientKind.Woodpecker; r.Seed = rng.NextUInt() | 1u; list.Add(r); }
-                if (rng.NextFloat() < 0.3f) { r.Kind = AmbientKind.Owl; r.Seed = rng.NextUInt() | 1u; list.Add(r); }
-                if (rng.NextFloat() < 0.5f) { r.Kind = AmbientKind.Cicada; r.Seed = rng.NextUInt() | 1u; list.Add(r); }
-            }
-            // The ground: crickets and grasshoppers in grass; frogs where land meets water.
+                });
+            // The ground: crickets and grasshoppers in grass. (Frogs are critters now.)
             for (int k = 0; k < 8; k++)
             {
                 var spot = centre + (rng.NextFloat2() - 0.5f) * CellSize;
@@ -184,20 +174,6 @@ namespace Punchy.Fauna
                 var wet = ground.HasWater && ground.WaterSurface > ground.Height;
                 if (!wet)
                 {
-                    // At the water's edge: a frog.
-                    // (Just above the water line, or with water a step or two away.)
-                    var shore = ground.HasWater && ground.WaterSurface > ground.Height - 0.4f;
-                    for (int a = 0; a < 4 && !shore; a++)
-                    {
-                        math.sincos(a * math.PI * 0.5f, out var sn, out var cs);
-                        var g = terrain.SampleGround(spot + new float2(cs, sn) * 2.5f);
-                        shore = g.HasWater && g.WaterSurface > g.Height;
-                    }
-                    if (shore && list.FindAll(x => x.Kind == AmbientKind.Frog).Count < 3)
-                    {
-                        list.Add(new Resident { Kind = AmbientKind.Frog, Seed = rng.NextUInt() | 1u, Spot = new float3(spot.x, ground.Height, spot.y) });
-                        continue;
-                    }
                     var surface = terrain.SampleSurface(spot, ground, terrain.SampleNormal(spot, 1f));
                     if (surface.Grass > 0.35f && surface.Snow < 0.3f)
                         list.Add(new Resident { Kind = k % 2 == 0 ? AmbientKind.Cricket : AmbientKind.Grasshopper, Seed = rng.NextUInt() | 1u,
@@ -205,6 +181,88 @@ namespace Punchy.Fauna
                 }
             }
             return list.ToArray();
+        }
+
+        // ------------------------------------------------------------------------------- critter spots
+
+        /// <summary>Which real creature a critter spot is for (CritterTable names the species).</summary>
+        public enum CritterKind : byte { Songbird, Woodpecker, Owl, Frog, Mouse }
+
+        /// <summary>
+        /// A place for one of the critter tier's real creatures, from the seed: its kind, an id for the spot (so the
+        /// director knows whether it's taken), where it starts (a perch on a crown, a trunk, a bough, a shore, the grass),
+        /// and its tree, if it has one.
+        /// </summary>
+        public struct CritterSpot
+        {
+            public CritterKind Kind;
+            public uint Id;
+            public float3 Position;
+            public float3 Tree;
+        }
+
+        /// <summary>
+        /// The critter spots in a 16 m cell (the same on every machine): songbirds (1-3) on its tree's crown, now and then
+        /// a woodpecker on the trunk and an owl on a low bough; frogs at the water's edge; mice in the grass.
+        /// </summary>
+        public static void CritterSpots(int2 cell, in TerrainSource terrain, ref FloraBlob flora, List<CritterSpot> into)
+        {
+            var seed = math.hash(new int3(cell, 0xC417)) | 1u;
+            var rng = new Unity.Mathematics.Random(seed);
+            var centre = ((float2)cell + 0.5f) * CellSize;
+            var treeRng = new Unity.Mathematics.Random(seed ^ 0x7EE);
+            if (FloraPlacement.FindTree(ref flora, terrain, centre, CellSize * 0.5f, 3f, ref treeRng, out var tree))
+            {
+                var crown = math.max(tree.CrownRadius, 0.6f);
+                var birds = rng.NextFloat() < 0.75f ? 1 + rng.NextInt(3) : 0;
+                for (int i = 0; i < birds; i++)
+                {
+                    // On top of the crown, against the sky.
+                    var round = rng.NextFloat(6.28f);
+                    var at = tree.Base + new float3(math.sin(round), 0f, math.cos(round)) * (tree.TrunkRadius + crown * rng.NextFloat(0.3f, 0.6f)) +
+                             new float3(0f, tree.Height + 0.05f, 0f);
+                    into.Add(new CritterSpot { Kind = CritterKind.Songbird, Id = rng.NextUInt() | 1u, Position = at, Tree = tree.Base });
+                }
+                if (rng.NextFloat() < 0.15f)
+                {
+                    var round = rng.NextFloat(6.28f);
+                    var at = tree.Base + new float3(math.sin(round), 0f, math.cos(round)) * (tree.TrunkRadius + 0.05f) + new float3(0f, rng.NextFloat(1.8f, 3f), 0f);
+                    into.Add(new CritterSpot { Kind = CritterKind.Woodpecker, Id = rng.NextUInt() | 1u, Position = at, Tree = tree.Base });
+                }
+                if (rng.NextFloat() < 0.3f)
+                {
+                    var round = rng.NextFloat(6.28f);
+                    var at = tree.Base + new float3(math.sin(round), 0f, math.cos(round)) * (tree.TrunkRadius + crown * 0.35f) +
+                             new float3(0f, math.max(tree.CrownBase, 2f) + 0.1f, 0f);
+                    into.Add(new CritterSpot { Kind = CritterKind.Owl, Id = rng.NextUInt() | 1u, Position = at, Tree = tree.Base });
+                }
+            }
+            var frogs = 0;
+            for (int k = 0; k < 8; k++)
+            {
+                var spot = centre + (rng.NextFloat2() - 0.5f) * CellSize;
+                var id = rng.NextUInt() | 1u;
+                var mouse = rng.NextFloat() < 0.04f;
+                var ground = terrain.SampleGround(spot);
+                if (ground.HasWater && ground.WaterSurface > ground.Height)
+                    continue;
+                // (Just above the water line, or with water a step or two away.)
+                var shore = ground.HasWater && ground.WaterSurface > ground.Height - 0.4f;
+                for (int a = 0; a < 4 && !shore; a++)
+                {
+                    math.sincos(a * math.PI * 0.5f, out var sn, out var cs);
+                    var g = terrain.SampleGround(spot + new float2(cs, sn) * 2.5f);
+                    shore = g.HasWater && g.WaterSurface > g.Height;
+                }
+                var at = new float3(spot.x, ground.Height, spot.y);
+                if (shore && frogs < 3)
+                {
+                    frogs++;
+                    into.Add(new CritterSpot { Kind = CritterKind.Frog, Id = id, Position = at });
+                }
+                else if (mouse)
+                    into.Add(new CritterSpot { Kind = CritterKind.Mouse, Id = id, Position = at });
+            }
         }
 
         /// <summary>Where one is this moment, by the shared clock t (seconds).</summary>

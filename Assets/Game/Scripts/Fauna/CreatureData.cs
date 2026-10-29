@@ -310,7 +310,10 @@ namespace Punchy.Fauna
                              "stays there a while as a visitor.")] Travel,
         [UnityEngine.Tooltip("A messenger bird (FaunaDirector sends one to a town a player is in, now and then): flies in " +
                              "from the direction of another town with a rolled message, lands by one of the townsfolk, who " +
-                             "takes it and reads it, and flies off towards another town.")] Messenger
+                             "takes it and reads it, and flies off towards another town.")] Messenger,
+        [UnityEngine.Tooltip("A critter: one of the small life round a player (songbirds, owls, woodpeckers, frogs, mice), " +
+                             "put at its spot from the seed by FaunaDirector's critter tier, near players only, and run on a " +
+                             "light brain (no needs, no company or prey to look for).")] Critter
     }
 
     /// <summary>

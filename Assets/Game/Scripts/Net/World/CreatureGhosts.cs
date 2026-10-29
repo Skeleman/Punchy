@@ -117,6 +117,8 @@ namespace Punchy.Net
     {
         /// <summary>A bit beyond FaunaDirector's despawn distance, so nothing a player could see is ever held back.</summary>
         public const float Radius = 200f;
+        /// <summary>Critters (FaunaDirector's critter tier) are sent only to players within this of them.</summary>
+        public const float CritterRadius = 60f;
 
         [BurstCompile]
         public void OnCreate(ref SystemState state)
@@ -139,11 +141,12 @@ namespace Punchy.Net
                     players[owner.ValueRO.NetworkId] = transform.ValueRO.Position;
             if (players.Count == 0)
                 return;
-            foreach (var (ghost, transform, body) in SystemAPI.Query<RefRO<GhostInstance>, RefRO<LocalTransform>, RefRO<CreatureBody>>().WithAll<CreatureNet>())
+            foreach (var (ghost, transform, body, net) in SystemAPI.Query<RefRO<GhostInstance>, RefRO<LocalTransform>, RefRO<CreatureBody>, RefRO<CreatureNet>>())
             {
                 var xz = transform.ValueRO.Position.xz;
-                // (Huge animals seen from far off are sent from that far.)
-                var radius = math.max(Radius, body.ValueRO.Blob.Value.SeenFrom + 20f);
+                // (Huge animals seen from far off are sent from that far; critters, the small life round a player, only
+                // to players near them.)
+                var radius = net.ValueRO.Task == (byte)CreatureTask.Critter ? CritterRadius : math.max(Radius, body.ValueRO.Blob.Value.SeenFrom + 20f);
                 var radiusSq = radius * radius;
                 foreach (var player in players)
                     if (math.distancesq(player.Value.xz, xz) > radiusSq)
