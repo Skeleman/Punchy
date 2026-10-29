@@ -280,7 +280,7 @@ namespace Punchy.Terrain
                 ref var cave = ref set.Caves[c];
                 var style = cave.Style > 0 && cave.Style - 1 < styles.Count ? styles[cave.Style - 1] : null;
                 var tags = (byte)(Anchor.Shelter | (cave.Style & 0x7F));
-                var rng = new Random(math.hash(new int2(c, 0x5EED)) | 1u);
+                var rng = new Random(math.hash(new uint2(cave.Key, 0x5EEDu)) | 1u);
                 var owner = Anchor.OwnerCave(c);
 
                 Anchor Make(AnchorKind kind, float3 position, float2 facing, float size, int capacity) => new Anchor

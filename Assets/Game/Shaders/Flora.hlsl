@@ -2,6 +2,7 @@
 #define PUNCHY_FLORA_INCLUDED
 
 #include "PlayerReveal.hlsl"
+#include "SharedClock.hlsl"
 
 // Plants drawn by FloraSystem with indirect instanced draws. Each draw is one variant at one LOD; its instances
 // are the plants FloraCull.compute found visible, stored from the draw's startInstance in _FloraVisible as (plant index, dither
@@ -30,6 +31,11 @@ float _FloraNoBatcher;   // see Flora.shader's Properties
 float _FloraInCave;      // 1 for cave plants (CaveSystem's copy of the material)
 float2 _PunchyWindDirection;
 half _PunchyWind;
+// The shared tiling noise CaveSystem makes (rg a normal, b a smooth height): grain on rock and bark up close
+// (Flora.shader), and the gusts that roll across the land (cloth here, grass in GroundDetail.hlsl).
+TEXTURE2D(_PunchyCaveDetail);
+SAMPLER(sampler_PunchyCaveDetail);
+float _PunchyCaveDetailReady;
 // 0 above ground, 1 with the camera deep in a cave; the player's lantern (xyz position, w strength) and its colour
 // (rgb) and range (w). Set by CaveSystem.
 float _PunchyUnderground;
@@ -82,8 +88,56 @@ FloraVertex FloraTransform(FloraAttributes input)
     float sway = input.data.x * (0.05 + 0.045 * p.y);
     p += windDir * sway * gust * 2.2;
     p.y -= sway * gust * sway * 0.6;   // bending, not stretching
-    float flutter = input.data.z * (0.15 + _PunchyWind) * 0.022 * plant.scale;
+    float flutter = max(input.data.z, 0) * (0.15 + _PunchyWind) * 0.022 * plant.scale;
     p += n * sin(_Time.y * 7.3 + dot(input.positionOS, float3(3.1, 2.3, 4.7)) + plant.random * 20) * flutter;
+    // Motions carried in the flutter channel as negatives (FloraMeshBuilder.Motion, Sway), on the shared clock: a slow
+    // breath along the normal (mushroom caps), below -2 a sudden small jerk now and then (cocoons), and below -10 a
+    // slow pendulum sway (vines), stronger in wind.
+    if (input.data.z < -9.5)
+    {
+        float swing = (-input.data.z - 10) * plant.scale * (0.6 + _PunchyWind * 0.8);
+        float t = _PunchyClock * 1.1 + plant.random * 6.28 + (input.positionOS.x + input.positionOS.z) * 0.35;
+        float2 side = float2(-_PunchyWindDirection.y, _PunchyWindDirection.x);
+        float2 move = _PunchyWindDirection * (sin(t) * 0.7 + _PunchyWind * 0.5) + side * sin(t * 0.63 + 1.7) * 0.5;
+        p.xz += move * swing;
+    }
+    else if (input.data.z < -1.5)
+    {
+        float size = (-input.data.z - 2) * plant.scale;
+        float beat = frac(_PunchyClock * 0.23 + plant.random * 7.1 + input.positionOS.x * 0.37);
+        float jerk = beat < 0.06 ? sin(beat / 0.06 * 18.85) : 0;
+        p += float3(sin(plant.random * 40 + input.positionOS.z), 0, cos(plant.random * 40 + input.positionOS.x)) * jerk * size;
+    }
+    else if (input.data.z < 0)
+        p += n * (-input.data.z) * plant.scale * (0.5 + 0.5 * sin(_PunchyClock * 1.571 + plant.random * 6.28));   // a 4 s breath
+
+    // Cloth (part 10; how free each vertex is, 0 at its pole or bar to 1 at the free edge, rides on the part as a
+    // fraction x 0.4): a wave running out to the free edge with a quicker flutter there, leaning downwind, hanging
+    // nearly limp in calm. Its gusts are the grass's own (the same noise scrolled downwind as in GroundDetail.hlsl),
+    // on the shared clock, so a gust passes through a field and the banners together and every player sees it.
+    // Flora.shader lights it with normals from the waved surface.
+    if ((int)round(input.data.y) == 10)
+    {
+        float free = saturate((input.data.y - 10) / 0.4);
+        float3 at = plant.position + p;
+        float2 gustUV = at.xz * 0.011 - _PunchyWindDirection * _PunchyClock * (0.025 + 0.06 * _PunchyWind);
+        half gustNoise = SAMPLE_TEXTURE2D_LOD(_PunchyCaveDetail, sampler_PunchyCaveDetail, gustUV, 0).b;
+        half gust = lerp(0.5, smoothstep(0.3, 0.75, gustNoise), _PunchyCaveDetailReady);
+        float strength = (0.08 + 0.92 * _PunchyWind) * (0.3 + 0.9 * gust);
+        float t = _PunchyClock * (1.6 + 4.5 * strength) + plant.random * 6.28;
+        float along = (input.positionOS.x + input.positionOS.z) * 1.3;
+        float wave = sin(t - free * 4.2 + along);
+        float flutter = sin(t * 2.6 - free * 9.0 + input.positionOS.y * 4.1) * free;
+        float amount = free * (0.06 + 0.4 * strength) * plant.scale;
+        float3 windDir3 = float3(_PunchyWindDirection.x, 0, _PunchyWindDirection.y);
+        p += n * (wave * 0.8 + flutter * 0.5) * amount;
+        // Blown out from where it hangs: turned downwind by an angle that rises quickly with the wind (about 35
+        // degrees on a breezy day, 65 in a storm, a few in calm), so it streams out and lifts as well.
+        float angle = 1.15 * pow(saturate((strength - 0.05) / 0.8), 0.6) * (0.85 + 0.15 * wave);
+        float reach = free * 1.5 * plant.scale;
+        p += windDir3 * reach * sin(angle);
+        p.y += reach * (1 - cos(angle));
+    }
 
     FloraVertex o;
     o.positionWS = plant.position + p;

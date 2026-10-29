@@ -21,7 +21,12 @@ namespace Punchy.Flora
         /// <summary>Glassy crystal (FoliageFinish.Glass; see Flora.shader).</summary>
         Glass = 7,
         /// <summary>Honeycomb wax: glossy, with faint hexagonal cells up close (wild beehives; see Flora.shader).</summary>
-        Comb = 8
+        Comb = 8,
+        /// <summary>A bark face's eyes: a faint glow that blinks now and then (see Flora.shader).</summary>
+        Eye = 9,
+        /// <summary>Cloth (banners, awnings, hide flaps) that waves in the wind; how free each vertex is rides on the part
+        /// (see FloraMeshBuilder.Cloth, Flora.hlsl).</summary>
+        Cloth = 10
     }
 
     /// <summary>
@@ -43,6 +48,8 @@ namespace Punchy.Flora
         public float GlowPulse;
         /// <summary>Bark drawn with glowing seams (FloraSpecies.GlowingSeams): marked on its part as Bark + 0.25.</summary>
         public bool BarkSeams;
+        /// <summary>Bark veined with cool flowing light (FloraSpecies.GlowingVeins): marked as Bark + 0.4.</summary>
+        public bool BarkVeins;
 
         public int VertexCount => positions.Count;
         public int IndexCount => indices.Count;
@@ -66,7 +73,7 @@ namespace Punchy.Flora
             normals.Add(n);
             colors.Add(c);
             // Glowing parts carry their shimmer as a fraction on the part (the shader rounds the part).
-            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : 0f),
+            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : 0f),
                                  flutter, Mathf.Clamp01(ao)));
             return positions.Count - 1;
         }
@@ -540,6 +547,72 @@ namespace Punchy.Flora
                 return false;
             y = a.y + v * (b.y - a.y) + w * (c.y - a.y);
             return true;
+        }
+
+        /// <summary>
+        /// Gives the vertices from <paramref name="firstVertex"/> on a motion the vertex shader plays from the shared
+        /// clock (carried in the flutter channel, Flora.hlsl): a slow breath along the normal (breath > 0, its size in
+        /// metres) or, with <paramref name="twitch"/>, a sudden small jerk now and then.
+        /// </summary>
+        public void Motion(int firstVertex, float breath, bool twitch = false)
+        {
+            for (int v = firstVertex; v < data.Count; v++)
+            {
+                var d = data[v];
+                d.z = twitch ? -2f - breath : -breath;
+                data[v] = d;
+            }
+        }
+
+        /// <summary>
+        /// Gives the vertices from <paramref name="firstVertex"/> a slow sideways sway on the shared clock (carried in the
+        /// flutter channel below -10, Flora.hlsl), by how far each may swing in metres: hanging vines and ropes, more
+        /// the further down they hang.
+        /// </summary>
+        public void Sway(int firstVertex, Func<Vector3, float> amount)
+        {
+            for (int v = firstVertex; v < data.Count; v++)
+            {
+                var d = data[v];
+                d.z = -10f - Mathf.Max(amount(positions[v]), 0f);
+                data[v] = d;
+            }
+        }
+
+        /// <summary>
+        /// A flat sheet of <paramref name="nu"/> × <paramref name="nv"/> quads from a corner along two edges (cloth:
+        /// banners, awnings, flaps), seen from both sides (the flora shader draws double-sided). Returns its first vertex.
+        /// </summary>
+        public int Sheet(Vector3 corner, Vector3 u, Vector3 v, int nu, int nv, Color color, FloraPart part, float ao = 1f)
+        {
+            var first = positions.Count;
+            var n = Vector3.Cross(u, v).normalized;
+            for (int j = 0; j <= nv; j++)
+            for (int i = 0; i <= nu; i++)
+                Vertex(corner + u * (i / (float)nu) + v * (j / (float)nv), n, color, part, ao, 0f);
+            for (int j = 0; j < nv; j++)
+            for (int i = 0; i < nu; i++)
+            {
+                int a = first + j * (nu + 1) + i, b = a + 1, c = a + nu + 1, d = c + 1;
+                Triangle(a, b, c);
+                Triangle(b, d, c);
+            }
+            return first;
+        }
+
+        /// <summary>
+        /// Makes the vertices from <paramref name="firstVertex"/> cloth that waves in the wind (Flora.hlsl), by how free
+        /// each is: 0 where it's held (a pole, a bar, a seam), 1 at a free edge. Carried on the part as Cloth + free × 0.4.
+        /// </summary>
+        public void Cloth(int firstVertex, Func<Vector3, float> free)
+        {
+            for (int v = firstVertex; v < data.Count; v++)
+            {
+                var d = data[v];
+                d.y = (float)FloraPart.Cloth + Mathf.Clamp01(free(positions[v])) * 0.4f;
+                d.z = 0f;
+                data[v] = d;
+            }
         }
 
         /// <summary>Bounding sphere around (0, centreY, 0).</summary>

@@ -175,6 +175,23 @@ namespace Punchy.Flora
         [Tooltip("Trees (BroadleafTree, HiveTree): the share of variants with bracket fungus shelves stepping up the trunk, " +
                  "in the first accent colour (glowing with Glowing Accents).")]
         [Range(0f, 1f)] public float Brackets;
+        [Tooltip("Trees: the share of variants with strands hanging from their limbs: vines and lianas (green), moss beards " +
+                 "(grey-green, short) or webs of roots, in Hanging Color, swaying in the wind.")]
+        [Range(0f, 1f)] public float Hanging;
+        public Color HangingColor = new Color(0.25f, 0.4f, 0.2f);
+        [Tooltip("Length of the hanging strands (m, at scale 1).")]
+        public Vector2 HangingLength = new Vector2(1f, 3f);
+        [Tooltip("Trees: hanging strands as wispy beards (a few fine threads each, no leaves: lichen, old man's beard) " +
+                 "rather than leafy vines.")]
+        public bool HangingWisps;
+        [Tooltip("Trees: the share of variants with a few cocoons hanging from their limbs on threads, now and then twitching.")]
+        [Range(0f, 1f)] public float Cocoons;
+        [Tooltip("Trees: the share of variants with a face in the bark: hollow eyes that glow faintly and blink, and a mouth.")]
+        [Range(0f, 1f)] public float BarkFace;
+        [Tooltip("Bark veined with cool light that flows slowly up the trunk (weird biomes), instead of ember seams.")]
+        public bool GlowingVeins;
+        [Tooltip("Mushrooms: caps that breathe, slowly swelling and settling.")]
+        public bool Breathes;
 
         [Header("Placement")]
         [Tooltip("Steepest ground it grows on, in degrees.")]

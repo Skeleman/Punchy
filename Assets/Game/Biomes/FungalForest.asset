@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: FungalForest
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.BiomeDefinition
   MapColor: {r: 0.55, g: 0.2, b: 0.75, a: 1}
-  Frequency: 0.8
+  Frequency: 1.6
   Altitude: {x: 0, y: 0.4}
   Temperature: {x: 0.2, y: 0.55}
   Humidity: {x: 0.62, y: 1}
@@ -120,7 +120,22 @@ MonoBehaviour:
     Density: 1.5
   Habitability: 2
   Cultures: 13
-  Landmarks: []
+  Landmarks:
+  - Type: {fileID: 11400000, guid: 121a682d525071b498005e6148346da9, type: 2}
+    Density: 1.5
+    PerRealm: 1
+  - Type: {fileID: 11400000, guid: 51c63ce05e3feab468de0aaaefef529a, type: 2}
+    Density: 0.6
+    PerRealm: 1
+  - Type: {fileID: 11400000, guid: 9db9dc76cdcb53647bfb1d44f4d04b9b, type: 2}
+    Density: 0.4
+    PerRealm: 1
+  - Type: {fileID: 11400000, guid: b5d2ef65eb3ccde4a9b71edc4b25bec1, type: 2}
+    Density: 0.3
+    PerRealm: 1
+  - Type: {fileID: 11400000, guid: 1e5cfd2810af44c44a53ffde36c33098, type: 2}
+    Density: 0.5
+    PerRealm: 1
   Fauna:
   - Species: {fileID: 11400000, guid: b6819c19cd54c2a4698a15dc39cea0dc, type: 2}
     Density: 0.3

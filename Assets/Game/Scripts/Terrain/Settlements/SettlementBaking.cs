@@ -113,7 +113,7 @@ namespace Punchy.Terrain
                 firstPlot = plots.Count;
                 radius = type.Radius * inst.Scale;
                 scale = layout.FolkScale;
-                rng = new Random(math.hash(new int2(landmark, 0x5E77)) | 1u);
+                rng = new Random(math.hash(new uint2(inst.Key, 0x5E77u)) | 1u);
                 // Placed props (an inn, a smithy, pens) keep their spots, so their resident workers keep theirs.
                 reserved = new List<float3>();
                 foreach (var p in type.Props)

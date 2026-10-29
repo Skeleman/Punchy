@@ -30,6 +30,8 @@ namespace Punchy.Terrain
         /// <summary>The middle of the entrance, where daylight comes in.</summary>
         public float3 Mouth;
         public float Seed;
+        /// <summary>Its landmark's Key: the cave's own seeds come from it (not from its index).</summary>
+        public uint Key;
         /// <summary>Its CaveStyle's slot in CaveStyleTable order, plus one (0 = no style).</summary>
         public int Style;
         /// <summary>Passage width and height multipliers (the style's Width, and Width × Height).</summary>

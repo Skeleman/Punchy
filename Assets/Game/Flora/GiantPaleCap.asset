@@ -33,6 +33,13 @@ MonoBehaviour:
   GlowPulse: 0.12
   GlowingSeams: 0
   Brackets: 0
+  Hanging: 0
+  HangingColor: {r: 0.25, g: 0.4, b: 0.2, a: 1}
+  HangingLength: {x: 1, y: 3}
+  Cocoons: 0
+  BarkFace: 0
+  GlowingVeins: 0
+  Breathes: 1
   MaxSlope: 25
   Elevation: {x: 0.5, y: 10000}
   GrassAffinity: 0.3

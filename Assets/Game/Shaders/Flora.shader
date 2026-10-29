@@ -36,10 +36,44 @@ Shader "Punchy/Flora"
             #include "Metal.hlsl"
             #include "Glow.hlsl"
             #include "SharedClock.hlsl"
-            // The shared fine detail CaveSystem makes (rg a normal, b a height): grain on rock and bark up close.
-            TEXTURE2D(_PunchyCaveDetail);
-            SAMPLER(sampler_PunchyCaveDetail);
-            float _PunchyCaveDetailReady;
+
+            /// How much of a detail octave of this period (m) to keep, given how many metres one pixel covers: all of it
+            /// while a period spans eight pixels or more, none once it's down to three (where it would shimmer).
+            half PunchyOctave(float period, float footprint)
+            {
+                return smoothstep(3, 8, period / max(footprint, 1e-4));
+            }
+
+            /// Weathering on built things that holds up at any range: the procedural equivalent of mipmapping. Courses
+            /// of blocks (stone rows, planks, thatch layers: 0.3 m rows of 0.6 m blocks, and 1.2 m bands that outlast
+            /// them), mottling at 0.7, 2.5 and 9 m, and rain streaks down the walls. Each octave drops out as it gets
+            /// too fine for the pixels (PunchyOctave) and those left are scaled up to the same contrast, so a far wall
+            /// keeps a few octaves of variation instead of fading to one flat colour. Returns an albedo multiplier.
+            half3 PunchyWeathering(float3 p, half3 n, float footprint, half r)
+            {
+                p += r * 37;
+                float3 q;
+                half w0 = PunchyOctave(0.7, footprint), w1 = PunchyOctave(2.5, footprint), w2 = PunchyOctave(9, footprint);
+                q = p / 0.7; half m0 = PunchyValueNoise(q.xz + q.y * 0.7) * 0.6 + PunchyValueNoise(q.zy * 1.3 + 5.1) * 0.4;
+                q = p / 2.5; half m1 = PunchyValueNoise(q.xz + q.y * 0.7 + 11.3) * 0.6 + PunchyValueNoise(q.zy * 1.3 + 2.7) * 0.4;
+                q = p / 9.0; half m2 = PunchyValueNoise(q.xz + q.y * 0.7 + 23.9) * 0.6 + PunchyValueNoise(q.zy * 1.3 + 8.2) * 0.4;
+                // Along the surface, across the slope (walls and roofs alike).
+                float across = dot(p.xz, normalize(float2(-n.z, n.x) + 1e-4));
+                half wb = PunchyOctave(0.3, footprint), wc = PunchyOctave(1.2, footprint);
+                int row = (int)floor(p.y / 0.3);
+                half block = PunchyCellHash(int2(row, (int)floor(across / 0.6 + (row & 1) * 0.5)));
+                half band = PunchyCellHash(int2((int)floor(p.y / 1.2), 7919));
+                half sum = w0 * (m0 - 0.5) + w1 * (m1 - 0.5) * 1.2 + w2 * (m2 - 0.5) * 1.4 + wb * (block - 0.5) * 0.9 + wc * (band - 0.5) * 0.8;
+                half weight = w0 + w1 * 1.2 + w2 * 1.4 + wb * 0.9 + wc * 0.8;
+                half m = sum / max(weight, 0.5) * 2.2;   // about -0.5..0.5 whatever survives
+                // Warmer and lighter one way, cooler and darker the other.
+                half3 tint = lerp(half3(0.82, 0.85, 0.9), half3(1.14, 1.09, 0.99), saturate(m + 0.5));
+                // Streaks down the walls (not roofs): narrow across, long down, darker below sills and eaves.
+                half wall = 1 - smoothstep(0.35, 0.7, abs(n.y));
+                half ws = PunchyOctave(0.45, footprint);
+                half streak = smoothstep(0.55, 0.85, PunchyValueNoise(float2(across / 0.45, p.y / 3.5))) * lerp(0.5, 1, ws);
+                return tint * (1 - streak * wall * 0.22);
+            }
 
             struct Varyings
             {
@@ -88,11 +122,25 @@ Shader "Punchy/Flora"
                 // Thin tapered strands (roots, stems) can end in a degenerate normal; a NaN there blooms into a bright fleck.
                 half3 n = SafeNormalize(input.normalWS);
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
+                // Built things are drawn double-sided too, and a roof is one sheet: seen from below it's the sheet's
+                // back, whose normal still points up. Light the side you see.
+                if (part == 0 && input.ground.a > 0 && dot(n, v) < 0)
+                    n = -n;
 
                 // Per-plant tint: brightness, and leaves a little yellower or bluer.
                 half r = input.extra.w;
                 half3 albedo = input.color.rgb * (0.88 + 0.24 * r);
 
+                // How many metres one pixel covers here, and the facet's own normal (outside any branch, so the
+                // derivatives are good).
+                float footprint = length(fwidth(input.positionWS));
+                float3 facet = normalize(cross(ddy(input.positionWS), ddx(input.positionWS)) + 1e-9);
+                // Cloth: lit by the surface the wind has waved (its folds catch the light), facing the viewer.
+                if (part == 10)
+                    n = dot(facet, v) < 0 ? -facet : facet;
+                // Built things (those with a dirt band): weathering that stays at every range (PunchyWeathering).
+                if (part == 0 && input.ground.a > 0)
+                    albedo *= PunchyWeathering(input.positionWS, n, footprint, r);
                 // Rock and bark up close: grain and fine relief from the shared detail texture (the caves' own), read
                 // three ways and blended by the surface's facing, fading out with distance.
                 float near = 1 - smoothstep(18, 45, distance(input.positionWS, GetCameraPositionWS()));
@@ -142,6 +190,13 @@ Shader "Punchy/Flora"
                 // ambient (the daylight spilling in at a mouth).
                 shadow *= (1 - _PunchyUnderground) * (1 - _FloraInCave);
                 half3 sky = SampleSH(n) * lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));
+                // Roof undersides, eaves and overhangs on built things see the ground, not the sky (Grounding.hlsl).
+                half under = part == 0 && input.ground.a > 0 ? PunchyUnderside(n.y) : 0;
+                if (under > 0)
+                {
+                    sky = PunchyUndersideAmbient(sky, input.ground.rgb, SampleSH(half3(0, 1, 0)) * lerp(1, 0.06, _PunchyUnderground), under);
+                    albedo *= lerp(1, PunchyUndersideAlbedo, under);
+                }
                 // Glowing plants and molten pools nearby (their own glow included, softly).
                 sky += PunchyGlowLight(input.positionWS, n);
                 if (_PunchyLantern.w > 0)
@@ -169,7 +224,7 @@ Shader "Punchy/Flora"
                 {
                     half fresnel = 0.04 + 0.96 * pow(1 - saturate(dot(n, v)), 5);
                     half sheenFar = metal ? 1 : lerp(0.25, 1, smoothstep(30, 120, distance(input.positionWS, GetCameraPositionWS())));
-                    color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * sheenFar * ao * lerp(1, 0.06, _PunchyUnderground);
+                    color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * sheenFar * ao * lerp(1, 0.06, _PunchyUnderground) * lerp(1, PunchyUndersideSky, under);
                 }
 
                 // Glass (crystals): a dark clear body lit faintly from inside, a bright rim where the surface turns
@@ -197,15 +252,33 @@ Shader "Punchy/Flora"
                     }
                 }
 
+                // Bark veined with cool light (FloraSpecies.GlowingVeins, marked as Bark + 0.4): the same crack network,
+                // its light flowing slowly up the trunk.
+                if (part == 0 && input.extra.x > 0.32)
+                {
+                    float3 q = input.positionWS * float3(1.6, 0.6, 1.6);
+                    float vein = abs(PunchyValueNoise(q.xz + q.y * 1.3 + r * 9.0) - 0.5) + abs(PunchyValueNoise(q.zy * 1.1 + 2.3) - 0.5) * 0.5;
+                    half veinLine = 1 - smoothstep(0.015, 0.05, vein);
+                    half flow = 0.35 + 0.65 * pow(0.5 + 0.5 * sin(_PunchyClock * 0.8 - input.positionWS.y * 1.4 + r * 30), 3);
+                    color += half3(0.35, 0.75, 1.0) * veinLine * flow * 1.8;
+                }
                 // Bark with glowing seams (FloraSpecies.GlowingSeams, marked as Bark + 0.25): a network of thin cracks
                 // where value noise crosses its midline, pulsing slowly along the trunk, hot as embers under char.
-                if (part == 0 && input.extra.x > 0.15)
+                else if (part == 0 && input.extra.x > 0.15)
                 {
                     float3 q = input.positionWS * float3(2.2, 0.9, 2.2);
                     float vein = abs(PunchyValueNoise(q.xz + q.y * 1.7 + r * 13.0) - 0.5) + abs(PunchyValueNoise(q.zy * 1.3 + 4.1) - 0.5) * 0.6;
                     half crack = 1 - smoothstep(0.02, 0.07, vein);
                     half pulse = 0.65 + 0.35 * sin(_PunchyClock * 1.3 - input.positionWS.y * 0.8 + r * 20);
                     color = color * (1 - crack * 0.6) + half3(1.0, 0.36, 0.08) * crack * pulse * 2.4;
+                }
+
+                // A bark face's eyes (part 9): a faint glow in its colour that blinks shut for a moment every few seconds.
+                if (part == 9)
+                {
+                    float beat = frac(_PunchyClock * 0.17 + r * 5.3);
+                    half open = beat > 0.97 ? 0 : 1;
+                    color = albedo * (0.08 + 1.4 * open * lerp(0.6, 1.4, _PunchyNight));
                 }
 
                 // Glowing parts shine by themselves (bright enough to bloom at night), with a gentle, slow shimmer of
