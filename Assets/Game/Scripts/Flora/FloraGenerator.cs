@@ -2640,8 +2640,8 @@ namespace Punchy.Flora
         }
 
         /// <summary>
-        /// A bedroll along Z, feet at +Z: a blanket on the ground, a second one over most of it turned back a little at the
-        /// head, and a rolled pillow across the head end.
+        /// A bedroll along Z, feet at +Z, soft: a lumpy pad a hand's height thick, a second blanket over most of it thrown
+        /// back a little at the head, and a rolled pillow across the head end, all shaded as cloth (held still).
         /// </summary>
         static void Bedroll(Grower g)
         {
@@ -2649,16 +2649,21 @@ namespace Punchy.Flora
             var b = g.B;
             var length = g.Range(s.Height);
             var width = length * s.Spread;
-            g.Height = 0.25f;
+            g.Height = 0.18f;
             g.Width = length;
             g.TrunkRadius = 0f;
             var first = b.VertexCount;
-            b.Box(new Vector3(0f, 0.03f, 0f), new Vector3(width, 0.06f, length), Quaternion.identity, s.Foliage.linear, FloraPart.Bark);
-            b.Box(new Vector3(g.Range(-0.03f, 0.03f), 0.08f, length * 0.12f), new Vector3(width * 0.94f, 0.07f, length * 0.72f),
-                  Quaternion.Euler(0f, g.Range(-4f, 4f), 0f), Color.Lerp(s.Foliage.linear, s.FoliageVariation.linear, 0.7f), FloraPart.Bark);
-            b.Tube(new List<Vector3> { new Vector3(-width * 0.42f, 0.1f, -length * 0.4f), new Vector3(width * 0.42f, 0.1f, -length * 0.4f) },
-                   new List<float> { 0.1f, 0.1f }, g.Sides(8, 6, 4), g.Bark, FloraPart.Bark, cap: true);
-            b.Occlude(first, (p, n) => GroundOcclusion(p, 0.2f));
+            var detail = g.Sides(3, 2, 1);
+            // Rounded-off, flattened blobs with broad lumps (folds), not boxes: boxes read as planks.
+            b.Blob(new Vector3(0f, 0.02f, 0f), new Vector3(width * 0.5f, 0.06f, length * 0.5f), Quaternion.identity, detail, 0.25f,
+                   g.R() * 50f, s.Foliage.linear, FloraPart.Bark, 1f, 0.7f, 0.6f);
+            b.Blob(new Vector3(g.Range(-0.03f, 0.03f), 0.07f, length * 0.12f), new Vector3(width * 0.47f, 0.05f, length * 0.36f),
+                   Quaternion.Euler(0f, g.Range(-4f, 4f), 0f), detail, 0.3f, g.R() * 50f,
+                   Color.Lerp(s.Foliage.linear, s.FoliageVariation.linear, 0.7f), FloraPart.Bark, 1f, 0.6f, 0.6f);
+            b.Blob(new Vector3(0f, 0.08f, -length * 0.4f), new Vector3(width * 0.42f, 0.08f, 0.11f), Quaternion.identity, detail, 0.15f,
+                   g.R() * 50f, g.Bark, FloraPart.Bark, 1f, 0.3f, 0.6f);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, 0.15f));
+            b.Cloth(first, p => 0f);
         }
 
         /// <summary>Rotates vertices added since <paramref name="first"/> about the vertical axis through the origin.</summary>
