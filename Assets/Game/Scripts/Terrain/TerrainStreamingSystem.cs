@@ -66,6 +66,10 @@ namespace Punchy.Terrain
         readonly List<BuildItem> building = new List<BuildItem>();
         JobHandle buildHandle;
         int buildFrames;
+
+        /// <summary>True while a batch of chunks is meshing in the background, so other background work (the weather
+        /// maps) can hold off rather than crowd it out.</summary>
+        public static bool Meshing { get; private set; }
         Mesh.MeshDataArray buildData;
         NativeArray<ChunkBuildRequest> buildRequests;
         NativeArray<float2> buildRanges, buildWaterRanges;
@@ -280,6 +284,7 @@ namespace Punchy.Terrain
             };
             buildHandle = IJobParallelForExtensions.Schedule(job, count, 1);
             buildFrames = 0;
+            Meshing = true;
             JobHandle.ScheduleBatchedJobs();
         }
 
@@ -289,6 +294,7 @@ namespace Punchy.Terrain
         void FinishBuild(in TerrainConfig config)
         {
             buildHandle.Complete();
+            Meshing = false;
             var count = building.Count;
 
             // Rebuilt chunks reuse their own meshes; new chunks take them from the pool.
@@ -355,6 +361,7 @@ namespace Punchy.Terrain
             if (building.Count == 0)
                 return;
             buildHandle.Complete();
+            Meshing = false;
             buildData.Dispose();
             DisposeBuild();
         }
