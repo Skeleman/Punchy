@@ -222,6 +222,9 @@ namespace Punchy.Player
                                in PlayerMotor settings, float dt)
         {
             var position = t.Position;
+            // (Airspeed is the flop's cooldown here; a hovering body runs it up as a clock, so after a change of body it
+            // starts again from a hop's length.)
+            m.Airspeed = math.min(m.Airspeed, 0.6f);
             var ground = terrain.SampleGround(position.xz);
             var water = ground.HasWater && ground.WaterSurface - ground.Height > 0.25f;
             if (water && position.y < ground.WaterSurface + 0.1f)
