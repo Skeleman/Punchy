@@ -396,6 +396,9 @@ namespace Punchy.Fauna
         /// <summary>A species' index (by name: a build can hold more than one copy of the same species asset).</summary>
         public int SpeciesIndex(CreatureSpecies s) => s != null ? SpeciesIndex(s.name) : -1;
         public int SpeciesIndex(string name) => name != null && speciesByName.TryGetValue(name, out var i) ? i : -1;
+        /// <summary>The species asset at an index (for things that read its data directly, as the sound does).</summary>
+        public CreatureSpecies SpeciesAt(int index) => index >= 0 && index < species.Count ? species[index] : null;
+        public int SpeciesCount => species.Count;
         /// <summary>How many animals birds of prey have caught (for the test log).</summary>
         public static int Caught;
         public Habitat SpeciesHabitat(int index) => species[index].Body.Habitat;

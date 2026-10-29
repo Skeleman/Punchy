@@ -8,7 +8,9 @@ namespace Punchy.Audio
     {
         BeeBuzz, Chirp, Song, Owl, Crickets, Howl, Step, StepWet, Clop, Cluck, Draw, Wingbeat,
         // For the world session (fires, falls, caves, towns, mines):
-        FireCrackle, TorchHiss, WaterfallRush, Splash, CaveDrip, TownMurmur, MineAmbience
+        FireCrackle, TorchHiss, WaterfallRush, Splash, CaveDrip, TownMurmur, MineAmbience,
+        // Animal calls (species' Calls) and moods:
+        Quack, Honk, Gobble, Caw, Coo, Cry, Screech, Rooster, Bark, Meow, Snort, Whinny, Bleat, Moo, Grunt, Purr, Pant
     }
 
     /// <summary>
@@ -25,12 +27,15 @@ namespace Punchy.Audio
         public static int Variants(SoundId id) => id switch
         {
             SoundId.Chirp => 6, SoundId.Song => 3, SoundId.Owl => 2, SoundId.Howl => 2, SoundId.Step => 4, SoundId.StepWet => 3,
-            SoundId.Clop => 3, SoundId.Cluck => 3, SoundId.Draw => 2, SoundId.Wingbeat => 2, SoundId.Splash => 3, SoundId.CaveDrip => 4, _ => 1
+            SoundId.Clop => 3, SoundId.Cluck => 3, SoundId.Draw => 2, SoundId.Wingbeat => 2, SoundId.Splash => 3, SoundId.CaveDrip => 4,
+            SoundId.Quack => 4, SoundId.Honk => 3, SoundId.Gobble => 3, SoundId.Caw => 4, SoundId.Coo => 3, SoundId.Cry => 3,
+            SoundId.Screech => 2, SoundId.Rooster => 2, SoundId.Bark => 4, SoundId.Meow => 3, SoundId.Snort => 3,
+            SoundId.Whinny => 2, SoundId.Bleat => 3, SoundId.Moo => 3, SoundId.Grunt => 3, SoundId.Pant => 3, _ => 1
         };
 
         public static bool Loops(SoundId id) => id == SoundId.BeeBuzz || id == SoundId.Crickets || id == SoundId.FireCrackle ||
                                                  id == SoundId.TorchHiss || id == SoundId.WaterfallRush || id == SoundId.TownMurmur ||
-                                                 id == SoundId.MineAmbience;
+                                                 id == SoundId.MineAmbience || id == SoundId.Purr;
 
         public static float[] Generate(SoundId id, int variant)
         {
@@ -56,6 +61,23 @@ namespace Punchy.Audio
                 SoundId.CaveDrip => Drip(rng),
                 SoundId.TownMurmur => Murmur(rng),
                 SoundId.MineAmbience => Mine(rng),
+                SoundId.Quack => Quack(rng),
+                SoundId.Honk => Honk(rng),
+                SoundId.Gobble => Gobble(rng),
+                SoundId.Caw => Caw(rng),
+                SoundId.Coo => Coo(rng),
+                SoundId.Cry => Cry(rng),
+                SoundId.Screech => Screech(rng),
+                SoundId.Rooster => Rooster(rng),
+                SoundId.Bark => Bark(rng),
+                SoundId.Meow => Meow(rng),
+                SoundId.Snort => Snort(rng),
+                SoundId.Whinny => Whinny(rng),
+                SoundId.Bleat => Bleat(rng),
+                SoundId.Moo => Moo(rng),
+                SoundId.Grunt => Grunt(rng),
+                SoundId.Purr => Purr(rng),
+                SoundId.Pant => Pant(rng),
                 _ => new float[1]
             };
         }
@@ -593,6 +615,194 @@ namespace Punchy.Audio
                         s[at + i] += b.Run(Noise(rng), 1900f, 5f) * Mathf.Exp(-i / (0.008f * Rate)) * level * 6f;
                 }
             return Normalise(Seamless(s, fade), 0.45f);
+        }
+
+        // ------------------------------------------------------------------ animal voices
+
+        /// <summary>
+        /// One stretch of an animal's voice: Seconds long, its pitch gliding From → To (Hz) with Vibrato (depth, at
+        /// VibratoHz), through two formants (F1 → F1To, F2: what makes a quack a quack and a moo a moo), Noise the share of
+        /// breath, Buzz how narrow the glottal pulse (higher: brighter, nasal), Gap seconds of silence after.
+        /// </summary>
+        struct Seg
+        {
+            public float Seconds, From, To, Vibrato, VibratoHz, F1, F1To, F2, Noise, Buzz, Gap;
+            public Seg(float seconds, float from, float to, float f1, float f2, float noise = 0.1f, float buzz = 0.3f,
+                       float gap = 0f, float vibrato = 0f, float vibratoHz = 6f, float f1To = -1f)
+            {
+                Seconds = seconds; From = from; To = to; F1 = f1; F2 = f2; Noise = noise; Buzz = buzz; Gap = gap;
+                Vibrato = vibrato; VibratoHz = vibratoHz; F1To = f1To < 0f ? f1 : f1To;
+            }
+        }
+
+        /// <summary>Sings a run of voice segments (source and filter: a pulse train and breath through two formants).</summary>
+        static float[] Voice(System.Random rng, params Seg[] segs)
+        {
+            var total = 0f;
+            foreach (var g in segs)
+                total += g.Seconds + g.Gap;
+            var s = new float[(int)((total + 0.05f) * Rate)];
+            var at = 0;
+            var phase = 0.0;
+            var f1 = new Band();
+            var f2 = new Band();
+            foreach (var g in segs)
+            {
+                var n = (int)(g.Seconds * Rate);
+                for (int i = 0; i < n && at + i < s.Length; i++)
+                {
+                    var u = i / (float)n;
+                    var t = i / (float)Rate;
+                    var hz = Lerp(g.From, g.To, u) * (1f + g.Vibrato * Mathf.Sin(2f * Mathf.PI * g.VibratoHz * t));
+                    phase += hz / Rate;
+                    var p = (float)(phase - Math.Floor(phase));
+                    var pulse = p < g.Buzz ? 1f - p / g.Buzz : 0f;
+                    var source = pulse * (1f - g.Noise) + Noise(rng) * g.Noise * 0.6f;
+                    var formant = Lerp(g.F1, g.F1To, u);
+                    var y = f1.Run(source, formant, 5f) + 0.6f * f2.Run(source, g.F2, 6f);
+                    var env = Mathf.Min(1f, u * 12f) * Mathf.Min(1f, (1f - u) * 6f);
+                    s[at + i] += y * env;
+                }
+                at += n + (int)(g.Gap * Rate);
+            }
+            return s;
+        }
+
+        static float J(System.Random rng, float spread) => 1f + Lerp(-spread, spread, R(rng));
+
+        static float[] Quack(System.Random rng)
+        {
+            var k = 1 + rng.Next(3);
+            var segs = new Seg[k];
+            for (int i = 0; i < k; i++)
+                segs[i] = new Seg(Lerp(0.12f, 0.2f, R(rng)), 260f * J(rng, 0.1f), 220f, 950f, 2300f, 0.15f, 0.12f, Lerp(0.08f, 0.2f, R(rng)), f1To: 700f);
+            return Normalise(Voice(rng, segs), 0.55f);
+        }
+
+        static float[] Honk(System.Random rng)
+        {
+            var k = 1 + rng.Next(2);
+            var segs = new Seg[k];
+            for (int i = 0; i < k; i++)
+                segs[i] = new Seg(Lerp(0.25f, 0.4f, R(rng)), 290f * J(rng, 0.1f), 330f, 520f, 1400f, 0.08f, 0.2f, 0.18f, 0.02f, 7f);
+            return Normalise(Voice(rng, segs), 0.55f);
+        }
+
+        static float[] Gobble(System.Random rng) =>
+            Normalise(Voice(rng, new Seg(Lerp(0.5f, 0.75f, R(rng)), 420f * J(rng, 0.1f), 360f, 750f, 1900f, 0.2f, 0.25f, 0f, 0.35f, 18f)), 0.55f);
+
+        static float[] Caw(System.Random rng)
+        {
+            var k = 1 + rng.Next(3);
+            var segs = new Seg[k];
+            for (int i = 0; i < k; i++)
+                segs[i] = new Seg(Lerp(0.22f, 0.35f, R(rng)), 620f * J(rng, 0.1f), 480f, 1250f, 2500f, 0.55f, 0.2f, Lerp(0.15f, 0.3f, R(rng)));
+            return Normalise(Voice(rng, segs), 0.55f);
+        }
+
+        static float[] Coo(System.Random rng) =>
+            Normalise(Voice(rng,
+                new Seg(0.18f, 300f, 270f, 420f, 900f, 0.05f, 0.5f, 0.05f),
+                new Seg(Lerp(0.35f, 0.5f, R(rng)), 280f, 250f, 400f, 850f, 0.05f, 0.5f, 0f, 0.03f, 5f)), 0.45f);
+
+        static float[] Cry(System.Random rng) =>
+            Normalise(Voice(rng, new Seg(Lerp(0.8f, 1.2f, R(rng)), 2800f * J(rng, 0.08f), 1800f, 3000f, 4200f, 0.3f, 0.25f, 0f, 0.015f, 9f)), 0.5f);
+
+        static float[] Screech(System.Random rng) =>
+            Normalise(Voice(rng, new Seg(Lerp(1.5f, 2.2f, R(rng)), 720f * J(rng, 0.08f), 380f, 900f, 1600f, 0.65f, 0.3f, 0f, 0.03f, 4f)), 0.6f);
+
+        static float[] Rooster(System.Random rng)
+        {
+            var b = J(rng, 0.08f);
+            return Normalise(Voice(rng,
+                new Seg(0.12f, 520f * b, 560f * b, 1000f, 2500f, 0.35f, 0.2f, 0.03f),
+                new Seg(0.12f, 620f * b, 650f * b, 1000f, 2500f, 0.35f, 0.2f, 0.03f),
+                new Seg(0.15f, 700f * b, 760f * b, 1100f, 2600f, 0.35f, 0.2f, 0.03f),
+                new Seg(0.6f, 820f * b, 620f * b, 1100f, 2600f, 0.35f, 0.2f, 0f, 0.02f, 8f)), 0.6f);
+        }
+
+        static float[] Bark(System.Random rng)
+        {
+            var k = 1 + rng.Next(3);
+            var segs = new Seg[k];
+            for (int i = 0; i < k; i++)
+                segs[i] = new Seg(Lerp(0.1f, 0.17f, R(rng)), 380f * J(rng, 0.12f), 240f, 850f, 1600f, 0.4f, 0.25f, Lerp(0.12f, 0.3f, R(rng)));
+            return Normalise(Voice(rng, segs), 0.6f);
+        }
+
+        static float[] Meow(System.Random rng) =>
+            Normalise(Voice(rng, new Seg(Lerp(0.45f, 0.7f, R(rng)), 520f * J(rng, 0.1f), 460f, 700f, 1900f, 0.08f, 0.3f, 0f, 0.04f, 5f, 1500f)), 0.5f);
+
+        static float[] Snort(System.Random rng)
+        {
+            var n = (int)(Lerp(0.25f, 0.4f, R(rng)) * Rate);
+            var s = new float[n];
+            var band = new Band();
+            for (int i = 0; i < n; i++)
+            {
+                var u = i / (float)n;
+                var t = i / (float)Rate;
+                var flutter = 0.6f + 0.4f * Mathf.Sin(2f * Mathf.PI * 32f * t);
+                s[i] = band.Run(Noise(rng), 450f, 2f) * flutter * Mathf.Sin(Mathf.PI * u);
+            }
+            return Normalise(s, 0.5f);
+        }
+
+        static float[] Whinny(System.Random rng) =>
+            Normalise(Voice(rng,
+                new Seg(0.25f, 900f, 1250f, 1100f, 2600f, 0.2f, 0.25f, 0f, 0.06f, 11f),
+                new Seg(Lerp(0.7f, 1f, R(rng)), 1200f, 600f, 1000f, 2400f, 0.25f, 0.25f, 0f, 0.09f, 10f)), 0.55f);
+
+        static float[] Bleat(System.Random rng) =>
+            Normalise(Voice(rng, new Seg(Lerp(0.4f, 0.65f, R(rng)), 520f * J(rng, 0.12f), 470f, 820f, 1750f, 0.15f, 0.25f, 0f, 0.08f, 7f)), 0.5f);
+
+        static float[] Moo(System.Random rng) =>
+            Normalise(Voice(rng, new Seg(Lerp(1f, 1.5f, R(rng)), 120f * J(rng, 0.1f), 110f, 380f, 900f, 0.08f, 0.35f, 0f, 0.03f, 4f, 720f)), 0.6f);
+
+        static float[] Grunt(System.Random rng)
+        {
+            var k = 1 + rng.Next(3);
+            var segs = new Seg[k];
+            for (int i = 0; i < k; i++)
+                segs[i] = new Seg(Lerp(0.12f, 0.22f, R(rng)), 115f * J(rng, 0.12f), 100f, 420f, 1000f, 0.4f, 0.35f, Lerp(0.1f, 0.25f, R(rng)));
+            return Normalise(Voice(rng, segs), 0.55f);
+        }
+
+        /// <summary>A cat's purr, 2 s looped: dark rumbling noise beating at 25 Hz (fifty whole beats a loop).</summary>
+        static float[] Purr(System.Random rng)
+        {
+            const float seconds = 2f;
+            var fade = Rate / 4;
+            var n = (int)(seconds * Rate) + fade;
+            var s = new float[n];
+            float lp1 = 0f, lp2 = 0f, lp3 = 0f, lp4 = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                var t = i / (float)Rate;
+                lp1 += Pole(200f) * (Noise(rng) - lp1);
+                lp2 += Pole(200f) * (lp1 - lp2);
+                lp3 += Pole(200f) * (lp2 - lp3);
+                lp4 += Pole(200f) * (lp3 - lp4);
+                var beat = 0.3f + 0.7f * Mathf.Pow(0.5f + 0.5f * Mathf.Sin(2f * Mathf.PI * 25f * t), 2f);
+                var breath = 0.75f + 0.25f * Mathf.Sin(2f * Mathf.PI * t / seconds);
+                s[i] = lp4 * beat * breath;
+            }
+            return Normalise(Seamless(s, fade), 0.45f);
+        }
+
+        /// <summary>One pant: a quick breathy "hah" (the system plays them in a rhythm that quickens with exertion).</summary>
+        static float[] Pant(System.Random rng)
+        {
+            var n = (int)(0.13f * Rate);
+            var s = new float[n];
+            var band = new Band();
+            var hz = Lerp(1200f, 1800f, R(rng));
+            for (int i = 0; i < n; i++)
+            {
+                var u = i / (float)n;
+                s[i] = band.Run(Noise(rng), hz, 1.5f) * Mathf.Sin(Mathf.PI * u) * (1f - u * 0.5f);
+            }
+            return Normalise(s, 0.4f);
         }
     }
 }

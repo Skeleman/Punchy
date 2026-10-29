@@ -14,6 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
   VariantOf: {fileID: 0}
   VariantScale: 1
+  VariantHead: 1
+  VariantThickness: 1
+  VariantLegs: 1
   BodyLength: 0.32
   BodyRadius: 0.08
   BodyTaper: 0.7
@@ -96,6 +99,7 @@ MonoBehaviour:
   IdleTime: {x: 4, y: 15}
   FleeDistance: 12
   TurnRate: 120
+  SeenFrom: 0
   GroupSize: {x: 1, y: 1}
   NearWater: 1
   Habitat: 0
@@ -105,6 +109,7 @@ MonoBehaviour:
   Grazing: 0.3
   Thirst: 0
   Playfulness: 0
+  Child: 0
   Laziness: 0.3
   Hunts:
   - {fileID: 11400000, guid: 8c1d9ca02541a3244baf69032c8cc21d, type: 2}
@@ -115,8 +120,33 @@ MonoBehaviour:
   Climbing: 0
   SpinsWebs: 0
   WebSize: 0.6
+  Burrows: 0
+  CaveDweller: 0
+  Crawls: 0
+  CaveAffinity: 0
+  Roosts: 0
+  Friendly: 0
+  LavaDweller: 0
+  Haunts: 0
+  CrossesWater: 0
+  Nests: 0
+  DrawnToLight: 0
+  DrivenOff: 0
+  GuardKit: 0
+  GuardArmour: {r: 0.55, g: 0.57, b: 0.6, a: 1}
+  GuardSash: {r: 0.62, g: 0.12, b: 0.1, a: 1}
   FlightHeight: {x: 8, y: 18}
   FlySpeed: 7
   FlapRate: 6
   Glide: 0
   Perching: 0.6
+  Soars: 0
+  Breaches: 0
+  RaidsHives: 0
+  Calls:
+  - Sound: 20
+    Interval: {x: 15, y: 35}
+    Pitch: {x: 0.65, y: 0.8}
+    Volume: 0.6
+    Reach: 50
+    When: 0

@@ -182,6 +182,11 @@ namespace Punchy.Fauna
                  "with the bees mobbing it, then makes off well away from it.")]
         public bool RaidsHives;
 
+        [Header("Sound")]
+        [Tooltip("Its calls (CreatureAudioSystem plays them near the listener, each individual on its own clock): a hen's " +
+                 "cluck, a duck's quack, a dog's bark. A variant with none uses the species it's based on.")]
+        public List<CreatureCall> Calls = new List<CreatureCall>();
+
         /// <summary>The species whose body, gait and behaviour this one uses (itself unless it's a variant).</summary>
         public CreatureSpecies Body
         {
@@ -256,6 +261,25 @@ namespace Punchy.Fauna
         [Tooltip("Sleeps at night.")] Day,
         [Tooltip("Sleeps by day.")] Night,
         [Tooltip("Awake at all hours, taking naps.")] Always
+    }
+
+    /// <summary>When a call is made.</summary>
+    public enum CallTime : byte { Any, Day, Night, Dawn }
+
+    /// <summary>One of a species' calls: which sound, how often (seconds between, by individual), how high, how loud and
+    /// how far it carries, and at what time of day.</summary>
+    [Serializable]
+    public class CreatureCall
+    {
+        public Punchy.Audio.SoundId Sound;
+        [Tooltip("Seconds between calls (each individual somewhere in the range).")]
+        public Vector2 Interval = new Vector2(8f, 20f);
+        [Tooltip("Pitch multiplier range (each individual somewhere in it; smaller bodies higher).")]
+        public Vector2 Pitch = new Vector2(0.95f, 1.05f);
+        [Range(0f, 1f)] public float Volume = 0.6f;
+        [Tooltip("How far it's heard (m).")]
+        [Min(1f)] public float Reach = 30f;
+        public CallTime When = CallTime.Any;
     }
 
     [Serializable]

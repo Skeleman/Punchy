@@ -14,6 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
   VariantOf: {fileID: 0}
   VariantScale: 1
+  VariantHead: 1
+  VariantThickness: 1
+  VariantLegs: 1
   BodyLength: 0.7
   BodyRadius: 0.13
   BodyTaper: 0.9
@@ -156,6 +159,9 @@ MonoBehaviour:
   Nests: 0
   DrawnToLight: 0
   DrivenOff: 1
+  GuardKit: 0
+  GuardArmour: {r: 0.55, g: 0.57, b: 0.6, a: 1}
+  GuardSash: {r: 0.62, g: 0.12, b: 0.1, a: 1}
   FlightHeight: {x: 8, y: 18}
   FlySpeed: 7
   FlapRate: 6
@@ -163,3 +169,11 @@ MonoBehaviour:
   Perching: 0.6
   Soars: 0
   Breaches: 0
+  RaidsHives: 0
+  Calls:
+  - Sound: 27
+    Interval: {x: 20, y: 60}
+    Pitch: {x: 0.85, y: 1}
+    Volume: 0.7
+    Reach: 50
+    When: 0
