@@ -15,6 +15,7 @@ MonoBehaviour:
   Radius: 45
   Scale: {x: 0.85, y: 1.15}
   MaxRelief: 30
+  MinRelief: 0
   Elevation: {x: 8, y: 10000}
   Shape: 3
   Height: 15
@@ -33,6 +34,7 @@ MonoBehaviour:
   WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
   WaterMurk: 0.3
   WaterGlow: 0
+  WaterLava: 0
   Ground: {fileID: 11400000, guid: 1753ba8fc7f960b43a8b3d37e34c11a4, type: 2}
   GroundRadius: 0.5
   ClearRadius: 0.6
@@ -42,11 +44,73 @@ MonoBehaviour:
     Ring: {x: 0.25, y: 1}
     Scale: {x: 1, y: 1}
     Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
   - Species: {fileID: 11400000, guid: 28a71e688d796f14b9919018c61ac083, type: 2}
     Density: 3
     Ring: {x: 0.2, y: 0.8}
     Scale: {x: 1, y: 1}
     Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
+  - Species: {fileID: 11400000, guid: 5e82428cad8439046983bfaee7525949, type: 2}
+    Density: 6
+    Ring: {x: 0, y: 0.7}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
+  - Species: {fileID: 11400000, guid: cc6b38dc8adfa7c4a881ca7387215d6d, type: 2}
+    Density: 6
+    Ring: {x: 0.25, y: 1}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
+  - Species: {fileID: 11400000, guid: 809b8eb141e79db438106d93cf55465a, type: 2}
+    Density: 3
+    Ring: {x: 0.3, y: 1}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
+  - Species: {fileID: 11400000, guid: 729d83d9ce0539d409d25ade5312c14d, type: 2}
+    Density: 4
+    Ring: {x: 0.25, y: 0.9}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
+  - Species: {fileID: 11400000, guid: f331a1997509e4a4595d284791070693, type: 2}
+    Density: 1.5
+    Ring: {x: 0.4, y: 1}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
+  - Species: {fileID: 11400000, guid: 7e4cd2a50ebc33c4e9f0a01ccf3bf193, type: 2}
+    Density: 0.8
+    Ring: {x: 0.5, y: 1}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
   Effects:
   - Kind: 1
     Offset: {x: 0.06, y: 0}
@@ -60,6 +124,8 @@ MonoBehaviour:
     Glow: 0
     Period: 0
     Duty: 0.25
+    Flame: 0
+    NightOnly: 0
   - Kind: 0
     Offset: {x: -0.12, y: 0}
     Height: 5
@@ -72,4 +138,21 @@ MonoBehaviour:
     Glow: 0
     Period: 0
     Duty: 0.25
+    Flame: 0
+    NightOnly: 0
+  Cave: 0
+  CaveLength: 40
+  CaveDepth: 8
+  CaveRadius: 2.4
+  ChamberRadius: 6
+  CaveChambers: 0
+  CaveBranches: 0
+  BranchLength: 30
+  CaveShafts: 0
+  CaveStyles: []
+  Settlement: {fileID: 0}
+  Companions: []
+  CompanionRange: 150
+  OnlyAsCompanion: 0
   Residents: []
+  Anchors: 0

@@ -242,12 +242,23 @@ namespace Punchy.Ambience
                     float top;
                     if (effect.Kind == LandmarkEffectKind.Waterfall)
                     {
-                        // From the lip, out (towards -X) and down to whatever lies below: pool or ground.
+                        // From the lip, out (towards -X) and down to whatever lies below: pool or ground. The lip is
+                        // where the ground first reaches the cliff's top, going in (+X) from the offset, since a rough
+                        // rim can dip where the offset lands and the water then started low down the face (F-48).
                         var outDir = -inst.Facing;
-                        var landing = at + outDir * effect.Height * inst.Scale;
+                        var lipHeight = ground.Height;
+                        var rim = lipHeight;
+                        for (var d = 0.5f; d <= 10f; d += 0.5f)
+                            rim = math.max(rim, source.SampleHeight(at + inst.Facing * d));
+                        for (var d = 0f; d <= 10f && lipHeight < rim - 0.5f; d += 0.5f)
+                        {
+                            lipHeight = source.SampleHeight(at + inst.Facing * d);
+                            emitter.Position.xz = at + inst.Facing * d;
+                        }
+                        var landing = emitter.Position.xz + outDir * effect.Height * inst.Scale;
                         var below = source.SampleGround(landing);
                         var bottom = below.HasWater ? math.max(below.Height, below.WaterSurface) : below.Height;
-                        emitter.Position.y = ground.Height + 0.2f;
+                        emitter.Position.y = lipHeight + 0.2f;
                         emitter.Out = outDir;
                         emitter.Drop = math.max(emitter.Position.y - bottom, 1f);
                         falls.Add(emitter);
