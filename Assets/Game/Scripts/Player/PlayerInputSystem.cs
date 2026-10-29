@@ -16,7 +16,7 @@ namespace Punchy.Player
     [UpdateInGroup(typeof(SimulationSystemGroup), OrderFirst = true)]
     public partial class PlayerInputSystem : SystemBase
     {
-        InputAction move, jump, sprint, walk;
+        InputAction move, jump, sprint, walk, crouch;
         /// <summary>The toggles' state, and how long the player has been standing still (a sprint ends after a moment).</summary>
         bool sprinting, walking;
         float stillFor;
@@ -24,7 +24,7 @@ namespace Punchy.Player
         bool autowalk;
         /// <summary>Tests: walk this way (world XZ) as if the stick were pushed, and sprint, while set.</summary>
         public static float2? TestMove;
-        public static bool TestSprint, TestWalk;
+        public static bool TestSprint, TestWalk, TestCrouch;
         /// <summary>The toggles as they stand (for the readout).</summary>
         public static bool Sprinting, Walking;
         /// <summary>Tests: press jump once (cleared after the frame), and hold it (in flight: climb).</summary>
@@ -49,6 +49,7 @@ namespace Punchy.Player
             jump = actions.FindAction("Player/Jump");
             sprint = actions.FindAction("Player/Sprint");
             walk = actions.FindAction("Player/Walk");
+            crouch = actions.FindAction("Player/Crouch");
             actions.FindActionMap("Player")?.Enable();
         }
 
@@ -118,6 +119,7 @@ namespace Punchy.Player
                 DiveHeld = TestSprint || !typing && sprint != null && sprint.IsPressed(),
                 JumpPressed = TestJump || !typing && jump != null && jump.WasPressedThisFrame(),
                 JumpHeld = TestClimb || !typing && jump != null && jump.IsPressed(),
+                CrouchHeld = TestCrouch || !typing && crouch != null && crouch.IsPressed(),
                 CameraForward = TestMove.HasValue && math.lengthsq(TestMove.Value) > 0f ? math.normalize(TestMove.Value) : cameraForward
             });
             TestJump = false;

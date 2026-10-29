@@ -26,7 +26,11 @@ namespace Punchy.Fauna
         /// <summary>What the player can do right now ("E  pet the cat"), or null.</summary>
         public static string Prompt;
 
-        InputAction interact, attack, move;
+        InputAction interact, attack, move, jump;
+        /// <summary>Sitting or lying (IdleAction.SitDown or Lie) where they are or on a seat, until they move; or None.</summary>
+        IdleAction rest;
+        /// <summary>When the player last moved (for offering to sit only once they've stood still a moment).</summary>
+        double movedAt;
         /// <summary>The emote the player is doing (an IdleAction, Wave to Dance), and when it ends.</summary>
         IdleAction emote;
         double emoteUntil;
@@ -56,6 +60,7 @@ namespace Punchy.Fauna
             interact = InputSystem.actions?.FindAction("Player/Interact");
             attack = InputSystem.actions?.FindAction("Player/Attack");
             move = InputSystem.actions?.FindAction("Player/Move");
+            jump = InputSystem.actions?.FindAction("Player/Jump");
             InteractionPrompt.Ensure();
         }
 
@@ -104,11 +109,27 @@ namespace Punchy.Fauna
 
             var lunging = SystemAPI.Time.ElapsedTime < lungeUntil;
             UpdateEmote(held != Entity.Null || lunging || petting);
-            request.Pose = held != Entity.Null ? IdleAction.Carry : lunging ? IdleAction.Throw : petting ? IdleAction.Pet : emote;
+            // Sitting and lying: up again on moving, jumping, leaving the ground, an emote or an animal in hand.
+            var motion = EntityManager.HasComponent<PlayerMotion>(playerEntity) ? EntityManager.GetComponentData<PlayerMotion>(playerEntity) : default;
+            var moving = move != null && move.ReadValue<Vector2>().sqrMagnitude > 0.1f;
+            var onGround = motion.Grounded && !motion.Flying && motion.Mantle <= 0f;
+            if (moving || !onGround)
+                movedAt = SystemAPI.Time.ElapsedTime;
+            if (rest != IdleAction.None && (moving || !onGround || emote != IdleAction.None || held != Entity.Null || petting ||
+                                            jump != null && jump.WasPressedThisFrame()))
+                rest = IdleAction.None;
+            var terrain = SystemAPI.GetSingleton<Punchy.Terrain.TerrainSource>();
+            var nearSeat = terrain.Anchors.IsCreated && Seats.Nearest(ref terrain.Anchors.Value, player.Position, 1.6f, out _, out _);
+            // (Offered by a seat, or once they've stood still a moment; the button works anywhere on the ground.)
+            var offerRest = onGround && held == Entity.Null && target == Entity.Null &&
+                            (rest != IdleAction.None || nearSeat || SystemAPI.Time.ElapsedTime - movedAt > 1.5);
+            request.Pose = held != Entity.Null ? IdleAction.Carry : lunging ? IdleAction.Throw : petting ? IdleAction.Pet :
+                           emote != IdleAction.None ? emote : rest;
             // Named by the button on whatever was used last (InputGlyphs: E on the keyboard, Y or Triangle on a pad).
             // (The text is only rebuilt when what it says changes, not every frame.)
             var device = InputGlyphs.Version;
-            var promptKey = held != Entity.Null ? (-2, false, device) : target != Entity.Null ? (targetSpecies, targetCarry, device) : (-1, false, device);
+            var promptKey = held != Entity.Null ? (-2, false, device) : target != Entity.Null ? (targetSpecies, targetCarry, device) :
+                            offerRest ? (rest == IdleAction.SitDown ? -4 : rest == IdleAction.LieBack ? -5 : -3, false, device) : (-1, false, device);
             if (promptKey != lastPromptKey)
             {
                 lastPromptKey = promptKey;
@@ -122,6 +143,8 @@ namespace Punchy.Fauna
                     var name = director != null ? director.SpeciesName(targetSpecies) : "animal";
                     lastPrompt = $"{key}  pet the {name}" + (targetCarry ? $"        hold {key}  pick up" : "");
                 }
+                else if (offerRest)
+                    lastPrompt = rest == IdleAction.SitDown ? $"{key}  lie back" : rest == IdleAction.LieBack ? $"{key}  get up" : $"{key}  sit";
                 else
                     lastPrompt = null;
             }
@@ -149,6 +172,21 @@ namespace Punchy.Fauna
                 {
                     Send(ref request, InteractAct.Pet, target);
                     pressUsed = true;
+                }
+                // Nothing to pet or hold: sit down (on the nearest seat, if one's close), then lie back, then get up.
+                if (!pressUsed && interact.WasReleasedThisFrame() && target == Entity.Null && held == Entity.Null && onGround)
+                {
+                    pressUsed = true;
+                    rest = rest == IdleAction.None ? IdleAction.SitDown : rest == IdleAction.SitDown ? IdleAction.LieBack : IdleAction.None;
+                    if (rest == IdleAction.SitDown && terrain.Anchors.IsCreated &&
+                        Seats.Nearest(ref terrain.Anchors.Value, player.Position, 1.6f, out var seat, out var facing))
+                    {
+                        // Onto the seat: stood at its place (the hips go to its height in the posture), facing out.
+                        var t = EntityManager.GetComponentData<LocalTransform>(playerEntity);
+                        t.Position = new float3(seat.x, terrain.SampleHeight(seat.xz), seat.z);
+                        t.Rotation = quaternion.RotateY(math.atan2(facing.x, facing.y));
+                        EntityManager.SetComponentData(playerEntity, t);
+                    }
                 }
             }
             // Attack: a lunge at the animal in front (it bolts; harmless for now). Empty-handed only.

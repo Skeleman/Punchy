@@ -62,6 +62,10 @@ namespace Punchy.Fauna
         public bool Child;
         /// <summary>Drawn and kept about from this far off; 0 = as any other (see CreatureSpecies.SeenFrom).</summary>
         public float SeenFrom;
+        /// <summary>Never moves, and snaps at what comes near (see CreatureSpecies.Rooted).</summary>
+        public bool Rooted;
+        /// <summary>Sits still as a plant until startled (see CreatureSpecies.Disguised).</summary>
+        public bool Disguised;
 
         public BlobArray<CreaturePart> Parts;
         public BlobArray<CreatureSegment> Segments;
@@ -313,7 +317,12 @@ namespace Punchy.Fauna
                              "takes it and reads it, and flies off towards another town.")] Messenger,
         [UnityEngine.Tooltip("A critter: one of the small life round a player (songbirds, owls, woodpeckers, frogs, mice), " +
                              "put at its spot from the seed by FaunaDirector's critter tier, near players only, and run on a " +
-                             "light brain (no needs, no company or prey to look for).")] Critter
+                             "light brain (no needs, no company or prey to look for).")] Critter,
+        [UnityEngine.Tooltip("A hermit, living alone at a hermit's shelter (its Home anchor): chops wood, tends its garden, " +
+                             "fetches water, sits by its door and its fire, sleeps in its shelter at night; wary of anyone " +
+                             "who comes close (watches them, backs off, shoos them).")] Hermit,
+        [UnityEngine.Tooltip("A traveller stopping the night at a roadside camp (its Camp anchor): sits round the fire in the " +
+                             "evening, lies down on a bedroll for the night, and goes on its way in the morning.")] Camper
     }
 
     /// <summary>
@@ -648,6 +657,8 @@ namespace Punchy.Fauna
             root.Hands = species.Parts.Exists(p => p != null && p.Limb != null && p.Limb.Role == LimbRole.Arm);
             root.Child = variant.Child;
             root.SeenFrom = species.SeenFrom * sizeScale;
+            root.Rooted = species.Rooted;
+            root.Disguised = species.Disguised;
             root.Nests = species.Nests;
             root.WebSize = species.WebSize * sizeScale;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));

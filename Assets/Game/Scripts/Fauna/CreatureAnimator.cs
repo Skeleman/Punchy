@@ -1,4 +1,5 @@
 using Punchy.Terrain;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
 
@@ -26,6 +27,14 @@ namespace Punchy.Fauna
     public static class CreatureAnimator
     {
         const int MaxSegments = 128;
+
+        /// <summary>
+        /// The wind as the world draws it (WeatherSystem's _PunchyWind and _PunchyWindDirection) and the shared clock
+        /// (_PunchyClock): x strength 0..1, yz the way it blows, w the clock. Set once a frame by CreatureRenderSystem, for
+        /// hair blowing in it the way the trees and banners do.
+        /// </summary>
+        public static readonly SharedStatic<float4> Wind = SharedStatic<float4>.GetOrCreate<WindKey>();
+        class WindKey { }
 
         /// <param name="detail">Near the camera: the legs fitted to the ground under each foot (the hips lowered on a
         /// slope, each foot reaching for the ground, tipped with it, rolling heel to toe). Further off, where none of
@@ -338,6 +347,24 @@ namespace Punchy.Fauna
                             a += (j == 0 ? new float3(-1.25f, 0f, part.Side * 0.6f) : j == 1 ? new float3(-0.7f, 0f, 0f) : float3.zero) * reach;
                         }
                     }
+                    // One of the folk at a hive: the stick hand up over the head jabbing at the comb, the other half up
+                    // to shield the face; running off with it, that free arm flapping at the bees.
+                    if (b.Upright && part.Role == LimbRole.Arm && s.Mode == CreatureMode.Work && j <= 1)
+                    {
+                        if (s.Stage == RaidAtComb)
+                        {
+                            var jab = math.max(0f, math.sin(s.Clock * 8f));
+                            a = part.Side > 0f ? (j == 0 ? new float3(-2.7f + 0.35f * jab, 0f, 0.15f) : new float3(-0.2f + 0.3f * jab, 0f, 0f))
+                                               : (j == 0 ? new float3(-1.3f, 0f, -0.4f) : new float3(-1.6f, 0f, 0f));
+                        }
+                        else if (s.Stage == RaidLeave && s.StageTime < 12f && part.Side < 0f)
+                        {
+                            var flap = math.sin(s.Clock * 11f);
+                            a = j == 0 ? new float3(-2.3f + 0.6f * flap, 0f, -0.5f + 0.3f * flap) : new float3(-0.6f, 0f, 0f);
+                        }
+                    }
+                    if (b.Upright && part.Role == LimbRole.Head && s.Mode == CreatureMode.Work && s.Stage == RaidAtComb)
+                        a.x -= 0.55f;
                     // A bear reared up at a hive: front legs reaching up the trunk, scraping at it by turns.
                     if (!b.Upright && part.Role == LimbRole.Leg && part.Parent < 0 && part.Socket.z > 0f &&
                         s.Mode == CreatureMode.Work && s.Stage == RaidAtComb && j <= 1)
@@ -366,6 +393,8 @@ namespace Punchy.Fauna
                         a.x += j == 0 ? -0.3f : j == 1 ? -0.55f : 0f;
                     }
                     a += Secondary(ref part, in s, j, run, b.Upright);
+                    if (b.Segments[seg].Hair != 0)
+                        a += HairSway(in s, j, run);
                     a += TaskPose(ref part, in s, j);
                     if (swimming > 0f)
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + SwimPose(ref part, in s, j), swimming);
@@ -621,6 +650,16 @@ namespace Punchy.Fauna
                     if (part.Role == LimbRole.Head) return new float3(0.45f * e, 0f, 0f);
                     if (part.Role == LimbRole.Neck) return new float3(0.3f * e, 0f, 0f);
                     break;
+                case IdleAction.Snap:
+                {
+                    // A rooted snapper striking: the stem (its neck) whips out over what came near and the head bites
+                    // down, quick; then it draws slowly back up. Its jaws (ears) clap shut at the bite.
+                    var strike = math.smoothstep(0f, 0.12f, t) * (1f - math.smoothstep(0.35f, 1f, t));
+                    if (part.Role == LimbRole.Neck) return new float3(1.1f * strike / n, 0f, 0f);
+                    if (part.Role == LimbRole.Head) return new float3(0.5f * strike, 0f, 0f);
+                    if (part.Role == LimbRole.Ear) return new float3(0.7f * strike, 0f, 0f);
+                    break;
+                }
                 case IdleAction.Throw:
                     // A player lunging at game: right arm thrown forward, leaning into it (a body with no arms lunges
                     // head first).
@@ -725,7 +764,9 @@ namespace Punchy.Fauna
                 return float3.zero;
             var right = part.Side > 0f;
             var t = s.Clock + (s.Individual % 100) * 0.13f;
-            switch (s.Task)
+            // (A hermit's chores take a woodcutter's or a tender's pose: its stage says which.)
+            var job = s.Task == CreatureTask.Hermit ? (s.Stage == 2 ? CreatureTask.Tend : CreatureTask.Chop) : s.Task;
+            switch (job)
             {
                 case CreatureTask.Hammer:
                 case CreatureTask.Chop:
@@ -733,10 +774,10 @@ namespace Punchy.Fauna
                 {
                     // Raise slowly, strike fast; a hammer is one-handed (the other hand holds the work), an axe or a
                     // miner's pick two.
-                    var swinging = right || s.Task == CreatureTask.Chop || s.Task == CreatureTask.Mine;
+                    var swinging = right || job == CreatureTask.Chop || s.Task == CreatureTask.Mine;
                     if (!swinging)
                         return new float3(joint == 0 ? -0.7f : -0.7f, 0f, 0f);
-                    var p = math.frac(t * (s.Task == CreatureTask.Chop ? 0.55f : 0.85f));
+                    var p = math.frac(t * (job == CreatureTask.Chop ? 0.55f : 0.85f));
                     var lift = p < 0.7f ? math.smoothstep(0f, 0.7f, p) : 1f - math.smoothstep(0.7f, 0.8f, p);
                     return new float3(joint == 0 ? -(0.45f + 1.8f * lift) : -(0.35f + 0.9f * lift), 0f, 0f);
                 }
@@ -982,6 +1023,27 @@ namespace Punchy.Fauna
                 default:
                     return float3.zero;
             }
+        }
+
+        /// <summary>
+        /// Hair (and beards and manes) in the wind and on the move: blown downwind in gusts that roll across the land
+        /// (the trees' and grass's own formula, on the shared clock, so every machine sees the same), fluttering a little,
+        /// streaming back when running; each joint further down moves more.
+        /// </summary>
+        static float3 HairSway(in CreatureState s, int joint, float run)
+        {
+            var w = Wind.Data;
+            var strength = w.x;
+            var dir = math.normalizesafe(w.yz, new float2(1f, 0f));
+            var phase = w.w * (0.7f + strength * 1.1f) - math.dot(s.Position.xz, dir) * 0.04f + (s.Individual % 628u) * 0.01f;
+            var gust = (0.6f + 0.4f * math.sin(phase) * math.sin(phase * 0.37f + 1.3f)) * (0.08f + 0.92f * strength);
+            // The wind across the body: from in front or behind (pitching the hair back or forward), and from the side.
+            var ahead = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+            var along = math.dot(dir, ahead);
+            var across = dir.x * ahead.y - dir.y * ahead.x;
+            var flutter = math.sin(w.w * 7f + joint * 1.3f + s.Individual * 0.1f) * 0.06f * gust;
+            var more = 1f + joint * 0.5f;
+            return new float3((along * gust * 0.8f + run * 0.35f + flutter) * more, across * gust * 0.8f * more, 0f);
         }
 
         /// <summary>

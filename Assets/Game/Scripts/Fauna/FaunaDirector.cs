@@ -215,6 +215,7 @@ namespace Punchy.Fauna
                 {
                     SpawnResidents(source);
                     SpawnCaveDwellers(source);
+                    SpawnWildFolk(source);
                 }
             }
             using (CrittersMarker.Auto())
@@ -235,6 +236,11 @@ namespace Punchy.Fauna
             {
                 nextMessenger = Time.time + rng.NextFloat(120f, 240f);
                 SpawnMessenger(source);
+            }
+            if (Time.time >= nextHoneyThief)
+            {
+                nextHoneyThief = Time.time + rng.NextFloat(90f, 180f);
+                SpawnHoneyThief(source);
             }
             spawnBudget = math.min(spawnBudget + SpawnRate * players.Count * Time.deltaTime, 3f * players.Count);
             using (WildMarker.Auto())
@@ -539,6 +545,8 @@ namespace Punchy.Fauna
                 Flies = b.Habitat == Habitat.Flies,
                 FlySpeed = b.FlySpeed,
                 Climbs = b.Hands || b.Climbing > 0f || b.Crawls,
+                Swims = b.Habitat == Habitat.Swims,
+                Hovers = b.Haunts,
                 Size = human >= 0 && blobs[human].Value.StandHeight > 0f
                     ? math.clamp(b.StandHeight * size / (blobs[human].Value.StandHeight * (blobs[human].Value.Size.x + blobs[human].Value.Size.y) * 0.5f), 0.25f, 3f)
                     : 1f
@@ -770,6 +778,82 @@ namespace Punchy.Fauna
         static bool Suits(Habitat habitat, float depth) =>
             habitat == Habitat.Swims ? depth >= 0.9f : habitat == Habitat.Floats ? depth >= 0.4f : depth <= 0f;   // fliers start on the ground
 
+        /// <summary>Hermits living at their Home anchors (one each), and travellers stopping at roadside camps (Camp).</summary>
+        readonly Dictionary<int, Entity> hermits = new Dictionary<int, Entity>();
+        readonly Dictionary<int, List<Entity>> campers = new Dictionary<int, List<Entity>>();
+        float nextCamper;
+
+        /// <summary>
+        /// The folk of the wild places near players: a hermit at each hermit's shelter (its Home anchor) within 120 m of
+        /// one, while none lives there; and, from late afternoon, now and then a traveller walking in from the road to a
+        /// roadside camp with a free bedroll, to spend the night there.
+        /// </summary>
+        void SpawnWildFolk(in TerrainSource source)
+        {
+            if (!source.Anchors.IsCreated || simWorld == null)
+                return;
+            var em = simWorld.EntityManager;
+            var hermit = SpeciesIndex("Hermit");
+            if (hermit < 0)
+                hermit = SpeciesIndex("Human");
+            var human = SpeciesIndex("Human");
+            if (human < 0)
+                return;
+            ref var set = ref source.Anchors.Value;
+            var near = new NativeList<int>(8, Allocator.Temp);
+            foreach (var player in players)
+            {
+                near.Clear();
+                Anchors.Near(ref set, player, 120f, AnchorKind.Home, ref near);
+                foreach (var i in near)
+                {
+                    if (hermits.TryGetValue(i, out var lives) && em.Exists(lives))
+                        continue;
+                    var home = set.Anchors[i];
+                    // (Out in front of its shelter, getting on with its day.)
+                    var at = home.Position.xz + home.Facing * 3f;
+                    var e = Spawn(hermit, new float3(at.x, source.SampleHeight(at), at.y));
+                    var st = em.GetComponentData<CreatureState>(e);
+                    st.Task = CreatureTask.Hermit;
+                    st.Home = home.Position.xz;
+                    st.Leash = 35f;
+                    st.Anchor = home.Position;
+                    em.SetComponentData(e, st);
+                    hermits[i] = e;
+                    settledCount++;
+                }
+                // A traveller for a camp: from late afternoon to the small hours, now and then.
+                var hour = Cycle != null ? Cycle.TimeOfDay : 12f;
+                if (Time.time < nextCamper || !(hour >= 16.5f || hour < 2f))
+                    continue;
+                near.Clear();
+                Anchors.Near(ref set, player, 120f, AnchorKind.Camp, ref near);
+                foreach (var i in near)
+                {
+                    if (!campers.TryGetValue(i, out var list))
+                        campers[i] = list = new List<Entity>();
+                    list.RemoveAll(x => !em.Exists(x));
+                    var camp = set.Anchors[i];
+                    if (list.Count >= math.max((int)camp.Capacity, 1))
+                        continue;
+                    nextCamper = Time.time + rng.NextFloat(40f, 90f);
+                    // (Walking in from the way the road lies.)
+                    var at = camp.Position.xz + camp.Facing * 45f + new float2(-camp.Facing.y, camp.Facing.x) * rng.NextFloat(-8f, 8f);
+                    var e = Spawn(human, new float3(at.x, source.SampleHeight(at), at.y));
+                    var st = em.GetComponentData<CreatureState>(e);
+                    st.Task = CreatureTask.Camper;
+                    st.Home = camp.Position.xz;
+                    st.Leash = 60f;
+                    st.Anchor = camp.Position;
+                    em.SetComponentData(e, st);
+                    list.Add(e);
+                    settledCount++;
+                    break;
+                }
+            }
+            near.Dispose();
+        }
+
         void SpawnResidents(in TerrainSource source)
         {
             if (!source.Landmarks.IsCreated)
@@ -838,6 +922,62 @@ namespace Punchy.Fauna
 
         float nextTraveller;
         float nextMessenger = 30f;
+        float nextHoneyThief = 60f;
+        Entity honeyThief;
+
+        /// <summary>
+        /// Now and then by day, a stranger after a wild hive's honey near a player: one of the folk with a stick walks up
+        /// to a hive 25 to 90 m from them, pokes at the comb (the bees boil out round them), grabs a piece and runs off
+        /// with it, the bees after them. One at a time. The brain's hive-raid stages do the rest, as for a bear.
+        /// </summary>
+        void SpawnHoneyThief(in TerrainSource source)
+        {
+            if (simWorld == null || !source.Anchors.IsCreated || (Cycle != null && Cycle.Night > 0.3f))
+                return;
+            var em = simWorld.EntityManager;
+            if (honeyThief != Entity.Null && em.Exists(honeyThief))
+                return;
+            var human = -1;
+            for (int i = 0; i < species.Count; i++)
+                if (species[i] != null && species[i].name == "Human")
+                    human = i;
+            if (human < 0)
+                return;
+            var player = players[rng.NextInt(players.Count)];
+            ref var set = ref source.Anchors.Value;
+            var near = new NativeList<int>(4, Allocator.Temp);
+            Anchors.Near(ref set, player, 90f, AnchorKind.Hive, ref near);
+            var pick = -1;
+            for (int i = 0; i < near.Length; i++)
+            {
+                ref var h = ref set.Anchors[near[i]];
+                if (!h.InCave && math.distance(h.Position.xz, player.xz) > 25f && (pick < 0 || rng.NextBool()))
+                    pick = near[i];
+            }
+            near.Dispose();
+            if (pick < 0)
+                return;
+            var hive = set.Anchors[pick];
+            var trunk = math.max(hive.Size - 1f, 0.1f);
+            // (Coming in from out beyond the hive, where the player can watch them walk up.)
+            var from = hive.Position.xz + math.normalizesafe(hive.Position.xz - player.xz, rng.NextFloat2Direction()) * 25f;
+            for (int tries = 0; tries < 4 && !(source.SampleGround(from) is var g && !(g.HasWater && g.WaterSurface > g.Height)); tries++)
+                from = hive.Position.xz + rng.NextFloat2Direction() * 25f;
+            var e = Spawn(human, new float3(from.x, source.SampleHeight(from), from.y));
+            var state = em.GetComponentData<CreatureState>(e);
+            state.Mode = CreatureMode.Work;
+            state.Stage = CreatureAnimator.RaidWalk;
+            state.StageTime = 0f;
+            state.Focus = hive.Position.xz + hive.Facing * trunk;
+            state.Target = hive.Position.xz + hive.Facing * (trunk + 0.35f);
+            state.Timer = 120f;
+            state.ChaseCooldown = 900f;
+            state.Held = HeldItem.Stick;
+            state.Home = from;
+            state.Leash = 0f;
+            em.SetComponentData(e, state);
+            honeyThief = e;
+        }
 
         /// <summary>
         /// Now and then (every two to four minutes) a messenger bird for a town a player is in: a pigeon high over the
