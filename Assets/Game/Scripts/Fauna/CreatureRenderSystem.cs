@@ -818,8 +818,8 @@ namespace Punchy.Fauna
                     var h = Output[offset + offHand];
                     var grip = h.Position + Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, h.Length * 0.8f));
                     var bucket = new Unity.Mathematics.float4(0.42f, 0.3f, 0.18f, 0f);
-                    Output[at + k++] = Piece(grip - up * 0.32f * scale, up, forward, 0.24f * scale, 0.11f * scale, 0.13f * scale, 1f, bucket, faded, SegmentMaterial.Wood);
-                    Output[at + k++] = Piece(grip - up * 0.1f * scale - right * 0.12f * scale, right, up, 0.24f * scale, 0.008f * scale, 0.008f * scale, 1f, iron, faded, SegmentMaterial.Metal);
+                    Output[at + k++] = Piece(grip - up * 0.27f * scale, up, forward, 0.2f * scale, 0.08f * scale, 0.095f * scale, 1f, bucket, faded, SegmentMaterial.Wood);
+                    Output[at + k++] = Piece(grip - up * 0.08f * scale - right * 0.09f * scale, right, up, 0.18f * scale, 0.007f * scale, 0.007f * scale, 1f, iron, faded, SegmentMaterial.Metal);
                 }
                 k = 2;
 
@@ -832,9 +832,9 @@ namespace Punchy.Fauna
                     var front = Unity.Mathematics.math.normalize(forward - axis * Unity.Mathematics.math.dot(forward, axis));
                     var smith = state.Task == CreatureTask.Hammer;
                     var colour = smith ? new Unity.Mathematics.float4(0.3f, 0.2f, 0.12f, 0f) : new Unity.Mathematics.float4(0.78f, 0.74f, 0.64f, 0f);
-                    var topAt = c.Position + axis * c.Length * 0.75f + front * r * 1.02f;
-                    var length = c.Length * 0.75f + r * 1.6f;
-                    Output[at + k++] = Piece(topAt, -axis, front, length, r * 0.7f, r * 0.8f, 0.08f, colour, faded, smith ? SegmentMaterial.Leather : SegmentMaterial.Cloth);
+                    var topAt = c.Position + axis * c.Length * 0.6f + front * r * 0.9f;
+                    var length = c.Length * 0.6f + r * 1.2f;
+                    Output[at + k++] = Piece(topAt, -axis, front, length, r * 0.5f, r * 0.58f, 0.06f, colour, faded, smith ? SegmentMaterial.Leather : SegmentMaterial.Cloth);
                 }
                 else
                     k++;
@@ -851,7 +851,7 @@ namespace Punchy.Fauna
                     var colour = fisher ? new Unity.Mathematics.float4(0.34f, 0.38f, 0.3f, 0f) : new Unity.Mathematics.float4(0.82f, 0.7f, 0.42f, 0f);
                     var material = fisher ? SegmentMaterial.Cloth : SegmentMaterial.Wood;
                     var brim = (fisher ? 1.6f : 2.1f) * r;
-                    Output[at + k++] = Piece(crown - ax * r * 0.35f, ax, face, 0.01f * scale, brim, brim, 0.06f, colour, faded, material);
+                    Output[at + k++] = Piece(crown - ax * r * 0.3f, face, ax, 0f, brim, brim, 0.07f, colour, faded, material);
                     Output[at + k++] = Piece(crown - ax * r * 0.4f, ax, face, r * (fisher ? 0.55f : 0.7f), r * 1.05f, r * 0.85f, 1f, colour, faded, material);
                 }
             }
