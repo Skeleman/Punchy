@@ -341,6 +341,22 @@ namespace Punchy.Fauna
             return math.saturate(t / 1f) * (1f - math.saturate((t - ScatterTime) / 4f));
         }
 
+        Punchy.Weather.DayNightCycle skyCycle;
+
+        /// <summary>
+        /// Seconds on the shared clock, counting whole days (the day and time of day every machine shares; a paused
+        /// clock, for screenshots, runs on local time), and the hour.
+        /// </summary>
+        double SkyClock(out float hour)
+        {
+            if (skyCycle == null)
+                skyCycle = Object.FindAnyObjectByType<Punchy.Weather.DayNightCycle>();
+            hour = skyCycle != null ? skyCycle.TimeOfDay : 12f;
+            if (skyCycle == null || skyCycle.Paused)
+                return SystemAPI.Time.ElapsedTime;
+            return (skyCycle.Day * 24.0 + skyCycle.TimeOfDay) * skyCycle.DayLengthMinutes * 2.5;
+        }
+
         /// <summary>A spider sitting in its web (only then is the web drawn, and room made for it).</summary>
         static bool InWeb(in CreatureState s) => s.Mode == CreatureMode.Web && s.Stage >= 2 && s.Stage <= 4;
 
@@ -471,6 +487,9 @@ namespace Punchy.Fauna
             // The small life round the listener (AmbientLife: songbirds, owls, crickets, frogs...), drawn only.
             var critters = AmbientLife.Near(World, camAt0);
             total += critters.Count * CritterParts;
+            // Birds high overhead (geese and cranes in a V, soarers on a thermal), drawn only, from the shared clock.
+            var skyClock = SkyClock(out var skyHour);
+            total += GatherSkyBirds(camAt0, skyClock, skyHour, terrain);
 
             // Footprints and feathers (TraceSystem).
             var traces = World.GetExistingSystemManaged<TraceSystem>();
@@ -548,6 +567,7 @@ namespace Punchy.Fauna
             swarmTargets.Dispose();
             foreach (var critter in critters)
                 at = Critter(critter, (float)SystemAPI.Time.ElapsedTime, instances, at);
+            at = WriteSkyBirds(skyClock, instances, at);
             if (traceCount > 0)
                 at = traces.Write(instances, at, (float)SystemAPI.Time.ElapsedTime);
 
