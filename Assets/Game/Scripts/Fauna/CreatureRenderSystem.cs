@@ -1170,7 +1170,7 @@ namespace Punchy.Fauna
                 // The rim: twigs round it, each a little askew (sticks on a treetop more so).
                 var rng = new Unity.Mathematics.Random(state.Individual | 1u);
                 var rimHeight = ground ? r * 0.16f : r * 0.15f;
-                var thick = r * (ground ? 0.075f : top ? 0.16f : 0.18f);
+                var thick = r * (ground ? 0.045f : top ? 0.16f : 0.18f);
                 // Contact darkening: a dark, flat disc a little wider than the nest just under it (the ground in its
                 // shade, or the shadowed underside of a nest in a tree).
                 Output[offset + NestCount - 1] = new SegmentInstance
