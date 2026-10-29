@@ -70,6 +70,15 @@ namespace Punchy.Fauna
                                                held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.SpearDrawn || held == HeldItem.Torch ? GuardParts :
                                                held == HeldItem.Rod ? RodParts : held == HeldItem.Stick || held == HeldItem.Stone ? 1 :
                                                held == HeldItem.Pickaxe || held == HeldItem.OreSack ? MinerParts : held == HeldItem.Staff || held == HeldItem.Letter ? 2 : held == HeldItem.Honey ? 1 : 0;
+        /// <summary>
+        /// Capsules for a worker's gear, from its job alone (already on every machine, nothing more sent): the tool in
+        /// hand while at work (a smith's hammer, a woodcutter's axe, a water-carrier's bucket), and what it wears (an
+        /// apron for smiths and stallholders, a straw hat for those working outdoors, a fisher's hat).
+        /// </summary>
+        const int GearParts = 5;
+        static bool HasGear(CreatureTask task) => task == CreatureTask.Hammer || task == CreatureTask.Chop || task == CreatureTask.Tend ||
+                                                  task == CreatureTask.Gesture || task == CreatureTask.Fish;
+        static int GearCount(CreatureTask task) => HasGear(task) ? GearParts : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 0 : -1;
         /// <summary>Capsules per hanging bat, the most per roost, and how near the camera colonies show.</summary>
@@ -461,7 +470,8 @@ namespace Punchy.Fauna
             {
                 offsets[i] = total;
                 total += bodies[i].SegmentCount + MarkCount + (InWeb(states[i]) ? WebCount : 0) +
-                         LairCount(ref bodies[i].Blob.Value) + (states[i].Task == CreatureTask.Hunt ? 1 : 0) + HeldCount(states[i].Held, states[i].Task);
+                         LairCount(ref bodies[i].Blob.Value) + (states[i].Task == CreatureTask.Hunt ? 1 : 0) + HeldCount(states[i].Held, states[i].Task) +
+                         GearCount(states[i].Task);
                 if (states[i].Mode == CreatureMode.Roost && states[i].Stage == 200)
                     hanging.Add(states[i].Position);
                 // (Bodies of players emoting: their gestures scatter colonies.)
@@ -752,6 +762,98 @@ namespace Punchy.Fauna
                     Letter(state, ref body.Blob.Value, offset, held, faded);
                 else if (state.Held == HeldItem.Honey)
                     Honey(state, ref body.Blob.Value, offset, held, faded);
+                if (HasGear(state.Task))
+                    Gear(state, ref body.Blob.Value, offset, held + HeldCount(state.Held, state.Task), faded);
+            }
+
+            /// <summary>A worker's gear (see GearParts): its tool while at work, and its apron or hat.</summary>
+            void Gear(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
+            {
+                for (int i = 0; i < GearParts; i++)
+                    Output[at + i] = default;
+                if (!b.Upright || !b.Hands)
+                    return;
+                int hand = -1, offHand = -1, head = -1, chest = -1;
+                for (int i = 0; i < b.Parts.Length; i++)
+                {
+                    ref var part = ref b.Parts[i];
+                    if (part.Role == LimbRole.Arm && part.Side > 0f && hand < 0)
+                        hand = part.FirstSegment + part.SegmentCount - 1;
+                    else if (part.Role == LimbRole.Arm && part.Side < 0f && offHand < 0)
+                        offHand = part.FirstSegment + part.SegmentCount - 1;
+                    else if (part.Role == LimbRole.Head && head < 0)
+                        head = part.FirstSegment + part.SegmentCount - 1;
+                    else if (part.Parent < 0 && part.Role != LimbRole.Leg && part.Role != LimbRole.Arm && chest < 0)
+                        chest = part.FirstSegment + part.SegmentCount - 1;
+                }
+                var k = 0;
+                var scale = Unity.Mathematics.math.max(state.Scale, 0.3f);
+                var forward = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
+                var right = new Unity.Mathematics.float3(forward.z, 0f, -forward.x);
+                var up = new Unity.Mathematics.float3(0f, 1f, 0f);
+                var wood = new Unity.Mathematics.float4(0.36f, 0.24f, 0.13f, 0f);
+                var iron = new Unity.Mathematics.float4(0.3f, 0.31f, 0.33f, 0f);
+                var atWork = state.Mode == CreatureMode.Work && state.Stage != 0;
+
+                // The tool in hand, at work: along the hand's own line, so it swings with the arm (TaskPose).
+                if (atWork && hand >= 0 && (state.Task == CreatureTask.Hammer || state.Task == CreatureTask.Chop))
+                {
+                    var h = Output[offset + hand];
+                    var along = Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                    var grip = h.Position + along * h.Length * 0.6f;
+                    // (The haft out of the fist, crossing the hand's line: down from the grip and on beyond it.)
+                    var side = Unity.Mathematics.math.normalize(Unity.Mathematics.math.cross(along, right) + along * 0.2f);
+                    var axe = state.Task == CreatureTask.Chop;
+                    var haft = (axe ? 0.75f : 0.32f) * scale;
+                    var butt = grip - side * haft * 0.15f;
+                    Output[at + k++] = Piece(butt, side, along, haft, 0.016f * scale, 0.02f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                    var top = butt + side * haft;
+                    Output[at + k++] = axe
+                        ? Piece(top - side * 0.12f * scale, along, side, 0.14f * scale, 0.05f * scale, 0.08f * scale, 0.12f, iron, faded, SegmentMaterial.Metal)
+                        : Piece(top - along * 0.06f * scale, along, side, 0.12f * scale, 0.035f * scale, 0.035f * scale, 1f, iron, faded, SegmentMaterial.Metal);
+                }
+                else if (atWork && offHand >= 0 && state.Task == CreatureTask.Tend)
+                {
+                    // A bucket hanging from the other hand.
+                    var h = Output[offset + offHand];
+                    var grip = h.Position + Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, h.Length * 0.8f));
+                    var bucket = new Unity.Mathematics.float4(0.42f, 0.3f, 0.18f, 0f);
+                    Output[at + k++] = Piece(grip - up * 0.32f * scale, up, forward, 0.24f * scale, 0.11f * scale, 0.13f * scale, 1f, bucket, faded, SegmentMaterial.Wood);
+                    Output[at + k++] = Piece(grip - up * 0.1f * scale - right * 0.12f * scale, right, up, 0.24f * scale, 0.008f * scale, 0.008f * scale, 1f, iron, faded, SegmentMaterial.Metal);
+                }
+                k = 2;
+
+                // An apron down the front: smiths (leather) and stallholders (cloth).
+                if (chest >= 0 && (state.Task == CreatureTask.Hammer || state.Task == CreatureTask.Gesture))
+                {
+                    var c = Output[offset + chest];
+                    var axis = Unity.Mathematics.math.mul(c.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                    var r = Unity.Mathematics.math.max(c.RadiusStart, c.RadiusEnd);
+                    var front = Unity.Mathematics.math.normalize(forward - axis * Unity.Mathematics.math.dot(forward, axis));
+                    var smith = state.Task == CreatureTask.Hammer;
+                    var colour = smith ? new Unity.Mathematics.float4(0.3f, 0.2f, 0.12f, 0f) : new Unity.Mathematics.float4(0.78f, 0.74f, 0.64f, 0f);
+                    var topAt = c.Position + axis * c.Length * 0.75f + front * r * 1.02f;
+                    var length = c.Length * 0.75f + r * 1.6f;
+                    Output[at + k++] = Piece(topAt, -axis, front, length, r * 0.7f, r * 0.8f, 0.08f, colour, faded, smith ? SegmentMaterial.Leather : SegmentMaterial.Cloth);
+                }
+                else
+                    k++;
+
+                // A hat: a straw hat, wide-brimmed, for outdoor work; a fisher's floppy one. (Under it, the hair stays.)
+                if (head >= 0 && (state.Task == CreatureTask.Chop || state.Task == CreatureTask.Tend || state.Task == CreatureTask.Fish))
+                {
+                    var h = Output[offset + head];
+                    var ax = Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                    var r = Unity.Mathematics.math.max(h.RadiusStart, h.RadiusEnd);
+                    var crown = h.Position + ax * h.Length;
+                    var face = Unity.Mathematics.math.normalize(forward - ax * Unity.Mathematics.math.dot(forward, ax));
+                    var fisher = state.Task == CreatureTask.Fish;
+                    var colour = fisher ? new Unity.Mathematics.float4(0.34f, 0.38f, 0.3f, 0f) : new Unity.Mathematics.float4(0.82f, 0.7f, 0.42f, 0f);
+                    var material = fisher ? SegmentMaterial.Cloth : SegmentMaterial.Wood;
+                    var brim = (fisher ? 1.6f : 2.1f) * r;
+                    Output[at + k++] = Piece(crown - ax * r * 0.35f, ax, face, 0.01f * scale, brim, brim, 0.06f, colour, faded, material);
+                    Output[at + k++] = Piece(crown - ax * r * 0.4f, ax, face, r * (fisher ? 0.55f : 0.7f), r * 1.05f, r * 0.85f, 1f, colour, faded, material);
+                }
             }
 
             /// <summary>
