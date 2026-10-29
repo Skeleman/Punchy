@@ -2303,6 +2303,9 @@ namespace Punchy.Flora
             g.Height = height;
             g.Width = radius * 2.5f;
             g.TrunkRadius = radius;
+            // Collision only up to the eaves (the trunk cylinder would reach the roof's peak and push anyone on the roof
+            // off it, F-36); the roof itself is stood on through its support grid.
+            g.Colliders.Add(new Vector4(0f, 0f, radius, wall));
             var sides = g.Sides(14, 10, 7);
 
             // Walls, slightly bulging, sunk a little into the ground.
@@ -2794,6 +2797,9 @@ namespace Punchy.Flora
             g.Height = height;
             g.Width = radius * 3f;
             g.TrunkRadius = radius;
+            // Collision only up to the eaves (the trunk cylinder would reach the roof's peak and push anyone on the roof
+            // off it, F-36); the roof itself is stood on through its support grid.
+            g.Colliders.Add(new Vector4(0f, 0f, radius, walls));
             var sides = g.Sides(12, 8, 6);
 
             // Walls taper gently, flaring at the foot like a root.
@@ -2951,6 +2957,9 @@ namespace Punchy.Flora
             g.Height = height;
             g.Width = half * 2.8f;
             g.TrunkRadius = half * 0.9f;
+            // Collision only up to the eaves (the trunk cylinder would reach the roof's peak and push anyone on the roof
+            // off it, F-36); the roof itself is stood on through its support grid.
+            g.Colliders.Add(new Vector4(0f, 0f, half * 0.9f, wall));
 
             // Walls, with a timber band between the storeys and dark corner posts.
             var first = b.VertexCount;
