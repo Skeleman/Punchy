@@ -825,7 +825,7 @@ namespace Punchy.Fauna
                     var top = butt + side * haft;
                     Output[at + k++] = axe
                         ? Piece(top - side * 0.12f * scale, along, side, 0.14f * scale, 0.05f * scale, 0.08f * scale, 0.12f, iron, faded, SegmentMaterial.Metal)
-                        : Piece(top - along * 0.06f * scale, along, side, 0.12f * scale, 0.035f * scale, 0.035f * scale, 1f, iron, faded, SegmentMaterial.Metal);
+                        : Piece(top - along * 0.045f * scale, along, side, 0.09f * scale, 0.024f * scale, 0.024f * scale, 1f, iron, faded, SegmentMaterial.Metal);
                 }
                 else if (atWork && offHand >= 0 && state.Task == CreatureTask.Tend)
                 {
@@ -846,10 +846,10 @@ namespace Punchy.Fauna
                     var r = Unity.Mathematics.math.max(c.RadiusStart, c.RadiusEnd);
                     var front = Unity.Mathematics.math.normalize(forward - axis * Unity.Mathematics.math.dot(forward, axis));
                     var smith = state.Task == CreatureTask.Hammer;
-                    var colour = smith ? new Unity.Mathematics.float4(0.3f, 0.2f, 0.12f, 0f) : new Unity.Mathematics.float4(0.78f, 0.74f, 0.64f, 0f);
-                    var topAt = c.Position + axis * c.Length * 0.6f + front * r * 0.9f;
+                    var colour = smith ? new Unity.Mathematics.float4(0.14f, 0.085f, 0.05f, 0f) : new Unity.Mathematics.float4(0.62f, 0.58f, 0.5f, 0f);
+                    var topAt = c.Position + axis * c.Length * 0.55f + front * r * 0.72f;
                     var length = c.Length * 0.6f + r * 1.2f;
-                    Output[at + k++] = Piece(topAt, -axis, front, length, r * 0.5f, r * 0.58f, 0.06f, colour, faded, smith ? SegmentMaterial.Leather : SegmentMaterial.Cloth);
+                    Output[at + k++] = Piece(topAt, -axis, front, length, r * 0.62f, r * 0.7f, 0.035f, colour, faded, smith ? SegmentMaterial.Leather : SegmentMaterial.Cloth);
                 }
                 else
                     k++;
