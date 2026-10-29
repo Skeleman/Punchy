@@ -32,7 +32,7 @@ dialogs() { # windows that can stall a run (Defender, firewall): listed in the r
 
 build() { # commit Build|BuildDev outdir: archived per commit (A/Bs copy it into the fixed path to run)
   local c=$1 m=$2 out=$3
-  [ -f "$P/Builds/$out/Punchy.exe" ] && [ -f "$P/Builds/$out/.bench-$c" ] && return 0
+  [ -f "$P/Builds/$out/Punchy.exe" ] && [ -f "$P/Builds/$out/.bench2-$c" ] && return 0
   strays >/dev/null
   git -C "$P" fetch -q origin 2>/dev/null
   ( cd "$P" && git checkout -q --detach $c && [ "$(git rev-parse --short=7 HEAD)" = "$c" ] ) || { log "checkout $c failed"; return 1; }
@@ -52,8 +52,15 @@ build() { # commit Build|BuildDev outdir: archived per commit (A/Bs copy it into
   local res=$(grep -E 'BProfile build|error CS' "$R/build-$out.log" | head -3 | tr '\n' ' ')
   [ $rc -eq 124 ] && res="TIMED OUT $res"
   log "  rc=$rc $res"
-  echo "$res" | grep -q Succeeded && touch "$P/Builds/$out/.bench-$c" && return 0
+  echo "$res" | grep -q Succeeded && touch "$P/Builds/$out/.bench2-$c" && return 0
   return 1
+}
+
+screen() { # outdir w h: the test window, only for a build with the PunchyBench identity (BProfileTools.BenchIdentity).
+            # Unity saves -screen-* flags as player prefs, so on the real game's build they would end up in Zach's settings
+            # (F-01); an older build runs at whatever its prefs hold, and the log says so.
+  if tail -n 1 "$P/Builds/$1/Punchy_Data/app.info" 2>/dev/null | grep -qx PunchyBench; then echo "-screen-fullscreen 0 -screen-width $2 -screen-height $3"
+  else log "  $1 isn't a PunchyBench build: no -screen-* flags, so it runs at its saved window size (not comparable)" >&2; fi
 }
 
 fixed() { # outdir: copy an archived build into the one path games run from (rule 14)
@@ -66,8 +73,7 @@ run() { # outdir tag args...: one bench game; its log is results/q-<tag>.log
   [ -f "$P/Builds/$out/Punchy.exe" ] || { log "$tag: no build $out"; return 1; }
   fixed $out || { log "$tag: copy to Builds/Bench failed"; return 1; }
   cool
-  # no -screen-* flags: Unity saves them as the player's own preferences (F-01: Zach's game started windowed)
-  ( cd "$P/Builds/Bench" && timeout 900 ./Punchy.exe -logFile "$W/q-$tag.log" -benchroute -weatherseed 4 -time 12 "$@" >/dev/null 2>&1 )
+  ( cd "$P/Builds/Bench" && timeout 900 ./Punchy.exe -logFile "$W/q-$tag.log" -benchroute -weatherseed 4 -time 12 $(screen Bench 1280 720) "$@" >/dev/null 2>&1 )
   [ $? -eq 124 ] && log "$tag: TIMED OUT (dialogs: $(dialogs))"
   strays >/dev/null
   return 0
@@ -222,7 +228,7 @@ mpsmoke() { # outdir commit: the host's numbers alone vs with a client on this m
     local hostlog="$R/q-mp-$c-joined-c60-$r.log"; rm -f "$hostlog"
     ( for i in $(seq 1 120); do
         if grep -q "BenchRoute: world ready" "$hostlog" 2>/dev/null; then
-          cd "$P/Builds/Bench" && timeout 900 ./Punchy.exe -logFile "$W/q-mp-$c-client-$r.log" -benchclient -join 127.0.0.1 -autowalk -fpscap 20 -nohud >/dev/null 2>&1
+          cd "$P/Builds/Bench" && timeout 900 ./Punchy.exe -logFile "$W/q-mp-$c-client-$r.log" -benchclient -join 127.0.0.1 -autowalk -fpscap 20 -nohud $(screen Bench 480 270) >/dev/null 2>&1
           exit 0
         fi
         wait_s 1

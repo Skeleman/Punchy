@@ -14,14 +14,20 @@ public static class BProfileTools
     public static void Build()
     {
         PlayerSettings.enableFrameTimingStats = true;
+        BenchIdentity();
         var scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
         var r = BuildPipeline.BuildPlayer(scenes, Arg("-out", "Builds/Bench/Punchy.exe"), BuildTarget.StandaloneWindows64, BuildOptions.None);
         Debug.Log("BProfile build: " + r.summary.result);
         EditorApplication.Exit(r.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 1);
     }
 
+    // Bench builds get their own product name, so the -screen-* flags the runner passes are saved in PunchyBench's
+    // player prefs, never the real game's (Zach plays fullscreen). The runner reverts ProjectSettings after the build.
+    static void BenchIdentity() => PlayerSettings.productName = "PunchyBench";
+
     public static void BuildDev()
     {
+        BenchIdentity();
         var scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
         var r = BuildPipeline.BuildPlayer(scenes, Arg("-out", "Builds/Profile/Punchy.exe"), BuildTarget.StandaloneWindows64, BuildOptions.Development);
         Debug.Log("BProfile build: " + r.summary.result);

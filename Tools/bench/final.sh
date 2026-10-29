@@ -22,7 +22,7 @@ for cap in 60 0 30; do for i in 1 2; do
 done; done
 fixed Bench-$c
 look() { local n=$1; shift; mkdir -p "$R/fin-$n"; cool
-  ( cd $P/Builds/Bench && timeout 600 ./Punchy.exe -logFile "$W/q-fin-$n.log" -benchroute -weatherseed 4 -time 12 -fpscap 0 -benchshots "$W/fin-$n" "$@" >/dev/null 2>&1 )
+  ( cd $P/Builds/Bench && timeout 600 ./Punchy.exe -logFile "$W/q-fin-$n.log" -benchroute -weatherseed 4 -time 12 -fpscap 0 -benchshots "$W/fin-$n" "$@" $(screen Bench 1280 720) >/dev/null 2>&1 )
   echo "look $n exit=$? api=$(grep -m1 -oE 'Direct3D 1[12]' $R/q-fin-$n.log) invalid=$(grep -c 'Invalid combination' $R/q-fin-$n.log) exc=$(grep -c Exception $R/q-fin-$n.log)"
   strays >/dev/null; }
 look day -benchstops town,cave,lake,river
