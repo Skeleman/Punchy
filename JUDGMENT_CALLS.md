@@ -314,3 +314,11 @@ asks Zach if needed, and records the answer here.
   change is parked uncompiled on a local WIP branch.
 - **Answer:** pending (morning).
 - **Revisited:** 0.
+
+### J-036: Ship v0.8.0 with the glide and town-GPU regressions?
+
+- **Asked:** 2026-10-29 ~04:00, by kind-possum (RC 24e58f8 report). Decided by the supervisor overnight under J-006.
+- **Answer:** no, held. Glide 1% low 10-12 vs ~30 (v0.7.0) and uncapped town GPU 14.9 vs 8.5 ms are big and
+  repeatable, which J-006 says to hold for. kind-possum profiles glide and bisects both; fixes go on rc/v0.8.0.
+  Zach can overrule in the morning.
+- **Revisited:** 0.
