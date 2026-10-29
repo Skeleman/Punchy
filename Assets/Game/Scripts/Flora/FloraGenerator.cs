@@ -81,6 +81,7 @@ namespace Punchy.Flora
                     case FloraForm.Stump: Stump(g); break;
                     case FloraForm.FirePit: FirePit(g); break;
                     case FloraForm.HiveTree: Broadleaf(g); Hive(g); break;
+                    case FloraForm.IceArch: IceArch(g); break;
                     case FloraForm.Bones: Bones(g); break;
                     case FloraForm.Boulder: Boulder(g); break;
                     case FloraForm.Spire: Spire(g); break;
@@ -1370,6 +1371,60 @@ namespace Punchy.Flora
                 b.Blob(mouth, new Vector3(size * 0.16f, size * 0.1f, size * 0.16f), Quaternion.identity, 0, 0f, 0f,
                        new Color(0.03f, 0.025f, 0.02f), FloraPart.Bark);
             }
+        }
+
+        /// <summary>
+        /// A glacier ice arch facing +Z: a bow of ice from one foot to the other along X, thick and splayed at the feet,
+        /// thinner over the top, its thickness and line broken up ring by ring so it reads as carved by melt rather
+        /// than turned, with icicles under the crown. Drawn as glass (clear ice) when the species' finish is Glass, else as
+        /// rock in its colour. The legs carry colliders, so the way under it stays open.
+        /// </summary>
+        static void IceArch(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var half = height * Mathf.Max(s.Spread, 0.5f) * 0.5f;
+            var leg = height * Mathf.Max(s.Thickness, 0.05f);
+            g.Height = height;
+            g.Width = half * 2f + leg * 2f;
+            g.TrunkRadius = 0f;
+            var part = s.Finish == FoliageFinish.Glass ? FloraPart.Glass : FloraPart.Bark;
+            var lean = g.Range(-0.12f, 0.12f) * half;
+            var rings = g.Lod == 0 ? 18 : g.Lod == 1 ? 11 : 7;
+            var sides = g.Sides(9, 7, 5);
+            var path = new List<Vector3>();
+            var radii = new List<float>();
+            for (int i = 0; i <= rings; i++)
+            {
+                var t = i / (float)rings;
+                var a = t * Mathf.PI;
+                // A half ellipse from foot to foot (feet a little below the ground), leaning slightly one way.
+                var p = new Vector3(-Mathf.Cos(a) * half, Mathf.Sin(a) * height - 0.3f, Mathf.Sin(a) * lean);
+                p += new Vector3(g.Range(-0.08f, 0.08f), g.Range(-0.06f, 0.06f), g.Range(-0.1f, 0.1f)) * leg;
+                path.Add(p);
+                var thick = Mathf.Lerp(1f, 0.55f, Mathf.Sin(a));
+                radii.Add(leg * thick * (i == 0 || i == rings ? 1.35f : 1f) * g.Range(0.88f, 1.1f));
+            }
+            var first = b.VertexCount;
+            b.Tube(path, radii, sides, g.FoliageColor(), part);
+            // Darker underneath, where the bow shades itself.
+            b.Occlude(first, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y * 0.5f + 0.6f)));
+            if (g.Lod < 2)
+            {
+                // Icicles under the crown.
+                for (int k = 0; k < 6; k++)
+                {
+                    var t = g.Range(0.3f, 0.7f);
+                    var a = t * Mathf.PI;
+                    var top = new Vector3(-Mathf.Cos(a) * half, Mathf.Sin(a) * height - 0.3f - leg * 0.45f, Mathf.Sin(a) * lean);
+                    var length = leg * g.Range(0.8f, 2.2f);
+                    b.Tube(new List<Vector3> { top, top + Vector3.down * length }, new List<float> { leg * 0.16f, leg * 0.02f },
+                           g.Sides(5, 4, 3), g.FoliageColor(), part);
+                }
+            }
+            foreach (var x in new[] { -half, half })
+                g.Colliders.Add(new Vector4(x, 0f, leg * 1.3f, height * 0.4f));
         }
 
         static void Bones(Grower g)

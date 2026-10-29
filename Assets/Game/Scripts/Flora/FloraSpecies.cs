@@ -90,7 +90,9 @@ namespace Punchy.Flora
                  "light the ground). The flames themselves are the landmark's Flame effect.")] FirePit,
         [Tooltip("A broadleaf tree (as BroadleafTree) with a wild bees' comb hanging from its trunk under the crown, at " +
                  "HiveHeight of the trunk (first accent the comb's colour). Use one variant so the comb's height is " +
-                 "known; Bee Tree landmarks put a Hive anchor round it.")] HiveTree
+                 "known; Bee Tree landmarks put a Hive anchor round it.")] HiveTree,
+        [Tooltip("A glacier ice arch: a jagged bow of ice from two feet (Height its height, Spread its span over height, " +
+                 "Thickness the legs' radius over height), in Foliage; Finish Glass draws it as clear ice. Walk under it.")] IceArch
     }
 
     public enum FoliageFinish : byte

@@ -103,16 +103,21 @@ MonoBehaviour:
   Particles:
   - Type: {fileID: 11400000, guid: 27a1ceebb4c0878498b62c3d35774e37, type: 2}
     Density: 1.5
-  Flora: []
+  Flora:
+  - Species: {fileID: 11400000, guid: c1e1acfeb6f61d04599b0b0cfecb6ad8, type: 2}
+    Density: 0.008
   Habitability: 0
   Cultures: 0
   Landmarks:
   - Type: {fileID: 11400000, guid: 0f21af3c3ff261a4090accd0165cce42, type: 2}
     Density: 0.5
+    PerRealm: 1
   - Type: {fileID: 11400000, guid: 51c63ce05e3feab468de0aaaefef529a, type: 2}
     Density: 0.8
+    PerRealm: 1
   - Type: {fileID: 11400000, guid: bcab05481a0b9b24998783c2371beb08, type: 2}
     Density: 0.25
+    PerRealm: 1
   Fauna:
   - Species: {fileID: 11400000, guid: 95c27f9bad710144ab7e6bee8a1e05e6, type: 2}
     Density: 0.4
