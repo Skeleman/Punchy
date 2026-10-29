@@ -49,8 +49,18 @@ namespace Punchy.Terrain
             return list;
         }
 
-        public static BlobAssetReference<SettlementSetBlob> Build(in TerrainSource source, IReadOnlyList<LandmarkType> types, Allocator allocator)
+        public static BlobAssetReference<SettlementSetBlob> Build(in TerrainSource source, IReadOnlyList<LandmarkType> types, Allocator allocator) =>
+            Build(source, types, null, out _, allocator);
+
+        /// <summary>
+        /// The settlements, their roads, and the roadside landmarks along them (<paramref name="roadsideLandmarks"/>, for
+        /// the caller to append to the landmark set: see RoadsideBaking).
+        /// </summary>
+        public static BlobAssetReference<SettlementSetBlob> Build(in TerrainSource source, IReadOnlyList<LandmarkType> types,
+                                                                   IReadOnlyList<RoadsideLandmark> roadside,
+                                                                   out List<LandmarkInstance> roadsideLandmarks, Allocator allocator)
         {
+            roadsideLandmarks = new List<LandmarkInstance>();
             var layouts = Layouts(types);
             if (layouts.Count == 0 || !source.Landmarks.IsCreated)
                 return default;
@@ -76,7 +86,9 @@ namespace Punchy.Terrain
                 new Planner(source, type, type.Settlement, inst, i, settlements.Count, firstBuilding[index], streets, plots)
                     .Lay(index, settlements);
             }
-            RoadBaking.Build(source, layouts, firstBuilding, settlements, streets, plots);
+            var roads = new List<RoadsideBaking.RoadPath>();
+            RoadBaking.Build(source, layouts, firstBuilding, settlements, streets, plots, roads);
+            roadsideLandmarks = RoadsideBaking.Place(source, types, roadside, roads, settlements, streets);
             return BuildBlob(layouts, firstBuilding, settlements, streets, plots, allocator);
         }
 

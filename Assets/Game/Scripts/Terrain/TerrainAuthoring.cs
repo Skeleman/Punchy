@@ -53,6 +53,9 @@ namespace Punchy.Terrain
         [Header("Landmarks")]
         [Tooltip("Landmarks placed by hand. Biomes also scatter their own (see each biome's Landmarks).")]
         public List<PlacedLandmark> PlacedLandmarks = new List<PlacedLandmark>();
+        [Tooltip("Landmarks that stand beside the roads between settlements (inns, shrines, campsites), placed once the " +
+                 "roads are routed.")]
+        public List<RoadsideLandmark> Roadside = new List<RoadsideLandmark>();
 
         [Header("Heights")]
         [FormerlySerializedAs("Source")]
@@ -73,7 +76,15 @@ namespace Punchy.Terrain
         public List<BiomeDefinition> Palette() => BiomeBaking.Palette(Biomes, OceanBiome);
 
         /// <summary>All landmark types in use, in the landmark blob's order.</summary>
-        public List<LandmarkType> LandmarkTypes() => LandmarkBaking.Types(Palette(), PlacedLandmarks);
+        public List<LandmarkType> LandmarkTypes()
+        {
+            var types = LandmarkBaking.Types(Palette(), PlacedLandmarks);
+            // Roadside types after the rest, so adding one doesn't move the others' indices.
+            foreach (var r in Roadside)
+                if (r.Type != null && !types.Contains(r.Type))
+                    types.Add(r.Type);
+            return types;
+        }
 
         /// <summary>
         /// Builds the runtime TerrainSource (and its blobs) from these settings. Shared by the baker and the
@@ -110,7 +121,15 @@ namespace Punchy.Terrain
             if (palette.Count > 0)
                 source.Landmarks = LandmarkBaking.Build(source, palette, LandmarkTypes(), PlacedLandmarks, allocator);
             if (source.Landmarks.IsCreated)
-                source.Settlements = SettlementBaking.Build(source, LandmarkTypes(), allocator);
+            {
+                source.Settlements = SettlementBaking.Build(source, LandmarkTypes(), Roadside, out var roadside, allocator);
+                if (roadside.Count > 0)
+                {
+                    var before = source.Landmarks;
+                    source.Landmarks = LandmarkBaking.Append(before, LandmarkTypes(), roadside, allocator);
+                    before.Dispose();
+                }
+            }
             if (source.Landmarks.IsCreated)
                 source.Caves = CaveBaking.Build(source, palette, LandmarkTypes(), allocator);
             source.Anchors = AnchorBaking.Build(source, LandmarkTypes(), allocator);

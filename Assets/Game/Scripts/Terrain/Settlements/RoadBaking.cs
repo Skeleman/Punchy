@@ -43,16 +43,16 @@ namespace Punchy.Terrain
         /// <paramref name="plots"/> (both appended after every settlement's own).
         /// </summary>
         public static void Build(in TerrainSource source, List<SettlementLayout> layouts, List<int> firstBuilding, List<SettlementData> settlements,
-                                 List<SettlementStreet> streets, List<SettlementPlot> plots)
+                                 List<SettlementStreet> streets, List<SettlementPlot> plots, List<RoadsideBaking.RoadPath> roads = null)
         {
             if (settlements.Count == 0)
                 return;
-            Roads(source, layouts, firstBuilding, settlements, streets, plots);
+            Roads(source, layouts, firstBuilding, settlements, streets, plots, roads);
             Palisades(source, layouts, firstBuilding, settlements, streets, plots);
         }
 
         static void Roads(in TerrainSource source, List<SettlementLayout> layouts, List<int> firstBuilding, List<SettlementData> settlements,
-                          List<SettlementStreet> streets, List<SettlementPlot> plots)
+                          List<SettlementStreet> streets, List<SettlementPlot> plots, List<RoadsideBaking.RoadPath> roads)
         {
             var ends = new List<End>();
             foreach (var s in settlements)
@@ -127,6 +127,9 @@ namespace Punchy.Terrain
                 path = Smooth(Smooth(path));
                 var layout = layouts[settlements[settlement].Layout];
                 Emit(source, path, layout.RoadWidth * settlements[settlement].Scale, settlement, settlements, streets);
+                // Roads between settlements (not the spurs to caves) carry roadside landmarks.
+                if (toTown)
+                    roads?.Add(new RoadsideBaking.RoadPath { Points = path, Width = layout.RoadWidth * settlements[settlement].Scale, Settlement = settlement });
                 AddBridges(source, path, settlement, settlements, layouts, firstBuilding, plots);
                 // Signposts where the road leaves each settlement it joins.
                 AddSignpost(source, path, settlement, settlements, layouts, firstBuilding, plots, false);

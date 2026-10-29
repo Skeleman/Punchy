@@ -1,0 +1,54 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a5407ac3b5877da49af18e077398168c, type: 3}
+  m_Name: BurntCampfire
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.LandmarkType
+  Radius: 5
+  Scale: {x: 1, y: 1}
+  MaxRelief: 3
+  Elevation: {x: 3, y: 10000}
+  Shape: 0
+  Height: 0
+  ShapeRadius: 0.7
+  Edge: 0.2
+  Flatten: 0.6
+  Roughness: 0
+  Pools: []
+  OverrideWater: 0
+  WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
+  WaterMurk: 0.3
+  WaterGlow: 0
+  Ground: {fileID: 0}
+  GroundRadius: 0.6
+  ClearRadius: 0.7
+  Props:
+  - Species: {fileID: 11400000, guid: 06aca0787121485caecb8d996be1024d, type: 2}
+    Density: 0
+    Ring: {x: 0, y: 1}
+    Scale: {x: 0.8, y: 0.8}
+    Centrepiece: 1
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 3
+  - Species: {fileID: 11400000, guid: bb680d1260298604d98103ae46a2b5bc, type: 2}
+    Density: 0
+    Ring: {x: 0.45, y: 0.45}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: 160
+    Clearance: 1
+  Effects: []
+  Residents: []
+  Anchors: 0
