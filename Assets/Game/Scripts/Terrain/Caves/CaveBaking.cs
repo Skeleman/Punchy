@@ -80,8 +80,20 @@ namespace Punchy.Terrain
                     return nodes.Count - 1;
                 }
                 void Join(int a, int b) => segments.Add(new CaveSegment { A = a, B = b, Cave = cave });
-                // Highest a node's centre may be at a spot: its top (the passage's height there) under the cover.
-                float Ceiling(float2 xz, float nodeRadius) => terrain.SampleHeight(xz) - nodeRadius * profile.y - Cover;
+                // Highest a node's centre may be at a spot: its top (the passage's height there) under the cover, below
+                // the lowest ground round it out to half way to the next node, so a passage running under a canyon's edge
+                // or a valley between nodes doesn't break the surface there (F-31: torn holes in a mesa wall).
+                float Ceiling(float2 xz, float nodeRadius)
+                {
+                    var ground = terrain.SampleHeight(xz);
+                    var ring = nodeRadius * profile.x + NodeSpacing * 0.5f;
+                    for (int k = 0; k < 8; k++)
+                    {
+                        var a = k * math.PI / 4f;
+                        ground = math.min(ground, terrain.SampleHeight(xz + new float2(math.cos(a), math.sin(a)) * ring));
+                    }
+                    return ground - nodeRadius * profile.y - Cover;
+                }
 
                 // The entrance: starting just outside the face, so the passage cuts cleanly into it.
                 var start = inst.Position - forward * (radius * type.Edge * 0.5f + r * 0.6f);
