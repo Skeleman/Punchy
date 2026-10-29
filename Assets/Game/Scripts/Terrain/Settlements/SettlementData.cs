@@ -134,7 +134,7 @@ namespace Punchy.Terrain
             {
                 ref var p = ref set.Plots[set.PlotItems[k]];
                 // Bridges and palisades stand on the ground as it is.
-                if (p.Role == PlotRole.Bridge || p.Role == PlotRole.Palisade || math.any(xz < p.Min) || math.any(xz > p.Max))
+                if (p.Role == PlotRole.Bridge || p.Role == PlotRole.Palisade || p.Role == PlotRole.Fence || math.any(xz < p.Min) || math.any(xz > p.Max))
                     continue;
                 var w = 1f - math.smoothstep(0f, PadBlend, Outside(p, xz));
                 if (w > 0f)

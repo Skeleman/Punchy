@@ -33,6 +33,7 @@ MonoBehaviour:
   Signpost: {fileID: 11400000, guid: 4b43cc542a9e3e446a95fb86645732a1, type: 2}
   Bridge: {fileID: 11400000, guid: 6fd3b583e4717e64ea5a0270c7ea34e4, type: 2}
   PalisadeWall: {fileID: 0}
+  RoadFence: {fileID: 11400000, guid: 0c9fac41af0a48138bc7ba0cdef97775, type: 2}
   Buildings:
   - Role: 0
     Species: {fileID: 11400000, guid: 0f3f75139a798b8428c4a8d150f31958, type: 2}

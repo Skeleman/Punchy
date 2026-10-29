@@ -393,7 +393,7 @@ namespace Punchy.Flora
             FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tent or FloraForm.Tower or FloraForm.Stall or FloraForm.Inn or
             FloraForm.Smithy or FloraForm.Forum or FloraForm.Fountain or FloraForm.Woodpile or FloraForm.Well or
             FloraForm.Hall or FloraForm.Shrine or FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade or
-            FloraForm.Bench or FloraForm.Log or FloraForm.Stump or FloraForm.FirePit or FloraForm.Ruin => true,
+            FloraForm.Bench or FloraForm.Log or FloraForm.Stump or FloraForm.FirePit or FloraForm.Ruin or FloraForm.RailFence => true,
             _ => false
         };
 
@@ -402,7 +402,7 @@ namespace Punchy.Flora
         {
             FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tower or FloraForm.Inn or FloraForm.Smithy or FloraForm.Well or
             FloraForm.Hall or FloraForm.Shrine or FloraForm.Garden or FloraForm.Pen or FloraForm.Signpost or FloraForm.Palisade or
-            FloraForm.Ruin => true,
+            FloraForm.Ruin or FloraForm.RailFence => true,
             _ => false
         };
 
@@ -747,8 +747,9 @@ namespace Punchy.Flora
                         {
                             Position = new float3(plot.Centre.x, bridge ? plot.Pad : FloorHeight(source, plot), plot.Centre.y),
                             Yaw = math.atan2(-plot.Facing.x, plot.Facing.y),
-                            // Sized for its folk (the layout's BuildingScale: ogre tents bigger, goblin huts smaller).
-                            Scale = bridge ? 1f : rng.NextFloat(0.95f, 1.05f) * towns.Layouts[towns.Settlements[plot.Settlement].Layout].BuildingScale,
+                            // Sized for its folk (the layout's BuildingScale: ogre tents bigger, goblin huts smaller); bridge
+                            // spans and fence lengths at their own size, so they meet end to end.
+                            Scale = bridge || plot.Role == PlotRole.Fence ? 1f : rng.NextFloat(0.95f, 1.05f) * towns.Layouts[towns.Settlements[plot.Settlement].Layout].BuildingScale,
                             Model = buildingRule.FirstModel + rng.NextInt(buildingRule.Variants),
                             Random = rng.NextFloat(),
                             Ground = bridge ? 0u : DirtColor(source, buildingRule, plot.Centre, math.cmax(plot.Half), 0.9f)

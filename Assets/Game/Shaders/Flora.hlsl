@@ -150,15 +150,17 @@ FloraVertex FloraTransform(FloraAttributes input)
         float2 move = _PunchyWindDirection * (sin(t) * 0.7 + _PunchyWind * 0.5) + side * sin(t * 0.63 + 1.7) * 0.5;
         p.xz += move * swing;
     }
+    // Breaths and twitches settle beyond 60-100 m, where they're too small to see.
     else if (input.data.z < -1.5)
     {
-        float size = (-input.data.z - 2) * plant.scale;
+        float size = (-input.data.z - 2) * plant.scale * (1 - smoothstep(60, 100, distance(plant.position, GetCameraPositionWS())));
         float beat = frac(_PunchyClock * 0.23 + plant.random * 7.1 + input.positionOS.x * 0.37);
         float jerk = beat < 0.06 ? sin(beat / 0.06 * 18.85) : 0;
         p += float3(sin(plant.random * 40 + input.positionOS.z), 0, cos(plant.random * 40 + input.positionOS.x)) * jerk * size;
     }
     else if (input.data.z < 0)
-        p += n * (-input.data.z) * plant.scale * (0.5 + 0.5 * sin(_PunchyClock * 1.571 + plant.random * 6.28));   // a 4 s breath
+        p += n * (-input.data.z) * plant.scale * (0.5 + 0.5 * sin(_PunchyClock * 1.571 + plant.random * 6.28))   // a 4 s breath
+             * (1 - smoothstep(60, 100, distance(plant.position, GetCameraPositionWS())));
 
     // Cloth (part 10; how free each vertex is, 0 at its pole or bar to 1 at the free edge, rides on the part as a
     // fraction x 0.4): a wave running out to the free edge with a quicker flutter there, leaning downwind, hanging

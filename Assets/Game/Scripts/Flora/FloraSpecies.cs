@@ -106,7 +106,9 @@ namespace Punchy.Flora
                  "broken tops). Height is the tallest wall left; Spread the width relative to it.")] Ruin,
         [Tooltip("A bedroll laid out on the ground (camps): a blanket (Foliage, the top one towards Foliage Variation) " +
                  "with a rolled pillow (Bark) at the head, -Z; the feet at +Z. Height is its length, Spread its width " +
-                 "over length. Camps put a Bed anchor on each.")] Bedroll
+                 "over length. Camps put a Bed anchor on each.")] Bedroll,
+        [Tooltip("One 3 m length of rail fence along its X (roads past fields): a post at its start and two rails on to the " +
+                 "next one's, sagging a little (Bark; Foliage the post caps). Height is the fence; laid end to end.")] RailFence
     }
 
     public enum FoliageFinish : byte

@@ -358,14 +358,25 @@ MonoBehaviour:
     HighlandHeight: 180
     Snowmelt: 3
   PlacedLandmarks:
-  - Type: {fileID: 11400000, guid: 6be24f1e924d40b3a6fc43d2e03210a9, type: 2}
-    Position: {x: 250, y: -430}
-    Rotation: 270
-    Scale: 1
   - Type: {fileID: 11400000, guid: 7b6a6c924b834bd4aca6606fba0ec2cf, type: 2}
     Position: {x: 140, y: -545}
     Rotation: 0
     Scale: 1
+  Roadside:
+  - Type: {fileID: 11400000, guid: 193dd7d05fc34248bc6c2a64b3d770f7, type: 2}
+    PerKm: 0.5
+  - Type: {fileID: 11400000, guid: 7e31447762374ccd8863a2c4b35eff08, type: 2}
+    PerKm: 0.12
+  - Type: {fileID: 11400000, guid: 6be24f1e924d40b3a6fc43d2e03210a9, type: 2}
+    PerKm: 0.6
+  - Type: {fileID: 11400000, guid: 1d88d7b9c5e747c89737db7caeb06baa, type: 2}
+    PerKm: 0.35
+  - Type: {fileID: 11400000, guid: ebe49627ad594d40918a5a4083988eff, type: 2}
+    PerKm: 0.3
+  - Type: {fileID: 11400000, guid: b9aafa11fe004477ada522f09259f908, type: 2}
+    PerKm: 0.15
+  - Type: {fileID: 11400000, guid: 0f21af3c3ff261a4090accd0165cce42, type: 2}
+    PerKm: 0.12
   HeightSource: 0
   Heightmap: {fileID: 11400000, guid: 939ef45b694c2464990fd455c490f3b7, type: 2}
   ExportResolution: 4097

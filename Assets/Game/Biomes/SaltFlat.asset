@@ -77,6 +77,12 @@ MonoBehaviour:
   Habitability: 2
   Cultures: 3
   Landmarks:
+  - Type: {fileID: 11400000, guid: ad701b70a1574d8da926a8df270d1336, type: 2}
+    Density: 0.6
+    PerRealm: 1
+  - Type: {fileID: 11400000, guid: aa25abe2f2c34b0486bb82b3b26f5855, type: 2}
+    Density: 0.4
+    PerRealm: 1
   - Type: {fileID: 11400000, guid: 12967ba815ceb784586093b841f61935, type: 2}
     Density: 1.5
   - Type: {fileID: 11400000, guid: 835336737195be64a8d3c46d1ef30a96, type: 2}

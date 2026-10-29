@@ -248,6 +248,15 @@ namespace Punchy.Terrain
         [Range(1, 3)] public int PerRealm = 1;
     }
 
+    /// <summary>A landmark type that stands beside the roads (RoadsideBaking), and how often.</summary>
+    [Serializable]
+    public class RoadsideLandmark
+    {
+        public LandmarkType Type;
+        [Tooltip("Chance per kilometre of road (spots that are too steep, wet or crowded are skipped).")]
+        [Min(0f)] public float PerKm = 0.3f;
+    }
+
     /// <summary>A landmark placed by hand.</summary>
     [Serializable]
     public class PlacedLandmark

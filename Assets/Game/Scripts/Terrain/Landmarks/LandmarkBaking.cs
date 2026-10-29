@@ -537,6 +537,21 @@ namespace Punchy.Terrain
             return BuildBlob(types, instances, allocator);
         }
 
+        /// <summary>
+        /// The set with more landmarks appended after its own (roadside ones, placed once the roads are known), so every
+        /// landmark already in it keeps its index. The old blob is left for the caller to dispose.
+        /// </summary>
+        public static BlobAssetReference<LandmarkSetBlob> Append(BlobAssetReference<LandmarkSetBlob> set, IReadOnlyList<LandmarkType> types,
+                                                                  List<LandmarkInstance> more, Allocator allocator)
+        {
+            var instances = new List<LandmarkInstance>();
+            if (set.IsCreated)
+                for (int i = 0; i < set.Value.Instances.Length; i++)
+                    instances.Add(set.Value.Instances[i]);
+            instances.AddRange(more);
+            return instances.Count == 0 ? default : BuildBlob(types, instances, allocator);
+        }
+
         static BlobAssetReference<LandmarkSetBlob> BuildBlob(IReadOnlyList<LandmarkType> types, List<LandmarkInstance> instances, Allocator allocator)
         {
             var builder = new BlobBuilder(Allocator.Temp);

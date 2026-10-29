@@ -48,7 +48,7 @@ namespace Punchy.Flora
         /// <summary>Forms that cast no shadow (see CastsShadows).</summary>
         public static bool Shadowless(FloraForm form) =>
             form is FloraForm.Pen or FloraForm.Palisade or FloraForm.Signpost or FloraForm.Garden or FloraForm.Woodpile
-                 or FloraForm.Stall or FloraForm.Flowers or FloraForm.Bedroll;
+                 or FloraForm.Stall or FloraForm.Flowers or FloraForm.Bedroll or FloraForm.RailFence;
 
         public void Destroy()
         {
@@ -118,6 +118,7 @@ namespace Punchy.Flora
                     case FloraForm.StoneHouse: StoneHouse(g); break;
                     case FloraForm.Ruin: Ruin(g); break;
                     case FloraForm.Bedroll: Bedroll(g); break;
+                    case FloraForm.RailFence: RailFence(g); break;
                     case FloraForm.Tent: Tent(g); break;
                     case FloraForm.Tower: Tower(g); break;
                     case FloraForm.Pen: Pen(g); break;
@@ -1262,7 +1263,7 @@ namespace Punchy.Flora
             FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tent or FloraForm.Tower or FloraForm.Stall or FloraForm.Inn or
             FloraForm.Smithy or FloraForm.Forum or FloraForm.Fountain or FloraForm.Well or FloraForm.Hall or FloraForm.Shrine or
             FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade or FloraForm.Pen or FloraForm.Garden or
-            FloraForm.Signpost or FloraForm.Bench or FloraForm.Stump or FloraForm.Ruin => true,
+            FloraForm.Signpost or FloraForm.Bench or FloraForm.Stump or FloraForm.Ruin or FloraForm.RailFence => true,
             _ => false
         };
 
@@ -2664,6 +2665,46 @@ namespace Punchy.Flora
                    g.R() * 50f, g.Bark, FloraPart.Bark, 1f, 0.3f, 0.6f);
             b.Occlude(first, (p, n) => GroundOcclusion(p, 0.15f));
             b.Cloth(first, p => 0f);
+        }
+
+        /// <summary>
+        /// One 3 m length of rail fence along X, laid end to end: a split post at its start (-X end), leaning a touch,
+        /// and two rails nailed to its face on into the next length's post (a little past where it stands, so a slightly
+        /// wider spacing on a bend still meets it), boards on edge (thin against the post, as nailed), each sagging a
+        /// little in the middle.
+        /// </summary>
+        static void RailFence(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            const float length = 3f;
+            g.Height = height;
+            g.Width = length;
+            g.TrunkRadius = 0f;
+            var wood = g.Bark;
+            var post = new Vector3(-length * 0.5f, 0f, 0f);
+            var lean = new Vector3(g.Range(-0.02f, 0.02f), 0f, g.Range(-0.02f, 0.02f));
+            b.Box(post + Vector3.up * (height * 0.5f - 0.1f) + lean * 0.5f, new Vector3(0.14f, height + 0.2f, 0.14f),
+                  Quaternion.Euler(lean.z * 40f, g.Range(0f, 90f), -lean.x * 40f), wood * g.Range(0.85f, 1.05f), FloraPart.Bark);
+            if (g.Lod < 2)
+                b.Box(post + Vector3.up * (height + 0.02f) + lean, new Vector3(0.16f, 0.04f, 0.16f), Quaternion.identity, s.Foliage.linear, FloraPart.Bark);
+            g.Perches.Add(post + Vector3.up * (height + 0.04f) + lean);
+            // A slimmer, shorter post at its far end: hidden inside the next length's own post where the run goes on,
+            // closing it off where the run stops.
+            b.Box(post + Vector3.right * length + Vector3.up * (height * 0.5f - 0.12f), new Vector3(0.11f, height + 0.12f, 0.11f),
+                  Quaternion.identity, wood * 0.9f, FloraPart.Bark);
+            foreach (var y in new[] { 0.42f, 0.82f })
+            {
+                var sag = g.Range(0.01f, 0.05f);
+                // Flush on the post's face: half the post (0.07) plus half the board's thickness.
+                var a = post + Vector3.up * height * y + new Vector3(0.05f, 0f, 0.086f);
+                var c = a + Vector3.right * (length + 0.1f);
+                var mid = (a + c) * 0.5f + Vector3.down * sag;
+                b.Beam(a, mid, 0.03f, 0.12f, wood * g.Range(0.8f, 1f), FloraPart.Bark);
+                b.Beam(mid, c, 0.03f, 0.12f, wood * g.Range(0.8f, 1f), FloraPart.Bark);
+            }
+            FenceColliders(g, post, post + Vector3.right * length, height);
         }
 
         /// <summary>Rotates vertices added since <paramref name="first"/> about the vertical axis through the origin.</summary>

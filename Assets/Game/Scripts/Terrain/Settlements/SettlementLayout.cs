@@ -40,7 +40,9 @@ namespace Punchy.Terrain
         /// <summary>One span of a road's bridge over water (the layout's Bridge): not levelled; its deck is walkable.</summary>
         Bridge,
         /// <summary>One length of the palisade round a camp (the layout's Palisade Wall): not levelled.</summary>
-        Palisade
+        Palisade,
+        /// <summary>One length of rail fence along a road just outside the settlement (the layout's Road Fence): not levelled.</summary>
+        Fence
     }
 
     /// <summary>One kind of building a settlement puts on its plots.</summary>
@@ -113,6 +115,9 @@ namespace Punchy.Terrain
         public Punchy.Flora.FloraSpecies Bridge;
         [Tooltip("One 3 m length of palisade, repeated round the camp (if Palisade is on), with gaps for streets and roads.")]
         public Punchy.Flora.FloraSpecies PalisadeWall;
+        [Tooltip("One 3 m length of rail fence, run along some roads for a stretch just outside the settlement (fields), " +
+                 "with gaps at forks and signposts. None if empty.")]
+        public Punchy.Flora.FloraSpecies RoadFence;
         public List<SettlementBuilding> Buildings = new List<SettlementBuilding>();
     }
 }
