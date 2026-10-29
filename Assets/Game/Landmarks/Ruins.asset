@@ -37,17 +37,21 @@ MonoBehaviour:
     Scale: {x: 1.2, y: 1.35}
     Centrepiece: 1
   - Species: {fileID: 11400000, guid: 39ac360f164443b1a1516efdd2a7be67, type: 2}
-    Density: 3
-    Ring: {x: 0.35, y: 0.75}
+    Density: 0
+    Ring: {x: 0.55, y: 0.55}
     Scale: {x: 0.7, y: 1}
     Centrepiece: 0
+    FaceCentre: 1
+    Count: 3
+    Angle: 40
+    Clearance: 3
   - Species: {fileID: 11400000, guid: 984ecb906b0fd1b4fadd4d4319a9cd40, type: 2}
-    Density: 4
+    Density: 0.4
     Ring: {x: 0.2, y: 0.85}
     Scale: {x: 0.45, y: 0.65}
     Centrepiece: 0
   - Species: {fileID: 11400000, guid: 28a71e688d796f14b9919018c61ac083, type: 2}
-    Density: 6
+    Density: 1.2
     Ring: {x: 0, y: 1}
     Scale: {x: 0.8, y: 1.1}
     Centrepiece: 0

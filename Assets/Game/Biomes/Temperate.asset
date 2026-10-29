@@ -176,7 +176,7 @@ MonoBehaviour:
   Cultures: 5
   Landmarks:
   - Type: {fileID: 11400000, guid: b9aafa11fe004477ada522f09259f908, type: 2}
-    Density: 0.35
+    Density: 0.9
     PerRealm: 1
   - Type: {fileID: 11400000, guid: d7bb8d5872a79694a9dcb4c845ea2ef7, type: 2}
     Density: 0.96
