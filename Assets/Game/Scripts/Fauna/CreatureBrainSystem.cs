@@ -643,6 +643,12 @@ namespace Punchy.Fauna
                             Mining(ref s, ref b, ref rng, dt, walk);
                             break;
                         }
+                        if (s.Task == CreatureTask.Travel)
+                        {
+                            custom = true;
+                            Travelling(ref s, ref b, ref rng, dt, walk);
+                            break;
+                        }
                         // (A fisher's time at the water starts when it gets there, however far it had to walk.)
                         if (s.Stage >= 1 || s.Task != CreatureTask.Fish)
                             s.Timer -= dt;
@@ -831,6 +837,9 @@ namespace Punchy.Fauna
                     s.Held = Night > 0.5f ? HeldItem.Torch : s.Held == HeldItem.SpearDrawn ? HeldItem.SpearDrawn : HeldItem.Spear;
                 else if (s.Task == CreatureTask.Fish && s.Mode == CreatureMode.Work && s.Stage >= 1)
                     s.Held = HeldItem.Rod;
+                // A traveller has its staff by day, a lantern after dark.
+                else if (s.Task == CreatureTask.Travel && s.Mode == CreatureMode.Work)
+                    s.Held = Night > 0.5f ? HeldItem.Lantern : HeldItem.Staff;
                 // (A miner at work has its pick, or a sack of ore: Mining says which.)
                 else if (s.Task == CreatureTask.Mine && s.Mode == CreatureMode.Work)
                 {
@@ -2137,6 +2146,74 @@ namespace Punchy.Fauna
                     } while (Grid.TryGetNextValue(out j, ref it));
                 }
                 return false;
+            }
+
+            // ------------------------------------------------------------------------------- travelling
+
+            /// <summary>
+            /// A traveller on the road: along it stretch by stretch (its stretch in TargetHeight, which way in
+            /// AnchorSide: 1 towards each stretch's B), at a brisk walk; at a fork, on along whichever stretch carries on
+            /// from where it stands (any but the way it came). Where the road ends (in the town it was making for) it has
+            /// arrived: it stays a while there as a visitor, the town's streets its home.
+            /// </summary>
+            void Travelling(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk)
+            {
+                if (!Terrain.Settlements.IsCreated)
+                {
+                    Pause(ref s, ref b, ref rng);
+                    return;
+                }
+                ref var set = ref Terrain.Settlements.Value;
+                var k = (int)s.TargetHeight;
+                if (k < 0 || k >= set.Streets.Length)
+                {
+                    Arrived(ref s, ref b, ref rng);
+                    return;
+                }
+                var onward = s.AnchorSide == 1;
+                var goal = onward ? set.Streets[k].B : set.Streets[k].A;
+                if (WalkOn(ref s, ref b, goal, walk * 1.15f, dt) > 0.8f)
+                    return;
+                // The next stretch: the neighbour in the list, if it carries on from here, else any road stretch that does.
+                var next = -1;
+                var nextOnward = onward;
+                var n = onward ? k + 1 : k - 1;
+                if (n >= 0 && n < set.Streets.Length && set.Streets[n].Road != 0 &&
+                    math.distancesq((onward ? set.Streets[n].A : set.Streets[n].B).xz, goal.xz) < 2f)
+                    next = n;
+                for (int i = 0; i < set.Streets.Length && next < 0; i++)
+                {
+                    ref var st = ref set.Streets[i];
+                    if (i == k || st.Road == 0)
+                        continue;
+                    if (math.distancesq(st.A.xz, goal.xz) < 2f)
+                    {
+                        next = i;
+                        nextOnward = true;
+                    }
+                    else if (math.distancesq(st.B.xz, goal.xz) < 2f)
+                    {
+                        next = i;
+                        nextOnward = false;
+                    }
+                }
+                if (next < 0)
+                {
+                    Arrived(ref s, ref b, ref rng);
+                    return;
+                }
+                s.TargetHeight = next;
+                s.AnchorSide = (byte)(nextOnward ? 1 : 0);
+            }
+
+            /// <summary>A traveller at its road's end: a visitor in the town now, about its streets for a while.</summary>
+            void Arrived(ref CreatureState s, ref CreatureBlob b, ref Random rng)
+            {
+                s.Task = CreatureTask.None;
+                s.Home = s.Position.xz;
+                s.Leash = 30f;
+                s.Held = HeldItem.None;
+                Pause(ref s, ref b, ref rng);
             }
 
             // ------------------------------------------------------------------------------- mining

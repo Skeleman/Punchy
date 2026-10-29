@@ -69,7 +69,7 @@ namespace Punchy.Fauna
         static int HeldCount(HeldItem held, CreatureTask task) => task == CreatureTask.Hunt && (held == HeldItem.Spear || held == HeldItem.SpearDrawn) ? 0 :
                                                held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.SpearDrawn || held == HeldItem.Torch ? GuardParts :
                                                held == HeldItem.Rod ? RodParts : held == HeldItem.Stick || held == HeldItem.Stone ? 1 :
-                                               held == HeldItem.Pickaxe || held == HeldItem.OreSack ? MinerParts : 0;
+                                               held == HeldItem.Pickaxe || held == HeldItem.OreSack ? MinerParts : held == HeldItem.Staff ? 2 : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 0 : -1;
         /// <summary>Capsules per hanging bat, the most per roost, and how near the camera colonies show.</summary>
@@ -417,6 +417,41 @@ namespace Punchy.Fauna
                     Plaything(state, ref body.Blob.Value, offset, held, faded);
                 else if (state.Held == HeldItem.Pickaxe || state.Held == HeldItem.OreSack)
                     Miner(state, ref body.Blob.Value, offset, held, faded);
+                else if (state.Held == HeldItem.Staff)
+                    Traveller(state, ref body.Blob.Value, offset, held, faded);
+            }
+
+            /// <summary>A traveller's walking staff, planted ahead in the right hand, and a pack on its back.</summary>
+            void Traveller(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
+            {
+                Output[at] = default;
+                Output[at + 1] = default;
+                int hand = -1, chest = -1;
+                for (int i = 0; i < b.Parts.Length; i++)
+                {
+                    ref var part = ref b.Parts[i];
+                    if (part.Role == LimbRole.Arm && part.Side > 0f && hand < 0)
+                        hand = part.FirstSegment + part.SegmentCount - 1;
+                    else if (part.Parent < 0 && part.Role != LimbRole.Leg && part.Role != LimbRole.Arm && chest < 0)
+                        chest = part.FirstSegment + part.SegmentCount - 1;
+                }
+                if (hand < 0 || chest < 0)
+                    return;
+                var scale = Unity.Mathematics.math.max(state.Scale, 0.3f);
+                var forward = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
+                var upward = new Unity.Mathematics.float3(0f, 1f, 0f);
+                var h = Output[offset + hand];
+                var grip = h.Position + Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, h.Length * 0.5f));
+                var dir = Unity.Mathematics.math.normalize(upward + forward * 0.18f);
+                var length = 1.7f * scale;
+                Output[at] = Piece(grip - dir * length * 0.65f, dir, forward, length, 0.02f * scale, 0.016f * scale, 1f,
+                                   new Unity.Mathematics.float4(0.24f, 0.17f, 0.09f, 0f), faded, SegmentMaterial.Wood);
+                var torso = Output[offset + chest];
+                var axis = Unity.Mathematics.math.mul(torso.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                var r = Unity.Mathematics.math.max(torso.RadiusStart, torso.RadiusEnd);
+                var back = -Unity.Mathematics.math.normalize(forward - axis * Unity.Mathematics.math.dot(forward, axis));
+                Output[at + 1] = Piece(torso.Position + back * r * 1.15f, axis, back, torso.Length * 0.9f, r * 0.7f, r * 0.62f, 0.7f,
+                                       new Unity.Mathematics.float4(0.3f, 0.2f, 0.11f, 0f), faded, SegmentMaterial.Leather);
             }
 
             /// <summary>

@@ -302,7 +302,10 @@ namespace Punchy.Fauna
                              "float out, casts again now and then, sometimes lands a fish into its basket; home at dusk.")] Fish,
         [UnityEngine.Tooltip("Mines by day: walks from its camp into the nearest mine and along its passages to an ore face (its " +
                              "own, the same each day), swings its pick at it a while, carries a sack of ore back out to the " +
-                             "camp, and goes back for more; home at dusk.")] Mine
+                             "camp, and goes back for more; home at dusk.")] Mine,
+        [UnityEngine.Tooltip("A traveller on the roads between towns (FaunaDirector puts one on a road now and then, out of " +
+                             "sight): walks briskly along it, staff in hand and pack on its back, to the town at its end, and " +
+                             "stays there a while as a visitor.")] Travel
     }
 
     /// <summary>
@@ -360,7 +363,9 @@ namespace Punchy.Fauna
         /// <summary>A miner's pick: worn across its back on the way, in both hands swinging at the ore face.</summary>
         Pickaxe,
         /// <summary>A sack of ore carried in both arms, out of the mine to the camp (the pick on its back).</summary>
-        OreSack
+        OreSack,
+        /// <summary>A traveller's walking staff in the right hand (and a pack on its back).</summary>
+        Staff
     }
 
     /// <summary>A town guard's weapon, by its folk: how long, and where it's worn sheathed.</summary>

@@ -168,6 +168,11 @@ namespace Punchy.Fauna
                 SpawnResidents(source);
                 SpawnCaveDwellers(source);
             }
+            if (Time.time >= nextTraveller)
+            {
+                nextTraveller = Time.time + rng.NextFloat(60f, 120f);
+                SpawnTraveller(source);
+            }
             spawnBudget = math.min(spawnBudget + SpawnRate * players.Count * Time.deltaTime, 3f * players.Count);
             while (spawnBudget >= 1f)
             {
@@ -745,6 +750,73 @@ namespace Punchy.Fauna
                     }
                 }
             }
+        }
+
+        float nextTraveller;
+
+        /// <summary>
+        /// Now and then (every minute or two) a traveller on a road between towns, a way off from a player (40 to 160 m,
+        /// outside any town), heading along it the way that brings it nearer (the brain's Travel task walks it there); at
+        /// most two on the roads at a time.
+        /// </summary>
+        void SpawnTraveller(in TerrainSource source)
+        {
+            if (!source.Settlements.IsCreated || simWorld == null)
+                return;
+            var em = simWorld.EntityManager;
+            using (var q = em.CreateEntityQuery(typeof(CreatureState)))
+            {
+                var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+                var travelling = 0;
+                for (int i = 0; i < states.Length; i++)
+                    if (states[i].Task == CreatureTask.Travel)
+                        travelling++;
+                states.Dispose();
+                if (travelling >= 2)
+                    return;
+            }
+            var human = -1;
+            for (int i = 0; i < species.Count; i++)
+                if (species[i] != null && species[i].name == "Human")
+                    human = i;
+            if (human < 0)
+                return;
+            ref var set = ref source.Settlements.Value;
+            if (set.Streets.Length == 0)
+                return;
+            var player = players[rng.NextInt(players.Count)];
+            // (Every road stretch in the ring round the player, outside the towns; one of them at random.)
+            var candidates = new List<int>();
+            for (int k = 0; k < set.Streets.Length; k++)
+            {
+                ref var st = ref set.Streets[k];
+                if (st.Road == 0)
+                    continue;
+                var d = math.distance(st.A.xz, player.xz);
+                if (d < 40f || d > 160f)
+                    continue;
+                var inTown = false;
+                for (int t = 0; t < set.Settlements.Length && !inTown; t++)
+                    inTown = math.distance(set.Settlements[t].Centre, st.A.xz) < set.Settlements[t].Radius;
+                if (!inTown)
+                    candidates.Add(k);
+            }
+            var found = candidates.Count > 0 ? candidates[rng.NextInt(candidates.Count)] : -1;
+            if (found < 0)
+                return;
+            var start = set.Streets[found].A;
+            var e = Spawn(human, new float3(start.x, source.SampleHeight(start.xz), start.z));
+            var state = em.GetComponentData<CreatureState>(e);
+            state.Task = CreatureTask.Travel;
+            state.Mode = CreatureMode.Work;
+            state.Stage = 0;
+            state.TargetHeight = found;   // (the road stretch it's on: see the brain's Travelling)
+            // (Heading the way that brings it nearer the player: a traveller seen arriving, not one walking off out of sight.)
+            state.AnchorSide = (byte)(math.distance(set.Streets[found].B.xz, player.xz) < math.distance(start.xz, player.xz) ? 1 : 0);
+            state.Home = start.xz;
+            state.Leash = 0f;
+            state.Timer = 900f;
+            em.SetComponentData(e, state);
         }
 
         /// <summary>The settlement's domestic animals, about its middle, homed on it and leashed to it.</summary>

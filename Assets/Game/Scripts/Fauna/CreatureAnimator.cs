@@ -316,11 +316,17 @@ namespace Punchy.Fauna
                         a += (j == 0 ? (toBack ? new float3(-2.5f, 0f, -0.35f) : new float3(-0.35f, 0f, 0.75f))
                             : j == 1 ? (toBack ? new float3(-1.4f, 0f, 0f) : new float3(-1.0f, 0f, 0f)) : float3.zero) * reach;
                     }
+                    // A traveller's staff in the right hand: the arm a little forward and bent, planting it as it goes.
+                    if (part.Role == LimbRole.Arm && part.Side > 0f && s.Held == HeldItem.Staff)
+                    {
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.7f);
+                        a.x += j == 0 ? -0.3f : j == 1 ? -0.7f : 0f;
+                    }
                     // A sack of ore carried in both arms against the chest.
                     if (part.Role == LimbRole.Arm && s.Held == HeldItem.OreSack)
                     {
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.85f);
-                        a += j == 0 ? new float3(-0.95f, 0f, part.Side * 0.35f) : j == 1 ? new float3(-1.25f, 0f, 0f) : float3.zero;
+                        a += j == 0 ? new float3(-0.8f, 0f, part.Side * 0.5f) : j == 1 ? new float3(-1.75f, 0f, 0f) : float3.zero;
                     }
                     // A lantern in the off hand: that arm held a little forward and bent, hardly swinging.
                     if (part.Role == LimbRole.Arm && part.Side < 0f && s.Held == HeldItem.Lantern)
