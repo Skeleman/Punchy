@@ -413,7 +413,7 @@ half3 PunchyMoonDisc(float3 dir, out half cover)
     float3 right = normalize(cross(float3(0, 1, 0), b));
     float3 up = cross(b, right);
     float3 toSun = float3(dot(_PunchySunDirection, right), dot(_PunchySunDirection, up), -dot(_PunchySunDirection, b));
-    moons += PunchyMoonFace(dir, b, 0.0095, toSun, half3(0.55, 0.75, 1.25), blueCover) * (1 - bigCover);
+    moons += PunchyMoonFace(dir, b, 0.0095, toSun, half3(0.28, 0.52, 1.45), blueCover) * (1 - bigCover);
     cover = max(bigCover, blueCover);
     return moons;
 }
