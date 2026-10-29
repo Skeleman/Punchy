@@ -193,8 +193,8 @@ namespace Punchy.Terrain
 
         /// <summary>
         /// A Hive anchor at every wild bees' comb: round the trunk of each hive tree a landmark has as its centrepiece or
-        /// places at a spot on its ring (oak groves, ancient trees, fairy rings), at the comb's height, owned by the landmark. The comb faces some way round the trunk, so the anchor reaches round
-        /// it.
+        /// places at a spot on its ring (oak groves, ancient trees, fairy rings), at the comb's height, facing the comb
+        /// (hive trees are turned to the landmark's facing and carry the comb on their front), owned by the landmark.
         /// </summary>
         static void AddHiveAnchors(in TerrainSource source, IReadOnlyList<LandmarkType> types, List<Anchor> anchors)
         {

@@ -29,6 +29,8 @@ namespace Punchy.Flora
         public float Tilt;
         /// <summary>1 for built things (FloraGenerator.Founded): their bases take a band of the ground's colour.</summary>
         public int Dirt;
+        /// <summary>1 for hive trees: placed in a landmark, they face its way, so their comb is on a known side.</summary>
+        public int FaceLandmark;
     }
 
     public struct FloraBiomeEntry
@@ -180,7 +182,8 @@ namespace Punchy.Flora
                     WaterDepth = s.WaterDepth,
                     MinRapids = s.MinRapids,
                     Tilt = s.Form == FloraForm.Boulder ? 0.85f : 0f,
-                    Dirt = FloraGenerator.Founded(s.Form) ? 1 : 0
+                    Dirt = FloraGenerator.Founded(s.Form) ? 1 : 0,
+                    FaceLandmark = s.Form == FloraForm.HiveTree ? 1 : 0
                 };
                 for (int v = 0; v < s.Variants; v++)
                 {
@@ -298,6 +301,9 @@ namespace Punchy.Flora
             var c = (uint3)math.round(math.saturate(sum / 5f) * 255f);
             return c.x | (c.y << 8) | (c.z << 16) | ((uint)math.clamp(math.round(band * 100f), 1f, 255f) << 24);
         }
+
+        /// <summary>The yaw that turns a model's front (+Z) to face a direction (yaw maps +Z to (-sin, cos)).</summary>
+        static float FacingYaw(float2 facing) => math.atan2(-facing.x, facing.y);
 
         /// <summary>
         /// The floor a plot's building stands at: the average ground over its footprint (the middle and four points
@@ -636,10 +642,13 @@ namespace Punchy.Flora
                             {
                                 var placedRule = f.Rules[prop.Species];
                                 var toCentre = set.Instances[landmark.Instance].Position - spot;
+                                var placedYaw = prop.FaceCentre != 0 ? math.atan2(-toCentre.x, toCentre.y) : rng.NextFloat(math.PI * 2f);
+                                if (placedRule.FaceLandmark != 0)
+                                    placedYaw = FacingYaw(set.Instances[landmark.Instance].Facing);
                                 return new FloraSystem.FloraInstance
                                 {
                                     Position = new float3(spot.x, source.SampleHeight(spot), spot.y),
-                                    Yaw = prop.FaceCentre != 0 ? math.atan2(-toCentre.x, toCentre.y) : rng.NextFloat(math.PI * 2f),
+                                    Yaw = placedYaw,
                                     Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
                                     Model = placedRule.FirstModel + rng.NextInt(placedRule.Variants),
                                     Random = rng.NextFloat(),
@@ -664,10 +673,13 @@ namespace Punchy.Flora
                         if (math.all((int2)math.floor(centre / cellSize) == cell))
                         {
                             var centreRule = f.Rules[prop.Species];
+                            var centreYaw = rng.NextFloat(math.PI * 2f);   // drawn even when unused, so later draws don't shift
+                            if (centreRule.FaceLandmark != 0)
+                                centreYaw = FacingYaw(set.Instances[landmark.Instance].Facing);
                             return new FloraSystem.FloraInstance
                             {
                                 Position = new float3(centre.x, source.SampleHeight(centre), centre.y),
-                                Yaw = rng.NextFloat(math.PI * 2f),
+                                Yaw = centreYaw,
                                 Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
                                 Model = centreRule.FirstModel + rng.NextInt(centreRule.Variants),
                                 Random = rng.NextFloat(),

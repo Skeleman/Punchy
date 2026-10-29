@@ -138,10 +138,18 @@ Batches in this order; each batch gets one evaluation session, one sheet and one
    Hive anchors, Anchor.OwnerLandmark); two moons (8-day phases, a small blue moon on its own path; Day on WorldState);
    glacier ice arches; the building pass (grounding and dirt bands, foundation skirts, matte stone, door porches);
    ring lanes round human villages (2a6cdd3).
-5b. **Landmark RNG (next, after kind-possum's overnight benches)**: an independent random stream per landmark type
-   in LandmarkBaking, landed alone in one commit. One final reshuffle: re-run every island check and publish the new
-   places and bench coordinates to kind-possum and the animal session before pushing (it changes the world
-   fingerprint). After it, new landmark types no longer move the rest of the island.
+5b. **Stable world seeds (next, after kind-possum's overnight benches; approved)**: one commit, nothing else in it.
+   - Type choice: each type rolls independently per candidate spot, seeded by hash(world seed, hash of the type's
+     name, spot), not one cumulative roll over the biome's list. Where several pass, the winner is the lowest
+     roll/chance ratio, ties by name hash (never list order). Calibrate so each type's density per km² stays about
+     today's, and every listed type still places at least once where it fits (per-realm rule).
+   - Downstream seeds: caves (CaveBaking's per-cave index seeds), towns (SettlementBaking 0x5E77) and cave anchors
+     (AnchorBaking) seed from the instance's own seed (from type name plus spot), not its index or position.
+   - Local crowding by a new type is acceptable.
+   - Proof: in the checks, temporarily add a dummy type to one biome and confirm only local instances change (same
+     towns, cave styles, mine); remove it; report the result.
+   - One final reshuffle: re-run every island check, publish new places and bench coordinates to kind-possum and the
+     animal session (AnchorBaking is shared) before pushing; it changes the world fingerprint.
 5c. **Towns grew over time (after 5b)**: houses on both sides of the ring and along the spokes inside it, with gardens
    and pens filling the interior; varied setback and spacing (clusters, gaps, a few turned slightly); the ring smoothed
    into an irregular loop following the terrain; a lane or two ending at a building instead of closing the loop.
