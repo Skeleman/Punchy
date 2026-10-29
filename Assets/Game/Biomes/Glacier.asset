@@ -103,6 +103,8 @@ MonoBehaviour:
   Particles:
   - Type: {fileID: 11400000, guid: 27a1ceebb4c0878498b62c3d35774e37, type: 2}
     Density: 1.5
+  - Type: {fileID: 11400000, guid: 063ccd0073bf4d96aecc24cfe1c8e36e, type: 2}
+    Density: 1.2
   Flora:
   - Species: {fileID: 11400000, guid: c1e1acfeb6f61d04599b0b0cfecb6ad8, type: 2}
     Density: 0.008
