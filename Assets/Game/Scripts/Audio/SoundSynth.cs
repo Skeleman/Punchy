@@ -6,7 +6,9 @@ namespace Punchy.Audio
     /// <summary>The game's synthesised sounds (GameAudio's bank). Append only: the world session's code names them too.</summary>
     public enum SoundId
     {
-        BeeBuzz, Chirp, Song, Owl, Crickets, Howl, Step, StepWet, Clop, Cluck, Draw, Wingbeat
+        BeeBuzz, Chirp, Song, Owl, Crickets, Howl, Step, StepWet, Clop, Cluck, Draw, Wingbeat,
+        // For the world session (fires, falls, caves, towns, mines):
+        FireCrackle, TorchHiss, WaterfallRush, Splash, CaveDrip, TownMurmur, MineAmbience
     }
 
     /// <summary>
@@ -23,10 +25,12 @@ namespace Punchy.Audio
         public static int Variants(SoundId id) => id switch
         {
             SoundId.Chirp => 6, SoundId.Song => 3, SoundId.Owl => 2, SoundId.Howl => 2, SoundId.Step => 4, SoundId.StepWet => 3,
-            SoundId.Clop => 3, SoundId.Cluck => 3, SoundId.Draw => 2, SoundId.Wingbeat => 2, _ => 1
+            SoundId.Clop => 3, SoundId.Cluck => 3, SoundId.Draw => 2, SoundId.Wingbeat => 2, SoundId.Splash => 3, SoundId.CaveDrip => 4, _ => 1
         };
 
-        public static bool Loops(SoundId id) => id == SoundId.BeeBuzz || id == SoundId.Crickets;
+        public static bool Loops(SoundId id) => id == SoundId.BeeBuzz || id == SoundId.Crickets || id == SoundId.FireCrackle ||
+                                                 id == SoundId.TorchHiss || id == SoundId.WaterfallRush || id == SoundId.TownMurmur ||
+                                                 id == SoundId.MineAmbience;
 
         public static float[] Generate(SoundId id, int variant)
         {
@@ -45,6 +49,13 @@ namespace Punchy.Audio
                 SoundId.Cluck => Cluck(rng),
                 SoundId.Draw => Draw(rng),
                 SoundId.Wingbeat => Wingbeat(rng),
+                SoundId.FireCrackle => Fire(rng, false),
+                SoundId.TorchHiss => Fire(rng, true),
+                SoundId.WaterfallRush => Waterfall(rng),
+                SoundId.Splash => Splash(rng),
+                SoundId.CaveDrip => Drip(rng),
+                SoundId.TownMurmur => Murmur(rng),
+                SoundId.MineAmbience => Mine(rng),
                 _ => new float[1]
             };
         }
@@ -73,6 +84,23 @@ namespace Punchy.Audio
                 band += f * high;
                 return band;
             }
+        }
+
+        /// <summary>
+        /// A seamless loop from a texture with nothing periodic in it (noise): made fade samples longer than wanted, its
+        /// tail crossfaded (equal power) over its head, and the tail dropped.
+        /// </summary>
+        static float[] Seamless(float[] s, int fade)
+        {
+            var n = s.Length - fade;
+            var o = new float[n];
+            System.Array.Copy(s, o, n);
+            for (int i = 0; i < fade; i++)
+            {
+                var u = i / (float)fade;
+                o[i] = s[i] * Mathf.Sin(u * Mathf.PI * 0.5f) + s[n + i] * Mathf.Cos(u * Mathf.PI * 0.5f);
+            }
+            return o;
         }
 
         static float[] Normalise(float[] s, float peak)
@@ -346,6 +374,225 @@ namespace Punchy.Audio
                 s[i] = lp * Mathf.Sin(Mathf.PI * u) * Mathf.Sin(Mathf.PI * u);
             }
             return Normalise(s, 0.4f);
+        }
+
+        // ------------------------------------------------------------------ the world's sounds
+
+        /// <summary>
+        /// A fire, 3 s looped: a soft low roar (dark noise breathing slowly) with wood pops at random, three to six a
+        /// second, and now and then a sharp snap. A torch (thin): a quieter hiss, higher up, and only the odd small pop.
+        /// </summary>
+        static float[] Fire(System.Random rng, bool torch)
+        {
+            const float seconds = 3f;
+            var fade = Rate / 4;
+            var n = (int)(seconds * Rate) + fade;
+            var s = new float[n];
+            var band = new Band();
+            float lp1 = 0f, lp2 = 0f;
+            var roarCut = Pole(torch ? 2200f : 380f);
+            for (int i = 0; i < n; i++)
+            {
+                var t = i / (float)Rate;
+                lp1 += roarCut * (Noise(rng) - lp1);
+                lp2 += roarCut * (lp1 - lp2);
+                var breathe = 0.75f + 0.25f * Mathf.Sin(t * 2.1f) * Mathf.Sin(t * 0.7f + 1f);
+                s[i] = torch ? band.Run(Noise(rng), 3800f, 1.2f) * 0.25f * breathe : lp2 * 8f * breathe;
+            }
+            var pops = (int)(seconds * (torch ? 0.7f : Lerp(3f, 6f, R(rng))));
+            for (int k = 0; k < pops; k++)
+            {
+                var at = rng.Next(n - Rate / 10);
+                var snap = !torch && R(rng) < 0.15f;
+                var hz = snap ? Lerp(3000f, 5000f, R(rng)) : Lerp(900f, 2600f, R(rng));
+                var decay = snap ? 0.012f : Lerp(0.004f, 0.015f, R(rng));
+                var level = (snap ? 1.6f : Lerp(0.4f, 1f, R(rng))) * (torch ? 0.5f : 1f);
+                var b = new Band();
+                for (int i = 0; i < Rate / 10 && at + i < n; i++)
+                {
+                    var t = i / (float)Rate;
+                    s[at + i] += b.Run(Noise(rng), hz, 3f) * Mathf.Exp(-t / decay) * level * 0.9f;
+                }
+            }
+            return Normalise(Seamless(s, fade), torch ? 0.35f : 0.55f);
+        }
+
+        /// <summary>
+        /// Falling water, 3 s looped: broad pink-ish noise (a stack of low-passes) over a low rumble, swelling slowly
+        /// once a loop. Pitched up for a small cave fall, down for a big one.
+        /// </summary>
+        static float[] Waterfall(System.Random rng)
+        {
+            const float seconds = 3f;
+            var fade = Rate / 2;
+            var n = (int)(seconds * Rate) + fade;
+            var s = new float[n];
+            float a = 0f, b = 0f, c = 0f, rumble = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                var t = i / (float)Rate;
+                var x = Noise(rng);
+                a += Pole(4000f) * (x - a);
+                b += Pole(900f) * (x - b);
+                c += Pole(250f) * (x - c);
+                rumble += Pole(90f) * (x - rumble);
+                var wobble = 0.85f + 0.15f * Mathf.Sin(2f * Mathf.PI * t / seconds);
+                s[i] = (0.35f * a + 0.6f * b + 0.9f * c + 3f * rumble) * wobble;
+            }
+            return Normalise(Seamless(s, fade), 0.55f);
+        }
+
+        /// <summary>Stepping into water: a slap, then spray falling away, and a few droplets plinking.</summary>
+        static float[] Splash(System.Random rng)
+        {
+            var n = (int)(0.55f * Rate);
+            var s = new float[n];
+            var band = new Band();
+            var lp = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                var t = i / (float)Rate;
+                lp += Pole(700f) * (Noise(rng) - lp);
+                var slap = lp * Env(t, 0.002f, 0.02f) * 2f;
+                var spray = band.Run(Noise(rng), Lerp(5000f, 2500f, t * 2f), 1.5f) * Env(t, 0.01f, 0.14f);
+                s[i] = slap + spray;
+            }
+            for (int k = 0; k < 4; k++)
+            {
+                var at = (int)(Lerp(0.08f, 0.4f, R(rng)) * Rate);
+                var hz = Lerp(1200f, 2600f, R(rng));
+                for (int i = 0; at + i < n && i < Rate / 20; i++)
+                {
+                    var t = i / (float)Rate;
+                    s[at + i] += Mathf.Sin(2f * Mathf.PI * hz * (1f + t * 6f) * t) * Mathf.Exp(-t / 0.012f) * 0.3f;
+                }
+            }
+            return Normalise(s, 0.5f);
+        }
+
+        /// <summary>A drip in a cave: a single plink (a tone whose pitch jumps up as it rings) and its echoes off the rock.</summary>
+        static float[] Drip(System.Random rng)
+        {
+            var n = (int)(0.9f * Rate);
+            var s = new float[n];
+            var hz = Lerp(1400f, 2600f, R(rng));
+            var plink = new float[Rate / 10];
+            var phase = 0.0;
+            for (int i = 0; i < plink.Length; i++)
+            {
+                var t = i / (float)Rate;
+                phase += hz * (1f + 0.6f * Mathf.Min(t / 0.02f, 1f)) / Rate;
+                plink[i] = Mathf.Sin(2f * Mathf.PI * (float)phase) * Mathf.Exp(-t / 0.03f);
+            }
+            // The drip and three echoes, each later, fainter and duller.
+            var delays = new[] { 0f, Lerp(0.09f, 0.14f, R(rng)), Lerp(0.22f, 0.3f, R(rng)), Lerp(0.4f, 0.5f, R(rng)) };
+            for (int e = 0; e < delays.Length; e++)
+            {
+                var at = (int)(delays[e] * Rate);
+                var level = Mathf.Pow(0.4f, e);
+                var lp = 0f;
+                for (int i = 0; i < plink.Length && at + i < n; i++)
+                {
+                    lp += (e == 0 ? 1f : Pole(2500f / e)) * (plink[i] - lp);
+                    s[at + i] += lp * level;
+                }
+            }
+            return Normalise(s, 0.45f);
+        }
+
+        /// <summary>
+        /// A town square by day, heard from a little way off, 5 s looped: several voices talking (each a buzzing pitch
+        /// through a vowel-ish band, in bursts like syllables, its pitch rising and falling), now and then a laugh (a quick
+        /// run of high bursts) or a clatter, all muffled by distance.
+        /// </summary>
+        static float[] Murmur(System.Random rng)
+        {
+            const float seconds = 5f;
+            var fade = Rate / 2;
+            var n = (int)(seconds * Rate) + fade;
+            var s = new float[n];
+            for (int v = 0; v < 7; v++)
+            {
+                var pitch = Lerp(95f, 230f, R(rng));
+                var vowel = Lerp(500f, 1300f, R(rng));
+                var band = new Band();
+                var phase = 0.0;
+                var talking = 0f;
+                var next = 0;
+                var syllable = 0f;
+                for (int i = 0; i < n; i++)
+                {
+                    if (i >= next)
+                    {
+                        // A syllable or a pause.
+                        syllable = R(rng) < 0.75f ? Lerp(0.6f, 1f, R(rng)) : 0f;
+                        next = i + (int)(Lerp(0.08f, 0.22f, R(rng)) * Rate);
+                        vowel = Mathf.Clamp(vowel + Lerp(-250f, 250f, R(rng)), 400f, 1500f);
+                    }
+                    talking += 0.004f * (syllable - talking);
+                    var t = i / (float)Rate;
+                    phase += pitch * (1f + 0.08f * Mathf.Sin(t * 3.1f + v)) / Rate;
+                    var p = (float)(phase - System.Math.Floor(phase));
+                    s[i] += band.Run(p < 0.15f ? 1f : -0.1f, vowel, 4f) * talking * Lerp(0.5f, 1f, (v % 3) / 2f);
+                }
+            }
+            // A laugh, and a clatter.
+            var laugh = rng.Next(n - Rate);
+            var lb = new Band();
+            for (int k = 0; k < 5; k++)
+                for (int i = 0; i < Rate / 12; i++)
+                {
+                    var at = laugh + k * Rate / 8 + i;
+                    var t = i / (float)Rate;
+                    s[at] += lb.Run(Mathf.Sin(2f * Mathf.PI * 320f * t) > 0.6f ? 1f : -0.2f, 1100f, 4f) * Mathf.Sin(Mathf.PI * i / (Rate / 12f)) * 0.8f;
+                }
+            var clatter = rng.Next(n - Rate / 5);
+            var cb = new Band();
+            for (int i = 0; i < Rate / 5; i++)
+                s[clatter + i] += cb.Run(Noise(rng), 2800f, 6f) * Mathf.Exp(-i / (0.03f * Rate)) * 1.5f;
+            // Muffled by the distance.
+            float lp1 = 0f, lp2 = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                lp1 += Pole(1600f) * (s[i] - lp1);
+                lp2 += Pole(1600f) * (lp1 - lp2);
+                s[i] = lp2;
+            }
+            return Normalise(Seamless(s, fade), 0.35f);
+        }
+
+        /// <summary>
+        /// Deep in a mine, 6 s looped: a low hollow wind (noise ringing in two broad resonances of the tunnel, slowly
+        /// swelling) and, once a loop, a far-off pick tapping three times, echoing.
+        /// </summary>
+        static float[] Mine(System.Random rng)
+        {
+            const float seconds = 6f;
+            var fade = Rate;
+            var n = (int)(seconds * Rate) + fade;
+            var s = new float[n];
+            var low = new Band();
+            var high = new Band();
+            var f1 = Lerp(150f, 210f, R(rng));
+            var f2 = f1 * Lerp(2.3f, 2.9f, R(rng));
+            for (int i = 0; i < n; i++)
+            {
+                var t = i / (float)Rate;
+                var x = Noise(rng);
+                var swell = 0.7f + 0.3f * Mathf.Sin(2f * Mathf.PI * t / seconds + 0.5f);
+                s[i] = (low.Run(x, f1, 9f) + 0.4f * high.Run(x, f2, 7f)) * swell;
+            }
+            var tapAt = rng.Next(Rate, n - 2 * Rate);
+            for (int k = 0; k < 3; k++)
+                for (int e = 0; e < 3; e++)
+                {
+                    var at = tapAt + (int)(k * 0.55f * Rate) + (int)(e * 0.16f * Rate);
+                    var b = new Band();
+                    var level = 0.35f * Mathf.Pow(0.45f, e);
+                    for (int i = 0; i < Rate / 15 && at + i < n; i++)
+                        s[at + i] += b.Run(Noise(rng), 1900f, 5f) * Mathf.Exp(-i / (0.008f * Rate)) * level * 6f;
+                }
+            return Normalise(Seamless(s, fade), 0.45f);
         }
     }
 }
