@@ -239,22 +239,18 @@ namespace Punchy.Fauna
                     into.Add(new CritterSpot { Kind = CritterKind.Owl, Id = rng.NextUInt() | 1u, Position = at, Tree = tree.Base });
                 }
             }
-            // Songbirds on the rooftops, chimneys and signposts in the cell (Perch anchors), now and then.
-            if (terrain.Anchors.IsCreated)
+            // Songbirds on the tops of the buildings, fences, wells and signposts in the cell (the flora's perch points,
+            // FloraPlacement.NearPerches: where a bird's feet go, as the building is drawn), a third of them.
+            var perches = new FixedList512Bytes<float3>();
+            FloraPlacement.NearPerches(ref flora, terrain, centre, CellSize * 0.71f, ref perches);
+            foreach (var at in perches)
             {
-                var perches = new NativeList<int>(8, Allocator.Temp);
-                Anchors.Near(ref terrain.Anchors.Value, new float3(centre.x, terrain.SampleHeight(centre), centre.y), CellSize * 0.75f + 20f, AnchorKind.Perch, ref perches);
-                foreach (var i in perches)
-                {
-                    ref var a = ref terrain.Anchors.Value.Anchors[i];
-                    // (Each perch belongs to the one cell it's in, and is the same perch on every machine.)
-                    if (a.InCave || math.any((int2)math.floor(a.Position.xz / CellSize) != cell))
-                        continue;
-                    var perchRng = new Unity.Mathematics.Random(math.hash(new int2(i, 0x9E2C)) | 1u);
-                    if (perchRng.NextFloat() < 0.35f)
-                        into.Add(new CritterSpot { Kind = CritterKind.Songbird, Id = perchRng.NextUInt() | 1u, Position = a.Position + new float3(0f, 0.02f, 0f) });
-                }
-                perches.Dispose();
+                // (Each perch belongs to the one cell it's in, and is the same perch on every machine.)
+                if (math.any((int2)math.floor(at.xz / CellSize) != cell))
+                    continue;
+                var perchRng = new Unity.Mathematics.Random(math.hash(new int3((int3)math.round(at * 10f))) | 1u);
+                if (perchRng.NextFloat() < 0.35f)
+                    into.Add(new CritterSpot { Kind = CritterKind.Songbird, Id = perchRng.NextUInt() | 1u, Position = at });
             }
             var frogs = 0;
             for (int k = 0; k < 8; k++)
