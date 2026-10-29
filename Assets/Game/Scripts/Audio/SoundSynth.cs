@@ -10,7 +10,9 @@ namespace Punchy.Audio
         // For the world session (fires, falls, caves, towns, mines):
         FireCrackle, TorchHiss, WaterfallRush, Splash, CaveDrip, TownMurmur, MineAmbience,
         // Animal calls (species' Calls) and moods:
-        Quack, Honk, Gobble, Caw, Coo, Cry, Screech, Rooster, Bark, Meow, Snort, Whinny, Bleat, Moo, Grunt, Purr, Pant
+        Quack, Honk, Gobble, Caw, Coo, Cry, Screech, Rooster, Bark, Meow, Snort, Whinny, Bleat, Moo, Grunt, Purr, Pant,
+        // The small life's calls (AmbientLife):
+        CricketChirp, Croak, Cicada, Drum, Zip
     }
 
     /// <summary>
@@ -30,7 +32,8 @@ namespace Punchy.Audio
             SoundId.Clop => 3, SoundId.Cluck => 3, SoundId.Draw => 2, SoundId.Wingbeat => 2, SoundId.Splash => 3, SoundId.CaveDrip => 4,
             SoundId.Quack => 4, SoundId.Honk => 3, SoundId.Gobble => 3, SoundId.Caw => 4, SoundId.Coo => 3, SoundId.Cry => 3,
             SoundId.Screech => 2, SoundId.Rooster => 2, SoundId.Bark => 4, SoundId.Meow => 3, SoundId.Snort => 3,
-            SoundId.Whinny => 2, SoundId.Bleat => 3, SoundId.Moo => 3, SoundId.Grunt => 3, SoundId.Pant => 3, _ => 1
+            SoundId.Whinny => 2, SoundId.Bleat => 3, SoundId.Moo => 3, SoundId.Grunt => 3, SoundId.Pant => 3,
+            SoundId.CricketChirp => 3, SoundId.Croak => 4, SoundId.Cicada => 2, SoundId.Drum => 3, SoundId.Zip => 3, _ => 1
         };
 
         public static bool Loops(SoundId id) => id == SoundId.BeeBuzz || id == SoundId.Crickets || id == SoundId.FireCrackle ||
@@ -78,6 +81,11 @@ namespace Punchy.Audio
                 SoundId.Grunt => Grunt(rng),
                 SoundId.Purr => Purr(rng),
                 SoundId.Pant => Pant(rng),
+                SoundId.CricketChirp => CricketChirp(rng),
+                SoundId.Croak => Croak(rng),
+                SoundId.Cicada => Cicada(rng),
+                SoundId.Drum => Drum(rng),
+                SoundId.Zip => Zip(rng),
                 _ => new float[1]
             };
         }
@@ -803,6 +811,83 @@ namespace Punchy.Audio
                 s[i] = band.Run(Noise(rng), hz, 1.5f) * Mathf.Sin(Mathf.PI * u) * (1f - u * 0.5f);
             }
             return Normalise(s, 0.4f);
+        }
+
+        // ------------------------------------------------------------------ the small life's calls
+
+        /// <summary>One cricket's chirp: three quick pulses of a pure tone near 4.5 kHz.</summary>
+        static float[] CricketChirp(System.Random rng)
+        {
+            var hz = Lerp(4200f, 5000f, R(rng));
+            var pulses = 2 + rng.Next(3);
+            var s = new float[(int)(Rate * (pulses * 0.035f + 0.02f))];
+            for (int p = 0; p < pulses; p++)
+            {
+                var start = (int)(p * 0.035f * Rate);
+                var len = (int)(0.02f * Rate);
+                for (int i = 0; i < len && start + i < s.Length; i++)
+                    s[start + i] += Mathf.Sin(Mathf.PI * i / len) * Mathf.Sin(2f * Mathf.PI * hz * (start + i) / Rate);
+            }
+            return Normalise(s, 0.4f);
+        }
+
+        /// <summary>A frog's croak: a low, rough, pulsing "rrrbit".</summary>
+        static float[] Croak(System.Random rng) =>
+            Normalise(Voice(rng, new Seg(Lerp(0.25f, 0.4f, R(rng)), 140f * J(rng, 0.15f), 120f, 450f, 1100f, 0.25f, 0.4f, 0f, 0.35f, 28f, 650f)), 0.55f);
+
+        /// <summary>A cicada's song: a hard metallic buzz, swelling and dying away over two or three seconds.</summary>
+        static float[] Cicada(System.Random rng)
+        {
+            var n = (int)(Lerp(2f, 3f, R(rng)) * Rate);
+            var s = new float[n];
+            var band = new Band();
+            var hz = Lerp(4500f, 6000f, R(rng));
+            for (int i = 0; i < n; i++)
+            {
+                var u = i / (float)n;
+                var t = i / (float)Rate;
+                var tick = Mathf.Sin(2f * Mathf.PI * 220f * t) > 0.2f ? 1f : 0.2f;
+                var env = Mathf.Sin(Mathf.PI * u);
+                s[i] = band.Run(Noise(rng) * tick, hz, 8f) * env;
+            }
+            return Normalise(s, 0.45f);
+        }
+
+        /// <summary>A woodpecker drumming: a fast roll of knocks on wood, slowing a touch at the end.</summary>
+        static float[] Drum(System.Random rng)
+        {
+            var knocks = 12 + rng.Next(10);
+            var rate = Lerp(16f, 22f, R(rng));
+            var s = new float[(int)(Rate * (knocks / rate + 0.1f))];
+            var at = 0f;
+            for (int k = 0; k < knocks; k++)
+            {
+                var start = (int)(at * Rate);
+                var body = new Band();
+                for (int i = 0; i < Rate / 30 && start + i < s.Length; i++)
+                {
+                    var t = i / (float)Rate;
+                    s[start + i] += body.Run(Noise(rng), 1100f, 6f) * Mathf.Exp(-t / 0.006f) * (1f - k * 0.02f);
+                }
+                at += 1f / rate * (1f + k * 0.01f);
+            }
+            return Normalise(s, 0.5f);
+        }
+
+        /// <summary>A grasshopper's jump: a short dry buzz of wings.</summary>
+        static float[] Zip(System.Random rng)
+        {
+            var n = (int)(Lerp(0.12f, 0.25f, R(rng)) * Rate);
+            var s = new float[n];
+            var band = new Band();
+            for (int i = 0; i < n; i++)
+            {
+                var u = i / (float)n;
+                var t = i / (float)Rate;
+                var flutter = Mathf.Sin(2f * Mathf.PI * 60f * t) > 0f ? 1f : 0.3f;
+                s[i] = band.Run(Noise(rng) * flutter, 3200f, 2f) * Mathf.Sin(Mathf.PI * u);
+            }
+            return Normalise(s, 0.35f);
         }
     }
 }

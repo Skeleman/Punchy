@@ -767,6 +767,11 @@ namespace Punchy.Fauna
                     s.Action = s.Held == HeldItem.Stick ? IdleAction.Poke : IdleAction.Throw;
                     s.ActionTime = 0f;
                     s.ActionLength = s.Held == HeldItem.Stick ? rng.NextFloat(2f, 3.5f) : 1.2f;
+                    // (Watching where its stone lands, a few metres ahead, or the ground it pokes at.)
+                    var ahead = s.Position.xz + new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * (s.Held == HeldItem.Stone ? 3.5f : 0.6f);
+                    s.LookKind = 0;
+                    s.LookAt = new float3(ahead.x, Terrain.SampleHeight(ahead), ahead.y);
+                    s.LookFor = s.ActionLength + 0.5f;
                     s.Timer = math.max(s.Timer, s.ActionLength + 0.5f);
                 }
 
@@ -2416,7 +2421,9 @@ namespace Punchy.Fauna
                     return;
                 }
                 var calm = s.Mode == CreatureMode.Idle || s.Mode == CreatureMode.Wander && !Flying(s) || s.Mode == CreatureMode.Graze ||
-                           s.Mode == CreatureMode.Rest || s.Mode == CreatureMode.Sit || s.Mode == CreatureMode.Work || s.Mode == CreatureMode.Greet;
+                           s.Mode == CreatureMode.Rest || s.Mode == CreatureMode.Sit || s.Mode == CreatureMode.Work || s.Mode == CreatureMode.Greet ||
+                           // (A guard on its round looks about too: most of all at someone sprinting or emoting near it.)
+                           s.Mode == CreatureMode.Patrol && s.Stage != 2;
                 if (s.LookCool > 0f || !calm || rng.NextFloat() >= dt * (prey ? 0.5f : 0.2f))
                     return;
                 var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
@@ -2720,6 +2727,13 @@ namespace Punchy.Fauna
             {
                 var hasBird = Lookup.TryGetValue(s.Partner, out var j);
                 var bird = hasBird ? States[j] : default;
+                // (Eyes on the bird, as it comes in and while it's there.)
+                if (hasBird && s.Stage < MessageRead)
+                {
+                    s.LookKind = 1;
+                    s.LookEntity = s.Partner;
+                    s.LookFor = math.max(s.LookFor, 0.3f);
+                }
                 // (Turned to the bird as it comes in; holding still for the last few metres, so it has a steady arm to land on.)
                 if (hasBird)
                 {

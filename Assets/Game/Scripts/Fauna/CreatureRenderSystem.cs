@@ -207,6 +207,99 @@ namespace Punchy.Fauna
             return at;
         }
 
+        /// <summary>Capsules for one of AmbientLife's small creatures (unused ones left empty).</summary>
+        const int CritterParts = 6;
+
+        /// <summary>
+        /// Draws one of AmbientLife's: a songbird or woodpecker (body, head, beak, tail, two wings, out and beating when
+        /// it's in the air), an owl (round body, big head turned to whatever it watches, ear tufts), a cricket or
+        /// grasshopper (a speck, legs flicking when it hops), a frog (a squat body, two eyes), a cicada (body, folded wings).
+        /// </summary>
+        static int Critter(in Ambient a, float now, NativeArray<SegmentInstance> output, int at)
+        {
+            for (int i = 0; i < CritterParts; i++)
+                output[at + i] = default;
+            if (a.Hidden)
+                return at + CritterParts;
+            var f = new float3(math.sin(a.Yaw), 0f, math.cos(a.Yaw));
+            var side = new float3(f.z, 0f, -f.x);
+            var up = new float3(0f, 1f, 0f);
+            var face = quaternion.LookRotationSafe(f, up);
+            var p = a.Position;
+            switch (a.Kind)
+            {
+                case AmbientKind.Songbird:
+                case AmbientKind.Woodpecker:
+                {
+                    var wood = a.Kind == AmbientKind.Woodpecker;
+                    var s = wood ? 1.4f : 1f;
+                    // (A woodpecker clings upright to the bark.)
+                    var bodyDir = wood ? math.normalize(up + f * 0.3f) : f;
+                    var body = quaternion.LookRotationSafe(bodyDir, wood ? -f : up);
+                    output[at] = Part(p + up * 0.04f * s - bodyDir * 0.04f * s, body, 0.07f * s, 0.028f * s, 0.022f * s, 1f, a.Colour);
+                    var head = p + up * 0.04f * s + bodyDir * 0.045f * s + (wood ? -f * 0.0f : up * 0.02f * s);
+                    output[at + 1] = Part(head - bodyDir * 0.01f, body, 0.02f * s, 0.02f * s, 0.018f * s, 1f,
+                                          wood ? new float4(0.6f, 0.08f, 0.06f, 0f) : a.Colour * 1.1f);
+                    output[at + 2] = Part(head + (wood ? -f : f) * 0.018f * s, quaternion.LookRotationSafe(wood ? -f : f, up), 0.018f * s,
+                                          0.006f * s, 0.002f, 1f, new float4(0.35f, 0.3f, 0.15f, 0f));
+                    output[at + 3] = Part(p + up * 0.04f * s - bodyDir * 0.04f * s, quaternion.LookRotationSafe(-bodyDir + up * 0.2f, up),
+                                          0.05f * s, 0.014f * s, 0.006f * s, 0.3f, a.Colour * 0.8f);
+                    var beat = a.Air > 0.5f ? math.sin(now * 40f) * 0.9f : 0f;
+                    for (int w = -1; w <= 1; w += 2)
+                    {
+                        var wing = math.normalize(side * w * (a.Air > 0.5f ? 1f : 0.2f) - bodyDir * (a.Air > 0.5f ? 0.2f : 1f) + up * beat * 0.6f);
+                        output[at + 4 + (w + 1) / 2] = Part(p + up * 0.05f * s + side * w * 0.015f * s, quaternion.LookRotationSafe(wing, up),
+                                                            0.055f * s, 0.018f * s, 0.006f * s, 0.25f, a.Colour * 0.75f);
+                    }
+                    break;
+                }
+                case AmbientKind.Owl:
+                {
+                    output[at] = Part(p + up * 0.02f, quaternion.LookRotationSafe(up, -f), 0.16f, 0.09f, 0.075f, 1f, a.Colour);
+                    var look = new float3(math.sin(a.Yaw + a.Head), 0f, math.cos(a.Yaw + a.Head));
+                    var headAt = p + up * 0.27f;
+                    var headRot = quaternion.LookRotationSafe(look, up);
+                    output[at + 1] = Part(headAt - look * 0.05f, headRot, 0.06f, 0.07f, 0.065f, 1f, a.Colour * 1.1f);
+                    // A pale face disc, and the two ear tufts.
+                    output[at + 2] = Part(headAt + look * 0.035f, headRot, 0.01f, 0.05f, 0.05f, 0.3f, new float4(0.75f, 0.68f, 0.55f, 0f));
+                    var lookSide = new float3(look.z, 0f, -look.x);
+                    for (int e = -1; e <= 1; e += 2)
+                        output[at + 3 + (e + 1) / 2] = Part(headAt + lookSide * e * 0.035f + up * 0.05f, quaternion.LookRotationSafe(up + lookSide * e * 0.3f, look),
+                                                            0.045f, 0.014f, 0.004f, 1f, a.Colour * 0.8f);
+                    output[at + 5] = Part(p - f * 0.03f, quaternion.LookRotationSafe(-up * 0.6f - f, up), 0.08f, 0.03f, 0.01f, 0.4f, a.Colour * 0.85f);
+                    break;
+                }
+                case AmbientKind.Frog:
+                {
+                    output[at] = Part(p - f * 0.04f + up * 0.025f, face, 0.08f, 0.035f, 0.04f, 0.65f, a.Colour);
+                    for (int e = -1; e <= 1; e += 2)
+                        output[at + 1 + (e + 1) / 2] = Part(p + f * 0.03f + side * e * 0.018f + up * 0.05f, face, 0.005f, 0.011f, 0.011f, 1f,
+                                                            new float4(0.6f, 0.55f, 0.15f, 0f));
+                    break;
+                }
+                case AmbientKind.Cicada:
+                {
+                    var bodyDir = math.normalize(up + f * 0.2f);
+                    output[at] = Part(p - bodyDir * 0.02f, quaternion.LookRotationSafe(bodyDir, -f), 0.045f, 0.013f, 0.011f, 1f, a.Colour);
+                    output[at + 1] = Part(p - bodyDir * 0.03f - f * 0.008f, quaternion.LookRotationSafe(-bodyDir, -f), 0.05f, 0.012f, 0.004f, 0.2f,
+                                          new float4(0.55f, 0.6f, 0.55f, 0f));
+                    break;
+                }
+                default:
+                {
+                    // A cricket (dark) or grasshopper (green): a body and a pair of long hind legs, kicked out mid-hop.
+                    var len = a.Kind == AmbientKind.Grasshopper ? 0.045f : 0.03f;
+                    output[at] = Part(p - f * len * 0.5f, face, len, 0.008f, 0.006f, 1f, a.Colour);
+                    var kick = a.Air > 0.5f ? 0.8f : 0f;
+                    for (int l = -1; l <= 1; l += 2)
+                        output[at + 1 + (l + 1) / 2] = Part(p + side * l * 0.006f, quaternion.LookRotationSafe(-f + up * (0.6f - kick) + side * l * 0.2f, up),
+                                                            len * 0.9f, 0.003f, 0.002f, 1f, a.Colour * 0.8f);
+                    break;
+                }
+            }
+            return at + CritterParts;
+        }
+
         static SegmentInstance Part(float3 from, quaternion rotation, float length, float r0, float r1, float flatten, float4 colour,
                                     float faded = 0f) =>
             new SegmentInstance
@@ -345,6 +438,7 @@ namespace Punchy.Fauna
             var swarmPlayer = new float3(float.MaxValue);
             foreach (var t in SystemAPI.Query<RefRO<Unity.Transforms.LocalTransform>>().WithAll<Punchy.Player.PlayerTag>())
                 swarmPlayer = t.ValueRO.Position;
+            float3 camAt0 = cam.transform.position;
             var swarmTargets = new NativeArray<float3>(hives.Length, Allocator.Temp);
             for (int i = 0; i < hives.Length; i++)
             {
@@ -374,6 +468,9 @@ namespace Punchy.Fauna
                             swarmTargets[i] = states[k].Position;
                 total += day ? SwarmRound + SwarmForagers : SwarmNight;
             }
+            // The small life round the listener (AmbientLife: songbirds, owls, crickets, frogs...), drawn only.
+            var critters = AmbientLife.Near(World, camAt0);
+            total += critters.Count * CritterParts;
 
             // Footprints and feathers (TraceSystem).
             var traces = World.GetExistingSystemManaged<TraceSystem>();
@@ -449,6 +546,8 @@ namespace Punchy.Fauna
                 at = Swarm(hive, hives[i], day, now, angry, swarmTargets[i], faded, terrain, instances, at);
             }
             swarmTargets.Dispose();
+            foreach (var critter in critters)
+                at = Critter(critter, (float)SystemAPI.Time.ElapsedTime, instances, at);
             if (traceCount > 0)
                 at = traces.Write(instances, at, (float)SystemAPI.Time.ElapsedTime);
 

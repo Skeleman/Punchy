@@ -21,7 +21,8 @@ namespace Punchy.Audio
     /// <item>a cat purring while it's held and content (not squirming to get down), a dog panting while it follows
     /// someone or after a run;</item>
     /// <item>bees droning at the hives near the listener;</item>
-    /// <item>a thin layer of birdsong round the listener by day, at night crickets and now and then an owl (outdoors only).</item>
+    /// <item>the countryside's small life (AmbientLife), each call from where it is: songbirds, a woodpecker, owls, crickets,
+    /// grasshoppers, frogs, cicadas. No sound without something there.</item>
     /// </list>
     /// </summary>
     [UpdateInGroup(typeof(PresentationSystemGroup))]
@@ -42,8 +43,8 @@ namespace Punchy.Audio
         readonly List<Entity> stale = new List<Entity>();
         readonly Dictionary<int, int> hiveLoops = new Dictionary<int, int>();
         readonly List<int> hiveGone = new List<int>();
-        int crickets;
-        float nextBird, nextOwl;
+        /// <summary>Each of AmbientLife's small creatures' call count and whether it was hidden, last frame.</summary>
+        readonly Dictionary<uint, (int calls, bool hidden)> ambientCalls = new Dictionary<uint, (int, bool)>();
         NativeList<int> near;
 
         protected override void OnCreate()
@@ -64,7 +65,6 @@ namespace Punchy.Audio
                 return;
             var ear = (float3)cam.transform.position;
             var night = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Night : 0f;
-            var outdoors = 1f - CaveSystem.Underground;
             hour = clock.Hour;
             // (The species' calls, read once the director has its species, and again if it rebuilds them.)
             var director = calls == null || UnityEngine.Time.frameCount % 120 == 0 ? Object.FindAnyObjectByType<FaunaDirector>() : null;
@@ -91,7 +91,7 @@ namespace Punchy.Audio
                 return;
             Creatures(ear, terrain);
             Hives(ear, terrain, night);
-            Countryside(ear, night, outdoors);
+            Countryside(ear);
             Moods(ear);
         }
 
@@ -297,47 +297,41 @@ namespace Punchy.Audio
             }
         }
 
-        void Countryside(float3 ear, float night, float outdoors)
+        /// <summary>
+        /// The countryside's sounds, each from something there to find (AmbientLife): songbirds singing in the trees,
+        /// a woodpecker drumming, owls hooting, crickets chirping in the grass, grasshoppers buzzing as they jump, frogs
+        /// croaking at the water's edge (and a plop as one goes in), cicadas on hot days. Each call as its count goes up.
+        /// </summary>
+        void Countryside(float3 ear)
         {
-            var now = (float)SystemAPI.Time.ElapsedTime;
-            // Crickets at night, outdoors: one field all round, a little off to one side so it isn't inside the head.
-            var cricketVolume = math.saturate((night - 0.4f) * 2f) * outdoors * 0.35f;
-            var at = ear + new float3(3f, -1.5f, 2f);
-            if (cricketVolume > 0.01f && crickets == 0)
-                crickets = GameAudio.StartLoop(SoundId.Crickets, at, cricketVolume, 40f, SoundGroup.World);
-            else if (cricketVolume <= 0.01f && crickets != 0)
+            var life = AmbientLife.Near(World, ear);
+            foreach (var a in life)
             {
-                GameAudio.StopLoop(crickets);
-                crickets = 0;
+                if (!ambientCalls.TryGetValue(a.Id, out var was))
+                {
+                    ambientCalls[a.Id] = (a.Calls, a.Hidden);
+                    continue;
+                }
+                var pitch = 0.9f + (a.Id % 23u) * 0.01f;
+                if (a.Hidden && !was.hidden && a.Kind == AmbientKind.Frog)
+                    GameAudio.PlayOneShot(SoundId.Splash, a.Position, 1.7f, 0.35f, 15f);
+                else if (!a.Hidden && a.Calls != was.calls)
+                    switch (a.Kind)
+                    {
+                        case AmbientKind.Songbird:
+                            GameAudio.PlayOneShot(((uint)a.Calls + a.Id) % 5u == 0u ? SoundId.Song : SoundId.Chirp, a.Position, pitch + 0.1f, 0.4f, 30f);
+                            break;
+                        case AmbientKind.Woodpecker: GameAudio.PlayOneShot(SoundId.Drum, a.Position, pitch, 0.6f, 50f); break;
+                        case AmbientKind.Owl: GameAudio.PlayOneShot(SoundId.Owl, a.Position, pitch, 0.5f, 45f); break;
+                        case AmbientKind.Cricket: GameAudio.PlayOneShot(SoundId.CricketChirp, a.Position, pitch + 0.1f, 0.3f, 12f); break;
+                        case AmbientKind.Grasshopper: GameAudio.PlayOneShot(SoundId.Zip, a.Position, pitch, 0.25f, 10f); break;
+                        case AmbientKind.Frog: GameAudio.PlayOneShot(SoundId.Croak, a.Position, pitch, 0.5f, 30f); break;
+                        case AmbientKind.Cicada: GameAudio.PlayOneShot(SoundId.Cicada, a.Position, pitch, 0.45f, 40f); break;
+                    }
+                ambientCalls[a.Id] = (a.Calls, a.Hidden);
             }
-            else if (crickets != 0)
-                GameAudio.MoveLoop(crickets, at, cricketVolume);
-            if (outdoors < 0.5f)
-                return;
-            // A thin layer of birdsong by day: a call or a song once in a while in the air round the listener, up in the
-            // trees' height (the birds round about make their own calls).
-            if (night < 0.4f && now >= nextBird)
-            {
-                nextBird = now + UnityEngine.Random.Range(12f, 30f);
-                // (Only among trees: not out on open desert, ice or the middle of a square.)
-                var treeRng = Unity.Mathematics.Random.CreateFromIndex((uint)UnityEngine.Time.frameCount);
-                if (!SystemAPI.TryGetSingleton<Punchy.Flora.FloraLookup>(out var flora) || !flora.Blob.IsCreated ||
-                    !SystemAPI.TryGetSingleton<TerrainSource>(out var land) ||
-                    !Punchy.Flora.FloraPlacement.FindTree(ref flora.Blob.Value, land, ear.xz, 25f, 3f, ref treeRng, out _))
-                    return;
-                var dir = UnityEngine.Random.insideUnitCircle.normalized * UnityEngine.Random.Range(8f, 28f);
-                var spot = ear + new float3(dir.x, UnityEngine.Random.Range(3f, 9f), dir.y);
-                GameAudio.PlayOneShot(UnityEngine.Random.value < 0.25f ? SoundId.Song : SoundId.Chirp, spot,
-                                      UnityEngine.Random.Range(0.85f, 1.2f), UnityEngine.Random.Range(0.15f, 0.3f), 35f, SoundGroup.World);
-            }
-            // An owl now and then at night.
-            if (night > 0.6f && now >= nextOwl)
-            {
-                nextOwl = now + UnityEngine.Random.Range(12f, 30f);
-                var dir = UnityEngine.Random.insideUnitCircle.normalized * UnityEngine.Random.Range(15f, 35f);
-                GameAudio.PlayOneShot(SoundId.Owl, ear + new float3(dir.x, UnityEngine.Random.Range(4f, 8f), dir.y),
-                                      UnityEngine.Random.Range(0.9f, 1.1f), 0.5f, 45f, SoundGroup.World);
-            }
+            if (ambientCalls.Count > 600)
+                ambientCalls.Clear();
         }
     }
 }
