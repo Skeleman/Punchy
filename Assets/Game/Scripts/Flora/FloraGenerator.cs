@@ -2553,13 +2553,16 @@ namespace Punchy.Flora
             // A striped awning sloping from the back down over the front, overhanging it.
             var back = new Vector3(0f, height + 0.05f, -depth * 0.55f);
             var front = new Vector3(0f, frontHeight - 0.15f, depth * 0.5f + 0.45f);
+            // Cloth held at both bars, so it only ripples between them.
             var stripes = g.Sides(6, 4, 2);
+            var awning = b.VertexCount;
             for (int k = 0; k < stripes; k++)
             {
-                var x = (k + 0.5f) / stripes - 0.5f;
+                var x = k / (float)stripes - 0.5f;
                 var colour = k % 2 == 0 ? g.FoliageColor() : AccentAt(g, 0);
-                b.Beam(back + Vector3.right * x * width * 1.1f, front + Vector3.right * x * width * 1.1f, width * 1.1f / stripes, 0.04f, colour, FloraPart.Bark);
+                b.Sheet(back + Vector3.right * x * width * 1.1f, Vector3.right * width * 1.1f / stripes, front - back, 1, g.Sides(5, 3, 1), colour, FloraPart.Bark);
             }
+            b.Cloth(awning, p => 0.3f * Mathf.Sin(Mathf.Clamp01(Mathf.InverseLerp(back.z, front.z, p.z)) * Mathf.PI));
         }
 
         static void Inn(Grower g)
@@ -2692,7 +2695,12 @@ namespace Punchy.Flora
                 {
                     var foot = new Vector3(x, 0f, front + 1.4f);
                     b.Tube(new List<Vector3> { foot + Vector3.down * 0.2f, foot + Vector3.up * (wall + 1.2f) }, new List<float> { 0.08f, 0.06f }, g.Sides(6, 4, 3), timber, FloraPart.Bark);
-                    b.Box(foot + new Vector3(x * 0.12f, wall + 0.2f, 0f), new Vector3(0.9f, 1.8f, 0.04f), Quaternion.identity, AccentAt(g, 1), FloraPart.Bark);
+                    // A banner hung from a short bar near the top of the pole, free to wave below it.
+                    var top = wall + 1.1f;
+                    var banner = b.VertexCount;
+                    b.Sheet(foot + new Vector3(x * 0.12f - 0.45f, top, 0f), Vector3.right * 0.9f, Vector3.down * 1.8f, g.Sides(4, 2, 1), g.Sides(6, 3, 1), AccentAt(g, 1), FloraPart.Bark);
+                    b.Cloth(banner, p => (foot.y + top - p.y) / 1.8f);
+                    b.Box(foot + new Vector3(x * 0.12f, top, 0f), new Vector3(1.0f, 0.05f, 0.05f), Quaternion.identity, timber, FloraPart.Bark);
                 }
             }
 
@@ -2886,8 +2894,12 @@ namespace Punchy.Flora
             var bone = AccentAt(g, 0);
             var doorZ = foot * 0.55f + 0.1f;
             var doorY = height * 0.45f;
-            b.Box(new Vector3(0f, doorY * 0.5f, doorZ), new Vector3(1.6f, doorY, 0.08f), Quaternion.Euler(-Mathf.Atan2(foot, height) * Mathf.Rad2Deg * 0.4f, 0f, 0f),
-                  s.Foliage.linear * 0.5f, FloraPart.Bark, 0.6f);
+            // A heavy hide hung from its top edge: it stirs at the bottom, no more.
+            var flapTurn = Quaternion.Euler(-Mathf.Atan2(foot, height) * Mathf.Rad2Deg * 0.4f, 0f, 0f);
+            var flapTop = new Vector3(0f, doorY * 0.5f, doorZ) + flapTurn * new Vector3(-0.8f, doorY * 0.5f, 0.04f);
+            var flap = b.VertexCount;
+            b.Sheet(flapTop, flapTurn * Vector3.right * 1.6f, flapTurn * Vector3.down * doorY, g.Sides(4, 2, 1), g.Sides(4, 2, 1), s.Foliage.linear * 0.5f, FloraPart.Bark, 0.6f);
+            b.Cloth(flap, p => (flapTop.y - p.y) / doorY * 0.45f);
             if (g.Lod < 2)
             {
                 foreach (var x in new[] { -1.3f, 1.3f })

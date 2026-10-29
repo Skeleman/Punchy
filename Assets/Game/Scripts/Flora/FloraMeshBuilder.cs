@@ -23,7 +23,10 @@ namespace Punchy.Flora
         /// <summary>Honeycomb wax: glossy, with faint hexagonal cells up close (wild beehives; see Flora.shader).</summary>
         Comb = 8,
         /// <summary>A bark face's eyes: a faint glow that blinks now and then (see Flora.shader).</summary>
-        Eye = 9
+        Eye = 9,
+        /// <summary>Cloth (banners, awnings, hide flaps) that waves in the wind; how free each vertex is rides on the part
+        /// (see FloraMeshBuilder.Cloth, Flora.hlsl).</summary>
+        Cloth = 10
     }
 
     /// <summary>
@@ -572,6 +575,42 @@ namespace Punchy.Flora
             {
                 var d = data[v];
                 d.z = -10f - Mathf.Max(amount(positions[v]), 0f);
+                data[v] = d;
+            }
+        }
+
+        /// <summary>
+        /// A flat sheet of <paramref name="nu"/> × <paramref name="nv"/> quads from a corner along two edges (cloth:
+        /// banners, awnings, flaps), seen from both sides (the flora shader draws double-sided). Returns its first vertex.
+        /// </summary>
+        public int Sheet(Vector3 corner, Vector3 u, Vector3 v, int nu, int nv, Color color, FloraPart part, float ao = 1f)
+        {
+            var first = positions.Count;
+            var n = Vector3.Cross(u, v).normalized;
+            for (int j = 0; j <= nv; j++)
+            for (int i = 0; i <= nu; i++)
+                Vertex(corner + u * (i / (float)nu) + v * (j / (float)nv), n, color, part, ao, 0f);
+            for (int j = 0; j < nv; j++)
+            for (int i = 0; i < nu; i++)
+            {
+                int a = first + j * (nu + 1) + i, b = a + 1, c = a + nu + 1, d = c + 1;
+                Triangle(a, b, c);
+                Triangle(b, d, c);
+            }
+            return first;
+        }
+
+        /// <summary>
+        /// Makes the vertices from <paramref name="firstVertex"/> cloth that waves in the wind (Flora.hlsl), by how free
+        /// each is: 0 where it's held (a pole, a bar, a seam), 1 at a free edge. Carried on the part as Cloth + free × 0.4.
+        /// </summary>
+        public void Cloth(int firstVertex, Func<Vector3, float> free)
+        {
+            for (int v = firstVertex; v < data.Count; v++)
+            {
+                var d = data[v];
+                d.y = (float)FloraPart.Cloth + Mathf.Clamp01(free(positions[v])) * 0.4f;
+                d.z = 0f;
                 data[v] = d;
             }
         }

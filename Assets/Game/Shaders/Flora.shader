@@ -36,10 +36,6 @@ Shader "Punchy/Flora"
             #include "Metal.hlsl"
             #include "Glow.hlsl"
             #include "SharedClock.hlsl"
-            // The shared fine detail CaveSystem makes (rg a normal, b a height): grain on rock and bark up close.
-            TEXTURE2D(_PunchyCaveDetail);
-            SAMPLER(sampler_PunchyCaveDetail);
-            float _PunchyCaveDetailReady;
 
             /// How much of a detail octave of this period (m) to keep, given how many metres one pixel covers: all of it
             /// while a period spans eight pixels or more, none once it's down to three (where it would shimmer).
@@ -135,8 +131,13 @@ Shader "Punchy/Flora"
                 half r = input.extra.w;
                 half3 albedo = input.color.rgb * (0.88 + 0.24 * r);
 
-                // How many metres one pixel covers here (outside any branch, so the derivatives are good).
+                // How many metres one pixel covers here, and the facet's own normal (outside any branch, so the
+                // derivatives are good).
                 float footprint = length(fwidth(input.positionWS));
+                float3 facet = normalize(cross(ddy(input.positionWS), ddx(input.positionWS)) + 1e-9);
+                // Cloth: lit by the surface the wind has waved (its folds catch the light), facing the viewer.
+                if (part == 10)
+                    n = dot(facet, v) < 0 ? -facet : facet;
                 // Built things (those with a dirt band): weathering that stays at every range (PunchyWeathering).
                 if (part == 0 && input.ground.a > 0)
                     albedo *= PunchyWeathering(input.positionWS, n, footprint, r);
