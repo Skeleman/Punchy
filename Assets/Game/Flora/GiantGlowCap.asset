@@ -19,7 +19,7 @@ MonoBehaviour:
   TrunkFraction: 0.35
   Thickness: 0.055
   Fullness: 0.7
-  Branches: {x: 1, y: 3}
+  Branches: {x: 1, y: 5}
   Flexibility: 0
   FlowerHead: 0
   Bark: {r: 0.65, g: 0.7, b: 0.6, a: 1}
@@ -32,6 +32,7 @@ MonoBehaviour:
   GlowingAccents: 0
   GlowPulse: 0.12
   GlowingSeams: 0
+  Brackets: 0
   MaxSlope: 30
   Elevation: {x: 0.5, y: 10000}
   GrassAffinity: 0
@@ -45,6 +46,6 @@ MonoBehaviour:
   Floats: 0
   MinRapids: 0
   Solid: 1
-  SizeRange: {x: 0.85, y: 1.15}
-  Variants: 4
+  SizeRange: {x: 0.65, y: 1.35}
+  Variants: 6
   Seed: 42

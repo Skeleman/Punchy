@@ -172,6 +172,9 @@ namespace Punchy.Flora
         [Tooltip("Bark (trunk, branches, stems) cracked with glowing seams that pulse slowly, like embers under char " +
                  "(Ember Forest) or veins of light (weird biomes). Shader only: no extra geometry.")]
         public bool GlowingSeams;
+        [Tooltip("Trees (BroadleafTree, HiveTree): the share of variants with bracket fungus shelves stepping up the trunk, " +
+                 "in the first accent colour (glowing with Glowing Accents).")]
+        [Range(0f, 1f)] public float Brackets;
 
         [Header("Placement")]
         [Tooltip("Steepest ground it grows on, in degrees.")]

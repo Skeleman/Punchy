@@ -18,7 +18,7 @@ MonoBehaviour:
   Spread: 0.85
   TrunkFraction: 0.32
   Thickness: 0.032
-  Fullness: 0.3
+  Fullness: 0
   Branches: {x: 4, y: 6}
   Flexibility: 0.35
   FlowerHead: 0
@@ -32,6 +32,7 @@ MonoBehaviour:
   GlowingAccents: 0
   GlowPulse: 0.12
   GlowingSeams: 1
+  Brackets: 0
   MaxSlope: 30
   Elevation: {x: 1, y: 125}
   GrassAffinity: 0.6

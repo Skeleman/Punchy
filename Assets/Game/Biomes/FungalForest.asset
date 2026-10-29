@@ -103,9 +103,13 @@ MonoBehaviour:
     Density: 2
   Flora:
   - Species: {fileID: 11400000, guid: 15173a626853f1745a95536f913b6884, type: 2}
-    Density: 0.5
+    Density: 0.4
   - Species: {fileID: 11400000, guid: d3ebda57384af0b40aca0c9de393af44, type: 2}
-    Density: 0.35
+    Density: 0.25
+  - Species: {fileID: 11400000, guid: 5d04ad26565091749bba718ed3947883, type: 2}
+    Density: 0.06
+  - Species: {fileID: 11400000, guid: c23ff5b54d2b09c4f8b4fc96e423afce, type: 2}
+    Density: 0.8
   - Species: {fileID: 11400000, guid: a9cbbae6f97c066488f4202fc7884908, type: 2}
     Density: 3
   - Species: {fileID: 11400000, guid: f0bc63d3dde59f142948a597920d6c11, type: 2}
