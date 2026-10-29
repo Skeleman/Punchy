@@ -26,6 +26,21 @@ namespace Punchy.Audio
         public static readonly float[] Volume = { 1f, 1f, 1f, 1f };
         public static float Master = 1f;
 
+        /// <summary>
+        /// Whether the game goes quiet while its window isn't in front (on by default; kept on this machine). The game
+        /// itself carries on (Run In Background): only the sound fades out, and back in on returning.
+        /// </summary>
+        public static bool MuteInBackground
+        {
+            get => PlayerPrefs.GetInt(MuteKey, 1) != 0;
+            set { PlayerPrefs.SetInt(MuteKey, value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+        const string MuteKey = "Punchy.MuteInBackground";
+        static bool focused = true;
+        /// <summary>The level everything is heard at, easing to 0 out of focus (AudioListener.volume: every sound, the
+        /// weather's too).</summary>
+        static float focusLevel = 1f;
+
         static GameAudio instance;
         readonly Dictionary<SoundId, AudioClip[]> bank = new Dictionary<SoundId, AudioClip[]>();
         System.Threading.Tasks.Task<(SoundId, int, float[])[]> making;
@@ -78,8 +93,14 @@ namespace Punchy.Audio
             });
         }
 
+        void OnApplicationFocus(bool hasFocus) => focused = hasFocus;
+
         void Update()
         {
+            // Fading out over a quarter second when the window loses focus, back in over half a second.
+            var quiet = !focused && MuteInBackground;
+            focusLevel = Mathf.MoveTowards(focusLevel, quiet ? 0f : 1f, Time.unscaledDeltaTime * (quiet ? 4f : 2f));
+            AudioListener.volume = focusLevel;
             if (making != null && making.IsCompleted)
             {
                 foreach (var (id, v, samples) in making.Result)
