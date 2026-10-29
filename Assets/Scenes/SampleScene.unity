@@ -154,7 +154,10 @@ MonoBehaviour:
   Radius: 120
   MinSpawnDistance: 40
   DespawnDistance: 170
-  MaxCreatures: 300
+  MaxCreatures: 180
+  MaxSettled: 60
+  MaxCave: 100
+  MaxCritters: 96
   SpawnRate: 6
 --- !u!4 &10198393
 Transform:

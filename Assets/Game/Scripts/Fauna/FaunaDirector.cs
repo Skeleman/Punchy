@@ -37,17 +37,17 @@ namespace Punchy.Fauna
         public float DespawnDistance = 170f;
         [Tooltip("At most this many wild animals (the ones that come and go round the players).")]
         [UnityEngine.Serialization.FormerlySerializedAs("MaxCreatures")]
-        public int MaxWild = 300;
+        public int MaxWild = 180;
         [Tooltip("At most this many settled ones (settlements' residents and their domestic animals), counted apart so " +
                  "a big town never stops the wild ones appearing.")]
-        public int MaxSettled = 400;
+        public int MaxSettled = 60;
         [Tooltip("At most this many cave dwellers.")]
-        public int MaxCave = 120;
+        public int MaxCave = 100;
         [Tooltip("Spawn attempts per second (per player).")]
         public float SpawnRate = 6f;
         [Tooltip("At most this many critters (the small life put round players from the seed: songbirds, owls, frogs, " +
                  "mice), shared fairly among the players with critter spots near them.")]
-        public int MaxCritters = 128;
+        public int MaxCritters = 96;
         [Tooltip("Critters are put at their spots within this distance of a player, and let go beyond CritterLetGo.")]
         public float CritterRadius = 50f, CritterLetGo = 65f;
 
@@ -1083,9 +1083,11 @@ namespace Punchy.Fauna
                         continue;
                     var count = visitor ? rng.NextInt(1, 3)
                               : rng.NextInt(math.max(1, body.GroupSize.x), math.max(body.GroupSize.x, body.GroupSize.y) + 1);
-                    // Moths: a few round each of the cave's glowing plants (none in a cave without any).
+                    // Moths: a few round each of the cave's glowing plants (none in a cave without any): half a group
+                    // each, a cave having so many of them.
                     if (body.DrawnToLight)
                     {
+                        count = math.max(1, count / 2);
                         if (!source.Anchors.IsCreated)
                             continue;
                         ref var anchors = ref source.Anchors.Value;
