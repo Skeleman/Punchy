@@ -24,7 +24,17 @@ StructuredBuffer<FloraInstance> _FloraInstances;
 StructuredBuffer<float2> _ModelBounds;   // radius, centre height (unscaled), per variant in this layer
 StructuredBuffer<uint> _Regions;         // output offset per variant × LOD
 RWStructuredBuffer<uint2> _FloraVisible; // instance index, asuint(fade)
-RWByteAddressBuffer _Args;               // IndirectDrawIndexedArgs per variant × LOD (5 uints)
+// IndirectDrawIndexedArgs, one per variant x LOD. Structured, not raw: D3D11 can't write an IndirectArguments buffer as
+// raw, so FloraSystem counts into this and copies it into the draws' arguments.
+struct DrawArgs
+{
+    uint indexCount;
+    uint instanceCount;
+    uint startIndex;
+    int baseVertex;
+    uint startInstance;
+};
+RWStructuredBuffer<DrawArgs> _Args;      // IndirectDrawIndexedArgs per variant × LOD (5 uints)
 
 uint _Count;
 uint _DrawCount;
@@ -38,14 +48,14 @@ float4 _Shadow;   // x shadow distance, y margin
 void Clear(uint id : SV_DispatchThreadID)
 {
     if (id < _DrawCount)
-        _Args.Store((id * 5 + 1) * 4, 0);
+        _Args[id].instanceCount = 0;
 }
 
 void Append(uint instance, uint local, uint lod, float fade)
 {
     uint draw = local * 3 + lod;
     uint slot;
-    _Args.InterlockedAdd((draw * 5 + 1) * 4, 1, slot);
+    InterlockedAdd(_Args[draw].instanceCount, 1, slot);
     _FloraVisible[_Regions[draw] + slot] = uint2(instance, asuint(fade));
 }
 
