@@ -19,6 +19,9 @@ namespace Punchy.Terrain
         const float Cell = 20f;
         const float Margin = 300f;
         const float MaxSlope = 0.45f;
+        /// <summary>Ground steeper than this anywhere inside a grid cell (a mesa's cliff, a gorge wall) is a cliff the road
+        /// goes round: the cell's own centre samples can't see a sheer drop between them.</summary>
+        const float CliffSlope = 1f;
         const float FordDepth = 0.7f;
         const float CaveReach = 700f;
         const float StretchLength = 10f;
@@ -145,7 +148,7 @@ namespace Punchy.Terrain
             public TerrainSource Source;
             public float2 Origin;
             public int2 Size;
-            [WriteOnly] public NativeArray<float4> Out;   // height, water depth (0 dry), cave entrance (1), unused
+            [WriteOnly] public NativeArray<float4> Out;   // height, water depth (0 dry), cave entrance (1), steepest inside
 
             public void Execute(int i)
             {
@@ -153,7 +156,19 @@ namespace Punchy.Terrain
                 var g = Source.SampleGround(xz);
                 var depth = g.HasWater ? math.max(g.WaterSurface - g.Height, 0f) : 0f;
                 var hole = Source.CaveClearance(xz, g.Height) < 2f ? 1f : 0f;
-                Out[i] = new float4(g.Height, depth, hole, 0f);
+                // The steepest the ground gets inside the cell: from its centre out to eight points half a cell away,
+                // and between neighbouring pairs of them.
+                var steepest = 0f;
+                var r = Cell * 0.5f;
+                var previous = Source.SampleHeight(xz + new float2(r, 0f));
+                for (int k = 1; k <= 8; k++)
+                {
+                    var a = k * math.PI / 4f;
+                    var h = Source.SampleHeight(xz + new float2(math.cos(a), math.sin(a)) * r);
+                    steepest = math.max(steepest, math.max(math.abs(h - g.Height) / r, math.abs(h - previous) / (r * 0.765f)));
+                    previous = h;
+                }
+                Out[i] = new float4(g.Height, depth, hole, steepest);
             }
         }
 
@@ -200,6 +215,9 @@ namespace Punchy.Terrain
                     var ni = Index(n);
                     var there = grid[ni];
                     if (there.z > 0.5f || there.y > BridgeDepth)
+                        continue;
+                    // Cliffs inside a cell, except where the road starts and ends (a town's edge may be rough).
+                    if (there.w > CliffSlope && ni != Index(goal) && ni != Index(start))
                         continue;
                     var run = math.length((float2)step) * Cell;
                     var slope = math.abs(there.x - here.x) / run;
