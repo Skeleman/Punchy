@@ -289,7 +289,9 @@ namespace Punchy.Weather
             lownessTimer -= dt;
             pendingDt += dt;
             // A redraw still running (a slow frame) just delays the next one; its wetness catches up through pendingDt.
-            if (redrawTimer <= 0f && !mapPending)
+            // While terrain chunks are meshing the redraw waits for them (up to MaxRedrawWait), so the two don't land on
+            // the workers together and stretch the frame.
+            if (redrawTimer <= 0f && !mapPending && (!TerrainStreamingSystem.Meshing || redrawTimer < -MaxRedrawWait))
             {
                 // Five times a second: cells move at most about 13 m/s, under 3 m a redraw against 64 m map texels, and
                 // the clouds' visible drift comes from _PunchyCloudOffset every frame, so the maps never step visibly.
@@ -300,6 +302,8 @@ namespace Punchy.Weather
         }
 
         float redrawTimer, pendingDt;
+        /// <summary>Longest a redraw waits for terrain meshing (gliding streams chunks almost every frame).</summary>
+        const float MaxRedrawWait = 0.3f;
         int climateCountdown;
         float pressureTime;
         Vector2 pressureOffset;

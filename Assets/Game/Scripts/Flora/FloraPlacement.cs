@@ -27,6 +27,8 @@ namespace Punchy.Flora
         public float MinRapids;
         /// <summary>How far it lies over onto the slope it stands on (rocks 0.85; upright plants 0).</summary>
         public float Tilt;
+        /// <summary>1 for built things (FloraGenerator.Founded): their bases take a band of the ground's colour.</summary>
+        public int Dirt;
     }
 
     public struct FloraBiomeEntry
@@ -177,7 +179,8 @@ namespace Punchy.Flora
                     Floats = s.Floats ? 1 : 0,
                     WaterDepth = s.WaterDepth,
                     MinRapids = s.MinRapids,
-                    Tilt = s.Form == FloraForm.Boulder ? 0.85f : 0f
+                    Tilt = s.Form == FloraForm.Boulder ? 0.85f : 0f,
+                    Dirt = FloraGenerator.Founded(s.Form) ? 1 : 0
                 };
                 for (int v = 0; v < s.Variants; v++)
                 {
@@ -273,6 +276,30 @@ namespace Punchy.Flora
         }
 
         /// <summary>
+        /// For built things (FloraRules.Dirt), the ground's colour round the footprint: the middle and four points
+        /// <paramref name="reach"/> out, averaged; grass turns it towards soil and snow pale grey. Packed RGBA8, the
+        /// alpha carrying how high the dirt reaches (<paramref name="band"/> m at scale 1, in centimetres, at least 1:
+        /// a house's walls take more than a bench's feet); 0 for anything else.
+        /// </summary>
+        static uint DirtColor(in TerrainSource source, in FloraRules rule, float2 at, float reach, float band)
+        {
+            if (rule.Dirt == 0)
+                return 0u;
+            var sum = float3.zero;
+            for (int k = 0; k < 5; k++)
+            {
+                var p = at + (k == 0 ? float2.zero : new float2(k == 1 ? 1f : k == 2 ? -1f : 0f, k == 3 ? 1f : k == 4 ? -1f : 0f) * reach);
+                var ground = source.SampleGround(p);
+                var surface = source.SampleSurface(p, ground, source.SampleNormal(p, 1f));
+                // Under grass it's the soil that splashes up, not the green; under snow, pale grey.
+                var soil = math.lerp(surface.Albedo, new float3(0.2f, 0.14f, 0.09f), math.saturate(surface.Grass) * 0.8f);
+                sum += math.lerp(soil, new float3(0.62f, 0.64f, 0.68f), math.saturate(surface.Snow));
+            }
+            var c = (uint3)math.round(math.saturate(sum / 5f) * 255f);
+            return c.x | (c.y << 8) | (c.z << 16) | ((uint)math.clamp(math.round(band * 100f), 1f, 255f) << 24);
+        }
+
+        /// <summary>
         /// The floor a plot's building stands at: the average ground over its footprint (the middle and four points
         /// towards its corners), raised to the ground at its door if that's higher so the door is never buried. Its
         /// foundation skirt (FloraGenerator.FoundationDepth) reaches down past the lower ground.
@@ -296,7 +323,7 @@ namespace Punchy.Flora
             FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tent or FloraForm.Tower or FloraForm.Stall or FloraForm.Inn or
             FloraForm.Smithy or FloraForm.Forum or FloraForm.Fountain or FloraForm.Woodpile or FloraForm.Well or
             FloraForm.Hall or FloraForm.Shrine or FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade or
-            FloraForm.Bench or FloraForm.Log or FloraForm.Stump => true,
+            FloraForm.Bench or FloraForm.Log or FloraForm.Stump or FloraForm.FirePit => true,
             _ => false
         };
 
@@ -571,7 +598,8 @@ namespace Punchy.Flora
                             // Sized for its folk (the layout's BuildingScale: ogre tents bigger, goblin huts smaller).
                             Scale = bridge ? 1f : rng.NextFloat(0.95f, 1.05f) * towns.Layouts[towns.Settlements[plot.Settlement].Layout].BuildingScale,
                             Model = buildingRule.FirstModel + rng.NextInt(buildingRule.Variants),
-                            Random = rng.NextFloat()
+                            Random = rng.NextFloat(),
+                            Ground = bridge ? 0u : DirtColor(source, buildingRule, plot.Centre, math.cmax(plot.Half), 0.9f)
                         };
                     }
                     // Streets and built plots grow nothing, though a landmark's placed props (benches on the square,
@@ -614,7 +642,8 @@ namespace Punchy.Flora
                                     Yaw = prop.FaceCentre != 0 ? math.atan2(-toCentre.x, toCentre.y) : rng.NextFloat(math.PI * 2f),
                                     Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
                                     Model = placedRule.FirstModel + rng.NextInt(placedRule.Variants),
-                                    Random = rng.NextFloat()
+                                    Random = rng.NextFloat(),
+                                    Ground = DirtColor(source, placedRule, spot, 1f, 0.25f)
                                 };
                             }
                             blocked |= math.distance(xz, spot) < prop.Clearance;
@@ -641,7 +670,8 @@ namespace Punchy.Flora
                                 Yaw = rng.NextFloat(math.PI * 2f),
                                 Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
                                 Model = centreRule.FirstModel + rng.NextInt(centreRule.Variants),
-                                Random = rng.NextFloat()
+                                Random = rng.NextFloat(),
+                                Ground = DirtColor(source, centreRule, centre, 2f, 0.5f)
                             };
                         }
                         continue;
@@ -804,7 +834,8 @@ namespace Punchy.Flora
                 Random = rng.NextFloat(),
                 Snow = surface.Snow,
                 // Rocks lie over onto the slope they stand on.
-                Tilt = normal.xz * rule.Tilt
+                Tilt = normal.xz * rule.Tilt,
+                Ground = DirtColor(source, rule, xz, 1f, 0.25f)
             };
         }
 

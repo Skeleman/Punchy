@@ -169,6 +169,12 @@ namespace Punchy.Terrain
                     }
                     if (prop.Species.Form == Punchy.Flora.FloraForm.Fountain && prop.Centrepiece)
                         RimSeats(inst.Position, prop.Species, prop.Scale.x, t);
+                    // A fire pit at the heart of a town: a hearth to gather round, a pace out from its stones.
+                    if (prop.Species.Form == Punchy.Flora.FloraForm.FirePit && prop.Centrepiece)
+                    {
+                        var ring = (prop.Species.Height.x + prop.Species.Height.y) * 0.5f * prop.Scale.x;
+                        Add(AnchorKind.Hearth, inst.Position, inst.Facing, ring + 1f, 6, t);
+                    }
                     if (prop.Species.Form != Punchy.Flora.FloraForm.Well && prop.Species.Form != Punchy.Flora.FloraForm.Fountain)
                         continue;
                     if (prop.Centrepiece)

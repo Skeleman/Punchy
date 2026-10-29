@@ -84,7 +84,10 @@ namespace Punchy.Flora
         [Tooltip("A plank bench on two stone feet, its seat 0.45 m up and 1.8 m long (Bark the planks, Foliage the " +
                  "stone). A sitter faces +Z. Towns' Sit anchors expect these sizes at scale 1.")] Bench,
         [Tooltip("A log lying on its side to sit on, 0.4 m high and 1.8 m long (Bark), with cut ends. A sitter faces +Z.")] Log,
-        [Tooltip("A sawn stump to sit on, 0.42 m high (Bark, with a pale cut top).")] Stump
+        [Tooltip("A sawn stump to sit on, 0.42 m high (Bark, with a pale cut top).")] Stump,
+        [Tooltip("A fire pit: a ring of stones (Bark; Height the ring's radius, Branches how many) round an ash bed with " +
+                 "charred logs (Foliage) leaning together and glowing embers (first accent; set Glowing Accents so they " +
+                 "light the ground). The flames themselves are the landmark's Flame effect.")] FirePit
     }
 
     public enum FoliageFinish : byte

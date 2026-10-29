@@ -79,6 +79,7 @@ namespace Punchy.Flora
                     case FloraForm.Bench: Bench(g); break;
                     case FloraForm.Log: SeatLog(g); break;
                     case FloraForm.Stump: Stump(g); break;
+                    case FloraForm.FirePit: FirePit(g); break;
                     case FloraForm.Bones: Bones(g); break;
                     case FloraForm.Boulder: Boulder(g); break;
                     case FloraForm.Spire: Spire(g); break;
@@ -1264,6 +1265,61 @@ namespace Punchy.Flora
             g.Colliders.Add(new Vector4(0f, 0f, r + 0.05f, StumpSeat));
         }
 
+        /// <summary>
+        /// A fire pit: stones in a ring round a sunken ash bed, three or four charred logs leaning together over the
+        /// middle, and embers glowing in the ash (the flames are a landmark Flame effect drawn by FireSystem).
+        /// </summary>
+        static void FirePit(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var radius = g.Range(s.Height);
+            var stones = Mathf.Max(6, g.Count(s.Branches));
+            g.Height = radius * 0.8f;
+            g.Width = radius * 2.4f;
+            g.TrunkRadius = 0f;
+            // The ash bed, a little below the stones' feet.
+            b.Blob(Vector3.up * 0.01f, new Vector3(radius * 0.9f, 0.04f, radius * 0.9f), Quaternion.identity, 1, 0.2f, g.R() * 50f,
+                   new Color(0.09f, 0.085f, 0.08f), FloraPart.Bark);
+            // The ring: rough stones of varied size, each turned its own way.
+            var turn = g.R() * 6.28f;
+            for (int k = 0; k < stones; k++)
+            {
+                var a = turn + k * Mathf.PI * 2f / stones + g.Range(-0.12f, 0.12f);
+                var size = radius * g.Range(0.2f, 0.3f);
+                var at = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius + Vector3.up * size * 0.35f;
+                var stone = b.Blob(at, new Vector3(size, size * g.Range(0.6f, 0.85f), size * g.Range(0.8f, 1.1f)),
+                                   Quaternion.Euler(0f, -a * Mathf.Rad2Deg + g.Range(-20f, 20f), 0f), g.Lod == 0 ? 1 : 0, 0.35f, g.R() * 50f,
+                                   g.Bark * g.Range(0.85f, 1.1f), FloraPart.Bark);
+                b.Occlude(stone, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y + 0.5f)));
+            }
+            // Charred logs leaning together over the middle, blackening towards the burning ends.
+            var logs = g.R() < 0.5f ? 3 : 4;
+            var lean = g.R() * 6.28f;
+            var top = Vector3.up * radius * 0.55f;
+            for (int k = 0; k < logs; k++)
+            {
+                var a = lean + k * Mathf.PI * 2f / logs;
+                var foot = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius * 0.7f + Vector3.up * 0.03f;
+                b.Tube(new List<Vector3> { foot, Vector3.Lerp(foot, top, 0.6f), top + (foot - top) * -0.08f },
+                       new List<float> { radius * 0.09f, radius * 0.08f, radius * 0.05f }, g.Sides(6, 5, 4),
+                       g.FoliageColor() * 0.6f, FloraPart.Bark);
+            }
+            // Embers in the ash and on the logs' charred ends.
+            if (g.Lod < 2)
+            {
+                var ember = AccentAt(g, 0);
+                for (int k = 0; k < 9; k++)
+                {
+                    var a = g.R() * 6.28f;
+                    var at = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius * g.Range(0.05f, 0.55f) + Vector3.up * 0.04f;
+                    b.Blob(at, Vector3.one * radius * g.Range(0.04f, 0.08f), Quaternion.identity, 0, 0.3f, g.R() * 50f,
+                           ember * g.Range(0.7f, 1.2f), FloraPart.Glow);
+                }
+            }
+            g.Colliders.Add(new Vector4(0f, 0f, radius * 1.1f, radius * 0.4f));
+        }
+
         static void Bones(Grower g)
         {
             var s = g.S;
@@ -1607,9 +1663,10 @@ namespace Punchy.Flora
                    new List<float> { overhang, overhang * 0.55f, 0.05f }, sides, roofColor, FloraPart.Bark, cap: true);
             b.Occlude(roof, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.2f)));
 
-            // A framed door facing +Z, and a couple of windows.
-            // Out past the wall's slight bulge, so the curve doesn't poke through the flat door.
-            Door(g, new Vector3(0f, 0f, radius * 1.05f), Quaternion.identity, Mathf.Min(radius * 0.5f, 1.25f), Mathf.Min(wall * 0.8f, HumanDoor));
+            // A door facing +Z in a shallow porch whose sides run back into the curved wall, and a couple of windows.
+            // The door stands out past the wall's slight bulge, so the curve doesn't poke through it.
+            var doorWidth = Mathf.Min(radius * 0.5f, 1.25f);
+            Porch(g, radius * 1.05f, WallBehind(radius, doorWidth), doorWidth, Mathf.Min(wall * 0.8f, HumanDoor), 0.4f, g.Bark, roofColor, FloraPart.Bark);
             Windows(g, radius * 1.05f, wall * 0.58f, 4, 0.55f, 40f);
         }
 
@@ -1665,6 +1722,44 @@ namespace Punchy.Flora
             b.Box(P(0f, height + post * 0.5f, 0.05f), new Vector3(width + post * 2.6f, post, 0.24f), facing, frame, FloraPart.Bark);
             // A stone step.
             b.Box(P(0f, 0.06f, 0.32f), new Vector3(width + post * 2f, 0.16f, 0.5f), facing, new Color(0.45f, 0.44f, 0.41f) * g.Range(0.9f, 1.1f), FloraPart.Bark);
+        }
+
+        /// <summary>
+        /// Where a round wall of the given radius is at the edges of a door of that width (plus its frame): the
+        /// curve falls back from the door's middle, so anything meant to meet the wall starts here, or behind it.
+        /// </summary>
+        static float WallBehind(float radius, float doorWidth)
+        {
+            var half = doorWidth * 0.5f + 0.35f;
+            return Mathf.Sqrt(Mathf.Max(radius * radius - half * half, 0f)) - 0.12f;
+        }
+
+        /// <summary>
+        /// A door in a shallow entrance porch facing +Z, for round walls: the door (see Door) stands at
+        /// <paramref name="doorZ"/>, and two side cheeks and a lintel in the wall's colour run from
+        /// <paramref name="backZ"/> (inside the wall, see WallBehind) to <paramref name="depth"/> in front of the door,
+        /// under a small roof. However the wall curves behind it, no gap shows at the sides.
+        /// </summary>
+        static void Porch(Grower g, float doorZ, float backZ, float width, float height, float depth, Color wall, Color roof, FloraPart roofPart)
+        {
+            var b = g.B;
+            Door(g, new Vector3(0f, 0f, doorZ), Quaternion.identity, width, height);
+            var post = Mathf.Clamp(width * 0.12f, 0.1f, 0.18f);
+            var cheek = 0.16f;
+            var front = doorZ + depth;
+            var length = front - backZ;
+            var mid = (front + backZ) * 0.5f;
+            var top = height + post + 0.08f;
+            var inner = width * 0.5f + post;
+            foreach (var side in new[] { -1f, 1f })
+                b.Box(new Vector3(side * (inner + cheek * 0.5f), (top - 0.1f) * 0.5f, mid), new Vector3(cheek, top + 0.1f, length), Quaternion.identity, wall, FloraPart.Bark);
+            b.Box(new Vector3(0f, top + 0.1f, mid), new Vector3((inner + cheek) * 2f, 0.2f, length), Quaternion.identity, g.Bark * 0.6f, FloraPart.Bark);
+            if (g.Lod < 2)
+            {
+                // A small roof, sloping out over the porch.
+                var tilt = Quaternion.Euler(14f, 0f, 0f);
+                b.Box(new Vector3(0f, top + 0.3f, mid + 0.12f), new Vector3((inner + cheek) * 2f + 0.3f, 0.1f, length + 0.35f), tilt, roof, roofPart);
+            }
         }
 
         /// <summary>
@@ -1873,7 +1968,11 @@ namespace Punchy.Flora
                    new List<float> { radius * 1.25f, radius * 0.7f, 0.02f }, sides, g.FoliageColor(), FloraPart.Foliage, cap: true);
             b.Occlude(roof, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y + 0.3f)));
 
-            Doorway(g, radius * 1.1f, Mathf.Min(radius * 0.7f, 1.25f), Mathf.Min(walls * 0.4f, HumanDoor));
+            // The door in a porch standing out past the flared foot (1.35 × radius at the ground), so the flare tucks
+            // in behind the porch's sides and nothing crosses the opening; the sides run back into the wall above it.
+            var doorWidth = Mathf.Min(radius * 0.7f, 1.25f);
+            Porch(g, radius * 1.38f + 0.05f, WallBehind(radius * 0.9f, doorWidth), doorWidth, Mathf.Min(walls * 0.4f, HumanDoor), 0.35f,
+                  g.Bark, g.FoliageColor(), FloraPart.Foliage);
         }
 
 

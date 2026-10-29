@@ -33,7 +33,7 @@ MonoBehaviour:
   GroundRadius: 0.75
   ClearRadius: 0.75
   Props:
-  - Species: {fileID: 11400000, guid: 984ecb906b0fd1b4fadd4d4319a9cd40, type: 2}
+  - Species: {fileID: 11400000, guid: 43fff9616433e604fa873b6ebef97302, type: 2}
     Density: 5
     Ring: {x: 0, y: 1}
     Scale: {x: 0.7, y: 0.7}
@@ -110,14 +110,15 @@ MonoBehaviour:
     Offset: {x: 0, y: 0}
     Height: 2
     Width: 0.6
-    Size: 0.07
+    Size: 0.025
     Particles: 30
     Lifetime: 1.5
-    Color: {r: 1, g: 0.5, b: 0.15, a: 1}
+    Color: {r: 0.5, g: 1, b: 0.35, a: 1}
     Opacity: 1
     Glow: 5
     Period: 0
     Duty: 0.25
+    Flame: 0
   - Kind: 0
     Offset: {x: 0.15, y: 0}
     Height: 9
@@ -130,6 +131,20 @@ MonoBehaviour:
     Glow: 0
     Period: 0
     Duty: 0.25
+    Flame: 0
+  - Kind: 2
+    Offset: {x: 0, y: 0}
+    Height: 6
+    Width: 0.6
+    Size: 0.7
+    Particles: 5
+    Lifetime: 1
+    Color: {r: 1, g: 1, b: 1, a: 1}
+    Opacity: 1
+    Glow: 0
+    Period: 0
+    Duty: 0.25
+    Flame: 2
   Cave: 0
   CaveLength: 40
   CaveDepth: 8

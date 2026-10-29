@@ -69,6 +69,11 @@ namespace Punchy.Flora
             public float Snow;
             /// <summary>Ground tilt: the ground normal's x and z (rocks lie on the slope; 0 for everything upright).</summary>
             public float2 Tilt;
+            /// <summary>
+            /// The ground's colour round a built thing's footprint (RGB8, linear; alpha how high the dirt reaches in cm, 0 for none): its
+            /// base takes on a band of it, like dirt splashed up the walls (FloraPlacement.DirtColor, Flora.shader).
+            /// </summary>
+            public uint Ground;
         }
 
         class Layer

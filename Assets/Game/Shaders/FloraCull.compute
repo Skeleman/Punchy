@@ -17,6 +17,7 @@ struct FloraInstance
     float random;
     float snow;
     float2 tilt;   // the ground normal's x and z: rocks lie on the slope
+    uint ground;   // RGB8 ground colour round a built thing's footprint and, in alpha, the dirt band's height (cm; 0: none)
 };
 
 StructuredBuffer<FloraInstance> _FloraInstances;

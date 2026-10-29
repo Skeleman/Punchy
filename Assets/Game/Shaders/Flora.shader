@@ -51,6 +51,10 @@ Shader "Punchy/Flora"
                 // A window pane's own lighting-up hour (0..1), worked out per vertex and not interpolated, so every pixel
                 // of the pane agrees (hashed per pixel from the interpolated colour, single pixels flickered on and off).
                 nointerpolation float windowHour : TEXCOORD4;
+                // The ground colour for a built thing's dirt band (a 0: none) and the instance's scale; the height above
+                // its base.
+                nointerpolation half4 ground : TEXCOORD5;
+                float2 baseHeight : TEXCOORD6;   // height above the base, instance scale
             };
 
             Varyings Vert(FloraAttributes input)
@@ -65,6 +69,9 @@ Shader "Punchy/Flora"
                 half solid = partV == 1 || partV == 2 || partV == 5 ? 0 : 1;
                 half grounding = PunchyGrounding(v.positionWS.y - v.plant.position.y, v.normalWS.y, solid);
                 o.color = half4(input.color.rgb, input.data.w * grounding);
+                uint g = v.plant.ground;
+                o.ground = half4(g & 255, (g >> 8) & 255, (g >> 16) & 255, g >> 24) / 255.0;
+                o.baseHeight = float2(v.positionWS.y - v.plant.position.y, v.plant.scale);
                 o.extra = float4(input.data.y, v.fade, v.plant.snow, v.plant.random);
                 // Keyed on the pane (each has a slightly different colour) and the building.
                 float3 key = round(input.color.rgb * 255);
@@ -103,7 +110,15 @@ Shader "Punchy/Flora"
                     n = normalize(n + float3(0, bump.x, bump.y) * w.x + float3(bump.x, 0, bump.y) * w.y + float3(bump.x, bump.y, 0) * w.z);
                 }
                 if (part == 1)
+                {
                     albedo *= lerp(half3(0.95, 1.0, 1.06), half3(1.1, 1.04, 0.82), r);
+                    // Leaf clusters: crowns break into lighter, yellower clumps and darker gaps between them (fading out
+                    // with distance, where the crown reads as one mass anyway).
+                    float3 q = (input.positionWS - frac(r * 7.3) * 10) * 2.2;
+                    half leafNoise = PunchyValueNoise(q.xz + q.y * 0.7) * 0.6 + PunchyValueNoise(q.zy * 2.3 + 5.1) * 0.4;
+                    half leafNear = 1 - smoothstep(40, 90, distance(input.positionWS, GetCameraPositionWS()));
+                    albedo *= lerp(1, lerp(half3(0.62, 0.66, 0.7), half3(1.25, 1.22, 1.0), leafNoise), leafNear * 0.85);
+                }
                 // Windows: dark glass by day (their colour is the light they give at night, below).
                 half3 windowLight = albedo;
                 if (part == 6)
@@ -114,6 +129,9 @@ Shader "Punchy/Flora"
                 albedo = lerp(albedo, half3(0.86, 0.88, 0.92), snow);
 
                 half wet = PunchyWetnessAt(input.positionWS.xz).r * (1 - snow);
+                // Built things: a band of the ground's colour up their base, like dirt splashed up the walls.
+                if (part == 0)
+                    albedo = PunchyDirt(albedo, input.ground, input.baseHeight.x, input.baseHeight.y, wet, input.positionWS);
                 albedo *= lerp(1, part == 0 ? 0.62 : 0.82, wet);
 
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
@@ -160,11 +178,14 @@ Shader "Punchy/Flora"
                 if (part == 7)
                 {
                     half facingV = saturate(dot(n, v));
-                    half rim = pow(1 - facingV, 3);
-                    half3 bent = lerp(albedo, albedo.gbr * 0.6 + albedo * 0.6, 0.45);
-                    color = albedo * (light.color * shadow * diffuse * 0.25 + sky * 0.45) * ao;
-                    color += albedo * (0.12 + 0.25 * (1 - facingV)) * lerp(1, 2.5, max(_PunchyUnderground, _FloraInCave));
-                    color += lerp(bent, 1, 0.35) * rim * (SampleSH(reflect(-v, n)) * lerp(1, 0.15, _PunchyUnderground) + sky * 0.6 + 0.08) * 1.4;
+                    half rim = pow(1 - facingV, 4);
+                    half3 bent = lerp(albedo, albedo.gbr * 0.7 + albedo * 0.5, 0.7);
+                    // A deep, nearly black clear core where the face looks straight at you...
+                    color = albedo * (light.color * shadow * diffuse * 0.08 + sky * 0.12) * ao;
+                    // ...glowing from inside where the light travels through more of it (towards the edges)...
+                    color += albedo * (0.03 + 0.35 * pow(1 - facingV, 3)) * lerp(1, 2.5, max(_PunchyUnderground, _FloraInCave));
+                    // ...and a bright rim whose hue is bent, the sky caught in it at grazing angles.
+                    color += lerp(bent, 1, 0.25) * rim * (SampleSH(reflect(-v, n)) * lerp(1, 0.15, _PunchyUnderground) + sky * 0.6 + 0.12) * 2.6;
                     half3 hSun = normalize(light.direction + v);
                     color += light.color * shadow * pow(saturate(dot(n, hSun)), 320) * 5;
                     if (_PunchyLantern.w > 0)
