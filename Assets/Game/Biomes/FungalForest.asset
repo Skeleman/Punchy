@@ -125,7 +125,7 @@ MonoBehaviour:
     Density: 1.5
     PerRealm: 1
   - Type: {fileID: 11400000, guid: 51c63ce05e3feab468de0aaaefef529a, type: 2}
-    Density: 0.6
+    Density: 0.96
     PerRealm: 1
   - Type: {fileID: 11400000, guid: 9db9dc76cdcb53647bfb1d44f4d04b9b, type: 2}
     Density: 0.4
