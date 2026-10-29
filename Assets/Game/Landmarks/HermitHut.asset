@@ -76,6 +76,20 @@ MonoBehaviour:
     Count: 1
     Angle: 140
     Clearance: 2
-  Effects: []
+  Effects:
+  - Kind: 2
+    Offset: {x: 0, y: 0}
+    Height: 1
+    Width: 0.8
+    Size: 0.8
+    Particles: 5
+    Lifetime: 1
+    Color: {r: 1, g: 0.6, b: 0.2, a: 1}
+    Opacity: 1
+    Glow: 1
+    Period: 0
+    Duty: 0.25
+    Flame: 0
+    NightOnly: 1
   Residents: []
   Anchors: 2

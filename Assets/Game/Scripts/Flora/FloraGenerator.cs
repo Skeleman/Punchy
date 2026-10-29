@@ -48,7 +48,7 @@ namespace Punchy.Flora
         /// <summary>Forms that cast no shadow (see CastsShadows).</summary>
         public static bool Shadowless(FloraForm form) =>
             form is FloraForm.Pen or FloraForm.Palisade or FloraForm.Signpost or FloraForm.Garden or FloraForm.Woodpile
-                 or FloraForm.Stall or FloraForm.Flowers;
+                 or FloraForm.Stall or FloraForm.Flowers or FloraForm.Bedroll;
 
         public void Destroy()
         {
@@ -117,6 +117,7 @@ namespace Punchy.Flora
                     case FloraForm.Hut: Hut(g); break;
                     case FloraForm.StoneHouse: StoneHouse(g); break;
                     case FloraForm.Ruin: Ruin(g); break;
+                    case FloraForm.Bedroll: Bedroll(g); break;
                     case FloraForm.Tent: Tent(g); break;
                     case FloraForm.Tower: Tower(g); break;
                     case FloraForm.Pen: Pen(g); break;
@@ -2636,6 +2637,28 @@ namespace Punchy.Flora
                 }
                 b.Occlude(rubble, (p, n) => GroundOcclusion(p, 0.5f));
             }
+        }
+
+        /// <summary>
+        /// A bedroll along Z, feet at +Z: a blanket on the ground, a second one over most of it turned back a little at the
+        /// head, and a rolled pillow across the head end.
+        /// </summary>
+        static void Bedroll(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var length = g.Range(s.Height);
+            var width = length * s.Spread;
+            g.Height = 0.25f;
+            g.Width = length;
+            g.TrunkRadius = 0f;
+            var first = b.VertexCount;
+            b.Box(new Vector3(0f, 0.03f, 0f), new Vector3(width, 0.06f, length), Quaternion.identity, s.Foliage.linear, FloraPart.Bark);
+            b.Box(new Vector3(g.Range(-0.03f, 0.03f), 0.08f, length * 0.12f), new Vector3(width * 0.94f, 0.07f, length * 0.72f),
+                  Quaternion.Euler(0f, g.Range(-4f, 4f), 0f), Color.Lerp(s.Foliage.linear, s.FoliageVariation.linear, 0.7f), FloraPart.Bark);
+            b.Tube(new List<Vector3> { new Vector3(-width * 0.42f, 0.1f, -length * 0.4f), new Vector3(width * 0.42f, 0.1f, -length * 0.4f) },
+                   new List<float> { 0.1f, 0.1f }, g.Sides(8, 6, 4), g.Bark, FloraPart.Bark, cap: true);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, 0.2f));
         }
 
         /// <summary>Rotates vertices added since <paramref name="first"/> about the vertical axis through the origin.</summary>

@@ -103,7 +103,10 @@ namespace Punchy.Flora
                  "orbiting it and bobbing. Height the highest a piece floats, Spread the ring's radius over height. Not solid.")] Debris,
         [Tooltip("A ruined stone house: roofless walls (Bark) crumbled to uneven heights, one of them almost gone, a doorway " +
                  "gap facing +Z, rubble (Branches = stones) round the foot and moss (the first accent, Accent Amount of the " +
-                 "broken tops). Height is the tallest wall left; Spread the width relative to it.")] Ruin
+                 "broken tops). Height is the tallest wall left; Spread the width relative to it.")] Ruin,
+        [Tooltip("A bedroll laid out on the ground (camps): a blanket (Foliage, the top one towards Foliage Variation) " +
+                 "with a rolled pillow (Bark) at the head, -Z; the feet at +Z. Height is its length, Spread its width " +
+                 "over length. Camps put a Bed anchor on each.")] Bedroll
     }
 
     public enum FoliageFinish : byte

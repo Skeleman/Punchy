@@ -88,6 +88,8 @@ namespace Punchy.Terrain
         [Range(0.02f, 1f)] public float Duty = 0.25f;
         [Tooltip("Flame: the fire's colours (wood fire, or the blue, green and violet of strange fires).")]
         public FlamePalette Flame;
+        [Tooltip("Flame: lit only from dusk to dawn (a camp's fire), dying down and catching again with the light.")]
+        public bool NightOnly;
     }
 
     [Serializable]
