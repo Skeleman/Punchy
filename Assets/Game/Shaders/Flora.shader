@@ -32,6 +32,7 @@ Shader "Punchy/Flora"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "Flora.hlsl"
+            #include "Grounding.hlsl"
             #include "Glow.hlsl"
             #include "SharedClock.hlsl"
             // The shared fine detail CaveSystem makes (rg a normal, b a height): grain on rock and bark up close.
@@ -58,7 +59,11 @@ Shader "Punchy/Flora"
                 o.positionWS = v.positionWS;
                 o.positionCS = TransformWorldToHClip(v.positionWS);
                 o.normalWS = v.normalWS;
-                o.color = half4(input.color.rgb, input.data.w);
+                // Darker towards the ground and on downward faces (leaves and petals: towards the ground only).
+                int partV = (int)round(input.data.y);
+                half solid = partV == 1 || partV == 2 || partV == 5 ? 0 : 1;
+                half grounding = PunchyGrounding(v.positionWS.y - v.plant.position.y, v.normalWS.y, solid);
+                o.color = half4(input.color.rgb, input.data.w * grounding);
                 o.extra = float4(input.data.y, v.fade, v.plant.snow, v.plant.random);
                 // Keyed on the pane (each has a slightly different colour) and the building.
                 float3 key = round(input.color.rgb * 255);
