@@ -322,3 +322,13 @@ asks Zach if needed, and records the answer here.
   repeatable, which J-006 says to hold for. kind-possum profiles glide and bisects both; fixes go on rc/v0.8.0.
   Zach can overrule in the morning.
 - **Revisited:** 0.
+
+### J-037: Restart sessions to shrink context?
+
+- **Asked:** 2026-10-29, by Zach.
+- **Answer (2026-10-29):** yes, right after v0.8.0 ships and the RC is merged back. Each session first writes a
+  handoff note (branches, unfinished work, next tasks, gotchas) to `HANDOFF-<session>.md` on the coordination
+  branch and pushes its held work; the supervisor copies the milestone page source and images to the
+  PunchyMilestones `_page` folder and records the page URL and check-in in memory. Then all four restart.
+- **Why:** Zach: "Yes, let's try that". Long contexts cost tokens every turn; state lives in the repo docs.
+- **Revisited:** 0.
