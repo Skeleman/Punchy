@@ -45,6 +45,11 @@ namespace Punchy.Fauna
         /// <summary>A torch's: redder, brighter and further.</summary>
         static readonly UnityEngine.Vector4 TorchLight = new UnityEngine.Vector4(2.4f, 1.0f, 0.3f, 11f);
         const float LanternLightRange = 60f;
+        /// <summary>How far off a torch's flame is lit (further than its light reaches: a torch is seen across a town).</summary>
+        const float TorchFlameRange = 150f;
+        /// <summary>A torch's flame: its height (m), and how far it streams back as the bearer moves (m at the tip per
+        /// m/s, at most).</summary>
+        const float TorchFlameSize = 0.35f, TorchFlameLean = 0.05f, TorchFlameMaxLean = 0.3f;
         /// <summary>Capsules in what a guard holds (a spear's shaft and head; a torch's handle, flame, heart and glow).</summary>
         const int GuardParts = 4;
         /// <summary>When in a throw (its ActionTime) the stone leaves the hand: TraceSystem throws it from there.</summary>
@@ -57,7 +62,7 @@ namespace Punchy.Fauna
         static int HeldCount(HeldItem held) => held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.Torch ? GuardParts :
                                                held == HeldItem.Rod ? RodParts : held == HeldItem.Stick || held == HeldItem.Stone ? 1 : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
-        static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 1 : -1;
+        static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 0 : -1;
         /// <summary>Capsules per hanging bat, the most per roost, and how near the camera colonies show.</summary>
         const int BatParts = 4, ColonyMax = 10;
         const float ColonyRange = 45f;
@@ -235,20 +240,39 @@ namespace Punchy.Fauna
                 FadeFar = 165f,
                 Night = night
             }.Schedule(bodies.Length, 8).Complete();
-            // Lanterns near the camera light the ground round them: each joins the glow list as a moving light (by its
-            // carrier, so its fade-in carries on as it moves), at the middle of its glass as just posed.
+            // Lanterns and torches near the camera light the ground round them: each joins the glow list as a moving
+            // light (by its carrier, so its fade-in carries on as it moves), at the middle of a lantern's glass as just
+            // posed, or a torch's flame. A torch's flame itself is the world's (FireSystem), lit each frame at the top
+            // of its handle, streaming back as its bearer goes, and further off than its light reaches.
             float3 camAt = cam.transform.position;
             for (int i = 0; i < bodies.Length; i++)
             {
                 var lightPart = LightPart(states[i].Held);
-                if (lightPart < 0 || math.distancesq(states[i].Position, camAt) > LanternLightRange * LanternLightRange)
+                var torch = states[i].Held == HeldItem.Torch;
+                var far = math.distancesq(states[i].Position, camAt);
+                if (lightPart < 0 || far > (torch ? TorchFlameRange * TorchFlameRange : LanternLightRange * LanternLightRange))
                     continue;
-                var glass = instances[offsets[i] + bodies[i].SegmentCount + MarkCount + (InWeb(states[i]) ? WebCount : 0) +
-                                      LairCount(ref bodies[i].Blob.Value) + (states[i].Task == CreatureTask.Hunt ? 1 : 0) + lightPart];
-                if (glass.Length <= 0f)
+                var part = instances[offsets[i] + bodies[i].SegmentCount + MarkCount + (InWeb(states[i]) ? WebCount : 0) +
+                                     LairCount(ref bodies[i].Blob.Value) + (states[i].Task == CreatureTask.Hunt ? 1 : 0) + lightPart];
+                if (part.Length <= 0f)
                     continue;
-                var centre = glass.Position + math.mul(glass.Rotation, new float3(0f, 0f, glass.Length * 0.5f));
-                Punchy.Terrain.CaveSystem.MovingLights.Add((entities[i].Index, centre, states[i].Held == HeldItem.Torch ? TorchLight : LanternLight));
+                float3 centre;
+                if (torch)
+                {
+                    var top = part.Position + math.mul(part.Rotation, new float3(0f, 0f, part.Length));
+                    var velocity = new float3(math.sin(states[i].Yaw), 0f, math.cos(states[i].Yaw)) * states[i].Speed;
+                    var lean = -velocity * TorchFlameLean;
+                    var leanLength = math.length(lean);
+                    if (leanLength > TorchFlameMaxLean)
+                        lean *= TorchFlameMaxLean / leanLength;
+                    var size = TorchFlameSize * math.max(states[i].Scale, 0.3f);
+                    Punchy.Ambience.FireSystem.AddFlame(top, size, entities[i].Index, Punchy.Ambience.FireSystem.Wood, lean);
+                    centre = top + new float3(0f, size * 0.4f, 0f);
+                }
+                else
+                    centre = part.Position + math.mul(part.Rotation, new float3(0f, 0f, part.Length * 0.5f));
+                if (far <= LanternLightRange * LanternLightRange)
+                    Punchy.Terrain.CaveSystem.MovingLights.Add((entities[i].Index, centre, torch ? TorchLight : LanternLight));
             }
             bodies.Dispose();
             states.Dispose();
@@ -560,7 +584,7 @@ namespace Punchy.Fauna
 
             /// <summary>
             /// What a guard holds in its right hand: a spear upright at its side (a wooden shaft, an iron head), its
-            /// butt near the ground; or, after dark, a torch held up and forward, its flame flickering.
+            /// butt near the ground; or, after dark, a torch held up and forward (the handle: its flame is FireSystem's).
             /// </summary>
             void Guard(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded, int id)
             {
@@ -598,47 +622,7 @@ namespace Punchy.Fauna
                 var handle = 0.5f * scale;
                 var bottom = grip - up * handle * 0.35f;
                 Output[at] = new SegmentInstance { Position = bottom, Rotation = Unity.Mathematics.quaternion.LookRotationSafe(up, forward), Length = handle, RadiusStart = 0.02f * scale, RadiusEnd = 0.028f * scale, Flatten = 1f, Color = wood, Pad = faded };
-                // The flame: an orange tongue round a yellow heart, each licking up at its own beat (taller and shorter,
-                // leaning this way and that), and a faint glow round it all.
-                var top = bottom + up * handle;
-                var t = Time * 1f + id * 0.37f;
-                var lick = 1f + 0.22f * Unity.Mathematics.math.sin(t * 11f) + 0.12f * Unity.Mathematics.math.sin(t * 23f + 1.7f);
-                var lean = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(t * 7.3f), 0f, Unity.Mathematics.math.cos(t * 5.1f + 0.6f)) * 0.22f;
-                var tongue = Unity.Mathematics.math.normalize(new Unity.Mathematics.float3(0f, 1f, 0f) + lean - forward * 0.15f);
-                Output[at + 1] = new SegmentInstance
-                {
-                    Position = top - tongue * 0.02f * scale,
-                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(tongue, forward),
-                    Length = 0.24f * scale * lick,
-                    RadiusStart = 0.055f * scale,
-                    RadiusEnd = 0.008f * scale,
-                    Flatten = 1f,
-                    Color = new Unity.Mathematics.float4(1f, 0.38f, 0.06f, 0.85f),
-                    Pad = Unity.Mathematics.math.max(faded, 0.15f)
-                };
-                var heart = Unity.Mathematics.math.normalize(new Unity.Mathematics.float3(0f, 1f, 0f) - lean * 0.6f);
-                Output[at + 2] = new SegmentInstance
-                {
-                    Position = top,
-                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(heart, forward),
-                    Length = 0.13f * scale * (2f - lick * 0.8f),
-                    RadiusStart = 0.03f * scale,
-                    RadiusEnd = 0.006f * scale,
-                    Flatten = 1f,
-                    Color = new Unity.Mathematics.float4(1f, 0.85f, 0.35f, 1f),
-                    Pad = faded
-                };
-                Output[at + 3] = new SegmentInstance
-                {
-                    Position = top + new Unity.Mathematics.float3(0f, 0.04f, 0f) * scale,
-                    Rotation = Unity.Mathematics.quaternion.LookRotationSafe(new Unity.Mathematics.float3(0f, 1f, 0f), forward),
-                    Length = 0.1f * scale,
-                    RadiusStart = 0.13f * scale * (0.9f + 0.1f * lick),
-                    RadiusEnd = 0.13f * scale * (0.9f + 0.1f * lick),
-                    Flatten = 1f,
-                    Color = new Unity.Mathematics.float4(1f, 0.45f, 0.12f, 0.6f),
-                    Pad = Unity.Mathematics.math.max(faded, 0.8f)
-                };
+                // (Its flame is lit on the main thread, from the top of this handle: FireSystem's, like any other.)
             }
 
             /// <summary>
