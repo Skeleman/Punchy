@@ -51,6 +51,10 @@ Shader "Punchy/Flora"
                 // A window pane's own lighting-up hour (0..1), worked out per vertex and not interpolated, so every pixel
                 // of the pane agrees (hashed per pixel from the interpolated colour, single pixels flickered on and off).
                 nointerpolation float windowHour : TEXCOORD4;
+                // The ground colour for a built thing's dirt band (a 0: none) and the instance's scale; the height above
+                // its base.
+                nointerpolation half4 ground : TEXCOORD5;
+                float2 baseHeight : TEXCOORD6;   // height above the base, instance scale
             };
 
             Varyings Vert(FloraAttributes input)
@@ -65,6 +69,9 @@ Shader "Punchy/Flora"
                 half solid = partV == 1 || partV == 2 || partV == 5 ? 0 : 1;
                 half grounding = PunchyGrounding(v.positionWS.y - v.plant.position.y, v.normalWS.y, solid);
                 o.color = half4(input.color.rgb, input.data.w * grounding);
+                uint g = v.plant.ground;
+                o.ground = half4(g & 255, (g >> 8) & 255, (g >> 16) & 255, g >> 24) / 255.0;
+                o.baseHeight = float2(v.positionWS.y - v.plant.position.y, v.plant.scale);
                 o.extra = float4(input.data.y, v.fade, v.plant.snow, v.plant.random);
                 // Keyed on the pane (each has a slightly different colour) and the building.
                 float3 key = round(input.color.rgb * 255);
@@ -114,6 +121,9 @@ Shader "Punchy/Flora"
                 albedo = lerp(albedo, half3(0.86, 0.88, 0.92), snow);
 
                 half wet = PunchyWetnessAt(input.positionWS.xz).r * (1 - snow);
+                // Built things: a band of the ground's colour up their base, like dirt splashed up the walls.
+                if (part == 0)
+                    albedo = PunchyDirt(albedo, input.ground, input.baseHeight.x, input.baseHeight.y, wet, input.positionWS);
                 albedo *= lerp(1, part == 0 ? 0.62 : 0.82, wet);
 
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
