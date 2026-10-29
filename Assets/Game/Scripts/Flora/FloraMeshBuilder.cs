@@ -381,6 +381,18 @@ namespace Punchy.Flora
             return mesh;
         }
 
+        /// <summary>
+        /// A foundation skirt: every vertex at or below ground level (y &lt;= 0) drops by depth, so walls, plinths, posts
+        /// and feet carry on into the ground in their own material and no slope under the footprint leaves a gap.
+        /// Builders keep anything that must stay put (rails, bands, steps) above y = 0.
+        /// </summary>
+        public void Skirt(float depth)
+        {
+            for (int i = 0; i < positions.Count; i++)
+                if (positions[i].y <= 0.001f)
+                    positions[i] -= new Vector3(0f, depth, 0f);
+        }
+
         /// <summary>Bounding sphere around (0, centreY, 0).</summary>
         public void Bounds(out float centreY, out float radius)
         {

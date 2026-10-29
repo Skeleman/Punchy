@@ -273,6 +273,22 @@ namespace Punchy.Flora
         }
 
         /// <summary>
+        /// The floor a plot's building stands at: the average ground over its footprint (the middle and four points
+        /// towards its corners), raised to the ground at its door if that's higher so the door is never buried. Its
+        /// foundation skirt (FloraGenerator.FoundationDepth) reaches down past the lower ground.
+        /// </summary>
+        public static float FloorHeight(in TerrainSource source, in SettlementPlot plot)
+        {
+            var across = new float2(-plot.Facing.y, plot.Facing.x) * plot.Half.x * 0.7f;
+            var along = plot.Facing * plot.Half.y * 0.7f;
+            var sum = source.SampleHeight(plot.Centre);
+            for (int k = 0; k < 4; k++)
+                sum += source.SampleHeight(plot.Centre + across * (k < 2 ? 1f : -1f) + along * (k % 2 == 0 ? 1f : -1f));
+            var door = source.SampleHeight(plot.Centre + plot.Facing * plot.Half.y * 0.75f);
+            return math.max(sum / 5f, door);
+        }
+
+        /// <summary>
         /// Solid structures creatures walk round. Not pens or dens: animals live in those.
         /// </summary>
         static bool IsBuilding(FloraSpecies s) => s.Solid && s.Form switch
@@ -550,7 +566,7 @@ namespace Punchy.Flora
                         var bridge = plot.Role == PlotRole.Bridge;
                         return new FloraSystem.FloraInstance
                         {
-                            Position = new float3(plot.Centre.x, bridge ? plot.Pad : source.SampleHeight(plot.Centre), plot.Centre.y),
+                            Position = new float3(plot.Centre.x, bridge ? plot.Pad : FloorHeight(source, plot), plot.Centre.y),
                             Yaw = math.atan2(-plot.Facing.x, plot.Facing.y),
                             // Sized for its folk (the layout's BuildingScale: ogre tents bigger, goblin huts smaller).
                             Scale = bridge ? 1f : rng.NextFloat(0.95f, 1.05f) * towns.Layouts[towns.Settlements[plot.Settlement].Layout].BuildingScale,

@@ -123,7 +123,7 @@ namespace Punchy.Terrain
                                 var across = new float2(-plot.Facing.y, plot.Facing.x);
                                 var scale = set.Layouts[town.Layout].BuildingScale;
                                 var front = (hall.Height.x + hall.Height.y) * 0.5f * hall.Spread * 0.275f;
-                                var hallBase = src.SampleHeight(plot.Centre);
+                                var hallBase = Punchy.Flora.FloraPlacement.FloorHeight(src, plot);
                                 for (int side = -1; side <= 1; side += 2)
                                 {
                                     // The step stands on the hall's base height, not the ground in front of it.
