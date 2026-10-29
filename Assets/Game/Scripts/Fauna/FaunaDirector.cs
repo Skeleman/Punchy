@@ -236,6 +236,11 @@ namespace Punchy.Fauna
                 nextMessenger = Time.time + rng.NextFloat(120f, 240f);
                 SpawnMessenger(source);
             }
+            if (Time.time >= nextHoneyThief)
+            {
+                nextHoneyThief = Time.time + rng.NextFloat(90f, 180f);
+                SpawnHoneyThief(source);
+            }
             spawnBudget = math.min(spawnBudget + SpawnRate * players.Count * Time.deltaTime, 3f * players.Count);
             using (WildMarker.Auto())
                 while (spawnBudget >= 1f)
@@ -838,6 +843,62 @@ namespace Punchy.Fauna
 
         float nextTraveller;
         float nextMessenger = 30f;
+        float nextHoneyThief = 60f;
+        Entity honeyThief;
+
+        /// <summary>
+        /// Now and then by day, a stranger after a wild hive's honey near a player: one of the folk with a stick walks up
+        /// to a hive 25 to 90 m from them, pokes at the comb (the bees boil out round them), grabs a piece and runs off
+        /// with it, the bees after them. One at a time. The brain's hive-raid stages do the rest, as for a bear.
+        /// </summary>
+        void SpawnHoneyThief(in TerrainSource source)
+        {
+            if (simWorld == null || !source.Anchors.IsCreated || (Cycle != null && Cycle.Night > 0.3f))
+                return;
+            var em = simWorld.EntityManager;
+            if (honeyThief != Entity.Null && em.Exists(honeyThief))
+                return;
+            var human = -1;
+            for (int i = 0; i < species.Count; i++)
+                if (species[i] != null && species[i].name == "Human")
+                    human = i;
+            if (human < 0)
+                return;
+            var player = players[rng.NextInt(players.Count)];
+            ref var set = ref source.Anchors.Value;
+            var near = new NativeList<int>(4, Allocator.Temp);
+            Anchors.Near(ref set, player, 90f, AnchorKind.Hive, ref near);
+            var pick = -1;
+            for (int i = 0; i < near.Length; i++)
+            {
+                ref var h = ref set.Anchors[near[i]];
+                if (!h.InCave && math.distance(h.Position.xz, player.xz) > 25f && (pick < 0 || rng.NextBool()))
+                    pick = near[i];
+            }
+            near.Dispose();
+            if (pick < 0)
+                return;
+            var hive = set.Anchors[pick];
+            var trunk = math.max(hive.Size - 1f, 0.1f);
+            // (Coming in from out beyond the hive, where the player can watch them walk up.)
+            var from = hive.Position.xz + math.normalizesafe(hive.Position.xz - player.xz, rng.NextFloat2Direction()) * 25f;
+            for (int tries = 0; tries < 4 && !(source.SampleGround(from) is var g && !(g.HasWater && g.WaterSurface > g.Height)); tries++)
+                from = hive.Position.xz + rng.NextFloat2Direction() * 25f;
+            var e = Spawn(human, new float3(from.x, source.SampleHeight(from), from.y));
+            var state = em.GetComponentData<CreatureState>(e);
+            state.Mode = CreatureMode.Work;
+            state.Stage = CreatureAnimator.RaidWalk;
+            state.StageTime = 0f;
+            state.Focus = hive.Position.xz + hive.Facing * trunk;
+            state.Target = hive.Position.xz + hive.Facing * (trunk + 0.35f);
+            state.Timer = 120f;
+            state.ChaseCooldown = 900f;
+            state.Held = HeldItem.Stick;
+            state.Home = from;
+            state.Leash = 0f;
+            em.SetComponentData(e, state);
+            honeyThief = e;
+        }
 
         /// <summary>
         /// Now and then (every two to four minutes) a messenger bird for a town a player is in: a pigeon high over the

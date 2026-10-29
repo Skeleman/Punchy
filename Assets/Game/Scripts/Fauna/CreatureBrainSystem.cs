@@ -932,6 +932,12 @@ namespace Punchy.Fauna
                         s.ActionLength = 0.5f;
                     }
                 }
+                // One of the folk after a hive's honey: a stick to poke at the comb, then the comb itself (Raiding).
+                else if (b.Hands && s.Mode == CreatureMode.Work && s.Stage >= CreatureAnimator.RaidWalk && s.Stage <= CreatureAnimator.RaidLick)
+                {
+                    if (s.Held != HeldItem.Honey)
+                        s.Held = HeldItem.Stick;
+                }
                 // A child out by day has a stick or a stone (its own kind of plaything), not indoors or asleep.
                 else if (b.Child && b.Hands && Night < 0.5f && s.Mode != CreatureMode.Sleep && !(s.Mode == CreatureMode.Home && s.Stage >= 1))
                     s.Held = ((s.Individual >> 5) & 1u) != 0 ? HeldItem.Stick : HeldItem.Stone;
@@ -2626,6 +2632,27 @@ namespace Punchy.Fauna
                     else if (s.Timer <= 0f)
                         Pause(ref s, ref b, ref rng);
                 }
+                else if (s.Stage == CreatureAnimator.RaidAtComb && b.Upright)
+                {
+                    // One of the folk after the honey: stood at the trunk poking up at the comb with a stick (the
+                    // animator's pose) while the bees boil out, till a piece comes down; then off with it at a run.
+                    s.Speed = 0f;
+                    var to = s.Focus - s.Position.xz;
+                    s.Yaw = WrapAngle(s.Yaw + math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -b.TurnRate * dt, b.TurnRate * dt));
+                    desiredLook = 0.15f * math.sin(s.StageTime * 3.1f);
+                    if (s.Timer <= 0f)
+                    {
+                        s.Held = HeldItem.Honey;
+                        var away = math.normalizesafe(s.Position.xz - s.Focus, rng.NextFloat2Direction());
+                        var spot = s.Position.xz + away * rng.NextFloat(80f, 110f);
+                        for (int tries = 0; tries < 4 && !Walkable(spot, Habitat.Land); tries++)
+                            spot = s.Position.xz + rng.NextFloat2Direction() * rng.NextFloat(80f, 110f);
+                        s.Stage = CreatureAnimator.RaidLeave;
+                        s.StageTime = 0f;
+                        s.Target = spot;
+                        s.Timer = 120f;
+                    }
+                }
                 else if (s.Stage == CreatureAnimator.RaidAtComb)
                 {
                     s.Speed = 0f;
@@ -2675,8 +2702,8 @@ namespace Punchy.Fauna
                 }
                 else
                 {
-                    // (Running from the bees at first.)
-                    targetSpeed = s.StageTime < 6f ? run : walk;
+                    // (Running from the bees at first; one of the folk runs further, flapping at them.)
+                    targetSpeed = s.StageTime < (b.Upright ? 12f : 6f) ? run : walk;
                     moving = true;
                     if (math.distance(s.Position.xz, s.Target) < 2f || s.Timer <= 0f)
                         Pause(ref s, ref b, ref rng);

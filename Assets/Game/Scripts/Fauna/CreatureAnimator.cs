@@ -347,6 +347,24 @@ namespace Punchy.Fauna
                             a += (j == 0 ? new float3(-1.25f, 0f, part.Side * 0.6f) : j == 1 ? new float3(-0.7f, 0f, 0f) : float3.zero) * reach;
                         }
                     }
+                    // One of the folk at a hive: the stick hand up over the head jabbing at the comb, the other half up
+                    // to shield the face; running off with it, that free arm flapping at the bees.
+                    if (b.Upright && part.Role == LimbRole.Arm && s.Mode == CreatureMode.Work && j <= 1)
+                    {
+                        if (s.Stage == RaidAtComb)
+                        {
+                            var jab = math.max(0f, math.sin(s.Clock * 8f));
+                            a = part.Side > 0f ? (j == 0 ? new float3(-2.7f + 0.35f * jab, 0f, 0.15f) : new float3(-0.2f + 0.3f * jab, 0f, 0f))
+                                               : (j == 0 ? new float3(-1.3f, 0f, -0.4f) : new float3(-1.6f, 0f, 0f));
+                        }
+                        else if (s.Stage == RaidLeave && s.StageTime < 12f && part.Side < 0f)
+                        {
+                            var flap = math.sin(s.Clock * 11f);
+                            a = j == 0 ? new float3(-2.3f + 0.6f * flap, 0f, -0.5f + 0.3f * flap) : new float3(-0.6f, 0f, 0f);
+                        }
+                    }
+                    if (b.Upright && part.Role == LimbRole.Head && s.Mode == CreatureMode.Work && s.Stage == RaidAtComb)
+                        a.x -= 0.55f;
                     // A bear reared up at a hive: front legs reaching up the trunk, scraping at it by turns.
                     if (!b.Upright && part.Role == LimbRole.Leg && part.Parent < 0 && part.Socket.z > 0f &&
                         s.Mode == CreatureMode.Work && s.Stage == RaidAtComb && j <= 1)
