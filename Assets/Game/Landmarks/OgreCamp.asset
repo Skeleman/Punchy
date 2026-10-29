@@ -90,7 +90,7 @@ MonoBehaviour:
   Effects:
   - Kind: 0
     Offset: {x: 0, y: 0}
-    Height: 3.5
+    Height: 2.2
     Width: 0.8
     Size: 0.025
     Particles: 30
