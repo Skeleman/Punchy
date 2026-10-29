@@ -63,6 +63,11 @@ namespace Punchy.Fauna
         }
 
         static readonly Dictionary<int2, Resident[]> cells = new Dictionary<int2, Resident[]>();
+        /// <summary>
+        /// Where each cricket and grasshopper is sitting between hops (by its seed: the hop it's on and the ground's height
+        /// there), so the ground is sampled once a hop rather than every frame.
+        /// </summary>
+        static readonly Dictionary<uint, (int step, float2 at, float y)> sitting = new Dictionary<uint, (int, float2, float)>();
         static readonly List<Ambient> now = new List<Ambient>();
         static int frame = -1;
         /// <summary>The queries and scene objects Near reads, kept between frames (made again for another world).</summary>
@@ -83,6 +88,7 @@ namespace Punchy.Fauna
         {
             EndSettling();
             cells.Clear();
+            sitting.Clear();
             now.Clear();
             frame = -1;
         }
@@ -232,6 +238,8 @@ namespace Punchy.Fauna
                 settleHandle = new SettleJob { Terrain = terrain, Flora = flora.Blob, Cells = settleCells, Residents = settleResidents, Ends = settleEnds }.Schedule();
                 settling = true;
             }
+            if (sitting.Count > 2000)
+                sitting.Clear();
             // (Cells long out of range forgotten.)
             if (cells.Count > 400)
             {
@@ -472,7 +480,13 @@ namespace Punchy.Fauna
                     var away = spot.xz - player.xz;
                     if (math.length(away) < 2f)
                         spot.xz = player.xz + math.normalizesafe(away, new float2(1f, 0f)) * 2.5f;
-                    spot.y = terrain.SampleHeight(spot.xz) + 0.03f;
+                    if (sitting.TryGetValue(r.Seed, out var sat) && sat.step == step && math.all(sat.at == spot.xz))
+                        spot.y = sat.y;
+                    else
+                    {
+                        spot.y = terrain.SampleHeight(spot.xz) + 0.03f;
+                        sitting[r.Seed] = (step, spot.xz, spot.y);
+                    }
                     var hop = math.saturate(u / 0.15f);
                     a.Position = spot + new float3(0f, math.sin(hop * math.PI) * (cricket ? 0.15f : 0.3f), 0f);
                     a.Air = hop < 1f ? 1f : 0f;
