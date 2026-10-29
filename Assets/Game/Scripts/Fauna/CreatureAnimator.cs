@@ -294,15 +294,24 @@ namespace Punchy.Fauna
                         a.x += lean;
                     if (part.Role == LimbRole.Head && j == 0)
                         a += headTilt;
-                    // A guard's right arm: bent to hold a spear upright at its side, or raised forward with a torch;
-                    // running at a beast, the spear levelled at it, held low and forward at the hip. (Not an elf's by
-                    // day: its bow is on its back, its hands free.)
-                    if (part.Role == LimbRole.Arm && part.Side > 0f && (s.Held == HeldItem.Spear && b.GuardKit != GuardKit.Elf || s.Held == HeldItem.Torch))
+                    // A guard's right arm: bent to hold its weapon upright at its side once it's drawn, or raised forward
+                    // with a torch; running at a beast, the weapon levelled at it, held low and forward at the hip. (With
+                    // the weapon worn, or an elf's bow on its back, the arms swing free.)
+                    if (part.Role == LimbRole.Arm && part.Side > 0f && (s.Held == HeldItem.SpearDrawn && b.GuardKit != GuardKit.Elf || s.Held == HeldItem.Torch))
                     {
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.8f);
                         var torch = s.Held == HeldItem.Torch;
                         var levelled = s.Mode == CreatureMode.Patrol && s.Stage == 2 && !torch;
                         a.x += j == 0 ? (torch ? -0.75f : levelled ? -0.45f : -0.15f) : j == 1 ? (torch ? -0.9f : levelled ? -0.6f : -1.05f) : 0f;
+                    }
+                    // Reaching for the weapon, drawing it or putting it away: the right hand up over the shoulder to
+                    // the back, or down across to the left hip, and back, in half a second.
+                    if (part.Role == LimbRole.Arm && part.Side > 0f && (s.Action == IdleAction.Draw || s.Action == IdleAction.Sheathe))
+                    {
+                        var reach = math.sin(math.saturate(s.ActionTime) * math.PI);
+                        var toBack = GuardWeapons.OnBack(b.GuardKit, s.Scale, b.StandHeight);
+                        a += (j == 0 ? (toBack ? new float3(-2.5f, 0f, -0.35f) : new float3(-0.35f, 0f, 0.75f))
+                            : j == 1 ? (toBack ? new float3(-1.4f, 0f, 0f) : new float3(-1.0f, 0f, 0f)) : float3.zero) * reach;
                     }
                     // A lantern in the off hand: that arm held a little forward and bent, hardly swinging.
                     if (part.Role == LimbRole.Arm && part.Side < 0f && s.Held == HeldItem.Lantern)

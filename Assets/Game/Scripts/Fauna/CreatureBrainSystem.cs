@@ -819,8 +819,9 @@ namespace Punchy.Fauna
                 var fly = Flying(s) && (flier || b.Breaches && s.Mode == CreatureMode.Wander && s.Stage >= 2) ? 1f : 0f;
                 // Folk out and about after dark carry a lantern: lit at dusk, put away at dawn (with a margin either way so
                 // it doesn't flicker at the turn), and not asleep, indoors, dozing at a post, or in someone's arms.
+                // (A guard by day has its weapon, worn or drawn: Patrol works out which.)
                 if (s.Task == CreatureTask.Patrol && s.Mode == CreatureMode.Patrol)
-                    s.Held = Night > 0.5f ? HeldItem.Torch : HeldItem.Spear;
+                    s.Held = Night > 0.5f ? HeldItem.Torch : s.Held == HeldItem.SpearDrawn ? HeldItem.SpearDrawn : HeldItem.Spear;
                 else if (s.Task == CreatureTask.Fish && s.Mode == CreatureMode.Work && s.Stage >= 1)
                     s.Held = HeldItem.Rod;
                 // A child out by day has a stick or a stone (its own kind of plaything), not indoors or asleep.
@@ -1170,8 +1171,10 @@ namespace Punchy.Fauna
                 var calm = s.Mode == CreatureMode.Idle || s.Mode == CreatureMode.Rest ||
                            s.Mode == CreatureMode.Climb && s.Stage == 3 ||
                            s.Mode == CreatureMode.Greet && s.Speed < 0.2f;
-                // (Being petted or held, it carries on with what it was given to do: a wag, a wriggle; nothing new.)
-                var keeps = calm || s.Mode == CreatureMode.Petted || s.Mode == CreatureMode.Held;
+                // (Being petted or held, it carries on with what it was given to do: a wag, a wriggle; nothing new. A
+                // guard drawing its weapon or putting it away finishes, whatever it's doing.)
+                var keeps = calm || s.Mode == CreatureMode.Petted || s.Mode == CreatureMode.Held ||
+                            s.Action == IdleAction.Draw || s.Action == IdleAction.Sheathe;
                 if (s.Action != IdleAction.None)
                 {
                     s.ActionTime += dt / math.max(s.ActionLength, 0.1f);
@@ -2575,6 +2578,31 @@ namespace Punchy.Fauna
                 {
                     Pause(ref s, ref b, ref rng);
                     return;
+                }
+                // Its weapon: worn in its sheath on its rounds; drawn when there's something to see to (a beast to drive
+                // off, someone running or carrying on close by), and put away again once all's been quiet a few
+                // seconds. Drawing or sheathing is a half-second reach (Draw, Sheathe: the action time every machine
+                // sees), the weapon passing from sheath to hand at the middle of it. (By night a torch fills its hand;
+                // an elf's bow stays on its back.)
+                if (Night <= 0.5f && b.GuardKit != GuardKit.Elf && b.Hands)
+                {
+                    var near = player.xz - s.Position.xz;
+                    var alert = s.Stage == 2 || math.length(near) < 15f && (playerSpeed > 7f || emote != IdleAction.None);
+                    s.WeaponCalm = alert ? 0f : s.WeaponCalm + dt;
+                    if (s.Action == IdleAction.None && alert && s.Held == HeldItem.Spear)
+                    {
+                        s.Held = HeldItem.SpearDrawn;
+                        s.Action = IdleAction.Draw;
+                        s.ActionTime = 0f;
+                        s.ActionLength = 0.5f;
+                    }
+                    else if (s.Action == IdleAction.None && !alert && s.Held == HeldItem.SpearDrawn && s.WeaponCalm > 4f)
+                    {
+                        s.Held = HeldItem.Spear;
+                        s.Action = IdleAction.Sheathe;
+                        s.ActionTime = 0f;
+                        s.ActionLength = 0.5f;
+                    }
                 }
                 // A wolf, a bear or the like come into the town: the guard runs at it, spear levelled (stage 2), till it's
                 // off out past the town's edge, then back to its round (to the point it was making for). It never goes

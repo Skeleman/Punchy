@@ -233,7 +233,9 @@ namespace Punchy.Fauna
         // Emotes: a player's (InteractionInputSystem), and folk answering one.
         Wave, Bow, Cheer, Dance,
         // A child poking at the ground with a stick (not an idle action any species picks).
-        Poke
+        Poke,
+        // A guard drawing its weapon from its sheath (on its back or at its hip), or putting it away.
+        Draw, Sheathe
     }
 
     public enum ActiveTime : byte

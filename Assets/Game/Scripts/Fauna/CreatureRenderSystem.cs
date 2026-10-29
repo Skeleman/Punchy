@@ -62,7 +62,7 @@ namespace Punchy.Fauna
         /// rim, the dark inside and the base).</summary>
         const int BasketStaves = 8;
         const int RodParts = 4 + BasketStaves * 2 + 2;
-        static int HeldCount(HeldItem held) => held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.Torch ? GuardParts :
+        static int HeldCount(HeldItem held) => held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.SpearDrawn || held == HeldItem.Torch ? GuardParts :
                                                held == HeldItem.Rod ? RodParts : held == HeldItem.Stick || held == HeldItem.Stone ? 1 : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 0 : -1;
@@ -394,7 +394,7 @@ namespace Punchy.Fauna
                     Spear(state, ref body.Blob.Value, offset, held - 1);
                 if (state.Held == HeldItem.Lantern)
                     Lantern(state, ref body.Blob.Value, offset, held, faded);
-                else if (state.Held == HeldItem.Spear || state.Held == HeldItem.Torch)
+                else if (state.Held == HeldItem.Spear || state.Held == HeldItem.SpearDrawn || state.Held == HeldItem.Torch)
                     Guard(state, ref body.Blob.Value, offset, held, faded, entity.Index);
                 else if (state.Held == HeldItem.Rod)
                     Rod(state, ref body.Blob.Value, offset, held, faded, entity.Index);
@@ -631,12 +631,22 @@ namespace Punchy.Fauna
                 var armourMaterial = b.GuardKit == GuardKit.Goblin || b.GuardKit == GuardKit.Ogre ? SegmentMaterial.Leather : SegmentMaterial.Metal;
                 var levelled = state.Mode == CreatureMode.Patrol && state.Stage == 2;
 
-                // The hand closed round what it holds: a fist, shorter and rounder than the open hand.
+                // How far the weapon is out of its sheath and in hand: drawn, all the way; worn (or a torch in hand
+                // instead), not at all; drawing or sheathing, from its sheath to the hand at the middle of the reach.
+                var u = state.ActionTime;
+                var inHand = state.Held == HeldItem.SpearDrawn ? (state.Action == IdleAction.Draw ? Unity.Mathematics.math.smoothstep(0.35f, 0.65f, u) : 1f)
+                           : state.Held == HeldItem.Spear && state.Action == IdleAction.Sheathe ? 1f - Unity.Mathematics.math.smoothstep(0.35f, 0.65f, u) : 0f;
+
+                // The hand closed round what it holds (a fist, shorter and rounder than the open hand), if anything.
                 var fist = Output[offset + hand];
-                fist.Length *= 0.5f;
-                fist.RadiusStart *= 1.25f;
-                fist.RadiusEnd *= 1.35f;
-                Output[offset + hand] = fist;
+                var holding = state.Held == HeldItem.Torch || inHand > 0.5f;
+                if (holding)
+                {
+                    fist.Length *= 0.5f;
+                    fist.RadiusStart *= 1.25f;
+                    fist.RadiusEnd *= 1.35f;
+                    Output[offset + hand] = fist;
+                }
                 var grip = fist.Position + Unity.Mathematics.math.mul(fist.Rotation, new Unity.Mathematics.float3(0f, 0f, fist.Length * 0.6f));
 
                 if (state.Held == HeldItem.Torch)
@@ -647,50 +657,73 @@ namespace Punchy.Fauna
                     Output[at + k++] = Piece(bottom, up, forward, handle, 0.02f * scale, 0.028f * scale, 1f, wood, faded, SegmentMaterial.Wood);
                     // (Its flame is lit on the main thread, from the top of this handle: FireSystem's, like any other.)
                 }
-                else if (state.Held == HeldItem.Spear)
+
+                // The weapon (an elf's is the bow on its back, below): in hand as it's carried drawn, or worn in its
+                // sheath, on the back if it's long for its bearer (GuardWeapons.OnBack), else at the hip; between the
+                // two as it's drawn or put away.
+                if (b.GuardKit != GuardKit.Elf && chest >= 0)
                 {
+                    var length = GuardWeapons.Length(b.GuardKit) * scale;
+                    float3 handDir;
+                    float handFrom;   // (how far along the weapon the hand holds it, from the butt)
                     switch (b.GuardKit)
                     {
                         case GuardKit.Dwarf:
-                        {
-                            // An axe: a short haft, a broad blade at its head facing forward.
-                            var dir = levelled ? Unity.Mathematics.math.normalize(upward + forward * 0.7f) : Unity.Mathematics.math.normalize(upward + forward * 0.15f);
-                            var length = 0.95f * scale;
-                            var butt = grip - dir * length * 0.3f;
-                            Output[at + k++] = Piece(butt, dir, forward, length, 0.022f * scale, 0.02f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                            var blade = butt + dir * length * 0.86f;
-                            Output[at + k++] = Piece(blade, Unity.Mathematics.math.normalize(forward - dir * 0.1f), right, 0.13f * scale, 0.05f * scale, 0.1f * scale, 0.18f, iron, faded, SegmentMaterial.Metal);
+                            handDir = levelled ? Unity.Mathematics.math.normalize(upward + forward * 0.7f) : Unity.Mathematics.math.normalize(upward + forward * 0.15f);
+                            handFrom = 0.3f;
                             break;
-                        }
                         case GuardKit.Goblin:
-                        {
-                            // A crude club, thick at the end, carried low.
-                            var dir = levelled ? Unity.Mathematics.math.normalize(upward + forward * 0.8f) : Unity.Mathematics.math.normalize(upward * 0.6f + forward * 0.5f);
-                            var length = 0.55f * scale;
-                            Output[at + k++] = Piece(grip - dir * 0.06f * scale, dir, forward, length, 0.025f * scale, 0.07f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            handDir = levelled ? Unity.Mathematics.math.normalize(upward + forward * 0.8f) : Unity.Mathematics.math.normalize(upward * 0.6f + forward * 0.5f);
+                            handFrom = 0.11f;
                             break;
-                        }
                         case GuardKit.Ogre:
-                        {
-                            // A great club over the shoulder (raised overhead, running at a beast).
-                            var dir = levelled ? Unity.Mathematics.math.normalize(upward + forward * 0.25f) : Unity.Mathematics.math.normalize(upward * 0.55f - forward * 0.75f);
-                            var length = 1.15f * scale;
-                            Output[at + k++] = Piece(grip - dir * 0.08f * scale, dir, forward, length, 0.045f * scale, 0.13f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                            break;
-                        }
-                        case GuardKit.Elf:
-                            // (The bow is on its back, below; nothing in hand by day.)
+                            handDir = levelled ? Unity.Mathematics.math.normalize(upward + forward * 0.25f) : Unity.Mathematics.math.normalize(upward * 0.55f - forward * 0.75f);
+                            handFrom = 0.07f;
                             break;
                         default:
-                        {
-                            // A spear, upright at its side, its butt near the ground; levelled, running at a beast.
-                            var dir = levelled ? Unity.Mathematics.math.normalize(forward + upward * 0.12f) : Unity.Mathematics.math.normalize(upward + forward * 0.12f);
-                            var length = 2.1f * scale;
-                            var butt = grip - dir * length * (levelled ? 0.3f : 0.45f);
-                            Output[at + k++] = Piece(butt, dir, forward, length, 0.017f * scale, 0.014f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                            Output[at + k++] = Piece(butt + dir * length, dir, forward, 0.2f * scale, 0.03f * scale, 0.003f * scale, 0.4f, iron, faded, SegmentMaterial.Metal);
+                            handDir = levelled ? Unity.Mathematics.math.normalize(forward + upward * 0.12f) : Unity.Mathematics.math.normalize(upward + forward * 0.12f);
+                            handFrom = levelled ? 0.3f : 0.45f;
                             break;
-                        }
+                    }
+                    // Worn: across the back, from low on the left to high on the right, or hanging at the left hip, head up.
+                    var torso = Output[offset + chest];
+                    var torsoAxis = Unity.Mathematics.math.mul(torso.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                    var torsoR = Unity.Mathematics.math.max(torso.RadiusStart, torso.RadiusEnd);
+                    float3 wornAt, wornDir;
+                    if (GuardWeapons.OnBack(b.GuardKit, scale, b.StandHeight))
+                    {
+                        wornDir = Unity.Mathematics.math.normalize(torsoAxis + right * 0.75f);
+                        wornAt = torso.Position + torsoAxis * torso.Length * 0.5f - forward * torsoR * 1.3f - wornDir * length * (0.5f - handFrom);
+                    }
+                    else
+                    {
+                        wornDir = Unity.Mathematics.math.normalize(upward - forward * 0.35f + right * 0.15f);
+                        wornAt = torso.Position - torsoAxis * torsoR * 0.8f - right * torsoR * 1.15f - wornDir * length * (0.15f - handFrom);
+                    }
+                    var dir = Unity.Mathematics.math.normalizesafe(Unity.Mathematics.math.lerp(wornDir, handDir, inHand), handDir);
+                    var held = Unity.Mathematics.math.lerp(wornAt, grip, inHand);
+                    var butt = held - dir * length * handFrom;
+                    var face = Unity.Mathematics.math.normalizesafe(forward - dir * Unity.Mathematics.math.dot(forward, dir), right);
+                    switch (b.GuardKit)
+                    {
+                        case GuardKit.Dwarf:
+                            // An axe: a short haft, a broad blade at its head facing out from it.
+                            Output[at + k++] = Piece(butt, dir, face, length, 0.022f * scale, 0.02f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(butt + dir * length * 0.86f, Unity.Mathematics.math.normalize(face - dir * 0.1f), Unity.Mathematics.math.cross(dir, face), 0.13f * scale, 0.05f * scale, 0.1f * scale, 0.18f, iron, faded, SegmentMaterial.Metal);
+                            break;
+                        case GuardKit.Goblin:
+                            // A crude club, thick at the end.
+                            Output[at + k++] = Piece(butt, dir, face, length, 0.025f * scale, 0.07f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            break;
+                        case GuardKit.Ogre:
+                            // A great club (over the shoulder in hand; raised overhead running at a beast).
+                            Output[at + k++] = Piece(butt, dir, face, length, 0.045f * scale, 0.13f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            break;
+                        default:
+                            // A spear: upright at its side in hand, its butt near the ground; levelled at a beast.
+                            Output[at + k++] = Piece(butt, dir, face, length, 0.017f * scale, 0.014f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(butt + dir * length, dir, face, 0.2f * scale, 0.03f * scale, 0.003f * scale, 0.4f, iron, faded, SegmentMaterial.Metal);
+                            break;
                     }
                 }
 
@@ -711,7 +744,7 @@ namespace Punchy.Fauna
                     var top = c.Position + axis * c.Length;
                     var from = shoulderR >= 0 ? Output[offset + shoulderR].Position + upward * Output[offset + shoulderR].RadiusStart * 0.9f : top + right * r;
                     var to = c.Position - axis * r * 0.6f - right * r * 0.85f + front * r * 0.6f;
-                    var over = (from + to) * 0.5f + front * r * 1.05f;
+                    var over = (from + to) * 0.5f + front * r * 0.8f;
                     Output[at + k++] = Piece(from, Unity.Mathematics.math.normalize(over - from), front, Unity.Mathematics.math.distance(from, over), r * 0.22f, r * 0.22f, 0.25f, b.GuardSash, faded, SegmentMaterial.Cloth);
                     Output[at + k++] = Piece(over, Unity.Mathematics.math.normalize(to - over), front, Unity.Mathematics.math.distance(over, to), r * 0.22f, r * 0.22f, 0.25f, b.GuardSash, faded, SegmentMaterial.Cloth);
                     // An elf's bow across its back: an arc from low on one side to high on the other, and its string.
@@ -734,8 +767,10 @@ namespace Punchy.Fauna
                             continue;
                         var sh = Output[offset + arm];
                         var outward = side == 0 ? right : -right;
+                        // (An ogre's are iron on its dark hide, so it stands out from its folk at a distance.)
+                        var ogre = b.GuardKit == GuardKit.Ogre;
                         Output[at + k++] = Piece(sh.Position + upward * sh.RadiusStart * 0.4f, outward, upward, 0.02f * scale,
-                                                 sh.RadiusStart * 1.9f, sh.RadiusStart * 1.6f, 0.55f, armour, faded, armourMaterial);
+                                                 sh.RadiusStart * 1.9f, sh.RadiusStart * 1.6f, 0.55f, ogre ? iron : armour, faded, ogre ? SegmentMaterial.Metal : armourMaterial);
                     }
                 }
 

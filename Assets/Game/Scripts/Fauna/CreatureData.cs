@@ -341,7 +341,8 @@ namespace Punchy.Fauna
         None,
         /// <summary>A lantern in the off hand, lit: folk out and about after dark.</summary>
         Lantern,
-        /// <summary>A spear held upright in the right hand: a guard on its rounds by day.</summary>
+        /// <summary>A guard's weapon (its folk's: GuardKit), worn in its sheath on the back or at the hip: a guard on
+        /// its rounds by day. (Drawn, it's SpearDrawn.)</summary>
         Spear,
         /// <summary>A burning torch held up in the right hand: a guard on its rounds after dark.</summary>
         Torch,
@@ -350,7 +351,30 @@ namespace Punchy.Fauna
         /// <summary>A stick in the right hand: a child's, for poking at things.</summary>
         Stick,
         /// <summary>A stone in the right hand: a child's, for throwing (another picked up after each throw).</summary>
-        Stone
+        Stone,
+        /// <summary>A guard's weapon drawn and in its right hand: danger about (a beast in town, someone carrying on).</summary>
+        SpearDrawn
+    }
+
+    /// <summary>A town guard's weapon, by its folk: how long, and where it's worn sheathed.</summary>
+    public static class GuardWeapons
+    {
+        /// <summary>The weapon's length (m, at scale 1): spear, axe, bow, club, great club.</summary>
+        public static float Length(GuardKit kit) => kit switch
+        {
+            GuardKit.Dwarf => 0.95f,
+            GuardKit.Elf => 1.1f,
+            GuardKit.Goblin => 0.55f,
+            GuardKit.Ogre => 1.15f,
+            _ => 2.1f
+        };
+
+        /// <summary>
+        /// Worn across the back if it's long for its bearer (over 0.6 of its height, about twice its hip height),
+        /// else at the hip: the same on every machine, from the folk's kit and the bearer's size alone.
+        /// </summary>
+        public static bool OnBack(GuardKit kit, float scale, float standHeight) =>
+            Length(kit) * scale > 0.6f * 2f * standHeight * scale;
     }
 
     /// <summary>A creature's position, heading, gait and what it's up to.</summary>
@@ -432,6 +456,8 @@ namespace Punchy.Fauna
         /// Simulation only (not sent).</summary>
         public byte RouteLeg;
         public float ChaseCooldown;
+        /// <summary>A guard with its weapon drawn: how long since anything needed it (it's put away after a while).</summary>
+        public float WeaponCalm;
 
         // Needs, 0 (satisfied) to 1 (pressing): they rise with time by the species' tastes and are eased by the
         // activity that meets them; what it decides to do next is weighted by them. Simulation only (not sent).

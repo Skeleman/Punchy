@@ -281,7 +281,7 @@ MonoBehaviour:
   DrawnToLight: 0
   DrivenOff: 0
   GuardKit: 4
-  GuardArmour: {r: 0.3, g: 0.26, b: 0.24, a: 1}
+  GuardArmour: {r: 0.1, g: 0.09, b: 0.09, a: 1}
   GuardSash: {r: 0.42, g: 0.12, b: 0.45, a: 1}
   FlightHeight: {x: 8, y: 18}
   FlySpeed: 7
