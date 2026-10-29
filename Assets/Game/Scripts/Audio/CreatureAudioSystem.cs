@@ -97,6 +97,7 @@ namespace Punchy.Audio
 
         void Creatures(float3 ear, TerrainSource terrain)
         {
+            var clock = (float)SystemAPI.Time.ElapsedTime;
             var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
             var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
             var entities = query.ToEntityArray(Allocator.Temp);
@@ -155,6 +156,15 @@ namespace Punchy.Audio
                             if (slots[c] == was.calls[c] || d > call.Reach || !Now(call.When))
                                 continue;
                             var pitch = math.lerp(call.Pitch.x, call.Pitch.y, CreatureBlob.Trait(s.Individual, 60 + c) * 0.5f + 0.5f);
+                            // (A herd doesn't call over itself: one moo, bleat or grunt, then that sound waits a while
+                            // near there before another of the herd takes it up.)
+                            if (Herd(call.Sound))
+                            {
+                                if (herdCalls.TryGetValue(call.Sound, out var lastCall) && clock - lastCall.time < 8f &&
+                                    math.distance(lastCall.at, s.Position) < 30f)
+                                    continue;
+                                herdCalls[call.Sound] = (clock, s.Position);
+                            }
                             GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f), pitch, call.Volume, call.Reach);
                         }
                 }
@@ -171,6 +181,11 @@ namespace Punchy.Audio
             bodies.Dispose();
             entities.Dispose();
         }
+
+        /// <summary>When and where each herd call was last made.</summary>
+        readonly Dictionary<SoundId, (float time, float3 at)> herdCalls = new Dictionary<SoundId, (float, float3)>();
+
+        static bool Herd(SoundId id) => id == SoundId.Moo || id == SoundId.Bleat || id == SoundId.Grunt;
 
         /// <summary>Up and about (not asleep, hanging asleep, down its burrow or indoors).</summary>
         static bool Awake(in CreatureState s) =>

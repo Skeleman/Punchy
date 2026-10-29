@@ -164,8 +164,8 @@ MonoBehaviour:
   RaidsHives: 0
   Calls:
   - Sound: 31
-    Interval: {x: 15, y: 40}
+    Interval: {x: 30, y: 80}
     Pitch: {x: 0.85, y: 1}
-    Volume: 0.55
+    Volume: 0.5
     Reach: 35
     When: 0
