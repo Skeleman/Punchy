@@ -17,7 +17,8 @@ short() { git -C "$P" rev-parse --short=7 "$1" 2>/dev/null || echo "$1"; }
 cool() { for i in $(seq 1 60); do t=$($SMI --query-gpu=temperature.gpu --format=csv,noheader 2>/dev/null || echo 0); [ "$t" -lt 65 ] && break; wait_s 5; done; }
 
 keepawake() { # the helper ends by itself when no bench script or game is left
-  powershell -NoProfile -Command "if (-not (Get-CimInstance Win32_Process | Where-Object { \$_.CommandLine -match 'keepawake' })) { exit 1 }" >/dev/null 2>&1 ||
+  # 'keepawake[.]ps1' can't match this check's own command line (or a shell's that contains it), only the helper's
+  powershell -NoProfile -Command "if (-not (Get-CimInstance Win32_Process | Where-Object { \$_.Name -eq 'powershell.exe' -and \$_.CommandLine -match '-File .*keepawake[.]ps1' })) { exit 1 }" >/dev/null 2>&1 ||
     (nohup powershell -NoProfile -File "$(cygpath -w $B/keepawake.ps1)" >/dev/null 2>&1 &)
 }
 
@@ -65,7 +66,8 @@ run() { # outdir tag args...: one bench game; its log is results/q-<tag>.log
   [ -f "$P/Builds/$out/Punchy.exe" ] || { log "$tag: no build $out"; return 1; }
   fixed $out || { log "$tag: copy to Builds/Bench failed"; return 1; }
   cool
-  ( cd "$P/Builds/Bench" && timeout 900 ./Punchy.exe -logFile "$W/q-$tag.log" -benchroute -weatherseed 4 -time 12 -screen-fullscreen 0 -screen-width 1280 -screen-height 720 "$@" >/dev/null 2>&1 )
+  # no -screen-* flags: Unity saves them as the player's own preferences (F-01: Zach's game started windowed)
+  ( cd "$P/Builds/Bench" && timeout 900 ./Punchy.exe -logFile "$W/q-$tag.log" -benchroute -weatherseed 4 -time 12 "$@" >/dev/null 2>&1 )
   [ $? -eq 124 ] && log "$tag: TIMED OUT (dialogs: $(dialogs))"
   strays >/dev/null
   return 0
@@ -128,6 +130,9 @@ compare() { # base.csv new.csv label: silent (one line) unless a number got wors
         if (ne[k] > 0) { printf "EXC   %s: %d exceptions\n", name, ne[k]; bad++ }
         summary = summary sprintf(" %s %.1f->%.1f;", p[1] "@" p[2], BL, NL)
       }
+      # a stop the base has but the new runs lack (crash, timeout, no stop lines) is a failure, never a pass
+      for (k in bn) if (!(k in keys)) { split(k, p, "|"); printf "MISS  %s cap %s: no rows in the new runs\n", p[1], p[2]; bad++ }
+      if (length(keys) == 0 && length(bn) == 0) { print "MISS  no rows on either side"; bad++ }
       if (!bad) printf "OK %s: no change beyond noise (1%% lows:%s)\n", label, summary
     }' "$1" "$2")
   echo "$out" | sort >> "$REPORT"
@@ -199,7 +204,9 @@ bisect() { # good bad stop metric: first-parent bisect, 2 rounds a step at cap 0
   report "first bad (first-parent): $(git -C "$P" log -1 --format='%h %s' $first | cut -c1-100)"
   local parents=$(git -C "$P" log -1 --format=%p $first | wc -w)
   if [ $parents -gt 1 ]; then
-    report "  it's a merge; its merged commits, for the next step (bench.sh bisect $(git -C "$P" log -1 --format=%p $first | cut -d' ' -f1 | cut -c1-7) $first $stop $metric does it over them):"
+    # first-parent from the merge's first parent would only find the merge again: walk the merged branch instead
+    local m1=$(git -C "$P" rev-parse --short=7 $first^1) m2=$(git -C "$P" rev-parse --short=7 $first^2)
+    report "  it's a merge; its merged commits, for the next step (bench.sh bisect $(git -C "$P" merge-base $m1 $m2 | cut -c1-7) $m2 $stop $metric does it over them):"
     git -C "$P" log --oneline --no-merges $first^1..$first | head -20 | sed 's/^/    /' | tee -a "$REPORT"
   fi
 }
@@ -207,19 +214,23 @@ bisect() { # good bad stop metric: first-parent bisect, 2 rounds a step at cap 0
 mpsmoke() { # outdir commit: the host's numbers alone vs with a client on this machine (low-res, capped, auto-walking)
   local out=$1 c=$2
   fixed $out || fail "copy to Builds/Bench failed"
-  rm -f "$R/mp-$c.csv"
+  rm -f "$R/mp-$c-solo.csv" "$R/mp-$c-joined.csv"
   for r in 1 2; do
-    runcsv $out mp-$c solo 60 $r -host -benchwait 25 -benchstops town,townwalk -fpscap 60
-    # joined: the client is the same exe (one firewall rule), small and capped so its own cost stays out of the way
-    ( cd "$P/Builds/Bench" && timeout 900 ./Punchy.exe -logFile "$W/q-mp-$c-client-$r.log" -benchclient -join 127.0.0.1 -autowalk -fpscap 20 -nohud \
-        -screen-fullscreen 0 -screen-width 480 -screen-height 270 >/dev/null 2>&1 & )
-    wait_s 3
-    runcsv $out mp-$c joined 60 $r -host -benchwait 25 -benchstops town,townwalk -fpscap 60
-    strays >/dev/null
+    runcsv $out mp-$c-solo solo 60 $r -host -benchwait 45 -benchstops town,townwalk -fpscap 60
+    # joined: the client is the same exe (one firewall rule), capped so its own cost stays out of the way. A join gives up
+    # after 15 s (NetMenu.JoinTimeout), so it starts only once the host's world is up; no host world in 2 min, no client.
+    local hostlog="$R/q-mp-$c-joined-c60-$r.log"; rm -f "$hostlog"
+    ( for i in $(seq 1 120); do
+        if grep -q "BenchRoute: world ready" "$hostlog" 2>/dev/null; then
+          cd "$P/Builds/Bench" && timeout 900 ./Punchy.exe -logFile "$W/q-mp-$c-client-$r.log" -benchclient -join 127.0.0.1 -autowalk -fpscap 20 -nohud >/dev/null 2>&1
+          exit 0
+        fi
+        wait_s 1
+      done ) &
+    runcsv $out mp-$c-joined joined 60 $r -host -benchwait 45 -benchstops town,townwalk -fpscap 60
+    strays >/dev/null; wait
   done
-  local joined=$(awk -F, '$1 == "joined" { if ($14 < 2) bad++ } END { print bad + 0 }' "$R/mp-$c.csv")
+  local joined=$(awk -F, 'NR > 1 && $14 < 2 { bad++ } END { print bad + 0 }' "$R/mp-$c-joined.csv")
   [ "$joined" -gt 0 ] && report "MP: the client didn't show up on the host in $joined stop(s): check q-mp-$c-client-*.log (dialogs: $(dialogs))"
-  awk -F, 'NR == 1 { print "commit,cap,round,stop,avg,low1,median,worst,cpu,gpu,slow,x,z,players,exceptions"; next } { $1 = ($1 == "solo" ? "base" : "new"); print }' OFS=, "$R/mp-$c.csv" > "$R/mp-$c-split.csv"
-  grep -E '^(commit|base)' "$R/mp-$c-split.csv" > "$R/mp-$c-solo.csv"; grep -E '^(commit|new)' "$R/mp-$c-split.csv" > "$R/mp-$c-joined.csv"
   NOISE=${MPNOISE:-15} compare "$R/mp-$c-solo.csv" "$R/mp-$c-joined.csv" "MP $c host joined vs solo (band ${MPNOISE:-15}%)"
 }

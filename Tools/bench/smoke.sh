@@ -7,7 +7,7 @@ drv() { powershell -NoProfile -File "$D" "$@" >/dev/null 2>&1; }
 w() { timeout $1 tail -f /dev/null 2>/dev/null; }
 for cap in default 0 30; do
   extra=""; [ $cap != default ] && extra="-fpscap $cap"
-  cd $G; ./Punchy.exe -logFile "$W/smoke-$cap.log" -place HumanVillage -time 12 -screen-fullscreen 0 -screen-width 1280 -screen-height 720 $extra >/dev/null 2>&1 &
+  cd $G; ./Punchy.exe -logFile "$W/smoke-$cap.log" -place HumanVillage -time 12 $extra >/dev/null 2>&1 &
   w 45
   drv key 87 -ms 8000; drv look 600; drv key 16 -ms 100; drv key 87 -ms 10000; drv key 32 -ms 100; drv key 87 -ms 6000
   drv look -600; drv key 16 -ms 100; drv key 87 -ms 15000; drv wshot "$(cygpath -w $S/smoke-$cap.png)"

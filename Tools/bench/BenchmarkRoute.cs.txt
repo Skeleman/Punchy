@@ -411,8 +411,11 @@ namespace Punchy.Debugging
             if (TryGetWorld(out var em, out var player))
             {
                 var at = em.GetComponentData<LocalTransform>(player).Position;
+                // Each machine has only its own PlayerTag player; a joined client shows up as a NetPlayer ghost (one per
+                // connection), looked up by name so builds from before multiplayer still compile.
                 using var players = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>());
-                line += $", at {at.x:F0},{at.z:F0}, players {players.CalculateEntityCount()}";
+                var count = Mathf.Max(players.CalculateEntityCount(), CountByName(em, "Punchy.Net.NetPlayer"));
+                line += $", at {at.x:F0},{at.z:F0}, players {count}";
             }
             line += $", per 5 s worst ms/slow frames:{windows}";
             summary.AppendLine(line);
@@ -571,6 +574,20 @@ namespace Punchy.Debugging
                 return false;
             position = em.GetComponentData<LocalTransform>(player).Position;
             return true;
+        }
+
+        /// <summary>Entities with the component of that full type name, or -1 where the type doesn't exist (older builds).</summary>
+        static int CountByName(EntityManager em, string fullName)
+        {
+            foreach (var assembly in System.AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var type = assembly.GetType(fullName);
+                if (type == null)
+                    continue;
+                using var query = em.CreateEntityQuery(ComponentType.ReadOnly(type));
+                return query.CalculateEntityCount();
+            }
+            return -1;
         }
 
         /// <summary>
