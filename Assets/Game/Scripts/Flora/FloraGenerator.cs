@@ -2130,7 +2130,8 @@ namespace Punchy.Flora
             // The door stands out past the wall's slight bulge, so the curve doesn't poke through it.
             var doorWidth = Mathf.Min(radius * 0.5f, 1.25f);
             Porch(g, radius * 1.05f, WallBehind(radius, doorWidth), doorWidth, Mathf.Min(wall * 0.8f, HumanDoor), 0.4f, g.Bark, roofColor, FloraPart.Bark);
-            Windows(g, radius * 1.05f, wall * 0.58f, 4, 0.55f, 40f);
+            // On the wall itself: its radius at that height (between the bulge and the top).
+            Windows(g, radius * Mathf.Lerp(1.02f, 0.98f, 0.16f), wall * 0.58f, 4, 0.55f, 40f, sides);
         }
 
 
@@ -2226,11 +2227,15 @@ namespace Punchy.Flora
         }
 
         /// <summary>
-        /// Windows round a wall at a height: a timber frame with a sill and a cross bar, round a pane in the accent
-        /// colour (FloraPart.Window: dark glass by day, lit at night).
+        /// Windows round a round wall of this radius (a tube of <paramref name="sides"/>) at a height: a timber frame
+        /// with a sill and a cross bar, round a pane in the accent colour (FloraPart.Window: dark glass by day, lit at
+        /// night). The frame reaches back into the wall past both its curve across the window and its facets, so it
+        /// reads as set into the wall from any side, never as a plane floating off it.
         /// </summary>
-        static void Windows(Grower g, float radius, float y, int count, float size, float skipAngle)
+        static void Windows(Grower g, float radius, float y, int count, float size, float skipAngle, int sides)
         {
+            var reach = size * 0.5f + 0.1f;
+            var sag = radius - Mathf.Sqrt(Mathf.Max(radius * radius - reach * reach, 0f)) + radius * (1f - Mathf.Cos(Mathf.PI / sides));
             if (!g.HasAccent || g.Lod == 2)
                 return;
             for (int k = 0; k < count; k++)
@@ -2239,28 +2244,39 @@ namespace Punchy.Flora
                 if (Mathf.Abs(Mathf.DeltaAngle(a * Mathf.Rad2Deg, 90f)) < skipAngle)
                     continue;   // keep clear of the door (+Z is 90° here)
                 var dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
-                Window(g, dir * radius + Vector3.up * y, Quaternion.LookRotation(dir), size, size * 1.25f);
+                Window(g, dir * (radius + 0.02f) + Vector3.up * y, Quaternion.LookRotation(dir), size, size * 1.25f, null, sag);
             }
         }
 
-        /// <summary>One window facing out along <paramref name="facing"/>'s +Z, centred at <paramref name="at"/>.</summary>
-        static void Window(Grower g, Vector3 at, Quaternion facing, float width, float height, Color? light = null)
+        /// <summary>
+        /// One window facing out along <paramref name="facing"/>'s +Z, centred at <paramref name="at"/>: the pane, set
+        /// back 8 cm behind the front of its frame (jambs, lintel and a projecting sill), whose back edge runs
+        /// <paramref name="sag"/> plus 12 cm behind the pane, into the wall (curved walls pass how far the wall falls
+        /// away across the window, so no gap shows at its sides).
+        /// </summary>
+        static void Window(Grower g, Vector3 at, Quaternion facing, float width, float height, Color? light = null, float sag = 0f)
         {
             var b = g.B;
             var frame = g.Bark * 0.55f;
             // Each pane's colour a touch different: the shader keys its own lighting-up hour on it.
             b.Box(at, new Vector3(width, height, 0.06f), facing, (light ?? g.Accent) * g.Range(0.96f, 1.04f), FloraPart.Window);
-            if (g.Lod > 0)
+            if (g.Lod == 2)
                 return;
             var bar = Mathf.Clamp(width * 0.1f, 0.04f, 0.08f);
+            const float front = 0.08f;
+            var back = sag + 0.12f;
+            var mid = (front - back) * 0.5f;
             Vector3 P(float x, float y, float z) => at + facing * new Vector3(x, y, z);
             foreach (var side in new[] { -1f, 1f })
             {
-                b.Box(P(side * (width + bar) * 0.5f, 0f, 0.03f), new Vector3(bar, height + bar * 2f, 0.1f), facing, frame, FloraPart.Bark);
-                b.Box(P(0f, side * (height + bar) * 0.5f, 0.03f), new Vector3(width + bar * 2f, bar, 0.1f), facing, frame, FloraPart.Bark);
+                b.Box(P(side * (width + bar) * 0.5f, 0f, mid), new Vector3(bar, height + bar * 2f, front + back), facing, frame, FloraPart.Bark);
+                b.Box(P(0f, side * (height + bar) * 0.5f, mid), new Vector3(width + bar * 2f, bar, front + back), facing, frame, FloraPart.Bark);
             }
+            if (g.Lod > 0)
+                return;
             b.Box(P(0f, 0f, 0.035f), new Vector3(bar * 0.6f, height, 0.04f), facing, frame, FloraPart.Bark);
-            b.Box(P(0f, -height * 0.5f - bar, 0.08f), new Vector3(width + bar * 3f, bar * 0.8f, 0.18f), facing, frame, FloraPart.Bark);
+            // The sill sticks out past the frame and runs back into the wall with it.
+            b.Box(P(0f, -height * 0.5f - bar * 1.4f, (front + 0.08f - back) * 0.5f), new Vector3(width + bar * 3f, bar * 0.8f, front + 0.08f + back), facing, frame, FloraPart.Bark);
         }
 
         static void StoneHouse(Grower g)
@@ -2422,7 +2438,11 @@ namespace Punchy.Flora
                 var y = walls * f / (floors + 1f);
                 var r = Mathf.Lerp(radius * 1.05f, radius * 0.88f, y / walls);
                 b.Tube(new List<Vector3> { Vector3.up * (y - 0.05f), Vector3.up * (y + 0.05f) }, new List<float> { r * 1.45f, r * 1.45f }, sides, g.Bark * 0.8f, FloraPart.Bark);
-                Windows(g, r * 0.98f, y + 0.7f, 5, 0.35f, f == 1 ? 30f : -1f);
+                // On the wall at the window's own height (it tapers).
+                var wy = y + 0.7f;
+                var wr = wy < walls * 0.6f ? Mathf.Lerp(radius * 1.05f, radius * 0.9f, Mathf.InverseLerp(walls * 0.15f, walls * 0.6f, wy))
+                                           : Mathf.Lerp(radius * 0.9f, radius * 0.85f, Mathf.InverseLerp(walls * 0.6f, walls, wy));
+                Windows(g, wr, wy, 5, 0.35f, f == 1 ? 30f : -1f, sides);
             }
 
             // A tall, slightly flared roof.
