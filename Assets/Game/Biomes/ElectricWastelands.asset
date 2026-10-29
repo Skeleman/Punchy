@@ -13,11 +13,11 @@ MonoBehaviour:
   m_Name: ElectricWastelands
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.BiomeDefinition
   MapColor: {r: 0.35, g: 0.4, b: 0.75, a: 1}
-  Frequency: 0.8
+  Frequency: 1.2
   Altitude: {x: 0.2, y: 1}
   Temperature: {x: 0.45, y: 1}
   Humidity: {x: 0, y: 0.4}
-  Volcanism: {x: 0.04, y: 0.3}
+  Volcanism: {x: 0.02, y: 0.3}
   BaseElevation: 12
   Shape: 2
   Relief: 20

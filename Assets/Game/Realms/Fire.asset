@@ -21,5 +21,7 @@ MonoBehaviour:
     Weight: 1
   - Biome: {fileID: 11400000, guid: 93ff6be7202cac44c92738804e0eb5f3, type: 2}
     Weight: 1
+  - Biome: {fileID: 11400000, guid: 141565d02b6f28c4b9331e5d77a83fac, type: 2}
+    Weight: 1
   NotNextTo:
   - {fileID: 11400000, guid: 37c68555ff71a6a4caddde61731ec9c2, type: 2}

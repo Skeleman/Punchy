@@ -40,6 +40,7 @@ MonoBehaviour:
   Cocoons: 0
   BarkFace: 0
   GlowingVeins: 0
+  RockStrata: 1
   Breathes: 0
   MaxSlope: 25
   Elevation: {x: 0, y: 10000}

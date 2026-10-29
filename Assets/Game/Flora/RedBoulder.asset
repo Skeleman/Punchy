@@ -30,6 +30,18 @@ MonoBehaviour:
   ColorVariation: 0.12
   Finish: 0
   GlowingAccents: 0
+  GlowPulse: 0.12
+  GlowingSeams: 0
+  Brackets: 0
+  Hanging: 0
+  HangingColor: {r: 0.25, g: 0.4, b: 0.2, a: 1}
+  HangingLength: {x: 1, y: 3}
+  HangingWisps: 0
+  Cocoons: 0
+  BarkFace: 0
+  GlowingVeins: 0
+  RockStrata: 1
+  Breathes: 0
   MaxSlope: 32
   Elevation: {x: 0.5, y: 10000}
   GrassAffinity: 0.5
@@ -38,6 +50,10 @@ MonoBehaviour:
   PatchCoverage: 1
   NearWater: 1
   OnlyNearWater: 0
+  Aquatic: 0
+  WaterDepth: {x: 0.1, y: 1.5}
+  Floats: 0
+  MinRapids: 0
   Solid: 1
   SizeRange: {x: 0.5, y: 1.6}
   Variants: 8
