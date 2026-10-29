@@ -561,6 +561,21 @@ namespace Punchy.Flora
             }
         }
 
+        /// <summary>
+        /// Gives the vertices from <paramref name="firstVertex"/> a slow sideways sway on the shared clock (carried in the
+        /// flutter channel below -10, Flora.hlsl), by how far each may swing in metres: hanging vines and ropes, more
+        /// the further down they hang.
+        /// </summary>
+        public void Sway(int firstVertex, Func<Vector3, float> amount)
+        {
+            for (int v = firstVertex; v < data.Count; v++)
+            {
+                var d = data[v];
+                d.z = -10f - Mathf.Max(amount(positions[v]), 0f);
+                data[v] = d;
+            }
+        }
+
         /// <summary>Bounding sphere around (0, centreY, 0).</summary>
         public void Bounds(out float centreY, out float radius)
         {

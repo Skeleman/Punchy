@@ -1189,8 +1189,9 @@ namespace Punchy.Flora
                     });
                 }
                 // Giants: the cap's underside much darker (shade under the overhang).
+                // Swells by up to 6.5% of its radius and back every 4 s.
                 if (s.Breathes)
-                    b.Motion(cap, capHeight * 0.06f);
+                    b.Motion(cap, capRadius * 0.065f);
                 System.Func<Vector3, Vector3, float> capShade = (p, n) => giant && n.y < -0.15f ? 0.32f : Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.3f));
                 b.Occlude(cap, capShade);
                 if (g.Lod < 2 && !puff && !giant)
@@ -1488,30 +1489,100 @@ namespace Punchy.Flora
 
         /// <summary>
         /// Strands hanging from a share of a tree's limbs (FloraSpecies.Hanging): vines and lianas, moss beards or roots in
-        /// the hanging colour, tapering as they fall, swaying with the leaves.
+        /// the hanging colour, as ropes a few centimetres thick with leaf clumps along them. Most fall from a limb to well
+        /// below the crown; some loop from one limb to the next. They sway slowly on the shared clock (Sway).
         /// </summary>
         static void Hanging(Grower g)
         {
             if (g.R() >= g.S.Hanging)
                 return;
-            var b = g.B;
             var s = g.S;
+            var points = g.Lod == 0 ? 9 : 5;
             foreach (var limb in g.Limbs)
             {
-                var strands = 4 + (int)(g.R() * 5f);
+                var strands = 6 + (int)(g.R() * 5f);
                 for (int k = 0; k < strands; k++)
                 {
-                    var t = g.Range(0.35f, 1f);
-                    var i = Mathf.Min(Mathf.FloorToInt(t * (limb.Count - 1)), limb.Count - 2);
-                    var top = Vector3.Lerp(limb[i], limb[i + 1], t * (limb.Count - 1) - i);
+                    var top = AlongLimb(limb, g.Range(0.35f, 1f));
                     // Down past the underside of the crown (where the limb leaves the trunk), then the strand's own length.
                     var length = g.Range(s.HangingLength.x, s.HangingLength.y) + Mathf.Max(top.y - limb[0].y, 0f);
-                    var drift = g.Flat(g.R() * 6.28f) * length * 0.08f;
-                    var color = s.HangingColor.linear * g.Range(0.8f, 1.15f);
-                    b.Tube(new List<Vector3> { top, top + drift * 0.5f + Vector3.down * length * 0.5f, top + drift + Vector3.down * length },
-                           new List<float> { 0.06f, 0.045f, 0.015f }, g.Sides(5, 4, 3), color, FloraPart.Foliage);
+                    var drift = g.Flat(g.R() * 6.28f) * length * 0.12f;
+                    var bow = g.Flat(g.R() * 6.28f) * g.Range(0.1f, 0.3f);
+                    var path = new List<Vector3>();
+                    var radii = new List<float>();
+                    for (int j = 0; j < points; j++)
+                    {
+                        var t = j / (points - 1f);
+                        path.Add(top + drift * t * t + bow * Mathf.Sin(t * Mathf.PI) + Vector3.down * length * t);
+                        radii.Add(Mathf.Lerp(0.05f, 0.025f, t));
+                    }
+                    var anchor = top.y;
+                    Rope(g, path, radii, p => (anchor - p.y) * 0.08f);
                 }
             }
+            // Loops from limb to limb, sagging below the crown: a parabola, near enough a catenary at this sag.
+            for (int l = 0; l < g.Limbs.Count && g.Limbs.Count > 1; l++)
+            {
+                if (g.R() > 0.6f)
+                    continue;
+                var la = g.Limbs[l];
+                var lb = g.Limbs[(l + 1) % g.Limbs.Count];
+                var a = AlongLimb(la, g.Range(0.5f, 1f));
+                var c = AlongLimb(lb, g.Range(0.5f, 1f));
+                var span = Vector3.Distance(a, c);
+                if (span < 1f || span > 9f)
+                    continue;
+                var low = Mathf.Min(a.y, c.y);
+                var sag = low - Mathf.Min(la[0].y, lb[0].y) + span * g.Range(0.15f, 0.35f) + 0.5f;
+                var path = new List<Vector3>();
+                var radii = new List<float>();
+                var n = points + 2;
+                for (int j = 0; j < n; j++)
+                {
+                    var t = j / (n - 1f);
+                    path.Add(Vector3.Lerp(a, c, t) + Vector3.down * sag * 4f * t * (1f - t));
+                    radii.Add(0.045f);
+                }
+                Rope(g, path, radii, p => (low - p.y) * 0.06f);
+            }
+        }
+
+        /// <summary>A point a share of the way along a limb's path.</summary>
+        static Vector3 AlongLimb(List<Vector3> limb, float t)
+        {
+            var i = Mathf.Min(Mathf.FloorToInt(t * (limb.Count - 1)), limb.Count - 2);
+            return Vector3.Lerp(limb[i], limb[i + 1], t * (limb.Count - 1) - i);
+        }
+
+        /// <summary>One vine (see Hanging): the rope, leaves in twos and threes every half metre or so (a metre at LOD1),
+        /// flat and tilted every way off the rope so they read as leaves rather than beads, and the sway.</summary>
+        static void Rope(Grower g, List<Vector3> path, List<float> radii, System.Func<Vector3, float> swing)
+        {
+            var b = g.B;
+            var first = b.VertexCount;
+            var leaf = g.S.HangingColor.linear * g.Range(0.85f, 1.15f);
+            b.Tube(path, radii, g.Sides(5, 4, 3), leaf * 0.7f, FloraPart.Foliage);
+            var step = g.Lod == 0 ? 0.5f : 1f;
+            var walked = g.Range(0.2f, step);
+            for (int j = 1; j < path.Count; j++)
+            {
+                var seg = Vector3.Distance(path[j - 1], path[j]);
+                for (; walked < seg; walked += step * g.Range(0.7f, 1.3f))
+                {
+                    var at = Vector3.Lerp(path[j - 1], path[j], walked / seg);
+                    var leaves = g.Lod == 0 ? 2 + (int)(g.R() * 2f) : 1;
+                    for (int n = 0; n < leaves; n++)
+                    {
+                        var out_ = g.Flat(g.R() * 6.28f);
+                        var size = g.Range(0.09f, 0.17f);
+                        var turn = Quaternion.LookRotation(out_) * Quaternion.Euler(g.Range(20f, 70f), 0f, g.Range(-40f, 40f));
+                        b.Blob(at + out_ * size * 0.8f, new Vector3(size * 0.6f, size * 0.12f, size), turn, 0, 0.2f, g.R() * 50f,
+                               leaf * g.Range(0.8f, 1.2f), FloraPart.Foliage);
+                    }
+                }
+                walked -= seg;
+            }
+            b.Sway(first, swing);
         }
 
         /// <summary>
@@ -1523,15 +1594,16 @@ namespace Punchy.Flora
             if (g.R() >= g.S.Cocoons)
                 return;
             var b = g.B;
-            var count = 2 + (int)(g.R() * 4f);
+            var count = 3 + (int)(g.R() * 4f);
             for (int k = 0; k < count; k++)
             {
                 var limb = g.Limbs[(int)(g.R() * g.Limbs.Count) % g.Limbs.Count];
                 var top = Vector3.Lerp(limb[1], limb[limb.Count - 1], g.Range(0.2f, 0.8f));
-                var thread = g.Range(0.3f, 0.9f);
-                var size = g.Range(0.12f, 0.22f);
+                // Down below the crown (to where the limb leaves the trunk) so they hang in plain view.
+                var thread = g.Range(0.3f, 0.9f) + Mathf.Max(top.y - limb[0].y, 0f);
+                var size = g.Range(0.2f, 0.32f);
                 var first = b.VertexCount;
-                b.Tube(new List<Vector3> { top, top + Vector3.down * thread }, new List<float> { 0.006f, 0.006f }, 3, new Color(0.8f, 0.78f, 0.72f), FloraPart.Bark);
+                b.Tube(new List<Vector3> { top, top + Vector3.down * thread }, new List<float> { 0.01f, 0.01f }, 3, new Color(0.8f, 0.78f, 0.72f), FloraPart.Bark);
                 b.Blob(top + Vector3.down * (thread + size), new Vector3(size * 0.55f, size, size * 0.55f), Quaternion.identity, 1, 0.12f, g.R() * 50f,
                        new Color(0.82f, 0.8f, 0.74f) * g.Range(0.85f, 1.05f), FloraPart.Cactus);
                 b.Motion(first, size * 0.25f, twitch: true);
@@ -1558,18 +1630,44 @@ namespace Punchy.Flora
                     radius = Mathf.Lerp(g.TrunkRadii[i - 1], g.TrunkRadii[i], t);
                     break;
                 }
-            var front = g.Flat(g.R() * 6.28f);
+            // On the model's front (+Z), turned with the tree's yaw like everything else.
+            var front = Vector3.forward;
             var side = Vector3.Cross(Vector3.up, front);
-            var eye = radius * 0.22f;
+            var facing = Quaternion.LookRotation(front);
+            var eye = radius * 0.26f;
+            var hollow = new Color(0.02f, 0.015f, 0.01f);
             foreach (var s in new[] { -1f, 1f })
             {
-                var e = at + front * radius * 0.92f + side * s * radius * 0.38f;
-                b.Blob(e, new Vector3(eye, eye * 0.75f, eye * 0.4f), Quaternion.LookRotation(front), 1, 0f, 0f, new Color(0.55f, 0.95f, 0.75f), FloraPart.Eye);
-                b.Blob(e + Vector3.up * eye * 1.1f + front * eye * 0.15f, new Vector3(eye * 1.3f, eye * 0.35f, eye * 0.5f), Quaternion.LookRotation(front) * Quaternion.Euler(0f, 0f, s * 12f),
+                var e = at + front * radius * 0.9f + side * s * radius * 0.4f;
+                // A deep hollow (near black, with a bark rim round it), a faint glowing eye far back in it, and a heavy brow.
+                b.Blob(e, new Vector3(eye, eye * 0.85f, eye * 0.35f), facing, 1, 0f, 0f, hollow, FloraPart.Bark, 0.2f);
+                Ring(b, e + front * eye * 0.2f, side, Vector3.up, eye * 1.05f, eye * 0.9f, radius * 0.07f, g.Bark * 0.75f);
+                b.Blob(e + front * eye * 0.12f + Vector3.down * eye * 0.15f, new Vector3(eye * 0.35f, eye * 0.28f, eye * 0.2f), facing, 1, 0f, 0f,
+                       new Color(0.55f, 0.95f, 0.75f), FloraPart.Eye);
+                b.Blob(e + Vector3.up * eye * 1.15f + front * eye * 0.3f, new Vector3(eye * 1.4f, eye * 0.4f, eye * 0.55f), facing * Quaternion.Euler(0f, 0f, s * 14f),
                        0, 0.1f, g.R() * 50f, g.Bark * 0.8f, FloraPart.Bark);
             }
-            b.Blob(at + front * radius * 0.9f + Vector3.down * radius * 0.65f, new Vector3(radius * 0.35f, radius * 0.16f, radius * 0.2f), Quaternion.LookRotation(front),
-                   1, 0.2f, g.R() * 50f, new Color(0.03f, 0.025f, 0.02f), FloraPart.Bark);
+            // A ridge of a nose between them.
+            b.Blob(at + front * radius * 0.98f + Vector3.down * radius * 0.2f, new Vector3(radius * 0.12f, radius * 0.32f, radius * 0.18f), facing,
+                   0, 0.15f, g.R() * 50f, g.Bark * 0.85f, FloraPart.Bark);
+            // The mouth: a dark hole ringed by a thick knot of bark lips.
+            var mouth = at + front * radius * 0.9f + Vector3.down * radius * 0.7f;
+            b.Blob(mouth, new Vector3(radius * 0.32f, radius * 0.2f, radius * 0.25f), facing, 1, 0.2f, g.R() * 50f, hollow, FloraPart.Bark, 0.2f);
+            Ring(b, mouth + front * radius * 0.08f, side, Vector3.up, radius * 0.36f, radius * 0.24f, radius * 0.1f, g.Bark * 0.8f);
+        }
+
+        /// <summary>A closed ring of bark (eye rims, a mouth's lips): an ellipse of the given half-widths in the side/up plane.</summary>
+        static void Ring(FloraMeshBuilder b, Vector3 centre, Vector3 side, Vector3 up, float width, float height, float thickness, Color color)
+        {
+            var path = new List<Vector3>();
+            var radii = new List<float>();
+            for (int k = 0; k <= 12; k++)
+            {
+                var a = k / 12f * Mathf.PI * 2f;
+                path.Add(centre + side * Mathf.Cos(a) * width + up * Mathf.Sin(a) * height);
+                radii.Add(thickness);
+            }
+            b.Tube(path, radii, 5, color, FloraPart.Bark);
         }
 
         /// <summary>Where a hive tree's comb hangs, as a share of its height (see FloraGenerator.Hive).</summary>

@@ -85,9 +85,18 @@ FloraVertex FloraTransform(FloraAttributes input)
     p.y -= sway * gust * sway * 0.6;   // bending, not stretching
     float flutter = max(input.data.z, 0) * (0.15 + _PunchyWind) * 0.022 * plant.scale;
     p += n * sin(_Time.y * 7.3 + dot(input.positionOS, float3(3.1, 2.3, 4.7)) + plant.random * 20) * flutter;
-    // Motions carried in the flutter channel as negatives (FloraMeshBuilder.Motion), on the shared clock: a slow breath
-    // along the normal (mushroom caps), or below -2 a sudden small jerk now and then (cocoons).
-    if (input.data.z < -1.5)
+    // Motions carried in the flutter channel as negatives (FloraMeshBuilder.Motion, Sway), on the shared clock: a slow
+    // breath along the normal (mushroom caps), below -2 a sudden small jerk now and then (cocoons), and below -10 a
+    // slow pendulum sway (vines), stronger in wind.
+    if (input.data.z < -9.5)
+    {
+        float swing = (-input.data.z - 10) * plant.scale * (0.6 + _PunchyWind * 0.8);
+        float t = _PunchyClock * 1.1 + plant.random * 6.28 + (input.positionOS.x + input.positionOS.z) * 0.35;
+        float2 side = float2(-_PunchyWindDirection.y, _PunchyWindDirection.x);
+        float2 move = _PunchyWindDirection * (sin(t) * 0.7 + _PunchyWind * 0.5) + side * sin(t * 0.63 + 1.7) * 0.5;
+        p.xz += move * swing;
+    }
+    else if (input.data.z < -1.5)
     {
         float size = (-input.data.z - 2) * plant.scale;
         float beat = frac(_PunchyClock * 0.23 + plant.random * 7.1 + input.positionOS.x * 0.37);
@@ -95,7 +104,7 @@ FloraVertex FloraTransform(FloraAttributes input)
         p += float3(sin(plant.random * 40 + input.positionOS.z), 0, cos(plant.random * 40 + input.positionOS.x)) * jerk * size;
     }
     else if (input.data.z < 0)
-        p += n * (-input.data.z) * plant.scale * (0.5 + 0.5 * sin(_PunchyClock * 0.9 + plant.random * 6.28));
+        p += n * (-input.data.z) * plant.scale * (0.5 + 0.5 * sin(_PunchyClock * 1.571 + plant.random * 6.28));   // a 4 s breath
 
     FloraVertex o;
     o.positionWS = plant.position + p;
