@@ -54,6 +54,8 @@ namespace Punchy.Fauna
         public bool Soars;
         /// <summary>A swimmer that bursts out to soar and dives back in (see CreatureSpecies.Breaches).</summary>
         public bool Breaches;
+        /// <summary>Raids wild hives now and then (see CreatureSpecies.RaidsHives).</summary>
+        public bool RaidsHives;
         /// <summary>Has arms, so it can hold things (folk).</summary>
         public bool Hands;
         /// <summary>A child (see CreatureSpecies.Child): a variant's own.</summary>
@@ -627,6 +629,7 @@ namespace Punchy.Fauna
             root.GuardSash = new float4(((Vector4)species.GuardSash.linear).x, ((Vector4)species.GuardSash.linear).y, ((Vector4)species.GuardSash.linear).z, 0f);
             root.Soars = species.Soars;
             root.Breaches = species.Breaches && species.Habitat == Habitat.Swims;
+            root.RaidsHives = species.RaidsHives;
             root.Hands = species.Parts.Exists(p => p != null && p.Limb != null && p.Limb.Role == LimbRole.Arm);
             root.Child = variant.Child;
             root.SeenFrom = species.SeenFrom * sizeScale;

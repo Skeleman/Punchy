@@ -414,6 +414,9 @@ namespace Punchy.Fauna
                     s.Timer = 40f;
                 }
 
+                if (b.RaidsHives)
+                    s.ChaseCooldown = math.max(s.ChaseCooldown - dt, 0f);
+
                 var targetSpeed = 0f;
                 var desiredLook = 0f;
                 var moving = false;
@@ -674,6 +677,11 @@ namespace Punchy.Fauna
                         {
                             custom = true;
                             Messenger(ref s, ref b, ref rng, dt, ref vertical);
+                            break;
+                        }
+                        if (s.Stage >= CreatureAnimator.RaidWalk && s.Stage <= CreatureAnimator.RaidLeave)
+                        {
+                            Raiding(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref sit, ref vertical, ref desiredLook);
                             break;
                         }
                         // (A fisher's time at the water starts when it gets there, however far it had to walk.)
@@ -1072,6 +1080,10 @@ namespace Punchy.Fauna
                     s.Timer = rng.NextFloat(60f, 100f);
                     return;
                 }
+                // A bear by day, now and then, goes after a wild hive's honey (rarely: after a raid it leaves hives be a
+                // long while).
+                if (b.RaidsHives && sleepy < 0.3f && s.ChaseCooldown <= 0f && rng.NextFloat() < 0.08f && StartRaid(ref s, ref rng))
+                    return;
                 // Townsfolk gather round the town's fire at dusk, as many as it has room for (the rest go in as usual).
                 if (Gathering(in s, ref b) && rng.NextFloat() < 0.8f && StartHearth(self, ref s, ref rng))
                     return;
@@ -2295,6 +2307,93 @@ namespace Punchy.Fauna
                     } while (Grid.TryGetNextValue(out j, ref it));
                 }
                 return false;
+            }
+
+            // ------------------------------------------------------------------------------- hive raids
+
+            const float RaidCooldown = 900f;
+
+            /// <summary>Off to the nearest wild hive within 60 m (to the foot of the trunk under its comb), if there is one.</summary>
+            bool StartRaid(ref CreatureState s, ref Random rng)
+            {
+                if (!Terrain.Anchors.IsCreated)
+                    return false;
+                ref var set = ref Terrain.Anchors.Value;
+                var near = new NativeList<int>(2, Allocator.Temp);
+                Anchors.Near(ref set, s.Position, 60f, AnchorKind.Hive, ref near);
+                var best = -1;
+                for (int i = 0; i < near.Length; i++)
+                    if (!set.Anchors[near[i]].InCave && (best < 0 || math.distancesq(set.Anchors[near[i]].Position, s.Position) <
+                                                                     math.distancesq(set.Anchors[best].Position, s.Position)))
+                        best = near[i];
+                near.Dispose();
+                if (best < 0)
+                    return false;
+                var hive = set.Anchors[best];
+                var trunk = math.max(hive.Size - 1f, 0.1f);
+                SetMode(ref s, CreatureMode.Work);
+                s.Stage = CreatureAnimator.RaidWalk;
+                s.Focus = hive.Position.xz + hive.Facing * trunk;
+                s.Target = hive.Position.xz + hive.Facing * (trunk + 0.9f);
+                s.Timer = 120f;
+                // (Even if it never gets there: no other raid for a long while.)
+                s.ChaseCooldown = RaidCooldown;
+                return true;
+            }
+
+            /// <summary>
+            /// A bear after a hive's honey: walks to the foot of the trunk under the comb (RaidWalk); rears up at it, pawing
+            /// and swaying, while the bees mob it (RaidAtComb); then makes off, running at first, to somewhere 70 to 100 m
+            /// from the hive (RaidLeave), and takes up its day there.
+            /// </summary>
+            void Raiding(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, float run,
+                         ref float targetSpeed, ref bool moving, ref float sit, ref float vertical, ref float desiredLook)
+            {
+                s.Timer -= dt;
+                if (s.Stage == CreatureAnimator.RaidWalk)
+                {
+                    targetSpeed = walk;
+                    moving = true;
+                    if (math.distance(s.Position.xz, s.Target) < 0.8f)
+                    {
+                        NextStage(ref s);
+                        s.Timer = rng.NextFloat(6f, 10f);
+                    }
+                    else if (s.Timer <= 0f)
+                        Pause(ref s, ref b, ref rng);
+                }
+                else if (s.Stage == CreatureAnimator.RaidAtComb)
+                {
+                    s.Speed = 0f;
+                    var to = s.Focus - s.Position.xz;
+                    s.Yaw = WrapAngle(s.Yaw + math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -b.TurnRate * dt, b.TurnRate * dt));
+                    // Up on its hind legs against the trunk, swaying and pawing up at the comb.
+                    sit = 1f;
+                    vertical = 0.6f + 0.12f * math.sin(s.StageTime * 5f);
+                    desiredLook = 0.4f * math.sin(s.StageTime * 2.3f);
+                    if (s.Timer <= 0f)
+                    {
+                        // Away from the hive, a little to one side or the other.
+                        var away = math.normalizesafe(s.Position.xz - s.Focus, rng.NextFloat2Direction());
+                        var turn = rng.NextFloat(-0.6f, 0.6f);
+                        math.sincos(turn, out var sn, out var cs);
+                        away = new float2(away.x * cs - away.y * sn, away.x * sn + away.y * cs);
+                        var spot = s.Position.xz + away * rng.NextFloat(70f, 100f);
+                        for (int tries = 0; tries < 4 && !Walkable(spot, Habitat.Land); tries++)
+                            spot = s.Position.xz + rng.NextFloat2Direction() * rng.NextFloat(70f, 100f);
+                        NextStage(ref s);
+                        s.Target = spot;
+                        s.Timer = 120f;
+                    }
+                }
+                else
+                {
+                    // (Running from the bees at first.)
+                    targetSpeed = s.StageTime < 6f ? run : walk;
+                    moving = true;
+                    if (math.distance(s.Position.xz, s.Target) < 2f || s.Timer <= 0f)
+                        Pause(ref s, ref b, ref rng);
+                }
             }
 
             // ------------------------------------------------------------------------------- messenger birds

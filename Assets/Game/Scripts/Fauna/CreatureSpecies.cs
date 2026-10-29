@@ -178,6 +178,9 @@ namespace Punchy.Fauna
                  "over water at least 6 m deep, at most one near each player, its Density the chance a look over deep " +
                  "water finds one.")]
         public bool Breaches;
+        [Tooltip("Goes after wild honey (bears): now and then by day, rarely, walks to a hive near it, rears up at the comb " +
+                 "with the bees mobbing it, then makes off well away from it.")]
+        public bool RaidsHives;
 
         /// <summary>The species whose body, gait and behaviour this one uses (itself unless it's a variant).</summary>
         public CreatureSpecies Body

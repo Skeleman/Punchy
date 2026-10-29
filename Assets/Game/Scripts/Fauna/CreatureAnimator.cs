@@ -685,6 +685,9 @@ namespace Punchy.Fauna
         /// <summary>Idle-mode stages of one of the townsfolk a messenger bird has come to: waiting for it (the forearm
         /// up for it to land on), taking the message from its leg, reading it.</summary>
         public const byte MessageWait = 60, MessageTake = 61, MessageRead = 62;
+        /// <summary>Work-mode stages of a bear raiding a wild hive: on its way, reared up at the comb, making off.
+        /// (The bees mob it while it's at the comb: CreatureRenderSystem's Swarm.)</summary>
+        public const byte RaidWalk = 150, RaidAtComb = 151, RaidLeave = 152;
 
         static float3 TaskPose(ref CreaturePart part, in CreatureState s, int joint)
         {

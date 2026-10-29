@@ -86,6 +86,8 @@ namespace Punchy.Fauna
         Unity.Collections.NativeList<int> hives;
         /// <summary>When each hive (by anchor index) last set its bees on someone: per machine, for looks only.</summary>
         readonly System.Collections.Generic.Dictionary<int, float> hiveAngry = new System.Collections.Generic.Dictionary<int, float>();
+        /// <summary>The bear (entity index) a hive's bees are after, if it was a bear that set them off.</summary>
+        readonly System.Collections.Generic.Dictionary<int, int> hiveRaider = new System.Collections.Generic.Dictionary<int, int>();
 
         protected override void OnCreate()
         {
@@ -314,12 +316,33 @@ namespace Punchy.Fauna
             var swarmPlayer = new float3(float.MaxValue);
             foreach (var t in SystemAPI.Query<RefRO<Unity.Transforms.LocalTransform>>().WithAll<Punchy.Player.PlayerTag>())
                 swarmPlayer = t.ValueRO.Position;
+            var swarmTargets = new NativeArray<float3>(hives.Length, Allocator.Temp);
             for (int i = 0; i < hives.Length; i++)
             {
                 var hive = terrain.Anchors.Value.Anchors[hives[i]];
                 var last = hiveAngry.TryGetValue(hives[i], out var since) ? since : -1000f;
-                if (day && now - last > SwarmChaseTime + SwarmCalmTime && math.distance(swarmPlayer, hive.Position) < SwarmAngerDistance + hive.Size)
+                swarmTargets[i] = swarmPlayer;
+                // A bear at the comb: mobbed for as long as it's there (and a few seconds after, as it makes off).
+                var raider = -1;
+                for (int k = 0; k < states.Length && raider < 0; k++)
+                    if (states[k].Mode == CreatureMode.Work && states[k].Stage == CreatureAnimator.RaidAtComb &&
+                        math.distance(states[k].Position.xz, hive.Position.xz) < hive.Size + 2f)
+                        raider = k;
+                if (raider >= 0)
+                {
+                    hiveAngry[hives[i]] = now - 1f;
+                    hiveRaider[hives[i]] = entities[raider].Index;
+                }
+                else if (day && now - last > SwarmChaseTime + SwarmCalmTime && math.distance(swarmPlayer, hive.Position) < SwarmAngerDistance + hive.Size)
+                {
                     hiveAngry[hives[i]] = now;
+                    hiveRaider.Remove(hives[i]);
+                }
+                // (Still after the bear as it goes, while the chase lasts.)
+                if (hiveRaider.TryGetValue(hives[i], out var bearIndex))
+                    for (int k = 0; k < states.Length; k++)
+                        if (entities[k].Index == bearIndex)
+                            swarmTargets[i] = states[k].Position;
                 total += day ? SwarmRound + SwarmForagers : SwarmNight;
             }
 
@@ -394,8 +417,9 @@ namespace Punchy.Fauna
                 var hive = terrain.Anchors.Value.Anchors[hives[i]];
                 var angry = hiveAngry.TryGetValue(hives[i], out var since) ? now - since : -1f;
                 var faded = math.saturate((math.distance(camAt, hive.Position) - SwarmRange * 0.75f) / (SwarmRange * 0.25f));
-                at = Swarm(hive, hives[i], day, now, angry, swarmPlayer, faded, terrain, instances, at);
+                at = Swarm(hive, hives[i], day, now, angry, swarmTargets[i], faded, terrain, instances, at);
             }
+            swarmTargets.Dispose();
             if (traceCount > 0)
                 at = traces.Write(instances, at, (float)SystemAPI.Time.ElapsedTime);
 
