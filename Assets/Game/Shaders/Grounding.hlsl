@@ -26,6 +26,28 @@ half PunchyGrounding(float height, half normalY, half solid)
     return contact * broad * down;
 }
 
+// The undersides of roofs, eaves and overhangs on built things: they see the ground, not the sky. Far darker than
+// PunchyGroundDown gives (towards ~0.25 of the albedo), most of the sky's ambient and its grazing reflection gone,
+// with a faint warm bounce of the ground's colour in their place so they never go pure black.
+static const half PunchyUndersideStart = 0.3;   // -normal.y where it begins
+static const half PunchyUndersideFull = 0.7;    // and where it's complete
+static const half PunchyUndersideAlbedo = 0.6; // albedo kept (with the lost sky light, about 0.25 of a lit wall)
+static const half PunchyUndersideSky = 0.18;    // sky ambient (and sky reflection) kept
+static const half PunchyUndersideBounce = 1.6;  // ground-coloured bounce, × the sky's light from above
+
+/// How much a face on a built thing is an underside (0..1), from its world normal's up component.
+half PunchyUnderside(half normalY)
+{
+    return smoothstep(PunchyUndersideStart, PunchyUndersideFull, -normalY);
+}
+
+/// The ambient an underside gets in place of the sky's: a dim share of it plus the ground's colour bounced up,
+/// `skyAbove` being the sky's light on an upward face.
+half3 PunchyUndersideAmbient(half3 sky, half3 ground, half3 skyAbove, half under)
+{
+    return lerp(sky, sky * PunchyUndersideSky + ground * skyAbove * PunchyUndersideBounce * 0.5, under);
+}
+
 // The dirt band at a built thing's base: up to the height its instance carries (about 0.9 m on walls, 0.25 m on a
 // bench's feet; × its scale), with a ragged top edge, its colour taken towards the ground's (darkened: soil splashed
 // and worn in, not paint), a little darker when wet.

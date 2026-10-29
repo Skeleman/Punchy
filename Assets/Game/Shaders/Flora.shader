@@ -126,6 +126,10 @@ Shader "Punchy/Flora"
                 // Thin tapered strands (roots, stems) can end in a degenerate normal; a NaN there blooms into a bright fleck.
                 half3 n = SafeNormalize(input.normalWS);
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
+                // Built things are drawn double-sided too, and a roof is one sheet: seen from below it's the sheet's
+                // back, whose normal still points up. Light the side you see.
+                if (part == 0 && input.ground.a > 0 && dot(n, v) < 0)
+                    n = -n;
 
                 // Per-plant tint: brightness, and leaves a little yellower or bluer.
                 half r = input.extra.w;
@@ -185,6 +189,13 @@ Shader "Punchy/Flora"
                 // ambient (the daylight spilling in at a mouth).
                 shadow *= (1 - _PunchyUnderground) * (1 - _FloraInCave);
                 half3 sky = SampleSH(n) * lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));
+                // Roof undersides, eaves and overhangs on built things see the ground, not the sky (Grounding.hlsl).
+                half under = part == 0 && input.ground.a > 0 ? PunchyUnderside(n.y) : 0;
+                if (under > 0)
+                {
+                    sky = PunchyUndersideAmbient(sky, input.ground.rgb, SampleSH(half3(0, 1, 0)) * lerp(1, 0.06, _PunchyUnderground), under);
+                    albedo *= lerp(1, PunchyUndersideAlbedo, under);
+                }
                 // Glowing plants and molten pools nearby (their own glow included, softly).
                 sky += PunchyGlowLight(input.positionWS, n);
                 if (_PunchyLantern.w > 0)
@@ -212,7 +223,7 @@ Shader "Punchy/Flora"
                 {
                     half fresnel = 0.04 + 0.96 * pow(1 - saturate(dot(n, v)), 5);
                     half sheenFar = metal ? 1 : lerp(0.25, 1, smoothstep(30, 120, distance(input.positionWS, GetCameraPositionWS())));
-                    color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * sheenFar * ao * lerp(1, 0.06, _PunchyUnderground);
+                    color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * sheenFar * ao * lerp(1, 0.06, _PunchyUnderground) * lerp(1, PunchyUndersideSky, under);
                 }
 
                 // Glass (crystals): a dark clear body lit faintly from inside, a bright rim where the surface turns
