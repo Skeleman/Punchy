@@ -36,7 +36,24 @@ namespace Punchy.Terrain
         /// the trunk's centre at the comb's height; Facing the side of the trunk the comb hangs on; Size reaches round
         /// the trunk past the comb; Capacity is the swarm.
         /// </summary>
-        Hive
+        Hive,
+        /// <summary>
+        /// A roadside campsite as a whole. Position is its fire pit's centre on the ground; Facing towards the road;
+        /// Size the camp's radius; Capacity how many can stay (its bedrolls). Its parts are a Hearth, Beds and Sits.
+        /// </summary>
+        Camp,
+        /// <summary>
+        /// A bedroll (camps, hermits' camps). Position is its middle on the ground; Facing from head to feet (the feet
+        /// towards the fire), so the head is at Position - Facing * 0.8; Size half its length; Capacity 1.
+        /// </summary>
+        Bed,
+        /// <summary>
+        /// Where a hermit sleeps and rests: inside the shelter, on its floor (a stilt hut's is up its stilts). Facing out
+        /// of the door or opening; Size 0.8; Capacity 1; sheltered.
+        /// </summary>
+        Home,
+        /// <summary>A tended patch (hermits' gardens). Position its centre; Size its radius; Facing along its rows; Capacity 1.</summary>
+        Garden
     }
 
     /// <summary>
