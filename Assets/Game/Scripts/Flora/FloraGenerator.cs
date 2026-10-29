@@ -2669,8 +2669,9 @@ namespace Punchy.Flora
 
         /// <summary>
         /// One 3 m length of rail fence along X, laid end to end: a split post at its start (-X end), leaning a touch,
-        /// and two rails on into the next length's post (a little past where it stands, so a slightly wider spacing on a
-        /// bend still meets it), each sagging a little in the middle.
+        /// and two rails nailed to its face on into the next length's post (a little past where it stands, so a slightly
+        /// wider spacing on a bend still meets it), boards on edge (thin against the post, as nailed), each sagging a
+        /// little in the middle.
         /// </summary>
         static void RailFence(Grower g)
         {
@@ -2696,11 +2697,12 @@ namespace Punchy.Flora
             foreach (var y in new[] { 0.42f, 0.82f })
             {
                 var sag = g.Range(0.01f, 0.05f);
-                var a = post + Vector3.up * height * y + new Vector3(0.05f, 0f, 0.09f);
+                // Flush on the post's face: half the post (0.07) plus half the board's thickness.
+                var a = post + Vector3.up * height * y + new Vector3(0.05f, 0f, 0.086f);
                 var c = a + Vector3.right * (length + 0.1f);
                 var mid = (a + c) * 0.5f + Vector3.down * sag;
-                b.Beam(a, mid, 0.07f, 0.05f, wood * g.Range(0.8f, 1f), FloraPart.Bark);
-                b.Beam(mid, c, 0.07f, 0.05f, wood * g.Range(0.8f, 1f), FloraPart.Bark);
+                b.Beam(a, mid, 0.03f, 0.12f, wood * g.Range(0.8f, 1f), FloraPart.Bark);
+                b.Beam(mid, c, 0.03f, 0.12f, wood * g.Range(0.8f, 1f), FloraPart.Bark);
             }
             FenceColliders(g, post, post + Vector3.right * length, height);
         }
