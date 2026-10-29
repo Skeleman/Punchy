@@ -80,6 +80,7 @@ namespace Punchy.Flora
                     case FloraForm.Log: SeatLog(g); break;
                     case FloraForm.Stump: Stump(g); break;
                     case FloraForm.FirePit: FirePit(g); break;
+                    case FloraForm.HiveTree: Broadleaf(g); Hive(g); break;
                     case FloraForm.Bones: Bones(g); break;
                     case FloraForm.Boulder: Boulder(g); break;
                     case FloraForm.Spire: Spire(g); break;
@@ -176,6 +177,9 @@ namespace Punchy.Flora
             /// <summary>Fine detail that only some levels draw (loose leaves, florets).</summary>
             public readonly System.Random Detail;
             public float Height, Width, TrunkRadius, DoorHeight;
+            /// <summary>A tree's trunk centreline and radii, bottom to top (Broadleaf), for things that hang on it.</summary>
+            public List<Vector3> TrunkPath;
+            public List<float> TrunkRadii;
             public readonly List<Vector4> Colliders = new List<Vector4>();
 
             /// <summary>
@@ -287,6 +291,8 @@ namespace Punchy.Flora
                 trunk.Add(new Vector3(0f, Mathf.Lerp(-0.6f, top, t), 0f) + lean * (t * t) + (i > 0 ? wiggle : Vector3.zero));
                 trunkRadii.Add(r0 * Mathf.Lerp(1f, 0.3f, t) * (i == 0 ? 1.45f : i == 1 ? 1.1f : 1f));
             }
+            g.TrunkPath = trunk;
+            g.TrunkRadii = trunkRadii;
 
             var crownCentre = new Vector3(lean.x * 0.6f, (crownBase + height) * 0.5f, lean.z * 0.6f);
             var crownRadii = new Vector3(width * 0.5f, (height - crownBase) * 0.5f, width * 0.5f);
@@ -1318,6 +1324,52 @@ namespace Punchy.Flora
                 }
             }
             g.Colliders.Add(new Vector4(0f, 0f, radius * 1.1f, radius * 0.4f));
+        }
+
+        /// <summary>Where a hive tree's comb hangs, as a share of its height (see FloraGenerator.Hive).</summary>
+        public static float HiveHeight(FloraSpecies s) => (s.Height.x + s.Height.y) * 0.5f * s.TrunkFraction * 0.7f;
+
+        /// <summary>
+        /// A wild bees' comb hanging from the trunk (after Broadleaf), under the crown at HiveHeight: a few lobes of
+        /// honey-gold wax narrowing downwards, darkest at the top where it joins the bark, with a dark mouth near its foot.
+        /// </summary>
+        static void Hive(Grower g)
+        {
+            if (g.TrunkPath == null)
+                return;
+            var b = g.B;
+            var y = HiveHeight(g.S);
+            // The trunk's centre and radius at that height.
+            var at = g.TrunkPath[0];
+            var radius = g.TrunkRadii[0];
+            for (int i = 1; i < g.TrunkPath.Count; i++)
+                if (g.TrunkPath[i].y >= y)
+                {
+                    var t = Mathf.InverseLerp(g.TrunkPath[i - 1].y, g.TrunkPath[i].y, y);
+                    at = Vector3.Lerp(g.TrunkPath[i - 1], g.TrunkPath[i], t);
+                    radius = Mathf.Lerp(g.TrunkRadii[i - 1], g.TrunkRadii[i], t);
+                    break;
+                }
+            var side = g.Flat(g.R() * 6.28f);
+            var size = Mathf.Clamp(radius * 1.6f, 0.3f, 0.6f);
+            var wax = AccentAt(g, 0);
+            var root = at + side * radius * 0.85f;
+            for (int k = 0; k < 4; k++)
+            {
+                var down = k * size * 0.42f;
+                var lobe = size * (1f - k * 0.18f);
+                var centre = root + side * lobe * 0.45f - Vector3.up * (down + lobe * 0.3f) + g.Flat(g.R() * 6.28f) * lobe * 0.12f;
+                var shade = Mathf.Lerp(0.55f, 1.05f, k / 3f) * g.Range(0.92f, 1.08f);
+                var first = b.Blob(centre, new Vector3(lobe * 0.55f, lobe * 0.5f, lobe * 0.55f), Quaternion.identity,
+                                   g.Lod == 0 ? 1 : 0, 0.25f, g.R() * 50f, wax * shade, FloraPart.Cactus);
+                b.Occlude(first, (p, n) => Mathf.Lerp(0.5f, 1f, Mathf.Clamp01(n.y * 0.5f + 0.6f)));
+            }
+            if (g.Lod < 2)
+            {
+                var mouth = root + side * size * 0.75f - Vector3.up * size * 1.15f;
+                b.Blob(mouth, new Vector3(size * 0.16f, size * 0.1f, size * 0.16f), Quaternion.identity, 0, 0f, 0f,
+                       new Color(0.03f, 0.025f, 0.02f), FloraPart.Bark);
+            }
         }
 
         static void Bones(Grower g)

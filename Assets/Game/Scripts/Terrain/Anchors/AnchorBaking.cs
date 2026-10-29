@@ -27,6 +27,8 @@ namespace Punchy.Terrain
             }
             if (source.Settlements.IsCreated)
                 AddTownAnchors(source, types, anchors);
+            if (source.Landmarks.IsCreated)
+                AddHiveAnchors(source, types, anchors);
             if (anchors.Count == 0)
                 return default;
             return BuildBlob(anchors, allocator);
@@ -184,6 +186,51 @@ namespace Punchy.Terrain
                         var spot = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), town.Radius);
                         var toCentre = math.normalizesafe(inst.Position - spot);
                         Add(AnchorKind.Well, spot + toCentre * 1.4f, -toCentre, 0.6f, 2, t);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// A Hive anchor at every wild bees' comb: round the trunk of each hive tree a landmark has as its centrepiece or
+        /// places at a spot on its ring (oak groves, ancient trees, fairy rings), at the comb's height, owned by the landmark. The comb faces some way round the trunk, so the anchor reaches round
+        /// it.
+        /// </summary>
+        static void AddHiveAnchors(in TerrainSource source, IReadOnlyList<LandmarkType> types, List<Anchor> anchors)
+        {
+            ref var set = ref source.Landmarks.Value;
+            for (int i = 0; i < set.Instances.Length; i++)
+            {
+                ref var inst = ref set.Instances[i];
+                var type = inst.Type < types.Count ? types[inst.Type] : null;
+                if (type == null)
+                    continue;
+                var radius = set.Types[inst.Type].Radius * inst.Scale;
+                foreach (var prop in type.Props)
+                {
+                    var tree = prop.Species;
+                    if (tree == null || tree.Form != Punchy.Flora.FloraForm.HiveTree || !prop.Centrepiece && prop.Count == 0)
+                        continue;
+                    var scale = (prop.Scale.x + math.max(prop.Scale.x, prop.Scale.y)) * 0.5f * (tree.SizeRange.x + tree.SizeRange.y) * 0.5f;
+                    var trunk = (tree.Height.x + tree.Height.y) * 0.5f * tree.Thickness * scale;
+                    // The centrepiece stands at the middle; placed props at their spots round the ring.
+                    var count = prop.Centrepiece ? 1 : prop.Count;
+                    for (int k = 0; k < count; k++)
+                    {
+                        var at = prop.Centrepiece ? inst.Position
+                            : LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), radius);
+                        var ground = source.SampleHeight(at);
+                        anchors.Add(new Anchor
+                        {
+                            Position = new float3(at.x, ground + Punchy.Flora.FloraGenerator.HiveHeight(tree) * scale, at.y),
+                            Facing = inst.Facing,
+                            Size = trunk + 1f,
+                            Owner = Anchor.OwnerLandmark(i),
+                            Kind = AnchorKind.Hive,
+                            Capacity = 12,
+                            Biome = (byte)Dominant(source.SampleGround(at).Biomes),
+                            Tags = 0
+                        });
                     }
                 }
             }

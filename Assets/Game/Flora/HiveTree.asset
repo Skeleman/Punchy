@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be30a536c49003f42bba655b0fd41247, type: 3}
+  m_Name: HiveTree
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
+  Form: 46
+  Layer: 2
+  Height: {x: 11.76, y: 12.24}
+  Spread: 0.85
+  TrunkFraction: 0.32
+  Thickness: 0.032
+  Fullness: 0.75
+  Branches: {x: 4, y: 6}
+  Flexibility: 0.35
+  FlowerHead: 0
+  Bark: {r: 0.33, g: 0.27, b: 0.21, a: 1}
+  Foliage: {r: 0.16, g: 0.3, b: 0.09, a: 1}
+  FoliageVariation: {r: 0.26, g: 0.38, b: 0.12, a: 1}
+  Accents:
+  - {r: 0.86, g: 0.6, b: 0.2, a: 1}
+  AccentAmount: 0.3
+  ColorVariation: 0.12
+  Finish: 0
+  GlowingAccents: 0
+  GlowPulse: 0.12
+  MaxSlope: 30
+  Elevation: {x: 1, y: 125}
+  GrassAffinity: 0.6
+  ToleratesSnow: 0
+  PatchSize: 220
+  PatchCoverage: 0.5
+  NearWater: 1.5
+  OnlyNearWater: 0
+  Aquatic: 0
+  WaterDepth: {x: 0.1, y: 1.5}
+  Floats: 0
+  MinRapids: 0
+  Solid: 1
+  SizeRange: {x: 1, y: 1}
+  Variants: 1
+  Seed: 31

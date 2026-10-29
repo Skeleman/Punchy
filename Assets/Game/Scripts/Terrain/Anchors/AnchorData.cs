@@ -30,7 +30,12 @@ namespace Punchy.Terrain
         /// </summary>
         Sit,
         /// <summary>An open green (grass, a few trees): fine to sit or lie on. Size is its radius, Capacity how many.</summary>
-        Green
+        Green,
+        /// <summary>
+        /// A wild bees' nest: a comb on a tree trunk (Bee Tree landmarks). Position is the trunk's centre at the comb's
+        /// height; Size reaches round the trunk past the comb (which faces some way round it), Capacity is the swarm.
+        /// </summary>
+        Hive
     }
 
     /// <summary>
@@ -61,11 +66,14 @@ namespace Punchy.Terrain
         /// <summary>The cave's CaveStyleTable slot (cave anchors) or the settlement's folk (settlement anchors).</summary>
         public int Variety => Tags & 0x7F;
 
-        const int SettlementBit = 1 << 30;
+        const int SettlementBit = 1 << 30, LandmarkBit = 1 << 29;
         public static int OwnerCave(int cave) => cave;
         public static int OwnerSettlement(int settlement) => settlement | SettlementBit;
-        public bool InCave => (Owner & SettlementBit) == 0;
-        public int OwnerIndex => Owner & ~SettlementBit;
+        /// <summary>A wild landmark out in the land (a bee tree): neither a cave nor a settlement.</summary>
+        public static int OwnerLandmark(int landmark) => landmark | LandmarkBit;
+        public bool InCave => (Owner & (SettlementBit | LandmarkBit)) == 0;
+        public bool InLandmark => (Owner & LandmarkBit) != 0;
+        public int OwnerIndex => Owner & ~(SettlementBit | LandmarkBit);
     }
 
     /// <summary>Every anchor in the world, with a coarse column grid (each anchor is listed in the one cell it is in).</summary>
