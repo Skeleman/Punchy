@@ -1,0 +1,166 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
+  m_Name: CanyonWren
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
+  VariantOf: {fileID: 11400000, guid: 67dbea075c2b2aa42b1c93042c048409, type: 2}
+  VariantScale: 0.9
+  VariantHead: 1
+  VariantThickness: 1
+  VariantLegs: 1
+  BodyLength: 0.11
+  BodyRadius: 0.04
+  BodyTaper: 0.8
+  BodyFlatten: 1
+  Base: {r: 0.55, g: 0.32, b: 0.2, a: 1}
+  Accent: {r: 0.9, g: 0.85, b: 0.75, a: 1}
+  AccentGlow: 0
+  Coats:
+  - Name: CanyonWren
+    Base: {r: 0.55, g: 0.32, b: 0.2, a: 1}
+    Accent: {r: 0.9, g: 0.85, b: 0.75, a: 1}
+    AccentGlow: 0
+    Weight: 1
+  Size: {x: 0.9, y: 1.1}
+  HairColors: []
+  Parts:
+  - Limb: {fileID: 11400000, guid: c9353264e2115d240afe20ef59feeaa3, type: 2}
+    Parent: -1
+    Socket: {x: 0.5, y: -0.6, z: 0}
+    Direction: {x: 90, y: 0, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.5
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: fee2595e6d0d0af4f84039dcc2a6a682, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0.5, z: 0.85}
+    Direction: {x: -50, y: 0, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.45
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: e643fc75ab94c0248b5e3710ae391090, type: 2}
+    Parent: 1
+    Socket: {x: 0, y: 0, z: 0}
+    Direction: {x: 50, y: 0, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.9
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 5b7edc2e566b3b6498d7785ee96468b3, type: 2}
+    Parent: 2
+    Socket: {x: 0, y: -0.004, z: 0.02}
+    Direction: {x: 8, y: 0, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 8db8692701365314db1a0b5e9ab1cbd1, type: 2}
+    Parent: 2
+    Socket: {x: 0.022, y: 0.01, z: -0.018}
+    Direction: {x: 0, y: 0, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.5
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: fe76f58551e55a740ba27ee474f98714, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0.3, z: -1}
+    Direction: {x: 5, y: 180, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.3
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 203e147ec498a564292d0a018077d052, type: 2}
+    Parent: -1
+    Socket: {x: 0.8, y: 0.45, z: 0.35}
+    Direction: {x: 0, y: 90, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0
+    Scale: 0.2
+    Thickness: 1
+    StyleGroup: 0
+  WalkSpeed: 0.5
+  RunSpeed: 2
+  Bob: {x: 0.008, y: 0.02}
+  BobsPerCycle: {x: 2, y: 2}
+  RunRock: 0
+  Upright: 0
+  LeglessStride: {x: 0.6, y: 0.9}
+  WanderRadius: 30
+  IdleTime: {x: 1, y: 4}
+  FleeDistance: 5
+  TurnRate: 300
+  SeenFrom: 0
+  GroupSize: {x: 2, y: 5}
+  NearWater: 0
+  Habitat: 3
+  SwimDepth: 0.6
+  Leaps: 0
+  Active: 0
+  Grazing: 0.6
+  Thirst: 0.2
+  Playfulness: 0.2
+  Child: 0
+  Laziness: 0.2
+  Hunts: []
+  Hunger: 0
+  ChaseTime: 10
+  Idles: 2568
+  Fidgets: 0.7
+  Climbing: 0
+  SpinsWebs: 0
+  WebSize: 0.6
+  Burrows: 0
+  CaveDweller: 0
+  Crawls: 0
+  CaveAffinity: 0
+  Roosts: 0
+  Friendly: 0
+  LavaDweller: 0
+  Haunts: 0
+  CrossesWater: 0
+  Nests: 1
+  DrawnToLight: 0
+  DrivenOff: 0
+  GuardKit: 0
+  GuardArmour: {r: 0.55, g: 0.57, b: 0.6, a: 1}
+  GuardSash: {r: 0.62, g: 0.12, b: 0.1, a: 1}
+  FlightHeight: {x: 4, y: 9}
+  FlySpeed: 6
+  FlapRate: 9
+  Glide: 0.2
+  Perching: 0.7
+  Soars: 0
+  Breaches: 0
+  RaidsHives: 0
+  Calls:
+  - Sound: 2
+    Interval: {x: 12, y: 30}
+    Pitch: {x: 1.15, y: 1.3}
+    Volume: 0.4
+    Reach: 40
+    When: 1
