@@ -89,7 +89,9 @@ namespace Punchy.Terrain
             for (int s = 0; s < f.Rules.Length; s++)
             {
                 var g = f.Glow[s];
-                if (g.w == 0f)
+                // Glass crystals stay out: a cluster has many at the same distance, so they took turns in the nearest
+                // 16 as the camera moved and the crystals seemed to pulse (F-52). They still light caves' walls.
+                if (g.w == 0f || species[s].Finish == FoliageFinish.Glass)
                     continue;
                 anyGlow = true;
                 for (int v = 0; v < f.Rules[s].Variants; v++)

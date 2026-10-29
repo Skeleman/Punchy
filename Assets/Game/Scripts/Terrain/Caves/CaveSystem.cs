@@ -321,6 +321,9 @@ namespace Punchy.Terrain
         readonly Dictionary<Vector4, (Vector4 color, Vector4 position, float left)> heatLeaving = new Dictionary<Vector4, (Vector4, Vector4, float)>();
         readonly List<Vector4> heatScratch = new List<Vector4>();
         readonly Dictionary<Vector4, float> heatNextAge = new Dictionary<Vector4, float>();
+        /// <summary>Each listed light's colour and position when last uploaded, by key, so one that drops out of the
+        /// candidates altogether (a surface rescan that no longer reaches it) still fades out rather than popping off.</summary>
+        readonly Dictionary<Vector4, (Vector4 color, Vector4 position)> heatLast = new Dictionary<Vector4, (Vector4, Vector4)>();
 
         /// <summary>
         /// Uploads the nearest glowing things to the cave shader, which lights the walls round them. A light joining the
@@ -349,6 +352,7 @@ namespace Punchy.Terrain
                 var age = (heatAge.TryGetValue(key, out var a) ? a : 0f) + dt;
                 heatNextAge[key] = age;
                 heatLeaving.Remove(key);
+                heatLast[key] = (color, position);
                 // Up to full over the first 60%, a swell of about 12% over full, settling back by the end.
                 var t = age / HeatFadeIn;
                 var envelope = math.smoothstep(0f, 0.6f, t) + 0.12f * math.smoothstep(0.3f, 0.6f, t) * (1f - math.smoothstep(0.6f, 1.2f, t));
@@ -359,13 +363,13 @@ namespace Punchy.Terrain
             foreach (var kv in heatAge)
                 if (!heatNextAge.ContainsKey(kv.Key) && !heatLeaving.ContainsKey(kv.Key))
                 {
-                    Vector4 color = Vector4.zero, position = Vector4.zero;
-                    foreach (var g in glowing)
-                        if (g.key == kv.Key) { color = g.color; position = g.position; break; }
-                    if (color == Vector4.zero)
-                        continue;   // gone from the candidates altogether (out of range): no colour to fade
-                    heatLeaving[kv.Key] = (color, position, HeatFadeOut * math.saturate(kv.Value / HeatFadeIn));
+                    if (!heatLast.TryGetValue(kv.Key, out var last))
+                        continue;
+                    heatLeaving[kv.Key] = (last.color, last.position, HeatFadeOut * math.saturate(kv.Value / HeatFadeIn));
                 }
+            foreach (var kv in heatAge)
+                if (!heatNextAge.ContainsKey(kv.Key))
+                    heatLast.Remove(kv.Key);
             heatAge.Clear();
             foreach (var kv in heatNextAge)
                 heatAge[kv.Key] = kv.Value;
