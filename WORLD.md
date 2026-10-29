@@ -132,20 +132,21 @@ Batches in this order; each batch gets one evaluation session, one sheet and one
 4b. **Seats (done)**: benches round town squares and before inns, logs and stumps round camp yards, fountain rims and
    hall steps, each with a Sit anchor (AnchorKind.Sit: hips on the seat, facing out, Capacity side by side, Size the
    spacing); open greens (a shade tree) with Green anchors, fenced gardens none; Bench no longer baked.
-5. **Polish batch**:
-   - more debris: loose boulders and scree as flora props (one rock mesh family, a few sizes; chunky ones per
-     chamber, small scatter near walls, collision only on the big ones);
-   - metallic caves that read as metal: dark iron, copper or silver with strong facet specular, veins catching light;
-   - egg clutches paler and glossier, in a few sizes;
-   - towns: a ring street or perimeter lane linking the spoke ends (cross-lanes in bigger towns), for guards,
-     travellers and the cities goal;
-   - grainy sand and dirt, and leafy noise on tree crowns;
-   - fire (pit, flame cards, colour palettes) and settlement centrepieces;
-   - wild beehives with a Hive anchor;
-   - moon phases and a rare blue moon (Sky.hlsl and the moon parts of WeatherSystem on loan #11; the animal session owns
-     the Sun);
-   - glacier ice arches.
+5. **Polish batch (done)**: cave boulders of the cave's own rock and scree; angular metallic caves; glass crystals;
+   cave waterfalls; paler glossy eggs; matte camp mud; torch-lit mine chambers; grainy sand and dirt; leafy crowns;
+   fire pits with Flame effects and palettes as town centrepieces (Hearth anchors); wild beehives (HiveTree props,
+   Hive anchors, Anchor.OwnerLandmark); two moons (8-day phases, a small blue moon on its own path; Day on WorldState);
+   glacier ice arches; the building pass (grounding and dirt bands, foundation skirts, matte stone, door porches);
+   ring lanes round human villages (2a6cdd3).
+5b. **Landmark RNG (next, after kind-possum's overnight benches)**: an independent random stream per landmark type
+   in LandmarkBaking, landed alone in one commit. One final reshuffle: re-run every island check and publish the new
+   places and bench coordinates to kind-possum and the animal session before pushing (it changes the world
+   fingerprint). After it, new landmark types no longer move the rest of the island.
+5c. **Towns grew over time (after 5b)**: houses on both sides of the ring and along the spokes inside it, with gardens
+   and pens filling the interior; varied setback and spacing (clusters, gaps, a few turned slightly); the ring smoothed
+   into an irregular loop following the terrain; a lane or two ending at a building instead of closing the loop.
 6. **Small landmarks**: W-24 ruins and graveyards; hermit huts and camps; W-25 cold fog; W-26 salt-flat landmarks.
+   Then the sub-biome pairs (Fungal + Ember first).
 7. **Long term (when the queue runs dry, always batched)**:
    - Goal 1, enterable buildings: hinged doors with a Door anchor; outdoor clutter and seats with Sit anchors
      (benches, stools, logs, flat rocks); then hollow interiors.
