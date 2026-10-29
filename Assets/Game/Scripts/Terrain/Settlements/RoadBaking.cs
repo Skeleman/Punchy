@@ -129,7 +129,7 @@ namespace Punchy.Terrain
                 Emit(source, path, layout.RoadWidth * settlements[settlement].Scale, settlement, settlements, streets);
                 // Roads between settlements (not the spurs to caves) carry roadside landmarks.
                 if (toTown)
-                    roads?.Add(new RoadsideBaking.RoadPath { Points = path, Width = layout.RoadWidth * settlements[settlement].Scale, Settlement = settlement });
+                    roads?.Add(new RoadsideBaking.RoadPath { Points = path, Width = layout.RoadWidth * settlements[settlement].Scale, Settlement = settlement, Other = other });
                 AddBridges(source, path, settlement, settlements, layouts, firstBuilding, plots);
                 // Signposts where the road leaves each settlement it joins.
                 AddSignpost(source, path, settlement, settlements, layouts, firstBuilding, plots, false);

@@ -25,8 +25,13 @@ namespace Punchy.Terrain
         {
             public List<float2> Points;
             public float Width;
-            public int Settlement;
+            /// <summary>The settlement at its start, and the one at its end.</summary>
+            public int Settlement, Other;
         }
+
+        const float FenceSpacing = 3f;
+        /// <summary>How far past a settlement's edge its road fences run (m).</summary>
+        const float FenceReach = 120f;
 
         /// <summary>
         /// The roadside landmarks along <paramref name="roads"/>, with their spurs added to <paramref name="streets"/>.
@@ -44,6 +49,7 @@ namespace Punchy.Terrain
             for (int e = 0; e < roadside.Count; e++)
                 hashes[e] = roadside[e].Type != null ? LandmarkBaking.NameHash(roadside[e].Type) : 0u;
             var roadStreets = streets.Count;
+            var forks = new List<float2>();
 
             foreach (var road in roads)
             {
@@ -64,7 +70,105 @@ namespace Punchy.Terrain
                     along += length;
                 }
             }
+            foreach (var road in roads)
+            {
+                Fences(road, false);
+                Fences(road, true);
+            }
             return placed;
+
+            // Rail fences along a road for a stretch just outside the settlement at one end (fields), on one side or
+            // both, about half the time, with gaps where anything else is: forks, signposts, bridges, other streets,
+            // water and landmarks.
+            void Fences(RoadPath road, bool atEnd)
+            {
+                var s = atEnd ? road.Other : road.Settlement;
+                if (s < 0)
+                    return;
+                var town = settlements[s];
+                var layout = layouts[town.Layout];
+                if (layout.RoadFence == null)
+                    return;
+                var start = atEnd ? road.Points[road.Points.Count - 1] : road.Points[0];
+                var key = math.hash(new uint4(seed, (uint)(int)math.floor(start.x), (uint)(int)math.floor(start.y), 0xFE7CEu)) | 1u;
+                if ((key & 0xFF) > 140)
+                    return;
+                var sides = (key & 0x100) != 0 ? 2 : 1;
+                var first = (key & 0x200) != 0 ? 1f : -1f;
+                var builtPlots = plots.Count;
+                // The road from that end, every metre.
+                var points = new List<float2>();
+                for (int i = 0; i < road.Points.Count - 1; i++)
+                {
+                    var a = road.Points[atEnd ? road.Points.Count - 1 - i : i];
+                    var b = road.Points[atEnd ? road.Points.Count - 2 - i : i + 1];
+                    var n = math.max(1, (int)math.ceil(math.distance(a, b)));
+                    for (int k = 0; k < n; k++)
+                        points.Add(math.lerp(a, b, k / (float)n));
+                }
+                var lastPost = new float2[2] { new float2(float.MaxValue), new float2(float.MaxValue) };
+                for (int i = 0; i < points.Count - 1; i++)
+                {
+                    var d = math.distance(points[i], town.Centre);
+                    if (d < town.Radius * 1.05f)
+                        continue;
+                    if (d > town.Radius + FenceReach)
+                        break;
+                    var tangent = math.normalizesafe(points[i + 1] - points[i]);
+                    for (int side = 0; side < sides; side++)
+                    {
+                        var sign = side == 0 ? first : -first;
+                        if (math.distance(points[i], lastPost[side]) < FenceSpacing)
+                            continue;
+                        var normal = new float2(-tangent.y, tangent.x) * sign;
+                        var at = points[i] + normal * (road.Width * 0.5f + 1.6f);
+                        lastPost[side] = points[i];
+                        if (!FenceClear(at, builtPlots))
+                            continue;
+                        plots.Add(new SettlementPlot
+                        {
+                            Centre = at,
+                            Facing = -normal,
+                            Half = new float2(1.55f, 0.3f),
+                            Pad = src.SampleHeight(at),
+                            Role = PlotRole.Fence,
+                            Building = firstBuilding[town.Layout] + layout.Buildings.Count + 4,   // the road fence slot
+                            Settlement = s,
+                            Min = at - 2f,
+                            Max = at + 2f
+                        });
+                    }
+                }
+            }
+
+            bool FenceClear(float2 at, int builtPlots)
+            {
+                foreach (var f in forks)
+                    if (math.distance(at, f) < 9f)
+                        return false;
+                foreach (var street in streets)
+                {
+                    if (math.any(at < street.Min - 2f) || math.any(at > street.Max + 2f))
+                        continue;
+                    if (SettlementSampling.Across(street, at, out _) < street.Width * 0.5f + 1.2f)
+                        return false;
+                }
+                for (int p = 0; p < builtPlots; p++)
+                    if (plots[p].Role != PlotRole.Fence && math.all(at > plots[p].Min - 3f) && math.all(at < plots[p].Max + 3f))
+                        return false;
+                foreach (var p in placed)
+                    if (math.distance(at, p.Position) < types[p.Type].Radius + 2f)
+                        return false;
+                if (src.Landmarks.IsCreated)
+                {
+                    ref var set = ref src.Landmarks.Value;
+                    for (int l = 0; l < set.Instances.Length; l++)
+                        if (math.distance(at, set.Instances[l].Position) < set.Types[set.Instances[l].Type].Radius * set.Instances[l].Scale)
+                            return false;
+                }
+                var g = src.SampleGround(at);
+                return !(g.HasWater && g.WaterSurface > g.Height - 0.2f) && g.River < 0.02f && src.CaveClearance(at, g.Height) >= 2f;
+            }
 
             void Try(float2 at, float2 tangent, RoadPath road)
             {
@@ -147,6 +251,7 @@ namespace Punchy.Terrain
                     Key = key
                 });
                 // A short spur from the road to its edge, narrower than the road.
+                forks.Add(at);
                 var end = site - normal * radius * 0.45f;
                 var width = road.Width * 0.7f;
                 var from = new float3(at.x, src.SampleHeight(at), at.y);

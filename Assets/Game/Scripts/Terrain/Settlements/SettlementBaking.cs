@@ -16,7 +16,7 @@ namespace Punchy.Terrain
     {
         const float GridCell = 32f;
         /// <summary>Slots after each layout's own buildings in the flat list: water feature, signpost, bridge, palisade.</summary>
-        public const int ExtraSlots = 4;
+        public const int ExtraSlots = 5;
         /// <summary>Streets are cut into stretches no longer than this, so their levelling follows the ground.</summary>
         const float StretchLength = 10f;
 
@@ -40,11 +40,13 @@ namespace Punchy.Terrain
             foreach (var layout in Layouts(types))
             {
                 list.AddRange(layout.Buildings);
-                // Then the water feature, signpost, bridge and palisade, one slot each per layout (empty if it has none).
+                // Then the water feature, signpost, bridge, palisade and road fence, one slot each per layout (empty if it
+                // has none).
                 list.Add(new SettlementBuilding { Role = PlotRole.Well, Species = layout.WaterFeature, Count = 1 });
                 list.Add(new SettlementBuilding { Role = PlotRole.Signpost, Species = layout.Signpost, Count = 1 });
                 list.Add(new SettlementBuilding { Role = PlotRole.Bridge, Species = layout.Bridge, Count = 1 });
                 list.Add(new SettlementBuilding { Role = PlotRole.Palisade, Species = layout.PalisadeWall, Count = 1 });
+                list.Add(new SettlementBuilding { Role = PlotRole.Fence, Species = layout.RoadFence, Count = 1 });
             }
             return list;
         }
