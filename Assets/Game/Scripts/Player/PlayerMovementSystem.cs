@@ -73,6 +73,16 @@ namespace Punchy.Player
                     Fly(ref t, ref m, body, input, terrain, settings, inCave, dt);
                     continue;
                 }
+                if (body.Hovers)
+                {
+                    Hover(ref t, ref m, body, input, terrain, settings, dt);
+                    continue;
+                }
+                if (body.Swims)
+                {
+                    SwimOrFlop(ref t, ref m, body, input, terrain, settings, dt);
+                    continue;
+                }
                 // Climbing onto a ledge: hands on the rim, pulled up at the wall to its height, then a leg over and onto
                 // the top.
                 if (m.Mantle > 0f)
@@ -174,6 +184,102 @@ namespace Punchy.Player
                     t.Rotation = math.slerp(t.Rotation, target, 1f - math.exp(-settings.TurnSharpness * dt));
                 }
             }
+        }
+
+        /// <summary>
+        /// A ghost's frame: drifting at a height above the ground or the water (jump to rise, up to 4 m; sprint to sink
+        /// back down), floating over everything with no gravity, turning to face the way it drifts.
+        /// </summary>
+        static void Hover(ref LocalTransform t, ref PlayerMotion m, in PlayerBody body, in PlayerInput input, in TerrainSource terrain,
+                          in PlayerMotor settings, float dt)
+        {
+            var position = t.Position;
+            position.xz += input.MoveDirection * settings.WalkSpeed * math.max(body.SpeedFactor, 0.1f) * 0.8f * dt;
+            var ground = terrain.SampleGround(position.xz);
+            var under = ground.HasWater ? math.max(ground.Height, ground.WaterSurface) : ground.Height;
+            if (terrain.FloorUnder(position, out var inCave) is var floor && inCave)
+                under = floor;
+            // (The height it keeps: m.Pitch holds it, eased up and down.)
+            if (input.JumpHeld)
+                m.Pitch = math.min(m.Pitch + dt * 1.5f, 4f);
+            else if (input.DiveHeld)
+                m.Pitch = math.max(m.Pitch - dt * 2f, 0f);
+            var bob = 0.08f * math.sin((float)m.Airspeed);
+            m.Airspeed += dt * 1.7f;
+            var target = under + 0.5f + m.Pitch + bob;
+            position.y += (target - position.y) * math.min(1f, dt * 3f);
+            m.Grounded = m.Pitch < 0.05f;
+            m.VerticalVelocity = 0f;
+            t.Position = position;
+            Face(ref t, input, settings, dt);
+        }
+
+        /// <summary>
+        /// A fish's frame: in water, swimming anywhere under it (jump up towards the surface, sprint down towards the
+        /// bed); out of it, flopping: hardly moving, in little hops that can take it back to the water.
+        /// </summary>
+        static void SwimOrFlop(ref LocalTransform t, ref PlayerMotion m, in PlayerBody body, in PlayerInput input, in TerrainSource terrain,
+                               in PlayerMotor settings, float dt)
+        {
+            var position = t.Position;
+            var ground = terrain.SampleGround(position.xz);
+            var water = ground.HasWater && ground.WaterSurface - ground.Height > 0.25f;
+            if (water && position.y < ground.WaterSurface + 0.1f)
+            {
+                var speed = settings.WalkSpeed * math.max(body.SpeedFactor, 0.1f) * (input.Sprint ? 1.6f : 1f);
+                var next = position.xz + input.MoveDirection * speed * dt;
+                var ahead = terrain.SampleGround(next);
+                // (It keeps to the water: no swimming up onto the bank except by leaping out with jump.)
+                if (ahead.HasWater && ahead.WaterSurface - ahead.Height > 0.2f || input.JumpHeld)
+                    position.xz = next;
+                var climb = input.JumpHeld ? 1.5f : input.DiveHeld ? -1.5f : 0f;
+                position.y += climb * dt;
+                var top = ground.WaterSurface - 0.12f;
+                var bed = ground.Height + 0.12f;
+                // Jumping at the surface with speed: out it leaps, for a moment.
+                if (input.JumpPressed && position.y > top - 0.3f)
+                {
+                    m.VerticalVelocity = settings.JumpSpeed * 0.8f;
+                    position.y = top + 0.05f;
+                }
+                else
+                {
+                    position.y = math.clamp(position.y, bed, math.max(top, bed));
+                    m.VerticalVelocity = 0f;
+                }
+                m.Grounded = true;
+                t.Position = position;
+                Face(ref t, input, settings, dt);
+                return;
+            }
+            // Out of the water (or leaping): falling, and once down, flopping.
+            var floor = water ? math.max(ground.WaterSurface - 0.12f, ground.Height) : ground.Height;
+            if (m.Grounded && !water && math.lengthsq(input.MoveDirection) > 0.01f && m.Airspeed <= 0f)
+            {
+                m.VerticalVelocity = 2.2f;
+                m.Grounded = false;
+                m.Airspeed = 0.6f;
+            }
+            m.Airspeed -= dt;
+            if (!m.Grounded)
+                position.xz += input.MoveDirection * 1.4f * dt;
+            m.VerticalVelocity -= settings.Gravity * dt;
+            position.y += m.VerticalVelocity * dt;
+            if (position.y <= floor)
+            {
+                position.y = floor;
+                m.VerticalVelocity = 0f;
+                m.Grounded = true;
+            }
+            t.Position = position;
+            Face(ref t, input, settings, dt);
+        }
+
+        static void Face(ref LocalTransform t, in PlayerInput input, in PlayerMotor settings, float dt)
+        {
+            var flatMove = new float3(input.MoveDirection.x, 0f, input.MoveDirection.y);
+            if (math.lengthsq(flatMove) > 1e-4f)
+                t.Rotation = math.slerp(t.Rotation, quaternion.LookRotationSafe(flatMove, math.up()), 1f - math.exp(-settings.TurnSharpness * dt));
         }
 
         /// <summary>

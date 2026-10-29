@@ -545,6 +545,8 @@ namespace Punchy.Fauna
                 Flies = b.Habitat == Habitat.Flies,
                 FlySpeed = b.FlySpeed,
                 Climbs = b.Hands || b.Climbing > 0f || b.Crawls,
+                Swims = b.Habitat == Habitat.Swims,
+                Hovers = b.Haunts,
                 Size = human >= 0 && blobs[human].Value.StandHeight > 0f
                     ? math.clamp(b.StandHeight * size / (blobs[human].Value.StandHeight * (blobs[human].Value.Size.x + blobs[human].Value.Size.y) * 0.5f), 0.25f, 3f)
                     : 1f

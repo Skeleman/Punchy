@@ -57,6 +57,10 @@ namespace Punchy.Player
         public bool Climbs;
         /// <summary>Its height next to a human's (steps, reach and ledges scale with it); 0 reads as 1.</summary>
         public float Size;
+        /// <summary>A fish: swims anywhere under the water; out of it, flops along in little hops.</summary>
+        public bool Swims;
+        /// <summary>A ghost: drifts above the ground or water, no gravity, rising with jump and sinking with sprint.</summary>
+        public bool Hovers;
     }
 
     /// <summary>Singleton written by PlayerInputSystem each frame. MoveDirection is world-space XZ, length 0..1.</summary>
