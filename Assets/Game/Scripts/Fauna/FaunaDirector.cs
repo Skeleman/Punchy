@@ -1071,7 +1071,7 @@ namespace Punchy.Fauna
                 if (caveCount >= MaxCave)
                     break;
                 occupiedCaves.Add(i);
-                for (int sp = 0; sp < species.Count; sp++)
+                for (int sp = 0; sp < species.Count && caveCount < MaxCave; sp++)
                 {
                     var body = species[sp].Body;
                     // Now and then a surface animal (a bear in its den, a wolf, a fox), if it lives round the mouth:
@@ -1094,7 +1094,8 @@ namespace Punchy.Fauna
                             var glow = anchors.Anchors[a];
                             if (glow.Kind != AnchorKind.Glow || !glow.InCave || glow.OwnerIndex != i)
                                 continue;
-                            for (int k = 0; k < count; k++)
+                            // (The cap holds within a cave too: a big cave has hundreds of glowing plants.)
+                            for (int k = 0; k < count && caveCount < MaxCave; k++)
                             {
                                 Spawn(sp, glow.Position + new float3(rng.NextFloat(-0.6f, 0.6f), rng.NextFloat(0.4f, 1.4f), rng.NextFloat(-0.6f, 0.6f)));
                                 caveCount++;
@@ -1102,7 +1103,7 @@ namespace Punchy.Fauna
                         }
                         continue;
                     }
-                    for (int k = 0; k < count; k++)
+                    for (int k = 0; k < count && caveCount < MaxCave; k++)
                     {
                         // On the floor somewhere in the inner two thirds of the passage (a visitor, the outer half).
                         var node = set.Nodes[cave.FirstNode + (visitor ? rng.NextInt(1, math.max(2, cave.NodeCount / 2))
