@@ -77,6 +77,11 @@ namespace Punchy.Terrain
     public struct BiomeBlobData
     {
         public float Frequency;
+        /// <summary>
+        /// A stable hash of the biome's name (BiomeBaking.NameHash): its region rolls and noise offsets come from it,
+        /// not from its place in the palette, so adding a biome doesn't reshuffle the others.
+        /// </summary>
+        public uint NameHash;
         public float BaseElevation;
         public TerrainShapeKind Shape;
         public float Relief;
@@ -515,11 +520,16 @@ namespace Punchy.Terrain
                     continue;
                 cellLand[i] = true;
                 land[g]++;
+                // Each realm's vote here is how well its best-suited biome suits the cell's climate (weight ×
+                // suitability), not whether the cell's own pick is one of its biomes: so adding a biome to a realm only
+                // adds votes where it suits better than the realm's others, and the realm map stays put.
+                var climate = Climate(s, (cell + CellJitter(cell, s.Seed)) * s.CellSize);
                 for (int r = 0; r < count; r++)
                 {
-                    var m = System.Array.IndexOf(realms.Members[r], baseIds[i]);
-                    if (m >= 0)
-                        votes[g * count + r] += realms.Weights[r][m];
+                    var best = 0f;
+                    for (int m = 0; m < realms.Members[r].Length; m++)
+                        best = math.max(best, realms.Weights[r][m] * Suitability(ref set.Biomes[realms.Members[r][m]], climate, s.ClimateInfluence));
+                    votes[g * count + r] += best;
                 }
             }
 
@@ -754,12 +764,21 @@ namespace Punchy.Terrain
             if (members.Length == 0)
                 return CellBiome(cell, s, ref set);
             var climate = Climate(s, (cell + CellJitter(cell, s.Seed)) * s.CellSize);
-            var scores = new float[members.Length];
-            var total = 0f;
+            // The realm's biomes race for the cell (RaceTime), the same draws as the island-wide pick.
+            var winner = -1;
+            var first = float.MaxValue;
             for (int m = 0; m < members.Length; m++)
-                total += scores[m] = realms.Weights[realm][m] * Suitability(ref set.Biomes[members[m]], climate, s.ClimateInfluence);
-            if (total > 1e-20f)
-                return members[Pick(scores, total, math.hash(new int3(cell, (int)(s.Seed * 7919u + 17u))))];
+            {
+                var weight = realms.Weights[realm][m] * Suitability(ref set.Biomes[members[m]], climate, s.ClimateInfluence);
+                var t = weight > 1e-20f ? RaceTime(cell, s.Seed, set.Biomes[members[m]].NameHash, weight) : float.MaxValue;
+                if (t < first)
+                {
+                    first = t;
+                    winner = members[m];
+                }
+            }
+            if (winner >= 0)
+                return winner;
             // No biome of the realm suits this climate: the nearest fit.
             var best = members[0];
             var bestMisfit = float.MaxValue;
@@ -797,21 +816,6 @@ namespace Punchy.Terrain
             return best;
         }
 
-        /// <summary>An index picked at random (hash), in proportion to the scores.</summary>
-        static int Pick(float[] scores, float total, uint hash)
-        {
-            var pick = hash / (float)uint.MaxValue * total;
-            for (int i = 0; i < scores.Length; i++)
-            {
-                pick -= scores[i];
-                if (pick <= 0f && scores[i] > 0f)
-                    return i;
-            }
-            for (int i = scores.Length - 1; i > 0; i--)
-                if (scores[i] > 0f)
-                    return i;
-            return 0;
-        }
 
         /// <summary>A region's biome: random, weighted by each biome's frequency and how well it suits the climate.</summary>
         static int CellBiome(int2 cell, in BiomeNoiseSettings s, ref BiomeSetBlob set)
@@ -840,15 +844,48 @@ namespace Punchy.Terrain
                 return best;
             }
 
-            var h = math.hash(new int3(cell, (int)(s.Seed * 7919u + 17u)));
-            var pick = (h / (float)uint.MaxValue) * total;
+            var pick = 0;
+            var first = float.MaxValue;
             for (int i = 0; i < set.LandCount; i++)
             {
-                pick -= Suitability(ref set.Biomes[i], climate, s.ClimateInfluence);
-                if (pick <= 0f)
-                    return i;
+                var t = RaceTime(cell, s.Seed, set.Biomes[i].NameHash, Suitability(ref set.Biomes[i], climate, s.ClimateInfluence));
+                if (t < first)
+                {
+                    first = t;
+                    pick = i;
+                }
             }
-            return set.LandCount - 1;
+            return pick;
+        }
+
+        /// <summary>
+        /// A biome's time in a cell's race for it: each candidate draws -ln(u) / weight, u from a hash of the cell and
+        /// the biome's name, and the earliest wins. That picks each in proportion to its weight, as a weighted pick
+        /// over a list would, but a biome's draw doesn't depend on the others or their order, so adding a biome only
+        /// takes the cells it wins. Never for a weight of 0.
+        /// </summary>
+        static float RaceTime(int2 cell, uint seed, uint nameHash, float weight)
+        {
+            if (weight <= 0f)
+                return float.MaxValue;
+            var h = Scramble(math.hash(new uint4((uint)cell.x, (uint)cell.y, seed * 7919u + 17u, nameHash)));
+            var u = ((h >> 8) + 0.5f) / 16777216f;
+            return -math.log(u) / weight;
+        }
+
+        /// <summary>
+        /// A full avalanche (the murmur3 finaliser) over a hash. math.hash of a vector is a weighted sum with no final
+        /// mix, so two draws that differ only in one input (a biome's or landmark type's name) differ by a constant
+        /// and one of them always wins; scrambled, they're independent.
+        /// </summary>
+        public static uint Scramble(uint h)
+        {
+            h ^= h >> 16;
+            h *= 0x85EBCA6Bu;
+            h ^= h >> 13;
+            h *= 0xC2B2AE35u;
+            h ^= h >> 16;
+            return h;
         }
 
         static float Suitability(ref BiomeBlobData b, float4 climate, float influence) =>
