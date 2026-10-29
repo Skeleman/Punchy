@@ -44,9 +44,9 @@ MonoBehaviour:
     Chance: 0.1
   - Preset: {fileID: 11400000, guid: b286ddfaf2340f145a3f219b8b4f7a57, type: 2}
     Chance: 6
-  BaseSurface: {fileID: 11400000, guid: 4b1da60f05cf2a44cbfa1020c5c2a057, type: 2}
+  BaseSurface: {fileID: 11400000, guid: a47c55ea855885e46bd1486b0eebed6a, type: 2}
   Layers:
-  - Surface: {fileID: 11400000, guid: ae864f77c41b8724db337b796525440a, type: 2}
+  - Surface: {fileID: 11400000, guid: 0602b6c9420876845bb55b2c0698255d, type: 2}
     UseSlope: 0
     SlopeRange: {x: 35, y: 90}
     SlopeBlend: 5
@@ -101,6 +101,8 @@ MonoBehaviour:
   Particles:
   - Type: {fileID: 11400000, guid: 5d5aba8a64f982947b76d097902e8124, type: 2}
     Density: 2
+  - Type: {fileID: 11400000, guid: 4ebce0ad685efc54890f0e9bcc87e5ff, type: 2}
+    Density: 10
   Flora:
   - Species: {fileID: 11400000, guid: 15173a626853f1745a95536f913b6884, type: 2}
     Density: 0.4

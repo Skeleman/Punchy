@@ -1135,15 +1135,47 @@ namespace Punchy.Flora
                 // The cap, and darker gills underneath it.
                 var cap = b.Blob(top + tilt * Vector3.up * capHeight * 0.25f, new Vector3(capRadius, capHeight, capRadius), tilt,
                                  g.Lod == 0 ? 2 : g.Lod == 1 ? 1 : 0, 0.06f, seed, color, FloraPart.Foliage);
-                b.Occlude(cap, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.3f)));
-                if (g.Lod < 2 && !puff)
+                // Giants: a near-flat underside (the cap's lower half squashed in its own frame), so the gills under it
+                // hide from a side view.
+                if (giant)
                 {
+                    var capCentre = top + tilt * Vector3.up * capHeight * 0.25f;
+                    var untilt = Quaternion.Inverse(tilt);
+                    b.Transform(cap, q =>
+                    {
+                        var l = untilt * (q - capCentre);
+                        if (l.y < 0f) l.y *= 0.3f;
+                        return capCentre + tilt * l;
+                    }, nrm =>
+                    {
+                        var l = untilt * nrm;
+                        if (l.y < 0f) l = new Vector3(l.x, l.y / 0.3f, l.z).normalized;
+                        return tilt * l;
+                    });
+                }
+                // Giants: the cap's underside much darker (shade under the overhang).
+                System.Func<Vector3, Vector3, float> capShade = (p, n) => giant && n.y < -0.15f ? 0.32f : Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.3f));
+                b.Occlude(cap, capShade);
+                if (g.Lod < 2 && !puff && !giant)
                     b.Blob(top - tilt * Vector3.up * capHeight * 0.05f, new Vector3(capRadius * 0.92f, capHeight * 0.18f, capRadius * 0.92f), tilt,
                            0, 0f, seed, color * 0.45f, FloraPart.Foliage, 0.45f);
-                    // Giants: a dark ring of gills under the overhang, seen from below.
-                    if (giant)
-                        b.Blob(top - tilt * Vector3.up * capHeight * 0.12f, new Vector3(capRadius * 0.98f, capHeight * 0.1f, capRadius * 0.98f), tilt,
-                               1, 0.1f, seed + 3f, Color.Lerp(color, g.Bark, 0.5f) * 0.3f, FloraPart.Bark);
+                // Giants: gills, thin dark lines radiating from the stem under the cap, just below its lower curve, so
+                // they show from beneath and never from the side.
+                if (giant && g.Lod == 0)
+                {
+                    var centre = top + tilt * Vector3.up * capHeight * 0.25f;
+                    var gill = Color.Lerp(color, g.Bark, 0.4f) * 0.22f;
+                    Vector3 Under(Vector3 dir, float r) =>
+                        centre + tilt * (dir * r - Vector3.up * (capHeight * 0.3f * Mathf.Sqrt(Mathf.Max(1f - r * r / (capRadius * capRadius), 0f)) + 0.01f));
+                    for (int k = 0; k < 14; k++)
+                    {
+                        var dir = Quaternion.AngleAxis(k * 360f / 14f + g.Range(-6f, 6f), Vector3.up) * Vector3.forward;
+                        var inner = Under(dir, stemRadius * 1.3f);
+                        var mid = Under(dir, capRadius * 0.55f);
+                        var outer = Under(dir, capRadius * 0.88f);
+                        b.Beam(inner, mid, capRadius * 0.025f, capRadius * 0.01f, gill, FloraPart.Bark);
+                        b.Beam(mid, outer, capRadius * 0.02f, capRadius * 0.01f, gill, FloraPart.Bark);
+                    }
                 }
                 // Spots on the cap.
                 if (g.HasAccent && g.Lod == 0)
