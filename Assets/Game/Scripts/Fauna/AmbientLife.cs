@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Punchy.Flora;
 using Punchy.Terrain;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
@@ -205,7 +206,7 @@ namespace Punchy.Fauna
         /// The critter spots in a 16 m cell (the same on every machine): songbirds (1-3) on its tree's crown, now and then
         /// a woodpecker on the trunk and an owl on a low bough; frogs at the water's edge; mice in the grass.
         /// </summary>
-        public static void CritterSpots(int2 cell, in TerrainSource terrain, ref FloraBlob flora, List<CritterSpot> into)
+        public static void CritterSpots(int2 cell, in TerrainSource terrain, ref FloraBlob flora, ref NativeList<CritterSpot> into)
         {
             var seed = math.hash(new int3(cell, 0xC417)) | 1u;
             var rng = new Unity.Mathematics.Random(seed);
