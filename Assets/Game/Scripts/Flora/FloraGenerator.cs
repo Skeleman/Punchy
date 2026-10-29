@@ -4,8 +4,23 @@ using UnityEngine;
 namespace Punchy.Flora
 {
     /// <summary>One grown variant of a species, at three levels of detail.</summary>
+    /// <summary>A model's walkable tops, built from its mesh (FloraMeshBuilder.SupportGrid; see PropSupport).</summary>
+    public class SupportGridData
+    {
+        public Vector2 Min;
+        public float Cell;
+        public Vector2Int Res;
+        /// <summary>Res.x × Res.y × SupportGrids.Layers heights, highest first per cell, NaN where none.</summary>
+        public float[] Values;
+        /// <summary>Res.x × Res.y water heights (NaN where none), or null.</summary>
+        public float[] Water;
+        public float Reach, Error;
+    }
+
     public class FloraModel
     {
+        /// <summary>Its walkable tops, for forms people can climb and stand on (rocks, buildings, rims), else null.</summary>
+        public SupportGridData Support;
         public FloraSpecies Species;
         public readonly Mesh[] Lods = new Mesh[3];
         /// <summary>Bounding sphere centre height and radius (unscaled).</summary>
@@ -59,6 +74,7 @@ namespace Punchy.Flora
                                   : species.Finish == FoliageFinish.Glass ? FloraPart.Glass : FloraPart.Foliage;
                 builder.PetalAs = species.GlowingAccents ? FloraPart.Glow : FloraPart.Petal;
                 builder.GlowPulse = species.GlowPulse;
+                builder.BarkSeams = species.GlowingSeams;
                 var g = new Grower(species, variant, lod, seed, builder);
                 switch (species.Form)
                 {
@@ -111,10 +127,21 @@ namespace Punchy.Flora
                     case FloraForm.Bridge: Bridge(g); break;
                     case FloraForm.Palisade: Palisade(g); break;
                 }
+                if (species.Brackets > 0f && g.TrunkPath != null)
+                    Brackets(g);
                 if (Founded(species.Form))
                     builder.Skirt(FoundationDepth);
                 if (lod == 0)
                 {
+                    if (Standable(species.Form))
+                    {
+                        // Clear ice arches stand like rock; a fountain's water (drawn as metal) is for wading.
+                        var fountain = species.Form == FloraForm.Fountain;
+                        model.Support = builder.SupportGrid(
+                            part => part == FloraPart.Bark || part == FloraPart.Cactus || part == FloraPart.Comb || part == FloraPart.Metal && !fountain ||
+                                    part == FloraPart.Glass && species.Form == FloraForm.IceArch,
+                            part => fountain && part == FloraPart.Metal);
+                    }
                     builder.Bounds(out model.CentreY, out model.Radius);
                     model.TrunkRadius = g.TrunkRadius;
                     model.Colliders.AddRange(g.Colliders);
@@ -372,7 +399,11 @@ namespace Punchy.Flora
             b.Occlude(firstBark, (p, n) => GroundOcclusion(p, height * 0.15f) * (p.y > crownBase ? 0.7f : 1f));
 
             var firstLeaf = b.VertexCount;
-            if (g.Lod == 2)
+            // Fullness 0: a bare tree (dead or burnt), limbs and twigs only.
+            if (s.Fullness <= 0.02f)
+            {
+            }
+            else if (g.Lod == 2)
             {
                 var avg = Color.Lerp(s.Foliage, s.FoliageVariation, 0.5f).linear;
                 b.Blob(crownCentre, crownRadii * 1.02f, Quaternion.identity, 1, 0.22f, g.Variant * 3.7f, avg, FloraPart.Foliage);
@@ -1068,32 +1099,108 @@ namespace Punchy.Flora
             g.Width = height * s.Spread;
             g.TrunkRadius = 0f;
 
+            // Puffballs (a very short stem share): round balls on a stub. Giants (over 2 m): domed or bell caps on
+            // stems that flare into roots and bend, the smaller ones gathered close round the biggest.
+            var puff = s.TrunkFraction < 0.12f;
             var count = g.Count(s.Branches);
             for (int i = 0; i < count; i++)
             {
-                var offset = i == 0 ? Vector3.zero : g.Flat(g.R() * 6.28f) * height * s.Spread * g.Range(0.25f, 0.7f);
-                var h = height * (i == 0 ? 1f : g.Range(0.4f, 0.85f));
-                var lean = g.Flat(g.R() * 6.28f) * g.Range(0f, 0.25f);
+                var giant = height > 2f;
+                var offset = i == 0 ? Vector3.zero : g.Flat(g.R() * 6.28f) * height * s.Spread * g.Range(giant ? 0.18f : 0.25f, giant ? 0.45f : 0.7f);
+                var h = height * (i == 0 ? 1f : g.Range(giant ? 0.25f : 0.4f, giant ? 0.65f : 0.85f));
+                var lean = g.Flat(g.R() * 6.28f) * g.Range(0f, giant ? 0.18f : 0.25f) + (i > 0 ? offset.normalized * 0.15f : Vector3.zero);
                 var capRadius = h * s.Spread * g.Range(0.35f, 0.55f);
-                var capHeight = capRadius * g.Range(0.4f, 0.65f);
+                var capHeight = capRadius * (giant ? g.Range(0.55f, 0.95f) : g.Range(0.4f, 0.65f));
+                if (puff)
+                {
+                    capRadius = h * g.Range(0.42f, 0.55f);
+                    capHeight = capRadius * g.Range(0.8f, 0.95f);
+                }
                 var stemRadius = Mathf.Max(h * s.Thickness, 0.004f);
                 var color = g.FoliageColor();
                 var seed = g.R() * 100f;
                 var top = offset + lean * h + Vector3.up * h;
                 var tilt = Quaternion.FromToRotation(Vector3.up, (Vector3.up + lean).normalized);
 
+                // A giant mushroom's main stem stops walkers like a trunk.
+                if (i == 0 && h > 2f)
+                    g.TrunkRadius = stemRadius * 1.25f;
                 var firstStem = b.VertexCount;
-                b.Tube(new List<Vector3> { offset + Vector3.down * 0.02f, offset + lean * h * 0.45f + Vector3.up * h * 0.55f, top },
-                       new List<float> { stemRadius * 1.25f, stemRadius, stemRadius * 0.9f }, g.Sides(7, 5, 3), g.Bark, FloraPart.Bark);
+                if (puff)
+                {
+                    top = offset + Vector3.up * capRadius * 0.6f;
+                    b.Tube(new List<Vector3> { offset + Vector3.down * 0.02f, top }, new List<float> { capRadius * 0.45f, capRadius * 0.4f },
+                           g.Sides(7, 5, 3), g.Bark, FloraPart.Bark);
+                }
+                else if (giant)
+                {
+                    // Flared into the ground, then bending up into the cap.
+                    var bend = Vector3.Cross(Vector3.up, lean.sqrMagnitude > 1e-4f ? lean.normalized : Vector3.right) * g.Range(-0.12f, 0.12f) * h;
+                    b.Tube(new List<Vector3> { offset + Vector3.down * 0.3f, offset + Vector3.up * h * 0.06f,
+                                               offset + lean * h * 0.3f + bend * 0.6f + Vector3.up * h * 0.4f,
+                                               offset + lean * h * 0.7f + bend + Vector3.up * h * 0.78f, top },
+                           new List<float> { stemRadius * 2.4f, stemRadius * 1.45f, stemRadius, stemRadius * 0.92f, stemRadius * 0.85f },
+                           g.Sides(9, 6, 4), g.Bark, FloraPart.Bark);
+                    // A few roots spreading from the foot.
+                    if (g.Lod < 2)
+                        for (int k = 0; k < 4; k++)
+                        {
+                            var dir = g.Flat(g.R() * 6.28f);
+                            var foot = offset + Vector3.up * h * 0.04f;
+                            b.Tube(new List<Vector3> { foot, foot + dir * stemRadius * 2.6f + Vector3.down * 0.15f, foot + dir * stemRadius * 4.2f + Vector3.down * 0.35f },
+                                   new List<float> { stemRadius * 0.55f, stemRadius * 0.35f, stemRadius * 0.12f }, g.Sides(5, 4, 3), g.Bark * 0.85f, FloraPart.Bark);
+                        }
+                }
+                else
+                    b.Tube(new List<Vector3> { offset + Vector3.down * 0.02f, offset + lean * h * 0.45f + Vector3.up * h * 0.55f, top },
+                           new List<float> { stemRadius * 1.25f, stemRadius, stemRadius * 0.9f }, g.Sides(7, 5, 3), g.Bark, FloraPart.Bark);
                 b.Occlude(firstStem, (p, n) => GroundOcclusion(p, h * 0.3f) * 0.9f);
 
                 // The cap, and darker gills underneath it.
                 var cap = b.Blob(top + tilt * Vector3.up * capHeight * 0.25f, new Vector3(capRadius, capHeight, capRadius), tilt,
                                  g.Lod == 0 ? 2 : g.Lod == 1 ? 1 : 0, 0.06f, seed, color, FloraPart.Foliage);
-                b.Occlude(cap, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.3f)));
-                if (g.Lod < 2)
+                // Giants: a near-flat underside (the cap's lower half squashed in its own frame), so the gills under it
+                // hide from a side view.
+                if (giant)
+                {
+                    var capCentre = top + tilt * Vector3.up * capHeight * 0.25f;
+                    var untilt = Quaternion.Inverse(tilt);
+                    b.Transform(cap, q =>
+                    {
+                        var l = untilt * (q - capCentre);
+                        if (l.y < 0f) l.y *= 0.3f;
+                        return capCentre + tilt * l;
+                    }, nrm =>
+                    {
+                        var l = untilt * nrm;
+                        if (l.y < 0f) l = new Vector3(l.x, l.y / 0.3f, l.z).normalized;
+                        return tilt * l;
+                    });
+                }
+                // Giants: the cap's underside much darker (shade under the overhang).
+                System.Func<Vector3, Vector3, float> capShade = (p, n) => giant && n.y < -0.15f ? 0.32f : Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.3f));
+                b.Occlude(cap, capShade);
+                if (g.Lod < 2 && !puff && !giant)
                     b.Blob(top - tilt * Vector3.up * capHeight * 0.05f, new Vector3(capRadius * 0.92f, capHeight * 0.18f, capRadius * 0.92f), tilt,
                            0, 0f, seed, color * 0.45f, FloraPart.Foliage, 0.45f);
+                // Giants: gills, thin dark lines radiating from the stem under the cap, just below its lower curve, so
+                // they show from beneath and never from the side.
+                if (giant && g.Lod == 0)
+                {
+                    var centre = top + tilt * Vector3.up * capHeight * 0.25f;
+                    var gill = Color.Lerp(color, g.Bark, 0.4f) * 0.22f;
+                    Vector3 Under(Vector3 dir, float r) =>
+                        centre + tilt * (dir * r - Vector3.up * (capHeight * 0.3f * Mathf.Sqrt(Mathf.Max(1f - r * r / (capRadius * capRadius), 0f)) + 0.01f));
+                    for (int k = 0; k < 14; k++)
+                    {
+                        var dir = Quaternion.AngleAxis(k * 360f / 14f + g.Range(-6f, 6f), Vector3.up) * Vector3.forward;
+                        var inner = Under(dir, stemRadius * 1.3f);
+                        var mid = Under(dir, capRadius * 0.55f);
+                        var outer = Under(dir, capRadius * 0.88f);
+                        b.Beam(inner, mid, capRadius * 0.025f, capRadius * 0.01f, gill, FloraPart.Bark);
+                        b.Beam(mid, outer, capRadius * 0.02f, capRadius * 0.01f, gill, FloraPart.Bark);
+                    }
+                }
                 // Spots on the cap.
                 if (g.HasAccent && g.Lod == 0)
                     for (int k = 0; k < Mathf.RoundToInt(s.AccentAmount * 12f); k++)
@@ -1105,6 +1212,14 @@ namespace Punchy.Flora
                     }
             }
         }
+
+        /// <summary>Forms people can climb onto and stand on (their tops go into PropSupport).</summary>
+        public static bool Standable(FloraForm form) => Founded(form) || form switch
+        {
+            FloraForm.Boulder or FloraForm.Spire or FloraForm.Den or FloraForm.Log or FloraForm.Woodpile or FloraForm.IceArch => true,
+            // Not fire pits: nobody stands in the flames (their ring collider keeps people out).
+            _ => false
+        };
 
         /// <summary>How far built things' foundations reach below the ground they stand on (m, before scaling).</summary>
         public const float FoundationDepth = 1.6f;
@@ -1325,6 +1440,36 @@ namespace Punchy.Flora
                 }
             }
             g.Colliders.Add(new Vector4(0f, 0f, radius * 1.1f, radius * 0.4f));
+        }
+
+        /// <summary>
+        /// Bracket fungus (FloraSpecies.Brackets, a share of a tree's variants): half-moon shelves stepping up one side
+        /// of the trunk in the first accent colour, glowing when the species' accents glow.
+        /// </summary>
+        static void Brackets(Grower g)
+        {
+            if (g.R() >= g.S.Brackets || g.Lod == 2)
+                return;
+            var b = g.B;
+            var side = g.Flat(g.R() * 6.28f);
+            var color = AccentAt(g, 0);
+            var part = g.S.GlowingAccents ? FloraPart.Glow : FloraPart.Cactus;
+            var shelves = 3 + (int)(g.R() * 4f);
+            for (int k = 0; k < shelves; k++)
+            {
+                var t = Mathf.Lerp(0.12f, 0.55f, (k + g.R() * 0.6f) / shelves);
+                var i = Mathf.Clamp(Mathf.FloorToInt(t * (g.TrunkPath.Count - 1)), 0, g.TrunkPath.Count - 2);
+                var f = t * (g.TrunkPath.Count - 1) - i;
+                var at = Vector3.Lerp(g.TrunkPath[i], g.TrunkPath[i + 1], f);
+                var radius = Mathf.Lerp(g.TrunkRadii[i], g.TrunkRadii[i + 1], f);
+                var dir = Quaternion.AngleAxis(g.Range(-50f, 50f), Vector3.up) * side;
+                var width = radius * g.Range(0.7f, 1.2f);
+                var centre = at + dir * radius * 0.9f;
+                var shelf = Quaternion.LookRotation(dir);
+                var first = b.VertexCount;
+                b.Blob(centre, new Vector3(width, width * 0.16f, width * 0.75f), shelf, 1, 0.15f, g.R() * 50f, color * g.Range(0.85f, 1.1f), part);
+                b.Occlude(first, (p, n) => Mathf.Lerp(0.5f, 1f, Mathf.Clamp01(n.y + 0.5f)));
+            }
         }
 
         /// <summary>Where a hive tree's comb hangs, as a share of its height (see FloraGenerator.Hive).</summary>
@@ -2711,7 +2856,7 @@ namespace Punchy.Flora
             var radius = height * s.Spread * 0.5f;
             g.Height = height;
             g.Width = radius * 2.1f;
-            g.TrunkRadius = radius;
+            g.TrunkRadius = 0f;   // the basin is wadeable and its rim a ledge (PropSupport); only the pillar blocks
             var sides = g.Sides(18, 12, 8);
 
             // The basin wall, its rim, and the water inside.
@@ -2724,6 +2869,7 @@ namespace Punchy.Flora
 
             // A pillar holding up a smaller bowl, brimming, with a finial on top.
             b.Tube(new List<Vector3> { Vector3.up * 0.5f, Vector3.up * height * 0.72f }, new List<float> { 0.22f, 0.16f }, g.Sides(8, 6, 4), g.Bark, FloraPart.Bark);
+            g.Colliders.Add(new Vector4(0f, 0f, 0.3f, height * 0.72f));
             b.Blob(Vector3.up * height * 0.75f, new Vector3(radius * 0.38f, 0.14f, radius * 0.38f), Quaternion.identity, g.Sides(2, 1, 1), 0f, 0f, g.Bark, FloraPart.Bark);
             b.Blob(Vector3.up * (height * 0.75f + 0.1f), new Vector3(radius * 0.34f, 0.03f, radius * 0.34f), Quaternion.identity, 1, 0f, 0f, water, FloraPart.Metal);
             b.Tube(new List<Vector3> { Vector3.up * height * 0.78f, Vector3.up * height }, new List<float> { 0.09f, 0.03f }, g.Sides(6, 4, 3), g.Bark, FloraPart.Bark, cap: true);
@@ -2778,7 +2924,8 @@ namespace Punchy.Flora
             var sides = g.Sides(16, 10, 7);
             g.Height = height;
             g.Width = radius * 2.6f;
-            g.TrunkRadius = radius + 0.05f;
+            g.TrunkRadius = 0f;   // stand on the rim (PropSupport); the shaft itself is walled off
+            g.Colliders.Add(new Vector4(0f, 0f, radius - 0.16f, 0.8f));
 
             // The wall (outer and inner faces, and a rim), with dark water well down inside.
             var first = b.VertexCount;

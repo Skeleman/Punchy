@@ -48,6 +48,7 @@ namespace Punchy.CameraRig
         EntityManager entityManager;
         EntityQuery playerQuery;
         EntityQuery terrainQuery;
+        EntityQuery supportQuery;
         // The world the queries belong to; joining or hosting replaces the worlds, so they are rebuilt then.
         World queryWorld;
         bool menuWasOpen;
@@ -121,6 +122,16 @@ namespace Punchy.CameraRig
                 }
                 var ground = terrain.SampleGround(new Unity.Mathematics.float2(position.x, position.z));
                 var minY = Mathf.Max(ground.Height, ground.HasWater ? ground.WaterSurface : float.MinValue) + GroundClearance;
+                // Roofs, rocks and rims (PropSupport): stay above one the camera has sunk into, not ones overhead.
+                if (!supportQuery.IsEmpty)
+                {
+                    var holder = supportQuery.GetSingletonEntity();
+                    var em = World.DefaultGameObjectInjectionWorld.EntityManager;
+                    var grids = em.GetComponentData<Punchy.Flora.SupportGrids>(holder);
+                    if (grids.Set.IsCreated && Punchy.Flora.PropSupport.Sample(ref grids.Set.Value, em.GetBuffer<Punchy.Flora.FloraSupport>(holder, true),
+                            new Unity.Mathematics.float3(position.x, position.y, position.z), 0.2f, 0.5f, out var top))
+                        minY = Mathf.Max(minY, top.Height + GroundClearance);
+                }
                 if (position.y < minY)
                 {
                     position.y = minY;
@@ -143,6 +154,7 @@ namespace Punchy.CameraRig
                 entityManager = world.EntityManager;
                 playerQuery = entityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
                 terrainQuery = entityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+                supportQuery = entityManager.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Flora.SupportGrids>(), ComponentType.ReadOnly<Punchy.Flora.FloraSupport>());
                 queryWorld = world;
             }
 
