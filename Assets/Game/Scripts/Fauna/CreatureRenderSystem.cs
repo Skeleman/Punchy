@@ -615,7 +615,9 @@ namespace Punchy.Fauna
             if (traceCount > 0)
                 at = traces.Write(extras, at, (float)SystemAPI.Time.ElapsedTime);
             posing.Complete();
-            NativeArray<SegmentInstance>.Copy(extras, 0, instances, colonyStart, extras.Length);
+            // (Nothing else to draw, some frames: then there's nothing to copy, and no room after the creatures to copy to.)
+            if (extras.Length > 0)
+                NativeArray<SegmentInstance>.Copy(extras, 0, instances, colonyStart, extras.Length);
             extras.Dispose();
             // Lanterns and torches near the camera light the ground round them: each joins the glow list as a moving
             // light (by its carrier, so its fade-in carries on as it moves), at the middle of a lantern's glass as just
