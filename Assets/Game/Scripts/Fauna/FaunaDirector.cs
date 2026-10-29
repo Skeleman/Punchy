@@ -215,6 +215,7 @@ namespace Punchy.Fauna
                 {
                     SpawnResidents(source);
                     SpawnCaveDwellers(source);
+                    SpawnWildFolk(source);
                 }
             }
             using (CrittersMarker.Auto())
@@ -774,6 +775,82 @@ namespace Punchy.Fauna
 
         static bool Suits(Habitat habitat, float depth) =>
             habitat == Habitat.Swims ? depth >= 0.9f : habitat == Habitat.Floats ? depth >= 0.4f : depth <= 0f;   // fliers start on the ground
+
+        /// <summary>Hermits living at their Home anchors (one each), and travellers stopping at roadside camps (Camp).</summary>
+        readonly Dictionary<int, Entity> hermits = new Dictionary<int, Entity>();
+        readonly Dictionary<int, List<Entity>> campers = new Dictionary<int, List<Entity>>();
+        float nextCamper;
+
+        /// <summary>
+        /// The folk of the wild places near players: a hermit at each hermit's shelter (its Home anchor) within 120 m of
+        /// one, while none lives there; and, from late afternoon, now and then a traveller walking in from the road to a
+        /// roadside camp with a free bedroll, to spend the night there.
+        /// </summary>
+        void SpawnWildFolk(in TerrainSource source)
+        {
+            if (!source.Anchors.IsCreated || simWorld == null)
+                return;
+            var em = simWorld.EntityManager;
+            var hermit = SpeciesIndex("Hermit");
+            if (hermit < 0)
+                hermit = SpeciesIndex("Human");
+            var human = SpeciesIndex("Human");
+            if (human < 0)
+                return;
+            ref var set = ref source.Anchors.Value;
+            var near = new NativeList<int>(8, Allocator.Temp);
+            foreach (var player in players)
+            {
+                near.Clear();
+                Anchors.Near(ref set, player, 120f, AnchorKind.Home, ref near);
+                foreach (var i in near)
+                {
+                    if (hermits.TryGetValue(i, out var lives) && em.Exists(lives))
+                        continue;
+                    var home = set.Anchors[i];
+                    // (Out in front of its shelter, getting on with its day.)
+                    var at = home.Position.xz + home.Facing * 3f;
+                    var e = Spawn(hermit, new float3(at.x, source.SampleHeight(at), at.y));
+                    var st = em.GetComponentData<CreatureState>(e);
+                    st.Task = CreatureTask.Hermit;
+                    st.Home = home.Position.xz;
+                    st.Leash = 35f;
+                    st.Anchor = home.Position;
+                    em.SetComponentData(e, st);
+                    hermits[i] = e;
+                    settledCount++;
+                }
+                // A traveller for a camp: from late afternoon to the small hours, now and then.
+                var hour = Cycle != null ? Cycle.TimeOfDay : 12f;
+                if (Time.time < nextCamper || !(hour >= 16.5f || hour < 2f))
+                    continue;
+                near.Clear();
+                Anchors.Near(ref set, player, 120f, AnchorKind.Camp, ref near);
+                foreach (var i in near)
+                {
+                    if (!campers.TryGetValue(i, out var list))
+                        campers[i] = list = new List<Entity>();
+                    list.RemoveAll(x => !em.Exists(x));
+                    var camp = set.Anchors[i];
+                    if (list.Count >= math.max((int)camp.Capacity, 1))
+                        continue;
+                    nextCamper = Time.time + rng.NextFloat(40f, 90f);
+                    // (Walking in from the way the road lies.)
+                    var at = camp.Position.xz + camp.Facing * 45f + new float2(-camp.Facing.y, camp.Facing.x) * rng.NextFloat(-8f, 8f);
+                    var e = Spawn(human, new float3(at.x, source.SampleHeight(at), at.y));
+                    var st = em.GetComponentData<CreatureState>(e);
+                    st.Task = CreatureTask.Camper;
+                    st.Home = camp.Position.xz;
+                    st.Leash = 60f;
+                    st.Anchor = camp.Position;
+                    em.SetComponentData(e, st);
+                    list.Add(e);
+                    settledCount++;
+                    break;
+                }
+            }
+            near.Dispose();
+        }
 
         void SpawnResidents(in TerrainSource source)
         {

@@ -77,7 +77,7 @@ namespace Punchy.Fauna
         /// </summary>
         const int GearParts = 5;
         static bool HasGear(CreatureTask task) => task == CreatureTask.Hammer || task == CreatureTask.Chop || task == CreatureTask.Tend ||
-                                                  task == CreatureTask.Gesture || task == CreatureTask.Fish;
+                                                  task == CreatureTask.Gesture || task == CreatureTask.Fish || task == CreatureTask.Hermit;
         static int GearCount(CreatureTask task) => HasGear(task) ? GearParts : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 0 : -1;
@@ -796,14 +796,14 @@ namespace Punchy.Fauna
                 var atWork = state.Mode == CreatureMode.Work && state.Stage != 0;
 
                 // The tool in hand, at work: along the hand's own line, so it swings with the arm (TaskPose).
-                if (atWork && hand >= 0 && (state.Task == CreatureTask.Hammer || state.Task == CreatureTask.Chop))
+                if (atWork && hand >= 0 && (state.Task == CreatureTask.Hammer || state.Task == CreatureTask.Chop || state.Task == CreatureTask.Hermit && state.Stage == 1))
                 {
                     var h = Output[offset + hand];
                     var along = Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
                     var grip = h.Position + along * h.Length * 0.6f;
                     // (The haft out of the fist, crossing the hand's line: down from the grip and on beyond it.)
                     var side = Unity.Mathematics.math.normalize(Unity.Mathematics.math.cross(along, right) + along * 0.2f);
-                    var axe = state.Task == CreatureTask.Chop;
+                    var axe = state.Task == CreatureTask.Chop || state.Task == CreatureTask.Hermit;
                     var haft = (axe ? 0.75f : 0.32f) * scale;
                     var butt = grip - side * haft * 0.15f;
                     Output[at + k++] = Piece(butt, side, along, haft, 0.016f * scale, 0.02f * scale, 1f, wood, faded, SegmentMaterial.Wood);
@@ -840,7 +840,7 @@ namespace Punchy.Fauna
                     k++;
 
                 // A hat: a straw hat, wide-brimmed, for outdoor work; a fisher's floppy one. (Under it, the hair stays.)
-                if (head >= 0 && (state.Task == CreatureTask.Chop || state.Task == CreatureTask.Tend || state.Task == CreatureTask.Fish))
+                if (head >= 0 && (state.Task == CreatureTask.Chop || state.Task == CreatureTask.Tend || state.Task == CreatureTask.Fish || state.Task == CreatureTask.Hermit))
                 {
                     var h = Output[offset + head];
                     var ax = Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));

@@ -764,7 +764,9 @@ namespace Punchy.Fauna
                 return float3.zero;
             var right = part.Side > 0f;
             var t = s.Clock + (s.Individual % 100) * 0.13f;
-            switch (s.Task)
+            // (A hermit's chores take a woodcutter's or a tender's pose: its stage says which.)
+            var job = s.Task == CreatureTask.Hermit ? (s.Stage == 2 ? CreatureTask.Tend : CreatureTask.Chop) : s.Task;
+            switch (job)
             {
                 case CreatureTask.Hammer:
                 case CreatureTask.Chop:
@@ -772,10 +774,10 @@ namespace Punchy.Fauna
                 {
                     // Raise slowly, strike fast; a hammer is one-handed (the other hand holds the work), an axe or a
                     // miner's pick two.
-                    var swinging = right || s.Task == CreatureTask.Chop || s.Task == CreatureTask.Mine;
+                    var swinging = right || job == CreatureTask.Chop || s.Task == CreatureTask.Mine;
                     if (!swinging)
                         return new float3(joint == 0 ? -0.7f : -0.7f, 0f, 0f);
-                    var p = math.frac(t * (s.Task == CreatureTask.Chop ? 0.55f : 0.85f));
+                    var p = math.frac(t * (job == CreatureTask.Chop ? 0.55f : 0.85f));
                     var lift = p < 0.7f ? math.smoothstep(0f, 0.7f, p) : 1f - math.smoothstep(0.7f, 0.8f, p);
                     return new float3(joint == 0 ? -(0.45f + 1.8f * lift) : -(0.35f + 0.9f * lift), 0f, 0f);
                 }

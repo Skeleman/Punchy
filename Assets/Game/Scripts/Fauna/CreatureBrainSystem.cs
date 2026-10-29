@@ -705,7 +705,9 @@ namespace Punchy.Fauna
                             moving = true;
                             if (math.distance(s.Position.xz, s.WorkSpot) < 0.4f)
                             {
-                                s.Stage = 1;
+                                // (A hermit's chores: chopping at its woodpile is stage 1, stooped over its garden or the
+                                // water stage 2, so every machine poses it right.)
+                                s.Stage = (byte)(s.Task == CreatureTask.Hermit && s.AnchorSide == 2 ? 2 : 1);
                                 s.StageTime = 0f;
                             }
                         }
@@ -765,6 +767,8 @@ namespace Punchy.Fauna
                 }
 
                 Needs(ref s, ref b, dt);
+                if (s.Task == CreatureTask.Hermit)
+                    Wary(ref s, ref rng, player);
 
                 // Little things done while standing about: start one now and then, keep it going, and take up the
                 // posture it needs.
@@ -1041,6 +1045,12 @@ namespace Punchy.Fauna
                         return;
                     }
                 }
+
+                // A hermit's day at its shelter, and a traveller's night at a roadside camp.
+                if (s.Task == CreatureTask.Hermit && HermitDay(ref s, ref b, ref rng, sleepy))
+                    return;
+                if (s.Task == CreatureTask.Camper && CamperNight(ref s, ref rng))
+                    return;
 
                 // A fisher finds its spot the first time (none within reach, and it's just one of the townsfolk).
                 if (s.Task == CreatureTask.Fish && sleepy < 0.5f && math.all(s.WorkSpot == float2.zero) && !FindFishingSpot(ref s))
@@ -2578,6 +2588,196 @@ namespace Punchy.Fauna
 
             /// <summary>About where a creature's eyes are, above its feet.</summary>
             static float HeadHeight(in CreatureState s, ref CreatureBlob b) => b.StandHeight * math.max(s.Scale, 0.1f) * (b.Upright ? 1.8f : 1.2f);
+
+            // ------------------------------------------------------------------------------- hermits and campers
+
+            /// <summary>The nearest anchor of a kind within reach of a point (its index), or -1.</summary>
+            int NearestAnchor(AnchorKind kind, float2 around, float within)
+            {
+                if (!Terrain.Anchors.IsCreated)
+                    return -1;
+                ref var set = ref Terrain.Anchors.Value;
+                var near = new NativeList<int>(4, Allocator.Temp);
+                Anchors.Near(ref set, new float3(around.x, Terrain.SampleHeight(around), around.y), within, kind, ref near);
+                var best = -1;
+                var d = float.MaxValue;
+                foreach (var i in near)
+                {
+                    var dd = math.distancesq(set.Anchors[i].Position.xz, around);
+                    if (dd < d)
+                    {
+                        d = dd;
+                        best = i;
+                    }
+                }
+                near.Dispose();
+                return best;
+            }
+
+            /// <summary>
+            /// What a hermit does next, by the time of day, all round its shelter (its Home is the Home anchor): asleep in
+            /// its shelter at night (in by its door, or curled up in an open one); by its fire in the evening; by day
+            /// chopping at its woodpile, tending its garden, fetching water, or sitting by its door. False to let it wander.
+            /// </summary>
+            bool HermitDay(ref CreatureState s, ref CreatureBlob b, ref Random rng, float sleepy)
+            {
+                if (!Terrain.Anchors.IsCreated)
+                    return false;
+                ref var set = ref Terrain.Anchors.Value;
+                if (sleepy > 0.5f)
+                {
+                    var door = NearestAnchor(AnchorKind.Door, s.Home, 8f);
+                    if (door >= 0)
+                    {
+                        SetMode(ref s, CreatureMode.Home);
+                        s.Anchor = set.Anchors[door].Position;
+                        s.AnchorYaw = math.atan2(set.Anchors[door].Facing.x, set.Anchors[door].Facing.y);
+                        s.Timer = rng.NextFloat(300f, 600f);
+                    }
+                    else
+                    {
+                        // (An open shelter: lying down on its floor.)
+                        SetMode(ref s, CreatureMode.Sit);
+                        s.Target = s.Home;
+                        s.Focus = s.Home + new float2(1f, 0f);
+                        s.TargetHeight = 3f;
+                        s.Timer = rng.NextFloat(300f, 600f);
+                    }
+                    return true;
+                }
+                if (Hour >= 17.8f && Hour < 21.5f)
+                {
+                    var hearth = NearestAnchor(AnchorKind.Hearth, s.Home, 15f);
+                    if (hearth >= 0)
+                    {
+                        var h = set.Anchors[hearth];
+                        SetMode(ref s, CreatureMode.Sit);
+                        s.Target = h.Position.xz + rng.NextFloat2Direction() * (h.Size + 0.5f);
+                        s.Focus = h.Position.xz;
+                        s.TargetHeight = 1f;
+                        s.Timer = rng.NextFloat(60f, 150f);
+                        return true;
+                    }
+                }
+                var roll = rng.NextFloat();
+                int a;
+                if (roll < 0.35f && (a = NearestAnchor(AnchorKind.Work, s.Home, 15f)) >= 0)
+                {
+                    SetMode(ref s, CreatureMode.Work);
+                    s.WorkSpot = set.Anchors[a].Position.xz;
+                    s.WorkFace = s.WorkSpot + set.Anchors[a].Facing * 2f;
+                    s.AnchorSide = 1;
+                    s.Timer = rng.NextFloat(40f, 90f);
+                    return true;
+                }
+                if (roll < 0.62f && (a = NearestAnchor(AnchorKind.Garden, s.Home, 15f)) >= 0)
+                {
+                    SetMode(ref s, CreatureMode.Work);
+                    var g = set.Anchors[a];
+                    s.WorkSpot = g.Position.xz + rng.NextFloat2Direction() * rng.NextFloat(0f, g.Size * 0.8f);
+                    s.WorkFace = s.WorkSpot + g.Facing * 2f;
+                    s.AnchorSide = 2;
+                    s.Timer = rng.NextFloat(20f, 45f);
+                    return true;
+                }
+                if (roll < 0.72f && (a = NearestAnchor(AnchorKind.Pool, s.Home, 30f)) >= 0)
+                {
+                    SetMode(ref s, CreatureMode.Work);
+                    s.WorkSpot = set.Anchors[a].Position.xz;
+                    s.WorkFace = s.WorkSpot + set.Anchors[a].Facing * 2f;
+                    s.AnchorSide = 2;
+                    s.Timer = rng.NextFloat(10f, 20f);
+                    return true;
+                }
+                if (roll < 0.9f && (a = NearestAnchor(AnchorKind.Sit, s.Home, 10f)) >= 0)
+                {
+                    SetMode(ref s, CreatureMode.Sit);
+                    var seat = set.Anchors[a];
+                    s.Target = seat.Position.xz;
+                    s.Focus = seat.Position.xz + seat.Facing * 3f;
+                    s.TargetHeight = 4f;
+                    s.Anchor = seat.Position;
+                    s.Timer = rng.NextFloat(40f, 100f);
+                    return true;
+                }
+                return false;
+            }
+
+            /// <summary>
+            /// A hermit doesn't care for company: someone coming within 4.5 m, it backs off a way, waving them off; nearer
+            /// than that it watches them (its glances do that).
+            /// </summary>
+            void Wary(ref CreatureState s, ref Random rng, float3 player)
+            {
+                if (s.Mode == CreatureMode.Home || s.Mode == CreatureMode.Sleep || s.Mode == CreatureMode.Held || s.Mode == CreatureMode.Wander ||
+                    s.Mode == CreatureMode.Sit && s.Stage == 3)
+                    return;
+                if (math.distance(s.Position.xz, player.xz) > 4.5f)
+                    return;
+                var away = math.normalizesafe(s.Position.xz - player.xz, rng.NextFloat2Direction());
+                SetMode(ref s, CreatureMode.Wander);
+                s.Target = s.Position.xz + away * 8f;
+                s.Timer = 10f;
+                if (s.Action == IdleAction.None)
+                {
+                    s.Action = IdleAction.Wave;
+                    s.ActionTime = 0f;
+                    s.ActionLength = 1.4f;
+                }
+            }
+
+            /// <summary>
+            /// A traveller's night at a roadside camp (its Home is the Camp anchor): round the fire through the evening,
+            /// on a bedroll (a Bed anchor, lying with its feet to the fire) from late on till morning, then on its way
+            /// along the road, done with the camp.
+            /// </summary>
+            bool CamperNight(ref CreatureState s, ref Random rng)
+            {
+                if (!Terrain.Anchors.IsCreated)
+                    return false;
+                ref var set = ref Terrain.Anchors.Value;
+                var camp = NearestAnchor(AnchorKind.Camp, s.Home, 3f);
+                if (camp < 0)
+                    return false;
+                var c = set.Anchors[camp];
+                if (Hour >= 6.5f && Hour < 16f)
+                {
+                    // Morning: off along the road, no longer anyone's camper.
+                    s.Task = CreatureTask.None;
+                    s.Leash = 0f;
+                    SetMode(ref s, CreatureMode.Wander);
+                    s.Target = c.Position.xz + c.Facing * 120f + new float2(-c.Facing.y, c.Facing.x) * rng.NextFloat(-40f, 40f);
+                    s.Timer = 120f;
+                    return true;
+                }
+                if (Hour >= 21.5f || Hour < 6.5f)
+                {
+                    var beds = new NativeList<int>(4, Allocator.Temp);
+                    Anchors.Near(ref set, c.Position, c.Size + 3f, AnchorKind.Bed, ref beds);
+                    if (beds.Length > 0)
+                    {
+                        var bed = set.Anchors[beds[(int)(s.Individual % (uint)beds.Length)]];
+                        SetMode(ref s, CreatureMode.Sit);
+                        s.Target = bed.Position.xz;
+                        s.Focus = bed.Position.xz + bed.Facing * 3f;
+                        s.TargetHeight = 3f;
+                        s.Timer = rng.NextFloat(400f, 800f);
+                        beds.Dispose();
+                        return true;
+                    }
+                    beds.Dispose();
+                }
+                // The evening round the fire.
+                var hearth = NearestAnchor(AnchorKind.Hearth, c.Position.xz, c.Size + 2f);
+                var middle = hearth >= 0 ? set.Anchors[hearth] : c;
+                SetMode(ref s, CreatureMode.Sit);
+                math.sincos((s.Individual % 13u) / 13f * 2f * math.PI, out var sn, out var cs);
+                s.Target = middle.Position.xz + new float2(sn, cs) * (math.max(middle.Size, 1f) + 0.5f);
+                s.Focus = middle.Position.xz;
+                s.TargetHeight = 1f;
+                s.Timer = rng.NextFloat(60f, 120f);
+                return true;
+            }
 
             // ------------------------------------------------------------------------------- hive raids
 
