@@ -170,11 +170,14 @@ Shader "Punchy/Flora"
                 if (part == 7)
                 {
                     half facingV = saturate(dot(n, v));
-                    half rim = pow(1 - facingV, 3);
-                    half3 bent = lerp(albedo, albedo.gbr * 0.6 + albedo * 0.6, 0.45);
-                    color = albedo * (light.color * shadow * diffuse * 0.25 + sky * 0.45) * ao;
-                    color += albedo * (0.12 + 0.25 * (1 - facingV)) * lerp(1, 2.5, max(_PunchyUnderground, _FloraInCave));
-                    color += lerp(bent, 1, 0.35) * rim * (SampleSH(reflect(-v, n)) * lerp(1, 0.15, _PunchyUnderground) + sky * 0.6 + 0.08) * 1.4;
+                    half rim = pow(1 - facingV, 4);
+                    half3 bent = lerp(albedo, albedo.gbr * 0.7 + albedo * 0.5, 0.7);
+                    // A deep, nearly black clear core where the face looks straight at you...
+                    color = albedo * (light.color * shadow * diffuse * 0.08 + sky * 0.12) * ao;
+                    // ...glowing from inside where the light travels through more of it (towards the edges)...
+                    color += albedo * (0.03 + 0.35 * pow(1 - facingV, 3)) * lerp(1, 2.5, max(_PunchyUnderground, _FloraInCave));
+                    // ...and a bright rim whose hue is bent, the sky caught in it at grazing angles.
+                    color += lerp(bent, 1, 0.25) * rim * (SampleSH(reflect(-v, n)) * lerp(1, 0.15, _PunchyUnderground) + sky * 0.6 + 0.12) * 2.6;
                     half3 hSun = normalize(light.direction + v);
                     color += light.color * shadow * pow(saturate(dot(n, hSun)), 320) * 5;
                     if (_PunchyLantern.w > 0)
