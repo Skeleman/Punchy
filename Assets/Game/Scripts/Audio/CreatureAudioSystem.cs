@@ -24,11 +24,20 @@ namespace Punchy.Audio
     /// <item>the countryside's small life (AmbientLife), each call from where it is: songbirds, a woodpecker, owls, crickets,
     /// grasshoppers, frogs, cicadas. No sound without something there.</item>
     /// </list>
+    /// Calls and the countryside's sounds share a budget (CallsPerSecond, a few saved up), so a village or a wood full of
+    /// creatures doesn't call over itself: past it, a call is let go unless it's right by the listener. Footsteps, howls
+    /// and the like are outside it.
     /// </summary>
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     public partial class CreatureAudioSystem : SystemBase
     {
         const float StepReach = 18f, HowlReach = 160f, WingReach = 25f, HiveReach = 18f, FarthestCall = 260f;
+        /// <summary>The calls' budget: this many a second on average, up to CallBurst saved up; always heard within CloseCall m.</summary>
+        const float CallsPerSecond = 1.5f, CallBurst = 3f, CloseCall = 6f;
+        float callBudget = CallBurst;
+        /// <summary>Calls played, and let go over the budget, since start (for tests); and whether the budget applies.</summary>
+        public static int CallsPlayed, CallsThinned;
+        public static bool ThinCalls = true;
 
         EntityQuery query;
         /// <summary>What each creature was doing last frame (its gait phase, action, flap count).</summary>
@@ -88,7 +97,13 @@ namespace Punchy.Audio
             }
 
             if (!SystemAPI.TryGetSingleton<TerrainSource>(out var terrain))
+            {
+                GameAudio.HasTerrain = false;
                 return;
+            }
+            GameAudio.Terrain = terrain;
+            GameAudio.HasTerrain = true;
+            callBudget = math.min(callBudget + SystemAPI.Time.DeltaTime * CallsPerSecond, CallBurst);
             Creatures(ear, terrain);
             Hives(ear, terrain, night);
             Countryside(ear);
@@ -165,7 +180,10 @@ namespace Punchy.Audio
                                     continue;
                                 herdCalls[call.Sound] = (clock, s.Position);
                             }
-                            GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f), pitch, call.Volume, call.Reach);
+                            if (!Spend(d))
+                                continue;
+                            if (GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f), pitch, call.Volume, call.Reach))
+                                CallsPlayed++;
                         }
                 }
                 last[e] = (s.Phase, s.Action, flap, slots);
@@ -180,6 +198,20 @@ namespace Punchy.Audio
             states.Dispose();
             bodies.Dispose();
             entities.Dispose();
+        }
+
+        /// <summary>Whether a call this far off fits the budget (taking its share if so).</summary>
+        bool Spend(float distance)
+        {
+            if (!ThinCalls || distance < CloseCall)
+                return true;
+            if (callBudget >= 1f)
+            {
+                callBudget -= 1f;
+                return true;
+            }
+            CallsThinned++;
+            return false;
         }
 
         /// <summary>When and where each herd call was last made.</summary>
@@ -328,9 +360,11 @@ namespace Punchy.Audio
                     continue;
                 }
                 var pitch = 0.9f + (a.Id % 23u) * 0.01f;
+                // (Songbirds only every other time: there are a great many of them, and the trees ring with chirps.)
+                var thinned = a.Kind == AmbientKind.Songbird && ThinCalls && (((uint)a.Calls + a.Id) & 1u) != 0u;
                 if (a.Hidden && !was.hidden && a.Kind == AmbientKind.Frog)
                     GameAudio.PlayOneShot(SoundId.Splash, a.Position, 1.7f, 0.35f, 15f);
-                else if (!a.Hidden && a.Calls != was.calls)
+                else if (!a.Hidden && a.Calls != was.calls && !thinned && Spend(math.distance(a.Position, ear)) && ++CallsPlayed > 0)
                     switch (a.Kind)
                     {
                         case AmbientKind.Songbird:

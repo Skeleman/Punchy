@@ -12,7 +12,9 @@ namespace Punchy.Audio
         // Animal calls (species' Calls) and moods:
         Quack, Honk, Gobble, Caw, Coo, Cry, Screech, Rooster, Bark, Meow, Snort, Whinny, Bleat, Moo, Grunt, Purr, Pant,
         // The small life's calls (AmbientLife):
-        CricketChirp, Croak, Cicada, Drum, Zip
+        CricketChirp, Croak, Cicada, Drum, Zip,
+        // For the world session: an electric spire's bolt.
+        Zap
     }
 
     /// <summary>
@@ -33,7 +35,7 @@ namespace Punchy.Audio
             SoundId.Quack => 4, SoundId.Honk => 3, SoundId.Gobble => 3, SoundId.Caw => 4, SoundId.Coo => 3, SoundId.Cry => 3,
             SoundId.Screech => 2, SoundId.Rooster => 2, SoundId.Bark => 4, SoundId.Meow => 3, SoundId.Snort => 3,
             SoundId.Whinny => 2, SoundId.Bleat => 3, SoundId.Moo => 3, SoundId.Grunt => 3, SoundId.Pant => 3,
-            SoundId.CricketChirp => 3, SoundId.Croak => 4, SoundId.Cicada => 2, SoundId.Drum => 3, SoundId.Zip => 3, _ => 1
+            SoundId.CricketChirp => 3, SoundId.Croak => 4, SoundId.Cicada => 2, SoundId.Drum => 3, SoundId.Zip => 3, SoundId.Zap => 3, _ => 1
         };
 
         public static bool Loops(SoundId id) => id == SoundId.BeeBuzz || id == SoundId.Crickets || id == SoundId.FireCrackle ||
@@ -86,6 +88,7 @@ namespace Punchy.Audio
                 SoundId.Cicada => Cicada(rng),
                 SoundId.Drum => Drum(rng),
                 SoundId.Zip => Zip(rng),
+                SoundId.Zap => Zap(rng),
                 _ => new float[1]
             };
         }
@@ -888,6 +891,37 @@ namespace Punchy.Audio
                 s[i] = band.Run(Noise(rng) * flutter, 3200f, 2f) * Mathf.Sin(Mathf.PI * u);
             }
             return Normalise(s, 0.35f);
+        }
+
+        /// <summary>
+        /// An electric arc's strike: a hard crack, then a fizzing, snapping crackle with a mains-like buzz under it that
+        /// dies away over a fifth of a second or so.
+        /// </summary>
+        static float[] Zap(System.Random rng)
+        {
+            var n = (int)(Lerp(0.16f, 0.3f, R(rng)) * Rate);
+            var s = new float[n];
+            var hiss = new Band();
+            var snap = new Band();
+            var hum = Lerp(95f, 140f, R(rng));
+            var spark = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                var u = i / (float)n;
+                var t = i / (float)Rate;
+                // The crack: a few milliseconds of everything at once.
+                var crack = Noise(rng) * Mathf.Exp(-t / 0.004f) * 1.6f;
+                // Snaps: sparse sharp ticks, thinning out as the arc dies.
+                if (R(rng) < 0.004f * (1f - u) + 0.0006f)
+                    spark = Lerp(0.5f, 1f, R(rng));
+                spark *= 0.93f;
+                var ticks = snap.Run(Noise(rng), 2600f, 1.5f) * spark;
+                // The fizz: high hiss chopped by the buzz.
+                var buzz = Mathf.Sign(Mathf.Sin(2f * Mathf.PI * hum * t)) * 0.5f + 0.5f;
+                var fizz = hiss.Run(Noise(rng), 5200f, 3f) * (0.35f + 0.65f * buzz) * 0.45f;
+                s[i] = (crack + ticks + fizz) * (1f - u) * (1f - u);
+            }
+            return Normalise(s, 0.6f);
         }
     }
 }

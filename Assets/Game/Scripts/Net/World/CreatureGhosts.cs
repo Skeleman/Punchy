@@ -214,6 +214,7 @@ namespace Punchy.Net
                 c.Holder = n.Holder;
                 c.Held = (HeldItem)n.Held;
                 CreatureMotion.AdvancePhase(ref c, ref b, dt);
+                CreatureMotion.EaseGait(ref c, ref b, dt);
             }
         }
     }

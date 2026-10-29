@@ -56,7 +56,9 @@ namespace Punchy.Fauna
         /// Capsules in a guard's kit: what it holds (a weapon, or a torch), a shield or a bow on its back, its helmet,
         /// breastplate, sash and shoulder pads. The torch's handle is always the first (its flame is lit from it).
         /// </summary>
-        const int GuardParts = 14;
+        const int GuardParts = 18;
+        /// <summary>Creatures behind the camera nearer than this are still posed (their shadows can fall in view).</summary>
+        const float BehindCullRange = 25f;
         /// <summary>Capsules in a miner's gear: its pick (the haft, the head's two points) and a sack of ore.</summary>
         const int MinerParts = 4;
         /// <summary>When in a throw (its ActionTime) the stone leaves the hand: TraceSystem throws it from there.</summary>
@@ -70,6 +72,15 @@ namespace Punchy.Fauna
                                                held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.SpearDrawn || held == HeldItem.Torch ? GuardParts :
                                                held == HeldItem.Rod ? RodParts : held == HeldItem.Stick || held == HeldItem.Stone ? 1 :
                                                held == HeldItem.Pickaxe || held == HeldItem.OreSack ? MinerParts : held == HeldItem.Staff || held == HeldItem.Letter ? 2 : held == HeldItem.Honey ? 1 : 0;
+        /// <summary>
+        /// Capsules for a worker's gear, from its job alone (already on every machine, nothing more sent): the tool in
+        /// hand while at work (a smith's hammer, a woodcutter's axe, a water-carrier's bucket), and what it wears (an
+        /// apron for smiths and stallholders, a straw hat for those working outdoors, a fisher's hat).
+        /// </summary>
+        const int GearParts = 5;
+        static bool HasGear(CreatureTask task) => task == CreatureTask.Hammer || task == CreatureTask.Chop || task == CreatureTask.Tend ||
+                                                  task == CreatureTask.Gesture || task == CreatureTask.Fish || task == CreatureTask.Hermit;
+        static int GearCount(CreatureTask task) => HasGear(task) ? GearParts : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 0 : -1;
         /// <summary>Capsules per hanging bat, the most per roost, and how near the camera colonies show.</summary>
@@ -341,6 +352,70 @@ namespace Punchy.Fauna
             return math.saturate(t / 1f) * (1f - math.saturate((t - ScatterTime) / 4f));
         }
 
+        Punchy.Weather.DayNightCycle skyCycle;
+
+        // ------------------------------------------------------------------------------- doors
+
+        /// <summary>How open each door a resident is passing through is this frame, and last frame's (to shut the rest).</summary>
+        readonly System.Collections.Generic.Dictionary<float3, float> doorsNow = new System.Collections.Generic.Dictionary<float3, float>();
+        readonly System.Collections.Generic.Dictionary<float3, float> doorsBefore = new System.Collections.Generic.Dictionary<float3, float>();
+
+        /// <summary>
+        /// Folk going in and coming out swing their door (FloraDoors, on every machine from the replicated state): it
+        /// opens as they come up to it, stands open while they step through (Home stages 1 and 3; ActionTime runs the step),
+        /// and swings shut behind them. Doors nobody is using go back to their own rhythm.
+        /// </summary>
+        void SwingDoors(NativeArray<CreatureState> states)
+        {
+            doorsNow.Clear();
+            for (int i = 0; i < states.Length; i++)
+            {
+                var c = states[i];
+                if (c.Mode != CreatureMode.Home)
+                    continue;
+                var door = c.Anchor;
+                float amount;
+                if (c.Stage == 0)
+                {
+                    // Coming up to it: opening over the last metre and a half.
+                    var d = math.distance(c.Position.xz, door.xz);
+                    if (d > 1.5f)
+                        continue;
+                    amount = math.saturate((1.5f - d) / 1.1f);
+                }
+                else if (c.Stage == 1)
+                    amount = 1f - math.smoothstep(0.75f, 1f, c.ActionTime);   // through, and shut behind it
+                else if (c.Stage == 2)
+                    continue;
+                else
+                    amount = math.smoothstep(0f, 0.15f, c.ActionTime) + (1f - math.smoothstep(0f, 0.15f, c.ActionTime)) *
+                             (1f - math.saturate(math.distance(c.Position.xz, door.xz) / 1.5f));
+                doorsNow[door] = math.max(doorsNow.TryGetValue(door, out var was) ? was : 0f, amount);
+            }
+            foreach (var kv in doorsNow)
+                Punchy.Flora.FloraDoors.SetOpen(kv.Key, kv.Value);
+            foreach (var kv in doorsBefore)
+                if (!doorsNow.ContainsKey(kv.Key))
+                    Punchy.Flora.FloraDoors.SetOpen(kv.Key, 0f);
+            doorsBefore.Clear();
+            foreach (var kv in doorsNow)
+                doorsBefore[kv.Key] = kv.Value;
+        }
+
+        /// <summary>
+        /// Seconds on the shared clock, counting whole days (the day and time of day every machine shares; a paused
+        /// clock, for screenshots, runs on local time), and the hour.
+        /// </summary>
+        double SkyClock(out float hour)
+        {
+            if (skyCycle == null)
+                skyCycle = Object.FindAnyObjectByType<Punchy.Weather.DayNightCycle>();
+            hour = skyCycle != null ? skyCycle.TimeOfDay : 12f;
+            if (skyCycle == null || skyCycle.Paused)
+                return SystemAPI.Time.ElapsedTime;
+            return (skyCycle.Day * 24.0 + skyCycle.TimeOfDay) * skyCycle.DayLengthMinutes * 2.5;
+        }
+
         /// <summary>A spider sitting in its web (only then is the web drawn, and room made for it).</summary>
         static bool InWeb(in CreatureState s) => s.Mode == CreatureMode.Web && s.Stage >= 2 && s.Stage <= 4;
 
@@ -351,6 +426,9 @@ namespace Punchy.Fauna
             var cam = Camera.main;
             if (cam == null)
                 return;
+            var windDirection = Shader.GetGlobalVector("_PunchyWindDirection");
+            CreatureAnimator.Wind.Data = new float4(Shader.GetGlobalFloat("_PunchyWind"), windDirection.x, windDirection.y,
+                                                    Shader.GetGlobalFloat("_PunchyClock"));
 
             // (Copied out once: the counts below and the pose job both read these.)
             var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.TempJob);
@@ -358,17 +436,30 @@ namespace Punchy.Fauna
             var entities = query.ToEntityArray(Allocator.TempJob);
             // Deep in a cave, out of sight of every mouth (CaveSystem.SurfaceHidden): the creatures up on the surface are
             // neither posed nor drawn. (Players' bodies always are.)
-            if (Punchy.Terrain.CaveSystem.SurfaceHidden >= 0.99f && SystemAPI.TryGetSingleton<TerrainSource>(out var hiddenFrom))
+            // And anything well behind the camera (past BehindCullRange, so the shadows of those close behind still fall
+            // in view) is neither posed nor drawn: about half of them at any moment, the biggest share of the pose cost.
+            var hidden = Punchy.Terrain.CaveSystem.SurfaceHidden >= 0.99f;
+            SystemAPI.TryGetSingleton<TerrainSource>(out var hiddenFrom);
+            float3 camPos = cam.transform.position, camFwd = cam.transform.forward;
+            // (Behind: more than about 100 degrees off the way the camera looks, well outside any view it has.)
+            const float behindCos = -0.17f;
             {
                 var keep = 0;
                 for (int i = 0; i < bodies.Length; i++)
-                    if (states[i].Mode == CreatureMode.Puppet || states[i].Position.y < hiddenFrom.SampleHeight(states[i].Position.xz) - 1f)
+                {
+                    var to = states[i].Position - camPos;
+                    var far = math.lengthsq(to) > BehindCullRange * BehindCullRange;
+                    var behind = far && math.dot(math.normalizesafe(to), camFwd) < behindCos &&
+                                 math.length(to) > bodies[i].Blob.Value.SeenFrom * 0.5f;
+                    var underground = hidden && !(states[i].Position.y < hiddenFrom.SampleHeight(states[i].Position.xz) - 1f);
+                    if (states[i].Mode == CreatureMode.Puppet || !behind && !underground)
                     {
                         bodies[keep] = bodies[i];
                         states[keep] = states[i];
                         entities[keep] = entities[i];
                         keep++;
                     }
+                }
                 if (keep < bodies.Length)
                 {
                     var b2 = new NativeArray<CreatureBody>(keep, Allocator.TempJob);
@@ -385,6 +476,7 @@ namespace Punchy.Fauna
                     entities = e2;
                 }
             }
+            SwingDoors(states);
             var offsets = new NativeArray<int>(bodies.Length, Allocator.TempJob);
             var hanging = new NativeList<float3>(8, Allocator.Temp);
             var emoting = new NativeList<float3>(2, Allocator.Temp);
@@ -393,7 +485,8 @@ namespace Punchy.Fauna
             {
                 offsets[i] = total;
                 total += bodies[i].SegmentCount + MarkCount + (InWeb(states[i]) ? WebCount : 0) +
-                         LairCount(ref bodies[i].Blob.Value) + (states[i].Task == CreatureTask.Hunt ? 1 : 0) + HeldCount(states[i].Held, states[i].Task);
+                         LairCount(ref bodies[i].Blob.Value) + (states[i].Task == CreatureTask.Hunt ? 1 : 0) + HeldCount(states[i].Held, states[i].Task) +
+                         GearCount(states[i].Task);
                 if (states[i].Mode == CreatureMode.Roost && states[i].Stage == 200)
                     hanging.Add(states[i].Position);
                 // (Bodies of players emoting: their gestures scatter colonies.)
@@ -471,6 +564,9 @@ namespace Punchy.Fauna
             // The small life round the listener (AmbientLife: songbirds, owls, crickets, frogs...), drawn only.
             var critters = AmbientLife.Near(World, camAt0);
             total += critters.Count * CritterParts;
+            // Birds high overhead (geese and cranes in a V, soarers on a thermal), drawn only, from the shared clock.
+            var skyClock = SkyClock(out var skyHour);
+            total += GatherSkyBirds(camAt0, skyClock, skyHour, terrain);
 
             // Footprints and feathers (TraceSystem).
             var traces = World.GetExistingSystemManaged<TraceSystem>();
@@ -479,7 +575,7 @@ namespace Punchy.Fauna
 
             var instances = new NativeArray<SegmentInstance>(total, Allocator.TempJob);
             // Over the copies, a few creatures per batch, so every worker takes a share (per chunk, it was one or two).
-            new PoseJob
+            var posing = new PoseJob
             {
                 States = states,
                 Bodies = bodies,
@@ -495,7 +591,32 @@ namespace Punchy.Fauna
                 // A little short of FaunaDirector's despawn distance (170 m), so it's gone before it's removed.
                 FadeFar = 165f,
                 Night = night
-            }.Schedule(bodies.Length, 8).Complete();
+            }.Schedule(bodies.Length, 8);
+            // While the creatures are posed on the workers, the rest is drawn here into its own array (the colonies, the
+            // bees, the small life, the birds overhead, the traces), copied in after them once they're done, rather than
+            // the main thread waiting on the posing first.
+            var extras = new NativeArray<SegmentInstance>(total - colonyStart, Allocator.TempJob);
+            var at = 0;
+            for (int i = 0; i < roosts.Length; i++)
+                at = Colony(terrain.Anchors.Value.Anchors[roosts[i]], roosts[i], colonySizes[i], colonyFades[i], extras, at);
+            colonySizes.Dispose();
+            colonyFades.Dispose();
+            for (int i = 0; i < hives.Length; i++)
+            {
+                var hive = terrain.Anchors.Value.Anchors[hives[i]];
+                var angry = hiveAngry.TryGetValue(hives[i], out var since) ? now - since : -1f;
+                var faded = math.saturate((math.distance(camAt0, hive.Position) - SwarmRange * 0.75f) / (SwarmRange * 0.25f));
+                at = Swarm(hive, hives[i], day, now, angry, swarmTargets[i], faded, terrain, extras, at);
+            }
+            swarmTargets.Dispose();
+            foreach (var critter in critters)
+                at = Critter(critter, (float)SystemAPI.Time.ElapsedTime, extras, at);
+            at = WriteSkyBirds(skyClock, extras, at);
+            if (traceCount > 0)
+                at = traces.Write(extras, at, (float)SystemAPI.Time.ElapsedTime);
+            posing.Complete();
+            NativeArray<SegmentInstance>.Copy(extras, 0, instances, colonyStart, extras.Length);
+            extras.Dispose();
             // Lanterns and torches near the camera light the ground round them: each joins the glow list as a moving
             // light (by its carrier, so its fade-in carries on as it moves), at the middle of a lantern's glass as just
             // posed, or a torch's flame. A torch's flame itself is the world's (FireSystem), lit each frame at the top
@@ -533,23 +654,6 @@ namespace Punchy.Fauna
             bodies.Dispose();
             states.Dispose();
             entities.Dispose();
-            var at = colonyStart;
-            for (int i = 0; i < roosts.Length; i++)
-                at = Colony(terrain.Anchors.Value.Anchors[roosts[i]], roosts[i], colonySizes[i], colonyFades[i], instances, at);
-            colonySizes.Dispose();
-            colonyFades.Dispose();
-            for (int i = 0; i < hives.Length; i++)
-            {
-                var hive = terrain.Anchors.Value.Anchors[hives[i]];
-                var angry = hiveAngry.TryGetValue(hives[i], out var since) ? now - since : -1f;
-                var faded = math.saturate((math.distance(camAt, hive.Position) - SwarmRange * 0.75f) / (SwarmRange * 0.25f));
-                at = Swarm(hive, hives[i], day, now, angry, swarmTargets[i], faded, terrain, instances, at);
-            }
-            swarmTargets.Dispose();
-            foreach (var critter in critters)
-                at = Critter(critter, (float)SystemAPI.Time.ElapsedTime, instances, at);
-            if (traceCount > 0)
-                at = traces.Write(instances, at, (float)SystemAPI.Time.ElapsedTime);
 
             if (buffer == null || buffer.count < total)
             {
@@ -680,6 +784,98 @@ namespace Punchy.Fauna
                     Letter(state, ref body.Blob.Value, offset, held, faded);
                 else if (state.Held == HeldItem.Honey)
                     Honey(state, ref body.Blob.Value, offset, held, faded);
+                if (HasGear(state.Task))
+                    Gear(state, ref body.Blob.Value, offset, held + HeldCount(state.Held, state.Task), faded);
+            }
+
+            /// <summary>A worker's gear (see GearParts): its tool while at work, and its apron or hat.</summary>
+            void Gear(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
+            {
+                for (int i = 0; i < GearParts; i++)
+                    Output[at + i] = default;
+                if (!b.Upright || !b.Hands)
+                    return;
+                int hand = -1, offHand = -1, head = -1, chest = -1;
+                for (int i = 0; i < b.Parts.Length; i++)
+                {
+                    ref var part = ref b.Parts[i];
+                    if (part.Role == LimbRole.Arm && part.Side > 0f && hand < 0)
+                        hand = part.FirstSegment + part.SegmentCount - 1;
+                    else if (part.Role == LimbRole.Arm && part.Side < 0f && offHand < 0)
+                        offHand = part.FirstSegment + part.SegmentCount - 1;
+                    else if (part.Role == LimbRole.Head && head < 0)
+                        head = part.FirstSegment + part.SegmentCount - 1;
+                    else if (part.Parent < 0 && part.Role != LimbRole.Leg && part.Role != LimbRole.Arm && chest < 0)
+                        chest = part.FirstSegment + part.SegmentCount - 1;
+                }
+                var k = 0;
+                var scale = Unity.Mathematics.math.max(state.Scale, 0.3f);
+                var forward = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
+                var right = new Unity.Mathematics.float3(forward.z, 0f, -forward.x);
+                var up = new Unity.Mathematics.float3(0f, 1f, 0f);
+                var wood = new Unity.Mathematics.float4(0.36f, 0.24f, 0.13f, 0f);
+                var iron = new Unity.Mathematics.float4(0.3f, 0.31f, 0.33f, 0f);
+                var atWork = state.Mode == CreatureMode.Work && state.Stage != 0;
+
+                // The tool in hand, at work: along the hand's own line, so it swings with the arm (TaskPose).
+                if (atWork && hand >= 0 && (state.Task == CreatureTask.Hammer || state.Task == CreatureTask.Chop || state.Task == CreatureTask.Hermit && state.Stage == 1))
+                {
+                    var h = Output[offset + hand];
+                    var along = Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                    var grip = h.Position + along * h.Length * 0.6f;
+                    // (The haft out of the fist, crossing the hand's line: down from the grip and on beyond it.)
+                    var side = Unity.Mathematics.math.normalize(Unity.Mathematics.math.cross(along, right) + along * 0.2f);
+                    var axe = state.Task == CreatureTask.Chop || state.Task == CreatureTask.Hermit;
+                    var haft = (axe ? 0.75f : 0.32f) * scale;
+                    var butt = grip - side * haft * 0.15f;
+                    Output[at + k++] = Piece(butt, side, along, haft, 0.016f * scale, 0.02f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                    var top = butt + side * haft;
+                    Output[at + k++] = axe
+                        ? Piece(top - side * 0.12f * scale, along, side, 0.14f * scale, 0.05f * scale, 0.08f * scale, 0.12f, iron, faded, SegmentMaterial.Metal)
+                        : Piece(top - along * 0.045f * scale, along, side, 0.09f * scale, 0.024f * scale, 0.024f * scale, 1f, iron, faded, SegmentMaterial.Metal);
+                }
+                else if (atWork && offHand >= 0 && state.Task == CreatureTask.Tend)
+                {
+                    // A bucket hanging from the other hand.
+                    var h = Output[offset + offHand];
+                    var grip = h.Position + Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, h.Length * 0.8f));
+                    var bucket = new Unity.Mathematics.float4(0.42f, 0.3f, 0.18f, 0f);
+                    Output[at + k++] = Piece(grip - up * 0.27f * scale, up, forward, 0.2f * scale, 0.08f * scale, 0.095f * scale, 1f, bucket, faded, SegmentMaterial.Wood);
+                    Output[at + k++] = Piece(grip - up * 0.08f * scale - right * 0.09f * scale, right, up, 0.18f * scale, 0.007f * scale, 0.007f * scale, 1f, iron, faded, SegmentMaterial.Metal);
+                }
+                k = 2;
+
+                // An apron down the front: smiths (leather) and stallholders (cloth).
+                if (chest >= 0 && (state.Task == CreatureTask.Hammer || state.Task == CreatureTask.Gesture))
+                {
+                    var c = Output[offset + chest];
+                    var axis = Unity.Mathematics.math.mul(c.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                    var r = Unity.Mathematics.math.max(c.RadiusStart, c.RadiusEnd);
+                    var front = Unity.Mathematics.math.normalize(forward - axis * Unity.Mathematics.math.dot(forward, axis));
+                    var smith = state.Task == CreatureTask.Hammer;
+                    var colour = smith ? new Unity.Mathematics.float4(0.14f, 0.085f, 0.05f, 0f) : new Unity.Mathematics.float4(0.62f, 0.58f, 0.5f, 0f);
+                    var topAt = c.Position + axis * c.Length * 0.55f + front * r * 0.72f;
+                    var length = c.Length * 0.6f + r * 1.2f;
+                    Output[at + k++] = Piece(topAt, -axis, front, length, r * 0.62f, r * 0.7f, 0.035f, colour, faded, smith ? SegmentMaterial.Leather : SegmentMaterial.Cloth);
+                }
+                else
+                    k++;
+
+                // A hat: a straw hat, wide-brimmed, for outdoor work; a fisher's floppy one. (Under it, the hair stays.)
+                if (head >= 0 && (state.Task == CreatureTask.Chop || state.Task == CreatureTask.Tend || state.Task == CreatureTask.Fish || state.Task == CreatureTask.Hermit))
+                {
+                    var h = Output[offset + head];
+                    var ax = Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                    var r = Unity.Mathematics.math.max(h.RadiusStart, h.RadiusEnd);
+                    var crown = h.Position + ax * h.Length;
+                    var face = Unity.Mathematics.math.normalize(forward - ax * Unity.Mathematics.math.dot(forward, ax));
+                    var fisher = state.Task == CreatureTask.Fish;
+                    var colour = fisher ? new Unity.Mathematics.float4(0.34f, 0.38f, 0.3f, 0f) : new Unity.Mathematics.float4(0.82f, 0.7f, 0.42f, 0f);
+                    var material = fisher ? SegmentMaterial.Cloth : SegmentMaterial.Wood;
+                    var brim = (fisher ? 1.6f : 2.1f) * r;
+                    Output[at + k++] = Piece(crown - ax * r * 0.3f, face, ax, 0f, brim, brim, 0.07f, colour, faded, material);
+                    Output[at + k++] = Piece(crown - ax * r * 0.4f, ax, face, r * (fisher ? 0.55f : 0.7f), r * 1.05f, r * 0.85f, 1f, colour, faded, material);
+                }
             }
 
             /// <summary>
@@ -1193,6 +1389,9 @@ namespace Punchy.Fauna
                     var to = c.Position - axis * r * 0.4f - right * wide * 0.75f + front * deep * 0.6f;
                     Output[at + k++] = Piece(from, Unity.Mathematics.math.normalize(over - from), front, Unity.Mathematics.math.distance(from, over), band, band, 0.25f, b.GuardSash, faded, SegmentMaterial.Cloth);
                     Output[at + k++] = Piece(over, Unity.Mathematics.math.normalize(to - over), front, Unity.Mathematics.math.distance(over, to), band, band, 0.25f, b.GuardSash, faded, SegmentMaterial.Cloth);
+                    // The sash's knot at the hip, its tail hanging loose: two lengths of cloth, blown in the wind and
+                    // swinging back as the guard runs.
+                    k = Hanging(to, front, band * 1.1f, band * 0.8f, 0.16f * scale, in state, forward, b.GuardSash, faded, SegmentMaterial.Cloth, at, k);
                     // An elf's bow across its back: an arc from low on one side to high on the other, and its string.
                     if (b.GuardKit == GuardKit.Elf)
                     {
@@ -1217,6 +1416,13 @@ namespace Punchy.Fauna
                         var ogre = b.GuardKit == GuardKit.Ogre;
                         Output[at + k++] = Piece(sh.Position + upward * sh.RadiusStart * 0.4f, outward, upward, 0.02f * scale,
                                                  sh.RadiusStart * 1.9f, sh.RadiusStart * 1.6f, 0.55f, ogre ? iron : armour, faded, ogre ? SegmentMaterial.Metal : armourMaterial);
+                    }
+                    // An ogre guard's hide cape, from across its shoulders down its back, heavy but stirring in the wind.
+                    if (b.GuardKit == GuardKit.Ogre)
+                    {
+                        var nape = top - front * deep * 0.9f;
+                        k = Hanging(nape + axis * r * 0.15f, -front, wide * 0.85f, wide * 1.1f, c.Length * 1.1f + r, in state, forward,
+                                    new Unity.Mathematics.float4(0.36f, 0.27f, 0.18f, 0f), faded, SegmentMaterial.Leather, at, k, 0.5f);
                     }
                 }
 
@@ -1290,6 +1496,34 @@ namespace Punchy.Fauna
             }
 
             /// <summary>One capsule of a kit: from a point along a direction, its flattening across "flat" (local y), and what it's made of.</summary>
+            /// <summary>
+            /// A loose length of cloth or hide hanging from a point in two pieces: down, pushed by the wind's rolling
+            /// gusts (the trees' and hair's, CreatureAnimator.Wind) and swung back by the wearer's speed, the lower piece
+            /// more than the upper. Stiff (0..1) holds it closer to hanging straight. Returns the next free slot.
+            /// </summary>
+            int Hanging(Unity.Mathematics.float3 from, Unity.Mathematics.float3 face, float width, float widthEnd, float length,
+                        in CreatureState state, Unity.Mathematics.float3 forward, Unity.Mathematics.float4 color, float faded,
+                        SegmentMaterial material, int at, int k, float stiff = 0f)
+            {
+                if (k + 2 > GuardParts)
+                    return k;
+                var w = CreatureAnimator.Wind.Data;
+                var dir = Unity.Mathematics.math.normalizesafe(new Unity.Mathematics.float2(w.y, w.z), new Unity.Mathematics.float2(1f, 0f));
+                var phase = w.w * (0.7f + w.x * 1.1f) - Unity.Mathematics.math.dot(state.Position.xz, dir) * 0.04f + (state.Individual % 628u) * 0.01f;
+                var gust = (0.6f + 0.4f * Unity.Mathematics.math.sin(phase) * Unity.Mathematics.math.sin(phase * 0.37f + 1.3f)) * (0.08f + 0.92f * w.x);
+                var flutter = Unity.Mathematics.math.sin(w.w * 6f + state.Individual * 0.1f) * 0.15f * gust;
+                var down = new Unity.Mathematics.float3(0f, -1f, 0f);
+                var push = new Unity.Mathematics.float3(dir.x, 0f, dir.y) * (gust * 0.9f + flutter) - forward * Unity.Mathematics.math.min(state.Speed * 0.12f, 0.8f);
+                push *= 1f - stiff;
+                var upper = Unity.Mathematics.math.normalize(down + push * 0.6f);
+                var lower = Unity.Mathematics.math.normalize(down + push * 1.2f);
+                var mid = from + upper * length * 0.5f;
+                var widthMid = (width + widthEnd) * 0.5f;
+                Output[at + k++] = Piece(from, upper, face, length * 0.5f, width, widthMid, 0.12f, color, faded, material);
+                Output[at + k++] = Piece(mid, lower, face, length * 0.5f, widthMid, widthEnd, 0.12f, color, faded, material);
+                return k;
+            }
+
             static SegmentInstance Piece(Unity.Mathematics.float3 from, Unity.Mathematics.float3 along, Unity.Mathematics.float3 flat, float length,
                                          float radiusStart, float radiusEnd, float flatten, Unity.Mathematics.float4 color, float faded,
                                          SegmentMaterial material) =>

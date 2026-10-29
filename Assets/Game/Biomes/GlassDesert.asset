@@ -109,4 +109,16 @@ MonoBehaviour:
   - Type: {fileID: 11400000, guid: 51c63ce05e3feab468de0aaaefef529a, type: 2}
     Density: 0.6
     PerRealm: 1
-  Fauna: []
+  Fauna:
+  - Species: {fileID: 11400000, guid: 48ccbcfb7c79b07449fb37f77efb7097, type: 2}
+    Density: 2
+  - Species: {fileID: 11400000, guid: 8129e85fc8fcffb448a028027dd4b2a9, type: 2}
+    Density: 3
+  - Species: {fileID: 11400000, guid: 01c3f689069b3c548b19c78f57796cfb, type: 2}
+    Density: 1.5
+  - Species: {fileID: 11400000, guid: 6e1d1db8793d05748afa094a60364350, type: 2}
+    Density: 0.8
+  - Species: {fileID: 11400000, guid: f5504acf0b2a49d499d7d40c46594f25, type: 2}
+    Density: 0.15
+  - Species: {fileID: 11400000, guid: 582d2a6b04238394482e8e1d2b431bb8, type: 2}
+    Density: 0.4
