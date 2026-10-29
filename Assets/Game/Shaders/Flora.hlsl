@@ -2,6 +2,7 @@
 #define PUNCHY_FLORA_INCLUDED
 
 #include "PlayerReveal.hlsl"
+#include "SharedClock.hlsl"
 
 // Plants drawn by FloraSystem with indirect instanced draws. Each draw is one variant at one LOD; its instances
 // are the plants FloraCull.compute found visible, stored from the draw's startInstance in _FloraVisible as (plant index, dither
@@ -82,8 +83,19 @@ FloraVertex FloraTransform(FloraAttributes input)
     float sway = input.data.x * (0.05 + 0.045 * p.y);
     p += windDir * sway * gust * 2.2;
     p.y -= sway * gust * sway * 0.6;   // bending, not stretching
-    float flutter = input.data.z * (0.15 + _PunchyWind) * 0.022 * plant.scale;
+    float flutter = max(input.data.z, 0) * (0.15 + _PunchyWind) * 0.022 * plant.scale;
     p += n * sin(_Time.y * 7.3 + dot(input.positionOS, float3(3.1, 2.3, 4.7)) + plant.random * 20) * flutter;
+    // Motions carried in the flutter channel as negatives (FloraMeshBuilder.Motion), on the shared clock: a slow breath
+    // along the normal (mushroom caps), or below -2 a sudden small jerk now and then (cocoons).
+    if (input.data.z < -1.5)
+    {
+        float size = (-input.data.z - 2) * plant.scale;
+        float beat = frac(_PunchyClock * 0.23 + plant.random * 7.1 + input.positionOS.x * 0.37);
+        float jerk = beat < 0.06 ? sin(beat / 0.06 * 18.85) : 0;
+        p += float3(sin(plant.random * 40 + input.positionOS.z), 0, cos(plant.random * 40 + input.positionOS.x)) * jerk * size;
+    }
+    else if (input.data.z < 0)
+        p += n * (-input.data.z) * plant.scale * (0.5 + 0.5 * sin(_PunchyClock * 0.9 + plant.random * 6.28));
 
     FloraVertex o;
     o.positionWS = plant.position + p;

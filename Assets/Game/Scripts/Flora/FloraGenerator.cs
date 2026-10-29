@@ -75,6 +75,7 @@ namespace Punchy.Flora
                 builder.PetalAs = species.GlowingAccents ? FloraPart.Glow : FloraPart.Petal;
                 builder.GlowPulse = species.GlowPulse;
                 builder.BarkSeams = species.GlowingSeams;
+                builder.BarkVeins = species.GlowingVeins;
                 var g = new Grower(species, variant, lod, seed, builder);
                 switch (species.Form)
                 {
@@ -129,6 +130,13 @@ namespace Punchy.Flora
                 }
                 if (species.Brackets > 0f && g.TrunkPath != null)
                     Brackets(g);
+                if (g.Limbs != null && g.Lod < 2)
+                {
+                    if (species.Hanging > 0f) Hanging(g);
+                    if (species.Cocoons > 0f) Cocoons(g);
+                }
+                if (species.BarkFace > 0f && g.TrunkPath != null)
+                    BarkFace(g);
                 if (Founded(species.Form))
                     builder.Skirt(FoundationDepth);
                 if (lod == 0)
@@ -208,6 +216,8 @@ namespace Punchy.Flora
             /// <summary>A tree's trunk centreline and radii, bottom to top (Broadleaf), for things that hang on it.</summary>
             public List<Vector3> TrunkPath;
             public List<float> TrunkRadii;
+            /// <summary>A tree's limbs (Broadleaf), each a path from the trunk outwards, for things that hang from them.</summary>
+            public List<List<Vector3>> Limbs;
             public readonly List<Vector4> Colliders = new List<Vector4>();
 
             /// <summary>
@@ -353,6 +363,7 @@ namespace Punchy.Flora
                     radii.Add(r0 * 0.55f * (1f - 0.75f * t));
                 }
                 limbs.Add((path, radii));
+                (g.Limbs ??= new List<List<Vector3>>()).Add(path);
                 clumps.Add((path[3], Clump(0.17f, 0.24f), g.FoliageColor(), g.R() * 100f));
 
                 for (int k = 0; k < 2; k++)
@@ -1178,6 +1189,8 @@ namespace Punchy.Flora
                     });
                 }
                 // Giants: the cap's underside much darker (shade under the overhang).
+                if (s.Breathes)
+                    b.Motion(cap, capHeight * 0.06f);
                 System.Func<Vector3, Vector3, float> capShade = (p, n) => giant && n.y < -0.15f ? 0.32f : Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.3f));
                 b.Occlude(cap, capShade);
                 if (g.Lod < 2 && !puff && !giant)
@@ -1188,17 +1201,18 @@ namespace Punchy.Flora
                 if (giant && g.Lod == 0)
                 {
                     var centre = top + tilt * Vector3.up * capHeight * 0.25f;
-                    var gill = Color.Lerp(color, g.Bark, 0.4f) * 0.22f;
+                    var gill = Color.Lerp(color, g.Bark, 0.4f) * 0.45f;
                     Vector3 Under(Vector3 dir, float r) =>
                         centre + tilt * (dir * r - Vector3.up * (capHeight * 0.3f * Mathf.Sqrt(Mathf.Max(1f - r * r / (capRadius * capRadius), 0f)) + 0.01f));
-                    for (int k = 0; k < 14; k++)
+                    for (int k = 0; k < 30; k++)
                     {
-                        var dir = Quaternion.AngleAxis(k * 360f / 14f + g.Range(-6f, 6f), Vector3.up) * Vector3.forward;
+                        var dir = Quaternion.AngleAxis(k * 12f + g.Range(-3f, 3f), Vector3.up) * Vector3.forward;
                         var inner = Under(dir, stemRadius * 1.3f);
                         var mid = Under(dir, capRadius * 0.55f);
                         var outer = Under(dir, capRadius * 0.88f);
-                        b.Beam(inner, mid, capRadius * 0.025f, capRadius * 0.01f, gill, FloraPart.Bark);
-                        b.Beam(mid, outer, capRadius * 0.02f, capRadius * 0.01f, gill, FloraPart.Bark);
+                        var shade = gill * g.Range(0.8f, 1.2f);
+                        b.Beam(inner, mid, capRadius * 0.05f, capRadius * 0.006f, shade, FloraPart.Bark);
+                        b.Beam(mid, outer, capRadius * 0.045f, capRadius * 0.006f, shade, FloraPart.Bark);
                     }
                 }
                 // Spots on the cap.
@@ -1470,6 +1484,91 @@ namespace Punchy.Flora
                 b.Blob(centre, new Vector3(width, width * 0.16f, width * 0.75f), shelf, 1, 0.15f, g.R() * 50f, color * g.Range(0.85f, 1.1f), part);
                 b.Occlude(first, (p, n) => Mathf.Lerp(0.5f, 1f, Mathf.Clamp01(n.y + 0.5f)));
             }
+        }
+
+        /// <summary>
+        /// Strands hanging from a share of a tree's limbs (FloraSpecies.Hanging): vines and lianas, moss beards or roots in
+        /// the hanging colour, tapering as they fall, swaying with the leaves.
+        /// </summary>
+        static void Hanging(Grower g)
+        {
+            if (g.R() >= g.S.Hanging)
+                return;
+            var b = g.B;
+            var s = g.S;
+            foreach (var limb in g.Limbs)
+            {
+                var strands = 4 + (int)(g.R() * 5f);
+                for (int k = 0; k < strands; k++)
+                {
+                    var t = g.Range(0.35f, 1f);
+                    var i = Mathf.Min(Mathf.FloorToInt(t * (limb.Count - 1)), limb.Count - 2);
+                    var top = Vector3.Lerp(limb[i], limb[i + 1], t * (limb.Count - 1) - i);
+                    var length = g.Range(s.HangingLength.x, s.HangingLength.y);
+                    var drift = g.Flat(g.R() * 6.28f) * length * 0.08f;
+                    var color = s.HangingColor.linear * g.Range(0.8f, 1.15f);
+                    b.Tube(new List<Vector3> { top, top + drift * 0.5f + Vector3.down * length * 0.5f, top + drift + Vector3.down * length },
+                           new List<float> { 0.06f, 0.045f, 0.015f }, g.Sides(5, 4, 3), color, FloraPart.Foliage);
+                }
+            }
+        }
+
+        /// <summary>
+        /// A few cocoons on threads under a share of a tree's limbs (FloraSpecies.Cocoons), pale and silky, that now and
+        /// then twitch (Motion).
+        /// </summary>
+        static void Cocoons(Grower g)
+        {
+            if (g.R() >= g.S.Cocoons)
+                return;
+            var b = g.B;
+            var count = 2 + (int)(g.R() * 4f);
+            for (int k = 0; k < count; k++)
+            {
+                var limb = g.Limbs[(int)(g.R() * g.Limbs.Count) % g.Limbs.Count];
+                var top = Vector3.Lerp(limb[1], limb[limb.Count - 1], g.Range(0.2f, 0.8f));
+                var thread = g.Range(0.3f, 0.9f);
+                var size = g.Range(0.12f, 0.22f);
+                var first = b.VertexCount;
+                b.Tube(new List<Vector3> { top, top + Vector3.down * thread }, new List<float> { 0.006f, 0.006f }, 3, new Color(0.8f, 0.78f, 0.72f), FloraPart.Bark);
+                b.Blob(top + Vector3.down * (thread + size), new Vector3(size * 0.55f, size, size * 0.55f), Quaternion.identity, 1, 0.12f, g.R() * 50f,
+                       new Color(0.82f, 0.8f, 0.74f) * g.Range(0.85f, 1.05f), FloraPart.Cactus);
+                b.Motion(first, size * 0.25f, twitch: true);
+            }
+        }
+
+        /// <summary>
+        /// A face in the bark of a share of a tree's variants (FloraSpecies.BarkFace): two hollow eyes that glow faintly
+        /// and blink (FloraPart.Eye), brows of bark, and a dark mouth below, on one side of the trunk at eye height.
+        /// </summary>
+        static void BarkFace(Grower g)
+        {
+            if (g.R() >= g.S.BarkFace || g.Lod == 2)
+                return;
+            var b = g.B;
+            var y = g.Height * g.S.TrunkFraction * 0.55f;
+            var at = g.TrunkPath[0];
+            var radius = g.TrunkRadii[0];
+            for (int i = 1; i < g.TrunkPath.Count; i++)
+                if (g.TrunkPath[i].y >= y)
+                {
+                    var t = Mathf.InverseLerp(g.TrunkPath[i - 1].y, g.TrunkPath[i].y, y);
+                    at = Vector3.Lerp(g.TrunkPath[i - 1], g.TrunkPath[i], t);
+                    radius = Mathf.Lerp(g.TrunkRadii[i - 1], g.TrunkRadii[i], t);
+                    break;
+                }
+            var front = g.Flat(g.R() * 6.28f);
+            var side = Vector3.Cross(Vector3.up, front);
+            var eye = radius * 0.22f;
+            foreach (var s in new[] { -1f, 1f })
+            {
+                var e = at + front * radius * 0.92f + side * s * radius * 0.38f;
+                b.Blob(e, new Vector3(eye, eye * 0.75f, eye * 0.4f), Quaternion.LookRotation(front), 1, 0f, 0f, new Color(0.55f, 0.95f, 0.75f), FloraPart.Eye);
+                b.Blob(e + Vector3.up * eye * 1.1f + front * eye * 0.15f, new Vector3(eye * 1.3f, eye * 0.35f, eye * 0.5f), Quaternion.LookRotation(front) * Quaternion.Euler(0f, 0f, s * 12f),
+                       0, 0.1f, g.R() * 50f, g.Bark * 0.8f, FloraPart.Bark);
+            }
+            b.Blob(at + front * radius * 0.9f + Vector3.down * radius * 0.65f, new Vector3(radius * 0.35f, radius * 0.16f, radius * 0.2f), Quaternion.LookRotation(front),
+                   1, 0.2f, g.R() * 50f, new Color(0.03f, 0.025f, 0.02f), FloraPart.Bark);
         }
 
         /// <summary>Where a hive tree's comb hangs, as a share of its height (see FloraGenerator.Hive).</summary>

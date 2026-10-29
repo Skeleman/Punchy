@@ -21,7 +21,9 @@ namespace Punchy.Flora
         /// <summary>Glassy crystal (FoliageFinish.Glass; see Flora.shader).</summary>
         Glass = 7,
         /// <summary>Honeycomb wax: glossy, with faint hexagonal cells up close (wild beehives; see Flora.shader).</summary>
-        Comb = 8
+        Comb = 8,
+        /// <summary>A bark face's eyes: a faint glow that blinks now and then (see Flora.shader).</summary>
+        Eye = 9
     }
 
     /// <summary>
@@ -43,6 +45,8 @@ namespace Punchy.Flora
         public float GlowPulse;
         /// <summary>Bark drawn with glowing seams (FloraSpecies.GlowingSeams): marked on its part as Bark + 0.25.</summary>
         public bool BarkSeams;
+        /// <summary>Bark veined with cool flowing light (FloraSpecies.GlowingVeins): marked as Bark + 0.4.</summary>
+        public bool BarkVeins;
 
         public int VertexCount => positions.Count;
         public int IndexCount => indices.Count;
@@ -66,7 +70,7 @@ namespace Punchy.Flora
             normals.Add(n);
             colors.Add(c);
             // Glowing parts carry their shimmer as a fraction on the part (the shader rounds the part).
-            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : 0f),
+            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : 0f),
                                  flutter, Mathf.Clamp01(ao)));
             return positions.Count - 1;
         }
@@ -540,6 +544,21 @@ namespace Punchy.Flora
                 return false;
             y = a.y + v * (b.y - a.y) + w * (c.y - a.y);
             return true;
+        }
+
+        /// <summary>
+        /// Gives the vertices from <paramref name="firstVertex"/> on a motion the vertex shader plays from the shared
+        /// clock (carried in the flutter channel, Flora.hlsl): a slow breath along the normal (breath > 0, its size in
+        /// metres) or, with <paramref name="twitch"/>, a sudden small jerk now and then.
+        /// </summary>
+        public void Motion(int firstVertex, float breath, bool twitch = false)
+        {
+            for (int v = firstVertex; v < data.Count; v++)
+            {
+                var d = data[v];
+                d.z = twitch ? -2f - breath : -breath;
+                data[v] = d;
+            }
         }
 
         /// <summary>Bounding sphere around (0, centreY, 0).</summary>

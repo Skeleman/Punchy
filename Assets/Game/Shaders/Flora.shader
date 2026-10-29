@@ -197,15 +197,33 @@ Shader "Punchy/Flora"
                     }
                 }
 
+                // Bark veined with cool light (FloraSpecies.GlowingVeins, marked as Bark + 0.4): the same crack network,
+                // its light flowing slowly up the trunk.
+                if (part == 0 && input.extra.x > 0.32)
+                {
+                    float3 q = input.positionWS * float3(1.6, 0.6, 1.6);
+                    float vein = abs(PunchyValueNoise(q.xz + q.y * 1.3 + r * 9.0) - 0.5) + abs(PunchyValueNoise(q.zy * 1.1 + 2.3) - 0.5) * 0.5;
+                    half veinLine = 1 - smoothstep(0.015, 0.05, vein);
+                    half flow = 0.35 + 0.65 * pow(0.5 + 0.5 * sin(_PunchyClock * 0.8 - input.positionWS.y * 1.4 + r * 30), 3);
+                    color += half3(0.35, 0.75, 1.0) * veinLine * flow * 1.8;
+                }
                 // Bark with glowing seams (FloraSpecies.GlowingSeams, marked as Bark + 0.25): a network of thin cracks
                 // where value noise crosses its midline, pulsing slowly along the trunk, hot as embers under char.
-                if (part == 0 && input.extra.x > 0.15)
+                else if (part == 0 && input.extra.x > 0.15)
                 {
                     float3 q = input.positionWS * float3(2.2, 0.9, 2.2);
                     float vein = abs(PunchyValueNoise(q.xz + q.y * 1.7 + r * 13.0) - 0.5) + abs(PunchyValueNoise(q.zy * 1.3 + 4.1) - 0.5) * 0.6;
                     half crack = 1 - smoothstep(0.02, 0.07, vein);
                     half pulse = 0.65 + 0.35 * sin(_PunchyClock * 1.3 - input.positionWS.y * 0.8 + r * 20);
                     color = color * (1 - crack * 0.6) + half3(1.0, 0.36, 0.08) * crack * pulse * 2.4;
+                }
+
+                // A bark face's eyes (part 9): a faint glow in its colour that blinks shut for a moment every few seconds.
+                if (part == 9)
+                {
+                    float beat = frac(_PunchyClock * 0.17 + r * 5.3);
+                    half open = beat > 0.97 ? 0 : 1;
+                    color = albedo * (0.08 + 1.4 * open * lerp(0.6, 1.4, _PunchyNight));
                 }
 
                 // Glowing parts shine by themselves (bright enough to bloom at night), with a gentle, slow shimmer of
