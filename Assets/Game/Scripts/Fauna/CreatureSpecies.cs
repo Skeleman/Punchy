@@ -246,7 +246,9 @@ namespace Punchy.Fauna
         // A child poking at the ground with a stick (not an idle action any species picks).
         Poke,
         // A guard drawing its weapon from its sheath (on its back or at its hip), or putting it away.
-        Draw, Sheathe
+        Draw, Sheathe,
+        // A player climbing up onto a ledge: hands on the rim, pulling up, a knee coming up over.
+        Mantle
     }
 
     public enum ActiveTime : byte

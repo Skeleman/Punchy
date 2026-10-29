@@ -471,7 +471,11 @@ namespace Punchy.Fauna
             {
                 SpeedFactor = humanRun > 0f ? math.clamp(b.RunSpeed * size / humanRun, 0.35f, 2.5f) : 1f,
                 Flies = b.Habitat == Habitat.Flies,
-                FlySpeed = b.FlySpeed
+                FlySpeed = b.FlySpeed,
+                Climbs = b.Hands || b.Climbing > 0f || b.Crawls,
+                Size = human >= 0 && blobs[human].Value.StandHeight > 0f
+                    ? math.clamp(b.StandHeight * size / (blobs[human].Value.StandHeight * (blobs[human].Value.Size.x + blobs[human].Value.Size.y) * 0.5f), 0.25f, 3f)
+                    : 1f
             };
             if (!em.CreateEntityQuery(typeof(Punchy.Player.PlayerBody)).TryGetSingletonEntity<Punchy.Player.PlayerBody>(out var bodyEntity))
                 bodyEntity = em.CreateEntity(typeof(Punchy.Player.PlayerBody));

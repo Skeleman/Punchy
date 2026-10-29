@@ -656,6 +656,19 @@ namespace Punchy.Fauna
                     if (part.Role == LimbRole.Arm && joint == 0) return new float3(-0.25f * w, 0f, 0f);
                     break;
                 }
+                case IdleAction.Mantle:
+                {
+                    // Hands up on the rim in front, pulled up to it; then, the body past the rim, pressing down on the top
+                    // with a knee coming up to get a leg over. (Its ActionTime runs with the climb: see PlayerAvatarSystem.)
+                    var over = math.smoothstep(0.35f, 0.65f, (t - 0.12f) / 0.73f);
+                    if (part.Role == LimbRole.Arm)
+                        return (joint == 0 ? new float3(math.lerp(-2.3f, -0.5f, over), 0f, -part.Side * 0.15f) :
+                                joint == 1 ? new float3(math.lerp(-0.5f, -0.15f, over), 0f, 0f) : float3.zero) * e;
+                    if (part.Role == LimbRole.Leg && part.Side > 0f)
+                        return (joint == 0 ? new float3(-1.3f * over, 0f, 0f) : joint == 1 ? new float3(1.4f * over, 0f, 0f) : float3.zero) * e;
+                    if (part.Role == LimbRole.Head) return new float3(-0.2f * e, 0f, 0f);
+                    break;
+                }
                 case IdleAction.Cheer:
                 {
                     // Both arms flung up and shaken, face to the sky.

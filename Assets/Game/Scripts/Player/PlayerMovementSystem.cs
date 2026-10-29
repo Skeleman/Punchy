@@ -12,7 +12,10 @@ namespace Punchy.Player
     /// of the body they're in. A flying body takes off with a jump and flies by the same rules as the birds
     /// (CreatureMotion): it steers where the camera looks, climbs (jump held) or dives (sprint button held) at most 35°,
     /// never slows below its minimum airspeed, glides when it isn't beating its wings, and flares to land.
-    /// Ground height comes straight from TerrainSource, so the player never depends on which chunks are loaded.
+    /// Ground height comes straight from TerrainSource, so the player never depends on which chunks are loaded; and the
+    /// walkable tops of props near the player (PropSupport: rocks, roofs, rims, benches) are ground too: stepped up onto
+    /// when low (StepUp), walls when too high, slid off when steeper than 45°, and climbed onto when within reach (a
+    /// mantle: up at the wall to the rim's height, then over onto the top) by bodies that can climb.
     /// </summary>
     [BurstCompile]
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
@@ -39,6 +42,11 @@ namespace Punchy.Player
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
             var body = SystemAPI.TryGetSingleton<PlayerBody>(out var playerBody) ? playerBody : new PlayerBody { SpeedFactor = 1f };
             SystemAPI.TryGetSingletonBuffer<FloraObstacle>(out var obstacles, true);
+            var hasProps = SystemAPI.TryGetSingletonBuffer<FloraSupport>(out var props, true);
+            var hasGrids = SystemAPI.TryGetSingleton<SupportGrids>(out var grids);
+            var tops = hasProps && hasGrids && grids.Set.IsCreated;
+            var size = body.Size > 0f ? body.Size : 1f;
+            var stepUp = StepUp * size;
 
             foreach (var (transform, motor, motion) in
                      SystemAPI.Query<RefRW<LocalTransform>, RefRO<PlayerMotor>, RefRW<PlayerMotion>>().WithAll<PlayerTag>())
@@ -65,6 +73,24 @@ namespace Punchy.Player
                     Fly(ref t, ref m, body, input, terrain, settings, inCave, dt);
                     continue;
                 }
+                // Climbing onto a ledge: hands on the rim, pulled up at the wall to its height, then a leg over and onto
+                // the top.
+                if (m.Mantle > 0f)
+                {
+                    m.Mantle += dt / MantleTime;
+                    var u = math.saturate(m.Mantle);
+                    var up = new float3(m.MantleFrom.x, m.MantleTo.y, m.MantleFrom.z);
+                    t.Position = u < 0.6f ? math.lerp(m.MantleFrom, up, math.smoothstep(0f, 1f, u / 0.6f))
+                                          : math.lerp(up, m.MantleTo, math.smoothstep(0f, 1f, (u - 0.6f) / 0.4f));
+                    if (u >= 1f)
+                    {
+                        m.Mantle = 0f;
+                        m.Grounded = true;
+                        m.OnProp = true;
+                        m.VerticalVelocity = 0f;
+                    }
+                    continue;
+                }
 
                 var pace = input.Walk ? Stroll : settings.WalkSpeed * (input.Sprint ? settings.SprintMultiplier : 1f);
                 var speed = pace * math.max(body.SpeedFactor, 0.1f) * (swimming ? settings.SwimSpeedMultiplier : 1f);
@@ -79,9 +105,31 @@ namespace Punchy.Player
                     position.xz += water.Flow * current * dt;
                 }
                 if (obstacles.IsCreated)
-                    position.xz = SlideAroundObstacles(obstacles, position, settings.Radius);
+                    position.xz = SlideAroundObstacles(obstacles, position, settings.Radius, stepUp);
                 if (inCave)
                     position.xz = KeepOutOfCaveWalls(terrain, from, position.xz, settings.Radius);
+                // Props' tops too high to step onto are walls (a boulder, a fountain's rim from outside): slid along.
+                var blocked = false;
+                if (tops)
+                    position.xz = KeepOutOfPropWalls(ref grids.Set.Value, props, from, position.xz, stepUp, 1.7f * size, out blocked);
+
+                // A ledge within reach ahead: climbed onto, for a jump at it (or reaching it in the air, pressing on).
+                var pressing = math.lengthsq(input.MoveDirection) > 0.04f;
+                if (tops && body.Climbs && !swimming && pressing && (input.JumpPressed || !m.Grounded && blocked) &&
+                    PropSupport.Ledge(ref grids.Set.Value, props, from, math.normalize(input.MoveDirection), 0.9f * size, stepUp,
+                                      MantleReach * size, out var ledge))
+                {
+                    m.Mantle = 1e-4f;
+                    m.MantleFrom = from;
+                    m.MantleTo = ledge.Edge - new float3(ledge.EdgeNormal.x, 0f, ledge.EdgeNormal.y) * (settings.Radius + 0.15f);
+                    m.MantleTo.y = ledge.Height;
+                    m.Grounded = false;
+                    m.VerticalVelocity = 0f;
+                    t.Position = from;
+                    var face = -ledge.EdgeNormal;
+                    t.Rotation = quaternion.LookRotationSafe(new float3(face.x, 0f, face.y), math.up());
+                    continue;
+                }
 
                 if (m.Grounded && input.JumpPressed)
                 {
@@ -90,6 +138,15 @@ namespace Punchy.Player
                 }
 
                 Floor(terrain, position, settings.SwimDepth, out var ground, out _);
+                // Standing on a prop's top, if it's higher than the ground there; slid off it where it's steep.
+                m.OnProp = false;
+                if (tops && PropSupport.Sample(ref grids.Set.Value, props, position, settings.Radius * 0.6f, stepUp, out var top) && top.Height > ground)
+                {
+                    ground = top.Height;
+                    m.OnProp = true;
+                    if (m.Grounded && top.Normal.y < SlideSlope && math.lengthsq(top.Normal.xz) > 1e-6f)
+                        position.xz += math.normalize(top.Normal.xz) * SlideSpeed * dt;
+                }
                 if (m.Grounded && position.y - ground <= settings.GroundSnapDistance + speed * dt)
                 {
                     // Walking: follow the ground up and down slopes.
@@ -177,14 +234,41 @@ namespace Punchy.Player
             t.Rotation = quaternion.RotateY(yaw);
         }
 
-        /// <summary>Pushes the player out of any trunk or cactus they walked into, so they slide around it.</summary>
-        static float2 SlideAroundObstacles(in DynamicBuffer<FloraObstacle> obstacles, float3 position, float radius)
+        /// <summary>The highest a body of human size steps up onto without a climb (m).</summary>
+        const float StepUp = 0.4f;
+        /// <summary>The highest ledge (above the feet) a body of human size climbs onto, and how long it takes (s).</summary>
+        const float MantleReach = 1.8f, MantleTime = 0.8f;
+        /// <summary>Steeper than this (a surface normal's up part: 45°) a top slides you off, at this speed (m/s).</summary>
+        const float SlideSlope = 0.707f, SlideSpeed = 3f;
+
+        /// <summary>
+        /// A move into a prop's top too high to step onto is cut back to whichever of its X and Z parts is clear (sliding
+        /// along it), or cancelled; blocked says it was stopped at all.
+        /// </summary>
+        static float2 KeepOutOfPropWalls(ref SupportGridSet set, in DynamicBuffer<FloraSupport> props, float3 from, float2 to,
+                                         float stepUp, float head, out bool blocked)
+        {
+            blocked = PropSupport.Wall(ref set, props, new float3(to.x, from.y, to.y), stepUp, head, out _);
+            if (!blocked)
+                return to;
+            var slideX = new float2(to.x, from.z);
+            if (!PropSupport.Wall(ref set, props, new float3(slideX.x, from.y, slideX.y), stepUp, head, out _))
+                return slideX;
+            var slideZ = new float2(from.x, to.y);
+            return !PropSupport.Wall(ref set, props, new float3(slideZ.x, from.y, slideZ.y), stepUp, head, out _) ? slideZ : from.xz;
+        }
+
+        /// <summary>
+        /// Pushes the player out of any trunk or cactus they walked into, so they slide around it (not a building's walls
+        /// when they're up on its roof: anything topping out below a step up from the feet is passed over).
+        /// </summary>
+        static float2 SlideAroundObstacles(in DynamicBuffer<FloraObstacle> obstacles, float3 position, float radius, float stepUp)
         {
             var xz = position.xz;
             for (int i = 0; i < obstacles.Length; i++)
             {
                 var o = obstacles[i];
-                if (position.y > o.Position.y + o.Height || position.y + 1.8f < o.Position.y)
+                if (position.y + stepUp > o.Position.y + o.Height || position.y + 1.8f < o.Position.y)
                     continue;
                 var away = xz - o.Position.xz;
                 var minDistance = o.Radius + radius;

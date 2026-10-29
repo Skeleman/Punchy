@@ -34,6 +34,14 @@ namespace Punchy.Player
         public float Airspeed, Pitch;
         /// <summary>Beating its wings this frame (climbing, or pressing on), rather than gliding.</summary>
         public bool Flapping;
+        /// <summary>
+        /// Climbing up onto a ledge (0 when not): how far through (0..1); from where, the rim's height, and where it
+        /// ends up on top.
+        /// </summary>
+        public float Mantle;
+        public float3 MantleFrom, MantleTo;
+        /// <summary>Standing on a prop's top (a roof, a rock, a rim), rather than the ground.</summary>
+        public bool OnProp;
     }
 
     /// <summary>
@@ -45,6 +53,10 @@ namespace Punchy.Player
         public float SpeedFactor;
         public bool Flies;
         public float FlySpeed;
+        /// <summary>Can climb up onto ledges (a body with hands, or a climber); others only step up and drop down.</summary>
+        public bool Climbs;
+        /// <summary>Its height next to a human's (steps, reach and ledges scale with it); 0 reads as 1.</summary>
+        public float Size;
     }
 
     /// <summary>Singleton written by PlayerInputSystem each frame. MoveDirection is world-space XZ, length 0..1.</summary>
