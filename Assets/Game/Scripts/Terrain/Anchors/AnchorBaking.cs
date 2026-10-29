@@ -136,8 +136,15 @@ namespace Punchy.Terrain
                             break;
                         }
                         default:
-                            Add(AnchorKind.Door, door, plot.Facing, 0.6f, 1, t);
+                        {
+                            // At the building's own door where its form says where that is (scaled for its folk): on a
+                            // deep plot, three quarters of the way out can be several metres short of the house.
+                            var species = plot.Building < buildings.Count ? buildings[plot.Building].Species : null;
+                            var front = species != null ? Punchy.Flora.FloraGenerator.DoorFront(species) : -1f;
+                            var at = front > 0f ? plot.Centre + plot.Facing * (front * set.Layouts[town.Layout].BuildingScale + 0.6f) : door;
+                            Add(AnchorKind.Door, at, plot.Facing, 0.6f, 1, t);
                             break;
+                        }
                     }
                 }
                 // Wells and fountains: wherever the landmark type places one.

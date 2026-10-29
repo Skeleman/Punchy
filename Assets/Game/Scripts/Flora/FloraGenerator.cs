@@ -2328,6 +2328,25 @@ namespace Punchy.Flora
         /// </summary>
         const float HumanDoor = 2.4f;
 
+        /// <summary>
+        /// How far in front of its origin a building's door stands (along +Z, unscaled, at its mean height), or -1 for
+        /// forms without one or where it isn't known. The same sums as the builders (Hut, StoneHouse, Tower, Inn, Hall), so
+        /// a Door anchor can stand at the door itself (AnchorBaking); variants differ from it by their height's spread.
+        /// </summary>
+        public static float DoorFront(FloraSpecies s)
+        {
+            var half = (s.Height.x + s.Height.y) * 0.5f * s.Spread * 0.5f;
+            return s.Form switch
+            {
+                FloraForm.Hut => half * 1.05f,
+                FloraForm.StoneHouse => half + 0.02f,
+                FloraForm.Tower => half * 1.38f + 0.05f,
+                FloraForm.Inn => half * 0.8f + 0.02f,
+                FloraForm.Hall => half * 0.55f + 0.04f,
+                _ => -1f
+            };
+        }
+
         /// <summary>A doorway in a wall facing +Z, at distance <paramref name="front"/> (see Door).</summary>
         static void Doorway(Grower g, float front, float width, float height) =>
             Door(g, new Vector3(0f, 0f, front), Quaternion.identity, width, height);
