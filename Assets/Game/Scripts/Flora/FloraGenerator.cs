@@ -1216,8 +1216,8 @@ namespace Punchy.Flora
         /// <summary>Forms people can climb onto and stand on (their tops go into PropSupport).</summary>
         public static bool Standable(FloraForm form) => Founded(form) || form switch
         {
-            FloraForm.Boulder or FloraForm.Spire or FloraForm.Den or FloraForm.Log or FloraForm.Woodpile or FloraForm.IceArch or
-            FloraForm.FirePit => true,
+            FloraForm.Boulder or FloraForm.Spire or FloraForm.Den or FloraForm.Log or FloraForm.Woodpile or FloraForm.IceArch => true,
+            // Not fire pits: nobody stands in the flames (their ring collider keeps people out).
             _ => false
         };
 
