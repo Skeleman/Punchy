@@ -305,7 +305,10 @@ namespace Punchy.Fauna
                              "camp, and goes back for more; home at dusk.")] Mine,
         [UnityEngine.Tooltip("A traveller on the roads between towns (FaunaDirector puts one on a road now and then, out of " +
                              "sight): walks briskly along it, staff in hand and pack on its back, to the town at its end, and " +
-                             "stays there a while as a visitor.")] Travel
+                             "stays there a while as a visitor.")] Travel,
+        [UnityEngine.Tooltip("A messenger bird (FaunaDirector sends one to a town a player is in, now and then): flies in " +
+                             "from the direction of another town with a rolled message, lands by one of the townsfolk, who " +
+                             "takes it and reads it, and flies off towards another town.")] Messenger
     }
 
     /// <summary>
@@ -367,7 +370,9 @@ namespace Punchy.Fauna
         /// <summary>A sack of ore carried in both arms, out of the mine to the camp (the pick on its back).</summary>
         OreSack,
         /// <summary>A traveller's walking staff in the right hand (and a pack on its back).</summary>
-        Staff
+        Staff,
+        /// <summary>A rolled message: on a messenger bird's leg, then in the hands of the one who took it, reading it.</summary>
+        Letter
     }
 
     /// <summary>A town guard's weapon, by its folk: how long, and where it's worn sheathed.</summary>

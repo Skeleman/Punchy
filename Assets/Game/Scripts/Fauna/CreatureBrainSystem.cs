@@ -238,7 +238,9 @@ namespace Punchy.Fauna
                 var aloft = s.Mode == CreatureMode.Climb && s.Stage >= 1 || s.Mode == CreatureMode.Web && s.Stage >= 1 ||
                             s.Mode == CreatureMode.Burrow && s.Stage >= 1 || s.Mode == CreatureMode.Roost ||
                             // (In someone's hands, it isn't afraid of them.)
-                            s.Mode == CreatureMode.Held || s.Mode == CreatureMode.Petted;
+                            s.Mode == CreatureMode.Held || s.Mode == CreatureMode.Petted ||
+                            // (Nor a messenger bird of the folk it's come to.)
+                            s.Task == CreatureTask.Messenger;
                 // Settlements' animals are used to people: they let them come close (not predators, though).
                 var tame = s.Leash > 0f && !b.Upright ? 0.3f : 1f;
 
@@ -402,6 +404,16 @@ namespace Punchy.Fauna
                     s.Target = ashore;
                 }
 
+                // A messenger bird coming to this one: it stops what it's doing to meet it.
+                if (b.Upright && b.Hands && s.Leash > 0f && Free(s.Mode) && !(s.Mode == CreatureMode.Idle && s.Stage >= MessageWait) &&
+                    rng.NextFloat() < 0.25f && FindMessenger(self, in s, out var messenger))
+                {
+                    SetMode(ref s, CreatureMode.Idle);
+                    s.Stage = MessageWait;
+                    s.Partner = messenger;
+                    s.Timer = 40f;
+                }
+
                 var targetSpeed = 0f;
                 var desiredLook = 0f;
                 var moving = false;
@@ -422,6 +434,11 @@ namespace Punchy.Fauna
                 switch (s.Mode)
                 {
                     case CreatureMode.Idle:
+                        if (s.Stage >= MessageWait)
+                        {
+                            Receiving(ref s, ref b, ref rng, dt);
+                            break;
+                        }
                         // An idle action under way finishes before it moves on.
                         if (s.Action == IdleAction.None)
                             s.Timer -= dt;
@@ -653,6 +670,12 @@ namespace Punchy.Fauna
                             Travelling(ref s, ref b, ref rng, dt, walk);
                             break;
                         }
+                        if (s.Task == CreatureTask.Messenger)
+                        {
+                            custom = true;
+                            Messenger(ref s, ref b, ref rng, dt, ref vertical);
+                            break;
+                        }
                         // (A fisher's time at the water starts when it gets there, however far it had to walk.)
                         if (s.Stage >= 1 || s.Task != CreatureTask.Fish)
                             s.Timer -= dt;
@@ -844,6 +867,9 @@ namespace Punchy.Fauna
                 // A traveller has its staff by day, a lantern after dark.
                 else if (s.Task == CreatureTask.Travel && s.Mode == CreatureMode.Work)
                     s.Held = Night > 0.5f ? HeldItem.Lantern : HeldItem.Staff;
+                // Reading a message just taken from a messenger bird. (The bird's own letter, Messenger sees to.)
+                else if (s.Mode == CreatureMode.Idle && s.Stage == MessageRead && b.Hands)
+                    s.Held = HeldItem.Letter;
                 // (A miner at work has its pick, or a sack of ore: Mining says which.)
                 else if (s.Task == CreatureTask.Mine && s.Mode == CreatureMode.Work)
                 {
@@ -2269,6 +2295,163 @@ namespace Punchy.Fauna
                     } while (Grid.TryGetNextValue(out j, ref it));
                 }
                 return false;
+            }
+
+            // ------------------------------------------------------------------------------- messenger birds
+
+            /// <summary>Idle-mode stages of one of the townsfolk a messenger bird has come to: waiting for it, taking the
+            /// message, reading it.</summary>
+            const byte MessageWait = 60, MessageTake = 61, MessageRead = 62;
+
+            /// <summary>
+            /// A messenger bird with a message: in over the town to one of the townsfolk about the place (the nearest to
+            /// it, re-chosen if that one goes in), down to land in front of them (0); on the ground, waiting while they
+            /// take it (1); then up and away towards the town it's making for next (2), where it's an ordinary bird again.
+            /// </summary>
+            void Messenger(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, ref float vertical)
+            {
+                var hasThem = Lookup.TryGetValue(s.Partner, out var r);
+                if (s.Stage == 0)
+                {
+                    if (!hasThem || !Receiver(States[r], ref Bodies[r].Blob.Value, s.Home) && !(States[r].Mode == CreatureMode.Idle && States[r].Stage == MessageWait))
+                    {
+                        s.Partner = FindReceiver(s.Position.xz, s.Home);
+                        if (s.Partner == Entity.Null || s.StageTime > 120f)
+                        {
+                            NextStage(ref s);
+                            s.Stage = 2;
+                        }
+                        FlyTo(ref s, ref b, s.Home, Cruise(s, ref b, s.Home), b.FlySpeed, dt, ref vertical);
+                        return;
+                    }
+                    var them = States[r];
+                    var front = them.Position.xz + math.normalizesafe(s.Position.xz - them.Position.xz) * 0.7f;
+                    if (FlyTo(ref s, ref b, front, Terrain.SampleHeight(front), b.FlySpeed, dt, ref vertical))
+                        NextStage(ref s);
+                    else if (s.StageTime > 120f)
+                    {
+                        NextStage(ref s);
+                        s.Stage = 2;
+                    }
+                }
+                else if (s.Stage == 1)
+                {
+                    s.Speed = 0f;
+                    if (hasThem)
+                    {
+                        var to = States[r].Position.xz - s.Position.xz;
+                        s.Yaw = WrapAngle(s.Yaw + math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -b.TurnRate * dt, b.TurnRate * dt));
+                    }
+                    // Off once the message is taken (or nobody comes for it).
+                    var taken = hasThem && States[r].Mode == CreatureMode.Idle && States[r].Stage == MessageRead;
+                    if (taken)
+                        s.Held = HeldItem.None;
+                    if (taken && s.StageTime > 1f || s.StageTime > 10f)
+                        NextStage(ref s);
+                }
+                else
+                {
+                    if (FlyTo(ref s, ref b, s.WorkSpot, Cruise(s, ref b, s.WorkSpot) + 10f, b.FlySpeed, dt, ref vertical))
+                    {
+                        s.Task = CreatureTask.None;
+                        s.Held = HeldItem.None;
+                        Pause(ref s, ref b, ref rng);
+                    }
+                }
+            }
+
+            /// <summary>One of the townsfolk who could take a message: grown, about the town (not indoors, asleep, at a post
+            /// or on guard), near its middle.</summary>
+            static bool Receiver(in CreatureState o, ref CreatureBlob ob, float2 town) =>
+                ob.Upright && ob.Hands && !ob.Child && o.Leash > 0f && Free(o.Mode) && !(o.Mode == CreatureMode.Idle && o.Stage >= MessageWait) &&
+                o.Task != CreatureTask.Patrol && o.Task != CreatureTask.Watch && math.distance(o.Position.xz, town) < 60f;
+
+            /// <summary>The one of the townsfolk nearest the bird who could take its message, or none.</summary>
+            Entity FindReceiver(float2 from, float2 town)
+            {
+                var best = Entity.Null;
+                var d = float.MaxValue;
+                for (int j = 0; j < States.Length; j++)
+                {
+                    if (!Receiver(States[j], ref Bodies[j].Blob.Value, town))
+                        continue;
+                    var dj = math.distancesq(States[j].Position.xz, from);
+                    if (dj < d)
+                    {
+                        d = dj;
+                        best = Entities[j];
+                    }
+                }
+                return best;
+            }
+
+            /// <summary>A messenger bird coming down to this one (within a cell or so).</summary>
+            bool FindMessenger(Entity self, in CreatureState s, out Entity bird)
+            {
+                bird = Entity.Null;
+                var c = Cell(s.Position.xz);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        var o = States[j];
+                        if (o.Task == CreatureTask.Messenger && o.Mode == CreatureMode.Work && o.Stage <= 1 && o.Partner == self &&
+                            math.distance(o.Position.xz, s.Position.xz) < 25f)
+                        {
+                            bird = Entities[j];
+                            return true;
+                        }
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return false;
+            }
+
+            /// <summary>
+            /// One of the townsfolk a messenger bird has come to: stands and turns to it as it comes down (60); once it's
+            /// landed in front, bends to take the message from its leg (61); then reads it a while (62), and goes about
+            /// its day.
+            /// </summary>
+            void Receiving(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
+            {
+                var hasBird = Lookup.TryGetValue(s.Partner, out var j);
+                var bird = hasBird ? States[j] : default;
+                if (hasBird)
+                {
+                    var to = bird.Position.xz - s.Position.xz;
+                    if (s.Stage < MessageRead && math.lengthsq(to) > 1e-4f)
+                        s.Yaw = WrapAngle(s.Yaw + math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -b.TurnRate * dt, b.TurnRate * dt));
+                }
+                if (s.Stage == MessageWait)
+                {
+                    s.Timer -= dt;
+                    if (!hasBird || bird.Task != CreatureTask.Messenger || bird.Stage == 2 || s.Timer <= 0f)
+                        Pause(ref s, ref b, ref rng);
+                    else if (bird.Stage == 1 && math.distance(bird.Position.xz, s.Position.xz) < 2.5f)
+                    {
+                        NextStage(ref s);
+                        s.Action = IdleAction.Pet;
+                        s.ActionTime = 0f;
+                        s.ActionLength = 1.6f;
+                    }
+                }
+                else if (s.Stage == MessageTake)
+                {
+                    if (s.StageTime > 1.6f)
+                    {
+                        NextStage(ref s);
+                        s.Action = IdleAction.None;
+                        s.Timer = rng.NextFloat(8f, 14f);
+                    }
+                }
+                else
+                {
+                    s.Timer -= dt;
+                    if (s.Timer <= 0f)
+                        Pause(ref s, ref b, ref rng);
+                }
             }
 
             // ------------------------------------------------------------------------------- travelling
@@ -3818,6 +4001,7 @@ namespace Punchy.Fauna
             /// <summary>Whether a flying species is in the air now (flying somewhere, fleeing or hunting).</summary>
             static bool Flying(in CreatureState s) =>
                 (s.Mode == CreatureMode.Wander || s.Mode == CreatureMode.Hunt) && s.Stage >= 1 || s.Mode == CreatureMode.Flee ||
+                s.Mode == CreatureMode.Work && s.Task == CreatureTask.Messenger && s.Stage != 1 ||
                 s.Mode == CreatureMode.Roost && s.Stage != 200;
 
             /// <summary>

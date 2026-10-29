@@ -173,6 +173,11 @@ namespace Punchy.Fauna
                 nextTraveller = Time.time + rng.NextFloat(60f, 120f);
                 SpawnTraveller(source);
             }
+            if (Time.time >= nextMessenger)
+            {
+                nextMessenger = Time.time + rng.NextFloat(120f, 240f);
+                SpawnMessenger(source);
+            }
             spawnBudget = math.min(spawnBudget + SpawnRate * players.Count * Time.deltaTime, 3f * players.Count);
             while (spawnBudget >= 1f)
             {
@@ -753,6 +758,61 @@ namespace Punchy.Fauna
         }
 
         float nextTraveller;
+        float nextMessenger = 30f;
+
+        /// <summary>
+        /// Now and then (every two to four minutes) a messenger bird for a town a player is in: a pigeon high over the
+        /// way to another town, 90 m out, with a message (the brain's Messenger task brings it in to one of the townsfolk,
+        /// then sends it off towards a third town, or back); one at a time.
+        /// </summary>
+        void SpawnMessenger(in TerrainSource source)
+        {
+            if (!source.Settlements.IsCreated || simWorld == null)
+                return;
+            var em = simWorld.EntityManager;
+            using (var q = em.CreateEntityQuery(typeof(CreatureState)))
+            {
+                var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+                var flying = false;
+                for (int i = 0; i < states.Length && !flying; i++)
+                    flying = states[i].Task == CreatureTask.Messenger;
+                states.Dispose();
+                if (flying)
+                    return;
+            }
+            var pigeon = -1;
+            for (int i = 0; i < species.Count; i++)
+                if (species[i] != null && species[i].name == "Pigeon")
+                    pigeon = i;
+            ref var set = ref source.Settlements.Value;
+            if (pigeon < 0 || set.Settlements.Length < 2)
+                return;
+            var player = players[rng.NextInt(players.Count)];
+            var town = -1;
+            for (int t = 0; t < set.Settlements.Length && town < 0; t++)
+                if (math.distance(set.Settlements[t].Centre, player.xz) < set.Settlements[t].Radius + 20f)
+                    town = t;
+            if (town < 0)
+                return;
+            var from = (town + 1 + rng.NextInt(set.Settlements.Length - 1)) % set.Settlements.Length;
+            var to = (town + 1 + rng.NextInt(set.Settlements.Length - 1)) % set.Settlements.Length;
+            var centre = set.Settlements[town].Centre;
+            var start = centre + math.normalizesafe(set.Settlements[from].Centre - centre, new float2(1f, 0f)) * 90f;
+            var e = Spawn(pigeon, new float3(start.x, source.SampleHeight(start) + 25f, start.y));
+            var state = em.GetComponentData<CreatureState>(e);
+            state.Position.y = source.SampleHeight(start) + 25f;
+            state.Task = CreatureTask.Messenger;
+            state.Mode = CreatureMode.Work;
+            state.Stage = 0;
+            state.StageTime = 0f;
+            state.Partner = Entity.Null;
+            state.Home = centre;
+            state.Leash = 0f;
+            state.WorkSpot = set.Settlements[to].Centre;
+            state.Held = HeldItem.Letter;
+            state.AnchorSize = 0f;
+            em.SetComponentData(e, state);
+        }
 
         /// <summary>
         /// Now and then (every minute or two) a traveller on a road between towns, a way off from a player (40 to 160 m,

@@ -322,6 +322,14 @@ namespace Punchy.Fauna
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.7f);
                         a.x += j == 0 ? -0.3f : j == 1 ? -0.7f : 0f;
                     }
+                    // Reading a message: both hands up in front holding it open, head bent to it.
+                    if (b.Upright && s.Held == HeldItem.Letter && part.Role == LimbRole.Arm)
+                    {
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.85f);
+                        a += j == 0 ? new float3(-0.45f, 0f, part.Side * 0.35f) : j == 1 ? new float3(-1.8f, 0f, 0f) : float3.zero;
+                    }
+                    if (b.Upright && s.Held == HeldItem.Letter && part.Role == LimbRole.Head)
+                        a.x += 0.3f;
                     // A sack of ore carried in both arms against the chest.
                     if (part.Role == LimbRole.Arm && s.Held == HeldItem.OreSack)
                     {

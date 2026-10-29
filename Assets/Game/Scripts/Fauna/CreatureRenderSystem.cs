@@ -69,7 +69,7 @@ namespace Punchy.Fauna
         static int HeldCount(HeldItem held, CreatureTask task) => task == CreatureTask.Hunt && (held == HeldItem.Spear || held == HeldItem.SpearDrawn) ? 0 :
                                                held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.SpearDrawn || held == HeldItem.Torch ? GuardParts :
                                                held == HeldItem.Rod ? RodParts : held == HeldItem.Stick || held == HeldItem.Stone ? 1 :
-                                               held == HeldItem.Pickaxe || held == HeldItem.OreSack ? MinerParts : held == HeldItem.Staff ? 2 : 0;
+                                               held == HeldItem.Pickaxe || held == HeldItem.OreSack ? MinerParts : held == HeldItem.Staff || held == HeldItem.Letter ? 2 : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 0 : -1;
         /// <summary>Capsules per hanging bat, the most per roost, and how near the camera colonies show.</summary>
@@ -419,6 +419,45 @@ namespace Punchy.Fauna
                     Miner(state, ref body.Blob.Value, offset, held, faded);
                 else if (state.Held == HeldItem.Staff)
                     Traveller(state, ref body.Blob.Value, offset, held, faded);
+                else if (state.Held == HeldItem.Letter)
+                    Letter(state, ref body.Blob.Value, offset, held, faded);
+            }
+
+            /// <summary>
+            /// A rolled message: a little roll on a messenger bird's leg, under its body; in the hands of one reading it,
+            /// the roll across between the hands and the sheet hanging open from it, towards their face.
+            /// </summary>
+            void Letter(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
+            {
+                Output[at] = default;
+                Output[at + 1] = default;
+                var scale = Unity.Mathematics.math.max(state.Scale, 0.1f);
+                var forward = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
+                var right = new Unity.Mathematics.float3(forward.z, 0f, -forward.x);
+                var up = new Unity.Mathematics.float3(0f, 1f, 0f);
+                var paper = new Unity.Mathematics.float4(0.62f, 0.55f, 0.4f, 0f);
+                if (!b.Upright)
+                {
+                    var body = Output[offset];
+                    var leg = body.Position + Unity.Mathematics.math.mul(body.Rotation, new Unity.Mathematics.float3(0f, 0f, body.Length * 0.5f)) -
+                              up * Unity.Mathematics.math.max(body.RadiusStart, body.RadiusEnd) * 0.9f;
+                    Output[at] = Piece(leg - right * 0.025f, right, up, 0.05f, 0.012f, 0.012f, 1f, paper, faded, SegmentMaterial.Cloth);
+                    return;
+                }
+                int hand = -1;
+                for (int i = 0; i < b.Parts.Length && hand < 0; i++)
+                    if (b.Parts[i].Role == LimbRole.Arm && b.Parts[i].Side > 0f)
+                        hand = b.Parts[i].FirstSegment + b.Parts[i].SegmentCount - 1;
+                if (hand < 0)
+                    return;
+                var h = Output[offset + hand];
+                var grip = h.Position + Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, h.Length * 0.6f));
+                // (The roll from this hand across to the other; the sheet down from it, tipped back towards the reader.)
+                var rollFrom = grip + up * 0.02f * scale;
+                Output[at] = Piece(rollFrom, -right, up, 0.2f * scale, 0.018f * scale, 0.018f * scale, 1f, paper, faded, SegmentMaterial.Cloth);
+                var down = Unity.Mathematics.math.normalize(-up + forward * 0.35f);
+                Output[at + 1] = Piece(rollFrom - right * 0.1f * scale, down, forward, 0.16f * scale, 0.09f * scale, 0.09f * scale, 0.08f,
+                                       paper * 1.1f, faded, SegmentMaterial.Cloth);
             }
 
             /// <summary>A traveller's walking staff, planted ahead in the right hand, and a pack on its back.</summary>
