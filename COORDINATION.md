@@ -111,6 +111,7 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
 
 - A merge that changes a scene can raise Unity's "reload the scene?" dialog, which silently blocks the editor and
   the CLI. Check for it if the editor seems hung after a merge.
+- **Adding a landmark type to a biome list reshuffles the whole island** (LandmarkBaking places from one sequential random stream): caves change style, towns move, every bench coordinate goes stale. Flag it to the supervisor and kind-possum before pushing one; prefer props on existing landmarks where that works.
 - Watch line endings in shaders and assets; the world session added a pre-commit check after two accidents.
 
 ## Log
