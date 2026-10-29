@@ -51,7 +51,7 @@ MonoBehaviour:
     Count: 0
     Angle: 0
     Clearance: 4
-  - Species: {fileID: 11400000, guid: b6d022bd9487a0744bddd69571f71986, type: 2}
+  - Species: {fileID: 11400000, guid: c887decb958a4564ab754192d577157a, type: 2}
     Density: 5
     Ring: {x: 0, y: 1}
     Scale: {x: 1.6, y: 1.6}
@@ -90,9 +90,9 @@ MonoBehaviour:
   Effects:
   - Kind: 0
     Offset: {x: 0, y: 0}
-    Height: 4
-    Width: 1.2
-    Size: 0.07
+    Height: 3.5
+    Width: 0.8
+    Size: 0.025
     Particles: 30
     Lifetime: 1.5
     Color: {r: 1, g: 0.5, b: 0.15, a: 1}
@@ -100,6 +100,7 @@ MonoBehaviour:
     Glow: 5
     Period: 0
     Duty: 0.25
+    Flame: 0
   - Kind: 0
     Offset: {x: 0, y: 0}
     Height: 16
@@ -112,6 +113,20 @@ MonoBehaviour:
     Glow: 0
     Period: 0
     Duty: 0.25
+    Flame: 0
+  - Kind: 2
+    Offset: {x: 0, y: 0}
+    Height: 6
+    Width: 0.6
+    Size: 1
+    Particles: 5
+    Lifetime: 1
+    Color: {r: 1, g: 1, b: 1, a: 1}
+    Opacity: 1
+    Glow: 0
+    Period: 0
+    Duty: 0.25
+    Flame: 0
   Cave: 0
   CaveLength: 40
   CaveDepth: 8

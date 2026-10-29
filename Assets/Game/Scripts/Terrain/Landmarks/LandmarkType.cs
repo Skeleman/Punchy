@@ -17,8 +17,13 @@ namespace Punchy.Terrain
     public enum LandmarkEffectKind : byte
     {
         [Tooltip("Rising puffs: steam, smoke, geyser spouts, spray, sparkles.")] Plume,
-        [Tooltip("A curtain of falling water from Offset (the lip) out and down towards -X.")] Waterfall
+        [Tooltip("A curtain of falling water from Offset (the lip) out and down towards -X.")] Waterfall,
+        [Tooltip("Flames (FireSystem) at Offset: Particles tongues of fire Size high, spread over Width, in the Flame " +
+                 "palette. Drawn within 150 m. Pair it with a FirePit (or brazier) prop and an ember plume.")] Flame
     }
+
+    /// <summary>Flame colours (FireSystem's palettes).</summary>
+    public enum FlamePalette : byte { Wood, Blue, Green, Violet }
 
     /// <summary>A pool of still water in a landmark (oasis, spring, crater lake).</summary>
     [Serializable]
@@ -81,6 +86,8 @@ namespace Punchy.Terrain
         [Min(0f)] public float Period;
         [Tooltip("Share of each period the eruption lasts.")]
         [Range(0.02f, 1f)] public float Duty = 0.25f;
+        [Tooltip("Flame: the fire's colours (wood fire, or the blue, green and violet of strange fires).")]
+        public FlamePalette Flame;
     }
 
     [Serializable]

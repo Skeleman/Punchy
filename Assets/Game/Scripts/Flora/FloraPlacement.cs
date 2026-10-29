@@ -323,7 +323,7 @@ namespace Punchy.Flora
             FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tent or FloraForm.Tower or FloraForm.Stall or FloraForm.Inn or
             FloraForm.Smithy or FloraForm.Forum or FloraForm.Fountain or FloraForm.Woodpile or FloraForm.Well or
             FloraForm.Hall or FloraForm.Shrine or FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade or
-            FloraForm.Bench or FloraForm.Log or FloraForm.Stump => true,
+            FloraForm.Bench or FloraForm.Log or FloraForm.Stump or FloraForm.FirePit => true,
             _ => false
         };
 

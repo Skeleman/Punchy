@@ -23,6 +23,8 @@ namespace Punchy.Ambience
         public float Range = 700f;
         /// <summary>Cave waterfalls are drawn within this distance (small, and underground).</summary>
         const float CaveRange = 120f;
+        /// <summary>Flame effects are lit within this distance (they're small; FireSystem draws them each frame).</summary>
+        const float FlameRange = 150f;
         /// <summary>How far a cave's waterfall carries out from its notch as it falls (m).</summary>
         const float FallReach = 0.9f;
 
@@ -44,6 +46,8 @@ namespace Punchy.Ambience
 
         readonly List<Emitter> plumes = new List<Emitter>();
         readonly List<Emitter> falls = new List<Emitter>();
+        /// <summary>Nearby landmarks' flames (position, size; seed, palette), handed to FireSystem every frame.</summary>
+        readonly List<(Vector3 at, float size, int seed, int palette)> fires = new List<(Vector3, float, int, int)>();
         readonly List<int> nearby = new List<int>(), lastNearby = new List<int>();
         GraphicsBuffer plumeBuffer, fallBuffer;
         MaterialPropertyBlock plumeProps, fallProps;
@@ -87,6 +91,10 @@ namespace Punchy.Ambience
                 nextCheck = Time.unscaledTime + 0.5f;
                 Gather(source, palette.Landmarks, cam.transform.position);
             }
+            var eye = cam.transform.position;
+            foreach (var f in fires)
+                if ((f.at - eye).sqrMagnitude < FlameRange * FlameRange)
+                    FireSystem.AddFlame(f.at, f.size, f.seed, f.palette);
             Draw();
         }
 
@@ -136,6 +144,7 @@ namespace Punchy.Ambience
 
             plumes.Clear();
             falls.Clear();
+            fires.Clear();
             maxParticles = 1;
             float3 min = float.MaxValue, max = float.MinValue;
             foreach (var i in nearby)
@@ -207,6 +216,21 @@ namespace Punchy.Ambience
                         Shape = new float4(effect.Height * inst.Scale, effect.Width * inst.Scale, effect.Size * inst.Scale, effect.Lifetime),
                         Timing = new float4(effect.Period, effect.Duty, effect.Opacity, effect.Particles)
                     };
+                    if (effect.Kind == LandmarkEffectKind.Flame)
+                    {
+                        // Tongues of fire spread round the spot, each its own size and seed.
+                        var tongues = math.max(1, effect.Particles);
+                        for (int k = 0; k < tongues; k++)
+                        {
+                            var a = k * 2.39996f + emitter.Seed * 6.28f;
+                            var spread = tongues == 1 ? 0f : effect.Width * inst.Scale * 0.5f * math.sqrt((k + 0.5f) / tongues);
+                            var p = new float3(at.x + math.cos(a) * spread, y + 0.05f, at.y + math.sin(a) * spread);
+                            var size = effect.Size * inst.Scale * (1f - 0.35f * (spread / math.max(effect.Width * inst.Scale * 0.5f, 0.01f)));
+                            fires.Add((p, size, (int)(math.abs(inst.Seed) * 31 + e * 7 + k), (int)effect.Flame));
+                        }
+                        e++;
+                        continue;
+                    }
                     float top;
                     if (effect.Kind == LandmarkEffectKind.Waterfall)
                     {

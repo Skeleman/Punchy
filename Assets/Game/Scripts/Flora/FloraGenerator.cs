@@ -79,6 +79,7 @@ namespace Punchy.Flora
                     case FloraForm.Bench: Bench(g); break;
                     case FloraForm.Log: SeatLog(g); break;
                     case FloraForm.Stump: Stump(g); break;
+                    case FloraForm.FirePit: FirePit(g); break;
                     case FloraForm.Bones: Bones(g); break;
                     case FloraForm.Boulder: Boulder(g); break;
                     case FloraForm.Spire: Spire(g); break;
@@ -1262,6 +1263,61 @@ namespace Punchy.Flora
             b.Blob(Vector3.up * StumpSeat, new Vector3(r * 0.97f, 0.015f, r * 0.97f), Quaternion.identity, 1, 0f, 0f,
                    Color.Lerp(g.Bark, new Color(0.78f, 0.65f, 0.47f).linear, 0.75f), FloraPart.Bark);
             g.Colliders.Add(new Vector4(0f, 0f, r + 0.05f, StumpSeat));
+        }
+
+        /// <summary>
+        /// A fire pit: stones in a ring round a sunken ash bed, three or four charred logs leaning together over the
+        /// middle, and embers glowing in the ash (the flames are a landmark Flame effect drawn by FireSystem).
+        /// </summary>
+        static void FirePit(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var radius = g.Range(s.Height);
+            var stones = Mathf.Max(6, g.Count(s.Branches));
+            g.Height = radius * 0.8f;
+            g.Width = radius * 2.4f;
+            g.TrunkRadius = 0f;
+            // The ash bed, a little below the stones' feet.
+            b.Blob(Vector3.up * 0.01f, new Vector3(radius * 0.9f, 0.04f, radius * 0.9f), Quaternion.identity, 1, 0.2f, g.R() * 50f,
+                   new Color(0.09f, 0.085f, 0.08f), FloraPart.Bark);
+            // The ring: rough stones of varied size, each turned its own way.
+            var turn = g.R() * 6.28f;
+            for (int k = 0; k < stones; k++)
+            {
+                var a = turn + k * Mathf.PI * 2f / stones + g.Range(-0.12f, 0.12f);
+                var size = radius * g.Range(0.2f, 0.3f);
+                var at = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius + Vector3.up * size * 0.35f;
+                var stone = b.Blob(at, new Vector3(size, size * g.Range(0.6f, 0.85f), size * g.Range(0.8f, 1.1f)),
+                                   Quaternion.Euler(0f, -a * Mathf.Rad2Deg + g.Range(-20f, 20f), 0f), g.Lod == 0 ? 1 : 0, 0.35f, g.R() * 50f,
+                                   g.Bark * g.Range(0.85f, 1.1f), FloraPart.Bark);
+                b.Occlude(stone, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y + 0.5f)));
+            }
+            // Charred logs leaning together over the middle, blackening towards the burning ends.
+            var logs = g.R() < 0.5f ? 3 : 4;
+            var lean = g.R() * 6.28f;
+            var top = Vector3.up * radius * 0.55f;
+            for (int k = 0; k < logs; k++)
+            {
+                var a = lean + k * Mathf.PI * 2f / logs;
+                var foot = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius * 0.7f + Vector3.up * 0.03f;
+                b.Tube(new List<Vector3> { foot, Vector3.Lerp(foot, top, 0.6f), top + (foot - top) * -0.08f },
+                       new List<float> { radius * 0.09f, radius * 0.08f, radius * 0.05f }, g.Sides(6, 5, 4),
+                       g.FoliageColor() * 0.6f, FloraPart.Bark);
+            }
+            // Embers in the ash and on the logs' charred ends.
+            if (g.Lod < 2)
+            {
+                var ember = AccentAt(g, 0);
+                for (int k = 0; k < 9; k++)
+                {
+                    var a = g.R() * 6.28f;
+                    var at = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius * g.Range(0.05f, 0.55f) + Vector3.up * 0.04f;
+                    b.Blob(at, Vector3.one * radius * g.Range(0.04f, 0.08f), Quaternion.identity, 0, 0.3f, g.R() * 50f,
+                           ember * g.Range(0.7f, 1.2f), FloraPart.Glow);
+                }
+            }
+            g.Colliders.Add(new Vector4(0f, 0f, radius * 1.1f, radius * 0.4f));
         }
 
         static void Bones(Grower g)
