@@ -166,8 +166,8 @@ MonoBehaviour:
   GuardSash: {r: 0.62, g: 0.12, b: 0.1, a: 1}
   FlightHeight: {x: 4, y: 9}
   FlySpeed: 6
-  FlapRate: 11
-  Glide: 0
+  FlapRate: 9
+  Glide: 0.2
   Perching: 0.7
   Soars: 0
   Breaches: 0

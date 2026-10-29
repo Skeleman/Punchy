@@ -4199,12 +4199,24 @@ namespace Punchy.Fauna
                 NightLoop(ref s, ref b, ref rng);
             }
 
+            /// <summary>
+            /// A bat's jinking: its heading swings off the line to its target and back, a couple of times a second
+            /// (after insects), each bat on its own beat. None near the target, so it still lands and hangs up.
+            /// </summary>
+            static float Swerve(in CreatureState s, ref CreatureBlob b, float distance)
+            {
+                if (!b.Roosts || s.Fly < 0.5f)
+                    return 0f;
+                var own = (s.Individual % 89) * 0.37f;
+                return (0.7f * math.sin(s.Clock * 2.3f + own) + 0.45f * math.sin(s.Clock * 5.3f + own * 1.7f)) * math.saturate((distance - 2f) / 4f);
+            }
+
             /// <summary>Flies straight at a point (no ground to keep clear of: inside a cave). Returns the distance left.</summary>
             float FlyDirect(ref CreatureState s, ref CreatureBlob b, float3 target, float speed, float dt, ref float vertical)
             {
                 var to = target - s.Position;
                 var distance = math.length(to);
-                var wanted = WrapAngle(math.atan2(to.x, to.z) - s.Yaw);
+                var wanted = WrapAngle(math.atan2(to.x, to.z) - s.Yaw) + Swerve(s, ref b, distance);
                 var turn = math.clamp(wanted, -b.TurnRate * 2f * dt, b.TurnRate * 2f * dt);
                 s.Yaw = WrapAngle(s.Yaw + turn);
                 s.YawRate = turn / math.max(dt, 1e-4f);
@@ -4441,7 +4453,7 @@ namespace Punchy.Fauna
                 var to = target - s.Position.xz;
                 var distance = math.length(to);
                 // (Right over the spot the bearing means nothing: hold the heading.)
-                var wanted = distance < 0.1f ? 0f : WrapAngle(math.atan2(to.x, to.y) - s.Yaw);
+                var wanted = distance < 0.1f ? 0f : WrapAngle(math.atan2(to.x, to.y) - s.Yaw) + Swerve(s, ref b, distance);
                 var turnRate = b.TurnRate * 1.5f;
                 var turn = math.clamp(wanted, -turnRate * dt, turnRate * dt);
                 s.Yaw = WrapAngle(s.Yaw + turn);
