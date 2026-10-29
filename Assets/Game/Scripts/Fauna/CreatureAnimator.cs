@@ -973,12 +973,12 @@ namespace Punchy.Fauna
                 case LimbRole.Ear:
                     return new float3(-0.5f * run * part.Spring - s.Curl * 0.6f, s.Sway * part.Spring * 0.5f * part.Side, 0f);
                 case LimbRole.Head:
-                    return upright ? new float3(s.HeadDown * 0.5f + chew, 0f, -s.Look * 0.6f)
-                                   : new float3(s.HeadDown * 0.5f + chew, s.Look * 0.6f, 0f);
+                    return upright ? new float3(s.HeadDown * 0.5f + chew - s.LookPitch * 0.6f, 0f, -s.Look * 0.6f)
+                                   : new float3(s.HeadDown * 0.5f + chew - s.LookPitch * 0.6f, s.Look * 0.6f, 0f);
                 case LimbRole.Neck:
                     var n = math.max(part.SegmentCount, 1);
-                    return upright ? new float3(s.HeadDown * 1.5f / n, 0f, -s.Look * 0.4f / n)
-                                   : new float3(s.HeadDown * 1.5f / n, s.Look * 0.4f / n, 0f);
+                    return upright ? new float3((s.HeadDown * 1.5f - s.LookPitch * 0.4f) / n, 0f, -s.Look * 0.4f / n)
+                                   : new float3((s.HeadDown * 1.5f - s.LookPitch * 0.4f) / n, s.Look * 0.4f / n, 0f);
                 default:
                     return float3.zero;
             }

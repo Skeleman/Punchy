@@ -319,6 +319,12 @@ namespace Punchy.Audio
             if (night < 0.4f && now >= nextBird)
             {
                 nextBird = now + UnityEngine.Random.Range(12f, 30f);
+                // (Only among trees: not out on open desert, ice or the middle of a square.)
+                var treeRng = Unity.Mathematics.Random.CreateFromIndex((uint)UnityEngine.Time.frameCount);
+                if (!SystemAPI.TryGetSingleton<Punchy.Flora.FloraLookup>(out var flora) || !flora.Blob.IsCreated ||
+                    !SystemAPI.TryGetSingleton<TerrainSource>(out var land) ||
+                    !Punchy.Flora.FloraPlacement.FindTree(ref flora.Blob.Value, land, ear.xz, 25f, 3f, ref treeRng, out _))
+                    return;
                 var dir = UnityEngine.Random.insideUnitCircle.normalized * UnityEngine.Random.Range(8f, 28f);
                 var spot = ear + new float3(dir.x, UnityEngine.Random.Range(3f, 9f), dir.y);
                 GameAudio.PlayOneShot(UnityEngine.Random.value < 0.25f ? SoundId.Song : SoundId.Chirp, spot,

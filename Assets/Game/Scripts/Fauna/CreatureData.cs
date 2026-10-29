@@ -411,8 +411,18 @@ namespace Punchy.Fauna
         public float YawRate;
         /// <summary>Spring state for tails and ears (lags the turns).</summary>
         public float Sway;
-        /// <summary>Head turn relative to the body, radians.</summary>
+        /// <summary>Head turn relative to the body, radians; and up (+) or down (−), radians.</summary>
         public float Look;
+        public float LookPitch;
+        /// <summary>
+        /// What it's looking at, for a glance (Look/LookPitch turn the head there): a point (LookKind 0), a creature it
+        /// follows (1: LookEntity), or the player (2); for LookFor more seconds, then none for LookCool. Set by the
+        /// brain (CreatureBrainSystem.Glance), readable by any behaviour that wants to know where it's looking.
+        /// </summary>
+        public float3 LookAt;
+        public Entity LookEntity;
+        public float LookFor, LookCool;
+        public byte LookKind;
         public float Scale;
         public float2 Target;
         public float Timer;

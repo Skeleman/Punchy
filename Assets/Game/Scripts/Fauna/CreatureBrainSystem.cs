@@ -856,7 +856,22 @@ namespace Punchy.Fauna
                 }
                 else
                     CreatureMotion.AdvancePhase(ref s, ref b, dt);
-                s.Look += (desiredLook - s.Look) * math.min(1f, dt * 3f);
+                // A glance at something near and interesting, over whatever else it was looking at; birds snap their
+                // heads round in steps rather than turning smoothly.
+                Glance(self, ref s, ref b, ref rng, dt, player, playerSpeed, emote, ref desiredLook, out var desiredPitch);
+                if (b.Habitat == Habitat.Flies || b.Nests != NestSite.None)
+                {
+                    if (math.abs(desiredLook - s.Look) > 0.3f || math.abs(desiredPitch - s.LookPitch) > 0.25f)
+                    {
+                        s.Look = desiredLook;
+                        s.LookPitch = desiredPitch;
+                    }
+                }
+                else
+                {
+                    s.Look += (desiredLook - s.Look) * math.min(1f, dt * 3f);
+                    s.LookPitch += (desiredPitch - s.LookPitch) * math.min(1f, dt * 3f);
+                }
 
                 // Ease into postures: lying down takes a moment, springing up to run doesn't.
                 var lieRate = lie > s.Lie ? 0.8f : urgent ? 5f : 1.5f;
@@ -2361,6 +2376,100 @@ namespace Punchy.Fauna
                 }
                 return false;
             }
+
+            // ------------------------------------------------------------------------------- looking
+
+            /// <summary>
+            /// Glances: now and then (prey animals more often), not busy fleeing, hunting, asleep or held, it glances at the
+            /// most interesting thing near (within 12 m) and in front of it: another creature (more so one that's busy or
+            /// moving fast) or the player (more so sprinting or emoting). It follows that with its head for one to four
+            /// seconds (a predator watching its prey, longer), turning no further than 70° round and 35° up or down, then
+            /// looks away a while. The target is kept in the state (LookAt and the rest) for anything else that wants it.
+            /// </summary>
+            void Glance(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float3 player, float playerSpeed,
+                        IdleAction emote, ref float desiredLook, out float desiredPitch)
+            {
+                desiredPitch = 0f;
+                var prey = !b.Upright && b.FleeDistance > 0f;
+                s.LookCool -= dt;
+                if (s.LookFor > 0f)
+                {
+                    s.LookFor -= dt;
+                    if (s.LookKind == 1 && Lookup.TryGetValue(s.LookEntity, out var j))
+                        s.LookAt = States[j].Position + new float3(0f, HeadHeight(States[j], ref Bodies[j].Blob.Value), 0f);
+                    else if (s.LookKind == 1)
+                        s.LookFor = 0f;
+                    else if (s.LookKind == 2)
+                        s.LookAt = player + new float3(0f, 1.6f, 0f);
+                    var to = s.LookAt - (s.Position + new float3(0f, HeadHeight(s, ref b), 0f));
+                    var yaw = WrapAngle(math.atan2(to.x, to.z) - s.Yaw);
+                    // (Gone round behind it: let it go.)
+                    if (math.abs(yaw) > 1.9f)
+                        s.LookFor = 0f;
+                    else
+                    {
+                        desiredLook = math.clamp(yaw, -1.22f, 1.22f);
+                        desiredPitch = math.clamp(math.atan2(to.y, math.max(math.length(to.xz), 0.1f)), -0.6f, 0.6f);
+                    }
+                    if (s.LookFor <= 0f)
+                        s.LookCool = prey ? rng.NextFloat(1f, 3f) : rng.NextFloat(3f, 8f);
+                    return;
+                }
+                var calm = s.Mode == CreatureMode.Idle || s.Mode == CreatureMode.Wander && !Flying(s) || s.Mode == CreatureMode.Graze ||
+                           s.Mode == CreatureMode.Rest || s.Mode == CreatureMode.Sit || s.Mode == CreatureMode.Work || s.Mode == CreatureMode.Greet;
+                if (s.LookCool > 0f || !calm || rng.NextFloat() >= dt * (prey ? 0.5f : 0.2f))
+                    return;
+                var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                var best = 0f;
+                var target = -1;
+                var c = Cell(s.Position.xz);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        if (Entities[j] == self)
+                            continue;
+                        var o = States[j];
+                        var away = o.Position.xz - s.Position.xz;
+                        var d = math.length(away);
+                        if (d > 12f || d < 0.3f || math.dot(away / d, forward) < 0.1f)
+                            continue;
+                        var score = (o.Action != IdleAction.None || o.Speed > 2f ? 2f : 1f) / d;
+                        if (score > best)
+                        {
+                            best = score;
+                            target = j;
+                        }
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                var toPlayer = player.xz - s.Position.xz;
+                var dp = math.length(toPlayer);
+                var playerScore = dp < 12f && dp > 0.3f && math.dot(toPlayer / dp, forward) > 0.1f
+                    ? (playerSpeed > 4f || emote != IdleAction.None ? 3f : 1.2f) / dp : 0f;
+                if (playerScore > best)
+                {
+                    s.LookKind = 2;
+                    s.LookAt = player + new float3(0f, 1.6f, 0f);
+                    s.LookFor = rng.NextFloat(1f, 4f);
+                }
+                else if (target >= 0)
+                {
+                    s.LookKind = 1;
+                    s.LookEntity = Entities[target];
+                    s.LookAt = States[target].Position + new float3(0f, HeadHeight(States[target], ref Bodies[target].Blob.Value), 0f);
+                    // (A predator keeps its eyes on prey longer.)
+                    var watching = false;
+                    for (int k = 0; k < b.Prey.Length && !watching; k++)
+                        watching = b.Prey[k] == Bodies[target].Species;
+                    s.LookFor = watching ? rng.NextFloat(3f, 6f) : rng.NextFloat(1f, 4f);
+                }
+            }
+
+            /// <summary>About where a creature's eyes are, above its feet.</summary>
+            static float HeadHeight(in CreatureState s, ref CreatureBlob b) => b.StandHeight * math.max(s.Scale, 0.1f) * (b.Upright ? 1.8f : 1.2f);
 
             // ------------------------------------------------------------------------------- hive raids
 

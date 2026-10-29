@@ -29,6 +29,8 @@ namespace Punchy.Net
         [GhostField(Quantization = 1000)] public float Scale;
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Speed;
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Look;
+        /// <summary>The head's look up or down (a glance at something above or below).</summary>
+        [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float LookPitch;
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Lie, HeadDown, Bow, Curl, Air;
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Sit, Vertical, Fly;
         /// <summary>Not smoothed: it jumps back to 0 when a new action starts.</summary>
@@ -84,6 +86,7 @@ namespace Punchy.Net
                 n.Stage = c.Stage;
                 n.Speed = c.Speed;
                 n.Look = c.Look;
+                n.LookPitch = c.LookPitch;
                 n.Lie = c.Lie;
                 n.HeadDown = c.HeadDown;
                 n.Bow = c.Bow;
@@ -192,6 +195,7 @@ namespace Punchy.Net
                 c.Stage = n.Stage;
                 c.Speed = n.Speed;
                 c.Look = n.Look;
+                c.LookPitch = n.LookPitch;
                 c.Lie = n.Lie;
                 c.HeadDown = n.HeadDown;
                 c.Bow = n.Bow;
