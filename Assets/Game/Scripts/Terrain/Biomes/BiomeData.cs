@@ -22,6 +22,8 @@ namespace Punchy.Terrain
         public float Snow;
         public float Bump;
         public float Pebbles;
+        /// <summary>Rock strata amount (TerrainSurface.Strata).</summary>
+        public float Strata;
 
         public static SurfaceProps Lerp(in SurfaceProps a, in SurfaceProps b, float t) => new SurfaceProps
         {
@@ -32,7 +34,8 @@ namespace Punchy.Terrain
             Grass = math.lerp(a.Grass, b.Grass, t),
             Snow = math.lerp(a.Snow, b.Snow, t),
             Bump = math.lerp(a.Bump, b.Bump, t),
-            Pebbles = math.lerp(a.Pebbles, b.Pebbles, t)
+            Pebbles = math.lerp(a.Pebbles, b.Pebbles, t),
+            Strata = math.lerp(a.Strata, b.Strata, t)
         };
 
         public void AddScaled(in SurfaceProps s, float w)
@@ -45,6 +48,7 @@ namespace Punchy.Terrain
             Snow += s.Snow * w;
             Bump += s.Bump * w;
             Pebbles += s.Pebbles * w;
+            Strata += s.Strata * w;
         }
     }
 

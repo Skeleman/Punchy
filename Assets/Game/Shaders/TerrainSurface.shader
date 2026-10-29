@@ -59,6 +59,7 @@ Shader "Punchy/Terrain Surface"
                 half   fogFactor  : TEXCOORD5;
                 half   bump       : TEXCOORD6;
                 float  cave       : TEXCOORD7;
+                half   strata     : TEXCOORD8;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -100,6 +101,7 @@ Shader "Punchy/Terrain Surface"
                 o.fogFactor = ComputeFogFactor(pos.positionCS.z);
                 o.bump = input.morph.z;
                 o.cave = input.morph.w;
+                o.strata = input.strata.x;
                 return o;
             }
 
@@ -173,6 +175,16 @@ Shader "Punchy/Terrain Surface"
                 {
                     half grain = Grain(p * 37) * 0.6 + Grain(float2(p.x * 0.866 - p.y * 0.5, p.x * 0.5 + p.y * 0.866) * 15 + 11.3) * 0.4;   // turned: no grid
                     albedo *= 1 + grain * 0.5 * (1 - smoothstep(6, 22, distance)) * (1 - input.extra.y) * detailFade;
+                }
+                // Rock strata (mesa cliffs, canyon walls): bands of darker red and paler cream rock by height, a thick
+                // set and a thin one, wandering a little along the cliff. Broad enough to read from far off.
+                [branch] if (input.strata > 0.01)
+                {
+                    float y = input.positionWS.y + (PunchyValueNoise(p * 0.02) - 0.5) * 6 + (PunchyValueNoise(p * 0.11) - 0.5) * 1.2;
+                    half band = PunchyValueNoise(float2(y / 4.5, 7.1)) * 0.7 + PunchyValueNoise(float2(y / 1.1, 3.3)) * 0.3;
+                    albedo *= lerp(1, lerp(half3(0.55, 0.45, 0.42), half3(1.45, 1.3, 1.08), smoothstep(0.3, 0.7, band)), input.strata);
+                    // The rock grain's vertical streaks would drown the bands: mostly the bands, then.
+                    rockShade = lerp(rockShade, 1, input.strata * 0.7);
                 }
                 albedo *= rockShade;
                 // Under the grass blades (near the camera, where they're drawn) the ground takes their colour, so the
