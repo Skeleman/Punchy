@@ -40,6 +40,18 @@ feature code, and it never edits files in another session's checkout.
 10. Main PC memory: restart your Unity editor (after committing) when it grows past about 10 GB or after heavy
    recompile runs. Keep Play-mode tests short and exit when done. Ask the supervisor before opening a player or
    build next to the two editors.
+11. **Push without asking (Zach, 2026-10-28):** push your own lane's commits as soon as they compile, your checks pass
+   and your shots are taken; then report. The supervisor reviews after the fact and files follow-ups. Still ask
+   first for: shared or unowned files, network tables (ghost fields, enums sent over the wire, `PlayableSpecies`),
+   anything that changes landmark placement or the world fingerprint, merges with conflicts in another lane's
+   files, and releases.
+12. **Shot rules:** 16:9 at the true aspect (set `cam.aspect`); fixed noon and clear weather unless the feature
+   needs otherwise; the player avatar out of frame and out of the camera's line (the reveal cone cuts holes);
+   before and after from the same camera, seed, time and coats; light dark scenes so the feature is visible;
+   frame the feature, 3-8 m away, whole subject in frame. At most 3 images per report, about 1000 px wide
+   (a sheet counts as one). No images for changes you can't see (culling, audio, networking, perf): give numbers.
+13. **Waiting on someone:** before blocking on another session, ask that session whether you actually need to
+   wait. If they don't answer within the hour, ask the supervisor.
 
 ## Sessions and lanes
 
