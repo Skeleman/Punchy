@@ -284,3 +284,12 @@ asks Zach if needed, and records the answer here.
 - **Why:** Zach: "If gameplay speedup or temporarily dropping elements into a blank space can increase
   interesting time, that should be explored."
 - **Revisited:** 0.
+
+### J-033: Should creatures and folk get sound?
+
+- **Asked:** 2026-10-28, by the supervisor (offered to Zach while the animal session needed work).
+- **Also comes up when:** fire, waterfall, mine or town ambience; any new creature.
+- **Answer (2026-10-28):** yes. The animal session builds a shared pooled audio system, procedural clips first
+  (CC0 or self-made only if recordings are needed), derived from synced state so nothing new is sent.
+- **Why:** Zach: "Yeah, let's do sound."
+- **Revisited:** 0.
