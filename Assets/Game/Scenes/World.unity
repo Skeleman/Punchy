@@ -357,7 +357,15 @@ MonoBehaviour:
     HighlandRain: 2.5
     HighlandHeight: 180
     Snowmelt: 3
-  PlacedLandmarks: []
+  PlacedLandmarks:
+  - Type: {fileID: 11400000, guid: 6be24f1e924d40b3a6fc43d2e03210a9, type: 2}
+    Position: {x: 250, y: -430}
+    Rotation: 270
+    Scale: 1
+  - Type: {fileID: 11400000, guid: 7b6a6c924b834bd4aca6606fba0ec2cf, type: 2}
+    Position: {x: 140, y: -545}
+    Rotation: 0
+    Scale: 1
   HeightSource: 0
   Heightmap: {fileID: 11400000, guid: 939ef45b694c2464990fd455c490f3b7, type: 2}
   ExportResolution: 4097
