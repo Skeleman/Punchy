@@ -263,6 +263,35 @@ namespace Punchy.Fauna
             var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.TempJob);
             var states = query.ToComponentDataArray<CreatureState>(Allocator.TempJob);
             var entities = query.ToEntityArray(Allocator.TempJob);
+            // Deep in a cave, out of sight of every mouth (CaveSystem.SurfaceHidden): the creatures up on the surface are
+            // neither posed nor drawn. (Players' bodies always are.)
+            if (Punchy.Terrain.CaveSystem.SurfaceHidden >= 0.99f && SystemAPI.TryGetSingleton<TerrainSource>(out var hiddenFrom))
+            {
+                var keep = 0;
+                for (int i = 0; i < bodies.Length; i++)
+                    if (states[i].Mode == CreatureMode.Puppet || states[i].Position.y < hiddenFrom.SampleHeight(states[i].Position.xz) - 1f)
+                    {
+                        bodies[keep] = bodies[i];
+                        states[keep] = states[i];
+                        entities[keep] = entities[i];
+                        keep++;
+                    }
+                if (keep < bodies.Length)
+                {
+                    var b2 = new NativeArray<CreatureBody>(keep, Allocator.TempJob);
+                    var s2 = new NativeArray<CreatureState>(keep, Allocator.TempJob);
+                    var e2 = new NativeArray<Entity>(keep, Allocator.TempJob);
+                    NativeArray<CreatureBody>.Copy(bodies, b2, keep);
+                    NativeArray<CreatureState>.Copy(states, s2, keep);
+                    NativeArray<Entity>.Copy(entities, e2, keep);
+                    bodies.Dispose();
+                    states.Dispose();
+                    entities.Dispose();
+                    bodies = b2;
+                    states = s2;
+                    entities = e2;
+                }
+            }
             var offsets = new NativeArray<int>(bodies.Length, Allocator.TempJob);
             var hanging = new NativeList<float3>(8, Allocator.Temp);
             var emoting = new NativeList<float3>(2, Allocator.Temp);
