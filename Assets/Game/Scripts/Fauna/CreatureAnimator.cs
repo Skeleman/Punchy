@@ -223,6 +223,9 @@ namespace Punchy.Fauna
                         fold = math.max(fold, math.saturate(s.Vertical * 1.6f));
                     // In flight the legs trail back under the tail instead (below).
                     fold *= 1f - s.Fly;
+                    // A bear up at a hive braces its front paws on the trunk (below) rather than tucking them.
+                    if (!hind && s.Mode == CreatureMode.Work && s.Stage == RaidAtComb)
+                        fold = 0f;
                     // Carried: legs tucked up, not dangling.
                     if (s.Mode == CreatureMode.Held)
                         fold = math.max(fold, 0.85f);
@@ -334,6 +337,13 @@ namespace Punchy.Fauna
                             var reach = math.smoothstep(0f, 0.5f, s.StageTime);
                             a += (j == 0 ? new float3(-1.25f, 0f, part.Side * 0.6f) : j == 1 ? new float3(-0.7f, 0f, 0f) : float3.zero) * reach;
                         }
+                    }
+                    // A bear reared up at a hive: front legs reaching up the trunk, scraping at it by turns.
+                    if (!b.Upright && part.Role == LimbRole.Leg && part.Parent < 0 && part.Socket.z > 0f &&
+                        s.Mode == CreatureMode.Work && s.Stage == RaidAtComb && j <= 1)
+                    {
+                        var scrape = math.sin(s.Clock * 7f + part.Side * 1.6f);
+                        a += j == 0 ? new float3(-1.2f + 0.35f * scrape, 0f, 0f) : new float3(0.3f - 0.25f * scrape, 0f, 0f);
                     }
                     // Reading a message: both hands up in front holding it open, head bent to it.
                     if (b.Upright && s.Held == HeldItem.Letter && part.Role == LimbRole.Arm)
@@ -687,7 +697,7 @@ namespace Punchy.Fauna
         public const byte MessageWait = 60, MessageTake = 61, MessageRead = 62;
         /// <summary>Work-mode stages of a bear raiding a wild hive: on its way, reared up at the comb, making off.
         /// (The bees mob it while it's at the comb: CreatureRenderSystem's Swarm.)</summary>
-        public const byte RaidWalk = 150, RaidAtComb = 151, RaidLeave = 152;
+        public const byte RaidWalk = 150, RaidAtComb = 151, RaidLeave = 152, RaidLick = 153;
 
         static float3 TaskPose(ref CreaturePart part, in CreatureState s, int joint)
         {

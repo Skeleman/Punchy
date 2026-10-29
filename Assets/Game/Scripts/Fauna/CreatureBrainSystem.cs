@@ -679,9 +679,9 @@ namespace Punchy.Fauna
                             Messenger(ref s, ref b, ref rng, dt, ref vertical);
                             break;
                         }
-                        if (s.Stage >= CreatureAnimator.RaidWalk && s.Stage <= CreatureAnimator.RaidLeave)
+                        if (s.Stage >= CreatureAnimator.RaidWalk && s.Stage <= CreatureAnimator.RaidLick)
                         {
-                            Raiding(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref sit, ref vertical, ref desiredLook);
+                            Raiding(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref sit, ref vertical, ref desiredLook, ref headDown);
                             break;
                         }
                         // (A fisher's time at the water starts when it gets there, however far it had to walk.)
@@ -2334,7 +2334,7 @@ namespace Punchy.Fauna
                 SetMode(ref s, CreatureMode.Work);
                 s.Stage = CreatureAnimator.RaidWalk;
                 s.Focus = hive.Position.xz + hive.Facing * trunk;
-                s.Target = hive.Position.xz + hive.Facing * (trunk + 0.9f);
+                s.Target = hive.Position.xz + hive.Facing * (trunk + 0.35f);
                 s.Timer = 120f;
                 // (Even if it never gets there: no other raid for a long while.)
                 s.ChaseCooldown = RaidCooldown;
@@ -2347,14 +2347,14 @@ namespace Punchy.Fauna
             /// from the hive (RaidLeave), and takes up its day there.
             /// </summary>
             void Raiding(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, float run,
-                         ref float targetSpeed, ref bool moving, ref float sit, ref float vertical, ref float desiredLook)
+                         ref float targetSpeed, ref bool moving, ref float sit, ref float vertical, ref float desiredLook, ref float headDown)
             {
                 s.Timer -= dt;
                 if (s.Stage == CreatureAnimator.RaidWalk)
                 {
                     targetSpeed = walk;
                     moving = true;
-                    if (math.distance(s.Position.xz, s.Target) < 0.8f)
+                    if (math.distance(s.Position.xz, s.Target) < 0.4f)
                     {
                         NextStage(ref s);
                         s.Timer = rng.NextFloat(6f, 10f);
@@ -2365,14 +2365,34 @@ namespace Punchy.Fauna
                 else if (s.Stage == CreatureAnimator.RaidAtComb)
                 {
                     s.Speed = 0f;
+                    // (Shuffling the last of the way in, up against the bark.)
+                    var short_ = s.Target - s.Position.xz;
+                    s.Position.xz += math.normalizesafe(short_) * math.min(math.length(short_), 0.5f * dt);
                     var to = s.Focus - s.Position.xz;
                     s.Yaw = WrapAngle(s.Yaw + math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -b.TurnRate * dt, b.TurnRate * dt));
-                    // Up on its hind legs against the trunk, swaying and pawing up at the comb.
-                    sit = 1f;
-                    vertical = 0.6f + 0.12f * math.sin(s.StageTime * 5f);
-                    desiredLook = 0.4f * math.sin(s.StageTime * 2.3f);
+                    // Up on its hind legs against the trunk, leaning in, front paws braced up it and scraping at it,
+                    // head tipped up to the comb.
+                    sit = 0.6f;
+                    vertical = 0.9f + 0.06f * math.sin(s.StageTime * 5f);
+                    desiredLook = 0.25f * math.sin(s.StageTime * 2.3f);
+                    // Down comes a chunk of comb: down on all fours to lick at it.
                     if (s.Timer <= 0f)
                     {
+                        s.Stage = CreatureAnimator.RaidLick;
+                        s.StageTime = 0f;
+                        s.Held = HeldItem.Honey;
+                        s.Timer = rng.NextFloat(4f, 6f);
+                    }
+                }
+                else if (s.Stage == CreatureAnimator.RaidLick)
+                {
+                    // Licking at it, nose down, till the bees drive it off.
+                    s.Speed = 0f;
+                    headDown = 1f;
+                    desiredLook = 0.2f * math.sin(s.StageTime * 6f);
+                    if (s.Timer <= 0f)
+                    {
+                        s.Held = HeldItem.None;
                         // Away from the hive, a little to one side or the other.
                         var away = math.normalizesafe(s.Position.xz - s.Focus, rng.NextFloat2Direction());
                         var turn = rng.NextFloat(-0.6f, 0.6f);
@@ -2381,7 +2401,8 @@ namespace Punchy.Fauna
                         var spot = s.Position.xz + away * rng.NextFloat(70f, 100f);
                         for (int tries = 0; tries < 4 && !Walkable(spot, Habitat.Land); tries++)
                             spot = s.Position.xz + rng.NextFloat2Direction() * rng.NextFloat(70f, 100f);
-                        NextStage(ref s);
+                        s.Stage = CreatureAnimator.RaidLeave;
+                        s.StageTime = 0f;
                         s.Target = spot;
                         s.Timer = 120f;
                     }

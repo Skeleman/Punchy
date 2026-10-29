@@ -69,7 +69,7 @@ namespace Punchy.Fauna
         static int HeldCount(HeldItem held, CreatureTask task) => task == CreatureTask.Hunt && (held == HeldItem.Spear || held == HeldItem.SpearDrawn) ? 0 :
                                                held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.SpearDrawn || held == HeldItem.Torch ? GuardParts :
                                                held == HeldItem.Rod ? RodParts : held == HeldItem.Stick || held == HeldItem.Stone ? 1 :
-                                               held == HeldItem.Pickaxe || held == HeldItem.OreSack ? MinerParts : held == HeldItem.Staff || held == HeldItem.Letter ? 2 : 0;
+                                               held == HeldItem.Pickaxe || held == HeldItem.OreSack ? MinerParts : held == HeldItem.Staff || held == HeldItem.Letter ? 2 : held == HeldItem.Honey ? 1 : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 0 : -1;
         /// <summary>Capsules per hanging bat, the most per roost, and how near the camera colonies show.</summary>
@@ -354,7 +354,7 @@ namespace Punchy.Fauna
                 // A bear at the comb: mobbed for as long as it's there (and a few seconds after, as it makes off).
                 var raider = -1;
                 for (int k = 0; k < states.Length && raider < 0; k++)
-                    if (states[k].Mode == CreatureMode.Work && states[k].Stage == CreatureAnimator.RaidAtComb &&
+                    if (states[k].Mode == CreatureMode.Work && (states[k].Stage == CreatureAnimator.RaidAtComb || states[k].Stage == CreatureAnimator.RaidLick) &&
                         math.distance(states[k].Position.xz, hive.Position.xz) < hive.Size + 2f)
                         raider = k;
                 if (raider >= 0)
@@ -579,6 +579,32 @@ namespace Punchy.Fauna
                     Traveller(state, ref body.Blob.Value, offset, held, faded);
                 else if (state.Held == HeldItem.Letter)
                     Letter(state, ref body.Blob.Value, offset, held, faded);
+                else if (state.Held == HeldItem.Honey)
+                    Honey(state, ref body.Blob.Value, offset, held, faded);
+            }
+
+            /// <summary>
+            /// The chunk of honeycomb a raiding bear knocked down: falling from up at the comb in its first half second,
+            /// then lying on the ground at its nose while it licks at it.
+            /// </summary>
+            void Honey(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
+            {
+                Output[at] = default;
+                var head = -1;
+                for (int i = 0; i < b.Parts.Length && head < 0; i++)
+                    if (b.Parts[i].Role == LimbRole.Head)
+                        head = b.Parts[i].FirstSegment + b.Parts[i].SegmentCount - 1;
+                if (head < 0)
+                    return;
+                var h = Output[offset + head];
+                var forward = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
+                var nose = h.Position + Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, h.Length)) + forward * 0.08f;
+                var ground = Terrain.SampleHeight(nose.xz);
+                var fall = Unity.Mathematics.math.saturate(state.StageTime / 0.5f);
+                var y = Unity.Mathematics.math.lerp(ground + 2.5f, ground + 0.05f, fall * fall);
+                var right = new Unity.Mathematics.float3(forward.z, 0f, -forward.x);
+                Output[at] = Piece(new Unity.Mathematics.float3(nose.x, y, nose.z) - right * 0.1f, right, new Unity.Mathematics.float3(0f, 1f, 0f),
+                                   0.2f, 0.11f, 0.09f, 0.55f, new Unity.Mathematics.float4(0.75f, 0.45f, 0.06f, 0.15f), faded, SegmentMaterial.Body);
             }
 
             /// <summary>

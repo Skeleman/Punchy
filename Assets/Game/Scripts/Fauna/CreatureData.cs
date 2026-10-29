@@ -374,7 +374,9 @@ namespace Punchy.Fauna
         /// <summary>A traveller's walking staff in the right hand (and a pack on its back).</summary>
         Staff,
         /// <summary>A rolled message: on a messenger bird's leg, then in the hands of the one who took it, reading it.</summary>
-        Letter
+        Letter,
+        /// <summary>A chunk of honeycomb a raiding bear knocked down, on the ground at its nose while it licks at it.</summary>
+        Honey
     }
 
     /// <summary>A town guard's weapon, by its folk: how long, and where it's worn sheathed.</summary>
