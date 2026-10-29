@@ -274,6 +274,14 @@ Shader "Punchy/Flora"
                 }
 
                 // A bark face's eyes (part 9): a faint glow in its colour that blinks shut for a moment every few seconds.
+                // Electric arcs (part 11): blue-white, crackling on and off in bursts, bright enough to bloom.
+                if (part == 11)
+                {
+                    float tick = floor(_PunchyClock * 13 + r * 50);
+                    half on = frac(sin(tick * 12.9898 + r * 78.2) * 43758.5453) > 0.35 ? 1 : 0.12;
+                    half burst = smoothstep(0.45, 0.85, 0.5 + 0.5 * sin(_PunchyClock * 0.9 + r * 20));
+                    color = albedo * (0.4 + 3.6 * on * (0.3 + 0.7 * burst));
+                }
                 if (part == 9)
                 {
                     float beat = frac(_PunchyClock * 0.17 + r * 5.3);

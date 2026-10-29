@@ -95,7 +95,12 @@ namespace Punchy.Flora
                  "Thickness the legs' radius over height), in Foliage; Finish Glass draws it as clear ice. Walk under it.")] IceArch,
         [Tooltip("A fulgurite (lightning-fused sand): a knobbly glass tube twisting up out of a sand-crusted mound, forking " +
                  "Branches times, crusted with sand along its length (Height its height, Thickness the tube's radius over " +
-                 "height; the tube in Foliage, so Finish Glass makes it glass; the crust in Bark).")] Fulgurite
+                 "height; the tube in Foliage, so Finish Glass makes it glass; the crust in Bark).")] Fulgurite,
+        [Tooltip("An arcing spire (electric wastelands): Branches prongs of dark glinting stone (Bark) rising from a cracked " +
+                 "base, with electric arcs (the first accent, or blue-white) crackling between their tips. Height its height, " +
+                 "Spread how far apart the prongs stand, Thickness their radius over height.")] ArcSpire,
+        [Tooltip("Floating debris (magnetic anomaly): Branches lumps of rock (Bark) hovering round a cracked mound, slowly " +
+                 "orbiting it and bobbing. Height the highest a piece floats, Spread the ring's radius over height. Not solid.")] Debris
     }
 
     public enum FoliageFinish : byte

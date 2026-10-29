@@ -93,7 +93,16 @@ FloraVertex FloraTransform(FloraAttributes input)
     // Motions carried in the flutter channel as negatives (FloraMeshBuilder.Motion, Sway), on the shared clock: a slow
     // breath along the normal (mushroom caps), below -2 a sudden small jerk now and then (cocoons), and below -10 a
     // slow pendulum sway (vines), stronger in wind.
-    if (input.data.z < -9.5)
+    if (input.data.z < -99.5)
+    {
+        // Floating debris: the whole cluster turns slowly round the plant's centre, each piece bobbing on its own beat.
+        float turn = _PunchyClock * 0.12 + plant.random * 6.28;
+        float ct = cos(turn), st = sin(turn);
+        p.xz = float2(p.x * ct - p.z * st, p.x * st + p.z * ct);
+        n.xz = float2(n.x * ct - n.z * st, n.x * st + n.z * ct);
+        p.y += sin(_PunchyClock * 0.8 + dot(input.positionOS, float3(1.7, 0.3, 2.3))) * (-input.data.z - 100) * plant.scale;
+    }
+    else if (input.data.z < -9.5)
     {
         float swing = (-input.data.z - 10) * plant.scale * (0.6 + _PunchyWind * 0.8);
         float t = _PunchyClock * 1.1 + plant.random * 6.28 + (input.positionOS.x + input.positionOS.z) * 0.35;
@@ -137,6 +146,14 @@ FloraVertex FloraTransform(FloraAttributes input)
         float reach = free * 1.5 * plant.scale;
         p += windDir3 * reach * sin(angle);
         p.y += reach * (1 - cos(angle));
+    }
+
+    // Electric arcs (part 11) jump about: each vertex jerks to a new spot a dozen times a second.
+    if ((int)round(input.data.y) == 11)
+    {
+        float tick = floor(_PunchyClock * 13 + plant.random * 50);
+        float3 h = frac(sin(float3(tick, tick + 1.3, tick + 2.7) * 12.9898 + dot(input.positionOS, float3(78.2, 37.7, 11.3))) * 43758.5453);
+        p += (h - 0.5) * 0.18 * plant.scale;
     }
 
     FloraVertex o;

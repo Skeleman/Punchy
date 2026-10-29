@@ -26,7 +26,9 @@ namespace Punchy.Flora
         Eye = 9,
         /// <summary>Cloth (banners, awnings, hide flaps) that waves in the wind; how free each vertex is rides on the part
         /// (see FloraMeshBuilder.Cloth, Flora.hlsl).</summary>
-        Cloth = 10
+        Cloth = 10,
+        /// <summary>An electric arc: bright, crackling in bursts and jumping about (Flora.hlsl, Flora.shader).</summary>
+        Arc = 11
     }
 
     /// <summary>
@@ -569,6 +571,21 @@ namespace Punchy.Flora
         /// flutter channel below -10, Flora.hlsl), by how far each may swing in metres: hanging vines and ropes, more
         /// the further down they hang.
         /// </summary>
+        /// <summary>
+        /// Gives the vertices from <paramref name="firstVertex"/> a slow orbit round the plant's centre on the shared clock,
+        /// bobbing up and down by up to <paramref name="bob"/> metres (carried in the flutter channel below -100,
+        /// Flora.hlsl): floating debris.
+        /// </summary>
+        public void Orbit(int firstVertex, float bob)
+        {
+            for (int v = firstVertex; v < data.Count; v++)
+            {
+                var d = data[v];
+                d.z = -100f - Mathf.Max(bob, 0f);
+                data[v] = d;
+            }
+        }
+
         public void Sway(int firstVertex, Func<Vector3, float> amount)
         {
             for (int v = firstVertex; v < data.Count; v++)

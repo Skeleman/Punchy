@@ -100,6 +100,8 @@ namespace Punchy.Flora
                     case FloraForm.HiveTree: Broadleaf(g); Hive(g); break;
                     case FloraForm.IceArch: IceArch(g); break;
                     case FloraForm.Fulgurite: Fulgurite(g); break;
+                    case FloraForm.ArcSpire: ArcSpire(g); break;
+                    case FloraForm.Debris: Debris(g); break;
                     case FloraForm.Bones: Bones(g); break;
                     case FloraForm.Boulder: Boulder(g); break;
                     case FloraForm.Spire: Spire(g); break;
@@ -2124,6 +2126,96 @@ namespace Punchy.Flora
                 }
             }
             Branch(Vector3.down * 0.1f, Vector3.up, height, height * s.Thickness, true);
+        }
+
+        /// <summary>
+        /// An arcing spire (FloraForm.ArcSpire): a few tall, tapering prongs of dark stone (drawn metallic, so they glint)
+        /// leaning out of a cracked base, with jagged electric arcs (FloraPart.Arc) between neighbouring tips that crackle
+        /// in bursts and jump about, all in the shaders.
+        /// </summary>
+        static void ArcSpire(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            g.Height = height;
+            g.Width = height * s.Spread * 1.2f;
+            var baseRadius = height * s.Spread * 0.55f;
+            g.TrunkRadius = baseRadius * 0.8f;
+
+            var first = b.VertexCount;
+            b.Blob(Vector3.up * baseRadius * 0.1f, new Vector3(baseRadius, baseRadius * 0.4f, baseRadius * 0.9f), Quaternion.Euler(0f, g.R() * 360f, 0f),
+                   g.Sides(2, 1, 0), 0.35f, g.R() * 100f, g.Bark * 0.8f, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, baseRadius));
+
+            var prongs = Mathf.Max(2, g.Count(s.Branches));
+            var tips = new List<Vector3>();
+            var start = g.R() * 6.28f;
+            for (int k = 0; k < prongs; k++)
+            {
+                var a = start + k * 6.28f / prongs + g.Range(-0.3f, 0.3f);
+                var foot = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * baseRadius * 0.45f;
+                var tall = height * (k == 0 ? 1f : g.Range(0.65f, 0.9f));
+                var lean = new Vector3(foot.x, 0f, foot.z).normalized * tall * g.Range(0.08f, 0.2f);
+                var tip = foot + lean + Vector3.up * tall;
+                var r = tall * s.Thickness;
+                b.Tube(new List<Vector3> { foot + Vector3.down * 0.3f, Vector3.Lerp(foot, tip, 0.45f) + lean * 0.2f, Vector3.Lerp(foot, tip, 0.8f), tip },
+                       new List<float> { r, r * 0.75f, r * 0.4f, r * 0.05f }, g.Sides(6, 5, 4), Color.Lerp(g.Bark, g.Bark * 1.3f, g.R()), FloraPart.Metal);
+                tips.Add(tip);
+            }
+            g.Colliders.Add(new Vector4(0f, 0f, baseRadius * 0.6f, height));
+            if (g.Lod == 2)
+                return;
+            var arc = g.HasAccent ? AccentAt(g, 0) : new Color(0.65f, 0.85f, 1f);
+            for (int k = 0; k < tips.Count; k++)
+            {
+                var a = tips[k] + Vector3.down * 0.15f;
+                var c = tips[(k + 1) % tips.Count] + Vector3.down * 0.15f;
+                var path = new List<Vector3>();
+                var radii = new List<float>();
+                var points = g.Sides(9, 5, 3);
+                for (int j = 0; j < points; j++)
+                {
+                    var t = j / (points - 1f);
+                    var zig = j == 0 || j == points - 1 ? Vector3.zero : (new Vector3(g.R(), g.R(), g.R()) - Vector3.one * 0.5f) * Vector3.Distance(a, c) * 0.18f;
+                    path.Add(Vector3.Lerp(a, c, t) + Vector3.down * Mathf.Sin(t * Mathf.PI) * Vector3.Distance(a, c) * 0.12f + zig);
+                    radii.Add(0.03f);
+                }
+                b.Tube(path, radii, 3, arc, FloraPart.Arc);
+            }
+        }
+
+        /// <summary>
+        /// Floating debris (FloraForm.Debris): lumps of dark rock hovering over a cracked mound, the cluster slowly orbiting
+        /// it and each lump bobbing (FloraMeshBuilder.Orbit). No collision.
+        /// </summary>
+        static void Debris(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            g.Height = height;
+            var ring = height * s.Spread;
+            g.Width = ring * 2.2f;
+            g.TrunkRadius = 0f;
+
+            var mound = ring * 0.35f;
+            var first = b.VertexCount;
+            b.Blob(Vector3.up * mound * 0.05f, new Vector3(mound, mound * 0.3f, mound * 0.9f), Quaternion.Euler(0f, g.R() * 360f, 0f),
+                   g.Sides(2, 1, 0), 0.4f, g.R() * 100f, g.Bark * 0.7f, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, mound));
+
+            var floating = b.VertexCount;
+            var pieces = g.Count(s.Branches);
+            for (int k = 0; k < pieces; k++)
+            {
+                var a = g.R() * 6.28f;
+                var at = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * ring * g.Range(0.3f, 1f) + Vector3.up * height * g.Range(0.3f, 1f);
+                var size = height * g.Range(0.05f, 0.16f);
+                b.Blob(at, new Vector3(size, size * g.Range(0.6f, 0.9f), size * g.Range(0.7f, 1f)), Quaternion.Euler(g.R() * 360f, g.R() * 360f, g.R() * 360f),
+                       g.Sides(1, 1, 0), 0.3f, g.R() * 100f, Color.Lerp(g.Bark, g.Bark * 1.4f, g.R()), FloraPart.Metal, 1f, 0.5f);
+            }
+            b.Orbit(floating, height * 0.06f);
         }
 
         static void Columns(Grower g)
