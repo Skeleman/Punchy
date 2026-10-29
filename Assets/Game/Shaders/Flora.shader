@@ -145,11 +145,13 @@ Shader "Punchy/Flora"
                     color += PunchyMetalShade(albedo, n, v, input.positionWS, light.color, light.direction, shadow, ao, _PunchyUnderground);
                 // Bark and rock take a faint reflection of the sky at grazing angles, as the terrain does (its
                 // surfaces have a little smoothness), so rocks fade into the same sky-tinted haze as the land. Metal
-                // and crystal too: dark ones (obsidian) otherwise stay black specks on a distant hazy slope.
+                // and crystal too: dark ones (obsidian) otherwise stay black specks on a distant hazy slope. Up close
+                // dry stone, wood and plaster stay matte (rain adds its own sheen below).
                 if (part == 0 || metal)
                 {
                     half fresnel = 0.04 + 0.96 * pow(1 - saturate(dot(n, v)), 5);
-                    color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * ao * lerp(1, 0.06, _PunchyUnderground);
+                    half sheenFar = metal ? 1 : lerp(0.25, 1, smoothstep(30, 120, distance(input.positionWS, GetCameraPositionWS())));
+                    color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * sheenFar * ao * lerp(1, 0.06, _PunchyUnderground);
                 }
 
                 // Glass (crystals): a dark clear body lit faintly from inside, a bright rim where the surface turns
