@@ -50,6 +50,10 @@ feature code, and it never edits files in another session's checkout.
    before and after from the same camera, seed, time and coats; light dark scenes so the feature is visible;
    frame the feature tightly, 3-8 m away, whole subject in frame. At most 3 images per report, 800 px on the long
    edge (a sheet at most 1200 px; crop a detail rather than raising resolution) (a sheet counts as one). No images for changes you can't see (culling, audio, networking, perf): give numbers.
+12a. **Who looks at what (Zach, 2026-10-28):** check your own shots at about 480 px while iterating. Send the
+   supervisor one 800 px final only for a finished, visible feature meant for the milestone page; for fixes,
+   follow-ups and interim steps send your own written check instead (what you looked for, what you saw, caveats).
+   The supervisor relays those without opening images.
 12b. **Full-res gallery (Zach, 2026-10-28):** besides the reviewed shots, save a fuller set for Zach to browse in
    `D:\Unity\PunchyMilestones\<lane>\<feature>\gallery\`: full resolution, more angles, before/after sets, short
    sequences if handy. Never open or view these yourself (no token cost), and don't send them to the supervisor;
