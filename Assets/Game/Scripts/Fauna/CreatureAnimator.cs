@@ -320,7 +320,7 @@ namespace Punchy.Fauna
                     if (part.Role == LimbRole.Arm && s.Held == HeldItem.OreSack)
                     {
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.85f);
-                        a += j == 0 ? new float3(-0.95f, 0f, -part.Side * 0.25f) : j == 1 ? new float3(-1.25f, 0f, 0f) : float3.zero;
+                        a += j == 0 ? new float3(-0.95f, 0f, part.Side * 0.35f) : j == 1 ? new float3(-1.25f, 0f, 0f) : float3.zero;
                     }
                     // A lantern in the off hand: that arm held a little forward and bent, hardly swinging.
                     if (part.Role == LimbRole.Arm && part.Side < 0f && s.Held == HeldItem.Lantern)

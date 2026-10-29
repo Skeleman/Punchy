@@ -463,10 +463,14 @@ namespace Punchy.Fauna
                     butt = torso.Position + axis * torso.Length * 0.5f - forward * r * 1.3f - dir * length * 0.5f;
                 }
                 var tip = butt + dir * length;
-                var across = Unity.Mathematics.math.normalizesafe(Unity.Mathematics.math.cross(dir, right), forward);
+                // (In the hands the head is in the swing's plane; worn on the back it lies across, pointing to either side.)
+                var swinging = state.Mode == CreatureMode.Work && state.Stage == CreatureAnimator.MinerAtFace && state.Held == HeldItem.Pickaxe;
+                var across = swinging ? Unity.Mathematics.math.normalizesafe(Unity.Mathematics.math.cross(dir, right), forward)
+                                      : Unity.Mathematics.math.normalizesafe(right - dir * Unity.Mathematics.math.dot(right, dir), right);
                 Output[at] = Piece(butt, dir, right, length, 0.02f * scale, 0.022f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                Output[at + 1] = Piece(tip, across, right, 0.22f * scale, 0.035f * scale, 0.005f * scale, 0.6f, iron, faded, SegmentMaterial.Metal);
-                Output[at + 2] = Piece(tip, -across, right, 0.18f * scale, 0.035f * scale, 0.008f * scale, 0.6f, iron, faded, SegmentMaterial.Metal);
+                // (A pick's head: a bar across the haft's top, its two points curving a little back towards the handle.)
+                Output[at + 1] = Piece(tip, Unity.Mathematics.math.normalize(across - dir * 0.28f), right, 0.24f * scale, 0.03f * scale, 0.004f * scale, 1f, iron, faded, SegmentMaterial.Metal);
+                Output[at + 2] = Piece(tip, Unity.Mathematics.math.normalize(-across - dir * 0.28f), right, 0.2f * scale, 0.03f * scale, 0.006f * scale, 1f, iron, faded, SegmentMaterial.Metal);
                 if (state.Held == HeldItem.OreSack)
                 {
                     // A lumpy sack of ore held to the chest, low.
@@ -761,7 +765,8 @@ namespace Punchy.Fauna
                             handFrom = levelled ? 0.42f : 0.45f;
                             break;
                     }
-                    // Worn: across the back, from low on the left to high on the right, or hanging at the left hip, head up.
+                    // Worn: across the back, from low on the left to high on the right, or hanging from the belt at the left
+                    // hip, head down along the thigh.
                     var torso = Output[offset + chest];
                     var torsoAxis = Unity.Mathematics.math.mul(torso.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
                     var torsoR = Unity.Mathematics.math.max(torso.RadiusStart, torso.RadiusEnd);
@@ -773,8 +778,9 @@ namespace Punchy.Fauna
                     }
                     else
                     {
-                        wornDir = Unity.Mathematics.math.normalize(upward - forward * 0.35f + right * 0.15f);
-                        wornAt = torso.Position - torsoAxis * torsoR * 0.8f - right * torsoR * 1.15f - wornDir * length * (0.15f - handFrom);
+                        // At the hip: hung from the belt by its grip, the heavy end down along the thigh and a little back.
+                        wornDir = Unity.Mathematics.math.normalize(-upward - forward * 0.3f - right * 0.08f);
+                        wornAt = torso.Position - torsoAxis * torsoR * 0.5f - right * torsoR * 1.15f;
                     }
                     var dir = Unity.Mathematics.math.normalizesafe(Unity.Mathematics.math.lerp(wornDir, handDir, inHand), handDir);
                     var held = Unity.Mathematics.math.lerp(wornAt, grip, inHand);
