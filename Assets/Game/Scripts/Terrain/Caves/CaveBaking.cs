@@ -650,6 +650,32 @@ namespace Punchy.Terrain
                         }
                     }
                 }
+                // Chambers (where miners work the ore faces): two torches on opposite walls at shoulder height.
+                if (torch < 0)
+                    continue;
+                for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
+                {
+                    if (kinds[n] != CaveNodeKind.Chamber)
+                        continue;
+                    var centre = nodes[n].Position;
+                    var floor = source.FloorUnder(centre, out var inCave);
+                    var shoulder = new float3(centre.x, floor + 1.6f, centre.z);
+                    if (!inCave || source.CaveDistance(shoulder) >= 0f)
+                        continue;
+                    var start = rng.NextFloat(math.PI * 2f);
+                    for (int k = 0; k < 2; k++)
+                    {
+                        var a = start + k * math.PI;
+                        var dir = new float2(math.cos(a), math.sin(a));
+                        var t = 0f;
+                        for (var r = 0.3f; r < 12f; r += 0.1f)
+                            if (source.CaveDistance(shoulder + new float3(dir.x, 0f, dir.y) * r) >= 0f) { t = r; break; }
+                        if (t <= 0f)
+                            continue;
+                        var at = shoulder + new float3(dir.x, 0f, dir.y) * (t - 0.12f);
+                        extras.Plants.Add(new CavePlant { Position = at, Yaw = math.atan2(dir.x, -dir.y), Scale = 1f, Species = torch, Variant = rng.NextInt(3), Random = rng.NextFloat() });
+                    }
+                }
             }
         }
 
