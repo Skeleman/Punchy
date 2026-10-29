@@ -82,6 +82,9 @@ namespace Punchy.Fauna
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
             var now = (float)SystemAPI.Time.ElapsedTime;
             float3 camPos = cam.transform.position;
+            // (Props' walkable tops, so prints land on a roof or a rock someone's walking over, not under it.)
+            hasTops = SystemAPI.TryGetSingleton(out grids) && grids.Set.IsCreated &&
+                      SystemAPI.TryGetSingletonBuffer(out tops, true);
             var entities = query.ToEntityArray(Allocator.Temp);
             var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
             var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
@@ -109,6 +112,24 @@ namespace Punchy.Fauna
             entities.Dispose();
             states.Dispose();
             bodies.Dispose();
+        }
+
+        bool hasTops;
+        Punchy.Flora.SupportGrids grids;
+        DynamicBuffer<Punchy.Flora.FloraSupport> tops;
+
+        /// <summary>The ground under a point: the terrain, or a prop's top there if that's higher (onProp says which).</summary>
+        float Underfoot(in TerrainSource terrain, float3 at, out bool onProp)
+        {
+            var height = terrain.SampleHeight(at.xz);
+            onProp = false;
+            if (hasTops && Punchy.Flora.PropSupport.Sample(ref grids.Set.Value, tops, at + new float3(0f, 0.3f, 0f), 0f, 0.4f, out var hit) &&
+                hit.Height > height)
+            {
+                height = hit.Height;
+                onProp = true;
+            }
+            return height;
         }
 
         void Add(in Trace trace)
@@ -149,7 +170,7 @@ namespace Punchy.Fauna
             }
             if (!touchdown)
                 return;
-            if (s.Position.y - terrain.SampleHeight(s.Position.xz) > 0.3f)
+            if (s.Position.y - Underfoot(terrain, s.Position, out _) > 0.3f)
                 return;   // up a tree, on a branch, in a cave above the surface, mid-jump
             var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
             var right = new float3(forward.z, 0f, -forward.x);
@@ -170,6 +191,24 @@ namespace Punchy.Fauna
 
         void Print(in CreatureState s, ref CreatureBlob b, in TerrainSource terrain, float3 at, float3 forward, float now)
         {
+            // Up on a prop's top (a roof, a rock): a faint dusty print on it (the soft-ground test below is the terrain's).
+            var top = Underfoot(terrain, new float3(at.x, s.Position.y, at.z), out var onProp);
+            if (onProp)
+            {
+                var dust = math.clamp(b.FrontRadius * s.Scale * 0.35f, 0.02f, 0.25f);
+                Add(new Trace
+                {
+                    Position = new float3(at.x, top + 0.012f, at.z),
+                    Rotation = quaternion.LookRotationSafe(forward, new float3(0f, 1f, 0f)),
+                    Length = dust * 1.2f,
+                    Radius = dust,
+                    Flatten = 0.06f,
+                    Color = new float4(0.13f, 0.11f, 0.09f, 0f),
+                    Born = now,
+                    Life = FootprintLife * 0.5f
+                });
+                return;
+            }
             var ground = terrain.SampleGround(at.xz);
 
             // Soft ground only: snow, bare sand or earth (little grass, few pebbles), or mud at the water's edge.
