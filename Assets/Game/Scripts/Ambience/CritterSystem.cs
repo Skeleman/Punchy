@@ -26,6 +26,25 @@ namespace Punchy.Ambience
         public float Radius = 70f;
         [Tooltip("Upper limit on critters of each kind per 100 m² (densities above this are clipped).")]
         public float MaxDensity = 8f;
+        [Tooltip("Scales every biome's Butterflies density: a few round you in a meadow, not a cloud.")]
+        public float ButterflyScale = 0.1f;
+
+        /// <summary>
+        /// Butterfly hotspots: landmark types (by asset name) multiply the butterflies inside them, strongest at the
+        /// centre, fading to none extra at the edge. Villages are slightly below the meadow around them.
+        /// </summary>
+        static readonly Dictionary<string, float> LandmarkButterflies = new Dictionary<string, float>
+        {
+            ["FairyRing"] = 14f, ["Oasis"] = 10f, ["AncientTree"] = 10f, ["DesertSpring"] = 8f, ["ElfGrove"] = 6f,
+            ["OakGrove"] = 4f, ["StoneCircle"] = 3f, ["Waterfall"] = 3f, ["HotSprings"] = 2f,
+            ["HumanVillage"] = 0.6f, ["DwarfHold"] = 0.5f,
+        };
+
+        /// <summary>Biomes (by asset name) with more butterflies than their density alone gives: the mystic glades.</summary>
+        static readonly Dictionary<string, float> BiomeButterflies = new Dictionary<string, float>
+        {
+            ["SparklingForest"] = 4f,
+        };
 
         const int FireflyVertices = 6;
         const int ButterflyVertices = 12;
@@ -59,6 +78,7 @@ namespace Punchy.Ambience
         TerrainSource lastSource;
         bool hasSource;
         NativeArray<float2> densities;   // fireflies, butterflies per biome id
+        NativeArray<float> landmarkButterflies;   // butterfly multiplier per landmark type
 
         static readonly int CrittersBufferId = Shader.PropertyToID("_CritterBuffer");
         static readonly int CrittersId = Shader.PropertyToID("_PunchyCritters");
@@ -71,6 +91,7 @@ namespace Punchy.Ambience
                 t.Dispose();
             tiles.Clear();
             if (densities.IsCreated) densities.Dispose();
+            if (landmarkButterflies.IsCreated) landmarkButterflies.Dispose();
             hasSource = false;
         }
 
@@ -85,7 +106,12 @@ namespace Punchy.Ambience
                 densities = new NativeArray<float2>(palette.Biomes.Length, Allocator.Persistent);
                 for (int i = 0; i < palette.Biomes.Length; i++)
                     if (palette.Biomes[i] != null)
-                        densities[i] = new float2(palette.Biomes[i].Fireflies, palette.Biomes[i].Butterflies);
+                        densities[i] = new float2(palette.Biomes[i].Fireflies, palette.Biomes[i].Butterflies * ButterflyScale *
+                            (BiomeButterflies.TryGetValue(palette.Biomes[i].name, out var bm) ? bm : 1f));
+                var types = palette.Landmarks;
+                landmarkButterflies = new NativeArray<float>(types?.Length ?? 0, Allocator.Persistent);
+                for (int i = 0; i < landmarkButterflies.Length; i++)
+                    landmarkButterflies[i] = types[i] != null && LandmarkButterflies.TryGetValue(types[i].name, out var lm) ? lm : 1f;
                 lastSource = source;
                 hasSource = true;
             }
@@ -157,6 +183,7 @@ namespace Punchy.Ambience
             {
                 Source = source,
                 Densities = densities,
+                LandmarkButterflies = landmarkButterflies,
                 Tiles = coords,
                 TileSize = TileSize,
                 PerTile = perTile,
@@ -235,6 +262,7 @@ namespace Punchy.Ambience
         {
             public TerrainSource Source;
             [ReadOnly] public NativeArray<float2> Densities;
+            [ReadOnly] public NativeArray<float> LandmarkButterflies;
             [ReadOnly] public NativeArray<int2> Tiles;
             public float TileSize;
             public int PerTile;
@@ -257,6 +285,14 @@ namespace Punchy.Ambience
                 for (int b = 0; b < 4; b++)
                     if (biomes.Weights[b] > 0f && biomes.Ids[b] < Densities.Length)
                         density += (butterfly ? Densities[biomes.Ids[b]].y : Densities[biomes.Ids[b]].x) * biomes.Weights[b];
+                if (butterfly && Source.Landmarks.IsCreated && LandmarkSampling.Find(ref Source.Landmarks.Value, xz, out var hit) &&
+                    hit.Type < LandmarkButterflies.Length)
+                {
+                    // A hotspot needs a floor too, or a fairy ring in a bare biome would stay bare.
+                    var m = LandmarkButterflies[hit.Type];
+                    var inside = math.smoothstep(1f, 0.3f, hit.Distance);
+                    density = m > 1f ? math.lerp(density, math.max(density, 0.15f) * m, inside) : density * math.lerp(1f, m, inside);
+                }
                 if (keep >= density / MaxDensity)
                     return;
                 var ground = Source.SampleGround(xz);
