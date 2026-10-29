@@ -746,11 +746,18 @@ namespace Punchy.Fauna
                     Output[at + k++] = plate;
                     var front = Unity.Mathematics.math.normalize(forward - axis * Unity.Mathematics.math.dot(forward, axis));
                     var top = c.Position + axis * c.Length;
-                    var from = shoulderR >= 0 ? Output[offset + shoulderR].Position + upward * Output[offset + shoulderR].RadiusStart * 0.9f : top + right * r;
-                    var to = c.Position - axis * r * 0.6f - right * r * 0.85f + front * r * 0.6f;
-                    var over = (from + to) * 0.5f + front * r * 0.8f;
-                    Output[at + k++] = Piece(from, Unity.Mathematics.math.normalize(over - from), front, Unity.Mathematics.math.distance(from, over), r * 0.22f, r * 0.22f, 0.25f, b.GuardSash, faded, SegmentMaterial.Cloth);
-                    Output[at + k++] = Piece(over, Unity.Mathematics.math.normalize(to - over), front, Unity.Mathematics.math.distance(over, to), r * 0.22f, r * 0.22f, 0.25f, b.GuardSash, faded, SegmentMaterial.Cloth);
+                    // (The chest's own reach forward and to the side: a flattened chest, an ogre's or a dwarf's, is shallower
+                    // than it is wide, so the sash is laid on its surface from these rather than its radius.)
+                    var cx = Unity.Mathematics.math.mul(c.Rotation, new Unity.Mathematics.float3(1f, 0f, 0f));
+                    var cy = Unity.Mathematics.math.mul(c.Rotation, new Unity.Mathematics.float3(0f, 1f, 0f));
+                    var deep = r * Unity.Mathematics.math.sqrt(Unity.Mathematics.math.square(Unity.Mathematics.math.dot(cx, front)) + Unity.Mathematics.math.square(c.Flatten * Unity.Mathematics.math.dot(cy, front))) * 1.12f;
+                    var wide = r * Unity.Mathematics.math.sqrt(Unity.Mathematics.math.square(Unity.Mathematics.math.dot(cx, right)) + Unity.Mathematics.math.square(c.Flatten * Unity.Mathematics.math.dot(cy, right))) * 1.12f;
+                    var band = Unity.Mathematics.math.min(r * 0.2f, wide * 0.22f);
+                    var from = top + right * wide * 0.7f + front * deep * 0.35f;
+                    var over = c.Position + axis * c.Length * 0.45f + front * deep * 1.02f;
+                    var to = c.Position - axis * r * 0.4f - right * wide * 0.75f + front * deep * 0.6f;
+                    Output[at + k++] = Piece(from, Unity.Mathematics.math.normalize(over - from), front, Unity.Mathematics.math.distance(from, over), band, band, 0.25f, b.GuardSash, faded, SegmentMaterial.Cloth);
+                    Output[at + k++] = Piece(over, Unity.Mathematics.math.normalize(to - over), front, Unity.Mathematics.math.distance(over, to), band, band, 0.25f, b.GuardSash, faded, SegmentMaterial.Cloth);
                     // An elf's bow across its back: an arc from low on one side to high on the other, and its string.
                     if (b.GuardKit == GuardKit.Elf)
                     {
@@ -783,7 +790,7 @@ namespace Punchy.Fauna
                 {
                     var fore = Output[offset + offHand - 1];
                     var at2 = fore.Position + Unity.Mathematics.math.mul(fore.Rotation, new Unity.Mathematics.float3(0f, 0f, fore.Length * 0.5f)) - right * 0.06f * scale;
-                    Output[at + k++] = Piece(at2, forward, -right, 0.01f * scale, 0.24f * scale, 0.22f * scale, 0.12f, new Unity.Mathematics.float4(0.36f, 0.3f, 0.24f, 0f), faded, SegmentMaterial.Metal);
+                    Output[at + k++] = Piece(at2, forward, -right, 0.01f * scale, 0.17f * scale, 0.155f * scale, 0.12f, new Unity.Mathematics.float4(0.36f, 0.3f, 0.24f, 0f), faded, SegmentMaterial.Metal);
                 }
 
                 // The helmet, its folk's shape (the hair under it hidden: whatever grows from the top of the head, not
