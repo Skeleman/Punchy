@@ -14,6 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
   VariantOf: {fileID: 11400000, guid: 8e349b1519701e84fbe7923c0c10f2fd, type: 2}
   VariantScale: 0.6
+  VariantHead: 1.6
+  VariantThickness: 1.3
+  VariantLegs: 0.8
   BodyLength: 0.8
   BodyRadius: 0.15
   BodyTaper: 1

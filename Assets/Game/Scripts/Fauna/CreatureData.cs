@@ -575,8 +575,13 @@ namespace Punchy.Fauna
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<CreatureBlob>();
             root.BodyLength = species.BodyLength;
-            root.FrontRadius = species.BodyRadius;
-            root.RearRadius = species.BodyRadius * species.BodyTaper;
+            // A variant's own proportions (a child's big head, chunky limbs and short legs) on the body it's based on.
+            var own = variant != species;
+            var headScale = own ? variant.VariantHead : 1f;
+            var thickness = own ? variant.VariantThickness : 1f;
+            var legScale = own ? variant.VariantLegs : 1f;
+            root.FrontRadius = species.BodyRadius * thickness;
+            root.RearRadius = species.BodyRadius * species.BodyTaper * thickness;
             root.BodyFlatten = species.BodyFlatten;
             root.WalkSpeed = species.WalkSpeed;
             root.RunSpeed = math.max(species.RunSpeed, species.WalkSpeed * 1.3f);
@@ -668,6 +673,8 @@ namespace Punchy.Fauna
             };
 
             var cursor = 1;
+            // (Whether each part is the head or on it: those all take the head's scale, sockets on it too.)
+            var onHead = new bool[parts.Count];
             for (int i = 0; i < parts.Count; i++)
             {
                 var e = parts[i];
@@ -675,6 +682,13 @@ namespace Punchy.Fauna
                 var limb = slot.Limb;
                 var side = e.Mirrored ? -1f : 1f;
                 var socket = (float3)slot.Socket;
+                onHead[i] = limb.Role == LimbRole.Head || e.Parent >= 0 && onHead[e.Parent];
+                if (e.Parent >= 0 && onHead[e.Parent])
+                    socket *= headScale;
+                var lengthScale = onHead[i] ? headScale : limb.Role == LimbRole.Leg ? legScale : 1f;
+                var radiusScale = onHead[i] ? headScale : thickness;
+                // (The head's own neck, before its last segment, only thickens: a big head, not a long neck.)
+                var neck = limb.Role == LimbRole.Head ? limb.Segments.Count - 1 : 0;
                 if (e.Parent < 0)
                 {
                     // Body units → metres: across the radius at that point along the body, along the half-length.
@@ -707,9 +721,9 @@ namespace Punchy.Fauna
                     var seg = limb.Segments[s];
                     segArray[cursor] = new CreatureSegment
                     {
-                        Length = seg.Length * slot.Scale,
-                        RadiusStart = seg.RadiusStart * slot.Scale * slot.Thickness,
-                        RadiusEnd = seg.RadiusEnd * slot.Scale * slot.Thickness,
+                        Length = seg.Length * slot.Scale * (s < neck ? 1f : lengthScale),
+                        RadiusStart = seg.RadiusStart * slot.Scale * slot.Thickness * (s < neck ? thickness : radiusScale),
+                        RadiusEnd = seg.RadiusEnd * slot.Scale * slot.Thickness * (s < neck ? thickness : radiusScale),
                         Flatten = seg.Flatten,
                         Accent = seg.Accent,
                         Fixed = seg.UseFixedColor ? 1 : 0,

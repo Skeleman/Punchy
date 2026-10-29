@@ -17,6 +17,14 @@ namespace Punchy.Fauna
         public CreatureSpecies VariantOf;
         [Tooltip("Variants only: size relative to the species they're based on.")]
         [Min(0.05f)] public float VariantScale = 1f;
+        [Tooltip("Variants only: the head's size relative to the body it's based on (and all on it: eyes, ears, hair). " +
+                 "Children: about 1.6.")]
+        [Min(0.1f)] public float VariantHead = 1f;
+        [Tooltip("Variants only: how thick the torso and limbs are relative to the body they're based on (children: " +
+                 "chunkier, about 1.3).")]
+        [Min(0.1f)] public float VariantThickness = 1f;
+        [Tooltip("Variants only: leg length relative to the body it's based on (children: shorter, about 0.8).")]
+        [Min(0.1f)] public float VariantLegs = 1f;
 
         [Header("Body")]
         [Tooltip("Length of the torso, nose-end to tail-end of the trunk, in metres.")]
