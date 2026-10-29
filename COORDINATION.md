@@ -50,6 +50,10 @@ feature code, and it never edits files in another session's checkout.
    before and after from the same camera, seed, time and coats; light dark scenes so the feature is visible;
    frame the feature tightly, 3-8 m away, whole subject in frame. At most 3 images per report, 800 px on the long
    edge (a sheet at most 1200 px; crop a detail rather than raising resolution) (a sheet counts as one). No images for changes you can't see (culling, audio, networking, perf): give numbers.
+12b. **Full-res gallery (Zach, 2026-10-28):** besides the reviewed shots, save a fuller set for Zach to browse in
+   `D:\Unity\PunchyMilestones\<lane>\<feature>\gallery\`: full resolution, more angles, before/after sets, short
+   sequences if handy. Never open or view these yourself (no token cost), and don't send them to the supervisor;
+   just mention the folder in the report. Keep each gallery under about 40 images.
 13. **Waiting on someone:** before blocking on another session, ask that session whether you actually need to
    wait. If they don't answer within the hour, ask the supervisor.
 
