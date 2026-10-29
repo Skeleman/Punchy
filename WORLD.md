@@ -150,7 +150,19 @@ Batches in this order; each batch gets one evaluation session, one sheet and one
      towns, cave styles, mine); remove it; report the result.
    - One final reshuffle: re-run every island check, publish new places and bench coordinates to kind-possum and the
      animal session (AnchorBaking is shared) before pushing; it changes the world fingerprint.
-5c. **Towns grew over time (after 5b)**: houses on both sides of the ring and along the spokes inside it, with gardens
+5d. **Cave culling (right after 5b, before the small landmarks)**, from kind-possum's measurements on 7732433: from
+   the surface the big cave is fully meshed from 400 m (37 chunks, 377k tris, 15 MB), 16 of them (153k tris) wholly
+   buried with no entrance in reach yet drawn when in the frustum; deep inside, about 1.9 ms of main thread goes on
+   unseen surface systems (TerrainStreaming 1.0, Flora 0.5, CreatureRender 0.4).
+   - (a) Camera on the surface (Underground ≈ 0, outside all cave air): skip drawing and shadow casting of buried cave
+     chunks, flagged at build time as "no entrance in reach".
+   - (b) Underground ≈ 1 and far from any entrance (> ~40 m along the cave, or no line to a mouth): skip flora draw
+     and placement, and terrain chunks above the roof beyond a small radius; fade the threshold so a view out of a
+     mouth still shows the outside.
+   - (c) LoadRadius unchanged.
+   - One shared helper, CaveSystem.SurfaceHidden (0..1), which the animal session's creature draws key too.
+   - Ask kind-possum for before/after numbers.
+5c. **Towns grew over time (done, 06e78bd)**: houses on both sides of the ring and along the spokes inside it, with gardens
    and pens filling the interior; varied setback and spacing (clusters, gaps, a few turned slightly); the ring smoothed
    into an irregular loop following the terrain; a lane or two ending at a building instead of closing the loop.
 6. **Small landmarks**: W-24 ruins and graveyards; hermit huts and camps; W-25 cold fog; W-26 salt-flat landmarks.
