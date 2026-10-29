@@ -33,8 +33,8 @@ namespace Punchy.Fauna
         const int WebCount = Spokes + Spokes * Rings + Anchors;
         const int MoundCount = 7;
         /// <summary>Capsules per nest: its floor, a ring of twigs (or grass), and the darkening under it.</summary>
-        const int NestCount = 10;
-        const int NestRim = 8;
+        const int NestCount = 20;
+        const int NestRim = 14;
         /// <summary>Room for the animal's lair: a burrow's mound or a nest.</summary>
         static int LairCount(ref CreatureBlob b) => b.Burrows ? MoundCount : b.Nests != NestSite.None ? NestCount : 0;
         /// <summary>Capsules in a lantern (bail, cap, glass, base), and room for whatever is held.</summary>
@@ -1109,8 +1109,8 @@ namespace Punchy.Fauna
                 var c = state.Anchor;
                 var ground = site == NestSite.Ground;
                 var top = site == NestSite.Treetop;
-                // (Linear colours: dry grass; grey-brown mud; dark twigs.)
-                var twigs = ground ? new Unity.Mathematics.float4(0.34f, 0.26f, 0.095f, 0f)
+                // (Linear colours: straw; grey-brown mud; dark twigs.)
+                var twigs = ground ? new Unity.Mathematics.float4(0.4f, 0.31f, 0.12f, 0f)
                           : site == NestSite.Ledge ? new Unity.Mathematics.float4(0.16f, 0.12f, 0.08f, 0f)
                           : new Unity.Mathematics.float4(0.1f, 0.06f, 0.025f, 0f);
                 var x = new Unity.Mathematics.float3(1f, 0f, 0f);
@@ -1118,37 +1118,42 @@ namespace Punchy.Fauna
                 // The floor: a flat disc just under the bird's feet.
                 Output[offset] = new SegmentInstance
                 {
-                    Position = c + new Unity.Mathematics.float3(-r * 0.45f, ground ? 0.01f : -r * 0.05f, 0f),
+                    // (On the ground a round disc, its edge under the rim; in a tree the long shape it always had.)
+                    Position = c + new Unity.Mathematics.float3(ground ? -r * 0.05f : -r * 0.45f, ground ? 0.01f : -r * 0.05f, 0f),
                     Rotation = Unity.Mathematics.quaternion.LookRotationSafe(x, up),
-                    Length = r * 0.9f,
-                    RadiusStart = r * 0.55f,
-                    RadiusEnd = r * 0.55f,
+                    Length = ground ? r * 0.1f : r * 0.9f,
+                    RadiusStart = ground ? r * 0.68f : r * 0.55f,
+                    RadiusEnd = ground ? r * 0.68f : r * 0.55f,
                     Flatten = ground ? 0.1f : 0.3f,
-                    Color = twigs * (ground ? 0.85f : 0.8f)
+                    // (On the ground, the hollow: dark, trodden straw.)
+                    Color = ground ? new Unity.Mathematics.float4(0.12f, 0.09f, 0.04f, 0f) : twigs * 0.8f
                 };
                 // The rim: twigs round it, each a little askew (sticks on a treetop more so).
                 var rng = new Unity.Mathematics.Random(state.Individual | 1u);
-                var rimHeight = ground ? r * 0.05f : r * 0.15f;
-                var thick = r * (ground ? 0.14f : top ? 0.16f : 0.18f);
+                var rimHeight = ground ? r * 0.16f : r * 0.15f;
+                var thick = r * (ground ? 0.075f : top ? 0.16f : 0.18f);
                 // Contact darkening: a dark, flat disc a little wider than the nest just under it (the ground in its
                 // shade, or the shadowed underside of a nest in a tree).
                 Output[offset + NestCount - 1] = new SegmentInstance
                 {
-                    Position = c + new Unity.Mathematics.float3(ground ? -r * 0.6f : -r * 0.5f, ground ? 0.004f : -r * 0.06f, 0f),
+                    Position = c + new Unity.Mathematics.float3(ground ? -r * 0.05f : -r * 0.5f, ground ? 0.004f : -r * 0.06f, 0f),
                     Rotation = Unity.Mathematics.quaternion.LookRotationSafe(x, up),
-                    Length = ground ? r * 1.2f : r,
-                    RadiusStart = ground ? r * 0.8f : r * 0.7f,
-                    RadiusEnd = ground ? r * 0.8f : r * 0.7f,
+                    Length = ground ? r * 0.1f : r,
+                    RadiusStart = ground ? r * 0.95f : r * 0.7f,
+                    RadiusEnd = ground ? r * 0.95f : r * 0.7f,
                     Flatten = 0.05f,
-                    Color = new Unity.Mathematics.float4(0.02f, 0.018f, 0.012f, 0f)
+                    Color = ground ? new Unity.Mathematics.float4(0.05f, 0.04f, 0.02f, 0f) : new Unity.Mathematics.float4(0.02f, 0.018f, 0.012f, 0f)
                 };
                 for (int k = 1; k <= NestRim; k++)
                 {
                     var a = k / (float)NestRim * Unity.Mathematics.math.PI * 2f + rng.NextFloat(-0.25f, 0.25f);
                     var dir = new Unity.Mathematics.float3(Unity.Mathematics.math.cos(a), 0f, Unity.Mathematics.math.sin(a));
-                    var along = Unity.Mathematics.math.normalize(new Unity.Mathematics.float3(-dir.z, rng.NextFloat(-0.15f, 0.15f) * (top ? 2f : 1f), dir.x));
-                    var length = r * (top ? rng.NextFloat(1.1f, 1.6f) : 0.95f);
-                    var centre = c + dir * r * 0.9f + up * rimHeight;
+                    // (On the ground, short tufts of straw heaped up raggedly: shorter, more askew, in and out.)
+                    var along = Unity.Mathematics.math.normalize(new Unity.Mathematics.float3(-dir.z, rng.NextFloat(-0.15f, 0.15f) * (top ? 2f : ground ? 2.5f : 1f), dir.x));
+                    var length = r * (top ? rng.NextFloat(1.1f, 1.6f) : ground ? rng.NextFloat(0.55f, 0.85f) : 0.95f);
+                    var layer = ground && (k & 1) == 0 ? 1f : 0f;
+                    var centre = c + dir * r * (ground ? rng.NextFloat(0.82f, 1.0f) - 0.1f * layer : 0.9f) +
+                                 up * rimHeight * (ground ? rng.NextFloat(0.5f, 0.9f) + 0.7f * layer : 1f);
                     Output[offset + k] = new SegmentInstance
                     {
                         Position = centre - along * length * 0.5f,
@@ -1156,8 +1161,47 @@ namespace Punchy.Fauna
                         Length = length,
                         RadiusStart = thick,
                         RadiusEnd = thick * 0.8f,
-                        Flatten = ground ? 0.5f : 1f,
-                        Color = twigs * rng.NextFloat(0.85f, 1.1f)
+                        Flatten = 1f,
+                        Color = twigs * rng.NextFloat(0.75f, 1.15f)
+                    };
+                }
+                // A scrape on the ground has a few straws sticking out of the rim at angles, and eggs in the hollow when
+                // the hen is off it.
+                for (int k = NestRim + 1; k < NestCount - 1; k++)
+                    Output[offset + k] = default;
+                if (!ground)
+                    return;
+                for (int k = 0; k < 2; k++)
+                {
+                    var a = rng.NextFloat(0f, Unity.Mathematics.math.PI * 2f);
+                    var dir = new Unity.Mathematics.float3(Unity.Mathematics.math.cos(a), 0f, Unity.Mathematics.math.sin(a));
+                    var outward = Unity.Mathematics.math.normalize(dir + up * rng.NextFloat(0.3f, 0.8f) + new Unity.Mathematics.float3(-dir.z, 0f, dir.x) * rng.NextFloat(-0.6f, 0.6f));
+                    Output[offset + NestRim + 1 + k] = new SegmentInstance
+                    {
+                        Position = c + dir * r * 0.75f + up * rimHeight,
+                        Rotation = Unity.Mathematics.quaternion.LookRotationSafe(outward, up),
+                        Length = r * rng.NextFloat(0.6f, 0.9f),
+                        RadiusStart = r * 0.035f,
+                        RadiusEnd = r * 0.02f,
+                        Flatten = 1f,
+                        Color = twigs * 1.1f
+                    };
+                }
+                if (Unity.Mathematics.math.distance(state.Position, c) < r * 1.5f)
+                    return;
+                for (int k = 0; k < 2; k++)
+                {
+                    var egg = Unity.Mathematics.math.normalize(new Unity.Mathematics.float3(rng.NextFloat(-1f, 1f), 0.15f, rng.NextFloat(-1f, 1f)));
+                    var at = c + new Unity.Mathematics.float3(k == 0 ? -r * 0.28f : r * 0.25f, r * 0.12f, k == 0 ? r * 0.14f : -r * 0.2f);
+                    Output[offset + NestRim + 3 + k] = new SegmentInstance
+                    {
+                        Position = at - egg * r * 0.05f,
+                        Rotation = Unity.Mathematics.quaternion.LookRotationSafe(egg, up),
+                        Length = r * 0.1f,
+                        RadiusStart = r * 0.13f,
+                        RadiusEnd = r * 0.1f,
+                        Flatten = 1f,
+                        Color = new Unity.Mathematics.float4(0.72f, 0.62f, 0.46f, 0f)
                     };
                 }
             }
