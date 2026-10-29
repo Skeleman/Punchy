@@ -65,6 +65,8 @@ namespace Punchy.Flora
         public float CrownBase, CrownRadius;
         /// <summary>A building's walls, for creatures to walk round: its cylinders in FloraBlob.Obstacles.</summary>
         public int FirstObstacle, ObstacleCount;
+        /// <summary>Where birds can sit on top of it (roof peaks, ridges, chimneys, posts): its points in FloraBlob.Perches.</summary>
+        public int FirstPerch, PerchCount;
     }
 
     /// <summary>
@@ -98,6 +100,11 @@ namespace Punchy.Flora
         /// collides with them (FloraModel.Colliders). Only built for the animals' tables (see Build).
         /// </summary>
         public BlobArray<float4> Obstacles;
+        /// <summary>
+        /// Perches on buildings, posts and signposts (FloraModel.Perches): points a bird sits on, unturned and unscaled.
+        /// Only built for the animals' tables, like Obstacles.
+        /// </summary>
+        public BlobArray<float3> Perches;
         /// <summary>Grid spacing of the ground, shrub and tree layers.</summary>
         public float3 CellSizes;
     }
@@ -164,6 +171,7 @@ namespace Punchy.Flora
             var rules = builder.Allocate(ref root.Rules, species.Count);
             var shapes = new List<FloraShape>();
             var walls = new List<float4>();
+            var perches = new List<float3>();
             for (int i = 0; i < species.Count; i++)
             {
                 var s = species[i];
@@ -194,15 +202,22 @@ namespace Punchy.Flora
                 for (int v = 0; v < s.Variants; v++)
                 {
                     var shape = FloraGenerator.Shape(s, v);
-                    if (obstacles && IsBuilding(s))
+                    if (obstacles && (IsBuilding(s) || HasPerches(s)))
                     {
                         var model = FloraGenerator.Grow(s, v);
-                        shape.FirstObstacle = walls.Count;
-                        foreach (var c in model.Colliders)
-                            walls.Add(new float4(c.x, c.y, c.z, c.w));
-                        if (model.Colliders.Count == 0 && model.TrunkRadius > 0f)
-                            walls.Add(new float4(0f, 0f, model.TrunkRadius, model.Height));
-                        shape.ObstacleCount = walls.Count - shape.FirstObstacle;
+                        if (IsBuilding(s))
+                        {
+                            shape.FirstObstacle = walls.Count;
+                            foreach (var c in model.Colliders)
+                                walls.Add(new float4(c.x, c.y, c.z, c.w));
+                            if (model.Colliders.Count == 0 && model.TrunkRadius > 0f)
+                                walls.Add(new float4(0f, 0f, model.TrunkRadius, model.Height));
+                            shape.ObstacleCount = walls.Count - shape.FirstObstacle;
+                        }
+                        shape.FirstPerch = perches.Count;
+                        foreach (var p in model.Perches)
+                            perches.Add(p);
+                        shape.PerchCount = perches.Count - shape.FirstPerch;
                         model.Destroy();
                     }
                     else if (obstacles && IsAnchorRock(s))
@@ -219,6 +234,9 @@ namespace Punchy.Flora
             var obstacleArray = builder.Allocate(ref root.Obstacles, walls.Count);
             for (int i = 0; i < walls.Count; i++)
                 obstacleArray[i] = walls[i];
+            var perchArray = builder.Allocate(ref root.Perches, perches.Count);
+            for (int i = 0; i < perches.Count; i++)
+                perchArray[i] = perches[i];
             var glow = builder.Allocate(ref root.Glow, species.Count);
             for (int i = 0; i < species.Count; i++)
                 glow[i] = GlowLight(species[i]);
@@ -375,7 +393,16 @@ namespace Punchy.Flora
             FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tent or FloraForm.Tower or FloraForm.Stall or FloraForm.Inn or
             FloraForm.Smithy or FloraForm.Forum or FloraForm.Fountain or FloraForm.Woodpile or FloraForm.Well or
             FloraForm.Hall or FloraForm.Shrine or FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade or
-            FloraForm.Bench or FloraForm.Log or FloraForm.Stump or FloraForm.FirePit => true,
+            FloraForm.Bench or FloraForm.Log or FloraForm.Stump or FloraForm.FirePit or FloraForm.Ruin => true,
+            _ => false
+        };
+
+        /// <summary>Forms whose models carry perches (FloraModel.Perches), solid or not.</summary>
+        static bool HasPerches(FloraSpecies s) => s.Form switch
+        {
+            FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tower or FloraForm.Inn or FloraForm.Smithy or FloraForm.Well or
+            FloraForm.Hall or FloraForm.Shrine or FloraForm.Garden or FloraForm.Pen or FloraForm.Signpost or FloraForm.Palisade or
+            FloraForm.Ruin => true,
             _ => false
         };
 
@@ -463,6 +490,79 @@ namespace Punchy.Flora
                         }
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// Every perch within <paramref name="radius"/> of a point (world positions, where a bird's feet go): the tops of
+        /// towns' buildings, fences, pens, wells and signposts, and of buildings landmarks place (ruins, camps' palisades),
+        /// placed as they're drawn. Burst-safe; the list is filled until it's full. Cheap away from towns and landmarks.
+        /// </summary>
+        public static void NearPerches(ref FloraBlob f, in TerrainSource source, float2 near, float radius, ref FixedList512Bytes<float3> perches)
+        {
+            if (f.Perches.Length == 0)
+                return;
+            if (source.Settlements.IsCreated && f.SettlementSpecies.Length > 0)
+            {
+                ref var towns = ref source.Settlements.Value;
+                var townCell = SettlementSampling.Cell(ref towns, near);
+                if (townCell >= 0)
+                {
+                    var plots = towns.PlotCells[townCell];
+                    for (int k = plots.x; k < plots.x + plots.y; k++)
+                    {
+                        ref var plot = ref towns.Plots[towns.PlotItems[k]];
+                        if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length ||
+                            math.any(near < plot.Min - radius) || math.any(near > plot.Max + radius))
+                            continue;
+                        var building = f.SettlementSpecies[plot.Building];
+                        if (building.x < 0 || f.Models[f.Rules[building.x].FirstModel].PerchCount == 0)
+                            continue;
+                        var cell = (int2)math.floor(plot.Centre / f.CellSizes[building.y]);
+                        Perches(ref f, Place(ref f, source, cell, building.y), near, radius, ref perches);
+                    }
+                }
+            }
+            if (source.Landmarks.IsCreated && LandmarkSampling.Find(ref source.Landmarks.Value, near, out var landmark) && landmark.Type < f.LandmarkTypeCount)
+            {
+                ref var set = ref source.Landmarks.Value;
+                for (int l = 0; l < 3; l++)
+                {
+                    var placed = f.PropRanges[landmark.Type * 3 + l];
+                    for (int e = placed.x; e < placed.x + placed.y; e++)
+                    {
+                        var prop = f.Props[e];
+                        if (prop.Count == 0 || f.Models[f.Rules[prop.Species].FirstModel].PerchCount == 0)
+                            continue;
+                        for (int k = 0; k < prop.Count; k++)
+                        {
+                            var spot = LandmarkSampling.ToWorld(set.Instances[landmark.Instance],
+                                LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
+                            if (math.distance(spot, near) > 15f + radius)
+                                continue;
+                            Perches(ref f, Place(ref f, source, (int2)math.floor(spot / f.CellSizes[l]), l), near, radius, ref perches);
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>A placed plant's perches near a point, in the world (see NearPerches).</summary>
+        static void Perches(ref FloraBlob f, in FloraSystem.FloraInstance plant, float2 near, float radius, ref FixedList512Bytes<float3> perches)
+        {
+            if (plant.Model < 0 || plant.Model >= f.Models.Length)
+                return;
+            var shape = f.Models[plant.Model];
+            float c = math.cos(plant.Yaw), sn = math.sin(plant.Yaw);
+            for (int i = shape.FirstPerch; i < shape.FirstPerch + shape.PerchCount; i++)
+            {
+                var p = f.Perches[i];
+                var at = plant.Position.xz + new float2(p.x * c - p.z * sn, p.x * sn + p.z * c) * plant.Scale;
+                if (math.distance(at, near) > radius)
+                    continue;
+                if (perches.Length == perches.Capacity)
+                    return;
+                perches.Add(new float3(at.x, plant.Position.y + p.y * plant.Scale, at.y));
             }
         }
 

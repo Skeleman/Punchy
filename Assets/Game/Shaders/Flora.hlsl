@@ -31,6 +31,10 @@ float _FloraNoBatcher;   // see Flora.shader's Properties
 float _FloraInCave;      // 1 for cave plants (CaveSystem's copy of the material)
 float2 _PunchyWindDirection;
 half _PunchyWind;
+// Doors something has opened (FloraDoors): xyz where, w how far open; how many are set.
+float4 _PunchyDoorOpen[16];
+int _PunchyDoorCount;
+half _PunchyDoorDay;   // 1 by day, 0 at night (FloraDoors, from the sky's night)
 // The shared tiling noise CaveSystem makes (rg a normal, b a smooth height): grain on rock and bark up close
 // (Flora.shader), and the gusts that roll across the land (cloth here, grass in GroundDetail.hlsl).
 TEXTURE2D(_PunchyCaveDetail);
@@ -66,9 +70,43 @@ FloraVertex FloraTransform(FloraAttributes input)
     FloraInstance plant = _FloraInstances[visible.x];
 
     float c = cos(plant.yaw), s = sin(plant.yaw);
-    float3 p = input.positionOS * plant.scale;
+    float3 positionOS = input.positionOS;
+    float3 normalOS = input.normalOS;
+    // Door leaves (part 12) swing outwards about their hinge: x is the distance from the hinge along the leaf, z the
+    // door's facing (FloraMeshBuilder.Hinge). A few doors stand ajar by day, all shut at night, and any that something
+    // has opened (FloraDoors, matched by the hinge within 2 m) open as far as it says.
+    if ((int)round(input.data.y) == 12)
+    {
+        float yaw = input.data.z;
+        float3 across = float3(cos(yaw), 0, -sin(yaw));
+        float3 outwards = float3(sin(yaw), 0, cos(yaw));
+        float3 hingeOS = positionOS - across * input.data.x;
+        float3 hs = hingeOS * plant.scale;
+        float3 hingeWS = plant.position + float3(hs.x * c - hs.z * s, hs.y, hs.x * s + hs.z * c);
+        float open = _PunchyDoorDay * step(0.75, frac(plant.random * 13.7)) * 0.3;
+        // A set door matches a leaf if it stands out in front of it (a Door anchor is out on the plot, up to several
+        // metres from a small house's door), across no further than the doorway, and at about its height. Doors of
+        // the houses opposite face the other way, so they never match.
+        float3 acrossWS = float3(across.x * c - across.z * s, 0, across.x * s + across.z * c);
+        float3 outWS = float3(outwards.x * c - outwards.z * s, 0, outwards.x * s + outwards.z * c);
+        for (int i = 0; i < _PunchyDoorCount; i++)
+        {
+            float3 v = _PunchyDoorOpen[i].xyz - hingeWS;
+            float side = dot(v.xz, acrossWS.xz), ahead = dot(v.xz, outWS.xz);
+            if (side > -1.0 && side < 3.0 && ahead > -0.5 && ahead < 7.0 && abs(v.y) < 2.5)
+                open = max(open, _PunchyDoorOpen[i].w);
+        }
+        float phi = open * 1.65;
+        float3 rel = positionOS - hingeOS;
+        float u = dot(rel, across), d = dot(rel, outwards);
+        float3 a2 = across * cos(phi) + outwards * sin(phi);
+        float3 f2 = outwards * cos(phi) - across * sin(phi);
+        positionOS = hingeOS + a2 * u + f2 * d + (rel - across * u - outwards * d);
+        normalOS = a2 * dot(normalOS, across) + f2 * dot(normalOS, outwards) + float3(0, normalOS.y, 0);
+    }
+    float3 p = positionOS * plant.scale;
     p = float3(p.x * c - p.z * s, p.y, p.x * s + p.z * c);
-    float3 n = float3(input.normalOS.x * c - input.normalOS.z * s, input.normalOS.y, input.normalOS.x * s + input.normalOS.z * c);
+    float3 n = float3(normalOS.x * c - normalOS.z * s, normalOS.y, normalOS.x * s + normalOS.z * c);
 
     // Ground tilt (rocks): turn the plant's up onto the ground normal, about the horizontal axis between them.
     if (any(plant.tilt != 0))
@@ -85,10 +123,11 @@ FloraVertex FloraTransform(FloraAttributes input)
     float3 windDir = float3(_PunchyWindDirection.x, 0, _PunchyWindDirection.y);
     float phase = _Time.y * (0.7 + _PunchyWind * 1.1) - dot(plant.position.xz, _PunchyWindDirection) * 0.04 + plant.random * 6.28;
     float gust = (0.6 + 0.4 * sin(phase) * sin(phase * 0.37 + 1.3)) * (0.08 + 0.92 * _PunchyWind);
-    float sway = input.data.x * (0.05 + 0.045 * p.y);
+    // (A door leaf's x is its distance from the hinge, not how much it bends.)
+    float sway = ((int)round(input.data.y) == 12 ? 0 : input.data.x) * (0.05 + 0.045 * p.y);
     p += windDir * sway * gust * 2.2;
     p.y -= sway * gust * sway * 0.6;   // bending, not stretching
-    float flutter = max(input.data.z, 0) * (0.15 + _PunchyWind) * 0.022 * plant.scale;
+    float flutter = ((int)round(input.data.y) == 12 ? 0 : max(input.data.z, 0)) * (0.15 + _PunchyWind) * 0.022 * plant.scale;
     p += n * sin(_Time.y * 7.3 + dot(input.positionOS, float3(3.1, 2.3, 4.7)) + plant.random * 20) * flutter;
     // Motions carried in the flutter channel as negatives (FloraMeshBuilder.Motion, Sway), on the shared clock: a slow
     // breath along the normal (mushroom caps), below -2 a sudden small jerk now and then (cocoons), and below -10 a

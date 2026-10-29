@@ -41,6 +41,8 @@ half   _PunchyNight;           // 0 day … 1 night
 float4 _PunchyLightning;       // xyz towards the strike, w flash brightness as seen from the camera
 float4 _PunchyLightningPos;    // xyz strike position in the cloud, w raw flash brightness
 
+half   _PunchyAurora;           // 0..1: how cold the lands round the camera are (SkyEventsSystem); auroras at night
+half   _PunchySkyTest;          // checking only: 1 makes every night a meteor shower
 float4 _PunchyClimate;         // map-wide average: coverage, darkness, cloud base / 4000, thickness / 9000
 
 float2 PunchyMapUV(float2 worldXZ) { return (worldXZ - _PunchyWeatherRect.xy) * _PunchyWeatherRect.zw; }
@@ -368,6 +370,78 @@ half PunchyCirrus(float3 dir)
     return smoothstep(1 - amount * 0.55, 1.05, n) * 0.55 * smoothstep(0.01, 0.15, dir.y);
 }
 
+#include "SharedClock.hlsl"
+
+float PunchyHash1(float x) { return frac(sin(x * 12.9898) * 43758.5453); }
+
+// Shooting stars: the night is cut into 6 s slots on the shared clock, and in a slot a streak may cross the sky (about
+// one slot in four; on a meteor shower night up to four in nearly every slot). Where it starts, which way it falls,
+// how long and how fast all come from a hash of its slot, so every player sees the same ones. The shower comes once a
+// lunar cycle, a couple of nights after the full moon (the moon's phase is shared too).
+half3 PunchyShootingStars(float3 dir)
+{
+    half shower = max(1 - smoothstep(0.04, 0.06, abs(_PunchyMoonPhase.x - 0.62)), _PunchySkyTest);
+    const float slotLength = 6;
+    float slot = floor(_PunchyClock / slotLength);
+    float local = _PunchyClock - slot * slotLength;
+    int count = shower > 0.5 ? 4 : 1;
+    half3 sum = 0;
+    for (int k = 0; k < 4; k++)
+    {
+        if (k >= count)
+            break;
+        float s = fmod(slot, 4096) * 7.13 + k * 31.7;
+        if (PunchyHash1(s) > (shower > 0.5 ? 0.9 : 0.25))
+            continue;
+        float start = PunchyHash1(s + 1.1) * (slotLength - 1.5);
+        float life = lerp(0.5, 1.1, PunchyHash1(s + 2.3));
+        float t = (local - start) / life;
+        if (t < 0 || t > 1)
+            continue;
+        float az = PunchyHash1(s + 3.7) * 6.2832;
+        float el = lerp(0.35, 1.1, PunchyHash1(s + 4.9));
+        float3 a = float3(cos(az) * cos(el), sin(el), sin(az) * cos(el));
+        if (dot(dir, a) < 0.85)
+            continue;
+        float3 right = normalize(cross(float3(0, 1, 0), a));
+        float3 up = cross(a, right);
+        float heading = PunchyHash1(s + 6.1) * 6.2832;
+        float2 way = normalize(float2(cos(heading), sin(heading) - 0.7));   // mostly falling
+        float len = lerp(0.18, 0.4, PunchyHash1(s + 7.7));
+        float3 v = dir - a * dot(dir, a);
+        float2 q = float2(dot(v, right), dot(v, up));
+        float along = dot(q, way);
+        float across = abs(q.x * way.y - q.y * way.x);
+        float head = len * t;
+        float tail = len * 0.35;
+        half trail = saturate(1 - (head - along) / tail) * step(along, head) * step(head - tail, along);
+        half streak = 1 - smoothstep(0.0012, 0.0035, across);
+        sum += half3(1.0, 0.95, 0.85) * trail * trail * streak * sin(t * 3.1416) * 5;
+    }
+    return sum;
+}
+
+// Auroras over the cold lands at night (_PunchyAurora): curtains hanging from the sky round the horizon in some
+// directions, brightest along a wavering hem low down and fading upwards, green below and violet at their tops,
+// folded and shot through with fine vertical rays, all rippling slowly on the shared clock. Worked out round the
+// compass (a circle, so there's no seam), so they hang straight up like curtains rather than arching across.
+half3 PunchyAurora(float3 dir)
+{
+    if (_PunchyAurora <= 0.001 || dir.y < 0.02)
+        return 0;
+    float az = atan2(dir.z, dir.x);
+    float t = _PunchyClock * 0.02;
+    float2 a2 = float2(cos(az), sin(az)) * 3;
+    half hang = smoothstep(0.35, 0.7, PunchyValueNoise(a2 * 0.8 + t));
+    float hem = 0.07 + 0.08 * PunchyValueNoise(a2 * 1.7 + t * 2);
+    float rise = dir.y - hem;
+    half sheet = smoothstep(-0.012, 0.01, rise) * exp(-max(rise, 0) * 9) * (1 - smoothstep(0.18, 0.4, rise));
+    half folds = 0.5 + 0.5 * sin(dot(a2, float2(7.3, 5.1)) + PunchyValueNoise(a2 * 2.5 + t * 3) * 6 + t * 4);
+    half rays = 0.5 + 0.5 * PunchyValueNoise(a2 * 30 + float2(0, t * 10));
+    half3 colour = lerp(half3(0.15, 1.0, 0.45), half3(0.75, 0.3, 1.0), smoothstep(0.04, 0.3, rise));
+    return colour * sheet * hang * (0.35 + 0.65 * folds) * rays * _PunchyAurora * 1.1;
+}
+
 half3 PunchyStars(float3 dir)
 {
     float3 p = dir * 260;
@@ -435,6 +509,8 @@ half3 PunchySkyColor(float3 dir, bool withDiscs, bool approximateClouds)
     if (h > 0)
     {
         half3 night = PunchyStars(dir) * _PunchyNight;
+        // Shooting stars and auroras show through clear skies only (the volumetric clouds cover them anyway).
+        night += (PunchyShootingStars(dir) + PunchyAurora(dir)) * _PunchyNight * (1 - _PunchyClouds.x);
         if (withDiscs)
         {
             half moonCover;
