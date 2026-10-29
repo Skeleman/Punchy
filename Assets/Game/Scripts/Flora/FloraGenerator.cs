@@ -1097,8 +1097,9 @@ namespace Punchy.Flora
         }
 
         /// <summary>
-        /// A clutch of eggs: smooth ovals in a golden-angle spiral, standing and leaning out from the middle, heaped a
-        /// little higher there, in a low nest of grit or silk (solid shells: no leaf shading).
+        /// A clutch of eggs: smooth ovals of mixed sizes in a golden-angle spiral, standing and leaning out from the
+        /// middle, heaped a little higher there, in a low nest of grit or silk. The shells are drawn as the glossy
+        /// (Cactus) part, so they catch the sun and the lantern.
         /// </summary>
         static void Eggs(Grower g)
         {
@@ -1124,8 +1125,9 @@ namespace Punchy.Flora
                 // Lying tilted out from the middle, each at its own angle, the outer ones further over.
                 var tilt = Quaternion.AngleAxis(Mathf.Lerp(8f, 35f, along) + g.Range(-8f, 8f), Vector3.Cross(Vector3.up, flat));
                 var color = g.FoliageColor();
-                var shell = b.Blob(centre, new Vector3(egg * 0.34f, egg * 0.5f, egg * 0.34f), tilt, g.Lod == 0 ? 2 : g.Lod == 1 ? 1 : 0,
-                                   0.01f, g.R() * 100f, color, FloraPart.Bark);
+                var size = egg * g.Range(0.75f, 1.2f);
+                var shell = b.Blob(centre, new Vector3(size * 0.34f, size * 0.5f, size * 0.34f), tilt, g.Lod == 0 ? 2 : g.Lod == 1 ? 1 : 0,
+                                   0.01f, g.R() * 100f, color, FloraPart.Cactus);
                 b.Occlude(shell, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.4f)));
             }
         }

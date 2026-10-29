@@ -199,12 +199,19 @@ Shader "Punchy/Flora"
                     color += windowLight * on * 2.2;
                 }
 
-                // A waxy sheen on cacti (and on anything wet).
+                // A waxy sheen on cacti and egg shells (and on anything wet), from the sun and, near it, the lantern.
                 half gloss = part == 3 ? 0.35 : wet * 0.5;
                 if (gloss > 0)
                 {
                     half3 h = normalize(light.direction + v);
                     color += light.color * shadow * pow(saturate(dot(n, h)), part == 3 ? 24 : 60) * gloss * 0.3 * ao;
+                    if (_PunchyLantern.w > 0)
+                    {
+                        float3 toLantern = _PunchyLantern.xyz - input.positionWS;
+                        float reachL = saturate(1 - length(toLantern) / _PunchyLanternColor.w);
+                        half3 hL = normalize(normalize(toLantern) + v);
+                        color += _PunchyLanternColor.rgb * _PunchyLantern.w * reachL * pow(saturate(dot(n, hL)), 40) * gloss * 1.5 * ao;
+                    }
                 }
 
                 color = PunchyAtmosphere(color, input.positionWS);
