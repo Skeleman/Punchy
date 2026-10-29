@@ -1305,13 +1305,18 @@ namespace Punchy.Flora
 
         /// <summary>
         /// A mine's timber frame, one metre either side of the middle and one metre to the lintel (placements scale it
-        /// to the passage): two posts, a lintel resting on them and short braces in the corners.
+        /// to the passage): two posts, a lintel resting on them and short braces in the corners. Later variants stand
+        /// taller (MineFrameHeights), so a frame in a steep passage, whose roof is higher over its width, still reaches it.
         /// </summary>
+        /// <summary>A mine frame's height to the lintel per variant, at scale 1 (its half-width is 1).</summary>
+        public static readonly float[] MineFrameHeights = { 1f, 1.2f, 1.4f, 1.65f, 1.9f };
+
         static void MineFrame(Grower g)
         {
             var s = g.S;
             var b = g.B;
-            g.Height = 1f;
+            var tall = MineFrameHeights[Mathf.Clamp(g.Variant, 0, MineFrameHeights.Length - 1)];
+            g.Height = tall;
             g.Width = 2.2f;
             g.TrunkRadius = 0f;
             var r = Mathf.Max(s.Thickness, 0.02f);
@@ -1320,12 +1325,12 @@ namespace Punchy.Flora
             {
                 var foot = new Vector3(side, -0.05f, 0f);
                 var lean = g.Range(-0.02f, 0.02f);
-                b.Tube(new List<Vector3> { foot, foot + new Vector3(lean, 1.02f, 0f) }, new List<float> { r * 1.05f, r }, sides, g.Bark, FloraPart.Bark);
+                b.Tube(new List<Vector3> { foot, foot + new Vector3(lean, 1.02f * tall, 0f) }, new List<float> { r * 1.05f, r }, sides, g.Bark, FloraPart.Bark);
                 if (g.Lod < 2)
-                    b.Tube(new List<Vector3> { new Vector3(side * 0.98f, 0.78f, 0f), new Vector3(side * 0.72f, 0.99f, 0f) },
+                    b.Tube(new List<Vector3> { new Vector3(side * 0.98f, 1.02f * tall - 0.24f, 0f), new Vector3(side * 0.72f, 1.02f * tall - 0.03f, 0f) },
                            new List<float> { r * 0.6f, r * 0.6f }, sides, g.Bark * 0.9f, FloraPart.Bark);
             }
-            b.Tube(new List<Vector3> { new Vector3(-1.12f, 1.02f + r, 0f), new Vector3(1.12f, 1.02f + r, 0f) },
+            b.Tube(new List<Vector3> { new Vector3(-1.12f, 1.02f * tall + r, 0f), new Vector3(1.12f, 1.02f * tall + r, 0f) },
                    new List<float> { r * 1.1f, r * 1.1f }, sides, g.Bark * 0.95f, FloraPart.Bark);
         }
 

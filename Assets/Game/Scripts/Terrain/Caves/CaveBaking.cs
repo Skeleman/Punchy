@@ -626,10 +626,20 @@ namespace Punchy.Terrain
                             var middle = hip + new float3(across.x, 0f, across.y) * (left - right) * 0.5f;
                             var half = (left + right) * 0.5f * 0.94f;
                             var mid = new float3(middle.x, source.FloorUnder(middle + new float3(0f, 0.5f, 0f), out _) - 0.02f, middle.z);
-                            // Only where the lintel clears a walker's head and stays under the roof.
+                            // Only where the lintel clears a walker's head and stays under the roof. The tallest variant
+                            // that fits, so the lintel meets the roof in steep passages too (F-34). (The draw is kept so
+                            // later frames and torches keep their seeds.)
                             var roof = source.CeilingOver(mid + new float3(0f, 0.5f, 0f)) - mid.y;
                             if (half > 1.9f && half < roof - 0.1f)
-                                extras.Plants.Add(new CavePlant { Position = mid, Yaw = yaw, Scale = half, Species = frame, Variant = rng.NextInt(3), Random = rng.NextFloat() });
+                            {
+                                rng.NextInt(3);
+                                var heights = Punchy.Flora.FloraGenerator.MineFrameHeights;
+                                var variant = 0;
+                                for (int v = 1; v < heights.Length; v++)
+                                    if (half * heights[v] < roof - 0.1f)
+                                        variant = v;
+                                extras.Plants.Add(new CavePlant { Position = mid, Yaw = yaw, Scale = half, Species = frame, Variant = variant, Random = rng.NextFloat() });
+                            }
                         }
                         sinceTorch += step;
                         if (torch >= 0 && sinceTorch >= style.TorchSpacing)
