@@ -102,8 +102,10 @@ namespace Punchy.Player
                     sprinting = false;
                 }
             }
-            stillFor = math.lengthsq(direction) < 0.01f ? stillFor + SystemAPI.Time.DeltaTime : 0f;
-            if (stillFor > 0.4f)
+            // A sprint ends when the player stops: no move input for a quarter second. (Real time, not the world's: a
+            // networked world's clock doesn't always run with the frame.)
+            stillFor = math.lengthsq(direction) < 0.01f ? stillFor + UnityEngine.Time.unscaledDeltaTime : 0f;
+            if (stillFor > 0.25f)
                 sprinting = false;
             Sprinting = sprinting;
             Walking = walking;
