@@ -168,6 +168,16 @@ Batches in this order; each batch gets one evaluation session, one sheet and one
 6. **Small landmarks**: W-24 ruins and graveyards; hermit huts and camps; W-25 cold fog; W-26 salt-flat landmarks.
    Then the sub-biome pairs (Fungal + Ember first). Their content is authored unwired (no biome or realm list
    entries) until 5b lands; then only the list entries are added.
+6a. **Fungal/Ember pair, remaining (unwired until 5b)**: surfaces (moss and loam, cinder) and spore haze; giant-cap
+   gills on the underside only (a darker disc with radiating lines, no band at the equator); then walkable tops (6c);
+   then mushrooms that breathe; the firestorm after kind-possum's audit item 4.
+6c. **Walkable tops (Zach: climb and stand on houses and rocks)**: per-variant support shapes built at generation
+   (rocks: a few stacked or convex prisms with top heights; houses: a wall box plus roof planes or a prism; flat tops
+   for wells, fountain rims, benches, stalls) and a cheap Burst-friendly query from a spatial hash,
+   `PropSupport.Sample(pos, radius) -> (hit, topHeight, normal)` beside the blocking test, seed-derived; possibly
+   folded into FloorUnder so everything that stands agrees (mind the hot path). The animal session's
+   PlayerMovementSystem (loan #9) uses it: landing, step-ups, jumps, a mantle for 1.2-1.8 m ledges. Publish the
+   contract; kind-possum checks the query cost.
 6b. **Tree add-ons and weird-biome motion (Zach, "eventually"; folded into the sub-biome pairs)**: each cheap and
    optional per species, shared meshes and parameters, no new landmark types; kind-possum benches the first batch.
    - Add-ons as optional parts on existing tree forms, chosen per species with a chance: bracket fungus shelves on
