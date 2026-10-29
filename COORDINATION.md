@@ -58,6 +58,11 @@ feature code, and it never edits files in another session's checkout.
    `D:\Unity\PunchyMilestones\<lane>\<feature>\gallery\`: full resolution, more angles, before/after sets, short
    sequences if handy. Never open or view these yourself (no token cost), and don't send them to the supervisor;
    just mention the folder in the report. Keep each gallery under about 40 images.
+14. **Fixed build paths (Zach, 2026-10-29):** Windows Firewall rules are per executable path, so every new build
+   folder raises a new prompt. Always build or copy the runnable build to the same path and overwrite it:
+   main PC `Builds/Windows/Punchy.exe` (player) and `Builds/Dev/Punchy.exe` (development); kind-possum its own two
+   fixed paths. To keep an older build, archive a copy elsewhere, but run only from the fixed path. Never click or
+   change firewall prompts or rules yourself.
 13. **Waiting on someone:** before blocking on another session, ask that session whether you actually need to
    wait. If they don't answer within the hour, ask the supervisor.
 
