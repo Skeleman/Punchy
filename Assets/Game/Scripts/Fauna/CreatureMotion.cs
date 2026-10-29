@@ -78,11 +78,15 @@ namespace Punchy.Fauna
             var stride = math.lerp(b.WalkStride, b.RunStride, run) * (1f + CreatureBlob.SprintStride * sprint);
             var sweep = 0f;
             var planted = 0;
+            var legs = 0;
+            var serpent = false;
             for (int i = 0; i < b.Parts.Length; i++)
             {
                 ref var part = ref b.Parts[i];
+                serpent |= part.FollowGround && part.Parent < 0;
                 if (part.Role != LimbRole.Leg || part.Parent >= 0 || part.SegmentCount == 0)
                     continue;
+                legs++;
                 var p = math.frac(s.Phase + part.Phase);
                 if (p >= 0.5f)
                     continue;   // swinging through the air
@@ -98,6 +102,11 @@ namespace Punchy.Fauna
             // the swing still small: quicker steps, up to five times the stride's pace, rather than the body outrunning
             // its feet.)
             var perCycle = planted > 0 ? math.max(sweep / planted, 0.2f * stride) : stride;
+            // A snake's body lies along a wave fixed to the ground, one walk stride long (CreatureAnimator): at any
+            // speed the phase must run one cycle per wavelength, or the wave slides along with the body and the tail
+            // whips side to side instead of following the head's track.
+            if (serpent && legs == 0)
+                perCycle = b.WalkStride;
             return distance / math.max(perCycle * scale, 1e-3f);
         }
 

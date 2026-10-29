@@ -150,6 +150,15 @@ namespace Punchy.Fauna
             // Hanging head down in a web, the body sits right at its anchor (the web's centre).
             var hang = s.Mode == CreatureMode.Web || s.Mode == CreatureMode.Roost ? math.saturate(-s.Vertical) : 0f;
             var rootPos = new float3(s.Position.x, ground, s.Position.z) + new float3(0f, lift * (1f - up - hang), 0f) - forward * lift * up;
+            // A snake on the ground or swimming sits on its serpentine track (below) where its body joins, not on the straight
+            // line it travels: its chain is laid out from there, so held on the line, the whole body would swing from side
+            // to side about it as each wave passed through, a wag that quickens with speed.
+            if (s.Fly < 0.5f && LeglessSerpent(ref b))
+            {
+                var wave = math.max(b.WalkStride * scale, 0.05f);
+                var along = 2f * math.PI / wave * (s.Phase * wave - b.BodyLength * scale * 1.2f);
+                rootPos += new float3(forward.z, 0f, -forward.x) * (0.12f * wave * math.sin(along));
+            }
             // A crawler on a rock face, a wall or a ceiling lies on it: its back to the open, its head the way it's going
             // (straight up the face if it's heading into it), standing off the surface on its legs.
             var crawling = false;
@@ -1031,6 +1040,19 @@ namespace Punchy.Fauna
         /// (the trees' and grass's own formula, on the shared clock, so every machine sees the same), fluttering a little,
         /// streaming back when running; each joint further down moves more.
         /// </summary>
+        /// <summary>A legless body with a chain lying along the ground off it (a snake's): it moves along a serpentine wave.</summary>
+        static bool LeglessSerpent(ref CreatureBlob b)
+        {
+            var serpent = false;
+            for (int i = 0; i < b.Parts.Length; i++)
+            {
+                if (b.Parts[i].Role == LimbRole.Leg)
+                    return false;
+                serpent |= b.Parts[i].FollowGround && b.Parts[i].Parent < 0;
+            }
+            return serpent;
+        }
+
         static float3 HairSway(in CreatureState s, int joint, float run)
         {
             var w = Wind.Data;
