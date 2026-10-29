@@ -87,6 +87,8 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
 3. **Equipment layers** (animal session): head, torso, back and hand slots on folk and the player; tools and gear
    picked per job (rod, rake, bucket, axe, spear, torch); per-culture loadouts; a replicated equipment mask.
 
+6. **Tree add-ons and weird-biome flourishes** (world session; beetles: animal session): bracket fungus, vines, moss, cocoons, crystal growths, glowing seams; pulsing veins, blinking bark faces, trees and fronds that bend toward or away from the player, breathing mushrooms. Optional FloraParts and shader motion from _PunchyClock; no new landmark types.
+
 ## Shared-file queue
 
 | # | File | Session | Why | State |
