@@ -367,6 +367,9 @@ namespace Punchy.Fauna
             var cam = Camera.main;
             if (cam == null)
                 return;
+            var windDirection = Shader.GetGlobalVector("_PunchyWindDirection");
+            CreatureAnimator.Wind.Data = new float4(Shader.GetGlobalFloat("_PunchyWind"), windDirection.x, windDirection.y,
+                                                    Shader.GetGlobalFloat("_PunchyClock"));
 
             // (Copied out once: the counts below and the pose job both read these.)
             var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.TempJob);

@@ -1,4 +1,5 @@
 using Punchy.Terrain;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
 
@@ -26,6 +27,14 @@ namespace Punchy.Fauna
     public static class CreatureAnimator
     {
         const int MaxSegments = 128;
+
+        /// <summary>
+        /// The wind as the world draws it (WeatherSystem's _PunchyWind and _PunchyWindDirection) and the shared clock
+        /// (_PunchyClock): x strength 0..1, yz the way it blows, w the clock. Set once a frame by CreatureRenderSystem, for
+        /// hair blowing in it the way the trees and banners do.
+        /// </summary>
+        public static readonly SharedStatic<float4> Wind = SharedStatic<float4>.GetOrCreate<WindKey>();
+        class WindKey { }
 
         /// <param name="detail">Near the camera: the legs fitted to the ground under each foot (the hips lowered on a
         /// slope, each foot reaching for the ground, tipped with it, rolling heel to toe). Further off, where none of
@@ -366,6 +375,8 @@ namespace Punchy.Fauna
                         a.x += j == 0 ? -0.3f : j == 1 ? -0.55f : 0f;
                     }
                     a += Secondary(ref part, in s, j, run, b.Upright);
+                    if (b.Segments[seg].Hair != 0)
+                        a += HairSway(in s, j, run);
                     a += TaskPose(ref part, in s, j);
                     if (swimming > 0f)
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + SwimPose(ref part, in s, j), swimming);
@@ -992,6 +1003,27 @@ namespace Punchy.Fauna
                 default:
                     return float3.zero;
             }
+        }
+
+        /// <summary>
+        /// Hair (and beards and manes) in the wind and on the move: blown downwind in gusts that roll across the land
+        /// (the trees' and grass's own formula, on the shared clock, so every machine sees the same), fluttering a little,
+        /// streaming back when running; each joint further down moves more.
+        /// </summary>
+        static float3 HairSway(in CreatureState s, int joint, float run)
+        {
+            var w = Wind.Data;
+            var strength = w.x;
+            var dir = math.normalizesafe(w.yz, new float2(1f, 0f));
+            var phase = w.w * (0.7f + strength * 1.1f) - math.dot(s.Position.xz, dir) * 0.04f + (s.Individual % 628u) * 0.01f;
+            var gust = (0.6f + 0.4f * math.sin(phase) * math.sin(phase * 0.37f + 1.3f)) * (0.08f + 0.92f * strength);
+            // The wind across the body: from in front or behind (pitching the hair back or forward), and from the side.
+            var ahead = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+            var along = math.dot(dir, ahead);
+            var across = dir.x * ahead.y - dir.y * ahead.x;
+            var flutter = math.sin(w.w * 7f + joint * 1.3f + s.Individual * 0.1f) * 0.06f * gust;
+            var more = 1f + joint * 0.5f;
+            return new float3((along * gust * 0.8f + run * 0.35f + flutter) * more, across * gust * 0.8f * more, 0f);
         }
 
         /// <summary>
