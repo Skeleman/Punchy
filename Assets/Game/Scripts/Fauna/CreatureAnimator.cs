@@ -295,8 +295,9 @@ namespace Punchy.Fauna
                     if (part.Role == LimbRole.Head && j == 0)
                         a += headTilt;
                     // A guard's right arm: bent to hold a spear upright at its side, or raised forward with a torch;
-                    // running at a beast, the spear levelled at it, held low and forward at the hip.
-                    if (part.Role == LimbRole.Arm && part.Side > 0f && (s.Held == HeldItem.Spear || s.Held == HeldItem.Torch))
+                    // running at a beast, the spear levelled at it, held low and forward at the hip. (Not an elf's by
+                    // day: its bow is on its back, its hands free.)
+                    if (part.Role == LimbRole.Arm && part.Side > 0f && (s.Held == HeldItem.Spear && b.GuardKit != GuardKit.Elf || s.Held == HeldItem.Torch))
                     {
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.8f);
                         var torch = s.Held == HeldItem.Torch;

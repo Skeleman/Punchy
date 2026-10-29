@@ -449,6 +449,25 @@ namespace Punchy.Fauna
         public quaternion Rotation;
         public float RadiusStart, RadiusEnd, Flatten, Pad;
         public float4 Color;
+        /// <summary>x: what it's made of (a SegmentMaterial, as a float), shaded to match; yzw spare.</summary>
+        public float4 Material;
+    }
+
+    /// <summary>What a drawn segment is made of, for the creature shader (stored as a float in SegmentInstance.Material.x).</summary>
+    public enum SegmentMaterial : byte
+    {
+        /// <summary>A body as it always was: skin, fur, feathers, scales (soft, wrapped light).</summary>
+        Body,
+        /// <summary>Matte, a fine weave, soft folds.</summary>
+        Cloth,
+        /// <summary>A soft sheen, fine grain, worn darker at the ends, a line of stitches.</summary>
+        Leather,
+        /// <summary>Glossy: the sky and ground reflected, a bright highlight, a rim of light, a hammered surface.</summary>
+        Metal,
+        /// <summary>Grain streaks along its length.</summary>
+        Wood,
+        /// <summary>Ivory, a waxy sheen, small pits.</summary>
+        Bone
     }
 
     /// <summary>A specimen held in a pose for a test ("-pose"): the brain leaves it alone; DebugControls poses it.</summary>
@@ -553,8 +572,9 @@ namespace Punchy.Fauna
             root.DrawnToLight = species.DrawnToLight;
             root.DrivenOff = species.DrivenOff;
             root.GuardKit = species.GuardKit;
-            root.GuardArmour = (Vector4)species.GuardArmour.linear;
-            root.GuardSash = (Vector4)species.GuardSash.linear;
+            // (Alpha 0: a segment colour's alpha is how much it glows, and armour doesn't.)
+            root.GuardArmour = new float4(((Vector4)species.GuardArmour.linear).x, ((Vector4)species.GuardArmour.linear).y, ((Vector4)species.GuardArmour.linear).z, 0f);
+            root.GuardSash = new float4(((Vector4)species.GuardSash.linear).x, ((Vector4)species.GuardSash.linear).y, ((Vector4)species.GuardSash.linear).z, 0f);
             root.Soars = species.Soars;
             root.Breaches = species.Breaches && species.Habitat == Habitat.Swims;
             root.Hands = species.Parts.Exists(p => p != null && p.Limb != null && p.Limb.Role == LimbRole.Arm);
