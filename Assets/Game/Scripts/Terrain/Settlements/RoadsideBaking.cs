@@ -8,7 +8,8 @@ namespace Punchy.Terrain
     /// settlements are routed, every RoadsideSpacing metres along each one is a candidate spot, seeded by where it is, and
     /// each roadside type rolls for it by its chance per kilometre (the lowest roll against its chance wins, so adding a
     /// type only takes the spots it wins). A spot that wins stands off one side of the road, facing it, with a short spur
-    /// to it, where the ground is dry, gentle and clear of settlements, other roads and landmarks. The new landmarks are
+    /// to it and a signpost at the fork, where the ground is dry, gentle and clear of settlements, other roads and
+    /// landmarks. The new landmarks are
     /// appended to the landmark set afterwards (LandmarkBaking.Append), so nothing already placed moves.
     /// </summary>
     public static class RoadsideBaking
@@ -31,7 +32,8 @@ namespace Punchy.Terrain
         /// The roadside landmarks along <paramref name="roads"/>, with their spurs added to <paramref name="streets"/>.
         /// </summary>
         public static List<LandmarkInstance> Place(in TerrainSource source, IReadOnlyList<LandmarkType> types, IReadOnlyList<RoadsideLandmark> roadside,
-                                                   List<RoadPath> roads, List<SettlementData> settlements, List<SettlementStreet> streets)
+                                                   List<RoadPath> roads, List<SettlementData> settlements, List<SettlementStreet> streets,
+                                                   List<SettlementLayout> layouts, List<int> firstBuilding, List<SettlementPlot> plots)
         {
             var placed = new List<LandmarkInstance>();
             if (roadside == null || roadside.Count == 0 || roads.Count == 0)
@@ -160,6 +162,26 @@ namespace Punchy.Terrain
                     Min = math.min(from.xz, to.xz) - reach,
                     Max = math.max(from.xz, to.xz) + reach
                 });
+                // A signpost at the fork, on the spur's side a few paces along, facing the road (the road's own
+                // settlement's signpost).
+                var town = settlements[road.Settlement];
+                var layout = layouts[town.Layout];
+                if (layout.Signpost != null)
+                {
+                    var post = at + normal * (road.Width * 0.5f + 1.2f) + tangent * 3f;
+                    plots.Add(new SettlementPlot
+                    {
+                        Centre = post,
+                        Facing = -normal,
+                        Half = new float2(0.4f, 0.4f),
+                        Pad = src.SampleHeight(post),
+                        Role = PlotRole.Signpost,
+                        Building = firstBuilding[town.Layout] + layout.Buildings.Count + 1,   // the signpost slot
+                        Settlement = road.Settlement,
+                        Min = post - 1f,
+                        Max = post + 1f
+                    });
+                }
             }
         }
 

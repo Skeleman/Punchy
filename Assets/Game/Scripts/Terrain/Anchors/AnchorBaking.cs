@@ -75,11 +75,12 @@ namespace Punchy.Terrain
                     AddUp(AnchorKind.Sit, centre + dir * rim, 0.7f * scale, dir, 0.6f, 2, settlement);
                 }
             }
-            // Gates: where each road leaves a settlement (by its signpost, which stands outside the town's own plots).
+            // Gates: where each road leaves a settlement (by its signpost, which stands outside the town's own plots); not
+            // the signposts at forks out along the roads.
             for (int p = 0; p < set.Plots.Length; p++)
             {
                 var plot = set.Plots[p];
-                if (plot.Role == PlotRole.Signpost)
+                if (plot.Role == PlotRole.Signpost && math.distance(plot.Centre, set.Settlements[plot.Settlement].Centre) < set.Settlements[plot.Settlement].Radius * 1.6f)
                     Add(AnchorKind.Gate, plot.Centre + plot.Facing * 2f, plot.Facing, 1.5f, 0, plot.Settlement);
             }
             for (int t = 0; t < set.Settlements.Length; t++)

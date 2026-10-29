@@ -88,7 +88,7 @@ namespace Punchy.Terrain
             }
             var roads = new List<RoadsideBaking.RoadPath>();
             RoadBaking.Build(source, layouts, firstBuilding, settlements, streets, plots, roads);
-            roadsideLandmarks = RoadsideBaking.Place(source, types, roadside, roads, settlements, streets);
+            roadsideLandmarks = RoadsideBaking.Place(source, types, roadside, roads, settlements, streets, layouts, firstBuilding, plots);
             return BuildBlob(layouts, firstBuilding, settlements, streets, plots, allocator);
         }
 
