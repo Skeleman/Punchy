@@ -91,7 +91,8 @@ FloraVertex FloraTransform(FloraAttributes input)
         float3 outWS = float3(outwards.x * c - outwards.z * s, 0, outwards.x * s + outwards.z * c);
         for (int i = 0; i < _PunchyDoorCount; i++)
         {
-            float3 v = _PunchyDoorOpen[i].xyz - hingeWS;
+            // Height against the building's base, not each vertex's own: a tall leaf must match as one piece.
+            float3 v = _PunchyDoorOpen[i].xyz - float3(hingeWS.x, plant.position.y, hingeWS.z);
             float side = dot(v.xz, acrossWS.xz), ahead = dot(v.xz, outWS.xz);
             if (side > -1.0 && side < 3.0 && ahead > -0.5 && ahead < 7.0 && abs(v.y) < 2.5)
                 open = max(open, _PunchyDoorOpen[i].w);
