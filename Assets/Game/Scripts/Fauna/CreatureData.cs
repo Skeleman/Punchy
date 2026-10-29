@@ -322,6 +322,8 @@ namespace Punchy.Fauna
     {
         /// <summary>0 by day, 1 at night.</summary>
         public float Night;
+        /// <summary>The time of day, 0 to 24 (18 at sunset).</summary>
+        public float Hour;
     }
 
     /// <summary>

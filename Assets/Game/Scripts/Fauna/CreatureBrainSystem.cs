@@ -133,6 +133,7 @@ namespace Punchy.Fauna
                 Carry = SystemAPI.TryGetSingleton<CarryTable>(out var carryTable) ? carryTable : default,
                 Dt = math.min(SystemAPI.Time.DeltaTime, 0.1f),
                 Night = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Night : 0f,
+                Hour = SystemAPI.TryGetSingleton<FaunaClock>(out var hourClock) ? hourClock.Hour : 12f,
                 Entities = entities,
                 States = states,
                 Bodies = bodies,
@@ -183,7 +184,7 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<int> PlayerSpecies;
             [ReadOnly] public NativeArray<float> PlayerSpeeds;
             public CarryTable Carry;
-            public float Dt, Night;
+            public float Dt, Night, Hour;
             [ReadOnly] public NativeArray<Entity> Entities;
             [ReadOnly] public NativeArray<CreatureState> States;
             [ReadOnly] public NativeArray<CreatureBody> Bodies;
@@ -595,11 +596,11 @@ namespace Punchy.Fauna
                             if (s.StageTime > 60f)
                                 Pause(ref s, ref b, ref rng);
                             // (Two that chose the same spot in the same moment: the later of them finds another.)
-                            else if (Contested(self, in s) && !StartLounge(self, ref s, ref rng))
+                            else if (Contested(self, in s) && !(AtHearth(s.TargetHeight) ? StartHearth(self, ref s, ref rng) : StartLounge(self, ref s, ref rng)))
                                 Pause(ref s, ref b, ref rng);
                             // (Close is enough: it shuffles the rest of the way on, which for a seat is past the front
                             // of the seat itself, solid to walkers.)
-                            else if (math.distance(s.Position.xz, s.Target) < (s.TargetHeight >= 4f ? 0.9f : 0.5f))
+                            else if (math.distance(s.Position.xz, s.Target) < (s.TargetHeight == 4f || s.TargetHeight == CreatureAnimator.HearthSeat ? 0.9f : 0.5f))
                             {
                                 s.Stage = (byte)s.TargetHeight;
                                 s.StageTime = 0f;
@@ -617,12 +618,15 @@ namespace Punchy.Fauna
                             var toFace = s.Focus - s.Position.xz;
                             var wantedYaw = WrapAngle(math.atan2(toFace.x, toFace.y) - s.Yaw);
                             s.Yaw = WrapAngle(s.Yaw + math.clamp(wantedYaw, -b.TurnRate * dt, b.TurnRate * dt));
+                            // (At the town's fire, some stand.)
                             if (s.Stage == 3)
                                 lie = 1f;
-                            else
+                            else if (s.Stage != CreatureAnimator.HearthStand)
                                 sit = 1f;
                             desiredLook = s.Stage == 3 ? 0f : idleLook;
-                            if (s.Timer <= 0f || Contested(self, in s) && !StartLounge(self, ref s, ref rng))
+                            var hearth = AtHearth(s.Stage);
+                            if (s.Timer <= 0f || hearth && !Gathering(in s, ref b) ||
+                                Contested(self, in s) && !(hearth ? StartHearth(self, ref s, ref rng) : StartLounge(self, ref s, ref rng)))
                                 Pause(ref s, ref b, ref rng);
                         }
                         break;
@@ -867,8 +871,9 @@ namespace Punchy.Fauna
                 else if (b.Hands && b.Upright)
                 {
                     var dark = s.Held == HeldItem.Lantern ? Night > 0.4f : Night > 0.6f;
+                    // (By the town's fire it has no need of one: put away.)
                     var about = s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Held && !(s.Mode == CreatureMode.Home && s.Stage >= 1) &&
-                                !(s.Mode == CreatureMode.Work && s.Stage >= 1);
+                                !(s.Mode == CreatureMode.Work && s.Stage >= 1) && !(s.Mode == CreatureMode.Sit && AtHearth(s.Stage));
                     s.Held = dark && about ? HeldItem.Lantern : HeldItem.None;
                 }
                 s.Fly += (fly - s.Fly) * math.min(1f, dt * 6f);
@@ -1041,6 +1046,9 @@ namespace Punchy.Fauna
                     s.Timer = rng.NextFloat(60f, 100f);
                     return;
                 }
+                // Townsfolk gather round the town's fire at dusk, as many as it has room for (the rest go in as usual).
+                if (Gathering(in s, ref b) && rng.NextFloat() < 0.8f && StartHearth(self, ref s, ref rng))
+                    return;
                 var roll = rng.NextFloat(wander + graze + rest + sleep + drink + play + hunt + work + climb + web + fly + home + swim + lounge);
 
                 // Friendly animals go over to a person nearby (within their home range) more often than not.
@@ -2101,6 +2109,98 @@ namespace Punchy.Fauna
                         if (kind == AnchorKind.Sit)
                             s.Anchor = new float3(spot.x, a.Position.y, spot.y);
                         s.Timer = lying ? rng.NextFloat(80f, 200f) : rng.NextFloat(40f, 120f);
+                        found = true;
+                    }
+                }
+                near.Dispose();
+                return found;
+            }
+
+            /// <summary>
+            /// Whether this one would be at the town's fire now: townsfolk (not the watch or the guards, nor a traveller
+            /// still on the road), from sunset until, by individual, a quarter to ten to ten past.
+            /// </summary>
+            bool Gathering(in CreatureState s, ref CreatureBlob b) =>
+                b.Upright && b.Hands && s.Leash > 0f && s.Task != CreatureTask.Patrol && s.Task != CreatureTask.Watch &&
+                s.Task != CreatureTask.Travel && Hour >= 17.8f && Hour < 21.95f + 0.2f * CreatureBlob.Trait(s.Individual, 41);
+
+            static bool AtHearth(float stage) => stage >= CreatureAnimator.HearthStand && stage <= CreatureAnimator.HearthSeat;
+
+            /// <summary>
+            /// A place at the town's fire (its Hearth anchor) taken: round the ring, a free one of its places (Capacity of
+            /// them, by individual and the next along if that's taken), sitting on the ground (legs out or cross-legged)
+            /// or standing, facing the fire; or now and then a seat close by that faces it. It stays till it's time to go
+            /// in (Gathering). False if there's no fire in reach, or no room at it.
+            /// </summary>
+            bool StartHearth(Entity self, ref CreatureState s, ref Random rng)
+            {
+                if (!Terrain.Anchors.IsCreated)
+                    return false;
+                ref var set = ref Terrain.Anchors.Value;
+                var near = new NativeList<int>(4, Allocator.Temp);
+                Anchors.Near(ref set, new float3(s.Home.x, s.Position.y, s.Home.y), math.max(s.Leash, 30f) + 20f, AnchorKind.Hearth, ref near);
+                var found = false;
+                var stand = rng.NextFloat() < 0.4f;
+                var seat = rng.NextFloat() < 0.3f;
+                for (int h = 0; h < near.Length && !found; h++)
+                {
+                    var a = set.Anchors[near[h]];
+                    if (a.InCave)
+                        continue;
+                    var fire = a.Position.xz;
+                    if (seat && HearthSeat(self, ref s, ref rng, fire, a.Size))
+                    {
+                        found = true;
+                        break;
+                    }
+                    var slots = math.max((int)a.Capacity, 1);
+                    var first = (int)(s.Individual % (uint)slots);
+                    for (int i = 0; i < slots && !found; i++)
+                    {
+                        var k = (first + i) % slots;
+                        math.sincos(k * 2f * math.PI / slots + (a.Owner & 7) * 0.4f, out var sin, out var cos);
+                        var spot = fire + new float2(sin, cos) * (a.Size + (stand ? 0.1f : 0.25f));
+                        if (!Walkable(spot, Habitat.Land) || Taken(self, spot, 0.9f))
+                            continue;
+                        SetMode(ref s, CreatureMode.Sit);
+                        s.Target = spot;
+                        s.Focus = fire;
+                        s.TargetHeight = stand ? CreatureAnimator.HearthStand : CreatureAnimator.HearthGround;
+                        s.Timer = 9999f;   // (till it's time to go in)
+                        found = true;
+                    }
+                }
+                near.Dispose();
+                return found;
+            }
+
+            /// <summary>A free place on a seat (bench, log, stump) near the fire and facing it, taken.</summary>
+            bool HearthSeat(Entity self, ref CreatureState s, ref Random rng, float2 fire, float ring)
+            {
+                ref var set = ref Terrain.Anchors.Value;
+                var near = new NativeList<int>(8, Allocator.Temp);
+                Anchors.Near(ref set, new float3(fire.x, s.Position.y, fire.y), ring + 6f, AnchorKind.Sit, ref near);
+                var found = false;
+                for (int n = 0; n < near.Length && !found; n++)
+                {
+                    var a = set.Anchors[near[n]];
+                    if (a.InCave || math.dot(a.Facing, math.normalizesafe(fire - a.Position.xz)) < 0.3f)
+                        continue;
+                    var across = new float2(-a.Facing.y, a.Facing.x);
+                    var slots = math.max((int)a.Capacity, 1);
+                    var first = (int)(s.Individual % (uint)slots);
+                    for (int i = 0; i < slots && !found; i++)
+                    {
+                        var k = (first + i) % slots;
+                        var spot = a.Position.xz + across * ((k - (slots - 1) * 0.5f) * a.Size);
+                        if (Taken(self, spot, math.max(a.Size * 0.8f, 0.3f)))
+                            continue;
+                        SetMode(ref s, CreatureMode.Sit);
+                        s.Target = spot;
+                        s.Focus = spot + a.Facing * 3f;
+                        s.TargetHeight = CreatureAnimator.HearthSeat;
+                        s.Anchor = new float3(spot.x, a.Position.y, spot.y);
+                        s.Timer = 9999f;
                         found = true;
                     }
                 }

@@ -342,6 +342,8 @@ namespace Punchy.Fauna
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + SitPose(ref part, in s, j), s.Sit);
                     if (b.Upright && s.Lie > 0f)
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + LiePose(ref part, in s, j), s.Lie);
+                    if (b.Upright && part.Role == LimbRole.Arm && j <= 1 && s.Mode == CreatureMode.Sit && s.Stage >= HearthStand && s.Stage <= HearthSeat)
+                        a = HearthPose(ref part, in s, j, a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle]);
                     // (Upright bodies have no idle actions of their own, but players' bodies take interaction poses.)
                     if (s.Action != IdleAction.None && (!b.Upright || s.Action >= IdleAction.Pet))
                         a += ActionPose(ref part, in s, j, act);
@@ -657,6 +659,8 @@ namespace Punchy.Fauna
         /// </summary>
         /// <summary>A miner's stage at the ore face, swinging its pick (CreatureBrainSystem's mining round).</summary>
         public const byte MinerAtFace = 101;
+        /// <summary>Sitting-mode stages at the town's fire: standing by it, sitting on the ground by it, on a seat near it.</summary>
+        public const byte HearthStand = 5, HearthGround = 6, HearthSeat = 7;
 
         static float3 TaskPose(ref CreaturePart part, in CreatureState s, int joint)
         {
@@ -758,8 +762,36 @@ namespace Punchy.Fauna
             }
         }
 
+        /// <summary>
+        /// Folk at the town's fire. Some (by individual) warm their hands a while, both held out to it, then drop them
+        /// again; now and then one talking lifts its right hand to make its point. (Not one leaning back on its hands,
+        /// sitting with its legs out.) `idle` is the arm's idle pose, `a` the pose so far.
+        /// </summary>
+        static float3 HearthPose(ref CreaturePart part, in CreatureState s, int joint, float3 a, float3 idle)
+        {
+            var leaning = s.Stage == HearthGround && !CrossLegged(in s);
+            var right = part.Side > 0f;
+            var phase = (s.Individual % 97u) * 0.31f;
+            var warm = CreatureBlob.Trait(s.Individual, 42) > -0.3f && !leaning
+                ? math.smoothstep(0.0f, 0.08f, math.frac(s.Clock * 0.025f + phase)) * (1f - math.smoothstep(0.55f, 0.63f, math.frac(s.Clock * 0.025f + phase)))
+                : 0f;
+            // Warming: forearms raised towards the fire, hands a little apart.
+            var held = joint == 0 ? new float3(-1.05f, 0f, -part.Side * 0.15f) : new float3(-0.75f, 0f, 0f);
+            a = math.lerp(a, idle + held, warm);
+            // Talking: the right hand up and out, turned open, then down again (not while warming).
+            if (right && warm < 0.5f && CreatureBlob.Trait(s.Individual, 43) > -0.5f)
+            {
+                var p = math.frac(s.Clock * 0.09f + phase * 1.7f);
+                var raise = math.smoothstep(0f, 0.05f, p) * (1f - math.smoothstep(0.16f, 0.24f, p));
+                var flick = math.sin(s.Clock * 5f) * 0.12f;
+                var talk = joint == 0 ? new float3(-0.8f + flick, 0f, 0.25f) : new float3(-1.1f, 0f, 0f);
+                a = math.lerp(a, idle + talk, raise * (leaning ? 0f : 1f));
+            }
+            return a;
+        }
+
         /// <summary>Sitting on a seat (a bench, a log, a stump...), at the height in Anchor, rather than on the ground.</summary>
-        static bool Seated(in CreatureState s) => s.Mode == CreatureMode.Sit && s.Stage == 4;
+        static bool Seated(in CreatureState s) => s.Mode == CreatureMode.Sit && (s.Stage == 4 || s.Stage == HearthSeat);
 
         /// <summary>Whether this one sits on the ground cross-legged rather than with its legs out (fixed for life).</summary>
         static bool CrossLegged(in CreatureState s) => CreatureBlob.Trait(s.Individual, 29) > 0.1f;

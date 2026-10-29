@@ -151,7 +151,7 @@ namespace Punchy.Fauna
             KeepAvatar();
             GiveReplicasBodies();
 
-            var clock = new FaunaClock { Night = Cycle != null ? Cycle.Night : 0f };
+            var clock = new FaunaClock { Night = Cycle != null ? Cycle.Night : 0f, Hour = Cycle != null ? Cycle.TimeOfDay : 12f };
             queryWorld.EntityManager.SetComponentData(settingsEntity, clock);
             if (simWorld == null)
                 return;
