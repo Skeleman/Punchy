@@ -110,7 +110,15 @@ Shader "Punchy/Flora"
                     n = normalize(n + float3(0, bump.x, bump.y) * w.x + float3(bump.x, 0, bump.y) * w.y + float3(bump.x, bump.y, 0) * w.z);
                 }
                 if (part == 1)
+                {
                     albedo *= lerp(half3(0.95, 1.0, 1.06), half3(1.1, 1.04, 0.82), r);
+                    // Leaf clusters: crowns break into lighter, yellower clumps and darker gaps between them (fading out
+                    // with distance, where the crown reads as one mass anyway).
+                    float3 q = (input.positionWS - frac(r * 7.3) * 10) * 2.2;
+                    half leafNoise = PunchyValueNoise(q.xz + q.y * 0.7) * 0.6 + PunchyValueNoise(q.zy * 2.3 + 5.1) * 0.4;
+                    half leafNear = 1 - smoothstep(40, 90, distance(input.positionWS, GetCameraPositionWS()));
+                    albedo *= lerp(1, lerp(half3(0.62, 0.66, 0.7), half3(1.25, 1.22, 1.0), leafNoise), leafNear * 0.85);
+                }
                 // Windows: dark glass by day (their colour is the light they give at night, below).
                 half3 windowLight = albedo;
                 if (part == 6)
