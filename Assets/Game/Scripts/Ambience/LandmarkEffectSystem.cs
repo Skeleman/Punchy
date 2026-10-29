@@ -21,6 +21,10 @@ namespace Punchy.Ambience
         public Material WaterfallMaterial;
         [Tooltip("Effects of landmarks within this distance of the camera are drawn.")]
         public float Range = 700f;
+        /// <summary>Cave waterfalls are drawn within this distance (small, and underground).</summary>
+        const float CaveRange = 120f;
+        /// <summary>How far a cave's waterfall carries out from its notch as it falls (m).</summary>
+        const float FallReach = 0.9f;
 
         /// <summary>One effect. Must match LandmarkEffects.hlsl.</summary>
         [StructLayout(LayoutKind.Sequential)]
@@ -33,7 +37,7 @@ namespace Punchy.Ambience
             public float4 Timing;   // period, duty, opacity, particles
             public float2 Out;      // waterfall: horizontal direction the water travels
             public float Drop;      // waterfall: height of the fall
-            public float Pad;
+            public float UnderRock; // 1 for a cave's waterfall (lit as underground)
         }
 
         const int WaterfallColumns = 12, WaterfallRows = 20;
@@ -117,6 +121,14 @@ namespace Punchy.Ambience
                 if (type != null && type.Effects.Count > 0 && math.distance(inst.Position, cam) < Range + set.Types[inst.Type].Radius * inst.Scale)
                     nearby.Add(i);
             }
+            // Cave waterfalls near the camera (they're small and underground: within CaveRange), as -(index + 1).
+            if (source.Caves.IsCreated)
+            {
+                ref var caveFalls = ref source.Caves.Value.Waterfalls;
+                for (int k = 0; k < caveFalls.Length; k++)
+                    if (math.distance(caveFalls[k].Lip.xz, cam) < CaveRange)
+                        nearby.Add(-(k + 1));
+            }
             if (nearby.Count == lastNearby.Count && nearby.TrueForAll(lastNearby.Contains))
                 return;
             lastNearby.Clear();
@@ -128,6 +140,56 @@ namespace Punchy.Ambience
             float3 min = float.MaxValue, max = float.MinValue;
             foreach (var i in nearby)
             {
+                if (i < 0)
+                {
+                    // A cave's waterfall: a small curtain from its notch in the wall into its pool, churning white
+                    // water and a foam patch where it lands, and mist over them, lit as under rock.
+                    var fall = source.Caves.Value.Waterfalls[-i - 1];
+                    var curtain = new Emitter
+                    {
+                        Position = fall.Lip,
+                        Seed = math.frac(-i * 0.618f),
+                        Color = new float4(0.3f, 0.43f, 0.47f, 0f),
+                        Shape = new float4(FallReach, fall.Width, 0.6f, 2f),
+                        Timing = new float4(0f, 0.25f, 0.75f, 20f),
+                        Out = fall.Out,
+                        Drop = fall.Drop,
+                        UnderRock = 1f
+                    };
+                    falls.Add(curtain);
+                    var landing = fall.Lip + new float3(fall.Out.x, 0f, fall.Out.y) * FallReach - new float3(0f, fall.Drop, 0f);
+                    plumes.Add(new Emitter
+                    {
+                        Position = landing,
+                        Seed = math.frac(-i * 0.511f),
+                        Color = new float4(0.95f, 0.97f, 1f, 0f),
+                        Shape = new float4(0.6f, fall.Width * 0.6f, 0.3f, 0.8f),
+                        Timing = new float4(0f, 0.25f, 0.75f, 24f),
+                        UnderRock = 1f
+                    });
+                    plumes.Add(new Emitter
+                    {
+                        Position = landing + new float3(0f, 0.05f, 0f),
+                        Seed = math.frac(-i * 0.733f),
+                        Color = new float4(0.9f, 0.95f, 1f, 0f),
+                        Shape = new float4(0.12f, fall.Width * 1.1f, 0.45f, 1.8f),
+                        Timing = new float4(0f, 0.25f, 0.55f, 24f),
+                        UnderRock = 1f
+                    });
+                    plumes.Add(new Emitter
+                    {
+                        Position = landing,
+                        Seed = math.frac(-i * 0.377f),
+                        Color = new float4(0.92f, 0.93f, 0.95f, 0f),
+                        Shape = new float4(1.8f, fall.Width * 1.2f, 0.9f, 2.5f),
+                        Timing = new float4(0f, 0.25f, 0.16f, 20f),
+                        UnderRock = 1f
+                    });
+                    maxParticles = math.max(maxParticles, 24);
+                    min = math.min(min, landing - 3f);
+                    max = math.max(max, fall.Lip + 3f);
+                    continue;
+                }
                 ref var inst = ref set.Instances[i];
                 var radius = set.Types[inst.Type].Radius * inst.Scale;
                 var e = 0;

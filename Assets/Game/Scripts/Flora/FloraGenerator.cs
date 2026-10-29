@@ -55,7 +55,8 @@ namespace Punchy.Flora
             {
                 builder.Clear();
                 builder.FoliageAs = species.Finish == FoliageFinish.Metallic ? FloraPart.Metal
-                                  : species.Finish == FoliageFinish.Glowing ? FloraPart.Glow : FloraPart.Foliage;
+                                  : species.Finish == FoliageFinish.Glowing ? FloraPart.Glow
+                                  : species.Finish == FoliageFinish.Glass ? FloraPart.Glass : FloraPart.Foliage;
                 builder.PetalAs = species.GlowingAccents ? FloraPart.Glow : FloraPart.Petal;
                 builder.GlowPulse = species.GlowPulse;
                 var g = new Grower(species, variant, lod, seed, builder);
@@ -107,6 +108,8 @@ namespace Punchy.Flora
                     case FloraForm.Bridge: Bridge(g); break;
                     case FloraForm.Palisade: Palisade(g); break;
                 }
+                if (Founded(species.Form))
+                    builder.Skirt(FoundationDepth);
                 if (lod == 0)
                 {
                     builder.Bounds(out model.CentreY, out model.Radius);
@@ -1095,9 +1098,27 @@ namespace Punchy.Flora
             }
         }
 
+        /// <summary>How far built things' foundations reach below the ground they stand on (m, before scaling).</summary>
+        public const float FoundationDepth = 1.6f;
+
         /// <summary>
-        /// A clutch of eggs: smooth ovals in a golden-angle spiral, standing and leaning out from the middle, heaped a
-        /// little higher there, in a low nest of grit or silk (solid shells: no leaf shading).
+        /// Forms standing on the ground on walls, plinths, posts or feet: their bases carry on FoundationDepth into the
+        /// ground (FloraMeshBuilder.Skirt), so they never float over a slope. Not lying things (logs, woodpiles) or
+        /// bridges (their piles reach the water bed).
+        /// </summary>
+        public static bool Founded(FloraForm form) => form switch
+        {
+            FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tent or FloraForm.Tower or FloraForm.Stall or FloraForm.Inn or
+            FloraForm.Smithy or FloraForm.Forum or FloraForm.Fountain or FloraForm.Well or FloraForm.Hall or FloraForm.Shrine or
+            FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade or FloraForm.Pen or FloraForm.Garden or
+            FloraForm.Signpost or FloraForm.Bench or FloraForm.Stump => true,
+            _ => false
+        };
+
+        /// <summary>
+        /// A clutch of eggs: smooth ovals of mixed sizes in a golden-angle spiral, standing and leaning out from the
+        /// middle, heaped a little higher there, in a low nest of grit or silk. The shells are drawn as the glossy
+        /// (Cactus) part, so they catch the sun and the lantern.
         /// </summary>
         static void Eggs(Grower g)
         {
@@ -1123,8 +1144,9 @@ namespace Punchy.Flora
                 // Lying tilted out from the middle, each at its own angle, the outer ones further over.
                 var tilt = Quaternion.AngleAxis(Mathf.Lerp(8f, 35f, along) + g.Range(-8f, 8f), Vector3.Cross(Vector3.up, flat));
                 var color = g.FoliageColor();
-                var shell = b.Blob(centre, new Vector3(egg * 0.34f, egg * 0.5f, egg * 0.34f), tilt, g.Lod == 0 ? 2 : g.Lod == 1 ? 1 : 0,
-                                   0.01f, g.R() * 100f, color, FloraPart.Bark);
+                var size = egg * g.Range(0.75f, 1.2f);
+                var shell = b.Blob(centre, new Vector3(size * 0.34f, size * 0.5f, size * 0.34f), tilt, g.Lod == 0 ? 2 : g.Lod == 1 ? 1 : 0,
+                                   0.01f, g.R() * 100f, color, FloraPart.Cactus);
                 b.Occlude(shell, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.4f)));
             }
         }
@@ -2070,7 +2092,7 @@ namespace Punchy.Flora
 
             // A wide door up two steps, windows along both long walls, banners either side of the door.
             Door(g, new Vector3(0f, plinth - 0.05f, front + 0.04f), Quaternion.identity, 1.8f, Mathf.Min(wall - plinth - 0.4f, HumanDoor * 1.15f));
-            b.Box(new Vector3(0f, plinth * 0.5f - 0.05f, front + 0.75f), new Vector3(3.2f, plinth * 0.5f, 0.8f), Quaternion.identity, stone, FloraPart.Bark);
+            b.Box(new Vector3(0f, plinth * 0.29f, front + 0.75f), new Vector3(3.2f, plinth * 0.75f, 0.8f), Quaternion.identity, stone, FloraPart.Bark);
             var light = AccentAt(g, 0);
             if (g.Lod < 2)
             {

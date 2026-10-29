@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
   Form: 39
   Layer: 0
-  Height: {x: 0.07, y: 0.12}
+  Height: {x: 0.06, y: 0.15}
   Spread: 0.9
   TrunkFraction: 0.35
   Thickness: 0.035
@@ -23,8 +23,8 @@ MonoBehaviour:
   Flexibility: 0.4
   FlowerHead: 0
   Bark: {r: 0.3, g: 0.27, b: 0.22, a: 1}
-  Foliage: {r: 0.86, g: 0.83, b: 0.72, a: 1}
-  FoliageVariation: {r: 0.78, g: 0.8, b: 0.68, a: 1}
+  Foliage: {r: 0.94, g: 0.92, b: 0.85, a: 1}
+  FoliageVariation: {r: 0.88, g: 0.91, b: 0.88, a: 1}
   Accents: []
   AccentAmount: 0.3
   ColorVariation: 0.12

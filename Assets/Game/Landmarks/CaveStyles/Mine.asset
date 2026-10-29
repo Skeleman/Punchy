@@ -24,6 +24,8 @@ MonoBehaviour:
   Blockiness: 0.2
   Ribs: 0
   RibSpacing: 1.6
+  Angularity: 0
+  FacetSize: 2.5
   Straightness: 0.85
   Frame: {fileID: 11400000, guid: 16183855535b3ff439302e4442acec7c, type: 2}
   FrameSpacing: 4
@@ -42,7 +44,12 @@ MonoBehaviour:
   RubbleSize: 0.5
   Moss: 0.3
   MossColor: {r: 0.22, g: 0.32, b: 0.12, a: 1}
-  Flora: []
+  Flora:
+  - Species: {fileID: 11400000, guid: b2075efb2c5607c418e7d3efac7828a2, type: 2}
+    Density: 9
+    Light: 0
+    Hanging: 0
+    MaxCover: 5
   PoolChance: 0
   LavaPools: 0
   PoolSize: 0.32

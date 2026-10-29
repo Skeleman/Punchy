@@ -114,11 +114,23 @@ namespace Punchy.Terrain
                         {
                             Add(AnchorKind.Door, door + plot.Facing * 0.8f, plot.Facing, 0.7f, 1, t);
                             Add(AnchorKind.Seat, door + plot.Facing * 2.5f, plot.Facing, 0.6f, 1, t);
-                            // The hall's steps: its stone plinth (0.6 m at scale 1), either side of the door, facing out.
-                            var across = new float2(-plot.Facing.y, plot.Facing.x);
-                            var step = set.Layouts[town.Layout].BuildingScale * 0.6f;
-                            for (int side = -1; side <= 1; side += 2)
-                                AddUp(AnchorKind.Sit, door + plot.Facing * 0.15f + across * side * 1.9f, step, plot.Facing, 0.6f, 2, t);
+                            // The hall's lower door step (see FloraGenerator.Hall: 0.4 m up at scale 1, 0.8 m deep and
+                            // 3.2 m wide, starting 0.35 m out from the front wall, half the hall's depth being 0.275 of
+                            // height × spread): a place either side of the way in, facing out.
+                            var hall = plot.Building < buildings.Count ? buildings[plot.Building].Species : null;
+                            if (hall != null && hall.Form == Punchy.Flora.FloraForm.Hall)
+                            {
+                                var across = new float2(-plot.Facing.y, plot.Facing.x);
+                                var scale = set.Layouts[town.Layout].BuildingScale;
+                                var front = (hall.Height.x + hall.Height.y) * 0.5f * hall.Spread * 0.275f;
+                                var hallBase = Punchy.Flora.FloraPlacement.FloorHeight(src, plot);
+                                for (int side = -1; side <= 1; side += 2)
+                                {
+                                    // The step stands on the hall's base height, not the ground in front of it.
+                                    var at = plot.Centre + plot.Facing * (front + 0.7f) * scale + across * side * 1.1f * scale;
+                                    AddUp(AnchorKind.Sit, at, hallBase + 0.4f * scale - src.SampleHeight(at), plot.Facing, 0.6f, 1, t);
+                                }
+                            }
                             break;
                         }
                         default:
@@ -186,7 +198,8 @@ namespace Punchy.Terrain
                 var species = flora[plant.Species];
                 // A clutch of eggs is a nest on the floor (spiders, lizards and salamanders tend it), one creature at a time.
                 var eggs = species.Form == Punchy.Flora.FloraForm.Eggs;
-                if (!eggs && species.Finish != Punchy.Flora.FoliageFinish.Glowing && !species.GlowingAccents)
+                if (!eggs && species.Finish != Punchy.Flora.FoliageFinish.Glowing && species.Finish != Punchy.Flora.FoliageFinish.Glass &&
+                    !species.GlowingAccents)
                     continue;
                 CaveSampling.Distance(ref set, plant.Position + new float3(0f, 0.5f, 0f), out var cave);
                 if (cave < 0)

@@ -526,15 +526,32 @@ namespace Punchy.Terrain
         /// </summary>
         public float CeilingOver(float3 p)
         {
+            // Up by part of the distance to rock (as FloorUnder marches down): angular or ribbed walls make the
+            // field rise faster than the true distance, and a longer step would end up inside the ceiling. Then
+            // halve the last step to find the ceiling to a few centimetres.
             var y = p.y;
+            float air = y, rock = y;
+            var found = false;
             for (int i = 0; i < 200; i++)
             {
                 var d = CaveDistance(new float3(p.x, y, p.z));
-                if (d >= -0.05f)
+                if (d >= 0f)
+                {
+                    rock = y;
+                    found = true;
                     break;
-                y += math.max(0.1f, -d * 0.8f);
+                }
+                air = y;
+                y += math.max(0.1f, -d * 0.4f);
             }
-            return y;
+            if (!found)
+                return y;
+            for (int i = 0; i < 6; i++)
+            {
+                var mid = (air + rock) * 0.5f;
+                if (CaveDistance(new float3(p.x, mid, p.z)) < 0f) air = mid; else rock = mid;
+            }
+            return air;
         }
 
         public float3 SampleNormal(float2 xz, float eps)

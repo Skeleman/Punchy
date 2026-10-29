@@ -190,6 +190,7 @@ namespace Punchy.Terrain
                     Style = style != null ? styles.IndexOf(style) + 1 : 0,
                     Profile = profile,
                     Wall = wall,
+                    Facet = style != null ? new float2(style.Angularity, style.FacetSize) : float2.zero,
                     Rock = rock
                 });
             }
@@ -204,6 +205,7 @@ namespace Punchy.Terrain
             var bare = BuildBlob(caves, nodes, kinds, segments, extras, Allocator.Persistent);
             withCaves.Caves = bare;
             PlacePools(withCaves, caves, nodes, kinds, segments, styles, extras.Pools);
+            PlaceWaterfalls(withCaves, caves, styles, extras);
             PlaceStreams(withCaves, caves, nodes, segments, styles, extras);
             bare.Dispose();
             var withWater = BuildBlob(caves, nodes, kinds, segments, extras, Allocator.Persistent);
@@ -220,6 +222,7 @@ namespace Punchy.Terrain
         class Extras
         {
             public readonly List<CavePool> Pools = new List<CavePool>();
+            public readonly List<CaveWaterfall> Waterfalls = new List<CaveWaterfall>();
             public readonly List<CaveStream> Streams = new List<CaveStream>();
             public readonly List<CaveStreamPoint> StreamPoints = new List<CaveStreamPoint>();
             public readonly List<CaveSpeleothem> Speleothems = new List<CaveSpeleothem>();
@@ -306,6 +309,9 @@ namespace Punchy.Terrain
             var poolArray = builder.Allocate(ref root.Pools, pools.Count);
             for (int i = 0; i < pools.Count; i++)
                 poolArray[i] = pools[i];
+            var fallArray = builder.Allocate(ref root.Waterfalls, extras.Waterfalls.Count);
+            for (int i = 0; i < extras.Waterfalls.Count; i++)
+                fallArray[i] = extras.Waterfalls[i];
             var streamArray = builder.Allocate(ref root.Streams, extras.Streams.Count);
             for (int i = 0; i < extras.Streams.Count; i++)
                 streamArray[i] = extras.Streams[i];
@@ -435,7 +441,41 @@ namespace Punchy.Terrain
                         var lean = rng.NextFloat(math.PI * 2f);
                         var root = new float3(q.x, floor + r * 0.3f, q.y);
                         var tip = root + new float3(math.cos(lean), rng.NextFloat(-0.1f, 0.2f), math.sin(lean)) * r * rng.NextFloat(0f, 0.8f);
-                        result.Add(Rod(root, tip, r, r * rng.NextFloat(0.6f, 0.9f)));
+                        // Loose rock sits on the floor rather than growing out of it: a tighter fillet than a stalagmite.
+                        result.Add(Rod(root, tip, r, r * rng.NextFloat(0.6f, 0.9f), 0.3f));
+                    }
+
+                    // A few chunky boulders per chamber, fallen near the walls: sharp-edged blocks of the cave's own
+                    // rock (its look and collision), crisply set on the floor.
+                    var boulders = (int)math.round(math.min(density / 5f, 1f) * rng.NextFloat(2f, 4.5f));
+                    for (int k = 0; k < boulders; k++)
+                    {
+                        var r = size * rng.NextFloat(1.6f, 2.6f);
+                        var a = rng.NextFloat(math.PI * 2f);
+                        var dir = new float2(math.cos(a), math.sin(a));
+                        var floorHere = source.FloorUnder(centre, out _);
+                        var from = new float3(centre.x, floorHere + 0.5f, centre.z);
+                        var t = 0f;
+                        var hit = false;
+                        for (int s = 0; s < 80 && !hit; s++)
+                        {
+                            var d = source.CaveDistance(from + new float3(dir.x, 0f, dir.y) * t);
+                            if (d >= 0f) hit = true;
+                            else t += math.max(0.2f, -d * 0.4f);
+                        }
+                        if (!hit || t < r * 2.5f)
+                            continue;
+                        var q = centre.xz + dir * (t - r * 0.9f);
+                        if (InTheWay(q, 0.8f + r, n, nodes, segments, cave) || InPool(q, r, pools, cave))
+                            continue;
+                        var floor = source.FloorUnder(new float3(q.x, centre.y, q.y), out var inCave);
+                        if (!inCave || source.CaveDistance(new float3(q.x, floor + r * 1.6f, q.y)) >= 0f)
+                            continue;
+                        // Set a little into the floor, so it rests on a flat face.
+                        var middle = new float3(q.x, floor + r * 0.45f, q.y);
+                        var block = Rod(middle, middle, r, r, 0.08f);
+                        block.Block = rng.NextFloat(0.05f, 1f);
+                        result.Add(block);
                     }
                 }
             }
@@ -633,12 +673,12 @@ namespace Punchy.Terrain
             return false;
         }
 
-        static CaveSpeleothem Rod(float3 root, float3 tip, float rootRadius, float tipRadius)
+        static CaveSpeleothem Rod(float3 root, float3 tip, float rootRadius, float tipRadius, float fillet = 0.5f)
         {
             var reach = math.max(rootRadius, tipRadius) + 1f;
             return new CaveSpeleothem
             {
-                Root = root, Tip = tip, RootRadius = rootRadius, TipRadius = tipRadius,
+                Root = root, Tip = tip, RootRadius = rootRadius, TipRadius = tipRadius, Fillet = fillet,
                 Min = math.min(root, tip) - reach,
                 Max = math.max(root, tip) + reach
             };
@@ -732,6 +772,70 @@ namespace Punchy.Terrain
             }
         }
 
+        /// <summary>
+        /// Waterfalls, by the style's chance: over a water pool, from the nearest wall within a few metres of its rim, a
+        /// lip high up (under the ceiling, at most 7 m above the water) pouring out and down into the pool. At most
+        /// two a cave, at least 2 m of drop.
+        /// </summary>
+        static void PlaceWaterfalls(in TerrainSource source, List<CaveData> caves, List<CaveStyle> styles, Extras extras)
+        {
+            for (int c = 0; c < caves.Count; c++)
+            {
+                var cave = caves[c];
+                var style = cave.Style > 0 ? styles[cave.Style - 1] : null;
+                if (style == null || style.WaterfallChance <= 0f)
+                    continue;
+                var rng = new Random(math.hash(new int2(c, 0xFA11)) | 1u);
+                var made = 0;
+                for (int i = cave.FirstPool; i < cave.FirstPool + cave.PoolCount && made < 2; i++)
+                {
+                    var pool = extras.Pools[i];
+                    if (pool.Lava > 0.5f || rng.NextFloat() >= style.WaterfallChance)
+                        continue;
+                    var from = pool.Centre + new float3(0f, 1.5f, 0f);
+                    var start = rng.NextFloat(math.PI * 2f);
+                    for (int k = 0; k < 8; k++)
+                    {
+                        var a = start + k * math.PI * 0.25f;
+                        var dir = new float2(math.cos(a), math.sin(a));
+                        var t = 0.3f;
+                        while (t < pool.Radius + 4f && source.CaveDistance(from + new float3(dir.x, 0f, dir.y) * t) < 0f)
+                            t += 0.1f;
+                        if (t >= pool.Radius + 4f)
+                            continue;
+                        // Just off the wall, as high as the ceiling there allows.
+                        var foot = pool.Centre.xz + dir * (t - 0.35f);
+                        var ceiling = source.CeilingOver(new float3(foot.x, pool.Centre.y + 1f, foot.y));
+                        var lipY = math.min(ceiling - 0.4f, pool.Centre.y + 7f);
+                        if (lipY - pool.Centre.y < 2f)
+                            continue;
+                        // The water comes out of a dark notch cut into the wall, and starts inside it.
+                        var width = math.min(pool.Radius * 0.6f, 1.6f);
+                        var into = new float3(dir.x, 0f, dir.y);
+                        // The wall at the lip's height (it may lean in or out from where it was found lower down).
+                        var wall = new float3(foot.x, lipY, foot.y) + into * 0.35f;
+                        for (int step = 0; step < 30 && source.CaveDistance(wall) < 0f; step++)
+                            wall += into * 0.1f;
+                        for (int step = 0; step < 30 && source.CaveDistance(wall - into * 0.1f) > 0f; step++)
+                            wall -= into * 0.1f;
+                        var notch = Rod(wall - into * 0.3f, wall + (into + new float3(0f, 0.25f, 0f)) * 0.9f,
+                                        width * 0.42f, width * 0.25f, 0.15f);
+                        notch.Carve = 1f;
+                        extras.Speleothems.Add(notch);
+                        extras.Waterfalls.Add(new CaveWaterfall
+                        {
+                            Lip = wall + into * 0.25f,
+                            Width = width,
+                            Out = -dir,
+                            Drop = lipY - pool.Centre.y
+                        });
+                        made++;
+                        break;
+                    }
+                }
+            }
+        }
+
         /// <summary>Whether the cave floor stays above a pool's surface all round its rim and just inside it.</summary>
         static bool RimHolds(in TerrainSource source, float3 surface, float radius)
         {
@@ -758,7 +862,8 @@ namespace Punchy.Terrain
         static bool UnderRock(float3 p, List<CaveSpeleothem> rods)
         {
             foreach (var s in rods)
-                if (math.all(p >= s.Min - 0.6f) && math.all(p <= s.Max + 0.6f) && CaveSampling.Rod(s, p) < 0.6f)
+                if (s.Carve == 0f && math.all(p >= s.Min - 0.6f) && math.all(p <= s.Max + 0.6f) &&
+                    (s.Block != 0f ? CaveSampling.Block(s, p) : CaveSampling.Rod(s, p)) < 0.6f)
                     return true;
             return false;
         }

@@ -16,12 +16,19 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 68e89c7ddec9ab245918187f5662a6c2, type: 2}
   Width: 1
   Height: 1.1
-  Roughness: 0.9
+  Roughness: 0.3
   Grain: 1.2
-  Jaggedness: 1.05
-  Blockiness: 0.4
+  Jaggedness: 0.35
+  Blockiness: 0.1
   Ribs: 0
   RibSpacing: 1.6
+  Angularity: 1
+  FacetSize: 2.2
+  Straightness: 0
+  Frame: {fileID: 0}
+  FrameSpacing: 4
+  Torch: {fileID: 0}
+  TorchSpacing: 10
   FloorFlatness: 0.8
   FloorSteps: 0.6
   Burrows: 0
@@ -46,30 +53,35 @@ MonoBehaviour:
     Light: 0
     Hanging: 0
     MaxCover: 5
+  - Species: {fileID: 11400000, guid: b2075efb2c5607c418e7d3efac7828a2, type: 2}
+    Density: 7
+    Light: 0
+    Hanging: 0
+    MaxCover: 5
   PoolChance: 0.2
   LavaPools: 0
   PoolSize: 0.32
   StreamChance: 0
-  RockColor: {r: 0.7, g: 0.62, b: 0.45, a: 1}
-  DarkColor: {r: 0.2, g: 0.18, b: 0.15, a: 1}
-  Strata: 0.2
+  RockColor: {r: 0.52, g: 0.5, b: 0.5, a: 1}
+  DarkColor: {r: 0.1, g: 0.095, b: 0.1, a: 1}
+  Strata: 0.35
   StrataFrequency: 1.2
-  Gloss: 0.7
-  Metallic: 0.85
-  Facets: 0.85
+  Gloss: 0.88
+  Metallic: 0.95
+  Facets: 0.9
   Translucency: 0
-  FloorColor: {r: 0.42, g: 0.37, b: 0.3, a: 1}
-  FloorDark: {r: 0.2, g: 0.18, b: 0.15, a: 1}
-  FloorGrit: 0.8
-  FloorGloss: 0.2
-  Detail: 0.35
+  FloorColor: {r: 0.2, g: 0.19, b: 0.19, a: 1}
+  FloorDark: {r: 0.08, g: 0.075, b: 0.075, a: 1}
+  FloorGrit: 0.6
+  FloorGloss: 0.45
+  Detail: 0.08
   DetailScale: 1.8
-  Sheen: 0
-  GlowColor: {r: 0.4, g: 0.9, b: 1, a: 1}
-  Glow: 0.5
-  GlowCover: 0.035
-  Cracks: 0.2
-  GlowScale: 2
+  Sheen: 0.5
+  GlowColor: {r: 1, g: 0.5, b: 0.22, a: 1}
+  Glow: 0.14
+  GlowCover: 0.04
+  Cracks: 0.35
+  GlowScale: 1.6
   GlowEverywhere: 0
   CrackDarkness: 0
   CrackBreakup: 0

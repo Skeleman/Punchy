@@ -22,6 +22,13 @@ MonoBehaviour:
   Blockiness: 0.5
   Ribs: 0
   RibSpacing: 1.6
+  Angularity: 0.7
+  FacetSize: 1.8
+  Straightness: 0
+  Frame: {fileID: 0}
+  FrameSpacing: 4
+  Torch: {fileID: 0}
+  TorchSpacing: 10
   FloorFlatness: 0.8
   FloorSteps: 0.5
   Burrows: 0
@@ -51,30 +58,35 @@ MonoBehaviour:
     Light: 2
     Hanging: 0
     MaxCover: 5
+  - Species: {fileID: 11400000, guid: b2075efb2c5607c418e7d3efac7828a2, type: 2}
+    Density: 4
+    Light: 0
+    Hanging: 0
+    MaxCover: 5
   PoolChance: 0.3
   LavaPools: 0
   PoolSize: 0.32
   StreamChance: 0
-  RockColor: {r: 0.55, g: 0.45, b: 0.75, a: 1}
-  DarkColor: {r: 0.18, g: 0.12, b: 0.3, a: 1}
-  Strata: 0
+  RockColor: {r: 0.78, g: 0.7, b: 0.95, a: 1}
+  DarkColor: {r: 0.16, g: 0.1, b: 0.3, a: 1}
+  Strata: 0.4
   StrataFrequency: 0.4
-  Gloss: 0.5
+  Gloss: 0.94
   Metallic: 0
-  Facets: 0.9
-  Translucency: 0.3
+  Facets: 1
+  Translucency: 0.45
   FloorColor: {r: 0.55, g: 0.5, b: 0.65, a: 1}
   FloorDark: {r: 0.25, g: 0.22, b: 0.35, a: 1}
   FloorGrit: 0.7
   FloorGloss: 0.3
-  Detail: 0.3
+  Detail: 0.12
   DetailScale: 2
-  Sheen: 0.2
+  Sheen: 0.9
   GlowColor: {r: 0.7, g: 0.4, b: 1, a: 1}
   Glow: 1.6
   GlowCover: 0.06
   Cracks: 0.35
   GlowScale: 1.2
-  GlowEverywhere: 0.15
+  GlowEverywhere: 0.08
   CrackDarkness: 0
   CrackBreakup: 0

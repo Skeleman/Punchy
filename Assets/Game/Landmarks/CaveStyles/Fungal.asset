@@ -23,6 +23,13 @@ MonoBehaviour:
   Blockiness: 0.2
   Ribs: 0
   RibSpacing: 1.6
+  Angularity: 0
+  FacetSize: 2.5
+  Straightness: 0
+  Frame: {fileID: 0}
+  FrameSpacing: 4
+  Torch: {fileID: 0}
+  TorchSpacing: 10
   FloorFlatness: 0.85
   FloorSteps: 0.3
   Burrows: 1
@@ -67,10 +74,16 @@ MonoBehaviour:
     Light: 2
     Hanging: 0
     MaxCover: 1.5
+  - Species: {fileID: 11400000, guid: b2075efb2c5607c418e7d3efac7828a2, type: 2}
+    Density: 4
+    Light: 0
+    Hanging: 0
+    MaxCover: 5
   PoolChance: 0.6
   LavaPools: 0
   PoolSize: 0.32
   StreamChance: 0.4
+  WaterfallChance: 0.5
   RockColor: {r: 0.33, g: 0.36, b: 0.3, a: 1}
   DarkColor: {r: 0.12, g: 0.14, b: 0.1, a: 1}
   Strata: 0.15

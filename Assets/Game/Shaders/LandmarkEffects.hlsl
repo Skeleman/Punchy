@@ -15,10 +15,29 @@ struct LandmarkEmitter
     float4 timing;   // period, duty, opacity, particles
     float2 outDir;   // waterfall: horizontal direction the water travels
     float drop;      // waterfall: height of the fall
-    float pad;
+    float underRock; // 1 for a cave's waterfall: no sun, a trace of sky, lit by the lantern and glowing things
 };
 
 StructuredBuffer<LandmarkEmitter> _LandmarkEmitters;
+float4 _PunchyLantern;        // the player's lantern: position, strength (CaveSystem)
+float4 _PunchyLanternColor;   // its colour and reach
+
+// The light on an effect: sun and sky in the open; under rock, a trace of the sky (from the mouth), the glowing
+// things nearby and the player's lantern.
+half3 PunchyEffectLight(LandmarkEmitter e, float3 p, half3 n, half3 sun, half3 sky)
+{
+    if (e.underRock < 0.5)
+        return sun + sky;
+    half3 light = sky * 0.06 + PunchyGlowLight(p, n);
+    if (_PunchyLantern.w > 0)
+    {
+        float3 toLantern = _PunchyLantern.xyz - p;
+        float reach = saturate(1 - length(toLantern) / _PunchyLanternColor.w);
+        light += _PunchyLanternColor.rgb * _PunchyLantern.w * reach * reach * saturate(dot(n, normalize(toLantern)) * 0.7 + 0.3);
+    }
+    // Water and spray keep their own cool white rather than taking on the lantern's amber.
+    return lerp(light, dot(light, half3(0.3, 0.5, 0.2)) * half3(0.82, 0.95, 1.12), 0.6) + half3(0.02, 0.03, 0.04);
+}
 uint _MaxParticles;
 float4 _WaterfallGrid;   // columns, rows
 float2 _PunchyWindDirection;
@@ -99,7 +118,8 @@ FallVertex BuildWaterfall(uint vertex, uint instance)
 
     float3 outDir = float3(e.outDir.x, 0, e.outDir.y);
     float3 across = normalize(cross(float3(0, 1, 0), outDir));
-    float width = e.shape.y * (1 + 0.3 * t);
+    // A cave's fall leaves a narrow notch and spreads more as it drops.
+    float width = e.shape.y * lerp(1 + 0.3 * t, 0.55 + 0.75 * t, e.underRock);
     float3 p = e.position + outDir * e.shape.x * t - float3(0, e.drop * t * t, 0) + across * (u - 0.5) * width;
     // Ripple the sheet so it isn't a perfect surface.
     p += outDir * sin(u * 9.0 + t * 4.0 + _PunchyClock * 1.7) * 0.15 * t;

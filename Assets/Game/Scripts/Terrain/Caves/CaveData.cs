@@ -38,6 +38,8 @@ namespace Punchy.Terrain
         public float4 Wall;
         /// <summary>The style's Jaggedness, FloorFlatness, FloorSteps and Blockiness.</summary>
         public float4 Rock;
+        /// <summary>The style's Angularity and FacetSize.</summary>
+        public float2 Facet;
         public int FirstPool, PoolCount;
         public int FirstStream, StreamCount;
     }
@@ -89,6 +91,21 @@ namespace Punchy.Terrain
         public float Lava;
     }
 
+    /// <summary>
+    /// An underground waterfall: water pouring from a lip high on a chamber wall, out and down into a pool. Drawn by
+    /// LandmarkEffectSystem as a waterfall curtain and a mist plume, lit as under rock.
+    /// </summary>
+    public struct CaveWaterfall
+    {
+        /// <summary>The lip, on the wall.</summary>
+        public float3 Lip;
+        public float Width;
+        /// <summary>Horizontal direction the water leaves the wall.</summary>
+        public float2 Out;
+        /// <summary>Height from the lip to the pool's surface.</summary>
+        public float Drop;
+    }
+
     /// <summary>One capsule of a passage, between two nodes, with the box its influence reaches.</summary>
     public struct CaveSegment
     {
@@ -107,6 +124,15 @@ namespace Punchy.Terrain
         /// <summary>The root (inside the floor or ceiling) and the tip.</summary>
         public float3 Root, Tip;
         public float RootRadius, TipRadius;
+        /// <summary>How softly it blends into the rock it stands on (m): 0.5 for stalagmites, less for loose rock.</summary>
+        public float Fillet;
+        /// <summary>
+        /// 0: a tapered rod (root to tip). Otherwise a fallen boulder: a sharp-edged block cut by planes round Root
+        /// (RootRadius across), Seed being this value (see <see cref="CaveSampling.Block"/>).
+        /// </summary>
+        public float Block;
+        /// <summary>1: not rock but a hollow cut into the rock (a waterfall's notch): the rod's shape is taken out of it.</summary>
+        public float Carve;
         /// <summary>World-space box around it (with a margin).</summary>
         public float3 Min, Max;
     }
@@ -127,6 +153,7 @@ namespace Punchy.Terrain
         public BlobArray<CaveNodeKind> Kinds;
         public BlobArray<CaveSegment> Segments;
         public BlobArray<CavePool> Pools;
+        public BlobArray<CaveWaterfall> Waterfalls;
         public BlobArray<CaveStream> Streams;
         public BlobArray<CaveStreamPoint> StreamPoints;
         public BlobArray<CavePlant> Plants;
@@ -161,7 +188,7 @@ namespace Punchy.Terrain
         const float SkipBeyond = 1.5f;
 
         /// <summary>Most a cave's wall and ceiling noise can move its walls.</summary>
-        public static float WallReach(in CaveData c) => NoiseReach * c.Wall.x + JaggedReach * c.Rock.x + 0.45f * c.Wall.z;
+        public static float WallReach(in CaveData c) => NoiseReach * c.Wall.x + JaggedReach * c.Rock.x + 0.45f * c.Wall.z + 0.64f * c.Facet.y * c.Facet.x;
 
         /// <summary>
         /// How far beyond a segment's radius its box reaches, before wall noise. Past the blend and the noise, the
@@ -276,6 +303,20 @@ namespace Punchy.Terrain
                 var blocks = c.Rock.w > 0f ? math.min(0f, noise.snoise(math.floor(p * (1f / 1.7f)) * 0.37f + s)) * 0.6f * c.Rock.w * math.smoothstep(0.45f, 1f, up) : 0f;
                 n += (jag + blocks) * c.Rock.x * math.smoothstep(0.2f, 0.75f, up);
             }
+            // Angular faces: three sawtooth waves across directions set per cave add up to a relief that is flat
+            // between creases, so the walls break into planes meeting at sharp edges. Continuous (the field stays
+            // steady), and off the floor like the ribs.
+            if (c.Facet.x > 0f && up > 0.06f)
+            {
+                var tri = 0f;
+                for (int i = 0; i < 3; i++)
+                {
+                    var a = c.Seed * (2.3f + i * 1.7f) + i * 2.1f;
+                    var dir = math.normalize(new float3(math.sin(a), math.cos(a * 1.3f) * 0.8f, math.cos(a)));
+                    tri += math.abs(math.frac(math.dot(p, dir) / c.Facet.y + i * 0.37f) - 0.5f);
+                }
+                n += (tri - 0.75f) * c.Facet.y * 0.85f * c.Facet.x * math.smoothstep(0.06f, 0.3f, up);
+            }
             // Ribs (melt-scalloped ice), with scooped hollows between (about 0.45 m deep at full Ribs). Off the floor, so
             // FloorUnder's march isn't affected.
             if (c.Wall.z > 0f && up > 0.06f)
@@ -364,10 +405,11 @@ namespace Punchy.Terrain
             return best;
         }
 
-        /// <summary>Only near the air do speleothems matter: they turn air into rock, never rock into air.</summary>
+        /// <summary>
+        /// Only near the air do speleothems matter: they turn air into rock, and the few carved ones (waterfall notches,
+        /// within a metre of the wall) rock into air.
+        /// </summary>
         const float SpeleothemReach = 2f;
-        /// <summary>How softly a speleothem's root blends into the floor or ceiling (m).</summary>
-        const float RootFillet = 0.5f;
 
         /// <summary>Takes the speleothems near a point out of the air: a smooth maximum with each one's rock.</summary>
         static float Speleothems(ref CaveSetBlob set, float3 p, float air)
@@ -381,9 +423,32 @@ namespace Punchy.Terrain
                 ref var s = ref set.Speleothems[set.SpeleothemItems[k]];
                 if (math.any(p < s.Min) || math.any(p > s.Max))
                     continue;
-                air = -SmoothMin(-air, Rod(s, p), RootFillet);
+                air = s.Carve > 0f ? SmoothMin(air, Rod(s, p), math.max(s.Fillet, 0.05f))
+                                   : -SmoothMin(-air, s.Block != 0f ? Block(s, p) : Rod(s, p), math.max(s.Fillet, 0.05f));
             }
             return air;
+        }
+
+        /// <summary>
+        /// Distance to a fallen boulder: the intersection of ten planes round its middle, each facing its own way (from
+        /// the boulder's seed) and set at its own distance, so it's an irregular block with flat faces and sharp
+        /// edges. The largest plane distance never overstates the true distance, so stepping never overshoots.
+        /// </summary>
+        internal static float Block(in CaveSpeleothem s, float3 p)
+        {
+            var q = p - s.Root;
+            var d = -1e9f;
+            for (int i = 0; i < 10; i++)
+            {
+                // Spread round the sphere (golden spiral), turned by the seed, each face nearer or farther.
+                var y = 1f - (i + 0.5f) / 5f;
+                var ring = math.sqrt(math.saturate(1f - y * y));
+                var a = i * 2.39996f + s.Block * 6.283f;
+                var n = math.normalize(new float3(math.cos(a) * ring, y * 0.85f, math.sin(a) * ring));
+                var h = math.frac(math.sin((i + 1) * 12.9898f + s.Block * 78.233f) * 43758.5453f);
+                d = math.max(d, math.dot(q, n) - s.RootRadius * (0.72f + 0.3f * h));
+            }
+            return d;
         }
 
         /// <summary>Distance to a tapered rod (a cone with rounded ends), slightly understated so stepping never overshoots.</summary>

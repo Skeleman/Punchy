@@ -28,7 +28,7 @@ MonoBehaviour:
   Accents: []
   AccentAmount: 0.3
   ColorVariation: 0.05
-  Finish: 2
+  Finish: 3
   GlowingAccents: 0
   GlowPulse: 0
   MaxSlope: 60
