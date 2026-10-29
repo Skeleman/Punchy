@@ -1,16 +1,15 @@
 Shader "Punchy/ArcBolt"
 {
-    // Electric bolts between arcing spires (FloraSystem.DrawBolts): one instance per pair of spires, its object space
-    // running from one tip (z 0) to the other (z 1). The mesh is two crossed ribbons along the spine; each strike the
-    // spine jumps to a new jagged path. Every pair fires on its own rhythm from the shared clock (every few seconds to
-    // most of a minute, for a fifth of a second or so, flickering), seeded by its position, so every player sees the
-    // same bolts. Additive and unlit: no lights, no depth.
+    // Electric bolts between arcing spires (FloraSystem.DrawBolts): one instance per bolt firing this frame (the pairs'
+    // rhythms are worked out there, so the crackle lands on the strike), its object space running from one end (z 0)
+    // to the other (z 1). The mesh is two crossed ribbons along the spine; while it lasts the bolt flickers and its
+    // spine jumps to a new jagged path several times a second, from the shared clock and its position, so every
+    // player sees the same bolt. Additive and unlit: no lights, no depth.
     Properties
     {
         [HDR] _Color("Colour", Color) = (3.5, 4.5, 6, 1)
         _Width("Half width (m)", Float) = 0.06
         _Jag("Jaggedness (m)", Float) = 0.9
-        [Toggle] _AlwaysOn("Always on (checking only)", Float) = 0
     }
     SubShader
     {
@@ -37,7 +36,6 @@ Shader "Punchy/ArcBolt"
                 half4 _Color;
                 float _Width;
                 float _Jag;
-                float _AlwaysOn;
             CBUFFER_END
 
             struct Attributes
@@ -63,16 +61,12 @@ Shader "Punchy/ArcBolt"
                 Varyings o = (Varyings)0;
                 float3 origin = float3(UNITY_MATRIX_M[0].w, UNITY_MATRIX_M[1].w, UNITY_MATRIX_M[2].w);
                 float seed = Hash(dot(round(origin), float3(12.9898, 78.233, 37.719)));
-                // This pair's rhythm: how often it fires and for how long.
-                float period = lerp(5, 45, seed);
-                float duration = lerp(0.1, 0.4, Hash(seed * 7.3));
-                float t = _PunchyClock + seed * period;
-                float strike = floor(t / period);
-                float since = t - strike * period;
+                // Flickering, and jumping to a new path about eight times a second.
+                float strike = floor(_PunchyClock * 8 + seed * 13);
                 half flicker = Hash(floor(_PunchyClock * 40) + seed * 91) > 0.25 ? 1 : 0;
-                o.fire = since < duration || _AlwaysOn > 0.5 ? flicker : 0;
+                o.fire = flicker;
 
-                // A new jagged path each strike: the spine bent at a dozen points, pinned at both tips.
+                // A jagged path: the spine bent at a dozen points, pinned at both ends.
                 float along = input.uv.x;
                 float k = floor(along * 12);
                 float f = frac(along * 12);

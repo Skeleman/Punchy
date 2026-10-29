@@ -232,7 +232,7 @@ namespace Punchy.Flora
             if (!hidden)
             {
                 Draw(cam);
-                DrawBolts(camXZ);
+                DrawBolts(source, camXZ);
             }
         }
 
@@ -748,8 +748,21 @@ namespace Punchy.Flora
 
         // ------------------------------------------------------------------------------------------- bolts
 
-        /// <summary>Spire pairs within reach of each other near the camera, as tip-to-tip matrices for the bolt shader.</summary>
-        readonly List<Matrix4x4> bolts = new List<Matrix4x4>();
+        /// <summary>
+        /// Spire pairs within reach of each other near the camera (and the odd spire arcing to the ground): their ends,
+        /// rhythm (how often a strike comes and how long it lasts, s) and phase, all from their positions, so every
+        /// machine agrees; and the strike each last made a sound for.
+        /// </summary>
+        struct Bolt
+        {
+            public Vector3 A, B;
+            public float Period, Duration, Phase;
+            public long Struck;
+        }
+        readonly List<Bolt> bolts = new List<Bolt>();
+        /// <summary>The bolts firing this frame, as tip-to-tip matrices for the bolt shader.</summary>
+        readonly List<Matrix4x4> firing = new List<Matrix4x4>();
+        static readonly int ClockId = Shader.PropertyToID("_PunchyClock");
         float2 boltCentre = new float2(float.MaxValue);
         float nextBolts;
         Mesh boltMesh;
@@ -761,10 +774,11 @@ namespace Punchy.Flora
         /// <summary>
         /// Electric bolts between neighbouring arcing spires (FloraForm.ArcSpire): every spire near the camera pairs with
         /// its nearest neighbour 6-20 m away (about half of them, by a hash of the pair, so not every spire is wired),
-        /// and ArcBolt.shader fires each pair now and then on the shared clock. Pairs come from the placed spires alone,
-        /// so every machine draws the same ones.
+        /// and a few spires now and then arc down to the ground beside them. Each fires on its own rhythm from the shared
+        /// clock (worked out here, so the crackle it makes lands on the strike), drawn by ArcBolt.shader while it lasts.
+        /// Pairs come from the placed spires alone, so every machine sees and hears the same ones.
         /// </summary>
-        void DrawBolts(float2 camXZ)
+        void DrawBolts(in TerrainSource source, float2 camXZ)
         {
             if (!boltsLoaded)
             {
@@ -779,17 +793,51 @@ namespace Punchy.Flora
             {
                 boltCentre = camXZ;
                 nextBolts = Time.unscaledTime + 2f;
-                GatherBolts(camXZ);
+                GatherBolts(source, camXZ);
             }
             if (bolts.Count == 0)
                 return;
+            var clock = Shader.GetGlobalFloat(ClockId);
+            firing.Clear();
+            for (int i = 0; i < bolts.Count; i++)
+            {
+                var bolt = bolts[i];
+                var t = clock + bolt.Phase * bolt.Period;
+                var strike = (long)math.floor(t / bolt.Period);
+                if (t - strike * bolt.Period >= bolt.Duration)
+                    continue;
+                firing.Add(Matrix4x4.TRS(bolt.A, Quaternion.LookRotation(bolt.B - bolt.A), new Vector3(1f, 1f, Vector3.Distance(bolt.A, bolt.B))));
+                // A crack once per strike, at its middle (a placeholder sound until the bank has a proper zap).
+                if (strike != bolt.Struck)
+                {
+                    bolt.Struck = strike;
+                    bolts[i] = bolt;
+                    var mid = (bolt.A + bolt.B) * 0.5f;
+                    if (Punchy.Audio.GameAudio.Audible(mid, 70f))
+                        Punchy.Audio.GameAudio.PlayOneShot(Punchy.Audio.SoundId.Zip, mid, 2.4f, 1f, 70f, Punchy.Audio.SoundGroup.World);
+                }
+            }
+            if (firing.Count == 0)
+                return;
             var rp = new RenderParams(boltMaterial) { shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false,
                                                        worldBounds = new Bounds(new Vector3(camXZ.x, 0f, camXZ.y), Vector3.one * 2f * BoltRange + Vector3.up * 2000f) };
-            Graphics.RenderMeshInstanced(rp, boltMesh, 0, bolts);
+            Graphics.RenderMeshInstanced(rp, boltMesh, 0, firing);
         }
 
-        void GatherBolts(float2 camXZ)
+        /// <summary>A pair's rhythm from a hash of its ends' positions (whole metres, so every machine agrees).</summary>
+        static Bolt MakeBolt(Vector3 a, Vector3 b, float slowest)
         {
+            var h = math.hash(new int4((int2)math.round(((float3)a).xz), (int2)math.round(((float3)b).xz)));
+            var r = new Unity.Mathematics.Random(h | 1u);
+            return new Bolt { A = a, B = b, Period = r.NextFloat(5f, slowest), Duration = r.NextFloat(0.1f, 0.4f), Phase = r.NextFloat(), Struck = long.MinValue };
+        }
+
+        void GatherBolts(in TerrainSource source, float2 camXZ)
+        {
+            // Keep each surviving bolt's last strike, so a regather doesn't crack it again.
+            var struck = new Dictionary<Vector3, long>();
+            foreach (var bolt in bolts)
+                struck[bolt.A + bolt.B * 3.1f] = bolt.Struck;
             bolts.Clear();
             var tips = new List<float3>();
             for (int li = 1; li < 3 && li < layers.Length; li++)
@@ -820,10 +868,25 @@ namespace Punchy.Flora
                 var h = math.hash(new int4((int2)math.round(tips[i].xz), (int2)math.round(tips[best].xz)));
                 if ((h & 1) == 0)
                     continue;
-                var a = (Vector3)tips[i];
-                var b = (Vector3)tips[best];
-                bolts.Add(Matrix4x4.TRS(a, Quaternion.LookRotation(b - a), new Vector3(1f, 1f, Vector3.Distance(a, b))));
+                bolts.Add(MakeBolt(tips[i], tips[best], 45f));
             }
+            // About one spire in five sometimes arcs down to the ground a few metres off, more rarely.
+            foreach (var tip in tips)
+            {
+                var h = math.hash((int3)math.round(tip));
+                if (h % 5 != 0)
+                    continue;
+                var a = (h >> 8) / 16777216f * math.PI * 2f;
+                var foot = tip.xz + new float2(math.cos(a), math.sin(a)) * (3f + (h & 0xFF) / 255f * 3f);
+                bolts.Add(MakeBolt(tip, new float3(foot.x, source.SampleHeight(foot), foot.y), 90f));
+            }
+            for (int i = 0; i < bolts.Count; i++)
+                if (struck.TryGetValue(bolts[i].A + bolts[i].B * 3.1f, out var last))
+                {
+                    var bolt = bolts[i];
+                    bolt.Struck = last;
+                    bolts[i] = bolt;
+                }
         }
 
         /// <summary>Two crossed ribbons along +z from 0 to 1 (ArcBolt.shader bends and widens them).</summary>
