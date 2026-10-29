@@ -335,3 +335,12 @@ asks Zach if needed, and records the answer here.
   PunchyMilestones `_page` folder and records the page URL and check-in in memory. Then all four restart.
 - **Why:** Zach: "Yes, let's try that". Long contexts cost tokens every turn; state lives in the repo docs.
 - **Revisited:** 0.
+
+### J-038: Which graphics API does v0.8.0 ship on?
+
+- **Asked:** 2026-10-29, by the supervisor (after D3D12 + depth priming crashed on every quit).
+- **Answer (2026-10-29):** Direct3D 11 first, Direct3D 12 as fallback, priming Forced. Zach first preferred a
+  Unity update to keep D3D12, then chose D3D11 after kind-possum's with-flora numbers (town 1% low 59 vs 32;
+  2-3 ms less CPU, smaller spikes). The 6000.5.11 upgrade is shelved for when D3D12 features are wanted.
+- **Why:** Zach: "After seeing the performance numbers, I suppose I need to go with the dx11 build."
+- **Revisited:** 1 (he changed his mind once on new data).
