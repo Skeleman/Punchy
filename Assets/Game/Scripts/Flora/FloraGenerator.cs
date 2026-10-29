@@ -1774,7 +1774,7 @@ namespace Punchy.Flora
         /// <summary>
         /// A glacier ice arch facing +Z: a bow of ice from one foot to the other along X, thick and splayed at the feet,
         /// thinner over the top, its thickness and line broken up ring by ring so it reads as carved by melt rather
-        /// than turned, with icicles under the crown. Drawn as glass (clear ice) when the species' finish is Glass, else as
+        /// than turned, with icicles under an ice one's crown. Drawn as glass (clear ice) when the species' finish is Glass, else as
         /// rock in its colour. The legs carry colliders, so the way under it stays open.
         /// </summary>
         static void IceArch(Grower g)
@@ -1804,13 +1804,19 @@ namespace Punchy.Flora
                 var thick = Mathf.Lerp(1f, 0.55f, Mathf.Sin(a));
                 radii.Add(leg * thick * (i == 0 || i == rings ? 1.35f : 1f) * g.Range(0.88f, 1.1f));
             }
+            // The feet carry on straight down into the ground, so they stay seated where it isn't quite level (F-44).
+            var sink = 0.5f + height * 0.12f;
+            path.Insert(0, path[0] + Vector3.down * sink);
+            radii.Insert(0, radii[0]);
+            path.Add(path[path.Count - 1] + Vector3.down * sink);
+            radii.Add(radii[radii.Count - 1]);
             var first = b.VertexCount;
             b.Tube(path, radii, sides, g.FoliageColor(), part);
             // Darker underneath, where the bow shades itself.
             b.Occlude(first, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y * 0.5f + 0.6f)));
-            if (g.Lod < 2)
+            if (g.Lod < 2 && part == FloraPart.Glass)
             {
-                // Icicles under the crown.
+                // Icicles under the crown (ice arches only; not rock ones).
                 for (int k = 0; k < 6; k++)
                 {
                     var t = g.Range(0.3f, 0.7f);

@@ -36,6 +36,11 @@ namespace Punchy.Flora
         /// plots (buildings, fences, palisades, pens) win over anything whose footprint would overlap them (OnBuiltPlot).
         /// </summary>
         public float Footprint;
+        /// <summary>
+        /// For arches: how far each foot stands from the middle along the model's X at scale 1 (m), 0 otherwise. An
+        /// arch is only placed where the ground under both feet is about as high as in the middle (F-44).
+        /// </summary>
+        public float Span;
     }
 
     public struct FloraBiomeEntry
@@ -197,7 +202,8 @@ namespace Punchy.Flora
                     Tilt = s.Form == FloraForm.Boulder ? 0.85f : 0f,
                     Dirt = FloraGenerator.Founded(s.Form) ? 1 : 0,
                     FaceLandmark = s.Form == FloraForm.HiveTree ? 1 : 0,
-                    Footprint = Footprint(s)
+                    Footprint = Footprint(s),
+                    Span = s.Form == FloraForm.IceArch ? (s.Height.x + s.Height.y) * 0.5f * math.max(s.Spread, 0.5f) * 0.5f : 0f
                 };
                 for (int v = 0; v < s.Variants; v++)
                 {
@@ -989,6 +995,14 @@ namespace Punchy.Flora
             var rule = f.Rules[picked];
             if (OnBuiltPlot(ref f, source, xz, rule.Footprint * scale))
                 return none;
+            if (rule.Span > 0f)
+            {
+                // Both feet on ground within a metre of the middle's, so neither hangs in the air (models face +Z, so
+                // their X turns to (cos, sin)).
+                var foot = new float2(math.cos(yaw), math.sin(yaw)) * rule.Span * scale;
+                if (math.abs(source.SampleHeight(xz + foot) - ground.Height) > 1f || math.abs(source.SampleHeight(xz - foot) - ground.Height) > 1f)
+                    return none;
+            }
             return new FloraSystem.FloraInstance
             {
                 Position = new float3(xz.x, rule.Floats != 0 && ground.HasWater ? ground.WaterSurface + 0.01f : ground.Height, xz.y),
