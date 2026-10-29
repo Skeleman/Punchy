@@ -96,9 +96,12 @@ namespace Punchy.Fauna
             // ground with the body upright; lying, over onto the back (the limbs: SitPose and LiePose).
             if (b.Upright)
             {
-                // (Legs out, leaning back a little on its hands; cross-legged, sitting up.)
-                pitch += s.Sit * (0.5f - (CrossLegged(in s) ? 0.05f : 0.25f));
-                height = math.lerp(height + s.Sit * b.StandHeight * scale * 0.3f, 0.16f * scale, s.Sit);
+                // (Legs out, leaning back a little on its hands; cross-legged or on a seat, sitting up. On a seat the
+                // hips are at the seat's height, which comes in Anchor.)
+                var seated = Seated(in s);
+                pitch += s.Sit * (0.5f - (seated || CrossLegged(in s) ? 0.05f : 0.25f));
+                var hips = seated ? math.max(s.Anchor.y - s.Position.y, 0f) + 0.1f * scale : 0.16f * scale;
+                height = math.lerp(height + s.Sit * b.StandHeight * scale * 0.3f, hips, s.Sit);
                 pitch -= 1.5f * s.Lie;
             }
             // Climbing a trunk or sitting up tall (up), diving or hanging head down in a web (down).
@@ -348,7 +351,7 @@ namespace Punchy.Fauna
                 // rests on the ground under it, wherever that is (on a slope too), rather than the leg running into it.
                 var laid = b.Upright && part.Role == LimbRole.Leg && part.Parent < 0 && part.SegmentCount >= 3 &&
                             part.FirstSegment + part.SegmentCount <= MaxSegments
-                    ? math.max(s.Sit * (CrossLegged(in s) ? 0f : 1f), s.Lie) : 0f;
+                    ? math.max(s.Sit * (CrossLegged(in s) || Seated(in s) ? 0f : 1f), s.Lie) : 0f;
                 if (laid > 0.01f)
                 {
                     var fs = part.FirstSegment + part.SegmentCount - 1;
@@ -676,13 +679,25 @@ namespace Punchy.Fauna
         }
 
         /// <summary>
-        /// Folk sitting on the ground, one of two ways (by individual, a little under half of them cross-legged):
+        /// Folk sitting on a seat (below), or on the ground one of two ways (by individual, a little under half of them
+        /// cross-legged):
         /// legs out in front, knees a little bent and apart, leaning back a touch on hands set behind (the legs then
         /// laid along the ground under them); or cross-legged, knees out to the sides, shins crossed in front, sitting
         /// up with the hands on the knees.
         /// </summary>
         static float3 SitPose(ref CreaturePart part, in CreatureState s, int joint)
         {
+            // On a seat: thighs out level along it, shins down to the ground, hands on the thighs.
+            if (Seated(in s))
+                switch (part.Role)
+                {
+                    case LimbRole.Leg:
+                        return joint == 0 ? new float3(-1.5f, part.Side * 0.1f, 0f) : joint == 1 ? new float3(1.5f, 0f, 0f) : float3.zero;
+                    case LimbRole.Arm:
+                        return joint == 0 ? new float3(-0.45f, 0f, part.Side * 0.15f) : joint == 1 ? new float3(-0.55f, 0f, 0f) : float3.zero;
+                    default:
+                        return float3.zero;
+                }
             if (CrossLegged(in s))
                 switch (part.Role)
                 {
@@ -709,6 +724,9 @@ namespace Punchy.Fauna
                     return float3.zero;
             }
         }
+
+        /// <summary>Sitting on a seat (a bench, a log, a stump...), at the height in Anchor, rather than on the ground.</summary>
+        static bool Seated(in CreatureState s) => s.Mode == CreatureMode.Sit && s.Stage == 4;
 
         /// <summary>Whether this one sits on the ground cross-legged rather than with its legs out (fixed for life).</summary>
         static bool CrossLegged(in CreatureState s) => CreatureBlob.Trait(s.Individual, 29) > 0.1f;

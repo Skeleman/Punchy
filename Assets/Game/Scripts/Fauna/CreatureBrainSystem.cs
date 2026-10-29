@@ -597,7 +597,9 @@ namespace Punchy.Fauna
                             // (Two that chose the same spot in the same moment: the later of them finds another.)
                             else if (Contested(self, in s) && !StartLounge(self, ref s, ref rng))
                                 Pause(ref s, ref b, ref rng);
-                            else if (math.distance(s.Position.xz, s.Target) < 0.5f)
+                            // (Close is enough: it shuffles the rest of the way on, which for a seat is past the front
+                            // of the seat itself, solid to walkers.)
+                            else if (math.distance(s.Position.xz, s.Target) < (s.TargetHeight >= 4f ? 0.9f : 0.5f))
                             {
                                 s.Stage = (byte)s.TargetHeight;
                                 s.StageTime = 0f;
@@ -605,7 +607,8 @@ namespace Punchy.Fauna
                         }
                         else
                         {
-                            // Turned to the well (or the view), then down: sitting up and looking about, or lying back.
+                            // Turned to the well (or the view, or the way its seat faces), then down: sitting up and
+                            // looking about, or lying back.
                             s.Timer -= dt;
                             // (Shuffling the last of the way onto its own spot, so it neither crowds the next nor the wall.)
                             var short_ = s.Target - s.Position.xz;
@@ -1768,8 +1771,12 @@ namespace Punchy.Fauna
                     var ledges = new NativeList<int>(8, Allocator.Temp);
                     Anchors.Near(ref Terrain.Anchors.Value, new float3(near.x, s.Position.y, near.y), 60f, AnchorKind.Nest, ref ledges);
                     var found = -1;
+                    // (Not an egg clutch on a cave floor, which the world marks as a Nest too: those are Size 0.6, a
+                    // ledge 0.4.)
                     for (int k = 0; k < ledges.Length; k++)
-                        if (found < 0 || math.distancesq(Terrain.Anchors.Value.Anchors[ledges[k]].Position.xz, near) <
+                        if (Terrain.Anchors.Value.Anchors[ledges[k]].Size > 0.5f)
+                            continue;
+                        else if (found < 0 || math.distancesq(Terrain.Anchors.Value.Anchors[ledges[k]].Position.xz, near) <
                                          math.distancesq(Terrain.Anchors.Value.Anchors[found].Position.xz, near))
                             found = ledges[k];
                     ledges.Dispose();
@@ -1974,47 +1981,90 @@ namespace Punchy.Fauna
             // ------------------------------------------------------------------------------- taking their ease
 
             /// <summary>
-            /// Somewhere to sit or lie a while near home, on the ground by one of the town's wells or fountains: sitting in
-            /// a row before it, facing it, an arm's length or so clear of the wall; lying back in a second row further
-            /// out, feet to it. Each takes a slot of its own (by individual, the next along if that's taken), a metre or
-            /// so from the next (two for those lying), so two never sit in one another's lap. False if there's nowhere in
-            /// range, or no free slot. (Not on a town's Bench plots: those are fenced kitchen gardens as often as greens.)
+            /// Somewhere to sit or lie a while near home. Sitting: on a seat (a bench, a log, a stump, a fountain's rim,
+            /// a hall's step: Sit anchors), or on the grass of a green, or on the ground by a well or fountain; mostly a
+            /// seat, if there's one free. Lying back: on a green, or failing that the ground by a well. Each takes a slot
+            /// of its own (by individual, the next along if that's taken), so two never sit in one another's lap:
+            /// <list type="bullet">
+            /// <item>a seat: one sitter to each place along it;</item>
+            /// <item>a green: round its shade tree, a few metres out, facing out from it;</item>
+            /// <item>a well: sitting in a row before it, facing it, an arm's length clear of the wall; lying in a second
+            /// row further out, feet to it.</item>
+            /// </list>
+            /// False if there's nowhere in range, or no free slot.
             /// </summary>
             bool StartLounge(Entity self, ref CreatureState s, ref Random rng)
             {
                 if (!Terrain.Anchors.IsCreated)
                     return false;
-                ref var set = ref Terrain.Anchors.Value;
                 var lying = rng.NextFloat() < 0.4f;
-                var near = new NativeList<int>(8, Allocator.Temp);
-                Anchors.Near(ref set, new float3(s.Home.x, s.Position.y, s.Home.y), math.max(s.Leash, 30f), AnchorKind.Well, ref near);
-                if (near.Length == 0)
+                var roll = rng.NextFloat();
+                // The order it looks in: lying, a green then a well; sitting, mostly a seat first.
+                var order = lying ? new int3(1, 2, -1) : roll < 0.55f ? new int3(0, 1, 2) : roll < 0.8f ? new int3(1, 0, 2) : new int3(2, 0, 1);
+                for (int o = 0; o < 3; o++)
                 {
-                    near.Dispose();
-                    return false;
-                }
-                var a = set.Anchors[near[rng.NextInt(near.Length)]];
-                near.Dispose();
-                // Sitting: five along the near row. Lying: four along the far one.
-                var slots = lying ? 4 : 5;
-                var first = (int)(s.Individual % (uint)slots);
-                var room = lying ? 1.6f : 0.9f;
-                var across = new float2(-a.Facing.y, a.Facing.x);
-                for (int i = 0; i < slots; i++)
-                {
-                    var k = (first + i) % slots;
-                    var spot = lying ? a.Position.xz + across * ((k - 1.5f) * 2f) - a.Facing * 4f
-                                     : a.Position.xz + across * ((k - 2) * 0.95f) - a.Facing * 1f;
-                    if (!Walkable(spot, Habitat.Land) || Taken(self, spot, room))
-                        continue;
-                    SetMode(ref s, CreatureMode.Sit);
-                    s.Target = spot;
-                    s.Focus = spot + a.Facing * 3f;
-                    s.TargetHeight = lying ? 3f : 1f;
-                    s.Timer = lying ? rng.NextFloat(80f, 200f) : rng.NextFloat(40f, 120f);
-                    return true;
+                    var kind = order[o] == 0 ? AnchorKind.Sit : order[o] == 1 ? AnchorKind.Green : order[o] == 2 ? AnchorKind.Well : (AnchorKind)255;
+                    if ((byte)kind != 255 && LoungeAt(self, ref s, ref rng, kind, lying))
+                        return true;
                 }
                 return false;
+            }
+
+            /// <summary>A free slot at one of the anchors of a kind near home (a few tried, at random), taken.</summary>
+            bool LoungeAt(Entity self, ref CreatureState s, ref Random rng, AnchorKind kind, bool lying)
+            {
+                ref var set = ref Terrain.Anchors.Value;
+                var near = new NativeList<int>(8, Allocator.Temp);
+                Anchors.Near(ref set, new float3(s.Home.x, s.Position.y, s.Home.y), math.max(s.Leash, 30f), kind, ref near);
+                var found = false;
+                for (int tries = 0; tries < 3 && near.Length > 0 && !found; tries++)
+                {
+                    var pick = rng.NextInt(near.Length);
+                    var a = set.Anchors[near[pick]];
+                    near.RemoveAtSwapBack(pick);
+                    if (a.InCave)
+                        continue;
+                    var across = new float2(-a.Facing.y, a.Facing.x);
+                    var slots = kind == AnchorKind.Sit ? math.max((int)a.Capacity, 1) : kind == AnchorKind.Green ? math.max((int)a.Capacity, 4) : lying ? 4 : 5;
+                    var room = kind == AnchorKind.Sit ? math.max(a.Size * 0.8f, 0.3f) : lying ? 1.6f : 0.9f;
+                    var first = (int)(s.Individual % (uint)slots);
+                    for (int i = 0; i < slots && !found; i++)
+                    {
+                        var k = (first + i) % slots;
+                        float2 spot, face;
+                        if (kind == AnchorKind.Sit)
+                        {
+                            spot = a.Position.xz + across * ((k - (slots - 1) * 0.5f) * a.Size);
+                            face = spot + a.Facing * 3f;
+                        }
+                        else if (kind == AnchorKind.Green)
+                        {
+                            math.sincos(k * 2f * math.PI / slots + (a.Owner & 7) * 0.4f, out var sin, out var cos);
+                            var outward = new float2(sin, cos);
+                            spot = a.Position.xz + outward * math.max(a.Size * 0.6f, 2.5f);
+                            face = spot + outward * 3f;
+                        }
+                        else
+                        {
+                            spot = lying ? a.Position.xz + across * ((k - 1.5f) * 2f) - a.Facing * 4f
+                                         : a.Position.xz + across * ((k - 2) * 0.95f) - a.Facing * 1f;
+                            face = spot + a.Facing * 3f;
+                        }
+                        if ((kind != AnchorKind.Sit && !Walkable(spot, Habitat.Land)) || Taken(self, spot, room))
+                            continue;
+                        SetMode(ref s, CreatureMode.Sit);
+                        s.Target = spot;
+                        s.Focus = face;
+                        // (On a seat: its height goes in Anchor, which every machine has, for the posture.)
+                        s.TargetHeight = kind == AnchorKind.Sit ? 4f : lying ? 3f : 1f;
+                        if (kind == AnchorKind.Sit)
+                            s.Anchor = new float3(spot.x, a.Position.y, spot.y);
+                        s.Timer = lying ? rng.NextFloat(80f, 200f) : rng.NextFloat(40f, 120f);
+                        found = true;
+                    }
+                }
+                near.Dispose();
+                return found;
             }
 
             /// <summary>Another on its way to the same spot to sit or lie, that took it first (the lower entity index).</summary>
@@ -2300,7 +2350,8 @@ namespace Punchy.Fauna
             /// The point a leg of a round makes for: on the bounds, the town's gate in that leg's slice (seen from the
             /// middle) if it has one there (gate true), else a point just inside the edge, drawn in (or turned aside a
             /// little) until it's clear of the houses and their yards and on dry ground; round the square, a point about
-            /// a quarter of the way out, likewise clear. False if there's nowhere clear.
+            /// a quarter of the way out, likewise clear, or failing that the square's edge. False if there's nowhere
+            /// clear on the bounds.
             /// </summary>
             bool RoundPoint(int settlement, int leg, int legs, bool inner, out float2 point, out bool gate)
             {
@@ -2344,6 +2395,14 @@ namespace Punchy.Fauna
                         if (!InYard(settlement, point) && Walkable(point, Habitat.Land))
                             return true;
                     }
+                }
+                // Round the square, nowhere clear in the slice: the square's own edge there (open ground), so the
+                // round is always a whole ring.
+                if (inner)
+                {
+                    math.sincos(angle, out var sin, out var cos);
+                    point = town.Centre + new float2(sin, cos) * town.Radius * 0.15f;
+                    return true;
                 }
                 return false;
             }
