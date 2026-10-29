@@ -198,13 +198,17 @@ namespace Punchy.Flora
                 configStamp = ConfigStamp(palette);
             }
 
+            // Deep in a cave the surface's plants are out of sight: no placing, no drawing (obstacles stay).
+            var hidden = Punchy.Terrain.CaveSystem.SurfaceHidden >= 0.99f;
             var camXZ = new float2(cam.transform.position.x, cam.transform.position.z);
-            Stream(source, camXZ);
+            if (!hidden)
+                Stream(source, camXZ);
             foreach (var l in layers)
                 if (l.Dirty)
                     Upload(l);
             UpdateObstacles();
-            Draw(cam);
+            if (!hidden)
+                Draw(cam);
         }
 
         // ------------------------------------------------------------------------------------------- setup
