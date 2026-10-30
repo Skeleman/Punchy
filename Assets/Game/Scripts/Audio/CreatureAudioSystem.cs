@@ -108,7 +108,7 @@ namespace Punchy.Audio
             callBudget = math.min(callBudget + SystemAPI.Time.DeltaTime * CallsPerSecond, CallBurst);
             Creatures(ear, terrain);
             Hives(ear, terrain, night);
-            Countryside(ear);
+            Countryside(ear, night);
             Moods(ear);
         }
 
@@ -378,11 +378,20 @@ namespace Punchy.Audio
         /// a woodpecker drumming, owls hooting, crickets chirping in the grass, grasshoppers buzzing as they jump, frogs
         /// croaking at the water's edge (and a plop as one goes in), cicadas on hot days. Each call as its count goes up.
         /// </summary>
-        void Countryside(float3 ear)
+        void Countryside(float3 ear, float night)
         {
             var life = AmbientLife.Near(World, ear);
+            // (Frogs near the water at night: their chorus held on under the single croaks, from among them, as loud as
+            // there are many of them.)
+            var frogs = 0;
+            var frogsAt = float3.zero;
             foreach (var a in life)
             {
+                if (a.Kind == AmbientKind.Frog && !a.Hidden && math.distance(a.Position, ear) < 40f)
+                {
+                    frogs++;
+                    frogsAt += a.Position;
+                }
                 if (!ambientCalls.TryGetValue(a.Id, out var was))
                 {
                     ambientCalls[a.Id] = (a.Calls, a.Hidden);
@@ -410,6 +419,22 @@ namespace Punchy.Audio
             }
             if (ambientCalls.Count > 600)
                 ambientCalls.Clear();
+            if (frogs > 0 && night > 0.5f)
+            {
+                var volume = math.min(0.08f * frogs, 0.35f);
+                if (chorus == 0)
+                    chorus = GameAudio.StartLoop(SoundId.FrogChorus, frogsAt / frogs, volume, 45f, SoundGroup.Creatures);
+                else
+                    GameAudio.MoveLoop(chorus, frogsAt / frogs, volume);
+            }
+            else if (chorus != 0)
+            {
+                GameAudio.StopLoop(chorus);
+                chorus = 0;
+            }
         }
+
+        /// <summary>The frogs' chorus loop while there are frogs near (its handle; 0 none).</summary>
+        int chorus;
     }
 }
