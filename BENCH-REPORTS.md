@@ -2,6 +2,17 @@
 
 Newest first.
 
+## 2026-10-30: item 6, swimmer wakes (world-features 793f103 vs 3d1893d) at a duck lake: no cost found
+- **Duck lake:** `-place Grassland` then `-place clearlake` → shore (-1087, 33, -1600), facing west (270) over a
+  clear lake 1.8 m deep (Temperate biome, ducks listed). `-watch Duck` found a duck on it 35 m out, floating, with
+  wake rings: results/lake2-793f103/g-duck.png. FoggyMarsh's "clear lake" landed on a glacier, FungalForest's is a
+  1.6 m pond, Temperate's was the sea shore. Bench stop: `-benchspot -1087,33,-1600,270`.
+- **A/B (spot, cap 0, ABBA, 2 rounds, same island: same end x,z and same frame):** avg 91.8 → 96.5, 1% low 56.2 → 59.0,
+  GPU 9.7 → 9.4 ms, worst 24/22 → 19/31 ms, 0 exceptions. No change beyond noise.
+- Caveat: neither end-of-stop shot shows a duck, so the swimmer loop (cost only within 12 m of a swimmer) may not have
+  had a duck near the visible water for much of the stop. For a worst case, frame a duck up close (`-watch Duck`, or
+  `-spawn Duck` at the shore) and re-bench.
+
 ## 2026-10-30: item 13, Brain.Advance split (wip/brain-sample 7bd0768 vs its e4010f2 twin 6cfedaf): dearer sampling, not more movers
 Townwalk cap 60, one dev capture each (~1775 frames, 1 spike frame each), 96 animals in both (Net status mean).
 Workers + main summed, per frame:
