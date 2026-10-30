@@ -70,6 +70,8 @@ namespace Punchy.Fauna
         public bool Hooves;
         /// <summary>What a player in this body can climb (CreatureSpecies.ClimbsAs, or from Crawls and Climbing).</summary>
         public ClimbAbility ClimbsAs;
+        /// <summary>Tunnels through the ground (CreatureSpecies.Tunnels): a sand or snow worm.</summary>
+        public bool Tunnels;
         /// <summary>Drawn and kept about from this far off; 0 = as any other (see CreatureSpecies.SeenFrom).</summary>
         public float SeenFrom;
         /// <summary>Never moves, and snaps at what comes near (see CreatureSpecies.Rooted).</summary>
@@ -634,6 +636,7 @@ namespace Punchy.Fauna
             root.Upright = species.Upright;
             root.ColdBlooded = species.ColdBlooded;
             root.Hooves = species.Hooves;
+            root.Tunnels = species.Tunnels;
             root.ClimbsAs = species.ClimbsAs != ClimbAbility.None ? species.ClimbsAs
                           : species.Crawls ? ClimbAbility.AnySurface : species.Climbing > 0f ? ClimbAbility.Trees : ClimbAbility.None;
             root.Habitat = species.Habitat;

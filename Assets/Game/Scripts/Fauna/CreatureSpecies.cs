@@ -139,6 +139,9 @@ namespace Punchy.Fauna
         [Tooltip("What a player in this body can climb: trees (monkeys, cats, bears, squirrels) or any surface (lizards, " +
                  "spiders). Left at None it follows Crawls (any surface) and Climbing (trees). Variants take their body's.")]
         public ClimbAbility ClimbsAs;
+        [Tooltip("Tunnels through the ground (sand and snow worms): travels deep under it, shown only by the ripple it " +
+                 "drives through the surface, and now and then bursts out in a great arc over flat ground and dives back.")]
+        public bool Tunnels;
         [Tooltip("Sounds of its kind beyond its calls: a cat purrs when held and content, a dog pants after a run. Variants " +
                  "take their body's unless they set their own.")]
         public VoiceFamily Voice;
