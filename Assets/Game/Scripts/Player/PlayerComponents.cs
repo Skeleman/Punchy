@@ -42,6 +42,10 @@ namespace Punchy.Player
         public float3 MantleFrom, MantleTo;
         /// <summary>Standing on a prop's top (a roof, a rock, a rim), rather than the ground.</summary>
         public bool OnProp;
+        /// <summary>A bird settled on a perch (a ridge, a post, a chimney): held there until it moves or takes off.</summary>
+        public bool Perched;
+        /// <summary>A fish's leap or hop: how fast it carries on across while in the air (m/s).</summary>
+        public float HopSpeed;
     }
 
     /// <summary>
@@ -76,5 +80,7 @@ namespace Punchy.Player
         public bool CrouchHeld;
         /// <summary>Where the camera looks, world XZ (in flight: the way to steer).</summary>
         public float2 CameraForward;
+        /// <summary>How far the camera looks up (+) or down (−), radians (a bird's gentle climbs, a fish's swim).</summary>
+        public float CameraPitch;
     }
 }

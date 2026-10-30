@@ -29,6 +29,8 @@ namespace Punchy.Player
         public static bool Sprinting, Walking;
         /// <summary>Tests: press jump once (cleared after the frame), and hold it (in flight: climb).</summary>
         public static bool TestJump, TestClimb;
+        /// <summary>Test input: the camera's pitch to report (radians), instead of the camera's own.</summary>
+        public static float? TestPitch;
 
         protected override void OnCreate()
         {
@@ -62,8 +64,10 @@ namespace Punchy.Player
             var direction = raw;
             var cam = Camera.main;
             var cameraForward = new float2(0f, 1f);
+            var cameraPitch = 0f;
             if (cam != null)
             {
+                cameraPitch = math.asin(math.clamp(cam.transform.forward.y, -1f, 1f));
                 var forward = math.normalizesafe(((float3)cam.transform.forward).xz, new float2(0f, 1f));
                 cameraForward = forward;
                 var right = new float2(forward.y, -forward.x);
@@ -120,7 +124,8 @@ namespace Punchy.Player
                 JumpPressed = TestJump || !typing && jump != null && jump.WasPressedThisFrame(),
                 JumpHeld = TestClimb || !typing && jump != null && jump.IsPressed(),
                 CrouchHeld = TestCrouch || !typing && crouch != null && crouch.IsPressed(),
-                CameraForward = TestMove.HasValue && math.lengthsq(TestMove.Value) > 0f ? math.normalize(TestMove.Value) : cameraForward
+                CameraForward = TestMove.HasValue && math.lengthsq(TestMove.Value) > 0f ? math.normalize(TestMove.Value) : cameraForward,
+                CameraPitch = TestPitch ?? cameraPitch
             });
             TestJump = false;
         }
