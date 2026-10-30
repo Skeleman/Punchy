@@ -304,7 +304,7 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Trodden ground's colour as a share of the ground's own (worn darker by people standing about).</summary>
-        const float TroddenDarken = 0.55f;
+        const float TroddenDarken = 0.5f;
 
         /// <summary>
         /// Worn ground round a placed prop (F-40, a market stall): the ground's own colour darkened and its grass and
