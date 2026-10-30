@@ -3610,10 +3610,28 @@ namespace Punchy.Flora
                    4, g.FoliageColor(), FloraPart.Bark, cap: true);
             RotateFrom(b, roof, Quaternion.Euler(0f, 45f, 0f));
 
-            // The forge at the back: a stone hearth of glowing coals, and its chimney up through the roof.
+            // The forge at the back: a stone hearth with its coals sunk in a pit inside a raised rim (Z-40: they sat on top),
+            // glowing embers among dark coals, and its chimney up through the roof.
             var hearth = new Vector3(0f, 0.55f, -depth * 0.45f);
-            b.Box(hearth, new Vector3(half * 1.1f, 1.1f, depth * 0.8f), Quaternion.identity, Stone(g), FloraPart.Bark);
-            b.Blob(hearth + Vector3.up * 0.58f, new Vector3(half * 0.4f, 0.12f, depth * 0.28f), Quaternion.identity, 1, 0.3f, g.R() * 50f, AccentAt(g, 0), FloraPart.Glow);
+            float hearthX = half * 1.1f, hearthZ = depth * 0.8f, bed = 0.85f, rim = 0.15f;
+            b.Box(new Vector3(hearth.x, bed * 0.5f, hearth.z), new Vector3(hearthX, bed, hearthZ), Quaternion.identity, Stone(g), FloraPart.Bark);
+            foreach (var side in new[] { -1f, 1f })
+            {
+                b.Box(new Vector3(hearth.x, (bed + 1.1f) * 0.5f, hearth.z + side * (hearthZ - rim) * 0.5f), new Vector3(hearthX, 1.1f - bed, rim),
+                      Quaternion.identity, Stone(g), FloraPart.Bark);
+                b.Box(new Vector3(hearth.x + side * (hearthX - rim) * 0.5f, (bed + 1.1f) * 0.5f, hearth.z), new Vector3(rim, 1.1f - bed, hearthZ - rim * 2f),
+                      Quaternion.identity, Stone(g), FloraPart.Bark);
+            }
+            var pit = new Vector2(hearthX * 0.5f - rim - 0.08f, hearthZ * 0.5f - rim - 0.08f);
+            var embers = g.Lod == 0 ? 7 : 3;
+            for (int k = 0; k < embers; k++)
+            {
+                var at = new Vector3(hearth.x + g.Range(-pit.x, pit.x), bed + 0.02f, hearth.z + g.Range(-pit.y, pit.y));
+                var size = g.Range(0.08f, 0.17f);
+                var glowing = k % 3 != 2;
+                b.Blob(at, new Vector3(size, size * 0.6f, size * g.Range(0.8f, 1.2f)), Quaternion.Euler(0f, g.R() * 360f, 0f), 1, 0.3f, g.R() * 50f,
+                       glowing ? AccentAt(g, 0) : g.Bark * 0.25f, glowing ? FloraPart.Glow : FloraPart.Bark);
+            }
             b.Box(new Vector3(0f, (1.1f + height + 0.8f) * 0.5f, -depth * 0.7f), new Vector3(0.7f, height + 0.8f - 1.1f, 0.6f), Quaternion.identity, Stone(g) * 0.85f, FloraPart.Bark);
             g.Perches.Add(Vector3.up * height);
             g.Perches.Add(new Vector3(0f, height + 0.8f, -depth * 0.7f));
