@@ -36,6 +36,7 @@ network table changes the fingerprint: fine for v0.11, but say so in the report.
 | Z-25 | A | Ghost player: can talk to ghosts, and they don't flee. |
 | Z-26 | A | Bison moo sounds like a groan: a moo rises in pitch. Frog croaks sound like burps and are staticky; add the continuous night hum. |
 | Z-27 | A | Swimmer wake is a fixed shape tied to heading and slides as it turns: make it a trail left in the water (world-space ripples, as the bubble pops should use). |
+| Z-28 | A | **Giant worm (Zach, later the same day):** the breach is one clean arc out of the ground and back in, not an oscillating wave; underground it steers around rocks and cliffs (it can leap over them in a breach). |
 | Z-30 | W | Wood: more striped and grainy (now reads as leather or painted plaster). |
 | Z-31 | W | Vertical lines in the close-up detail texture on buildings. |
 | Z-32 | W | Stone house lighting: at night lit edges with a dark centre band; wet daytime dark edges, bright centre (normals or the wetness term). |
