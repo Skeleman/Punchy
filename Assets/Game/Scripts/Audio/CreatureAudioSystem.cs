@@ -146,7 +146,7 @@ namespace Punchy.Audio
                     if (s.Action != was.action)
                     {
                         if (s.Action == IdleAction.Howl)
-                            GameAudio.PlayOneShot(SoundId.Howl, s.Position, 0.9f + (s.Individual % 13u) * 0.015f, 1f, HowlReach);
+                            GameAudio.PlayOneShot(SoundId.Howl, s.Position, 0.9f + (s.Individual % 13u) * 0.015f, 0.5f, HowlReach);
                         else if (s.Action == IdleAction.Draw && d < StepReach * 1.5f)
                             GameAudio.PlayOneShot(SoundId.Draw, s.Position, 1f, 0.7f, StepReach * 1.5f);
                         // A player in an animal's body emoting: the animal's own call (each emote one of its calls, if

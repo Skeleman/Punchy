@@ -315,15 +315,50 @@ namespace Punchy.Audio
             {
                 var u = i / (float)n;
                 var shape = u < 0.25f ? Mathf.SmoothStep(0f, 1f, u / 0.25f) : u < 0.75f ? 1f : Mathf.SmoothStep(1f, 0.75f, (u - 0.75f) / 0.25f);
-                var hz = Lerp(low, high, shape) * (1f + 0.012f * Mathf.Sin(2f * Mathf.PI * 5.5f * u * seconds));
+                var hz = Lerp(low, high, shape) * (1f + 0.008f * Mathf.Sin(2f * Mathf.PI * 4.5f * u * seconds));
                 phase += hz / Rate;
                 var p = 2f * Mathf.PI * (float)phase;
                 var tone = Mathf.Sin(p) + 0.35f * Mathf.Sin(2f * p) + 0.12f * Mathf.Sin(3f * p);
-                var breath = band.Run(Noise(rng), hz * 2f, 3f) * 0.3f;
+                var breath = band.Run(Noise(rng), hz * 2f, 3f) * 0.15f;
                 var env = Mathf.SmoothStep(0f, 1f, Mathf.Min(u / 0.12f, 1f)) * Mathf.SmoothStep(0f, 1f, Mathf.Min((1f - u) / 0.2f, 1f));
                 s[i] = env * (tone + breath);
             }
-            return Normalise(s, 0.6f);
+            return Normalise(Distant(s, 1.2f), 0.6f);
+        }
+
+        /// <summary>
+        /// A sound heard from far off, across open country: a long, soft tail of echoes after it (a few feedback delays,
+        /// each duller than the last), over a slightly dulled dry sound, made tail seconds longer to ring out in.
+        /// </summary>
+        static float[] Distant(float[] dry, float tail)
+        {
+            var n = dry.Length + (int)(tail * Rate);
+            var s = new float[n];
+            int[] delays = { (int)(0.037f * Rate), (int)(0.053f * Rate), (int)(0.071f * Rate), (int)(0.097f * Rate) };
+            var lines = new float[delays.Length][];
+            var at = new int[delays.Length];
+            var lows = new float[delays.Length];
+            for (int k = 0; k < delays.Length; k++)
+                lines[k] = new float[delays[k]];
+            var dull = 0f;
+            var pole = Pole(3500f);
+            for (int i = 0; i < n; i++)
+            {
+                var x = i < dry.Length ? dry[i] : 0f;
+                dull += (x - dull) * pole;
+                var wet = 0f;
+                for (int k = 0; k < delays.Length; k++)
+                {
+                    var o = lines[k][at[k]];
+                    // (Each pass round the loop a little duller and quieter: the echo dies away over about the tail.)
+                    lows[k] += (o - lows[k]) * 0.35f;
+                    lines[k][at[k]] = x + lows[k] * 0.78f;
+                    at[k] = (at[k] + 1) % delays[k];
+                    wet += o;
+                }
+                s[i] = dull * 0.8f + wet * 0.22f;
+            }
+            return s;
         }
 
         /// <summary>A footstep: a soft thud and a brush of grit (low-passed noise), or on wet ground a splash (brighter).</summary>
