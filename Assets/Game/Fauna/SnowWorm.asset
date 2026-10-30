@@ -22,12 +22,12 @@ MonoBehaviour:
   BodyTaper: 1
   BodyFlatten: 0.75
   Base: {r: 0.82, g: 0.85, b: 0.9, a: 1}
-  Accent: {r: 0.55, g: 0.6, b: 0.7, a: 1}
+  Accent: {r: 0.75, g: 0.78, b: 0.84, a: 1}
   AccentGlow: 0
   Coats:
   - Name: SnowWorm
     Base: {r: 0.82, g: 0.85, b: 0.9, a: 1}
-    Accent: {r: 0.55, g: 0.6, b: 0.7, a: 1}
+    Accent: {r: 0.75, g: 0.78, b: 0.84, a: 1}
     AccentGlow: 0
     Weight: 1
   Size: {x: 16, y: 20}
