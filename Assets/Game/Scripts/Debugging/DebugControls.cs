@@ -1264,6 +1264,11 @@ namespace Punchy.Debugging
             var to = goal - player.Position.xz;
             var distance = math.length(to);
             PlayerInputSystem.TestMove = distance > 0.3f ? to / distance : float2.zero;
+            // Up a trunk: straight at the trunk it holds, or straight away from it to come down, rather than at the spot
+            // logged for it. (The two can be a few tenths of a metre apart; with the feet on the bark that was push enough
+            // to the side to walk the player round to the trunk's far side, where heading home climbed instead.)
+            if (playerQuery.TryGetSingletonEntity<PlayerTag>(out var self) && queryWorld.EntityManager.GetComponentData<PlayerMotion>(self) is var motion && motion.OnTrunk)
+                PlayerInputSystem.TestMove = math.normalizesafe((motion.TrunkBase.xz - player.Position.xz) * (toward ? 1f : -1f));
             if (toward && climbJumps && distance > 0.5f && distance < 2f && Time.time >= climbNextJump)
             {
                 PlayerInputSystem.TestJump = true;
