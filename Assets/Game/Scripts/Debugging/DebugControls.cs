@@ -1456,7 +1456,7 @@ namespace Punchy.Debugging
             lines.Add($"pace: <b>{pace}</b>   input: {(Punchy.Player.InputGlyphs.Gamepad ? Punchy.Player.InputGlyphs.PadKind + " gamepad" : "keyboard & mouse")}");
             lines.Add("<color=#bbbbbb>" + ControlHints(flies, flying) + "</color>");
             if (!Punchy.Player.InputGlyphs.Gamepad)
-                lines.Add("<color=#bbbbbb>N/Shift+N place · B day type · Y +2 h · T fast time · ] force weather · [ clear · F3 copy position · F1 hide</color>");
+                lines.Add("<color=#bbbbbb>N/Shift+N place · B day type · Y +2 h · T fast time · ] force weather · [ clear · F3 copy position · F5 graphics / quit · F1 hide</color>");
 
             return string.Join("\n", lines);
         }

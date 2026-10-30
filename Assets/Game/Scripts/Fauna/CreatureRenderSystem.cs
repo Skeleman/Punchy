@@ -44,11 +44,12 @@ namespace Punchy.Fauna
         static readonly UnityEngine.Vector4 LanternLight = new UnityEngine.Vector4(1.6f, 0.9f, 0.4f, 9f);
         /// <summary>A torch's: redder, brighter and further.</summary>
         static readonly UnityEngine.Vector4 TorchLight = new UnityEngine.Vector4(2.4f, 1.0f, 0.3f, 11f);
-        const float LanternLightRange = 60f;
+        /// <summary>How far off a lantern lights the ground (m; the graphics settings' Detail scales these ranges).</summary>
+        static float LanternLightRange => Punchy.Settings.GraphicsSettings.DetailRange(60f);
         /// <summary>How far off a torch's flame is lit (further than its light reaches: a torch is seen across a town).</summary>
-        const float TorchFlameRange = 150f;
+        static float TorchFlameRange => Punchy.Settings.GraphicsSettings.DetailRange(150f);
         /// <summary>How near the camera feet are fitted to the ground (CreatureAnimator.Evaluate's detail).</summary>
-        const float FootDetailRange = 40f;
+        static float FootDetailRange => Punchy.Settings.GraphicsSettings.DetailRange(40f);
         /// <summary>A torch's flame: its height (m), and how far it streams back as the bearer moves (m at the tip per
         /// m/s, at most).</summary>
         const float TorchFlameSize = 0.35f, TorchFlameLean = 0.05f, TorchFlameMaxLean = 0.3f;
@@ -85,7 +86,7 @@ namespace Punchy.Fauna
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 0 : -1;
         /// <summary>Capsules per hanging bat, the most per roost, and how near the camera colonies show.</summary>
         const int BatParts = 4, ColonyMax = 10;
-        const float ColonyRange = 45f;
+        static float ColonyRange => Punchy.Settings.GraphicsSettings.DetailRange(45f);
         Unity.Collections.NativeList<int> roosts;
         /// <summary>
         /// Bees at the wild hives near the camera (Hive anchors): drawn only, like the colonies, never simulated or
@@ -93,7 +94,10 @@ namespace Punchy.Fauna
         /// few crawl on the comb. Someone coming close sets SwarmChasers on them for a few seconds.
         /// </summary>
         const int SwarmRound = 26, SwarmForagers = 6, SwarmNight = 8, SwarmChasers = 9;
-        const float SwarmRange = 40f, SwarmAngerDistance = 5f, SwarmChaseTime = 6f, SwarmCalmTime = 20f;
+        /// <summary>(How near the camera they're drawn scales with the graphics settings; how near someone sets them off
+        /// and for how long doesn't.)</summary>
+        static float SwarmRange => Punchy.Settings.GraphicsSettings.DetailRange(40f);
+        const float SwarmAngerDistance = 5f, SwarmChaseTime = 6f, SwarmCalmTime = 20f;
         Unity.Collections.NativeList<int> hives;
         /// <summary>When each hive (by anchor index) last set its bees on someone: per machine, for looks only.</summary>
         readonly System.Collections.Generic.Dictionary<int, float> hiveAngry = new System.Collections.Generic.Dictionary<int, float>();
@@ -314,7 +318,7 @@ namespace Punchy.Fauna
         // ------------------------------------------------------------------------------- cave fish
 
         /// <summary>How near the camera the caves' pools have their fish drawn (m), and the parts of each fish.</summary>
-        const float CaveFishRange = 35f;
+        static float CaveFishRange => Punchy.Settings.GraphicsSettings.DetailRange(35f);
         const int FishParts = 3;
 
         /// <summary>The water pools in range this frame: centre (surface), radius, depth; and how many fish each holds.</summary>
@@ -653,6 +657,7 @@ namespace Punchy.Fauna
                 Time = (float)SystemAPI.Time.ElapsedTime,
                 CameraRight = cam.transform.right,
                 CameraPosition = cam.transform.position,
+                FootDetail = FootDetailRange,
                 FadeInTime = 1.2f,
                 FadeOutRange = 25f,
                 // A little short of FaunaDirector's despawn distance (170 m), so it's gone before it's removed.
@@ -770,6 +775,8 @@ namespace Punchy.Fauna
             [NativeDisableParallelForRestriction] public NativeArray<SegmentInstance> Output;
             public float Time;
             public Unity.Mathematics.float3 CameraRight, CameraPosition;
+            /// <summary>How near the camera feet are fitted to the ground (FootDetailRange, at the graphics settings).</summary>
+            public float FootDetail;
             /// <summary>Faded in over this long after it's made; out over this far before it's let go.</summary>
             public float FadeInTime, FadeOutRange, FadeFar;
             /// <summary>0 by day, 1 at night (ghosts are only seen at night).</summary>
@@ -783,7 +790,7 @@ namespace Punchy.Fauna
                 var offset = Offsets[index];
                 // (Feet fitted to the ground only near the camera: past 40 m nobody can tell, and it's most of the cost.)
                 CreatureAnimator.Evaluate(ref body.Blob.Value, state, body.Coat, Terrain, Output, offset,
-                                          Unity.Mathematics.math.distancesq(state.Position, CameraPosition) < FootDetailRange * FootDetailRange);
+                                          Unity.Mathematics.math.distancesq(state.Position, CameraPosition) < FootDetail * FootDetail);
                 // (The ground it stands on, for the shader's grounding: darker where it meets it.)
                 for (int i = 0; i < body.SegmentCount; i++)
                 {
