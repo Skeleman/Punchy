@@ -33,6 +33,9 @@ namespace Punchy.Fauna
             public float Streak;
             /// <summary>Above 0: see-through by this much (dithered), fading out rather than shrinking at the end.</summary>
             public float Dither;
+            /// <summary>Thrown and falling: above 0, it comes to rest where it lands on its Floor and lies there for the
+            /// rest of its life (a clod of sand or snow), rather than being gone.</summary>
+            public float Rests;
         }
 
         const float Gravity = 9.81f;
@@ -286,6 +289,7 @@ namespace Punchy.Fauna
             }
             // Droplets: up and out, as fast as the serpent is big (a few metres high for one this size), and a column of
             // them straight up from where it broke the surface; each drawn as a streak along the way it's flying.
+            // (A worm's are clods of sand or snow: not streaks, and they lie where they land for a while, fading.)
             var lift = 5f + 3f * math.sqrt(size);
             for (int k = 0; k < 110; k++)
             {
@@ -293,7 +297,22 @@ namespace Punchy.Fauna
                 var out0 = rng.NextFloat2Direction();
                 var up = lift * (column ? rng.NextFloat(1.1f, 1.6f) : rng.NextFloat(0.4f, 1.1f));
                 var r = size * rng.NextFloat(0.04f, 0.11f);
-                Add(new Trace
+                Add(b.Tunnels ? new Trace
+                {
+                    Position = centre + new float3(out0.x, 0f, out0.y) * size * (column ? rng.NextFloat(0f, 0.4f) : rng.NextFloat(0.3f, 1.2f)),
+                    Rotation = quaternion.identity,
+                    Length = r,
+                    Radius = r,
+                    Flatten = 0.7f,
+                    Color = rng.NextFloat() < 0.15f ? crest : water,
+                    Born = now,
+                    Life = rng.NextFloat(25f, 40f),
+                    Velocity = new float3(out0.x, 0f, out0.y) * (column ? rng.NextFloat(0.2f, 0.8f) : rng.NextFloat(1f, 4f)) * math.sqrt(size) + new float3(0f, up, 0f),
+                    Falls = 1f,
+                    Floor = surfaceY + r * 0.3f,
+                    Dither = 0.02f,
+                    Rests = 1f
+                } : new Trace
                 {
                     Position = centre + new float3(out0.x, 0f, out0.y) * size * (column ? rng.NextFloat(0f, 0.4f) : rng.NextFloat(0.3f, 1.2f)),
                     Rotation = quaternion.identity,
@@ -450,20 +469,30 @@ namespace Punchy.Fauna
                     };
                     continue;
                 }
-                // Thrown: where it is by now, and how big; gone once it falls back below its floor.
+                // Thrown: where it is by now, and how big; gone once it falls back below its floor, or lying where it
+                // landed on it.
                 var age = now - t.Born;
                 var position = t.Position + t.Velocity * age - new float3(0f, 0.5f * Gravity * t.Falls * age * age, 0f);
+                var resting = false;
                 if (t.Falls > 0f && age > 0.05f && position.y < t.Floor)
                 {
-                    output[at++] = default;
-                    continue;
+                    if (t.Rests <= 0f)
+                    {
+                        output[at++] = default;
+                        continue;
+                    }
+                    // (When it came down through its floor, from where it was thrown.)
+                    var landed = (t.Velocity.y + math.sqrt(math.max(t.Velocity.y * t.Velocity.y + 2f * Gravity * t.Falls * (t.Position.y - t.Floor), 0f))) / (Gravity * t.Falls);
+                    position = t.Position + t.Velocity * landed;
+                    position.y = t.Floor;
+                    resting = true;
                 }
                 var grow = 1f + t.Grow * age;
                 // A falling drop is a streak along the way it's going, drawn out the faster it flies, tapering behind.
                 var rotation = t.Rotation;
                 var length = t.Length * grow;
                 var tail = t.Radius * grow;
-                if (t.Streak > 0f)
+                if (t.Streak > 0f && !resting)
                 {
                     var velocity = t.Velocity - new float3(0f, Gravity * age, 0f);
                     var speed = math.length(velocity);
