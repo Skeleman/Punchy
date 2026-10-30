@@ -214,6 +214,8 @@ namespace Punchy.Flora
         public bool RockStrata;
         [Tooltip("Mushrooms: caps that breathe, slowly swelling and settling.")]
         public bool Breathes;
+        [Tooltip("Benches: one carved stone slab for a seat instead of two planks (the elves' benches).")]
+        public bool StoneSeat;
 
         [Header("Placement")]
         [Tooltip("Steepest ground it grows on, in degrees.")]

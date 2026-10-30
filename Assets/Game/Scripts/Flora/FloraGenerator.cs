@@ -1384,10 +1384,15 @@ namespace Punchy.Flora
             for (int side = -1; side <= 1; side += 2)
                 b.Box(new Vector3(side * 0.62f, (BenchSeat - 0.06f) * 0.5f, 0f), new Vector3(0.22f, BenchSeat - 0.06f, 0.36f),
                       Quaternion.Euler(0f, g.Range(-3f, 3f), 0f), stone, FloraPart.Bark);
-            // Two planks side by side, a hair apart.
-            for (int k = 0; k < 2; k++)
-                b.Box(new Vector3(0f, BenchSeat - 0.03f, (k - 0.5f) * 0.2f), new Vector3(1.8f, 0.06f, 0.18f),
-                      Quaternion.Euler(0f, g.Range(-1f, 1f), 0f), g.Bark * g.Range(0.92f, 1.05f), FloraPart.Bark);
+            // Two planks side by side, a hair apart; or one carved stone slab, overhanging its feet (Z-11: the elves'
+            // stone benches had wooden planks).
+            if (g.S.StoneSeat)
+                b.Box(new Vector3(0f, BenchSeat - 0.05f, 0f), new Vector3(1.9f, 0.1f, 0.44f),
+                      Quaternion.Euler(0f, g.Range(-1f, 1f), 0f), g.Bark * g.Range(0.95f, 1.03f), FloraPart.Bark);
+            else
+                for (int k = 0; k < 2; k++)
+                    b.Box(new Vector3(0f, BenchSeat - 0.03f, (k - 0.5f) * 0.2f), new Vector3(1.8f, 0.06f, 0.18f),
+                          Quaternion.Euler(0f, g.Range(-1f, 1f), 0f), g.Bark * g.Range(0.92f, 1.05f), FloraPart.Bark);
             g.Colliders.Add(new Vector4(-0.5f, 0f, 0.3f, BenchSeat));
             g.Colliders.Add(new Vector4(0.5f, 0f, 0.3f, BenchSeat));
         }
