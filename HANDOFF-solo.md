@@ -71,7 +71,7 @@ Don't start roadmap systems (items, quests, dialogue, dungeons): they need desig
 Push everything, write a short "Solo summary" section here (what landed on `solo/v0.10`, what's on wip/, and the
 bench results), and stop. The supervisor merges from there.
 
-## Last lane status (supervisor, 2026-10-30 ~00:30)
+## Last lane status (supervisor, 2026-10-30 ~01:00)
 - **World:** done for v0.10:
   - G-17 Work anchors, G-18 + G-23 roads, G-28 creek, G-34 blue moon, G-35 mouth detail, G-15 wakes,
     G-36 + G-30 biome rocks;
@@ -83,6 +83,6 @@ bench results), and stop. The supervisor merges from there.
   - G-02..G-09, G-11..G-13, G-14 footsteps, G-16, G-17;
   - F-14, F-15, F-16, F-17, F-18, F-19;
   - audit items.
-  - Coded, not yet pushed (its editor hung): host TrySpawn join fix, cheaper CreatureWakeSystem, BrainJob
-    markers, gold variants. Then F-07 mantling, F-03/F-04 climbing (wip/player-crawl).
+  - Also pushed: gold variants (1 in 400), host TrySpawn join fix (not yet run on two machines), cheaper wake
+    feeder, BrainJob markers. Working on: F-03/F-04 climbing on a wip branch; F-07 mantling still open.
   - BrainJob is still ~0.6 ms heavier than at e4010f2.
