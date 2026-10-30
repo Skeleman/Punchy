@@ -160,6 +160,14 @@ namespace Punchy.Debugging
         /// <summary>"-watch Squirrel": the camera follows the nearest animal of that species (for testing behaviours).</summary>
         static string watchSpecies;
         static float? watchPitchOverride;
+        /// <summary>
+        /// "-watchfrom 12,25" (with -watch): the camera stands still instead, 25 m off and 12 m above the ground, turning
+        /// to keep the animal in view (the ground over it, for one under the ground: a worm's furrow and mound). It moves
+        /// to a new spot only when the animal gets more than twice that far off. (-watch alone follows a buried worm
+        /// under the ground.)
+        /// </summary>
+        static float2? watchFrom;
+        static Vector3? watchFromAt;
         /// <summary>"-spawn Osprey" (or "Trout:6"): a few of a species put near the player once the world is up (testing).</summary>
         static readonly List<string> pendingSpawns = new List<string>();
         /// <summary>"-pose Bat" (or "Bat:fly", "Bat:glide", "Bat:rest", "Bat:hang", "Crow:nest", and a camera pitch: "Bat:glide:70"):
@@ -232,6 +240,8 @@ namespace Punchy.Debugging
             launchOptionsApplied = false;
             watchSpecies = null;
             watchPitchOverride = null;
+            watchFrom = null;
+            watchFromAt = null;
             pendingSpawns.Clear();
             poseRequest = null;
             interactRequest = null;
@@ -294,6 +304,8 @@ namespace Punchy.Debugging
                 // "-watchpitch 45": watch from above (to see over leaves), rather than low or level.
                 if (args[i] == "-watchpitch" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var watchPitch))
                     watchPitchOverride = watchPitch;
+                if (args[i] == "-watchfrom" && ParseFloats(args[i + 1]) is float[] from && from.Length >= 2)
+                    watchFrom = new float2(from[0], from[1]);
                 // "-timescale 4": everything runs four times as fast (a dusk, a burrow cycle, a roost in seconds).
                 if (args[i] == "-timescale" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var scale))
                     Time.timeScale = Mathf.Clamp(scale, 0.1f, 20f);
@@ -588,6 +600,25 @@ namespace Punchy.Debugging
                     // A hunter drawing back and throwing: worth a picture.
                     if (shotDir != null && c.Mode == CreatureMode.Hunt && (c.Stage == FolkHunting.Aim || c.Stage == FolkHunting.Throw))
                         Shot($"hunt-{c.Stage}-{++watchShots}.png");
+                }
+                if (watchFrom.HasValue)
+                {
+                    // From a fixed spot above the ground (it stays put across the shot list's lines: watchFromAt isn't
+                    // cleared between them), looking at the animal, or at the ground over it.
+                    var terrain = terrainQuery.GetSingleton<TerrainSource>();
+                    var look = new Vector3(p.x, math.max(p.y, terrain.SampleHeight(c.Position.xz)), p.z);
+                    var range = watchFrom.Value.y;
+                    if (!watchFromAt.HasValue || math.distance(((float3)watchFromAt.Value).xz, ((float3)look).xz) > range * 2f)
+                    {
+                        // (Off to the side of where it's heading, so its track crosses the view.)
+                        var side = new float2(math.cos(c.Yaw), -math.sin(c.Yaw));
+                        var xz = ((float3)look).xz + side * range;
+                        watchFromAt = new Vector3(xz.x, terrain.SampleHeight(xz) + watchFrom.Value.x, xz.y);
+                        Debug.Log($"DebugControls: watching from ({V(watchFromAt.Value.x)}, {V(watchFromAt.Value.y)}, {V(watchFromAt.Value.z)})");
+                    }
+                    PoseCamera(watchFromAt.Value, Quaternion.LookRotation(look - watchFromAt.Value));
+                    ThirdPersonCamera.WatchTarget = null;
+                    return;
                 }
                 var aloft = c.Position.y - terrainQuery.GetSingleton<TerrainSource>().SampleHeight(c.Position.xz) > 1f;
                 ref var watchedBody = ref em.GetComponentData<CreatureBody>(watched).Blob.Value;
@@ -1254,6 +1285,9 @@ namespace Punchy.Debugging
         /// The climb test, as if the stick were pushed: 12 s at the trunk or over the rim (jumping at a rim, which is
         /// what climbs onto it), then 8 s back to where it started (down the trunk, off the top), and again.
         /// </summary>
+        /// <summary>Whether the climb test's player held a trunk last frame (to log each new hold once).</summary>
+        static bool climbHolding;
+
         void ClimbTest()
         {
             if (!climbTarget.HasValue || interactRequest != null || !EnsureLocations(out _) ||
@@ -1268,7 +1302,18 @@ namespace Punchy.Debugging
             // logged for it. (The two can be a few tenths of a metre apart; with the feet on the bark that was push enough
             // to the side to walk the player round to the trunk's far side, where heading home climbed instead.)
             if (playerQuery.TryGetSingletonEntity<PlayerTag>(out var self) && queryWorld.EntityManager.GetComponentData<PlayerMotion>(self) is var motion && motion.OnTrunk)
+            {
                 PlayerInputSystem.TestMove = math.normalizesafe((motion.TrunkBase.xz - player.Position.xz) * (toward ? 1f : -1f));
+                // Each time it takes hold: where the trunk it holds stands, against the spot logged for it, and which side
+                // of it the player is on (to settle which side it climbs).
+                if (!climbHolding)
+                    Debug.Log($"DebugControls: climb test: took hold of a trunk at ({V(motion.TrunkBase.x)}, {V(motion.TrunkBase.z)}), radius {V(motion.TrunkRadius)}, " +
+                              $"{V(math.distance(motion.TrunkBase.xz, climbTarget.Value))} m from the spot logged; player at ({V(player.Position.x)}, {V(player.Position.z)}), " +
+                              $"on its {(math.abs(math.cos(motion.TrunkAngle)) > math.abs(math.sin(motion.TrunkAngle)) ? (math.cos(motion.TrunkAngle) > 0f ? "east" : "west") : (math.sin(motion.TrunkAngle) > 0f ? "north" : "south"))} side");
+                climbHolding = true;
+            }
+            else
+                climbHolding = false;
             if (toward && climbJumps && distance > 0.5f && distance < 2f && Time.time >= climbNextJump)
             {
                 PlayerInputSystem.TestJump = true;
@@ -1296,6 +1341,7 @@ namespace Punchy.Debugging
             poseRequest = null;
             watchSpecies = null;
             watchPitchOverride = null;
+            watchFrom = null;
             interactRequest = null;
             interactStep = -1f;
             pendingSpawns.Clear();
