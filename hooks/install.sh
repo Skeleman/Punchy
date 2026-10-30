@@ -9,5 +9,6 @@ dst=${1:-/d/Unity/PunchyHooks}
 mkdir -p "$dst"
 cp "$src"/post-checkout "$src"/post-commit "$src"/post-merge "$src"/pre-push "$src"/telemetry.py "$dst"/
 chmod +x "$dst"/post-* "$dst"/pre-push
+command -v cygpath >/dev/null && dst=$(cygpath -m "$dst")
 git config core.hooksPath "$dst"
 echo "hooks installed in $dst; telemetry goes to ~/.punchy-telemetry/commits.csv"
