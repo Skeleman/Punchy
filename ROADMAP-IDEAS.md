@@ -22,6 +22,13 @@ current release. Lane: A = animal, W = world.
 
 ## NPCs and characters (2026-10-29)
 - (A) NPC conversations: what an NPC says depends on its personality, skills and culture modifiers.
+  - Stage 1: short lines an NPC says as you walk by, shown as text.
+  - Emotes start a conversation, and are also how you interact with animals.
+  - Later: dialogue options.
+  - The text lives in an archive outside the build that Zach can edit by hand (for example JSON, YAML or CSV in
+    StreamingAssets, reloaded live).
+  - Lines use fill-in-the-blank slots ({culture_greeting}, {trade}, {home_town}...) that are filled from that NPC's
+    stats, culture and background, with per-culture word lists.
 - (A) Character skills and attributes: start with a small template (health, a few attributes) that grows as features
   make skills relevant. Shared by players and NPCs.
 
