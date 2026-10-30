@@ -1,0 +1,14 @@
+# Bench queue (supervisor → kind-possum)
+
+Since J-041 kind-possum runs on a different Claude account, so cross-session messages may not reach it.
+The supervisor adds requests here; kind-possum pulls before each job and reports in BENCH-REPORTS.md
+(newest first, one short entry per queue: gate results and real regressions only).
+
+## Setup (once, after the account switch)
+- Pull `coordination` and run `sh hooks/install.sh <fixed folder outside your trees>` (J-041 commit telemetry).
+  Make one test commit on a b/ branch and check ~/.punchy-telemetry/commits.csv gets a row.
+
+## Queue (top first)
+1. Paused until Zach resumes the flow. When resumed, the v0.9 gate on the final rc/v0.9.0 hash (posted here).
+2. Re-queue what the pause cleared: smoke world-features 28d51e9 vs 0c0198a plus the cave/caveapproach ab;
+   townwalk cap-60 profiles on e4010f2 and animal-behaviours a4521a2 (the townwalk cost fix) plus profdiff.
