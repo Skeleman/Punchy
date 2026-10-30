@@ -88,6 +88,17 @@ Shader "Punchy/Water"
             // z, how strongly it was stirred (0 an empty slot).
             float4 _PunchySwimmers[48];
             int _PunchySwimmerCount;
+            // Where the ripples are, coarsely (CreatureWakeSystem's MarkMask): a cell 1 where some ripple reaches into it,
+            // and (x, z of the map's corner, cells per metre, cells across).
+            TEXTURE2D(_PunchySwimmerMask);
+            float4 _PunchySwimmerMaskAt;
+
+            // Whether any ripple reaches p (its cell in the mask): elsewhere, most of the water, the loop is skipped.
+            bool NearRipple(float2 p)
+            {
+                int2 c = (int2)floor((p - _PunchySwimmerMaskAt.xy) * _PunchySwimmerMaskAt.z);
+                return all(c >= 0) && all(c < (int)_PunchySwimmerMaskAt.w) && LOAD_TEXTURE2D(_PunchySwimmerMask, c).r > 0;
+            }
             // The player's lantern (xyz position, w strength) and its colour (rgb) and range (w), set by CaveSystem.
             float4 _PunchyLantern;
             float4 _PunchyLanternColor;
@@ -337,10 +348,11 @@ Shader "Punchy/Water"
                 // Rain rings only where it's actually raining (from the world weather map).
                 slope += RainRipples(p, t) * PunchyWetnessAt(p).g * distanceFade * 0.8;
                 // (Wakes keep their own strength: the ripples' follows the wind, and a swimmer stirs calm water too.)
-                // (Only out to 45 m, a little past the 40 m the feeder sends ripples from: the far water skips the loop.)
+                // (Only out to 45 m, a little past the 40 m the feeder sends ripples from, and only in the mask's cells a
+                // ripple reaches into: the rest of the water skips the loop.)
                 half wakeFoam = 0;
                 float2 wakeSlope = 0;
-                [branch] if (_PunchySwimmerCount > 0 && distance(input.positionWS, GetCameraPositionWS()) < 45)
+                [branch] if (_PunchySwimmerCount > 0 && distance(input.positionWS, GetCameraPositionWS()) < 45 && NearRipple(p))
                     wakeSlope = SwimmerWakes(p, t, wakeFoam) * 0.6 * distanceFade;
                 // Murky water barely ripples; thick water instead heaves in slow, broad swells and bubbles.
                 slope *= 1 - 0.75 * murk;
