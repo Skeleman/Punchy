@@ -6,6 +6,8 @@ Work on world-laptop/<item> if you prefer, and merge into world-features after p
 the laptop.** Open an editor only when the supervisor gives you the slot, and say when you close it.
 
 ## Queue (top first)
+
+0. **Zach's v0.10 playtest: FEEDBACK-v0.10.md.** Your rows are lane W (and shared ones). Order: P1 first (bugs), then P2, alongside the current item 1; P3 items need a design note and the supervisor's OK. Report by Z-ID.
 Done since v0.10: cave hitch (d14f556), F-40 trodden mask (c4d946d), G-37 rocks (6464ce7), worm marks (d81cb06).
 Waiting on the profiler: cave-chunk 256e6a9 (item 15), blocked-cache 3d874dc (item 16), worm-trail shader (with zache-db).
 1. **Graphics settings: distance sliders (Zach, 2026-10-30).** Today every draw/detail range is a hardcoded const or

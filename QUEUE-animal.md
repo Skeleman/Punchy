@@ -6,6 +6,8 @@ one entry per batch) and by message. Branch: `animal-behaviours` (yours now; the
 you close it.
 
 ## Queue (top first)
+
+0. **Zach's v0.10 playtest: FEEDBACK-v0.10.md.** Your rows are lane A (and shared ones). Order: P1 first (bugs), then P2, alongside the current item 1; P3 items need a design note and the supervisor's OK. Report by Z-ID.
 Done since v0.10: test hooks (3025dbf), brain-sample markers (item 13/14 captured), worms (149e4b0), trunk-hug
 (2272733), trunk-lean (fade08c), worm-look (d83b1ee).
 1. **Worm trail of bumps (Zach):** wip/worm-trail 18f1b3b + world-shader wip/worm-trail-shader 92a9602 (zache-73 OK'd).
