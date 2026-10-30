@@ -3152,6 +3152,9 @@ namespace Punchy.Flora
             var ridge = height;
             foreach (var z in new[] { -1f, 1f })
                 b.Beam(new Vector3(0f, wall - 0.25f, z * (front + 0.6f)), new Vector3(0f, ridge + 0.1f, 0f), half * 2f + 0.8f, 0.18f, roof, FloraPart.Bark);
+            // A rounded ridge tile along the top, so the slabs meet in a soft bevel, not a hard point (Z-41).
+            b.Tube(new List<Vector3> { new Vector3(-half - 0.4f, ridge + 0.13f, 0f), new Vector3(half + 0.4f, ridge + 0.13f, 0f) },
+                   new List<float> { 0.15f, 0.15f }, g.Sides(6, 4, 3), roof * 0.92f, FloraPart.Bark, cap: true);
             foreach (var x in new[] { -1f, 1f })
             {
                 var v0 = b.Vertex(new Vector3(x * half, wall, -front), Vector3.right * x, g.Bark, FloraPart.Bark, 0.9f);
@@ -3160,8 +3163,8 @@ namespace Punchy.Flora
                 b.Triangle(v0, v1, v2);
             }
             b.Box(new Vector3(half * 0.6f, height * 0.85f, -front * 0.35f), new Vector3(0.6f, height * 0.5f, 0.6f), Quaternion.identity, Stone(g), FloraPart.Bark);
-            g.Perches.Add(new Vector3(-half - 0.2f, ridge + 0.19f, 0f));
-            g.Perches.Add(new Vector3(half + 0.2f, ridge + 0.19f, 0f));
+            g.Perches.Add(new Vector3(-half - 0.2f, ridge + 0.29f, 0f));
+            g.Perches.Add(new Vector3(half + 0.2f, ridge + 0.29f, 0f));
             g.Perches.Add(new Vector3(half * 0.6f, height * 1.1f, -front * 0.35f));
 
             // Door, windows (lit at night) and the porch out front.
@@ -3223,6 +3226,9 @@ namespace Punchy.Flora
             var ridge = height;
             foreach (var z in new[] { -1f, 1f })
                 b.Beam(new Vector3(0f, wall - 0.35f, z * (front + 0.9f)), new Vector3(0f, ridge + 0.1f, 0f), half * 2f + 1.2f, 0.22f, roof, FloraPart.Bark);
+            // A rounded ridge tile along the top (Z-41: a soft bevel, not a hard point).
+            b.Tube(new List<Vector3> { new Vector3(-half - 0.6f, ridge + 0.14f, 0f), new Vector3(half + 0.6f, ridge + 0.14f, 0f) },
+                   new List<float> { 0.18f, 0.18f }, g.Sides(6, 4, 3), roof * 0.92f, FloraPart.Bark, cap: true);
             foreach (var x in new[] { -1f, 1f })
             {
                 var v0 = b.Vertex(new Vector3(x * half, wall, -front), Vector3.right * x, g.Bark, FloraPart.Bark, 0.9f);
@@ -3233,7 +3239,7 @@ namespace Punchy.Flora
                     foreach (var z in new[] { -1f, 1f })
                         b.Beam(new Vector3(x * (half + 0.6f), wall + (ridge - wall) * 0.55f, z * front * 0.55f), new Vector3(x * (half + 0.6f), ridge + 1.1f, -z * 0.5f),
                                0.22f, 0.18f, timber, FloraPart.Bark);
-                g.Perches.Add(new Vector3(x * half * 0.9f, ridge + 0.21f, 0f));
+                g.Perches.Add(new Vector3(x * half * 0.9f, ridge + 0.33f, 0f));
                 g.Perches.Add(new Vector3(x * (half + 0.6f), ridge + 1.19f, 0.5f));
             }
 
