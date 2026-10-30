@@ -75,7 +75,7 @@ bench results), and stop. The supervisor merges from there.
 The lane handoffs (HANDOFF-world.md, HANDOFF-animal.md) were refreshed at this point and are the detailed source.
 - **World** (world-features ~1cbdd9f):
   - Landed for v0.10: the island hash is now **E128CB1D** (101 landmarks; MagneticRock added).
-  - Next:
+  - Wrapped up; editor closed. Worm marks are on wip/world-worms (they work but read faintly). Next:
     - worm ground ripples (terrain side of the animal's wip/worms);
     - G-37 smaller floating rocks scattered as a biome decoration (no landmark change);
     - F-40 stall footprint;
