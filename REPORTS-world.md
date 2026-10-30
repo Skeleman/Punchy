@@ -2,6 +2,45 @@
 
 Newest first.
 
+## 2026-10-30: slot (cave-chunk, gfx settings, P1 checks), zache-73. Unity closed
+
+No Unity, Punchy or bee_backend process running; Projects\Punchy on b/weather-mapjob.
+- **Merged cave-chunk** (world-features 0d4e964). **Correction to 256e6a9's commit claim:** "about five times cheaper"
+  was the mouth-cut sampling per vertex, not the chunk. At frame level the busiest BuildChunkMeshJob went
+  36.8 -> 30.9 ms (-16%); the A/B gain was 1% low 52.5 -> 59.6, worst 27/30 -> 25/21 ms.
+- **Merged gfx-settings and z-p1 together: world-features 0d4e964 -> 7f519c0** (fast-forward of a combined branch:
+  both merges, plus fountain water on DetailRange and the Z-13 follow-up).
+  - Compiles (both branches at once, no errors).
+  - Startup line logged: "Graphics: view 1.0 detail 1.0 shadows 1.0 (Medium)". 0 exceptions.
+  - Medium = today: the smoke said NOT CLEAN (townwalk cap 0, 1% low 52.6 -> 48.2), but its rounds disagreed (cap 60
+    went *up* 36 -> 44). An interleaved ABBA `ab` townwalk came back flat (41.8 -> 41.4, OK).
+  - Presets at a village edge, cap 60:
+    | Preset | GPU ms | 1% low fps |
+    |---|---|---|
+    | Low | 6.9 | 58.1 |
+    | Medium | 9.0 | 40.8 |
+    | Ultra | 15.7 | 31.3 |
+    Low hazes and thins the distance, Ultra shows the far forest and more grass, and nothing near the player drops
+    out. The profiler's sweep picks this laptop's default.
+- **P1 looks:**
+  - Z-12 (270,3248): rim capped, basin water drawn as real water. No stretched texture visible from the forum (the
+    floor stripes are column shadows); needs Zach's camera if it's still there.
+  - Z-11: the elven bench reads as a stone slab. The wet-image look still needs a rainy setup: next slot.
+  - **Z-13 was not fixed by the plot clearing.** The cabbage patch is a **hermit's garden** (a HermitHut prop) on a
+    road routed after the landmark. b651be6: a landmark's placed props give way to roads and spurs (streets with
+    Road set); squares don't count. Re-shot: garden gone, road clear. The plot clearing also removed two houses
+    the road ran into at that village's edge.
+  - Z-09 and Z-10 weren't looked at (they need night/cloud and fog setups): next slot.
+- **Grey shards at cave mouths (item 15 shots, from before cave-chunk): queued, not fixed.** They're flat,
+  untextured and grey: the cave material's own colour, style slot 0. In CaveSystem's mesh Look(), a vertex with no
+  owning cave (CaveSampling.Distance gives -1) gets style 0. Likely small disconnected surface-net islands where
+  the mouth's blended field (surface air smooth-min'd with cave air) dips into a pocket away from the passage. Fix
+  options: drop tiny disconnected islands in the mesh job, or give orphan vertices the nearest cave's style and the
+  terrain look. Needs a probe build first (count islands at that mouth).
+- Reviewed for zache-db: 5198212/4f597bf mask checks OK; the wake-trail shader OK with a distance gate (45 m in
+  aa6d715).
+- NEXT: the cave-mouth shards (probe, then fix), the Z-09/10/11 looks in a slot, then P2.
+
 ## 2026-10-30: Zach's v0.10 P1 rows (W), zache-73
 
 `world-laptop/z-p1` 9124707 (off world-features 3d874dc), not compiled; shots in my slot. Z-01 is on
