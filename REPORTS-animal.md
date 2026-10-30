@@ -2,6 +2,37 @@
 
 Newest first.
 
+## 2026-10-30: trunk-hug merged (2272733); worm band, far-side climb and a still camera (wip/worm-look 85a1962)
+- **DONE: wip/trunk-hug merged into animal-behaviours at 2272733, pushed.**
+- **1. Dark band on the worm: the body's colouring, not shading.** Both worms reuse the `SnakeBody` limb, where every
+  other segment takes the coat's Accent colour (a snake's bands). The snow worm's accent was dark blue-grey (0.55,
+  0.6, 0.7 on a base of 0.82, 0.85, 0.9), and the sand worm's was dark brown. That gives hard-edged rings square to
+  the body (worm-026/027/028); the edges are segment joins. I ruled out the shader's darkening: it's only a 12 cm
+  contact band at the creature's own height, plus downward faces. Fix (c751907): each accent is now a shade off its
+  base, so the segments read as rings. Colours only; nothing on the wire.
+- **2. Far-side climb: the collider isn't offset at the base, but the drawn trunk drifts away from it higher up.**
+  - The collider (`FloraSystem` obstacles) and the tree's base come from the same `FloraPlacement.Place` position.
+  - The drawn trunk leans and wiggles above the base. Broadleaf: a lean of up to 7% of height × t² (up to about 0.7 m
+    at the top of a 10 m oak) plus a wiggle of about 0.6 × trunk radius per section. Conifer: up to 3%, linear.
+    Palm: a bend of 8–25% of height.
+  - The climber follows a straight cylinder around the base, so on a leaning tree it hangs off the drawn trunk higher
+    up. That also accounts for part of the gate's gap.
+  - It doesn't explain which side the player climbs: Net status put it about 0.3 m+ on the far side of the base.
+    The climb test now logs each new hold: the trunk's position against the logged spot, its radius, and which side
+    the player is on. The next slot will settle it.
+  - Proposed fix, needs your go because it touches the Flora files (world lane): FloraModel keeps the trunk's
+    centre offset at half and full height (the generators already have `TrunkPath`), FloraObstacle carries it turned
+    and scaled, and ClimbTrunk (plus the NPC tree spot) puts the climber round the trunk's centre at its own height.
+    Local data only; no network change.
+- **3. Still camera for the joint look: `-watchfrom H,D` (85a1962, debug-only).** Used with `-watch`, the camera
+  stands D m to the side of the animal's heading and H m above the ground there. It turns to keep the animal in view
+  (for a buried worm, the ground over it), stays put across the shot list's lines, and moves only when the animal
+  gets more than 2D away. For the next slot: `-place Glacier -spawn SnowWorm:1 -watch SnowWorm -watchfrom 10,20` on
+  the first line, then `-watch SnowWorm -watchfrom 10,20 -wait 1` per shot. Pass = the furrow and mound show from
+  above, and the crater stays where the worm broke out.
+- Code-checked only. The next slot compiles wip/worm-look; it can merge after that.
+- NEXT: idle until the slot (after the world lane and the profiler's item 14), or your go on the trunk-lean fix.
+
 ## 2026-10-30 06:09: Unity slot (05:38-06:08): worms and trunk-hug checked in builds; Unity closed
 Built through the runner's `build()` on the main checkout, then put it back (b/weather-mapjob, clean). Test commit
 `t/animal-slot` (local only) = wip/trunk-hug + the world lane's worm shader 89ae558, cherry-picked. Shots and contact
