@@ -22,7 +22,7 @@ network table changes the fingerprint: fine for v0.11, but say so in the report.
 | Z-11 | W | Benches wiggle (wind/rain flutter on a rigid prop?). Bench wetness shows a screen-space image (changes with camera angle). Elven stone benches use the plank model. |
 | Z-12 | W | Fountain: the lower basin rim is incomplete (floor visible from above); stretched texture at `-goto 270,3248`; its water should use the game's water shader. |
 | Z-13 | W | A road runs through a cabbage patch at `-goto 147,-542`. |
-| Z-14 | W | Night noise (howl or ghost?) is too in-your-face, too frequent and a bit staticky: identify it, make it rarer, softer and distant (low-pass, reverb). |
+| Z-14 | A | Night noise (howl or ghost?) is too in-your-face, too frequent and a bit staticky: identify it, make it rarer, softer and distant (low-pass, reverb). Traced (W) to the wolves' SoundId.Howl (CreatureAudioSystem.cs:148): animal lane. |
 
 ## P2: polish
 
