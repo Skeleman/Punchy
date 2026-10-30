@@ -36,6 +36,8 @@ namespace Punchy.Fauna
         readonly float[] distances = new float[MaxBurrowers];
         int count;
         EntityQuery query;
+        /// <summary>Where the marks are, coarsely, so the terrain runs its loop over them only near one (MarkMask).</summary>
+        MarkMask mask;
 
         struct Mark
         {
@@ -55,6 +57,7 @@ namespace Punchy.Fauna
         protected override void OnCreate()
         {
             query = GetEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            mask = new MarkMask("_PunchyBurrowMask", "_PunchyBurrowMaskAt");
         }
 
         protected override void OnUpdate()
@@ -122,6 +125,11 @@ namespace Punchy.Fauna
             }
             for (int k = count; k < MaxBurrowers; k++)
                 slots[k] = Vector4.zero;
+            // (Each mark's reach as the shader draws it: a bump or a crater's rim fades out by 3 radii.)
+            mask.Begin(cam != null ? ((float3)cam.transform.position).xz : float2.zero, Range);
+            for (int k = 0; k < count; k++)
+                mask.Mark(new float2(slots[k].x, slots[k].z), math.abs(slots[k].w) * 3f);
+            mask.Upload();
             Shader.SetGlobalVectorArray(BurrowersId, slots);
             Shader.SetGlobalInteger(CountId, count);
         }
