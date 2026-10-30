@@ -22,3 +22,7 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
 10. Re-run caveapproach on world-features 807ee9f (HideFarChunks batched since 000ef06). If the ~110 ms worst frame remains, capture that frame's top markers (Cave Stream vs Terrain HideFarChunks vs the underground transition).
 11. Host/join on animal-behaviours ea3bdad: the TrySpawn join fix (counts resized in GatherPlayers); watch the host log for IndexOutOfRange right after the welcome. Item 8 (BrainJob marker split) can use ea3bdad too.
 12. The next MP check, on animal-behaviours after 6d70335 (wire: Climbing bool, plus a mantle rim byte coming): a remote climber shows upright against the trunk or wall, a remote mantle keeps its hands on the rim, and there are no join IndexOutOfRange errors.
+13. AFTER the v0.10 release: Brain.Advance split capture. Townwalk cap 60, `bench.sh profile` on wip/brain-sample 7bd0768
+    (animal-behaviours) and wip/brain-sample-e4010f2 6cfedaf (its twin on e4010f2), then profdiff. Read: Brain.Moving
+    callsPerFrame = movers; Brain.Sample per call; Brain.Phase; Advance self = heading + Accelerate (zache-db's note in
+    REPORTS-animal.md). A failed build is the animal lane's compile error: send it the log.
