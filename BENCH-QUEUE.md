@@ -14,3 +14,4 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
    townwalk cap-60 profiles on e4010f2 and animal-behaviours a4521a2 (the townwalk cost fix) plus profdiff.
 3. Capture to confirm audit item 1 (BrainJob/PoseJob back to back) at townwalk and town arrival on animal-behaviours a4521a2.
 4. After the v0.9 gate: host/join on world-features (latest) for the cached WorldSync/NetMenu queries. Note: v0.10 roads move ~20 roadside landmarks (hash D82C9D7F to 7AFF6C9F, 104 to 100), so compare v0.10 to v0.9 by absolute checks, or rebase the A/B on the new island.
+5. Re-bench townwalk cap 60 on animal-behaviours 6d0fbff vs a4521a2 (EaseGait trimmed: feet compensation within 30 m, jitter skip).
