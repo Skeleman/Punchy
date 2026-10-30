@@ -337,8 +337,11 @@ Shader "Punchy/Water"
                 // Rain rings only where it's actually raining (from the world weather map).
                 slope += RainRipples(p, t) * PunchyWetnessAt(p).g * distanceFade * 0.8;
                 // (Wakes keep their own strength: the ripples' follows the wind, and a swimmer stirs calm water too.)
-                half wakeFoam;
-                float2 wakeSlope = SwimmerWakes(p, t, wakeFoam) * 0.6 * distanceFade;
+                // (Only out to 45 m, a little past the 40 m the feeder sends ripples from: the far water skips the loop.)
+                half wakeFoam = 0;
+                float2 wakeSlope = 0;
+                [branch] if (_PunchySwimmerCount > 0 && distance(input.positionWS, GetCameraPositionWS()) < 45)
+                    wakeSlope = SwimmerWakes(p, t, wakeFoam) * 0.6 * distanceFade;
                 // Murky water barely ripples; thick water instead heaves in slow, broad swells and bubbles.
                 slope *= 1 - 0.75 * murk;
                 float3 bubbles = Bubbles(p, t) * distanceFade;
