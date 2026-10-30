@@ -53,6 +53,12 @@ namespace Punchy.Fauna
             // Animals stand on the terrain; the player's body can be above it (jumping, swimming).
             // Swimmers and floaters are carried at their own height (the body's centre at Position).
             var aquatic = b.Habitat == Habitat.Swims || b.Habitat == Habitat.Floats;
+            // (A lava swimmer out on land, a player's bone lizard, stands on its legs.)
+            if (aquatic && b.LavaDweller)
+            {
+                var lava = terrain.SampleGround(s.Position.xz);
+                aquatic = lava.HasWater && lava.WaterSurface > lava.Height + 0.2f;
+            }
             var terrainHeight = aquatic ? s.Position.y - b.StandHeight * scale : GroundAt(terrain, s.Position.xz, s.Position.y);
             var ground = math.max(terrainHeight, s.Position.y);
             if (aquatic)

@@ -181,6 +181,7 @@ MonoBehaviour:
   Nests: 0
   FlightHeight: {x: 2, y: 7}
   FlySpeed: 5
+  PlayerFlySpeed: 7
   FlapRate: 5.5
   Glide: 0.12
   Perching: 1

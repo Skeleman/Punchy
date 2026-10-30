@@ -124,6 +124,7 @@ MonoBehaviour:
   Disguised: 0
   FlightHeight: {x: 0.5, y: 2}
   FlySpeed: 1.6
+  PlayerFlySpeed: 3
   FlapRate: 10
   Glide: 0
   Perching: 0
