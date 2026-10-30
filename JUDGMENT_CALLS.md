@@ -355,3 +355,12 @@ asks Zach if needed, and records the answer here.
 - **Why:** Zach: "No need for me to playtest 0.9--just attempt those fixes and publish. Then see what you can get in
   with remaining tokens."
 - **Revisited:** 0.
+
+### J-040: Is there a v0.10 after v0.9?
+
+- **Asked:** 2026-10-29, raised by Zach.
+- **Answer (2026-10-29):** Yes. After v0.9.0 is published, the sessions keep landing G items and the remaining
+  Tier 1 items, and the supervisor publishes v0.10.0 before his tokens run out, with the same light gate and no
+  playtest. More risk is accepted. The supervisor still drops anything that fails the gate rather than hold the release.
+- **Why:** Zach: "It will be riskier, but I'd like to see what else can be in before my tokens run out."
+- **Revisited:** 0.
