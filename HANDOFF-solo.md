@@ -77,7 +77,7 @@ bench results), and stop. The supervisor merges from there.
     G-36 + G-30 biome rocks;
   - lake breach (0 water walls);
   - audit items (net queries, terrain hide batching).
-  - Working on: G-29 ice arches. Then G-31/F-46, G-33/F-47, G-32, G-22, F-40, F-50 (BubbleSurface sprites).
+  - Also pushed: G-29 ice arches (8 shapes). Next: G-31/F-46, G-33/F-47, G-32, G-22, F-40, F-50 (BubbleSurface sprites).
   - Open question: the caveapproach ~110 ms hitch (`BENCH-QUEUE.md` item 10).
 - **Animal:** done for v0.10:
   - G-02..G-09, G-11..G-13, G-14 footsteps, G-16, G-17;
