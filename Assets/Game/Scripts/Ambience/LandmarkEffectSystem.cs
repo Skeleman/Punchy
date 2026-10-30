@@ -266,6 +266,9 @@ namespace Punchy.Ambience
                     }
                     else
                     {
+                        // Bubbles ride the plume's draw, flagged by a negative lifetime (LandmarkEffects.hlsl).
+                        if (effect.Kind == LandmarkEffectKind.Bubbles)
+                            emitter.Shape.w = -math.max(effect.Lifetime, 0.1f);
                         plumes.Add(emitter);
                         maxParticles = math.max(maxParticles, effect.Particles);
                         top = y + effect.Height * inst.Scale;

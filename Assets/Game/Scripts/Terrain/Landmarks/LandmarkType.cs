@@ -19,7 +19,9 @@ namespace Punchy.Terrain
         [Tooltip("Rising puffs: steam, smoke, geyser spouts, spray, sparkles.")] Plume,
         [Tooltip("A curtain of falling water from Offset (the lip) out and down towards -X.")] Waterfall,
         [Tooltip("Flames (FireSystem) at Offset: Particles tongues of fire Size high, spread over Width, in the Flame " +
-                 "palette. Drawn within 150 m. Pair it with a FirePit (or brazier) prop and an ember plume.")] Flame
+                 "palette. Drawn within 150 m. Pair it with a FirePit (or brazier) prop and an ember plume.")] Flame,
+        [Tooltip("Bubbles rising and popping on a pool's surface at Offset (hot springs, geysers, mud pits, lava): Particles " +
+                 "bubbles of about Size across, over Width, each swelling and bursting into a spreading ring in Lifetime s.")] Bubbles
     }
 
     /// <summary>Flame colours (FireSystem's palettes).</summary>
