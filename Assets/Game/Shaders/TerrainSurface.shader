@@ -47,6 +47,57 @@ Shader "Punchy/Terrain Surface"
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
             float _PunchyCaveDetailReady;
+            // Worms under the sand and snow (the animal session's CreatureBurrowSystem): x, heading (Unity yaw, radians),
+            // z, w their body's radius (m); a breach's crater has w negative and y its age (0..1 over its life).
+            float4 _PunchyBurrowers[8];
+            int _PunchyBurrowerCount;
+
+            // A burrowing worm's marks on the ground at p: a mound travelling over its head and a furrow trailing straight
+            // back about four body lengths, fading; where it breaches, a crater with a raised rim. Shading only (the
+            // returned tilt for the normal, and how much darker the disturbed ground is): the ground itself doesn't move.
+            float2 BurrowMarks(float2 p, out half darken)
+            {
+                float2 tilt = 0;
+                darken = 0;
+                for (int k = 0; k < _PunchyBurrowerCount; k++)
+                {
+                    float4 b = _PunchyBurrowers[k];
+                    float radius = abs(b.w);
+                    float2 rel = p - b.xz;
+                    [branch] if (radius > 0 && dot(rel, rel) < radius * radius * 100)
+                    {
+                        if (b.w > 0)
+                        {
+                            float2 forward = float2(sin(b.y), cos(b.y));
+                            float2 right = float2(forward.y, -forward.x);
+                            float along = dot(rel, forward), side = dot(rel, right);
+                            // The mound: a soft hump over the head (its slope tilts the normal outwards).
+                            float spread = radius * radius * 1.5;
+                            float mound = exp(-dot(rel, rel) / spread);
+                            tilt += rel / spread * mound * radius * 1.6;
+                            // The furrow: a trough behind, its sides tilted in towards its middle, fading with distance.
+                            float behind = -along;
+                            float trail = step(0, behind) * (1 - smoothstep(radius * 2, radius * 8, behind));
+                            float width = radius * radius * 0.6;
+                            float trough = exp(-side * side / width) * trail;
+                            tilt -= right * (side / width) * trough * radius * 1.1;
+                            darken = max(darken, trough * 0.4 + mound * 0.18);
+                        }
+                        else
+                        {
+                            // A breach: a pit and a raised rim round it, fading as the crater ages. The rim's outer
+                            // slope faces out and its inner slope (the pit's wall) in, as a bump's normals do.
+                            float fade = saturate(1 - b.y);
+                            float r = length(rel);
+                            float rimAt = radius * 1.6, rimWidth = radius * 0.5;
+                            float rim = exp(-(r - rimAt) * (r - rimAt) / (rimWidth * rimWidth));
+                            tilt += rel / max(r, 1e-3) * rim * (r - rimAt) / rimWidth * 2.0 * fade;
+                            darken = max(darken, ((1 - smoothstep(radius * 0.6, rimAt, r)) * 0.6 + rim * 0.2) * fade);
+                        }
+                    }
+                }
+                return tilt;
+            }
 
             struct Varyings
             {
@@ -113,6 +164,12 @@ Shader "Punchy/Terrain Surface"
                 float distance = length(input.positionWS - GetCameraPositionWS());
                 half3 normalWS = NormalizeNormalPerPixel(input.normalWS);
                 float2 p = input.positionWS.xz;
+                half burrowDarken = 0;
+                [branch] if (_PunchyBurrowerCount > 0)
+                {
+                    float2 burrowTilt = BurrowMarks(p, burrowDarken);
+                    normalWS = normalize(normalWS + half3(burrowTilt.x, 0, burrowTilt.y));
+                }
 
                 // Fine relief up close (fades out before it could shimmer), skipped on skirts.
                 half detailFade = (1 - smoothstep(25, 70, distance)) * input.bump * (input.extra.w <= 0.01);
@@ -187,6 +244,7 @@ Shader "Punchy/Terrain Surface"
                     rockShade = lerp(rockShade, 1, input.strata * 0.7);
                 }
                 albedo *= rockShade;
+                albedo *= 1 - burrowDarken;
                 // Under the grass blades (near the camera, where they're drawn) the ground takes their colour, so the
                 // gaps between blades read as more grass rather than bare soil (GroundDetailSystem.GroundTint).
                 half underGrass = input.extra.y * _PunchyGrassTint.x * (1 - smoothstep(_PunchyGrassTint.y * 0.7, _PunchyGrassTint.y, distance));
