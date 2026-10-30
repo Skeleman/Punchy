@@ -47,14 +47,16 @@ Shader "Punchy/Terrain Surface"
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
             float _PunchyCaveDetailReady;
-            // Worms under the sand and snow (the animal session's CreatureBurrowSystem): x, heading (Unity yaw, radians),
-            // z, w their body's radius (m); a breach's crater has w negative and y its age (0..1 over its life).
-            float4 _PunchyBurrowers[8];
+            // Worms under the sand and snow (the animal session's CreatureBurrowSystem): x, y its age (0..1 over its
+            // life), z, w the radius (m) of the worm that made it: positive a bump (the mound over a worm's head, or one
+            // it left in its trail), negative a crater where one broke out of the ground or dived back in.
+            float4 _PunchyBurrowers[64];
             int _PunchyBurrowerCount;
 
-            // A burrowing worm's marks on the ground at p: a mound travelling over its head and a furrow trailing straight
-            // back about four body lengths, fading; where it breaches, a crater with a raised rim. Shading only (the
-            // returned tilt for the normal, and how much darker the disturbed ground is): the ground itself doesn't move.
+            // Worms' marks on the ground at p: the mound over a burrowing worm's head and the trail of bumps it leaves
+            // behind, each staying where it was raised and sinking away as it ages; where one breaks out or dives back
+            // in, a crater with a raised rim, fading. Shading only (the returned tilt for the normal, and how much darker
+            // the disturbed ground is): the ground itself doesn't move.
             float2 BurrowMarks(float2 p, out half darken)
             {
                 float2 tilt = 0;
@@ -64,29 +66,21 @@ Shader "Punchy/Terrain Surface"
                     float4 b = _PunchyBurrowers[k];
                     float radius = abs(b.w);
                     float2 rel = p - b.xz;
-                    [branch] if (radius > 0 && dot(rel, rel) < radius * radius * 100)
+                    [branch] if (radius > 0 && dot(rel, rel) < radius * radius * 9)
                     {
                         if (b.w > 0)
                         {
-                            float2 forward = float2(sin(b.y), cos(b.y));
-                            float2 right = float2(forward.y, -forward.x);
-                            float along = dot(rel, forward), side = dot(rel, right);
-                            // The mound: a soft hump over the head (its slope tilts the normal outwards).
-                            float spread = radius * radius * 1.5;
-                            float mound = exp(-dot(rel, rel) / spread);
-                            tilt += rel / spread * mound * radius * 1.6;
-                            // The furrow: a trough behind, its sides tilted in towards its middle, fading with distance.
-                            float behind = -along;
-                            float trail = step(0, behind) * (1 - smoothstep(radius * 2, radius * 8, behind));
-                            float width = radius * radius * 0.6;
-                            float trough = exp(-side * side / width) * trail;
-                            tilt -= right * (side / width) * trough * radius * 1.1;
-                            darken = max(darken, trough * 0.4 + mound * 0.18);
+                            // A bump: a soft hump (its slope tilts the normal outwards), sinking away late in its life.
+                            float fade = saturate(1 - b.y * b.y);
+                            float spread = radius * radius;
+                            float bump = exp(-dot(rel, rel) / spread) * fade;
+                            tilt += rel / spread * bump * radius * 1.6;
+                            darken = max(darken, bump * 0.25);
                         }
                         else
                         {
-                            // A breach: a pit and a raised rim round it, fading as the crater ages. The rim's outer
-                            // slope faces out and its inner slope (the pit's wall) in, as a bump's normals do.
+                            // A crater: a pit and a raised rim round it, fading as it ages. The rim's outer slope faces
+                            // out and its inner slope (the pit's wall) in, as a bump's normals do.
                             float fade = saturate(1 - b.y);
                             float r = length(rel);
                             float rimAt = radius * 1.6, rimWidth = radius * 0.5;
