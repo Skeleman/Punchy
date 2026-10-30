@@ -2,6 +2,28 @@
 
 Newest first.
 
+## 2026-10-30: Unity slot 15:35-16:10: v0.10 fixes compile and merge, Z-06 confirmed, Z-07 not reproduced
+- **Compile PASS** on world-features 7f519c0 plus animal-behaviours, wip/v010-fixes, wip/gfx-creatures and both
+  wake-trail halves (test build 761dae5). No compile or shader errors, and no exceptions in any run.
+  - So gfx-creatures compiles against the real GraphicsSettings.
+- **Z-06: PASS.** The player's Bow emote as a horse, a deer and a dog, side-on in a meadow: the chest dips, the front
+  legs bend, and the hind feet stay planted.
+- **Z-07: not reproduced.**
+  - HumanVillage at 19:30, a Human watched for 75 s: it walked home, then the watch picked another Human walking to a
+    seat 113 m off.
+  - Four spawned squirrels in an OakGrove for 50 s: they climbed, with no spin.
+  - Still open. A faster repro needs a yaw-rate readout in the -watch log line, or Zach's spot and time.
+- **Z-27 wakes: renders.** Spawned ducks on a lake show the spreading rings round each one. The mask path compiled.
+- **Merged:** wip/v010-fixes into animal-behaviours at d0388e2, pushed. That's Z-02 (player side), Z-03, Z-04, Z-05,
+  Z-06, Z-08, Z-14 and Z-23 to Z-26.
+- **Not merged:**
+  - wip/gfx-creatures 6f6dd94: it sits on the world lane's gfx branch, so it belongs in world-features. It merges
+    clean there, and compiled in this slot.
+  - wip/wake-trail plus wip/wake-trail-shader: they wait for the profiler's cost check (item 17).
+  - The worm trail is waiting on item 17 too.
+- **Not done:** Z-20, Z-21 and Z-22 pose shots; those rows aren't coded yet.
+- **Unity closed** at about 16:10. No Unity or Punchy processes, the lock is clear, and the main checkout is as found.
+
 ## 2026-10-30: v0.10 feedback Z-14 and P2 (wip/v010-fixes, wip/wake-trail), code only
 All code-checked only, none compiled; they need a slot.
 - **Z-14, 2ab65e4:** the wolves' howl is softer, distant and once a night per pack.
