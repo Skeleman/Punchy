@@ -1,6 +1,6 @@
 # Handoff: world feature manager (v0.10 in progress)
 
-Refreshed 2026-10-30 for whoever carries the world lane on next (J-042). Worktree `D:\Unity\Punchy-world` (main PC),
+Refreshed 2026-10-30 (last update before the main account ran out) for whoever carries the world lane on next (J-042). Worktree `D:\Unity\Punchy-world` (main PC),
 branch `world-features`. Read COORDINATION.md first; this note is only what's specific to the world lane now.
 
 ## State
@@ -17,30 +17,40 @@ branch `world-features`. Read COORDINATION.md first; this note is only what's sp
   7AFF6C9F; 1cbdd9f added one MagneticRock at -1068,-3840). The supervisor wants no other landmark changes in v0.10; any new landmark type must take
   only its own spots, and the hash diff goes in the batch report.
 
-## Unfinished (in the supervisor's order)
+## Unfinished (next, in order)
 
-1. **caveapproach hitch** (~110 ms, every round, at -2773,-726): likely `TerrainStreamingSystem.HideFarChunks`, batched
-   since 000ef06. Waiting on kind-possum's re-bench of 807ee9f+; if it's still there, get that frame's markers.
-2. **G-32** mushroom-biome trees turn more colourful with distance: not reproduced (shots at 210 m vs 235 m look the
-   same in the fog); needs Zach's spot or camera. Fog is applied after the glow, so it isn't the glow.
-3. (G-31 gill glow is checked in code only: frame a giant cap's underside to confirm.)
-5. **G-22** forum/fountain base: the foundation stretches the stone texture and lacks the dark band at the bottom.
-6. **F-40** darker ground under market stalls: the footprint sheet in the Stall model never shows, even raised 10 cm.
-   Commit cd90cf0 is on `wip/world-v09-v010`; find out why (dirt band? culling? LOD?) before re-landing.
-7. **Worms** (animal session, wip/worms): TerrainSurface.shader side for _PunchyBurrowers[8] (x, yaw, z, w = radius,
-   negative while breaching): a lit mound over the head, a darker furrow straight back ~4 body lengths, a crater ring.
-8. **Ember leak report** (Zach saw gold highlights in an ordinary forest after G-33): not reproduced; gate tightened
-   in 98a61db. Waiting on where he saw it.
-9. Tier 1 left: F-33 limestone stalactites, F-27 lava fills the crater, F-39 street lamps/torches per culture.
-10. **Phase B rivers** (later): smooth the river centreline and its per-segment data. That's also where the zigzag
-    shading at sharp river corners (F-24's "corner oddities") gets fixed.
-- WIP branches: `wip/world-v09-v010` (F-40, F-50 attempts, the plume draw-after-water change), `wip/world-g18-roads`
-  (superseded by 1e53043; delete when convenient).
+1. **G-37 decoration rocks** (supervisor's ask, after the worms): besides the one MagneticRock showpiece, scatter smaller
+   floating rocks (6-15 m, 3-4 shapes) through the electric wastelands as biome *flora* (not landmarks, so the list
+   stays 101 / E128CB1D): a second species on the FloatingRock form (`MagneticMonolith` is the 22-40 m one; copy it,
+   Height 6-15, Variants 4) added to ElectricWastelands' Flora list at a low density. The form's variants already
+   give shard / slab / cluster shapes.
+2. **Worm marks** (`wip/world-worms`, world half of the animal session's `wip/worms`): TerrainSurface.shader reads
+   `_PunchyBurrowers[8]` (x, yaw, z, w = radius, negative while breaching). Works but faint: the furrow shows, the crater
+   barely. Strengthen the tilt and darkening, test (set the globals by hand in play or merge wip/worms), then land it
+   and tell the animal session, who keeps its feeder off animal-behaviours until then.
+3. **F-40** darker ground under market stalls: the footprint sheet in the Stall model never shows, even raised 10 cm
+   (cd90cf0 on `wip/world-v09-v010`). Find why (dirt band? culling? LOD?) before re-landing.
+4. **caveapproach hitch** (~110 ms at -2773,-726, every round): probably HideFarChunks, batched since 000ef06; needs a
+   re-bench on 1cbdd9f and, if still there, that frame's markers.
+5. Tier 1 left: F-33 limestone stalactites, F-27 lava fills the crater, F-39 street lamps/torches per culture.
+6. **Phase B rivers** (later): smooth the river centreline and per-segment data; that also fixes the zigzag shading
+   at sharp river corners (F-24's "corner oddities").
+
+Waiting on Zach (need his spot or a screenshot):
+- **G-32** mushroom-biome trees "more colourful at a distance": not reproduced (210 m vs 235 m across the LOD switch
+  look the same in fog; fog is applied after the glow).
+- **G-22** forum/fountain base stretching the stone, no dark band at the bottom: not visible on flat ground. Likely
+  FloraMeshBuilder.Skirt (every ground-level vertex drops 1.6 m) where a slope exposes it.
+- **Ember leak**: gold highlights in an ordinary forest after G-33/F-47: not reproduced (temperate crowns show none).
+  The gate is tightened to the exact ember mark (98a61db). Only EmberOak and EmberPine carry it.
+
+WIP branches: `wip/world-worms` (worm marks), `wip/world-v09-v010` (F-40 attempt, earlier F-50 attempt; F-50 itself is
+landed), `wip/world-g18-roads` (superseded by 1e53043; delete).
 
 ## Open questions
 
-- None waiting on Zach. kind-possum: bench the swimmer wakes on a lake with ducks (up to 16 swimmers per water pixel),
-  and the new lake look stop (stand at 1328, 1730, yaw -90).
+- kind-possum: bench the swimmer wakes on a lake with ducks (up to 16 swimmers per water pixel), the F-50 bubbles at
+  a geyser, and the lake look stop at 1328, 1730, yaw -90.
 
 ## Gotchas
 

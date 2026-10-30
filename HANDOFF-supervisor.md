@@ -47,7 +47,7 @@ together with `HANDOFF-solo.md`, `HANDOFF-world.md`, `HANDOFF-animal.md`, `COORD
 5. Notes: copy `release/release-notes-v0.9.0.md`, then "New since vPrev", bold sections, plus Multiplayer and
    Download.
 6. **Zach's go**, then `gh release create vX.Y.0 <zip> --repo Skeleman/Punchy --target <full sha> --prerelease
-   --title "Punchy vX.Y.0 (Windows preview)" --notes-file <notes>`. gh is installed on the laptop (2026-10-30); if `gh auth status` fails, Zach runs `gh auth login`. Otherwise Zach
+   --title "Punchy vX.Y.0 (Windows preview)" --notes-file <notes>`. The laptop has no `gh` yet: Zach installs and
    logs in, or publishes himself from the release page with the same fields.
 
 ## Waiting on Zach
