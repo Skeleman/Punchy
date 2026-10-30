@@ -87,7 +87,13 @@ PlumeVertex BuildPlume(uint vertex, uint instance)
         float3 at = e.position + float3(spot.x, 0.02, spot.y);
         float bubbleSize = e.shape.z * lerp(0.6, 1.4, EffectHash(cycle + r * 3.3)) * (bubbleAge < 0.6 ? 0.5 + 0.5 * bubbleAge / 0.6 : 1 + (bubbleAge - 0.6) * 2.5);
         float bubbleAlpha = e.timing.z * step(k, e.timing.w - 1) * (1 - smoothstep(600, 750, distance(at, GetCameraPositionWS())));
+        // The swelling dome faces the camera; once it bursts its ripples lie flat on the water (Z-36).
         float3 bRight = UNITY_MATRIX_V[0].xyz, bUp = UNITY_MATRIX_V[1].xyz;
+        if (bubbleAge >= 0.6)
+        {
+            bRight = float3(1, 0, 0);
+            bUp = float3(0, 0, 1);
+        }
         float2 bCorner = EffectCorner[vertex];
         PlumeVertex b;
         b.positionWS = at + (bRight * bCorner.x + bUp * bCorner.y) * bubbleSize * step(0.001, bubbleAlpha);
