@@ -296,7 +296,7 @@ Shader "Punchy/Flora"
                 }
                 // Ember leaves and needles (the same species, marked as Foliage + 0.25): thin glowing slivers through the
                 // crown, hot at their middle, pulsing slowly out of step (G-33/F-47).
-                if (part == 1 && frac(input.extra.x) > 0.15)
+                if (part == 1 && abs(frac(input.extra.x) - 0.25) < 0.04)   // only the exact ember mark, nothing else on a leaf
                 {
                     float3 q = input.positionWS * float3(3.1, 1.7, 3.1);
                     float vein = abs(PunchyValueNoise(q.xz + q.y * 1.9 + r * 17.0) - 0.5) + abs(PunchyValueNoise(q.zy * 1.6 - 3.3) - 0.5) * 0.5;
