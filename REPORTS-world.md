@@ -2,6 +2,22 @@
 
 Newest first.
 
+## 2026-10-30: Blocked fast path (BENCH item 14), zache-73
+
+- **DONE in code: `world-laptop/blocked-cache` 3d874dc** (off world-features bc89606), not merged, not compiled; the
+  profiler's Brain.Blocked A/B build is its check.
+- **What made Blocked dear:** for every town plot or counted landmark prop near the animal, it called Place(), which
+  builds the full FloraInstance: the plot's FloorHeight and DirtColor, or a prop's SampleHeight and GroundFor, all of
+  which sample the ground round the building. Inside() only reads Position.xz, Yaw, Scale and Model.
+- **Change:** no cache. `Place(..., bool footprint = false)`; Blocked passes true, and the building/prop/centrepiece
+  branches then skip those four (Position.y and Ground come back 0). None of them draws from the cell's Random, so
+  xz, Yaw, Scale, Model and Random are exactly as before: same walls, same results, nothing baked, no fingerprint
+  change. Walls() and NearPerches() still place in full (they use the heights). Ordinary plants are unaffected.
+- Why not a baked cache: FloraBlob is built from the palette with no TerrainSource, so baking every plot's instance
+  needs a new bake step and memory. If the A/B shows Blocked still dear (the plot loop, OnBuiltPlot), a per-cell table
+  is the next step.
+- Brain side unchanged (Walled -> Blocked keeps its signature); zache-db told.
+
 ## 2026-10-30: cave-mouth chunk follow-up (v0.11), zache-73
 
 - **DONE in code: `world-laptop/cave-chunk` 256e6a9** (off world-features bc89606), not merged, not compiled; the
