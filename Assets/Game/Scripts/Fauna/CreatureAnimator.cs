@@ -52,7 +52,8 @@ namespace Punchy.Fauna
             var halfLength = b.BodyLength * 0.5f * scale;
             // Animals stand on the terrain; the player's body can be above it (jumping, swimming).
             // Swimmers and floaters are carried at their own height (the body's centre at Position).
-            var aquatic = b.Habitat == Habitat.Swims || b.Habitat == Habitat.Floats;
+            // (A tunneller, a sand worm, is drawn where it is, under the ground or arcing out of it, like a swimmer.)
+            var aquatic = b.Habitat == Habitat.Swims || b.Habitat == Habitat.Floats || b.Tunnels;
             // (A lava swimmer out on land, a player's bone lizard, stands on its legs.)
             if (aquatic && b.LavaDweller)
             {
@@ -261,9 +262,10 @@ namespace Punchy.Fauna
                 {
                     fold = math.max(s.Lie, part.Socket.z > 0f ? s.Bow * 0.5f : 0f);
                     // Sitting folds the hind legs; sitting up tall tucks the front paws too; in flight all tuck up.
+                    // (A player's body up a trunk is a puppet: its front paws hold on, as a climbing animal's do.)
                     if (hind)
                         fold = math.max(fold, s.Sit);
-                    else if (s.Mode != CreatureMode.Climb && s.Mode != CreatureMode.Web)
+                    else if (s.Mode != CreatureMode.Climb && s.Mode != CreatureMode.Web && s.Mode != CreatureMode.Puppet)
                         fold = math.max(fold, math.saturate(s.Vertical * 1.6f));
                     // In flight the legs trail back under the tail instead (below).
                     fold *= 1f - s.Fly;

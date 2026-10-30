@@ -254,6 +254,13 @@ namespace Punchy.Fauna
                     Advance(ref s, ref b, dt);
                     return;
                 }
+                // A sand or snow worm lives its own life under the ground, heeding nothing.
+                if (b.Tunnels)
+                {
+                    Tunnel(ref s, ref b, ref rng, dt);
+                    s.Seed = rng.state;
+                    return;
+                }
                 s.ModeTime += dt;
                 s.StageTime += dt;
 
@@ -1659,13 +1666,18 @@ namespace Punchy.Fauna
             {
                 var trunk = s.Anchor.xz;
                 var climbSpeed = walk * 0.75f;
-                // While climbing, the body keeps its legs' length off the trunk.
-                var reach = s.AnchorSize + b.StandHeight * s.Scale * 0.8f + 0.02f;
+                // Standing at the foot (and out on a branch) the body keeps its legs' length off the trunk; up it, its feet
+                // are on the bark and the body hangs a leg's length out from them (CreatureAnimator). It goes from one to
+                // the other over its first stand height up the trunk, and back over its last coming down, so its chest
+                // never ends up in the trunk.
+                var standOff = s.AnchorSize + b.StandHeight * s.Scale * 0.8f + 0.02f;
+                var low = math.saturate((s.Position.y - Terrain.SampleHeight(s.Position.xz)) / math.max(b.StandHeight * s.Scale, 0.05f));
+                var reach = math.lerp(standOff, s.AnchorSize + 0.02f, math.min(math.saturate(s.Vertical), low));
                 var outward = math.normalizesafe(s.Position.xz - trunk, new float2(0f, 1f));
                 switch (s.Stage)
                 {
                     case 0:
-                        s.Target = trunk + outward * (reach + 0.15f);
+                        s.Target = trunk + outward * (standOff + 0.15f);
                         targetSpeed = walk;
                         moving = true;
                         if (math.distance(s.Position.xz, s.Target) < 0.3f)
@@ -1718,7 +1730,7 @@ namespace Punchy.Fauna
                     case 4:
                         custom = true;
                         s.Position.y = s.TargetHeight;
-                        if (GlideTo(ref s, ref b, trunk + math.normalizesafe(s.Focus - trunk, outward) * reach, walk * 0.6f, dt) < 0.1f)
+                        if (GlideTo(ref s, ref b, trunk + math.normalizesafe(s.Focus - trunk, outward) * standOff, walk * 0.6f, dt) < 0.1f)
                             NextStage(ref s);
                         break;
                     default:
@@ -1736,6 +1748,80 @@ namespace Punchy.Fauna
                         }
                         break;
                 }
+            }
+
+            /// <summary>
+            /// A sand or snow worm: deep under the ground, gliding from one flat spot to another round where it lives (the
+            /// world draws its ripple and furrow on the surface from CreatureBurrowSystem); every half minute to minute and
+            /// a half, out on flat ground, it bursts up out of it in a great arc, its body rippling up and down, and dives
+            /// back in further on. (Air runs 0..1 through the arc; Fly holds its body's wave upright meanwhile.)
+            /// </summary>
+            void Tunnel(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
+            {
+                var radius = math.max(b.FrontRadius * s.Scale, 0.3f);
+                var depth = radius * 3f + 1f;
+                if (s.Mode != CreatureMode.Wander)
+                    SetMode(ref s, CreatureMode.Wander);
+                if (math.all(s.Home == float2.zero))
+                {
+                    s.Home = s.Position.xz;
+                    s.Timer = rng.NextFloat(10f, 40f);
+                }
+                var ground = Terrain.SampleHeight(s.Position.xz);
+                if (s.Air > 0f)
+                {
+                    // Out of the ground and back, over four seconds, at speed.
+                    s.Air += dt / 4f;
+                    s.Speed = b.RunSpeed;
+                    s.Fly = 1f;
+                    if (s.Air >= 1f)
+                    {
+                        s.Air = 0f;
+                        s.Fly = 0f;
+                        s.Timer = rng.NextFloat(30f, 80f);
+                    }
+                }
+                else
+                {
+                    s.Speed = b.WalkSpeed;
+                    s.Fly = 0f;
+                    s.Timer -= dt;
+                    // Somewhere flat to make for: the flattest of a few spots round its home.
+                    if (math.distance(s.Position.xz, s.Target) < 4f || math.all(s.Target == float2.zero))
+                    {
+                        var best = -1f;
+                        for (int k = 0; k < 6; k++)
+                        {
+                            var p = s.Home + rng.NextFloat2Direction() * rng.NextFloat(0.2f, 1f) * b.WanderRadius;
+                            var g = Terrain.SampleGround(p);
+                            if (g.HasWater && g.WaterSurface > g.Height)
+                                continue;
+                            var flat = Terrain.SampleNormal(p, 3f).y;
+                            if (flat > best)
+                            {
+                                best = flat;
+                                s.Target = p;
+                            }
+                        }
+                    }
+                    // Its time come and the ground flat here (dunes, a snowfield): up it bursts. (Not yet: soon again.)
+                    if (s.Timer <= 0f)
+                    {
+                        var here = Terrain.SampleGround(s.Position.xz);
+                        if (!(here.HasWater && here.WaterSurface > here.Height) && Terrain.SampleNormal(s.Position.xz, 3f).y > 0.97f)
+                        {
+                            s.Air = 0.001f;
+                            s.AirHeight = radius * 6f;
+                        }
+                        else
+                            s.Timer = 3f;
+                    }
+                }
+                TurnTowards(ref s, ref b, s.Target, dt);
+                s.Position.xz += new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * s.Speed * dt;
+                ground = Terrain.SampleHeight(s.Position.xz);
+                s.Position.y = ground - depth + (depth + s.AirHeight) * (s.Air > 0f ? math.sin(math.PI * s.Air) : 0f);
+                CreatureMotion.AdvancePhase(ref s, ref b, dt);
             }
 
             /// <summary>Turns on the spot towards a point.</summary>

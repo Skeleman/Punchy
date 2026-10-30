@@ -1,0 +1,119 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
+  m_Name: SnowWorm
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
+  VariantOf: {fileID: 0}
+  VariantScale: 1
+  VariantHead: 1
+  VariantThickness: 1
+  VariantLegs: 1
+  BodyLength: 0.234
+  BodyRadius: 0.0728
+  BodyTaper: 1
+  BodyFlatten: 0.75
+  Base: {r: 0.82, g: 0.85, b: 0.9, a: 1}
+  Accent: {r: 0.75, g: 0.78, b: 0.84, a: 1}
+  AccentGlow: 0
+  Coats:
+  - Name: SnowWorm
+    Base: {r: 0.82, g: 0.85, b: 0.9, a: 1}
+    Accent: {r: 0.75, g: 0.78, b: 0.84, a: 1}
+    AccentGlow: 0
+    Weight: 1
+  Size: {x: 16, y: 20}
+  HairColors: []
+  Parts:
+  - Limb: {fileID: 11400000, guid: 0b0d268b6767d0947ade03e60eb9e58a, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0, z: 1}
+    Direction: {x: 0, y: 0, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 2.86
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 0e1268e39b7bd0e43ac7c25cecd91c5e, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0, z: -1}
+    Direction: {x: 0, y: 180, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 2.6
+    Thickness: 1.15
+    StyleGroup: 0
+  WalkSpeed: 3
+  RunSpeed: 8
+  Bob: {x: 0, y: 0}
+  BobsPerCycle: {x: 2, y: 2}
+  RunRock: 0
+  Upright: 0
+  LeglessStride: {x: 1.04, y: 1.43}
+  WanderRadius: 120
+  IdleTime: {x: 4, y: 15}
+  FleeDistance: 0
+  TurnRate: 70
+  SeenFrom: 800
+  GroupSize: {x: 1, y: 1}
+  NearWater: 0
+  Habitat: 0
+  SwimDepth: 3
+  Leaps: 0
+  Active: 2
+  Grazing: 0
+  Thirst: 0
+  Playfulness: 0
+  Child: 0
+  Laziness: 0.5
+  Hunts: []
+  Hunger: 0
+  ChaseTime: 10
+  Idles: 0
+  Fidgets: 0.5
+  Climbing: 0
+  SpinsWebs: 0
+  WebSize: 0.6
+  Burrows: 0
+  CaveDweller: 0
+  Crawls: 0
+  ColdBlooded: 1
+  Role: 0
+  Hooves: 0
+  ClimbsAs: 0
+  Tunnels: 1
+  Voice: 0
+  CaveAffinity: 0
+  Roosts: 0
+  Friendly: 0
+  LavaDweller: 0
+  Haunts: 0
+  CrossesWater: 0
+  Nests: 0
+  DrawnToLight: 0
+  DrivenOff: 0
+  GuardKit: 0
+  GuardArmour: {r: 0.55, g: 0.57, b: 0.6, a: 1}
+  GuardSash: {r: 0.62, g: 0.12, b: 0.1, a: 1}
+  Rooted: 0
+  Disguised: 0
+  FlightHeight: {x: 25, y: 60}
+  FlySpeed: 15
+  PlayerFlySpeed: 0
+  FlapRate: 0.8
+  Glide: 0.6
+  Perching: 0
+  Soars: 1
+  Breaches: 0
+  RaidsHives: 0
+  Calls: []
