@@ -16,3 +16,4 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
 4. After the v0.9 gate: host/join on world-features (latest) for the cached WorldSync/NetMenu queries. Note: v0.10 roads move ~20 roadside landmarks (hash D82C9D7F to 7AFF6C9F, 104 to 100), so compare v0.10 to v0.9 by absolute checks, or rebase the A/B on the new island.
 5. Re-bench townwalk cap 60 on animal-behaviours 6d0fbff vs a4521a2 (EaseGait trimmed: feet compensation within 30 m, jitter skip).
 6. Bench a lake with swimmers (ducks) on world-features 793f103 vs 3d1893d: water shader swimmer loop (up to 16 per pixel within 12 m).
+7. Move the lake look stop: (1103,132,1540) is now dry shore (F-22 removed the hanging water). Use camera ~(1110,146,1545) looking at (1135,141,1570); open water at (1125,141.4,1560).
