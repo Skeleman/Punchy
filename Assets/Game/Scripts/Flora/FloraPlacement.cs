@@ -332,6 +332,27 @@ namespace Punchy.Flora
             return c.x | (c.y << 8) | (c.z << 16) | ((uint)math.clamp(math.round(band * 100f), 1f, 255f) << 24);
         }
 
+        /// <summary>The ground colour a placed plant carries (FloraInstance.Ground): a rock's tint, or a built thing's dirt.</summary>
+        static uint GroundFor(in TerrainSource source, in FloraRules rule, float2 at, float reach, float band) =>
+            rule.Tilt > 0f ? RockTint(source, at) : DirtColor(source, rule, at, reach, band);
+
+        /// <summary>
+        /// A rock's colour where it lies (G-36): on dry ground, the biome's own rock (the surface its cliffs take, so a rock
+        /// in the desert is sandstone, not grey and mossy), packed as DirtColor is with the alpha at its top value (the
+        /// shader's sign for a rock tint); on grassy, wet ground 0, so the rock keeps its own grey and moss.
+        /// </summary>
+        public const uint RockTintMark = 255u;
+        static uint RockTint(in TerrainSource source, float2 at)
+        {
+            var ground = source.SampleGround(at);
+            var flat = source.SampleSurface(at, ground, source.SampleNormal(at, 1f));
+            if (flat.Grass > 0.3f || ground.HasWater && ground.WaterSurface > ground.Height)
+                return 0u;
+            var cliff = source.SampleSurface(at, ground, math.normalize(new float3(1f, 0.2f, 0f)));
+            var c = (uint3)math.round(math.saturate(math.lerp(cliff.Albedo, new float3(0.62f, 0.64f, 0.68f), math.saturate(flat.Snow))) * 255f);
+            return c.x | (c.y << 8) | (c.z << 16) | (RockTintMark << 24);
+        }
+
         /// <summary>FloraRules.Footprint for a species (from its settings, without growing it).</summary>
         static float Footprint(FloraSpecies s)
         {
@@ -807,7 +828,7 @@ namespace Punchy.Flora
                                     Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
                                     Model = placedRule.FirstModel + rng.NextInt(placedRule.Variants),
                                     Random = rng.NextFloat(),
-                                    Ground = DirtColor(source, placedRule, spot, 1f, 0.25f)
+                                    Ground = GroundFor(source, placedRule, spot, 1f, 0.25f)
                                 };
                             }
                             blocked |= math.distance(xz, spot) < prop.Clearance;
@@ -840,7 +861,7 @@ namespace Punchy.Flora
                                 Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
                                 Model = centreRule.FirstModel + rng.NextInt(centreRule.Variants),
                                 Random = rng.NextFloat(),
-                                Ground = DirtColor(source, centreRule, centre, 2f, 0.5f)
+                                Ground = GroundFor(source, centreRule, centre, 2f, 0.5f)
                             };
                         }
                         continue;
@@ -1028,7 +1049,7 @@ namespace Punchy.Flora
                 Snow = surface.Snow,
                 // Rocks lie over onto the slope they stand on.
                 Tilt = normal.xz * rule.Tilt,
-                Ground = DirtColor(source, rule, xz, 1f, 0.25f)
+                Ground = GroundFor(source, rule, xz, 1f, 0.25f)
             };
         }
 

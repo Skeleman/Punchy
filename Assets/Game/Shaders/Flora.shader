@@ -117,6 +117,9 @@ Shader "Punchy/Flora"
             {
                 FloraDither(input.positionCS, input.extra.y, input.positionWS);
                 int part = (int)round(input.extra.x);
+                // A rock tint (ground alpha at its top value) or a built thing's dirt band (any other non-zero alpha).
+                bool rockTint = input.ground.a > 0.995;
+                bool built = input.ground.a > 0 && !rockTint;
                 bool leafy = part == 1 || part == 2 || part == 5;
                 bool metal = part == 4;
                 // Thin tapered strands (roots, stems) can end in a degenerate normal; a NaN there blooms into a bright fleck.
@@ -124,7 +127,7 @@ Shader "Punchy/Flora"
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 // Built things are drawn double-sided too, and a roof is one sheet: seen from below it's the sheet's
                 // back, whose normal still points up. Light the side you see.
-                if (part == 0 && input.ground.a > 0 && dot(n, v) < 0)
+                if (part == 0 && built && dot(n, v) < 0)
                     n = -n;
 
                 // Per-plant tint: brightness, and leaves a little yellower or bluer.
@@ -141,7 +144,7 @@ Shader "Punchy/Flora"
                 // Built things (those with a dirt band) and banded rock: weathering that stays at every range
                 // (PunchyWeathering).
                 bool strata = part == 0 && frac(input.extra.x) > 0.04 && frac(input.extra.x) < 0.15;
-                if (part == 0 && input.ground.a > 0 || strata)
+                if (part == 0 && built || strata)
                     albedo *= PunchyWeathering(input.positionWS, n, footprint, r);
                 // Banded rock (FloraSpecies.RockStrata): exactly the terrain's strata (TerrainSurface.shader), same
                 // world heights and colours, so a rock prop's layers line up with the cliff beside it.
@@ -188,8 +191,16 @@ Shader "Punchy/Flora"
                 albedo = lerp(albedo, half3(0.86, 0.88, 0.92), snow);
 
                 half wet = PunchyWetnessAt(input.positionWS.xz).r * (1 - snow);
-                // Built things: a band of the ground's colour up their base, like dirt splashed up the walls.
-                if (part == 0)
+                // Rocks on dry ground take the biome's own rock colour (FloraPlacement.RockTint: the ground's alpha at its
+                // top value), keeping their own light and dark (and losing their moss's green) (G-36). Built things: a
+                // band of the ground's colour up their base, like dirt splashed up the walls.
+                if (part == 0 && rockTint)
+                {
+                    half lum = dot(albedo, half3(0.3, 0.59, 0.11));
+                    half rockLum = max(dot(input.ground.rgb, half3(0.3, 0.59, 0.11)), 0.02);
+                    albedo = lerp(albedo, input.ground.rgb * clamp(lum / rockLum, 0.45, 1.6), 0.85);
+                }
+                else if (part == 0)
                     albedo = PunchyDirt(albedo, input.ground, input.baseHeight.x, input.baseHeight.y, wet, input.positionWS);
                 albedo *= lerp(1, part == 0 ? 0.62 : 0.82, wet);
 
@@ -202,7 +213,7 @@ Shader "Punchy/Flora"
                 shadow *= (1 - _PunchyUnderground) * (1 - _FloraInCave);
                 half3 sky = SampleSH(n) * lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));
                 // Roof undersides, eaves and overhangs on built things see the ground, not the sky (Grounding.hlsl).
-                half under = part == 0 && input.ground.a > 0 ? PunchyUnderside(n.y) : 0;
+                half under = part == 0 && built ? PunchyUnderside(n.y) : 0;
                 if (under > 0)
                 {
                     sky = PunchyUndersideAmbient(sky, input.ground.rgb, SampleSH(half3(0, 1, 0)) * lerp(1, 0.06, _PunchyUnderground), under);
