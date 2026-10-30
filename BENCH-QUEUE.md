@@ -21,3 +21,4 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
 9. Item 7 unblocked: world-features (after 4ec2cab) has 0 water walls. New lake look stop: x 1328, z 1730 (ground 117.0, lake 116.8), yaw -90 (west over the lake). No ducks there (Mountains); for item 6 swimmers use a lake in FoggyMarsh, FungalForest, Grassland or Temperate.
 10. Re-run caveapproach on world-features 807ee9f (HideFarChunks batched since 000ef06). If the ~110 ms worst frame remains, capture that frame's top markers (Cave Stream vs Terrain HideFarChunks vs the underground transition).
 11. Host/join on animal-behaviours ea3bdad: the TrySpawn join fix (counts resized in GatherPlayers); watch the host log for IndexOutOfRange right after the welcome. Item 8 (BrainJob marker split) can use ea3bdad too.
+12. The next MP check includes animal-behaviours climbing (F-03/F-04) with the Vertical field now sent (wire change): a remote climber should show the climbing pose.
