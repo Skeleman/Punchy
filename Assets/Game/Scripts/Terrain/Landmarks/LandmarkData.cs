@@ -304,17 +304,17 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Trodden ground's colour as a share of the ground's own (worn darker by people standing about).</summary>
-        const float TroddenDarken = 0.6f;
+        const float TroddenDarken = 0.55f;
 
         /// <summary>
         /// Worn ground round a placed prop (F-40, a market stall): the ground's own colour darkened and its grass and
-        /// pebbles worn away, centred a little in front of it (towards the landmark's middle, where people stand),
+        /// pebbles worn away, centred half its reach in front of it (towards the landmark's middle, where people stand),
         /// with a ragged edge. Part of the ground's colour, so the terrain's own texture shows through it.
         /// </summary>
         static void Trodden(ref LandmarkTroddenData trodden, in LandmarkHit hit, float2 xz, float edgeNoise, ref SurfaceProps props)
         {
             var spot = trodden.Offset * hit.Radius;
-            var centre = spot + math.normalizesafe(-spot) * trodden.Radius * 0.35f;
+            var centre = spot + math.normalizesafe(-spot) * trodden.Radius * 0.5f;
             var reach = math.distance(hit.Local, centre);
             if (reach > trodden.Radius * 1.4f)
                 return;
