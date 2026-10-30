@@ -2,6 +2,22 @@
 
 Newest first.
 
+## 2026-10-30: Z-07 spin readout, Z-21 and Z-22 poses (code only), Z-20 needs a design call
+- **Z-07 readout, wip/spin-check 494ada9 (debug only):** `-spincheck` logs any creature that turns a whole circle
+  within 5 s while under 0.3 m/s, with what it's doing and where. `-watch` lines now give yaw and turn rate.
+- **Z-21, wip/poses 2755204:** a sprint amplified every leg joint, the ankle included, so the foot folded against the
+  shin at push-off. Now only the hip and knee get the longer stride; the foot keeps its run angles, eased 35% toward
+  rest.
+- **Z-22, wip/poses 2755204:** chopping, hammering and mining now have a slow raise with a hold at the top (the
+  wind-up), then a fast strike.
+  - The torso leans back and twists away while raising, folds forward into the blow, and the head drops.
+  - The hammer's movement is under half the axe's.
+  - Legs are untouched, so the feet stay planted.
+- **Z-20: needs a design call.** HeldPoseSystem puts the animal at per-body carry-table hand spots, but the carrier's
+  Carry arm pose is fixed. To fit the arms, the carrier's state needs the held animal's half-width. The options are
+  that, or fixed arm poses in three size classes.
+- All need a slot to compile and shoot.
+
 ## 2026-10-30: Unity slot 15:35-16:10: v0.10 fixes compile and merge, Z-06 confirmed, Z-07 not reproduced
 - **Compile PASS** on world-features 7f519c0 plus animal-behaviours, wip/v010-fixes, wip/gfx-creatures and both
   wake-trail halves (test build 761dae5). No compile or shader errors, and no exceptions in any run.
