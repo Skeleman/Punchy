@@ -2,6 +2,16 @@
 
 Newest first.
 
+## 2026-10-30: Z-20 carried animals follow the arms: wip/carry 95d50e8 (code only)
+- **Real fix, local on every machine, no network change.**
+  - `CreatureState.CarryWidth` is local. HeldPoseSystem sets it on every carrier body from the held creature's
+    half-width.
+  - The Carry pose opens the arms by it: shoulders out up to 0.7 rad, elbows 1.25 to 0.83 rad.
+  - HeldPoseSystem poses the carrier and puts the animal between the posed hand tips, so it moves with the arms.
+  - Bodies without two arms keep the carry table.
+- **To check in the slot:** the opening's direction, the sit along the forearms, and small, medium and large animals
+  side-on and front-on, plus a remote carrier from a client.
+
 ## 2026-10-30: Z-07 spin readout, Z-21 and Z-22 poses (code only), Z-20 needs a design call
 - **Z-07 readout, wip/spin-check 494ada9 (debug only):** `-spincheck` logs any creature that turns a whole circle
   within 5 s while under 0.3 m/s, with what it's doing and where. `-watch` lines now give yaw and turn rate.
