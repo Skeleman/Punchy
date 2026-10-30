@@ -177,14 +177,18 @@ FloraVertex FloraTransform(FloraAttributes input)
         half gustNoise = SAMPLE_TEXTURE2D_LOD(_PunchyCaveDetail, sampler_PunchyCaveDetail, gustUV, 0).b;
         half gust = lerp(0.5, smoothstep(0.3, 0.75, gustNoise), _PunchyCaveDetailReady);
         float strength = (0.08 + 0.92 * _PunchyWind) * (0.3 + 0.9 * gust);
-        float t = _PunchyClock * (taut ? 0.6 + 0.8 * _PunchyWind : 1.6 + 4.5 * strength) + plant.random * 6.28;
+        // Banners roll slowly, a big wave about every three seconds in a breeze, never a buzz (Z-33: they shook far
+        // too fast).
+        float t = _PunchyClock * (taut ? 0.6 + 0.8 * _PunchyWind : 0.9 + 2.0 * strength) + plant.random * 6.28;
         float along = (input.positionOS.x + input.positionOS.z) * 1.3;
         float wave = sin(t - free * 4.2 + along);
-        float flutter = taut ? 0 : sin(t * 2.6 - free * 9.0 + input.positionOS.y * 4.1) * free;
+        // The quicker flutter at the free edge only up close: far off it's a shimmer the eye reads as noise (Z-33).
+        float flutterNear = 1 - smoothstep(30, 80, distance(plant.position, GetCameraPositionWS()));
+        float flutter = taut ? 0 : sin(t * 1.8 - free * 5.5 + input.positionOS.y * 2.6) * free * flutterNear;
         // Taut cloth stirs only in wind, and gently (G-19): nothing in calm air.
         float amount = free * (taut ? 0.08 * smoothstep(0.2, 0.9, _PunchyWind) * (0.5 + 0.5 * gust) : 0.06 + 0.4 * strength) * plant.scale;
         float3 windDir3 = float3(_PunchyWindDirection.x, 0, _PunchyWindDirection.y);
-        p += n * (wave * 0.8 + flutter * 0.5) * amount;
+        p += n * (wave * 0.8 + flutter * 0.35) * amount;
         // Blown out from where it hangs: turned downwind by an angle that rises quickly with the wind (about 35
         // degrees on a breezy day, 65 in a storm, a few in calm), so it streams out and lifts as well.
         float angle = 1.15 * pow(saturate((strength - 0.05) / 0.8), 0.6) * (0.85 + 0.15 * wave);
