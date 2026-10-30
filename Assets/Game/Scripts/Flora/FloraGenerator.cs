@@ -119,6 +119,7 @@ namespace Punchy.Flora
                     case FloraForm.Ruin: Ruin(g); break;
                     case FloraForm.Bedroll: Bedroll(g); break;
                     case FloraForm.RailFence: RailFence(g); break;
+                    case FloraForm.FloatingRock: FloatingRock(g); break;
                     case FloraForm.Tent: Tent(g); break;
                     case FloraForm.Tower: Tower(g); break;
                     case FloraForm.Pen: Pen(g); break;
@@ -2290,6 +2291,79 @@ namespace Punchy.Flora
                        g.Sides(1, 1, 0), 0.3f, g.R() * 100f, Color.Lerp(g.Bark, g.Bark * 1.4f, g.R()), FloraPart.Metal, 1f, 0.5f);
             }
             b.Orbit(floating, height * 0.06f);
+        }
+
+        /// <summary>
+        /// An enormous magnetic rock floating over the electric wastelands (G-37), turning slowly and bobbing (Orbit): a
+        /// jagged mass of a few blocks, shaped by variant (a tall shard, a flat slab, a cluster), smaller shards round it,
+        /// and arcs crackling from it to some of them; a scorched, cracked mound on the ground beneath.
+        /// </summary>
+        static void FloatingRock(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var size = g.Range(s.Height);
+            var lift = size * g.Range(0.6f, 1.1f) + 2f;
+            g.Height = lift + size;
+            g.Width = size * 1.6f;
+            g.TrunkRadius = 0f;
+
+            var mound = size * 0.6f;
+            var first = b.VertexCount;
+            b.Blob(Vector3.up * mound * 0.04f, new Vector3(mound, mound * 0.18f, mound * 0.9f), Quaternion.Euler(0f, g.R() * 360f, 0f),
+                   g.Sides(2, 1, 0), 0.45f, g.R() * 100f, g.Bark * 0.6f, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, mound));
+
+            var floating = b.VertexCount;
+            var centre = Vector3.up * (lift + size * 0.5f);
+            var kind = g.Variant % 3;
+            var dims = kind == 0 ? new Vector3(0.42f, 1f, 0.5f) : kind == 1 ? new Vector3(1f, 0.32f, 0.8f) : new Vector3(0.72f, 0.62f, 0.7f);
+            dims *= size * 0.5f;
+            var blocks = kind == 2 ? 4 : 2;
+            for (int k = 0; k < blocks; k++)
+            {
+                var offset = k == 0 ? Vector3.zero : Vector3.Scale(new Vector3(g.Range(-0.7f, 0.7f), g.Range(-0.5f, 0.5f), g.Range(-0.7f, 0.7f)), dims);
+                var scale = k == 0 ? 1f : g.Range(0.45f, 0.7f);
+                b.Blob(centre + offset, dims * scale, Quaternion.Euler(g.Range(-25f, 25f), g.R() * 360f, g.Range(-25f, 25f)),
+                       g.Sides(2, 1, 1), 0.38f, g.R() * 100f, Color.Lerp(g.Bark, g.Bark * 1.5f, g.R() * 0.5f), FloraPart.Bark);
+            }
+            // The mass only turns (a per-vertex bob would warp something this big); the shards and arcs bob as well.
+            b.Orbit(floating, 0f);
+            var loose = b.VertexCount;
+            // Shards round it.
+            var shards = new List<Vector3>();
+            var count = g.Lod == 2 ? 3 : 7;
+            for (int k = 0; k < count; k++)
+            {
+                var a = k / (float)count * 6.28f + g.Range(-0.3f, 0.3f);
+                var at = centre + new Vector3(Mathf.Cos(a), g.Range(-0.6f, 0.6f), Mathf.Sin(a)) * size * g.Range(0.75f, 1.05f);
+                var piece = size * g.Range(0.05f, 0.12f);
+                b.Blob(at, new Vector3(piece, piece * g.Range(0.6f, 1.2f), piece * g.Range(0.6f, 1f)), Quaternion.Euler(g.R() * 360f, g.R() * 360f, g.R() * 360f),
+                       g.Sides(1, 1, 0), 0.35f, g.R() * 100f, g.Bark * 1.3f, FloraPart.Metal, 1f, 0.5f);
+                shards.Add(at);
+            }
+            // Arcs from the rock to some of its shards (they crackle: FloraPart.Arc).
+            if (g.Lod < 2)
+            {
+                var arcColor = s.Foliage.linear;
+                for (int k = 0; k < shards.Count; k += 2)
+                {
+                    var from = centre + (shards[k] - centre).normalized * Mathf.Min(dims.x, dims.z) * 0.9f;
+                    var to = shards[k];
+                    var path = new List<Vector3>();
+                    var radii = new List<float>();
+                    var points = g.Sides(8, 5, 3);
+                    for (int j = 0; j < points; j++)
+                    {
+                        var t = j / (points - 1f);
+                        var zig = j == 0 || j == points - 1 ? Vector3.zero : (new Vector3(g.R(), g.R(), g.R()) - Vector3.one * 0.5f) * Vector3.Distance(from, to) * 0.2f;
+                        path.Add(Vector3.Lerp(from, to, t) + zig);
+                        radii.Add(size * 0.006f);
+                    }
+                    b.Tube(path, radii, 3, arcColor, FloraPart.Arc);
+                }
+            }
+            b.Orbit(loose, size * 0.03f);
         }
 
         static void Columns(Grower g)
