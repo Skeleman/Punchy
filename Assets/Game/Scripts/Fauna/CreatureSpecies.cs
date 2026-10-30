@@ -126,6 +126,9 @@ namespace Punchy.Fauna
         [Tooltip("Crawls on any surface (lizards, spiders): steep rock faces outside, walls and ceilings in caves, its body " +
                  "turned to lie on the surface.")]
         public bool Crawls;
+        [Tooltip("Cold-blooded (reptiles, amphibians, insects, spiders, fish): no breath shows in the cold. Variants take " +
+                 "their body's.")]
+        public bool ColdBlooded;
         [Tooltip("How likely a surface animal is to be found in a cave (bears, wolves, foxes): 0 never. A cave near where " +
                  "it lives may have one or two in its chambers near the mouth, and under rock it moves as cave animals do.")]
         [Range(0f, 1f)] public float CaveAffinity;

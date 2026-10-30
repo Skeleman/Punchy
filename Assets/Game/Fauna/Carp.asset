@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
   m_Name: Carp
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
+  ColdBlooded: 1
   VariantOf: {fileID: 11400000, guid: 780fa17270efa624da105ca3c3b88967, type: 2}
   VariantScale: 1.7
   BodyLength: 0.8

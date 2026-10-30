@@ -196,9 +196,15 @@ namespace Punchy.Fauna
             void Execute(Entity self, ref CreatureState s, in CreatureBody body)
             {
                 Think(self, ref s, in body);
-                // (The legs' pose follows whatever speed it ended the tick at, whichever way it got there.)
+                // (The legs' pose follows whatever speed it ended the tick at, whichever way it got there; its feet are
+                // only kept planted through it near someone, where they're seen.)
                 if (!s.Gone)
-                    CreatureMotion.EaseGait(ref s, ref body.Blob.Value, Dt);
+                {
+                    var near = false;
+                    for (int p = 0; p < Players.Length && !near; p++)
+                        near = math.distancesq(Players[p], s.Position) < CreatureMotion.NearFeet * CreatureMotion.NearFeet;
+                    CreatureMotion.EaseGait(ref s, ref body.Blob.Value, Dt, near);
+                }
             }
 
             void Think(Entity self, ref CreatureState s, in CreatureBody body)
@@ -262,10 +268,11 @@ namespace Punchy.Fauna
                 if (playerSpeed < 2.5f)
                     alert *= math.dot(facing, math.normalizesafe(-away)) < 0.3f ? 0.1f : 0.5f;
                 var playerDistance = math.length(away);
-                // A bird in the air judges the player by real distance (high overhead is far), and keeps on with a hunt
-                // unless the player is really close.
-                // (In a cave, too: someone walking on the ground overhead isn't near.)
-                var threatDistance = flier && Flying(s) || CaveWalker(s, ref b) ? math.distance(s.Position, player) : playerDistance;
+                // Danger is judged by real distance, so high overhead is far: a player flying over the herd doesn't
+                // scatter it, and nor does someone walking on the ground over a cave. (On foot across level ground it's
+                // much the same as the distance across.) A bird in the air keeps on with a hunt unless the player is
+                // really close.
+                var threatDistance = math.distance(s.Position, player);
                 var nerve = s.Mode == CreatureMode.Hunt && flier ? 0.4f : 1f;
                 // Someone cheering or dancing about is noticed (and run from) further off; waving, a little.
                 var commotion = emote == IdleAction.Cheer || emote == IdleAction.Dance ? 1.8f : emote == IdleAction.Wave ? 1.25f : 1f;
