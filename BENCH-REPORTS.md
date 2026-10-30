@@ -2,6 +2,27 @@
 
 Newest first.
 
+## 2026-10-29 night: queue items 4-6
+- **Item 4, host/join on world-features 4ec2cab: BUG, in v0.9 too.** Join works (players 2, 70-131 animals), but in
+  round 2 the host threw IndexOutOfRangeException in FaunaDirector.TrySpawn twice, right after "player 2 has the same
+  world; welcome". Cause (code unchanged since 39f5558; timing-dependent, so the gate's two rounds missed it):
+  GatherPlayers() rebuilds `players` every frame, but `counts` (players x species) is only resized in Despawn(), every
+  0.25 s. For up to 0.25 s after a joiner first reports a position, players.Count is 2 while counts fits one, and
+  TrySpawn(playerIndex 1) reads `counts[offset + index]` past the end (`FaunaDirector.cs:769/791` at 4ec2cab). The
+  exception aborts that frame's director update; nothing crashes. Fix: resize counts in GatherPlayers (or bail in
+  TrySpawn when `(playerIndex + 1) * species.Count > counts.Length`). [animal]
+  Perf with the client joined, same as v0.9: host cap-60 1% low town 40.5 → 26.8, townwalk 36.8 → 25.1 (same-laptop
+  client). The cached WorldSync/NetMenu queries show no difference at this resolution.
+- **Item 5, smoke 6d0fbff vs a4521a2: no change beyond noise** (townwalk@60 avg 58.9 → 59.0, 1% low 37.3 → 37.1;
+  townwalk@0 86.1 → 87.5; glide@60 1% low 30.4 → 29.0, the J-006 note again). At cap 60 the frame rate can't show
+  BrainJob's worker time; a cap-60 townwalk profile of 6d0fbff vs a4521a2's is running and will follow here.
+- **Item 6, lake ab 3d1893d → 793f103: PASS but inconclusive.** lake@0 ~147 fps both, 1% low 96.5 → 90.2 (within
+  noise). The lake stop now ends at a glacier lake (1103, 132, 1540), and the bench log has no swimmer count, so
+  this probably didn't exercise the water shader's swimmer loop at all. Needs a spot with ducks: post a
+  `-benchspot x,y,z,yaw` at a duck lake and I'll rerun it. [world]
+- Runner: one lake row read GPU 5,679,878,978 ms (FrameTimingManager garbage); the compare ignored it, but parse
+  should drop GPU values above a sane bound.
+
 ## 2026-10-29 night: v0.9 light gate on rc/v0.9.0 39f5558: PASS (no regression vs v0.8.0 ba87e14)
 Laptop, D3D11, 1280x720 windowed, weatherseed 4, ABBA. Same island as ba87e14 at these stops (townwalk (366, -406),
 glide (1197, 359)). 0 exceptions anywhere.
