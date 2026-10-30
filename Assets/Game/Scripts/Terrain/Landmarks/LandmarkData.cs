@@ -292,10 +292,15 @@ namespace Punchy.Terrain
         /// </summary>
         public static void TroddenGround(ref LandmarkSetBlob set, float2 xz, float edgeNoise, ref SurfaceProps props)
         {
+            // On the hot path (every surface sample): out at once on an island with none, and per landmark on its
+            // type's count before the distance test, so only camps with stalls cost more than the grid lookup.
+            if (set.Trodden.Length == 0)
+                return;
             var range = CellRange(ref set, xz);
             for (int k = range.x; k < range.x + range.y; k++)
             {
-                if (!Hit(ref set, set.Items[k], xz, out var hit))
+                var instance = set.Items[k];
+                if (set.Types[set.Instances[instance].Type].TroddenCount == 0 || !Hit(ref set, instance, xz, out var hit))
                     continue;
                 ref var type = ref set.Types[hit.Type];
                 for (int p = 0; p < type.TroddenCount; p++)
