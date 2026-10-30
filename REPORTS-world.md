@@ -2,6 +2,32 @@
 
 Newest first.
 
+## 2026-10-30: Zach's v0.10 P2 rows (W), first batch, zache-73
+
+`world-laptop/z-p2` bfd69e5 (off world-features 7f519c0), not compiled; shots in a slot.
+- **Z-33 banners (e42f0fa):**
+  - The wave runs at 0.9 + 2 x strength rad/s (was 1.6 + 4.5 x, about twice as fast in a breeze).
+  - The edge flutter is slower, broader and gentler, and fades out between 30 and 80 m, where it read as shimmer.
+  - Cloth meshes already drop to 3 and 1 segments at the far LODs, so "less resolution at distance" is mostly that
+    shimmer. Awnings are unchanged.
+- **Z-37 great tree fireflies (c180050):** two in three of its coloured fireflies hover 4 or 8 m up round the crown
+  instead of all at its feet.
+- **Z-38 fungal caps toward brown (1331dad):** glowing giants' plain caps lean umber to tawny per cap, keeping a hint
+  of their hue. The brown is drawn only for them, so other mushrooms' shapes don't shift.
+- **Z-39 ember slivers along the grain (da04ce0):** the pattern varies across the crown and only slowly with height,
+  giving upright slivers in short dashes.
+- **Z-36 bubble pops as ripples (8e793b7):** after the burst, the quad lies flat on the water (it was a billboard), and
+  the ring takes the swimmers' shape: a lit crest, dark troughs either side and a weaker inner ring, fading as
+  (1-t)^2. The ring maths is copied, not shared slots, so no feeder is needed.
+- **Z-41 roof bevel (bfd69e5):** a rounded ridge tile along stone houses' and halls' gabled roofs; ridge perches
+  raised onto it. Cone and tent roofs are unchanged.
+- **Need a look first (next slot):**
+  - Z-31: vertical lines in the close-up detail. Suspect the triplanar detail texture's tiling seam on x/z faces.
+  - Z-32: stone-house lighting bands. Suspect normals across the walls or the double-sided flip.
+  - Z-34: cave stream meets pool; striping.
+  - Z-35: the waterfall's gap at the top. The fall speed is the effect's Lifetime, an asset value, easy once seen.
+- **Bigger builds, next:** Z-30 wood grain, Z-40 furnace ember pit, Z-42 glacier slabs and bergs.
+
 ## 2026-10-30: merged zache-db's creature render ranges, zache-73
 
 - **DONE:** wip/gfx-creatures 6f6dd94 merged into world-features as **0c637a9** (merge commit), pushed. It wires
