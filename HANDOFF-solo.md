@@ -86,7 +86,7 @@ The lane handoffs (HANDOFF-world.md, HANDOFF-animal.md) were refreshed at this p
   - All G and F items done except F-02 (held).
   - v0.10 also has climbing (wire: Climbing bool + Rim byte), gold variants, the join fix, dialogue stage 1
     (StreamingAssets/dialogue.json, format in HANDOFF-animal.md).
-  - Open: emote-started conversations and animal reactions (maybe on wip); worms on wip/worms, merging after the
+  - Also done: emote-started conversations and animal reactions (addd134). Open: worms on wip/worms, merging after the
     world ripples.
   - BrainJob is still ~0.6 ms heavier on the workers: capture with the Brain.* markers (BENCH-QUEUE item 8).
 - **v0.10 cut:** merge both lanes into rc/v0.10.0. Run the light gate: smoke vs v0.9.0 39f5558 with absolute checks
