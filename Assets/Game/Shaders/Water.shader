@@ -84,6 +84,10 @@ Shader "Punchy/Water"
             CBUFFER_END
             // 0 above ground, 1 with the camera deep in a cave (CaveSystem).
             float _PunchyUnderground;
+            // What's in the water near the camera (CreatureWakeSystem): x, heading (Unity yaw, radians), z, speed (m/s;
+            // 0 an empty slot, 0.01 keeping still).
+            float4 _PunchySwimmers[16];
+            int _PunchySwimmerCount;
             // The player's lantern (xyz position, w strength) and its colour (rgb) and range (w), set by CaveSystem.
             float4 _PunchyLantern;
             float4 _PunchyLanternColor;
@@ -152,6 +156,50 @@ Shader "Punchy/Water"
                     // Deep-water dispersion: longer waves travel faster.
                     float phase = dot(dirs[i], p) * k + t * _WaveSpeed * sqrt(k * 9.81);
                     slope += dirs[i] * steep[i] * cos(phase);
+                }
+                return slope;
+            }
+
+            // Wakes and rings round things in the water (G-15/F-25), on the shared clock: rings spreading from anything
+            // keeping still or slow, and from anything moving a V of waves trailing behind (its arms about 19.5 degrees
+            // out, as any wake's), with a little foam on them and in the wash right behind when it's quick. Only
+            // swimmers within 12 m of the point cost more than a distance test.
+            float2 SwimmerWakes(float2 p, float t, out half foam)
+            {
+                float2 slope = 0;
+                foam = 0;
+                for (int k = 0; k < _PunchySwimmerCount; k++)
+                {
+                    float4 s = _PunchySwimmers[k];
+                    float2 rel = p - s.xz;
+                    float r2 = dot(rel, rel);
+                    [branch] if (s.w > 0 && r2 < 144)
+                    {
+                        float r = sqrt(r2);
+                        float2 forward = float2(sin(s.y), cos(s.y));
+                        float2 right = float2(forward.y, -forward.x);
+                        float speed = s.w;
+                        float still = 1 - smoothstep(0.2, 1.0, speed);
+                        float wave = sin(r * 9 - t * 5);
+                        float reach = exp(-r * 0.9) * smoothstep(0, 0.3, r) * (0.3 + 0.7 * still);
+                        slope += rel / max(r, 1e-3) * wave * reach * 0.8;
+                        // Their crests catch the light as thin bright lines (clear shallow water hides the slope alone).
+                        foam = max(foam, smoothstep(0.75, 1, wave) * reach * 0.25);
+                        float behind = -dot(rel, forward);
+                        float moving = smoothstep(0.15, 0.8, speed);
+                        if (behind > 0 && moving > 0)
+                        {
+                            float side = dot(rel, right);
+                            float arm = abs(side) - behind * 0.354;
+                            float width = 0.25 + behind * 0.06;
+                            float ridge = exp(-arm * arm / (width * width)) * exp(-behind * 0.18) * moving;
+                            float waves = sin(behind * 6 - t * 6);
+                            slope += (right * sign(side) * 0.6 - forward * 0.4) * ridge * waves * 0.5 * saturate(speed * 0.5);
+                            foam = max(foam, ridge * smoothstep(1.0, 3.0, speed) * 0.5 * (0.5 + 0.5 * waves));
+                            float wash = exp(-side * side / (0.3 + behind * 0.05)) * exp(-behind * 0.6) * moving;
+                            foam = max(foam, wash * 0.35 * saturate(speed * 0.5));
+                        }
+                    }
                 }
                 return slope;
             }
@@ -300,6 +348,9 @@ Shader "Punchy/Water"
                 float2 slope = lerp(WaveSlope(p, t), flowingSlope, flowAmount);
                 // Rain rings only where it's actually raining (from the world weather map).
                 slope += RainRipples(p, t) * PunchyWetnessAt(p).g * distanceFade * 0.8;
+                // (Wakes keep their own strength: the ripples' follows the wind, and a swimmer stirs calm water too.)
+                half wakeFoam;
+                float2 wakeSlope = SwimmerWakes(p, t, wakeFoam) * 0.6 * distanceFade;
                 // Murky water barely ripples; thick water instead heaves in slow, broad swells and bubbles.
                 slope *= 1 - 0.75 * murk;
                 float3 bubbles = Bubbles(p, t) * distanceFade;
@@ -334,13 +385,13 @@ Shader "Punchy/Water"
                 float fadeB = lerp(1, 2 * (1 - abs(1 - 2 * phaseB)), flowAmount);
                 float2 fine = (fine0.rg - 0.5) * fadeA + (fine1.rg - 0.5) * fadeB;
                 float fineStrength = _DetailStrength * _PunchyCaveDetailReady * (0.35 + _PunchyWind + rapids) * distanceFade * (1 - 0.8 * murk) * (1 - lava);
-                float3 n = normalize(float3(-slope.x * strength - fine.x * fineStrength, 1, -slope.y * strength - fine.y * fineStrength));
+                float3 n = normalize(float3(-slope.x * strength - fine.x * fineStrength - wakeSlope.x, 1, -slope.y * strength - fine.y * fineStrength - wakeSlope.y));
                 // Reflections use a calmer normal for the broad waves, so they don't break into noise, but the fine
                 // ripples do move them: mirrored trees and clouds wobble and break up near the camera. Faded out with
                 // distance (and so the screen-space march's ray, the sky lookup and the Fresnel stay steady far off).
                 float rippleNear = 1 - smoothstep(25, 110, distance(input.positionWS, GetCameraPositionWS()));
                 float fineReflect = fineStrength * 0.7 * rippleNear;
-                float3 nReflect = normalize(float3(-slope.x * strength * 0.4 - fine.x * fineReflect, 1, -slope.y * strength * 0.4 - fine.y * fineReflect));
+                float3 nReflect = normalize(float3(-slope.x * strength * 0.4 - fine.x * fineReflect - wakeSlope.x * 0.6, 1, -slope.y * strength * 0.4 - fine.y * fineReflect - wakeSlope.y * 0.6));
                 // Running water underground has no calm sky to mirror: its reflection breaks up with the flow and fades.
                 float caveRun = _PunchyUnderground * flowAmount;
                 nReflect = normalize(lerp(nReflect, n, caveRun));
@@ -458,10 +509,14 @@ Shader "Punchy/Water"
                 foam *= smoothstep(0.02, 0.12, thickness) * (0.55 + 0.45 * smoothstep(0.3, 0.7, PunchyValueNoise(p * 1.6 + t * 0.3)));
                 foam *= lerp(1, 0.2, _PunchyUnderground);
                 foam *= 1 - viscous * 0.7;
-                // White water: the churned (steepest) parts of the flowing ripples turn to foam on rapids, and flecks
-                // ride the streaks downstream on any river.
-                foam = max(foam, rapids * smoothstep(0.25, 0.6, length(flowingSlope)));
+                // White water: the churned (steepest) parts of the flowing ripples turn to foam on rapids, broken into
+                // flecks, never a flat sheet (G-28; not gated by the streaks, whose direction turns sharply at the river
+                // mesh's corners and drew zigzags), and flecks ride the streaks downstream on any river.
+                half churn = smoothstep(0.35, 0.75, length(flowingSlope));
+                half flecks = 0.45 + 0.55 * smoothstep(0.35, 0.65, PunchyValueNoise(p * 4.3) * 0.6 + PunchyValueNoise(p * 1.7 + 3.1) * 0.4);
+                foam = max(foam, min(rapids * rapids * churn * flecks, 0.6));
                 foam = max(foam, flowAmount * smoothstep(0.9 - 0.06 * rapids, 0.98, streaks) * (0.2 + 0.4 * rapids) * distanceFade * (1 - viscous));
+                foam = max(foam, wakeFoam * (1 - viscous));
                 half3 foamLit = _FoamColor.rgb * (ambient + light.color * shadow * saturate(light.direction.y) + lanternLit);
                 color = lerp(color, foamLit, foam * (1 - lava));
                 alpha = max(alpha, foam * (1 - lava));
