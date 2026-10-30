@@ -55,6 +55,7 @@ namespace Punchy.Fauna
         // (Inside Advance: its ground, water and wall samples, its gait, and one empty mark per creature that moves, so the
         // profiler's calls a frame count the movers.)
         static readonly Unity.Profiling.ProfilerMarker SampleMarker = new Unity.Profiling.ProfilerMarker("Brain.Sample");
+        static readonly Unity.Profiling.ProfilerMarker BlockedMarker = new Unity.Profiling.ProfilerMarker("Brain.Blocked");
         static readonly Unity.Profiling.ProfilerMarker PhaseMarker = new Unity.Profiling.ProfilerMarker("Brain.Phase");
         static readonly Unity.Profiling.ProfilerMarker MovingMarker = new Unity.Profiling.ProfilerMarker("Brain.Moving");
         static readonly Unity.Profiling.ProfilerMarker EaseMarker = new Unity.Profiling.ProfilerMarker("Brain.EaseGait");
@@ -5404,7 +5405,14 @@ namespace Punchy.Fauna
                 (b.Habitat == Habitat.Land || b.Habitat == Habitat.Flies && s.Fly < 0.5f) &&
                 math.distancesq(s.Position.xz, s.Target) > 4f;
 
-            bool Walled(float2 at, float radius) => FloraPlacement.Blocked(ref Flora.Value, Terrain, at, radius);
+            // Brain.Blocked (profiler, wip): the town-plot and prop re-placement inside Walled.
+            bool Walled(float2 at, float radius)
+            {
+                BlockedMarker.Begin();
+                var blocked = FloraPlacement.Blocked(ref Flora.Value, Terrain, at, radius);
+                BlockedMarker.End();
+                return blocked;
+            }
 
             bool CaveWalkerNot(in CreatureState s, ref CreatureBlob b) => !CaveWalker(s, ref b);
 
