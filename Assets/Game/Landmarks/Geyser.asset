@@ -59,4 +59,16 @@ MonoBehaviour:
     Glow: 0
     Period: 0
     Duty: 0.25
+  - Kind: 0
+    Offset: {x: 0, y: 0}
+    Height: 0.25
+    Width: 3
+    Size: 0.12
+    Particles: 90
+    Lifetime: 0.7
+    Color: {r: 0.95, g: 0.97, b: 1, a: 1}
+    Opacity: 0.9
+    Glow: 0
+    Period: 0
+    Duty: 0.25
   Residents: []
