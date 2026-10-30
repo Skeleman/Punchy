@@ -3114,7 +3114,7 @@ namespace Punchy.Flora
             {
                 var x = k / (float)stripes - 0.5f;
                 var colour = k % 2 == 0 ? g.FoliageColor() : AccentAt(g, 0);
-                b.Sheet(back + Vector3.right * x * width * 1.1f, Vector3.right * width * 1.1f / stripes, front - back, 1, g.Sides(5, 3, 1), colour, FloraPart.Bark);
+                b.Sheet(back + Vector3.right * x * width * 1.1f, Vector3.right * width * 1.1f / stripes, front - back, 1, g.Sides(5, 2, 1), colour, FloraPart.Bark);
             }
             b.Cloth(awning, p => 0.3f * Mathf.Sin(Mathf.Clamp01(Mathf.InverseLerp(back.z, front.z, p.z)) * Mathf.PI), taut: true);
         }
@@ -3267,7 +3267,7 @@ namespace Punchy.Flora
                     // A banner hung from a short bar near the top of the pole, free to wave below it.
                     var top = wall + 1.1f;
                     var banner = b.VertexCount;
-                    b.Sheet(foot + new Vector3(x * 0.12f - 0.45f, top, 0f), Vector3.right * 0.9f, Vector3.down * 1.8f, g.Sides(4, 2, 1), g.Sides(6, 3, 1), AccentAt(g, 1), FloraPart.Bark);
+                    b.Sheet(foot + new Vector3(x * 0.12f - 0.45f, top, 0f), Vector3.right * 0.9f, Vector3.down * 1.8f, g.Sides(4, 1, 1), g.Sides(6, 2, 1), AccentAt(g, 1), FloraPart.Bark);
                     b.Cloth(banner, p => (foot.y + top - p.y) / 1.8f);
                     b.Box(foot + new Vector3(x * 0.12f, top, 0f), new Vector3(1.0f, 0.05f, 0.05f), Quaternion.identity, timber, FloraPart.Bark);
                 }
@@ -3471,7 +3471,7 @@ namespace Punchy.Flora
             var flapTurn = Quaternion.Euler(-Mathf.Atan2(foot, height) * Mathf.Rad2Deg * 0.4f, 0f, 0f);
             var flapTop = new Vector3(0f, doorY * 0.5f, doorZ) + flapTurn * new Vector3(-0.8f, doorY * 0.5f, 0.04f);
             var flap = b.VertexCount;
-            b.Sheet(flapTop, flapTurn * Vector3.right * 1.6f, flapTurn * Vector3.down * doorY, g.Sides(4, 2, 1), g.Sides(4, 2, 1), s.Foliage.linear * 0.5f, FloraPart.Bark, 0.6f);
+            b.Sheet(flapTop, flapTurn * Vector3.right * 1.6f, flapTurn * Vector3.down * doorY, g.Sides(4, 1, 1), g.Sides(4, 2, 1), s.Foliage.linear * 0.5f, FloraPart.Bark, 0.6f);
             b.Cloth(flap, p => (flapTop.y - p.y) / doorY * 0.45f);
             if (g.Lod < 2)
             {
