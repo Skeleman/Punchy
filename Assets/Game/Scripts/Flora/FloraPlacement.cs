@@ -649,8 +649,17 @@ namespace Punchy.Flora
         /// (on its plots) or a landmark's placed props. Each is placed as it's drawn (Place), so creatures and players
         /// meet the same walls. Burst-safe; cheap away from settlements and landmarks.
         /// </summary>
-        public static bool Blocked(ref FloraBlob f, in TerrainSource source, float2 xz, float radius)
+        public static bool Blocked(ref FloraBlob f, in TerrainSource source, float2 xz, float radius) =>
+            Blocked(ref f, source, xz, radius, out _);
+
+        /// <summary>
+        /// Blocked, and how tall what blocks it stands: its model's height times its scale, above its own base (0 when
+        /// nothing does), for something deciding whether to go over it (Z-28: a worm leaping a building or a placed rock).
+        /// From the same footprint placement, so it samples no more ground.
+        /// </summary>
+        public static bool Blocked(ref FloraBlob f, in TerrainSource source, float2 xz, float radius, out float top)
         {
+            top = 0f;
             if (f.Obstacles.Length == 0)
                 return false;
             if (source.Settlements.IsCreated && f.SettlementSpecies.Length > 0)
@@ -670,8 +679,12 @@ namespace Punchy.Flora
                         if (building.x < 0 || f.Models[f.Rules[building.x].FirstModel].ObstacleCount == 0)
                             continue;
                         var cell = (int2)math.floor(plot.Centre / f.CellSizes[building.y]);
-                        if (Inside(ref f, Place(ref f, source, cell, building.y, footprint: true), xz, radius))
+                        var plant = Place(ref f, source, cell, building.y, footprint: true);
+                        if (Inside(ref f, plant, xz, radius))
+                        {
+                            top = f.Models[plant.Model].Height * plant.Scale;
                             return true;
+                        }
                     }
                 }
             }
@@ -692,8 +705,12 @@ namespace Punchy.Flora
                                 LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
                             if (math.distance(spot, xz) > 15f + radius)
                                 continue;
-                            if (Inside(ref f, Place(ref f, source, (int2)math.floor(spot / f.CellSizes[l]), l, footprint: true), xz, radius))
+                            var plant = Place(ref f, source, (int2)math.floor(spot / f.CellSizes[l]), l, footprint: true);
+                            if (Inside(ref f, plant, xz, radius))
+                            {
+                                top = f.Models[plant.Model].Height * plant.Scale;
                                 return true;
+                            }
                         }
                     }
                 }
