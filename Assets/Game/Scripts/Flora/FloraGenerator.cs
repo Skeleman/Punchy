@@ -2931,6 +2931,27 @@ namespace Punchy.Flora
                     var at = new Vector3(Mathf.Lerp(-0.4f, 0.4f, k / 6f) * width, 0.98f, depth * 0.5f - 0.15f + g.Range(-0.08f, 0.08f));
                     b.Blob(at, Vector3.one * g.Range(0.07f, 0.12f), Quaternion.identity, 0, 0.2f, g.R() * 50f, AccentAt(g, k + 1), FloraPart.Bark);
                 }
+            // Trodden ground under it and in front where people stand (F-40): a ragged, slightly domed sheet at its foot
+            // (rim just under the ground, so it doesn't lift off a gentle slope), which the dirt band (Founded) turns
+            // into the ground's own colour, darker.
+            if (g.Lod < 2)
+            {
+                var centre = b.Vertex(new Vector3(0f, 0.03f, depth * 0.15f), Vector3.up, g.Bark, FloraPart.Bark, 1f);
+                const int spokes = 14;
+                for (int k = 0; k < spokes; k++)
+                {
+                    var a = k / (float)spokes * Mathf.PI * 2f;
+                    var reach = g.Range(0.85f, 1.1f);
+                    b.Vertex(new Vector3(Mathf.Cos(a) * (width * 0.5f + 0.6f) * reach, -0.1f, depth * 0.15f + Mathf.Sin(a) * (depth * 0.5f + 0.7f) * reach),
+                             Vector3.up, g.Bark, FloraPart.Bark, 1f);
+                }
+                for (int k = 0; k < spokes; k++)
+                {
+                    int r0 = centre + 1 + k, r1 = centre + 1 + (k + 1) % spokes;
+                    b.Triangle(centre, r1, r0);
+                    b.Triangle(centre, r0, r1);
+                }
+            }
             // A striped awning sloping from the back down over the front, overhanging it.
             var back = new Vector3(0f, height + 0.05f, -depth * 0.55f);
             var front = new Vector3(0f, frontHeight - 0.15f, depth * 0.5f + 0.45f);
