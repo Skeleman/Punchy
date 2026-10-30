@@ -21,8 +21,8 @@ namespace Punchy.Fauna
     public partial class CreatureBurrowSystem : SystemBase
     {
         public const int MaxBurrowers = 64;
-        /// <summary>How far from the camera a worm's marks are shown (they're seen from far off).</summary>
-        const float Range = 250f;
+        /// <summary>How far from the camera a worm's marks are shown (TerrainSurface.shader draws them no further).</summary>
+        const float Range = 150f;
         /// <summary>How long a bump in a worm's trail stays (s), sinking away as its age runs to 1.</summary>
         const float TrailTime = 30f;
         /// <summary>How long a crater stays (s), fading as its age runs to 1.</summary>
