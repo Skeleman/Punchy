@@ -52,6 +52,17 @@ Shader "Punchy/Terrain Surface"
             // it left in its trail), negative a crater where one broke out of the ground or dived back in.
             float4 _PunchyBurrowers[64];
             int _PunchyBurrowerCount;
+            // Where the marks are, coarsely (CreatureBurrowSystem's MarkMask): a cell 1 where some mark reaches into it,
+            // and (x, z of the map's corner, cells per metre, cells across).
+            TEXTURE2D(_PunchyBurrowMask);
+            float4 _PunchyBurrowMaskAt;
+
+            // Whether any worm's mark reaches p (its cell in the mask): elsewhere, most of the ground, the loop is skipped.
+            bool NearBurrowMark(float2 p)
+            {
+                int2 c = (int2)floor((p - _PunchyBurrowMaskAt.xy) * _PunchyBurrowMaskAt.z);
+                return all(c >= 0) && all(c < (int)_PunchyBurrowMaskAt.w) && LOAD_TEXTURE2D(_PunchyBurrowMask, c).r > 0;
+            }
 
             // Worms' marks on the ground at p: the mound over a burrowing worm's head and the trail of bumps it leaves
             // behind, each staying where it was raised and sinking away as it ages; where one breaks out or dives back
@@ -159,8 +170,9 @@ Shader "Punchy/Terrain Surface"
                 half3 normalWS = NormalizeNormalPerPixel(input.normalWS);
                 float2 p = input.positionWS.xz;
                 half burrowDarken = 0;
-                // (Worms' marks only out to 150 m, as far as the feeder sends them: the far terrain skips the loop.)
-                [branch] if (_PunchyBurrowerCount > 0 && distance < 150)
+                // (Worms' marks only out to 150 m, as far as the feeder sends them, and only in the mask's cells a mark
+                // reaches into: the rest of the terrain skips the loop.)
+                [branch] if (_PunchyBurrowerCount > 0 && distance < 150 && NearBurrowMark(p))
                 {
                     float2 burrowTilt = BurrowMarks(p, burrowDarken);
                     normalWS = normalize(normalWS + half3(burrowTilt.x, 0, burrowTilt.y));
