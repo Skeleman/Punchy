@@ -170,7 +170,10 @@ Shader "Punchy/Cave"
                 // Fine surface detail: frost and grain on walls, grit on floors; one texture, three reads.
                 float3 nudge;
                 float4 detail = Detail(p, shape, s7.y, nudge);
-                n = normalize(n + nudge * s7.x * (1 - terrain) * (1 - slick));
+                // Where daylight comes in (a mouth) the fine detail fades towards the terrain's own level beside it, so
+                // the walls don't turn sharply grainier at the opening (G-35).
+                float detailStrength = s7.x * lerp(1, 0.35, openness);
+                n = normalize(n + nudge * detailStrength * (1 - terrain) * (1 - slick));
 
                 // Faceted rock (ore, crystal): each triangle shaded with its own flat face normal (from screen
                 // derivatives), so the angular walls read as planes meeting at sharp edges, each catching the light
@@ -186,7 +189,7 @@ Shader "Punchy/Cave"
                 // detail takes the light tone (frost on ice), sunken detail the dark one (deep blue in its recesses).
                 float blotch = PunchyValueNoise(p.xz * 0.35 + p.y * 0.2) * 0.6 + PunchyValueNoise(p.xy * 1.3 + p.z) * 0.4;
                 float strata = 0.5 + 0.5 * sin(p.y * s1.w * 6.2832 + PunchyValueNoise(p.xz * 0.2) * 4);
-                float tone = saturate(blotch * 0.8 + strata * s0.w + (detail.b - 0.5) * s7.x);
+                float tone = saturate(blotch * 0.8 + strata * s0.w + (detail.b - 0.5) * detailStrength);
                 half3 rock = lerp(s1.rgb, s0.rgb, tone) * input.data.y;
                 // The floor: its own two tones with grit (sand, gravel, ash, frost crust).
                 half3 floorTone = lerp(s6.rgb, s5.rgb, saturate(blotch * 0.7 + detail.b * 0.5));
@@ -211,7 +214,7 @@ Shader "Punchy/Cave"
                 half3 specColor = lerp(half3(0.9, 0.9, 0.9), albedo * 1.6, metallic);
                 float shininess = lerp(12, 256, saturate(gloss + facets * 0.5));
                 // Frost and grit glint: the odd detail texel catches the lantern far brighter than the rest.
-                float glint = 1 + 8 * smoothstep(0.93, 0.99, detail.a) * s7.x * (1 - slick);
+                float glint = 1 + 8 * smoothstep(0.93, 0.99, detail.a) * detailStrength * (1 - slick);
                 float3 view = normalize(GetCameraPositionWS() - p);
 
                 InputData inputData = (InputData)0;
