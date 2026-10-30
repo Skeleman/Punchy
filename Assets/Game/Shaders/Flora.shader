@@ -298,9 +298,13 @@ Shader "Punchy/Flora"
                 // crown, hot at their middle, pulsing slowly out of step (G-33/F-47).
                 if (part == 1 && abs(frac(input.extra.x) - 0.25) < 0.04)   // only the exact ember mark, nothing else on a leaf
                 {
-                    float3 q = input.positionWS * float3(3.1, 1.7, 3.1);
-                    float vein = abs(PunchyValueNoise(q.xz + q.y * 1.9 + r * 17.0) - 0.5) + abs(PunchyValueNoise(q.zy * 1.6 - 3.3) - 0.5) * 0.5;
-                    half sliver = 1 - smoothstep(0.015, 0.05, vein);
+                    // Along the grain (Z-39): the noise varies across the crown and only slowly with height, so where it
+                    // crosses its midline are near-upright sheets, cutting the needles as upright slivers, broken into
+                    // dashes a hand or two long by a mask along the height.
+                    float3 q = input.positionWS;
+                    float vein = abs(PunchyValueNoise(q.xz * 3.1 + q.y * 0.15 + r * 17.0) - 0.5) + abs(PunchyValueNoise(q.zx * 5.3 + q.y * 0.25 - 3.3) - 0.5) * 0.5;
+                    half dash = smoothstep(0.35, 0.6, PunchyValueNoise(float2(q.y * 2.2, dot(q.xz, float2(1.7, 2.3)) + r * 7.0)));
+                    half sliver = (1 - smoothstep(0.015, 0.05, vein)) * dash;
                     half patch = smoothstep(0.45, 0.7, PunchyValueNoise(input.positionWS.xz * 0.35 + r * 11.0));
                     half pulse = 0.6 + 0.4 * sin(_PunchyClock * 1.1 - input.positionWS.y * 0.6 + r * 23);
                     color += half3(1.0, 0.4, 0.1) * sliver * patch * pulse * 1.8;
