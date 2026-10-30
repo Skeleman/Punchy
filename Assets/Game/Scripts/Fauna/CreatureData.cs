@@ -534,6 +534,9 @@ namespace Punchy.Fauna
         public float Hunger, Thirst, Tired, Lonely;
         /// <summary>Seconds left before a startled animal will settle again (a bat waved off its roost). Simulation only.</summary>
         public float Unsettled;
+        /// <summary>Half the width of what this player's body carries in its arms (m; 0 for nothing): local, set each
+        /// frame on every machine by HeldPoseSystem from the creature carried, so the arms open round it. Not sent.</summary>
+        public float CarryWidth;
     }
 
     /// <summary>One segment as the creature shader draws it (a tapered capsule). Must match Creature.shader.</summary>
