@@ -2,6 +2,11 @@
 
 Newest first.
 
+## 2026-10-30: for the supervisor: takeover checklist
+Zach says the project passes to kind-possum when your tokens run out. What the laptop can't do yet (no gh, no
+milestone page access, no messaging to main-PC lanes) and what the final handoff should cover:
+`TAKEOVER-CHECKLIST.md`.
+
 ## 2026-10-30: status, items 8-11 running now (results here in ~75 min)
 Order: 11 host/join on ea3bdad (the TrySpawn join fix), 8 cap-60 townwalk capture on ea3bdad split by the Brain.*
 markers vs a4521a2, 10 caveapproach capture on 807ee9f (worst frame's top markers), 9 the new lake stop (1328, 1730,
