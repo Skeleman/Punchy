@@ -76,7 +76,72 @@ namespace Punchy.Debugging
                 Jump(keyboard.shiftKey.isPressed ? -1 : 1);
         }
 
-        void LateUpdate() => FootDrift();
+        void LateUpdate()
+        {
+            FootDrift();
+            SpinCheck();
+        }
+
+        // ---------------------------------------------------------------- spin check
+
+        /// <summary>"-spincheck": logs any creature that turns a whole circle on the spot (Zach's Z-07).</summary>
+        static bool spinCheck;
+        /// <summary>Per creature: its heading last frame, how far it has turned since standing still, for how long, and
+        /// when it was last logged.</summary>
+        readonly System.Collections.Generic.Dictionary<Entity, float4> spins = new System.Collections.Generic.Dictionary<Entity, float4>();
+        readonly System.Collections.Generic.Dictionary<Entity, float> spinLogged = new System.Collections.Generic.Dictionary<Entity, float>();
+
+        /// <summary>
+        /// Watches every creature's heading: one that turns through a whole circle within 5 s while barely moving
+        /// (under 0.3 m/s) is spinning in place, and is logged (at most every 20 s each) with what it's doing.
+        /// </summary>
+        void SpinCheck()
+        {
+            if (!spinCheck || queryWorld == null || !queryWorld.IsCreated)
+                return;
+            var em = queryWorld.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            var entities = q.ToEntityArray(Allocator.Temp);
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var dt = Time.deltaTime;
+            var now = Time.time;
+            for (int i = 0; i < states.Length; i++)
+            {
+                var c = states[i];
+                var e = entities[i];
+                if (!spins.TryGetValue(e, out var w))
+                    w = new float4(c.Yaw, 0f, 0f, 0f);
+                var step = math.abs(math.atan2(math.sin(c.Yaw - w.x), math.cos(c.Yaw - w.x)));
+                w.x = c.Yaw;
+                if (c.Speed < 0.3f)
+                {
+                    w.y += step;
+                    w.z += dt;
+                }
+                else
+                    w.y = w.z = 0f;
+                if (w.z > 5f)
+                    w.y = w.z = 0f;
+                if (w.y > 2f * math.PI && (!spinLogged.TryGetValue(e, out var at) || now - at > 20f))
+                {
+                    spinLogged[e] = now;
+                    var director = FindAnyObjectByType<FaunaDirector>();
+                    var name = director != null ? director.SpeciesAt(bodies[i].Species)?.name : bodies[i].Species.ToString();
+                    Debug.LogWarning($"DebugControls: spinning: {name} turned {math.degrees(w.y):F0} deg in {w.z:F1} s at speed {c.Speed:F2} " +
+                                     $"({c.Mode}, stage {c.Stage}, action {c.Action}, sit {c.Sit:F2}, lie {c.Lie:F2}, look {c.Look:F2}, " +
+                                     $"yaw rate {math.degrees(c.YawRate):F0} deg/s, target {math.distance(c.Position.xz, c.Target):F2} m, " +
+                                     $"focus {math.distance(c.Position.xz, c.Focus):F2} m) at ({c.Position.x:F1}, {c.Position.y:F1}, {c.Position.z:F1})");
+                    w.y = w.z = 0f;
+                }
+                spins[e] = w;
+            }
+            if (spins.Count > 4000)
+                spins.Clear();
+            entities.Dispose();
+            states.Dispose();
+            bodies.Dispose();
+        }
 
         // ---------------------------------------------------------------- foot drift
 
@@ -282,6 +347,7 @@ namespace Punchy.Debugging
             // "-incave": on the floor of the nearest cave's deepest chamber (after any -place).
             var inCave = System.Array.IndexOf(args, "-incave") >= 0;
             footDrift = System.Array.IndexOf(args, "-footdrift") >= 0;
+            spinCheck = System.Array.IndexOf(args, "-spincheck") >= 0;
             // "-nohud": no readout (for screenshots).
             if (System.Array.IndexOf(args, "-nohud") >= 0)
             {
@@ -569,6 +635,7 @@ namespace Punchy.Debugging
                               $"height above ground {c.Position.y - terrainQuery.GetSingleton<TerrainSource>().SampleHeight(c.Position.xz):F1} m, " +
                               $"player {math.distance(c.Position.xz, player.Position.xz):F0} m away, home {math.distance(c.Position.xz, c.Home):F0} m (leash {c.Leash:F0}), " +
                               $"target {math.distance(c.Position.xz, c.Target):F2} m across, {c.TargetHeight - c.Position.y:F2} m up, speed {c.Speed:F2}, " +
+                              $"yaw {math.degrees(c.Yaw):F0} deg turning {math.degrees(c.YawRate):F0} deg/s, " +
                               $"anchor {math.distance(c.Position, c.Anchor):F2} m (size {c.AnchorSize:F2}))");
                 }
             }
