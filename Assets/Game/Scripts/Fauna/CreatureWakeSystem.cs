@@ -36,6 +36,8 @@ namespace Punchy.Fauna
         readonly System.Collections.Generic.Dictionary<Entity, bool> wet = new System.Collections.Generic.Dictionary<Entity, bool>();
         const int Stagger = 6;
         EntityQuery query;
+        /// <summary>Where the ripples are, coarsely, so the water runs its loop over them only near one (MarkMask).</summary>
+        MarkMask mask;
 
         struct Ripple
         {
@@ -50,6 +52,7 @@ namespace Punchy.Fauna
         protected override void OnCreate()
         {
             query = GetEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            mask = new MarkMask("_PunchySwimmerMask", "_PunchySwimmerMaskAt");
         }
 
         protected override void OnUpdate()
@@ -129,6 +132,11 @@ namespace Punchy.Fauna
             }
             for (int k = count; k < MaxSwimmers; k++)
                 slots[k] = Vector4.zero;
+            // (A ripple's ring spreads to 4.2 m and fades out within 5 m of where it was made: Water.shader.)
+            mask.Begin(cam != null ? ((float3)cam.transform.position).xz : float2.zero, Range + 5f);
+            for (int k = 0; k < count; k++)
+                mask.Mark(new float2(slots[k].x, slots[k].z), 5f);
+            mask.Upload();
             Shader.SetGlobalVectorArray(SwimmersId, slots);
             Shader.SetGlobalInteger(CountId, count);
         }
