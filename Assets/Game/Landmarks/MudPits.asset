@@ -92,4 +92,13 @@ MonoBehaviour:
     Glow: 0
     Period: 0
     Duty: 0.25
-  Residents: []
+  Residents:
+  - Species: {fileID: 11400000, guid: 8f5225c8068ec38478f47d7ccc7777d1, type: 2}
+    Count: {x: 2, y: 4}
+    Leash: 0
+    HomeRing: 0
+    HomeAngle: 0
+    Task: 0
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}
