@@ -252,7 +252,8 @@ namespace Punchy.Weather
 
             var drawDistance = 1500f;
             if (EnsureQueries() && configQuery.TryGetSingleton<TerrainConfig>(out var config))
-                drawDistance = config.ViewRadiusChunks * config.ChunkSize;
+                // At the graphics settings' View distance, as TerrainStreamingSystem streams it.
+                drawDistance = math.max(2, math.round(config.ViewRadiusChunks * Punchy.Settings.GraphicsSettings.View)) * config.ChunkSize;
             // Exponential-squared haze reaching ~98% at the edge of the streamed terrain, so it's never visible.
             var hazeDensity = 1.98f / drawDistance;
 
