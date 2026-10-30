@@ -6,11 +6,12 @@ branch `world-features`. Read COORDINATION.md first; this note is only what's sp
 ## State
 
 - **v0.9.0 is published** (rc/v0.9.0 39f5558). Everything on `world-features` since then counts toward v0.10.
-- **`world-features` 79b4221** (pushed). Since v0.9: G-17 Work anchors at anvils and chopping blocks, kind-possum's audit
+- **`world-features` 27c1104** (pushed). Since v0.9: G-17 Work anchors at anvils and chopping blocks, kind-possum's audit
   items (cached queries in WorldSync/NetMenu, batched DisableRendering), G-18 + G-23 roads, G-28 white water, G-34 big
   full cratered blue moon with corona, G-35 cave detail fades at mouths, G-15/F-25 swimmer rings and wakes (Water.shader
   reads the animal session's `_PunchySwimmers`), G-36 + G-30 rocks take the biome's rock on dry ground, lakes cut
-  through by a gorge are lowered to the breach, G-29 ice arch variety. animal-behaviours 69d04db is merged in.
+  through by a gorge are lowered to the breach, G-29 ice arch variety, G-31/F-46 fungal forest (matte giant caps with
+  glowing gills, drier ground, orange grass, less fog), G-33/F-47 ember slivers in leaves. animal-behaviours 69d04db is merged in.
 - **Landmark baseline: 100 landmarks, hash 7AFF6C9F** (since 1e53043, the planned v0.10 island change: roads reroute,
   roadside landmarks reroll). The supervisor wants no other landmark changes in v0.10; any new landmark type must take
   only its own spots, and the hash diff goes in the batch report.
@@ -19,9 +20,9 @@ branch `world-features`. Read COORDINATION.md first; this note is only what's sp
 
 1. **caveapproach hitch** (~110 ms, every round, at -2773,-726): likely `TerrainStreamingSystem.HideFarChunks`, batched
    since 000ef06. Waiting on kind-possum's re-bench of 807ee9f+; if it's still there, get that frame's markers.
-2. **G-31/F-46** mushroom caps: mostly not glowing, glowing gill veins underneath; drier ground, short orange grass.
-3. **G-33/F-47** ember forest: glowing slivers in leaves and needles.
-4. **G-32** mushroom-biome tree LODs turn more colourful with distance (fog differs per LOD).
+2. **G-32** mushroom-biome trees turn more colourful with distance: not reproduced (shots at 210 m vs 235 m look the
+   same in the fog); needs Zach's spot or camera. Fog is applied after the glow, so it isn't the glow.
+3. (G-31 gill glow is checked in code only: frame a giant cap's underside to confirm.)
 5. **G-22** forum/fountain base: the foundation stretches the stone texture and lacks the dark band at the bottom.
 6. **F-40** darker ground under market stalls: the footprint sheet in the Stall model never shows, even raised 10 cm.
    Commit cd90cf0 is on `wip/world-v09-v010`; find out why (dirt band? culling? LOD?) before re-landing.
