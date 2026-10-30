@@ -26,7 +26,7 @@ don't say. Checkout: `D:\Unity\Punchy`, branch `animal-behaviours` (pushed; v0.9
   2a8007a): both await kind-possum's two-machine check. Cave-rock crawling stays on `wip/player-crawl`.
 - **Worms, on `wip/worms` (fd5a752):** CreatureSpecies.Tunnels; SandWorm (Dunes, GlassDesert), SnowWorm (Glacier,
   Tundra); CreatureBurrowSystem feeds `_PunchyBurrowers[8]` (x, yaw, z, radius, negative while out) to the world's
-  TerrainSurface.shader (agreed; their ripple pending). Merge into animal-behaviours once that lands and is checked.
+  TerrainSurface.shader (agreed; their mound, furrow and crater are on `wip/world-worms`, working but faint, for the next world session to strengthen and land). Merge into animal-behaviours once that lands and is checked.
 - **Open question, BrainJob growth:** ~0.6 ms more on workers than at e4010f2, not EaseGait (kind-possum). Profiler
   markers Brain.Hunter/Predator/Chaser/Alarm/Playmate/Needs/Fidget/Decide/Advance/EaseGait are in (ea3bdad); a capture
   should name the culprit. Candidates changed in that range: Think wrapper + EaseGait call, Accelerate in the movers,
