@@ -20,11 +20,10 @@ don't say. Checkout: `D:\Unity\Punchy`, branch `animal-behaviours` (pushed; v0.9
 
 ## Unfinished
 
-- **F-03/F-04 climbing bodies (next):** `wip/player-crawl` (local) has cave-rock crawling only, and its body sinks into
-  rock on overhangs. Needed: trunk climbing for monkey and lizard (attach to a FloraObstacle trunk, up/down/around, jump
-  lets go; avatar Vertical for the pose), walls for the lizard. Outdoor cliffs may already mostly work for a crawler
-  (the player follows ground at any slope; the animator lays Crawls bodies on steep ground). Keep it on a wip branch
-  until solid.
+- **Climbing (F-03/F-04), done and merged (62fce42):** CreatureSpecies.ClimbsAs (Trees / AnySurface; unset follows
+  Crawls and Climbing): trunks for monkeys, cats, squirrels, bears; lizards and spiders also huts and houses (their round
+  colliders) onto the roof; leap off with jump; mid-air latch under 8 m/s. Left: cave-rock crawling for players
+  (`wip/player-crawl`, sinks into overhangs), flat prop walls only code-checked. `wip/climbing` can be deleted.
 - **Open question, BrainJob growth:** ~0.6 ms more on workers than at e4010f2, not EaseGait (kind-possum). Profiler
   markers Brain.Hunter/Predator/Chaser/Alarm/Playmate/Needs/Fidget/Decide/Advance/EaseGait are in (ea3bdad); a capture
   should name the culprit. Candidates changed in that range: Think wrapper + EaseGait call, Accelerate in the movers,
