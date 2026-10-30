@@ -78,7 +78,7 @@ MonoBehaviour:
     Count: 0
     Angle: 0
     Clearance: 4
-  - Species: {fileID: 11400000, guid: e4d4c4689e1f8e943aae290fcd828078, type: 2}
+  - Species: {fileID: 11400000, guid: c2215f7c0c5449f98a5f03c0977a96ee, type: 2}
     Density: 1
     Ring: {x: 0.072222225, y: 0.072222225}
     Scale: {x: 1.09, y: 1.09}

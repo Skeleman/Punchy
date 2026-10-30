@@ -177,11 +177,12 @@ FloraVertex FloraTransform(FloraAttributes input)
         half gustNoise = SAMPLE_TEXTURE2D_LOD(_PunchyCaveDetail, sampler_PunchyCaveDetail, gustUV, 0).b;
         half gust = lerp(0.5, smoothstep(0.3, 0.75, gustNoise), _PunchyCaveDetailReady);
         float strength = (0.08 + 0.92 * _PunchyWind) * (0.3 + 0.9 * gust);
-        float t = _PunchyClock * (taut ? 1.0 + 1.2 * strength : 1.6 + 4.5 * strength) + plant.random * 6.28;
+        float t = _PunchyClock * (taut ? 0.6 + 0.8 * _PunchyWind : 1.6 + 4.5 * strength) + plant.random * 6.28;
         float along = (input.positionOS.x + input.positionOS.z) * 1.3;
         float wave = sin(t - free * 4.2 + along);
         float flutter = taut ? 0 : sin(t * 2.6 - free * 9.0 + input.positionOS.y * 4.1) * free;
-        float amount = free * (taut ? 0.03 + 0.12 * strength : 0.06 + 0.4 * strength) * plant.scale;
+        // Taut cloth stirs only in wind, and gently (G-19): nothing in calm air.
+        float amount = free * (taut ? 0.08 * smoothstep(0.2, 0.9, _PunchyWind) * (0.5 + 0.5 * gust) : 0.06 + 0.4 * strength) * plant.scale;
         float3 windDir3 = float3(_PunchyWindDirection.x, 0, _PunchyWindDirection.y);
         p += n * (wave * 0.8 + flutter * 0.5) * amount;
         // Blown out from where it hangs: turned downwind by an angle that rises quickly with the wind (about 35

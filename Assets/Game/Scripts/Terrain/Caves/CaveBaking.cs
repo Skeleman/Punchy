@@ -287,6 +287,31 @@ namespace Punchy.Terrain
                     }
                     if (extras.StreamPoints.Count - first >= 4)
                     {
+                        // The points run straight from node to node, so each bend was a corner where the flow turned at
+                        // once (a crease in the water's moving pattern, F-28): round the bends by averaging each point's
+                        // place with its neighbours', twice, keeping the ends and the heights.
+                        var count = extras.StreamPoints.Count - first;
+                        var xz = new float2[count];
+                        for (int pass = 0; pass < 2; pass++)
+                        {
+                            for (int i = 0; i < count; i++)
+                                xz[i] = extras.StreamPoints[first + i].Position.xz;
+                            for (int i = 2; i < count - 2; i++)
+                            {
+                                var point = extras.StreamPoints[first + i];
+                                var mean = (xz[i - 2] + xz[i - 1] + xz[i] + xz[i + 1] + xz[i + 2]) / 5f;
+                                point.Position = new float3(mean.x, point.Position.y, mean.y);
+                                extras.StreamPoints[first + i] = point;
+                            }
+                        }
+                        min = float.MaxValue;
+                        max = float.MinValue;
+                        for (int i = 0; i < count; i++)
+                        {
+                            var point = extras.StreamPoints[first + i];
+                            min = math.min(min, point.Position.xz - point.Width);
+                            max = math.max(max, point.Position.xz + point.Width);
+                        }
                         extras.Streams.Add(new CaveStream { FirstPoint = first, PointCount = extras.StreamPoints.Count - first, Min = min, Max = max });
                         // Every stream ends in a pool at its own level, shrunk until the floor holds it all round (or
                         // left out), added to this cave's pools (later caves' ranges move up one).

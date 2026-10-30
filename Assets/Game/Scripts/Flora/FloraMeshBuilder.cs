@@ -71,8 +71,9 @@ namespace Punchy.Flora
 
         public int Vertex(Vector3 p, Vector3 n, Color c, FloraPart part, float ao, float flutter = -1f)
         {
+            // Leaves and petals flutter; crystals (foliage drawn as glass) never move (G-24).
             if (flutter < 0f)
-                flutter = part == FloraPart.Foliage || part == FloraPart.Petal ? 1f : 0f;
+                flutter = part == FloraPart.Foliage && FoliageAs != FloraPart.Glass || part == FloraPart.Petal ? 1f : 0f;
             if (part == FloraPart.Foliage) part = FoliageAs;
             else if (part == FloraPart.Petal) part = PetalAs;
             positions.Add(p);

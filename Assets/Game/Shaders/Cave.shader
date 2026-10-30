@@ -76,6 +76,7 @@ Shader "Punchy/Cave"
             // Shared tiling detail (CaveSystem makes it once): rg a fine normal, b a height, a a sparkle.
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
+            float _PunchyCaveDetailReady;
 
             Varyings Vert(CaveAttributes input)
             {
@@ -263,13 +264,64 @@ Shader "Punchy/Cave"
                 half3 color = diffuse * light + specColor * shine + s0.rgb * through * translucency * 0.6;
                 // Ribs: their hollows darker and crests lighter, whatever look the wall has (rock, ice or the terrain's
                 // skin in a shallow cave), so they read in flat light.
-                color *= 1 - clamp(input.data.z * 2.4, -0.3, 0.75);
+                half ribs = 1 - clamp(input.data.z * 2.4, -0.3, 0.75);
+                color *= ribs;
                 // Sheen: a soft rim where the wall turns away, lit by whatever light reaches it, with a faint floor of
                 // its own so even near-black rock (obsidian) keeps its shape out of the lantern's reach.
                 color += lerp(s0.rgb, 1, 0.3) * pow(1 - saturate(dot(n, view)), 3) * s7.z * (light * 0.5 + 0.035);
                 // The atmosphere (fog and weather marches) only where daylight reaches; deep inside it would be lerped away.
                 if (openness > 0.001)
                     color = lerp(color, PunchyAtmosphere(color, p), openness);
+
+                // Where the walls stand in for the ground (round a mouth), shade that share as TerrainSurface shades the
+                // ground beside it: its plain colour, darkened and glossy when the weather has wet it, lit the same way
+                // (PBR, glow lights, cloud shadows) under the same atmosphere, so the seam doesn't show (F-29). Ribs only
+                // further in, where there's no ground outside to match.
+                [branch] if (terrain > 0.001)
+                {
+                    half wet = PunchyWetnessAt(p.xz).r * openness;
+                    // The terrain's rock grain on steep faces (TerrainSurface: the shared detail at 0.6, three ways).
+                    float3 groundNormal = shape;
+                    half rockShade = 1;
+                    half steep = 1 - smoothstep(0.55, 0.8, shape.y);
+                    if (steep > 0.01 && _PunchyCaveDetailReady > 0)
+                    {
+                        float3 q = p * 0.6;
+                        float3 tw = pow(abs(shape), 4);
+                        tw /= tw.x + tw.y + tw.z;
+                        half4 rd = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.zy) * tw.x
+                                 + SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.xz) * tw.y
+                                 + SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.xy) * tw.z;
+                        half2 rb = (rd.rg - 0.5) * 0.8 * steep;
+                        groundNormal = normalize(shape + float3(0, rb.x, rb.y) * tw.x + float3(rb.x, 0, rb.y) * tw.y + float3(rb.x, rb.y, 0) * tw.z);
+                        rockShade = 1 + (rd.b - 0.5) * 0.6 * steep;
+                    }
+                    InputData ground = (InputData)0;
+                    ground.positionWS = p;
+                    ground.positionCS = input.positionCS;
+                    ground.normalWS = groundNormal;
+                    ground.viewDirectionWS = view;
+                    ground.shadowCoord = TransformWorldToShadowCoord(p);
+                    ground.bakedGI = SampleSH(shape) * lerp(_Darkness, 1, openness) + PunchyGlowLight(p, shape);
+                    ground.normalizedScreenSpaceUV = inputData.normalizedScreenSpaceUV;
+                    ground.shadowMask = half4(1, 1, 1, 1);
+                    SurfaceData groundSurface = (SurfaceData)0;
+                    groundSurface.albedo = input.color.rgb * rockShade * lerp(1, 0.72, wet);
+                    groundSurface.smoothness = lerp(0.15, 0.45, wet);
+                    groundSurface.occlusion = 1;
+                    groundSurface.alpha = 1;
+                    half3 groundColor = UniversalFragmentPBR(ground, groundSurface).rgb;
+                    half cloudShadow = PunchyCloudShadow(p);
+                    if (cloudShadow > 0)
+                    {
+                        Light sun = GetMainLight(ground.shadowCoord);
+                        half direct = Luminance(sun.color) * saturate(dot(shape, sun.direction)) * sun.shadowAttenuation;
+                        groundColor *= 1 - cloudShadow * direct / max(direct + Luminance(ground.bakedGI), 1e-3);
+                    }
+                    groundColor *= lerp(ribs, 1, openness);
+                    groundColor = lerp(groundColor, PunchyAtmosphere(groundColor, p), openness);
+                    color = lerp(color, groundColor, terrain);
+                }
 
                 // Light the rock gives off: a share everywhere (ice, faintly lit crystal), the rest in cracks. Cracks are
                 // borders between random 3D cells, warped so they wander, small, and only in sparse patches (the style's

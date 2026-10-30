@@ -2334,6 +2334,7 @@ namespace Punchy.Flora
             Porch(g, radius * 1.05f, WallBehind(radius, doorWidth), doorWidth, Mathf.Min(wall * 0.8f, HumanDoor), 0.4f, g.Bark, roofColor, FloraPart.Bark);
             // On the wall itself: its radius at that height (between the bulge and the top).
             Windows(g, radius * Mathf.Lerp(1.02f, 0.98f, 0.16f), wall * 0.58f, 4, 0.55f, 40f, sides);
+            DoorMat(g, radius * 1.05f + 0.4f, doorWidth);
         }
 
 
@@ -2571,6 +2572,7 @@ namespace Punchy.Flora
             // Collision: a square, not the circle round its middle, so its corners stop you too.
             for (int k = 0; k < 4; k++)
                 g.Colliders.Add(new Vector4((k & 1) == 0 ? -half * 0.5f : half * 0.5f, (k & 2) == 0 ? -half * 0.5f : half * 0.5f, half * 0.55f, wall));
+            DoorMat(g, half + 0.02f, Mathf.Min(half * 0.6f, 1.25f));
         }
 
         /// <summary>
@@ -2785,6 +2787,7 @@ namespace Punchy.Flora
                 }
             }
             b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.3f));
+            DoorMat(g, radius, radius * 0.7f);
         }
 
         static void Tower(Grower g)
@@ -2840,6 +2843,26 @@ namespace Punchy.Flora
         // ------------------------------------------------------------------------------------------- settlement structures
 
         static Color Stone(Grower g) => new Color(0.42f, 0.41f, 0.39f).linear;
+        /// <summary>
+        /// A mat on the ground before a door facing +Z at <paramref name="front"/>, about the door's width, on about half
+        /// of a building's variants (F-41): a rug with a darker border, in an accent colour or a dyed earth tone, laid
+        /// as still cloth (not part of the dirt band). Called last in a builder, so its draws don't change the rest.
+        /// </summary>
+        static void DoorMat(Grower g, float front, float width)
+        {
+            if (g.Lod >= 2 || g.R() >= 0.5f)
+                return;
+            var b = g.B;
+            var colour = g.HasAccent ? AccentAt(g, 1) : Color.Lerp(new Color(0.42f, 0.16f, 0.1f), new Color(0.2f, 0.25f, 0.38f), g.R());
+            var size = new Vector3(Mathf.Max(width * 1.15f, 0.9f), 0.025f, g.Range(0.7f, 0.95f));
+            var at = new Vector3(g.Range(-0.08f, 0.08f), 0.015f, front + size.z * 0.5f + 0.05f);
+            var turn = Quaternion.Euler(0f, g.Range(-6f, 6f), 0f);
+            var first = b.VertexCount;
+            b.Box(at, size, turn, colour * 0.55f, FloraPart.Bark);
+            b.Box(at + Vector3.up * 0.004f, new Vector3(size.x * 0.82f, size.y, size.z * 0.72f), turn, colour, FloraPart.Bark);
+            b.Cloth(first, p => 0f);
+        }
+
         static Color AccentAt(Grower g, int i) => g.S.Accents.Count > 0 ? g.S.Accents[i % g.S.Accents.Count].linear : Color.white;
 
         static void Pen(Grower g)
