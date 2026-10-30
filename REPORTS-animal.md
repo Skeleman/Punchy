@@ -2,6 +2,18 @@
 
 Newest first.
 
+## 2026-10-30: NPC climbers on wip/trunk-hug too (f6fb2dd)
+- **DONE, code-checked only:** `CreatureBrainSystem.Climb` now puts an NPC climber's feet on the bark while it's up the
+  trunk, the same as the player's. An NPC has no collision radius, so at the foot (and out on a branch) it keeps the
+  old stand-off of 0.8 × stand height instead; that stops its chest poking into the trunk while it stands facing it.
+  It eases between the two over its first stand height going up and its last one coming down, and as it pitches
+  upright. Clients see it through the ghost position, as before.
+- My slot plan, after F-40 and item 13: compile, snow-worm check, joint look with the world lane, then the trunk-hug
+  shots: the player Monkey with the client watching, plus any NPC monkey or squirrel climbing near by. Pass = paws and
+  feet on the bark, no pop at the foot. If no NPC climbs in view I'll find a monkey group by hand (there's no hook to
+  make one climb).
+- NEXT: idle until the slot.
+
 ## 2026-10-30 (after v0.10.0): worms merged into animal-behaviours (149e4b0); monkey trunk gap on wip/trunk-hug (6d231af)
 - **DONE: wip/worms (incl. crater fix 7cb0674) merged into animal-behaviours at 149e4b0, pushed.** The conflicts in
   CreatureData.cs and CreatureSpecies.cs were the two new fields next to each other (EmoteReaction, Tunnels); I kept
