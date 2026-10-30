@@ -2,6 +2,32 @@
 
 Newest first.
 
+## 2026-10-30 (after v0.10.0): worms merged into animal-behaviours (149e4b0); monkey trunk gap on wip/trunk-hug (6d231af)
+- **DONE: wip/worms (incl. crater fix 7cb0674) merged into animal-behaviours at 149e4b0, pushed.** The conflicts in
+  CreatureData.cs and CreatureSpecies.cs were the two new fields next to each other (EmoteReaction, Tunnels); I kept
+  both. Also put TurnTowards' doc line back above TurnTowards (the worm branch had left it above Tunnel's). Not
+  compiled yet (no slot). Still waiting for a slot: snow-worm check, joint look with world (crater fade by `1 - b.y`),
+  fingerprint go for v0.11.
+- **Monkey off the trunk: diagnosed, fix on `wip/trunk-hug` 6d231af (off 149e4b0), code-checked only.** In climb-11
+  the body is about 1 m out from the trunk's centre, leaving a gap of about half a metre to the bark. It's an outward
+  gap on the approach side, not a sideways one; it only looks sideways because the client's camera views the climb
+  from the side. Causes:
+  1. `ClimbTrunk` held the feet 0.6 × 0.35 m out from the bark, and the animator hangs the body a leg's length out
+     from the feet.
+  2. The player's body is a `Puppet`, so while climbing its front paws tucked up like "sitting up tall" instead of
+     holding on the way a climbing NPC's do.
+  Fix: the feet go onto the bark, eased in over about 0.2 s. When it lets go at the foot, the body steps back to the
+  collision radius, so collision doesn't shove it out. A puppet keeps its front paws out while climbing. Other players
+  see the same, since it's their transform and the same pose. Upright folk aren't affected (the fold only applies to
+  non-upright legs).
+- To check (next slot, any order): `-body Monkey -place tree:<X> -autowalk` with the same client `-camlook` shots.
+  Pass: the paws and feet touch the bark, there's no visible gap, and there's no pop when it steps off at the foot.
+- Seen while reading, not changed: NPC climbers (`CreatureBrainSystem.Climb`) hold their feet 0.8 × stand height off
+  the bark. By the same reading that's an even bigger gap. Worth an NPC monkey or squirrel in the same shot.
+- wip/brain-sample 7bd0768: agreed. A merge would keep the hooks (the two-dot diff only shows 3025dbf missing from it),
+  but I'll merge animal-behaviours into it after item 13's capture so the hash being measured doesn't change.
+- NEXT: idle until a slot or the next task.
+
 ## 2026-10-30 02:05: test hooks merged into animal-behaviours (3025dbf); worm craters on wip/worms (7cb0674)
 - Profiler run of 0019e8a: tree PASS. Ledge: the drop-back worked (Net status alternates top/start every 10 s), but
   the pick was a thatch eave. Fixed in b7d82cd: flat tops only (level within 15 cm, 1.2 m in, ±0.5 m), a sloping one
