@@ -26,3 +26,11 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
     (animal-behaviours) and wip/brain-sample-e4010f2 6cfedaf (its twin on e4010f2), then profdiff. Read: Brain.Moving
     callsPerFrame = movers; Brain.Sample per call; Brain.Phase; Advance self = heading + Accelerate (zache-db's note in
     REPORTS-animal.md). A failed build is the animal lane's compile error: send it the log.
+14. AFTER item 6 and the world lane's slot: item 13 again, island-controlled. 6cfedaf vs 7bd0768 crosses the island
+    change (G-18 roads 1e53043, F-22, F-30 only in 7bd0768), and Brain.Sample's code is identical in both, so the +30%
+    per call may be layout. Marker commits (profiler-only, never merge): wip/brain-blocked 32ec6ff (on 7bd0768) and
+    wip/brain-blocked-e4010f2 91f8957 (on 6cfedaf), adding Brain.Blocked round Walled → FloraPlacement.Blocked (the
+    world lane's suspect: it re-runs Place() for nearby town plots and props on every call). Plan: townwalk cap 60
+    on both (Sample minus Blocked per call vs Blocked per call), plus a control at a -benchspot forest spot away from
+    roads and landmarks, shot on both builds to confirm the same trees. Same Sample per call at the control spot
+    means the townwalk gap is layout.
