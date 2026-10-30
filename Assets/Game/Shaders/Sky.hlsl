@@ -29,7 +29,7 @@ float  _PunchyHazeDensity;     // base exponential-squared haze per metre (hides
 
 float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
-float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share
+float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share, the blue moon's phase
 float3 _PunchyBlueMoon;        // towards the second, smaller blue moon
 half3  _PunchySunColor;        // sun colour × brightness (0 once set)
 half3  _PunchySkyZenith;
@@ -482,12 +482,11 @@ half3 PunchyMoonDisc(float3 dir, out half cover)
     float a = _PunchyMoonPhase.x * 6.2832;
     half bigCover, blueCover;
     half3 moons = PunchyMoonFace(dir, _PunchyMoonDirection, 0.0172, float3(sin(a), 0.15 * sin(a), -cos(a)), half3(0.9, 0.92, 1.0), bigCover);
-    // The blue moon: lit from the sun's real direction, seen in its own disc's frame.
+    // The blue moon: its own phase, as the big one's (it rides high at night, opposite the sun, so lit from the sun's
+    // real direction it was always full, G-34).
     float3 b = _PunchyBlueMoon;
-    float3 right = normalize(cross(float3(0, 1, 0), b));
-    float3 up = cross(b, right);
-    float3 toSun = float3(dot(_PunchySunDirection, right), dot(_PunchySunDirection, up), -dot(_PunchySunDirection, b));
-    moons += PunchyMoonFace(dir, b, 0.0095, toSun, half3(0.28, 0.52, 1.45), blueCover) * (1 - bigCover);
+    float ab = _PunchyMoonPhase.z * 6.2832;
+    moons += PunchyMoonFace(dir, b, 0.0095, float3(sin(ab), 0.15 * sin(ab), -cos(ab)), half3(0.28, 0.52, 1.45), blueCover) * (1 - bigCover);
     cover = max(bigCover, blueCover);
     return moons;
 }
