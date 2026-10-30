@@ -14,6 +14,6 @@ the laptop.** Open an editor only when the supervisor gives you the slot, and sa
    after.
 2. F-40 stall footprint.
 3. G-37 small floating rocks as a biome decoration (no landmark change: keep the hash E128CB1D).
-4. Worm ground ripples (terrain side of the animal lane's wip/worms; your wip/world-worms has the marks).
+4. Worm marks (after v0.10): on wip/world-worms, strengthen the marks, and in BurrowMarks' breach branch fade craters by (1 - b.y): b.y is the crater age 0..1 from wip/worms 7cb0674 (craters fixed at break-out and dive-in, 6 s). Then a joint look with the animal lane, then each merges into its own lane branch.
 - Not now: G-22 and G-32 (wait on Zach for a spot), the gold-leaf leak (ask Zach which build and where).
 - No landmark placement changes before v0.10 ships.
