@@ -84,9 +84,9 @@ Shader "Punchy/Water"
             CBUFFER_END
             // 0 above ground, 1 with the camera deep in a cave (CaveSystem).
             float _PunchyUnderground;
-            // What's in the water near the camera (CreatureWakeSystem): x, heading (Unity yaw, radians), z, speed (m/s;
-            // 0 an empty slot, 0.01 keeping still).
-            float4 _PunchySwimmers[16];
+            // Ripples swimmers have left in the water near the camera (CreatureWakeSystem): x, age (0..1 over its life),
+            // z, how strongly it was stirred (0 an empty slot).
+            float4 _PunchySwimmers[48];
             int _PunchySwimmerCount;
             // The player's lantern (xyz position, w strength) and its colour (rgb) and range (w), set by CaveSystem.
             float4 _PunchyLantern;
@@ -160,10 +160,11 @@ Shader "Punchy/Water"
                 return slope;
             }
 
-            // Wakes and rings round things in the water (G-15/F-25), on the shared clock: rings spreading from anything
-            // keeping still or slow, and from anything moving a V of waves trailing behind (its arms about 19.5 degrees
-            // out, as any wake's), with a little foam on them and in the wash right behind when it's quick. Only
-            // swimmers within 12 m of the point cost more than a distance test.
+            // Wakes and rings round things in the water (G-15/F-25, Z-27), on the shared clock: every ripple a swimmer
+            // has left is a ring spreading out from where it was made at 1.4 m/s and dying away, with a little foam on
+            // its crest when it was stirred hard. A row of them trailing behind a swimmer is its wake (spreading rings
+            // from a moving source make the V by themselves), left in the water as it turns; one keeping still leaves
+            // rings on rings. Only ripples within 5 m of the point cost more than a distance test.
             float2 SwimmerWakes(float2 p, float t, out half foam)
             {
                 float2 slope = 0;
@@ -173,32 +174,19 @@ Shader "Punchy/Water"
                     float4 s = _PunchySwimmers[k];
                     float2 rel = p - s.xz;
                     float r2 = dot(rel, rel);
-                    [branch] if (s.w > 0 && r2 < 144)
+                    [branch] if (s.w > 0 && r2 < 25)
                     {
                         float r = sqrt(r2);
-                        float2 forward = float2(sin(s.y), cos(s.y));
-                        float2 right = float2(forward.y, -forward.x);
-                        float speed = s.w;
-                        float still = 1 - smoothstep(0.2, 1.0, speed);
-                        float wave = sin(r * 9 - t * 5);
-                        float reach = exp(-r * 0.9) * smoothstep(0, 0.3, r) * (0.3 + 0.7 * still);
-                        slope += rel / max(r, 1e-3) * wave * reach * 0.8;
-                        // Their crests catch the light as thin bright lines (clear shallow water hides the slope alone).
-                        foam = max(foam, smoothstep(0.75, 1, wave) * reach * 0.25);
-                        float behind = -dot(rel, forward);
-                        float moving = smoothstep(0.15, 0.8, speed);
-                        if (behind > 0 && moving > 0)
-                        {
-                            float side = dot(rel, right);
-                            float arm = abs(side) - behind * 0.354;
-                            float width = 0.25 + behind * 0.06;
-                            float ridge = exp(-arm * arm / (width * width)) * exp(-behind * 0.18) * moving;
-                            float waves = sin(behind * 6 - t * 6);
-                            slope += (right * sign(side) * 0.6 - forward * 0.4) * ridge * waves * 0.5 * saturate(speed * 0.5);
-                            foam = max(foam, ridge * smoothstep(1.0, 3.0, speed) * 0.5 * (0.5 + 0.5 * waves));
-                            float wash = exp(-side * side / (0.3 + behind * 0.05)) * exp(-behind * 0.6) * moving;
-                            foam = max(foam, wash * 0.35 * saturate(speed * 0.5));
-                        }
+                        float age = s.y;
+                        float radius = age * 4.2;
+                        float width = 0.18 + age * 0.35;
+                        float d = r - radius;
+                        float fade = (1 - age) * (1 - age) * s.w;
+                        // The ring: a crest with a trough either side, the shared clock rippling along it a little.
+                        float ring = exp(-d * d / (width * width));
+                        float wave = sin(d / width * 2.6 - t * 3);
+                        slope += rel / max(r, 1e-3) * ring * wave * fade * 0.45;
+                        foam = max(foam, smoothstep(0.6, 1, ring * (0.5 + 0.5 * wave)) * fade * smoothstep(0.8, 1.4, s.w) * 0.35);
                     }
                 }
                 return slope;
