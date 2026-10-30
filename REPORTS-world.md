@@ -2,6 +2,19 @@
 
 Newest first.
 
+## 2026-10-30: Z-30 wood grain, option (a), zache-73
+
+`world-laptop/z-p2` ee5a1f9, not compiled.
+- `FloraMeshBuilder.Wood` marks timber (Bark + 0.02; strata are 0.04-0.15, seams > 0.15, veins > 0.32). It also stores
+  the grain direction in the vertex colour's alpha: 0.25 X, 0.5 Y, 0.75 Z, the object axis nearest each piece's length
+  (Box/Beam/Tube/Sheet/Blob each set it). The shader never read that alpha; builders' colour maths scales it, so it's
+  only meaningful on marked wood.
+- Flora.shader `PunchyWoodGrain`: fine (~2.5 cm) and broad (~11 cm) wavering streaks along the axis, in the plant's own
+  frame so they turn with it, darker in the lines. Each scale drops out by screen footprint, as the weathering does.
+  New interpolators: object position and a nointerpolation axis.
+- Marked so far: stall posts and counters, bench planks (the elves' stone seats aren't), rail fences, signposts.
+  After the before/after look: smithy, inn and hall timber, pens, bridges, the woodpile's block.
+
 ## 2026-10-30: P2 second batch (W), zache-73
 
 `world-laptop/z-p2` ec75753, not compiled.
