@@ -46,8 +46,10 @@ namespace Punchy.Terrain
         static readonly int TerrainFocusId = Shader.PropertyToID("_TerrainFocus");
         /// <summary>Vertices per batch (a full-detail chunk is about 4,500).</summary>
         const int VertexBudget = 14000;
-        /// <summary>Frames a batch may run before the main thread waits for it.</summary>
-        const int MaxBuildFrames = 4;
+        /// <summary>Frames a batch may run before the main thread waits for it: only a backstop. A chunk at a cave mouth
+        /// meshes for about 40 ms on one worker (every vertex samples the mouth cut five times), and waiting for it
+        /// after a few frames was a 100 ms frame on the walk in; the next batch just starts a little later.</summary>
+        const int MaxBuildFrames = 60;
         /// <summary>Above this focus speed (m/s: gliding, riding) batches are a quarter the size (still at least one
         /// chunk), so a stream of chunks coming into range is meshed a little every frame instead of in bursts that
         /// crowd out everything else, and chunks ahead of the way it's heading come first.</summary>
