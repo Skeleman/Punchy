@@ -137,6 +137,8 @@ namespace Punchy.Terrain
                 FinishBuild(config);
             }
 
+            config = ApplyViewDistance(config);
+
             // Deep in a cave (CaveSystem.SurfaceHidden) the surface is out of sight: chunks beyond the camera's own
             // neighbourhood stop drawing, and nothing new streams in until the surface comes back into view.
             var hidden = CaveSystem.SurfaceHidden >= 0.99f;
@@ -193,6 +195,47 @@ namespace Punchy.Terrain
                 count++;
             }
             StartBuild(config, source, count);
+        }
+
+        /// <summary>The graphics settings' View distance (GraphicsSettings.View) last applied, and one waiting to be.</summary>
+        float appliedView = 1f, pendingView = 1f;
+        double pendingViewSince;
+
+        /// <summary>
+        /// The config with its view radius and LOD distances at the graphics settings' View distance. A new setting
+        /// applies once it has held still for a moment (a slider being dragged would otherwise restart the rebuild every
+        /// frame), and then every loaded chunk is rebuilt at its new LOD and morph range, nearest first, keeping its
+        /// mesh until then (no holes). Only what's drawn changes: everything else samples TerrainSource.
+        /// </summary>
+        TerrainConfig ApplyViewDistance(TerrainConfig config)
+        {
+            var view = Punchy.Settings.GraphicsSettings.View;
+            var now = SystemAPI.Time.ElapsedTime;
+            if (view != pendingView)
+            {
+                pendingView = view;
+                pendingViewSince = now;
+            }
+            if (pendingView != appliedView && now - pendingViewSince > 0.3)
+            {
+                appliedView = pendingView;
+                scratchCoords.Clear();
+                scratchCoords.AddRange(loaded.Keys);
+                foreach (var coord in scratchCoords)
+                {
+                    var chunk = loaded[coord];
+                    chunk.Lod = -1;
+                    loaded[coord] = chunk;
+                }
+            }
+            config.Lod0Distance *= appliedView;
+            config.ViewRadiusChunks = math.max(2, (int)math.round(config.ViewRadiusChunks * appliedView));
+            // The camera reaches past the farthest chunk (only ever pushed out: at View 1 its own far plane already does).
+            var cam = Camera.main;
+            var reach = (config.ViewRadiusChunks + 1.5f) * config.ChunkSize;
+            if (cam != null && cam.farClipPlane < reach)
+                cam.farClipPlane = reach;
+            return config;
         }
 
         void HandleSettingsChanges(in TerrainConfig config, in TerrainSource source)
