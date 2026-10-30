@@ -1,6 +1,6 @@
 # Handoff: animal behavior manager (v0.10 in progress)
 
-Refreshed 2026-10-30 for whoever carries the animal lane next, including a solo session (J-042, HANDOFF-solo.md).
+Refreshed 2026-10-30 (end of session, handing to kind-possum) for whoever carries the animal lane next, including a solo session (J-042, HANDOFF-solo.md).
 Lane, rules and the shared log live in `COORDINATION.md`, `MULTIPLAYER.md` and `GLOSSARY.md`; this note is what those
 don't say. Checkout: `D:\Unity\Punchy`, branch `animal-behaviours` (pushed; v0.9.0 published from 39f5558).
 
@@ -31,9 +31,14 @@ don't say. Checkout: `D:\Unity\Punchy`, branch `animal-behaviours` (pushed; v0.9
   markers Brain.Hunter/Predator/Chaser/Alarm/Playmate/Needs/Fidget/Decide/Advance/EaseGait are in (ea3bdad); a capture
   should name the culprit. Candidates changed in that range: Think wrapper + EaseGait call, Accelerate in the movers,
   3D threat distance (F-06), F-14 light choice.
-- **NPC conversations stage 1, on `wip/dialogue` (84af2d4; out of v0.10 unless solid by the cut):** folk say a short
-  line as you walk by, shown over their heads (FolkTalkSystem, DialogueArchive). Local only, nothing on the wire.
-  Checked in a dwarf hold and a human village; the file format is below.
+- **NPC conversations, merged into animal-behaviours (9148308, addd134; in v0.10 on the supervisor's go):**
+  - Walk-by lines: folk say a short line over their heads (FolkTalkSystem, DialogueArchive).
+  - Emotes start conversations: folk who answer your emote also say a line keyed to it.
+  - Animals react to emotes by species (CreatureSpecies.EmoteReaction): Wags, Curious (new Greet stage), Flees or
+    Ignores.
+  - All local text, nothing new on the wire. Checked in a dwarf hold and a human village.
+  - Next steps from the roadmap: dialogue options (`replies` on a line; unknown keys are already kept), and lines
+    shaped by personality and skills once those exist.
 - Perching on joined clients (no FloraLookup there).
 - Not yet seen in play: the oasis heron and swallows (maybe the settled cap was full).
 - Old local branches safe to delete: `wip/fish-ghost`, `wip/gear`, `wip/living-plants`, `wip/moths-swallows`.
@@ -65,6 +70,8 @@ after it's saved. A broken edit keeps the last good file and logs the parse erro
   - `trade`: one CreatureTask name or a list (Hammer, Chop, Gesture, Tend, Watch, Hunt, Patrol, Fish, Mine, Travel,
     Hermit, Camper).
   - `weight`: default 1.
+  - `emote`: Wave, Bow, Cheer or Dance, one or a list. The line is then only an answer to that emote, never said in
+    passing. A speaker with no emote lines anywhere in its chain answers with an ordinary line.
   - Unknown keys are kept on the line (`Line.Raw`), so dialogue options (`replies` and the like) can be added later
     without a format change.
 - **Slots** are written `{name}` and filled in this order:
@@ -78,6 +85,14 @@ after it's saved. A broken edit keeps the last good file and logs the parse erro
     filled slot at the start of a line gets a capital letter.
 - **Town names** are `town_start` + `town_end`, picked from the culture of the town's folk (its landmark's upright
   residents) and hashed from where the town stands, so every machine names a town the same.
+- **Emote answers** are caught when one of the folk within 15 m starts gesturing back (the brain decides who answers,
+  from 20 m, and turns them to face you) within 4 s of your own emote. An answer skips the walk-by pacing and replaces
+  that speaker's own line.
+- **Animal reactions (EmoteReaction):**
+  - Default: Friendly species wag, ones with a FleeDistance flee, the rest ignore.
+  - Set to Curious: Cat, Monkey, Crow, Pigeon, Horse, MountainGoat, MudPig.
+  - Set to Ignores: Bison, Camel, DesertTortoise.
+  - Variants take their base species' reaction.
 - **Pacing:** in FolkTalkSystem's constants. Folk speak within 5 m, each at most every 90 s, one new line every 2.5 s,
   and at most 3 lines up at once. Folk who are asleep, resting, fleeing or at home stay quiet.
 
