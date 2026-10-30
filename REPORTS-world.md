@@ -2,6 +2,12 @@
 
 Newest first.
 
+## 2026-10-30: merged zache-db's creature render ranges, zache-73
+
+- **DONE:** wip/gfx-creatures 6f6dd94 merged into world-features as **0c637a9** (merge commit), pushed. It wires
+  CreatureRenderSystem, TraceSystem and the F1 key line onto GraphicsSettings. Compiled in zache-db's slot; merged
+  clean here, code only.
+
 ## 2026-10-30: slot (cave-chunk, gfx settings, P1 checks), zache-73. Unity closed
 
 No Unity, Punchy or bee_backend process running; Projects\Punchy on b/weather-mapjob.
