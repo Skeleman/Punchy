@@ -66,6 +66,8 @@ namespace Punchy.Fauna
         public bool ColdBlooded;
         /// <summary>No legs, and a chain lying along the ground off the body (a snake's): it moves along a serpentine wave.</summary>
         public bool Slithers;
+        /// <summary>Walks on hooves (CreatureSpecies.Hooves): a clop on hard ground.</summary>
+        public bool Hooves;
         /// <summary>Drawn and kept about from this far off; 0 = as any other (see CreatureSpecies.SeenFrom).</summary>
         public float SeenFrom;
         /// <summary>Never moves, and snaps at what comes near (see CreatureSpecies.Rooted).</summary>
@@ -629,6 +631,7 @@ namespace Punchy.Fauna
             root.RunRock = math.radians(species.RunRock);
             root.Upright = species.Upright;
             root.ColdBlooded = species.ColdBlooded;
+            root.Hooves = species.Hooves;
             root.Habitat = species.Habitat;
             root.SwimDepth = species.SwimDepth;
             root.Leaps = species.Leaps;

@@ -133,6 +133,9 @@ namespace Punchy.Fauna
                  "sizes and paces, and the strangers on errands: travellers, honey thieves); Hermit lives at hermit spots; " +
                  "Messenger carries letters between towns. The first species with a role takes it.")]
         public DirectorRole Role;
+        [Tooltip("Walks on hooves (horses, deer, goats, cattle): a clop on hard ground. Others' feet are padded or shod. " +
+                 "Variants take their body's.")]
+        public bool Hooves;
         [Tooltip("Sounds of its kind beyond its calls: a cat purrs when held and content, a dog pants after a run. Variants " +
                  "take their body's unless they set their own.")]
         public VoiceFamily Voice;
