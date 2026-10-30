@@ -376,3 +376,13 @@ asks Zach if needed, and records the answer here.
 - **Why:** Zach: "I want to add telemetry to commits using the git hook. Additionally, I want the profiling to run on
   a different claude account."
 - **Revisited:** 0.
+
+### J-042: Who runs Punchy when Zach's main account is out of tokens?
+
+- **Asked:** 2026-10-30, raised by Zach.
+- **Answer:** A single session on the second account (the laptop) runs alone, with no helpers, from HANDOFF-solo.md.
+  It works on a `solo/v0.10` branch, doesn't publish without Zach's go, and the lanes merge it when they resume.
+  The supervisor keeps HANDOFF-solo.md current, with a final refresh at about 99% usage.
+- **Why:** Zach: "When I run out of tokens, I'd like to do a temporary hand-off to the other agent. It will run on
+  its own with no helpers."
+- **Revisited:** 0.
