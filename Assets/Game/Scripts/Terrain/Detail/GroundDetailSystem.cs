@@ -335,6 +335,7 @@ namespace Punchy.Terrain
             public float3 Albedo;
             public float Slope;      // normal.y
             public float Water;      // water surface height, or a large negative number
+            public float Bare;       // 1 over a cave entrance or at its edge
         }
 
         [BurstCompile]
@@ -364,7 +365,8 @@ namespace Punchy.Terrain
                     Snow = surface.Snow,
                     Albedo = surface.Albedo,
                     Slope = normal.y,
-                    Water = ground.HasWater ? ground.WaterSurface : -1e6f
+                    Water = ground.HasWater ? ground.WaterSurface : -1e6f,
+                    Bare = bare ? 1f : 0f
                 };
 
             }
@@ -464,6 +466,13 @@ namespace Punchy.Terrain
                 r.Albedo = p0.Albedo * w0 + p1.Albedo * w1 + p2.Albedo * w2;
                 r.Slope = p0.Slope * w0 + p1.Slope * w1 + p2.Slope * w2;
                 r.Water = math.max(math.max(p0.Water, p1.Water), p2.Water);
+                // Next to a cave entrance, nothing: blending would carry grass and pebbles in over the opening (G-25).
+                r.Bare = math.max(math.max(p0.Bare, p1.Bare), p2.Bare);
+                if (r.Bare > 0f)
+                {
+                    r.Grass = 0f;
+                    r.Pebbles = 0f;
+                }
                 return r;
             }
         }
