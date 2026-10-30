@@ -34,3 +34,7 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
     on both (Sample minus Blocked per call vs Blocked per call), plus a control at a -benchspot forest spot away from
     roads and landmarks, shot on both builds to confirm the same trees. Same Sample per call at the control spot
     means the townwalk gap is layout.
+15. AFTER the animal lane's slot (the profiler slot after it): caveapproach A/B, world-features bc89606 vs
+    world-laptop/cave-chunk 256e6a9 (not compiled yet: the build doubles as its compile check; a failure goes to the
+    world lane). Measure worst frame, 1% low, and BuildChunkMeshJob time on the mouth chunk; mouth-look shots on
+    both. Pass = the cut edge is identical. Bench-bc89606 from the F-40 smoke slot is kept archived for the A side.
