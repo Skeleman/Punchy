@@ -41,6 +41,8 @@ namespace Punchy.Fauna
     public partial struct CreatureBrainSystem : ISystem
     {
         const float CellSize = 16f;
+        // (Brain.Blocked, profiler only: the town-plot and prop re-placement inside Walled.)
+        static readonly Unity.Profiling.ProfilerMarker BlockedMarker = new Unity.Profiling.ProfilerMarker("Brain.Blocked");
         EntityQuery creatures;
         /// <summary>Where each player was last frame (by Holder id), for how fast they're going.</summary>
         NativeHashMap<int, float3> lastPlayerPositions;
@@ -5323,7 +5325,14 @@ namespace Punchy.Fauna
                 (b.Habitat == Habitat.Land || b.Habitat == Habitat.Flies && s.Fly < 0.5f) &&
                 math.distancesq(s.Position.xz, s.Target) > 4f;
 
-            bool Walled(float2 at, float radius) => FloraPlacement.Blocked(ref Flora.Value, Terrain, at, radius);
+            // Brain.Blocked (profiler, wip): the town-plot and prop re-placement inside Walled.
+            bool Walled(float2 at, float radius)
+            {
+                BlockedMarker.Begin();
+                var blocked = FloraPlacement.Blocked(ref Flora.Value, Terrain, at, radius);
+                BlockedMarker.End();
+                return blocked;
+            }
 
             bool CaveWalkerNot(in CreatureState s, ref CreatureBlob b) => !CaveWalker(s, ref b);
 
