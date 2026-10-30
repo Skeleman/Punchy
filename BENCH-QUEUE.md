@@ -18,3 +18,4 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
 6. Bench a lake with swimmers (ducks) on world-features 793f103 vs 3d1893d: water shader swimmer loop (up to 16 per pixel within 12 m).
 7. Move the lake look stop: (1103,132,1540) is now dry shore (F-22 removed the hanging water). Use camera ~(1110,146,1545) looking at (1135,141,1570); open water at (1125,141.4,1560).
 8. When animal-behaviours next pushes: townwalk cap-60 capture split by the new BrainJob ProfilerMarkers (Brain.Hunter/Predator/Chaser/Alarm/Playmate/Needs/Fidget/Decide/Advance/EaseGait) against a4521a2. Glacier lake stop (item 7) waits on the world session.
+9. Item 7 unblocked: world-features (after 4ec2cab) has 0 water walls. New lake look stop: x 1328, z 1730 (ground 117.0, lake 116.8), yaw -90 (west over the lake). No ducks there (Mountains); for item 6 swimmers use a lake in FoggyMarsh, FungalForest, Grassland or Temperate.
