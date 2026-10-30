@@ -1148,7 +1148,7 @@ namespace Punchy.Debugging
             float2 bestForward = default;
             SupportHit bestHit = default;
             // Round each prop, nearest first, walking in from outside it until a ledge comes within reach; the first prop
-            // with one will do. (Every probe looks through every prop: this keeps it to a moment.)
+            // with a flat one will do. (Every probe looks through every prop: this keeps it to a moment.)
             var order = new List<int>();
             for (int p = 0; p < props.Length; p++)
                 order.Add(p);
@@ -1156,7 +1156,7 @@ namespace Punchy.Debugging
             order.Sort((x, y) => math.distancesq(props[x].Position.xz, playerXZ).CompareTo(math.distancesq(props[y].Position.xz, playerXZ)));
             foreach (var p in order)
             {
-                if (best < float.MaxValue)
+                if (best < SlopedTop)
                     break;
                 var prop = props[p];
                 var outer = set.Grids[prop.Grid].Reach * prop.Scale + 2f;
@@ -1180,7 +1180,19 @@ namespace Punchy.Debugging
                         var stand = xz + dir * 1.5f;
                         var level = math.abs(source.SampleHeight(stand) - g.Height) < stepUp &&
                                     !PropSupport.Sample(ref set, props, new float3(stand.x, g.Height, stand.y), 0.3f, stepUp, out _);
-                        var distance = math.distance(xz, t.Position.xz);
+                        // A flat top to stand on past the rim (a wall's top, a well's rim, a stall's counter), not the eave
+                        // of a sloping roof: level within 15 cm for 1.2 m in and half a metre to either side.
+                        var flat = true;
+                        var inward = new float3(-dir.x, 0f, -dir.y);
+                        var across = new float3(-dir.y, 0f, dir.x);
+                        for (int q = 0; q < 5 && flat; q++)
+                        {
+                            var probe = hit.Edge + inward * (q < 3 ? 0.4f * (q + 1) : 0.8f) + across * (q == 3 ? 0.5f : q == 4 ? -0.5f : 0f);
+                            probe.y = hit.Height - 0.3f;
+                            flat = PropSupport.Sample(ref set, props, probe, 0.2f, 0.6f, out var top) && math.abs(top.Height - hit.Height) < 0.15f;
+                        }
+                        // (A sloping one only if nothing near has a flat one.)
+                        var distance = math.distance(xz, t.Position.xz) + (flat ? 0f : SlopedTop);
                         if (hit.Height - feet.y >= 0.55f * maxRise && level && distance < best)
                         {
                             best = distance;
@@ -1205,8 +1217,12 @@ namespace Punchy.Debugging
             var rim = bestHit.Edge;
             // Over the rim, onto the top (a little further in than a mantle puts it, so it stops there).
             var over = rim + new float3(bestForward.x, 0f, bestForward.y) * 0.8f;
-            StartClimbTest(t.Position, over, rim, true, $"ledge rim at ({V(rim.x)}, {V(rim.y)}, {V(rim.z)}), {bestHit.Height - bestFeet.y:F1} m up");
+            StartClimbTest(t.Position, over, rim, true, $"ledge rim at ({V(rim.x)}, {V(rim.y)}, {V(rim.z)}), {bestHit.Height - bestFeet.y:F1} m up, " +
+                                                        (best < SlopedTop ? "flat top" : "sloping top (no flat one near)"));
         }
+
+        /// <summary>How much further off a sloping top counts than a flat one, choosing a ledge (m).</summary>
+        const float SlopedTop = 1000f;
 
         /// <summary>
         /// Logs a climb test's spot, with flags for a client to watch it from the side; and with "-autowalk", starts it
