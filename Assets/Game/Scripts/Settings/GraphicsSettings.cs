@@ -179,10 +179,12 @@ namespace Punchy.Settings
             pipeline.shadowCascadeCount = baseCascades;
         }
 
-        /// <summary>The F5 panel: the presets, the three sliders and Reset, applied as they move.</summary>
+        /// <summary>The F5 panel: the presets, the three sliders and Reset, applied as they move, and Quit (Z-01).</summary>
         class Panel : MonoBehaviour
         {
             GUIStyle box, title;
+            /// <summary>Quit was pressed once: the panel asks before closing the game.</summary>
+            bool confirmQuit;
 
             void Update()
             {
@@ -190,6 +192,7 @@ namespace Punchy.Settings
                 if (keyboard != null && keyboard.f5Key.wasPressedThisFrame)
                 {
                     PanelOpen = !PanelOpen;
+                    confirmQuit = false;
                     if (!PanelOpen)
                         PlayerPrefs.Save();
                 }
@@ -201,7 +204,7 @@ namespace Punchy.Settings
                     return;
                 box ??= new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 13, padding = new RectOffset(10, 10, 8, 8) };
                 title ??= new GUIStyle(GUI.skin.label) { richText = true };
-                GUILayout.BeginArea(new Rect(Screen.width * 0.5f - 170, 60, 340, 250), box);
+                GUILayout.BeginArea(new Rect(Screen.width * 0.5f - 170, 60, 340, 290), box);
                 GUILayout.Label($"<b>Graphics</b>  (F5)   {Preset}", title);
                 GUILayout.BeginHorizontal();
                 for (int i = 0; i < Presets.Length; i++)
@@ -227,7 +230,35 @@ namespace Punchy.Settings
                     PlayerPrefs.Save();
                 }
                 GUILayout.EndHorizontal();
+                GUILayout.Space(10);
+                if (!confirmQuit)
+                {
+                    if (GUILayout.Button("Quit game"))
+                        confirmQuit = true;
+                }
+                else
+                {
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label("Quit the game?");
+                    if (GUILayout.Button("Quit"))
+                    {
+                        PlayerPrefs.Save();
+                        Quit();
+                    }
+                    if (GUILayout.Button("Cancel"))
+                        confirmQuit = false;
+                    GUILayout.EndHorizontal();
+                }
                 GUILayout.EndArea();
+            }
+
+            static void Quit()
+            {
+#if UNITY_EDITOR
+                UnityEditor.EditorApplication.isPlaying = false;
+#else
+                Application.Quit();
+#endif
             }
 
             static float Slider(string label, float value)
