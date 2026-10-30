@@ -2,6 +2,39 @@
 
 Newest first.
 
+## 2026-10-30: v0.10 feedback P1 (wip/v010-fixes) and creature graphics ranges (wip/gfx-creatures), code only
+All code-checked only, so none of it has compiled yet. They need a slot build.
+- **Z-02 (player side), f378a43:** in a cave, a flight step that would enter rock was cancelled whole, so flying at a
+  wall the bird hung in mid-air. That is the likely player-side cause. It now slides along level if that's clear,
+  else sinks until it's down. Not reproduced; the cave side is zache-73's.
+- **Z-03, 30c809c:** "swimming" now needs the player down at swimming height, so a jump over a river is neither
+  slowed nor carried by the current.
+- **Z-04, 30c809c:** the player fish's leap left it just under the surface line the swim branch tests, so the next
+  frame zeroed its rise. It now stays airborne while rising.
+- **Z-05, 30c809c:** player bodies (Puppets) skip the timed-call clock, so they vocalise only by emoting.
+- **Z-06, 30c809c:** an animal body's Bow emote (a play bow, which reads as drinking) tipped about the middle, so the
+  hind feet lifted. G-12 had fixed only the lowered head (HeadDown).
+  - Now the bow also tips about the hips.
+  - Hoofed bodies asked to sit lie down with their legs folded instead.
+- **Z-07: needs a repro in a slot.** Reading the code found no clear spin in the sit stages or fidgets.
+  - Next slot: watch hearth and seat sitters and a squirrel.
+  - Suspects: an unreachable sit spot, where it orbits the target until the 60 s give-up, then picks it again; or the
+    target sitting under it.
+- **Z-08, f96056c:** breath now comes from each body's own mouth.
+  - `CreatureData.MeasureMouth` measures the end of the head in the idle pose at bake.
+  - Players' bodies now breathe in `CreatureBreathSystem` too.
+  - AmbienceSystem (world lane's file, 2 lines) skips its fixed human-height player breath while players have bodies.
+    That is the likely cause of the chicken player's breath above its head.
+- **Graphics settings, wip/gfx-creatures 6f6dd94** (off 9cf4e26): the ranges below are now
+  `GraphicsSettings.DetailRange(old value)`, so nothing changes at 1.0.
+  - CreatureRenderSystem: foot detail 40 (passed into PoseJob, since Burst can't read the setting), torch flame 150,
+    lantern 60, colonies 45, cave fish 35, swarm drawing 40.
+  - TraceSystem: 40.
+  - Swarm anger and timings stay fixed. BehindCull is left alone.
+  - The burrow feeder is wired when wip/worm-trail lands with it.
+  - "F5 graphics / quit" added to the F1 key line.
+- **Fingerprint:** no network table changes. CreatureBlob gains Mouth/HasMouth (baked locally).
+
 ## 2026-10-30: Unity slot 08:20-09:05: climbing passes, worm trail of bumps (Zach's request)
 - **Compile PASS:** worm-look, trunk-lean and the world worm shader, together.
 - **Monkey climbs: PASS on oak and palm,** with client shots.
