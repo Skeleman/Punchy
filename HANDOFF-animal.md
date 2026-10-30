@@ -31,9 +31,55 @@ don't say. Checkout: `D:\Unity\Punchy`, branch `animal-behaviours` (pushed; v0.9
   markers Brain.Hunter/Predator/Chaser/Alarm/Playmate/Needs/Fidget/Decide/Advance/EaseGait are in (ea3bdad); a capture
   should name the culprit. Candidates changed in that range: Think wrapper + EaseGait call, Accelerate in the movers,
   3D threat distance (F-06), F-14 light choice.
-- Remote players' mantle hands (the rim isn't sent), perching on joined clients (no FloraLookup there).
+- **NPC conversations stage 1, on `wip/dialogue` (84af2d4; out of v0.10 unless solid by the cut):** folk say a short
+  line as you walk by, shown over their heads (FolkTalkSystem, DialogueArchive). Local only, nothing on the wire.
+  Checked in a dwarf hold and a human village; the file format is below.
+- Perching on joined clients (no FloraLookup there).
 - Not yet seen in play: the oasis heron and swallows (maybe the settled cap was full).
 - Old local branches safe to delete: `wip/fish-ghost`, `wip/gear`, `wip/living-plants`, `wip/moths-swallows`.
+
+## Dialogue file: `Assets/StreamingAssets/dialogue.json`
+
+In a build it's `Punchy_Data/StreamingAssets/dialogue.json`. Edit it while the game runs: it's read again a second
+after it's saved. A broken edit keeps the last good file and logs the parse error once (with line and position).
+
+```json
+{
+  "format": 1,
+  "cultures": {
+    "Any":   { "words": { "trade.Fish": ["fisher"], "town_start": ["Ash"], "town_end": ["ford"] },
+               "lines": [ "Mind how you go." ] },
+    "Dwarf": { "words": { "culture_greeting": ["Hail", "Stone keep you"] },
+               "lines": [ "{culture_greeting}.",
+                          { "text": "Ore's running thick today.", "trade": "Mine" },
+                          { "text": "Sleep now.", "when": "night", "weight": 2 } ] }
+  }
+}
+```
+
+- **Cultures** are species asset names. A speaker looks in its own species first (`HumanChild`), then the species
+  that one is based on (`Human`), then `Any`. Lines come from the first of the first two that has any that fit, plus
+  `Any`'s at 0.3x weight. Seeded: Any, Human, HumanChild, Dwarf, Elf, Goblin, Ogre, Hermit.
+- **Lines** are a plain string or an object with `text`. Optional fields:
+  - `when`: day, night, dawn, morning, afternoon or evening/dusk.
+  - `trade`: one CreatureTask name or a list (Hammer, Chop, Gesture, Tend, Watch, Hunt, Patrol, Fish, Mine, Travel,
+    Hermit, Camper).
+  - `weight`: default 1.
+  - Unknown keys are kept on the line (`Line.Raw`), so dialogue options (`replies` and the like) can be added later
+    without a format change.
+- **Slots** are written `{name}` and filled in this order:
+  - A word list with that name, looked up through the same chain. A culture's own list wins over Any's, and words can
+    hold slots themselves.
+  - `{trade}` reads the list `trade.<Task>`; `{time_of_day}` reads `time.<morning|afternoon|evening|night>`, falling
+    back to the plain word.
+  - The built-ins: `{home_town}`, `{species}` (the speaker's kind) and `{player}` (your body's species; filled only
+    for folk of another kind).
+  - A line with a slot that can't be filled is skipped (for example `{home_town}` for a traveller or a hermit). A
+    filled slot at the start of a line gets a capital letter.
+- **Town names** are `town_start` + `town_end`, picked from the culture of the town's folk (its landmark's upright
+  residents) and hashed from where the town stands, so every machine names a town the same.
+- **Pacing:** in FolkTalkSystem's constants. Folk speak within 5 m, each at most every 90 s, one new line every 2.5 s,
+  and at most 3 lines up at once. Folk who are asleep, resting, fleeing or at home stay quiet.
 
 ## Gotchas worth keeping
 
