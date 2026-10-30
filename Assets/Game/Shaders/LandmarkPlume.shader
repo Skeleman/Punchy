@@ -4,7 +4,8 @@ Shader "Punchy/Landmark Plume"
     // own glow, faded where they touch the ground and seen through the atmosphere.
     SubShader
     {
-        Tags { "RenderType" = "Transparent" "Queue" = "Transparent" "RenderPipeline" = "UniversalPipeline" }
+        // After the water, which otherwise could draw over puffs on its surface (geyser and hot-spring bubbles).
+        Tags { "RenderType" = "Transparent" "Queue" = "Transparent+10" "RenderPipeline" = "UniversalPipeline" }
         Blend SrcAlpha OneMinusSrcAlpha
         ZWrite Off
         Cull Off
