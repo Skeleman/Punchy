@@ -263,6 +263,8 @@ namespace Punchy.Terrain
                 c.Dispose();
             dying.Clear();
             columns.Clear();
+            DisposeIndex();
+            indexed = false;
             ReleaseLandmarkPools();
             surfaceGlow.Release();
             ReleaseDrips();
@@ -1196,41 +1198,95 @@ namespace Punchy.Terrain
         const float WallReach = 2.5f;
 
         /// <summary>
-        /// Lists every chunk a cave's walls can reach, by column. Done once per baked world: chunks follow the
-        /// segments, so the list is as long as the caves are, not as big as the world. Each segment's box here is only
-        /// as wide as its walls can be (radius and stretch, blend, wall noise, the wall cut-off and a couple of voxels),
-        /// not the wider box sampling uses, so chunks the cave only grazes aren't built just to come out empty.
+        /// Lists every chunk a cave's walls can reach, by column. Done once per baked world, in a Burst job picked up a
+        /// frame or more later (it grows with the caves' total length, so on the main thread it was a load hitch);
+        /// false until the list is ready. Chunks follow the segments, so the list is as long as the caves are, not as big
+        /// as the world.
         /// </summary>
-        void IndexChunks(in TerrainSource source)
+        bool IndexChunks(in TerrainSource source)
         {
-            chunkVoxel = Voxel;
-            chunkCells = math.max(4, (int)math.round(ChunkMetres / chunkVoxel));
-            chunkSize = chunkCells * chunkVoxel;
-            ref var set = ref source.Caves.Value;
-            var seen = new HashSet<int3>();
-            for (int i = 0; i < set.Segments.Length; i++)
+            if (indexed)
+                return true;
+            if (!indexing)
             {
-                ref var seg = ref set.Segments[i];
-                ref var cave = ref set.Caves[seg.Cave];
-                ref var a = ref set.Nodes[seg.A];
-                ref var b = ref set.Nodes[seg.B];
-                // A stretched passage's field runs slower than true distance along the stretch, so distances measured
-                // in it reach that much further.
-                var stretch = CaveSampling.Stretch(cave.Profile);
-                var reach = math.max(a.Radius, b.Radius) * math.cmax(cave.Profile)
-                            + (CaveSampling.Blend + CaveSampling.WallReach(cave) + WallReach) * stretch + chunkVoxel * 2f;
-                var c0 = (int3)math.floor((math.min(a.Position, b.Position) - reach) / chunkSize);
-                var c1 = (int3)math.floor((math.max(a.Position, b.Position) + reach) / chunkSize);
-                for (int z = c0.z; z <= c1.z; z++)
-                for (int y = c0.y; y <= c1.y; y++)
-                for (int x = c0.x; x <= c1.x; x++)
+                chunkVoxel = Voxel;
+                chunkCells = math.max(4, (int)math.round(ChunkMetres / chunkVoxel));
+                chunkSize = chunkCells * chunkVoxel;
+                indexSeen = new NativeHashSet<int3>(1024, Allocator.Persistent);
+                indexKeys = new NativeList<int3>(1024, Allocator.Persistent);
+                indexJob = new IndexJob
                 {
-                    var key = new int3(x, y, z);
-                    if (!seen.Add(key))
-                        continue;
-                    if (!columns.TryGetValue(key.xz, out var ys))
-                        columns[key.xz] = ys = new List<int>();
-                    ys.Add(y);
+                    Source = source, ChunkSize = chunkSize, ChunkVoxel = chunkVoxel, Seen = indexSeen, Keys = indexKeys
+                }.Schedule();
+                indexing = true;
+                return false;
+            }
+            if (!indexJob.IsCompleted)
+                return false;
+            indexJob.Complete();
+            foreach (var key in indexKeys)
+            {
+                if (!columns.TryGetValue(key.xz, out var ys))
+                    columns[key.xz] = ys = new List<int>();
+                ys.Add(key.y);
+            }
+            DisposeIndex();
+            indexed = true;
+            return true;
+        }
+
+        void DisposeIndex()
+        {
+            if (!indexing)
+                return;
+            indexJob.Complete();
+            indexSeen.Dispose();
+            indexKeys.Dispose();
+            indexing = false;
+        }
+
+        bool indexed, indexing;
+        JobHandle indexJob;
+        NativeHashSet<int3> indexSeen;
+        NativeList<int3> indexKeys;
+
+        /// <summary>
+        /// The chunks each segment's walls can reach (IndexChunks). Each segment's box here is only as wide as its walls
+        /// can be (radius and stretch, blend, wall noise, the wall cut-off and a couple of voxels), not the wider box
+        /// sampling uses, so chunks the cave only grazes aren't built just to come out empty.
+        /// </summary>
+        [BurstCompile]
+        struct IndexJob : IJob
+        {
+            public TerrainSource Source;
+            public float ChunkSize, ChunkVoxel;
+            public NativeHashSet<int3> Seen;
+            public NativeList<int3> Keys;
+
+            public void Execute()
+            {
+                ref var set = ref Source.Caves.Value;
+                for (int i = 0; i < set.Segments.Length; i++)
+                {
+                    ref var seg = ref set.Segments[i];
+                    ref var cave = ref set.Caves[seg.Cave];
+                    ref var a = ref set.Nodes[seg.A];
+                    ref var b = ref set.Nodes[seg.B];
+                    // A stretched passage's field runs slower than true distance along the stretch, so distances
+                    // measured in it reach that much further.
+                    var stretch = CaveSampling.Stretch(cave.Profile);
+                    var reach = math.max(a.Radius, b.Radius) * math.cmax(cave.Profile)
+                                + (CaveSampling.Blend + CaveSampling.WallReach(cave) + WallReach) * stretch + ChunkVoxel * 2f;
+                    var c0 = (int3)math.floor((math.min(a.Position, b.Position) - reach) / ChunkSize);
+                    var c1 = (int3)math.floor((math.max(a.Position, b.Position) + reach) / ChunkSize);
+                    for (int z = c0.z; z <= c1.z; z++)
+                    for (int y = c0.y; y <= c1.y; y++)
+                    for (int x = c0.x; x <= c1.x; x++)
+                    {
+                        var key = new int3(x, y, z);
+                        if (Seen.Add(key))
+                            Keys.Add(key);
+                    }
                 }
             }
         }
@@ -1243,8 +1299,8 @@ namespace Punchy.Terrain
 
         void Stream(in TerrainSource source, float3 camPos)
         {
-            if (columns.Count == 0)
-                IndexChunks(source);
+            if (!IndexChunks(source))
+                return;
 
             // Which chunks are in range only changes when the camera crosses into another chunk.
             var cameraChunk = (int3)math.floor(camPos / chunkSize);
