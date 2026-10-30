@@ -2,6 +2,63 @@
 
 Newest first.
 
+## 2026-10-30: slot (items 15, 16, worm marks): cave-chunk passes (small), Blocked cache passes (big), worm marks over the bar
+0 exceptions and 0 NaN-bounds lines in every run. No dialogs. BProfileTools (b/bench-runner 9a4c308) now adds maxCallMs and
+maxFrameMs columns: the longest single call, and the most one frame spent on a marker.
+
+### Item 16: Brain.Blocked, blocked-cache 3d874dc vs bc89606: PASS, about 30x cheaper
+Marker builds 3481353 (bc89606) and 74d8148 (3d874dc), townwalk cap 60, 2 dev captures each, ABBA. All four ended at
+366,-406. Workers + main:
+| | bc89606 r1 | bc89606 r2 | 3d874dc r1 | 3d874dc r2 |
+|---|---|---|---|---|
+| animals (Net status mean) | 100 | 97 | 98 | 106 |
+| Brain.Blocked calls/frame | 39.4 | 39.0 | 38.9 | 44.7 |
+| Brain.Blocked µs/call | 17.7 | 30.9 | **0.98** | **0.69** |
+| Brain.Blocked ms/frame | 0.70 | 1.21 | 0.04 | 0.03 |
+| BrainJob inclusive ms | 2.18 | 2.59 | **1.47** | **1.67** |
+| worst Blocked frame ms (maxFrame) | 4.9 | 6.1 | 0.2 | 0.3 |
+- Behaviour is the same: the call rate, animals and end spot all match. Town look (`town` stop, same frame):
+  results/shots-town-{3481353,74d8148}/town.png. The buildings, props, paths and fences are identical; only the
+  animals moved. The old cost swung 18–31 µs between captures, as in item 14; the new one is under 1 µs either way.
+
+### Item 15: cave-chunk 256e6a9 vs bc89606, caveapproach: PASS (compiles, cut edge identical), but nowhere near 5x at frame level
+- A/B, cap 0, ABBA, 2 rounds, same end -2773,-726: avg 97.5 → 98.0, **1% low 52.5 → 59.6**, GPU 6.5 → 6.3 ms,
+  worst frame 27/30 → 25/21 ms.
+- Dev captures (3481353 = bc89606 plus the Brain marker; no terrain change), 2000 frames, 0 spikes in both:
+  | BuildChunkMeshJob | bc89606 | 256e6a9 |
+  |---|---|---|
+  | mean ms/frame (workers) | 0.700 | 0.661 |
+  | busiest frame, ms (maxFrame) | 36.8 | **30.9** (−16%) |
+  | longest single batch, ms (maxCall) | 15.6 | 14.4 |
+  The job is an IJobParallelFor, so a call is one worker's batch; the busiest frame is the closest reading of the mouth
+  chunk's total. It's 16% lower, not 5x. Either the mouth chunk isn't the busiest chunk on this walk, or the cut's
+  skipped samples weren't most of its cost. A per-chunk timing log would settle which.
+- Cut edge: a mouth spot `-benchspot -2822,-648,90` (in the slot at the mouth, facing in) and one above it
+  (-2812,-660,60). Shots are identical on both builds: results/shots-mouth2-{bc89606,256e6a9}-*/spot.png. Both
+  builds show a few flat grey shards at the cut edge (bottom right of the slot shot). They're already in bc89606,
+  so they're not from this change; worth a look by the world lane. The `-place CaveNetwork` and caveapproach end
+  shots don't frame the mouth, but they also match.
+
+### Worm marks (92a9602 shader + 18f1b3b feeder, local merge d60e085): +0.5 ms GPU, over the 0.3 ms bar
+The Glacier has native snow worms, so I fixed the camera instead of using -watch:
+`-place Glacier -camlook 900,200,1525,869,186,1500 -benchwait 40 -benchstops here`, cap 0, a fresh player each run, 2 rounds
+in ABBA order. Same frame in every shot (results/shots-wormcam-*). The `on` shots show the spawned worm's trail of bumps
+across the snow; the natives-only shots show no marks in view.
+| | avg | 1% low | GPU ms (r1, r2) |
+|---|---|---|---|
+| bc89606, no SnowWorm species (no marks; upper bound) | 115.2 | 52.0 | 5.5 (5.4, 5.5) |
+| d60e085, natives only | 110.1 | 50.5 | 5.9 (6.1, 5.7) |
+| d60e085, -spawn SnowWorm:1 (trail in view) | 107.8 | 51.0 | **6.4** (6.3, 6.5) |
+- Spawned against natives-only, same build and frame: **+0.5 ms GPU** (+0.2 and +0.8 by round). Against bc89606:
+  +0.9 ms, but that's an upper bound, since animal-behaviours also adds creatures, traces and the worms' bodies.
+  The spawned run also draws the worm's own body and clods, but they're a few small meshes. Most of the gap should be
+  the mark loop.
+- Verdict: over the 0.3 ms bar. The 32-slot cap or the per-chunk bounds test is worth doing. The same command lines
+  re-run the check: Bench-d60e085 is archived, and the merge is on the local branch bench/worm-merge.
+- Caveat: there's no readout of _PunchyBurrowerCount, so how many marks each run fed is unknown. Natives within 150 m
+  could have fed some marks in the natives-only runs too.
+
+
 ## 2026-10-30: slot (item 14, close-up ducks, F-40 smoke): Blocked is the town cost; ducks and F-40 pass
 0 exceptions and 0 NaN-bounds lines in every run below. No dialogs.
 
