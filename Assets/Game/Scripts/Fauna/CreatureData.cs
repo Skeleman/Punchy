@@ -22,6 +22,10 @@ namespace Punchy.Fauna
         public float WalkStride, RunStride;
         /// <summary>Height of the body's centre above the ground when standing (from the idle pose).</summary>
         public float StandHeight;
+        /// <summary>Where its mouth is, at the end of its head, from the body's centre in the body's frame (m, at size 1,
+        /// idle pose); HasMouth false for a body with no head part.</summary>
+        public float3 Mouth;
+        public bool HasMouth;
         public float2 Bob, BobsPerCycle;
         public float RunRock;
         /// <summary>Keeps the body level rather than tilting with the ground (two-legged walkers).</summary>
@@ -801,6 +805,7 @@ namespace Punchy.Fauna
             builder.Dispose();
             MeasureGait(ref blob.Value, species.LeglessStride);
             MeasureLegs(ref blob.Value);
+            MeasureMouth(ref blob.Value);
             return blob;
         }
 
@@ -829,6 +834,37 @@ namespace Punchy.Fauna
                     foot += math.mul(rot, new float3(0f, 0f, b.Segments[s0 + j].Length));
                 }
                 part.Stance = foot;
+            }
+        }
+
+        /// <summary>
+        /// The mouth (Mouth): the end of the first head part, its chain followed from the body through any neck in the
+        /// idle pose, as the animator chains parts (a child from the end of its parent's last segment).
+        /// </summary>
+        static void MeasureMouth(ref CreatureBlob b)
+        {
+            var endPos = new float3[b.Parts.Length];
+            var endRot = new quaternion[b.Parts.Length];
+            for (int i = 0; i < b.Parts.Length; i++)
+            {
+                ref var part = ref b.Parts[i];
+                var parentPos = part.Parent < 0 ? float3.zero : endPos[part.Parent];
+                var parentRot = part.Parent < 0 ? quaternion.identity : endRot[part.Parent];
+                var pos = parentPos + math.mul(parentRot, part.Socket);
+                var rot = math.mul(parentRot, part.Rest);
+                for (int j = 0; j < part.SegmentCount; j++)
+                {
+                    var seg = part.FirstSegment + j;
+                    rot = math.mul(rot, quaternion.EulerZXY(b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle]));
+                    pos += math.mul(rot, new float3(0f, 0f, b.Segments[seg].Length));
+                }
+                endPos[i] = pos;
+                endRot[i] = rot;
+                if (part.Role == LimbRole.Head && !b.HasMouth)
+                {
+                    b.Mouth = pos;
+                    b.HasMouth = true;
+                }
             }
         }
 
