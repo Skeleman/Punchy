@@ -1840,11 +1840,12 @@ namespace Punchy.Flora
                 g.Colliders.Add(new Vector4(x, 0f, leg * 1.3f, height * 0.4f));
 
             // A point on a bow at t (0 one foot, 1 the other): a half ellipse raised to the profile's power, the far foot
-            // footRise lower, leaning slightly one way.
+            // footRise lower, leaning slightly one way (sin clamped at 0: sin(pi) is a hair below 0 in floats, and a negative
+            // to a fractional power is NaN, which left every arch with NaN bounds).
             Vector3 Point(float w, float h, float l, float t)
             {
                 var a = t * Mathf.PI;
-                return new Vector3(-Mathf.Cos(a) * w, Mathf.Pow(Mathf.Sin(a), profile) * h - 0.3f + footRise * t, Mathf.Sin(a) * l);
+                return new Vector3(-Mathf.Cos(a) * w, Mathf.Pow(Mathf.Max(Mathf.Sin(a), 0f), profile) * h - 0.3f + footRise * t, Mathf.Sin(a) * l);
             }
 
             // One bow of ice or rock (broken into two horns if this variant is), its feet carried on straight down into
