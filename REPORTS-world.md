@@ -2,6 +2,29 @@
 
 Newest first.
 
+## 2026-10-30: F-40 and worm marks in the 06:25 slot, zache-73. Unity closed
+
+Bench-runner builds plus shots, no editor. No Unity, Punchy or bee_backend process is running now; Projects\Punchy is
+back on b/weather-mapjob. Throwaway branches (tmp/trodden-probe, tmp/worm-test) were local only and are deleted.
+- **DONE, merged: F-40 trodden ground.** world-features 6464ce7 -> c4d946d (fast-forward, pushed). The first build of
+  the mask (21e7ffd) showed nothing, for two reasons:
+  (1) camps are settlements, and their square's surface repainted the ground over the wear. The wear now goes on
+  last: `LandmarkSampling.TroddenGround`, called after the settlements in `TerrainSource.SampleSurface` (one added
+  call in that shared file).
+  (2) At 2.6 m the patch lay under the stall's ~7 m awning and counter. Probe builds showed the data baked (4 trodden
+  spots), SampleSurface darker at the stall (albedo 0.069 vs 0.111 at 10 m), and a black 8 m test patch drawing.
+  Now: Trodden 7 m on goblin and ogre camp stalls, centred half its reach in front of the counter, x0.5.
+  Check (OgreCamp, -355,-4079 from the fire's side, and from above at -362,-4044): a soft, ragged, darker patch in
+  front of the counter, the sand's texture showing through. Subtle from eye level: `TroddenDarken` is the dial if
+  Zach wants it stronger. GoblinCamp not checked (it sits in fog).
+- **PASS, not merged: worm marks.** world-laptop/worms ad98690 with wip/worm-look (c751907, includes 85a1962) merged
+  locally, `-place Glacier -spawn SnowWorm:1 -watch SnowWorm -watchfrom 10,20 -timescale 3`, window captured every
+  second. The mound and furrow read clearly as a lit ridge and a shaded trough trailing the head. After a breach the
+  crater reads as a dark pit with a lit raised rim (the sign fix) and fades out over the next few seconds. No
+  exceptions in either run. Per the queue, it merges into world-features after the joint look with the animal lane.
+  Say if you want it merged now.
+- NEXT: the worm merge on your word; the cave-mouth chunk follow-up for v0.11.
+
 ## 2026-10-30: code-only batch (F-40 mask, worm marks, Brain.Sample read), zache-73
 
 None of this is compiled or seen yet: it needs a build (the bench runner's `build` is enough for the code) and shots.
