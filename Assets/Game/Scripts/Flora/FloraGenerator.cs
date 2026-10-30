@@ -1789,44 +1789,41 @@ namespace Punchy.Flora
             var height = g.Range(s.Height);
             var half = height * Mathf.Max(s.Spread, 0.5f) * 0.5f;
             var leg = height * Mathf.Max(s.Thickness, 0.05f);
+            var part = s.Finish == FoliageFinish.Glass ? FloraPart.Glass : FloraPart.Bark;
+            var lean = g.Range(-0.12f, 0.12f) * half;
+            // Each variant its own shape (G-29: on an open glacier one model seen again and again gave itself away): a
+            // wider or narrower span, a fuller or more pointed bow, one foot sunk deeper than the other; about a quarter
+            // broken (two horns with the crown fallen in), and some of the rest with a smaller arch crossing them.
+            half *= g.Range(0.8f, 1.25f);
+            var profile = g.Range(0.6f, 1.5f);
+            var footRise = -g.Range(0f, 0.15f) * height;   // only ever lower: a raised foot would stand off flat ground
+            var broken = g.R() < 0.25f;
+            var gap = g.Range(0.38f, 0.5f);
+            var twin = !broken && g.R() < 0.2f;
+            var twinTurn = g.Range(55f, 125f);
             g.Height = height;
             g.Width = half * 2f + leg * 2f;
             g.TrunkRadius = 0f;
-            var part = s.Finish == FoliageFinish.Glass ? FloraPart.Glass : FloraPart.Bark;
-            var lean = g.Range(-0.12f, 0.12f) * half;
             var rings = g.Lod == 0 ? 18 : g.Lod == 1 ? 11 : 7;
             var sides = g.Sides(9, 7, 5);
-            var path = new List<Vector3>();
-            var radii = new List<float>();
-            for (int i = 0; i <= rings; i++)
-            {
-                var t = i / (float)rings;
-                var a = t * Mathf.PI;
-                // A half ellipse from foot to foot (feet a little below the ground), leaning slightly one way.
-                var p = new Vector3(-Mathf.Cos(a) * half, Mathf.Sin(a) * height - 0.3f, Mathf.Sin(a) * lean);
-                p += new Vector3(g.Range(-0.08f, 0.08f), g.Range(-0.06f, 0.06f), g.Range(-0.1f, 0.1f)) * leg;
-                path.Add(p);
-                var thick = Mathf.Lerp(1f, 0.55f, Mathf.Sin(a));
-                radii.Add(leg * thick * (i == 0 || i == rings ? 1.35f : 1f) * g.Range(0.88f, 1.1f));
-            }
-            // The feet carry on straight down into the ground, so they stay seated where it isn't quite level (F-44).
-            var sink = 0.5f + height * 0.12f;
-            path.Insert(0, path[0] + Vector3.down * sink);
-            radii.Insert(0, radii[0]);
-            path.Add(path[path.Count - 1] + Vector3.down * sink);
-            radii.Add(radii[radii.Count - 1]);
             var first = b.VertexCount;
-            b.Tube(path, radii, sides, g.FoliageColor(), part);
+            Bow(half, height, lean, 0f, 1f);
+            if (twin)
+            {
+                // A smaller arch through the first, turned across it, its feet inside the big one's.
+                var twinFirst = b.VertexCount;
+                Bow(half * 0.62f, height * 0.7f, -lean * 0.5f, 0f, 1f);
+                RotateFrom(b, twinFirst, Quaternion.Euler(0f, twinTurn, 0f));
+            }
             // Darker underneath, where the bow shades itself.
             b.Occlude(first, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y * 0.5f + 0.6f)));
-            if (g.Lod < 2 && part == FloraPart.Glass)
+            if (g.Lod < 2 && part == FloraPart.Glass && !broken)
             {
                 // Icicles under the crown (ice arches only; not rock ones).
                 for (int k = 0; k < 6; k++)
                 {
                     var t = g.Range(0.3f, 0.7f);
-                    var a = t * Mathf.PI;
-                    var top = new Vector3(-Mathf.Cos(a) * half, Mathf.Sin(a) * height - 0.3f - leg * 0.45f, Mathf.Sin(a) * lean);
+                    var top = Point(half, height, lean, t) + Vector3.down * leg * 0.45f;
                     var length = leg * g.Range(0.8f, 2.2f);
                     b.Tube(new List<Vector3> { top, top + Vector3.down * length }, new List<float> { leg * 0.16f, leg * 0.02f },
                            g.Sides(5, 4, 3), g.FoliageColor(), part);
@@ -1834,6 +1831,55 @@ namespace Punchy.Flora
             }
             foreach (var x in new[] { -half, half })
                 g.Colliders.Add(new Vector4(x, 0f, leg * 1.3f, height * 0.4f));
+
+            // A point on a bow at t (0 one foot, 1 the other): a half ellipse raised to the profile's power, the far foot
+            // footRise lower, leaning slightly one way.
+            Vector3 Point(float w, float h, float l, float t)
+            {
+                var a = t * Mathf.PI;
+                return new Vector3(-Mathf.Cos(a) * w, Mathf.Pow(Mathf.Sin(a), profile) * h - 0.3f + footRise * t, Mathf.Sin(a) * l);
+            }
+
+            // One bow of ice or rock (broken into two horns if this variant is), its feet carried on straight down into
+            // the ground so they stay seated where it isn't quite level (F-44).
+            void Bow(float w, float h, float l, float from, float to)
+            {
+                var path = new List<Vector3>();
+                var radii = new List<float>();
+                for (int i = 0; i <= rings; i++)
+                {
+                    var t = Mathf.Lerp(from, to, i / (float)rings);
+                    var p = Point(w, h, l, t);
+                    p += new Vector3(g.Range(-0.08f, 0.08f), g.Range(-0.06f, 0.06f), g.Range(-0.1f, 0.1f)) * leg;
+                    path.Add(p);
+                    var thick = Mathf.Lerp(1f, 0.55f, Mathf.Sin(t * Mathf.PI));
+                    radii.Add(leg * thick * (i == 0 || i == rings ? 1.35f : 1f) * g.Range(0.88f, 1.1f));
+                }
+                var sink = 0.5f + h * 0.12f;
+                if (!broken)
+                {
+                    path.Insert(0, path[0] + Vector3.down * sink);
+                    radii.Insert(0, radii[0]);
+                    path.Add(path[path.Count - 1] + Vector3.down * sink);
+                    radii.Add(radii[radii.Count - 1]);
+                    b.Tube(path, radii, sides, g.FoliageColor(), part);
+                    return;
+                }
+                // Broken: each foot up to the gap, capped where it snapped.
+                var cut = Mathf.RoundToInt(rings * gap);
+                var left = path.GetRange(0, cut + 1);
+                var leftRadii = radii.GetRange(0, cut + 1);
+                left.Insert(0, left[0] + Vector3.down * sink);
+                leftRadii.Insert(0, leftRadii[0]);
+                b.Tube(left, leftRadii, sides, g.FoliageColor(), part, cap: true);
+                var right = path.GetRange(rings - cut, cut + 1);
+                var rightRadii = radii.GetRange(rings - cut, cut + 1);
+                right.Reverse();
+                rightRadii.Reverse();
+                right.Insert(0, right[0] + Vector3.down * sink);
+                rightRadii.Insert(0, rightRadii[0]);
+                b.Tube(right, rightRadii, sides, g.FoliageColor(), part, cap: true);
+            }
         }
 
         static void Bones(Grower g)
