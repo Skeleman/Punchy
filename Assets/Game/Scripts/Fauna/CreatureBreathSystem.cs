@@ -18,6 +18,9 @@ namespace Punchy.Fauna
     {
         /// <summary>How far from the camera breath is shown (m), and how long each exhale lasts (s).</summary>
         const float Range = 25f, Exhale = 0.45f;
+        /// <summary>Whether players have creature bodies, which breathe here from their own mouths (then AmbienceSystem
+        /// leaves players' breath alone).</summary>
+        public static bool PlayersBreathe;
 
         EntityQuery query;
         AmbienceSystem ambience;
@@ -43,11 +46,13 @@ namespace Punchy.Fauna
             float3 camAt = cam.transform.position;
             var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
             var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var players = false;
             for (int i = 0; i < states.Length; i++)
             {
                 var s = states[i];
-                if (math.distancesq(s.Position, camAt) > Range * Range || s.Gone || s.Mode == CreatureMode.Puppet)
-                    continue;   // (players' own bodies breathe through AmbienceSystem already)
+                players |= s.Mode == CreatureMode.Puppet;
+                if (math.distancesq(s.Position, camAt) > Range * Range || s.Gone)
+                    continue;
                 ref var b = ref bodies[i].Blob.Value;
                 if (b.ColdBlooded || b.Haunts || b.Habitat == Habitat.Swims || b.Habitat == Habitat.Floats)
                     continue;
@@ -58,12 +63,16 @@ namespace Punchy.Fauna
                     continue;
                 var scale = math.max(s.Scale, 0.1f);
                 var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
-                var mouth = s.Position + forward * b.BodyLength * scale * 0.6f + new float3(0f, b.StandHeight * scale * (b.Upright ? 0.9f : 1.15f), 0f);
+                // (From its own head: a chicken's low, a horse's high up on its neck. A body with no head, a guess.)
+                var mouth = b.HasMouth
+                    ? s.Position + new float3(0f, b.StandHeight * scale, 0f) + math.mul(quaternion.RotateY(s.Yaw), b.Mouth * scale)
+                    : s.Position + forward * b.BodyLength * scale * 0.6f + new float3(0f, b.StandHeight * scale * (b.Upright ? 0.9f : 1.15f), 0f);
                 var velocity = forward * s.Speed;
                 // (A wisp to suit its size: a mouse's barely there, a horse's bigger than a person's.)
                 var size = math.clamp(b.StandHeight * scale / 1.5f, 0.3f, 1.6f);
                 ambience.Breathe(mouth, forward, velocity, size);
             }
+            PlayersBreathe = players;
             states.Dispose();
             bodies.Dispose();
         }

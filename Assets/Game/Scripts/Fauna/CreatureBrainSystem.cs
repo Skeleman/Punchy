@@ -233,13 +233,17 @@ namespace Punchy.Fauna
                 var player = Players[0];
                 var emote = (IdleAction)PlayerPoses[0];
                 var playerSpeed = PlayerSpeeds[0];
+                var nearest = 0;
                 for (int p = 1; p < Players.Length; p++)
                     if (math.distancesq(Players[p].xz, s.Position.xz) < math.distancesq(player.xz, s.Position.xz))
                     {
                         player = Players[p];
                         emote = (IdleAction)PlayerPoses[p];
                         playerSpeed = PlayerSpeeds[p];
+                        nearest = p;
                     }
+                // (A player in a body of its own kind is one of its own: not run from. A ghost doesn't flee a ghost.)
+                var ownKind = nearest < PlayerSpecies.Length && PlayerSpecies[nearest] == body.Species && body.Species >= 0;
                 if (emote < IdleAction.Wave)
                     emote = IdleAction.None;
                 var dt = Dt;
@@ -298,7 +302,7 @@ namespace Punchy.Fauna
                 // the skittish: a curious one comes to look, and some pay it no heed.)
                 var commotion = b.Reaction != EmoteReaction.Flees ? 1f :
                                 emote == IdleAction.Cheer || emote == IdleAction.Dance ? 1.8f : emote == IdleAction.Wave ? 1.25f : 1f;
-                var threatened = !aloft && b.FleeDistance > 0f && threatDistance < b.FleeDistance * s.Scale * alert * nerve * tame * commotion;
+                var threatened = !aloft && !ownKind && b.FleeDistance > 0f && threatDistance < b.FleeDistance * s.Scale * alert * nerve * tame * commotion;
                 var threat = player.xz;
                 // A hunter after it: heard creeping close, or seen drawing back to throw (and the throw itself).
                 if (!threatened && !aloft && b.FleeDistance > 0f && FindHunter(self, ref s, alert, out var hunter))
@@ -423,7 +427,8 @@ namespace Punchy.Fauna
                 // metres off.
                 if (b.Haunts && SleepTime(ref b) < 0.5f)
                 {
-                    if (playerDistance < 3.5f)
+                    // (Not from a ghost: one of its own it lets come close.)
+                    if (playerDistance < 3.5f && !ownKind)
                     {
                         var off = math.normalizesafe(s.Position.xz - player.xz, rng.NextFloat2Direction());
                         s.Position.xz += off * rng.NextFloat(20f, 35f) + rng.NextFloat2Direction() * 6f;
@@ -1382,9 +1387,9 @@ namespace Punchy.Fauna
                 }
                 else if (calm && b.Idles != IdleActions.None && s.Speed < 0.1f && !(b.Disguised && s.Mode == CreatureMode.Rest) &&
                          rng.NextFloat() < dt * b.Fidgets * 0.15f)
-                    StartAction(ref s, ref b, ref rng, lying, perched || s.Mode == CreatureMode.Climb, Night);
-                // A howl is taken up by the rest of the pack, one after another.
-                else if (calm && !lying && (b.Idles & IdleActions.Howl) != 0 && s.Speed < 0.1f && Night > 0.5f &&
+                    StartAction(ref s, ref b, ref rng, lying, perched || s.Mode == CreatureMode.Climb, Night, HowlTime(in s, Hour));
+                // A howl is taken up by the rest of the pack, one after another (in the pack's own time for it).
+                else if (calm && !lying && (b.Idles & IdleActions.Howl) != 0 && s.Speed < 0.1f && Night > 0.5f && HowlTime(in s, Hour) &&
                          rng.NextFloat() < dt * 0.8f && Howling(self, ref s, species))
                 {
                     s.Action = IdleAction.Howl;
@@ -1420,7 +1425,20 @@ namespace Punchy.Fauna
             }
 
             /// <summary>Picks one of the species' idle actions that suits how it is now (lying, perched or standing).</summary>
-            static void StartAction(ref CreatureState s, ref CreatureBlob b, ref Random rng, bool lying, bool aloft, float night)
+            /// <summary>
+            /// Whether it's a pack's time to howl: half an hour once a night, somewhere between 9 at night and 3 in the
+            /// morning, the same for every wolf from one home (a lone one's from its own individual), so a night's
+            /// howling is one chorus now and then rather than all night long.
+            /// </summary>
+            static bool HowlTime(in CreatureState s, float hour)
+            {
+                var key = math.any(s.Home != float2.zero) ? math.hash((int2)math.round(s.Home)) : s.Individual;
+                var start = 21f + key % 60u / 10f;
+                var h = hour < 12f ? hour + 24f : hour;
+                return h >= start && h < start + 0.5f;
+            }
+
+            static void StartAction(ref CreatureState s, ref CreatureBlob b, ref Random rng, bool lying, bool aloft, float night, bool howlTime)
             {
                 var options = new FixedList64Bytes<byte>();
                 for (int a = 1; a <= (int)IdleAction.Howl; a++)
@@ -1437,8 +1455,8 @@ namespace Punchy.Fauna
                     if (aloft && (action == IdleAction.PawGround || action == IdleAction.Sniff || action == IdleAction.Stretch ||
                                   action == IdleAction.SitUp || action == IdleAction.HeadBob || action == IdleAction.Howl))
                         continue;
-                    // Howling is for the night (and not lying down).
-                    if (action == IdleAction.Howl && (night < 0.5f || lying))
+                    // Howling is for the night (and not lying down), in the pack's time for it.
+                    if (action == IdleAction.Howl && (night < 0.5f || lying || !howlTime))
                         continue;
                     options.Add((byte)a);
                 }

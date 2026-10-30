@@ -110,11 +110,10 @@ namespace Punchy.Fauna
             var height = math.lerp(b.StandHeight, lying, s.Lie) * scale;
             var lowered = b.StandHeight * scale - height;
             pitch += s.Bow * 0.3f + s.HeadDown * 0.1f * (1f - s.Lie);
-            // (A lowered head, drinking or grazing, tips the chest down about the hips: the rump stays where it stood, its
-            // hind feet on the ground, and the front legs bend to let the chest down. A play bow tips about the middle,
-            // rump up.)
+            // (A lowered head, drinking or grazing, or a play bow tips the chest down about the hips: the rump stays where
+            // it stood, its hind feet on the ground, and the front legs bend to let the chest down.)
             if (!b.Upright)
-                height -= s.HeadDown * 0.1f * (1f - s.Lie) * halfLength;
+                height -= (s.Bow * 0.3f + s.HeadDown * 0.1f) * (1f - s.Lie) * halfLength;
             // Sitting: rump down on folded hind legs, chest up.
             pitch -= s.Sit * 0.5f;
             height -= s.Sit * b.StandHeight * scale * 0.3f;

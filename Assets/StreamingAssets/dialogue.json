@@ -166,6 +166,19 @@
         { "text": "Hmph. Polite, at least.", "emote": "Bow" },
         { "text": "Keep it down!", "emote": ["Cheer", "Dance"] }
       ]
+    },
+    "Ghost": {
+      "lines": [
+        "You're new. I can tell. You still flicker.",
+        "Do you remember your name? I've lost mine.",
+        "They walk right through us, you know.",
+        "Cold tonight. Or is it always?",
+        { "text": "The living are asleep. The night is ours.", "when": "night", "weight": 2 },
+        { "text": "Have you found your way back yet? Nor have I.", "weight": 2 },
+        { "text": "Ooooh... oh, it's only you.", "emote": "Wave" },
+        { "text": "Such manners, for the departed.", "emote": "Bow" },
+        { "text": "Dancing? We drift, mostly.", "emote": ["Cheer", "Dance"] }
+      ]
     }
   }
 }

@@ -600,6 +600,11 @@ namespace Punchy.Fauna
                     ? math.clamp(b.StandHeight * size / (blobs[human].Value.StandHeight * (blobs[human].Value.Size.x + blobs[human].Value.Size.y) * 0.5f), 0.25f, 3f)
                     : 1f
             };
+            // (Its jump: the species' own, else as high as it's big next to a human, a climber springier.)
+            var jump = PlayerSpecies.PlayerJump > 0f ? PlayerSpecies.PlayerJump : PlayerSpecies.Body.PlayerJump;
+            if (jump <= 0f)
+                jump = math.clamp(math.sqrt(math.max(abilities.Size, 0.01f)), 0.45f, 1.4f) * (b.Climbing > 0.5f || b.ClimbsAs != ClimbAbility.None ? 1.25f : 1f);
+            abilities.JumpFactor = jump;
             using var bodyQuery = em.CreateEntityQuery(typeof(Punchy.Player.PlayerBody));
             if (!bodyQuery.TryGetSingletonEntity<Punchy.Player.PlayerBody>(out var bodyEntity))
                 bodyEntity = em.CreateEntity(typeof(Punchy.Player.PlayerBody));
