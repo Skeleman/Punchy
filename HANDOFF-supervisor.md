@@ -57,6 +57,7 @@ together with `HANDOFF-solo.md`, `HANDOFF-world.md`, `HANDOFF-animal.md`, `COORD
 - `gh` on the laptop; sharing the milestone page (below).
 
 ## Milestone page
+- **Paused (Zach, 2026-10-30): skip milestone page updates to save tokens.** The GitHub release notes are the record.
 - https://claude.ai/artifact/YCS5QeFTV4KDFEUTwiXC7D, on the main account. It wasn't updated during v0.9 (only finished
   page features go on it, and Zach asked for frugality).
 - For you to update it, Zach shares it with edit access to the second account. Its source and images are in
