@@ -471,10 +471,14 @@ namespace Punchy.Player
                     return;
                 }
             }
-            // Under rock (a cave's ceiling or walls): no further that way, and the nose goes down.
-            if (inCave && terrain.CaveDistance(position + new float3(0f, settings.Radius, 0f)) > -settings.Radius)
+            // Under rock (a cave's ceiling or walls): no further that way, and the nose goes down. It slides along level if
+            // that's clear (under a ceiling), else sinks (at a wall) until it's down, rather than hanging in the air
+            // where it met the rock.
+            if (inCave && UnderRock(terrain, position, settings.Radius))
             {
-                position = t.Position;
+                var level = new float3(position.x, t.Position.y, position.z);
+                var sink = t.Position - new float3(0f, math.max(m.Airspeed * 0.5f, 1f) * dt, 0f);
+                position = !UnderRock(terrain, level, settings.Radius) ? level : !UnderRock(terrain, sink, settings.Radius) ? sink : t.Position;
                 m.Pitch = math.min(m.Pitch, -0.2f);
             }
             Floor(terrain, position, settings.SwimDepth, out ground, out _);
@@ -489,6 +493,12 @@ namespace Punchy.Player
             }
             t.Position = position;
             t.Rotation = quaternion.RotateY(yaw);
+        }
+
+        /// <summary>In a cave, a flying body at this point would be in the rock (its ceiling or walls).</summary>
+        static bool UnderRock(in TerrainSource terrain, float3 position, float radius)
+        {
+            return terrain.CaveDistance(position + new float3(0f, radius, 0f)) > -radius;
         }
 
         /// <summary>
