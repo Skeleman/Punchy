@@ -20,6 +20,6 @@ Newest first.
   listed vertex ranges unskirted, and the sheet (re-landed from 7de4b48) uses it. Landmark list unchanged. Needs
   an editor slot after the release: before/after stall shots, then merge.
 - **NEXT:** (post-v0.10) cheapen or split the cave-mouth chunk (rows as work items, or MouthCut only where the
-  centre sample is near), so it doesn't hold the stream. G-37 decoration rocks: `MagneticDebris` (FloatingRock,
-  4-6.5 m, 3 variants) already exists from 631b8c4 and is referenced by ElectricWastelands; read-only check of how
-  it's listed is next.
+  centre sample is near), so it doesn't hold the stream. G-37 decoration rocks: still to make. (`MagneticDebris`
+  in ElectricWastelands' Flora list at 0.12 is Form 50, not FloatingRock 54, so it isn't them.) Plan: a new species
+  copied from MagneticMonolith, Height 6-15, Variants 4, listed at a low density; needs an editor slot.
