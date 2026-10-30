@@ -102,6 +102,9 @@ namespace Punchy.Terrain
 
         [Tooltip("Cave chunks started per frame at most (nearest first), so a cave coming into range doesn't hitch.")]
         [Min(1)] public int BuildsPerFrame = 2;
+        [Tooltip("Most finished chunks turned into meshes (made and uploaded on the main thread) per frame; the rest wait " +
+                 "a frame, so a batch finishing together at a mouth or after a teleport doesn't land in one frame.")]
+        [Min(1)] public int UploadsPerFrame = 2;
         [Tooltip("Cave chunks building at once at most. Each holds a few MB of fields while it builds, and too many " +
                  "crowd the terrain's own jobs off the workers.")]
         [Min(1)] public int MaxBuilding = 4;
@@ -1310,16 +1313,21 @@ namespace Punchy.Terrain
                     chunks[key] = StartBuild(source, key);
             }
 
+            var uploads = 0;
             foreach (var kv in chunks)
             {
                 var b = kv.Value;
                 if (!b.Pending || !b.Job.IsCompleted)
                     continue;
-                b.Job.Complete();
+                b.Job.Complete();   // already done: cheap
+                // Empty ones cost nothing to finish; those with a mesh wait their turn.
+                if (b.Indices.Length > 0 && uploads >= UploadsPerFrame)
+                    continue;
                 b.Pending = false;
                 // Chunks the cave only grazes come out empty: keep the record (so they aren't rebuilt), not a mesh.
                 if (b.Indices.Length > 0)
                 {
+                    uploads++;
                     var mesh = new Mesh { name = "Cave chunk", indexFormat = IndexFormat.UInt32 };
                     mesh.SetVertices(b.Positions.AsArray());
                     mesh.SetNormals(b.Normals.AsArray());
