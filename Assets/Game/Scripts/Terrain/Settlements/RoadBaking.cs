@@ -121,6 +121,21 @@ namespace Punchy.Terrain
             var size = (int2)math.ceil((max - min) / Cell) + 1;
             var grid = new NativeArray<float4>(size.x * size.y, Allocator.TempJob);
             new GroundJob { Source = source, Origin = min, Size = size, Out = grid }.Schedule(grid.Length, 64).Complete();
+            // Towns are closed to through roads: cells well inside any settlement are forbidden, so a road reaches a town
+            // at its own road end (outside 0.85 of the radius) instead of cutting across its houses (G-18).
+            foreach (var s in settlements)
+            {
+                var c0 = math.max((int2)math.floor((s.Centre - s.Radius - min) / Cell), 0);
+                var c1 = math.min((int2)math.ceil((s.Centre + s.Radius - min) / Cell), size - 1);
+                for (int y = c0.y; y <= c1.y; y++)
+                for (int x = c0.x; x <= c1.x; x++)
+                    if (math.distance(min + new float2(x, y) * Cell, s.Centre) < s.Radius * 0.85f)
+                    {
+                        var cell = grid[y * size.x + x];
+                        cell.z = 1f;
+                        grid[y * size.x + x] = cell;
+                    }
+            }
 
             foreach (var (from, to, settlement, toTown, other) in pairs)
             {
@@ -148,7 +163,7 @@ namespace Punchy.Terrain
             public TerrainSource Source;
             public float2 Origin;
             public int2 Size;
-            [WriteOnly] public NativeArray<float4> Out;   // height, water depth (0 dry), cave entrance (1), steepest inside
+            [WriteOnly] public NativeArray<float4> Out;   // height, water depth (0 dry), closed (1: cave entrance, town), steepest inside
 
             public void Execute(int i)
             {
@@ -214,7 +229,8 @@ namespace Punchy.Terrain
                         continue;
                     var ni = Index(n);
                     var there = grid[ni];
-                    if (there.z > 0.5f || there.y > BridgeDepth)
+                    // (The start and goal stay open even inside a town's closed cells: roads begin at its edge.)
+                    if (there.z > 0.5f && ni != Index(goal) || there.y > BridgeDepth)
                         continue;
                     // Cliffs inside a cell, except where the road starts and ends (a town's edge may be rough).
                     if (there.w > CliffSlope && ni != Index(goal) && ni != Index(start))
