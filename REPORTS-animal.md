@@ -2,6 +2,14 @@
 
 Newest first.
 
+## 2026-10-30 02:05: test hooks merged into animal-behaviours (3025dbf); worm craters on wip/worms (7cb0674)
+- Profiler run of 0019e8a: tree PASS. Ledge: the drop-back worked (Net status alternates top/start every 10 s), but
+  the pick was a thatch eave. Fixed in b7d82cd: flat tops only (level within 15 cm, 1.2 m in, ±0.5 m), a sloping one
+  only as a fallback; the log says "flat top" or "sloping top". Merged; the rc build compiles it.
+- wip/worms 7cb0674: craters fixed at break-out and dive-in, 6 s, age in y (world fades by `1 - b.y`). Not merged.
+- Post-v0.10 note: the climbing monkey hangs slightly off the trunk's side.
+- NEXT: idle until the supervisor's next task.
+
 ## 2026-10-30 02:30: worms review (post-v0.10): what wip/worms and wip/world-worms each need before merging
 Code read only. The contract matches on both sides (`_PunchyBurrowers[8]` = x, yaw, z, ±radius; `_PunchyBurrowerCount`
 via SetGlobalInteger). Each half is inert without the other (count 0 → shader branch skipped; no shader → no marks),
