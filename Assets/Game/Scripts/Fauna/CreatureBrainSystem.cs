@@ -233,13 +233,17 @@ namespace Punchy.Fauna
                 var player = Players[0];
                 var emote = (IdleAction)PlayerPoses[0];
                 var playerSpeed = PlayerSpeeds[0];
+                var nearest = 0;
                 for (int p = 1; p < Players.Length; p++)
                     if (math.distancesq(Players[p].xz, s.Position.xz) < math.distancesq(player.xz, s.Position.xz))
                     {
                         player = Players[p];
                         emote = (IdleAction)PlayerPoses[p];
                         playerSpeed = PlayerSpeeds[p];
+                        nearest = p;
                     }
+                // (A player in a body of its own kind is one of its own: not run from. A ghost doesn't flee a ghost.)
+                var ownKind = nearest < PlayerSpecies.Length && PlayerSpecies[nearest] == body.Species && body.Species >= 0;
                 if (emote < IdleAction.Wave)
                     emote = IdleAction.None;
                 var dt = Dt;
@@ -298,7 +302,7 @@ namespace Punchy.Fauna
                 // the skittish: a curious one comes to look, and some pay it no heed.)
                 var commotion = b.Reaction != EmoteReaction.Flees ? 1f :
                                 emote == IdleAction.Cheer || emote == IdleAction.Dance ? 1.8f : emote == IdleAction.Wave ? 1.25f : 1f;
-                var threatened = !aloft && b.FleeDistance > 0f && threatDistance < b.FleeDistance * s.Scale * alert * nerve * tame * commotion;
+                var threatened = !aloft && !ownKind && b.FleeDistance > 0f && threatDistance < b.FleeDistance * s.Scale * alert * nerve * tame * commotion;
                 var threat = player.xz;
                 // A hunter after it: heard creeping close, or seen drawing back to throw (and the throw itself).
                 if (!threatened && !aloft && b.FleeDistance > 0f && FindHunter(self, ref s, alert, out var hunter))
@@ -423,7 +427,8 @@ namespace Punchy.Fauna
                 // metres off.
                 if (b.Haunts && SleepTime(ref b) < 0.5f)
                 {
-                    if (playerDistance < 3.5f)
+                    // (Not from a ghost: one of its own it lets come close.)
+                    if (playerDistance < 3.5f && !ownKind)
                     {
                         var off = math.normalizesafe(s.Position.xz - player.xz, rng.NextFloat2Direction());
                         s.Position.xz += off * rng.NextFloat(20f, 35f) + rng.NextFloat2Direction() * 6f;
