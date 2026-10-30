@@ -2,6 +2,38 @@
 
 Newest first.
 
+## 2026-10-30: code-only batch (F-40 mask, worm marks, Brain.Sample read), zache-73
+
+None of this is compiled or seen yet: it needs a build (the bench runner's `build` is enough for the code) and shots.
+- **F-40 trodden mask: DONE in code, `world-laptop/f40` 21e7ffd, not merged.** The sheet is gone (one revert
+  of b336426 + 677bd3b, KeepOutOfSkirt with it); world-features merged in. New `LandmarkProp.Trodden` (m): placed
+  props (Count) get worn ground, baked per landmark type at FloraPlacement's own spots (`LandmarkSetBlob.Trodden`,
+  like pools) and painted in `LandmarkSampling.Ground`: the ground's colour x0.6, grass gone, pebbles x0.3,
+  centred 0.35 x Trodden in front of the prop (towards the middle), ragged edge (snoise at 0.8/m plus the edge noise).
+  It's the terrain's vertex colour, so its texture and detail draw over it (the terrain shader itself is unchanged).
+  Goblin and ogre camp stalls get 2.6 m. Seed-derived, nothing to sync; landmark placement unchanged, fingerprint
+  changes. Side effect: stalls' own dirt band samples the darker ground, so their bases get a little darker too.
+  Check: the OgreCamp stall at -355,-4079 (camera -356.6,15.5,-4072 looking at -355,12.3,-4079), before = Bench-d14f556.
+- **Worm marks: DONE in code, `world-laptop/worms` ad98690** (world-features + wip/world-worms), not merged. Stronger
+  (mound tilt x2, furrow tilt x2.2, darken 0.28 -> 0.4 / 0.12 -> 0.18) and craters fade by (1 - b.y), b.y being the
+  feeder's crater age. Bug found: the crater rim's tilt had the wrong sign (sign(r - rim) * -1.2), so the rim shaded
+  as a groove: likely why "the crater barely shows". Now it follows the bump's own slope ((r - rim) / width * 2).
+  Needs the feeder (wip/worms) or the globals set by hand to see.
+- **Brain.Sample 8.7 -> 11.2 us (item 13): the A/B crosses the island change, so it can't attribute this.**
+  6cfedaf (twin on e4010f2) lacks 1e53043 (G-18 roads, the v0.10 island), 05f18ec (F-22) and 4c5eafe (F-30);
+  7bd0768 has all three. The animals stand in different places on different ground. Code inside the marker is
+  byte-identical in both (the marked regions and CaveFloorAt, Crawl, Walled, WalksRoundWalls, SwimDepth). Below it:
+  F-22 added one max per lake cell in RiverSampling.Lake plus BayDepthLimit, which only runs after
+  NearestLakeAbove succeeds (behind `ShoreLevel > height`, so never far from lakes); F-30 adds one compare to the
+  cave SDF, and FloorUnder already skips caves by the baked NearColumn flag. None of that costs 2.5 us a step.
+  The likelier source is `Walled` -> `FloraPlacement.Blocked`, which re-runs `Place()` for every town plot or
+  counted landmark prop near the animal, every call. Its cost follows what's nearby, and 1e53043 / 7772e01 (Gate
+  plots) changed that. Suggestions, no behaviour change: (1) re-run the A/B on the same island (a twin on a commit
+  after 1e53043, e.g. 05f18ec^ vs 7bd0768); (2) if Blocked shows up, cache each plot's and placed prop's
+  FloraInstance (they're seed-fixed) instead of re-placing per call. That's Flora (shared) and the brain (animal
+  lane), so I haven't touched it.
+- NEXT: a slot for the F-40 and worm shots; the cave-mouth chunk follow-up stays for v0.11.
+
 ## 2026-10-30: F-40 and G-37 in the post-release slot, zache-73. Unity closed
 
 Checked with bench-runner player builds (Bench-<hash>, built with lib.sh `build`, ~5 min each) and framed shots
