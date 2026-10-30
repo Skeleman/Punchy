@@ -142,6 +142,9 @@ namespace Punchy.Fauna
         [Tooltip("What it does when someone near emotes at it (a wave, a bow, a cheer, a dance). Default: friendly ones " +
                  "come over wagging, ones that run from people run sooner, the rest pay no heed.")]
         public EmoteReaction EmoteReaction;
+        [Tooltip("Tunnels through the ground (sand and snow worms): travels deep under it, shown only by the ripple it " +
+                 "drives through the surface, and now and then bursts out in a great arc over flat ground and dives back.")]
+        public bool Tunnels;
         [Tooltip("Sounds of its kind beyond its calls: a cat purrs when held and content, a dog pants after a run. Variants " +
                  "take their body's unless they set their own.")]
         public VoiceFamily Voice;

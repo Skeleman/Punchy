@@ -99,7 +99,7 @@ namespace Punchy.Fauna
                     steps.Remove(entities[i]);
                     continue;
                 }
-                if (b.Breaches)
+                if (b.Breaches || b.Tunnels)
                 {
                     Splash(entities[i], s, ref b, terrain, now);
                     continue;
@@ -263,18 +263,27 @@ namespace Punchy.Fauna
         void Splash(Entity e, in CreatureState s, ref CreatureBlob b, in TerrainSource terrain, float now)
         {
             var g = terrain.SampleGround(s.Position.xz);
-            var isUnder = g.HasWater && s.Position.y < g.WaterSurface;
+            // (A worm breaks the ground, not water: its spray is sand, or snow.)
+            var surfaceY = b.Tunnels ? g.Height : g.WaterSurface;
+            var isUnder = (b.Tunnels || g.HasWater) && s.Position.y < surfaceY;
             var known = under.TryGetValue(e, out var was);
             under[e] = isUnder;
-            if (!known || was == isUnder || !g.HasWater)
+            if (!known || was == isUnder || !b.Tunnels && !g.HasWater)
                 return;
             var size = math.max(b.FrontRadius * s.Scale, 0.2f);
             var rng = new Unity.Mathematics.Random(math.hash(new float2(now, e.Index)) | 1u);
-            var centre = new float3(s.Position.x, g.WaterSurface, s.Position.z);
+            var centre = new float3(s.Position.x, surfaceY, s.Position.z);
             // (Water-tinted and see-through; only the odd one catches the light white.)
             var water = new float4(0.55f, 0.7f, 0.74f, 0f);
             var crest = new float4(0.95f, 0.97f, 0.98f, 0.25f);
             var foam = new float4(0.94f, 0.96f, 0.97f, 0f);
+            if (b.Tunnels)
+            {
+                var snowy = terrain.SampleSurface(s.Position.xz, g, terrain.SampleNormal(s.Position.xz, 1f)).Snow > 0.4f;
+                water = snowy ? new float4(0.9f, 0.92f, 0.96f, 0f) : new float4(0.76f, 0.64f, 0.45f, 0f);
+                crest = snowy ? new float4(0.97f, 0.98f, 1f, 0.1f) : new float4(0.85f, 0.74f, 0.55f, 0f);
+                foam = snowy ? new float4(0.93f, 0.95f, 0.98f, 0f) : new float4(0.7f, 0.58f, 0.4f, 0f);
+            }
             // Droplets: up and out, as fast as the serpent is big (a few metres high for one this size), and a column of
             // them straight up from where it broke the surface; each drawn as a streak along the way it's flying.
             var lift = 5f + 3f * math.sqrt(size);
@@ -296,7 +305,7 @@ namespace Punchy.Fauna
                     Life = 2f * up / Gravity + 0.1f,
                     Velocity = new float3(out0.x, 0f, out0.y) * (column ? rng.NextFloat(0.2f, 0.8f) : rng.NextFloat(1f, 4f)) * math.sqrt(size) + new float3(0f, up, 0f),
                     Falls = 1f,
-                    Floor = g.WaterSurface - r,
+                    Floor = surfaceY - r,
                     Streak = 0.035f,
                     Dither = 0.4f
                 });
