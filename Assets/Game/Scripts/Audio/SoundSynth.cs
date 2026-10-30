@@ -17,7 +17,9 @@ namespace Punchy.Audio
         Zap,
         // Footsteps by what's underfoot (CreatureAudioSystem.Step): a soft pad of a paw, and feet in grass, snow, on
         // rock and in sand.
-        StepPaw, StepGrass, StepSnow, StepRock, StepSand
+        StepPaw, StepGrass, StepSnow, StepRock, StepSand,
+        // A rattlesnake's rattle (appended: assets keep sounds by number).
+        Rattle
     }
 
     /// <summary>
@@ -39,7 +41,7 @@ namespace Punchy.Audio
             SoundId.Screech => 2, SoundId.Rooster => 2, SoundId.Bark => 4, SoundId.Meow => 3, SoundId.Snort => 3,
             SoundId.Whinny => 2, SoundId.Bleat => 3, SoundId.Moo => 3, SoundId.Grunt => 3, SoundId.Pant => 3,
             SoundId.CricketChirp => 3, SoundId.Croak => 4, SoundId.Cicada => 2, SoundId.Drum => 3, SoundId.Zip => 3, SoundId.Zap => 3,
-            SoundId.StepPaw => 3, SoundId.StepGrass => 3, SoundId.StepSnow => 3, SoundId.StepRock => 3, SoundId.StepSand => 3, _ => 1
+            SoundId.StepPaw => 3, SoundId.StepGrass => 3, SoundId.StepSnow => 3, SoundId.StepRock => 3, SoundId.StepSand => 3, SoundId.Rattle => 2, _ => 1
         };
 
         public static bool Loops(SoundId id) => id == SoundId.BeeBuzz || id == SoundId.Crickets || id == SoundId.FireCrackle ||
@@ -98,6 +100,7 @@ namespace Punchy.Audio
                 SoundId.StepSnow => Crunch(rng),
                 SoundId.StepRock => Tap(rng),
                 SoundId.StepSand => Underfoot(rng, 0.13f, 1300f, 0.035f, 0.35f, 0f),
+                SoundId.Rattle => Rattle(rng),
                 _ => new float[1]
             };
         }
@@ -939,6 +942,35 @@ namespace Punchy.Audio
                 s[i] = band.Run(Noise(rng) * tick, hz, 8f) * env;
             }
             return Normalise(s, 0.45f);
+        }
+
+        /// <summary>
+        /// A rattlesnake's rattle: a dry, fast buzz of hard little clicks (the tail's shaken segments), 50-60 a second
+        /// with a ragged rhythm, high and hissy, swelling in and dying away over a second and a half or so.
+        /// </summary>
+        static float[] Rattle(System.Random rng)
+        {
+            var n = (int)(Lerp(1.2f, 1.9f, R(rng)) * Rate);
+            var s = new float[n];
+            var band = new Band();
+            var rate = Lerp(48f, 60f, R(rng));
+            var next = 0f;
+            var click = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                var t = i / (float)Rate;
+                var u = i / (float)n;
+                // (Each click a short burst; the gaps between them jitter, as a shaken rattle's do.)
+                if (t >= next)
+                {
+                    click = Lerp(0.6f, 1f, R(rng));
+                    next = t + (1f + Noise(rng) * 0.25f) / rate;
+                }
+                click *= 0.82f;
+                var env = Mathf.Min(u / 0.12f, 1f) * Mathf.Min((1f - u) / 0.3f, 1f);
+                s[i] = band.Run(Noise(rng) * click, 6500f, 2.5f) * env;
+            }
+            return Normalise(s, 0.5f);
         }
 
         /// <summary>A woodpecker drumming: a fast roll of knocks on wood, slowing a touch at the end.</summary>
