@@ -545,15 +545,19 @@ namespace Punchy.Player
             var side = math.dot(input.MoveDirection, round);
             side = math.sign(side) * math.max(math.abs(side) - 0.45f, 0f) / 0.55f;
             var y = t.Position.y + up * speed * dt;
-            var reach = m.TrunkRadius + settings.Radius * 0.6f;
+            // Feet on the bark (the body hangs a leg's length out from them: CreatureAnimator), drawn in to it over a
+            // moment from where it took hold. (Held out at the body's radius, as before, the climbing monkey hung clear
+            // of the trunk, a gap of half a metre and more.)
+            var reach = math.max(m.TrunkRadius + 0.03f, math.distance(t.Position.xz, m.TrunkBase.xz) - dt);
             m.TrunkAngle += side * speed * dt / math.max(reach, 0.1f);
             Floor(terrain, t.Position, settings.SwimDepth, out var ground, out _);
             if (y <= ground && up < 0f)
             {
-                // Down at the foot: off it, standing.
+                // Down at the foot: off it, standing (stepped back to clear the trunk, so nothing shoves it out).
                 m.OnTrunk = false;
                 m.Grounded = true;
                 y = ground;
+                reach = m.TrunkRadius + settings.Radius;
             }
             var highest = m.TrunkBase.y + m.TrunkHeight - 0.3f;
             y = math.min(y, highest);

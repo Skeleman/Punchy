@@ -262,9 +262,10 @@ namespace Punchy.Fauna
                 {
                     fold = math.max(s.Lie, part.Socket.z > 0f ? s.Bow * 0.5f : 0f);
                     // Sitting folds the hind legs; sitting up tall tucks the front paws too; in flight all tuck up.
+                    // (A player's body up a trunk is a puppet: its front paws hold on, as a climbing animal's do.)
                     if (hind)
                         fold = math.max(fold, s.Sit);
-                    else if (s.Mode != CreatureMode.Climb && s.Mode != CreatureMode.Web)
+                    else if (s.Mode != CreatureMode.Climb && s.Mode != CreatureMode.Web && s.Mode != CreatureMode.Puppet)
                         fold = math.max(fold, math.saturate(s.Vertical * 1.6f));
                     // In flight the legs trail back under the tail instead (below).
                     fold *= 1f - s.Fly;
