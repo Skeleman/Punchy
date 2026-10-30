@@ -283,6 +283,21 @@ namespace Punchy.Terrain
                         props = SurfaceProps.Lerp(props, ground, w);
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// Wears the ground round landmarks' placed props (LandmarkProp.Trodden). Applied after settlements' streets and
+        /// squares, which repaint the ground under them (a camp's stalls stand on its square).
+        /// </summary>
+        public static void TroddenGround(ref LandmarkSetBlob set, float2 xz, float edgeNoise, ref SurfaceProps props)
+        {
+            var range = CellRange(ref set, xz);
+            for (int k = range.x; k < range.x + range.y; k++)
+            {
+                if (!Hit(ref set, set.Items[k], xz, out var hit))
+                    continue;
+                ref var type = ref set.Types[hit.Type];
                 for (int p = 0; p < type.TroddenCount; p++)
                     Trodden(ref set.Trodden[type.FirstTrodden + p], hit, xz, edgeNoise, ref props);
             }

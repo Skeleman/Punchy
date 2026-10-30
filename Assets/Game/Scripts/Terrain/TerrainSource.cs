@@ -609,6 +609,8 @@ namespace Punchy.Terrain
                 LandmarkSampling.Ground(ref Landmarks.Value, xz, context.EdgeNoise, context.ColorNoise, ref result);
             if (Settlements.IsCreated)
                 SettlementSampling.Ground(ref Settlements.Value, xz, context.EdgeNoise, context.ColorNoise, ref result);
+            if (Landmarks.IsCreated)
+                LandmarkSampling.TroddenGround(ref Landmarks.Value, xz, context.EdgeNoise, ref result);
             return result;
         }
 
