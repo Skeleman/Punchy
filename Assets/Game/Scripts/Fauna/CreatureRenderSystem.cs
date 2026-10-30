@@ -311,6 +311,71 @@ namespace Punchy.Fauna
             return at + CritterParts;
         }
 
+        // ------------------------------------------------------------------------------- cave fish
+
+        /// <summary>How near the camera the caves' pools have their fish drawn (m), and the parts of each fish.</summary>
+        const float CaveFishRange = 35f;
+        const int FishParts = 3;
+
+        /// <summary>The water pools in range this frame: centre (surface), radius, depth; and how many fish each holds.</summary>
+        readonly System.Collections.Generic.List<(float3 centre, float radius, float depth, int index, int fish)> fishPools = new System.Collections.Generic.List<(float3, float, float, int, int)>();
+
+        /// <summary>
+        /// The caves' water pools near the camera, each with a few pale fish (one to four, by its size): how many parts
+        /// they need. A pool too small or shallow, or of lava, has none.
+        /// </summary>
+        int GatherCaveFish(in TerrainSource terrain, float3 camera)
+        {
+            fishPools.Clear();
+            if (!terrain.Caves.IsCreated)
+                return 0;
+            ref var set = ref terrain.Caves.Value;
+            var count = 0;
+            for (int i = 0; i < set.Pools.Length; i++)
+            {
+                ref var pool = ref set.Pools[i];
+                if (pool.Lava > 0.5f || pool.Radius < 0.6f || pool.Depth < 0.3f || math.distance(pool.Centre, camera) > CaveFishRange + pool.Radius)
+                    continue;
+                var fish = math.clamp((int)math.round(pool.Radius * 1.2f), 1, 4);
+                fishPools.Add((pool.Centre, pool.Radius, pool.Depth, i, fish));
+                count += fish;
+            }
+            return count;
+        }
+
+        /// <summary>
+        /// The pools' fish, each going round its pool on a loop of its own (width, depth, pace, direction, from its pool and
+        /// number), weaving a little, on the shared clock so every machine sees the same: a pale body, a fin, a tail
+        /// beating as it goes.
+        /// </summary>
+        int WriteCaveFish(double clock, NativeArray<SegmentInstance> output, int at)
+        {
+            var t = (float)(clock % 100000.0);
+            var up = new float3(0f, 1f, 0f);
+            foreach (var pool in fishPools)
+                for (int k = 0; k < pool.fish; k++)
+                {
+                    var rng = new Unity.Mathematics.Random(math.hash(new int2(pool.index, k)) | 1u);
+                    var loop = pool.radius * rng.NextFloat(0.3f, 0.75f);
+                    var pace = rng.NextFloat(0.15f, 0.35f) / math.max(loop, 0.3f) * (rng.NextBool() ? 1f : -1f);
+                    var angle = rng.NextFloat(6.28f) + t * pace;
+                    var depth = pool.depth * rng.NextFloat(0.3f, 0.6f);
+                    var weave = math.sin(t * 0.7f + k) * 0.12f * loop;
+                    var p = pool.centre + new float3(math.cos(angle), 0f, math.sin(angle)) * (loop + weave) - up * depth;
+                    var f = math.normalize(new float3(-math.sin(angle), 0f, math.cos(angle)) * math.sign(pace));
+                    var size = rng.NextFloat(0.8f, 1.2f);
+                    var colour = new float4(0.85f, 0.78f, 0.74f, 0.15f);   // (pale, a little rosy: no light to colour it)
+                    var beat = math.sin(t * 9f + k * 2f) * 0.5f;
+                    var body = quaternion.LookRotationSafe(f, up);
+                    var tail = quaternion.LookRotationSafe(-f + new float3(f.z, 0f, -f.x) * beat, up);
+                    output[at] = Part(p - f * 0.08f * size, body, 0.16f * size, 0.022f * size, 0.03f * size, 0.6f, colour);
+                    output[at + 1] = Part(p - f * 0.08f * size, tail, 0.06f * size, 0.02f * size, 0.002f, 0.15f, colour * 0.9f);
+                    output[at + 2] = Part(p, quaternion.LookRotationSafe(-f + up * 0.8f, up), 0.04f * size, 0.012f * size, 0.002f, 0.15f, colour * 0.9f);
+                    at += FishParts;
+                }
+            return at;
+        }
+
         static SegmentInstance Part(float3 from, quaternion rotation, float length, float r0, float r1, float flatten, float4 colour,
                                     float faded = 0f) =>
             new SegmentInstance
@@ -567,6 +632,8 @@ namespace Punchy.Fauna
             // Birds high overhead (geese and cranes in a V, soarers on a thermal), drawn only, from the shared clock.
             var skyClock = SkyClock(out var skyHour);
             total += GatherSkyBirds(camAt0, skyClock, skyHour, terrain);
+            // Fish in the caves' pools near the camera, drawn only.
+            total += GatherCaveFish(terrain, camAt0) * FishParts;
 
             // Footprints and feathers (TraceSystem).
             var traces = World.GetExistingSystemManaged<TraceSystem>();
@@ -612,6 +679,7 @@ namespace Punchy.Fauna
             foreach (var critter in critters)
                 at = Critter(critter, (float)SystemAPI.Time.ElapsedTime, extras, at);
             at = WriteSkyBirds(skyClock, extras, at);
+            at = WriteCaveFish(skyClock, extras, at);
             if (traceCount > 0)
                 at = traces.Write(extras, at, (float)SystemAPI.Time.ElapsedTime);
             posing.Complete();
