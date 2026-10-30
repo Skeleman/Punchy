@@ -68,6 +68,8 @@ namespace Punchy.Player
     public struct PlayerBody : IComponentData
     {
         public float SpeedFactor;
+        /// <summary>Its jump's height next to a human's (CreatureSpecies.PlayerJump, or from its size); 0 reads as 1.</summary>
+        public float JumpFactor;
         public bool Flies;
         public float FlySpeed;
         /// <summary>Can climb up onto ledges (a body with hands, or a climber); others only step up and drop down.</summary>

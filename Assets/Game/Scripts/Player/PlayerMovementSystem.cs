@@ -206,7 +206,8 @@ namespace Punchy.Player
 
                 if (m.Grounded && input.JumpPressed)
                 {
-                    m.VerticalVelocity = settings.JumpSpeed;
+                    // (As high as the body jumps next to a human: its height goes with the square of the speed.)
+                    m.VerticalVelocity = settings.JumpSpeed * math.sqrt(body.JumpFactor > 0f ? body.JumpFactor : 1f);
                     m.Grounded = false;
                 }
 
