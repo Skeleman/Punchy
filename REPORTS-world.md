@@ -2,6 +2,37 @@
 
 Newest first.
 
+## 2026-10-30: graphics settings steps 1-2 and Z-01, zache-73
+
+`world-laptop/gfx-settings` 9cf4e26 (9 commits off bc89606), not compiled or merged; the checks come in my slot.
+- **Step 1 (6a16561):** `Punchy.Settings.GraphicsSettings` (the design said Punchy.Rendering; Settings matches
+  FrameRateCap's folder and pattern). View, Detail and Shadows multipliers with Low/Medium/High/Ultra presets,
+  PlayerPrefs, and the **F5** panel (F4 is the Options action that steps the frame cap). `-gfx` and `-gfxset` apply to
+  one run and are never saved: the panel only applies on a real slider move, so a command-line value off the
+  sliders' 0.05 steps isn't rounded and saved on opening. Startup log line: "Graphics: view 1.0 detail 1.0 shadows
+  1.0 (Medium)". The URP shadow distance and cascades are restored on quitting. `_PunchyBurrowRange` =
+  DetailRange(150). `Punchy.UI.Overlay.AnyOpen` replaces NetMenu.IsOpen in ThirdPersonCamera (1 line +
+  comment), PlayerInputSystem (1) and InteractionInputSystem (3): your approved edits. zache-db has the API and waits
+  for your OK to wire the creature ranges.
+- **Step 2, world ranges, one commit each:**
+  - GroundDetail: grass 60, pebbles 45, full density 20 (Detail).
+  - LandmarkEffect: 700 (View); flames 150 and cave falls 120 (Detail).
+  - Critters 70 (Detail).
+  - Ambient particles' Range and others' breath 80 (Detail).
+  - Cave plants 60 and drips 25 (Detail).
+  - Flora: ground layer at Detail, shrubs and trees at View, radius and LODs, floored at SupportRange + 1.5 tiles;
+    bolts 160 (View).
+  - Terrain: view radius and LOD distances at View. A change applies after holding 0.3 s by flagging every loaded
+    chunk for rebuild (no unload, no holes). The camera far plane (3000 in SampleScene) is pushed out only if the
+    terrain reaches past it, which at View 2 it does (3.2 km).
+  - Not wired: WeatherSystem reads ViewRadiusChunks for a draw distance (shared file). Left at the baked value; ask if
+    you want it scaled.
+  - At merge: the TerrainSurface burrow gate becomes `distance < _PunchyBurrowRange` (zache-db asked me to do it).
+- **Z-01 DONE in code (a909076):** "Quit game" in the F5 panel, with a Quit/Cancel confirm (stops play mode in the
+  editor). Discoverability: F5 isn't listed anywhere on screen. The F1 readout's key list is DebugControls (animal
+  lane's file), so it's worth a "F5 graphics / quit" line there.
+- NEXT: P1 rows Z-09, Z-10, Z-11, Z-12, Z-13, Z-14, Z-02 (cave side), code first, then shots in a slot.
+
 ## 2026-10-30: graphics settings, distance sliders: DESIGN for OK (queue 1), zache-73
 
 **Shape.** `Punchy.Rendering.GraphicsSettings`: static, PlayerPrefs-backed, applied live. Three multipliers on today's
