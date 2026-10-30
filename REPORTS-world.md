@@ -2,6 +2,31 @@
 
 Newest first.
 
+## 2026-10-30: P2 second batch (W), zache-73
+
+`world-laptop/z-p2` ec75753, not compiled.
+- **Z-38 widened (01da094), per Zach's wording:** GiantPaleCap, GiantPuffball and PaleCap (PaleCap is also in the foggy
+  marsh) go from cream and beige to tawny, light tan and mid brown, keeping a light-to-dark range. With the giants'
+  brown caps, the whole canopy reads earthy. Kept: the small glowing caps (GlowCap, GlimmerCap). They're the forest's
+  lights and are shared with the poison swamp, sparkling forest and fairy rings; say if Zach wants them browned too
+  (brown caps with glowing gills, as the giants have).
+- **Z-33 cloth LOD (08c93a2):** banners drop to 1 x 2 segments at LOD 1 (were 2 x 3), awning stripes to 2 rows (were
+  3), tent flaps to 1 x 2. LOD 0 and LOD 2 (one quad) are unchanged.
+- **Z-42 glacier (6564033):** IceSlab (the boulder families in ice, 1.5-4 m) and IceCrag (Tor form, 4-9 m) join
+  IceArch, slabs commonest. New `FloraSpecies.KeepOwnColour`: without it, ice boulders take the glacier's rock tint
+  (G-36). Landmark list unchanged.
+- **Z-40 furnace (ec75753):** there's no separate smelter, so this is the smithy's forge. The hearth is now a lower bed
+  inside a raised stone rim, with glowing embers among dark coals (7 up close, 3 further off) instead of a glowing
+  dome on top. Anvil and work spot unchanged.
+- **Z-30 wood grain: design question.** The flora shader can't tell wood from stone (both are the Bark part), and
+  grain needs a direction (planks run along, posts up). Options:
+  (a) a "wood" mark (Bark + a new fraction, like the seams' and strata's) set by the builders on timber (planks,
+      beams, posts, stalls, benches), plus grain stripes along the longer axis of each face. Right, but it touches
+      every wooden builder.
+  (b) a shader-only heuristic: warm-hued built Bark gets grain along world Y on upright faces and along X/Z on flat
+      ones. Cheap, but it also catches warm plaster and would grain mud walls.
+  I'd do (a), starting with the stall, bench, fence and smithy timber, after a look at today's wood.
+
 ## 2026-10-30: Zach's v0.10 P2 rows (W), first batch, zache-73
 
 `world-laptop/z-p2` bfd69e5 (off world-features 7f519c0), not compiled; shots in a slot.
