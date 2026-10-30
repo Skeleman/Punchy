@@ -346,3 +346,12 @@ asks Zach if needed, and records the answer here.
 - **Later (2026-10-29):** stay on D3D11 until a stable Unity 6.7 (LTS); skip 6.6. Revisit D3D12 then, with the
   friend project's fixes to try (Agility SDK update, end the process on quit).
 - **Revisited:** 1 (he changed his mind once on new data).
+
+### J-039: Does Zach playtest the v0.9 candidate before it ships?
+
+- **Asked:** 2026-10-29, by the supervisor (after his feedback G-01..G-34 on rc/v0.9.0 f764a36).
+- **Answer (2026-10-29):** No. The sessions attempt the V09 items, kind-possum runs the light gate (smoke + short
+  host/join), and the supervisor publishes v0.9.0 without another playtest. Then add what fits in the remaining tokens.
+- **Why:** Zach: "No need for me to playtest 0.9--just attempt those fixes and publish. Then see what you can get in
+  with remaining tokens."
+- **Revisited:** 0.
