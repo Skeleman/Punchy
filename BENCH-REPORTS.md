@@ -2,6 +2,58 @@
 
 Newest first.
 
+## 2026-10-30: slot (item 14, close-up ducks, F-40 smoke): Blocked is the town cost; ducks and F-40 pass
+0 exceptions and 0 NaN-bounds lines in every run below. No dialogs.
+
+### Item 14: Brain.Sample split with Brain.Blocked (91f8957 on 6cfedaf vs 32ec6ff on 7bd0768): item 13's +30% is Blocked noise, not Sample
+One dev capture per stop, cap 60, workers + main summed per frame. Townwalk ended at 366,-406 in both, with 96/98
+animals. Forest is the OakGrove stop: it ended at -2363,-400 in both, with 67 animals each.
+| | townwalk 91f8957 | townwalk 32ec6ff | forest 91f8957 | forest 32ec6ff |
+|---|---|---|---|---|
+| Brain.Moving calls (movers) | 61.8 | 60.5 | 47.1 | 42.1 |
+| Brain.Sample µs/call | 17.8 | 9.5 | 1.89 | 1.66 |
+| Brain.Blocked µs/call (calls/frame) | 37.8 (45.7) | 19.7 (35.8) | 0.10 (29.9) | 0.11 (26.6) |
+| Sample minus Blocked, µs/call | 2.75 | 3.00 | ≈1.85 | ≈1.62 |
+| Blocked share of Sample time | 85% | 68% | ~2% | ~2% |
+| BrainJob inclusive ms | 3.16 | 2.39 | 0.77 | 0.72 |
+- **Sample's own work is flat** (2.75 vs 3.00 µs in town; forest flat or lower on 7bd0768). All the variance is
+  `FloraPlacement.Blocked`. It costs 20–38 µs a call near town plots and props, and 0.1 µs away from them.
+- **This run reversed item 13.** The old Sample is now the dearer one: 17.8 vs 9.5 µs, where item 13 had 8.7 vs 11.2.
+  Both captures ended at the same place with the same animal count. So a single townwalk capture can swing Blocked
+  2× on where the movers happen to stand. Item 13's +30% was this noise (and the layout), not Sample's code.
+- **Target:** in town, Blocked is 68–85% of Sample and about 0.7–1.7 ms of BrainJob a frame. That matches the world
+  lane's suspect: it re-runs Place() for nearby plots and props on every call. A baked or per-cell cached
+  blocked answer is the fix to try (CLAUDE.md: per-region work belongs in a baked table).
+- The forest control isn't fully identical. The grove behind matches, but one near prop differs: a standing stone
+  in 91f8957 and an oak in 32ec6ff (results/shots-i14-*-forest/forest.png). It's a different island, but there are no
+  plots, so Blocked costs the same 0.1 µs in both.
+- The marker branches (wip/brain-blocked*) remain profiler-only.
+
+### Close-up ducks (item 6 worst case): 793f103 vs 3d1893d, cleared
+`-benchspot -1087,33,-1600,270 -goto -1087,-1600 -spawn Duck:8 -benchwait 12`, cap 0, ABBA plus a third round (BA).
+"spawned 8 Duck" is in every log. Shots of the same frame each time; B's r2 shot shows a duck about 10 m out, with
+wake rings.
+| | avg | 1% low | GPU ms | worst ms |
+|---|---|---|---|---|
+| 3d1893d (3 runs) | 91.0 | 68.1 | 10.1 | 18 / 22 / 14 |
+| 793f103 (3 runs) | 92.8 | 49.9 (65.9 without r2) | 9.6 | 21 / **728** / 21 |
+- B's r2 had a single 728 ms frame in the stop's last 5 s window: one slow frame, no exception, and GC the same as
+  the others (19). It didn't recur in r3 (worst 21 ms), so I'm treating it as an outside stall, not the wake loop
+  (which would cost every frame). Without it the 1% lows are within noise, and avg and GPU are flat or better.
+  **Swimmer wakes are cleared.**
+
+### F-40 smoke: world-features tip bc89606 (trodden mask + early-out + worm marks) vs 6464ce7: PASS
+bc89606 compiled (Bench-bc89606 is archived for item 15's A side). Stops: `-place OgreCamp` measured by `here`, plus
+townwalk; cap 0, ABBA, 2 rounds. Same end x,z: -365,-4132 and 366,-406.
+| | 6464ce7 | bc89606 |
+|---|---|---|
+| OgreCamp avg / 1% low / GPU | 111.1 / 69.9 / 4.9 | 112.2 / 72.8 / 4.8 |
+| townwalk avg / 1% low / GPU | 86.9 / 50.4 / 7.2 | 86.4 / 49.0 / 7.2 |
+| worst ms (camp, town) | 18–20, 27–30 | 18–19, 28–29 |
+- Within noise. The camp shots match frame for frame; the stalls are too far from this viewpoint to show the
+  trodden patch. A look check of the patch belongs to the world lane's stall shots.
+
+
 ## 2026-10-30: item 6, swimmer wakes (world-features 793f103 vs 3d1893d) at a duck lake: no cost found
 - **Duck lake:** `-place Grassland` then `-place clearlake` → shore (-1087, 33, -1600), facing west (270) over a
   clear lake 1.8 m deep (Temperate biome, ducks listed). `-watch Duck` found a duck on it 35 m out, floating, with
