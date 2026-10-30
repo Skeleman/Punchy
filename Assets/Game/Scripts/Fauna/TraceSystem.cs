@@ -39,7 +39,8 @@ namespace Punchy.Fauna
 
         /// <summary>The most traces at once (all kinds).</summary>
         public const int Capacity = 1536;
-        const float Range = 40f;
+        /// <summary>How near the camera traces are left (m, at the graphics settings' Detail).</summary>
+        static float Range => Punchy.Settings.GraphicsSettings.DetailRange(40f);
         const float FootprintLife = 90f, FeatherLife = 120f;
 
         public NativeArray<Trace> Traces;
