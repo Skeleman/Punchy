@@ -152,7 +152,7 @@ namespace Punchy.Fauna
             InteractionPrompt.Show(Prompt != null);
 
             // The button: a tap pets, a hold picks up; holding one, a press puts it down.
-            if (interact != null && !Punchy.Net.NetMenu.IsOpen)
+            if (interact != null && !Punchy.UI.Overlay.AnyOpen)
             {
                 if (interact.WasPressedThisFrame())
                 {
@@ -190,7 +190,7 @@ namespace Punchy.Fauna
                 }
             }
             // Attack: a lunge at the animal in front (it bolts; harmless for now). Empty-handed only.
-            if (attack != null && !Punchy.Net.NetMenu.IsOpen && held == Entity.Null && attack.WasPressedThisFrame() && !lunging)
+            if (attack != null && !Punchy.UI.Overlay.AnyOpen && held == Entity.Null && attack.WasPressedThisFrame() && !lunging)
             {
                 lungeUntil = SystemAPI.Time.ElapsedTime + 0.6;
                 if (lungeTarget != Entity.Null)
@@ -209,7 +209,7 @@ namespace Punchy.Fauna
             var moving = move != null && move.ReadValue<Vector2>().sqrMagnitude > 0.1f;
             if (emote != IdleAction.None && (now > emoteUntil || moving || busy))
                 emote = IdleAction.None;
-            if (busy || Punchy.Net.NetMenu.IsOpen)
+            if (busy || Punchy.UI.Overlay.AnyOpen)
                 return;
             var keys = Keyboard.current;
             var pad = Gamepad.current;
