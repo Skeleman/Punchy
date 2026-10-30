@@ -364,9 +364,11 @@ Shader "Punchy/Water"
                 shadow *= 1 - _PunchyUnderground;
                 ambient *= lerp(1, 0.06, _PunchyUnderground);
 
-                // Glowing (toxic) water swirls between its colour and a shifted hue in slow-moving patches.
-                half swirl = smoothstep(0.35, 0.65, PunchyValueNoise(p * 0.06 + float2(t * 0.01, -t * 0.013)) * 0.7 + PunchyValueNoise(p * 0.21) * 0.3);
-                input.look.rgb = lerp(input.look.rgb, input.look.rbg, swirl * saturate(glow * 3) * (1 - lava));
+                // Glowing (toxic) water swirls between its colour and a shifted hue in slow-moving patches, a few metres
+                // across so a small pool shows both, and never wholly the shifted hue (a toxic pool read as one flat
+                // purple, G-27).
+                half swirl = smoothstep(0.35, 0.65, PunchyValueNoise(p * 0.3 + float2(t * 0.05, -t * 0.065)) * 0.7 + PunchyValueNoise(p * 1.05) * 0.3);
+                input.look.rgb = lerp(input.look.rgb, input.look.rbg, swirl * 0.6 * saturate(glow * 3) * (1 - lava));
                 half3 shallowColor = lerp(_ShallowColor.rgb, input.look.rgb, saturate(murk * 1.5));
                 half3 deepColor = lerp(_DeepColor.rgb, input.look.rgb * 0.2, saturate(murk * 1.5));
                 half3 waterColor = lerp(deepColor, shallowColor, exp(-thickness * _Absorption * (1 + murk * 8)));

@@ -228,13 +228,14 @@ namespace Punchy.Terrain
                     ref var pool = ref set.Pools[type.FirstPool + p];
                     var r = pool.Radius * hit.Radius;
                     var dp = math.distance(hit.Local, pool.Offset * hit.Radius);
-                    // Only inside the rim, so the water never shows over lower ground beyond it.
-                    if (dp > r * 1.1f)
+                    // Only inside the basin, so the water never shows over lower ground beyond it (a small pool's lip can
+                    // be lost between the terrain's samples, and the water stuck out past it, G-27).
+                    if (dp > r)
                         continue;
                     var level = PoolLevel(ref inst, ref type, ref pool, hit.Radius);
                     if (level > water)
                         water = level;
-                    claim = math.max(claim, math.smoothstep(r * 1.1f, r * 0.9f, dp));
+                    claim = math.max(claim, math.smoothstep(r, r * 0.8f, dp));
                 }
             }
             return water;
