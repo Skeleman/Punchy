@@ -218,6 +218,13 @@ namespace Punchy.Fauna
             // Body.
             ref var body = ref b.Segments[0];
             output[offset] = Instance(rootPos + math.mul(rootRot, new float3(0f, 0f, -halfLength + body.RadiusStart * scale)), rootRot, ref body, scale, b.SegmentColor(0, coat));
+            if (Golden(ref b, in s))
+            {
+                var trunk = output[offset];
+                trunk.Color = new float4(0.95f, 0.6f, 0.12f, trunk.Color.w);
+                trunk.Material.x = (float)SegmentMaterial.Metal;
+                output[offset] = trunk;
+            }
 
             var segPos = new FixedList4096Bytes<float3>();
             var segRot = new FixedList4096Bytes<quaternion>();
@@ -573,6 +580,7 @@ namespace Punchy.Fauna
                 endRot.Add(rot);
             }
 
+            var golden = Golden(ref b, in s);
             for (int seg = 1; seg < b.Segments.Length && seg < MaxSegments; seg++)
             {
                 ref var segment = ref b.Segments[seg];
@@ -584,9 +592,25 @@ namespace Punchy.Fauna
                 var colour = b.SegmentColor(seg, coat);
                 if (segment.Hair != 0)
                     colour = b.HairColor(id, colour);
-                output[offset + seg] = Instance(segPos[seg], segRot[seg], ref segment, scale, colour);
+                var piece = Instance(segPos[seg], segRot[seg], ref segment, scale, colour);
+                // A rare golden one: its body gold and gleaming as metal (eyes and other fixed colours as they are).
+                if (golden && segment.Fixed == 0)
+                {
+                    piece.Color = new float4(math.lerp(new float3(0.95f, 0.6f, 0.12f), new float3(0.7f, 0.4f, 0.06f), segment.Accent), colour.w);
+                    piece.Material.x = (float)SegmentMaterial.Metal;
+                }
+                output[offset + seg] = piece;
             }
         }
+
+        /// <summary>
+        /// One animal in GoldenOdds is golden, by its individual (fixed at birth and sent with it, so every machine sees
+        /// the same one): any but folk, ghosts and players' bodies.
+        /// </summary>
+        public static bool Golden(ref CreatureBlob b, in CreatureState s) =>
+            !b.Hands && !b.Haunts && s.Mode != CreatureMode.Puppet && (math.hash(new uint2(s.Individual, 0x601Du)) >> 8) % GoldenOdds == 0u;   // (the hash's low bits follow the individual's, always odd)
+
+        public const uint GoldenOdds = 400;
 
         /// <summary>How far into an idle action it is, as a weight: eases in, holds, eases out.</summary>
         static float ActionEnvelope(float t) => math.smoothstep(0f, 0.12f, t) * (1f - math.smoothstep(0.85f, 1f, t));
