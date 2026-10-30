@@ -25,6 +25,9 @@ namespace Punchy.Fauna
         static readonly int CountId = Shader.PropertyToID("_PunchySwimmerCount");
         readonly Vector4[] slots = new Vector4[MaxSwimmers];
         readonly float[] distances = new float[MaxSwimmers];
+        /// <summary>Whether each creature was at the water's surface when last looked (a sixth of them each frame).</summary>
+        readonly System.Collections.Generic.Dictionary<Entity, bool> wet = new System.Collections.Generic.Dictionary<Entity, bool>();
+        const int Stagger = 6;
         EntityQuery query;
 
         protected override void OnCreate()
@@ -39,16 +42,31 @@ namespace Punchy.Fauna
             if (cam != null && SystemAPI.TryGetSingleton<TerrainSource>(out var terrain))
             {
                 float3 camAt = cam.transform.position;
+                var frame = UnityEngine.Time.frameCount;
+                var entities = query.ToEntityArray(Allocator.Temp);
                 var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
+                var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
                 for (int i = 0; i < states.Length; i++)
                 {
                     var s = states[i];
                     var d = math.distance(s.Position, camAt);
                     if (d > Range || s.Gone || s.Fly > 0.5f)
                         continue;
-                    var g = terrain.SampleGround(s.Position.xz);
-                    var under = g.HasWater ? g.WaterSurface - s.Position.y : float.MaxValue;
-                    if (!g.HasWater || g.WaterSurface - g.Height < 0.15f || under < -Above || under > Below)
+                    // (Only what can be in the water: swimmers, floaters, animals that cross it, folk, players' bodies.)
+                    ref var b = ref bodies[i].Blob.Value;
+                    if (b.Habitat != Habitat.Swims && b.Habitat != Habitat.Floats && !b.CrossesWater && !b.Upright && s.Mode != CreatureMode.Puppet)
+                        continue;
+                    // Whether it's at the surface, looked at again every few frames (the ground sample is the cost):
+                    // in between, where it is now goes out as last seen wet or not.
+                    var e = entities[i];
+                    if (!wet.TryGetValue(e, out var atSurface) || (e.Index + frame) % Stagger == 0)
+                    {
+                        var g = terrain.SampleGround(s.Position.xz);
+                        var under = g.HasWater ? g.WaterSurface - s.Position.y : float.MaxValue;
+                        atSurface = g.HasWater && g.WaterSurface - g.Height >= 0.15f && under >= -Above && under <= Below;
+                        wet[e] = atSurface;
+                    }
+                    if (!atSurface)
                         continue;
                     // (Kept to the nearest 16: a full list gives way to anything nearer than its furthest.)
                     var slot = count;
@@ -68,6 +86,10 @@ namespace Punchy.Fauna
                     slots[slot] = new Vector4(s.Position.x, s.Yaw, s.Position.z, math.max(s.Speed, 0.01f));
                 }
                 states.Dispose();
+                bodies.Dispose();
+                entities.Dispose();
+                if (wet.Count > 2000)
+                    wet.Clear();
             }
             for (int k = count; k < MaxSwimmers; k++)
                 slots[k] = Vector4.zero;
