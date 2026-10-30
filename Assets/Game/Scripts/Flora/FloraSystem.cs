@@ -200,7 +200,7 @@ namespace Punchy.Flora
         readonly List<Basin> basins = new List<Basin>();
         /// <summary>One water disc per model (its species' water colour baked in), made when first drawn.</summary>
         readonly Dictionary<int, Mesh> basinMeshes = new Dictionary<int, Mesh>();
-        /// <summary>How far fountains' water is drawn with the terrain's water; beyond it their models' own discs stand in.</summary>
+        /// <summary>How far fountains' water is drawn with the terrain's water (at Detail 1); beyond it their models' own discs stand in.</summary>
         const float BasinRange = 80f;
 
         /// <summary>Notes the basins of a newly loaded tile's plants (turned and scaled as the plants are).</summary>
@@ -240,7 +240,7 @@ namespace Punchy.Flora
                 return;
             foreach (var basin in basins)
             {
-                if (math.distance(basin.Centre, camPos) > BasinRange + basin.Radius)
+                if (math.distance(basin.Centre, camPos) > Punchy.Settings.GraphicsSettings.DetailRange(BasinRange) + basin.Radius)
                     continue;
                 if (!basinMeshes.TryGetValue(basin.Model, out var mesh))
                 {
