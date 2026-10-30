@@ -1405,9 +1405,13 @@ namespace Punchy.Flora
                 b.Box(new Vector3(0f, BenchSeat - 0.05f, 0f), new Vector3(1.9f, 0.1f, 0.44f),
                       Quaternion.Euler(0f, g.Range(-1f, 1f), 0f), g.Bark * g.Range(0.95f, 1.03f), FloraPart.Bark);
             else
+            {
+                b.Wood = true;
                 for (int k = 0; k < 2; k++)
                     b.Box(new Vector3(0f, BenchSeat - 0.03f, (k - 0.5f) * 0.2f), new Vector3(1.8f, 0.06f, 0.18f),
                           Quaternion.Euler(0f, g.Range(-1f, 1f), 0f), g.Bark * g.Range(0.92f, 1.05f), FloraPart.Bark);
+                b.Wood = false;
+            }
             g.Colliders.Add(new Vector4(-0.5f, 0f, 0.3f, BenchSeat));
             g.Colliders.Add(new Vector4(0.5f, 0f, 0.3f, BenchSeat));
         }
@@ -2843,6 +2847,7 @@ namespace Punchy.Flora
         {
             var s = g.S;
             var b = g.B;
+            b.Wood = true;   // timber throughout, with its grain (Z-30)
             var height = g.Range(s.Height);
             const float length = 3f;
             g.Height = height;
@@ -3089,6 +3094,8 @@ namespace Punchy.Flora
             g.TrunkRadius = 0f;
             var post = 0.06f;
             var frontHeight = height * 0.82f;
+            // Posts and counter are timber, with its grain (Z-30).
+            b.Wood = true;
             foreach (var x in new[] { -0.5f, 0.5f })
             foreach (var z in new[] { -0.5f, 0.5f })
             {
@@ -3098,6 +3105,7 @@ namespace Punchy.Flora
             }
             // Counter across the front, and goods laid out on it.
             b.Box(new Vector3(0f, 0.45f, depth * 0.5f - 0.15f), new Vector3(width * 0.95f, 0.9f, 0.45f), Quaternion.identity, g.Bark * 0.8f, FloraPart.Bark);
+            b.Wood = false;
             if (g.Lod < 2)
                 for (int k = 0; k < 7; k++)
                 {
@@ -3495,6 +3503,7 @@ namespace Punchy.Flora
         {
             var s = g.S;
             var b = g.B;
+            b.Wood = true;   // timber throughout, with its grain (Z-30)
             var height = g.Range(s.Height);
             g.Height = height;
             g.Width = 1.6f;
