@@ -2,6 +2,13 @@
 
 Newest first.
 
+## 2026-10-30 03:52: v0.10.0 PUBLISHED (supervisor)
+- https://github.com/Skeleman/Punchy/releases/tag/v0.10.0 (pre-release, "Punchy v0.10.0 (Windows preview)"), tag v0.10.0 =
+  rc/v0.10.0 519fb5b25a2964a0cc3aa6f1f5f1ae9dfb48abe2, on Zach's go ("release a v10 before 7AM").
+- Punchy-v0.10.0-windows.zip: 237 files, 47 MB, SHA-256 fee646b3f586285ecd5322742ffcb609095ccecc6cbe6297a42b6742e46953d7
+  (re-downloaded and matched). pack.py check: backslash False, donotship False, exe True; the .from marker was held out.
+- Notes: release/release-notes-v0.10.0.md. The Unity slot goes to the world lane next (F-40), then item 13.
+
 ## 2026-10-30: v0.10 light gate: rc/v0.10.0 519fb5b PASS (c7410cc gated in full, plus a re-gate after the arch NaN fix)
 Results in Punchy-wt/Tools/bench/results (gate-c7410cc-*, gate2-c7410cc-*, regate-519fb5b-*).
 - **Release build: PASS.** `C:\Users\zache\Projects\Punchy\Builds\Play` = 519fb5b (.from), built with a throwaway
