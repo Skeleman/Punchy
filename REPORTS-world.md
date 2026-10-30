@@ -2,6 +2,12 @@
 
 Newest first.
 
+## 2026-10-30: G-29 arch NaN fix brought in, zache-73
+
+- **DONE:** cherry-picked rc/v0.10.0 519fb5b (arch bow sin clamped at 0) onto world-features as 2310533, pushed; file
+  still CRLF. Scanned for other Pow(sin/cos, fractional): only FloraGenerator :622 (sin at a segment's midpoint,
+  always inside (0, pi)), safe; the rest use integer powers or non-negative bases.
+
 ## 2026-10-30: caveapproach hitch merged, zache-73
 
 - **DONE: caveapproach hitch.** world-features fast-forwarded 1cbdd9f -> d14f556 (world-laptop/cave-hitch) and
