@@ -1808,29 +1808,51 @@ namespace Punchy.Fauna
                             }
                         }
                     }
-                    // Rock or a cliff ahead of its head: it doesn't tunnel through. Due to breach soon anyway, and the ground
-                    // flat here, it leaps it (its arc clears a boulder or a low bluff); else it turns off to whichever side
-                    // is clear and makes for somewhere that way.
+                    // Rock or a cliff ahead: it doesn't tunnel through. Close ahead of its head, it turns off to whichever
+                    // side is clear and makes for somewhere that way. Further on, where its next arc would be up in the
+                    // air, and due to breach soon anyway with the ground flat here: if the arc clears it there (the arc's
+                    // height at that point over the highest the ground rises, or the tallest a boulder stands, with a
+                    // body's radius to spare) and comes down somewhere clear, it breaches now and leaps it.
                     var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
                     var reach = math.max(radius * 6f, 6f);
                     if (Obstructed(s.Position.xz + forward * reach, radius) || Obstructed(s.Position.xz + forward * reach * 0.5f, radius))
                     {
-                        if (s.Timer < 15f && Terrain.SampleNormal(s.Position.xz, 3f).y > 0.97f)
-                            s.Timer = 0f;
-                        else
+                        var side = rng.NextBool() ? 1f : -1f;
+                        for (int k = 0; k < 4; k++)
                         {
-                            var side = rng.NextBool() ? 1f : -1f;
-                            for (int k = 0; k < 4; k++)
+                            var turn = side * (k < 2 ? 0.8f : 1.6f) * (k % 2 == 0 ? 1f : -1f);
+                            var way = new float2(math.sin(s.Yaw + turn), math.cos(s.Yaw + turn));
+                            if (!Obstructed(s.Position.xz + way * reach, radius) && !Obstructed(s.Position.xz + way * reach * 2f, radius))
                             {
-                                var turn = side * (k < 2 ? 0.8f : 1.6f) * (k % 2 == 0 ? 1f : -1f);
-                                var way = new float2(math.sin(s.Yaw + turn), math.cos(s.Yaw + turn));
-                                if (!Obstructed(s.Position.xz + way * reach, radius) && !Obstructed(s.Position.xz + way * reach * 2f, radius))
-                                {
-                                    s.Target = s.Position.xz + way * math.max(reach * 3f, 20f);
-                                    break;
-                                }
+                                s.Target = s.Position.xz + way * math.max(reach * 3f, 20f);
+                                break;
                             }
                         }
+                    }
+                    else if (s.Timer > 0f && s.Timer < 15f && Terrain.SampleNormal(s.Position.xz, 3f).y > 0.97f)
+                    {
+                        // (The arc as Air will run it: its height above where it starts, and how far on each part of it
+                        // comes; above the ground from out to in.)
+                        var high = radius * 6f;
+                        var above = 1f - 2f * math.asin(deep / (deep + high)) / math.PI;
+                        var span = b.RunSpeed * 3f / math.max(above, 0.05f);
+                        var obstacle = false;
+                        var clears = true;
+                        for (int k = 1; k < 8 && clears; k++)
+                        {
+                            var u = (1f - above) * 0.5f + above * k / 8f;
+                            var p = s.Position.xz + forward * span * u;
+                            if (!Obstructed(p, radius))
+                                continue;
+                            obstacle = true;
+                            var arc = (deep + high) * math.sin(math.PI * u) - deep;
+                            var rise = Terrain.SampleHeight(p) - ground;
+                            var top = math.max(rise, HasFlora && Walled(p, radius * 1.5f) ? rise + TallestRock : 0f);
+                            clears = arc > top + radius;
+                        }
+                        var lands = s.Position.xz + forward * span * (1f + above) * 0.5f;
+                        if (obstacle && clears && !Obstructed(lands, radius))
+                            s.Timer = 0f;
                     }
                     // Its time come and the ground flat here (dunes, a snowfield): up it bursts. (Not yet: soon again.)
                     if (s.Timer <= 0f)
@@ -1852,6 +1874,10 @@ namespace Punchy.Fauna
                 s.Position.y = ground - under + (under + s.AirHeight) * (s.Air > 0f ? math.sin(math.PI * s.Air) : 0f);
                 CreatureMotion.AdvancePhase(ref s, ref b, dt);
             }
+
+            /// <summary>The tallest a placed rock stands (m), for whether a worm's arc clears one (the rocks' colliders give
+            /// no height).</summary>
+            const float TallestRock = 4f;
 
             /// <summary>
             /// Something a worm under the ground won't go through at this point: a cliff or steep bank (the ground's slope),
