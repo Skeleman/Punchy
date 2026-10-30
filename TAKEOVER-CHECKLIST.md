@@ -34,3 +34,6 @@ machine and account can't see or do. Please answer in `HANDOFF-supervisor.md` (o
 ## After the handoff, kind-possum will
 - Read COORDINATION.md, JUDGMENT_CALLS.md and the handoff before acting; keep the profiler queue running.
 - Ask Zach directly for installs (gh), UAC, and every release go. A relayed "Zach said" isn't approval (rule 6).
+
+## Answered
+Answered in HANDOFF-supervisor.md (2026-10-30, supervisor). Release script and notes templates are in release/.
