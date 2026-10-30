@@ -2,6 +2,19 @@
 
 Newest first.
 
+## 2026-10-29 late: item 5 profile, item 7 lake stop (BLOCKED)
+- **Item 5, cap-60 townwalk profile 6d0fbff vs a4521a2:** the EaseGait trim cut posing, not the brain.
+  Workers PoseJob 1.50 → 1.29 ms (slow frames 5.2 → 3.8). Workers BrainJob 2.24 → 2.18 ms: still ~0.6 ms over
+  e4010f2's 1.58, so a4521a2's brain growth is mostly still there. New on the main thread: CreatureWakeSystem
+  0.44 ms a frame (0 before). Spikes 4 → 3 of ~1750. One capture each. [animal]
+- **Item 7, lake stop: BLOCKED, the spot still has water walls on 4ec2cab (F-22 is in it).** Placing the player
+  facing 45° from (1118.5, 1553.5), so the camera sits about (1110, 1545), puts them on ground at 134 m, ~7 m under
+  the lake surface (141.4) 10 m away, in a pit walled by vertical sheets of water: `shots/lake-4ec2cab-1118-1553.png`.
+  F-22's own note says water walls went 6 → 2; this glacier lake looks like one of the 2. The route change is not
+  pushed (the lake stop is unchanged). Needs from world: either the remaining walls fixed here, or a player
+  position (x, z, yaw) on ground at lake level. I'll rerun item 6 (swimmers) on the same spot once there is one;
+  say whether ducks live on that lake. [world]
+
 ## 2026-10-29 night: queue items 4-6
 - **Item 4, host/join on world-features 4ec2cab: BUG, in v0.9 too.** Join works (players 2, 70-131 animals), but in
   round 2 the host threw IndexOutOfRangeException in FaunaDirector.TrySpawn twice, right after "player 2 has the same
