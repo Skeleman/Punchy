@@ -357,6 +357,29 @@ namespace Punchy.Ambience
                 others.Remove(e);
         }
 
+        /// <summary>
+        /// One moment of an animal's breath showing in the cold (CreatureBreathSystem calls it each frame of an exhale):
+        /// now and then a wisp of vapour from its mouth, drifting the way it faces, carried along as it goes and by the
+        /// wind, as a player's does; size scales the wisp (1 a person's). Nothing while it isn't cold here.
+        /// </summary>
+        public void Breathe(Vector3 mouth, Vector3 forward, Vector3 velocity, float size = 1f)
+        {
+            var breathe = math.smoothstep(BreathThreshold, BreathThreshold + 0.3f, Cold);
+            if (puffs == null || breathe <= 0f || UnityEngine.Random.value >= Time.deltaTime * 30f)
+                return;
+            var wind = Weather != null ? (Vector3)new float3(Weather.WindDirection.x, 0f, Weather.WindDirection.y) * Weather.Local.Wind * 1.5f : Vector3.zero;
+            puffs.Emit(new ParticleSystem.EmitParams
+            {
+                position = mouth,
+                velocity = forward * 0.7f * size + velocity * 0.85f + new Vector3(0f, -0.05f, 0f) + wind + UnityEngine.Random.insideUnitSphere * 0.08f,
+                startSize = UnityEngine.Random.Range(0.1f, 0.15f) * size,
+                startLifetime = UnityEngine.Random.Range(1.2f, 1.8f),
+                startColor = new Color(1f, 1f, 1f, 0.75f * breathe),
+                rotation = UnityEngine.Random.Range(0f, 360f),
+                applyShapeToPosition = false
+            }, 1);
+        }
+
         void Puff(Breather b, in TerrainSource source, LocalTransform player, bool grounded, float cold)
         {
             var dt = Time.deltaTime;

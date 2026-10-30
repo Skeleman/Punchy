@@ -14,7 +14,8 @@ namespace Punchy.Audio
     /// <list type="bullet">
     /// <item>footsteps: each leg's footfall (the gait phase passing that leg's phase), for folk, players and big animals
     /// near the listener; a splash in water, a clop for hooves;</item>
-    /// <item>actions as they start: a wolf's howl (heard far), a guard drawing its blade;</item>
+    /// <item>actions as they start: a wolf's howl (heard far), a guard drawing its blade, a player in an animal's body
+    /// emoting (its call);</item>
     /// <item>a messenger bird's wingbeats;</item>
     /// <item>each species' calls (CreatureSpecies.Calls: a hen's cluck, a duck's quack, a dog's bark), every individual on
     /// its own clock, at the time of day the call is for, not asleep or indoors;</item>
@@ -147,6 +148,15 @@ namespace Punchy.Audio
                             GameAudio.PlayOneShot(SoundId.Howl, s.Position, 0.9f + (s.Individual % 13u) * 0.015f, 1f, HowlReach);
                         else if (s.Action == IdleAction.Draw && d < StepReach * 1.5f)
                             GameAudio.PlayOneShot(SoundId.Draw, s.Position, 1f, 0.7f, StepReach * 1.5f);
+                        // A player in an animal's body emoting: the animal's own call (each emote one of its calls, if
+                        // it has several), heard as the player's own sound. Bodies with hands gesture instead.
+                        else if (s.Mode == CreatureMode.Puppet && s.Action >= IdleAction.Wave && s.Action <= IdleAction.Dance &&
+                                 !b.Hands && mine != null && mine.Count > 0)
+                        {
+                            var call = mine[(s.Action - IdleAction.Wave) % mine.Count];
+                            GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f),
+                                                  (call.Pitch.x + call.Pitch.y) * 0.5f, call.Volume, call.Reach, SoundGroup.Player);
+                        }
                     }
                     // Footfalls: a leg's phase wrapping round, while moving on the ground.
                     if (d < StepReach && s.Speed > 0.2f && s.Fly < 0.5f && (b.Upright || b.BodyLength * s.Scale > 0.8f))

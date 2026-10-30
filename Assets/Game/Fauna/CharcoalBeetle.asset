@@ -127,6 +127,7 @@ MonoBehaviour:
   Burrows: 0
   CaveDweller: 0
   Crawls: 0
+  ColdBlooded: 1
   CaveAffinity: 0
   Roosts: 0
   Friendly: 0

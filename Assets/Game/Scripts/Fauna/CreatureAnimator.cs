@@ -92,7 +92,8 @@ namespace Punchy.Fauna
 
             // Past a run, folk sprint: leaning well in, and lifting clear of the ground between steps.
             var sprint = b.Sprint(s.GaitSpeed);
-            pitch += sprint * 0.3f;
+            if (b.Upright)
+                pitch += sprint * 0.3f;
             var bobs = math.lerp(b.BobsPerCycle.x, b.BobsPerCycle.y, run);
             var bob = math.lerp(b.Bob.x, b.Bob.y, run) * bounce * move * scale * (0.5f - 0.5f * math.cos(2f * math.PI * bobs * s.Phase));
             pitch += b.RunRock * run * move * math.sin(2f * math.PI * s.Phase);
@@ -146,18 +147,24 @@ namespace Punchy.Fauna
             var rootRot = math.mul(quaternion.RotateY(s.Yaw), math.mul(quaternion.RotateX(pitch), quaternion.RotateZ(roll)));
             // Pitched up against a trunk, the body keeps its legs' length out from it (behind it) rather than above.
             var up = math.saturate(s.Vertical);
-            var lift = height - bob + sprint * 0.08f * scale * (0.5f + 0.5f * math.cos(4f * math.PI * s.Phase));
+            // (Sprinting folk leave the ground between steps; a gallop has one moment in the air a stride, as the front
+            // legs leave the ground and before the hind ones come down.)
+            var lift = height - bob + (b.Gallops
+                ? sprint * 0.12f * b.StandHeight * scale * math.pow(math.max(0f, math.cos(2f * math.PI * (s.Phase - 0.02f))), 2f)
+                : sprint * 0.08f * scale * (0.5f + 0.5f * math.cos(4f * math.PI * s.Phase)));
             // Hanging head down in a web, the body sits right at its anchor (the web's centre).
             var hang = s.Mode == CreatureMode.Web || s.Mode == CreatureMode.Roost ? math.saturate(-s.Vertical) : 0f;
             var rootPos = new float3(s.Position.x, ground, s.Position.z) + new float3(0f, lift * (1f - up - hang), 0f) - forward * lift * up;
-            // A snake on the ground or swimming sits on its serpentine track (below) where its body joins, not on the straight
-            // line it travels: its chain is laid out from there, so held on the line, the whole body would swing from side
-            // to side about it as each wave passed through, a wag that quickens with speed.
-            if (s.Fly < 0.5f && LeglessSerpent(ref b))
+            // A snake on the ground or swimming: its body starts on its serpentine track (below), where the chain joins the
+            // head, not on the straight line it travels. Laid out from the line instead, the whole body swung from side
+            // to side about it as each wave passed through, a wag that quickened with speed. (The head itself keeps to the
+            // line: moved onto the track, it slid from side to side, a vibration.)
+            var weaveShift = float3.zero;
+            if (s.Fly < 0.5f && b.Slithers)
             {
                 var wave = math.max(b.WalkStride * scale, 0.05f);
                 var along = 2f * math.PI / wave * (s.Phase * wave - b.BodyLength * scale * 1.2f);
-                rootPos += new float3(forward.z, 0f, -forward.x) * (0.12f * wave * math.sin(along));
+                weaveShift = new float3(forward.z, 0f, -forward.x) * (0.12f * wave * math.sin(along));
             }
             // A crawler on a rock face, a wall or a ceiling lies on it: its back to the open, its head the way it's going
             // (straight up the face if it's heading into it), standing off the surface on its legs.
@@ -250,7 +257,7 @@ namespace Punchy.Fauna
                         fold = math.max(fold, 0.85f);
                 }
                 // A leg busy with an idle action (pawing, scratching) isn't planted.
-                var busyLeg = UsedByAction(ref part, in s);
+                var busyLeg = UsedByAction(ref part, in s) || PetsWithPaw(ref part, in s, b.Hands);
                 var gaitMove = part.Role == LimbRole.Leg ? move * (1f - s.Fly) : move;
                 // A snake's body (a chain that lies on the ground, off the body): serpentine. It lies along one wave
                 // that stays put on the ground, sideways offset A·sin(k(D − u)) at distance u back from the head after
@@ -258,6 +265,8 @@ namespace Punchy.Fauna
                 // the body follows the head's track (rather than a tail wagging behind a straight head). Stopped, it
                 // keeps its S. The wavelength is its stride, so the gait phase is how far along the wave it is.
                 var serpent = part.FollowGround && part.Parent < 0;
+                if (serpent)
+                    pos += weaveShift;
                 var wave = math.max(b.WalkStride * scale, 0.05f);
                 var back = b.BodyLength * scale * 1.2f;
                 var heading = 0f;
@@ -290,7 +299,7 @@ namespace Punchy.Fauna
                     {
                         // A sprinting leg: the longer stride, and in the swing the knee driven high and the heel kicked up.
                         a = b.LegAngles(seg, jointPhase, gaitMove, run, sprint);
-                        if (jointPhase >= 0.5f)
+                        if (jointPhase >= 0.5f && b.Upright)
                         {
                             var swing = math.sin((jointPhase - 0.5f) * 2f * math.PI);
                             if (j == 0) a.x -= 0.55f * sprint * swing;
@@ -416,7 +425,7 @@ namespace Punchy.Fauna
                         a = HearthPose(ref part, in s, j, a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle]);
                     // (Upright bodies have no idle actions of their own, but players' bodies take interaction poses.)
                     if (s.Action != IdleAction.None && (!b.Upright || s.Action >= IdleAction.Pet))
-                        a += ActionPose(ref part, in s, j, act);
+                        a += ActionPose(ref part, in s, j, act, b.Hands);
                     // An upright body's elbow bends one way only (negative pitch, forward): never past straight, nor
                     // folded beyond 150°, however much swing, sprint or pose is added up.
                     if (b.Upright && part.Role == LimbRole.Arm && j == 1)
@@ -568,7 +577,11 @@ namespace Punchy.Fauna
         /// The joint angles an idle action adds (weighted by how far into it the animal is). Legs: negative pitch
         /// reaches forward, positive swings back. Necks and heads turn by yaw (pitch nods them down).
         /// </summary>
-        static float3 ActionPose(ref CreaturePart part, in CreatureState s, int joint, float e)
+        /// <summary>A body without hands petting: its right front paw does the stroking.</summary>
+        static bool PetsWithPaw(ref CreaturePart part, in CreatureState s, bool hands) =>
+            s.Action == IdleAction.Pet && !hands && part.Side > 0f && FrontLeg(ref part);
+
+        static float3 ActionPose(ref CreaturePart part, in CreatureState s, int joint, float e, bool hands)
         {
             var n = math.max(part.SegmentCount, 1);
             var t = s.ActionTime;
@@ -641,9 +654,16 @@ namespace Punchy.Fauna
                     break;
                 case IdleAction.Pet:
                 {
-                    // A player petting an animal: leaning over it, the right hand reaching down and stroking (a body
-                    // with no arms noses at it instead).
+                    // A player petting an animal: leaning over it, the right hand reaching down and stroking. A body
+                    // with no hands lifts its right front paw forward and strokes with that, its head left to look.
                     var stroke = math.sin(s.Clock * 3.2f);
+                    if (!hands)
+                    {
+                        if (PetsWithPaw(ref part, in s, hands))
+                            return joint == 0 ? new float3((-0.95f + 0.2f * stroke) * e, 0f, 0f)
+                                 : joint == 1 ? new float3((-0.45f - 0.25f * stroke) * e, 0f, 0f) : float3.zero;
+                        break;
+                    }
                     if (part.Role == LimbRole.Feature && part.Parent < 0 && joint == 0) return new float3(0.45f * e, 0f, 0f);
                     if (part.Role == LimbRole.Arm && part.Side > 0f)
                         return joint == 0 ? new float3((-0.95f + 0.18f * stroke) * e, 0f, 0f)
@@ -1040,19 +1060,6 @@ namespace Punchy.Fauna
         /// (the trees' and grass's own formula, on the shared clock, so every machine sees the same), fluttering a little,
         /// streaming back when running; each joint further down moves more.
         /// </summary>
-        /// <summary>A legless body with a chain lying along the ground off it (a snake's): it moves along a serpentine wave.</summary>
-        static bool LeglessSerpent(ref CreatureBlob b)
-        {
-            var serpent = false;
-            for (int i = 0; i < b.Parts.Length; i++)
-            {
-                if (b.Parts[i].Role == LimbRole.Leg)
-                    return false;
-                serpent |= b.Parts[i].FollowGround && b.Parts[i].Parent < 0;
-            }
-            return serpent;
-        }
-
         static float3 HairSway(in CreatureState s, int joint, float run)
         {
             var w = Wind.Data;

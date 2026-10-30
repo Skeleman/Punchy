@@ -75,18 +75,14 @@ namespace Punchy.Fauna
             var move = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), s.GaitSpeed);
             var run = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), s.GaitSpeed);
             var sprint = b.Sprint(s.GaitSpeed);
-            var stride = math.lerp(b.WalkStride, b.RunStride, run) * (1f + CreatureBlob.SprintStride * sprint);
+            var stride = math.lerp(b.WalkStride, b.RunStride, run) * (1f + b.SprintStride * sprint);
             var sweep = 0f;
             var planted = 0;
-            var legs = 0;
-            var serpent = false;
             for (int i = 0; i < b.Parts.Length; i++)
             {
                 ref var part = ref b.Parts[i];
-                serpent |= part.FollowGround && part.Parent < 0;
                 if (part.Role != LimbRole.Leg || part.Parent >= 0 || part.SegmentCount == 0)
                     continue;
-                legs++;
                 var p = math.frac(s.Phase + part.Phase);
                 if (p >= 0.5f)
                     continue;   // swinging through the air
@@ -105,7 +101,7 @@ namespace Punchy.Fauna
             // A snake's body lies along a wave fixed to the ground, one walk stride long (CreatureAnimator): at any
             // speed the phase must run one cycle per wavelength, or the wave slides along with the body and the tail
             // whips side to side instead of following the head's track.
-            if (serpent && legs == 0)
+            if (b.Slithers)
                 perCycle = b.WalkStride;
             return distance / math.max(perCycle * scale, 1e-3f);
         }
@@ -166,6 +162,9 @@ namespace Punchy.Fauna
             s.Sway += (-s.YawRate * 0.35f - s.Sway) * math.min(1f, dt * 4f);
         }
 
+        /// <summary>How near a player a creature's planted feet are kept planted through changes of pace (m).</summary>
+        public const float NearFeet = 60f;
+
         /// <summary>How quickly a body on foot gets up to speed (m/s²): a full run in a third of a second.</summary>
         public static float Acceleration(ref CreatureBlob b) => math.max(b.RunSpeed, 0.5f) * 3f;
 
@@ -186,12 +185,14 @@ namespace Punchy.Fauna
         /// a planted foot in the body's frame, so the gait runs on by as much as sweeps it back again. (Not backwards:
         /// a foot the new pose pulls back slides that little.) Once a frame, after the gait has advanced.
         /// </summary>
-        public static void EaseGait(ref CreatureState s, ref CreatureBlob b, float dt)
+        /// <param name="near">Near enough someone for its feet to be seen (CreatureBrainSystem: within NearFeet of a player);
+        /// further off only the speed eases, which is all that's cheap.</param>
+        public static void EaseGait(ref CreatureState s, ref CreatureBlob b, float dt, bool near = true)
         {
             var before = s.GaitSpeed;
             var rate = Acceleration(ref b) * dt;
             s.GaitSpeed = before + math.clamp(s.Speed - before, -rate, rate);
-            if (s.Fly > 0.5f || math.abs(s.GaitSpeed - before) < 1e-4f)
+            if (!near || s.Fly > 0.5f || math.abs(s.GaitSpeed - before) < 1e-4f)
                 return;
             float move0 = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), before),
                   move1 = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), s.GaitSpeed);

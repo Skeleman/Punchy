@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
   m_Name: Trout
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
+  ColdBlooded: 1
   VariantOf: {fileID: 0}
   VariantScale: 1
   BodyLength: 0.32
