@@ -58,7 +58,9 @@ namespace Punchy.Fauna
             if (hasPlayer)
                 foreach (var (s, body) in SystemAPI.Query<RefRW<CreatureState>, RefRO<CreatureBody>>().WithAll<PlayerAvatar>())
                 {
-                    Drive(ref s.ValueRW, ref body.ValueRO.Blob.Value, player, motion.Grounded, dt);
+                    Drive(ref s.ValueRW, ref body.ValueRO.Blob.Value, player, motion.Grounded || motion.OnTrunk, dt);
+                    // Up a trunk: the body upright against the bark, as climbing animals hang on, its gait run by the climb.
+                    s.ValueRW.Vertical += ((motion.OnTrunk ? 1f : 0f) - s.ValueRO.Vertical) * math.min(1f, dt * 6f);
                     // On the wing: wings out, nose up or down with the climb.
                     Wings(ref s.ValueRW, ref body.ValueRO.Blob.Value, motion.Flying, motion.Pitch, motion.Flapping, dt);
                     // (Climbing onto a ledge: the climbing pose over whatever else, run through as the climb goes.)
@@ -148,7 +150,8 @@ namespace Punchy.Fauna
         {
             var forward = math.mul(player.Rotation, new float3(0f, 0f, 1f));
             var yaw = math.atan2(forward.x, forward.z);
-            var moved = math.distance(c.Position.xz, player.Position.xz);
+            // (Climbing, up the trunk counts too.)
+            var moved = c.Vertical > 0.5f ? math.distance(c.Position, player.Position) : math.distance(c.Position.xz, player.Position.xz);
             if (moved > 5f)
                 moved = 0f;   // teleported
             c.Position = player.Position;

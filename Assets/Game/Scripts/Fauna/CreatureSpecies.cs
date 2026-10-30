@@ -136,6 +136,9 @@ namespace Punchy.Fauna
         [Tooltip("Walks on hooves (horses, deer, goats, cattle): a clop on hard ground. Others' feet are padded or shod. " +
                  "Variants take their body's.")]
         public bool Hooves;
+        [Tooltip("What a player in this body can climb: trees (monkeys, cats, bears, squirrels) or any surface (lizards, " +
+                 "spiders). Left at None it follows Crawls (any surface) and Climbing (trees). Variants take their body's.")]
+        public ClimbAbility ClimbsAs;
         [Tooltip("Sounds of its kind beyond its calls: a cat purrs when held and content, a dog pants after a run. Variants " +
                  "take their body's unless they set their own.")]
         public VoiceFamily Voice;
@@ -264,6 +267,9 @@ namespace Punchy.Fauna
     /// The idle action an animal is doing now (one of IdleActions, by number), or a pose a player's body takes for an
     /// interaction (Pet, Carry, Throw: not idle actions any species picks for itself).
     /// </summary>
+    /// <summary>What a body can climb (CreatureSpecies.ClimbsAs).</summary>
+    public enum ClimbAbility : byte { None, Trees, AnySurface }
+
     /// <summary>A part a species plays for FaunaDirector (CreatureSpecies.Role).</summary>
     public enum DirectorRole : byte { None, Folk, Hermit, Messenger }
 

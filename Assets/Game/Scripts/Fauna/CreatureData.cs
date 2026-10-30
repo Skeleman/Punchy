@@ -68,6 +68,8 @@ namespace Punchy.Fauna
         public bool Slithers;
         /// <summary>Walks on hooves (CreatureSpecies.Hooves): a clop on hard ground.</summary>
         public bool Hooves;
+        /// <summary>What a player in this body can climb (CreatureSpecies.ClimbsAs, or from Crawls and Climbing).</summary>
+        public ClimbAbility ClimbsAs;
         /// <summary>Drawn and kept about from this far off; 0 = as any other (see CreatureSpecies.SeenFrom).</summary>
         public float SeenFrom;
         /// <summary>Never moves, and snaps at what comes near (see CreatureSpecies.Rooted).</summary>
@@ -632,6 +634,8 @@ namespace Punchy.Fauna
             root.Upright = species.Upright;
             root.ColdBlooded = species.ColdBlooded;
             root.Hooves = species.Hooves;
+            root.ClimbsAs = species.ClimbsAs != ClimbAbility.None ? species.ClimbsAs
+                          : species.Crawls ? ClimbAbility.AnySurface : species.Climbing > 0f ? ClimbAbility.Trees : ClimbAbility.None;
             root.Habitat = species.Habitat;
             root.SwimDepth = species.SwimDepth;
             root.Leaps = species.Leaps;

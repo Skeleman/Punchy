@@ -74,6 +74,12 @@ namespace Punchy.Player
                     Fly(ref t, ref m, body, input, terrain, settings, inCave, dt, obstacles, hasFlora ? flora.Blob : default);
                     continue;
                 }
+                // Up a tree trunk: climbing it, round it, or letting go.
+                if (m.OnTrunk)
+                {
+                    ClimbTrunk(ref t, ref m, body, input, terrain, settings, dt);
+                    continue;
+                }
                 // A bird on its perch stays put until it walks off it or takes off.
                 if (m.Perched)
                 {
@@ -125,6 +131,14 @@ namespace Punchy.Player
                     var water = terrain.SampleGround(position.xz);
                     var current = math.min(settings.RiverCurrent * (1f + water.Rapids), speed * 0.8f);
                     position.xz += water.Flow * current * dt;
+                }
+                // A climber walking into a tree trunk takes hold of it and goes up.
+                if (body.ClimbsTrees && obstacles.IsCreated && m.Grounded && math.lengthsq(input.MoveDirection) > 0.25f &&
+                    GrabTrunk(obstacles, from, input.MoveDirection, settings.Radius, ref m))
+                {
+                    m.Grounded = false;
+                    m.VerticalVelocity = 0f;
+                    continue;
                 }
                 if (obstacles.IsCreated)
                     position.xz = SlideAroundObstacles(obstacles, position, settings.Radius, stepUp);
@@ -433,6 +447,73 @@ namespace Punchy.Player
             }
             t.Position = position;
             t.Rotation = quaternion.RotateY(yaw);
+        }
+
+        /// <summary>
+        /// A trunk right ahead that the body is pushing into (within half a metre, facing it): taken hold of, at the
+        /// side of it the body is on. Trunks too thin to climb (a sapling) or too short are left alone.
+        /// </summary>
+        static bool GrabTrunk(in DynamicBuffer<FloraObstacle> obstacles, float3 at, float2 move, float radius, ref PlayerMotion m)
+        {
+            var way = math.normalize(move);
+            for (int i = 0; i < obstacles.Length; i++)
+            {
+                var o = obstacles[i];
+                if (o.Radius < 0.08f || o.Height < 2f || at.y + 0.5f < o.Position.y || at.y > o.Position.y + 1f)
+                    continue;
+                var to = o.Position.xz - at.xz;
+                var gap = math.length(to) - o.Radius - radius;
+                if (gap > 0.5f || math.dot(math.normalizesafe(to), way) < 0.7f)
+                    continue;
+                m.OnTrunk = true;
+                m.TrunkBase = o.Position;
+                m.TrunkRadius = o.Radius;
+                m.TrunkHeight = o.Height;
+                m.TrunkAngle = math.atan2(-to.y, -to.x);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// A frame up a trunk: pushing towards it climbs, away from it climbs down (off at the foot), sideways goes round
+        /// it; at the top it stays (the crown isn't walkable); jump lets go, a hop back off it. The body clings to the
+        /// bark facing in, its feet on the trunk.
+        /// </summary>
+        static void ClimbTrunk(ref LocalTransform t, ref PlayerMotion m, in PlayerBody body, in PlayerInput input, in TerrainSource terrain,
+                               in PlayerMotor settings, float dt)
+        {
+            var outward = new float2(math.cos(m.TrunkAngle), math.sin(m.TrunkAngle));
+            if (input.JumpPressed)
+            {
+                m.OnTrunk = false;
+                m.Grounded = false;
+                m.VerticalVelocity = settings.JumpSpeed * 0.4f;
+                t.Position += new float3(outward.x, 0f, outward.y) * 0.4f;
+                return;
+            }
+            var speed = math.max(body.ClimbSpeed, 0.3f);
+            var inward = -outward;
+            var round = new float2(-outward.y, outward.x);
+            var up = math.dot(input.MoveDirection, inward);
+            var side = math.dot(input.MoveDirection, round);
+            var y = t.Position.y + up * speed * dt;
+            var reach = m.TrunkRadius + settings.Radius * 0.6f;
+            m.TrunkAngle += side * speed * dt / math.max(reach, 0.1f);
+            Floor(terrain, t.Position, settings.SwimDepth, out var ground, out _);
+            if (y <= ground && up < 0f)
+            {
+                // Down at the foot: off it, standing.
+                m.OnTrunk = false;
+                m.Grounded = true;
+                y = ground;
+            }
+            y = math.min(y, m.TrunkBase.y + m.TrunkHeight - 0.3f);
+            outward = new float2(math.cos(m.TrunkAngle), math.sin(m.TrunkAngle));
+            var at = m.TrunkBase.xz + outward * reach;
+            t.Position = new float3(at.x, y, at.y);
+            t.Rotation = quaternion.LookRotationSafe(new float3(-outward.x, 0f, -outward.y), math.up());
+            m.VerticalVelocity = 0f;
         }
 
         /// <summary>The highest a body of human size steps up onto without a climb (m).</summary>

@@ -46,6 +46,13 @@ namespace Punchy.Player
         public bool Perched;
         /// <summary>A fish's leap or hop: how fast it carries on across while in the air (m/s).</summary>
         public float HopSpeed;
+        /// <summary>
+        /// Up a tree trunk (a climbing body): the trunk's foot, its radius and height, and where round it the body is
+        /// (radians, from the trunk out to the body).
+        /// </summary>
+        public bool OnTrunk;
+        public float3 TrunkBase;
+        public float TrunkRadius, TrunkHeight, TrunkAngle;
     }
 
     /// <summary>
@@ -65,6 +72,9 @@ namespace Punchy.Player
         public bool Swims;
         /// <summary>A ghost: drifts above the ground or water, no gravity, rising with jump and sinking with sprint.</summary>
         public bool Hovers;
+        /// <summary>Climbs tree trunks (a monkey, a lizard, a spider): walking into one, it goes up it; and how fast (m/s).</summary>
+        public bool ClimbsTrees;
+        public float ClimbSpeed;
     }
 
     /// <summary>Singleton written by PlayerInputSystem each frame. MoveDirection is world-space XZ, length 0..1.</summary>
