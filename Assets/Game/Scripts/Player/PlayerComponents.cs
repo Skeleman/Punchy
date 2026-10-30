@@ -57,6 +57,8 @@ namespace Punchy.Player
         public float LatchCooldown;
         public float3 TrunkBase;
         public float TrunkRadius, TrunkHeight, TrunkAngle;
+        /// <summary>How the trunk leans from its foot, at half its height and at its height (FloraObstacle.LeanMid/Top).</summary>
+        public float2 TrunkLeanMid, TrunkLeanTop;
     }
 
     /// <summary>

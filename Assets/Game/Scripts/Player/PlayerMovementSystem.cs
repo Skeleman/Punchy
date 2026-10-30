@@ -503,7 +503,8 @@ namespace Punchy.Player
                 var top = o.Position.y + (inAir ? o.Height - 0.3f : 1f);
                 if (o.Radius < 0.08f || o.Height < 2f || at.y + 0.5f < o.Position.y || at.y > top || !anySurface && o.Radius > 0.7f)
                     continue;
-                var to = o.Position.xz - at.xz;
+                // (Round the trunk as drawn at the body's height: a leaning tree's trunk isn't over its foot.)
+                var to = FloraObstacle.CentreAt(o.Position, o.Height, o.LeanMid, o.LeanTop, at.y) - at.xz;
                 var gap = math.length(to) - o.Radius - radius;
                 if (inAir ? gap > 0.3f : gap > 0.5f || math.dot(math.normalizesafe(to), way) < 0.7f)
                     continue;
@@ -511,6 +512,8 @@ namespace Punchy.Player
                 m.TrunkBase = o.Position;
                 m.TrunkRadius = o.Radius;
                 m.TrunkHeight = o.Height;
+                m.TrunkLeanMid = o.LeanMid;
+                m.TrunkLeanTop = o.LeanTop;
                 m.TrunkAngle = math.atan2(-to.y, -to.x);
                 return true;
             }
@@ -548,7 +551,7 @@ namespace Punchy.Player
             // Feet on the bark (the body hangs a leg's length out from them: CreatureAnimator), drawn in to it over a
             // moment from where it took hold. (Held out at the body's radius, as before, the climbing monkey hung clear
             // of the trunk, a gap of half a metre and more.)
-            var reach = math.max(m.TrunkRadius + 0.03f, math.distance(t.Position.xz, m.TrunkBase.xz) - dt);
+            var reach = math.max(m.TrunkRadius + 0.03f, math.distance(t.Position.xz, TrunkCentre(m, t.Position.y)) - dt);
             m.TrunkAngle += side * speed * dt / math.max(reach, 0.1f);
             Floor(terrain, t.Position, settings.SwimDepth, out var ground, out _);
             if (y <= ground && up < 0f)
@@ -577,11 +580,16 @@ namespace Punchy.Player
                     return;
                 }
             }
-            var at = m.TrunkBase.xz + outward * reach;
+            // (Round the trunk's centre at this height: up a leaning tree the body follows the trunk as drawn.)
+            var at = TrunkCentre(m, y) + outward * reach;
             t.Position = new float3(at.x, y, at.y);
             t.Rotation = quaternion.LookRotationSafe(new float3(-outward.x, 0f, -outward.y), math.up());
             m.VerticalVelocity = 0f;
         }
+
+        /// <summary>The centre (x, z) of the trunk a body holds, at a height: as drawn, leaning or bending as it may.</summary>
+        public static float2 TrunkCentre(in PlayerMotion m, float y) =>
+            FloraObstacle.CentreAt(m.TrunkBase, m.TrunkHeight, m.TrunkLeanMid, m.TrunkLeanTop, y);
 
         /// <summary>The highest a body of human size steps up onto without a climb (m).</summary>
         const float StepUp = 0.4f;
