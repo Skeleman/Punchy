@@ -12,8 +12,9 @@ namespace Punchy.Fauna
     /// <summary>
     /// Folk say a short line as you walk by (NPC conversations, stage 1): one of the townsfolk within a few metres of
     /// the player, awake and not busy fleeing, says something from DialogueArchive now and then, shown as text over its
-    /// head for a few seconds (FolkTalkLabels). Each machine picks its own lines from its own copy of the archive;
-    /// nothing is sent.
+    /// head for a few seconds (FolkTalkLabels). Emote at them (keys 1-4) and those who answer it (the brain turns them to
+    /// face you and gesture back) say a line for that emote too. Each machine picks its own lines from its own copy of
+    /// the archive; nothing is sent.
     /// </summary>
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
@@ -23,6 +24,8 @@ namespace Punchy.Fauna
         /// any two lines, so a crowd doesn't all speak at once; at most this many lines up at a time.</summary>
         const float Reach = 5f, Again = 90f, Gap = 2.5f;
         const int MaxShown = 3;
+        /// <summary>How near folk answering the player's emote say something (m; the brain answers from 20).</summary>
+        const float AnswerReach = 15f;
 
         /// <summary>A line up over someone's head (for FolkTalkLabels, and tests).</summary>
         public struct Said
@@ -34,11 +37,16 @@ namespace Punchy.Fauna
         }
         public static readonly List<Said> Shown = new List<Said>();
         /// <summary>Lines said since start (for tests); and off for screenshots that shouldn't have any.</summary>
-        public static int LinesSaid;
+        public static int LinesSaid, Answers;
         public static bool Quiet;
 
         EntityQuery query, playerQuery, paletteQuery;
         readonly Dictionary<Entity, float> nextTalk = new Dictionary<Entity, float>();
+        /// <summary>What each of the folk near was doing last frame (to catch the moment it starts answering an emote).</summary>
+        readonly Dictionary<Entity, IdleAction> lastAction = new Dictionary<Entity, IdleAction>();
+        /// <summary>The player's last emote and when (Time.time).</summary>
+        IdleAction emoted;
+        float emotedAt = -100f;
         readonly List<Entity> stale = new List<Entity>();
         float nextAny;
         Unity.Mathematics.Random rng = new Unity.Mathematics.Random(0x7A1C);
@@ -84,6 +92,11 @@ namespace Punchy.Fauna
                     var body = director.SpeciesAt(bodies[i].Species);
                     playerSpecies = DialogueArchive.Spoken(body?.name);
                     playerKind = body?.Body.name;
+                    if (states[i].Action >= IdleAction.Wave && states[i].Action <= IdleAction.Dance)
+                    {
+                        emoted = states[i].Action;
+                        emotedAt = now;
+                    }
                 }
 
             for (int i = 0; i < states.Length; i++)
@@ -98,10 +111,21 @@ namespace Punchy.Fauna
                         said.Head = Head(s, ref b);
                         Shown[k] = said;
                     }
-                if (now < nextAny || Shown.Count >= MaxShown || !CanTalk(s, ref b) || math.distancesq(s.Position, player) > Reach * Reach)
-                    continue;
-                if (nextTalk.TryGetValue(entities[i], out var next) && now < next)
-                    continue;
+                // Starting to answer the player's emote just now (one of theirs, a moment ago, nearby): a line for it.
+                var answering = false;
+                if (b.Upright && b.Hands && s.Mode != CreatureMode.Puppet && math.distancesq(s.Position, player) < AnswerReach * AnswerReach)
+                {
+                    var was = lastAction.TryGetValue(entities[i], out var a) ? a : IdleAction.None;
+                    lastAction[entities[i]] = s.Action;
+                    answering = s.Action >= IdleAction.Wave && s.Action <= IdleAction.Dance && s.Action != was && now - emotedAt < 4f;
+                }
+                if (!answering)
+                {
+                    if (now < nextAny || Shown.Count >= MaxShown || !CanTalk(s, ref b) || math.distancesq(s.Position, player) > Reach * Reach)
+                        continue;
+                    if (nextTalk.TryGetValue(entities[i], out var next) && now < next)
+                        continue;
+                }
                 nextTalk[entities[i]] = now + Again;
                 var species = director.SpeciesAt(bodies[i].Species);
                 var who = new DialogueArchive.Speaker
@@ -113,9 +137,19 @@ namespace Punchy.Fauna
                     PlayerSpecies = playerKind != null && playerKind == species?.Body.name ? null : playerSpecies,
                     Hour = hour
                 };
-                var text = archive.Pick(who, ref rng);
+                var text = archive.Pick(who, ref rng, answering ? emoted.ToString() : null);
                 if (string.IsNullOrEmpty(text))
                     continue;
+                if (answering)
+                {
+                    // (An answer goes up even with the others: in place of this one's own line, or the oldest.)
+                    for (int k = Shown.Count - 1; k >= 0; k--)
+                        if (Shown[k].Who == entities[i])
+                            Shown.RemoveAt(k);
+                    if (Shown.Count >= MaxShown + 1)
+                        Shown.RemoveAt(0);
+                    Answers++;
+                }
                 nextAny = now + Gap;
                 LinesSaid++;
                 Shown.Add(new Said { Who = entities[i], Text = text, Head = Head(s, ref b), Start = now, Until = now + 3.5f + text.Length * 0.05f });
@@ -137,6 +171,8 @@ namespace Punchy.Fauna
             for (int k = Shown.Count - 1; k >= 0; k--)
                 if (now >= Shown[k].Until || !EntityManager.Exists(Shown[k].Who))
                     Shown.RemoveAt(k);
+            if (lastAction.Count > 256)
+                lastAction.Clear();
             if (nextTalk.Count > 256)
             {
                 stale.Clear();

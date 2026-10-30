@@ -70,6 +70,8 @@ namespace Punchy.Fauna
         public bool Hooves;
         /// <summary>What a player in this body can climb (CreatureSpecies.ClimbsAs, or from Crawls and Climbing).</summary>
         public ClimbAbility ClimbsAs;
+        /// <summary>Its answer to someone emoting near it (CreatureSpecies.EmoteReaction, Default worked out).</summary>
+        public EmoteReaction Reaction;
         /// <summary>Drawn and kept about from this far off; 0 = as any other (see CreatureSpecies.SeenFrom).</summary>
         public float SeenFrom;
         /// <summary>Never moves, and snaps at what comes near (see CreatureSpecies.Rooted).</summary>
@@ -636,6 +638,8 @@ namespace Punchy.Fauna
             root.Hooves = species.Hooves;
             root.ClimbsAs = species.ClimbsAs != ClimbAbility.None ? species.ClimbsAs
                           : species.Crawls ? ClimbAbility.AnySurface : species.Climbing > 0f ? ClimbAbility.Trees : ClimbAbility.None;
+            root.Reaction = species.EmoteReaction != EmoteReaction.Default ? species.EmoteReaction
+                          : species.Friendly ? EmoteReaction.Wags : species.FleeDistance > 0f ? EmoteReaction.Flees : EmoteReaction.Ignores;
             root.Habitat = species.Habitat;
             root.SwimDepth = species.SwimDepth;
             root.Leaps = species.Leaps;

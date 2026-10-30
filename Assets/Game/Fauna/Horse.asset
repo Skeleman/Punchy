@@ -12,7 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
   m_Name: Horse
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
-  Hooves: 1
   VariantOf: {fileID: 0}
   VariantScale: 1
   VariantHead: 1
@@ -181,6 +180,12 @@ MonoBehaviour:
   Burrows: 0
   CaveDweller: 0
   Crawls: 0
+  ColdBlooded: 0
+  Role: 0
+  Hooves: 1
+  ClimbsAs: 0
+  EmoteReaction: 2
+  Voice: 0
   CaveAffinity: 0
   Roosts: 0
   Friendly: 0
@@ -193,8 +198,11 @@ MonoBehaviour:
   GuardKit: 0
   GuardArmour: {r: 0.55, g: 0.57, b: 0.6, a: 1}
   GuardSash: {r: 0.62, g: 0.12, b: 0.1, a: 1}
+  Rooted: 0
+  Disguised: 0
   FlightHeight: {x: 8, y: 18}
   FlySpeed: 7
+  PlayerFlySpeed: 0
   FlapRate: 6
   Glide: 0
   Perching: 0.6

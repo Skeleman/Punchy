@@ -180,6 +180,8 @@ MonoBehaviour:
   ColdBlooded: 0
   Role: 0
   Hooves: 1
+  ClimbsAs: 0
+  EmoteReaction: 2
   Voice: 0
   CaveAffinity: 0
   Roosts: 0

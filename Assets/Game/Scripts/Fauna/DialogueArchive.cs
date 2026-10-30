@@ -27,6 +27,8 @@ namespace Punchy.Fauna
             /// <summary>Only from folk with one of these trades (CreatureTask names), or null for anyone.</summary>
             public string[] Trades;
             public float Weight = 1f;
+            /// <summary>An answer to one of these emotes (Wave, Bow, Cheer, Dance), never said walking by; or null.</summary>
+            public string[] Emotes;
             /// <summary>Kept for later (dialogue options): the raw object, so new keys need no format change.</summary>
             public JObject Raw;
         }
@@ -125,6 +127,7 @@ namespace Punchy.Fauna
                                     Text = (string)o["text"],
                                     When = (string)o["when"],
                                     Trades = o["trade"] != null ? Strings(o["trade"]) : null,
+                                    Emotes = o["emote"] != null ? Strings(o["emote"]) : null,
                                     Weight = o["weight"] != null ? (float)o["weight"] : 1f,
                                     Raw = o
                                 });
@@ -151,8 +154,19 @@ namespace Punchy.Fauna
         /// <summary>
         /// A line for this speaker, slots filled, or null if it has nothing to say: from its own culture's lines (the
         /// first in its chain that has any) and Any's, those whose time and trade fit and whose slots can all be filled.
+        /// Answering an emote ("Wave"), only lines for that emote; with none anywhere in its chain, an ordinary line.
         /// </summary>
-        public string Pick(Speaker who, ref Unity.Mathematics.Random rng)
+        public string Pick(Speaker who, ref Unity.Mathematics.Random rng, string emote = null)
+        {
+            if (emote != null)
+            {
+                var answer = Pick(who, ref rng, emote, true);
+                return answer ?? Pick(who, ref rng, null, false);
+            }
+            return Pick(who, ref rng, null, false);
+        }
+
+        string Pick(Speaker who, ref Unity.Mathematics.Random rng, string emote, bool answering)
         {
             var candidates = new List<Line>();
             var shared = new HashSet<Line>();
@@ -163,7 +177,7 @@ namespace Punchy.Fauna
                 if (own && !isAny)
                     continue;
                 foreach (var line in c.Lines)
-                    if (Fits(line, who))
+                    if (Fits(line, who) && (answering ? line.Emotes != null && Array.IndexOf(line.Emotes, emote) >= 0 : line.Emotes == null))
                     {
                         candidates.Add(line);
                         own |= !isAny;

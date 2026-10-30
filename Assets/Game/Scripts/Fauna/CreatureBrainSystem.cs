@@ -287,8 +287,10 @@ namespace Punchy.Fauna
                 // really close.
                 var threatDistance = math.distance(s.Position, player);
                 var nerve = s.Mode == CreatureMode.Hunt && flier ? 0.4f : 1f;
-                // Someone cheering or dancing about is noticed (and run from) further off; waving, a little.
-                var commotion = emote == IdleAction.Cheer || emote == IdleAction.Dance ? 1.8f : emote == IdleAction.Wave ? 1.25f : 1f;
+                // Someone cheering or dancing about is noticed (and run from) further off; waving, a little. (Only by
+                // the skittish: a curious one comes to look, and some pay it no heed.)
+                var commotion = b.Reaction != EmoteReaction.Flees ? 1f :
+                                emote == IdleAction.Cheer || emote == IdleAction.Dance ? 1.8f : emote == IdleAction.Wave ? 1.25f : 1f;
                 var threatened = !aloft && b.FleeDistance > 0f && threatDistance < b.FleeDistance * s.Scale * alert * nerve * tame * commotion;
                 var threat = player.xz;
                 // A hunter after it: heard creeping close, or seen drawing back to throw (and the throw itself).
@@ -4296,7 +4298,8 @@ namespace Punchy.Fauna
             /// <summary>
             /// Someone near is emoting. Folk stop, turn to them and answer in kind (a wave back, a bow, a cheer; some
             /// dance along, the rest cheer them on), each after a moment of their own, and a few shy ones not at all.
-            /// Friendly animals come over to see; one sitting by them play-bows back to a bow.
+            /// Friendly animals come over to see; one sitting by them play-bows back to a bow. A curious one comes partway
+            /// and watches (Greet's Curious stage); the skittish run sooner (commotion, in Think); some pay no heed.
             /// </summary>
             void Answer(ref CreatureState s, ref CreatureBlob b, ref Random rng, IdleAction emote, float3 player, float distance, float dt)
             {
@@ -4322,7 +4325,17 @@ namespace Punchy.Fauna
                     s.Focus = player.xz;
                     return;
                 }
-                if (!b.Friendly)
+                if (b.Reaction == EmoteReaction.Curious)
+                {
+                    if (distance < 25f && Free(s.Mode))
+                    {
+                        SetMode(ref s, CreatureMode.Greet);
+                        s.Stage = Curious;
+                        s.Timer = rng.NextFloat(6f, 12f);
+                    }
+                    return;
+                }
+                if (b.Reaction != EmoteReaction.Wags)
                     return;
                 if (emote != IdleAction.Bow && distance < 20f && Free(s.Mode))
                 {
@@ -4337,6 +4350,9 @@ namespace Punchy.Fauna
                     s.ActionLength = 2.2f;
                 }
             }
+
+            /// <summary>Greet's stage for a curious animal come to look (EmoteReaction.Curious), not to sit by them.</summary>
+            const byte Curious = 1;
 
             /// <summary>
             /// Trots over to the person (to their side, not into them), then sits by them looking up and wagging its
@@ -4359,6 +4375,31 @@ namespace Punchy.Fauna
                 var away = new float2(dir.x * math.cos(angle) - dir.y * math.sin(angle), dir.x * math.sin(angle) + dir.y * math.cos(angle));
                 var spot = player.xz - away * (1.3f + b.BodyLength * s.Scale * 0.5f);
                 var lookAt = math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -1.2f, 1.2f);
+                if (s.Stage == Curious)
+                {
+                    // Curious: up to a wary few metres (well outside where it would bolt), slowly, then stands watching
+                    // them, sniffing now and then, until it's seen enough.
+                    var standoff = math.max(b.FleeDistance * s.Scale * 0.6f, 2f + b.BodyLength * s.Scale);
+                    if (distance > standoff + 0.5f)
+                    {
+                        s.Target = player.xz - dir * standoff;
+                        targetSpeed = walk * 0.6f;
+                        moving = true;
+                        desiredLook = lookAt;
+                    }
+                    else
+                    {
+                        TurnTowards(ref s, ref b, player.xz, dt);
+                        desiredLook = lookAt * 0.6f;
+                        if (s.Action == IdleAction.None && (b.Idles & IdleActions.Sniff) != 0 && rng.NextFloat() < dt * 0.4f)
+                        {
+                            s.Action = IdleAction.Sniff;
+                            s.ActionTime = 0f;
+                            s.ActionLength = rng.NextFloat(1f, 2f);
+                        }
+                    }
+                    return;
+                }
                 if (math.distance(s.Position.xz, spot) > 0.6f)
                 {
                     s.Target = spot;

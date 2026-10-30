@@ -139,6 +139,9 @@ namespace Punchy.Fauna
         [Tooltip("What a player in this body can climb: trees (monkeys, cats, bears, squirrels) or any surface (lizards, " +
                  "spiders). Left at None it follows Crawls (any surface) and Climbing (trees). Variants take their body's.")]
         public ClimbAbility ClimbsAs;
+        [Tooltip("What it does when someone near emotes at it (a wave, a bow, a cheer, a dance). Default: friendly ones " +
+                 "come over wagging, ones that run from people run sooner, the rest pay no heed.")]
+        public EmoteReaction EmoteReaction;
         [Tooltip("Sounds of its kind beyond its calls: a cat purrs when held and content, a dog pants after a run. Variants " +
                  "take their body's unless they set their own.")]
         public VoiceFamily Voice;
@@ -272,6 +275,16 @@ namespace Punchy.Fauna
 
     /// <summary>A part a species plays for FaunaDirector (CreatureSpecies.Role).</summary>
     public enum DirectorRole : byte { None, Folk, Hermit, Messenger }
+
+    /// <summary>An animal's answer to someone emoting near it (CreatureSpecies.EmoteReaction).</summary>
+    public enum EmoteReaction : byte
+    {
+        [Tooltip("From the species: Friendly wags, one with a flee distance flees, the rest ignore.")] Default,
+        [Tooltip("Comes over, sits by them and wags its tail (a dog).")] Wags,
+        [Tooltip("Comes partway, warily, stops short and watches them a while, sniffing (a cat, a crow, a goat).")] Curious,
+        [Tooltip("Takes fright: runs from further off than it would (a deer, a rabbit).")] Flees,
+        [Tooltip("Pays it no heed (a bison, a tortoise).")] Ignores
+    }
 
     /// <summary>Sounds a species makes beyond its calls (CreatureSpecies.Voice; CreatureAudioSystem).</summary>
     public enum VoiceFamily : byte { None, Cat, Dog }
