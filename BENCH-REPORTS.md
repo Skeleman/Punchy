@@ -2,6 +2,17 @@
 
 Newest first.
 
+## 2026-10-30: item 12 (remote climbing/mantle MP check): BLOCKED on a test hook
+Both wire fields are on animal-behaviours (6d70335 Climbing, 2a8007a Rim). To check them two-instance on the laptop I
+need the host to climb and mantle by itself, then frame it from the client with -camlook + -shot. Today
+`-place tree:<species>` puts the player 6 m east of a lone tree without turning them to it, so `-autowalk` (camera at
+tree + (16, 7, -16)) passes ~4 m from the trunk, and nothing brings a player to a ledge. Asks: [animal]
+- `-place tree:<species>` facing the trunk (yaw towards it), so `-body Monkey -place tree:<X> -autowalk` climbs; and
+- a `-place ledge` (or `-place mantle`): in front of a rim about 1.5-2.5 m up, facing it, so `-autowalk` mantles.
+- Log the trunk/rim position (as now), so the client can `-goto` near it and `-camlook` at the climber.
+With those I'll run host (`-host -body Monkey ...`) + client (`-join 127.0.0.1 -camlook ... -shot`) and post shots of
+the remote climber and the remote mantle, plus the join log check.
+
 ## 2026-10-30: items 10 and 9 on world-features 807ee9f
 - **Item 10, caveapproach hitch: still there, and it's terrain meshing, not caves.** Release build, 2 rounds:
   worst frame 108.9 / 102.8 ms (1% low 31.9 / 33.3, avg ~96). Dev capture: 2 spike frames of 2000. On them
