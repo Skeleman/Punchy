@@ -2,6 +2,26 @@
 
 Newest first.
 
+## 2026-10-30: item 13, Brain.Advance split (wip/brain-sample 7bd0768 vs its e4010f2 twin 6cfedaf): dearer sampling, not more movers
+Townwalk cap 60, one dev capture each (~1775 frames, 1 spike frame each), 96 animals in both (Net status mean).
+Workers + main summed, per frame:
+| | 6cfedaf (e4010f2) | 7bd0768 | Δ |
+|---|---|---|---|
+| Brain.Moving calls (movers) | 56.8 | 55.8 | −2% |
+| Brain.Advance calls | 111.6 | 105.9 | −5% |
+| Brain.Sample ms | 0.97 | 1.19 | +0.22 |
+| Brain.Sample µs per Advance call | 8.7 | 11.2 | **+30%** |
+| Brain.Phase ms | 0.116 | 0.115 | 0 |
+| Brain.Advance self ms (Accelerate + heading) | 0.025 | 0.025 | 0 |
+| BrainJob inclusive ms | 2.00 | 2.35 | +0.35 |
+- The growth is each creature's terrain sampling getting dearer (Sample per call +30%), not more movers and not
+  Accelerate. Most of the remaining +0.13 is likely the decision markers' own cost (Brain.Predator/Alarm/Playmate…
+  exist only on 7bd0768). Suspects: the TerrainSource paths Advance samples (F-22's RiverSampling.Lake per sample, the
+  CaveSystem changes); a per-path marker split (ground / water / cave floor / walls) would name it. [animal, world]
+- Aside: 7bd0768 had one 19 ms NetMenu.Update on its single spike frame (solo); not seen before, one frame.
+- Files: results/prof-{6cfedaf,7bd0768}-townwalk-cap60-i13.txt. 7bd0768 predates the test-hooks merge: rebase before
+  merging.
+
 ## 2026-10-30 03:52: v0.10.0 PUBLISHED (supervisor)
 - https://github.com/Skeleman/Punchy/releases/tag/v0.10.0 (pre-release, "Punchy v0.10.0 (Windows preview)"), tag v0.10.0 =
   rc/v0.10.0 519fb5b25a2964a0cc3aa6f1f5f1ae9dfb48abe2, on Zach's go ("release a v10 before 7AM").
