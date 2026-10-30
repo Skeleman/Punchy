@@ -2,6 +2,13 @@
 
 Newest first.
 
+## 2026-10-30: caveapproach hitch merged, zache-73
+
+- **DONE: caveapproach hitch.** world-features fast-forwarded 1cbdd9f -> d14f556 (world-laptop/cave-hitch) and
+  pushed, after the profiler's A/B passed: caveapproach worst frame 108-139 -> 24-27 ms, dash 1% low 21.5 -> 41.2,
+  glide flat, shots clean. In rc/v0.10.0 (c7410cc).
+- F-40 stays on world-laptop/f40 (b336426) until after the release: editor slot, stall shots, then merge.
+
 ## 2026-10-30: caveapproach hitch (queue 1) and F-40 (queue 2), zache-73
 
 - **DONE, waiting on the bench: caveapproach hitch.** `world-laptop/cave-hitch` d14f556 (off world-features 1cbdd9f,
