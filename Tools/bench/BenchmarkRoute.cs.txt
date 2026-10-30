@@ -121,9 +121,7 @@ namespace Punchy.Debugging
             yield return Stop("nightgrove", () => JumpTo(controls, "ElfGrove") && SetWeather("Partly cloudy", 23), hour: 23f);
             yield return Stop("storm", () => JumpTo(controls, "Mountains") && SetWeather("Stormy", 14));
             // Water filling much of the view: a lake shore, a river (often rapids), and the shore again in a storm.
-            // The lake is a fixed spot (the auto-found "Lake shore" became dry shore with F-22): on the shore facing
-            // open water at (1125, 141.4, 1560), the camera about (1110, 146, 1545). Islands from world-features 4ec2cab.
-            yield return Stop("lake", () => PlaceAt(new float3(1118.5f, float.NaN, 1553.5f), 45f) && SetWeather("Partly cloudy", 19));
+            yield return Stop("lake", () => JumpTo(controls, "Lake shore") && SetWeather("Partly cloudy", 19));
             yield return Stop("river", () => JumpTo(controls, "River") && SetWeather("Partly cloudy", 20));
             yield return Stop("stormshore", () => JumpTo(controls, "Lake shore") && SetWeather("Stormy", 21));
             // Travel across terrain chunks: a sprint and a glide at play speeds (spikes here matter), then an 80 m/s
