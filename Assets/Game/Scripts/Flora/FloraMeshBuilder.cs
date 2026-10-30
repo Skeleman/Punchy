@@ -45,8 +45,6 @@ namespace Punchy.Flora
         readonly List<Color> colors = new List<Color>();   // linear
         readonly List<Vector4> data = new List<Vector4>();
         readonly List<int> indices = new List<int>();
-        /// <summary>Vertex ranges [x, y) the foundation skirt leaves where they are (see KeepOutOfSkirt).</summary>
-        readonly List<Vector2Int> unskirted = new List<Vector2Int>();
 
         /// <summary>What foliage and petals are drawn as (a species' finish: metallic or glowing leaves).</summary>
         public FloraPart FoliageAs = FloraPart.Foliage, PetalAs = FloraPart.Petal;
@@ -70,7 +68,6 @@ namespace Punchy.Flora
             colors.Clear();
             data.Clear();
             indices.Clear();
-            unskirted.Clear();
         }
 
         public int Vertex(Vector3 p, Vector3 n, Color c, FloraPart part, float ao, float flutter = -1f)
@@ -414,22 +411,8 @@ namespace Punchy.Flora
         public void Skirt(float depth)
         {
             for (int i = 0; i < positions.Count; i++)
-                if (positions[i].y <= 0.001f && !Unskirted(i))
+                if (positions[i].y <= 0.001f)
                     positions[i] -= new Vector3(0f, depth, 0f);
-        }
-
-        /// <summary>
-        /// Keeps the vertices from <paramref name="first"/> to the current end out of the foundation skirt: something
-        /// lying on the ground with its rim just under it (a sheet of trodden ground), which the skirt would drop out of sight.
-        /// </summary>
-        public void KeepOutOfSkirt(int first) => unskirted.Add(new Vector2Int(first, positions.Count));
-
-        bool Unskirted(int i)
-        {
-            foreach (var r in unskirted)
-                if (i >= r.x && i < r.y)
-                    return true;
-            return false;
         }
 
         /// <summary>
