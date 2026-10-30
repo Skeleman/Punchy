@@ -2,6 +2,33 @@
 
 Newest first.
 
+## 2026-10-30: v0.10 feedback Z-14 and P2 (wip/v010-fixes, wip/wake-trail), code only
+All code-checked only, none compiled; they need a slot.
+- **Z-14, 2ab65e4:** the wolves' howl is softer, distant and once a night per pack.
+  - Volume 1.0 to 0.5.
+  - Synth: breath layer halved (the static), gentler vibrato, and a baked 1.2 s echo tail (`SoundSynth.Distant`).
+  - GameAudio (shared file): every voice now has a distance low-pass, open to 40 m and down to 1.8 kHz by 200 m.
+  - Each pack howls in one half-hour window a night, 21:00-03:00, keyed by its home (`HowlTime`). Before, a big pack
+    could pass the chorus round all night.
+- **Z-23, 1904241:** each body jumps its own height. `CreatureSpecies.PlayerJump`, else from size
+  (sqrt, 0.45-1.4) with climbers 1.25x.
+- **Z-24, ce4d3d7:** new `SoundId.Rattle` (appended). The rattlesnake had no calls at all; it now rattles by
+  day, and a player rattlesnake rattles with every emote.
+- **Z-25, 7e9ce49:** a ghost player can talk to ghosts, and they don't vanish from it.
+  - Animals don't flee a player of their own species.
+  - Ghosts talk only to a ghost player.
+  - New Ghost culture in dialogue.json.
+- **Z-26, 15e972c:**
+  - The moo now rises and opens from a hum; it used to fall, which read as a groan.
+  - The croak is rebuilt as clean pulse trains, "rib-bit", in place of the noisy vibrato that sounded like a burp.
+  - New `SoundId.FrogChorus`: a night hum looped from among frogs within 40 m, louder the more there are.
+- **Z-27, wip/wake-trail 34e2bdb plus world half wip/wake-trail-shader 40cd4b7** (Water.shader, for zache-73 to
+  review). Swimmers drop ripples every 0.5 m or 0.5 s. Each spreads as a ring from where it was made over 3 s, so the
+  wake is left in the water. 48 slots, 5 m reach. As with the worm trail, the two halves must land together.
+- **Still to do:** Z-20 (held animals following the arms), Z-21 (foot against the shin in the long run stride) and
+  Z-22 (putting the body into chopping and hammering). These are pose work and best tuned with shots in my slot.
+- **Fingerprint:** no network-table changes. The new SoundIds are appended; the rattlesnake asset gains a call.
+
 ## 2026-10-30: v0.10 feedback P1 (wip/v010-fixes) and creature graphics ranges (wip/gfx-creatures), code only
 All code-checked only, so none of it has compiled yet. They need a slot build.
 - **Z-02 (player side), f378a43:** in a cave, a flight step that would enter rock was cancelled whole, so flying at a
