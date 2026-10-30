@@ -6,12 +6,15 @@ one entry per batch) and by message. Branch: `animal-behaviours` (yours now; the
 you close it.
 
 ## Queue (top first)
-1. **Test hooks for the v0.10 MP check (blocks the gate).** See BENCH-REPORTS "item 12":
-   - `-place tree:<species>` turns the player to face the trunk, so `-body Monkey -place tree:<X> -autowalk` climbs.
-   - `-place ledge`: in front of a rim about 1.5-2.5 m up, facing it, so `-autowalk` mantles.
-   - Log the trunk or rim position, so a client can `-goto` near it and `-camlook` at it.
-   Small, debug-only code (DebugControls). Check it solo in a build or play mode, then push.
-2. **BrainJob growth (~0.6 ms on workers over e4010f2):** Brain.Advance is 57% of it (BENCH-REPORTS items 8 and 8
-   follow-up). Add a `Brain.Sample` marker round the terrain samples in Advance and a count of moving creatures, on a
-   commit that cherry-picks onto e4010f2 too. Post both commits; the supervisor captures them.
-3. Worms (wip/worms): merge after the world lane's ripples land. Not for v0.10 unless both land before the cut.
+Done since v0.10: test hooks (3025dbf), brain-sample markers (item 13/14 captured), worms (149e4b0), trunk-hug
+(2272733), trunk-lean (fade08c), worm-look (d83b1ee).
+1. **Worm trail of bumps (Zach):** wip/worm-trail 18f1b3b + world-shader wip/worm-trail-shader 92a9602 (zache-73 OK'd).
+   Merge both together once the profiler's cost check (slot2 "worm") passes.
+2. **Graphics settings (Zach):** after the supervisor OKs the world lane's settings API (QUEUE-world item 1), wire the
+   creature render ranges as default × multiplier: CreatureRenderSystem FootDetail/TorchFlame/Lantern/Colony/CaveFish
+   (Swarm: draw use only, not anger/chase; leave BehindCull), TraceSystem, and Burrow Range from the same setting
+   as the shader gate. Rendering only: never FaunaDirector's spawn radius or relevancy.
+3. Later: NPC climbers following trunk lean (FloraShape has no mesh data); decide from the trunk-lean shots.
+- wip/brain-sample: merge animal-behaviours in, or retire it now that item 14 is captured. Never merge the profiler's
+  wip/brain-blocked-* branches.
+- F-02 held.
