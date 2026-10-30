@@ -1661,13 +1661,18 @@ namespace Punchy.Fauna
             {
                 var trunk = s.Anchor.xz;
                 var climbSpeed = walk * 0.75f;
-                // While climbing, the body keeps its legs' length off the trunk.
-                var reach = s.AnchorSize + b.StandHeight * s.Scale * 0.8f + 0.02f;
+                // Standing at the foot (and out on a branch) the body keeps its legs' length off the trunk; up it, its feet
+                // are on the bark and the body hangs a leg's length out from them (CreatureAnimator). It goes from one to
+                // the other over its first stand height up the trunk, and back over its last coming down, so its chest
+                // never ends up in the trunk.
+                var standOff = s.AnchorSize + b.StandHeight * s.Scale * 0.8f + 0.02f;
+                var low = math.saturate((s.Position.y - Terrain.SampleHeight(s.Position.xz)) / math.max(b.StandHeight * s.Scale, 0.05f));
+                var reach = math.lerp(standOff, s.AnchorSize + 0.02f, math.min(math.saturate(s.Vertical), low));
                 var outward = math.normalizesafe(s.Position.xz - trunk, new float2(0f, 1f));
                 switch (s.Stage)
                 {
                     case 0:
-                        s.Target = trunk + outward * (reach + 0.15f);
+                        s.Target = trunk + outward * (standOff + 0.15f);
                         targetSpeed = walk;
                         moving = true;
                         if (math.distance(s.Position.xz, s.Target) < 0.3f)
@@ -1720,7 +1725,7 @@ namespace Punchy.Fauna
                     case 4:
                         custom = true;
                         s.Position.y = s.TargetHeight;
-                        if (GlideTo(ref s, ref b, trunk + math.normalizesafe(s.Focus - trunk, outward) * reach, walk * 0.6f, dt) < 0.1f)
+                        if (GlideTo(ref s, ref b, trunk + math.normalizesafe(s.Focus - trunk, outward) * standOff, walk * 0.6f, dt) < 0.1f)
                             NextStage(ref s);
                         break;
                     default:
