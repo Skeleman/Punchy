@@ -167,25 +167,28 @@ FloraVertex FloraTransform(FloraAttributes input)
     // nearly limp in calm. Its gusts are the grass's own (the same noise scrolled downwind as in GroundDetail.hlsl),
     // on the shared clock, so a gust passes through a field and the banners together and every player sees it.
     // Flora.shader lights it with normals from the waved surface.
+    // Taut cloth (an awning held at both bars; carried below 10) ripples slowly and gently and isn't blown out (F-42).
     if ((int)round(input.data.y) == 10)
     {
-        float free = saturate((input.data.y - 10) / 0.4);
+        bool taut = input.data.y < 10;
+        float free = saturate(abs(input.data.y - 10) / 0.4);
         float3 at = plant.position + p;
         float2 gustUV = at.xz * 0.011 - _PunchyWindDirection * _PunchyClock * (0.025 + 0.06 * _PunchyWind);
         half gustNoise = SAMPLE_TEXTURE2D_LOD(_PunchyCaveDetail, sampler_PunchyCaveDetail, gustUV, 0).b;
         half gust = lerp(0.5, smoothstep(0.3, 0.75, gustNoise), _PunchyCaveDetailReady);
         float strength = (0.08 + 0.92 * _PunchyWind) * (0.3 + 0.9 * gust);
-        float t = _PunchyClock * (1.6 + 4.5 * strength) + plant.random * 6.28;
+        float t = _PunchyClock * (taut ? 0.6 + 0.8 * _PunchyWind : 1.6 + 4.5 * strength) + plant.random * 6.28;
         float along = (input.positionOS.x + input.positionOS.z) * 1.3;
         float wave = sin(t - free * 4.2 + along);
-        float flutter = sin(t * 2.6 - free * 9.0 + input.positionOS.y * 4.1) * free;
-        float amount = free * (0.06 + 0.4 * strength) * plant.scale;
+        float flutter = taut ? 0 : sin(t * 2.6 - free * 9.0 + input.positionOS.y * 4.1) * free;
+        // Taut cloth stirs only in wind, and gently (G-19): nothing in calm air.
+        float amount = free * (taut ? 0.08 * smoothstep(0.2, 0.9, _PunchyWind) * (0.5 + 0.5 * gust) : 0.06 + 0.4 * strength) * plant.scale;
         float3 windDir3 = float3(_PunchyWindDirection.x, 0, _PunchyWindDirection.y);
         p += n * (wave * 0.8 + flutter * 0.5) * amount;
         // Blown out from where it hangs: turned downwind by an angle that rises quickly with the wind (about 35
         // degrees on a breezy day, 65 in a storm, a few in calm), so it streams out and lifts as well.
         float angle = 1.15 * pow(saturate((strength - 0.05) / 0.8), 0.6) * (0.85 + 0.15 * wave);
-        float reach = free * 1.5 * plant.scale;
+        float reach = taut ? 0 : free * 1.5 * plant.scale;
         p += windDir3 * reach * sin(angle);
         p.y += reach * (1 - cos(angle));
     }

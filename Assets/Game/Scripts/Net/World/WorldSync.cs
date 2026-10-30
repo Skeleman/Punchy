@@ -187,10 +187,10 @@ namespace Punchy.Net
             if (client == null || !client.IsCreated || !client.IsClient())
                 return Time.time;
             var em = client.EntityManager;
-            using var time = em.CreateEntityQuery(ComponentType.ReadOnly<NetworkTime>());
+            var time = CachedQueries.Get<NetworkTime>(em.World);
             if (!time.TryGetSingleton<NetworkTime>(out var t) || !t.ServerTick.IsValid)
                 return Time.time;
-            using var rate = em.CreateEntityQuery(ComponentType.ReadOnly<ClientServerTickRate>());
+            var rate = CachedQueries.Get<ClientServerTickRate>(em.World);
             var hz = rate.TryGetSingleton<ClientServerTickRate>(out var r) && r.SimulationTickRate > 0 ? r.SimulationTickRate : 60;
             return (float)((t.ServerTick.TickIndexForValidTick + (double)t.ServerTickFraction) / hz);
         }
@@ -202,7 +202,7 @@ namespace Punchy.Net
             var em = server.EntityManager;
             if (stateGhost != Entity.Null && em.Exists(stateGhost))
                 return;
-            using var spawner = em.CreateEntityQuery(ComponentType.ReadOnly<WorldStateSpawner>());
+            var spawner = CachedQueries.Get<WorldStateSpawner>(em.World);
             if (!spawner.TryGetSingleton<WorldStateSpawner>(out var s))
                 return;
             stateGhost = em.Instantiate(s.Prefab);
@@ -252,7 +252,7 @@ namespace Punchy.Net
         void CheckJoiners()
         {
             var em = server.EntityManager;
-            using var query = em.CreateEntityQuery(ComponentType.ReadOnly<WorldCheckRpc>(), ComponentType.ReadOnly<ReceiveRpcCommandRequest>());
+            var query = CachedQueries.Get<WorldCheckRpc, ReceiveRpcCommandRequest>(em.World);
             if (query.IsEmpty)
                 return;
             var ours = Signature(server);
@@ -278,7 +278,7 @@ namespace Punchy.Net
         void SendWorldCheck()
         {
             var em = client.EntityManager;
-            using var connections = em.CreateEntityQuery(ComponentType.ReadOnly<NetworkId>(), ComponentType.ReadOnly<NetworkStreamInGame>());
+            var connections = CachedQueries.Get<NetworkId, NetworkStreamInGame>(em.World);
             var list = connections.ToEntityArray(Allocator.Temp);
             foreach (var connection in list)
             {
@@ -299,7 +299,7 @@ namespace Punchy.Net
         void ReceiveLightning(bool apply)
         {
             var em = client.EntityManager;
-            using var query = em.CreateEntityQuery(ComponentType.ReadOnly<LightningRpc>(), ComponentType.ReadOnly<ReceiveRpcCommandRequest>());
+            var query = CachedQueries.Get<LightningRpc, ReceiveRpcCommandRequest>(em.World);
             if (query.IsEmpty)
                 return;
             var strikes = query.ToEntityArray(Allocator.Temp);
@@ -316,7 +316,7 @@ namespace Punchy.Net
         void ApplyHostState()
         {
             var em = client.EntityManager;
-            using var query = em.CreateEntityQuery(ComponentType.ReadOnly<WorldState>(), ComponentType.ReadOnly<WeatherCellState>());
+            var query = CachedQueries.Get<WorldState, WeatherCellState>(em.World);
             if (!query.TryGetSingletonEntity<WorldState>(out var ghost))
                 return;
             var state = em.GetComponentData<WorldState>(ghost);
@@ -356,8 +356,8 @@ namespace Punchy.Net
         uint Signature(World world)
         {
             var em = world.EntityManager;
-            using var terrain = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
-            using var palettes = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
+            var terrain = CachedQueries.Get<TerrainSource>(em.World);
+            var palettes = CachedQueries.Get<BiomePalette>(em.World);
             if (!terrain.TryGetSingleton<TerrainSource>(out var source) || palettes.CalculateEntityCount() != 1)
                 return 0;
             var palette = em.GetComponentObject<BiomePalette>(palettes.GetSingletonEntity());

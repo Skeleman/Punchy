@@ -102,6 +102,9 @@ namespace Punchy.Terrain
 
         [Tooltip("Cave chunks started per frame at most (nearest first), so a cave coming into range doesn't hitch.")]
         [Min(1)] public int BuildsPerFrame = 2;
+        [Tooltip("Most finished chunks turned into meshes (made and uploaded on the main thread) per frame; the rest wait " +
+                 "a frame, so a batch finishing together at a mouth or after a teleport doesn't land in one frame.")]
+        [Min(1)] public int UploadsPerFrame = 2;
         [Tooltip("Cave chunks building at once at most. Each holds a few MB of fields while it builds, and too many " +
                  "crowd the terrain's own jobs off the workers.")]
         [Min(1)] public int MaxBuilding = 4;
@@ -260,6 +263,8 @@ namespace Punchy.Terrain
                 c.Dispose();
             dying.Clear();
             columns.Clear();
+            DisposeIndex();
+            indexed = false;
             ReleaseLandmarkPools();
             surfaceGlow.Release();
             ReleaseDrips();
@@ -321,6 +326,9 @@ namespace Punchy.Terrain
         readonly Dictionary<Vector4, (Vector4 color, Vector4 position, float left)> heatLeaving = new Dictionary<Vector4, (Vector4, Vector4, float)>();
         readonly List<Vector4> heatScratch = new List<Vector4>();
         readonly Dictionary<Vector4, float> heatNextAge = new Dictionary<Vector4, float>();
+        /// <summary>Each listed light's colour and position when last uploaded, by key, so one that drops out of the
+        /// candidates altogether (a surface rescan that no longer reaches it) still fades out rather than popping off.</summary>
+        readonly Dictionary<Vector4, (Vector4 color, Vector4 position)> heatLast = new Dictionary<Vector4, (Vector4, Vector4)>();
 
         /// <summary>
         /// Uploads the nearest glowing things to the cave shader, which lights the walls round them. A light joining the
@@ -339,7 +347,7 @@ namespace Punchy.Terrain
             for (int i = 0; i < glowing.Count; i++)
                 if (heatAge.ContainsKey(glowing[i].key))
                     glowing[i] = (glowing[i].distance * HeatStickiness, glowing[i].key, glowing[i].position, glowing[i].color);
-            glowing.Sort((a, b) => a.distance.CompareTo(b.distance));
+            glowing.Sort(GlowingByDistance);
             var count = math.min(glowing.Count, MaxHeat);
 
             heatNextAge.Clear();
@@ -349,6 +357,7 @@ namespace Punchy.Terrain
                 var age = (heatAge.TryGetValue(key, out var a) ? a : 0f) + dt;
                 heatNextAge[key] = age;
                 heatLeaving.Remove(key);
+                heatLast[key] = (color, position);
                 // Up to full over the first 60%, a swell of about 12% over full, settling back by the end.
                 var t = age / HeatFadeIn;
                 var envelope = math.smoothstep(0f, 0.6f, t) + 0.12f * math.smoothstep(0.3f, 0.6f, t) * (1f - math.smoothstep(0.6f, 1.2f, t));
@@ -359,13 +368,13 @@ namespace Punchy.Terrain
             foreach (var kv in heatAge)
                 if (!heatNextAge.ContainsKey(kv.Key) && !heatLeaving.ContainsKey(kv.Key))
                 {
-                    Vector4 color = Vector4.zero, position = Vector4.zero;
-                    foreach (var g in glowing)
-                        if (g.key == kv.Key) { color = g.color; position = g.position; break; }
-                    if (color == Vector4.zero)
-                        continue;   // gone from the candidates altogether (out of range): no colour to fade
-                    heatLeaving[kv.Key] = (color, position, HeatFadeOut * math.saturate(kv.Value / HeatFadeIn));
+                    if (!heatLast.TryGetValue(kv.Key, out var last))
+                        continue;
+                    heatLeaving[kv.Key] = (last.color, last.position, HeatFadeOut * math.saturate(kv.Value / HeatFadeIn));
                 }
+            foreach (var kv in heatAge)
+                if (!heatNextAge.ContainsKey(kv.Key))
+                    heatLast.Remove(kv.Key);
             heatAge.Clear();
             foreach (var kv in heatNextAge)
                 heatAge[kv.Key] = kv.Value;
@@ -396,6 +405,11 @@ namespace Punchy.Terrain
             glowing.Clear();
         }
         readonly List<(float distance, int pool)> nearPools = new List<(float, int)>();
+        // Comparers made once: List.Sort(Comparison) wraps the delegate in a new comparer on every call, every frame.
+        static readonly Comparer<(float distance, Vector4 key, Vector4 position, Vector4 color)> GlowingByDistance =
+            Comparer<(float distance, Vector4 key, Vector4 position, Vector4 color)>.Create((a, b) => a.distance.CompareTo(b.distance));
+        static readonly Comparer<(float distance, int pool)> PoolsByDistance =
+            Comparer<(float distance, int pool)>.Create((a, b) => a.distance.CompareTo(b.distance));
         static Mesh lavaPoolMesh, waterPoolMesh;
         /// <summary>Cave water's look in the water vertex layout: dark, clear and cold (rgb, murk).</summary>
         static readonly float4 CaveWater = new float4(0.1f, 0.28f, 0.3f, 0.1f);
@@ -428,7 +442,7 @@ namespace Punchy.Terrain
                     lavaPoolMesh = MakePoolMesh(new float4(1f, 0.33f, 0.05f, 0.2f), 1f);
                     waterPoolMesh = MakePoolMesh(CaveWater, 0f);
                 }
-                nearPools.Sort((a, b) => a.distance.CompareTo(b.distance));
+                nearPools.Sort(PoolsByDistance);
                 foreach (var (_, i) in nearPools)
                 {
                     ref var pool = ref set.Pools[i];
@@ -865,6 +879,8 @@ namespace Punchy.Terrain
         const float DripRadius = 25f;
         readonly List<Drip> allDrips = new List<Drip>();
         readonly List<(float distance, Drip drip)> nearDrips = new List<(float, Drip)>();
+        static readonly Comparer<(float distance, Drip drip)> DripsByDistance =
+            Comparer<(float distance, Drip drip)>.Create((a, b) => a.distance.CompareTo(b.distance));
         readonly Drip[] dripUpload = new Drip[MaxDrips];
         BlobAssetReference<CaveSetBlob> dripsFrom;
         float3 dripsAround = new float3(float.MaxValue);
@@ -940,7 +956,7 @@ namespace Punchy.Terrain
                     if (dist < DripRadius)
                         nearDrips.Add((dist, d));
                 }
-                nearDrips.Sort((a, b) => a.distance.CompareTo(b.distance));
+                nearDrips.Sort(DripsByDistance);
                 dripCount = math.min(nearDrips.Count, MaxDrips);
                 for (int i = 0; i < dripCount; i++)
                     dripUpload[i] = nearDrips[i].drip;
@@ -1189,41 +1205,95 @@ namespace Punchy.Terrain
         const float WallReach = 2.5f;
 
         /// <summary>
-        /// Lists every chunk a cave's walls can reach, by column. Done once per baked world: chunks follow the
-        /// segments, so the list is as long as the caves are, not as big as the world. Each segment's box here is only
-        /// as wide as its walls can be (radius and stretch, blend, wall noise, the wall cut-off and a couple of voxels),
-        /// not the wider box sampling uses, so chunks the cave only grazes aren't built just to come out empty.
+        /// Lists every chunk a cave's walls can reach, by column. Done once per baked world, in a Burst job picked up a
+        /// frame or more later (it grows with the caves' total length, so on the main thread it was a load hitch);
+        /// false until the list is ready. Chunks follow the segments, so the list is as long as the caves are, not as big
+        /// as the world.
         /// </summary>
-        void IndexChunks(in TerrainSource source)
+        bool IndexChunks(in TerrainSource source)
         {
-            chunkVoxel = Voxel;
-            chunkCells = math.max(4, (int)math.round(ChunkMetres / chunkVoxel));
-            chunkSize = chunkCells * chunkVoxel;
-            ref var set = ref source.Caves.Value;
-            var seen = new HashSet<int3>();
-            for (int i = 0; i < set.Segments.Length; i++)
+            if (indexed)
+                return true;
+            if (!indexing)
             {
-                ref var seg = ref set.Segments[i];
-                ref var cave = ref set.Caves[seg.Cave];
-                ref var a = ref set.Nodes[seg.A];
-                ref var b = ref set.Nodes[seg.B];
-                // A stretched passage's field runs slower than true distance along the stretch, so distances measured
-                // in it reach that much further.
-                var stretch = CaveSampling.Stretch(cave.Profile);
-                var reach = math.max(a.Radius, b.Radius) * math.cmax(cave.Profile)
-                            + (CaveSampling.Blend + CaveSampling.WallReach(cave) + WallReach) * stretch + chunkVoxel * 2f;
-                var c0 = (int3)math.floor((math.min(a.Position, b.Position) - reach) / chunkSize);
-                var c1 = (int3)math.floor((math.max(a.Position, b.Position) + reach) / chunkSize);
-                for (int z = c0.z; z <= c1.z; z++)
-                for (int y = c0.y; y <= c1.y; y++)
-                for (int x = c0.x; x <= c1.x; x++)
+                chunkVoxel = Voxel;
+                chunkCells = math.max(4, (int)math.round(ChunkMetres / chunkVoxel));
+                chunkSize = chunkCells * chunkVoxel;
+                indexSeen = new NativeHashSet<int3>(1024, Allocator.Persistent);
+                indexKeys = new NativeList<int3>(1024, Allocator.Persistent);
+                indexJob = new IndexJob
                 {
-                    var key = new int3(x, y, z);
-                    if (!seen.Add(key))
-                        continue;
-                    if (!columns.TryGetValue(key.xz, out var ys))
-                        columns[key.xz] = ys = new List<int>();
-                    ys.Add(y);
+                    Source = source, ChunkSize = chunkSize, ChunkVoxel = chunkVoxel, Seen = indexSeen, Keys = indexKeys
+                }.Schedule();
+                indexing = true;
+                return false;
+            }
+            if (!indexJob.IsCompleted)
+                return false;
+            indexJob.Complete();
+            foreach (var key in indexKeys)
+            {
+                if (!columns.TryGetValue(key.xz, out var ys))
+                    columns[key.xz] = ys = new List<int>();
+                ys.Add(key.y);
+            }
+            DisposeIndex();
+            indexed = true;
+            return true;
+        }
+
+        void DisposeIndex()
+        {
+            if (!indexing)
+                return;
+            indexJob.Complete();
+            indexSeen.Dispose();
+            indexKeys.Dispose();
+            indexing = false;
+        }
+
+        bool indexed, indexing;
+        JobHandle indexJob;
+        NativeHashSet<int3> indexSeen;
+        NativeList<int3> indexKeys;
+
+        /// <summary>
+        /// The chunks each segment's walls can reach (IndexChunks). Each segment's box here is only as wide as its walls
+        /// can be (radius and stretch, blend, wall noise, the wall cut-off and a couple of voxels), not the wider box
+        /// sampling uses, so chunks the cave only grazes aren't built just to come out empty.
+        /// </summary>
+        [BurstCompile]
+        struct IndexJob : IJob
+        {
+            public TerrainSource Source;
+            public float ChunkSize, ChunkVoxel;
+            public NativeHashSet<int3> Seen;
+            public NativeList<int3> Keys;
+
+            public void Execute()
+            {
+                ref var set = ref Source.Caves.Value;
+                for (int i = 0; i < set.Segments.Length; i++)
+                {
+                    ref var seg = ref set.Segments[i];
+                    ref var cave = ref set.Caves[seg.Cave];
+                    ref var a = ref set.Nodes[seg.A];
+                    ref var b = ref set.Nodes[seg.B];
+                    // A stretched passage's field runs slower than true distance along the stretch, so distances
+                    // measured in it reach that much further.
+                    var stretch = CaveSampling.Stretch(cave.Profile);
+                    var reach = math.max(a.Radius, b.Radius) * math.cmax(cave.Profile)
+                                + (CaveSampling.Blend + CaveSampling.WallReach(cave) + WallReach) * stretch + ChunkVoxel * 2f;
+                    var c0 = (int3)math.floor((math.min(a.Position, b.Position) - reach) / ChunkSize);
+                    var c1 = (int3)math.floor((math.max(a.Position, b.Position) + reach) / ChunkSize);
+                    for (int z = c0.z; z <= c1.z; z++)
+                    for (int y = c0.y; y <= c1.y; y++)
+                    for (int x = c0.x; x <= c1.x; x++)
+                    {
+                        var key = new int3(x, y, z);
+                        if (Seen.Add(key))
+                            Keys.Add(key);
+                    }
                 }
             }
         }
@@ -1236,8 +1306,8 @@ namespace Punchy.Terrain
 
         void Stream(in TerrainSource source, float3 camPos)
         {
-            if (columns.Count == 0)
-                IndexChunks(source);
+            if (!IndexChunks(source))
+                return;
 
             // Which chunks are in range only changes when the camera crosses into another chunk.
             var cameraChunk = (int3)math.floor(camPos / chunkSize);
@@ -1306,16 +1376,21 @@ namespace Punchy.Terrain
                     chunks[key] = StartBuild(source, key);
             }
 
+            var uploads = 0;
             foreach (var kv in chunks)
             {
                 var b = kv.Value;
                 if (!b.Pending || !b.Job.IsCompleted)
                     continue;
-                b.Job.Complete();
+                b.Job.Complete();   // already done: cheap
+                // Empty ones cost nothing to finish; those with a mesh wait their turn.
+                if (b.Indices.Length > 0 && uploads >= UploadsPerFrame)
+                    continue;
                 b.Pending = false;
                 // Chunks the cave only grazes come out empty: keep the record (so they aren't rebuilt), not a mesh.
                 if (b.Indices.Length > 0)
                 {
+                    uploads++;
                     var mesh = new Mesh { name = "Cave chunk", indexFormat = IndexFormat.UInt32 };
                     mesh.SetVertices(b.Positions.AsArray());
                     mesh.SetNormals(b.Normals.AsArray());

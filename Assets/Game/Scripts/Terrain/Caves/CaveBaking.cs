@@ -80,8 +80,20 @@ namespace Punchy.Terrain
                     return nodes.Count - 1;
                 }
                 void Join(int a, int b) => segments.Add(new CaveSegment { A = a, B = b, Cave = cave });
-                // Highest a node's centre may be at a spot: its top (the passage's height there) under the cover.
-                float Ceiling(float2 xz, float nodeRadius) => terrain.SampleHeight(xz) - nodeRadius * profile.y - Cover;
+                // Highest a node's centre may be at a spot: its top (the passage's height there) under the cover, below
+                // the lowest ground round it out to half way to the next node, so a passage running under a canyon's edge
+                // or a valley between nodes doesn't break the surface there (F-31: torn holes in a mesa wall).
+                float Ceiling(float2 xz, float nodeRadius)
+                {
+                    var ground = terrain.SampleHeight(xz);
+                    var ring = nodeRadius * profile.x + NodeSpacing * 0.5f;
+                    for (int k = 0; k < 8; k++)
+                    {
+                        var a = k * math.PI / 4f;
+                        ground = math.min(ground, terrain.SampleHeight(xz + new float2(math.cos(a), math.sin(a)) * ring));
+                    }
+                    return ground - nodeRadius * profile.y - Cover;
+                }
 
                 // The entrance: starting just outside the face, so the passage cuts cleanly into it.
                 var start = inst.Position - forward * (radius * type.Edge * 0.5f + r * 0.6f);
@@ -232,7 +244,7 @@ namespace Punchy.Terrain
 
         /// <summary>
         /// A stream along the main passage of caves whose style rolls for one, from the second node in (clear of the
-        /// mouth) down to the end chamber. Points every 1.5 m along the passage floor; the surface follows the floor
+        /// mouth) down to the end chamber, ending in a pool (F-30). Points every 1.5 m along the passage floor; the surface follows the floor
         /// but never rises along the flow, so where the floor climbs the channel cuts deeper.
         /// </summary>
         static void PlaceStreams(in TerrainSource source, List<CaveData> caves, List<CaveNode> nodes, List<CaveSegment> segments,
@@ -274,7 +286,57 @@ namespace Punchy.Terrain
                         }
                     }
                     if (extras.StreamPoints.Count - first >= 4)
+                    {
+                        // The points run straight from node to node, so each bend was a corner where the flow turned at
+                        // once (a crease in the water's moving pattern, F-28): round the bends by averaging each point's
+                        // place with its neighbours', twice, keeping the ends and the heights.
+                        var count = extras.StreamPoints.Count - first;
+                        var xz = new float2[count];
+                        for (int pass = 0; pass < 2; pass++)
+                        {
+                            for (int i = 0; i < count; i++)
+                                xz[i] = extras.StreamPoints[first + i].Position.xz;
+                            for (int i = 2; i < count - 2; i++)
+                            {
+                                var point = extras.StreamPoints[first + i];
+                                var mean = (xz[i - 2] + xz[i - 1] + xz[i] + xz[i + 1] + xz[i + 2]) / 5f;
+                                point.Position = new float3(mean.x, point.Position.y, mean.y);
+                                extras.StreamPoints[first + i] = point;
+                            }
+                        }
+                        min = float.MaxValue;
+                        max = float.MinValue;
+                        for (int i = 0; i < count; i++)
+                        {
+                            var point = extras.StreamPoints[first + i];
+                            min = math.min(min, point.Position.xz - point.Width);
+                            max = math.max(max, point.Position.xz + point.Width);
+                        }
                         extras.Streams.Add(new CaveStream { FirstPoint = first, PointCount = extras.StreamPoints.Count - first, Min = min, Max = max });
+                        // Every stream ends in a pool at its own level, shrunk until the floor holds it all round (or
+                        // left out), added to this cave's pools (later caves' ranges move up one).
+                        var end = extras.StreamPoints[extras.StreamPoints.Count - 1];
+                        var radius = math.clamp(end.Width * 1.6f, 1.2f, 2.5f);
+                        while (radius >= 1.2f && !RimHolds(source, end.Position, radius))
+                            radius *= 0.8f;
+                        if (radius >= 1.2f)
+                        {
+                            extras.Pools.Insert(cave.FirstPool + cave.PoolCount, new CavePool
+                            {
+                                Centre = end.Position,
+                                Radius = radius,
+                                Depth = math.min(1.2f, radius * 0.4f),
+                                Lava = 0f
+                            });
+                            cave.PoolCount++;
+                            for (int later = c + 1; later < caves.Count; later++)
+                            {
+                                var next = caves[later];
+                                next.FirstPool++;
+                                caves[later] = next;
+                            }
+                        }
+                    }
                     else
                         extras.StreamPoints.RemoveRange(first, extras.StreamPoints.Count - first);
                 }
@@ -626,10 +688,20 @@ namespace Punchy.Terrain
                             var middle = hip + new float3(across.x, 0f, across.y) * (left - right) * 0.5f;
                             var half = (left + right) * 0.5f * 0.94f;
                             var mid = new float3(middle.x, source.FloorUnder(middle + new float3(0f, 0.5f, 0f), out _) - 0.02f, middle.z);
-                            // Only where the lintel clears a walker's head and stays under the roof.
+                            // Only where the lintel clears a walker's head and stays under the roof. The tallest variant
+                            // that fits, so the lintel meets the roof in steep passages too (F-34). (The draw is kept so
+                            // later frames and torches keep their seeds.)
                             var roof = source.CeilingOver(mid + new float3(0f, 0.5f, 0f)) - mid.y;
                             if (half > 1.9f && half < roof - 0.1f)
-                                extras.Plants.Add(new CavePlant { Position = mid, Yaw = yaw, Scale = half, Species = frame, Variant = rng.NextInt(3), Random = rng.NextFloat() });
+                            {
+                                rng.NextInt(3);
+                                var heights = Punchy.Flora.FloraGenerator.MineFrameHeights;
+                                var variant = 0;
+                                for (int v = 1; v < heights.Length; v++)
+                                    if (half * heights[v] < roof - 0.1f)
+                                        variant = v;
+                                extras.Plants.Add(new CavePlant { Position = mid, Yaw = yaw, Scale = half, Species = frame, Variant = variant, Random = rng.NextFloat() });
+                            }
                         }
                         sinceTorch += step;
                         if (torch >= 0 && sinceTorch >= style.TorchSpacing)

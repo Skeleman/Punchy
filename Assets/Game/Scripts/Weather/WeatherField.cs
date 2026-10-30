@@ -152,20 +152,29 @@ namespace Punchy.Weather
                 chance[p] = new float[count];
             allowed = new NativeArray<float>(presets.Count * count, Allocator.Persistent);
 
+            // Each preset's chance in each biome, looked up once rather than per texel (the per-texel lookup walked every
+            // biome's weather list and stalled the first frame for a good fraction of a second).
+            var biomeChances = new float[presets.Count * palette.Length];
+            for (int p = 0; p < presets.Count; p++)
+                for (int b = 0; b < palette.Length; b++)
+                    biomeChances[p * palette.Length + b] = ChanceIn(presets[p], palette[b]);
+
             for (int t = 0; t < count; t++)
             {
                 var elevation = heights[t] - source.World.SeaLevel;
                 orography[t] = math.saturate((elevation - 80f) / 220f);
                 rainFraction[t] = 1f - math.max(math.saturate((elevation - snowLine) / 40f), math.saturate(snow[t] * 2f));
+                var weights = biomeWeights[t];
+                var ids = biomeIds[t];
                 for (int p = 0; p < presets.Count; p++)
                 {
                     float c = 0f, a = 0f;
                     for (int k = 0; k < 4; k++)
                     {
-                        var w = biomeWeights[t][k];
-                        var id = biomeIds[t][k];
+                        var w = weights[k];
+                        var id = ids[k];
                         if (w <= 0f || id >= palette.Length) continue;
-                        var biomeChance = ChanceIn(presets[p], palette[id]);
+                        var biomeChance = biomeChances[p * palette.Length + id];
                         c += w * biomeChance;
                         a += w * (biomeChance > 0f ? 1f : 0f);
                     }

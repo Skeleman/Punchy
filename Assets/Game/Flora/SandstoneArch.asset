@@ -42,7 +42,7 @@ MonoBehaviour:
   GlowingVeins: 0
   RockStrata: 1
   Breathes: 0
-  MaxSlope: 25
+  MaxSlope: 12
   Elevation: {x: 0, y: 10000}
   GrassAffinity: 0
   ToleratesSnow: 0

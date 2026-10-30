@@ -71,8 +71,9 @@ namespace Punchy.Flora
 
         public int Vertex(Vector3 p, Vector3 n, Color c, FloraPart part, float ao, float flutter = -1f)
         {
+            // Leaves and petals flutter; crystals (foliage drawn as glass) never move (G-24).
             if (flutter < 0f)
-                flutter = part == FloraPart.Foliage || part == FloraPart.Petal ? 1f : 0f;
+                flutter = part == FloraPart.Foliage && FoliageAs != FloraPart.Glass || part == FloraPart.Petal ? 1f : 0f;
             if (part == FloraPart.Foliage) part = FoliageAs;
             else if (part == FloraPart.Petal) part = PetalAs;
             positions.Add(p);
@@ -644,13 +645,15 @@ namespace Punchy.Flora
         /// <summary>
         /// Makes the vertices from <paramref name="firstVertex"/> cloth that waves in the wind (Flora.hlsl), by how free
         /// each is: 0 where it's held (a pole, a bar, a seam), 1 at a free edge. Carried on the part as Cloth + free × 0.4.
+        /// Taut cloth (stretched between bars, like an awning) only ripples gently and isn't blown out downwind; it's
+        /// carried as Cloth − free × 0.4.
         /// </summary>
-        public void Cloth(int firstVertex, Func<Vector3, float> free)
+        public void Cloth(int firstVertex, Func<Vector3, float> free, bool taut = false)
         {
             for (int v = firstVertex; v < data.Count; v++)
             {
                 var d = data[v];
-                d.y = (float)FloraPart.Cloth + Mathf.Clamp01(free(positions[v])) * 0.4f;
+                d.y = (float)FloraPart.Cloth + Mathf.Clamp01(free(positions[v])) * (taut ? -0.4f : 0.4f);
                 d.z = 0f;
                 data[v] = d;
             }

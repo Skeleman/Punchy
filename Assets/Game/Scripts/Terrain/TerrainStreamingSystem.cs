@@ -437,21 +437,30 @@ namespace Punchy.Terrain
             var cam = Camera.main;
             var eye = cam != null ? ((float3)cam.transform.position).xz : float2.zero;
             var chunkSize = SystemAPI.GetSingleton<TerrainConfig>().ChunkSize;
+            // Gathered first and changed in two batches: one structural change per chunk was a hitch on the way in.
+            var toHide = new NativeList<Entity>(Allocator.Temp);
+            var toShow = new NativeList<Entity>(Allocator.Temp);
+            void Sort(Entity e, bool far)
+            {
+                if (e == Entity.Null)
+                    return;
+                var off = EntityManager.HasComponent<DisableRendering>(e);
+                if (hide && far && !off)
+                    toHide.Add(e);
+                else if ((!hide || !far) && off)
+                    toShow.Add(e);
+            }
             foreach (var kv in loaded)
             {
                 var centre = ((float2)kv.Key + 0.5f) * chunkSize;
                 var far = math.distance(centre, eye) > HiddenKeep + chunkSize * 0.71f;
-                foreach (var e in new[] { kv.Value.Entity, kv.Value.WaterEntity })
-                {
-                    if (e == Entity.Null)
-                        continue;
-                    var off = EntityManager.HasComponent<DisableRendering>(e);
-                    if (hide && far && !off)
-                        EntityManager.AddComponent<DisableRendering>(e);
-                    else if ((!hide || !far) && off)
-                        EntityManager.RemoveComponent<DisableRendering>(e);
-                }
+                Sort(kv.Value.Entity, far);
+                Sort(kv.Value.WaterEntity, far);
             }
+            EntityManager.AddComponent<DisableRendering>(toHide.AsArray());
+            EntityManager.RemoveComponent<DisableRendering>(toShow.AsArray());
+            toHide.Dispose();
+            toShow.Dispose();
         }
 
         Entity CreateRenderEntity(int2 coord, float2 origin, in RenderMeshDescription desc, BatchMaterialID material, BatchMeshID mesh, string name)

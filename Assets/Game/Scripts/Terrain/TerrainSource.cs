@@ -314,7 +314,12 @@ namespace Punchy.Terrain
                     ruleDepth = math.max(ruleDepth, math.lerp(farAbove, surfaceLevel - g.Height, fade));
                 }
 
-                var lake = RiverSampling.Lake(ref Rivers.Value, xz, out var lakeSurface);
+                var lake = RiverSampling.Lake(ref Rivers.Value, xz, out var lakeSurface, out var lakeDepth);
+                // Ground lying deeper under the lake's surface than the lake itself is deep isn't lake bed or shore: a
+                // river's gorge has cut through the lake's rim there, and a flat sheet of lake over it would hang in the
+                // air (F-22; a few dozen such points on the island).
+                if (lakeSurface - g.Height > lakeDepth + 2f)
+                    lake = 0f;
                 if (lake > 0f)
                 {
                     // Where a river leaves a lake lower than the lake's surface (its outlet), the river's surface rises
@@ -343,7 +348,7 @@ namespace Punchy.Terrain
                     var shore = RiverSampling.ShoreLevel(ref Rivers.Value, xz);
                     if (shore > g.Height + 0.05f && shore > water
                         && RiverSampling.NearestLakeAbove(ref Rivers.Value, xz, g.Height + 0.05f, out var lakeCentre, out var bayLevel)
-                        && bayLevel > water && ConnectsBelow(xz, lakeCentre, bayLevel))
+                        && bayLevel > water && bayLevel - g.Height <= BayDepthLimit(lakeCentre) && ConnectsBelow(xz, lakeCentre, bayLevel))
                     {
                         water = bayLevel;
                         flow = float2.zero;
@@ -449,6 +454,14 @@ namespace Punchy.Terrain
         {
             deck = 0f;
             return Settlements.IsCreated && SettlementSampling.Deck(ref Settlements.Value, p, out deck);
+        }
+
+        /// <summary>How deep a bay beside the lake at <paramref name="lakeCentre"/> may be: no deeper than the lake itself
+        /// (plus 2 m), so a valley below a breached rim isn't filled to the lake's level (F-22).</summary>
+        float BayDepthLimit(float2 lakeCentre)
+        {
+            RiverSampling.Lake(ref Rivers.Value, lakeCentre, out _, out var depth);
+            return depth + 2f;
         }
 
         /// <summary>Whether the ground on the way from a to b (sampled at a quarter, half and three quarters) is all below a level.</summary>

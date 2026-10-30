@@ -221,8 +221,13 @@ namespace Punchy.Terrain
             height = r * stretch;
             // The floor: halfway down at full flatness, sinking below the capsule's bottom (no effect) as flatness goes.
             floorY = centre.y - height * (0.45f + (1f - flat) * 0.65f) + floorShape;
-            // A stream's channel cuts the floor down to its own bed wherever it runs.
+            // A stream's channel cuts the floor down to its own bed wherever it runs, and through the passage's
+            // underside too where the floor climbs above the water (otherwise the water ran on hidden in the rock
+            // there and came out again further along, F-30): air from the bed up to the passage's middle, at most
+            // 2.5 m, inside the passage's width.
             floorY = math.min(floorY, channel);
+            if (channel < 1e8f && math.length(q.xz) < r)
+                d = math.min(d, math.max(channel - p.y, p.y - math.min(centre.y, channel + 2.5f)));
             return math.max(d, floorY - p.y);
         }
 

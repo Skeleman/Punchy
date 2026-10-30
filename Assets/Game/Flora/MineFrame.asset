@@ -45,5 +45,5 @@ MonoBehaviour:
   MinRapids: 0
   Solid: 0
   SizeRange: {x: 1, y: 1}
-  Variants: 3
+  Variants: 5
   Seed: 24

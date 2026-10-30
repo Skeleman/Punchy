@@ -145,6 +145,7 @@ namespace Punchy.Flora
         BlobAssetReference<SupportGridSet> supportSet;
         int[] modelGrid;
         EntityQuery remoteQuery;
+        readonly List<float2> supportScratch = new List<float2>();
         /// <summary>The players the support buffer was last gathered round, and when.</summary>
         readonly List<float2> supportCentres = new List<float2>();
         float nextSupport;
@@ -258,7 +259,9 @@ namespace Punchy.Flora
                 terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
                 paletteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
                 playerQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
-                remoteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Fauna.RemoteAvatar>(), ComponentType.ReadOnly<Punchy.Fauna.CreatureState>());
+                // Other players by their NetPlayer ghosts' transforms (not their avatars' CreatureState, which waits on
+                // the creature jobs writing it).
+                remoteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Net.NetPlayer>(), ComponentType.ReadOnly<LocalTransform>());
                 queryWorld = world;
                 obstacleEntity = Entity.Null;
             }
@@ -707,11 +710,13 @@ namespace Punchy.Flora
             if (!supportSet.IsCreated || modelGrid == null || obstacleEntity == Entity.Null)
                 return;
             var em = queryWorld.EntityManager;
-            var centres = new List<float2>();
+            var centres = supportScratch;
+            centres.Clear();
             if (playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 centres.Add(player.Position.xz);
+            // (The local player's own ghost is among these too: one more centre in the same place.)
             if (!remoteQuery.IsEmpty)
-                using (var remotes = remoteQuery.ToComponentDataArray<Punchy.Fauna.CreatureState>(Allocator.Temp))
+                using (var remotes = remoteQuery.ToComponentDataArray<LocalTransform>(Allocator.Temp))
                     foreach (var r in remotes)
                         centres.Add(r.Position.xz);
             var moved = centres.Count != supportCentres.Count;

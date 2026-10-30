@@ -1305,13 +1305,18 @@ namespace Punchy.Flora
 
         /// <summary>
         /// A mine's timber frame, one metre either side of the middle and one metre to the lintel (placements scale it
-        /// to the passage): two posts, a lintel resting on them and short braces in the corners.
+        /// to the passage): two posts, a lintel resting on them and short braces in the corners. Later variants stand
+        /// taller (MineFrameHeights), so a frame in a steep passage, whose roof is higher over its width, still reaches it.
         /// </summary>
+        /// <summary>A mine frame's height to the lintel per variant, at scale 1 (its half-width is 1).</summary>
+        public static readonly float[] MineFrameHeights = { 1f, 1.2f, 1.4f, 1.65f, 1.9f };
+
         static void MineFrame(Grower g)
         {
             var s = g.S;
             var b = g.B;
-            g.Height = 1f;
+            var tall = MineFrameHeights[Mathf.Clamp(g.Variant, 0, MineFrameHeights.Length - 1)];
+            g.Height = tall;
             g.Width = 2.2f;
             g.TrunkRadius = 0f;
             var r = Mathf.Max(s.Thickness, 0.02f);
@@ -1320,12 +1325,12 @@ namespace Punchy.Flora
             {
                 var foot = new Vector3(side, -0.05f, 0f);
                 var lean = g.Range(-0.02f, 0.02f);
-                b.Tube(new List<Vector3> { foot, foot + new Vector3(lean, 1.02f, 0f) }, new List<float> { r * 1.05f, r }, sides, g.Bark, FloraPart.Bark);
+                b.Tube(new List<Vector3> { foot, foot + new Vector3(lean, 1.02f * tall, 0f) }, new List<float> { r * 1.05f, r }, sides, g.Bark, FloraPart.Bark);
                 if (g.Lod < 2)
-                    b.Tube(new List<Vector3> { new Vector3(side * 0.98f, 0.78f, 0f), new Vector3(side * 0.72f, 0.99f, 0f) },
+                    b.Tube(new List<Vector3> { new Vector3(side * 0.98f, 1.02f * tall - 0.24f, 0f), new Vector3(side * 0.72f, 1.02f * tall - 0.03f, 0f) },
                            new List<float> { r * 0.6f, r * 0.6f }, sides, g.Bark * 0.9f, FloraPart.Bark);
             }
-            b.Tube(new List<Vector3> { new Vector3(-1.12f, 1.02f + r, 0f), new Vector3(1.12f, 1.02f + r, 0f) },
+            b.Tube(new List<Vector3> { new Vector3(-1.12f, 1.02f * tall + r, 0f), new Vector3(1.12f, 1.02f * tall + r, 0f) },
                    new List<float> { r * 1.1f, r * 1.1f }, sides, g.Bark * 0.95f, FloraPart.Bark);
         }
 
@@ -1774,7 +1779,7 @@ namespace Punchy.Flora
         /// <summary>
         /// A glacier ice arch facing +Z: a bow of ice from one foot to the other along X, thick and splayed at the feet,
         /// thinner over the top, its thickness and line broken up ring by ring so it reads as carved by melt rather
-        /// than turned, with icicles under the crown. Drawn as glass (clear ice) when the species' finish is Glass, else as
+        /// than turned, with icicles under an ice one's crown. Drawn as glass (clear ice) when the species' finish is Glass, else as
         /// rock in its colour. The legs carry colliders, so the way under it stays open.
         /// </summary>
         static void IceArch(Grower g)
@@ -1804,13 +1809,19 @@ namespace Punchy.Flora
                 var thick = Mathf.Lerp(1f, 0.55f, Mathf.Sin(a));
                 radii.Add(leg * thick * (i == 0 || i == rings ? 1.35f : 1f) * g.Range(0.88f, 1.1f));
             }
+            // The feet carry on straight down into the ground, so they stay seated where it isn't quite level (F-44).
+            var sink = 0.5f + height * 0.12f;
+            path.Insert(0, path[0] + Vector3.down * sink);
+            radii.Insert(0, radii[0]);
+            path.Add(path[path.Count - 1] + Vector3.down * sink);
+            radii.Add(radii[radii.Count - 1]);
             var first = b.VertexCount;
             b.Tube(path, radii, sides, g.FoliageColor(), part);
             // Darker underneath, where the bow shades itself.
             b.Occlude(first, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y * 0.5f + 0.6f)));
-            if (g.Lod < 2)
+            if (g.Lod < 2 && part == FloraPart.Glass)
             {
-                // Icicles under the crown.
+                // Icicles under the crown (ice arches only; not rock ones).
                 for (int k = 0; k < 6; k++)
                 {
                     var t = g.Range(0.3f, 0.7f);
@@ -2292,6 +2303,9 @@ namespace Punchy.Flora
             g.Height = height;
             g.Width = radius * 2.5f;
             g.TrunkRadius = radius;
+            // Collision only up to the eaves (the trunk cylinder would reach the roof's peak and push anyone on the roof
+            // off it, F-36); the roof itself is stood on through its support grid.
+            g.Colliders.Add(new Vector4(0f, 0f, radius, wall));
             var sides = g.Sides(14, 10, 7);
 
             // Walls, slightly bulging, sunk a little into the ground.
@@ -2320,6 +2334,7 @@ namespace Punchy.Flora
             Porch(g, radius * 1.05f, WallBehind(radius, doorWidth), doorWidth, Mathf.Min(wall * 0.8f, HumanDoor), 0.4f, g.Bark, roofColor, FloraPart.Bark);
             // On the wall itself: its radius at that height (between the bulge and the top).
             Windows(g, radius * Mathf.Lerp(1.02f, 0.98f, 0.16f), wall * 0.58f, 4, 0.55f, 40f, sides);
+            DoorMat(g, radius * 1.05f + 0.4f, doorWidth);
         }
 
 
@@ -2557,6 +2572,7 @@ namespace Punchy.Flora
             // Collision: a square, not the circle round its middle, so its corners stop you too.
             for (int k = 0; k < 4; k++)
                 g.Colliders.Add(new Vector4((k & 1) == 0 ? -half * 0.5f : half * 0.5f, (k & 2) == 0 ? -half * 0.5f : half * 0.5f, half * 0.55f, wall));
+            DoorMat(g, half + 0.02f, Mathf.Min(half * 0.6f, 1.25f));
         }
 
         /// <summary>
@@ -2771,6 +2787,7 @@ namespace Punchy.Flora
                 }
             }
             b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.3f));
+            DoorMat(g, radius, radius * 0.7f);
         }
 
         static void Tower(Grower g)
@@ -2783,6 +2800,9 @@ namespace Punchy.Flora
             g.Height = height;
             g.Width = radius * 3f;
             g.TrunkRadius = radius;
+            // Collision only up to the eaves (the trunk cylinder would reach the roof's peak and push anyone on the roof
+            // off it, F-36); the roof itself is stood on through its support grid.
+            g.Colliders.Add(new Vector4(0f, 0f, radius, walls));
             var sides = g.Sides(12, 8, 6);
 
             // Walls taper gently, flaring at the foot like a root.
@@ -2823,6 +2843,26 @@ namespace Punchy.Flora
         // ------------------------------------------------------------------------------------------- settlement structures
 
         static Color Stone(Grower g) => new Color(0.42f, 0.41f, 0.39f).linear;
+        /// <summary>
+        /// A mat on the ground before a door facing +Z at <paramref name="front"/>, about the door's width, on about half
+        /// of a building's variants (F-41): a rug with a darker border, in an accent colour or a dyed earth tone, laid
+        /// as still cloth (not part of the dirt band). Called last in a builder, so its draws don't change the rest.
+        /// </summary>
+        static void DoorMat(Grower g, float front, float width)
+        {
+            if (g.Lod >= 2 || g.R() >= 0.5f)
+                return;
+            var b = g.B;
+            var colour = g.HasAccent ? AccentAt(g, 1) : Color.Lerp(new Color(0.42f, 0.16f, 0.1f), new Color(0.2f, 0.25f, 0.38f), g.R());
+            var size = new Vector3(Mathf.Max(width * 1.15f, 0.9f), 0.025f, g.Range(0.7f, 0.95f));
+            var at = new Vector3(g.Range(-0.08f, 0.08f), 0.015f, front + size.z * 0.5f + 0.05f);
+            var turn = Quaternion.Euler(0f, g.Range(-6f, 6f), 0f);
+            var first = b.VertexCount;
+            b.Box(at, size, turn, colour * 0.55f, FloraPart.Bark);
+            b.Box(at + Vector3.up * 0.004f, new Vector3(size.x * 0.82f, size.y, size.z * 0.72f), turn, colour, FloraPart.Bark);
+            b.Cloth(first, p => 0f);
+        }
+
         static Color AccentAt(Grower g, int i) => g.S.Accents.Count > 0 ? g.S.Accents[i % g.S.Accents.Count].linear : Color.white;
 
         static void Pen(Grower g)
@@ -2926,7 +2966,7 @@ namespace Punchy.Flora
                 var colour = k % 2 == 0 ? g.FoliageColor() : AccentAt(g, 0);
                 b.Sheet(back + Vector3.right * x * width * 1.1f, Vector3.right * width * 1.1f / stripes, front - back, 1, g.Sides(5, 3, 1), colour, FloraPart.Bark);
             }
-            b.Cloth(awning, p => 0.3f * Mathf.Sin(Mathf.Clamp01(Mathf.InverseLerp(back.z, front.z, p.z)) * Mathf.PI));
+            b.Cloth(awning, p => 0.3f * Mathf.Sin(Mathf.Clamp01(Mathf.InverseLerp(back.z, front.z, p.z)) * Mathf.PI), taut: true);
         }
 
         static void Inn(Grower g)
@@ -2940,6 +2980,9 @@ namespace Punchy.Flora
             g.Height = height;
             g.Width = half * 2.8f;
             g.TrunkRadius = half * 0.9f;
+            // Collision only up to the eaves (the trunk cylinder would reach the roof's peak and push anyone on the roof
+            // off it, F-36); the roof itself is stood on through its support grid.
+            g.Colliders.Add(new Vector4(0f, 0f, half * 0.9f, wall));
 
             // Walls, with a timber band between the storeys and dark corner posts.
             var first = b.VertexCount;

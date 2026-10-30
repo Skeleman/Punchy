@@ -418,11 +418,7 @@ namespace Punchy.Net
             noticeUntil = Time.unscaledTime + seconds;
         }
 
-        static int Count<T>(World world) where T : unmanaged, IComponentData
-        {
-            using var query = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<T>());
-            return query.CalculateEntityCount();
-        }
+        static int Count<T>(World world) where T : unmanaged, IComponentData => CachedQueries.Get<T>(world).CalculateEntityCount();
 
         static string LanAddress()
         {

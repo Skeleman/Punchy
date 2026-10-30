@@ -134,10 +134,10 @@ namespace Punchy.Terrain
                 if (toTown)
                     roads?.Add(new RoadsideBaking.RoadPath { Points = path, Width = layout.RoadWidth * settlements[settlement].Scale, Settlement = settlement, Other = other });
                 AddBridges(source, path, settlement, settlements, layouts, firstBuilding, plots);
-                // Signposts where the road leaves each settlement it joins.
-                AddSignpost(source, path, settlement, settlements, layouts, firstBuilding, plots, false);
+                // Gates where the road leaves each settlement it joins.
+                AddGate(source, path, settlement, settlements, layouts, plots, false);
                 if (toTown)
-                    AddSignpost(source, path, other, settlements, layouts, firstBuilding, plots, true);
+                    AddGate(source, path, other, settlements, layouts, plots, true);
             }
             grid.Dispose();
         }
@@ -429,14 +429,15 @@ namespace Punchy.Terrain
             }
         }
 
-        /// <summary>A signpost beside the road just outside a settlement (at its start, or its end if <paramref name="atEnd"/>).</summary>
-        static void AddSignpost(in TerrainSource source, List<float2> path, int settlement, List<SettlementData> settlements,
-                                List<SettlementLayout> layouts, List<int> firstBuilding, List<SettlementPlot> plots, bool atEnd)
+        /// <summary>
+        /// A gate beside the road just outside a settlement (at its start, or its end if <paramref name="atEnd"/>): a plot
+        /// with no building, where the Gate anchor goes (AnchorBaking). It once held a signpost (F-43: forks only).
+        /// </summary>
+        static void AddGate(in TerrainSource source, List<float2> path, int settlement, List<SettlementData> settlements,
+                            List<SettlementLayout> layouts, List<SettlementPlot> plots, bool atEnd)
         {
             var town = settlements[settlement];
             var layout = layouts[town.Layout];
-            if (layout.Signpost == null)
-                return;
             // Walk along the road from that end until it's clear of the settlement.
             for (int k = 0; k < path.Count - 1; k++)
             {
@@ -454,8 +455,8 @@ namespace Punchy.Terrain
                     Facing = -side,
                     Half = half,
                     Pad = source.SampleHeight(at),
-                    Role = PlotRole.Signpost,
-                    Building = firstBuilding[town.Layout] + layout.Buildings.Count + 1,   // the signpost slot
+                    Role = PlotRole.Gate,
+                    Building = -1,
                     Settlement = settlement,
                     Min = at - 1f,
                     Max = at + 1f

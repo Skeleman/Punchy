@@ -36,6 +36,11 @@ namespace Punchy.Flora
         /// plots (buildings, fences, palisades, pens) win over anything whose footprint would overlap them (OnBuiltPlot).
         /// </summary>
         public float Footprint;
+        /// <summary>
+        /// For arches: how far each foot stands from the middle along the model's X at scale 1 (m), 0 otherwise. An
+        /// arch is only placed where the ground under both feet is about as high as in the middle (F-44).
+        /// </summary>
+        public float Span;
     }
 
     public struct FloraBiomeEntry
@@ -197,7 +202,8 @@ namespace Punchy.Flora
                     Tilt = s.Form == FloraForm.Boulder ? 0.85f : 0f,
                     Dirt = FloraGenerator.Founded(s.Form) ? 1 : 0,
                     FaceLandmark = s.Form == FloraForm.HiveTree ? 1 : 0,
-                    Footprint = Footprint(s)
+                    Footprint = Footprint(s),
+                    Span = s.Form == FloraForm.IceArch ? (s.Height.x + s.Height.y) * 0.5f * math.max(s.Spread, 0.5f) * 0.5f : 0f
                 };
                 for (int v = 0; v < s.Variants; v++)
                 {
@@ -928,9 +934,9 @@ namespace Punchy.Flora
                     // Water plants: just the right depth (and patches, if the species has them).
                     var inDepth = depth >= r.WaterDepth.x && depth <= r.WaterDepth.y ? 1f : 0f;
                     var fw = weights[c] * inDepth;
-                    // Floating plants drift away in a current: they keep to still water.
-                    if (r.Floats != 0)
-                        fw *= 1f - 0.9f * math.saturate(math.length(ground.Flow));
+                    // Floating plants drift away in a current: they keep to still water, never a river (F-24).
+                    if (r.Floats != 0 && (ground.River > 0.02f || math.lengthsq(ground.Flow) > 1e-4f))
+                        fw = 0f;
                     if (r.MinRapids > 0f)
                         fw *= math.smoothstep(r.MinRapids - 0.1f, r.MinRapids + 0.1f, ground.Rapids);
                     if (r.PatchCoverage < 1f)
@@ -989,9 +995,31 @@ namespace Punchy.Flora
             var rule = f.Rules[picked];
             if (OnBuiltPlot(ref f, source, xz, rule.Footprint * scale))
                 return none;
+            if (rule.Span > 0f)
+            {
+                // Both feet on ground within a metre of the middle's, so neither hangs in the air (models face +Z, so
+                // their X turns to (cos, sin)).
+                var foot = new float2(math.cos(yaw), math.sin(yaw)) * rule.Span * scale;
+                if (math.abs(source.SampleHeight(xz + foot) - ground.Height) > 1f || math.abs(source.SampleHeight(xz - foot) - ground.Height) > 1f)
+                    return none;
+            }
+            var baseHeight = rule.Floats != 0 && ground.HasWater ? ground.WaterSurface + 0.01f : ground.Height;
+            if (rule.Tilt > 0f)
+            {
+                // Rocks sink by how much the ground falls away all round (a peak or a ridge's crest), which tilting onto
+                // the slope can't follow, so their sides don't hang in the air (F-49). On an even slope this is 0.
+                var ring = rule.Footprint * scale * 2f;
+                var mean = 0f;
+                for (int k = 0; k < 6; k++)
+                {
+                    var a = k * math.PI / 3f;
+                    mean += source.SampleHeight(xz + new float2(math.cos(a), math.sin(a)) * ring);
+                }
+                baseHeight -= math.clamp(ground.Height - mean / 6f, 0f, rule.Footprint * scale * 1.2f);
+            }
             return new FloraSystem.FloraInstance
             {
-                Position = new float3(xz.x, rule.Floats != 0 && ground.HasWater ? ground.WaterSurface + 0.01f : ground.Height, xz.y),
+                Position = new float3(xz.x, baseHeight, xz.y),
                 Yaw = yaw,
                 // Plants grow smaller towards the top of their range (a tree line).
                 Scale = scale * (0.55f + 0.45f * shrink[pick]),

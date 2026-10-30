@@ -75,12 +75,11 @@ namespace Punchy.Terrain
                     AddUp(AnchorKind.Sit, centre + dir * rim, 0.7f * scale, dir, 0.6f, 2, settlement);
                 }
             }
-            // Gates: where each road leaves a settlement (by its signpost, which stands outside the town's own plots); not
-            // the signposts at forks out along the roads.
+            // Gates: where each road leaves a settlement (its Gate plot, beside the road outside the town's own plots).
             for (int p = 0; p < set.Plots.Length; p++)
             {
                 var plot = set.Plots[p];
-                if (plot.Role == PlotRole.Signpost && math.distance(plot.Centre, set.Settlements[plot.Settlement].Centre) < set.Settlements[plot.Settlement].Radius * 1.6f)
+                if (plot.Role == PlotRole.Gate)
                     Add(AnchorKind.Gate, plot.Centre + plot.Facing * 2f, plot.Facing, 1.5f, 0, plot.Settlement);
             }
             for (int t = 0; t < set.Settlements.Length; t++)
@@ -263,7 +262,11 @@ namespace Punchy.Terrain
             {
                 ref var inst = ref set.Instances[i];
                 var type = inst.Type < types.Count ? types[inst.Type] : null;
-                if (type == null || type.Anchors == WildAnchors.None)
+                if (type == null)
+                    continue;
+                if (type.Anchors != WildAnchors.Hermit)
+                    AddWorkSpots(src, ref set, i, type, anchors);
+                if (type.Anchors == WildAnchors.None)
                     continue;
                 var radius = set.Types[inst.Type].Radius * inst.Scale;
                 var owner = Anchor.OwnerLandmark(i);
@@ -529,6 +532,59 @@ namespace Punchy.Terrain
         {
             var a = rng.NextFloat(math.PI * 2f);
             return new float2(math.cos(a), math.sin(a));
+        }
+
+        /// <summary>
+        /// Where a smith and a woodcutter work (G-17): a Work anchor for each counted Smithy and Woodpile prop that faces
+        /// its landmark's middle, standing in front of the anvil or beside the chopping block and facing it. The spots
+        /// use the props' mean size (FloraGenerator.Smithy and Woodpile), so they're within half a metre or so of each
+        /// variant's own. Hermits' woodpiles have their own Work anchor already.
+        /// </summary>
+        static void AddWorkSpots(in TerrainSource source, ref LandmarkSetBlob set, int index, LandmarkType type, List<Anchor> anchors)
+        {
+            ref var inst = ref set.Instances[index];
+            var radius = set.Types[inst.Type].Radius * inst.Scale;
+            foreach (var prop in type.Props)
+            {
+                var species = prop.Species;
+                if (species == null || !prop.FaceCentre || prop.Count <= 0 ||
+                    species.Form != Punchy.Flora.FloraForm.Smithy && species.Form != Punchy.Flora.FloraForm.Woodpile)
+                    continue;
+                var scale = (prop.Scale.x + math.max(prop.Scale.x, prop.Scale.y)) * 0.5f * (species.SizeRange.x + math.max(species.SizeRange.x, species.SizeRange.y)) * 0.5f;
+                var height = (species.Height.x + species.Height.y) * 0.5f;
+                float2 work;   // model space (x right, y front), unscaled
+                float stand;
+                if (species.Form == Punchy.Flora.FloraForm.Smithy)
+                {
+                    var half = height * species.Spread * 0.5f;
+                    work = new float2(half * 0.3f, half * 0.8f * 0.25f);
+                    stand = 0.8f;
+                }
+                else
+                {
+                    var log = height / 8f;
+                    work = new float2(height * species.Spread * 0.25f, log * 5.125f + 0.6f);
+                    stand = 0.7f;
+                }
+                for (int k = 0; k < prop.Count; k++)
+                {
+                    var spot = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), radius);
+                    // Facing the middle: the model's front (+Z) towards it, its right (+X) a quarter turn clockwise.
+                    var front = math.normalizesafe(inst.Position - spot, new float2(0f, 1f));
+                    var right = new float2(front.y, -front.x);
+                    var at = spot + (right * work.x + front * work.y) * scale + front * stand;
+                    anchors.Add(new Anchor
+                    {
+                        Position = new float3(at.x, source.SampleHeight(at), at.y),
+                        Facing = -front,
+                        Size = 0.8f,
+                        Owner = Anchor.OwnerLandmark(index),
+                        Kind = AnchorKind.Work,
+                        Capacity = 1,
+                        Biome = (byte)Dominant(source.SampleGround(at).Biomes)
+                    });
+                }
+            }
         }
 
         static int Dominant(in BiomeWeights b)

@@ -259,9 +259,10 @@ namespace Punchy.Terrain
         /// <summary>
         /// Lakes are the dips the drainage simulation filled; their surface is the fill level.
         /// Returns 0..1 lake coverage (bilinear across cells) and the lake surface height, which is defined
-        /// anywhere within a cell of the lake so the surface reaches past the shoreline.
+        /// anywhere within a cell of the lake so the surface reaches past the shoreline; and the deepest of those
+        /// lake cells (so callers can tell a shore from ground that falls away beyond the lake, below its outlet).
         /// </summary>
-        public static float Lake(ref RiverMapBlob map, float2 xz, out float surface)
+        public static float Lake(ref RiverMapBlob map, float2 xz, out float surface, out float depth)
         {
             var uv = (xz - map.Origin) / map.CellSize - 0.5f;
             var i0 = math.clamp((int2)math.floor(uv), 0, map.Resolution - 2);
@@ -271,9 +272,11 @@ namespace Punchy.Terrain
             var idx = new int4(i, i + 1, i + map.Resolution, i + map.Resolution + 1);
 
             float coverage = 0f, level = 0f, levelWeight = 0f;
+            depth = 0f;
             for (int k = 0; k < 4; k++)
             {
                 var isLake = map.LakeDepth[idx[k]] > 0.3f ? 1f : 0f;
+                depth = math.max(depth, map.LakeDepth[idx[k]] * isLake);
                 coverage += w[k] * isLake;
                 level += w[k] * isLake * map.LakeLevel[idx[k]];
                 levelWeight += w[k] * isLake;

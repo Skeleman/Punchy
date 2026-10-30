@@ -35,14 +35,17 @@ namespace Punchy.Terrain
         Stable,
         /// <summary>A well or fountain on the square (the layout's Water Feature), where the landmark doesn't place one.</summary>
         Well,
-        /// <summary>A signpost where a road leaves the settlement (the layout's Signpost).</summary>
+        /// <summary>A signpost at a fork out along a road (the layout's Signpost).</summary>
         Signpost,
         /// <summary>One span of a road's bridge over water (the layout's Bridge): not levelled; its deck is walkable.</summary>
         Bridge,
         /// <summary>One length of the palisade round a camp (the layout's Palisade Wall): not levelled.</summary>
         Palisade,
         /// <summary>One length of rail fence along a road just outside the settlement (the layout's Road Fence): not levelled.</summary>
-        Fence
+        Fence,
+        /// <summary>Where a road leaves the settlement, beside it: no building, just the Gate anchor's spot (signposts
+        /// stand only at forks, F-43).</summary>
+        Gate
     }
 
     /// <summary>One kind of building a settlement puts on its plots.</summary>
