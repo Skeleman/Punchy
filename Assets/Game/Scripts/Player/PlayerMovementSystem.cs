@@ -304,15 +304,18 @@ namespace Punchy.Player
         }
 
         /// <summary>
-        /// A frame on the wing: turn towards where the camera looks (banking round, not snapping), climb or dive within
-        /// the birds' limits, beat the wings to keep speed up or glide down slowly, and come down with a flare.
+        /// A frame on the wing: turn towards the way the stick (or keys) point, as on foot, or with neither, where the
+        /// camera looks (banking round, not snapping); climb or dive within the birds' limits, beat the wings to keep
+        /// speed up or glide down slowly, and come down with a flare.
         /// </summary>
         static void Fly(ref LocalTransform t, ref PlayerMotion m, in PlayerBody body, in PlayerInput input, in TerrainSource terrain,
                         in PlayerMotor settings, bool inCave, float dt)
         {
             var forward3 = math.mul(t.Rotation, new float3(0f, 0f, 1f));
             var yaw = math.atan2(forward3.x, forward3.z);
-            var wanted = math.atan2(input.CameraForward.x, input.CameraForward.y);
+            var steering = math.lengthsq(input.MoveDirection) > 0.01f;
+            var wanted = steering ? math.atan2(input.MoveDirection.x, input.MoveDirection.y)
+                                  : math.atan2(input.CameraForward.x, input.CameraForward.y);
             var turn = math.atan2(math.sin(wanted - yaw), math.cos(wanted - yaw));
             yaw += math.clamp(turn, -2.2f * dt, 2.2f * dt);
 
