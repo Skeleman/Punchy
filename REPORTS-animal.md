@@ -2,6 +2,28 @@
 
 Newest first.
 
+## 2026-10-30: climbers follow a leaning trunk: wip/trunk-lean 26ddffe (code-checked only)
+- **DONE, code only.** The player now grabs and climbs round the trunk's centre at its own height, not a straight post
+  at the foot. That covers Broadleaf lean and wiggle, Conifer lean and Palm bend.
+- **Flora change, minimal and additive:**
+  - `FloraModel.TrunkLeanMid/TrunkLeanTop` hold the lean at half and full height. They're filled from a new
+    `Grower.TrunkAxis`, which Broadleaf, Conifer and Palm set from the centreline they already build.
+  - `TrunkAxis` is separate from `TrunkPath` because `TrunkPath` switches on brackets and bark faces, which draw
+    from the seed.
+  - `FloraObstacle.LeanMid/LeanTop` are turned and scaled the way `Flora.hlsl` draws the tree, with a new
+    `FloraObstacle.CentreAt`.
+  - No new random draws; meshes and placement are untouched, so the world and fingerprint are unchanged.
+- **Player side:** `PlayerMotion.TrunkLeanMid/Top`, `PlayerMovementSystem.TrunkCentre`, GrabTrunk and ClimbTrunk.
+  The `-autowalk` climb test pushes at the centre too. Nothing on the wire.
+- Told zache-73 the files and lines. It trial-merges clean with world-features and with world-laptop/f40.
+- Not covered: NPC climbers. Their tree spot comes from `FloraGenerator.Shape`, which grows no mesh, and CreatureState
+  is replicated, so carrying a lean there means a FloraShape field filled while baking the blob. That's a follow-up
+  if you want it.
+- Next slot (with wip/worm-look): `-body Monkey -place tree:Oak -autowalk`, with client shots as before and a palm
+  (`-place tree:<Palm species>`). Pass = it hugs the trunk as drawn high up and doesn't drift off a leaning trunk.
+  The new hold log (on worm-look) will also show which side it takes.
+- NEXT: idle until the slot.
+
 ## 2026-10-30: trunk-hug merged (2272733); worm band, far-side climb and a still camera (wip/worm-look 85a1962)
 - **DONE: wip/trunk-hug merged into animal-behaviours at 2272733, pushed.**
 - **1. Dark band on the worm: the body's colouring, not shading.** Both worms reuse the `SnakeBody` limb, where every
