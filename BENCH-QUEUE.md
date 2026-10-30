@@ -38,3 +38,11 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
     world-laptop/cave-chunk 256e6a9 (not compiled yet: the build doubles as its compile check; a failure goes to the
     world lane). Measure worst frame, 1% low, and BuildChunkMeshJob time on the mouth chunk; mouth-look shots on
     both. Pass = the cut edge is identical. Bench-bc89606 from the F-40 smoke slot is kept archived for the A side.
+16. With item 15 (the profiler slot after the animal lane's): Brain.Blocked A/B, world-features bc89606 vs
+    world-laptop/blocked-cache 3d874dc (Blocked places town buildings and props as footprints only, skipping their
+    ground sampling; no rng draws change, per the supervisor's review; not compiled: the build is its check). Marker
+    commits (profiler-only, never merge): wip/brain-blocked-bc89606 3481353 and wip/brain-blocked-3d874dc 74d8148,
+    Brain.Blocked only (world-features has no Brain.Sample markers). Townwalk cap 60, dev captures, 2 per build in ABBA
+    order (item 14 showed a single capture's Blocked swinging 2x with where the movers stand). Pass = Blocked
+    us/call down sharply, with calls/frame, movers and end x,z the same. Also a town look on Bench-3d874dc vs
+    Bench-bc89606 (town stop, same frame): buildings and props sit as before.
