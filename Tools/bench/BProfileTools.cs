@@ -116,7 +116,8 @@ public static class BProfileTools
             {
                 var a = kv.Value;
                 double ms = a.self.Average();
-                if (ms < 0.03 && a.incl.Average() < 0.3) continue;
+                // Brain.* marks always show: some are empty counters (Brain.Moving), read by their calls a frame.
+                if (ms < 0.03 && a.incl.Average() < 0.3 && !kv.Key.Contains("|Brain.")) continue;
                 sb.AppendLine($"{kv.Key}\t{Med(a.incl):F3}\t{a.incl.Average():F3}\t{Med(a.self):F3}\t{ms:F3}\t{(double)a.calls / Math.Max(1, used):F1}");
             }
         }
