@@ -42,3 +42,12 @@ current release. Lane: A = animal, W = world.
   - (W) Tag flora so harvestable plants are told apart from clutter such as rocks and debris.
 - Note: items, inventory and harvesting share a single item definition (asset) and an ID scheme. That should be
   designed once, before either lane builds on it, and probably counts as a network table change (rule 11).
+
+## Quests (2026-10-29)
+- A quest system built from objective types:
+  - fetch item X and bring it to place Y;
+  - make Z creatures leave an area;
+  - lead an NPC or animal to a special place;
+  - find a rare item.
+- Depends on items/inventory, anchors (places) and NPC dialogue (who gives the quest). Quest text can use the same
+  editable archive and fill-in slots as dialogue. Progress is synced in multiplayer.
