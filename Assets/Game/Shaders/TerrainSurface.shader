@@ -48,7 +48,7 @@ Shader "Punchy/Terrain Surface"
             SAMPLER(sampler_PunchyCaveDetail);
             float _PunchyCaveDetailReady;
             // Worms under the sand and snow (the animal session's CreatureBurrowSystem): x, heading (Unity yaw, radians),
-            // z, w their body's radius (m), negative while breaching.
+            // z, w their body's radius (m); a breach's crater has w negative and y its age (0..1 over its life).
             float4 _PunchyBurrowers[8];
             int _PunchyBurrowerCount;
 
@@ -74,23 +74,25 @@ Shader "Punchy/Terrain Surface"
                             // The mound: a soft hump over the head (its slope tilts the normal outwards).
                             float spread = radius * radius * 1.5;
                             float mound = exp(-dot(rel, rel) / spread);
-                            tilt += rel / spread * mound * radius * 0.8;
+                            tilt += rel / spread * mound * radius * 1.6;
                             // The furrow: a trough behind, its sides tilted in towards its middle, fading with distance.
                             float behind = -along;
                             float trail = step(0, behind) * (1 - smoothstep(radius * 2, radius * 8, behind));
                             float width = radius * radius * 0.6;
                             float trough = exp(-side * side / width) * trail;
-                            tilt -= right * (side / width) * trough * radius * 0.5;
-                            darken = max(darken, trough * 0.28 + mound * 0.12);
+                            tilt -= right * (side / width) * trough * radius * 1.1;
+                            darken = max(darken, trough * 0.4 + mound * 0.18);
                         }
                         else
                         {
-                            // A breach: a pit and a raised rim round it.
+                            // A breach: a pit and a raised rim round it, fading as the crater ages. The rim's outer
+                            // slope faces out and its inner slope (the pit's wall) in, as a bump's normals do.
+                            float fade = saturate(1 - b.y);
                             float r = length(rel);
                             float rimAt = radius * 1.6, rimWidth = radius * 0.5;
                             float rim = exp(-(r - rimAt) * (r - rimAt) / (rimWidth * rimWidth));
-                            tilt += rel / max(r, 1e-3) * rim * sign(r - rimAt) * -1.2;
-                            darken = max(darken, (1 - smoothstep(radius * 0.6, rimAt, r)) * 0.45 + rim * 0.15);
+                            tilt += rel / max(r, 1e-3) * rim * (r - rimAt) / rimWidth * 2.0 * fade;
+                            darken = max(darken, ((1 - smoothstep(radius * 0.6, rimAt, r)) * 0.6 + rim * 0.2) * fade);
                         }
                     }
                 }
