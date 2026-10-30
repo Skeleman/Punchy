@@ -1798,13 +1798,37 @@ namespace Punchy.Fauna
                         {
                             var p = s.Home + rng.NextFloat2Direction() * rng.NextFloat(0.2f, 1f) * b.WanderRadius;
                             var g = Terrain.SampleGround(p);
-                            if (g.HasWater && g.WaterSurface > g.Height)
+                            if (g.HasWater && g.WaterSurface > g.Height || Obstructed(p, radius))
                                 continue;
                             var flat = Terrain.SampleNormal(p, 3f).y;
                             if (flat > best)
                             {
                                 best = flat;
                                 s.Target = p;
+                            }
+                        }
+                    }
+                    // Rock or a cliff ahead of its head: it doesn't tunnel through. Due to breach soon anyway, and the ground
+                    // flat here, it leaps it (its arc clears a boulder or a low bluff); else it turns off to whichever side
+                    // is clear and makes for somewhere that way.
+                    var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                    var reach = math.max(radius * 6f, 6f);
+                    if (Obstructed(s.Position.xz + forward * reach, radius) || Obstructed(s.Position.xz + forward * reach * 0.5f, radius))
+                    {
+                        if (s.Timer < 15f && Terrain.SampleNormal(s.Position.xz, 3f).y > 0.97f)
+                            s.Timer = 0f;
+                        else
+                        {
+                            var side = rng.NextBool() ? 1f : -1f;
+                            for (int k = 0; k < 4; k++)
+                            {
+                                var turn = side * (k < 2 ? 0.8f : 1.6f) * (k % 2 == 0 ? 1f : -1f);
+                                var way = new float2(math.sin(s.Yaw + turn), math.cos(s.Yaw + turn));
+                                if (!Obstructed(s.Position.xz + way * reach, radius) && !Obstructed(s.Position.xz + way * reach * 2f, radius))
+                                {
+                                    s.Target = s.Position.xz + way * math.max(reach * 3f, 20f);
+                                    break;
+                                }
                             }
                         }
                     }
@@ -1828,6 +1852,13 @@ namespace Punchy.Fauna
                 s.Position.y = ground - under + (under + s.AirHeight) * (s.Air > 0f ? math.sin(math.PI * s.Air) : 0f);
                 CreatureMotion.AdvancePhase(ref s, ref b, dt);
             }
+
+            /// <summary>
+            /// Something a worm under the ground won't go through at this point: a cliff or steep bank (the ground's slope),
+            /// or a rock (the placed rocks' colliders), within its own radius and a half.
+            /// </summary>
+            bool Obstructed(float2 at, float radius) =>
+                Terrain.SampleNormal(at, 3f).y < 0.8f || HasFlora && Walled(at, radius * 1.5f);
 
             /// <summary>Turns on the spot towards a point.</summary>
             static void TurnTowards(ref CreatureState s, ref CreatureBlob b, float2 at, float dt)

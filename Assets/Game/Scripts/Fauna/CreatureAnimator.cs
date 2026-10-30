@@ -304,6 +304,11 @@ namespace Punchy.Fauna
                         var k = 2f * math.PI / wave;
                         var direction = math.atan(0.12f * wave * k * math.cos(k * (s.Phase * wave - (back + length * 0.5f))));
                         a = new float3((direction - heading) * s.Fly, (direction - heading) * (1f - s.Fly), 0f);
+                        // A worm bursting out of the ground goes over in one clean arc, not a wave: its body bent evenly
+                        // along it, tail drooping behind the head, most at the top of the arc and straight where it
+                        // comes out and goes back in.
+                        if (b.Tunnels && s.Air > 0f)
+                            a = new float3(1.1f * math.sin(math.PI * s.Air) / part.SegmentCount, 0f, 0f);
                         heading = direction;
                         back += length;
                     }
