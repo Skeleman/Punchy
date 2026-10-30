@@ -58,9 +58,9 @@ namespace Punchy.Fauna
             if (hasPlayer)
                 foreach (var (s, body) in SystemAPI.Query<RefRW<CreatureState>, RefRO<CreatureBody>>().WithAll<PlayerAvatar>())
                 {
-                    Drive(ref s.ValueRW, ref body.ValueRO.Blob.Value, player, motion.Grounded || motion.OnTrunk, dt);
+                    Drive(ref s.ValueRW, ref body.ValueRO.Blob.Value, player, motion.Grounded || motion.OnTrunk || motion.OnWall, dt);
                     // Up a trunk: the body upright against the bark, as climbing animals hang on, its gait run by the climb.
-                    s.ValueRW.Vertical += ((motion.OnTrunk ? 1f : 0f) - s.ValueRO.Vertical) * math.min(1f, dt * 6f);
+                    s.ValueRW.Vertical += ((motion.OnTrunk || motion.OnWall ? 1f : 0f) - s.ValueRO.Vertical) * math.min(1f, dt * 6f);
                     // On the wing: wings out, nose up or down with the climb.
                     Wings(ref s.ValueRW, ref body.ValueRO.Blob.Value, motion.Flying, motion.Pitch, motion.Flapping, dt);
                     // (Climbing onto a ledge: the climbing pose over whatever else, run through as the climb goes.)

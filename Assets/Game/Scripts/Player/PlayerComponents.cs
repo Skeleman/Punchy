@@ -51,6 +51,10 @@ namespace Punchy.Player
         /// (radians, from the trunk out to the body).
         /// </summary>
         public bool OnTrunk;
+        /// <summary>Climbing straight up a wall (a lizard or spider body on a building's side or a rock).</summary>
+        public bool OnWall;
+        /// <summary>Seconds after jumping off a trunk or wall before it takes hold of one again.</summary>
+        public float LatchCooldown;
         public float3 TrunkBase;
         public float TrunkRadius, TrunkHeight, TrunkAngle;
     }
@@ -75,6 +79,8 @@ namespace Punchy.Player
         /// <summary>Climbs tree trunks (a monkey, a lizard, a spider): walking into one, it goes up it; and how fast (m/s).</summary>
         public bool ClimbsTrees;
         public float ClimbSpeed;
+        /// <summary>Climbs any surface (a lizard, a spider): a wall it's pushed into, it goes up.</summary>
+        public bool ClimbsWalls;
     }
 
     /// <summary>Singleton written by PlayerInputSystem each frame. MoveDirection is world-space XZ, length 0..1.</summary>

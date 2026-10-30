@@ -590,6 +590,7 @@ namespace Punchy.Fauna
                          : PlayerSpecies.Body.PlayerFlySpeed > 0f ? PlayerSpecies.Body.PlayerFlySpeed : b.FlySpeed * 2f,
                 Climbs = b.Hands || b.Climbing > 0f || b.Crawls,
                 ClimbsTrees = b.ClimbsAs != ClimbAbility.None,
+                ClimbsWalls = b.ClimbsAs == ClimbAbility.AnySurface,
                 // (A lizard scurries up; a tree climber as nimbly as it's keen: a monkey quick, a cat less, a bear hauling.)
                 ClimbSpeed = b.ClimbsAs == ClimbAbility.AnySurface ? 1.4f : math.min(0.6f + 1.6f * b.Climbing, 1.6f),
                 // (A lava swimmer walks on land as a player; only fish swim and flop.)
