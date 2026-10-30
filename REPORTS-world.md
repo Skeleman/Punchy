@@ -2,6 +2,18 @@
 
 Newest first.
 
+## 2026-10-30: worm marks merged; TroddenGround early-out, zache-73
+
+- **DONE: worm marks merged.** world-features c4d946d -> d81cb06 (merge of world-laptop/worms ad98690, shader only;
+  wip/worm-look stays on the animal side, none of its commits came in). Pushed.
+- **DONE in code: TroddenGround's hot-path cost.** As first written it did the landmark grid lookup and a full `Hit`
+  (distance and frame transform) for every landmark in the cell before finding that most types have no trodden
+  props. bc89606 (pushed to world-features) adds two cheap exits: the blob has no trodden spots at all, and the
+  instance's type has none, checked before `Hit`. Away from camps with stalls it now costs only the grid lookup,
+  which Ground and Shape already do on the same sample. **Not compiled yet** (no slot). Please have the profiler's
+  smoke build bc89606 or later rather than c4d946d, so it also serves as the compile check.
+- NEXT: idle; the cave-mouth chunk follow-up for v0.11 when you want it.
+
 ## 2026-10-30: F-40 and worm marks in the 06:25 slot, zache-73. Unity closed
 
 Bench-runner builds plus shots, no editor. No Unity, Punchy or bee_backend process is running now; Projects\Punchy is
