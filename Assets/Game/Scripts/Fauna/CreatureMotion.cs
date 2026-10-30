@@ -163,9 +163,9 @@ namespace Punchy.Fauna
         }
 
         /// <summary>How near a player a creature's planted feet are kept planted through changes of pace (m).</summary>
-        public const float NearFeet = 60f;
+        public const float NearFeet = 30f;
 
-        /// <summary>How quickly a body on foot gets up to speed (m/s²): a full run in a third of a second.</summary>
+        /// <summary>How quickly a body on foot gets up to speed (m/sÂ²): a full run in a third of a second.</summary>
         public static float Acceleration(ref CreatureBlob b) => math.max(b.RunSpeed, 0.5f) * 3f;
 
         /// <summary>
@@ -192,7 +192,9 @@ namespace Punchy.Fauna
             var before = s.GaitSpeed;
             var rate = Acceleration(ref b) * dt;
             s.GaitSpeed = before + math.clamp(s.Speed - before, -rate, rate);
-            if (!near || s.Fly > 0.5f || math.abs(s.GaitSpeed - before) < 1e-4f)
+            // (A wanderer's pace wavers by a hair from frame to frame, steering: too little to move a foot, and most
+            // frames end here.)
+            if (!near || s.Fly > 0.5f || math.abs(s.GaitSpeed - before) < 0.01f)
                 return;
             float move0 = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), before),
                   move1 = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), s.GaitSpeed);

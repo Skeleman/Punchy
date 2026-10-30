@@ -41,6 +41,18 @@ namespace Punchy.Fauna
     public partial struct CreatureBrainSystem : ISystem
     {
         const float CellSize = 16f;
+        // (Where the brain's time goes, for the profiler: its searches for danger and company, its needs and idle
+        // actions, its choices, its moving and its gait.)
+        static readonly Unity.Profiling.ProfilerMarker HunterMarker = new Unity.Profiling.ProfilerMarker("Brain.Hunter");
+        static readonly Unity.Profiling.ProfilerMarker PredatorMarker = new Unity.Profiling.ProfilerMarker("Brain.Predator");
+        static readonly Unity.Profiling.ProfilerMarker ChaserMarker = new Unity.Profiling.ProfilerMarker("Brain.Chaser");
+        static readonly Unity.Profiling.ProfilerMarker AlarmMarker = new Unity.Profiling.ProfilerMarker("Brain.Alarm");
+        static readonly Unity.Profiling.ProfilerMarker PlaymateMarker = new Unity.Profiling.ProfilerMarker("Brain.Playmate");
+        static readonly Unity.Profiling.ProfilerMarker NeedsMarker = new Unity.Profiling.ProfilerMarker("Brain.Needs");
+        static readonly Unity.Profiling.ProfilerMarker FidgetMarker = new Unity.Profiling.ProfilerMarker("Brain.Fidget");
+        static readonly Unity.Profiling.ProfilerMarker DecideMarker = new Unity.Profiling.ProfilerMarker("Brain.Decide");
+        static readonly Unity.Profiling.ProfilerMarker AdvanceMarker = new Unity.Profiling.ProfilerMarker("Brain.Advance");
+        static readonly Unity.Profiling.ProfilerMarker EaseMarker = new Unity.Profiling.ProfilerMarker("Brain.EaseGait");
         EntityQuery creatures;
         /// <summary>Where each player was last frame (by Holder id), for how fast they're going.</summary>
         NativeHashMap<int, float3> lastPlayerPositions;
@@ -203,7 +215,8 @@ namespace Punchy.Fauna
                     var near = false;
                     for (int p = 0; p < Players.Length && !near; p++)
                         near = math.distancesq(Players[p], s.Position) < CreatureMotion.NearFeet * CreatureMotion.NearFeet;
-                    CreatureMotion.EaseGait(ref s, ref body.Blob.Value, Dt, near);
+                    using (EaseMarker.Auto())
+                        CreatureMotion.EaseGait(ref s, ref body.Blob.Value, Dt, near);
                 }
             }
 
@@ -274,8 +287,10 @@ namespace Punchy.Fauna
                 // really close.
                 var threatDistance = math.distance(s.Position, player);
                 var nerve = s.Mode == CreatureMode.Hunt && flier ? 0.4f : 1f;
-                // Someone cheering or dancing about is noticed (and run from) further off; waving, a little.
-                var commotion = emote == IdleAction.Cheer || emote == IdleAction.Dance ? 1.8f : emote == IdleAction.Wave ? 1.25f : 1f;
+                // Someone cheering or dancing about is noticed (and run from) further off; waving, a little. (Only by
+                // the skittish: a curious one comes to look, and some pay it no heed.)
+                var commotion = b.Reaction != EmoteReaction.Flees ? 1f :
+                                emote == IdleAction.Cheer || emote == IdleAction.Dance ? 1.8f : emote == IdleAction.Wave ? 1.25f : 1f;
                 var threatened = !aloft && b.FleeDistance > 0f && threatDistance < b.FleeDistance * s.Scale * alert * nerve * tame * commotion;
                 var threat = player.xz;
                 // A hunter after it: heard creeping close, or seen drawing back to throw (and the throw itself).
@@ -983,6 +998,7 @@ namespace Punchy.Fauna
             /// </summary>
             static void Needs(ref CreatureState s, ref CreatureBlob b, float dt)
             {
+                using var profiled = NeedsMarker.Auto();
                 s.Unsettled = math.max(s.Unsettled - dt, 0f);
                 s.Hunger += dt * (0.002f + (b.Grazing + b.Hunger) * 0.003f);
                 s.Thirst += dt * b.Thirst * 0.004f;
@@ -1020,6 +1036,7 @@ namespace Punchy.Fauna
 
             void Decide(Entity self, ref CreatureState s, ref CreatureBlob b, int species, ref Random rng, bool perched, float3 player)
             {
+                using var profiled = DecideMarker.Auto();
                 if (b.DrawnToLight)
                 {
                     Flit(ref s, ref rng);
@@ -1337,6 +1354,7 @@ namespace Punchy.Fauna
             void Fidget(Entity self, int species, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, bool perched,
                         ref float sit, ref float vertical, ref float bow, ref float desiredLook)
             {
+                using var profiled = FidgetMarker.Auto();
                 var lying = s.Mode == CreatureMode.Rest && s.Lie > 0.5f;
                 var calm = s.Mode == CreatureMode.Idle || s.Mode == CreatureMode.Rest ||
                            s.Mode == CreatureMode.Climb && s.Stage == 3 ||
@@ -3746,6 +3764,7 @@ namespace Punchy.Fauna
             /// </summary>
             bool FindChaser(Entity self, in CreatureState s, out float2 at)
             {
+                using var profiled = ChaserMarker.Auto();
                 at = default;
                 var c = Cell(s.Position.xz);
                 for (int z = -2; z <= 2; z++)
@@ -4157,6 +4176,7 @@ namespace Punchy.Fauna
             /// </summary>
             bool FindHunter(Entity self, ref CreatureState s, float alert, out float2 at)
             {
+                using var profiled = HunterMarker.Auto();
                 // (Only the hunters out now are looked at: usually none, so it costs nothing.)
                 at = default;
                 for (int h = 0; h < Hunters.Length; h++)
@@ -4278,7 +4298,8 @@ namespace Punchy.Fauna
             /// <summary>
             /// Someone near is emoting. Folk stop, turn to them and answer in kind (a wave back, a bow, a cheer; some
             /// dance along, the rest cheer them on), each after a moment of their own, and a few shy ones not at all.
-            /// Friendly animals come over to see; one sitting by them play-bows back to a bow.
+            /// Friendly animals come over to see; one sitting by them play-bows back to a bow. A curious one comes partway
+            /// and watches (Greet's Curious stage); the skittish run sooner (commotion, in Think); some pay no heed.
             /// </summary>
             void Answer(ref CreatureState s, ref CreatureBlob b, ref Random rng, IdleAction emote, float3 player, float distance, float dt)
             {
@@ -4304,7 +4325,17 @@ namespace Punchy.Fauna
                     s.Focus = player.xz;
                     return;
                 }
-                if (!b.Friendly)
+                if (b.Reaction == EmoteReaction.Curious)
+                {
+                    if (distance < 25f && Free(s.Mode))
+                    {
+                        SetMode(ref s, CreatureMode.Greet);
+                        s.Stage = Curious;
+                        s.Timer = rng.NextFloat(6f, 12f);
+                    }
+                    return;
+                }
+                if (b.Reaction != EmoteReaction.Wags)
                     return;
                 if (emote != IdleAction.Bow && distance < 20f && Free(s.Mode))
                 {
@@ -4319,6 +4350,9 @@ namespace Punchy.Fauna
                     s.ActionLength = 2.2f;
                 }
             }
+
+            /// <summary>Greet's stage for a curious animal come to look (EmoteReaction.Curious), not to sit by them.</summary>
+            const byte Curious = 1;
 
             /// <summary>
             /// Trots over to the person (to their side, not into them), then sits by them looking up and wagging its
@@ -4341,6 +4375,31 @@ namespace Punchy.Fauna
                 var away = new float2(dir.x * math.cos(angle) - dir.y * math.sin(angle), dir.x * math.sin(angle) + dir.y * math.cos(angle));
                 var spot = player.xz - away * (1.3f + b.BodyLength * s.Scale * 0.5f);
                 var lookAt = math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -1.2f, 1.2f);
+                if (s.Stage == Curious)
+                {
+                    // Curious: up to a wary few metres (well outside where it would bolt), slowly, then stands watching
+                    // them, sniffing now and then, until it's seen enough.
+                    var standoff = math.max(b.FleeDistance * s.Scale * 0.6f, 2f + b.BodyLength * s.Scale);
+                    if (distance > standoff + 0.5f)
+                    {
+                        s.Target = player.xz - dir * standoff;
+                        targetSpeed = walk * 0.6f;
+                        moving = true;
+                        desiredLook = lookAt;
+                    }
+                    else
+                    {
+                        TurnTowards(ref s, ref b, player.xz, dt);
+                        desiredLook = lookAt * 0.6f;
+                        if (s.Action == IdleAction.None && (b.Idles & IdleActions.Sniff) != 0 && rng.NextFloat() < dt * 0.4f)
+                        {
+                            s.Action = IdleAction.Sniff;
+                            s.ActionTime = 0f;
+                            s.ActionLength = rng.NextFloat(1f, 2f);
+                        }
+                    }
+                    return;
+                }
                 if (math.distance(s.Position.xz, spot) > 0.6f)
                 {
                     s.Target = spot;
@@ -4944,6 +5003,7 @@ namespace Punchy.Fauna
             /// <summary>A predator of this species close by (further off if it's hunting this animal).</summary>
             bool FindPredator(Entity self, ref CreatureState s, int species, float alert, out float2 at)
             {
+                using var profiled = PredatorMarker.Auto();
                 at = default;
                 var best = float.MaxValue;
                 var c = Cell(s.Position.xz);
@@ -4976,6 +5036,7 @@ namespace Punchy.Fauna
             /// <summary>Another of its kind close by that has just started running: where from (what it runs from).</summary>
             bool FindAlarm(Entity self, ref CreatureState s, int species, out float2 from)
             {
+                using var profiled = AlarmMarker.Auto();
                 from = default;
                 var c = Cell(s.Position.xz);
                 for (int z = -1; z <= 1; z++)
@@ -5062,6 +5123,7 @@ namespace Punchy.Fauna
             /// <summary>Someone close by who has started a game of chase with this animal.</summary>
             bool FindPlaymate(Entity self, ref CreatureState s, out Entity playmate)
             {
+                using var profiled = PlaymateMarker.Auto();
                 playmate = Entity.Null;
                 var c = Cell(s.Position.xz);
                 for (int z = -1; z <= 1; z++)
@@ -5176,6 +5238,7 @@ namespace Punchy.Fauna
             /// </summary>
             void Advance(ref CreatureState s, ref CreatureBlob b, float dt, bool keepHeight = false)
             {
+                using var profiled = AdvanceMarker.Auto();
                 var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
                 CreatureMotion.Accelerate(ref s, ref b, dt);
                 if (b.Crawls && CaveWalker(s, ref b))

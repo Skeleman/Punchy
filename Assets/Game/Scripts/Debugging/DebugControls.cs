@@ -53,6 +53,8 @@ namespace Punchy.Debugging
         {
             ApplyLaunchOptions();
             SpawnRequested();
+            PlaceByLedge();
+            ClimbTest();
             Watch();
             Pose();
             Interact();
@@ -169,6 +171,17 @@ namespace Punchy.Debugging
         /// <summary>"-interact Cat:carry" (or ":pet"): walks up to the nearest one, pets it or picks it up, and puts it
         /// down again a while later, as if the keys were pressed (alone, hosting or joined).</summary>
         static string interactRequest;
+        /// <summary>"-place ledge": waiting for the settlement's props to load round the player, then put by a rim.</summary>
+        static bool ledgeRequest;
+        /// <summary>
+        /// With "-autowalk" after "-place tree:X" or "-place ledge": the player heads at the trunk (climbs it) or over the
+        /// rim (jumps at it: mantles) for a while, then back to where it started, over and over, so a client that joins
+        /// late still sees a climb (the multiplayer check of NetPlayerLook.Climbing and Rim).
+        /// </summary>
+        static float2? climbTarget;
+        static float2 climbHome;
+        static bool climbJumps;
+        static float climbSince;
         static string shotDir;
         float interactStep = -1f;
         Entity interactTarget;
@@ -222,6 +235,8 @@ namespace Punchy.Debugging
             pendingSpawns.Clear();
             poseRequest = null;
             interactRequest = null;
+            ledgeRequest = false;
+            climbTarget = null;
             shotDir = null;
             shotLines.Clear();
             shotIndex = -1;
@@ -308,6 +323,18 @@ namespace Punchy.Debugging
                     PlaceInMeadow(meadowSource);
                 else if (args[i] == "-place" && string.Equals(args[i + 1], "clearlake", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var lakeSource))
                     PlaceByClearLake(lakeSource);
+                else if (args[i] == "-place" && string.Equals(args[i + 1], "ledge", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    // To the nearest settlement first: its buildings, wells and stalls have the ledges (PlaceByLedge,
+                    // once their tops have loaded round the player).
+                    var town = locations.FindIndex(l => l.Name.StartsWith("Nearest settlement"));
+                    if (town >= 0)
+                    {
+                        current = town - 1;
+                        Jump(1);
+                    }
+                    ledgeRequest = true;
+                }
                 else if (args[i] == "-place")
                 {
                     // An exact name first (the landmark itself), else the first that contains it.
@@ -983,10 +1010,13 @@ namespace Punchy.Debugging
                     var at = plant.Position;
                     var height = flora.Models[plant.Model].Height * plant.Scale;
                     t.Position = new float3(at.x + 6f, source.SampleHeight(at.xz + new float2(6f, 0f)) + 0.05f, at.z);
+                    // Facing the trunk (west), so walking on climbs it.
+                    t.Rotation = quaternion.RotateY(-math.PI * 0.5f);
                     em.SetComponentData(player, t);
                     var eye = (Vector3)at + new Vector3(16f, 7f, -16f);
                     PoseCamera(eye, Quaternion.LookRotation((Vector3)at + Vector3.up * height * 0.6f - eye));
                     Debug.Log($"DebugControls: by a lone {speciesName} at ({at.x:F0}, {at.z:F0}), {height:F0} m tall");
+                    StartClimbTest(t.Position, at, at + new float3(0f, height * 0.3f, 0f), false, $"trunk at ({at.x:F1}, {at.y:F1}, {at.z:F1})");
                     return;
                 }
             Debug.LogWarning($"DebugControls: no lone {speciesName} near");
@@ -1078,6 +1108,167 @@ namespace Punchy.Debugging
                     }
                 }
             Debug.LogWarning("DebugControls: no clear lake near");
+        }
+
+        /// <summary>
+        /// "-place ledge" (after the jump to the nearest settlement, once the props' tops round the player have loaded):
+        /// on open ground 1.5 m in front of the nearest rim this body can climb onto, facing it: well over a step and
+        /// within its reach (for a human about 1-1.8 m up).
+        /// </summary>
+        void PlaceByLedge()
+        {
+            if (!ledgeRequest || Time.timeSinceLevelLoad - optionsAt < settle || !EnsureLocations(out var source))
+                return;
+            var em = queryWorld.EntityManager;
+            var supportQuery = em.CreateEntityQuery(ComponentType.ReadOnly<SupportGrids>(), ComponentType.ReadOnly<FloraSupport>());
+            var holder = supportQuery.CalculateEntityCount() == 1 ? supportQuery.GetSingletonEntity() : Entity.Null;
+            var grids = holder != Entity.Null ? em.GetComponentData<SupportGrids>(holder) : default;
+            if (!grids.Set.IsCreated || em.GetBuffer<FloraSupport>(holder, true).Length == 0)
+            {
+                // (The tops load a little after the world: give them a while.)
+                if (Time.timeSinceLevelLoad - optionsAt > settle + 20f)
+                {
+                    Debug.LogWarning("DebugControls: -place ledge: no props with tops near");
+                    ledgeRequest = false;
+                }
+                return;
+            }
+            ledgeRequest = false;
+            var props = em.GetBuffer<FloraSupport>(holder, true);
+            var playerEntity = playerQuery.GetSingletonEntity();
+            var t = em.GetComponentData<LocalTransform>(playerEntity);
+            var bodyQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerBody>());
+            var size = bodyQuery.TryGetSingleton<PlayerBody>(out var body) && body.Size > 0f ? body.Size : 1f;
+            // As PlayerMovementSystem: a step is 0.4 m, ledges are looked for 0.9 m ahead and climbed up to 1.8 m (all
+            // times the body's size).
+            float stepUp = 0.4f * size, reach = 0.9f * size, maxRise = 1.8f * size;
+            ref var set = ref grids.Set.Value;
+            var best = float.MaxValue;
+            float3 bestFeet = default;
+            float2 bestForward = default;
+            SupportHit bestHit = default;
+            // Round each prop, nearest first, walking in from outside it until a ledge comes within reach; the first prop
+            // with a flat one will do. (Every probe looks through every prop: this keeps it to a moment.)
+            var order = new List<int>();
+            for (int p = 0; p < props.Length; p++)
+                order.Add(p);
+            var playerXZ = t.Position.xz;
+            order.Sort((x, y) => math.distancesq(props[x].Position.xz, playerXZ).CompareTo(math.distancesq(props[y].Position.xz, playerXZ)));
+            foreach (var p in order)
+            {
+                if (best < SlopedTop)
+                    break;
+                var prop = props[p];
+                var outer = set.Grids[prop.Grid].Reach * prop.Scale + 2f;
+                for (int k = 0; k < 24; k++)
+                {
+                    var a = k * math.PI / 12f;
+                    var dir = new float2(math.cos(a), math.sin(a));
+                    for (var d = outer; d > 0.5f; d -= 0.25f)
+                    {
+                        var xz = prop.Position.xz + dir * d;
+                        var g = source.SampleGround(xz);
+                        if (g.HasWater && g.WaterSurface > g.Height)
+                            break;
+                        var feet = new float3(xz.x, g.Height, xz.y);
+                        // (Already up on something, a step or a deck: not open ground.)
+                        if (PropSupport.Sample(ref set, props, feet, 0.3f, stepUp, out var under) && under.Height > g.Height + 0.05f)
+                            break;
+                        if (!PropSupport.Ledge(ref set, props, feet, -dir, reach, stepUp, maxRise, out var hit))
+                            continue;
+                        // The first ledge in reach this way: a real climb (not a tall step), with level ground to set off from.
+                        var stand = xz + dir * 1.5f;
+                        var level = math.abs(source.SampleHeight(stand) - g.Height) < stepUp &&
+                                    !PropSupport.Sample(ref set, props, new float3(stand.x, g.Height, stand.y), 0.3f, stepUp, out _);
+                        // A flat top to stand on past the rim (a wall's top, a well's rim, a stall's counter), not the eave
+                        // of a sloping roof: level within 15 cm for 1.2 m in and half a metre to either side.
+                        var flat = true;
+                        var inward = new float3(-dir.x, 0f, -dir.y);
+                        var across = new float3(-dir.y, 0f, dir.x);
+                        for (int q = 0; q < 5 && flat; q++)
+                        {
+                            var probe = hit.Edge + inward * (q < 3 ? 0.4f * (q + 1) : 0.8f) + across * (q == 3 ? 0.5f : q == 4 ? -0.5f : 0f);
+                            probe.y = hit.Height - 0.3f;
+                            flat = PropSupport.Sample(ref set, props, probe, 0.2f, 0.6f, out var top) && math.abs(top.Height - hit.Height) < 0.15f;
+                        }
+                        // (A sloping one only if nothing near has a flat one.)
+                        var distance = math.distance(xz, t.Position.xz) + (flat ? 0f : SlopedTop);
+                        if (hit.Height - feet.y >= 0.55f * maxRise && level && distance < best)
+                        {
+                            best = distance;
+                            bestFeet = feet;
+                            bestForward = -dir;
+                            bestHit = hit;
+                        }
+                        break;
+                    }
+                }
+            }
+            if (best == float.MaxValue)
+            {
+                Debug.LogWarning("DebugControls: -place ledge: no ledge in reach near");
+                return;
+            }
+            var from = bestFeet.xz - bestForward * 1.5f;
+            t.Position = new float3(from.x, source.SampleHeight(from) + 0.05f, from.y);
+            t.Rotation = quaternion.RotateY(math.atan2(bestForward.x, bestForward.y));
+            em.SetComponentData(playerEntity, t);
+            em.SetComponentData(playerEntity, new PlayerMotion { Grounded = true });
+            var rim = bestHit.Edge;
+            // Over the rim, onto the top (a little further in than a mantle puts it, so it stops there).
+            var over = rim + new float3(bestForward.x, 0f, bestForward.y) * 0.8f;
+            StartClimbTest(t.Position, over, rim, true, $"ledge rim at ({V(rim.x)}, {V(rim.y)}, {V(rim.z)}), {bestHit.Height - bestFeet.y:F1} m up, " +
+                                                        (best < SlopedTop ? "flat top" : "sloping top (no flat one near)"));
+        }
+
+        /// <summary>How much further off a sloping top counts than a flat one, choosing a ledge (m).</summary>
+        const float SlopedTop = 1000f;
+
+        /// <summary>
+        /// Logs a climb test's spot, with flags for a client to watch it from the side; and with "-autowalk", starts it
+        /// (ClimbTest).
+        /// </summary>
+        void StartClimbTest(float3 home, float3 target, float3 lookAt, bool jumps, string what)
+        {
+            var across = math.normalizesafe(target.xz - home.xz, new float2(0f, 1f));
+            var side = new float2(across.y, -across.x);
+            var mid = (home.xz + target.xz) * 0.5f;
+            var eye = new float3(mid.x + side.x * 7f, lookAt.y + 1.5f, mid.y + side.y * 7f);
+            // (The client's own body parked behind its camera, out of shot.)
+            var park = eye.xz + side * 4f;
+            Debug.Log($"DebugControls: climb test: {what}, player from ({V(home.x)}, {V(home.y)}, {V(home.z)}); " +
+                      $"to watch: -goto {V(park.x)},{V(park.y)} -camlook {V(eye.x)},{V(eye.y)},{V(eye.z)},{V(lookAt.x)},{V(lookAt.y)},{V(lookAt.z)}");
+            if (System.Array.IndexOf(LaunchArgs, "-autowalk") < 0)
+                return;
+            climbHome = home.xz;
+            climbTarget = target.xz;
+            climbJumps = jumps;
+            climbSince = Time.time;
+        }
+
+        static string V(float v) => v.ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+
+        float climbNextJump;
+
+        /// <summary>
+        /// The climb test, as if the stick were pushed: 12 s at the trunk or over the rim (jumping at a rim, which is
+        /// what climbs onto it), then 8 s back to where it started (down the trunk, off the top), and again.
+        /// </summary>
+        void ClimbTest()
+        {
+            if (!climbTarget.HasValue || interactRequest != null || !EnsureLocations(out _) ||
+                !playerQuery.TryGetSingleton<LocalTransform>(out var player))
+                return;
+            var toward = math.fmod(Time.time - climbSince, 20f) < 12f;
+            var goal = toward ? climbTarget.Value : climbHome;
+            var to = goal - player.Position.xz;
+            var distance = math.length(to);
+            PlayerInputSystem.TestMove = distance > 0.3f ? to / distance : float2.zero;
+            if (toward && climbJumps && distance > 0.5f && distance < 2f && Time.time >= climbNextJump)
+            {
+                PlayerInputSystem.TestJump = true;
+                climbNextJump = Time.time + 0.6f;
+            }
         }
 
         static bool IsTree(ref FloraBlob flora, in TerrainSource source, int2 cell)
