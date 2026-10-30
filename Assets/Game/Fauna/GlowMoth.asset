@@ -1,0 +1,134 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
+  m_Name: GlowMoth
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
+  VariantOf: {fileID: 11400000, guid: e409612441eee3946a84dd35f9e7cc13, type: 2}
+  VariantScale: 1.2
+  VariantHead: 1
+  VariantThickness: 1
+  VariantLegs: 1
+  BodyLength: 0.05
+  BodyRadius: 0.012
+  BodyTaper: 0.7
+  BodyFlatten: 1
+  Base: {r: 0.6, g: 0.8, b: 0.55, a: 1}
+  Accent: {r: 0.55, g: 1, b: 0.6, a: 1}
+  AccentGlow: 0.8
+  Coats:
+  - Name: GlowMoth
+    Base: {r: 0.6, g: 0.8, b: 0.55, a: 1}
+    Accent: {r: 0.55, g: 1, b: 0.6, a: 1}
+    AccentGlow: 0.8
+    Weight: 1
+  Size: {x: 0.8, y: 1.25}
+  HairColors: []
+  Parts:
+  - Limb: {fileID: 11400000, guid: 203e147ec498a564292d0a018077d052, type: 2}
+    Parent: -1
+    Socket: {x: 0.7, y: 0.5, z: 0.45}
+    Direction: {x: 0, y: 90, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0
+    Scale: 0.07
+    Thickness: 1.6
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 203e147ec498a564292d0a018077d052, type: 2}
+    Parent: -1
+    Socket: {x: 0.7, y: 0.4, z: -0.1}
+    Direction: {x: 0, y: 110, z: 0}
+    Mirror: 1
+    Phase: 0.04
+    MirrorPhase: 0
+    Scale: 0.05
+    Thickness: 1.6
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: c82284c495bfffb42a9414aef5c217e9, type: 2}
+    Parent: -1
+    Socket: {x: 0.35, y: 0.6, z: 1}
+    Direction: {x: -40, y: 25, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.12
+    Thickness: 0.3
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 8db8692701365314db1a0b5e9ab1cbd1, type: 2}
+    Parent: -1
+    Socket: {x: 0.6, y: 0.3, z: 0.95}
+    Direction: {x: 0, y: 0, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.25
+    Thickness: 1
+    StyleGroup: 0
+  WalkSpeed: 0.1
+  RunSpeed: 0.3
+  Bob: {x: 0.008, y: 0.02}
+  BobsPerCycle: {x: 2, y: 2}
+  RunRock: 0
+  Upright: 0
+  LeglessStride: {x: 0.6, y: 0.9}
+  WanderRadius: 3
+  IdleTime: {x: 0.2, y: 0.6}
+  FleeDistance: 0
+  TurnRate: 600
+  SeenFrom: 0
+  GroupSize: {x: 2, y: 4}
+  NearWater: 0
+  Habitat: 3
+  SwimDepth: 0.6
+  Leaps: 0
+  Active: 1
+  Grazing: 0
+  Thirst: 0
+  Playfulness: 0
+  Child: 0
+  Laziness: 0
+  Hunts: []
+  Hunger: 0
+  ChaseTime: 10
+  Idles: 0
+  Fidgets: 0
+  Climbing: 0
+  SpinsWebs: 0
+  WebSize: 0.6
+  Burrows: 0
+  CaveDweller: 1
+  Crawls: 0
+  ColdBlooded: 1
+  CaveAffinity: 0
+  Roosts: 0
+  Friendly: 0
+  LavaDweller: 0
+  Haunts: 0
+  CrossesWater: 0
+  Nests: 0
+  DrawnToLight: 1
+  DrivenOff: 0
+  GuardKit: 0
+  GuardArmour: {r: 0.55, g: 0.57, b: 0.6, a: 1}
+  GuardSash: {r: 0.62, g: 0.12, b: 0.1, a: 1}
+  Rooted: 0
+  Disguised: 0
+  FlightHeight: {x: 0.5, y: 2}
+  FlySpeed: 1.6
+  PlayerFlySpeed: 3
+  FlapRate: 10
+  Glide: 0
+  Perching: 0
+  Soars: 0
+  Breaches: 0
+  RaidsHives: 0
+  Calls: []

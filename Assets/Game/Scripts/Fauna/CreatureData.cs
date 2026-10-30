@@ -60,8 +60,18 @@ namespace Punchy.Fauna
         public bool Hands;
         /// <summary>A child (see CreatureSpecies.Child): a variant's own.</summary>
         public bool Child;
+        /// <summary>Four legs and not upright (horses, dogs, deer...): past a run it gallops (Sprint).</summary>
+        public bool Gallops;
+        /// <summary>Cold-blooded (CreatureSpecies.ColdBlooded): its breath doesn't show in the cold.</summary>
+        public bool ColdBlooded;
+        /// <summary>No legs, and a chain lying along the ground off the body (a snake's): it moves along a serpentine wave.</summary>
+        public bool Slithers;
         /// <summary>Drawn and kept about from this far off; 0 = as any other (see CreatureSpecies.SeenFrom).</summary>
         public float SeenFrom;
+        /// <summary>Never moves, and snaps at what comes near (see CreatureSpecies.Rooted).</summary>
+        public bool Rooted;
+        /// <summary>Sits still as a plant until startled (see CreatureSpecies.Disguised).</summary>
+        public bool Disguised;
 
         public BlobArray<CreaturePart> Parts;
         public BlobArray<CreatureSegment> Segments;
@@ -115,13 +125,15 @@ namespace Punchy.Fauna
 
         /// <summary>Blend of a part's key poses for one segment at gait phase p (0..1).</summary>
         /// <summary>
-        /// How far into a sprint an upright body is (0 up to its run speed, 1 well past it): folk past a run sprint, a gait
-        /// of its own (longer strides, leaning in, knees driven high, arms pumping, both feet off the ground between steps).
+        /// How far into a sprint a body is (0 up to its run speed, 1 well past it): folk past a run sprint, a gait of its
+        /// own (longer strides, leaning in, knees driven high, arms pumping, both feet off the ground between steps); a
+        /// four-legged body gallops (a much longer stride, so fewer steps for its speed, the legs reaching well out, and
+        /// a moment in the air each stride). Only players' bodies go that fast.
         /// </summary>
-        public float Sprint(float speed) => Upright ? math.smoothstep(RunSpeed * 1.05f, RunSpeed * 1.6f, speed) : 0f;
+        public float Sprint(float speed) => Upright || Gallops ? math.smoothstep(RunSpeed * 1.05f, RunSpeed * 1.6f, speed) : 0f;
 
-        /// <summary>A sprinting leg's sweep, longer than its run's by this share.</summary>
-        public const float SprintStride = 0.35f;
+        /// <summary>A sprinting leg's sweep, longer than its run's by this share (a gallop's more).</summary>
+        public float SprintStride => Gallops ? 0.6f : 0.35f;
 
         /// <summary>A leg's joint angles at a point of its cycle, with the sprint's longer stride.</summary>
         public float3 LegAngles(int segment, float p, float move, float run, float sprint)
@@ -313,7 +325,12 @@ namespace Punchy.Fauna
                              "takes it and reads it, and flies off towards another town.")] Messenger,
         [UnityEngine.Tooltip("A critter: one of the small life round a player (songbirds, owls, woodpeckers, frogs, mice), " +
                              "put at its spot from the seed by FaunaDirector's critter tier, near players only, and run on a " +
-                             "light brain (no needs, no company or prey to look for).")] Critter
+                             "light brain (no needs, no company or prey to look for).")] Critter,
+        [UnityEngine.Tooltip("A hermit, living alone at a hermit's shelter (its Home anchor): chops wood, tends its garden, " +
+                             "fetches water, sits by its door and its fire, sleeps in its shelter at night; wary of anyone " +
+                             "who comes close (watches them, backs off, shoos them).")] Hermit,
+        [UnityEngine.Tooltip("A traveller stopping the night at a roadside camp (its Camp anchor): sits round the fire in the " +
+                             "evening, lies down on a bedroll for the night, and goes on its way in the morning.")] Camper
     }
 
     /// <summary>
@@ -410,6 +427,11 @@ namespace Punchy.Fauna
         /// <summary>Heading in radians; forward is (sin, 0, cos).</summary>
         public float Yaw;
         public float Speed;
+        /// <summary>
+        /// The speed its legs are posed for: Speed eased at a creature's own acceleration (CreatureMotion.EaseGait), so a
+        /// sudden start, stop or burst doesn't swap the gait's pose under a planted foot. Local only, never sent.
+        /// </summary>
+        public float GaitSpeed;
         public float Phase;
         public float YawRate;
         /// <summary>Spring state for tails and ears (lags the turns).</summary>
@@ -606,6 +628,7 @@ namespace Punchy.Fauna
             root.BobsPerCycle = new float2(species.BobsPerCycle.x, species.BobsPerCycle.y);
             root.RunRock = math.radians(species.RunRock);
             root.Upright = species.Upright;
+            root.ColdBlooded = species.ColdBlooded;
             root.Habitat = species.Habitat;
             root.SwimDepth = species.SwimDepth;
             root.Leaps = species.Leaps;
@@ -648,6 +671,8 @@ namespace Punchy.Fauna
             root.Hands = species.Parts.Exists(p => p != null && p.Limb != null && p.Limb.Role == LimbRole.Arm);
             root.Child = variant.Child;
             root.SeenFrom = species.SeenFrom * sizeScale;
+            root.Rooted = species.Rooted;
+            root.Disguised = species.Disguised;
             root.Nests = species.Nests;
             root.WebSize = species.WebSize * sizeScale;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));
@@ -834,6 +859,11 @@ namespace Punchy.Fauna
             b.StandHeight = legs > 0 ? stand / legs : b.FrontRadius * b.BodyFlatten;
             b.WalkStride = legs > 0 ? math.max(walk / legs, 0.05f) : math.max(leglessStride.x, 0.05f);
             b.RunStride = legs > 0 ? math.max(run / legs, 0.05f) : math.max(leglessStride.y, 0.05f);
+            b.Gallops = !b.Upright && legs == 4;
+            var chain = false;
+            for (int i = 0; i < b.Parts.Length; i++)
+                chain |= b.Parts[i].FollowGround && b.Parts[i].Parent < 0;
+            b.Slithers = legs == 0 && chain;
         }
 
         /// <summary>End of a body-attached part's chain in the body frame, at one key pose.</summary>

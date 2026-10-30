@@ -63,8 +63,19 @@ namespace Punchy.Fauna
         }
 
         static readonly Dictionary<int2, Resident[]> cells = new Dictionary<int2, Resident[]>();
+        /// <summary>
+        /// Where each cricket and grasshopper is sitting between hops (by its seed: the hop it's on and the ground's height
+        /// there), so the ground is sampled once a hop rather than every frame.
+        /// </summary>
+        static readonly Dictionary<uint, (int step, float2 at, float y)> sitting = new Dictionary<uint, (int, float2, float)>();
         static readonly List<Ambient> now = new List<Ambient>();
         static int frame = -1;
+        /// <summary>The queries and scene objects Near reads, kept between frames (made again for another world).</summary>
+        static World queried;
+        static EntityQuery terrainQuery, floraQuery, playerQuery;
+        static Punchy.Weather.DayNightCycle cycle;
+        static Punchy.Ambience.AmbienceSystem ambience;
+        static int lookedFor = -1000;
         /// <summary>Off for the whole run with the launch flag "-noambientlife" (for benches: the same build without it).</summary>
         static readonly bool Off = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-noambientlife") >= 0;
         static readonly Unity.Profiling.ProfilerMarker NearMarker = new Unity.Profiling.ProfilerMarker("AmbientLife.Near");
@@ -77,6 +88,7 @@ namespace Punchy.Fauna
         {
             EndSettling();
             cells.Clear();
+            sitting.Clear();
             now.Clear();
             frame = -1;
         }
@@ -151,28 +163,40 @@ namespace Punchy.Fauna
                 return now;
             frame = UnityEngine.Time.frameCount;
             now.Clear();
-            if (world == null || Off)
+            // (Deep in a cave, out of sight and earshot of the surface: none.)
+            if (world == null || Off || CaveSystem.SurfaceHidden >= 0.99f)
                 return now;
             using var marker = NearMarker.Auto();
             var em = world.EntityManager;
-            using var tq = em.CreateEntityQuery(typeof(TerrainSource));
-            using var fq = em.CreateEntityQuery(typeof(FloraLookup));
-            if (tq.IsEmpty || fq.IsEmpty)
+            if (queried != world)
+            {
+                queried = world;
+                terrainQuery = em.CreateEntityQuery(typeof(TerrainSource));
+                floraQuery = em.CreateEntityQuery(typeof(FloraLookup));
+                playerQuery = em.CreateEntityQuery(typeof(Punchy.Player.PlayerTag), typeof(Unity.Transforms.LocalTransform));
+            }
+            if (terrainQuery.IsEmpty || floraQuery.IsEmpty)
                 return now;
-            var terrain = tq.GetSingleton<TerrainSource>();
-            var flora = fq.GetSingleton<FloraLookup>();
+            var terrain = terrainQuery.GetSingleton<TerrainSource>();
+            var flora = floraQuery.GetSingleton<FloraLookup>();
             if (!flora.Blob.IsCreated || CaveSystem.Underground > 0.5f)
                 return now;
-            var cycle = Object.FindAnyObjectByType<Punchy.Weather.DayNightCycle>();
-            var ambience = Object.FindAnyObjectByType<Punchy.Ambience.AmbienceSystem>();
+            // (The sky's clock and the ambience: found once, and looked for again now and then while missing.)
+            if ((cycle == null || ambience == null) && frame - lookedFor > 60)
+            {
+                lookedFor = frame;
+                if (cycle == null)
+                    cycle = Object.FindAnyObjectByType<Punchy.Weather.DayNightCycle>();
+                if (ambience == null)
+                    ambience = Object.FindAnyObjectByType<Punchy.Ambience.AmbienceSystem>();
+            }
             var night = cycle != null ? cycle.Night : 0f;
             var heat = ambience != null ? ambience.Heat : 0f;
             // The shared clock: the time of day in real seconds (a paused clock, for screenshots, runs on local time).
             var t = cycle == null || cycle.Paused ? UnityEngine.Time.time : cycle.TimeOfDay * cycle.DayLengthMinutes * 2.5f;
             var player = ear;
-            using (var pq = em.CreateEntityQuery(typeof(Punchy.Player.PlayerTag), typeof(Unity.Transforms.LocalTransform)))
-                if (!pq.IsEmpty)
-                    player = pq.GetSingleton<Unity.Transforms.LocalTransform>().Position;
+            if (!playerQuery.IsEmpty)
+                player = playerQuery.GetSingleton<Unity.Transforms.LocalTransform>().Position;
 
             CollectSettled(terrain);
             // (High above the ground, flying or gliding, the small life below is out of sight and earshot.)
@@ -214,6 +238,8 @@ namespace Punchy.Fauna
                 settleHandle = new SettleJob { Terrain = terrain, Flora = flora.Blob, Cells = settleCells, Residents = settleResidents, Ends = settleEnds }.Schedule();
                 settling = true;
             }
+            if (sitting.Count > 2000)
+                sitting.Clear();
             // (Cells long out of range forgotten.)
             if (cells.Count > 400)
             {
@@ -305,10 +331,13 @@ namespace Punchy.Fauna
                 var birds = rng.NextFloat() < 0.75f ? 1 + rng.NextInt(3) : 0;
                 for (int i = 0; i < birds; i++)
                 {
-                    // On top of the crown, against the sky.
+                    // On top of the crown, against the sky: partway out from the middle, where a rounded or pointed crown
+                    // is lower than its peak, by its slope there (between a dome's and a cone's).
                     var round = rng.NextFloat(6.28f);
-                    var at = tree.Base + new float3(math.sin(round), 0f, math.cos(round)) * (tree.TrunkRadius + crown * rng.NextFloat(0.3f, 0.6f)) +
-                             new float3(0f, tree.Height + 0.05f, 0f);
+                    var outward = rng.NextFloat(0.3f, 0.6f);
+                    var drop = (tree.Height - tree.CrownBase) * 0.5f * outward;
+                    var at = tree.Base + new float3(math.sin(round), 0f, math.cos(round)) * (tree.TrunkRadius + crown * outward) +
+                             new float3(0f, tree.Height - drop + 0.03f, 0f);
                     into.Add(new CritterSpot { Kind = CritterKind.Songbird, Id = rng.NextUInt() | 1u, Position = at, Tree = tree.Base });
                 }
                 if (rng.NextFloat() < 0.15f)
@@ -324,6 +353,19 @@ namespace Punchy.Fauna
                              new float3(0f, math.max(tree.CrownBase, 2f) + 0.1f, 0f);
                     into.Add(new CritterSpot { Kind = CritterKind.Owl, Id = rng.NextUInt() | 1u, Position = at, Tree = tree.Base });
                 }
+            }
+            // Songbirds on the tops of the buildings, fences, wells and signposts in the cell (the flora's perch points,
+            // FloraPlacement.NearPerches: where a bird's feet go, as the building is drawn), a third of them.
+            var perches = new FixedList512Bytes<float3>();
+            FloraPlacement.NearPerches(ref flora, terrain, centre, CellSize * 0.71f, ref perches);
+            foreach (var at in perches)
+            {
+                // (Each perch belongs to the one cell it's in, and is the same perch on every machine.)
+                if (math.any((int2)math.floor(at.xz / CellSize) != cell))
+                    continue;
+                var perchRng = new Unity.Mathematics.Random(math.hash(new int3((int3)math.round(at * 10f))) | 1u);
+                if (perchRng.NextFloat() < 0.35f)
+                    into.Add(new CritterSpot { Kind = CritterKind.Songbird, Id = perchRng.NextUInt() | 1u, Position = at });
             }
             var frogs = 0;
             for (int k = 0; k < 8; k++)
@@ -441,7 +483,13 @@ namespace Punchy.Fauna
                     var away = spot.xz - player.xz;
                     if (math.length(away) < 2f)
                         spot.xz = player.xz + math.normalizesafe(away, new float2(1f, 0f)) * 2.5f;
-                    spot.y = terrain.SampleHeight(spot.xz) + 0.03f;
+                    if (sitting.TryGetValue(r.Seed, out var sat) && sat.step == step && math.all(sat.at == spot.xz))
+                        spot.y = sat.y;
+                    else
+                    {
+                        spot.y = terrain.SampleHeight(spot.xz) + 0.03f;
+                        sitting[r.Seed] = (step, spot.xz, spot.y);
+                    }
                     var hop = math.saturate(u / 0.15f);
                     a.Position = spot + new float3(0f, math.sin(hop * math.PI) * (cricket ? 0.15f : 0.3f), 0f);
                     a.Air = hop < 1f ? 1f : 0f;

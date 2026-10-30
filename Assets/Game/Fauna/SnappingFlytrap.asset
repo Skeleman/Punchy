@@ -1,0 +1,143 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
+  m_Name: SnappingFlytrap
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
+  VariantOf: {fileID: 0}
+  VariantScale: 1
+  VariantHead: 1
+  VariantThickness: 1
+  VariantLegs: 1
+  BodyLength: 0.07
+  BodyRadius: 0.06
+  BodyTaper: 1
+  BodyFlatten: 0.45
+  Base: {r: 0.24, g: 0.5, b: 0.18, a: 1}
+  Accent: {r: 0.88, g: 0.28, b: 0.32, a: 1}
+  AccentGlow: 0
+  Coats:
+  - Name: SnappingFlytrap
+    Base: {r: 0.24, g: 0.5, b: 0.18, a: 1}
+    Accent: {r: 0.88, g: 0.28, b: 0.32, a: 1}
+    AccentGlow: 0
+    Weight: 1
+  Size: {x: 0.9, y: 1.25}
+  HairColors: []
+  Parts:
+  - Limb: {fileID: 11400000, guid: 1db1f7220d7eb0847a03c836297d07a0, type: 2}
+    Parent: -1
+    Socket: {x: 0.8, y: -0.5, z: 0.5}
+    Direction: {x: 84, y: 40, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 2.3
+    Thickness: 1.6
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 1db1f7220d7eb0847a03c836297d07a0, type: 2}
+    Parent: -1
+    Socket: {x: 0.8, y: -0.5, z: -0.5}
+    Direction: {x: 84, y: 140, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 2.1
+    Thickness: 1.6
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 0404b5c0915dd1944a8937a8da2ded55, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0.7, z: 0}
+    Direction: {x: -85, y: 0, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1.4
+    Thickness: 0.8
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: deb90ea00c70c494c951be86159049e8, type: 2}
+    Parent: 2
+    Socket: {x: 0, y: 0, z: 0}
+    Direction: {x: 85, y: 0, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 3
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 2e593e00f4e664d4f8520fe81735e74d, type: 2}
+    Parent: 3
+    Socket: {x: 0.01, y: 0.01, z: 0.03}
+    Direction: {x: -35, y: 28, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 4.6
+    Thickness: 2.2
+    StyleGroup: 0
+  WalkSpeed: 0.01
+  RunSpeed: 0.01
+  Bob: {x: 0.02, y: 0.05}
+  BobsPerCycle: {x: 1, y: 1}
+  RunRock: 20
+  Upright: 0
+  LeglessStride: {x: 0.6, y: 0.9}
+  WanderRadius: 0
+  IdleTime: {x: 3, y: 12}
+  FleeDistance: 1.4
+  TurnRate: 200
+  SeenFrom: 0
+  GroupSize: {x: 1, y: 3}
+  NearWater: 1
+  Habitat: 0
+  SwimDepth: 0.6
+  Leaps: 0
+  Active: 2
+  Grazing: 0
+  Thirst: 0
+  Playfulness: 0
+  Child: 0
+  Laziness: 0.4
+  Hunts: []
+  Hunger: 0
+  ChaseTime: 10
+  Idles: 2048
+  Fidgets: 0.3
+  Climbing: 0
+  SpinsWebs: 0
+  WebSize: 0.6
+  Burrows: 0
+  CaveDweller: 0
+  Crawls: 0
+  ColdBlooded: 1
+  CaveAffinity: 0
+  Roosts: 0
+  Friendly: 0
+  LavaDweller: 0
+  Haunts: 0
+  CrossesWater: 0
+  Nests: 0
+  DrawnToLight: 0
+  DrivenOff: 0
+  GuardKit: 0
+  GuardArmour: {r: 0.55, g: 0.57, b: 0.6, a: 1}
+  GuardSash: {r: 0.62, g: 0.12, b: 0.1, a: 1}
+  Rooted: 1
+  Disguised: 0
+  FlightHeight: {x: 8, y: 18}
+  FlySpeed: 7
+  FlapRate: 6
+  Glide: 0
+  Perching: 0.6
+  Soars: 0
+  Breaches: 0
+  RaidsHives: 0
+  Calls: []

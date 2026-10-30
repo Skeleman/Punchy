@@ -70,7 +70,29 @@ namespace Punchy.Player
                 }
                 if (m.Flying)
                 {
-                    Fly(ref t, ref m, body, input, terrain, settings, inCave, dt);
+                    var hasFlora = SystemAPI.TryGetSingleton<Punchy.Flora.FloraLookup>(out var flora) && flora.Blob.IsCreated;
+                    Fly(ref t, ref m, body, input, terrain, settings, inCave, dt, obstacles, hasFlora ? flora.Blob : default);
+                    continue;
+                }
+                // A bird on its perch stays put until it walks off it or takes off.
+                if (m.Perched)
+                {
+                    if (math.lengthsq(input.MoveDirection) < 0.01f && !input.JumpPressed)
+                    {
+                        m.Grounded = true;
+                        m.VerticalVelocity = 0f;
+                        continue;
+                    }
+                    m.Perched = false;
+                }
+                if (body.Hovers)
+                {
+                    Hover(ref t, ref m, body, input, terrain, settings, dt);
+                    continue;
+                }
+                if (body.Swims)
+                {
+                    SwimOrFlop(ref t, ref m, body, input, terrain, settings, dt);
                     continue;
                 }
                 // Climbing onto a ledge: hands on the rim, pulled up at the wall to its height, then a leg over and onto
@@ -177,43 +199,222 @@ namespace Punchy.Player
         }
 
         /// <summary>
-        /// A frame on the wing: turn towards where the camera looks (banking round, not snapping), climb or dive within
-        /// the birds' limits, beat the wings to keep speed up or glide down slowly, and come down with a flare.
+        /// A ghost's frame: drifting at a height above the ground or the water (jump to rise, up to 4 m; sprint to sink
+        /// back down), floating over everything with no gravity, turning to face the way it drifts.
+        /// </summary>
+        /// <summary>A ghost rises no higher than this above what's under it.</summary>
+        const float HoverCeiling = 300f;
+
+        static void Hover(ref LocalTransform t, ref PlayerMotion m, in PlayerBody body, in PlayerInput input, in TerrainSource terrain,
+                          in PlayerMotor settings, float dt)
+        {
+            var position = t.Position;
+            // Drifting with the move keys, faster sprinting.
+            position.xz += input.MoveDirection * settings.WalkSpeed * math.max(body.SpeedFactor, 0.1f) * (input.Sprint ? 1.8f : 0.8f) * dt;
+            var ground = terrain.SampleGround(position.xz);
+            var under = ground.HasWater ? math.max(ground.Height, ground.WaterSurface) : ground.Height;
+            if (terrain.FloorUnder(position, out var inCave) is var floor && inCave)
+                under = floor;
+            // Straight up holding jump, straight down holding crouch, eased in and out; let go, it hangs where it is.
+            var wanted = input.JumpHeld ? 4f : input.CrouchHeld ? -4f : 0f;
+            m.VerticalVelocity += (wanted - m.VerticalVelocity) * math.min(1f, dt * 4f);
+            position.y += m.VerticalVelocity * dt;
+            // (Never below half a metre over the ground or water, nor above the ceiling; in a cave, under its rock.)
+            var lowest = under + 0.5f;
+            if (position.y < lowest)
+            {
+                position.y += (lowest - position.y) * math.min(1f, dt * 6f);
+                m.VerticalVelocity = math.max(m.VerticalVelocity, 0f);
+            }
+            if (position.y > under + HoverCeiling)
+            {
+                position.y = under + HoverCeiling;
+                m.VerticalVelocity = math.min(m.VerticalVelocity, 0f);
+            }
+            if (inCave && terrain.CaveDistance(position + new float3(0f, 0.8f, 0f)) > -0.4f)
+            {
+                position.y = t.Position.y;
+                m.VerticalVelocity = math.min(m.VerticalVelocity, 0f);
+            }
+            // A slow bob while hanging still.
+            m.Airspeed += dt * 1.7f;
+            position.y += math.cos((float)m.Airspeed) * 0.08f * 1.7f * dt * (1f - math.saturate(math.abs(m.VerticalVelocity)));
+            m.Grounded = position.y - lowest < 0.1f;
+            t.Position = position;
+            Face(ref t, input, settings, dt);
+        }
+
+        /// <summary>
+        /// A fish's frame: in water, swimming anywhere under it, up or down the way the camera looks as it goes (sprint
+        /// is only quicker; jump rises, quickly from deep down, and at the surface leaps out, carrying on across);
+        /// out of it, flopping in little hops, or with jump a big one that covers ground.
+        /// </summary>
+        static void SwimOrFlop(ref LocalTransform t, ref PlayerMotion m, in PlayerBody body, in PlayerInput input, in TerrainSource terrain,
+                               in PlayerMotor settings, float dt)
+        {
+            var position = t.Position;
+            // (Airspeed is the flop's cooldown here; a hovering body runs it up as a clock, so after a change of body it
+            // starts again from a hop's length.)
+            m.Airspeed = math.min(m.Airspeed, 0.6f);
+            var ground = terrain.SampleGround(position.xz);
+            var water = ground.HasWater && ground.WaterSurface - ground.Height > 0.25f;
+            if (water && position.y < ground.WaterSurface + 0.1f)
+            {
+                var speed = settings.WalkSpeed * math.max(body.SpeedFactor, 0.1f) * (input.Sprint ? 1.6f : 1f);
+                // Swimming the way the camera looks: across, and up or down with it.
+                var push = math.length(input.MoveDirection);
+                var pitch = math.clamp(input.CameraPitch, -1.2f, 1.2f);
+                var next = position.xz + input.MoveDirection * speed * math.cos(pitch) * dt;
+                var ahead = terrain.SampleGround(next);
+                // (It keeps to the water: no swimming up onto the bank except by leaping out with jump.)
+                if (ahead.HasWater && ahead.WaterSurface - ahead.Height > 0.2f || input.JumpHeld)
+                    position.xz = next;
+                var top = ground.WaterSurface - 0.12f;
+                var bed = ground.Height + 0.12f;
+                // Jump rises: quickly from deep down, gently near the top; crouch sinks.
+                var climb = input.JumpHeld ? (top - position.y > 1f ? 3.5f : 1.5f) : input.CrouchHeld ? -1.5f : 0f;
+                position.y += (climb + push * speed * math.sin(pitch)) * dt;
+                // Jumping near the surface: out it leaps, carrying on the way it was swimming.
+                if (input.JumpPressed && position.y > top - 0.6f)
+                {
+                    m.VerticalVelocity = settings.JumpSpeed * 0.9f;
+                    m.HopSpeed = speed * push;
+                    position.y = top + 0.05f;
+                }
+                else
+                {
+                    position.y = math.clamp(position.y, bed, math.max(top, bed));
+                    m.VerticalVelocity = 0f;
+                }
+                m.Grounded = true;
+                t.Position = position;
+                Face(ref t, input, settings, dt);
+                return;
+            }
+            // Out of the water (or leaping): falling, and once down, flopping; jump, a big hop across the ground.
+            var floor = water ? math.max(ground.WaterSurface - 0.12f, ground.Height) : ground.Height;
+            if (m.Grounded && !water && input.JumpPressed && m.Airspeed <= 0.3f)
+            {
+                m.VerticalVelocity = 3.6f;
+                m.Grounded = false;
+                m.Airspeed = 0.45f;
+                m.HopSpeed = 3.5f * math.max(math.length(input.MoveDirection), 0.5f);
+            }
+            else if (m.Grounded && !water && math.lengthsq(input.MoveDirection) > 0.01f && m.Airspeed <= 0f)
+            {
+                m.VerticalVelocity = 2.2f;
+                m.Grounded = false;
+                m.Airspeed = 0.6f;
+                m.HopSpeed = 1.4f;
+            }
+            m.Airspeed -= dt;
+            if (!m.Grounded)
+            {
+                // (Across the way it's pressing, or the way it faces when it isn't.)
+                var way = math.lengthsq(input.MoveDirection) > 0.01f ? math.normalize(input.MoveDirection)
+                        : math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz;
+                position.xz += way * math.max(m.HopSpeed, 1.4f) * dt;
+            }
+            m.VerticalVelocity -= settings.Gravity * dt;
+            position.y += m.VerticalVelocity * dt;
+            if (position.y <= floor)
+            {
+                position.y = floor;
+                m.VerticalVelocity = 0f;
+                m.Grounded = true;
+                m.HopSpeed = 0f;
+            }
+            t.Position = position;
+            Face(ref t, input, settings, dt);
+        }
+
+        static void Face(ref LocalTransform t, in PlayerInput input, in PlayerMotor settings, float dt)
+        {
+            var flatMove = new float3(input.MoveDirection.x, 0f, input.MoveDirection.y);
+            if (math.lengthsq(flatMove) > 1e-4f)
+                t.Rotation = math.slerp(t.Rotation, quaternion.LookRotationSafe(flatMove, math.up()), 1f - math.exp(-settings.TurnSharpness * dt));
+        }
+
+        /// <summary>The steepest a player's bird climbs holding jump, and dives holding the dive button (radians).</summary>
+        const float SteepClimb = 0.85f, SteepDive = 1.2f;
+        /// <summary>Following the camera up or down with the stick pushed: at most this steep (radians), gently.</summary>
+        const float GentlePitch = 0.3f;
+
+        /// <summary>
+        /// A frame on the wing: turn towards the way the stick (or keys) point, as on foot, or with neither, where the
+        /// camera looks (banking round, not snapping). With the stick pushed it eases up or down the way the camera
+        /// looks, gently; jump climbs and the dive button dives, steeply and at once. A dive gathers speed as a falling
+        /// bird does, and it slows back to its cruise after. It beats its wings to keep speed up or glides down slowly,
+        /// slides round tree trunks rather than through them, settles on a perch (a ridge, a post, a chimney) gliding
+        /// down onto it, and comes down with a flare.
         /// </summary>
         static void Fly(ref LocalTransform t, ref PlayerMotion m, in PlayerBody body, in PlayerInput input, in TerrainSource terrain,
-                        in PlayerMotor settings, bool inCave, float dt)
+                        in PlayerMotor settings, bool inCave, float dt, in DynamicBuffer<FloraObstacle> obstacles,
+                        BlobAssetReference<Punchy.Flora.FloraBlob> flora)
         {
             var forward3 = math.mul(t.Rotation, new float3(0f, 0f, 1f));
             var yaw = math.atan2(forward3.x, forward3.z);
-            var wanted = math.atan2(input.CameraForward.x, input.CameraForward.y);
+            var steering = math.lengthsq(input.MoveDirection) > 0.01f;
+            var wanted = steering ? math.atan2(input.MoveDirection.x, input.MoveDirection.y)
+                                  : math.atan2(input.CameraForward.x, input.CameraForward.y);
             var turn = math.atan2(math.sin(wanted - yaw), math.cos(wanted - yaw));
             yaw += math.clamp(turn, -2.2f * dt, 2.2f * dt);
 
-            var steepest = math.atan(Punchy.Fauna.CreatureMotion.MaxClimb);
             var dive = input.DiveHeld;
             var climb = input.JumpHeld && !dive;
-            m.Flapping = climb || math.lengthsq(input.MoveDirection) > 0.01f;
+            m.Flapping = climb || steering;
             Floor(terrain, t.Position, settings.SwimDepth, out var ground, out _);
             var height = t.Position.y - ground;
-            // Nose: up to climb, down to dive; held level beating on, or sinking gently gliding. Near the ground on the
-            // way down, it flares: nose up, slowing to land.
-            var targetPitch = climb ? steepest : dive ? -steepest : m.Flapping ? 0f : -0.12f;
-            var flaring = !climb && height < Punchy.Fauna.CreatureMotion.FlareDistance * 1.5f && m.Pitch <= 0.05f;
+            // Nose: steeply up to climb, steeply down to dive (quickly, deliberately); with the stick pushed, a little
+            // up or down the way the camera looks; held level beating on, or sinking gently gliding. Near the ground on
+            // the way down, it flares: nose up, slowing to land.
+            var targetPitch = climb ? SteepClimb : dive ? -SteepDive
+                            : steering ? math.clamp(input.CameraPitch * 0.6f, -GentlePitch, GentlePitch) : -0.12f;
+            var flaring = !climb && !dive && height < Punchy.Fauna.CreatureMotion.FlareDistance * 1.5f && m.Pitch <= 0.05f;
             if (flaring)
                 targetPitch = math.max(targetPitch, -0.15f);
-            m.Pitch += math.clamp(targetPitch - m.Pitch, -1.5f * dt, 1.5f * dt);
+            var pitchRate = climb || dive ? 2.5f : 0.8f;
+            m.Pitch += math.clamp(targetPitch - m.Pitch, -pitchRate * dt, pitchRate * dt);
 
-            // Speed: wingbeats bring it up to flying speed; a glide bleeds it off slowly (faster climbing, gaining
-            // diving), never below the minimum, except in the last moments of a landing.
+            // Speed: wingbeats bring it up to flying speed; a glide bleeds it off slowly. Climbing costs speed; diving
+            // gains it as falling does (a stoop, to three times its cruise), and out of the dive the air slows it back.
             var flySpeed = math.max(body.FlySpeed, 1f);
             var lowest = flySpeed * Punchy.Fauna.CreatureMotion.MinAirspeed * (flaring ? 0.5f : 1f);
-            if (m.Flapping)
+            var cruiseMost = flySpeed * 1.6f;
+            if (m.Flapping && m.Airspeed < flySpeed)
                 m.Airspeed += (flySpeed - m.Airspeed) * math.min(1f, dt * 1.5f);
-            m.Airspeed -= math.sin(m.Pitch) * 9.81f * 0.5f * dt;
-            m.Airspeed = math.clamp(m.Airspeed - (m.Flapping ? 0f : 0.15f * dt), lowest, flySpeed * 1.6f);
+            m.Airspeed -= math.sin(m.Pitch) * 9.81f * (m.Pitch < 0f ? 0.9f : 0.5f) * dt;
+            if (m.Airspeed > cruiseMost && !dive)
+                m.Airspeed -= (m.Airspeed - cruiseMost) * math.min(1f, dt * 0.8f);
+            m.Airspeed = math.clamp(m.Airspeed - (m.Flapping ? 0f : 0.15f * dt), lowest, flySpeed * 3f);
 
             var velocity = new float3(math.sin(yaw) * math.cos(m.Pitch), math.sin(m.Pitch), math.cos(yaw) * math.cos(m.Pitch)) * m.Airspeed;
             var position = t.Position + velocity * dt;
+            // Tree trunks: slid round, not flown through (above the trunk, it's clear).
+            if (obstacles.IsCreated)
+                position.xz = SlideAroundObstacles(obstacles, position, settings.Radius, 0f);
+            // A perch just below on the way down: it settles on it.
+            if (flora.IsCreated && !climb && m.Pitch <= 0.05f && height > 1f)
+            {
+                var perches = new Unity.Collections.FixedList512Bytes<float3>();
+                Punchy.Flora.FloraPlacement.NearPerches(ref flora.Value, terrain, position.xz, 1.2f, ref perches);
+                for (int i = 0; i < perches.Length; i++)
+                {
+                    var perch = perches[i];
+                    var below = position.y - perch.y;
+                    if (below < -0.1f || below > 1.2f || math.distance(perch.xz, position.xz) > 0.9f)
+                        continue;
+                    t.Position = perch;
+                    t.Rotation = quaternion.RotateY(yaw);
+                    m.Flying = false;
+                    m.Perched = true;
+                    m.Grounded = true;
+                    m.OnProp = true;
+                    m.VerticalVelocity = 0f;
+                    m.Pitch = 0f;
+                    return;
+                }
+            }
             // Under rock (a cave's ceiling or walls): no further that way, and the nose goes down.
             if (inCave && terrain.CaveDistance(position + new float3(0f, settings.Radius, 0f)) > -settings.Radius)
             {

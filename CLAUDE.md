@@ -168,6 +168,7 @@ Input System. Windows is the only build target so far.
 
 ## Working in this repo
 
+- Use the terms in `GLOSSARY.md` in code, assets, commits, docs and messages between sessions.
 - Keep code commented the way it is: a summary comment on each class saying what it is and why, short comments on
   non-obvious steps. Match the surrounding naming and idioms.
 - Collaborators: work on a branch or fork rather than committing to `main` directly.

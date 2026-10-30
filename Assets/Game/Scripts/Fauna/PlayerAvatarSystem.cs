@@ -54,6 +54,7 @@ namespace Punchy.Fauna
                 hasPlayer = true;
             }
             var pose = SystemAPI.TryGetSingleton<InteractionRequest>(out var interaction) ? interaction.Pose : IdleAction.None;
+            var terrain = SystemAPI.TryGetSingleton<Punchy.Terrain.TerrainSource>(out var source) ? source : default;
             if (hasPlayer)
                 foreach (var (s, body) in SystemAPI.Query<RefRW<CreatureState>, RefRO<CreatureBody>>().WithAll<PlayerAvatar>())
                 {
@@ -61,7 +62,7 @@ namespace Punchy.Fauna
                     // On the wing: wings out, nose up or down with the climb.
                     Wings(ref s.ValueRW, ref body.ValueRO.Blob.Value, motion.Flying, motion.Pitch, motion.Flapping, dt);
                     // (Climbing onto a ledge: the climbing pose over whatever else, run through as the climb goes.)
-                    Pose(ref s.ValueRW, ref body.ValueRO.Blob.Value, motion.Mantle > 0f ? IdleAction.Mantle : pose, dt);
+                    Pose(ref s.ValueRW, ref body.ValueRO.Blob.Value, motion.Mantle > 0f ? IdleAction.Mantle : pose, dt, terrain);
                     if (motion.Mantle > 0f)
                     {
                         s.ValueRW.Action = IdleAction.Mantle;
@@ -84,7 +85,7 @@ namespace Punchy.Fauna
                 var run = math.distance(was.xz, s.ValueRO.Position.xz);
                 var pitch = run > 1e-4f ? math.atan2(s.ValueRO.Position.y - was.y, run) : 0f;
                 Wings(ref s.ValueRW, ref b, flying, pitch, pitch > 0.1f, dt);
-                Pose(ref s.ValueRW, ref b, (IdleAction)looks[ghost].Pose, dt);
+                Pose(ref s.ValueRW, ref b, (IdleAction)looks[ghost].Pose, dt, terrain);
             }
         }
 
@@ -92,8 +93,28 @@ namespace Punchy.Fauna
         /// Eases into an interaction pose (petting, carrying) and holds it half way through the action (where its
         /// weight is full), then eases out of it when it's over.
         /// </summary>
-        static void Pose(ref CreatureState c, ref CreatureBlob b, IdleAction pose, float dt)
+        static void Pose(ref CreatureState c, ref CreatureBlob b, IdleAction pose, float dt, in Punchy.Terrain.TerrainSource terrain)
         {
+            // Sitting and lying are postures held while the pose lasts (the townsfolk's own: legs out or cross-legged,
+            // over onto the back), not actions run through. Sat on a seat, the hips go at the seat's height: the same
+            // seat on every machine, from the anchors.
+            var sitting = pose == IdleAction.SitDown;
+            var lying = pose == IdleAction.LieBack;
+            c.Sit += ((sitting ? 1f : 0f) - c.Sit) * math.min(1f, dt * 3f);
+            c.Lie += ((lying ? 1f : 0f) - c.Lie) * math.min(1f, dt * 3f);
+            c.Stage = 0;
+            // (The body sits at the seat's place, facing out: the player itself is held a little off the bench by its
+            // collider.)
+            if (sitting && terrain.Anchors.IsCreated && Seats.Nearest(ref terrain.Anchors.Value, c.Position, 0.9f, out var seat, out var facing))
+            {
+                c.Mode = CreatureMode.Sit;
+                c.Stage = 4;
+                c.Anchor = seat;
+                c.Position.xz = seat.xz;
+                c.Yaw = math.atan2(facing.x, facing.y);
+            }
+            if (sitting || lying)
+                pose = IdleAction.None;
             // An animal body bows as animals do: a play bow, chest down and rump up (its other emotes are a wag of the
             // tail and a toss of the head, from the same actions).
             if (!b.Upright)
@@ -138,6 +159,7 @@ namespace Punchy.Fauna
             // Speed from how far it actually went; the gait holds still in the air.
             var speed = grounded ? moved / dt : 0f;
             c.Speed += (speed - c.Speed) * math.min(1f, dt * 12f);
+            c.GaitSpeed = c.Speed;   // (already eased)
             if (grounded)
                 c.Phase = math.frac(c.Phase + CreatureMotion.StepPhase(ref b, c, moved));
         }

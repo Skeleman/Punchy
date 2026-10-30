@@ -161,6 +161,7 @@ MonoBehaviour:
   GuardSash: {r: 0.62, g: 0.12, b: 0.1, a: 1}
   FlightHeight: {x: 45, y: 90}
   FlySpeed: 22
+  PlayerFlySpeed: 30
   FlapRate: 1.4
   Glide: 0.95
   Perching: 0

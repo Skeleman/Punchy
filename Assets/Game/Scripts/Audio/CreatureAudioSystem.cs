@@ -14,7 +14,8 @@ namespace Punchy.Audio
     /// <list type="bullet">
     /// <item>footsteps: each leg's footfall (the gait phase passing that leg's phase), for folk, players and big animals
     /// near the listener; a splash in water, a clop for hooves;</item>
-    /// <item>actions as they start: a wolf's howl (heard far), a guard drawing its blade;</item>
+    /// <item>actions as they start: a wolf's howl (heard far), a guard drawing its blade, a player in an animal's body
+    /// emoting (its call);</item>
     /// <item>a messenger bird's wingbeats;</item>
     /// <item>each species' calls (CreatureSpecies.Calls: a hen's cluck, a duck's quack, a dog's bark), every individual on
     /// its own clock, at the time of day the call is for, not asleep or indoors;</item>
@@ -24,11 +25,20 @@ namespace Punchy.Audio
     /// <item>the countryside's small life (AmbientLife), each call from where it is: songbirds, a woodpecker, owls, crickets,
     /// grasshoppers, frogs, cicadas. No sound without something there.</item>
     /// </list>
+    /// Calls and the countryside's sounds share a budget (CallsPerSecond, a few saved up), so a village or a wood full of
+    /// creatures doesn't call over itself: past it, a call is let go unless it's right by the listener. Footsteps, howls
+    /// and the like are outside it.
     /// </summary>
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     public partial class CreatureAudioSystem : SystemBase
     {
         const float StepReach = 18f, HowlReach = 160f, WingReach = 25f, HiveReach = 18f, FarthestCall = 260f;
+        /// <summary>The calls' budget: this many a second on average, up to CallBurst saved up; always heard within CloseCall m.</summary>
+        const float CallsPerSecond = 1.5f, CallBurst = 3f, CloseCall = 6f;
+        float callBudget = CallBurst;
+        /// <summary>Calls played, and let go over the budget, since start (for tests); and whether the budget applies.</summary>
+        public static int CallsPlayed, CallsThinned;
+        public static bool ThinCalls = true;
 
         EntityQuery query;
         /// <summary>What each creature was doing last frame (its gait phase, action, flap count).</summary>
@@ -82,13 +92,20 @@ namespace Punchy.Audio
                     if (sp == null)
                         continue;
                     calls[i] = sp.Calls.Count > 0 ? sp.Calls : sp.Body.Calls;
-                    cats[i] = sp.name == "Cat";
-                    dogs[i] = sp.name == "Dog" || sp.name == "MarshDog" || sp.name == "Puppy";
+                    var voice = sp.Voice != VoiceFamily.None ? sp.Voice : sp.Body.Voice;
+                    cats[i] = voice == VoiceFamily.Cat;
+                    dogs[i] = voice == VoiceFamily.Dog;
                 }
             }
 
             if (!SystemAPI.TryGetSingleton<TerrainSource>(out var terrain))
+            {
+                GameAudio.HasTerrain = false;
                 return;
+            }
+            GameAudio.Terrain = terrain;
+            GameAudio.HasTerrain = true;
+            callBudget = math.min(callBudget + SystemAPI.Time.DeltaTime * CallsPerSecond, CallBurst);
             Creatures(ear, terrain);
             Hives(ear, terrain, night);
             Countryside(ear);
@@ -132,6 +149,15 @@ namespace Punchy.Audio
                             GameAudio.PlayOneShot(SoundId.Howl, s.Position, 0.9f + (s.Individual % 13u) * 0.015f, 1f, HowlReach);
                         else if (s.Action == IdleAction.Draw && d < StepReach * 1.5f)
                             GameAudio.PlayOneShot(SoundId.Draw, s.Position, 1f, 0.7f, StepReach * 1.5f);
+                        // A player in an animal's body emoting: the animal's own call (each emote one of its calls, if
+                        // it has several), heard as the player's own sound. Bodies with hands gesture instead.
+                        else if (s.Mode == CreatureMode.Puppet && s.Action >= IdleAction.Wave && s.Action <= IdleAction.Dance &&
+                                 !b.Hands && mine != null && mine.Count > 0)
+                        {
+                            var call = mine[(s.Action - IdleAction.Wave) % mine.Count];
+                            GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f),
+                                                  (call.Pitch.x + call.Pitch.y) * 0.5f, call.Volume, call.Reach, SoundGroup.Player);
+                        }
                     }
                     // Footfalls: a leg's phase wrapping round, while moving on the ground.
                     if (d < StepReach && s.Speed > 0.2f && s.Fly < 0.5f && (b.Upright || b.BodyLength * s.Scale > 0.8f))
@@ -165,7 +191,10 @@ namespace Punchy.Audio
                                     continue;
                                 herdCalls[call.Sound] = (clock, s.Position);
                             }
-                            GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f), pitch, call.Volume, call.Reach);
+                            if (!Spend(d))
+                                continue;
+                            if (GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f), pitch, call.Volume, call.Reach))
+                                CallsPlayed++;
                         }
                 }
                 last[e] = (s.Phase, s.Action, flap, slots);
@@ -180,6 +209,20 @@ namespace Punchy.Audio
             states.Dispose();
             bodies.Dispose();
             entities.Dispose();
+        }
+
+        /// <summary>Whether a call this far off fits the budget (taking its share if so).</summary>
+        bool Spend(float distance)
+        {
+            if (!ThinCalls || distance < CloseCall)
+                return true;
+            if (callBudget >= 1f)
+            {
+                callBudget -= 1f;
+                return true;
+            }
+            CallsThinned++;
+            return false;
         }
 
         /// <summary>When and where each herd call was last made.</summary>
@@ -328,9 +371,11 @@ namespace Punchy.Audio
                     continue;
                 }
                 var pitch = 0.9f + (a.Id % 23u) * 0.01f;
+                // (Songbirds only every other time: there are a great many of them, and the trees ring with chirps.)
+                var thinned = a.Kind == AmbientKind.Songbird && ThinCalls && (((uint)a.Calls + a.Id) & 1u) != 0u;
                 if (a.Hidden && !was.hidden && a.Kind == AmbientKind.Frog)
                     GameAudio.PlayOneShot(SoundId.Splash, a.Position, 1.7f, 0.35f, 15f);
-                else if (!a.Hidden && a.Calls != was.calls)
+                else if (!a.Hidden && a.Calls != was.calls && !thinned && Spend(math.distance(a.Position, ear)) && ++CallsPlayed > 0)
                     switch (a.Kind)
                     {
                         case AmbientKind.Songbird:

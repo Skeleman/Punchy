@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
   m_Name: Pigeon
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
+  Role: 3
   VariantOf: {fileID: 0}
   VariantScale: 1
   VariantHead: 1
@@ -156,6 +157,7 @@ MonoBehaviour:
   GuardSash: {r: 0.62, g: 0.12, b: 0.1, a: 1}
   FlightHeight: {x: 4, y: 10}
   FlySpeed: 6
+  PlayerFlySpeed: 17
   FlapRate: 7
   Glide: 0
   Perching: 0.8

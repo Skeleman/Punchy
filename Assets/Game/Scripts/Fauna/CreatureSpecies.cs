@@ -126,6 +126,16 @@ namespace Punchy.Fauna
         [Tooltip("Crawls on any surface (lizards, spiders): steep rock faces outside, walls and ceilings in caves, its body " +
                  "turned to lie on the surface.")]
         public bool Crawls;
+        [Tooltip("Cold-blooded (reptiles, amphibians, insects, spiders, fish): no breath shows in the cold. Variants take " +
+                 "their body's.")]
+        public bool ColdBlooded;
+        [Tooltip("A part it plays for the director: Folk is the everyday person (the default player body, the measure of " +
+                 "sizes and paces, and the strangers on errands: travellers, honey thieves); Hermit lives at hermit spots; " +
+                 "Messenger carries letters between towns. The first species with a role takes it.")]
+        public DirectorRole Role;
+        [Tooltip("Sounds of its kind beyond its calls: a cat purrs when held and content, a dog pants after a run. Variants " +
+                 "take their body's unless they set their own.")]
+        public VoiceFamily Voice;
         [Tooltip("How likely a surface animal is to be found in a cave (bears, wolves, foxes): 0 never. A cave near where " +
                  "it lives may have one or two in its chambers near the mouth, and under rock it moves as cave animals do.")]
         [Range(0f, 1f)] public float CaveAffinity;
@@ -158,12 +168,21 @@ namespace Punchy.Fauna
         public Color GuardArmour = new Color(0.55f, 0.57f, 0.6f);
         [Tooltip("Their sash, down the front: the town's colour (as on its hall's banners), so its guards read as one.")]
         public Color GuardSash = new Color(0.62f, 0.12f, 0.1f);
+        [Tooltip("Rooted to the spot where it grew (a snapping flower): never walks or runs, and snaps at anything that comes " +
+                 "within its Flee Distance (the player or another animal) instead of running from it.")]
+        public bool Rooted;
+        [Tooltip("Passes for a plant (a scuttling bush): mostly sits still with its legs tucked under it, not looking about " +
+                 "or fidgeting, until something comes within its Flee Distance; then it runs, to settle somewhere else.")]
+        public bool Disguised;
 
         [Header("Flight (habitat Flies)")]
         [Tooltip("Height above the ground it cruises at, in metres.")]
         public Vector2 FlightHeight = new Vector2(8f, 18f);
         [Tooltip("Airspeed, metres per second.")]
         [Min(0.5f)] public float FlySpeed = 7f;
+        [Tooltip("A player's cruising airspeed in this body (m/s), from the real bird's: a pigeon about 17, a crow 14, an " +
+                 "owl 10. 0: twice FlySpeed. Variants take their body's unless they set their own.")]
+        [Min(0f)] public float PlayerFlySpeed;
         [Tooltip("Wingbeats per second.")]
         [Min(0.1f)] public float FlapRate = 6f;
         [Tooltip("How much it glides between bursts of flapping (soaring birds of prey).")]
@@ -242,6 +261,12 @@ namespace Punchy.Fauna
     /// The idle action an animal is doing now (one of IdleActions, by number), or a pose a player's body takes for an
     /// interaction (Pet, Carry, Throw: not idle actions any species picks for itself).
     /// </summary>
+    /// <summary>A part a species plays for FaunaDirector (CreatureSpecies.Role).</summary>
+    public enum DirectorRole : byte { None, Folk, Hermit, Messenger }
+
+    /// <summary>Sounds a species makes beyond its calls (CreatureSpecies.Voice; CreatureAudioSystem).</summary>
+    public enum VoiceFamily : byte { None, Cat, Dog }
+
     public enum IdleAction : byte
     {
         None, PawGround, Groom, Scratch, Shake, Stretch, Sniff, Sit, SitUp, TailFlick, Preen, HeadBob, LookAround, Howl,
@@ -253,7 +278,11 @@ namespace Punchy.Fauna
         // A guard drawing its weapon from its sheath (on its back or at its hip), or putting it away.
         Draw, Sheathe,
         // A player climbing up onto a ledge: hands on the rim, pulling up, a knee coming up over.
-        Mantle
+        Mantle,
+        // A rooted creature striking at something within reach (not an idle action any species picks).
+        Snap,
+        // A player sitting down or lying back where they are, or on a seat (postures held until they move).
+        SitDown, LieBack
     }
 
     public enum ActiveTime : byte

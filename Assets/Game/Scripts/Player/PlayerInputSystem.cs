@@ -16,7 +16,7 @@ namespace Punchy.Player
     [UpdateInGroup(typeof(SimulationSystemGroup), OrderFirst = true)]
     public partial class PlayerInputSystem : SystemBase
     {
-        InputAction move, jump, sprint, walk;
+        InputAction move, jump, sprint, walk, crouch;
         /// <summary>The toggles' state, and how long the player has been standing still (a sprint ends after a moment).</summary>
         bool sprinting, walking;
         float stillFor;
@@ -24,11 +24,13 @@ namespace Punchy.Player
         bool autowalk;
         /// <summary>Tests: walk this way (world XZ) as if the stick were pushed, and sprint, while set.</summary>
         public static float2? TestMove;
-        public static bool TestSprint, TestWalk;
+        public static bool TestSprint, TestWalk, TestCrouch;
         /// <summary>The toggles as they stand (for the readout).</summary>
         public static bool Sprinting, Walking;
         /// <summary>Tests: press jump once (cleared after the frame), and hold it (in flight: climb).</summary>
         public static bool TestJump, TestClimb;
+        /// <summary>Test input: the camera's pitch to report (radians), instead of the camera's own.</summary>
+        public static float? TestPitch;
 
         protected override void OnCreate()
         {
@@ -49,6 +51,7 @@ namespace Punchy.Player
             jump = actions.FindAction("Player/Jump");
             sprint = actions.FindAction("Player/Sprint");
             walk = actions.FindAction("Player/Walk");
+            crouch = actions.FindAction("Player/Crouch");
             actions.FindActionMap("Player")?.Enable();
         }
 
@@ -61,8 +64,10 @@ namespace Punchy.Player
             var direction = raw;
             var cam = Camera.main;
             var cameraForward = new float2(0f, 1f);
+            var cameraPitch = 0f;
             if (cam != null)
             {
+                cameraPitch = math.asin(math.clamp(cam.transform.forward.y, -1f, 1f));
                 var forward = math.normalizesafe(((float3)cam.transform.forward).xz, new float2(0f, 1f));
                 cameraForward = forward;
                 var right = new float2(forward.y, -forward.x);
@@ -118,7 +123,9 @@ namespace Punchy.Player
                 DiveHeld = TestSprint || !typing && sprint != null && sprint.IsPressed(),
                 JumpPressed = TestJump || !typing && jump != null && jump.WasPressedThisFrame(),
                 JumpHeld = TestClimb || !typing && jump != null && jump.IsPressed(),
-                CameraForward = TestMove.HasValue && math.lengthsq(TestMove.Value) > 0f ? math.normalize(TestMove.Value) : cameraForward
+                CrouchHeld = TestCrouch || !typing && crouch != null && crouch.IsPressed(),
+                CameraForward = TestMove.HasValue && math.lengthsq(TestMove.Value) > 0f ? math.normalize(TestMove.Value) : cameraForward,
+                CameraPitch = TestPitch ?? cameraPitch
             });
             TestJump = false;
         }
