@@ -15,5 +15,5 @@ h = hashlib.sha256(open(out, 'rb').read()).hexdigest()
 print(n, 'files', os.path.getsize(out) // 1048576, 'MB', h)
 with zipfile.ZipFile(out) as z:
     names = z.namelist()
-    print('backslash', any('\' in x for x in names), 'donotship', any('DoNotShip' in x for x in names),
+    print('backslash', any('\\' in x for x in names), 'donotship', any('DoNotShip' in x for x in names),
           'exe', 'Punchy.exe' in names)
