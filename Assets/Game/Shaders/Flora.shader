@@ -294,6 +294,17 @@ Shader "Punchy/Flora"
                     half pulse = 0.65 + 0.35 * sin(_PunchyClock * 1.3 - input.positionWS.y * 0.8 + r * 20);
                     color = color * (1 - crack * 0.6) + half3(1.0, 0.36, 0.08) * crack * pulse * 2.4;
                 }
+                // Ember leaves and needles (the same species, marked as Foliage + 0.25): thin glowing slivers through the
+                // crown, hot at their middle, pulsing slowly out of step (G-33/F-47).
+                if (part == 1 && frac(input.extra.x) > 0.15)
+                {
+                    float3 q = input.positionWS * float3(3.1, 1.7, 3.1);
+                    float vein = abs(PunchyValueNoise(q.xz + q.y * 1.9 + r * 17.0) - 0.5) + abs(PunchyValueNoise(q.zy * 1.6 - 3.3) - 0.5) * 0.5;
+                    half sliver = 1 - smoothstep(0.015, 0.05, vein);
+                    half patch = smoothstep(0.45, 0.7, PunchyValueNoise(input.positionWS.xz * 0.35 + r * 11.0));
+                    half pulse = 0.6 + 0.4 * sin(_PunchyClock * 1.1 - input.positionWS.y * 0.6 + r * 23);
+                    color += half3(1.0, 0.4, 0.1) * sliver * patch * pulse * 1.8;
+                }
 
                 // A bark face's eyes (part 9): a faint glow in its colour that blinks shut for a moment every few seconds.
                 // Electric arcs (part 11): blue-white, crackling on and off in bursts, bright enough to bloom.
