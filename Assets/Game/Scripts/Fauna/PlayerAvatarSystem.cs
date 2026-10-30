@@ -115,6 +115,12 @@ namespace Punchy.Fauna
             // seat on every machine, from the anchors.
             var sitting = pose == IdleAction.SitDown;
             var lying = pose == IdleAction.LieBack;
+            // (A hoofed body doesn't sit like a dog: asked to, it lies down with its legs folded under, as a horse rests.)
+            if (sitting && !b.Upright && b.Hooves)
+            {
+                sitting = false;
+                lying = true;
+            }
             c.Sit += ((sitting ? 1f : 0f) - c.Sit) * math.min(1f, dt * 3f);
             c.Lie += ((lying ? 1f : 0f) - c.Lie) * math.min(1f, dt * 3f);
             c.Stage = 0;

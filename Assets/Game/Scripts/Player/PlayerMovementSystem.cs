@@ -56,7 +56,9 @@ namespace Punchy.Player
                 var settings = motor.ValueRO;
 
                 var position = t.Position;
-                var swimming = Floor(terrain, position, settings.SwimDepth, out _, out var inCave);
+                // (Over deep water but up in the air, jumping across a river: not swimming yet, so neither slowed nor carried
+                // by the current until it's down in it.)
+                var swimming = Floor(terrain, position, settings.SwimDepth, out var swimFloor, out var inCave) && position.y < swimFloor + 0.3f;
                 m.LatchCooldown = math.max(m.LatchCooldown - dt, 0f);
 
                 // A flying body: off with a jump, and on the wing until it comes down on something.
@@ -307,7 +309,8 @@ namespace Punchy.Player
             m.Airspeed = math.min(m.Airspeed, 0.6f);
             var ground = terrain.SampleGround(position.xz);
             var water = ground.HasWater && ground.WaterSurface - ground.Height > 0.25f;
-            if (water && position.y < ground.WaterSurface + 0.1f)
+            // (Rising out of it in a leap: in the air, not swimming, until it comes back down.)
+            if (water && position.y < ground.WaterSurface + 0.1f && m.VerticalVelocity <= 0f)
             {
                 var speed = settings.WalkSpeed * math.max(body.SpeedFactor, 0.1f) * (input.Sprint ? 1.6f : 1f);
                 // Swimming the way the camera looks: across, and up or down with it.
@@ -329,6 +332,10 @@ namespace Punchy.Player
                     m.VerticalVelocity = settings.JumpSpeed * 0.9f;
                     m.HopSpeed = speed * push;
                     position.y = top + 0.05f;
+                    m.Grounded = false;
+                    t.Position = position;
+                    Face(ref t, input, settings, dt);
+                    return;
                 }
                 else
                 {

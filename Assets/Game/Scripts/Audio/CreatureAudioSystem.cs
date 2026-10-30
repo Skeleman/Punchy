@@ -174,8 +174,9 @@ namespace Punchy.Audio
                     // A messenger's wingbeats while it flies.
                     if (s.Task == CreatureTask.Messenger && s.Fly > 0.5f && flap != was.flap && d < WingReach)
                         GameAudio.PlayOneShot(SoundId.Wingbeat, s.Position, 1.1f, 0.5f, WingReach);
-                    // Its calls, each when its time comes round (awake and out, at the call's time of day).
-                    if (mine != null && Awake(s))
+                    // Its calls, each when its time comes round (awake and out, at the call's time of day). Not a player's
+                    // body: a player makes its animal's sounds only by emoting (above).
+                    if (mine != null && s.Mode != CreatureMode.Puppet && Awake(s))
                         for (int c = 0; c < mine.Count && c < 4; c++)
                         {
                             var call = mine[c];
