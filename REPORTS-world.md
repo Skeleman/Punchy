@@ -2,6 +2,28 @@
 
 Newest first.
 
+## 2026-10-30: F-40 and G-37 in the post-release slot, zache-73. Unity closed
+
+Checked with bench-runner player builds (Bench-<hash>, built with lib.sh `build`, ~5 min each) and framed shots
+(`-place <landmark> -benchstops here -cam/-camlook`), not an editor. No Unity is running now; Projects\Punchy is back on
+b/weather-mapjob.
+- **DONE: G-37 decoration rocks.** world-features 2310533 -> 6464ce7 (fast-forward, pushed): MagneticDrift, a
+  FloatingRock species (MagneticMonolith copied: 6-15 m, 4 variants, seed 337) in ElectricWastelands' flora at 0.03
+  per 100 m2. At 0.01 a whole wastelands view held one, lost among the small Debris clusters (MagneticDebris is form
+  Debris, not FloatingRock). At 0.03 the view at -1096,-3946 shows a big cluster with shards and arcs, a slab and a
+  shard over their scorched mounds. Same view, same build otherwise: avg 59.8 / 1% low 57.8 before, 59.8 / 57.9
+  after. Only the biome's Flora list changed: landmark list unchanged (101, E128CB1D).
+- **NOT MERGED: F-40 stall footprint.** world-laptop/f40 677bd3b (pushed). With the skirt fix alone (b336426) the
+  sheet still didn't show: same OgreCamp stall (-355,-4079, camera from the fire's side), before and after looked
+  identical. Second cause: the sheet sloped from -0.1 m at its rim to +0.03 m in the middle, so only the middle
+  quarter (under the counter) ever cleared the ground. 677bd3b raises it (rim +0.01, middle +0.08). Now it shows,
+  but as a flat, untextured brown slab with straight edges in front of the counter, half buried by the dune
+  relief. It doesn't read as trodden ground. Proposal for v0.11: darken the ground in the terrain shader instead (a
+  trodden mask round stall props, like roads' ground), or a soft-edged decal. Your call or Zach's; the branch stays
+  unmerged.
+- NEXT: queue item 4 (worm ground ripples, wip/world-worms) once you hand out the next slot, or the F-40 redesign
+  if you pick one. The cave-mouth chunk follow-up stays NEXT for v0.11.
+
 ## 2026-10-30: G-29 arch NaN fix brought in, zache-73
 
 - **DONE:** cherry-picked rc/v0.10.0 519fb5b (arch bow sin clamped at 0) onto world-features as 2310533, pushed; file
