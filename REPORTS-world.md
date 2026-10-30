@@ -2,6 +2,57 @@
 
 Newest first.
 
+## 2026-10-30: graphics settings, distance sliders: DESIGN for OK (queue 1), zache-73
+
+**Shape.** `Punchy.Rendering.GraphicsSettings`: static, PlayerPrefs-backed, applied live. Three multipliers on today's
+defaults (1.0 = today exactly), plus a preset that sets all three. Systems read `default x multiplier` where they use
+the range, never by rewriting serialized fields (so assets and scenes don't change).
+
+| Slider | Range | Scales |
+|---|---|---|
+| **View distance** | 0.5-2.0 | terrain view radius (TerrainConfig.ViewRadiusChunks, applied in TerrainStreamingSystem; config untouched) and terrain LOD distances with their morph ranges; flora Shrub + Tree layers (Radius, Lod1/Lod2Distance); LandmarkEffectSystem.Range (700); FloraSystem.BoltRange (160). The camera far plane is kept at least the scaled terrain radius. |
+| **Detail distance** | 0.5-2.0 | GroundDetail GrassRadius 60 / PebbleRadius 45 / FullDensityRadius 20; flora Ground layer (Radius 70, Lods); CritterSystem.Radius 70 (mine, per your note); LandmarkEffect FlameRange 150 and CaveRange 120; CaveSystem PlantRadius 60 / DripRadius 25; AmbientParticleType.Range; AmbienceSystem.OthersRange 80; burrow marks (below). Animal lane: CreatureRenderSystem FootDetail 40 / TorchFlame 150 / Lantern 60, TraceSystem. |
+| **Shadows** | 0.5-2.0 | URP main-light shadow distance (50 m today), with cascades 2 below 0.75, else 4 as now. |
+
+**Presets** (the profiler's sweep may move them; Medium = today until it says otherwise):
+
+| | View | Detail | Shadows |
+|---|---|---|---|
+| Low | 0.6 | 0.5 | 0.6 (2 cascades) |
+| Medium | 1.0 | 1.0 | 1.0 |
+| High | 1.3 | 1.5 | 1.4 |
+| Ultra | 1.7 | 2.0 | 2.0 |
+
+**Never scaled (simulation, collision, net):** FaunaDirector spawn radius, CreatureRelevancySystem 200 m,
+FloraSystem.CollisionRange 24 / SupportRange 40, CaveSystem.LoadRadius 400 (wall meshes), anything seed-derived. One
+catch: FloraSystem.UpdateSupports reads the *streamed* flora tiles, so every flora layer's scaled radius is clamped
+to at least SupportRange + 1.5 tiles; otherwise Low could stream out a rock the player stands on. Settings only
+change what's drawn, so two players with different settings see the same world and stay joinable (no
+fingerprint change).
+
+**API** (for the animal lane and anyone else): `GraphicsSettings.View`, `.Detail`, `.Shadows` (floats);
+`GraphicsSettings.ViewRange(float baseline)` and `.DetailRange(float baseline)`; `GraphicsSettings.Version` (int,
+bumped on every change, for systems that hash their config and rebuild). **Burrow marks:** one source, as you asked.
+GraphicsSettings sets the global `_PunchyBurrowRange` = DetailRange(150); the feeder uses DetailRange(150) for its
+Range; TerrainSurface's gate reads `distance < _PunchyBurrowRange` instead of the literal (a one-line change to
+zache-db's 92a9602 once it lands, or before, if they prefer).
+
+**Applying live.** Cheap ranges apply the next frame. Terrain view or LOD changes mark every loaded chunk for
+rebuild (one wave of rebuilds, nearest first), so that slider applies on release, not on drag. Flora layer radius
+changes restream tiles beyond the new edge. Shadows apply at once. In the editor the URP asset's shadow values are
+restored on exit, so play mode never saves them into the asset.
+
+**UI.** **F4** opens a small panel in the F2 panel's IMGUI style (F1-F3 are taken): a preset row and the three
+sliders with their values, plus Reset. It saves to PlayerPrefs on close.
+
+**Flags** (bench runner): `-gfx Low|Medium|High|Ultra` and `-gfxset view=1.3,detail=0.8,shadows=1`, applied after
+prefs. **Flags are never saved to prefs** (the -screen lesson): a bench run can't change Zach's settings. Bench
+builds have their own prefs identity anyway (PunchyBench).
+
+**Order of work once OK'd:** (1) GraphicsSettings + flags + F4 panel; (2) world ranges, one commit per system; (3)
+the API note to zache-db; (4) checks: at Medium every range equals today's (an assert in a debug build, plus an
+A/B smoke against bc89606 that should be flat); shots at Low and Ultra from one camera.
+
 ## 2026-10-30: Blocked fast path (BENCH item 14), zache-73
 
 - **DONE in code: `world-laptop/blocked-cache` 3d874dc** (off world-features bc89606), not merged, not compiled; the
