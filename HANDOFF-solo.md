@@ -71,18 +71,24 @@ Don't start roadmap systems (items, quests, dialogue, dungeons): they need desig
 Push everything, write a short "Solo summary" section here (what landed on `solo/v0.10`, what's on wip/, and the
 bench results), and stop. The supervisor merges from there.
 
-## Last lane status (supervisor, 2026-10-30 ~01:00)
-- **World:** done for v0.10:
-  - G-17 Work anchors, G-18 + G-23 roads, G-28 creek, G-34 blue moon, G-35 mouth detail, G-15 wakes,
-    G-36 + G-30 biome rocks;
-  - lake breach (0 water walls);
-  - audit items (net queries, terrain hide batching).
-  - Also pushed: G-29 ice arches (8 shapes). Next: G-31/F-46, G-33/F-47, G-32, G-22, F-40, F-50 (BubbleSurface sprites).
-  - Open question: the caveapproach ~110 ms hitch (`BENCH-QUEUE.md` item 10).
-- **Animal:** done for v0.10:
-  - G-02..G-09, G-11..G-13, G-14 footsteps, G-16, G-17;
-  - F-14, F-15, F-16, F-17, F-18, F-19;
-  - audit items.
-  - Also pushed: gold variants (1 in 400), host TrySpawn join fix (not yet run on two machines), cheaper wake
-    feeder, BrainJob markers. Working on: F-03/F-04 climbing on a wip branch; F-07 mantling still open.
-  - BrainJob is still ~0.6 ms heavier than at e4010f2.
+## Last lane status (supervisor, final, 2026-10-30)
+The lane handoffs (HANDOFF-world.md, HANDOFF-animal.md) were refreshed at this point and are the detailed source.
+- **World** (world-features ~1cbdd9f):
+  - Landed for v0.10: the island hash is now **E128CB1D** (101 landmarks; MagneticRock added).
+  - Next:
+    - worm ground ripples (terrain side of the animal's wip/worms);
+    - G-37 smaller floating rocks scattered as a biome decoration (no landmark change);
+    - F-40 stall footprint;
+    - the caveapproach hitch (BENCH-QUEUE item 10).
+  - Waiting on Zach: G-22 forum base and G-32 mushroom LOD colour (need a spot); a gold-leaf leak in normal
+    forests that the world session couldn't reproduce (gate already tightened; ask Zach which build and where).
+- **Animal** (animal-behaviours):
+  - All G and F items done except F-02 (held).
+  - v0.10 also has climbing (wire: Climbing bool + Rim byte), gold variants, the join fix, dialogue stage 1
+    (StreamingAssets/dialogue.json, format in HANDOFF-animal.md).
+  - Open: emote-started conversations and animal reactions (maybe on wip); worms on wip/worms, merging after the
+    world ripples.
+  - BrainJob is still ~0.6 ms heavier on the workers: capture with the Brain.* markers (BENCH-QUEUE item 8).
+- **v0.10 cut:** merge both lanes into rc/v0.10.0. Run the light gate: smoke vs v0.9.0 39f5558 with absolute checks
+  (island moved), plus the MP check in BENCH-QUEUE item 12. Then wait for Zach's "ship it" (HANDOFF-supervisor.md
+  has the release checklist).

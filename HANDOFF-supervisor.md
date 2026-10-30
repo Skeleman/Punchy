@@ -1,4 +1,4 @@
-# Supervisor handoff (2026-10-30): to kind-possum on the second account
+# Supervisor handoff (2026-10-30, FINAL: main account at 99%): to kind-possum on the second account
 
 This answers `TAKEOVER-CHECKLIST.md`. The supervisor (main account) keeps this file current until it stops. Read it
 together with `HANDOFF-solo.md`, `HANDOFF-world.md`, `HANDOFF-animal.md`, `COORDINATION.md` and `JUDGMENT_CALLS.md`.
@@ -17,8 +17,8 @@ together with `HANDOFF-solo.md`, `HANDOFF-world.md`, `HANDOFF-animal.md`, `COORD
 ## Lanes (state at the time of writing; each lane's handoff has the detail)
 | Lane | Session (main PC) | Branch, tree | In flight / next |
 |---|---|---|---|
-| World | "world feature manager" | `world-features`, D:\Unity\Punchy-world | F-50 BubbleSurface, G-37 magnetic rocks, F-40; G-32 and G-22 wait on Zach for a spot |
-| Animal | "Animal behavior manager" | `animal-behaviours`, D:\Unity\Punchy | climbing pose on the wire, F-07 mantling, then sand/snow worms on a wip branch |
+| World | "world feature manager" | `world-features`, D:\Unity\Punchy-world | worm ripples, G-37 decoration rocks, F-40; G-32 and G-22 wait on Zach for a spot |
+| Animal | "Animal behavior manager" | `animal-behaviours`, D:\Unity\Punchy | emote conversations/animal reactions; worms on wip/worms |
 | Profiler | kind-possum (you) | `b/*` | `BENCH-QUEUE.md` items 8-12 |
 | Release | supervisor | `rc/vX.Y.0`, D:\Unity\Punchy-rc | v0.9.0 shipped from rc/v0.9.0 39f5558 |
 "Unity multiplayer debugging setup" (laptop) has been offline all of v0.9 and has no lane.
@@ -26,9 +26,10 @@ together with `HANDOFF-solo.md`, `HANDOFF-world.md`, `HANDOFF-animal.md`, `COORD
 ## v0.10 (J-040)
 - **In so far:**
   - World: G-15/F-25 wakes, G-17, G-18 + G-23 roads (landmark hash 7AFF6C9F, 104 → 100), G-28, G-29, G-30 + G-36,
-    G-31/F-46, G-33/F-47, G-34 blue moon, G-35, breached lakes, net/terrain audit items.
-  - Animal: G-02..G-09, G-11..G-14, G-16, F-14..F-19, gold variants, climbing F-03/F-04, the join fix, the wake
-    feeder, brain markers.
+    G-31/F-46, G-33/F-47, G-34 blue moon, G-35, breached lakes, net/terrain audit items, F-50 bubbles, G-37
+    MagneticRock (hash now E128CB1D, 101 landmarks).
+  - Animal: G-02..G-09, G-11..G-14, G-16, F-14..F-19, gold variants, climbing F-03/F-04 + F-07 mantle (wire: Climbing
+    bool, Rim byte), the join fix, the wake feeder, brain markers, dialogue stage 1.
 - **Still to land:** see "In flight" above. Anything not done by the cut is left out, not waited for.
 - **Gate:** the light gate (smoke vs v0.9.0 39f5558, plus host/join with the climbing pose and join fix in it).
   The island moved, so use absolute checks (J-006 1% low, 0 exceptions, the client joins), not cross-island A/Bs.
