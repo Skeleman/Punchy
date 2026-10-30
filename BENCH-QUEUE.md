@@ -13,3 +13,4 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
 2. Re-queue what the pause cleared: smoke world-features 28d51e9 vs 0c0198a plus the cave/caveapproach ab;
    townwalk cap-60 profiles on e4010f2 and animal-behaviours a4521a2 (the townwalk cost fix) plus profdiff.
 3. Capture to confirm audit item 1 (BrainJob/PoseJob back to back) at townwalk and town arrival on animal-behaviours a4521a2.
+4. After the v0.9 gate: host/join on world-features (latest) for the cached WorldSync/NetMenu queries. Note: v0.10 roads move ~20 roadside landmarks (hash D82C9D7F to 77A14D23), so compare v0.10 to v0.9 by absolute checks, or rebase the A/B on the new island.
