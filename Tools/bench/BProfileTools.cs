@@ -41,7 +41,7 @@ public static class BProfileTools
         return i >= 0 && i + 1 < a.Length ? a[i + 1] : def;
     }
 
-    class Acc { public List<double> incl = new(), self = new(); public double ci, cs, spikeSelf, normalSelf, spikeIncl, normalIncl; public int calls; }
+    class Acc { public List<double> incl = new(), self = new(); public double ci, cs, spikeSelf, normalSelf, spikeIncl, normalIncl, maxCall, maxFrame; public int calls; }
 
     public static void Analyze()
     {
@@ -100,25 +100,27 @@ public static class BProfileTools
                         string key = group + "|" + v.GetSampleName(i);
                         if (!acc.TryGetValue(key, out var a)) { a = new Acc(); for (int k = 1; k < used; k++) { a.incl.Add(0); a.self.Add(0); } acc[key] = a; }
                         a.ci += v.GetSampleTimeMs(i);
+                        a.maxCall = Math.Max(a.maxCall, v.GetSampleTimeMs(i));
                         a.cs += selfMs[i];
                         a.calls++;
                     }
                 }
-                foreach (var a in acc.Values) { a.incl.Add(a.ci); a.self.Add(a.cs); if (spike) { a.spikeSelf += a.cs; a.spikeIncl += a.ci; } else { a.normalSelf += a.cs; a.normalIncl += a.ci; } }
+                foreach (var a in acc.Values) { a.incl.Add(a.ci); a.self.Add(a.cs); a.maxFrame = Math.Max(a.maxFrame, a.ci); if (spike) { a.spikeSelf += a.cs; a.spikeIncl += a.ci; } else { a.normalSelf += a.cs; a.normalIncl += a.ci; } }
             }
             sb.AppendLine($"SPIKES (frames > 33.3 ms): {spikes} of {spikes + normals}. key, spike-frame self ms, normal-frame self ms, delta, spike incl, normal incl");
             foreach (var kv in acc.OrderByDescending(k => k.Value.spikeSelf / Math.Max(1, spikes) - k.Value.normalSelf / Math.Max(1, normals)).Take(40))
                 sb.AppendLine($"SPIKE {kv.Key}	{kv.Value.spikeSelf / Math.Max(1, spikes):F2}	{kv.Value.normalSelf / Math.Max(1, normals):F2}	{kv.Value.spikeSelf / Math.Max(1, spikes) - kv.Value.normalSelf / Math.Max(1, normals):F2}	{kv.Value.spikeIncl / Math.Max(1, spikes):F2}	{kv.Value.normalIncl / Math.Max(1, normals):F2}");
             frameMs.Sort();
             sb.AppendLine($"frames used {used}, frame ms median {Med(frameMs):F2} mean {(frameMs.Count > 0 ? frameMs.Average() : 0):F2} p95 {(frameMs.Count > 0 ? frameMs[(int)(frameMs.Count * 0.95)] : 0):F2}");
-            sb.AppendLine("key\tmedInclMs\tmeanInclMs\tmedSelfMs\tmeanSelfMs\tcallsPerFrame");
+            // The last two: the longest single call and the most one frame spent on it (one big job, e.g. a cave-mouth chunk).
+            sb.AppendLine("key\tmedInclMs\tmeanInclMs\tmedSelfMs\tmeanSelfMs\tcallsPerFrame\tmaxCallMs\tmaxFrameMs");
             foreach (var kv in acc.OrderByDescending(k => k.Value.self.Average()))
             {
                 var a = kv.Value;
                 double ms = a.self.Average();
                 // Brain.* marks always show: some are empty counters (Brain.Moving), read by their calls a frame.
                 if (ms < 0.03 && a.incl.Average() < 0.3 && !kv.Key.Contains("|Brain.")) continue;
-                sb.AppendLine($"{kv.Key}\t{Med(a.incl):F3}\t{a.incl.Average():F3}\t{Med(a.self):F3}\t{ms:F3}\t{(double)a.calls / Math.Max(1, used):F1}");
+                sb.AppendLine($"{kv.Key}\t{Med(a.incl):F3}\t{a.incl.Average():F3}\t{Med(a.self):F3}\t{ms:F3}\t{(double)a.calls / Math.Max(1, used):F1}\t{a.maxCall:F2}\t{a.maxFrame:F2}");
             }
         }
         File.WriteAllText(outPath, sb.ToString());
