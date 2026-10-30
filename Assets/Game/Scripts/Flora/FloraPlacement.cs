@@ -644,7 +644,7 @@ namespace Punchy.Flora
                         if (building.x < 0 || f.Models[f.Rules[building.x].FirstModel].ObstacleCount == 0)
                             continue;
                         var cell = (int2)math.floor(plot.Centre / f.CellSizes[building.y]);
-                        if (Inside(ref f, Place(ref f, source, cell, building.y), xz, radius))
+                        if (Inside(ref f, Place(ref f, source, cell, building.y, footprint: true), xz, radius))
                             return true;
                     }
                 }
@@ -666,7 +666,7 @@ namespace Punchy.Flora
                                 LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
                             if (math.distance(spot, xz) > 15f + radius)
                                 continue;
-                            if (Inside(ref f, Place(ref f, source, (int2)math.floor(spot / f.CellSizes[l]), l), xz, radius))
+                            if (Inside(ref f, Place(ref f, source, (int2)math.floor(spot / f.CellSizes[l]), l, footprint: true), xz, radius))
                                 return true;
                         }
                     }
@@ -735,8 +735,13 @@ namespace Punchy.Flora
         /// </summary>
         public static float CellSize(float tileSize, float cellSize) => tileSize / math.round(tileSize / cellSize);
 
-        /// <summary>The plant growing in one cell of a layer's grid (Model -1 if none).</summary>
-        public static FloraSystem.FloraInstance Place(ref FloraBlob f, in TerrainSource source, int2 cell, int layer)
+        /// <summary>
+        /// The plant growing in one cell of a layer's grid (Model -1 if none). With <paramref name="footprint"/>, a town's
+        /// building or a landmark's placed prop comes back with only what its walls need (Position.xz, Yaw, Scale, Model,
+        /// exactly as without), leaving out its floor height and ground colour, which sample the ground round it and cost
+        /// most of the call (Blocked asks on every step of every animal in town). Other plants are placed in full.
+        /// </summary>
+        public static FloraSystem.FloraInstance Place(ref FloraBlob f, in TerrainSource source, int2 cell, int layer, bool footprint = false)
         {
             var none = new FloraSystem.FloraInstance { Model = -1 };
             var cellSize = f.CellSizes[layer];
@@ -772,14 +777,14 @@ namespace Punchy.Flora
                         var bridge = plot.Role == PlotRole.Bridge;
                         return new FloraSystem.FloraInstance
                         {
-                            Position = new float3(plot.Centre.x, bridge ? plot.Pad : FloorHeight(source, plot), plot.Centre.y),
+                            Position = new float3(plot.Centre.x, footprint ? 0f : bridge ? plot.Pad : FloorHeight(source, plot), plot.Centre.y),
                             Yaw = math.atan2(-plot.Facing.x, plot.Facing.y),
                             // Sized for its folk (the layout's BuildingScale: ogre tents bigger, goblin huts smaller); bridge
                             // spans and fence lengths at their own size, so they meet end to end.
                             Scale = bridge || plot.Role == PlotRole.Fence ? 1f : rng.NextFloat(0.95f, 1.05f) * towns.Layouts[towns.Settlements[plot.Settlement].Layout].BuildingScale,
                             Model = buildingRule.FirstModel + rng.NextInt(buildingRule.Variants),
                             Random = rng.NextFloat(),
-                            Ground = bridge ? 0u : DirtColor(source, buildingRule, plot.Centre, math.cmax(plot.Half), 0.9f)
+                            Ground = bridge || footprint ? 0u : DirtColor(source, buildingRule, plot.Centre, math.cmax(plot.Half), 0.9f)
                         };
                     }
                     // Streets and built plots grow nothing, though a landmark's placed props (benches on the square,
@@ -823,12 +828,12 @@ namespace Punchy.Flora
                                     placedYaw = FacingYaw(set.Instances[landmark.Instance].Facing);
                                 return new FloraSystem.FloraInstance
                                 {
-                                    Position = new float3(spot.x, source.SampleHeight(spot), spot.y),
+                                    Position = new float3(spot.x, footprint ? 0f : source.SampleHeight(spot), spot.y),
                                     Yaw = placedYaw,
                                     Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
                                     Model = placedRule.FirstModel + rng.NextInt(placedRule.Variants),
                                     Random = rng.NextFloat(),
-                                    Ground = GroundFor(source, placedRule, spot, 1f, 0.25f)
+                                    Ground = footprint ? 0u : GroundFor(source, placedRule, spot, 1f, 0.25f)
                                 };
                             }
                             blocked |= math.distance(xz, spot) < prop.Clearance;
@@ -856,12 +861,12 @@ namespace Punchy.Flora
                                 centreYaw = FacingYaw(set.Instances[landmark.Instance].Facing);
                             return new FloraSystem.FloraInstance
                             {
-                                Position = new float3(centre.x, source.SampleHeight(centre), centre.y),
+                                Position = new float3(centre.x, footprint ? 0f : source.SampleHeight(centre), centre.y),
                                 Yaw = centreYaw,
                                 Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
                                 Model = centreRule.FirstModel + rng.NextInt(centreRule.Variants),
                                 Random = rng.NextFloat(),
-                                Ground = GroundFor(source, centreRule, centre, 2f, 0.5f)
+                                Ground = footprint ? 0u : GroundFor(source, centreRule, centre, 2f, 0.5f)
                             };
                         }
                         continue;
