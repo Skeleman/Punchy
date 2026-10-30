@@ -2,6 +2,49 @@
 
 Newest first.
 
+## 2026-10-30: Unity slot 08:20-09:05: climbing passes, worm trail of bumps (Zach's request)
+- **Compile PASS:** worm-look, trunk-lean and the world worm shader, together.
+- **Monkey climbs: PASS on oak and palm,** with client shots.
+  - Oak: hands and feet are on the bark low down, and it hugs the drawn trunk at its leaning top.
+  - Palm: it stays on the bark through the bend and at the crown. Find one with `-place Dunes -place tree:Palm`;
+    no palm stands alone near the start.
+- **Hold logs:** every hold is on the east side, the side it walks in from, 0.0 m from the logged spot. The far-side
+  climbing seen in the last slot is gone.
+- **Snow worm band fix: PASS.** The body reads as one even pale colour.
+- **Merged into animal-behaviours and pushed:** fade08c (wip/trunk-lean) and d83b1ee (wip/worm-look). The tree is
+  identical to the tested build.
+- **NPC lean:** not looked at. It's still a straight post for animals; your call after these shots.
+- **NEW, from Zach mid-slot.** The worm's trail turned with it (he wants separate bumps left in the ground), it broke
+  out a few metres from its crater, it vanished before it was all back under, and its marks went too soon.
+  - **wip/worm-trail 93c79bc, the animal half:**
+    - `CreatureBurrowSystem` leaves a bump every 2 radii, kept 30 s, plus the mound over the head. Nothing carries a
+      heading any more.
+    - Craters are kept 40 s and placed where the body crosses the ground. They used to go where the arc began, under
+      the ground and metres back.
+    - The arc in `Tunnel` starts and ends 0.8 of the body's length deep, so the worm only levels out once it's all
+      under. About 3 s of it is still above the ground.
+    - Thrown sand and snow lands and lies 25-40 s as clods (`Trace.Rests`). Water splashes are unchanged.
+  - **wip/worm-trail-shader 3338e66, the world half:** one commit on world-features for zache-73 to review.
+    `BurrowMarks` reads 64 slots of (x, age, z, ±radius), draws each bump as a soft hump that sinks away late in its
+    life, and drops the furrow. Craters are as in ad98690.
+  - **Slot check: PASS** (build of both halves; shots in `results/animal-slot/trail`).
+    - A row of separate bumps stays where it was raised.
+    - The worm comes up through its crater and dives back into it. Its body goes all the way in, and clods lie round
+      the hole.
+    - Craters and trails are still there a minute on.
+  - **Shader cost (for the profiler, items 15/16):** while any mark is within 250 m of the camera, every
+    TerrainSurface fragment loops over up to 64 marks.
+    - Each mark costs a float4 load and a squared-distance test against 3 radii, and nearly all are rejected there.
+      Only a fragment inside a mark does about 15 more ALU (an exp, plus a length and a second exp for a crater).
+    - In the worst case, with a worm in view and its full trail, that's 64 iterations per terrain fragment. With no
+      worms near, the loop is skipped whole (`_PunchyBurrowerCount` is 0).
+    - It used to be 8 slots with a 10-radius reach. If it shows up, the cheap fixes are 32 slots or a per-chunk
+      bounds test.
+  - **Not merged:** the feeder and the shader must land together. The new feeder against the old 8-slot shader
+    would misread the slots.
+- **Unity closed** at 08:58 (bench timeout). There are no Unity or Punchy processes, the lock is clear, and the main
+  checkout is as found.
+
 ## 2026-10-30: climbers follow a leaning trunk: wip/trunk-lean 26ddffe (code-checked only)
 - **DONE, code only.** The player now grabs and climbs round the trunk's centre at its own height, not a straight post
   at the foot. That covers Broadleaf lean and wiggle, Conifer lean and Palm bend.
