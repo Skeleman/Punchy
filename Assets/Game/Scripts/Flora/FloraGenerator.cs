@@ -34,6 +34,11 @@ namespace Punchy.Flora
         /// </summary>
         public readonly List<Vector4> Colliders = new List<Vector4>();
         /// <summary>
+        /// Basins of open water it holds (a fountain's): centre (x, y, z) and radius (w), before the plant's own rotation
+        /// and scale. FloraSystem draws them with the terrain's own water (Z-12).
+        /// </summary>
+        public readonly List<Vector4> Pools = new List<Vector4>();
+        /// <summary>
         /// Places a bird can sit on its top (a roof's peak or ridge ends, a chimney, a post), before the plant's own
         /// rotation and scale. Empty for most plants (see FloraPlacement.NearPerches).
         /// </summary>
@@ -167,6 +172,7 @@ namespace Punchy.Flora
                     model.TrunkRadius = g.TrunkRadius;
                     model.Colliders.AddRange(g.Colliders);
                     model.Perches.AddRange(g.Perches);
+                    model.Pools.AddRange(g.Pools);
                     model.DoorHeight = g.DoorHeight;
                     model.Height = g.Height;
                 }
@@ -237,6 +243,7 @@ namespace Punchy.Flora
             public List<List<Vector3>> Limbs;
             public readonly List<Vector4> Colliders = new List<Vector4>();
             public readonly List<Vector3> Perches = new List<Vector3>();
+            public readonly List<Vector4> Pools = new List<Vector4>();
 
             /// <summary>
             /// Adds upright cylinders covering a rotated ellipsoid's footprint: a row of circles along its longer
@@ -3651,14 +3658,34 @@ namespace Punchy.Flora
             b.Tube(new List<Vector3> { Vector3.down * 0.1f, Vector3.up * 0.6f }, new List<float> { radius, radius }, sides, g.Bark, FloraPart.Bark);
             b.Occlude(first, (p, n) => GroundOcclusion(p, 0.6f));
             b.Tube(new List<Vector3> { Vector3.up * 0.58f, Vector3.up * 0.7f }, new List<float> { radius + 0.12f, radius + 0.12f }, sides, g.Bark * 1.05f, FloraPart.Bark);
+            // The rim's top: a flat stone ring from just inside the wall out to the rim's edge (from above, the gap
+            // between the wall and the rim showed the ground below, Z-12).
+            var rimTop = b.VertexCount;
+            for (int k = 0; k < sides; k++)
+            {
+                var a = k * Mathf.PI * 2f / sides;
+                var round = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                b.Vertex(round * (radius - 0.08f) + Vector3.up * 0.7f, Vector3.up, g.Bark * 1.05f, FloraPart.Bark, 1f);
+                b.Vertex(round * (radius + 0.12f) + Vector3.up * 0.7f, Vector3.up, g.Bark * 1.05f, FloraPart.Bark, 1f);
+            }
+            for (int k = 0; k < sides; k++)
+            {
+                int inner0 = rimTop + k * 2, inner1 = rimTop + (k + 1) % sides * 2;
+                b.Triangle(inner0, inner1, inner0 + 1);
+                b.Triangle(inner0 + 1, inner1, inner1 + 1);
+            }
+            // The water itself is drawn by FloraSystem with the terrain's water (Pools); this disc, just under it, stands in
+            // beyond the range it's drawn to.
             var water = s.Foliage.linear;
-            b.Blob(Vector3.up * 0.66f, new Vector3(radius * 0.97f, 0.03f, radius * 0.97f), Quaternion.identity, g.Sides(2, 1, 1), 0f, 0f, water, FloraPart.Metal);
+            b.Blob(Vector3.up * 0.64f, new Vector3(radius * 0.97f, 0.03f, radius * 0.97f), Quaternion.identity, g.Sides(2, 1, 1), 0f, 0f, water, FloraPart.Metal);
+            g.Pools.Add(new Vector4(0f, 0.66f, 0f, radius * 0.97f));
 
             // A pillar holding up a smaller bowl, brimming, with a finial on top.
             b.Tube(new List<Vector3> { Vector3.up * 0.5f, Vector3.up * height * 0.72f }, new List<float> { 0.22f, 0.16f }, g.Sides(8, 6, 4), g.Bark, FloraPart.Bark);
             g.Colliders.Add(new Vector4(0f, 0f, 0.3f, height * 0.72f));
             b.Blob(Vector3.up * height * 0.75f, new Vector3(radius * 0.38f, 0.14f, radius * 0.38f), Quaternion.identity, g.Sides(2, 1, 1), 0f, 0f, g.Bark, FloraPart.Bark);
-            b.Blob(Vector3.up * (height * 0.75f + 0.1f), new Vector3(radius * 0.34f, 0.03f, radius * 0.34f), Quaternion.identity, 1, 0f, 0f, water, FloraPart.Metal);
+            b.Blob(Vector3.up * (height * 0.75f + 0.08f), new Vector3(radius * 0.34f, 0.03f, radius * 0.34f), Quaternion.identity, 1, 0f, 0f, water, FloraPart.Metal);
+            g.Pools.Add(new Vector4(0f, height * 0.75f + 0.1f, 0f, radius * 0.34f));
             b.Tube(new List<Vector3> { Vector3.up * height * 0.78f, Vector3.up * height }, new List<float> { 0.09f, 0.03f }, g.Sides(6, 4, 3), g.Bark, FloraPart.Bark, cap: true);
         }
 

@@ -139,7 +139,7 @@ namespace Punchy.Flora
         float nextConfigCheck;
 
         World queryWorld;
-        EntityQuery terrainQuery, paletteQuery, playerQuery;
+        EntityQuery terrainQuery, paletteQuery, playerQuery, configQuery;
         Entity obstacleEntity;
         /// <summary>Every model's support grid (a SupportGrids singleton) and, per model, its grid's index (-1 none).</summary>
         BlobAssetReference<SupportGridSet> supportSet;
@@ -184,11 +184,88 @@ namespace Punchy.Flora
 
         void OnDisable() => Teardown();
 
+        // ------------------------------------------------------------------------------------------- fountains' water
+
+        /// <summary>A basin of water in a plant in a loaded tile (FloraModel.Pools: a fountain's), in the world.</summary>
+        struct Basin
+        {
+            public int Layer;
+            public int2 Tile;
+            public float3 Centre;
+            public float Radius;
+            public int Model;
+        }
+        readonly List<Basin> basins = new List<Basin>();
+        /// <summary>One water disc per model (its species' water colour baked in), made when first drawn.</summary>
+        readonly Dictionary<int, Mesh> basinMeshes = new Dictionary<int, Mesh>();
+        /// <summary>How far fountains' water is drawn with the terrain's water; beyond it their models' own discs stand in.</summary>
+        const float BasinRange = 80f;
+
+        /// <summary>Notes the basins of a newly loaded tile's plants (turned and scaled as the plants are).</summary>
+        void AddBasins(Layer l, int2 tile, NativeArray<FloraInstance> plants)
+        {
+            foreach (var plant in plants)
+            {
+                if (plant.Model < 0 || plant.Model >= models.Count || models[plant.Model].Pools.Count == 0)
+                    continue;
+                float c = math.cos(plant.Yaw), sn = math.sin(plant.Yaw);
+                foreach (var pool in models[plant.Model].Pools)
+                {
+                    var offset = new float2(pool.x * c - pool.z * sn, pool.x * sn + pool.z * c) * plant.Scale;
+                    basins.Add(new Basin
+                    {
+                        Layer = l.Index,
+                        Tile = tile,
+                        Centre = plant.Position + new float3(offset.x, pool.y * plant.Scale, offset.y),
+                        Radius = pool.w * plant.Scale,
+                        Model = plant.Model
+                    });
+                }
+            }
+        }
+
+        /// <summary>
+        /// Fountains' water near the camera, drawn as the landmark pools are (CaveSystem): a disc in the terrain's water
+        /// material, so it ripples, reflects and catches the light as all other water does (Z-12; it was a shiny disc).
+        /// </summary>
+        void DrawBasins(float3 camPos)
+        {
+            // (Only called once TryGetWorld has made the queries.)
+            if (basins.Count == 0 || configQuery.IsEmpty)
+                return;
+            var water = configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value;
+            if (water == null)
+                return;
+            foreach (var basin in basins)
+            {
+                if (math.distance(basin.Centre, camPos) > BasinRange + basin.Radius)
+                    continue;
+                if (!basinMeshes.TryGetValue(basin.Model, out var mesh))
+                {
+                    var colour = models[basin.Model].Species.Foliage.linear;
+                    mesh = CaveSystem.MakePoolMesh(new float4(colour.r, colour.g, colour.b, 0.1f), 0f);
+                    mesh.name = "Fountain basin";
+                    basinMeshes[basin.Model] = mesh;
+                }
+                var rp = new RenderParams(water)
+                {
+                    worldBounds = new Bounds(basin.Centre, new Vector3(basin.Radius * 2f, 1f, basin.Radius * 2f)),
+                    shadowCastingMode = ShadowCastingMode.Off,
+                    receiveShadows = true
+                };
+                Graphics.RenderMesh(rp, mesh, 0, Matrix4x4.TRS(basin.Centre, Quaternion.identity, new Vector3(basin.Radius, 1f, basin.Radius)));
+            }
+        }
+
         void Teardown()
         {
             foreach (var l in layers)
                 l?.Release();
             Array.Clear(layers, 0, layers.Length);
+            basins.Clear();
+            foreach (var mesh in basinMeshes.Values)
+                Destroy(mesh);
+            basinMeshes.Clear();
             foreach (var m in models)
                 m.Destroy();
             models.Clear();
@@ -240,6 +317,7 @@ namespace Punchy.Flora
             if (!hidden)
             {
                 Draw(cam);
+                DrawBasins(cam.transform.position);
                 DrawBolts(source, camXZ);
             }
         }
@@ -257,6 +335,7 @@ namespace Punchy.Flora
             {
                 var em = world.EntityManager;
                 terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+                configQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainConfig>());
                 paletteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
                 playerQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
                 // Other players by their NetPlayer ghosts' transforms (not their avatars' CreatureState, which waits on
@@ -392,6 +471,7 @@ namespace Punchy.Flora
                 {
                     l.Tiles[key].Dispose();
                     l.Tiles.Remove(key);
+                    basins.RemoveAll(b => b.Layer == l.Index && b.Tile.Equals(key));
                 }
                 if (scratch.Count > 0)
                 {
@@ -474,6 +554,7 @@ namespace Punchy.Flora
                     if (cells[i].Model >= 0)
                         plants[n++] = cells[i];
                 l.Tiles[tile] = plants;
+                AddBasins(l, tile, plants);
             }
             l.PlacingTiles.Dispose();
             l.PlacingOutput.Dispose();
