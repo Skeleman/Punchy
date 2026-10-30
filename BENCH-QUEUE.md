@@ -17,3 +17,4 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
 5. Re-bench townwalk cap 60 on animal-behaviours 6d0fbff vs a4521a2 (EaseGait trimmed: feet compensation within 30 m, jitter skip).
 6. Bench a lake with swimmers (ducks) on world-features 793f103 vs 3d1893d: water shader swimmer loop (up to 16 per pixel within 12 m).
 7. Move the lake look stop: (1103,132,1540) is now dry shore (F-22 removed the hanging water). Use camera ~(1110,146,1545) looking at (1135,141,1570); open water at (1125,141.4,1560).
+8. When animal-behaviours next pushes: townwalk cap-60 capture split by the new BrainJob ProfilerMarkers (Brain.Hunter/Predator/Chaser/Alarm/Playmate/Needs/Fidget/Decide/Advance/EaseGait) against a4521a2. Glacier lake stop (item 7) waits on the world session.
