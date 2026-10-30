@@ -2,6 +2,42 @@
 
 Newest first.
 
+## 2026-10-30 06:09: Unity slot (05:38-06:08): worms and trunk-hug checked in builds; Unity closed
+Built through the runner's `build()` on the main checkout, then put it back (b/weather-mapjob, clean). Test commit
+`t/animal-slot` (local only) = wip/trunk-hug + the world lane's worm shader 89ae558, cherry-picked. Shots and contact
+sheets: `Punchy-wt/Tools/bench/results/animal-slot/<run>/` (worm, climb-host/-client, climb-*-1 = the first build, npc).
+1. **Compile: PASS.** 5192485, then eeb373e: 0 errors, no warnings in the files I touched. Includes 149e4b0.
+2. **Snow worm: PASS.** `-place Glacier -spawn SnowWorm:2 -watch SnowWorm`, 121 shots, 0 exceptions, no NaN-bounds
+   lines. Two breaches about 16 s apart: it rises about 8 m in an arc and dives back. Snow puffs and a small crater
+   show where it breaks out (worm-026).
+3. **Joint look (for the world lane), partial:**
+   - The breach crater shows at the break-out point (worm-026).
+   - The big round holes in worm-009/013/015/060/090 are probably the Glacier: Grotto cave's entrance, not worm
+     marks; the run started at that cave.
+   - Not captured: the mound and furrow under the snow. `-watch` follows the buried worm, so the camera keeps going
+     under the ground (worm-005/024/029).
+   - Two oddities: a hard-edged dark band on the worm's body in mid-arc (worm-027/028), and the body's segments
+     looking apart under the ground (worm-029, seen only from below).
+   - A proper look needs a fixed camera over flat snow away from caves.
+4. **wip/trunk-hug: PASS on contact, one test-hook bug found and fixed.**
+   - **Hook bug, first build:** the test player stayed at the top of the trunk on its far side all run. The hook
+     steered at the trunk spot it logged, which is a few tenths of a metre off the collider. With the feet on the
+     bark, that was enough sideways push to walk it round the trunk, and from there heading home climbed. Fixed in
+     80f2c22 (debug-only): up a trunk it pushes straight at, or straight away from, the trunk it holds.
+   - **Second build:** Net status alternates between the top and the foot every 10 s, so it climbs and comes down
+     again. The client's shots (climb-00/09/36) show the player Monkey with its paws and feet on the bark, where
+     the gate had a half-metre gap.
+   - Still open: it climbs on the far side of the trunk from where it starts (x ≈ -268 against a logged trunk at
+     -267.2). That fits a trunk collider offset from the logged spot, but I haven't confirmed it; a log line of
+     TrunkBase would. Whether it pops at the foot can't be judged from 2 s shots; that needs a short burst at about
+     0.2 s.
+   - **NPC climbers:** solo `-spawn Monkey:4 -watch Monkey` caught one going up (npc-53..56) and one coming down
+     (npc-23..26). Feet at the trunk's edge, no visible gap, although depth is ambiguous from that angle.
+- wip/trunk-hug is 6d231af, f6fb2dd, 80f2c22. Ready to merge into animal-behaviours on your go; the far-side question
+  and the foot-pop burst can follow.
+- **Unity closed:** no Unity, Punchy or bee_backend processes, and the bench lock is clear.
+- NEXT: idle.
+
 ## 2026-10-30: NPC climbers on wip/trunk-hug too (f6fb2dd)
 - **DONE, code-checked only:** `CreatureBrainSystem.Climb` now puts an NPC climber's feet on the bark while it's up the
   trunk, the same as the player's. An NPC has no collision radius, so at the foot (and out on a branch) it keeps the
