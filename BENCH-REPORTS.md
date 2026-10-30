@@ -2,6 +2,19 @@
 
 Newest first.
 
+## 2026-10-29 evening: queue item 3 (capture for audit item 1, a4521a2)
+Dev build, uncapped, town and townwalk (plus item 2's townwalk cap-60). No frames > 33 ms in either uncapped capture
+(town median 11.4 ms, townwalk 11.2), so "doubles on spike frames" couldn't be tested here.
+- **Pose half: confirmed.** The main thread runs a slice of PoseJob itself on every frame (1.0 call/frame, 0.15-0.25
+  ms): CreatureRenderSystem schedules and Complete()s it in the same update, so the main thread waits on posing.
+- **Brain half: present, not yet attributed.** The main thread runs BrainJob work on 20-60% of frames (0.2-0.6
+  calls/frame, mean 0.14-0.50 ms), so something completes BrainJob mid-frame. CreatureRenderSystem's update is
+  0.93-1.10 ms inclusive vs ~0.6 self, consistent with it being the waiter, but the analyzer's flat markers can't say
+  which system calls Complete. Needs the hierarchy view (or a ProfilerMarker round the render snapshot) to confirm.
+- **Size:** main-thread job waiting (JobHandle.Complete inclusive) 1.1-1.7 ms a frame, ~10-15% of an 11 ms frame.
+  Workers are mostly idle, so overlapping brain and pose would mainly shorten the main thread, not free workers.
+  Worth doing, not urgent. Not a cause of spikes at these stops. [animal]
+
 ## 2026-10-29 evening: queue item 2 (re-queued after the pause)
 Laptop, 1280x720 windowed, weatherseed 4, noon, ABBA. Same island throughout (townwalk ends (366, -406), glide
 (1197, 359), cave (-2677, -697), caveapproach (-2773, -726)); 0 exceptions. Smoke/ab take no screenshots.

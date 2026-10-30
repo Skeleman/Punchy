@@ -4,6 +4,8 @@ Read-only, on rc/v0.9.0 4d7e986 (2026-10-29). Pattern searches plus focused read
 2.4 MB. Ranked by impact within each part. Owning lane in brackets. Part 2 (netcode, streaming and caches) is below.
 
 ## 1. BrainJob and PoseJob never overlap [animal]
+- Status (queue item 3, a4521a2): pose wait confirmed; brain wait present on 20-60% of frames, not yet attributed
+  to the render snapshot; 1.1-1.7 ms main thread a frame, not a spike cause. See BENCH-REPORTS.
 - `CreatureBrainSystem.cs:107-111` snapshots every creature on the main thread, then schedules BrainJob (writes
   CreatureState).
 - `CreatureRenderSystem.cs:434-436` snapshots CreatureState again with ToComponentDataArray, which completes BrainJob
