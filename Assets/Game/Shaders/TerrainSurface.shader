@@ -159,7 +159,8 @@ Shader "Punchy/Terrain Surface"
                 half3 normalWS = NormalizeNormalPerPixel(input.normalWS);
                 float2 p = input.positionWS.xz;
                 half burrowDarken = 0;
-                [branch] if (_PunchyBurrowerCount > 0)
+                // (Worms' marks only out to 150 m, as far as the feeder sends them: the far terrain skips the loop.)
+                [branch] if (_PunchyBurrowerCount > 0 && distance < 150)
                 {
                     float2 burrowTilt = BurrowMarks(p, burrowDarken);
                     normalWS = normalize(normalWS + half3(burrowTilt.x, 0, burrowTilt.y));
