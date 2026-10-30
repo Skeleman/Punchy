@@ -86,7 +86,9 @@ namespace Punchy.Fauna
                 ref var b = ref body.ValueRO.Blob.Value;
                 // (Another player's flying body: off the ground and well above it. The climb from how it rose.)
                 var was = s.ValueRO.Position;
-                Drive(ref s.ValueRW, ref b, transforms[ghost], looks[ghost].Grounded, dt);
+                Drive(ref s.ValueRW, ref b, transforms[ghost], looks[ghost].Grounded || looks[ghost].Climbing, dt);
+                // (Another player climbing: upright against the trunk or wall, as ours is.)
+                s.ValueRW.Vertical += ((looks[ghost].Climbing ? 1f : 0f) - s.ValueRO.Vertical) * math.min(1f, dt * 6f);
                 var flying = b.Habitat == Habitat.Flies && !looks[ghost].Grounded;
                 var run = math.distance(was.xz, s.ValueRO.Position.xz);
                 var pitch = run > 1e-4f ? math.atan2(s.ValueRO.Position.y - was.y, run) : 0f;

@@ -30,6 +30,8 @@ namespace Punchy.Net
         /// <summary>False until the owner has a player to report (so the ghost doesn't flash at the origin).</summary>
         public bool Valid;
         public bool Grounded;
+        /// <summary>Climbing a trunk or wall (the body upright against it).</summary>
+        public bool Climbing;
         /// <summary>Index into the playable species table (NetAvatars), or -1 for no body (the capsule shows).</summary>
         public int Species;
         public uint Individual;
@@ -49,6 +51,8 @@ namespace Punchy.Net
         [GhostField] public uint Individual;
         [GhostField] public int Coat;
         [GhostField] public bool Grounded;
+        /// <summary>Climbing a trunk or wall: others pose its body upright against it.</summary>
+        [GhostField] public bool Climbing;
         /// <summary>Petting, carrying or an emote (an IdleAction), so the others see it.</summary>
         [GhostField] public byte Pose;
     }
@@ -154,6 +158,7 @@ namespace Punchy.Net
                 command.Position = t.ValueRO.Position;
                 command.Yaw = math.atan2(forward.x, forward.z);
                 command.Grounded = motion.ValueRO.Grounded;
+                command.Climbing = motion.ValueRO.OnTrunk || motion.ValueRO.OnWall;
                 command.Valid = true;
             }
             // How our body looks, so the others draw the same individual.
@@ -194,7 +199,7 @@ namespace Punchy.Net
                     continue;
                 transform.ValueRW.Position = c.Position;
                 transform.ValueRW.Rotation = quaternion.RotateY(c.Yaw);
-                look.ValueRW = new NetPlayerLook { Species = c.Species, Individual = c.Individual, Coat = c.Coat, Grounded = c.Grounded, Pose = c.Pose };
+                look.ValueRW = new NetPlayerLook { Species = c.Species, Individual = c.Individual, Coat = c.Coat, Grounded = c.Grounded, Climbing = c.Climbing, Pose = c.Pose };
             }
         }
     }
