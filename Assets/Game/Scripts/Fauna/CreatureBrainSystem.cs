@@ -41,6 +41,13 @@ namespace Punchy.Fauna
     public partial struct CreatureBrainSystem : ISystem
     {
         const float CellSize = 16f;
+        // (For the profiler, as on animal-behaviours since ea3bdad: the brain's moving, and inside it its ground, water and
+        // wall samples, its gait, and one empty mark per creature that moves, so the profiler's calls a frame count the
+        // movers.)
+        static readonly Unity.Profiling.ProfilerMarker AdvanceMarker = new Unity.Profiling.ProfilerMarker("Brain.Advance");
+        static readonly Unity.Profiling.ProfilerMarker SampleMarker = new Unity.Profiling.ProfilerMarker("Brain.Sample");
+        static readonly Unity.Profiling.ProfilerMarker PhaseMarker = new Unity.Profiling.ProfilerMarker("Brain.Phase");
+        static readonly Unity.Profiling.ProfilerMarker MovingMarker = new Unity.Profiling.ProfilerMarker("Brain.Moving");
         EntityQuery creatures;
         /// <summary>Where each player was last frame (by Holder id), for how fast they're going.</summary>
         NativeHashMap<int, float3> lastPlayerPositions;
@@ -5155,14 +5162,23 @@ namespace Punchy.Fauna
             /// </summary>
             void Advance(ref CreatureState s, ref CreatureBlob b, float dt, bool keepHeight = false)
             {
+                using var profiled = AdvanceMarker.Auto();
                 var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                if (s.Speed > 0f)
+                {
+                    MovingMarker.Begin();
+                    MovingMarker.End();
+                }
                 if (b.Crawls && CaveWalker(s, ref b))
                 {
+                    SampleMarker.Begin();
                     Crawl(ref s, ref b, dt);
+                    SampleMarker.End();
                     return;
                 }
                 if (CaveWalker(s, ref b))
                 {
+                    SampleMarker.Begin();
                     // On the passage floor, never into rock: blocked, it slides along the wall (the nearest open way
                     // to either side of its heading, turning towards it), or stops.
                     var step = s.Speed * dt;
@@ -5195,9 +5211,12 @@ namespace Punchy.Fauna
                     // Onto the floor: up a step at once, down off a ledge falling.
                     if (CaveFloorAt(s.Position.xz, s.Position.y, out var floorY))
                         s.Position.y = floorY > s.Position.y ? floorY : math.max(floorY, s.Position.y - dt * 6f);
-                    CreatureMotion.AdvancePhase(ref s, ref b, dt);
+                    SampleMarker.End();
+                    using (PhaseMarker.Auto())
+                        CreatureMotion.AdvancePhase(ref s, ref b, dt);
                     return;
                 }
+                SampleMarker.Begin();
                 var to = s.Position.xz + forward * s.Speed * dt;
                 if (s.Speed > 0f && WalksRoundWalls(in s, ref b, keepHeight))
                 {
@@ -5289,7 +5308,9 @@ namespace Punchy.Fauna
                     }
                     s.Position.y = y;
                 }
-                CreatureMotion.AdvancePhase(ref s, ref b, dt);
+                SampleMarker.End();
+                using (PhaseMarker.Auto())
+                    CreatureMotion.AdvancePhase(ref s, ref b, dt);
             }
 
             /// <summary>
