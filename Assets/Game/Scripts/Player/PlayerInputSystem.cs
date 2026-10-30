@@ -84,7 +84,7 @@ namespace Punchy.Player
             if (math.lengthsq(direction) > 1f)
                 direction = math.normalize(direction);
             // Typing a join code or address in the multiplayer panel shouldn't walk the player around.
-            var typing = Punchy.Net.NetMenu.IsOpen;
+            var typing = Punchy.UI.Overlay.AnyOpen;
             if (typing && !autowalk)
                 direction = float2.zero;
 

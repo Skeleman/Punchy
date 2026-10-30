@@ -32,6 +32,11 @@ namespace Punchy.Terrain
         [Min(0.1f)] public float GrassDensityScale = 1f;
         [Tooltip("Within this distance every blade is kept; beyond it grass thins (fewer, wider blades) to the radius.")]
         [Min(1f)] public float FullDensityRadius = 20f;
+
+        // At the graphics settings' Detail distance (GraphicsSettings: the fields above are the ranges at Detail 1).
+        float GrassRange => Punchy.Settings.GraphicsSettings.DetailRange(GrassRadius);
+        float PebbleRange => Punchy.Settings.GraphicsSettings.DetailRange(PebbleRadius);
+        float FullDensityRange => Punchy.Settings.GraphicsSettings.DetailRange(FullDensityRadius);
         [Tooltip("How much the ground under grass takes the blades' colour near the camera, so gaps between blades don't read as bare soil.")]
         [Range(0f, 1f)] public float GroundTint = 1f;
         [Tooltip("Stones per square metre on full-density pebbly ground.")]
@@ -140,15 +145,15 @@ namespace Punchy.Terrain
                 hasSource = true;
             }
 
-            Shader.SetGlobalFloat(FullId, FullDensityRadius);
-            Shader.SetGlobalVector(GrassTintId, new Vector4(GroundTint, GrassRadius, 0f, 0f));
+            Shader.SetGlobalFloat(FullId, FullDensityRange);
+            Shader.SetGlobalVector(GrassTintId, new Vector4(GroundTint, GrassRange, 0f, 0f));
 
             if (playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 Shader.SetGlobalVector(PlayerId, new Vector4(player.Position.x, player.Position.y, player.Position.z, 0f));
             SetOthers(cam.transform.position);
 
             var camXZ = new float2(cam.transform.position.x, cam.transform.position.z);
-            var radius = math.max(GrassRadius, PebbleRadius);
+            var radius = math.max(GrassRange, PebbleRange);
             UnloadFarTiles(camXZ, radius + TileSize * 1.5f);
             BuildMissingTiles(source, camXZ, radius);
             Draw(cam, camXZ);
@@ -169,7 +174,7 @@ namespace Punchy.Terrain
                     if (em.HasComponent<Unity.NetCode.GhostOwnerIsLocal>(e) && em.IsComponentEnabled<Unity.NetCode.GhostOwnerIsLocal>(e))
                         continue;
                     var p = em.GetComponentData<LocalTransform>(e).Position;
-                    if (math.lengthsq(p) < 1e-6f || math.distance(p, camera) > GrassRadius)
+                    if (math.lengthsq(p) < 1e-6f || math.distance(p, camera) > GrassRange)
                         continue;
                     if (used < othersPos.Length)
                         othersPos[used++] = new Vector4(p.x, p.y, p.z, 1f);
@@ -280,8 +285,8 @@ namespace Punchy.Terrain
                 if (!GeometryUtility.TestPlanesAABB(frustum, tile.Bounds))
                     continue;
                 var nearest = math.distance(camXZ, math.clamp(camXZ, (float2)kv.Key * TileSize, ((float2)kv.Key + 1f) * TileSize));
-                DrawSet(tile.Grass, tile.GrassCount, tile.GrassProps, GrassMaterial, GrassVertices, nearest, GrassRadius, tile.Bounds);
-                DrawSet(tile.Pebbles, tile.PebbleCount, tile.PebbleProps, PebbleMaterial, PebbleVertices, nearest, PebbleRadius, tile.Bounds);
+                DrawSet(tile.Grass, tile.GrassCount, tile.GrassProps, GrassMaterial, GrassVertices, nearest, GrassRange, tile.Bounds);
+                DrawSet(tile.Pebbles, tile.PebbleCount, tile.PebbleProps, PebbleMaterial, PebbleVertices, nearest, PebbleRange, tile.Bounds);
             }
         }
 
@@ -306,7 +311,7 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Fraction of instances kept at a distance (must match DetailThinning in GroundDetail.hlsl).</summary>
-        float Thinning(float distance, float radius) => math.lerp(1f, 0.12f, math.smoothstep(FullDensityRadius, radius, distance));
+        float Thinning(float distance, float radius) => math.lerp(1f, 0.12f, math.smoothstep(FullDensityRange, radius, distance));
 
         bool TryGetSource(out TerrainSource source)
         {

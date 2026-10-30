@@ -141,7 +141,7 @@ namespace Punchy.Ambience
                 }
             }
             foreach (var t in types)
-                radius = math.max(radius, t.Range);
+                radius = math.max(radius, Punchy.Settings.GraphicsSettings.DetailRange(t.Range));
             lastSource = source;
             built = true;
         }
@@ -261,13 +261,13 @@ namespace Punchy.Ambience
                 var material = type.Style == AmbientParticleStyle.Glow ? GlowMaterial : MistMaterial;
                 foreach (var tile in tiles.Values)
                 {
-                    if (tile.Counts[t] == 0 || math.distance(new float2(tile.Bounds.center.x, tile.Bounds.center.z), camXZ) > type.Range + TileSize)
+                    if (tile.Counts[t] == 0 || math.distance(new float2(tile.Bounds.center.x, tile.Bounds.center.z), camXZ) > Punchy.Settings.GraphicsSettings.DetailRange(type.Range) + TileSize)
                         continue;
                     var props = tile.Props[t];
                     props.SetVector(ColorId, type.Color);
                     props.SetVector(SizeId, new Vector4(type.Size.x, type.Size.y, type.Height.x, type.Height.y));
                     props.SetVector(MotionId, new Vector4(type.Wander, type.Rise, type.WindDrift, type.Travel));
-                    props.SetVector(ShapeId, new Vector4(type.Twinkle, amount, type.Range, 0f));
+                    props.SetVector(ShapeId, new Vector4(type.Twinkle, amount, Punchy.Settings.GraphicsSettings.DetailRange(type.Range), 0f));
                     var rp = new RenderParams(material)
                     {
                         worldBounds = tile.Bounds,

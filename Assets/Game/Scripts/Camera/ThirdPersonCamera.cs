@@ -168,8 +168,8 @@ namespace Punchy.CameraRig
 
         void HandleCursor()
         {
-            // The multiplayer panel (F2) needs the mouse; take it back once the panel closes.
-            if (Punchy.Net.NetMenu.IsOpen)
+            // A panel (F2 multiplayer, F5 graphics) needs the mouse; take it back once it closes.
+            if (Punchy.UI.Overlay.AnyOpen)
             {
                 if (Cursor.lockState == CursorLockMode.Locked)
                     SetCursorCaptured(false);
