@@ -94,6 +94,13 @@ namespace Punchy.Fauna
                 var pitch = run > 1e-4f ? math.atan2(s.ValueRO.Position.y - was.y, run) : 0f;
                 Wings(ref s.ValueRW, ref b, flying, pitch, pitch > 0.1f, dt);
                 Pose(ref s.ValueRW, ref b, (IdleAction)looks[ghost].Pose, dt, terrain);
+                // (Another player climbing onto a ledge: its hands on the rim, a little ahead of it at the height it sent.)
+                if (looks[ghost].Rim > 0)
+                {
+                    var p = s.ValueRO.Position;
+                    var ahead = new float2(math.sin(s.ValueRO.Yaw), math.cos(s.ValueRO.Yaw)) * 0.4f * math.max(s.ValueRO.Scale, 0.3f);
+                    s.ValueRW.Anchor = new float3(p.x + ahead.x, p.y + Punchy.Net.NetPlayerSendSystem.RimFromByte(looks[ghost].Rim), p.z + ahead.y);
+                }
             }
         }
 
