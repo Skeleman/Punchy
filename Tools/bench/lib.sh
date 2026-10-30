@@ -224,9 +224,10 @@ mpsmoke() { # outdir commit: the host's numbers alone vs with a client on this m
   solo() { runcsv $out mp-$c-solo solo 60 $r -host -benchwait 45 -benchstops town,townwalk -fpscap 60; }
   joined() {
     # the client is the same exe (one firewall rule), capped so its own cost stays out of the way. A join gives up
-    # after 15 s (NetMenu.JoinTimeout), so it starts only once the host's world is up; no host world in 2 min, no client.
+    # after 15 s (NetMenu.JoinTimeout), so it starts only once the host's world is up. It waits as long as the host's own timeout (900 s), since run()
+    # first waits for the GPU to cool, which can take minutes after the previous run.
     local hostlog="$R/q-mp-$c-joined-c60-$r.log"; rm -f "$hostlog"
-    ( for i in $(seq 1 120); do
+    ( for i in $(seq 1 900); do
         if grep -q "BenchRoute: world ready" "$hostlog" 2>/dev/null; then
           cd "$P/Builds/Bench" && timeout 900 ./Punchy.exe -logFile "$W/q-mp-$c-client-$r.log" -benchclient -join 127.0.0.1 -autowalk -fpscap 20 -nohud $(screen Bench 480 270) >/dev/null 2>&1
           exit 0
