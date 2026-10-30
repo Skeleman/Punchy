@@ -674,6 +674,11 @@ namespace Punchy.Fauna
                 if (!networked || math.lengthsq(t.Position) > 1e-6f)
                     players.Add(t.Position);
             transforms.Dispose();
+            // (Someone joined or left: the head counts per player grow or shrink with them now, not at the next tally,
+            // which comes only a few times a second; until then the new player's are nought.)
+            var size = math.max(1, players.Count) * species.Count;
+            if (counts == null || counts.Length != size)
+                System.Array.Resize(ref counts, size);
         }
 
         float NearestPlayer(float2 xz)
