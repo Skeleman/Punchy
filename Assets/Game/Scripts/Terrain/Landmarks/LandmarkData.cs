@@ -288,7 +288,7 @@ namespace Punchy.Terrain
             }
         }
 
-        /// <summary>Darker of the ground's own colour, as worn by people standing about.</summary>
+        /// <summary>Trodden ground's colour as a share of the ground's own (worn darker by people standing about).</summary>
         const float TroddenDarken = 0.6f;
 
         /// <summary>
