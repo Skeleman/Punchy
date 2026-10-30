@@ -2,6 +2,27 @@
 
 Newest first.
 
+## 2026-10-30: cave-hitch A/B (world-laptop/cave-hitch d14f556 vs 1cbdd9f): PASS
+d14f556 = MaxBuildFrames 4 → 60, one commit on 1cbdd9f. Cap 0, ABBA, 2 rounds, same island (every stop ends at the
+same x,z in both builds), 0 exceptions.
+| Stop | 1cbdd9f worst ms (r1/r2) | d14f556 worst ms | 1% low | avg |
+|---|---|---|---|---|
+| caveapproach | 138.6 / 108.0 | 24.3 / 27.2 | 30.9 → 52.5 | 96.3 → 98.2 |
+| dash | 43.5 / 72.1 | 41.0 / 24.5 | 21.5 → 41.2 | 79.1 → 95.9 |
+| glide | 40.2 / 33.4 | 41.3 / 33.1 | 36.1 → 37.2 | 79.7 → 79.7 |
+- The caveapproach hitch (item 10) is gone: no 5 s window over 25 ms (before: 77-139 ms spikes in 5 of 7 windows).
+  Dash slow frames 26 → 2. Glide unchanged.
+- Shots at the end of every stop (results/shots-cave-<c>-r<n>/) match between builds: same framing, no holes,
+  no missing terrain or flora. They're end-of-stop frames only, so pop-in mid-flight isn't covered; nothing
+  late at the glide or dash end points.
+
+## 2026-10-30: test hooks on wip/test-hooks 0019e8a: tree PASS, ledge picked a hut roof
+- Tree (`-body Monkey -place tree:Oak -autowalk`): lone Oak at (-267, 27), 10 m; on the trunk at t23 (y 40,
+  ground 36), in the crown at t27, back down by t38. Watch: `-goto -264.2,37.7 -camlook -264.2,40.3,33.7,-267.2,38.8,26.7`.
+- Ledge (`-place ledge -autowalk`): rim (152.0, 27.3, -439.2), 1.3 m up, but it's the eave of a conical thatched
+  hut roof in HumanVillage; the Human stands on the roof from t21 to t71 and never drops back. zache-db is fixing the
+  picker (flat tops) before the rc. [animal]
+
 ## 2026-10-30: item 12 (remote climbing/mantle MP check): BLOCKED on a test hook
 Both wire fields are on animal-behaviours (6d70335 Climbing, 2a8007a Rim). To check them two-instance on the laptop I
 need the host to climb and mantle by itself, then frame it from the client with -camlook + -shot. Today
