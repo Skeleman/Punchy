@@ -1195,7 +1195,15 @@ namespace Punchy.Flora
                 // The cap, and darker gills underneath it. A glowing giant's cap is plain (a natural colour between its
                 // glow and its stem's), its light only in the veins of its gills (G-31/F-46: not mostly glowing).
                 var glowingGiant = giant && s.Finish == FoliageFinish.Glowing;
-                var capColor = glowingGiant ? Color.Lerp(color, g.Bark, 0.6f) * 0.75f : color;
+                // ...and leans brown, from dark umber to tawny, keeping a hint of its kind's hue, so the forest's crowns read as
+                // one earthy canopy rather than pastel green, violet and blue (Z-38).
+                // (Drawn only for them, so other mushrooms' random draws and shapes stay as they were.)
+                var capColor = color;
+                if (glowingGiant)
+                {
+                    var brown = Color.Lerp(new Color(0.34f, 0.22f, 0.13f), new Color(0.56f, 0.42f, 0.27f), g.R()).linear;
+                    capColor = Color.Lerp(Color.Lerp(color, g.Bark, 0.6f) * 0.75f, brown, 0.6f);
+                }
                 var cap = b.Blob(top + tilt * Vector3.up * capHeight * 0.25f, new Vector3(capRadius, capHeight, capRadius), tilt,
                                  g.Lod == 0 ? 2 : g.Lod == 1 ? 1 : 0, 0.06f, seed, capColor, glowingGiant ? FloraPart.Bark : FloraPart.Foliage);
                 // Giants: a near-flat underside (the cap's lower half squashed in its own frame), so the gills under it
