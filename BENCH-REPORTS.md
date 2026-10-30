@@ -2,6 +2,18 @@
 
 Newest first.
 
+## 2026-10-30: items 11 and 8 on animal-behaviours ea3bdad
+- **Item 11, host/join: the join fix works.** 0 IndexOutOfRange and 0 exceptions on host and client, both rounds
+  (the client in game with 2 players, 78-141 animals). Host cap-60 with the client joined vs solo: town 1% low
+  32.6 → 26.6, townwalk 32.3 → 26.0 (same-laptop client), the same as 39f5558 and 4ec2cab.
+- **Item 8, cap-60 townwalk, Brain.* split (one capture each):** Workers BrainJob a4521a2 2.24 → 6d0fbff 2.18 →
+  ea3bdad 2.03 ms (e4010f2 was 1.58). Inside it, **Brain.Advance is 1.16 ms (57%)**, and on spike frames it grows
+  1.15 → 1.82 ms. Brain.Predator 0.04 and Brain.Alarm 0.03; Hunter, Chaser, Playmate, Needs, Fidget, Decide and
+  EaseGait are each under ~0.03 ms (below the analyzer's cut-off, so not listed). About 0.8 ms of BrainJob is
+  outside every marker. Main-thread BrainJob 0.50 → 0.31 ms and CreatureWakeSystem 0.44 → 0.04 ms (fixed).
+  So the remaining growth over e4010f2 is in Advance (movement), not in the decisions. Note: the markers'
+  own overhead (~100 Advance calls a frame per worker) is in these numbers. [animal]
+
 ## 2026-10-30: for the supervisor: takeover checklist
 Zach says the project passes to kind-possum when your tokens run out. What the laptop can't do yet (no gh, no
 milestone page access, no messaging to main-PC lanes) and what the final handoff should cover:
