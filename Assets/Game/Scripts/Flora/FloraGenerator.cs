@@ -3081,17 +3081,18 @@ namespace Punchy.Flora
                     b.Blob(at, Vector3.one * g.Range(0.07f, 0.12f), Quaternion.identity, 0, 0.2f, g.R() * 50f, AccentAt(g, k + 1), FloraPart.Bark);
                 }
             // Trodden ground under it and in front where people stand (F-40): a ragged, slightly domed sheet at its foot
-            // (rim just under the ground, so it doesn't lift off a gentle slope), which the dirt band (Founded) turns
-            // into the ground's own colour, darker. Kept out of the foundation skirt, which would drop its rim 1.6 m.
+            // (rim a centimetre up, middle 8 cm: a rim under the ground buried all but the middle, under the counter),
+            // which the dirt band (Founded) turns into the ground's own colour, darker. Kept out of the foundation skirt,
+            // which would drop its rim 1.6 m.
             if (g.Lod < 2)
             {
-                var centre = b.Vertex(new Vector3(0f, 0.03f, depth * 0.15f), Vector3.up, g.Bark, FloraPart.Bark, 1f);
+                var centre = b.Vertex(new Vector3(0f, 0.08f, depth * 0.15f), Vector3.up, g.Bark, FloraPart.Bark, 1f);
                 const int spokes = 14;
                 for (int k = 0; k < spokes; k++)
                 {
                     var a = k / (float)spokes * Mathf.PI * 2f;
                     var reach = g.Range(0.85f, 1.1f);
-                    b.Vertex(new Vector3(Mathf.Cos(a) * (width * 0.5f + 0.6f) * reach, -0.1f, depth * 0.15f + Mathf.Sin(a) * (depth * 0.5f + 0.7f) * reach),
+                    b.Vertex(new Vector3(Mathf.Cos(a) * (width * 0.5f + 0.6f) * reach, 0.01f, depth * 0.15f + Mathf.Sin(a) * (depth * 0.5f + 0.7f) * reach),
                              Vector3.up, g.Bark, FloraPart.Bark, 1f);
                 }
                 for (int k = 0; k < spokes; k++)
