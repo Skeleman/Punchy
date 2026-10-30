@@ -342,7 +342,8 @@ namespace Punchy.Fauna
                     // A guard's right arm: bent to hold its weapon upright at its side once it's drawn, or raised forward
                     // with a torch; running at a beast, the weapon levelled at it, held low and forward at the hip. (With
                     // the weapon worn, or an elf's bow on its back, the arms swing free.)
-                    if (part.Role == LimbRole.Arm && part.Side > 0f && s.Task == CreatureTask.Patrol && (s.Held == HeldItem.SpearDrawn && b.GuardKit != GuardKit.Elf || s.Held == HeldItem.Torch))
+                    // (Anyone carrying a torch holds it up so, guard or not.)
+                    if (part.Role == LimbRole.Arm && part.Side > 0f && (s.Task == CreatureTask.Patrol && s.Held == HeldItem.SpearDrawn && b.GuardKit != GuardKit.Elf || s.Held == HeldItem.Torch))
                     {
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.8f);
                         var torch = s.Held == HeldItem.Torch;

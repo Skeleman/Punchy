@@ -962,11 +962,13 @@ namespace Punchy.Fauna
                     s.Held = ((s.Individual >> 5) & 1u) != 0 ? HeldItem.Stick : HeldItem.Stone;
                 else if (b.Hands && b.Upright)
                 {
-                    var dark = s.Held == HeldItem.Lantern ? Night > 0.4f : Night > 0.6f;
+                    var dark = s.Held == HeldItem.Lantern || s.Held == HeldItem.Torch ? Night > 0.4f : Night > 0.6f;
                     // (By the town's fire it has no need of one: put away.)
                     var about = s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Held && !(s.Mode == CreatureMode.Home && s.Stage >= 1) &&
                                 !(s.Mode == CreatureMode.Work && s.Stage >= 1) && !(s.Mode == CreatureMode.Sit && AtHearth(s.Stage));
-                    s.Held = dark && about ? HeldItem.Lantern : HeldItem.None;
+                    // (A lantern for the folk who make them; goblins and ogres carry a burning brand.)
+                    var light = b.GuardKit == GuardKit.Goblin || b.GuardKit == GuardKit.Ogre ? HeldItem.Torch : HeldItem.Lantern;
+                    s.Held = dark && about ? light : HeldItem.None;
                 }
                 s.Fly += (fly - s.Fly) * math.min(1f, dt * 6f);
                 s.Seed = rng.state;

@@ -842,6 +842,8 @@ namespace Punchy.Fauna
                     Lantern(state, ref body.Blob.Value, offset, held, faded);
                 else if (state.Task == CreatureTask.Patrol && (state.Held == HeldItem.Spear || state.Held == HeldItem.SpearDrawn || state.Held == HeldItem.Torch))
                     Guard(state, ref body.Blob.Value, offset, held, faded, entity.Index);
+                else if (state.Held == HeldItem.Torch)
+                    Torch(state, ref body.Blob.Value, offset, held, faded);
                 else if (state.Held == HeldItem.Rod)
                     Rod(state, ref body.Blob.Value, offset, held, faded, entity.Index);
                 else if (state.Held == HeldItem.Stick || state.Held == HeldItem.Stone)
@@ -1295,6 +1297,34 @@ namespace Punchy.Fauna
             /// held up and forward (the handle: its flame is FireSystem's). Running at a beast, the weapon is levelled
             /// at it, or raised.
             /// </summary>
+            /// <summary>
+            /// A torch carried by one of the folk out after dark (goblins, ogres): the brand in the right fist, held up and a
+            /// little forward, as a guard holds one (its flame is the world's, lit on the main thread from the top).
+            /// </summary>
+            void Torch(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
+            {
+                for (int i = 0; i < GuardParts; i++)
+                    Output[at + i] = default;
+                var hand = -1;
+                for (int i = 0; i < b.Parts.Length && hand < 0; i++)
+                    if (b.Parts[i].Role == LimbRole.Arm && b.Parts[i].Side > 0f)
+                        hand = b.Parts[i].FirstSegment + b.Parts[i].SegmentCount - 1;
+                if (hand < 0)
+                    return;
+                var scale = Unity.Mathematics.math.max(state.Scale, 0.3f);
+                var forward = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
+                var fist = Output[offset + hand];
+                fist.Length *= 0.5f;
+                fist.RadiusStart *= 1.25f;
+                fist.RadiusEnd *= 1.35f;
+                Output[offset + hand] = fist;
+                var grip = fist.Position + Unity.Mathematics.math.mul(fist.Rotation, new Unity.Mathematics.float3(0f, 0f, fist.Length * 0.6f));
+                var up = Unity.Mathematics.math.normalize(new Unity.Mathematics.float3(0f, 1f, 0f) + forward * 0.45f);
+                var handle = 0.5f * scale;
+                Output[at] = Piece(grip - up * handle * 0.35f, up, forward, handle, 0.02f * scale, 0.028f * scale, 1f,
+                                   new Unity.Mathematics.float4(0.16f, 0.1f, 0.05f, 0f), faded, SegmentMaterial.Wood);
+            }
+
             void Guard(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded, int id)
             {
                 for (int i = 0; i < GuardParts; i++)
