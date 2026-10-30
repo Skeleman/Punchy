@@ -61,6 +61,9 @@ namespace Punchy.Terrain
         public float Angle;
         [Tooltip("Placed ones keep everything else (plants, scattered props) this many metres away.")]
         [Min(0f)] public float Clearance = 4f;
+        [Tooltip("Placed ones (Count) stand on ground worn darker and bare this many metres round, reaching a little " +
+                 "further out in front, where people stand (market stalls). 0 = none.")]
+        [Min(0f)] public float Trodden;
     }
 
     /// <summary>A procedural effect drawn at a landmark by LandmarkEffectSystem.</summary>
