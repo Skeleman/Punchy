@@ -553,6 +553,22 @@ namespace Punchy.Fauna
                     }
                 }
 
+                // Climbing onto a ledge: the hands stay on its rim (Anchor, set as the climb began) while the body pulls
+                // up past them, the arms bending to keep them there, until it's over the top and pressing down instead.
+                if (part.Role == LimbRole.Arm && part.SegmentCount >= 2 && s.Action == IdleAction.Mantle && b.Upright &&
+                    math.lengthsq(s.Anchor) > 0f && part.FirstSegment + part.SegmentCount <= MaxSegments)
+                {
+                    var hold = 1f - math.smoothstep(0.45f, 0.7f, (s.ActionTime - 0.12f) / 0.73f);
+                    if (hold > 0.01f)
+                    {
+                        var s1 = part.FirstSegment + 1;
+                        var hand = segPos[s1] + math.mul(segRot[s1], new float3(0f, 0f, b.Segments[s1].Length * scale));
+                        var right = new float3(forward.z, 0f, -forward.x);
+                        var grip = s.Anchor + right * part.Side * 0.18f * scale;
+                        pos += PlaceFoot(ref b, ref part, ref segPos, ref segRot, (grip - hand) * hold, scale);
+                    }
+                }
+
                 endPos.Add(pos);
                 endRot.Add(rot);
             }

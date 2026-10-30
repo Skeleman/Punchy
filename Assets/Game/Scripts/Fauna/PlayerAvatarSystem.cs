@@ -67,6 +67,10 @@ namespace Punchy.Fauna
                     {
                         s.ValueRW.Action = IdleAction.Mantle;
                         s.ValueRW.ActionTime = 0.12f + 0.73f * math.saturate(motion.Mantle);
+                        // (Where its hands hold: on the rim, at the ledge's height, a little ahead of where it began.)
+                        var across = math.normalizesafe(motion.MantleTo.xz - motion.MantleFrom.xz);
+                        var rim = motion.MantleFrom.xz + across * 0.4f * math.max(s.ValueRO.Scale, 0.3f);
+                        s.ValueRW.Anchor = new float3(rim.x, motion.MantleTo.y, rim.y);
                     }
                 }
 
