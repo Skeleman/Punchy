@@ -364,3 +364,15 @@ asks Zach if needed, and records the answer here.
   playtest. More risk is accepted. The supervisor still drops anything that fails the gate rather than hold the release.
 - **Why:** Zach: "It will be riskier, but I'd like to see what else can be in before my tokens run out."
 - **Revisited:** 0.
+
+### J-041: Commit telemetry, and the profiler on a second Claude account
+
+- **Asked:** 2026-10-29, raised by Zach during the pause.
+- **Answer (2026-10-29):** Every commit appends a row to ~/.punchy-telemetry/commits.csv on its machine: time, tree,
+  branch, files and lines changed, plus the Claude session's model and the tokens it used since its previous commit
+  (from its transcript). The hooks live in hooks/ on the coordination branch; run `sh hooks/install.sh` once per
+  machine (it copies them to D:/Unity/PunchyHooks and sets core.hooksPath; Git LFS hooks are kept). Profiling
+  (kind-possum) moves to a different Claude account.
+- **Why:** Zach: "I want to add telemetry to commits using the git hook. Additionally, I want the profiling to run on
+  a different claude account."
+- **Revisited:** 0.
