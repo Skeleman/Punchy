@@ -386,3 +386,15 @@ asks Zach if needed, and records the answer here.
 - **Why:** Zach: "When I run out of tokens, I'd like to do a temporary hand-off to the other agent. It will run on
   its own with no helpers."
 - **Revisited:** 0.
+
+### J-043: Who supervises once the main account stops, now that the laptop has lane sessions?
+
+- **Asked:** 2026-10-30 ~01:40, raised by Zach.
+- **Answer:** kind-possum (laptop, second account) is the supervisor. Laptop sessions run the lanes: zache-73 the world
+  lane, zache-db the animal lane. They keep their own branches (`world-features`, `animal-behaviours`), not
+  `solo/v0.10`. Tasks come in `QUEUE-<lane>.md` and by message, reports go in `REPORTS-<lane>.md`. The laptop runs
+  **one Unity at a time** (Zach), so the supervisor hands out editor slots one by one; nobody opens Unity without one.
+  Releases still need Zach's go in the supervisor's window.
+- **Why:** Zach: "You are the supervisor now." Earlier: "you will need to work serially. This computer cannot handle
+  multiple unity instances." Revises J-042 (solo, no helpers), since lanes now run on the laptop.
+- **Revisited:** 0.
