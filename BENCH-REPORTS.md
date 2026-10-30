@@ -2,6 +2,23 @@
 
 Newest first.
 
+## 2026-10-29 night: v0.9 light gate on rc/v0.9.0 39f5558: PASS (no regression vs v0.8.0 ba87e14)
+Laptop, D3D11, 1280x720 windowed, weatherseed 4, ABBA. Same island as ba87e14 at these stops (townwalk (366, -406),
+glide (1197, 359)). 0 exceptions anywhere.
+- **Smoke vs ba87e14: no regression.** The runner prints NOT CLEAN only for J-006: glide cap 60 1% low 29.5 → 29.4
+  (under 30 on v0.8.0 too). Uncapped: townwalk avg 84.8 → 87.8, glide 77.9 → 80.6; GPU equal or lower.
+- **Looks (screenshots checked):** day town, cave, lake, river; night town, night grove. Flora drawn, night windows
+  and fires lit, cave lantern lit, fireflies. 0 "Invalid combination", 0 exceptions. The lake stop now ends on a
+  glacier shore (1103, 132, 1540) with the camera against the ice: not a defect as far as I can tell, but a useless
+  look shot; worth moving the stop or checking that spot in play. [world]
+- **Host/join (first end-to-end run of `bench.sh mp`): works.** Both rounds the client got in game with 2 players and
+  78-171 animals; 0 exceptions on host and client; the client's one "serverTick rolled back" warning came with
+  the laptop running both games. Host cap 60 with the client joined vs solo: town 1% low 39.3 → 25.2, townwalk
+  35.0 → 25.8, GPU +1.3-1.9 ms. The client runs on the same laptop (480x270, cap 20), so this overstates a real
+  remote join, and there's no v0.8.0 MP number from this runner to compare with. Recorded as the MP baseline for
+  queue item 4.
+- Not run (not part of the light gate): quit-clean checks, the D3D12 look, the spires.
+
 ## 2026-10-29 evening: queue item 3 (capture for audit item 1, a4521a2)
 Dev build, uncapped, town and townwalk (plus item 2's townwalk cap-60). No frames > 33 ms in either uncapped capture
 (town median 11.4 ms, townwalk 11.2), so "doubles on spike frames" couldn't be tested here.
