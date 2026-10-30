@@ -100,6 +100,7 @@ namespace Punchy.Terrain
                     MaxDistance = settings.MaxCarveDistance + cellSize * 1.5f,
                     Down = down, Width = width, Nearest = nearest
                 }.Schedule(bedDownhill).Complete();
+                LowerBreachedLakes(resolution, elevation, bed, water, lakes, lakeLevel);
 
                 var builder = new BlobBuilder(Allocator.Temp);
                 ref var root = ref builder.ConstructRoot<RiverMapBlob>();
@@ -149,6 +150,81 @@ namespace Punchy.Terrain
                 floor.Dispose();
                 nearest.Dispose();
             }
+        }
+
+        /// <summary>
+        /// A lake whose rim a river has cut through below its surface (a gorge alongside it, not its own outlet, which is cut
+        /// only to its level) can't hold that surface: it's lowered to half a metre above the breach, and cells left
+        /// shallower than the lakes' minimum stop being lake. Without this the lake's flat surface stood over the cut
+        /// as walls of water round dry pits (F-22, kind-possum's glacier lake at 1118, 1553).
+        /// </summary>
+        static void LowerBreachedLakes(int resolution, NativeArray<float> elevation, NativeArray<float> bed, NativeArray<float> water,
+                                       NativeArray<float> lakes, NativeArray<float> lakeLevel)
+        {
+            var count = lakes.Length;
+            var seen = new NativeArray<bool>(count, Allocator.Temp);
+            var stack = new NativeList<int>(256, Allocator.Temp);
+            var cells = new NativeList<int>(256, Allocator.Temp);
+            for (int start = 0; start < count; start++)
+            {
+                if (seen[start] || lakes[start] <= 0f)
+                    continue;
+                // One lake: the lake cells joined to this one.
+                cells.Clear();
+                stack.Clear();
+                stack.Add(start);
+                seen[start] = true;
+                var level = lakeLevel[start];
+                var breach = float.MaxValue;
+                while (stack.Length > 0)
+                {
+                    var c = stack[stack.Length - 1];
+                    stack.RemoveAt(stack.Length - 1);
+                    cells.Add(c);
+                    int x = c % resolution, z = c / resolution;
+                    for (int dz = -1; dz <= 1; dz++)
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        int nx = x + dx, nz = z + dz;
+                        if ((dx == 0 && dz == 0) || nx < 0 || nz < 0 || nx >= resolution || nz >= resolution)
+                            continue;
+                        var n = nz * resolution + nx;
+                        if (lakes[n] > 0f)
+                        {
+                            if (!seen[n])
+                            {
+                                seen[n] = true;
+                                stack.Add(n);
+                            }
+                        }
+                        else
+                            breach = math.min(breach, bed[n]);
+                    }
+                }
+                if (breach >= level - 2f)
+                    continue;
+                var lowered = breach + 0.5f;
+                foreach (var c in cells)
+                {
+                    var depth = lowered - elevation[c];
+                    if (depth > 0.3f)
+                    {
+                        lakes[c] = depth;
+                        lakeLevel[c] = lowered;
+                        bed[c] = lowered;
+                        water[c] = lowered;
+                    }
+                    else
+                    {
+                        lakes[c] = 0f;
+                        bed[c] = math.min(bed[c], elevation[c]);
+                        water[c] = math.min(water[c], bed[c]);
+                    }
+                }
+            }
+            seen.Dispose();
+            stack.Dispose();
+            cells.Dispose();
         }
 
         static void Copy<T>(ref BlobBuilder builder, ref BlobArray<T> target, NativeArray<T> source) where T : unmanaged
