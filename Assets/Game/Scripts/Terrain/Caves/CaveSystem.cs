@@ -769,7 +769,7 @@ namespace Punchy.Terrain
         /// A unit disc in the terrain's water vertex layout: no flow, deepest at the middle (lava cools and crusts
         /// towards the rim), in the given look and lava amount.
         /// </summary>
-        static Mesh MakePoolMesh(float4 look, float lava) => MakePoolMesh(look, new float2(0f, lava));
+        internal static Mesh MakePoolMesh(float4 look, float lava) => MakePoolMesh(look, new float2(0f, lava));
 
         /// <summary>The same disc with a self-glow too (toxic pools): glow x, lava y.</summary>
         static Mesh MakePoolMesh(float4 look, float2 glow)

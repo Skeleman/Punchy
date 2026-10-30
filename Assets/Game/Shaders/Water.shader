@@ -32,7 +32,9 @@ Shader "Punchy/Water"
 
     SubShader
     {
-        Tags { "RenderType" = "Transparent" "Queue" = "Transparent" "RenderPipeline" = "UniversalPipeline" }
+        // Drawn before the other see-through things (fog wisps, flames, rain, waterfalls): they all stand above the water,
+        // and in one queue a big water chunk, sorted by its middle, could be drawn after mist in front of it (Z-10).
+        Tags { "RenderType" = "Transparent" "Queue" = "Transparent-10" "RenderPipeline" = "UniversalPipeline" }
 
         Pass
         {
