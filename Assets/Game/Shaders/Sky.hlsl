@@ -307,8 +307,13 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
             float absorbed = 1 - exp(-density * PUNCHY_CLOUD_SIGMA * stepLength);
             scatter += transmit * absorbed * (direct + ambient + flash);
             transmit *= 1 - absorbed;
+            // Past this the cloud is opaque: nothing behind it shows (the last 2% let a shooting star, five times
+            // brighter than the sky, shine through a dark night cloud, Z-09).
             if (transmit < 0.02)
+            {
+                transmit = 0;
                 break;
+            }
         }
         t += stepLength;
     }
@@ -562,8 +567,15 @@ half3 PunchySkyColor(float3 dir, bool withDiscs, bool approximateClouds)
     if (h > 0)
     {
         half3 night = PunchyStars(dir) * _PunchyNight;
-        // Shooting stars and auroras show through clear skies only (the volumetric clouds cover them anyway).
-        night += (PunchyShootingStars(dir) + PunchyAurora(dir)) * _PunchyNight * (1 - _PunchyClouds.x);
+        // Shooting stars and auroras show through clear skies only: dimmed by the cloud cover overall, and by the
+        // clouds along this very direction (they're bright enough to show through a thin cloud's last light, Z-09).
+        half3 events = (PunchyShootingStars(dir) + PunchyAurora(dir)) * _PunchyNight * (1 - _PunchyClouds.x);
+        [branch] if (any(events > 0))
+        {
+            half eventsDarkness;
+            events *= 1 - PunchyCloudCoverAlong(dir, eventsDarkness);
+        }
+        night += events;
         if (withDiscs)
         {
             half moonCover;
