@@ -944,6 +944,14 @@ namespace Punchy.Fauna
                     var leash = r.Leash > 0f ? r.Leash : worker ? 7f : radius * 0.8f;
                     var face = worker ? LandmarkSampling.ToWorld(place, LandmarkLayout.Spot(r.FaceRing, r.FaceAngle), radius) : float2.zero;
                     var task = r.Task;
+                    // A smith or woodcutter works where its prop's Work anchor stands it (at the anvil, beside the chopping
+                    // block, facing it), if there's one near its post; its home and leash go with it.
+                    if (worker && (task == CreatureTask.Hammer || task == CreatureTask.Chop) && source.Anchors.IsCreated &&
+                        WorkAnchorNear(ref source.Anchors.Value, new float3(face.x, source.SampleHeight(face), face.y), 12f, out var stand, out var facing))
+                    {
+                        home = stand;
+                        face = stand + facing;
+                    }
                     for (int k = 0; k < count && settledCount < MaxSettled; k++)
                     {
                         var p = worker ? home + rng.NextFloat2Direction() * 0.2f
@@ -1406,6 +1414,27 @@ namespace Punchy.Fauna
         /// few of each kind; like residents, they're forgotten once everyone is well away.
         /// </summary>
         readonly List<int> caveGlows = new List<int>();
+
+        /// <summary>The Work anchor nearest a point within a radius: where a worker stands, and the way it faces.</summary>
+        static bool WorkAnchorNear(ref AnchorSetBlob set, float3 at, float radius, out float2 stand, out float2 facing)
+        {
+            stand = facing = float2.zero;
+            var near = new NativeList<int>(4, Allocator.Temp);
+            Anchors.Near(ref set, at, radius, AnchorKind.Work, ref near);
+            var best = float.MaxValue;
+            foreach (var i in near)
+            {
+                var d = math.distancesq(set.Anchors[i].Position, at);
+                if (d < best)
+                {
+                    best = d;
+                    stand = set.Anchors[i].Position.xz;
+                    facing = set.Anchors[i].Facing;
+                }
+            }
+            near.Dispose();
+            return best < float.MaxValue;
+        }
 
         void SpawnCaveDwellers(in TerrainSource source)
         {
