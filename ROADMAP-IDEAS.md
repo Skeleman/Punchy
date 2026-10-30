@@ -19,3 +19,19 @@ current release. Lane: A = animal, W = world.
     is synced in multiplayer.
   - (W) Basic interiors (already on the roadmap), with smart culling: portals or rooms, so only what's visible draws.
   - (W) Room-and-corridor layout generation, building on cave networks and anchors.
+
+## NPCs and characters (2026-10-29)
+- (A) NPC conversations: what an NPC says depends on its personality, skills and culture modifiers.
+- (A) Character skills and attributes: start with a small template (health, a few attributes) that grows as features
+  make skills relevant. Shared by players and NPCs.
+
+## Items and inventory (2026-10-29)
+- Items you can pick up, which are tracked and stored:
+  - a player inventory;
+  - object inventories (chests, carts, shelves);
+  - smart management of objects that can be moved permanently: they keep their position and are saved and synced,
+    without bloating the world.
+- (W/A) Every plant and animal yields items, as do crystals and ore veins.
+  - (W) Tag flora so harvestable plants are told apart from clutter such as rocks and debris.
+- Note: items, inventory and harvesting share a single item definition (asset) and an ID scheme. That should be
+  designed once, before either lane builds on it, and probably counts as a network table change (rule 11).
