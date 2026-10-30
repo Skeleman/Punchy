@@ -393,6 +393,32 @@ namespace Punchy.Flora
             return false;
         }
 
+        /// <summary>
+        /// Whether a footprint of this radius at <paramref name="xz"/> lies on a road or a road's spur (streets with Road
+        /// set): a landmark's placed props give way to them (Z-13: a roadside hermit's cabbage patch with a road through
+        /// it), as its scattered props already do to every street. Town streets and squares don't count, so benches and
+        /// stalls on a square stay.
+        /// </summary>
+        static bool OnRoad(in TerrainSource source, float2 xz, float radius)
+        {
+            if (!source.Settlements.IsCreated)
+                return false;
+            ref var towns = ref source.Settlements.Value;
+            var cell = SettlementSampling.Cell(ref towns, xz);
+            if (cell < 0)
+                return false;
+            var range = towns.StreetCells[cell];
+            for (int k = range.x; k < range.x + range.y; k++)
+            {
+                ref var street = ref towns.Streets[towns.StreetItems[k]];
+                if (street.Road == 0 || math.any(xz < street.Min - radius) || math.any(xz > street.Max + radius))
+                    continue;
+                if (SettlementSampling.Across(street, xz, out _) < street.Width * 0.5f + radius)
+                    return true;
+            }
+            return false;
+        }
+
         /// <summary>The yaw that turns a model's front (+Z) to face a direction (yaw maps +Z to (-sin, cos)).</summary>
         static float FacingYaw(float2 facing) => math.atan2(-facing.x, facing.y);
 
@@ -820,7 +846,8 @@ namespace Punchy.Flora
                             if (l == layer && math.all((int2)math.floor(spot / cellSize) == cell))
                             {
                                 var placedRule = f.Rules[prop.Species];
-                                if (OnBuiltPlot(ref f, source, spot, placedRule.Footprint * prop.Scale.y))
+                                if (OnBuiltPlot(ref f, source, spot, placedRule.Footprint * prop.Scale.y) ||
+                                    OnRoad(source, spot, placedRule.Footprint * prop.Scale.y))
                                     return none;
                                 var toCentre = set.Instances[landmark.Instance].Position - spot;
                                 var placedYaw = prop.FaceCentre != 0 ? math.atan2(-toCentre.x, toCentre.y) : rng.NextFloat(math.PI * 2f);
