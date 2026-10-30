@@ -2,6 +2,47 @@
 
 Newest first.
 
+## 2026-10-30: Zach's v0.10 P1 rows (W), zache-73
+
+`world-laptop/z-p1` 9124707 (off world-features 3d874dc), not compiled; shots in my slot. Z-01 is on
+world-laptop/gfx-settings (a909076).
+- **Z-01 Quit: DONE in code.** "Quit game" in the F5 panel, with a confirm. F5 needs a line in the F1 key list
+  (zache-db is adding it).
+- **Z-09 shooting stars in front of clouds: DONE in code (a4a130a).** The cloud march stopped at 2% transmittance
+  but kept that 2% of the sky behind, and a streak (5x the sky) shone through dark night clouds. Now opaque there.
+  Streaks and auroras are also dimmed by the cloud cover along their own direction (one cheap sample, only where
+  one is lit).
+- **Z-10 river over nearer fog: DONE in code (5403f55).** The water shared the Transparent queue with fog wisps, flames,
+  rain and falls, and a big water chunk sorted by its middle could draw after mist in front of it. Water is now
+  Transparent-10, drawn first (everything else in that queue stands above it). Water.shader is shared: zache-db,
+  please note.
+- **Z-11 benches: 2 of 3 DONE in code.**
+  - d0e176f: built (Founded) forms are meshed with no wind sway. Twelve species swayed like plants, not only the
+    benches: halls, lodges, shrines, palisades, fences, signposts, stumps. Gardens keep sway for their plants;
+    cloth keeps its own motion.
+  - aea3643: elven benches get a carved stone slab seat (new `FloraSpecies.StoneSeat`, set on ElfBench).
+  - The view-dependent "wet image": the likely cause is the built-thing weathering. Its octaves fade by screen
+    footprint (fwidth) and the survivors are scaled up 2.2x, so a small seat's mottling changes with the camera.
+    I'll confirm with a look before changing it, as you said.
+- **Z-12 fountain: 2 of 3 DONE in code (9124707).**
+  - The rim had no top: wall and rim band are both vertical, and from above the gap showed the ground. It's now
+    capped with a flat stone ring.
+  - The water is the game's own: `FloraModel.Pools` records basins, and FloraSystem draws them within 80 m as
+    landmark pools are drawn (`CaveSystem.MakePoolMesh`, now internal). The old shiny discs stand in further out.
+    The 80 m goes on DetailRange when gfx-settings merges.
+  - The stretched texture at 270,3248 needs a look first (it's G-22's forum base; suspect the 1.6 m foundation skirt).
+- **Z-13 road through a cabbage patch: DONE in code (8f90d47).** Towns are closed to roads only inside 0.85 of their
+  radius, but plots reach the edge. A plot a road crosses now becomes an empty green (Landscaping, no building),
+  keeping its index. Roads and roadside landmarks don't move (landmark list unchanged), but **the town layout
+  changes, so the world fingerprint does too.**
+- **Z-14 night howl: handed to zache-db (their files).** It's the wolves' SoundId.Howl: volume 1, reach 160 m,
+  with a breathy noise layer.
+- **Z-02 crow stuck, cave side: nothing to change.** CaveSystem never touches player control; its only freeze, the
+  mouth hitch, was fixed before v0.10. Flight into cliff or cave rock was cancelled whole in movement:
+  zache-db's f378a43.
+- NEXT: the gfx + P1 slot (compile both branches; Medium = today assert; flat A/B; Low/Ultra shots; looks for Z-09,
+  10, 11, 12, 13 and the two "needs a look" items), then P2.
+
 ## 2026-10-30: graphics settings steps 1-2 and Z-01, zache-73
 
 `world-laptop/gfx-settings` 9cf4e26 (9 commits off bc89606), not compiled or merged; the checks come in my slot.
