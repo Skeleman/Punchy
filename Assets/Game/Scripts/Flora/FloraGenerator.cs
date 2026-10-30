@@ -1181,9 +1181,12 @@ namespace Punchy.Flora
                            new List<float> { stemRadius * 1.25f, stemRadius, stemRadius * 0.9f }, g.Sides(7, 5, 3), g.Bark, FloraPart.Bark);
                 b.Occlude(firstStem, (p, n) => GroundOcclusion(p, h * 0.3f) * 0.9f);
 
-                // The cap, and darker gills underneath it.
+                // The cap, and darker gills underneath it. A glowing giant's cap is plain (a natural colour between its
+                // glow and its stem's), its light only in the veins of its gills (G-31/F-46: not mostly glowing).
+                var glowingGiant = giant && s.Finish == FoliageFinish.Glowing;
+                var capColor = glowingGiant ? Color.Lerp(color, g.Bark, 0.6f) * 0.75f : color;
                 var cap = b.Blob(top + tilt * Vector3.up * capHeight * 0.25f, new Vector3(capRadius, capHeight, capRadius), tilt,
-                                 g.Lod == 0 ? 2 : g.Lod == 1 ? 1 : 0, 0.06f, seed, color, FloraPart.Foliage);
+                                 g.Lod == 0 ? 2 : g.Lod == 1 ? 1 : 0, 0.06f, seed, capColor, glowingGiant ? FloraPart.Bark : FloraPart.Foliage);
                 // Giants: a near-flat underside (the cap's lower half squashed in its own frame), so the gills under it
                 // hide from a side view.
                 if (giant)
@@ -1212,22 +1215,25 @@ namespace Punchy.Flora
                     b.Blob(top - tilt * Vector3.up * capHeight * 0.05f, new Vector3(capRadius * 0.92f, capHeight * 0.18f, capRadius * 0.92f), tilt,
                            0, 0f, seed, color * 0.45f, FloraPart.Foliage, 0.45f);
                 // Giants: gills, thin dark lines radiating from the stem under the cap, just below its lower curve, so
-                // they show from beneath and never from the side.
-                if (giant && g.Lod == 0)
+                // they show from beneath and never from the side; a glowing giant's glow in its colour (fewer a step
+                // further off, so the light still shows there).
+                if (giant && (g.Lod == 0 || glowingGiant && g.Lod == 1))
                 {
                     var centre = top + tilt * Vector3.up * capHeight * 0.25f;
-                    var gill = Color.Lerp(color, g.Bark, 0.4f) * 0.45f;
+                    var gill = glowingGiant ? color : Color.Lerp(color, g.Bark, 0.4f) * 0.45f;
+                    var gillPart = glowingGiant ? FloraPart.Glow : FloraPart.Bark;
+                    var gillCount = g.Lod == 0 ? 30 : 14;
                     Vector3 Under(Vector3 dir, float r) =>
                         centre + tilt * (dir * r - Vector3.up * (capHeight * 0.3f * Mathf.Sqrt(Mathf.Max(1f - r * r / (capRadius * capRadius), 0f)) + 0.01f));
-                    for (int k = 0; k < 30; k++)
+                    for (int k = 0; k < gillCount; k++)
                     {
-                        var dir = Quaternion.AngleAxis(k * 12f + g.Range(-3f, 3f), Vector3.up) * Vector3.forward;
+                        var dir = Quaternion.AngleAxis(k * 360f / gillCount + g.Range(-3f, 3f), Vector3.up) * Vector3.forward;
                         var inner = Under(dir, stemRadius * 1.3f);
                         var mid = Under(dir, capRadius * 0.55f);
                         var outer = Under(dir, capRadius * 0.88f);
                         var shade = gill * g.Range(0.8f, 1.2f);
-                        b.Beam(inner, mid, capRadius * 0.05f, capRadius * 0.006f, shade, FloraPart.Bark);
-                        b.Beam(mid, outer, capRadius * 0.045f, capRadius * 0.006f, shade, FloraPart.Bark);
+                        b.Beam(inner, mid, capRadius * 0.05f, capRadius * 0.006f, shade, gillPart);
+                        b.Beam(mid, outer, capRadius * 0.045f, capRadius * 0.006f, shade, gillPart);
                     }
                 }
                 // Spots on the cap.

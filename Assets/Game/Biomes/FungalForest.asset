@@ -33,17 +33,17 @@ MonoBehaviour:
   WaterLava: 0
   Weather:
   - Preset: {fileID: 11400000, guid: c387c3aae44eb0a4696f7e8a0739110d, type: 2}
-    Chance: 0.3
+    Chance: 1.2
   - Preset: {fileID: 11400000, guid: 6518599f8e7a885409916976155ada3e, type: 2}
-    Chance: 0.5
+    Chance: 1.5
   - Preset: {fileID: 11400000, guid: 28af6bbd1c228fc409ad3b95dd96369f, type: 2}
     Chance: 2
   - Preset: {fileID: 11400000, guid: 7771effdbe3750c469548baca5cddc21, type: 2}
-    Chance: 1.5
+    Chance: 0.6
   - Preset: {fileID: 11400000, guid: 2fefebb67f2c6234f8ed2a4d78ebd50b, type: 2}
     Chance: 0.1
   - Preset: {fileID: 11400000, guid: b286ddfaf2340f145a3f219b8b4f7a57, type: 2}
-    Chance: 6
+    Chance: 2
   BaseSurface: {fileID: 11400000, guid: a47c55ea855885e46bd1486b0eebed6a, type: 2}
   Layers:
   - Surface: {fileID: 11400000, guid: 0602b6c9420876845bb55b2c0698255d, type: 2}
