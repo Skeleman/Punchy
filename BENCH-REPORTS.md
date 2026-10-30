@@ -2,6 +2,18 @@
 
 Newest first.
 
+## 2026-10-30: item 8 follow-up, where the BrainJob growth could be (for the animal lane)
+- Population isn't it: Net status "animals N" in the townwalk capture logs (mean once spawned) e4010f2 131,
+  a4521a2 133, 6d0fbff 134, ea3bdad 136: ~4% more animals vs ~30% more BrainJob. So it's cost per animal.
+- Read-only notes from a laptop session (zache-db, standing by; not the lane): in e4010f2..ea3bdad Advance itself
+  only gained CreatureMotion.Accelerate (a min/compare). TerrainSource's diff there only touches the water path
+  (F-22: one extra RiverSampling.Lake per sample in lake/bay areas); CaveSystem +164 is untested. Another
+  candidate is the mix: with Accelerate, animals reach their targets later, so more are moving (paying for Advance
+  and its terrain samples) on a given frame.
+- To separate them: a `Brain.Sample` marker round the SampleHeight/SampleGround/Walled calls inside Advance, plus a
+  per-frame count of moving creatures, on a commit that cherry-picks onto both e4010f2 and ea3bdad. Post the two
+  commits in BENCH-QUEUE and I'll capture townwalk cap 60 on both. [animal]
+
 ## 2026-10-30: items 11 and 8 on animal-behaviours ea3bdad
 - **Item 11, host/join: the join fix works.** 0 IndexOutOfRange and 0 exceptions on host and client, both rounds
   (the client in game with 2 players, 78-141 animals). Host cap-60 with the client joined vs solo: town 1% low
