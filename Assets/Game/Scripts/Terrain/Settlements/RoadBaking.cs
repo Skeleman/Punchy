@@ -17,6 +17,8 @@ namespace Punchy.Terrain
     public static class RoadBaking
     {
         const float Cell = 20f;
+        /// <summary>How broad the patches roads wander round are (m); see Route.</summary>
+        const float WanderScale = 260f;
         const float Margin = 300f;
         const float MaxSlope = 0.45f;
         /// <summary>Ground steeper than this anywhere inside a grid cell (a mesa's cliff, a gorge wall) is a cliff the road
@@ -121,13 +123,28 @@ namespace Punchy.Terrain
             var size = (int2)math.ceil((max - min) / Cell) + 1;
             var grid = new NativeArray<float4>(size.x * size.y, Allocator.TempJob);
             new GroundJob { Source = source, Origin = min, Size = size, Out = grid }.Schedule(grid.Length, 64).Complete();
+            // Towns are closed to through roads: cells well inside any settlement are forbidden, so a road reaches a town
+            // at its own road end (outside 0.85 of the radius) instead of cutting across its houses (G-18).
+            foreach (var s in settlements)
+            {
+                var c0 = math.max((int2)math.floor((s.Centre - s.Radius - min) / Cell), 0);
+                var c1 = math.min((int2)math.ceil((s.Centre + s.Radius - min) / Cell), size - 1);
+                for (int y = c0.y; y <= c1.y; y++)
+                for (int x = c0.x; x <= c1.x; x++)
+                    if (math.distance(min + new float2(x, y) * Cell, s.Centre) < s.Radius * 0.85f)
+                    {
+                        var cell = grid[y * size.x + x];
+                        cell.z = 1f;
+                        grid[y * size.x + x] = cell;
+                    }
+            }
 
             foreach (var (from, to, settlement, toTown, other) in pairs)
             {
-                var path = Route(grid, size, min, from, to);
+                var path = Route(grid, size, min, from, to, source.World.Seed);
                 if (path == null)
                     continue;
-                path = Smooth(Smooth(path));
+                path = Smooth(Smooth(Relax(path, 3)));
                 var layout = layouts[settlements[settlement].Layout];
                 Emit(source, path, layout.RoadWidth * settlements[settlement].Scale, settlement, settlements, streets);
                 // Roads between settlements (not the spurs to caves) carry roadside landmarks.
@@ -148,7 +165,7 @@ namespace Punchy.Terrain
             public TerrainSource Source;
             public float2 Origin;
             public int2 Size;
-            [WriteOnly] public NativeArray<float4> Out;   // height, water depth (0 dry), cave entrance (1), steepest inside
+            [WriteOnly] public NativeArray<float4> Out;   // height, water depth (0 dry), closed (1: cave entrance, town), steepest inside
 
             public void Execute(int i)
             {
@@ -174,9 +191,10 @@ namespace Punchy.Terrain
 
         /// <summary>A* over the grid's 8-neighbours: distance, made dearer by slope (forbidden past MaxSlope), fords, and
         /// forbidden through deep water and cave entrances. Null if there's no way.</summary>
-        static List<float2> Route(NativeArray<float4> grid, int2 size, float2 origin, float2 from, float2 to)
+        static List<float2> Route(NativeArray<float4> grid, int2 size, float2 origin, float2 from, float2 to, uint seed)
         {
             int Index(int2 c) => c.y * size.x + c.x;
+            var offset = new float2(seed % 1000u, (seed / 1000u) % 1000u) * 0.37f;
             int2 CellOf(float2 p) => math.clamp((int2)math.round((p - origin) / Cell), 0, size - 1);
             var start = CellOf(from);
             var goal = CellOf(to);
@@ -214,7 +232,8 @@ namespace Punchy.Terrain
                         continue;
                     var ni = Index(n);
                     var there = grid[ni];
-                    if (there.z > 0.5f || there.y > BridgeDepth)
+                    // (The start and goal stay open even inside a town's closed cells: roads begin at its edge.)
+                    if (there.z > 0.5f && ni != Index(goal) || there.y > BridgeDepth)
                         continue;
                     // Cliffs inside a cell, except where the road starts and ends (a town's edge may be rough).
                     if (there.w > CliffSlope && ni != Index(goal) && ni != Index(start))
@@ -226,7 +245,12 @@ namespace Punchy.Terrain
                     // Water is dear, fords and bridges alike, so a road crosses a river where it's narrow rather than
                     // following a flat, shallow riverbed along.
                     var wet = there.y > FordDepth ? 20f : there.y > 0f ? 15f : 0f;
-                    var g = cost[current.index] + run * (1f + 25f * slope * slope + wet);
+                    // Wandering: broad, seeded patches of ground up to 1.8 times dearer, so a road bends round them on
+                    // its way instead of running dead straight for kilometres (G-23). Never below 1, so the distance
+                    // heuristic still holds.
+                    var at = origin + (float2)n * Cell;
+                    var wander = 1f + 0.4f * (noise.snoise(at / WanderScale + offset) + 1f);
+                    var g = cost[current.index] + run * (1f + 25f * slope * slope + wet) * wander;
                     // Each bridge costs as much again to build, so a road along a river doesn't hop back and forth.
                     if (there.y > FordDepth && here.y <= FordDepth)
                         g += 400f;
@@ -374,6 +398,26 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Chaikin's corner cutting: each segment's quarter points, ends kept.</summary>
+        /// <summary>
+        /// Pulls each inner point of a grid path towards its neighbours (a quarter each side), <paramref name="passes"/>
+        /// times, ends kept: the grid's alternating straight and diagonal steps become one even line or curve instead
+        /// of a sawtooth that smoothing alone only rounds (G-23).
+        /// </summary>
+        static List<float2> Relax(List<float2> path, int passes)
+        {
+            if (path.Count < 3)
+                return path;
+            var result = new List<float2>(path);
+            var previous = new float2[path.Count];
+            for (int pass = 0; pass < passes; pass++)
+            {
+                result.CopyTo(previous);
+                for (int i = 1; i < previous.Length - 1; i++)
+                    result[i] = previous[i] * 0.5f + (previous[i - 1] + previous[i + 1]) * 0.25f;
+            }
+            return result;
+        }
+
         static List<float2> Smooth(List<float2> path)
         {
             if (path.Count < 3)
