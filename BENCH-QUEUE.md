@@ -46,3 +46,10 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
     order (item 14 showed a single capture's Blocked swinging 2x with where the movers stand). Pass = Blocked
     us/call down sharply, with calls/frame, movers and end x,z the same. Also a town look on Bench-3d874dc vs
     Bench-bc89606 (town stop, same frame): buildings and props sit as before.
+17. Next profiler slot (after the world and animal lanes): worm-mark re-run with the cost cut. Local merge of
+    wip/worm-trail-shader 5198212 + wip/worm-trail bd5e706 (64x64 mark mask, MarkMask.cs). Same fixed view as item
+    15's worm check: `-place Glacier -camlook 900,200,1525,869,186,1500 -benchwait 40 -benchstops here`, cap 0, ABBA,
+    a fresh player each run; spawned (`-spawn SnowWorm:1`) vs natives-only on the new build. Pass = within 0.3 ms GPU
+    (was +0.5 on d60e085, kept as Bench-d60e085 for a three-way read). If time allows, wakes too: wip/wake-trail
+    138874c + wip/wake-trail-shader 4f597bf, the duck-lake spot `-benchspot -1087,33,-1600,270` with a fixed
+    -camlook over the water, `-spawn Duck:8` vs none (the lake has native ducks: read it as spawned vs natives).
