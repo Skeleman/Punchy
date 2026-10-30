@@ -458,9 +458,13 @@ Shader "Punchy/Water"
                 foam *= smoothstep(0.02, 0.12, thickness) * (0.55 + 0.45 * smoothstep(0.3, 0.7, PunchyValueNoise(p * 1.6 + t * 0.3)));
                 foam *= lerp(1, 0.2, _PunchyUnderground);
                 foam *= 1 - viscous * 0.7;
-                // White water: the churned (steepest) parts of the flowing ripples turn to foam on rapids, and flecks
-                // ride the streaks downstream on any river.
-                foam = max(foam, rapids * smoothstep(0.25, 0.6, length(flowingSlope)));
+                // White water: the churned (steepest) parts of the flowing ripples turn to foam on rapids, drawn out in
+                // bands along the flow's streaks and broken into flecks, never a flat sheet (G-28), and flecks ride the
+                // streaks downstream on any river.
+                half churn = smoothstep(0.35, 0.75, length(flowingSlope));
+                half bands = smoothstep(0.3, 0.7, streaks + (rapids - 0.5) * 0.35);
+                half flecks = 0.55 + 0.45 * smoothstep(0.35, 0.65, PunchyValueNoise(p * 4.3 - flowDir * t * riverSpeed * 1.2));
+                foam = max(foam, min(rapids * churn * lerp(1, bands, 0.75) * flecks, 0.85));
                 foam = max(foam, flowAmount * smoothstep(0.9 - 0.06 * rapids, 0.98, streaks) * (0.2 + 0.4 * rapids) * distanceFade * (1 - viscous));
                 half3 foamLit = _FoamColor.rgb * (ambient + light.color * shadow * saturate(light.direction.y) + lanternLit);
                 color = lerp(color, foamLit, foam * (1 - lava));

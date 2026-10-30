@@ -740,7 +740,8 @@ namespace Punchy.Terrain
                     vertices.Add(new WaterVertex
                     {
                         Position = p.Position + new float3(side.x, 0f, side.y) * edge,
-                        Data = new float4(along, edge == 0f ? p.Depth : 0.05f, rapids),
+                        // White water breaks against the banks more than mid-channel (G-28).
+                        Data = new float4(along, edge == 0f ? p.Depth : 0.05f, edge == 0f ? rapids * 0.6f : math.min(rapids + 0.15f, 1f)),
                         Look = CaveStreamWater,
                         Glow = float2.zero
                     });
