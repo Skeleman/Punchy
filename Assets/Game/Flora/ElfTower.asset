@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
   Form: 20
   Layer: 2
-  Height: {x: 9, y: 14}
-  Spread: 0.32
+  Height: {x: 10.5, y: 15.5}
+  Spread: 0.56
   TrunkFraction: 0.35
   Thickness: 0.035
   Fullness: 0.7
