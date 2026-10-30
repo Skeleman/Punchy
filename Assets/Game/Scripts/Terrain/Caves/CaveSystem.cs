@@ -347,7 +347,7 @@ namespace Punchy.Terrain
             for (int i = 0; i < glowing.Count; i++)
                 if (heatAge.ContainsKey(glowing[i].key))
                     glowing[i] = (glowing[i].distance * HeatStickiness, glowing[i].key, glowing[i].position, glowing[i].color);
-            glowing.Sort((a, b) => a.distance.CompareTo(b.distance));
+            glowing.Sort(GlowingByDistance);
             var count = math.min(glowing.Count, MaxHeat);
 
             heatNextAge.Clear();
@@ -405,6 +405,11 @@ namespace Punchy.Terrain
             glowing.Clear();
         }
         readonly List<(float distance, int pool)> nearPools = new List<(float, int)>();
+        // Comparers made once: List.Sort(Comparison) wraps the delegate in a new comparer on every call, every frame.
+        static readonly Comparer<(float distance, Vector4 key, Vector4 position, Vector4 color)> GlowingByDistance =
+            Comparer<(float distance, Vector4 key, Vector4 position, Vector4 color)>.Create((a, b) => a.distance.CompareTo(b.distance));
+        static readonly Comparer<(float distance, int pool)> PoolsByDistance =
+            Comparer<(float distance, int pool)>.Create((a, b) => a.distance.CompareTo(b.distance));
         static Mesh lavaPoolMesh, waterPoolMesh;
         /// <summary>Cave water's look in the water vertex layout: dark, clear and cold (rgb, murk).</summary>
         static readonly float4 CaveWater = new float4(0.1f, 0.28f, 0.3f, 0.1f);
@@ -437,7 +442,7 @@ namespace Punchy.Terrain
                     lavaPoolMesh = MakePoolMesh(new float4(1f, 0.33f, 0.05f, 0.2f), 1f);
                     waterPoolMesh = MakePoolMesh(CaveWater, 0f);
                 }
-                nearPools.Sort((a, b) => a.distance.CompareTo(b.distance));
+                nearPools.Sort(PoolsByDistance);
                 foreach (var (_, i) in nearPools)
                 {
                     ref var pool = ref set.Pools[i];
@@ -874,6 +879,8 @@ namespace Punchy.Terrain
         const float DripRadius = 25f;
         readonly List<Drip> allDrips = new List<Drip>();
         readonly List<(float distance, Drip drip)> nearDrips = new List<(float, Drip)>();
+        static readonly Comparer<(float distance, Drip drip)> DripsByDistance =
+            Comparer<(float distance, Drip drip)>.Create((a, b) => a.distance.CompareTo(b.distance));
         readonly Drip[] dripUpload = new Drip[MaxDrips];
         BlobAssetReference<CaveSetBlob> dripsFrom;
         float3 dripsAround = new float3(float.MaxValue);
@@ -949,7 +956,7 @@ namespace Punchy.Terrain
                     if (dist < DripRadius)
                         nearDrips.Add((dist, d));
                 }
-                nearDrips.Sort((a, b) => a.distance.CompareTo(b.distance));
+                nearDrips.Sort(DripsByDistance);
                 dripCount = math.min(nearDrips.Count, MaxDrips);
                 for (int i = 0; i < dripCount; i++)
                     dripUpload[i] = nearDrips[i].drip;
