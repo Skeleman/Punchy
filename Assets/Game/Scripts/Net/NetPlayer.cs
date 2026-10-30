@@ -32,6 +32,8 @@ namespace Punchy.Net
         public bool Grounded;
         /// <summary>Climbing a trunk or wall (the body upright against it).</summary>
         public bool Climbing;
+        /// <summary>Climbing onto a ledge: the rim's height over the body, as a byte (RimFromByte); 0 when not.</summary>
+        public byte Rim;
         /// <summary>Index into the playable species table (NetAvatars), or -1 for no body (the capsule shows).</summary>
         public int Species;
         public uint Individual;
@@ -53,6 +55,8 @@ namespace Punchy.Net
         [GhostField] public bool Grounded;
         /// <summary>Climbing a trunk or wall: others pose its body upright against it.</summary>
         [GhostField] public bool Climbing;
+        /// <summary>Climbing onto a ledge: where its rim is, over the body (NetPlayerCommand.Rim), for its hands.</summary>
+        [GhostField] public byte Rim;
         /// <summary>Petting, carrying or an emote (an IdleAction), so the others see it.</summary>
         [GhostField] public byte Pose;
     }
@@ -140,6 +144,10 @@ namespace Punchy.Net
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     public partial struct NetPlayerSendSystem : ISystem
     {
+        /// <summary>A ledge's rim over the body, -1 to 3 m, in a byte (1..255; 0 means no ledge), and back.</summary>
+        public static byte RimToByte(float over) => (byte)math.clamp((int)math.round((over + 1f) * 63.5f) + 1, 1, 255);
+        public static float RimFromByte(byte b) => (b - 1) / 63.5f - 1f;
+
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
@@ -159,6 +167,8 @@ namespace Punchy.Net
                 command.Yaw = math.atan2(forward.x, forward.z);
                 command.Grounded = motion.ValueRO.Grounded;
                 command.Climbing = motion.ValueRO.OnTrunk || motion.ValueRO.OnWall;
+                if (mantling)
+                    command.Rim = RimToByte(motion.ValueRO.MantleTo.y - t.ValueRO.Position.y);
                 command.Valid = true;
             }
             // How our body looks, so the others draw the same individual.
@@ -199,7 +209,7 @@ namespace Punchy.Net
                     continue;
                 transform.ValueRW.Position = c.Position;
                 transform.ValueRW.Rotation = quaternion.RotateY(c.Yaw);
-                look.ValueRW = new NetPlayerLook { Species = c.Species, Individual = c.Individual, Coat = c.Coat, Grounded = c.Grounded, Climbing = c.Climbing, Pose = c.Pose };
+                look.ValueRW = new NetPlayerLook { Species = c.Species, Individual = c.Individual, Coat = c.Coat, Grounded = c.Grounded, Climbing = c.Climbing, Rim = c.Rim, Pose = c.Pose };
             }
         }
     }
