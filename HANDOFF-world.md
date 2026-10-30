@@ -6,14 +6,15 @@ branch `world-features`. Read COORDINATION.md first; this note is only what's sp
 ## State
 
 - **v0.9.0 is published** (rc/v0.9.0 39f5558). Everything on `world-features` since then counts toward v0.10.
-- **`world-features` 27c1104** (pushed). Since v0.9: G-17 Work anchors at anvils and chopping blocks, kind-possum's audit
+- **`world-features` 1cbdd9f** (pushed). Since v0.9: G-17 Work anchors at anvils and chopping blocks, kind-possum's audit
   items (cached queries in WorldSync/NetMenu, batched DisableRendering), G-18 + G-23 roads, G-28 white water, G-34 big
   full cratered blue moon with corona, G-35 cave detail fades at mouths, G-15/F-25 swimmer rings and wakes (Water.shader
   reads the animal session's `_PunchySwimmers`), G-36 + G-30 rocks take the biome's rock on dry ground, lakes cut
   through by a gorge are lowered to the breach, G-29 ice arch variety, G-31/F-46 fungal forest (matte giant caps with
-  glowing gills, drier ground, orange grass, less fog), G-33/F-47 ember slivers in leaves. animal-behaviours 69d04db is merged in.
-- **Landmark baseline: 100 landmarks, hash 7AFF6C9F** (since 1e53043, the planned v0.10 island change: roads reroute,
-  roadside landmarks reroll). The supervisor wants no other landmark changes in v0.10; any new landmark type must take
+  glowing gills, drier ground, orange grass, less fog), G-33/F-47 ember slivers in leaves, F-50 Bubbles landmark effect
+  (pop rings on geysers and hot springs; plumes draw after water), G-37 MagneticRock landmark (FloatingRock form). animal-behaviours 69d04db is merged in.
+- **Landmark baseline: 101 landmarks, hash E128CB1D** (1e53043 rerouted roads and rerolled roadside landmarks to 100 /
+  7AFF6C9F; 1cbdd9f added one MagneticRock at -1068,-3840). The supervisor wants no other landmark changes in v0.10; any new landmark type must take
   only its own spots, and the hash diff goes in the batch report.
 
 ## Unfinished (in the supervisor's order)
@@ -26,10 +27,10 @@ branch `world-features`. Read COORDINATION.md first; this note is only what's sp
 5. **G-22** forum/fountain base: the foundation stretches the stone texture and lacks the dark band at the bottom.
 6. **F-40** darker ground under market stalls: the footprint sheet in the Stall model never shows, even raised 10 cm.
    Commit cd90cf0 is on `wip/world-v09-v010`; find out why (dirt band? culling? LOD?) before re-landing.
-7. **F-50** geyser/hot-spring bubbles: plume flecks are too faint. Zach's idea: a reusable BubbleSurface, small 2D
-   bubble-pop flipbook sprites on the surface near the camera, usable by mud pits and lava too.
-8. **G-37** (Zach): enormous floating, rotating magnetic rocks in the electric wastelands, a few shapes and sizes, a
-   faint crackle like the spires. A biome decoration or a new landmark type taking only its own spots.
+7. **Worms** (animal session, wip/worms): TerrainSurface.shader side for _PunchyBurrowers[8] (x, yaw, z, w = radius,
+   negative while breaching): a lit mound over the head, a darker furrow straight back ~4 body lengths, a crater ring.
+8. **Ember leak report** (Zach saw gold highlights in an ordinary forest after G-33): not reproduced; gate tightened
+   in 98a61db. Waiting on where he saw it.
 9. Tier 1 left: F-33 limestone stalactites, F-27 lava fills the crater, F-39 street lamps/torches per culture.
 10. **Phase B rivers** (later): smooth the river centreline and its per-segment data. That's also where the zigzag
     shading at sharp river corners (F-24's "corner oddities") gets fixed.
