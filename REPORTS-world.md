@@ -2,6 +2,24 @@
 
 Newest first.
 
+## 2026-10-30: cave-mouth chunk follow-up (v0.11), zache-73
+
+- **DONE in code: `world-laptop/cave-chunk` 256e6a9** (off world-features bc89606), not merged, not compiled; the
+  caveapproach A/B build is its check.
+- **Where the 39 ms went:** BuildChunkMeshJob.MouthCut ran `Source.MouthCut` five times per LOD 0-1 vertex (the vertex
+  and four half-quad neighbours), each a SampleNormal (4 heights) and a CaveDistance, plus a height per neighbour. Its
+  `cut >= 100` early-out only fires outside a cave's column footprint. Inside it, MouthCut returns about 0.25 wherever
+  the passage lies metres down, so every vertex over the whole footprint paid all five.
+- **Change:** `MouthCut(xz, h, out cave)` (a TerrainSource overload, additive) gives the field distance it sampled. The
+  job skips the four neighbours when that distance exceeds 2.05 m (MouthCutDepth - 0.1 + MouthBlend + 0.5 spare) plus
+  2 x their reach (half a quad, their height difference, twice the sampling depth). Past 1.45 m the smooth min returns
+  exactly its rock value, so the skipped neighbours couldn't have changed the min: the cut is unchanged. FieldSlope 2
+  is a deliberately loose bound (the field is noise-moved and can overstate by 1.8x). If the A/B shows a cut
+  difference at a mouth, raise it.
+- **Expectation:** the mouth-cut share of a chunk over a cave drops about 5x. The commit subject says "about five
+  times cheaper", which overstates it for the whole chunk (other sampling stays). The A/B will give the real number.
+- Earlier entry (worm merge, TroddenGround early-out) was held back by GitHub 500s on push and goes up with this one.
+
 ## 2026-10-30: worm marks merged; TroddenGround early-out, zache-73
 
 - **DONE: worm marks merged.** world-features c4d946d -> d81cb06 (merge of world-laptop/worms ad98690, shader only;
