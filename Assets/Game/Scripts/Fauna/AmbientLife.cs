@@ -331,10 +331,13 @@ namespace Punchy.Fauna
                 var birds = rng.NextFloat() < 0.75f ? 1 + rng.NextInt(3) : 0;
                 for (int i = 0; i < birds; i++)
                 {
-                    // On top of the crown, against the sky.
+                    // On top of the crown, against the sky: partway out from the middle, where a rounded or pointed crown
+                    // is lower than its peak, by its slope there (between a dome's and a cone's).
                     var round = rng.NextFloat(6.28f);
-                    var at = tree.Base + new float3(math.sin(round), 0f, math.cos(round)) * (tree.TrunkRadius + crown * rng.NextFloat(0.3f, 0.6f)) +
-                             new float3(0f, tree.Height + 0.05f, 0f);
+                    var outward = rng.NextFloat(0.3f, 0.6f);
+                    var drop = (tree.Height - tree.CrownBase) * 0.5f * outward;
+                    var at = tree.Base + new float3(math.sin(round), 0f, math.cos(round)) * (tree.TrunkRadius + crown * outward) +
+                             new float3(0f, tree.Height - drop + 0.03f, 0f);
                     into.Add(new CritterSpot { Kind = CritterKind.Songbird, Id = rng.NextUInt() | 1u, Position = at, Tree = tree.Base });
                 }
                 if (rng.NextFloat() < 0.15f)
