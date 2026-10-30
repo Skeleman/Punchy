@@ -1,0 +1,6 @@
+#!/bin/sh
+# Git LFS, then commit telemetry (J-041). Telemetry never fails the commit.
+command -v git-lfs >/dev/null 2>&1 || { echo >&2 "git-lfs not found on PATH"; exit 2; }
+git lfs post-commit "$@"
+py=$(command -v python3 || command -v python || command -v py)
+[ -n "$py" ] && "$py" "$(dirname "$0")/telemetry.py" || true
