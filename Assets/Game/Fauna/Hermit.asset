@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
   m_Name: Hermit
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
+  Role: 2
   VariantOf: {fileID: 11400000, guid: 8e349b1519701e84fbe7923c0c10f2fd, type: 2}
   VariantScale: 0.97
   VariantHead: 1

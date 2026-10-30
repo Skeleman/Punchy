@@ -129,6 +129,13 @@ namespace Punchy.Fauna
         [Tooltip("Cold-blooded (reptiles, amphibians, insects, spiders, fish): no breath shows in the cold. Variants take " +
                  "their body's.")]
         public bool ColdBlooded;
+        [Tooltip("A part it plays for the director: Folk is the everyday person (the default player body, the measure of " +
+                 "sizes and paces, and the strangers on errands: travellers, honey thieves); Hermit lives at hermit spots; " +
+                 "Messenger carries letters between towns. The first species with a role takes it.")]
+        public DirectorRole Role;
+        [Tooltip("Sounds of its kind beyond its calls: a cat purrs when held and content, a dog pants after a run. Variants " +
+                 "take their body's unless they set their own.")]
+        public VoiceFamily Voice;
         [Tooltip("How likely a surface animal is to be found in a cave (bears, wolves, foxes): 0 never. A cave near where " +
                  "it lives may have one or two in its chambers near the mouth, and under rock it moves as cave animals do.")]
         [Range(0f, 1f)] public float CaveAffinity;
@@ -173,6 +180,9 @@ namespace Punchy.Fauna
         public Vector2 FlightHeight = new Vector2(8f, 18f);
         [Tooltip("Airspeed, metres per second.")]
         [Min(0.5f)] public float FlySpeed = 7f;
+        [Tooltip("A player's cruising airspeed in this body (m/s), from the real bird's: a pigeon about 17, a crow 14, an " +
+                 "owl 10. 0: twice FlySpeed. Variants take their body's unless they set their own.")]
+        [Min(0f)] public float PlayerFlySpeed;
         [Tooltip("Wingbeats per second.")]
         [Min(0.1f)] public float FlapRate = 6f;
         [Tooltip("How much it glides between bursts of flapping (soaring birds of prey).")]
@@ -251,6 +261,12 @@ namespace Punchy.Fauna
     /// The idle action an animal is doing now (one of IdleActions, by number), or a pose a player's body takes for an
     /// interaction (Pet, Carry, Throw: not idle actions any species picks for itself).
     /// </summary>
+    /// <summary>A part a species plays for FaunaDirector (CreatureSpecies.Role).</summary>
+    public enum DirectorRole : byte { None, Folk, Hermit, Messenger }
+
+    /// <summary>Sounds a species makes beyond its calls (CreatureSpecies.Voice; CreatureAudioSystem).</summary>
+    public enum VoiceFamily : byte { None, Cat, Dog }
+
     public enum IdleAction : byte
     {
         None, PawGround, Groom, Scratch, Shake, Stretch, Sniff, Sit, SitUp, TailFlick, Preen, HeadBob, LookAround, Howl,

@@ -92,8 +92,9 @@ namespace Punchy.Audio
                     if (sp == null)
                         continue;
                     calls[i] = sp.Calls.Count > 0 ? sp.Calls : sp.Body.Calls;
-                    cats[i] = sp.name == "Cat";
-                    dogs[i] = sp.name == "Dog" || sp.name == "MarshDog" || sp.name == "Puppy";
+                    var voice = sp.Voice != VoiceFamily.None ? sp.Voice : sp.Body.Voice;
+                    cats[i] = voice == VoiceFamily.Cat;
+                    dogs[i] = voice == VoiceFamily.Dog;
                 }
             }
 

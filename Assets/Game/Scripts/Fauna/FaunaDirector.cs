@@ -449,7 +449,7 @@ namespace Punchy.Fauna
                 chest[i] = math.max(body.Value.FrontRadius, body.Value.RearRadius) * body.Value.BodyFlatten * size;
                 upright[i] = body.Value.Upright;
                 body.Dispose();
-                if (playable[i].name == "Human")
+                if (playable[i].Role == DirectorRole.Folk)
                     reference = math.max(stand[i], 0.1f);
             }
             var builder = new BlobBuilder(Allocator.Temp);
@@ -500,6 +500,14 @@ namespace Punchy.Fauna
         /// <summary>A species' index (by name: a build can hold more than one copy of the same species asset).</summary>
         public int SpeciesIndex(CreatureSpecies s) => s != null ? SpeciesIndex(s.name) : -1;
         public int SpeciesIndex(string name) => name != null && speciesByName.TryGetValue(name, out var i) ? i : -1;
+        /// <summary>The first species playing a part for the director (CreatureSpecies.Role), or -1.</summary>
+        public int RoleIndex(DirectorRole role)
+        {
+            for (int i = 0; i < species.Count; i++)
+                if (species[i] != null && species[i].Role == role)
+                    return i;
+            return -1;
+        }
         /// <summary>The species asset at an index (for things that read its data directly, as the sound does).</summary>
         public CreatureSpecies SpeciesAt(int index) => index >= 0 && index < species.Count ? species[index] : null;
         public int SpeciesCount => species.Count;
@@ -540,7 +548,7 @@ namespace Punchy.Fauna
                 return;
             var em = queryWorld.EntityManager;
             if (PlayerSpecies == null)
-                PlayerSpecies = species.Find(s => s.name == "Human") ?? species.Find(s => s.Body.Upright);
+                PlayerSpecies = species.Find(s => s.Role == DirectorRole.Folk) ?? species.Find(s => s.Body.Upright);
             if (PlayerSpecies != avatarSpecies)
                 DropAvatar();
             if (PlayerSpecies == null)
@@ -572,21 +580,24 @@ namespace Punchy.Fauna
                 Individual = rng.NextUInt() | 1u
             });
             // What the body can do, for player movement: its pace next to a human's, and flight.
-            var human = SpeciesIndex("Human");
+            var human = RoleIndex(DirectorRole.Folk);
             var humanRun = human >= 0 ? blobs[human].Value.RunSpeed * (blobs[human].Value.Size.x + blobs[human].Value.Size.y) * 0.5f : 0f;
             var abilities = new Punchy.Player.PlayerBody
             {
                 SpeedFactor = humanRun > 0f ? math.clamp(b.RunSpeed * size / humanRun, 0.35f, 2.5f) : 1f,
                 Flies = b.Habitat == Habitat.Flies,
-                FlySpeed = b.FlySpeed,
+                FlySpeed = PlayerSpecies.PlayerFlySpeed > 0f ? PlayerSpecies.PlayerFlySpeed
+                         : PlayerSpecies.Body.PlayerFlySpeed > 0f ? PlayerSpecies.Body.PlayerFlySpeed : b.FlySpeed * 2f,
                 Climbs = b.Hands || b.Climbing > 0f || b.Crawls,
-                Swims = b.Habitat == Habitat.Swims,
+                // (A lava swimmer walks on land as a player; only fish swim and flop.)
+                Swims = b.Habitat == Habitat.Swims && !b.LavaDweller,
                 Hovers = b.Haunts,
                 Size = human >= 0 && blobs[human].Value.StandHeight > 0f
                     ? math.clamp(b.StandHeight * size / (blobs[human].Value.StandHeight * (blobs[human].Value.Size.x + blobs[human].Value.Size.y) * 0.5f), 0.25f, 3f)
                     : 1f
             };
-            if (!em.CreateEntityQuery(typeof(Punchy.Player.PlayerBody)).TryGetSingletonEntity<Punchy.Player.PlayerBody>(out var bodyEntity))
+            using var bodyQuery = em.CreateEntityQuery(typeof(Punchy.Player.PlayerBody));
+            if (!bodyQuery.TryGetSingletonEntity<Punchy.Player.PlayerBody>(out var bodyEntity))
                 bodyEntity = em.CreateEntity(typeof(Punchy.Player.PlayerBody));
             em.SetComponentData(bodyEntity, abilities);
         }
@@ -833,10 +844,10 @@ namespace Punchy.Fauna
             if (!source.Anchors.IsCreated || simWorld == null)
                 return;
             var em = simWorld.EntityManager;
-            var hermit = SpeciesIndex("Hermit");
+            var human = RoleIndex(DirectorRole.Folk);
+            var hermit = RoleIndex(DirectorRole.Hermit);
             if (hermit < 0)
-                hermit = SpeciesIndex("Human");
-            var human = SpeciesIndex("Human");
+                hermit = human;
             if (human < 0)
                 return;
             ref var set = ref source.Anchors.Value;
@@ -983,10 +994,7 @@ namespace Punchy.Fauna
             var em = simWorld.EntityManager;
             if (honeyThief != Entity.Null && em.Exists(honeyThief))
                 return;
-            var human = -1;
-            for (int i = 0; i < species.Count; i++)
-                if (species[i] != null && species[i].name == "Human")
-                    human = i;
+            var human = RoleIndex(DirectorRole.Folk);
             if (human < 0)
                 return;
             var player = players[rng.NextInt(players.Count)];
@@ -1044,10 +1052,7 @@ namespace Punchy.Fauna
                 if (flying)
                     return;
             }
-            var pigeon = -1;
-            for (int i = 0; i < species.Count; i++)
-                if (species[i] != null && species[i].name == "Pigeon")
-                    pigeon = i;
+            var pigeon = RoleIndex(DirectorRole.Messenger);
             ref var set = ref source.Settlements.Value;
             if (pigeon < 0 || set.Settlements.Length < 2)
                 return;
@@ -1098,10 +1103,7 @@ namespace Punchy.Fauna
                 if (travelling >= 2)
                     return;
             }
-            var human = -1;
-            for (int i = 0; i < species.Count; i++)
-                if (species[i] != null && species[i].name == "Human")
-                    human = i;
+            var human = RoleIndex(DirectorRole.Folk);
             if (human < 0)
                 return;
             ref var set = ref source.Settlements.Value;
