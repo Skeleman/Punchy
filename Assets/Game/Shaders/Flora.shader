@@ -64,10 +64,10 @@ Shader "Punchy/Flora"
                 float wobble = (PunchyValueNoise(float2(along * 0.6, sideways * 1.5)) - 0.5) * 2.0
                              + (PunchyValueNoise(float2(along * 2.3, sideways * 5.0 + 7.1)) - 0.5) * 0.5;
                 float lines = sideways * 33 + wobble * 2;
-                half line = smoothstep(0.55, 0.95, abs(frac(lines) * 2 - 1));
-                line *= 0.55 + 0.45 * PunchyValueNoise(float2(lines * 0.5, along * 0.8));
+                half streak = smoothstep(0.55, 0.95, abs(frac(lines) * 2 - 1));
+                streak *= 0.55 + 0.45 * PunchyValueNoise(float2(lines * 0.5, along * 0.8));
                 half broad = PunchyValueNoise(float2(sideways * 8 + wobble, along * 0.35)) - 0.5;
-                half grain = line * 0.45 * PunchyOctave(0.03, footprint) + broad * 0.35 * PunchyOctave(0.12, footprint);
+                half grain = streak * 0.45 * PunchyOctave(0.03, footprint) + broad * 0.35 * PunchyOctave(0.12, footprint);
                 return 1 - grain;
             }
 
