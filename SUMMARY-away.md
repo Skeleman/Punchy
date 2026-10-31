@@ -53,3 +53,9 @@ FEEDBACK-v0.10.md (Z-IDs). No release goes out without Zach's go.
 - The ~500 ms glide spikes in the world smoke didn't come back: worst frame 43 ms over 10 runs. They hit the older build too and weren't GC or shader compiles, so likely an outside stall. Not a z-p2 regression.
 - For Zach: the default preset is still his call. Options: keep Medium, make the in-between a "Balanced" default (passes glide, less visible downgrade), or use Low (the profiler's pick).
 - Next: animal task slot.
+
+## 2026-10-31 06:00 — animal slot 6 (two task sessions)
+- Merged into animal-behaviours: wip/z28-air f116dd4 (Z-28: the worm flies straight out of the ground; the coil after landing is gone) and wip/poses 9b7459b (Z-22: the woodcutter, smith and dwarf smith visibly swing). f0aacd5 (both plus z07-play) built clean; the smoke showed only noise. The exact merged tree gets its own build in the next slot.
+- Not merged: wip/z07-play. Spin lines went 20 → 15 but Play circling barely changed (13 → 12).
+- Still open: Z-07 Play circling, the Z-20 remote carry (the host never picked up a dog), and miners (no mining camp on this seed).
+- Token note: a task session that hands back while its own scripts are still running wakes again at each step (about 190k per wake). From now on, task sessions finish their runs before handing back.
