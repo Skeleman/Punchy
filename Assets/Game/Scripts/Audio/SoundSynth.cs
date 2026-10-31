@@ -17,7 +17,9 @@ namespace Punchy.Audio
         Zap,
         // Footsteps by what's underfoot (CreatureAudioSystem.Step): a soft pad of a paw, and feet in grass, snow, on
         // rock and in sand.
-        StepPaw, StepGrass, StepSnow, StepRock, StepSand
+        StepPaw, StepGrass, StepSnow, StepRock, StepSand,
+        // A rattlesnake's rattle (appended: assets keep sounds by number); frogs' chorus at night, held on.
+        Rattle, FrogChorus
     }
 
     /// <summary>
@@ -39,12 +41,12 @@ namespace Punchy.Audio
             SoundId.Screech => 2, SoundId.Rooster => 2, SoundId.Bark => 4, SoundId.Meow => 3, SoundId.Snort => 3,
             SoundId.Whinny => 2, SoundId.Bleat => 3, SoundId.Moo => 3, SoundId.Grunt => 3, SoundId.Pant => 3,
             SoundId.CricketChirp => 3, SoundId.Croak => 4, SoundId.Cicada => 2, SoundId.Drum => 3, SoundId.Zip => 3, SoundId.Zap => 3,
-            SoundId.StepPaw => 3, SoundId.StepGrass => 3, SoundId.StepSnow => 3, SoundId.StepRock => 3, SoundId.StepSand => 3, _ => 1
+            SoundId.StepPaw => 3, SoundId.StepGrass => 3, SoundId.StepSnow => 3, SoundId.StepRock => 3, SoundId.StepSand => 3, SoundId.Rattle => 2, _ => 1
         };
 
         public static bool Loops(SoundId id) => id == SoundId.BeeBuzz || id == SoundId.Crickets || id == SoundId.FireCrackle ||
                                                  id == SoundId.TorchHiss || id == SoundId.WaterfallRush || id == SoundId.TownMurmur ||
-                                                 id == SoundId.MineAmbience || id == SoundId.Purr;
+                                                 id == SoundId.MineAmbience || id == SoundId.Purr || id == SoundId.FrogChorus;
 
         public static float[] Generate(SoundId id, int variant)
         {
@@ -98,6 +100,8 @@ namespace Punchy.Audio
                 SoundId.StepSnow => Crunch(rng),
                 SoundId.StepRock => Tap(rng),
                 SoundId.StepSand => Underfoot(rng, 0.13f, 1300f, 0.035f, 0.35f, 0f),
+                SoundId.Rattle => Rattle(rng),
+                SoundId.FrogChorus => FrogChorus(rng),
                 _ => new float[1]
             };
         }
@@ -312,15 +316,50 @@ namespace Punchy.Audio
             {
                 var u = i / (float)n;
                 var shape = u < 0.25f ? Mathf.SmoothStep(0f, 1f, u / 0.25f) : u < 0.75f ? 1f : Mathf.SmoothStep(1f, 0.75f, (u - 0.75f) / 0.25f);
-                var hz = Lerp(low, high, shape) * (1f + 0.012f * Mathf.Sin(2f * Mathf.PI * 5.5f * u * seconds));
+                var hz = Lerp(low, high, shape) * (1f + 0.008f * Mathf.Sin(2f * Mathf.PI * 4.5f * u * seconds));
                 phase += hz / Rate;
                 var p = 2f * Mathf.PI * (float)phase;
                 var tone = Mathf.Sin(p) + 0.35f * Mathf.Sin(2f * p) + 0.12f * Mathf.Sin(3f * p);
-                var breath = band.Run(Noise(rng), hz * 2f, 3f) * 0.3f;
+                var breath = band.Run(Noise(rng), hz * 2f, 3f) * 0.15f;
                 var env = Mathf.SmoothStep(0f, 1f, Mathf.Min(u / 0.12f, 1f)) * Mathf.SmoothStep(0f, 1f, Mathf.Min((1f - u) / 0.2f, 1f));
                 s[i] = env * (tone + breath);
             }
-            return Normalise(s, 0.6f);
+            return Normalise(Distant(s, 1.2f), 0.6f);
+        }
+
+        /// <summary>
+        /// A sound heard from far off, across open country: a long, soft tail of echoes after it (a few feedback delays,
+        /// each duller than the last), over a slightly dulled dry sound, made tail seconds longer to ring out in.
+        /// </summary>
+        static float[] Distant(float[] dry, float tail)
+        {
+            var n = dry.Length + (int)(tail * Rate);
+            var s = new float[n];
+            int[] delays = { (int)(0.037f * Rate), (int)(0.053f * Rate), (int)(0.071f * Rate), (int)(0.097f * Rate) };
+            var lines = new float[delays.Length][];
+            var at = new int[delays.Length];
+            var lows = new float[delays.Length];
+            for (int k = 0; k < delays.Length; k++)
+                lines[k] = new float[delays[k]];
+            var dull = 0f;
+            var pole = Pole(3500f);
+            for (int i = 0; i < n; i++)
+            {
+                var x = i < dry.Length ? dry[i] : 0f;
+                dull += (x - dull) * pole;
+                var wet = 0f;
+                for (int k = 0; k < delays.Length; k++)
+                {
+                    var o = lines[k][at[k]];
+                    // (Each pass round the loop a little duller and quieter: the echo dies away over about the tail.)
+                    lows[k] += (o - lows[k]) * 0.35f;
+                    lines[k][at[k]] = x + lows[k] * 0.78f;
+                    at[k] = (at[k] + 1) % delays[k];
+                    wet += o;
+                }
+                s[i] = dull * 0.8f + wet * 0.22f;
+            }
+            return s;
         }
 
         /// <summary>A footstep: a soft thud and a brush of grit (low-passed noise), or on wet ground a splash (brighter).</summary>
@@ -852,8 +891,16 @@ namespace Punchy.Audio
         static float[] Bleat(System.Random rng) =>
             Normalise(Voice(rng, new Seg(Lerp(0.4f, 0.65f, R(rng)), 520f * J(rng, 0.12f), 470f, 820f, 1750f, 0.15f, 0.25f, 0f, 0.08f, 7f)), 0.5f);
 
-        static float[] Moo(System.Random rng) =>
-            Normalise(Voice(rng, new Seg(Lerp(1f, 1.5f, R(rng)), 120f * J(rng, 0.1f), 110f, 380f, 900f, 0.08f, 0.35f, 0f, 0.03f, 4f, 720f)), 0.6f);
+        /// <summary>
+        /// A moo: from a closed-mouthed hum opening out into a long "ooo", rising in pitch as it opens (a falling one
+        /// reads as a groan), with little breath in it.
+        /// </summary>
+        static float[] Moo(System.Random rng)
+        {
+            var low = 100f * J(rng, 0.1f);
+            return Normalise(Voice(rng, new Seg(Lerp(1.1f, 1.5f, R(rng)), low, low * Lerp(1.35f, 1.55f, R(rng)), 260f, 850f, 0.04f, 0.35f, 0f,
+                                               0.015f, 4f, 760f)), 0.6f);
+        }
 
         static float[] Grunt(System.Random rng)
         {
@@ -920,8 +967,41 @@ namespace Punchy.Audio
         }
 
         /// <summary>A frog's croak: a low, rough, pulsing "rrrbit".</summary>
-        static float[] Croak(System.Random rng) =>
-            Normalise(Voice(rng, new Seg(Lerp(0.25f, 0.4f, R(rng)), 140f * J(rng, 0.15f), 120f, 450f, 1100f, 0.25f, 0.4f, 0f, 0.35f, 28f, 650f)), 0.55f);
+        /// <summary>
+        /// A frog's croak: one or two short syllables ("rib-bit"), each a fast train of clean pulses (30-40 a second)
+        /// of a resonant, throaty tone, the second a little higher; hardly any breath, so it's a croak, not a burp.
+        /// </summary>
+        static float[] Croak(System.Random rng)
+        {
+            var syllables = 1 + rng.Next(2);
+            var rate = Lerp(30f, 40f, R(rng));
+            var tone = Lerp(420f, 560f, R(rng));
+            var lengths = new float[syllables];
+            var total = 0.05f;
+            for (int k = 0; k < syllables; k++)
+                total += (lengths[k] = Lerp(0.1f, 0.17f, R(rng))) + 0.05f;
+            var s = new float[(int)(total * Rate)];
+            var body = new Band();
+            var at = 0;
+            for (int k = 0; k < syllables; k++)
+            {
+                var n = (int)(lengths[k] * Rate);
+                var hz = tone * (k == 0 ? 1f : 1.12f);
+                for (int i = 0; i < n && at + i < s.Length; i++)
+                {
+                    var t = i / (float)Rate;
+                    var u = i / (float)n;
+                    // (Each pulse a quick swell and decay of the tone, the train of them the croak's rattle.)
+                    var pulse = Mathf.Repeat(t * rate, 1f);
+                    var shape = pulse < 0.15f ? pulse / 0.15f : Mathf.Exp(-(pulse - 0.15f) * 6f);
+                    var x = (Mathf.Sin(2f * Mathf.PI * hz * t) + 0.4f * Mathf.Sin(4f * Mathf.PI * hz * t)) * shape + Noise(rng) * 0.03f;
+                    var env = Mathf.Min(1f, u * 10f) * Mathf.Min(1f, (1f - u) * 5f);
+                    s[at + i] = (body.Run(x, hz * 1.8f, 2.5f) + x * 0.5f) * env;
+                }
+                at += n + (int)(0.05f * Rate);
+            }
+            return Normalise(s, 0.55f);
+        }
 
         /// <summary>A cicada's song: a hard metallic buzz, swelling and dying away over two or three seconds.</summary>
         static float[] Cicada(System.Random rng)
@@ -939,6 +1019,73 @@ namespace Punchy.Audio
                 s[i] = band.Run(Noise(rng) * tick, hz, 8f) * env;
             }
             return Normalise(s, 0.45f);
+        }
+
+        /// <summary>
+        /// Frogs' chorus at night, 6 s looped: a soft, steady hum of many far-off trilling frogs (a dark, slowly
+        /// swelling bed of pulsed tones), with a nearer croak now and then over it.
+        /// </summary>
+        static float[] FrogChorus(System.Random rng)
+        {
+            const float seconds = 6f;
+            var fade = Rate / 2;
+            var n = (int)(seconds * Rate) + fade;
+            var s = new float[n];
+            // The bed: a dozen far frogs trilling, each its own pitch, pulse rate and slow swell, dulled by distance.
+            for (int f = 0; f < 12; f++)
+            {
+                var hz = Lerp(380f, 900f, R(rng));
+                var rate = Lerp(18f, 45f, R(rng));
+                var swell = Lerp(0.15f, 0.5f, R(rng));
+                var offset = R(rng) * 10f;
+                var low = 0f;
+                for (int i = 0; i < n; i++)
+                {
+                    var t = i / (float)Rate;
+                    var pulse = Mathf.Repeat(t * rate + offset, 1f);
+                    var level = Mathf.Max(0f, Mathf.Sin(2f * Mathf.PI * swell * t + offset)) * Mathf.Exp(-pulse * 5f);
+                    low += (Mathf.Sin(2f * Mathf.PI * hz * t) * level - low) * Pole(1400f);
+                    s[i] += low * 0.12f;
+                }
+            }
+            // A few nearer croaks over it.
+            for (int k = 0; k < 4; k++)
+            {
+                var croak = Croak(rng);
+                var at = rng.Next(n - croak.Length);
+                for (int i = 0; i < croak.Length; i++)
+                    s[at + i] += croak[i] * 0.35f;
+            }
+            return Normalise(Seamless(s, fade), 0.4f);
+        }
+
+        /// <summary>
+        /// A rattlesnake's rattle: a dry, fast buzz of hard little clicks (the tail's shaken segments), 50-60 a second
+        /// with a ragged rhythm, high and hissy, swelling in and dying away over a second and a half or so.
+        /// </summary>
+        static float[] Rattle(System.Random rng)
+        {
+            var n = (int)(Lerp(1.2f, 1.9f, R(rng)) * Rate);
+            var s = new float[n];
+            var band = new Band();
+            var rate = Lerp(48f, 60f, R(rng));
+            var next = 0f;
+            var click = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                var t = i / (float)Rate;
+                var u = i / (float)n;
+                // (Each click a short burst; the gaps between them jitter, as a shaken rattle's do.)
+                if (t >= next)
+                {
+                    click = Lerp(0.6f, 1f, R(rng));
+                    next = t + (1f + Noise(rng) * 0.25f) / rate;
+                }
+                click *= 0.82f;
+                var env = Mathf.Min(u / 0.12f, 1f) * Mathf.Min((1f - u) / 0.3f, 1f);
+                s[i] = band.Run(Noise(rng) * click, 6500f, 2.5f) * env;
+            }
+            return Normalise(s, 0.5f);
         }
 
         /// <summary>A woodpecker drumming: a fast roll of knocks on wood, slowing a touch at the end.</summary>

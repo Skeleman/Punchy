@@ -55,6 +55,8 @@ namespace Punchy.Audio
         class Voice
         {
             public AudioSource Source;
+            /// <summary>The air between: a far sound loses its top (Setup).</summary>
+            public AudioLowPassFilter Air;
             public float Priority;     // volume over distance when it started
             public bool Loop;
             public int Handle;
@@ -94,7 +96,9 @@ namespace Punchy.Audio
                 source.rolloffMode = AudioRolloffMode.Logarithmic;
                 source.minDistance = 1.5f;
                 source.maxDistance = 40f;
-                voices.Add(new Voice { Source = source });
+                var air = source.gameObject.AddComponent<AudioLowPassFilter>();
+                air.cutoffFrequency = 22000f;
+                voices.Add(new Voice { Source = source, Air = air });
             }
             echo = new GameObject("Cave echo").AddComponent<AudioReverbZone>();
             echo.transform.SetParent(transform, false);
@@ -269,6 +273,10 @@ namespace Punchy.Audio
             // (Full volume out to a quarter of its reach, then falling away: heard where it's meant to be heard.)
             s.minDistance = Mathf.Max(1f, reach * 0.25f);
             s.volume = volume * Volume[(int)group] * Master;
+            // Far off (past 40 m), muffled as the air muffles it: a wolf's howl across the valley is soft and dull, not
+            // crisp, down to a 1.8 kHz top by 200 m.
+            var far = Mathf.InverseLerp(40f, 200f, Vector3.Distance(at, Ear));
+            voice.Air.cutoffFrequency = Mathf.Lerp(22000f, 1800f, Mathf.Sqrt(far));
             voice.Volume = volume;
             voice.Group = group;
         }

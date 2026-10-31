@@ -401,7 +401,8 @@ namespace Punchy.Ambience
                 b.BreathTimer = BreathInterval * (speed > 8f ? 0.5f : 1f) * UnityEngine.Random.Range(0.85f, 1.15f);
                 b.ExhaleLeft = 0.45f;
             }
-            if (b.ExhaleLeft > 0f && breathe > 0f)
+            // (Players with creature bodies breathe from their own mouths: Punchy.Fauna.CreatureBreathSystem.)
+            if (b.ExhaleLeft > 0f && breathe > 0f && !Punchy.Fauna.CreatureBreathSystem.PlayersBreathe)
             {
                 b.ExhaleLeft -= dt;
                 var mouth = position + new float3(0f, Mouth.x, 0f) + forward * Mouth.y;

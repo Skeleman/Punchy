@@ -84,3 +84,10 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 180f1b6d49daab54b885bbb80b42807e, type: 2}
   Hunger: 0.2
   ChaseTime: 10
+  Calls:
+  - Sound: 47
+    Interval: {x: 40, y: 90}
+    Pitch: {x: 0.9, y: 1.1}
+    Volume: 0.45
+    Reach: 18
+    When: 1

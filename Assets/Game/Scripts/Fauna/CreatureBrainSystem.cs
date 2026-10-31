@@ -233,13 +233,17 @@ namespace Punchy.Fauna
                 var player = Players[0];
                 var emote = (IdleAction)PlayerPoses[0];
                 var playerSpeed = PlayerSpeeds[0];
+                var nearest = 0;
                 for (int p = 1; p < Players.Length; p++)
                     if (math.distancesq(Players[p].xz, s.Position.xz) < math.distancesq(player.xz, s.Position.xz))
                     {
                         player = Players[p];
                         emote = (IdleAction)PlayerPoses[p];
                         playerSpeed = PlayerSpeeds[p];
+                        nearest = p;
                     }
+                // (A player in a body of its own kind is one of its own: not run from. A ghost doesn't flee a ghost.)
+                var ownKind = nearest < PlayerSpecies.Length && PlayerSpecies[nearest] == body.Species && body.Species >= 0;
                 if (emote < IdleAction.Wave)
                     emote = IdleAction.None;
                 var dt = Dt;
@@ -298,7 +302,7 @@ namespace Punchy.Fauna
                 // the skittish: a curious one comes to look, and some pay it no heed.)
                 var commotion = b.Reaction != EmoteReaction.Flees ? 1f :
                                 emote == IdleAction.Cheer || emote == IdleAction.Dance ? 1.8f : emote == IdleAction.Wave ? 1.25f : 1f;
-                var threatened = !aloft && b.FleeDistance > 0f && threatDistance < b.FleeDistance * s.Scale * alert * nerve * tame * commotion;
+                var threatened = !aloft && !ownKind && b.FleeDistance > 0f && threatDistance < b.FleeDistance * s.Scale * alert * nerve * tame * commotion;
                 var threat = player.xz;
                 // A hunter after it: heard creeping close, or seen drawing back to throw (and the throw itself).
                 if (!threatened && !aloft && b.FleeDistance > 0f && FindHunter(self, ref s, alert, out var hunter))
@@ -423,7 +427,8 @@ namespace Punchy.Fauna
                 // metres off.
                 if (b.Haunts && SleepTime(ref b) < 0.5f)
                 {
-                    if (playerDistance < 3.5f)
+                    // (Not from a ghost: one of its own it lets come close.)
+                    if (playerDistance < 3.5f && !ownKind)
                     {
                         var off = math.normalizesafe(s.Position.xz - player.xz, rng.NextFloat2Direction());
                         s.Position.xz += off * rng.NextFloat(20f, 35f) + rng.NextFloat2Direction() * 6f;
@@ -829,7 +834,9 @@ namespace Punchy.Fauna
                 }
 
                 // Animals with a home never head out of range of it (penned animals stay in their pen, even fleeing).
-                if (s.Leash > 0f && moving && s.Mode != CreatureMode.Patrol && s.Mode != CreatureMode.Swim)
+                // Going indoors is going home: a door beyond the leash would otherwise be cut short to a spot it stands
+                // on for a minute, turning on it (Z-07, an elf by the ElfGrove fountain).
+                if (s.Leash > 0f && moving && s.Mode != CreatureMode.Patrol && s.Mode != CreatureMode.Swim && s.Mode != CreatureMode.Home)
                 {
                     var fromHome = s.Target - s.Home;
                     var far = math.length(fromHome);
@@ -848,9 +855,11 @@ namespace Punchy.Fauna
 
                     // Turn towards the target, then move; slow down while turning sharply.
                     var turn = 0f;
-                    if (moving)
+                    // (Not within 10 cm of the target: the way to it there is noise, and following it spins the body on
+                    // the spot at its full turn rate, Z-07.)
+                    var to = s.Target - s.Position.xz;
+                    if (moving && math.lengthsq(to) > 0.01f)
                     {
-                        var to = s.Target - s.Position.xz;
                         var wanted = WrapAngle(math.atan2(to.x, to.y) - s.Yaw);
                         turn = math.clamp(wanted, -b.TurnRate * dt, b.TurnRate * dt);
                         targetSpeed *= math.saturate(math.cos(wanted) * 1.5f);
@@ -899,7 +908,21 @@ namespace Punchy.Fauna
                     {
                         s.Speed *= 0.5f;
                         if (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Play && s.Stage == 1)
-                            s.Target = s.Position.xz + new float2(-forward.y, forward.x) * (rng.NextBool() ? 20f : -20f);
+                        {
+                            // Running, it veers along whatever's in the way: to the side its run leans to (head-on, its
+                            // own side), the other side if that's blocked too, or back the way it came if both are.
+                            // Never a coin toss: a fresh one each frame left it turning on the spot (Z-07, quail
+                            // fleeing on a slope, playing prairie dogs).
+                            var left = new float2(-forward.y, forward.x);
+                            var lean = math.dot(s.Target - s.Position.xz, left);
+                            var side = math.abs(lean) > 0.5f ? math.sign(lean) : (s.Seed & 1u) == 0u ? 1f : -1f;
+                            var way = left * side;
+                            var reach = 1.5f * s.Scale + 0.5f;
+                            if (!CaveWalker(s, ref b) && !b.Haunts && !b.LavaDweller && s.Mode != CreatureMode.Swim &&
+                                !Open(s.Position.xz, s.Position.xz + way * reach, b.Habitat, landBound))
+                                way = Open(s.Position.xz, s.Position.xz - way * reach, b.Habitat, landBound) ? -way : -forward;
+                            s.Target = s.Position.xz + way * 20f;
+                        }
                         else if (s.Mode == CreatureMode.Wander || s.Mode == CreatureMode.Drink && s.Stage == 0 ||
                                  s.Mode == CreatureMode.Climb && s.Stage == 0 || s.Mode == CreatureMode.Web && s.Stage == 0)
                             Pause(ref s, ref b, ref rng);
@@ -1382,9 +1405,9 @@ namespace Punchy.Fauna
                 }
                 else if (calm && b.Idles != IdleActions.None && s.Speed < 0.1f && !(b.Disguised && s.Mode == CreatureMode.Rest) &&
                          rng.NextFloat() < dt * b.Fidgets * 0.15f)
-                    StartAction(ref s, ref b, ref rng, lying, perched || s.Mode == CreatureMode.Climb, Night);
-                // A howl is taken up by the rest of the pack, one after another.
-                else if (calm && !lying && (b.Idles & IdleActions.Howl) != 0 && s.Speed < 0.1f && Night > 0.5f &&
+                    StartAction(ref s, ref b, ref rng, lying, perched || s.Mode == CreatureMode.Climb, Night, HowlTime(in s, Hour));
+                // A howl is taken up by the rest of the pack, one after another (in the pack's own time for it).
+                else if (calm && !lying && (b.Idles & IdleActions.Howl) != 0 && s.Speed < 0.1f && Night > 0.5f && HowlTime(in s, Hour) &&
                          rng.NextFloat() < dt * 0.8f && Howling(self, ref s, species))
                 {
                     s.Action = IdleAction.Howl;
@@ -1420,7 +1443,20 @@ namespace Punchy.Fauna
             }
 
             /// <summary>Picks one of the species' idle actions that suits how it is now (lying, perched or standing).</summary>
-            static void StartAction(ref CreatureState s, ref CreatureBlob b, ref Random rng, bool lying, bool aloft, float night)
+            /// <summary>
+            /// Whether it's a pack's time to howl: half an hour once a night, somewhere between 9 at night and 3 in the
+            /// morning, the same for every wolf from one home (a lone one's from its own individual), so a night's
+            /// howling is one chorus now and then rather than all night long.
+            /// </summary>
+            static bool HowlTime(in CreatureState s, float hour)
+            {
+                var key = math.any(s.Home != float2.zero) ? math.hash((int2)math.round(s.Home)) : s.Individual;
+                var start = 21f + key % 60u / 10f;
+                var h = hour < 12f ? hour + 24f : hour;
+                return h >= start && h < start + 0.5f;
+            }
+
+            static void StartAction(ref CreatureState s, ref CreatureBlob b, ref Random rng, bool lying, bool aloft, float night, bool howlTime)
             {
                 var options = new FixedList64Bytes<byte>();
                 for (int a = 1; a <= (int)IdleAction.Howl; a++)
@@ -1437,8 +1473,8 @@ namespace Punchy.Fauna
                     if (aloft && (action == IdleAction.PawGround || action == IdleAction.Sniff || action == IdleAction.Stretch ||
                                   action == IdleAction.SitUp || action == IdleAction.HeadBob || action == IdleAction.Howl))
                         continue;
-                    // Howling is for the night (and not lying down).
-                    if (action == IdleAction.Howl && (night < 0.5f || lying))
+                    // Howling is for the night (and not lying down), in the pack's time for it.
+                    if (action == IdleAction.Howl && (night < 0.5f || lying || !howlTime))
                         continue;
                     options.Add((byte)a);
                 }
@@ -1500,12 +1536,20 @@ namespace Punchy.Fauna
                 {
                     s.Target = other.Position.xz;
                     if (s.StageTime < 1f)
-                        bow = 1f;   // play bow, then off
+                    {
+                        // Play bow, then off. It holds its heading while it bows (the head follows the partner): a
+                        // partner close by and running round it turned it on the spot (Z-07).
+                        bow = 1f;
+                        s.Target = s.Position.xz + new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                    }
                     else
                     {
                         targetSpeed = math.lerp(walk, run, 0.75f);
                         var reach = (b.BodyLength * s.Scale + Bodies[p].Blob.Value.BodyLength * other.Scale) * 0.6f + 0.3f;
-                        if (distance < reach)
+                        // (A near miss counts too: a partner that's run close past it, beside or behind, within a few
+                        // reaches. Otherwise one running round it turned it on the spot, Z-07.)
+                        var bearing = math.abs(WrapAngle(math.atan2(to.x, to.y) - s.Yaw));
+                        if (distance < reach || distance < reach * 3f + 0.5f && bearing > 1.2f && s.StageTime > 2f)
                         {
                             s.Stage = 1;
                             s.StageTime = 0f;
@@ -1529,9 +1573,42 @@ namespace Punchy.Fauna
                     var toCentre = s.Focus - s.Position.xz;
                     var wander = math.length(toCentre);
                     var range = s.Leash > 0f ? s.Leash * 0.6f : 12f;
+                    // Out there the run is bent round towards the middle: its angle from the way in is narrowed, keeping
+                    // the side it leans to (dead away from the middle, its own side). Not a blend of the two ways: with
+                    // the chaser between it and the middle they point opposite, and a few metres past the range they
+                    // cancelled, leaving the way to go to noise; it turned on the spot at full rate (Z-07).
                     if (wander > range)
-                        dir = math.lerp(math.normalizesafe(dir), toCentre / wander, math.saturate((wander - range) / 6f));
-                    s.Target = s.Position.xz + math.normalizesafe(dir, flee) * 8f;
+                    {
+                        var inward = toCentre / wander;
+                        var pull = math.saturate((wander - range) / 6f);
+                        var fled = math.normalizesafe(dir, flee);
+                        var theta = math.atan2(inward.x * fled.y - inward.y * fled.x, math.dot(inward, fled));
+                        var lean = math.abs(theta) > math.PI - 0.35f ? (s.Seed & 1u) == 0u ? 1f : -1f : math.sign(theta);
+                        var angle = lean * math.min(math.abs(theta), math.lerp(math.PI, math.PI * 0.25f, pull));
+                        math.sincos(angle, out var sn, out var cs);
+                        dir = new float2(inward.x * cs - inward.y * sn, inward.x * sn + inward.y * cs);
+                    }
+                    // A run aimed at something in the way (water, a steep bank) turns off along it, its own side
+                    // first: left to the steering, it was stopped, sent aside, then aimed back in again each frame
+                    // (Z-07).
+                    var aim = math.normalizesafe(dir, flee);
+                    var probe = 1.5f * s.Scale + 0.5f;
+                    var land = b.Habitat == Habitat.Land;
+                    if (!CaveWalker(s, ref b) && !Open(s.Position.xz, s.Position.xz + aim * probe, b.Habitat, land))
+                    {
+                        var own = (s.Seed & 1u) == 0u ? 1f : -1f;
+                        for (int k = 1; k <= 6; k++)
+                        {
+                            math.sincos(own * (k % 2 == 1 ? 1f : -1f) * 0.8f * ((k + 1) / 2), out var ts, out var tc);
+                            var tried = new float2(aim.x * tc - aim.y * ts, aim.x * ts + aim.y * tc);
+                            if (Open(s.Position.xz, s.Position.xz + tried * probe, b.Habitat, land))
+                            {
+                                aim = tried;
+                                break;
+                            }
+                        }
+                    }
+                    s.Target = s.Position.xz + aim * 8f;
                     targetSpeed = math.lerp(walk, run, distance > 12f ? 0.3f : 0.6f);
                 }
             }
@@ -1868,7 +1945,12 @@ namespace Punchy.Fauna
                             s.Timer = 3f;
                     }
                 }
-                TurnTowards(ref s, ref b, s.Target, dt);
+                // (Out of the ground it flies straight on: turning in the air, at a run, round a target close by
+                // coiled its body flat in the air, and an arc that bends misses the obstacle it was meant to clear.)
+                if (s.Air > 0f)
+                    s.YawRate = 0f;
+                else
+                    TurnTowards(ref s, ref b, s.Target, dt);
                 s.Position.xz += new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * s.Speed * dt;
                 ground = Terrain.SampleHeight(s.Position.xz);
                 var under = s.Air > 0f ? deep : depth;
@@ -5695,6 +5777,11 @@ namespace Punchy.Fauna
                 }
                 return best < float.MaxValue;
             }
+
+            /// <summary>Whether a step from one spot to the next is open ground for it: walkable, and (for a land-bound
+            /// animal) not too steep. The running veers' look either side (Z-07).</summary>
+            bool Open(float2 from, float2 to, Habitat habitat, bool landBound) =>
+                Walkable(to, habitat) && !(landBound && SlopeAhead(from, to) > 0.8f);
 
             /// <summary>Lava deep enough to swim in (a volcano's crater lake, a lava biome's pools).</summary>
             bool InLava(float2 xz)

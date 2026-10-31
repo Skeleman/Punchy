@@ -111,9 +111,11 @@ namespace Punchy.Fauna
                         said.Head = Head(s, ref b);
                         Shown[k] = said;
                     }
+                // (A ghost speaks only to a ghost: a player in a ghost's body.)
+                var spirit = b.Haunts && playerKind != null && playerKind == director.SpeciesAt(bodies[i].Species)?.Body.name;
                 // Starting to answer the player's emote just now (one of theirs, a moment ago, nearby): a line for it.
                 var answering = false;
-                if (b.Upright && b.Hands && s.Mode != CreatureMode.Puppet && math.distancesq(s.Position, player) < AnswerReach * AnswerReach)
+                if ((b.Upright && b.Hands || spirit) && s.Mode != CreatureMode.Puppet && math.distancesq(s.Position, player) < AnswerReach * AnswerReach)
                 {
                     var was = lastAction.TryGetValue(entities[i], out var a) ? a : IdleAction.None;
                     lastAction[entities[i]] = s.Action;
@@ -121,7 +123,8 @@ namespace Punchy.Fauna
                 }
                 if (!answering)
                 {
-                    if (now < nextAny || Shown.Count >= MaxShown || !CanTalk(s, ref b) || math.distancesq(s.Position, player) > Reach * Reach)
+                    if (now < nextAny || Shown.Count >= MaxShown || !(CanTalk(s, ref b) || spirit && CanHaunt(s)) ||
+                        math.distancesq(s.Position, player) > Reach * Reach)
                         continue;
                     if (nextTalk.TryGetValue(entities[i], out var next) && now < next)
                         continue;
@@ -163,6 +166,9 @@ namespace Punchy.Fauna
             b.Upright && b.Hands && !b.Haunts &&
             s.Mode != CreatureMode.Puppet && s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Flee && s.Mode != CreatureMode.Rest &&
             s.Mode != CreatureMode.Home;   // (indoors, or on the way: not through the walls)
+
+        /// <summary>A ghost abroad (not a player's body, not gone to rest by day).</summary>
+        static bool CanHaunt(in CreatureState s) => s.Mode != CreatureMode.Puppet && s.Mode != CreatureMode.Sleep;
 
         static float3 Head(in CreatureState s, ref CreatureBlob b) => s.Position + new float3(0f, b.StandHeight * s.Scale + 0.45f, 0f);
 

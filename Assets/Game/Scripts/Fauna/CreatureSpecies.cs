@@ -195,6 +195,10 @@ namespace Punchy.Fauna
         [Tooltip("A player's cruising airspeed in this body (m/s), from the real bird's: a pigeon about 17, a crow 14, an " +
                  "owl 10. 0: twice FlySpeed. Variants take their body's unless they set their own.")]
         [Min(0f)] public float PlayerFlySpeed;
+        [Tooltip("How high a player jumps in this body, next to a human's jump (1). 0: from its size (a small body lower, " +
+                 "a big one higher, within 0.45-1.4) and a nimble climber higher. Variants take their body's unless they " +
+                 "set their own.")]
+        [Min(0f)] public float PlayerJump;
         [Tooltip("Wingbeats per second.")]
         [Min(0.1f)] public float FlapRate = 6f;
         [Tooltip("How much it glides between bursts of flapping (soaring birds of prey).")]

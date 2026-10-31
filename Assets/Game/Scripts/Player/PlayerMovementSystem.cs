@@ -56,7 +56,9 @@ namespace Punchy.Player
                 var settings = motor.ValueRO;
 
                 var position = t.Position;
-                var swimming = Floor(terrain, position, settings.SwimDepth, out _, out var inCave);
+                // (Over deep water but up in the air, jumping across a river: not swimming yet, so neither slowed nor carried
+                // by the current until it's down in it.)
+                var swimming = Floor(terrain, position, settings.SwimDepth, out var swimFloor, out var inCave) && position.y < swimFloor + 0.3f;
                 m.LatchCooldown = math.max(m.LatchCooldown - dt, 0f);
 
                 // A flying body: off with a jump, and on the wing until it comes down on something.
@@ -204,7 +206,8 @@ namespace Punchy.Player
 
                 if (m.Grounded && input.JumpPressed)
                 {
-                    m.VerticalVelocity = settings.JumpSpeed;
+                    // (As high as the body jumps next to a human: its height goes with the square of the speed.)
+                    m.VerticalVelocity = settings.JumpSpeed * math.sqrt(body.JumpFactor > 0f ? body.JumpFactor : 1f);
                     m.Grounded = false;
                 }
 
@@ -307,7 +310,8 @@ namespace Punchy.Player
             m.Airspeed = math.min(m.Airspeed, 0.6f);
             var ground = terrain.SampleGround(position.xz);
             var water = ground.HasWater && ground.WaterSurface - ground.Height > 0.25f;
-            if (water && position.y < ground.WaterSurface + 0.1f)
+            // (Rising out of it in a leap: in the air, not swimming, until it comes back down.)
+            if (water && position.y < ground.WaterSurface + 0.1f && m.VerticalVelocity <= 0f)
             {
                 var speed = settings.WalkSpeed * math.max(body.SpeedFactor, 0.1f) * (input.Sprint ? 1.6f : 1f);
                 // Swimming the way the camera looks: across, and up or down with it.
@@ -329,6 +333,10 @@ namespace Punchy.Player
                     m.VerticalVelocity = settings.JumpSpeed * 0.9f;
                     m.HopSpeed = speed * push;
                     position.y = top + 0.05f;
+                    m.Grounded = false;
+                    t.Position = position;
+                    Face(ref t, input, settings, dt);
+                    return;
                 }
                 else
                 {
@@ -464,10 +472,14 @@ namespace Punchy.Player
                     return;
                 }
             }
-            // Under rock (a cave's ceiling or walls): no further that way, and the nose goes down.
-            if (inCave && terrain.CaveDistance(position + new float3(0f, settings.Radius, 0f)) > -settings.Radius)
+            // Under rock (a cave's ceiling or walls): no further that way, and the nose goes down. It slides along level if
+            // that's clear (under a ceiling), else sinks (at a wall) until it's down, rather than hanging in the air
+            // where it met the rock.
+            if (inCave && UnderRock(terrain, position, settings.Radius))
             {
-                position = t.Position;
+                var level = new float3(position.x, t.Position.y, position.z);
+                var sink = t.Position - new float3(0f, math.max(m.Airspeed * 0.5f, 1f) * dt, 0f);
+                position = !UnderRock(terrain, level, settings.Radius) ? level : !UnderRock(terrain, sink, settings.Radius) ? sink : t.Position;
                 m.Pitch = math.min(m.Pitch, -0.2f);
             }
             Floor(terrain, position, settings.SwimDepth, out ground, out _);
@@ -482,6 +494,12 @@ namespace Punchy.Player
             }
             t.Position = position;
             t.Rotation = quaternion.RotateY(yaw);
+        }
+
+        /// <summary>In a cave, a flying body at this point would be in the rock (its ceiling or walls).</summary>
+        static bool UnderRock(in TerrainSource terrain, float3 position, float radius)
+        {
+            return terrain.CaveDistance(position + new float3(0f, radius, 0f)) > -radius;
         }
 
         /// <summary>
