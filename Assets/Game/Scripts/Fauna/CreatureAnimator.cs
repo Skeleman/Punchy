@@ -322,7 +322,16 @@ namespace Punchy.Fauna
                     else if (part.Role == LimbRole.Leg && sprint > 0f)
                     {
                         // A sprinting leg: the longer stride, and in the swing the knee driven high and the heel kicked up.
-                        a = b.LegAngles(seg, jointPhase, gaitMove, run, sprint);
+                        // (The longer stride is the hip's and knee's: the foot keeps its run angles, eased a little towards
+                        // rest, or at full push-off it bends hard back against the shin.)
+                        var foot = part.SegmentCount >= 3 && j == part.SegmentCount - 1;
+                        if (foot)
+                        {
+                            var idle = b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle];
+                            a = idle + (b.Angles(seg, jointPhase, gaitMove, run) - idle) * (1f - 0.35f * sprint);
+                        }
+                        else
+                            a = b.LegAngles(seg, jointPhase, gaitMove, run, sprint);
                         if (jointPhase >= 0.5f && b.Upright)
                         {
                             var swing = math.sin((jointPhase - 0.5f) * 2f * math.PI);
@@ -847,12 +856,49 @@ namespace Punchy.Fauna
         /// (The bees mob it while it's at the comb: CreatureRenderSystem's Swarm.)</summary>
         public const byte RaidWalk = 150, RaidAtComb = 151, RaidLeave = 152, RaidLick = 153;
 
+        /// <summary>
+        /// Where a worker is in its swing (an axe, a hammer, a pick): lift 0 down to 1 raised, raised slowly and held a
+        /// moment at the top (the wind-up, longest for an axe), then brought down fast; strike 1 just as it lands.
+        /// </summary>
+        static float SwingLift(in CreatureState s, CreatureTask job, out float strike)
+        {
+            var t = s.Clock + (s.Individual % 100) * 0.13f;
+            var p = math.frac(t * (job == CreatureTask.Chop ? 0.55f : 0.85f));
+            var top = job == CreatureTask.Chop ? 0.5f : 0.6f;
+            strike = math.smoothstep(0.68f, 0.74f, p) * (1f - math.smoothstep(0.8f, 0.95f, p));
+            return p < 0.7f ? math.smoothstep(0f, top, p) : 1f - math.smoothstep(0.7f, 0.76f, p);
+        }
+
+        /// <summary>
+        /// The rest of a worker's body in its swing: raising, the torso leans back and (with an axe or a pick) twists
+        /// away; striking, it folds forward into the blow and the head drops to the work. A hammer's is the smallest
+        /// (one hand, light blows), an axe's the biggest. (The legs stay as they stand: bending them here would lift the
+        /// feet off the ground.)
+        /// </summary>
+        static float3 SwingBody(ref CreaturePart part, in CreatureState s, int joint)
+        {
+            var job = s.Task == CreatureTask.Hermit ? (s.Stage == 2 ? CreatureTask.Tend : CreatureTask.Chop) : s.Task;
+            if (job != CreatureTask.Chop && job != CreatureTask.Hammer && !(job == CreatureTask.Mine && s.Stage == MinerAtFace))
+                return float3.zero;
+            var lift = SwingLift(in s, job, out var strike);
+            var big = job == CreatureTask.Hammer ? 0.45f : 1f;
+            // (An upright torso: pitch bends it forward, a roll twists it about its length.)
+            if (part.Role == LimbRole.Feature && part.Parent < 0 && joint == 0)
+                return new float3((-0.12f * lift + 0.42f * strike) * big, 0f, job == CreatureTask.Hammer ? 0f : -0.3f * lift * (1f - strike));
+            if (part.Role == LimbRole.Head && joint == 0)
+                return new float3((0.25f * strike - 0.1f * lift) * big, 0f, 0f);
+            return float3.zero;
+        }
+
         static float3 TaskPose(ref CreaturePart part, in CreatureState s, int joint)
         {
             if (part.Role == LimbRole.Arm && joint <= 1 && s.Mode == CreatureMode.Hunt && s.Task == CreatureTask.Hunt)
                 return HuntPose(part.Side > 0f, s.Stage, joint);
-            if (part.Role != LimbRole.Arm || s.Mode != CreatureMode.Work || s.Stage == 0 || s.Task == CreatureTask.None || joint > 1)
+            if (s.Mode != CreatureMode.Work || s.Stage == 0 || s.Task == CreatureTask.None)
                 return float3.zero;
+            // (Swinging an axe, a hammer or a pick, the whole body goes into it: SwingBody.)
+            if (part.Role != LimbRole.Arm || joint > 1)
+                return SwingBody(ref part, in s, joint);
             // (A miner swings its pick only at the ore face, not on its way there and back.)
             if (s.Task == CreatureTask.Mine && s.Stage != MinerAtFace)
                 return float3.zero;
@@ -871,8 +917,7 @@ namespace Punchy.Fauna
                     var swinging = right || job == CreatureTask.Chop || s.Task == CreatureTask.Mine;
                     if (!swinging)
                         return new float3(joint == 0 ? -0.7f : -0.7f, 0f, 0f);
-                    var p = math.frac(t * (job == CreatureTask.Chop ? 0.55f : 0.85f));
-                    var lift = p < 0.7f ? math.smoothstep(0f, 0.7f, p) : 1f - math.smoothstep(0.7f, 0.8f, p);
+                    var lift = SwingLift(in s, job, out _);
                     return new float3(joint == 0 ? -(0.45f + 1.8f * lift) : -(0.35f + 0.9f * lift), 0f, 0f);
                 }
                 case CreatureTask.Gesture:
