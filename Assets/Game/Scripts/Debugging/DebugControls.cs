@@ -84,15 +84,17 @@ namespace Punchy.Debugging
 
         // ---------------------------------------------------------------- spin check
 
-        /// <summary>"-spincheck": logs any creature that turns a whole circle on the spot (Zach's Z-07).</summary>
+        /// <summary>"-spincheck" (or "-spincheck 270,3"): logs any creature that turns this many degrees within this many
+        /// seconds on the spot (Zach's Z-07: brief spins of 2-3 s).</summary>
         static bool spinCheck;
+        static float spinDegrees = 270f, spinSeconds = 3f;
         /// <summary>Per creature: its heading last frame, how far it has turned since standing still, for how long, and
         /// when it was last logged.</summary>
         readonly System.Collections.Generic.Dictionary<Entity, float4> spins = new System.Collections.Generic.Dictionary<Entity, float4>();
         readonly System.Collections.Generic.Dictionary<Entity, float> spinLogged = new System.Collections.Generic.Dictionary<Entity, float>();
 
         /// <summary>
-        /// Watches every creature's heading: one that turns through a whole circle within 5 s while barely moving
+        /// Watches every creature's heading: one that turns through spinDegrees within spinSeconds while barely moving
         /// (under 0.3 m/s) is spinning in place, and is logged (at most every 20 s each) with what it's doing.
         /// </summary>
         void SpinCheck()
@@ -121,9 +123,9 @@ namespace Punchy.Debugging
                 }
                 else
                     w.y = w.z = 0f;
-                if (w.z > 5f)
+                if (w.z > spinSeconds)
                     w.y = w.z = 0f;
-                if (w.y > 2f * math.PI && (!spinLogged.TryGetValue(e, out var at) || now - at > 20f))
+                if (w.y > math.radians(spinDegrees) && (!spinLogged.TryGetValue(e, out var at) || now - at > 20f))
                 {
                     spinLogged[e] = now;
                     var director = FindAnyObjectByType<FaunaDirector>();
@@ -347,7 +349,13 @@ namespace Punchy.Debugging
             // "-incave": on the floor of the nearest cave's deepest chamber (after any -place).
             var inCave = System.Array.IndexOf(args, "-incave") >= 0;
             footDrift = System.Array.IndexOf(args, "-footdrift") >= 0;
-            spinCheck = System.Array.IndexOf(args, "-spincheck") >= 0;
+            var spinAt = System.Array.IndexOf(args, "-spincheck");
+            spinCheck = spinAt >= 0;
+            if (spinCheck && spinAt + 1 < args.Length && ParseFloats(args[spinAt + 1]) is float[] spin && spin.Length >= 2)
+            {
+                spinDegrees = spin[0];
+                spinSeconds = spin[1];
+            }
             // "-nohud": no readout (for screenshots).
             if (System.Array.IndexOf(args, "-nohud") >= 0)
             {
