@@ -907,8 +907,18 @@ namespace Punchy.Fauna
                     if (!followsWall && (blocked || landBound && s.Speed > 0.05f && SlopeAhead(s.Position.xz, ahead) > 0.8f))
                     {
                         s.Speed *= 0.5f;
-                        if (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Play && s.Stage == 1)
+                        if (s.Mode == CreatureMode.Flee)
                             s.Target = s.Position.xz + new float2(-forward.y, forward.x) * (rng.NextBool() ? 20f : -20f);
+                        else if (s.Mode == CreatureMode.Play && s.Stage == 1)
+                        {
+                            // Playing, it veers along whatever's in the way to the side its run leans to, the same
+                            // side every frame (Play aims it again each frame: a coin toss each time left it turning
+                            // on the spot, Z-07); head-on, its own side.
+                            var left = new float2(-forward.y, forward.x);
+                            var lean = math.dot(s.Target - s.Position.xz, left);
+                            var side = math.abs(lean) > 0.5f ? math.sign(lean) : (s.Seed & 1u) == 0u ? 1f : -1f;
+                            s.Target = s.Position.xz + left * side * 20f;
+                        }
                         else if (s.Mode == CreatureMode.Wander || s.Mode == CreatureMode.Drink && s.Stage == 0 ||
                                  s.Mode == CreatureMode.Climb && s.Stage == 0 || s.Mode == CreatureMode.Web && s.Stage == 0)
                             Pause(ref s, ref b, ref rng);
@@ -1522,7 +1532,12 @@ namespace Punchy.Fauna
                 {
                     s.Target = other.Position.xz;
                     if (s.StageTime < 1f)
-                        bow = 1f;   // play bow, then off
+                    {
+                        // Play bow, then off. It holds its heading while it bows (the head follows the partner): a
+                        // partner close by and running round it turned it on the spot (Z-07).
+                        bow = 1f;
+                        s.Target = s.Position.xz + new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                    }
                     else
                     {
                         targetSpeed = math.lerp(walk, run, 0.75f);
