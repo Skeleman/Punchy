@@ -522,7 +522,10 @@ Shader "Punchy/Water"
                 half churn = smoothstep(0.35, 0.75, length(flowingSlope));
                 half flecks = 0.45 + 0.55 * smoothstep(0.35, 0.65, PunchyValueNoise(p * 4.3) * 0.6 + PunchyValueNoise(p * 1.7 + 3.1) * 0.4);
                 half3 foamParts = half3(foam, min(rapids * rapids * churn * flecks, 0.6),
-                                        flowAmount * smoothstep(0.9 - 0.06 * rapids, 0.98, streaks) * (0.2 + 0.4 * rapids) * distanceFade * (1 - viscous));
+                                        flowAmount * smoothstep(0.9 - 0.06 * rapids, 0.98, streaks) * (0.2 + 0.4 * rapids) * distanceFade * (1 - viscous)
+                                        // Not on running cave water: there the flecks came out as thin lines across the
+                                        // flow (Z-34, seen with -waterprobe 4), striping every cave stream.
+                                        * (1 - caveRun));
                 foam = max(foam, max(foamParts.y, foamParts.z));
                 foam = max(foam, wakeFoam * (1 - viscous));
                 half3 foamLit = _FoamColor.rgb * (ambient + light.color * shadow * saturate(light.direction.y) + lanternLit);
