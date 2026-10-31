@@ -1,4 +1,4 @@
-# Handoff: profiler (laptop), refreshed 2026-10-30 after slot 4
+# Handoff: profiler (laptop), refreshed 2026-10-31 after slot 5
 
 Read COORDINATION.md first. This lane benches and profiles builds when the supervisor hands it the Unity slot. Only
 one Unity runs at a time on the laptop. When the slot is done: post BENCH-REPORTS (newest first), send one message
@@ -18,6 +18,7 @@ saying "Unity closed", and send no ack-only messages.
   play.sh (ReleaseBuild for Builds/Play).
 
 ## Archived builds worth keeping (Builds/)
+- Bench-3976d17 / Profile-3976d17 (world-features with z-p2 and 32-slot worm marks), Bench-247c690.
 - Bench-bc89606: world-features before the cave-chunk, worm and blocked work; the A side of many checks.
 - Bench-256e6a9 (cave-chunk), Bench-d60e085 (unmasked worm marks), Bench-2de3029 (worm mask), Bench-b70dbfa (wake
   mask), Bench-0c637a9 (gfx sweep), Bench-3d1893d / Bench-793f103 (swimmer wakes, item 6).
@@ -27,10 +28,12 @@ saying "Unity closed", and send no ack-only messages.
 - Profiler-only marker branches on origin (never merge): wip/brain-blocked*, wip/brain-sample*.
 
 ## Open threads
-- Gfx default: Low recommended (slot 4 report). Next probe if wanted: `-gfxset view=0.8,detail=0.75,shadows=0.8` on
-  glide and townwalk.
-- Worm mask: +0.4 ms against a 0.3 bar, with about ±0.2 noise between sessions; the call is the supervisor's and the
-  animal lane's.
+- Gfx default (Zach's call): Low has big headroom; the in-between view 0.8/detail 0.75/shadows 0.8 holds glide at 34
+  (slot 5); Medium fails glide (29).
+- Worm marks, 32 slots (3976d17): +0.2 ms, inside the noise. The Glacier frame has native worms wandering through it;
+  a frame in another biome with one spawned worm would be tighter.
+- The ~500 ms spikes in the world smoke (both 247c690 and 3976d17) did not reproduce in slot 5 on any build. If they
+  return, check for other processes or an open editor during the run.
 - Wakes: re-check with a camera over open water (the slot 4 frame was inside a canopy).
 - Item 15 cave-chunk: busiest chunk frame only −16%. A per-chunk timing log would show whether the mouth chunk is the
   one that's slow.
@@ -47,7 +50,7 @@ saying "Unity closed", and send no ack-only messages.
 
 ## Gotchas (each one has cost a run)
 - **Variable names in scripts that source lib.sh:** never assign P, R, W, WW, B, BASE, UNITY, SMI, HOME_BRANCH, REPORT,
-  HEADER or NOISE. In slot 4, `W=<commit>` sent every log to a relative folder and lost a pass. Use WM, K, G and so on.
+  HEADER or NOISE, and not `t` either (lib.sh `cool` sets a global t to the GPU temperature). In slot 4, `W=<commit>` sent every log to a relative folder and lost a pass. Use WM, K, G and so on.
 - A running bash script: don't sed -i it (that makes a new inode). For a same-length change (a commit hash), overwrite
   the bytes in place (python open 'r+b'), and only in a block bash hasn't parsed yet.
 - Fixed views: `-camlook` on the command line holds through a `here` stop. `-watch` moves the camera and follows any

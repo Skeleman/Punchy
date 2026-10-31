@@ -2,6 +2,66 @@
 
 Newest first.
 
+## 2026-10-31: slot 5 on world-features 3976d17: in-between gfx holds J-006 on glide; the 500 ms spikes didn't come back on any build (not code); 32-slot worm marks inside the noise
+0 exceptions and no NaN-bounds lines in any run. No dialogs. Every stop ended at the same spot (townwalk 366,-406, glide
+1197/1198,359, worm 869,1500).
+
+### Gfx in-between probe (`-gfxset view=0.8,detail=0.75,shadows=0.8`, logged as "(Custom)"), cap 60, 2 rounds ABBA
+Mean 1% low in fps (rounds), then GPU ms:
+
+| 3976d17 | townwalk | glide |
+|---|---|---|
+| Low (0.6/0.5/0.6) | 57.5 (56.9, 58.1) · 6.7 | 57.4 (57.1, 57.6) · 7.8 |
+| **In-between (0.8/0.75/0.8)** | **51.9** (46.6, 57.2) · 8.8 | **34.0** (33.5, 34.4) · 9.5 |
+| Medium (1/1/1) | 41.6 (41.6, 41.6) · 8.8 | 28.9 (29.3, 28.4) · 10.3 |
+
+- The in-between holds J-006 (1% low ≥ 30) on glide in both rounds, by about 4 fps. Medium fails it in both. Glide's
+  worst frame: 37–38 ms in-between against 42 ms on Medium; slow frames 3 against 11.
+- The in-between is a fair candidate for the default if Low looks too sparse. It has no headroom to spare on glide, though.
+- Shots: results/shots-g5-<Low|Mid|Med>-r<n>/.
+
+### The ~500 ms glide spikes from the world smoke: not reproduced, on any build; they look like the machine, not the code
+- The world smoke's spikes were 502–527 ms each, several per stop at cap 60, in townwalk too. They hit **247c690 just
+  as hard as 3976d17** (247c690 glide cap 60 1% low 4.9 and 5.5). So they were never a z-p2 regression.
+- This slot ran Medium, cap 60, townwalk + glide, ABBA, on all three builds: 3976d17, 247c690, and 0c637a9 from slot 4.
+  **The worst frame in all 10 route runs and both dev captures is 43 ms.** Glide 1% low was 28.9 / 30.8 / 29.2 on
+  3976d17 / 247c690 / 0c637a9, which is the same within noise.
+- What the spikes are:
+  - Not GC: GC counts per stop were the same in spiking and clean runs (21–35).
+  - Not shader compile: that happens once, on the first visit, not 5–6 times a stop and in both builds alike.
+  - The near-constant ~0.5 s length points to an outside stall during that session, such as another process holding
+    the GPU or disk (an editor import, a scan). I can't name it from the logs.
+  - If it recurs: run `tasklist` / check for an open editor during the run, and take a dev capture
+    (`bench.sh profile`) at the same time.
+- What does cost glide on Medium is the ordinary 35–43 ms hitches, 2 dev captures of 3976d17 glide (23 and 11 frames
+  > 33 ms of 2000). On those frames, against normal frames:
+  - The workers fill up with streaming jobs: BuildChunkMeshJob +10–14 ms, GroundDetail SampleGroundJob +6–9,
+    WeatherField LownessJob +4–8 and MapJob +4, FloraSystem PlaceJob +2–4.
+  - The render thread waits on them (Semaphore.WaitForSignal +11–14 ms).
+  - That's streaming load as the glide crosses new ground, and it's what View trims.
+  - Small main-thread extra: IMGUI GUIStyle.GetDimensions/GetMeshInfo +1–1.6 ms on spike frames (the debug panel).
+
+### Worm marks at 32 slots (3976d17 = 247c690 + z-p2, worm 407f998): +0.2 ms GPU mean, inside the noise
+Same fixed frame (`-place Glacier -camlook 900,200,1525,869,186,1500 -benchwait 40 -benchstops here`), cap 0, Medium,
+ABBA, a fresh player each run.
+
+| | avg | 1% low | GPU ms (r1, r2) |
+|---|---|---|---|
+| natives only | 95.4 | 66.5 | 9.1 (8.9, 9.3) |
+| spawned worm | 93.3 | 67.2 | 9.3 (10.6, 8.0) |
+
+- Mean +0.2 ms, under the 0.3 bar, but the paired swings are +1.7 and −1.3, so this frame can't resolve 0.3 ms.
+- Why it's noisy:
+  - The same coordinates now draw about 9 ms GPU (5 ms in slot 4) on this island.
+  - Native worms wander through the frame: natives r2 has a worm and its trail in the middle of the shot, while the
+    spawned worm is off-frame in on r1.
+- Read: no sign of a cost above the noise. A tighter check would need a frame with no native worms nearby (another
+  biome, with `-spawn SnowWorm:1`).
+
+### Builds
+- Profile-3976d17 (dev) added.
+- Bench-3976d17, Bench-247c690 and Bench-0c637a9 were reused.
+
 ## 2026-10-30: slot 4 (item 17 worm mask, wakes, gfx preset sweep on 0c637a9): masks cut most of the cost; Low is the only preset with J-006 headroom
 0 exceptions in every run. No dialogs. The first worm pass was lost to a bug in my script: a variable named W
 clobbered the runner's log path. Everything below is from the clean re-run.
