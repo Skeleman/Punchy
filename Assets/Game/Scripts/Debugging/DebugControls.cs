@@ -283,6 +283,9 @@ namespace Punchy.Debugging
             var inCave = System.Array.IndexOf(args, "-incave") >= 0;
             footDrift = System.Array.IndexOf(args, "-footdrift") >= 0;
             // "-nohud": no readout (for screenshots).
+            // "-meteors": every night a meteor shower (Sky.hlsl's test switch), for checking shooting stars against clouds (Z-09).
+            if (System.Array.IndexOf(args, "-meteors") >= 0)
+                Shader.SetGlobalFloat("_PunchySkyTest", 1f);
             if (System.Array.IndexOf(args, "-nohud") >= 0)
             {
                 ShowReadout = false;
