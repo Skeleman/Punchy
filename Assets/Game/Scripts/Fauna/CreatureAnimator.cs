@@ -752,11 +752,17 @@ namespace Punchy.Fauna
                     if (part.Role == LimbRole.Head) return new float3(0.15f * e, 0f, 0f);
                     break;
                 case IdleAction.Carry:
-                    // A player carrying an animal: both arms forward with the elbows bent, cradling it at the chest.
+                {
+                    // A player carrying an animal: both arms forward with the elbows bent, cradling it at the chest, opened
+                    // out round it as wide as it is (CarryWidth) with the elbows less bent: a cat between the forearms,
+                    // a sheep with the arms well apart.
+                    var open = math.saturate((s.CarryWidth - 0.1f) * 1.6f) * 0.7f;
                     if (part.Role == LimbRole.Arm)
-                        return joint == 0 ? new float3(-0.35f * e, 0f, 0f) : joint == 1 ? new float3(-1.25f * e, 0f, 0f) : float3.zero;
+                        return joint == 0 ? new float3(-(0.35f + 0.2f * open) * e, 0f, part.Side * open * e)
+                             : joint == 1 ? new float3(-(1.25f - 0.6f * open) * e, 0f, 0f) : float3.zero;
                     if (part.Role == LimbRole.Head) return new float3(0.2f * e, 0f, 0f);
                     break;
+                }
                 // Emotes (a player's, or folk answering one). Bodies without arms make do: a nod, a wag of the tail.
                 case IdleAction.Wave:
                 {
