@@ -2,6 +2,60 @@
 
 Newest first.
 
+## 2026-10-30: slot 4 (item 17 worm mask, wakes, gfx preset sweep on 0c637a9): masks cut most of the cost; Low is the only preset with J-006 headroom
+0 exceptions in every run. No dialogs. The first worm pass was lost to a bug in my script: a variable named W
+clobbered the runner's log path. Everything below is from the clean re-run.
+
+### Item 17, worm-mark mask (local merge 2de3029 = shader 5198212 + feeder bd5e706): +0.4 ms GPU, just over the 0.3 bar; ~2/3 of the old cost gone
+Same fixed frame as before (`-place Glacier -camlook 900,200,1525,869,186,1500 -benchwait 40 -benchstops here`), cap 0,
+2 rounds in ABBA order, a fresh player each run. The spawned run's shot shows the worm's line of bumps in view.
+
+| | avg | 1% low | GPU ms (r1, r2) |
+|---|---|---|---|
+| 2de3029, natives only | 114.7 | 71.2 | 5.1 (5.2, 5.0) |
+| 2de3029, spawned worm | 111.3 | 68.2 | **5.5** (5.5, 5.4) |
+| d60e085 (old, no mask), spawned worm | 107.3 | 68.7 | 6.3 (6.4, 6.3) |
+
+- Masked spawned vs natives: **+0.4 ms** (+0.3 and +0.4 by round). Old unmasked vs the same natives: +1.2 ms. So the mask
+  removes about 0.8 ms, two-thirds of the cost.
+- The natives-only baseline moved between sessions (5.9 last slot, 5.1 now): which native worms come near varies. Treat
+  the 0.3 bar as about ±0.2 ms. The result is marginal, not a clear fail.
+
+### Wakes, mask cut (local merge b70dbfa = Water.shader 4f597bf + feeder 138874c): +0.3 ms, at the bar, but the frame is weak
+`-goto -1087,-1600 -camlook -1078,41,-1594,-1115,31,-1600 -benchwait 30 -benchstops here`, cap 0, ABBA. 8 spawned ducks
+vs natives: GPU 10.8 → 11.1 ms (+0.4, +0.2), avg 84.0 → 82.9, 1% low 43.8 → 55.4 (noise).
+- Caveat: the camera sits inside a tree canopy (foliage across the top left), and the ducks are only specks on the
+  far water (results/shots-wakemask-on-r2/here.png). It isn't a close-up worst case. A camera out over open water
+  would make a fair re-check.
+
+### Graphics preset sweep, world-features 0c637a9 (creature ranges in): cap 60, 2 rounds (Low→Ultra, then Ultra→Low)
+`-gfx` was confirmed in each log ("Graphics: view 0.6 detail 0.5 shadows 0.6 (Low) (from the command line)"). Every
+stop ended at the same spot on every run. Each cell is the mean 1% low in fps (the rounds' range where it matters),
+then GPU ms:
+
+| preset (view/detail/shadows) | townwalk | glide | caveapproach | forest |
+|---|---|---|---|---|
+| Low (0.6/0.5/0.6) | 58.0 · 6.7 | 57.7 · 8.1 | 57.9 · 6.0 | 57.4 · 6.0 |
+| Medium (1/1/1), as tuned | 41.1 (33–49) · 8.8 | **30.7 (27.8, 33.6)** · 11.5 | 35.4 (33–37) · 8.7 | 50.6 · 8.9 |
+| High (1.3/1.5/1.4) | 39.2 · 11.4 | **27.8 (27.9, 27.6)** · 15.0 | **33.0 (29.7, 36.2)** · 10.9 | 45.2 · 9.3 |
+| Ultra (1.7/2/2) | **29.3** · 13.6 | **24.1** · 21.8 (avg 38) | 32.3 (28.5, 36.1) · 13.4 | 43.1 · 14.4 |
+
+- **J-006 (1% low ≥ 30 at cap 60):**
+  - Low holds it everywhere with large headroom (57+).
+  - Medium holds only on average: glide is 30.7, one round was 27.8 (10.5 slow frames a stop). That's the same
+    borderline as the v0.10 gate.
+  - High fails glide in both rounds and caveapproach in one.
+  - Ultra fails glide and townwalk.
+- **Recommendation for this laptop: default Low.** It's the highest preset that holds J-006 with headroom. Medium has
+  none on glide.
+  - Glide is the limit, and on Medium it's CPU-bound as well (cpu 18.3 ms against the 16.7 ms frame). So View (the
+    streaming and draw range) is the likely lever.
+  - If Low looks too sparse, an in-between `-gfxset view=0.8,detail=0.75,shadows=0.8` is the next thing to test (glide
+    and townwalk, 2 rounds).
+  - Forest and town have room to spare at Medium; glide sets the ceiling.
+- Shots for every preset and stop: results/shots-gfx-<preset>-r<n>/.
+
+
 ## 2026-10-30: slot (items 15, 16, worm marks): cave-chunk passes (small), Blocked cache passes (big), worm marks over the bar
 0 exceptions and 0 NaN-bounds lines in every run. No dialogs. BProfileTools (b/bench-runner 9a4c308) now adds maxCallMs and
 maxFrameMs columns: the longest single call, and the most one frame spent on a marker.
