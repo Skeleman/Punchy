@@ -331,6 +331,8 @@ namespace Punchy.Debugging
                     PlaceInCave(caveSource, args[i + 1].Substring(5));
                 else if (args[i] == "-place" && args[i + 1].StartsWith("tree:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var treeSource))
                     PlaceByTree(treeSource, args[i + 1].Substring(5));
+                else if (args[i] == "-place" && args[i + 1].StartsWith("prop:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var propSource))
+                    PlaceByProp(propSource, args[i + 1].Substring(5));
                 else if (args[i] == "-place" && string.Equals(args[i + 1], "meadow", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var meadowSource))
                     PlaceInMeadow(meadowSource);
                 else if (args[i] == "-place" && string.Equals(args[i + 1], "clearlake", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var lakeSource))
@@ -1051,6 +1053,159 @@ namespace Punchy.Debugging
                     return;
                 }
             Debug.LogWarning($"DebugControls: no lone {speciesName} near");
+        }
+
+        /// <summary>
+        /// "-place prop:Bench" (any plant species, wherever it's placed: a landmark's props, a town's buildings, or the
+        /// biome's own scatter): logs the eight nearest with their coordinates and puts the player in front of the
+        /// nearest, the camera framing it from a little way off. "prop:Bench#3" picks the third nearest, and
+        /// "prop:Bench@115,-401" (or "prop:Bench@115,-401#2") measures from that point instead of the player. For lining
+        /// up shots: the logged spot, height and front go straight into -camlook.
+        /// </summary>
+        void PlaceByProp(in TerrainSource source, string spec)
+        {
+            var director = FindAnyObjectByType<FaunaDirector>();
+            if (director == null || !director.FloraPlacementBlob.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var pick = 1;
+            var hash = spec.IndexOf('#');
+            if (hash >= 0)
+            {
+                int.TryParse(spec.Substring(hash + 1), out pick);
+                spec = spec.Substring(0, hash);
+            }
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(player);
+            var from = t.Position.xz;
+            var near = spec.IndexOf('@');
+            if (near >= 0)
+            {
+                if (ParseFloats(spec.Substring(near + 1)) is float[] p && p.Length >= 2)
+                    from = new float2(p[0], p[1]);
+                spec = spec.Substring(0, near);
+            }
+            var list = director.FloraSpeciesList;
+            var index = -1;
+            for (int i = 0; i < list.Count; i++)
+                if (list[i] != null && string.Equals(list[i].name, spec, System.StringComparison.OrdinalIgnoreCase))
+                    index = i;
+            if (index < 0)
+            {
+                Debug.LogWarning($"DebugControls: no plant species '{spec}'");
+                return;
+            }
+            ref var flora = ref director.FloraPlacementBlob.Value;
+            var first = flora.Rules[index].FirstModel;
+            var last = first + flora.Rules[index].Variants;
+            var found = new List<(float3 at, float height, float2 front, string where)>();
+            // Placed in landmarks (each prop takes the cell holding its spot) or as a landmark's scatter (its layers
+            // searched below, with the biome's).
+            var scatter = 0;
+            if (source.Landmarks.IsCreated)
+            {
+                ref var set = ref source.Landmarks.Value;
+                for (int n = 0; n < set.Instances.Length; n++)
+                {
+                    var inst = set.Instances[n];
+                    if (inst.Type >= flora.LandmarkTypeCount)
+                        continue;
+                    var radius = set.Types[inst.Type].Radius * inst.Scale;
+                    for (int l = 0; l < 3; l++)
+                    {
+                        var range = flora.PropRanges[inst.Type * 3 + l];
+                        for (int e = range.x; e < range.x + range.y; e++)
+                        {
+                            var prop = flora.Props[e];
+                            if (prop.Species != index)
+                                continue;
+                            if (prop.Count == 0 && prop.Centrepiece == 0)
+                            {
+                                scatter |= 1 << l;
+                                continue;
+                            }
+                            for (int k = 0; k < math.max(prop.Count, 1); k++)
+                            {
+                                var spot = prop.Count == 0 ? inst.Position
+                                    : LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), radius);
+                                TryProp(ref flora, source, (int2)math.floor(spot / flora.CellSizes[l]), l, first, last, inst.Position - spot, $"landmark {n}", found);
+                            }
+                        }
+                    }
+                }
+            }
+            // Town buildings: each plot's building takes the cell holding the plot's centre, facing its street.
+            if (source.Settlements.IsCreated)
+            {
+                ref var towns = ref source.Settlements.Value;
+                for (int k = 0; k < towns.Plots.Length; k++)
+                {
+                    var plot = towns.Plots[k];
+                    if (plot.Building < 0 || plot.Building >= flora.SettlementSpecies.Length || flora.SettlementSpecies[plot.Building].x != index)
+                        continue;
+                    var layer = flora.SettlementSpecies[plot.Building].y;
+                    TryProp(ref flora, source, (int2)math.floor(plot.Centre / flora.CellSizes[layer]), layer, first, last, plot.Facing, $"town {plot.Settlement}", found);
+                }
+            }
+            // The biome's own scatter: outwards in rings from the point, in each layer it grows in, to about 1.5 km or
+            // 200,000 cells, stopping once eight are found.
+            for (int e = 0; e < flora.Entries.Length; e++)
+                if (flora.Entries[e].Species == index)
+                    for (int r = 0; r < flora.Ranges.Length; r++)
+                        if (e >= flora.Ranges[r].x && e < flora.Ranges[r].x + flora.Ranges[r].y)
+                            scatter |= 1 << (r % 3);
+            for (int l = 0; l < 3; l++)
+            {
+                if ((scatter & (1 << l)) == 0)
+                    continue;
+                var size = flora.CellSizes[l];
+                var centre = (int2)math.floor(from / size);
+                var rings = (int)math.min(1500f / size, math.sqrt(200000f) * 0.5f);
+                var before = found.Count;
+                for (int r = 0; r <= rings && found.Count - before < 8; r++)
+                    for (int dz = -r; dz <= r; dz++)
+                    for (int dx = -r; dx <= r; dx++)
+                        if (math.max(math.abs(dx), math.abs(dz)) == r)
+                            TryProp(ref flora, source, centre + new int2(dx, dz), l, first, last, new float2(1f, 0f), "scatter", found);
+            }
+            if (found.Count == 0)
+            {
+                Debug.LogWarning($"DebugControls: no {spec} found");
+                return;
+            }
+            var origin = from;
+            found.Sort((a, b) => math.distance(a.at.xz, origin).CompareTo(math.distance(b.at.xz, origin)));
+            for (int k = 0; k < math.min(8, found.Count); k++)
+            {
+                var c = found[k];
+                Debug.Log(System.FormattableString.Invariant(
+                    $"DebugControls: {spec} #{k + 1} at ({c.at.x:F1}, {c.at.y:F1}, {c.at.z:F1}), {math.distance(c.at.xz, origin):F0} m off, {c.height:F1} m tall, front ({c.front.x:F2}, {c.front.y:F2}), {c.where}"));
+            }
+            Debug.Log($"DebugControls: {found.Count} {spec} found in all");
+            pick = math.clamp(pick, 1, found.Count);
+            var chosen = found[pick - 1];
+            var back = math.max(6f, chosen.height * 1.6f);
+            // From the front, a little to one side.
+            var view = math.normalize(chosen.front + new float2(chosen.front.y, -chosen.front.x) * 0.5f);
+            var stand = chosen.at.xz + view * (back + 3f);
+            t.Position = new float3(stand.x, source.SampleHeight(stand) + 0.05f, stand.y);
+            em.SetComponentData(player, t);
+            var eyeXZ = chosen.at.xz + view * back;
+            var eye = new Vector3(eyeXZ.x, math.max(source.SampleHeight(eyeXZ), chosen.at.y) + 1.5f + chosen.height * 0.4f, eyeXZ.y);
+            PoseCamera(eye, Quaternion.LookRotation((Vector3)chosen.at + Vector3.up * chosen.height * 0.45f - eye));
+            Debug.Log(System.FormattableString.Invariant($"DebugControls: framing {spec} #{pick} from ({eye.x:F1}, {eye.y:F1}, {eye.z:F1})"));
+        }
+
+        /// <summary>For PlaceByProp: the plant in a cell, kept if it's one of the species' models and not already listed.</summary>
+        static void TryProp(ref FloraBlob flora, in TerrainSource source, int2 cell, int layer, int first, int last, float2 front, string where,
+                            List<(float3 at, float height, float2 front, string where)> found)
+        {
+            var plant = FloraPlacement.Place(ref flora, source, cell, layer);
+            if (plant.Model < first || plant.Model >= last)
+                return;
+            foreach (var e in found)
+                if (math.distance(e.at.xz, plant.Position.xz) < 0.5f)
+                    return;
+            found.Add((plant.Position, flora.Models[plant.Model].Height * plant.Scale, math.normalizesafe(front, new float2(1f, 0f)), where));
         }
 
         /// <summary>
