@@ -2,6 +2,30 @@
 
 Newest first.
 
+## 2026-10-31: slot 6, world-features b870008 (Z-30 grain 632f479 + more timber 69f3185) vs 3976d17: no change beyond noise; no GPU cost from the grain in town
+0 exceptions and no NaN-bounds lines in any run. No dialogs, and no 500 ms spikes (worst frame 45 ms). Every stop ended
+at the same spot (town 136,-475, townwalk 366,-406, glide 1197/1198,359).
+
+Setup: cap 60, Medium, stops town (a still view, which gives the GPU read), townwalk and glide. ABBA: new then old in
+round 1, old then new in round 2. The in-between (`-gfxset view=0.8,detail=0.75,shadows=0.8`) ran on b870008 once per
+round. Mean 1% low in fps (the two rounds), then GPU ms:
+
+| | town | townwalk | glide |
+|---|---|---|---|
+| 3976d17 Medium | 46.3 (44.7, 47.9) · 9.8 | 42.4 (45.1, 39.7) · 8.8 | 31.1 (30.6, 31.5) · 10.7 |
+| b870008 Medium | 45.3 (42.4, 48.2) · **9.5** | 41.8 (42.6, 41.0) · 8.9 | 31.0 (30.8, 31.2) · 10.9 |
+| b870008 in-between | 57.5 · 9.4 | 46.2 · 8.5 | **35.6** (35.7, 35.5) · 10.4 |
+
+- Runner verdict: "no change beyond noise" (townwalk 42.4→41.8, town 46.3→45.3, glide 31.1→31.0).
+- Grain GPU cost in town: none measurable. The town still view reads 9.5 ms against 9.8 (−0.3; r1 9.4 vs 9.5, r2 9.6
+  vs 10.0). Townwalk is +0.1.
+- Caveat: in the town shot the timber is mid-distance (results/shots-s6-new-r1/town.png). A close-up on a timber
+  building would be the worst case for a per-pixel grain, if wanted.
+- In-between on b870008: glide 35.6, matching slot 5's 34.0 on 3976d17. It still holds J-006 on glide, and Medium
+  still sits at about 31.
+- Runner: b/bench-runner is at db3c1f2 (`-benchday`). It's a no-op without the flag. b870008 was built with it, with
+  no trouble.
+
 ## 2026-10-31: slot 5 on world-features 3976d17: in-between gfx holds J-006 on glide; the 500 ms spikes didn't come back on any build (not code); 32-slot worm marks inside the noise
 0 exceptions and no NaN-bounds lines in any run. No dialogs. Every stop ended at the same spot (townwalk 366,-406, glide
 1197/1198,359, worm 869,1500).

@@ -1,4 +1,4 @@
-# Handoff: profiler (laptop), refreshed 2026-10-31 after slot 5
+# Handoff: profiler (laptop), refreshed 2026-10-31 after slot 6
 
 Read COORDINATION.md first. This lane benches and profiles builds when the supervisor hands it the Unity slot. Only
 one Unity runs at a time on the laptop. When the slot is done: post BENCH-REPORTS (newest first), send one message
@@ -8,7 +8,7 @@ saying "Unity closed", and send no ack-only messages.
 - Laptop: i7-7700HQ, Optimus GTX, Unity 6000.5.8f1, D3D11. C: has about 16 GB free; ask before deleting builds.
 - Main checkout `C:\Users\zache\Projects\Punchy`: builds happen there in detached HEAD, then it returns to
   `b/weather-mapjob` (lib.sh HOME_BRANCH). Untracked `.vsconfig` and `Assets/Resources.meta` aren't ours; leave them.
-- Runner: worktree `C:\Users\zache\Projects\Punchy-wt`, branch `b/bench-runner` (9a4c308), in `Tools/bench/`:
+- Runner: worktree `C:\Users\zache\Projects\Punchy-wt`, branch `b/bench-runner` (db3c1f2: `-benchday <day type>`), in `Tools/bench/`:
   - `bench.sh` (smoke|ab|baseline|profile|profdiff|bisect|mp);
   - `lib.sh` (build, run, runcsv, profile, compare, table, fixed, dialogs, keepawake);
   - `BenchmarkRoute.cs.txt` and `BProfileTools.cs`, copied into the project only for a build.
@@ -18,6 +18,7 @@ saying "Unity closed", and send no ack-only messages.
   play.sh (ReleaseBuild for Builds/Play).
 
 ## Archived builds worth keeping (Builds/)
+- Bench-b870008 (Z-30 grain, more timber).
 - Bench-3976d17 / Profile-3976d17 (world-features with z-p2 and 32-slot worm marks), Bench-247c690.
 - Bench-bc89606: world-features before the cave-chunk, worm and blocked work; the A side of many checks.
 - Bench-256e6a9 (cave-chunk), Bench-d60e085 (unmasked worm marks), Bench-2de3029 (worm mask), Bench-b70dbfa (wake
