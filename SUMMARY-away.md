@@ -93,7 +93,7 @@ FEEDBACK-v0.10.md (Z-IDs). No release goes out without Zach's go.
 - Zip (local only): Punchy/Builds/Zip-v0.11-cand, 49,468,639 bytes, SHA-256 847f35c1cb4319fa8966122a98442eb957b2237b31577480c0cc237774ad7337.
 
 ## On your return: decisions for Zach
-1. Release v0.11 from cand/v0.11, or wait for the glide-spike profile?
+1. Release v0.11 from cand/v0.11? The profiler (slot 7, BENCH-REPORTS a51577b) couldn't reproduce the glide spikes: two dev captures and a release ABBA vs a66c520 are level (35.3/36.3 vs 35.6/36.6, worst frame 38–40 ms on both), with no 50 ms+ windows. Likely an outside load during the gate. Nothing blocks it.
 2. Default graphics preset: keep Medium (glide ~30, below J-006), a "Balanced" in-between (view 0.8, detail 0.75, shadows 0.8: glide 34–36, passes), or Low (the profiler's pick, ~57)?
 3. Setup: restart the world and animal lanes from their handoffs, or keep the one-at-a-time task sessions? Since 21:25 they've merged about 10 Z-batches without a usage-limit hit; they cost roughly 150–300k tokens per slot.
 4. Design calls: Z-20 remote carry (the host never targets a client's body); the cave stream with no pool; the P3 rows Z-50–Z-53.
