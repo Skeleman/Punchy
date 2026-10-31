@@ -2,6 +2,24 @@
 
 Newest first.
 
+## 2026-10-30: slot 5: Z-07 fixed, worm and wake pairs, carry and worm arcs merged
+- **Build:** world-features + animal-behaviours + spin-check + poses + carry + worm-arc + both pairs compiled clean,
+  blocked-top included (zache-73: Blocked(..., out top) and RockAt build). Rebuilt with the Z-07 fix: clean.
+- **Worm marks:** capped at 32 slots on both sides; the feeder reads `_PunchyBurrowRange` (DetailRange(BurrowRange)
+  from GraphicsSettings), the shader gates on it. Marks and craters render from above. Cost not re-measured.
+- **Z-07:** `-spincheck` at Start (Dog body) and ElfGrove 9/15/20 h logged 97 spins: elves in Home stage 0 and dormice
+  in Climb stage 0, at 0.00 m from their target at full turn rate. The way to a target under 10 cm away is noise; and
+  an elf's door beyond its leash was clamped to a spot it stood on. Fix (wip/z07-spin d337490): no turning within
+  10 cm, no leash clamp in Home mode. Re-run: 14 lines, none of them elves or dormice; the rest is Play-mode
+  circling (open).
+- **Z-20:** cat and dog carried with the arms open under them, front-on and side-on, sprinting too. A cat squirms
+  free after about 2 s (by design). Large animal and remote carrier not seen (open).
+- **Z-21/Z-22:** sprint side-on looks fine; worker swings too small in frame to judge. wip/poses not merged.
+- **Z-28:** clean breach arcs side-on; obstacle jumps and boulder routes not seen.
+- **Merged and pushed:** animal-behaviours 4f2f0a4 (spin-check, z07-spin, carry, worm-trail, wake-trail);
+  world-features 247c690 (worm-trail-shader, wake-trail-shader, worm-arc). Same push.
+- Unity closed, no Punchy.exe left, lock released, main checkout back on b/weather-mapjob.
+
 ## 2026-10-30: Z-20 carried animals follow the arms: wip/carry 95d50e8 (code only)
 - **Real fix, local on every machine, no network change.**
   - `CreatureState.CarryWidth` is local. HeldPoseSystem sets it on every carrier body from the held creature's

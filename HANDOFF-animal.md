@@ -1,55 +1,44 @@
 # Handoff: animal lane (laptop, session zache-db)
 
-Refreshed 2026-10-30 evening. The supervisor is kind-possum, the "Unity build analytics supervisor setup" session.
-Worktree `Projects/Punchy-animal`, branch `animal-behaviours` (d0388e2, pushed). Reports go newest-first in
+Refreshed 2026-10-30 night (after animal slot 5). The supervisor is kind-possum, the "Unity build analytics supervisor setup" session.
+Worktree `Projects/Punchy-animal`, branch `animal-behaviours` (4f2f0a4, pushed). Reports go newest-first in
 REPORTS-animal.md, with one message to the supervisor per finished batch. Never open Unity without the supervisor's
 slot.
 
 ## Branches (all pushed)
-- **animal-behaviours d0388e2:** includes v010-fixes (Z-02 player side, Z-03, Z-04, Z-05, Z-06, Z-08, Z-14, Z-23..Z-26),
-  trunk-lean, worm-look and trunk-hug. Compiled and partly checked in slot 3.
-- **wip/gfx-creatures 6f6dd94:** creature render ranges × GraphicsSettings.DetailRange. Compiled. It sits on the world
-  gfx branch, so the world lane merges it into world-features.
-- **Feeder/shader pairs.** Each pair must land together; the new feeder against the old shader misreads the slots.
-  - Worms: wip/worm-trail bd5e706 (CreatureBurrowSystem: bumps, craters, MarkMask) with wip/worm-trail-shader 5198212
-    (TerrainSurface BurrowMarks, 64 slots, NearBurrowMark).
-    - First cost check was +0.5 ms against a 0.3 bar; the mask was added afterwards. The re-run is profiler BENCH
-      item 17.
-    - Still to wire: the feeder's Range should read GraphicsSettings.DetailRange(BurrowRange), and the world lane's
-      shader gate `_PunchyBurrowRange`.
-  - Wakes: wip/wake-trail 138874c (CreatureWakeSystem ripples, MarkMask) with wip/wake-trail-shader 4f597bf
-    (Water.shader SwimmerWakes rings, 48 slots, 45 m gate, NearRipple). Seen rendering in slot 3; cost also in item 17.
-- **wip/worm-arc 9213d8e:** Z-28 on top of worm-trail, plus a merge of world-laptop/blocked-top (it now carries
-  world-features history: merge it into world-features, not animal-behaviours). Uncompiled, including zache-73's
-  Blocked(..., out top) and RockAt. Tell zache-73 whether it builds clean.
-- **wip/spin-check 7d03e22:** `-spincheck [deg,s]`, default 270° in 3 s, logs spinning creatures; -watch line shows yaw
-  and turn rate. Uncompiled.
-- **wip/poses 2755204:** Z-21 (sprint foot keeps run angles) and Z-22 (SwingLift/SwingBody: wind-up, torso into the
-  swing). Uncompiled.
-- **wip/carry 95d50e8:** Z-20. CreatureState.CarryWidth is local, set in HeldPoseSystem; the Carry arms open by it;
-  the animal is placed between the posed hand tips. Uncompiled.
-- **wip/brain-sample da5da2c:** profiler item 13 work, up to date with an older animal-behaviours. Not for merge.
+- **animal-behaviours 4f2f0a4:** d0388e2 plus spin-check, z07-spin, carry, worm-trail (feeder) and wake-trail (feeder),
+  merged in slot 5.
+- **world-features 247c690:** 0c637a9 plus worm-trail-shader, wake-trail-shader and worm-arc (Z-28 with
+  world-laptop/blocked-top, which compiles clean). wip/gfx-creatures was already in (0c637a9).
+- **Worm marks pair, merged:** wip/worm-trail 61ad6b6 / wip/worm-trail-shader 407f998: 32 slots each side. The feeder's
+  Range reads the `_PunchyBurrowRange` global (GraphicsSettings publishes DetailRange(BurrowRange); 150 m before it's
+  set), so animal-behaviours doesn't need GraphicsSettings to compile; the shader gates on `_PunchyBurrowRange`. Cost
+  with 32 slots not re-measured yet (profiler).
+- **wip/z07-spin d337490 (merged):** no turning within 10 cm of the target, and Home mode isn't leash-clamped.
+- **wip/poses 2755204 (not merged):** compiles; Z-21 sprint looked fine side-on (carrying a dog); Z-22 shots too far
+  and occluded to judge.
+- **wip/brain-sample da5da2c:** profiler item 13 work. Not for merge.
 
 ## Open rows
-- **Z-07** (spinning: a mouse near Start, an elf at the ElfGrove fountain, 2-3 s each): run `-spincheck` for a few
-  minutes at Start (as a Dog body) and at `-place ElfGrove` at a few hours. Fix from the logged mode, stage, target and
-  focus.
-- **Z-20, Z-21, Z-22, Z-28:** compile and shoot (see the slot list).
+- **Z-07:** the elf (Home) and dormouse (Climb) spins are fixed (97 spin lines to 14 at the same spots). Left: Play-mode
+  circling (ducks, prairie dogs, rabbits, small birds, target 8-20 m, under 0.3 m/s, 270 deg in 1.2-2.9 s). Likely
+  the chase itself; look at Play stage 1 steering if Zach still sees it.
+- **Z-20:** cat and dog carries look right (arms open under the animal, front-on and side-on). Open: a large animal
+  (MudPig and Deer ran or weren't picked up; find one that can be), and a remote carrier from a client (the client's
+  `-watch Human` followed a villager: use `-body Dog` on the client and stand it next to the host).
+- **Z-22:** woodcutter, smith and miner close up (`-watch Human:Chop -watchfrom 0.5,2.5` or `-camlook`).
+  DwarfMiningCamp isn't a `-place` name (it stayed at DwarfHold).
+- **Z-28:** breach arcs side-on look clean. Open: a jump over a rock or ledge and a route past boulders from above
+  (Glacier Grotto and Dunes CaveEntrance had none in view). One side-on series showed the body lying in a flat curl
+  on the snow after landing (shots side-18..20): check it.
 - **P3, needing a design note first:** Z-50 gallop, Z-51 several voices, Z-52 NPC species reactions (ownKind is
   started in Z-25), Z-53 chases.
 
 ## Slot list (next)
-1. Build one test branch: world-features + animal-behaviours + spin-check + poses + carry + worm-arc. Build with the
-   scratchpad build.sh/run.sh (lib.sh `build <commit> Build <out>` under results/.lock; run from Builds/Bench with
-   -shotlist and a timeout).
-2. Z-07: `-spincheck` at Start and at ElfGrove.
-3. Z-21: a human sprinting, side-on. Z-22: a woodcutter, smith and miner (`-place HumanVillage`/`DwarfHold` by day).
-4. Z-20: carry a cat, a dog and a large animal, side-on and front-on, plus a remote carrier seen from a client
-   (`-host` / `-join`). Check which way the shoulders open (flip `part.Side * open` if the arms close) and where the
-   animal sits along the forearms.
-5. Z-28: a breach side-on (`-watchfrom`), a jump over a rock or ledge, and a route past boulders from above. Tell
-   zache-73 the compile result for blocked-top.
-6. Merge what passes, write the report, message "Unity closed".
+1. Build animal-behaviours + world-features + wip/poses (the merged branches compiled together in slot 5 as
+   tmp a38b87b).
+2. Z-22 close-ups and the remaining Z-20 and Z-28 shots above; merge wip/poses if Z-22 passes.
+3. Ask the profiler for the worm marks' cost with 32 slots (BENCH item 17 re-run).
 
 ## Key files
 - **Worms:** Fauna/CreatureBrainSystem.cs `Tunnel()` (arc depth `deep`, `Obstructed`, the leap check);
