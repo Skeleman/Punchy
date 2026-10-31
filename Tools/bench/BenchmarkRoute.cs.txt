@@ -445,6 +445,11 @@ namespace Punchy.Debugging
         /// </summary>
         static bool SetWeather(string dayType, int seed)
         {
+            // -benchday Stormy: every stop under that day type instead (rain at a spot that isn't a storm stop).
+            var args = System.Environment.GetCommandLineArgs();
+            var dayArg = System.Array.IndexOf(args, "-benchday");
+            if (dayArg >= 0 && dayArg + 1 < args.Length)
+                dayType = args[dayArg + 1];
             var weather = FindAnyObjectByType<WeatherSystem>();
             var index = weather != null ? weather.DayTypes.FindIndex(d => d.Name == dayType) : -1;
             if (index < 0)
