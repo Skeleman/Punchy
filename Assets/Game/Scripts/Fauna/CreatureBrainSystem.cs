@@ -1771,12 +1771,20 @@ namespace Punchy.Fauna
             /// A sand or snow worm: deep under the ground, gliding from one flat spot to another round where it lives (the
             /// world draws its ripple and furrow on the surface from CreatureBurrowSystem); every half minute to minute and
             /// a half, out on flat ground, it bursts up out of it in a great arc, its body rippling up and down, and dives
-            /// back in further on. (Air runs 0..1 through the arc; Fly holds its body's wave upright meanwhile.)
+            /// back in further on. (Air runs 0..1 through the arc; Fly holds its body's wave upright meanwhile.) The arc
+            /// starts and ends deep enough that all of the worm is under the ground there, tilted up out of it or down
+            /// into it as the animator draws it, so it comes up out of its hole and goes all the way back in before it
+            /// levels out.
             /// </summary>
             void Tunnel(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
             {
                 var radius = math.max(b.FrontRadius * s.Scale, 0.3f);
                 var depth = radius * 3f + 1f;
+                // (Tilted by up to about 0.9 rad at the ends of its arc, the whole length of it under: body, tail and head.)
+                var length = b.BodyLength;
+                for (int k = 0; k < b.Segments.Length; k++)
+                    length += b.Segments[k].Length;
+                var deep = math.max(depth, length * s.Scale * 0.8f + radius);
                 if (s.Mode != CreatureMode.Wander)
                     SetMode(ref s, CreatureMode.Wander);
                 if (math.all(s.Home == float2.zero))
@@ -1787,8 +1795,9 @@ namespace Punchy.Fauna
                 var ground = Terrain.SampleHeight(s.Position.xz);
                 if (s.Air > 0f)
                 {
-                    // Out of the ground and back, over four seconds, at speed.
-                    s.Air += dt / 4f;
+                    // Out of the ground and back at speed, about three seconds of it above the ground.
+                    var above = 1f - 2f * math.asin(deep / (deep + s.AirHeight)) / math.PI;
+                    s.Air += dt * math.max(above, 0.05f) / 3f;
                     s.Speed = b.RunSpeed;
                     s.Fly = 1f;
                     if (s.Air >= 1f)
@@ -1837,7 +1846,8 @@ namespace Punchy.Fauna
                 TurnTowards(ref s, ref b, s.Target, dt);
                 s.Position.xz += new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * s.Speed * dt;
                 ground = Terrain.SampleHeight(s.Position.xz);
-                s.Position.y = ground - depth + (depth + s.AirHeight) * (s.Air > 0f ? math.sin(math.PI * s.Air) : 0f);
+                var under = s.Air > 0f ? deep : depth;
+                s.Position.y = ground - under + (under + s.AirHeight) * (s.Air > 0f ? math.sin(math.PI * s.Air) : 0f);
                 CreatureMotion.AdvancePhase(ref s, ref b, dt);
             }
 
