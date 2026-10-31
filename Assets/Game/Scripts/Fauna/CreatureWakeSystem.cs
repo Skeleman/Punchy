@@ -7,16 +7,23 @@ using UnityEngine;
 namespace Punchy.Fauna
 {
     /// <summary>
-    /// Tells the water where things are swimming, for its wakes and rings (Water.shader): the 16 creatures nearest the
-    /// camera that are at the surface (fish near the top, ducks, animals and folk swimming or wading, players' bodies),
-    /// as _PunchySwimmers (x world x, y heading in radians, z world z, w speed in m/s, 0 for an empty slot) and
-    /// _PunchySwimmerCount. From state every machine already has, so everyone's water shows the same; nothing is sent.
+    /// Tells the water where things have been swimming, for its wakes and rings (Water.shader). Anything at the surface
+    /// near the camera (fish near the top, ducks, animals and folk swimming or wading, players' bodies) drops a ripple
+    /// where it is every half metre it goes, or every half second keeping still. Each ripple stays where it was made,
+    /// a ring spreading out from there and dying away over RippleTime. A row of them trailing behind a swimmer is its
+    /// wake, left in the water rather than carried round with it as it turns. The 48 nearest the camera go out as
+    /// _PunchySwimmers (x world x, y its age 0..1, z world z, w how strongly it was stirred, 0 an empty slot) and
+    /// _PunchySwimmerCount. From state every machine already has, so everyone's water shows much the same; nothing is
+    /// sent.
     /// </summary>
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
     public partial class CreatureWakeSystem : SystemBase
     {
-        public const int MaxSwimmers = 16;
+        public const int MaxSwimmers = 48;
+        /// <summary>How long a ripple spreads before it's gone (s); a new one each Spacing metres gone, or each Still
+        /// seconds keeping still.</summary>
+        const float RippleTime = 3f, Spacing = 0.5f, Still = 0.5f;
         /// <summary>How far from the camera swimmers are sent (m); and the band round the surface they're in to count
         /// (above it, for a duck; below, for a fish near the top or a swimmer's feet).</summary>
         const float Range = 40f, Above = 0.8f, Below = 1.6f;
@@ -29,16 +36,31 @@ namespace Punchy.Fauna
         readonly System.Collections.Generic.Dictionary<Entity, bool> wet = new System.Collections.Generic.Dictionary<Entity, bool>();
         const int Stagger = 6;
         EntityQuery query;
+        /// <summary>Where the ripples are, coarsely, so the water runs its loop over them only near one (MarkMask).</summary>
+        MarkMask mask;
+
+        struct Ripple
+        {
+            public float2 At;
+            public float Born, Strength;
+        }
+
+        readonly System.Collections.Generic.List<Ripple> ripples = new System.Collections.Generic.List<Ripple>();
+        /// <summary>Per swimmer: where and when it dropped its last ripple.</summary>
+        readonly System.Collections.Generic.Dictionary<Entity, float3> lastRipple = new System.Collections.Generic.Dictionary<Entity, float3>();
 
         protected override void OnCreate()
         {
             query = GetEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            mask = new MarkMask("_PunchySwimmerMask", "_PunchySwimmerMaskAt");
         }
 
         protected override void OnUpdate()
         {
             var cam = Camera.main;
             var count = 0;
+            var now = UnityEngine.Time.time;
+            ripples.RemoveAll(r => now - r.Born >= RippleTime);
             if (cam != null && SystemAPI.TryGetSingleton<TerrainSource>(out var terrain))
             {
                 float3 camAt = cam.transform.position;
@@ -67,8 +89,24 @@ namespace Punchy.Fauna
                         wet[e] = atSurface;
                     }
                     if (!atSurface)
+                    {
+                        lastRipple.Remove(e);
                         continue;
-                    // (Kept to the nearest 16: a full list gives way to anything nearer than its furthest.)
+                    }
+                    // A ripple where it is, every half metre or half second: stronger the quicker it goes, and the bigger.
+                    if (!lastRipple.TryGetValue(e, out var last) || math.distance(last.xy, s.Position.xz) >= Spacing || now - last.z >= Still)
+                    {
+                        lastRipple[e] = new float3(s.Position.xz, now);
+                        var strength = math.clamp(0.3f + s.Speed * 0.35f, 0.3f, 1.6f) * math.clamp(s.Scale * b.FrontRadius * 6f, 0.5f, 1.5f);
+                        ripples.Add(new Ripple { At = s.Position.xz, Born = now, Strength = strength });
+                    }
+                }
+                foreach (var r in ripples)
+                {
+                    var d = math.distance(r.At, camAt.xz);
+                    if (d > Range)
+                        continue;
+                    // (Kept to the nearest 48: a full list gives way to anything nearer than its furthest.)
                     var slot = count;
                     if (count == MaxSwimmers)
                     {
@@ -82,17 +120,23 @@ namespace Punchy.Fauna
                     else
                         count++;
                     distances[slot] = d;
-                    // (Still, a whisker over 0, so the slot reads as used: rings only.)
-                    slots[slot] = new Vector4(s.Position.x, s.Yaw, s.Position.z, math.max(s.Speed, 0.01f));
+                    slots[slot] = new Vector4(r.At.x, (now - r.Born) / RippleTime, r.At.y, r.Strength);
                 }
                 states.Dispose();
                 bodies.Dispose();
                 entities.Dispose();
                 if (wet.Count > 2000)
                     wet.Clear();
+                if (lastRipple.Count > 500)
+                    lastRipple.Clear();
             }
             for (int k = count; k < MaxSwimmers; k++)
                 slots[k] = Vector4.zero;
+            // (A ripple's ring spreads to 4.2 m and fades out within 5 m of where it was made: Water.shader.)
+            mask.Begin(cam != null ? ((float3)cam.transform.position).xz : float2.zero, Range + 5f);
+            for (int k = 0; k < count; k++)
+                mask.Mark(new float2(slots[k].x, slots[k].z), 5f);
+            mask.Upload();
             Shader.SetGlobalVectorArray(SwimmersId, slots);
             Shader.SetGlobalInteger(CountId, count);
         }
