@@ -1,4 +1,4 @@
-# Handoff: world lane (laptop, from zache-73), 2026-10-31 (after slot 2)
+# Handoff: world lane (laptop, from zache-73), 2026-10-31 (after slot 3)
 
 Supervisor: the laptop session "Unity build analytics supervisor setup" (kind-possum); tasks by message and in
 QUEUE-world.md; report per batch in REPORTS-world.md (LF, newest first) plus one message. One Unity at a time on the
@@ -6,31 +6,27 @@ laptop: open Unity (or bench builds) only in a slot the supervisor gives you, an
 Worktree: C:\Users\zache\Projects\Punchy-world. Zach's feedback list: FEEDBACK-v0.10.md (W rows are this lane).
 
 ## Branches
-- **world-features b870008** (pushed): 3976d17 + world-laptop/z30-more: `-place prop:` probe, Z-30 grain redone
-  (632f479) and more timber marked (69f3185), `-meteors` and `-caveshards` probes. Built clean (as 8b0a657, same
-  tree); 0 exceptions in 7 look runs.
-- animal-behaviours 9b7459b + world-features b870008 compile together (tmp/animal-world-check 5f4c917, built clean,
-  then deleted; not merged). world-laptop/probe and z30-more are merged and deleted. b/bench-runner db3c1f2 has
-  `-benchday`.
+- **world-features b39522b** (pushed): b870008 + world-laptop/slot3 (stone house walls flat, Z-34 cave streams, Z-35
+  falls, test flags -weather/-place cavestream/-camrel/-waterprobe). Built clean as c7bb5f3 (same tree); 0
+  exceptions in 6 look runs. world-laptop/slot3 is merged and deleted.
+- animal-behaviours + world-features compiled together at 9b7459b + b870008 (slot 2); not rechecked against b39522b.
+  b/bench-runner db3c1f2 has `-benchday`.
 
 ## Next slot
-1. Z-10 river under fog: still not judged. Needs a clear (no rain) fog view of a river; try `-benchday Overcast` at
-   dawn by a FoggyMarsh stream (place FoggyMarsh, -304,817, streams to its east), or a river with fog wisps.
-2. Z-11 in heavy rain: light rain showed no screen-space image on the planks; stone legs look glassy dry and wet
-   (dither or the wet sheen?). Rain reaches the village square ~90 s into a Partly cloudy, seed 4 run.
-3. Cave-mouth shards: run with `-caveshards` and a close `-camlook` at a known shard spot (the item-15 shots were
-   from an older island; find one first). Magenta = walls no cave owns.
-4. Z-09: no shooting star caught yet with `-meteors` (6 frames); a burst of 20 one second apart would.
-5. Z-30: look at the newly marked timber close up (hall walls, inn posts, bridge planks, pen: no Pen placed on this
-   seed near the ogre camp, `-place prop:Pen` found none).
-6. Z-31/Z-32/Z-34/Z-35 looks (targets now easy with `-place prop:` and the coordinates in REPORTS).
+1. Z-34 leftover: the stream ending at (-1454, 37, -1153) has no pool (CaveBaking.PlaceStreams leaves it out when
+   RimHolds fails), so it stops mid-floor. Option: shrink to 0.8 m, or taper the stream into a seep. Design call.
+2. Z-30: hall and inn posts close up (only seen at 9 m); Pen still not found on this seed.
+3. Z-10: a non-marsh river under fog: MarshFog forced over the River place showed no fog. Try `-weather Rain` at dawn
+   or find which preset fogs there.
+4. P3 rows (Z-54, Z-60..64) need a design note first.
 
 ## Open rows
-- Z-31 vertical lines in close-up detail on buildings: look first (suspect triplanar detail texture seam).
-- Z-32 stone house lit/dark bands: look first (normals or the built double-sided flip).
-- Z-34 cave stream meets pool / striping; Z-35 waterfall top gap + faster fall (effect Lifetime) + spray: look first.
-- Z-30: grain redone and more timber marked (slot 2); next, a close look at the new timber (Next slot 5).
-- Cave-mouth grey shards (above). P3 rows (Z-54, Z-60..64) need a design note first.
+- Z-31/Z-32: fixed for stone houses (flat walls). Other four-sided smoothed tubes remain (pyramid roofs, chimneys)
+  but showed no bands.
+- Z-34: lines and pool tongue fixed; one stream without a pool (Next slot 1).
+- Z-35: speed from Lifetime (2.5 s), lip spray, no top gap seen. Zach to judge the speed in play.
+- Z-09, Z-10 (marsh), Z-11: passed by sight (REPORTS slot 3). Cave-mouth shards: none found anywhere with
+  -caveshards; ask Zach for a spot if he still sees them.
 
 ## Key files
 - Flora models: Scripts/Flora/FloraGenerator.cs (form builders: Stall, Bench, Fountain, Smithy, RailFence, Signpost,
@@ -58,7 +54,11 @@ Worktree: C:\Users\zache\Projects\Punchy-world. Zach's feedback list: FEEDBACK-v
   -screen-fullscreen 0 -screen-width 1280 -screen-height 720 -shotdir <dir> -shotlist <dir>/shots.txt [-benchday
   Stormy] [-caveshards]`. Each list line: `-goto x,z -time h -camlook x,y,z,tx,ty,tz -wait s -shot name` (first line
   `-wait 40` for the world and the route's weather). Kill by PID when the log says "shot list done".
-- `-meteors`: a meteor shower (and aurora) every night. `-caveshards`: ownerless cave walls magenta.
+- `-meteors`: a meteor shower (and aurora) every night. `-caveshards`: ownerless cave walls magenta (and logged).
+- `-weather <Preset>` (per line): that weather forced over the player (Rain, Storm, MarshFog, Overcast...; Clear
+  clears). `-place cavestream[#n]`: end of the nth nearest cave stream. `-camrel dx,dy,dz,tx,ty,tz`: camera relative
+  to the player. `-waterprobe 1..4`: water as foam / thickness / alpha / foam parts (shore, churn, streaks).
+- Waterfall: landmark ~(627.5, 2526), pool centre (629, 2518): `-place Waterfall:centre -camrel 6,4,-15,-1.5,12,9`.
 - OgreCamp is clear (fire ~ -359,-4061; stall -355.6,-4079.4); GoblinCamp sits in fog; elf grove forum at 260.8,3250.9.
 
 ## Gotchas learned today
@@ -74,4 +74,6 @@ Worktree: C:\Users\zache\Projects\Punchy-world. Zach's feedback list: FEEDBACK-v
 - `line` is an HLSL keyword (geometry shaders): a variable called line fails the Flora shader.
 - A static field placed between `[BurstCompile]` and its struct is a compile error (the attribute lands on it).
 - The HUD covers the top-left of in-game shots: frame targets right of centre or below, or add `-nohud` per run.
+- In a shot list, `-place cavestream#n` counts from where the player is, so put a `-goto` before each one.
+- A probe that splits a shader term into colour channels (`-waterprobe 4`) found Z-34's cause after two wrong guesses.
 - Paw prints can sit on top of a bench a dog walks under (TraceSystem Underfoot, animal lane): not a wetness image.

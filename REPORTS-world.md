@@ -2,6 +2,45 @@
 
 Newest first.
 
+## 2026-10-31: world slot 3 (task session): Z-32/Z-31 fixed, Z-34 fixed, Z-35 done, Z-09/Z-10/Z-11 judged, merged b39522b
+
+- **world-features b39522b** (pushed) = b870008 + world-laptop/slot3 (6 commits; branch deleted). Same tree as
+  c7bb5f3, which built clean (0 script or shader errors); 0 exceptions and 0 NaN-bounds lines in 6 look runs
+  (~140 shots, results ws3/a-f with contact sheets in ws3/).
+- **New test flags** (DebugControls, also per shot-list line): `-weather <Preset>` forces that WeatherPreset over the
+  player (Rain, Storm, MarshFog, Overcast, PartlyCloudy...; Clear only clears), so rain and fog no longer depend on
+  the seed's weather. `-place cavestream[#n]` goes to the end of the nth nearest cave stream and logs the 8 nearest.
+  `-camrel dx,dy,dz,tx,ty,tz` poses the camera relative to the player (after any -place). `-waterprobe 1..4` draws
+  water as foam, thickness, alpha or foam parts. `-caveshards` now also logs where ownerless walls are.
+- **Judged by sight:**
+  - **Z-32 fixed** (bb08f7a): the stone house walls were a four-sided tube with smoothed normals (45 degrees at each
+    corner). Every wall shaded from edge to middle, and at a glancing view the built double-sided flip lit a wedge
+    of wall orange at night. The walls are now a flat-faced block. Day, night and rain shots show even walls.
+  - **Z-31 fixed with it** (stone houses): the slanted normals weighted the wrong triplanar projection (streaks).
+    No lines in close shots after. The inn and hall plaster walls show no lines either.
+  - **Z-34 fixed:** the thin lines across cave streams were the streak-foam term (`-waterprobe 4` showed them in its
+    blue channel), so running cave water has no streak flecks now (c7bb5f3). A stream now stops at most half way
+    into its end pool (no lighter tongue over the pool). Streams 2 and 3 meet their pools cleanly. Stream at
+    (-1454, 37, -1153) has no pool at its end (CaveBaking leaves the pool out when the floor can't hold it), so it
+    still ends mid-floor. The lantern-glint and reflection-march guesses were tried and undone.
+  - **Z-35 done:** the falls shader ignored the effect's Lifetime and scrolled at a fixed rate. It now runs the fall's
+    length in Lifetime, which is 2.5 s for Waterfall (was 4). Frames 0.2 s apart now differ a lot. There's a spray
+    plume at the lip, and the curtain starts at the clifftop (no gap seen from the pool or above).
+  - **Z-11 pass:** in a forced Storm (50 s), the village bench planks show puddle-wet ground around them and no
+    screen-space image. No wiggle in frames 0.3 s apart. The elf bench is a stone slab. The very dark stone legs are
+    in the seat's shade (wet), with a slight sheen.
+  - **Z-10 pass where seen:** under forced MarshFog at FoggyMarsh, a stream is veiled like the rocks beside it. Its
+    foam flecks keep some contrast. MarshFog over the River place showed no fog (that preset seems marsh-only).
+  - **Z-09 pass:** 20 frames, 1 s apart, under PartlyCloudy caught 2 shooting stars, both in clear sky. 20 under
+    Overcast caught 1, faint, in the sky below the cloud deck. None crossed a cloud.
+  - **Z-30 pass where seen close:** bench planks, bridge planks and rails, smithy posts and the woodpile read as wood.
+    Hall/inn posts were seen only at 9 m. There's still no Pen on this seed.
+  - **Cave-mouth shards: none found.** `-caveshards` logged no ownerless wall in any cave chunk built at CaveNetwork,
+    CaveEntrance, Grotto, the nearest cave (FungalGrotto), the big cave mouth or three cave streams.
+- Waterfall on this island: landmark about (627.5, 2526), pool centre (629, 2518), clifftop about 92.
+- Unity and every Punchy.exe started here are closed. The main checkout is on b/weather-mapjob, and the bench lock
+  is clear.
+
 ## 2026-10-31: world slot 2 (task session): targets found, owed looks taken, Z-30 grain fixed, merged b870008
 
 - **world-features b870008** (pushed) = 3976d17 + world-laptop/z30-more (6 commits). Built clean as 8b0a657 (same
