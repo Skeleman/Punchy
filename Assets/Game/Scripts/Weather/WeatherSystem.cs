@@ -252,7 +252,8 @@ namespace Punchy.Weather
 
             var drawDistance = 1500f;
             if (EnsureQueries() && configQuery.TryGetSingleton<TerrainConfig>(out var config))
-                drawDistance = config.ViewRadiusChunks * config.ChunkSize;
+                // At the graphics settings' View distance, as TerrainStreamingSystem streams it.
+                drawDistance = math.max(2, math.round(config.ViewRadiusChunks * Punchy.Settings.GraphicsSettings.View)) * config.ChunkSize;
             // Exponential-squared haze reaching ~98% at the edge of the streamed terrain, so it's never visible.
             var hazeDensity = 1.98f / drawDistance;
 
@@ -429,11 +430,10 @@ namespace Punchy.Weather
 
             Shader.SetGlobalVector(SunDirectionId, sunDirection);
             Shader.SetGlobalVector(MoonDirectionId, moonDirection);
-            // Phase and lit share for the big moon's disc, the blue moon's own phase (z: it waxes and wanes faster, out
-            // of step with the big one, G-34) and where the blue moon is (Sky.hlsl); a full big moon and no blue moon
-            // without a cycle.
-            Shader.SetGlobalVector(MoonPhaseId, Cycle != null ? new Vector4(Cycle.MoonPhase, Cycle.MoonLit, Mathf.Repeat(Cycle.MoonPhase * 2.7f + 0.37f, 1f), 0f)
-                                                              : new Vector4(0.5f, 1f, 0.5f, 0f));
+            // Phase and lit share for the big moon's disc, and where the blue moon is (Sky.hlsl); a full big moon and
+            // no blue moon without a cycle.
+            Shader.SetGlobalVector(MoonPhaseId, Cycle != null ? new Vector4(Cycle.MoonPhase, Cycle.MoonLit, 0f, 0f)
+                                                              : new Vector4(0.5f, 1f, 0f, 0f));
             Shader.SetGlobalVector(BlueMoonId, Cycle != null ? (Vector4)Cycle.BlueMoonDirection : new Vector4(0f, -1f, 0f, 0f));
             Shader.SetGlobalColor(SunColorId, discColor * (1f - 0.8f * s.Dust));
             Shader.SetGlobalColor(ZenithId, sky.Zenith);

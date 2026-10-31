@@ -166,7 +166,7 @@ namespace Punchy.Ambience
         {
             scratch.Clear();
             foreach (var kv in tiles)
-                if (math.distance(TileCentre(kv.Key), camXZ) > Radius + TileSize * 1.5f)
+                if (math.distance(TileCentre(kv.Key), camXZ) > Punchy.Settings.GraphicsSettings.DetailRange(Radius) + TileSize * 1.5f)
                     scratch.Add(kv.Key);
             foreach (var key in scratch)
             {
@@ -175,14 +175,15 @@ namespace Punchy.Ambience
             }
 
             scratch.Clear();
-            var r = (int)math.ceil(Radius / TileSize) + 1;
+            var radius = Punchy.Settings.GraphicsSettings.DetailRange(Radius);
+            var r = (int)math.ceil(radius / TileSize) + 1;
             var centre = (int2)math.floor(camXZ / TileSize);
             for (int z = -r; z <= r; z++)
             for (int x = -r; x <= r; x++)
             {
                 var c = centre + new int2(x, z);
                 var min = (float2)c * TileSize;
-                if (!tiles.ContainsKey(c) && math.distance(math.clamp(camXZ, min, min + TileSize), camXZ) < Radius)
+                if (!tiles.ContainsKey(c) && math.distance(math.clamp(camXZ, min, min + TileSize), camXZ) < radius)
                     scratch.Add(c);
             }
             if (scratch.Count == 0)

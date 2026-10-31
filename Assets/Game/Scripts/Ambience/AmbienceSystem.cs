@@ -335,7 +335,7 @@ namespace Punchy.Ambience
                 if (em.HasComponent<Unity.NetCode.GhostOwnerIsLocal>(e) && em.IsComponentEnabled<Unity.NetCode.GhostOwnerIsLocal>(e))
                     continue;
                 var t = em.GetComponentData<LocalTransform>(e);
-                if (math.lengthsq(t.Position) < 1e-6f || math.distancesq(t.Position, camera) > OthersRange * OthersRange)
+                if (math.lengthsq(t.Position) < 1e-6f || math.distancesq(t.Position, camera) > Punchy.Settings.GraphicsSettings.DetailRange(OthersRange) * Punchy.Settings.GraphicsSettings.DetailRange(OthersRange))
                     continue;
                 if (!others.TryGetValue(e, out var b))
                     others[e] = b = new Breather { BreathTimer = UnityEngine.Random.Range(0f, BreathInterval) };

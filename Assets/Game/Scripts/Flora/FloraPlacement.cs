@@ -332,6 +332,27 @@ namespace Punchy.Flora
             return c.x | (c.y << 8) | (c.z << 16) | ((uint)math.clamp(math.round(band * 100f), 1f, 255f) << 24);
         }
 
+        /// <summary>The ground colour a placed plant carries (FloraInstance.Ground): a rock's tint, or a built thing's dirt.</summary>
+        static uint GroundFor(in TerrainSource source, in FloraRules rule, float2 at, float reach, float band) =>
+            rule.Tilt > 0f ? RockTint(source, at) : DirtColor(source, rule, at, reach, band);
+
+        /// <summary>
+        /// A rock's colour where it lies (G-36): on dry ground, the biome's own rock (the surface its cliffs take, so a rock
+        /// in the desert is sandstone, not grey and mossy), packed as DirtColor is with the alpha at its top value (the
+        /// shader's sign for a rock tint); on grassy, wet ground 0, so the rock keeps its own grey and moss.
+        /// </summary>
+        public const uint RockTintMark = 255u;
+        static uint RockTint(in TerrainSource source, float2 at)
+        {
+            var ground = source.SampleGround(at);
+            var flat = source.SampleSurface(at, ground, source.SampleNormal(at, 1f));
+            if (flat.Grass > 0.3f || ground.HasWater && ground.WaterSurface > ground.Height)
+                return 0u;
+            var cliff = source.SampleSurface(at, ground, math.normalize(new float3(1f, 0.2f, 0f)));
+            var c = (uint3)math.round(math.saturate(math.lerp(cliff.Albedo, new float3(0.62f, 0.64f, 0.68f), math.saturate(flat.Snow))) * 255f);
+            return c.x | (c.y << 8) | (c.z << 16) | (RockTintMark << 24);
+        }
+
         /// <summary>FloraRules.Footprint for a species (from its settings, without growing it).</summary>
         static float Footprint(FloraSpecies s)
         {
@@ -367,6 +388,32 @@ namespace Punchy.Flora
                     continue;
                 if (math.abs(math.dot(d, new float2(-plot.Facing.y, plot.Facing.x))) < plot.Half.x + radius &&
                     math.abs(math.dot(d, plot.Facing)) < plot.Half.y + radius)
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Whether a footprint of this radius at <paramref name="xz"/> lies on a road or a road's spur (streets with Road
+        /// set): a landmark's placed props give way to them (Z-13: a roadside hermit's cabbage patch with a road through
+        /// it), as its scattered props already do to every street. Town streets and squares don't count, so benches and
+        /// stalls on a square stay.
+        /// </summary>
+        static bool OnRoad(in TerrainSource source, float2 xz, float radius)
+        {
+            if (!source.Settlements.IsCreated)
+                return false;
+            ref var towns = ref source.Settlements.Value;
+            var cell = SettlementSampling.Cell(ref towns, xz);
+            if (cell < 0)
+                return false;
+            var range = towns.StreetCells[cell];
+            for (int k = range.x; k < range.x + range.y; k++)
+            {
+                ref var street = ref towns.Streets[towns.StreetItems[k]];
+                if (street.Road == 0 || math.any(xz < street.Min - radius) || math.any(xz > street.Max + radius))
+                    continue;
+                if (SettlementSampling.Across(street, xz, out _) < street.Width * 0.5f + radius)
                     return true;
             }
             return false;
@@ -602,8 +649,17 @@ namespace Punchy.Flora
         /// (on its plots) or a landmark's placed props. Each is placed as it's drawn (Place), so creatures and players
         /// meet the same walls. Burst-safe; cheap away from settlements and landmarks.
         /// </summary>
-        public static bool Blocked(ref FloraBlob f, in TerrainSource source, float2 xz, float radius)
+        public static bool Blocked(ref FloraBlob f, in TerrainSource source, float2 xz, float radius) =>
+            Blocked(ref f, source, xz, radius, out _);
+
+        /// <summary>
+        /// Blocked, and how tall what blocks it stands: its model's height times its scale, above its own base (0 when
+        /// nothing does), for something deciding whether to go over it (Z-28: a worm leaping a building or a placed rock).
+        /// From the same footprint placement, so it samples no more ground.
+        /// </summary>
+        public static bool Blocked(ref FloraBlob f, in TerrainSource source, float2 xz, float radius, out float top)
         {
+            top = 0f;
             if (f.Obstacles.Length == 0)
                 return false;
             if (source.Settlements.IsCreated && f.SettlementSpecies.Length > 0)
@@ -623,8 +679,12 @@ namespace Punchy.Flora
                         if (building.x < 0 || f.Models[f.Rules[building.x].FirstModel].ObstacleCount == 0)
                             continue;
                         var cell = (int2)math.floor(plot.Centre / f.CellSizes[building.y]);
-                        if (Inside(ref f, Place(ref f, source, cell, building.y), xz, radius))
+                        var plant = Place(ref f, source, cell, building.y, footprint: true);
+                        if (Inside(ref f, plant, xz, radius))
+                        {
+                            top = f.Models[plant.Model].Height * plant.Scale;
                             return true;
+                        }
                     }
                 }
             }
@@ -645,13 +705,46 @@ namespace Punchy.Flora
                                 LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
                             if (math.distance(spot, xz) > 15f + radius)
                                 continue;
-                            if (Inside(ref f, Place(ref f, source, (int2)math.floor(spot / f.CellSizes[l]), l), xz, radius))
+                            var plant = Place(ref f, source, (int2)math.floor(spot / f.CellSizes[l]), l, footprint: true);
+                            if (Inside(ref f, plant, xz, radius))
+                            {
+                                top = f.Models[plant.Model].Height * plant.Scale;
                                 return true;
+                            }
                         }
                     }
                 }
             }
             return false;
+        }
+
+        /// <summary>
+        /// Scattered rocks round a point (Z-28: a worm going round or over a boulder field): whether the walls of any solid
+        /// plant that isn't a tree reach it (boulders, tors, standing stones, hoodoos; in a town also its buildings), and
+        /// the tallest one's top, its model's height times its scale above its own base (0 when none). Worked out from
+        /// Place() on the tree layer's cells round the point, where they all grow, so it needs no streamed state and runs
+        /// in the simulation world too. Each cell is a full placement: call it at a few points, not every step.
+        /// </summary>
+        public static bool RockAt(ref FloraBlob f, in TerrainSource source, float2 xz, float radius, out float top)
+        {
+            top = 0f;
+            if (f.Obstacles.Length == 0)
+                return false;
+            // The biggest boulders' walls reach a few metres from where they're placed.
+            const float reach = 6f;
+            var size = f.CellSizes[TreeLayer];
+            var c0 = (int2)math.floor((xz - radius - reach) / size);
+            var c1 = (int2)math.floor((xz + radius + reach) / size);
+            for (int y = c0.y; y <= c1.y; y++)
+            for (int x = c0.x; x <= c1.x; x++)
+            {
+                var plant = Place(ref f, source, new int2(x, y), TreeLayer, footprint: true);
+                if (plant.Model < 0 || plant.Model >= f.Models.Length || f.Models[plant.Model].Kind != TreeKind.None)
+                    continue;
+                if (Inside(ref f, plant, xz, radius))
+                    top = math.max(top, f.Models[plant.Model].Height * plant.Scale);
+            }
+            return top > 0f;
         }
 
         /// <summary>Inside one placed plant's walls (turned and scaled as FloraSystem turns them for the player).</summary>
@@ -714,8 +807,13 @@ namespace Punchy.Flora
         /// </summary>
         public static float CellSize(float tileSize, float cellSize) => tileSize / math.round(tileSize / cellSize);
 
-        /// <summary>The plant growing in one cell of a layer's grid (Model -1 if none).</summary>
-        public static FloraSystem.FloraInstance Place(ref FloraBlob f, in TerrainSource source, int2 cell, int layer)
+        /// <summary>
+        /// The plant growing in one cell of a layer's grid (Model -1 if none). With <paramref name="footprint"/>, a town's
+        /// building or a landmark's placed prop comes back with only what its walls need (Position.xz, Yaw, Scale, Model,
+        /// exactly as without), leaving out its floor height and ground colour, which sample the ground round it and cost
+        /// most of the call (Blocked asks on every step of every animal in town). Other plants are placed in full.
+        /// </summary>
+        public static FloraSystem.FloraInstance Place(ref FloraBlob f, in TerrainSource source, int2 cell, int layer, bool footprint = false)
         {
             var none = new FloraSystem.FloraInstance { Model = -1 };
             var cellSize = f.CellSizes[layer];
@@ -751,14 +849,14 @@ namespace Punchy.Flora
                         var bridge = plot.Role == PlotRole.Bridge;
                         return new FloraSystem.FloraInstance
                         {
-                            Position = new float3(plot.Centre.x, bridge ? plot.Pad : FloorHeight(source, plot), plot.Centre.y),
+                            Position = new float3(plot.Centre.x, footprint ? 0f : bridge ? plot.Pad : FloorHeight(source, plot), plot.Centre.y),
                             Yaw = math.atan2(-plot.Facing.x, plot.Facing.y),
                             // Sized for its folk (the layout's BuildingScale: ogre tents bigger, goblin huts smaller); bridge
                             // spans and fence lengths at their own size, so they meet end to end.
                             Scale = bridge || plot.Role == PlotRole.Fence ? 1f : rng.NextFloat(0.95f, 1.05f) * towns.Layouts[towns.Settlements[plot.Settlement].Layout].BuildingScale,
                             Model = buildingRule.FirstModel + rng.NextInt(buildingRule.Variants),
                             Random = rng.NextFloat(),
-                            Ground = bridge ? 0u : DirtColor(source, buildingRule, plot.Centre, math.cmax(plot.Half), 0.9f)
+                            Ground = bridge || footprint ? 0u : DirtColor(source, buildingRule, plot.Centre, math.cmax(plot.Half), 0.9f)
                         };
                     }
                     // Streets and built plots grow nothing, though a landmark's placed props (benches on the square,
@@ -794,7 +892,8 @@ namespace Punchy.Flora
                             if (l == layer && math.all((int2)math.floor(spot / cellSize) == cell))
                             {
                                 var placedRule = f.Rules[prop.Species];
-                                if (OnBuiltPlot(ref f, source, spot, placedRule.Footprint * prop.Scale.y))
+                                if (OnBuiltPlot(ref f, source, spot, placedRule.Footprint * prop.Scale.y) ||
+                                    OnRoad(source, spot, placedRule.Footprint * prop.Scale.y))
                                     return none;
                                 var toCentre = set.Instances[landmark.Instance].Position - spot;
                                 var placedYaw = prop.FaceCentre != 0 ? math.atan2(-toCentre.x, toCentre.y) : rng.NextFloat(math.PI * 2f);
@@ -802,12 +901,12 @@ namespace Punchy.Flora
                                     placedYaw = FacingYaw(set.Instances[landmark.Instance].Facing);
                                 return new FloraSystem.FloraInstance
                                 {
-                                    Position = new float3(spot.x, source.SampleHeight(spot), spot.y),
+                                    Position = new float3(spot.x, footprint ? 0f : source.SampleHeight(spot), spot.y),
                                     Yaw = placedYaw,
                                     Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
                                     Model = placedRule.FirstModel + rng.NextInt(placedRule.Variants),
                                     Random = rng.NextFloat(),
-                                    Ground = DirtColor(source, placedRule, spot, 1f, 0.25f)
+                                    Ground = footprint ? 0u : GroundFor(source, placedRule, spot, 1f, 0.25f)
                                 };
                             }
                             blocked |= math.distance(xz, spot) < prop.Clearance;
@@ -835,12 +934,12 @@ namespace Punchy.Flora
                                 centreYaw = FacingYaw(set.Instances[landmark.Instance].Facing);
                             return new FloraSystem.FloraInstance
                             {
-                                Position = new float3(centre.x, source.SampleHeight(centre), centre.y),
+                                Position = new float3(centre.x, footprint ? 0f : source.SampleHeight(centre), centre.y),
                                 Yaw = centreYaw,
                                 Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
                                 Model = centreRule.FirstModel + rng.NextInt(centreRule.Variants),
                                 Random = rng.NextFloat(),
-                                Ground = DirtColor(source, centreRule, centre, 2f, 0.5f)
+                                Ground = footprint ? 0u : GroundFor(source, centreRule, centre, 2f, 0.5f)
                             };
                         }
                         continue;
@@ -1028,7 +1127,7 @@ namespace Punchy.Flora
                 Snow = surface.Snow,
                 // Rocks lie over onto the slope they stand on.
                 Tilt = normal.xz * rule.Tilt,
-                Ground = DirtColor(source, rule, xz, 1f, 0.25f)
+                Ground = GroundFor(source, rule, xz, 1f, 0.25f)
             };
         }
 

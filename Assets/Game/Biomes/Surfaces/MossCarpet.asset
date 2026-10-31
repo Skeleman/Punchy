@@ -12,12 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e24e316f8fdd0004ebea7acc0e8c3824, type: 3}
   m_Name: MossCarpet
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.TerrainSurface
-  Albedo: {r: 0.28, g: 0.34, b: 0.3, a: 1}
+  Albedo: {r: 0.46, g: 0.27, b: 0.12, a: 1}
   Smoothness: 0.1
   Metallic: 0
   Emission: {r: 0, g: 0, b: 0, a: 1}
   ColorVariation: 0.2
   Bumpiness: 0.35
-  GrassDensity: 1
+  GrassDensity: 0.55
   Pebbles: 0.02
+  Strata: 0
   SnowDepth: 0

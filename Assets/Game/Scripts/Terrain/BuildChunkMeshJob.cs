@@ -362,17 +362,31 @@ namespace Punchy.Terrain
         /// </summary>
         float MouthCut(float2 xz, float h, float step)
         {
-            var cut = Source.MouthCut(xz, h);
+            var cut = Source.MouthCut(xz, h, out var cave);
             if (cut >= 100f)
                 return cut;
             var r = step * 0.5f;
+            var at = new float2x4(xz + new float2(r, 0f), xz - new float2(r, 0f), xz + new float2(0f, r), xz - new float2(0f, r));
+            var heights = new float4(Source.SampleHeight(at.c0), Source.SampleHeight(at.c1), Source.SampleHeight(at.c2), Source.SampleHeight(at.c3));
+            // Over most of a cave's footprint the passage is metres down. Once the field is at least SettledCave from
+            // every neighbour's sample point, each neighbour's cut is the same settled value as this one's and can't
+            // lower the min, so they're skipped: the samples lie within reach of this one (half a quad across, their
+            // height difference up or down, twice the sampling depth for the normals), and the field changes by at
+            // most FieldSlope per metre. Only vertices within a few metres of an opening pay for all five.
+            var reach = r + math.cmax(math.abs(heights - h)) + 2f * TerrainSource.MouthCutDepth;
+            if (cave > SettledCave + FieldSlope * reach)
+                return cut;
             for (int k = 0; k < 4; k++)
-            {
-                var o = xz + new float2(k == 0 ? r : k == 1 ? -r : 0f, k == 2 ? r : k == 3 ? -r : 0f);
-                cut = math.min(cut, Source.MouthCut(o, Source.SampleHeight(o)));
-            }
+                cut = math.min(cut, Source.MouthCut(at[k], heights[k]));
             return cut;
         }
+
+        /// <summary>Cave field distance beyond which MouthCut is settled at its rock value (the smooth min's blend is
+        /// spent: MouthCutDepth - 0.1 + MouthBlend), with half a metre to spare.</summary>
+        const float SettledCave = TerrainSource.MouthCutDepth - 0.1f + CaveSampling.MouthBlend + 0.5f;
+        /// <summary>A safe bound on how fast the cave field changes per metre (it's a smoothed, noise-moved distance
+        /// that can overstate by up to 1.8 times, so not a true 1-per-metre distance).</summary>
+        const float FieldSlope = 2f;
 
         /// <summary>
         /// How far a skirt may hang below the surface at (xz, top): its full depth, or less where cave air lies within

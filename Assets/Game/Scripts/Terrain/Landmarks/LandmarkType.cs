@@ -19,7 +19,9 @@ namespace Punchy.Terrain
         [Tooltip("Rising puffs: steam, smoke, geyser spouts, spray, sparkles.")] Plume,
         [Tooltip("A curtain of falling water from Offset (the lip) out and down towards -X.")] Waterfall,
         [Tooltip("Flames (FireSystem) at Offset: Particles tongues of fire Size high, spread over Width, in the Flame " +
-                 "palette. Drawn within 150 m. Pair it with a FirePit (or brazier) prop and an ember plume.")] Flame
+                 "palette. Drawn within 150 m. Pair it with a FirePit (or brazier) prop and an ember plume.")] Flame,
+        [Tooltip("Bubbles rising and popping on a pool's surface at Offset (hot springs, geysers, mud pits, lava): Particles " +
+                 "bubbles of about Size across, over Width, each swelling and bursting into a spreading ring in Lifetime s.")] Bubbles
     }
 
     /// <summary>Flame colours (FireSystem's palettes).</summary>
@@ -59,6 +61,9 @@ namespace Punchy.Terrain
         public float Angle;
         [Tooltip("Placed ones keep everything else (plants, scattered props) this many metres away.")]
         [Min(0f)] public float Clearance = 4f;
+        [Tooltip("Placed ones (Count) stand on ground worn darker and bare this many metres round, reaching a little " +
+                 "further out in front, where people stand (market stalls). 0 = none.")]
+        [Min(0f)] public float Trodden;
     }
 
     /// <summary>A procedural effect drawn at a landmark by LandmarkEffectSystem.</summary>

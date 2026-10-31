@@ -10,6 +10,7 @@ namespace Punchy.Terrain
         public LandmarkShape Shape;
         public float Height, ShapeRadius, Edge, Flatten, Roughness;
         public int FirstPool, PoolCount;
+        public int FirstTrodden, TroddenCount;
         public int OverrideWater;
         /// <summary>rgb colour (linear), a murk.</summary>
         public float4 Water;
@@ -26,6 +27,13 @@ namespace Punchy.Terrain
         public float2 Offset;   // in radii, landmark frame
         public float Radius;    // in radii
         public float Depth;     // metres
+    }
+
+    /// <summary>Worn ground round one of a landmark's placed props (LandmarkProp.Trodden).</summary>
+    public struct LandmarkTroddenData
+    {
+        public float2 Offset;   // the prop's spot, in radii, landmark frame
+        public float Radius;    // metres
     }
 
     /// <summary>One placed landmark.</summary>
@@ -55,6 +63,7 @@ namespace Punchy.Terrain
     {
         public BlobArray<LandmarkTypeData> Types;
         public BlobArray<LandmarkPoolData> Pools;
+        public BlobArray<LandmarkTroddenData> Trodden;
         public BlobArray<LandmarkInstance> Instances;
         public float2 GridOrigin;
         public float CellSize;
@@ -263,16 +272,62 @@ namespace Punchy.Terrain
                 if (!Hit(ref set, set.Items[k], xz, out var hit))
                     continue;
                 ref var type = ref set.Types[hit.Type];
-                if (type.HasGround == 0)
-                    continue;
-                var d = hit.Distance / type.GroundRadius + edgeNoise * 0.25f;
-                var w = math.smoothstep(1f, 0.75f, d);
-                if (w <= 0f)
-                    continue;
-                var ground = type.Ground.Props;
-                ground.Albedo *= 1f + colorNoise * type.Ground.ColorVariation;
-                props = SurfaceProps.Lerp(props, ground, w);
+                if (type.HasGround != 0)
+                {
+                    var d = hit.Distance / type.GroundRadius + edgeNoise * 0.25f;
+                    var w = math.smoothstep(1f, 0.75f, d);
+                    if (w > 0f)
+                    {
+                        var ground = type.Ground.Props;
+                        ground.Albedo *= 1f + colorNoise * type.Ground.ColorVariation;
+                        props = SurfaceProps.Lerp(props, ground, w);
+                    }
+                }
             }
+        }
+
+        /// <summary>
+        /// Wears the ground round landmarks' placed props (LandmarkProp.Trodden). Applied after settlements' streets and
+        /// squares, which repaint the ground under them (a camp's stalls stand on its square).
+        /// </summary>
+        public static void TroddenGround(ref LandmarkSetBlob set, float2 xz, float edgeNoise, ref SurfaceProps props)
+        {
+            // On the hot path (every surface sample): out at once on an island with none, and per landmark on its
+            // type's count before the distance test, so only camps with stalls cost more than the grid lookup.
+            if (set.Trodden.Length == 0)
+                return;
+            var range = CellRange(ref set, xz);
+            for (int k = range.x; k < range.x + range.y; k++)
+            {
+                var instance = set.Items[k];
+                if (set.Types[set.Instances[instance].Type].TroddenCount == 0 || !Hit(ref set, instance, xz, out var hit))
+                    continue;
+                ref var type = ref set.Types[hit.Type];
+                for (int p = 0; p < type.TroddenCount; p++)
+                    Trodden(ref set.Trodden[type.FirstTrodden + p], hit, xz, edgeNoise, ref props);
+            }
+        }
+
+        /// <summary>Trodden ground's colour as a share of the ground's own (worn darker by people standing about).</summary>
+        const float TroddenDarken = 0.5f;
+
+        /// <summary>
+        /// Worn ground round a placed prop (F-40, a market stall): the ground's own colour darkened and its grass and
+        /// pebbles worn away, centred half its reach in front of it (towards the landmark's middle, where people stand),
+        /// with a ragged edge. Part of the ground's colour, so the terrain's own texture shows through it.
+        /// </summary>
+        static void Trodden(ref LandmarkTroddenData trodden, in LandmarkHit hit, float2 xz, float edgeNoise, ref SurfaceProps props)
+        {
+            var spot = trodden.Offset * hit.Radius;
+            var centre = spot + math.normalizesafe(-spot) * trodden.Radius * 0.5f;
+            var reach = math.distance(hit.Local, centre);
+            if (reach > trodden.Radius * 1.4f)
+                return;
+            var ragged = noise.snoise(xz * 0.8f) * 0.18f + edgeNoise * 0.08f;
+            var w = math.smoothstep(1.15f, 0.55f, reach / trodden.Radius + ragged);
+            props.Albedo *= math.lerp(1f, TroddenDarken, w);
+            props.Grass *= 1f - w;
+            props.Pebbles *= 1f - 0.7f * w;
         }
     }
 }

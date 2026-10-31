@@ -29,8 +29,9 @@ float  _PunchyHazeDensity;     // base exponential-squared haze per metre (hides
 
 float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
-float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share, the blue moon's phase
-float3 _PunchyBlueMoon;        // towards the second, smaller blue moon
+float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share
+float3 _PunchyBlueMoon;        // towards the second, blue moon
+static const float PunchyBlueMoonRadius = 0.034;   // radians: about twice the big moon's
 half3  _PunchySunColor;        // sun colour × brightness (0 once set)
 half3  _PunchySkyZenith;
 half3  _PunchySkyHorizon;      // also the fog colour, so distant terrain fades seamlessly into the sky
@@ -306,8 +307,13 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
             float absorbed = 1 - exp(-density * PUNCHY_CLOUD_SIGMA * stepLength);
             scatter += transmit * absorbed * (direct + ambient + flash);
             transmit *= 1 - absorbed;
+            // Past this the cloud is opaque: nothing behind it shows (the last 2% let a shooting star, five times
+            // brighter than the sky, shine through a dark night cloud, Z-09).
             if (transmit < 0.02)
+            {
+                transmit = 0;
                 break;
+            }
         }
         t += stepLength;
     }
@@ -475,6 +481,62 @@ half3 PunchyMoonFace(float3 dir, float3 m, float radius, float3 toLight, half3 t
     return tint * cover * (lit * seas + 0.012) * 1.6;
 }
 
+// Nearest and second-nearest feature points in a 2D cell pattern (for the blue moon's craters and cracks): x the
+// distance to the nearest, y to the second, z the nearest cell's own random 0..1.
+float3 PunchyMoonCells(float2 q)
+{
+    int2 c = int2(floor(q));
+    float f1 = 9, f2 = 9, id = 0;
+    for (int y = -1; y <= 1; y++)
+    for (int x = -1; x <= 1; x++)
+    {
+        int2 cell = c + int2(x, y);
+        float2 at = float2(cell) + float2(PunchyCellHash(cell), PunchyCellHash(cell + int2(37, 91)));
+        float d = distance(q, at);
+        if (d < f1) { f2 = f1; f1 = d; id = PunchyCellHash(cell + int2(11, 5)); }
+        else if (d < f2) f2 = d;
+    }
+    return float3(f1, f2, id);
+}
+
+// The blue moon's disc: always full (Zach, G-34), with a clearly cratered and cracked face: bowls darker with bright
+// rims in a share of the cells, fine dark cracks along cell borders in patches, the darker seas, and limb darkening.
+half3 PunchyBlueMoonFace(float3 dir, float3 m, float radius, half3 tint, out half cover)
+{
+    float moonDot = dot(dir, m);
+    float edgeCos = cos(radius);
+    cover = smoothstep(edgeCos - radius * radius * 0.08, edgeCos + radius * radius * 0.08, moonDot);
+    if (cover <= 0)
+        return 0;
+    float3 right = normalize(cross(float3(0, 1, 0), m));
+    float3 up = cross(m, right);
+    float3 v = dir - m * moonDot;
+    float2 uv = float2(dot(v, right), dot(v, up)) / sin(radius);
+    float z = sqrt(saturate(1 - dot(uv, uv)));
+    // Craters: in about half the cells, a bowl a third to a half of the cell across.
+    float3 cr = PunchyMoonCells(uv * 3.2 + 4.7);
+    float size = lerp(0.28, 0.48, frac(cr.z * 7.3));
+    float d = cr.x / size;
+    half crater = step(0.45, cr.z);
+    half bowl = crater * (1 - smoothstep(0.6, 1.0, d));
+    half rim = crater * smoothstep(0.75, 0.95, d) * (1 - smoothstep(0.95, 1.2, d));
+    // Cracks: thin borders of a finer pattern, only in patches.
+    float3 ck = PunchyMoonCells(uv * 7.5 - 2.3);
+    half crack = (1 - smoothstep(0.025, 0.09, ck.y - ck.x)) * smoothstep(0.3, 0.5, PunchyValueNoise(uv * 1.7 + 9.2));
+    half seas = 1 - 0.25 * smoothstep(0.35, 0.65, PunchyValueNoise(uv * 2.3 + 7.1));
+    half shade = seas * (1 - 0.35 * bowl) * (1 + 0.35 * rim) * (1 - 0.8 * crack) * (0.55 + 0.45 * z);
+    return tint * cover * shade * 1.6;
+}
+
+// The blue moon's corona: a soft glow just outside its disc with a faint ring a little further out, hidden behind it.
+half3 PunchyBlueCorona(float3 dir, float radius)
+{
+    float a = sqrt(max(2 * (1 - dot(dir, _PunchyBlueMoon)), 0));   // angle to it (small angles)
+    float outside = max(a - radius, 0);
+    half glow = exp(-outside / (radius * 0.6)) * 0.55 + exp(-pow((a - radius * 1.7) / (radius * 0.15), 2)) * 0.12;
+    return half3(0.3, 0.55, 1.4) * glow * smoothstep(radius * 0.98, radius * 1.02, a);
+}
+
 // Both moons where a direction falls on them: the big moon lit by its phase, the small blue one by the sun from
 // wherever it stands. `cover` (out) is how much they hide the sky behind.
 half3 PunchyMoonDisc(float3 dir, out half cover)
@@ -482,11 +544,8 @@ half3 PunchyMoonDisc(float3 dir, out half cover)
     float a = _PunchyMoonPhase.x * 6.2832;
     half bigCover, blueCover;
     half3 moons = PunchyMoonFace(dir, _PunchyMoonDirection, 0.0172, float3(sin(a), 0.15 * sin(a), -cos(a)), half3(0.9, 0.92, 1.0), bigCover);
-    // The blue moon: its own phase, as the big one's (it rides high at night, opposite the sun, so lit from the sun's
-    // real direction it was always full, G-34).
-    float3 b = _PunchyBlueMoon;
-    float ab = _PunchyMoonPhase.z * 6.2832;
-    moons += PunchyMoonFace(dir, b, 0.0095, float3(sin(ab), 0.15 * sin(ab), -cos(ab)), half3(0.28, 0.52, 1.45), blueCover) * (1 - bigCover);
+    // The blue moon: always full, about twice the big moon's size, cratered and cracked (Zach, G-34).
+    moons += PunchyBlueMoonFace(dir, _PunchyBlueMoon, PunchyBlueMoonRadius, half3(0.28, 0.52, 1.45), blueCover) * (1 - bigCover);
     cover = max(bigCover, blueCover);
     return moons;
 }
@@ -508,8 +567,15 @@ half3 PunchySkyColor(float3 dir, bool withDiscs, bool approximateClouds)
     if (h > 0)
     {
         half3 night = PunchyStars(dir) * _PunchyNight;
-        // Shooting stars and auroras show through clear skies only (the volumetric clouds cover them anyway).
-        night += (PunchyShootingStars(dir) + PunchyAurora(dir)) * _PunchyNight * (1 - _PunchyClouds.x);
+        // Shooting stars and auroras show through clear skies only: dimmed by the cloud cover overall, and by the
+        // clouds along this very direction (they're bright enough to show through a thin cloud's last light, Z-09).
+        half3 events = (PunchyShootingStars(dir) + PunchyAurora(dir)) * _PunchyNight * (1 - _PunchyClouds.x);
+        [branch] if (any(events > 0))
+        {
+            half eventsDarkness;
+            events *= 1 - PunchyCloudCoverAlong(dir, eventsDarkness);
+        }
+        night += events;
         if (withDiscs)
         {
             half moonCover;
@@ -521,6 +587,8 @@ half3 PunchySkyColor(float3 dir, bool withDiscs, bool approximateClouds)
         // The moon's own face (its dark side too) hides the glow behind it.
         halo *= 1 - smoothstep(0.99982, 0.99987, moonDot) * withDiscs;
         sky += halo * pow(moonDot, 40) * 0.25 * _PunchyNight + night;
+        // The blue moon's corona (below the horizon it has none to show).
+        sky += PunchyBlueCorona(dir, PunchyBlueMoonRadius) * _PunchyNight * clearness * step(0, _PunchyBlueMoon.y);
 
         half daylight = saturate(dot(_PunchySkyHorizon, half3(0.3, 0.5, 0.2)) * 1.6);
         half3 cirrusColor = (half3(1, 1, 1) * daylight + _PunchySunColor * pow(sunDot, 4) * 0.5) * 0.95;

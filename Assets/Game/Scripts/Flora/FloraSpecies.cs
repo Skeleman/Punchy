@@ -108,7 +108,10 @@ namespace Punchy.Flora
                  "with a rolled pillow (Bark) at the head, -Z; the feet at +Z. Height is its length, Spread its width " +
                  "over length. Camps put a Bed anchor on each.")] Bedroll,
         [Tooltip("One 3 m length of rail fence along its X (roads past fields): a post at its start and two rails on to the " +
-                 "next one's, sagging a little (Bark; Foliage the post caps). Height is the fence; laid end to end.")] RailFence
+                 "next one's, sagging a little (Bark; Foliage the post caps). Height is the fence; laid end to end.")] RailFence,
+        [Tooltip("An enormous rock floating over a scorched mound, turning slowly, with smaller shards round it and arcs " +
+                 "crackling between them (Bark the rock, Foliage the arcs). Its shape by variant: a tall shard, a flat slab or " +
+                 "a cluster. Height is the rock's size; it floats about that high again. Not solid.")] FloatingRock
     }
 
     public enum FoliageFinish : byte
@@ -211,6 +214,8 @@ namespace Punchy.Flora
         public bool RockStrata;
         [Tooltip("Mushrooms: caps that breathe, slowly swelling and settling.")]
         public bool Breathes;
+        [Tooltip("Benches: one carved stone slab for a seat instead of two planks (the elves' benches).")]
+        public bool StoneSeat;
 
         [Header("Placement")]
         [Tooltip("Steepest ground it grows on, in degrees.")]

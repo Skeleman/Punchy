@@ -147,6 +147,7 @@ namespace Punchy.Terrain
                 path = Smooth(Smooth(Relax(path, 3)));
                 var layout = layouts[settlements[settlement].Layout];
                 Emit(source, path, layout.RoadWidth * settlements[settlement].Scale, settlement, settlements, streets);
+                ClearPlots(path, layout.RoadWidth * settlements[settlement].Scale, plots);
                 // Roads between settlements (not the spurs to caves) carry roadside landmarks.
                 if (toTown)
                     roads?.Add(new RoadsideBaking.RoadPath { Points = path, Width = layout.RoadWidth * settlements[settlement].Scale, Settlement = settlement, Other = other });
@@ -436,6 +437,48 @@ namespace Punchy.Terrain
         /// The road as street stretches of at most StretchLength, skipping where it runs inside a settlement (its own
         /// streets are there), over water (a ford, left as it is) or over a cave entrance.
         /// </summary>
+        /// <summary>
+        /// Clears the plots a road runs through: towns are closed to roads only well inside them (Towns are closed, above),
+        /// so a road skirting one could pass through a plot at its edge (Z-13: a road through a cabbage patch). Such a
+        /// plot is left an empty green (Landscaping, no building), keeping its place in the list, so the roads and
+        /// everything placed along them stay where they are. The road's own bridges, gates, fences and palisades stay.
+        /// </summary>
+        static void ClearPlots(List<float2> path, float width, List<SettlementPlot> plots)
+        {
+            var reach = width * 0.5f + 0.5f;
+            float2 min = float.MaxValue, max = float.MinValue;
+            foreach (var point in path)
+            {
+                min = math.min(min, point);
+                max = math.max(max, point);
+            }
+            for (int p = 0; p < plots.Count; p++)
+            {
+                var plot = plots[p];
+                if (plot.Building < 0 || plot.Role is PlotRole.Bridge or PlotRole.Palisade or PlotRole.Fence or PlotRole.Gate or PlotRole.Signpost ||
+                    math.any(plot.Max < min - reach) || math.any(plot.Min > max + reach))
+                    continue;
+                for (int i = 0; i < path.Count - 1; i++)
+                {
+                    var a = path[i];
+                    var b = path[i + 1];
+                    if (math.any(plot.Max < math.min(a, b) - reach) || math.any(plot.Min > math.max(a, b) + reach))
+                        continue;
+                    // Along the segment every half metre: the plot is a turned rectangle.
+                    var steps = (int)math.ceil(math.distance(a, b) / 0.5f);
+                    var crossed = false;
+                    for (int k = 0; k <= steps && !crossed; k++)
+                        crossed = SettlementSampling.Outside(plot, math.lerp(a, b, k / (float)math.max(steps, 1))) < reach;
+                    if (!crossed)
+                        continue;
+                    plot.Role = PlotRole.Landscaping;
+                    plot.Building = -1;
+                    plots[p] = plot;
+                    break;
+                }
+            }
+        }
+
         static void Emit(in TerrainSource source, List<float2> path, float width, int settlement, List<SettlementData> settlements,
                          List<SettlementStreet> streets)
         {

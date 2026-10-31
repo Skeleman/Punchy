@@ -462,7 +462,7 @@ namespace Punchy.Terrain
                         var reach = LavaLight;
                         reach.w = pool.Radius * 5f + 4f;
                         // Only pools whose light could reach something near the camera take one of the 16 slots.
-                        if (math.distance(pool.Centre, camPos) < reach.w + PlantRadius)
+                        if (math.distance(pool.Centre, camPos) < reach.w + PlantRange)
                             {
                             var at = new Vector4(pool.Centre.x, pool.Centre.y + 0.3f, pool.Centre.z, 0f);
                             glowing.Add((math.distance(pool.Centre, camPos), at, at, reach));
@@ -490,6 +490,8 @@ namespace Punchy.Terrain
 
         [Tooltip("Cave plants within this distance of the camera are drawn.")]
         public float PlantRadius = 60f;
+        /// <summary>PlantRadius at the graphics settings' Detail distance.</summary>
+        float PlantRange => Punchy.Settings.GraphicsSettings.DetailRange(PlantRadius);
         float nextFloraLookup;
         /// <summary>Variants grown per species (as the flora system does).</summary>
         const int PlantVariants = 3;
@@ -594,7 +596,7 @@ namespace Punchy.Terrain
                 {
                     ref var p = ref set.Plants[i];
                     var d = math.distance(p.Position, camPos);
-                    if (d > PlantRadius)
+                    if (d > PlantRange)
                         continue;
                     var model = p.Species * PlantVariants + p.Variant;
                     if (model < 0 || model >= plantModels.Count)
@@ -682,7 +684,7 @@ namespace Punchy.Terrain
                 glowing.Add((math.distance(flame, camPos), at, at, TorchLight));
             }
 
-            var bounds = new Bounds(camPos, new Vector3(PlantRadius * 2f, PlantRadius * 2f, PlantRadius * 2f));
+            var bounds = new Bounds(camPos, new Vector3(PlantRange * 2f, PlantRange * 2f, PlantRange * 2f));
             for (int d = 0; d < plantDraws.Count; d++)
             {
                 var rp = new RenderParams(floraMaterial)
@@ -767,7 +769,7 @@ namespace Punchy.Terrain
         /// A unit disc in the terrain's water vertex layout: no flow, deepest at the middle (lava cools and crusts
         /// towards the rim), in the given look and lava amount.
         /// </summary>
-        static Mesh MakePoolMesh(float4 look, float lava) => MakePoolMesh(look, new float2(0f, lava));
+        internal static Mesh MakePoolMesh(float4 look, float lava) => MakePoolMesh(look, new float2(0f, lava));
 
         /// <summary>The same disc with a self-glow too (toxic pools): glow x, lava y.</summary>
         static Mesh MakePoolMesh(float4 look, float2 glow)
@@ -878,6 +880,8 @@ namespace Punchy.Terrain
 
         const int MaxDrips = 48;
         const float DripRadius = 25f;
+        /// <summary>DripRadius at the graphics settings' Detail distance.</summary>
+        float DripRange => Punchy.Settings.GraphicsSettings.DetailRange(DripRadius);
         readonly List<Drip> allDrips = new List<Drip>();
         readonly List<(float distance, Drip drip)> nearDrips = new List<(float, Drip)>();
         static readonly Comparer<(float distance, Drip drip)> DripsByDistance =
@@ -954,7 +958,7 @@ namespace Punchy.Terrain
                 foreach (var d in allDrips)
                 {
                     var dist = math.distance(d.Tip.xyz, camPos);
-                    if (dist < DripRadius)
+                    if (dist < DripRange)
                         nearDrips.Add((dist, d));
                 }
                 nearDrips.Sort(DripsByDistance);
@@ -971,7 +975,7 @@ namespace Punchy.Terrain
             dripProps.SetBuffer(DripsId, dripBuffer);
             var rp = new RenderParams(dripMaterial)
             {
-                worldBounds = new Bounds(camPos, new Vector3(DripRadius * 2f, DripRadius * 2f, DripRadius * 2f)),
+                worldBounds = new Bounds(camPos, new Vector3(DripRange * 2f, DripRange * 2f, DripRange * 2f)),
                 matProps = dripProps,
                 shadowCastingMode = ShadowCastingMode.Off,
                 receiveShadows = false
