@@ -1091,11 +1091,16 @@ namespace Punchy.Flora
                             continue;
                         if (model.Colliders.Count == 0)
                         {
+                            // (The trunk's lean, turned and scaled as the tree is drawn: Flora.hlsl.)
+                            float yc = math.cos(inst.Yaw), ys = math.sin(inst.Yaw);
+                            float2 Turned(Vector2 v) => new float2(v.x * yc - v.y * ys, v.x * ys + v.y * yc) * inst.Scale;
                             buffer.Add(new FloraObstacle
                             {
                                 Position = inst.Position,
                                 Radius = model.TrunkRadius * inst.Scale,
-                                Height = model.Height * inst.Scale
+                                Height = model.Height * inst.Scale,
+                                LeanMid = Turned(model.TrunkLeanMid),
+                                LeanTop = Turned(model.TrunkLeanTop)
                             });
                             continue;
                         }

@@ -318,8 +318,25 @@ namespace Punchy.Audio
                 SystemAPI.TryGetSingletonBuffer<Punchy.Flora.FloraSupport>(out var props, true) &&
                 Punchy.Flora.PropSupport.Sample(ref grids.Set.Value, props, s.Position, 0.1f, 0.3f, out var hit) && hit.Wading)
                 wet = hit.WaterHeight > s.Position.y + 0.02f;
-            var id = wet ? SoundId.StepWet : heavy ? SoundId.Clop : SoundId.Step;
-            var volume = (s.Mode == CreatureMode.Puppet ? 0.55f : 0.35f) * math.lerp(0.6f, 1.2f, math.saturate(s.Speed / 4f));
+            // What's underfoot: snow crunches, grass rustles, sand hisses, rock taps; hooves clop on anything hard. Padded
+            // paws (a wolf's, a dog's) only thump softly, quieter than feet.
+            var id = SoundId.Step;
+            var paw = heavy && !b.Hooves;
+            if (wet)
+                id = SoundId.StepWet;
+            else
+            {
+                var surface = terrain.SampleSurface(at.xz, ground, terrain.SampleNormal(at.xz, 0.5f));
+                var sand = surface.Grass < 0.2f && surface.Snow < 0.2f && surface.Albedo.x > 0.3f && surface.Albedo.x > surface.Albedo.z * 1.35f && surface.Pebbles < 0.4f;
+                var rock = surface.Strata > 0.4f || surface.Pebbles > 0.5f;
+                id = surface.Snow > 0.4f ? SoundId.StepSnow
+                   : surface.Grass > 0.4f ? (b.Hooves ? SoundId.Step : SoundId.StepGrass)
+                   : b.Hooves ? SoundId.Clop
+                   : sand ? SoundId.StepSand
+                   : paw ? SoundId.StepPaw
+                   : rock ? SoundId.StepRock : SoundId.Step;
+            }
+            var volume = (s.Mode == CreatureMode.Puppet ? 0.55f : paw ? 0.18f : 0.35f) * math.lerp(0.6f, 1.2f, math.saturate(s.Speed / 4f));
             GameAudio.PlayOneShot(id, at, math.lerp(1.15f, 0.85f, math.saturate(scale - 0.5f)), volume, StepReach,
                                   s.Mode == CreatureMode.Puppet ? SoundGroup.Player : SoundGroup.Creatures);
         }

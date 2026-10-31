@@ -41,6 +41,18 @@ namespace Punchy.Fauna
     public partial struct CreatureBrainSystem : ISystem
     {
         const float CellSize = 16f;
+        // (Where the brain's time goes, for the profiler: its searches for danger and company, its needs and idle
+        // actions, its choices, its moving and its gait.)
+        static readonly Unity.Profiling.ProfilerMarker HunterMarker = new Unity.Profiling.ProfilerMarker("Brain.Hunter");
+        static readonly Unity.Profiling.ProfilerMarker PredatorMarker = new Unity.Profiling.ProfilerMarker("Brain.Predator");
+        static readonly Unity.Profiling.ProfilerMarker ChaserMarker = new Unity.Profiling.ProfilerMarker("Brain.Chaser");
+        static readonly Unity.Profiling.ProfilerMarker AlarmMarker = new Unity.Profiling.ProfilerMarker("Brain.Alarm");
+        static readonly Unity.Profiling.ProfilerMarker PlaymateMarker = new Unity.Profiling.ProfilerMarker("Brain.Playmate");
+        static readonly Unity.Profiling.ProfilerMarker NeedsMarker = new Unity.Profiling.ProfilerMarker("Brain.Needs");
+        static readonly Unity.Profiling.ProfilerMarker FidgetMarker = new Unity.Profiling.ProfilerMarker("Brain.Fidget");
+        static readonly Unity.Profiling.ProfilerMarker DecideMarker = new Unity.Profiling.ProfilerMarker("Brain.Decide");
+        static readonly Unity.Profiling.ProfilerMarker AdvanceMarker = new Unity.Profiling.ProfilerMarker("Brain.Advance");
+        static readonly Unity.Profiling.ProfilerMarker EaseMarker = new Unity.Profiling.ProfilerMarker("Brain.EaseGait");
         EntityQuery creatures;
         /// <summary>Where each player was last frame (by Holder id), for how fast they're going.</summary>
         NativeHashMap<int, float3> lastPlayerPositions;
@@ -203,7 +215,8 @@ namespace Punchy.Fauna
                     var near = false;
                     for (int p = 0; p < Players.Length && !near; p++)
                         near = math.distancesq(Players[p], s.Position) < CreatureMotion.NearFeet * CreatureMotion.NearFeet;
-                    CreatureMotion.EaseGait(ref s, ref body.Blob.Value, Dt, near);
+                    using (EaseMarker.Auto())
+                        CreatureMotion.EaseGait(ref s, ref body.Blob.Value, Dt, near);
                 }
             }
 
@@ -234,6 +247,13 @@ namespace Punchy.Fauna
                 if (s.Mode == CreatureMode.Puppet)
                 {
                     Advance(ref s, ref b, dt);
+                    return;
+                }
+                // A sand or snow worm lives its own life under the ground, heeding nothing.
+                if (b.Tunnels)
+                {
+                    Tunnel(ref s, ref b, ref rng, dt);
+                    s.Seed = rng.state;
                     return;
                 }
                 s.ModeTime += dt;
@@ -274,8 +294,10 @@ namespace Punchy.Fauna
                 // really close.
                 var threatDistance = math.distance(s.Position, player);
                 var nerve = s.Mode == CreatureMode.Hunt && flier ? 0.4f : 1f;
-                // Someone cheering or dancing about is noticed (and run from) further off; waving, a little.
-                var commotion = emote == IdleAction.Cheer || emote == IdleAction.Dance ? 1.8f : emote == IdleAction.Wave ? 1.25f : 1f;
+                // Someone cheering or dancing about is noticed (and run from) further off; waving, a little. (Only by
+                // the skittish: a curious one comes to look, and some pay it no heed.)
+                var commotion = b.Reaction != EmoteReaction.Flees ? 1f :
+                                emote == IdleAction.Cheer || emote == IdleAction.Dance ? 1.8f : emote == IdleAction.Wave ? 1.25f : 1f;
                 var threatened = !aloft && b.FleeDistance > 0f && threatDistance < b.FleeDistance * s.Scale * alert * nerve * tame * commotion;
                 var threat = player.xz;
                 // A hunter after it: heard creeping close, or seen drawing back to throw (and the throw itself).
@@ -983,6 +1005,7 @@ namespace Punchy.Fauna
             /// </summary>
             static void Needs(ref CreatureState s, ref CreatureBlob b, float dt)
             {
+                using var profiled = NeedsMarker.Auto();
                 s.Unsettled = math.max(s.Unsettled - dt, 0f);
                 s.Hunger += dt * (0.002f + (b.Grazing + b.Hunger) * 0.003f);
                 s.Thirst += dt * b.Thirst * 0.004f;
@@ -1020,6 +1043,7 @@ namespace Punchy.Fauna
 
             void Decide(Entity self, ref CreatureState s, ref CreatureBlob b, int species, ref Random rng, bool perched, float3 player)
             {
+                using var profiled = DecideMarker.Auto();
                 if (b.DrawnToLight)
                 {
                     Flit(ref s, ref rng);
@@ -1337,6 +1361,7 @@ namespace Punchy.Fauna
             void Fidget(Entity self, int species, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, bool perched,
                         ref float sit, ref float vertical, ref float bow, ref float desiredLook)
             {
+                using var profiled = FidgetMarker.Auto();
                 var lying = s.Mode == CreatureMode.Rest && s.Lie > 0.5f;
                 var calm = s.Mode == CreatureMode.Idle || s.Mode == CreatureMode.Rest ||
                            s.Mode == CreatureMode.Climb && s.Stage == 3 ||
@@ -1636,13 +1661,18 @@ namespace Punchy.Fauna
             {
                 var trunk = s.Anchor.xz;
                 var climbSpeed = walk * 0.75f;
-                // While climbing, the body keeps its legs' length off the trunk.
-                var reach = s.AnchorSize + b.StandHeight * s.Scale * 0.8f + 0.02f;
+                // Standing at the foot (and out on a branch) the body keeps its legs' length off the trunk; up it, its feet
+                // are on the bark and the body hangs a leg's length out from them (CreatureAnimator). It goes from one to
+                // the other over its first stand height up the trunk, and back over its last coming down, so its chest
+                // never ends up in the trunk.
+                var standOff = s.AnchorSize + b.StandHeight * s.Scale * 0.8f + 0.02f;
+                var low = math.saturate((s.Position.y - Terrain.SampleHeight(s.Position.xz)) / math.max(b.StandHeight * s.Scale, 0.05f));
+                var reach = math.lerp(standOff, s.AnchorSize + 0.02f, math.min(math.saturate(s.Vertical), low));
                 var outward = math.normalizesafe(s.Position.xz - trunk, new float2(0f, 1f));
                 switch (s.Stage)
                 {
                     case 0:
-                        s.Target = trunk + outward * (reach + 0.15f);
+                        s.Target = trunk + outward * (standOff + 0.15f);
                         targetSpeed = walk;
                         moving = true;
                         if (math.distance(s.Position.xz, s.Target) < 0.3f)
@@ -1695,7 +1725,7 @@ namespace Punchy.Fauna
                     case 4:
                         custom = true;
                         s.Position.y = s.TargetHeight;
-                        if (GlideTo(ref s, ref b, trunk + math.normalizesafe(s.Focus - trunk, outward) * reach, walk * 0.6f, dt) < 0.1f)
+                        if (GlideTo(ref s, ref b, trunk + math.normalizesafe(s.Focus - trunk, outward) * standOff, walk * 0.6f, dt) < 0.1f)
                             NextStage(ref s);
                         break;
                     default:
@@ -1713,6 +1743,155 @@ namespace Punchy.Fauna
                         }
                         break;
                 }
+            }
+
+            /// <summary>
+            /// A sand or snow worm: deep under the ground, gliding from one flat spot to another round where it lives (the
+            /// world draws its ripple and furrow on the surface from CreatureBurrowSystem); every half minute to minute and
+            /// a half, out on flat ground, it bursts up out of it in a great arc, its body rippling up and down, and dives
+            /// back in further on. (Air runs 0..1 through the arc; Fly holds its body's wave upright meanwhile.) The arc
+            /// starts and ends deep enough that all of the worm is under the ground there, tilted up out of it or down
+            /// into it as the animator draws it, so it comes up out of its hole and goes all the way back in before it
+            /// levels out.
+            /// </summary>
+            void Tunnel(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
+            {
+                var radius = math.max(b.FrontRadius * s.Scale, 0.3f);
+                var depth = radius * 3f + 1f;
+                // (Tilted by up to about 0.9 rad at the ends of its arc, the whole length of it under: body, tail and head.)
+                var length = b.BodyLength;
+                for (int k = 0; k < b.Segments.Length; k++)
+                    length += b.Segments[k].Length;
+                var deep = math.max(depth, length * s.Scale * 0.8f + radius);
+                if (s.Mode != CreatureMode.Wander)
+                    SetMode(ref s, CreatureMode.Wander);
+                if (math.all(s.Home == float2.zero))
+                {
+                    s.Home = s.Position.xz;
+                    s.Timer = rng.NextFloat(10f, 40f);
+                }
+                var ground = Terrain.SampleHeight(s.Position.xz);
+                if (s.Air > 0f)
+                {
+                    // Out of the ground and back at speed, about three seconds of it above the ground.
+                    var above = 1f - 2f * math.asin(deep / (deep + s.AirHeight)) / math.PI;
+                    s.Air += dt * math.max(above, 0.05f) / 3f;
+                    s.Speed = b.RunSpeed;
+                    s.Fly = 1f;
+                    if (s.Air >= 1f)
+                    {
+                        s.Air = 0f;
+                        s.Fly = 0f;
+                        s.Timer = rng.NextFloat(30f, 80f);
+                    }
+                }
+                else
+                {
+                    s.Speed = b.WalkSpeed;
+                    s.Fly = 0f;
+                    s.Timer -= dt;
+                    // Somewhere flat to make for: the flattest of a few spots round its home.
+                    if (math.distance(s.Position.xz, s.Target) < 4f || math.all(s.Target == float2.zero))
+                    {
+                        var best = -1f;
+                        for (int k = 0; k < 6; k++)
+                        {
+                            var p = s.Home + rng.NextFloat2Direction() * rng.NextFloat(0.2f, 1f) * b.WanderRadius;
+                            var g = Terrain.SampleGround(p);
+                            if (g.HasWater && g.WaterSurface > g.Height || Obstructed(p, radius, out _))
+                                continue;
+                            var flat = Terrain.SampleNormal(p, 3f).y;
+                            if (flat > best)
+                            {
+                                best = flat;
+                                s.Target = p;
+                            }
+                        }
+                    }
+                    // Rock or a cliff ahead: it doesn't tunnel through. Close ahead of its head, it turns off to whichever
+                    // side is clear and makes for somewhere that way. Further on, where its next arc would be up in the
+                    // air, and due to breach soon anyway with the ground flat here: if the arc clears it there (the arc's
+                    // height at that point over the ground's rise there and whatever rock or building stands on it, with a
+                    // body's radius to spare) and comes down somewhere clear, it breaches now and leaps it.
+                    // (Looked at four times a second, not every step: a rock lookup places every plant in a few cells.)
+                    var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                    var reach = math.max(radius * 6f, 6f);
+                    var look = (int)(s.Clock * 4f) != (int)((s.Clock - dt) * 4f);
+                    if (look && (Obstructed(s.Position.xz + forward * reach, radius, out _) || Obstructed(s.Position.xz + forward * reach * 0.5f, radius, out _)))
+                    {
+                        var side = rng.NextBool() ? 1f : -1f;
+                        for (int k = 0; k < 4; k++)
+                        {
+                            var turn = side * (k < 2 ? 0.8f : 1.6f) * (k % 2 == 0 ? 1f : -1f);
+                            var way = new float2(math.sin(s.Yaw + turn), math.cos(s.Yaw + turn));
+                            if (!Obstructed(s.Position.xz + way * reach, radius, out _) && !Obstructed(s.Position.xz + way * reach * 2f, radius, out _))
+                            {
+                                s.Target = s.Position.xz + way * math.max(reach * 3f, 20f);
+                                break;
+                            }
+                        }
+                    }
+                    else if (look && s.Timer > 0f && s.Timer < 15f && Terrain.SampleNormal(s.Position.xz, 3f).y > 0.97f)
+                    {
+                        // (The arc as Air will run it: its height above where it starts, and how far on each part of it
+                        // comes; above the ground from out to in.)
+                        var high = radius * 6f;
+                        var above = 1f - 2f * math.asin(deep / (deep + high)) / math.PI;
+                        var span = b.RunSpeed * 3f / math.max(above, 0.05f);
+                        var obstacle = false;
+                        var clears = true;
+                        for (int k = 1; k < 8 && clears; k++)
+                        {
+                            var u = (1f - above) * 0.5f + above * k / 8f;
+                            var p = s.Position.xz + forward * span * u;
+                            if (!Obstructed(p, radius, out var standing))
+                                continue;
+                            obstacle = true;
+                            var arc = (deep + high) * math.sin(math.PI * u) - deep;
+                            var rise = Terrain.SampleHeight(p) - ground;
+                            clears = arc > rise + standing + radius;
+                        }
+                        var lands = s.Position.xz + forward * span * (1f + above) * 0.5f;
+                        if (obstacle && clears && !Obstructed(lands, radius, out _))
+                            s.Timer = 0f;
+                    }
+                    // Its time come and the ground flat here (dunes, a snowfield): up it bursts. (Not yet: soon again.)
+                    if (s.Timer <= 0f)
+                    {
+                        var here = Terrain.SampleGround(s.Position.xz);
+                        if (!(here.HasWater && here.WaterSurface > here.Height) && Terrain.SampleNormal(s.Position.xz, 3f).y > 0.97f)
+                        {
+                            s.Air = 0.001f;
+                            s.AirHeight = radius * 6f;
+                        }
+                        else
+                            s.Timer = 3f;
+                    }
+                }
+                TurnTowards(ref s, ref b, s.Target, dt);
+                s.Position.xz += new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * s.Speed * dt;
+                ground = Terrain.SampleHeight(s.Position.xz);
+                var under = s.Air > 0f ? deep : depth;
+                s.Position.y = ground - under + (under + s.AirHeight) * (s.Air > 0f ? math.sin(math.PI * s.Air) : 0f);
+                CreatureMotion.AdvancePhase(ref s, ref b, dt);
+            }
+
+            /// <summary>
+            /// Something a worm under the ground won't go through at this point, within its own radius and a half: a cliff
+            /// or steep bank (the ground's slope), a building or a landmark's rock (FloraPlacement.Blocked), or a boulder,
+            /// tor or standing stone out in the wild (FloraPlacement.RockAt); and how tall what stands there is (m above
+            /// its foot; 0 for a slope, whose rise the caller samples).
+            /// </summary>
+            bool Obstructed(float2 at, float radius, out float top)
+            {
+                top = 0f;
+                var steep = Terrain.SampleNormal(at, 3f).y < 0.8f;
+                if (!HasFlora)
+                    return steep;
+                var built = FloraPlacement.Blocked(ref Flora.Value, Terrain, at, radius * 1.5f, out var builtTop);
+                var rock = FloraPlacement.RockAt(ref Flora.Value, Terrain, at, radius * 1.5f, out var rockTop);
+                top = math.max(built ? builtTop : 0f, rock ? rockTop : 0f);
+                return steep || built || rock;
             }
 
             /// <summary>Turns on the spot towards a point.</summary>
@@ -3746,6 +3925,7 @@ namespace Punchy.Fauna
             /// </summary>
             bool FindChaser(Entity self, in CreatureState s, out float2 at)
             {
+                using var profiled = ChaserMarker.Auto();
                 at = default;
                 var c = Cell(s.Position.xz);
                 for (int z = -2; z <= 2; z++)
@@ -4157,6 +4337,7 @@ namespace Punchy.Fauna
             /// </summary>
             bool FindHunter(Entity self, ref CreatureState s, float alert, out float2 at)
             {
+                using var profiled = HunterMarker.Auto();
                 // (Only the hunters out now are looked at: usually none, so it costs nothing.)
                 at = default;
                 for (int h = 0; h < Hunters.Length; h++)
@@ -4278,7 +4459,8 @@ namespace Punchy.Fauna
             /// <summary>
             /// Someone near is emoting. Folk stop, turn to them and answer in kind (a wave back, a bow, a cheer; some
             /// dance along, the rest cheer them on), each after a moment of their own, and a few shy ones not at all.
-            /// Friendly animals come over to see; one sitting by them play-bows back to a bow.
+            /// Friendly animals come over to see; one sitting by them play-bows back to a bow. A curious one comes partway
+            /// and watches (Greet's Curious stage); the skittish run sooner (commotion, in Think); some pay no heed.
             /// </summary>
             void Answer(ref CreatureState s, ref CreatureBlob b, ref Random rng, IdleAction emote, float3 player, float distance, float dt)
             {
@@ -4304,7 +4486,17 @@ namespace Punchy.Fauna
                     s.Focus = player.xz;
                     return;
                 }
-                if (!b.Friendly)
+                if (b.Reaction == EmoteReaction.Curious)
+                {
+                    if (distance < 25f && Free(s.Mode))
+                    {
+                        SetMode(ref s, CreatureMode.Greet);
+                        s.Stage = Curious;
+                        s.Timer = rng.NextFloat(6f, 12f);
+                    }
+                    return;
+                }
+                if (b.Reaction != EmoteReaction.Wags)
                     return;
                 if (emote != IdleAction.Bow && distance < 20f && Free(s.Mode))
                 {
@@ -4319,6 +4511,9 @@ namespace Punchy.Fauna
                     s.ActionLength = 2.2f;
                 }
             }
+
+            /// <summary>Greet's stage for a curious animal come to look (EmoteReaction.Curious), not to sit by them.</summary>
+            const byte Curious = 1;
 
             /// <summary>
             /// Trots over to the person (to their side, not into them), then sits by them looking up and wagging its
@@ -4341,6 +4536,31 @@ namespace Punchy.Fauna
                 var away = new float2(dir.x * math.cos(angle) - dir.y * math.sin(angle), dir.x * math.sin(angle) + dir.y * math.cos(angle));
                 var spot = player.xz - away * (1.3f + b.BodyLength * s.Scale * 0.5f);
                 var lookAt = math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -1.2f, 1.2f);
+                if (s.Stage == Curious)
+                {
+                    // Curious: up to a wary few metres (well outside where it would bolt), slowly, then stands watching
+                    // them, sniffing now and then, until it's seen enough.
+                    var standoff = math.max(b.FleeDistance * s.Scale * 0.6f, 2f + b.BodyLength * s.Scale);
+                    if (distance > standoff + 0.5f)
+                    {
+                        s.Target = player.xz - dir * standoff;
+                        targetSpeed = walk * 0.6f;
+                        moving = true;
+                        desiredLook = lookAt;
+                    }
+                    else
+                    {
+                        TurnTowards(ref s, ref b, player.xz, dt);
+                        desiredLook = lookAt * 0.6f;
+                        if (s.Action == IdleAction.None && (b.Idles & IdleActions.Sniff) != 0 && rng.NextFloat() < dt * 0.4f)
+                        {
+                            s.Action = IdleAction.Sniff;
+                            s.ActionTime = 0f;
+                            s.ActionLength = rng.NextFloat(1f, 2f);
+                        }
+                    }
+                    return;
+                }
                 if (math.distance(s.Position.xz, spot) > 0.6f)
                 {
                     s.Target = spot;
@@ -4944,6 +5164,7 @@ namespace Punchy.Fauna
             /// <summary>A predator of this species close by (further off if it's hunting this animal).</summary>
             bool FindPredator(Entity self, ref CreatureState s, int species, float alert, out float2 at)
             {
+                using var profiled = PredatorMarker.Auto();
                 at = default;
                 var best = float.MaxValue;
                 var c = Cell(s.Position.xz);
@@ -4976,6 +5197,7 @@ namespace Punchy.Fauna
             /// <summary>Another of its kind close by that has just started running: where from (what it runs from).</summary>
             bool FindAlarm(Entity self, ref CreatureState s, int species, out float2 from)
             {
+                using var profiled = AlarmMarker.Auto();
                 from = default;
                 var c = Cell(s.Position.xz);
                 for (int z = -1; z <= 1; z++)
@@ -5062,6 +5284,7 @@ namespace Punchy.Fauna
             /// <summary>Someone close by who has started a game of chase with this animal.</summary>
             bool FindPlaymate(Entity self, ref CreatureState s, out Entity playmate)
             {
+                using var profiled = PlaymateMarker.Auto();
                 playmate = Entity.Null;
                 var c = Cell(s.Position.xz);
                 for (int z = -1; z <= 1; z++)
@@ -5176,6 +5399,7 @@ namespace Punchy.Fauna
             /// </summary>
             void Advance(ref CreatureState s, ref CreatureBlob b, float dt, bool keepHeight = false)
             {
+                using var profiled = AdvanceMarker.Auto();
                 var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
                 CreatureMotion.Accelerate(ref s, ref b, dt);
                 if (b.Crawls && CaveWalker(s, ref b))

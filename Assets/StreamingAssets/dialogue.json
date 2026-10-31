@@ -1,0 +1,171 @@
+{
+  "_readme": [
+    "What folk say as you walk by. Edit freely while the game runs: it is read again a second after you save.",
+    "cultures: one entry per species name (Human, HumanChild, Dwarf, Elf, Goblin, Ogre, Hermit), then the species it is based on, then Any.",
+    "words: lists the {slots} pick from. A culture's own list wins over Any's. Words may hold slots of their own.",
+    "lines: a plain string, or an object: text, and optionally when (day, night, dawn, morning, afternoon, evening), trade (one or a list), weight (default 1), emote (Wave, Bow, Cheer, Dance: an answer to it, never said walking by).",
+    "Built-in slots: {trade} (from the words trade.Hammer, trade.Fish...), {home_town}, {species}, {player} (your body), {time_of_day} (or the words time.morning...).",
+    "A line whose slot can't be filled (no home town, out on the road) is skipped. town_start + town_end name each town.",
+    "Unknown keys are kept for later (dialogue options), so adding them does no harm."
+  ],
+  "format": 1,
+  "cultures": {
+    "Any": {
+      "words": {
+        "trade.Hammer": ["smith"],
+        "trade.Chop": ["woodcutter"],
+        "trade.Gesture": ["trader"],
+        "trade.Tend": ["well-keeper"],
+        "trade.Watch": ["gatekeeper"],
+        "trade.Hunt": ["hunter"],
+        "trade.Patrol": ["guard"],
+        "trade.Fish": ["fisher"],
+        "trade.Mine": ["miner"],
+        "trade.Travel": ["traveller"],
+        "trade.Camper": ["traveller"],
+        "weather_word": ["fair", "fine", "still"],
+        "town_start": ["Ash", "Oak", "Mill", "Stone", "Brook", "Thorn", "Elm", "Hollow"],
+        "town_end": ["ford", "by", "stead", "wick", "field", "well", "ton", "dale"]
+      },
+      "lines": [
+        "Mind how you go.",
+        "{time_of_day}'s a {weather_word} one.",
+        { "text": "Is that a {player}? Odd company.", "weight": 0.5 },
+        { "text": "Late to be about.", "when": "night" },
+        { "text": "Back to the forge with me.", "trade": "Hammer" },
+        { "text": "Nothing biting today.", "trade": "Fish" },
+        { "text": "The road's long but it's good.", "trade": ["Travel", "Camper"] },
+        { "text": "{culture_greeting}!", "emote": "Wave" },
+        { "text": "Oh! Hello.", "emote": "Wave" },
+        { "text": "No need to bow to me.", "emote": "Bow" },
+        { "text": "Ha! Yes!", "emote": "Cheer" },
+        { "text": "Now that's a dance!", "emote": "Dance" }
+      ]
+    },
+    "Human": {
+      "words": {
+        "culture_greeting": ["Good {time_of_day}", "Well met", "Hello there"],
+        "trade.Hammer": ["smith", "blacksmith"],
+        "trade.Gesture": ["trader", "stallkeeper"]
+      },
+      "lines": [
+        "{culture_greeting}.",
+        "{culture_greeting}, stranger.",
+        "Welcome to {home_town}.",
+        "Not many come through {home_town} these days.",
+        { "text": "Best {trade} in {home_town}, that's me.", "trade": ["Hammer", "Gesture", "Fish", "Chop"] },
+        { "text": "Fresh catch, if you're hungry.", "trade": "Fish" },
+        { "text": "Keep your hands where I can see them.", "trade": ["Patrol", "Watch"] },
+        { "text": "Quiet night. Let's keep it that way.", "trade": "Patrol", "when": "night" },
+        { "text": "Long day.", "when": "evening" },
+        { "text": "{culture_greeting}, friend!", "emote": "Wave" },
+        { "text": "Such manners. Welcome to {home_town}.", "emote": "Bow" },
+        { "text": "What are we cheering?", "emote": "Cheer" },
+        { "text": "Ha, go on then!", "emote": "Dance" },
+        { "text": "Not while I'm on duty.", "emote": "Dance", "trade": ["Patrol", "Watch"] }
+      ]
+    },
+    "HumanChild": {
+      "lines": [
+        "Hi!",
+        "Want to play?",
+        "You can't catch me!",
+        { "text": "A {player}! Can I pet it?", "weight": 2 },
+        "{home_town} is the best town ever!",
+        { "text": "Hi hi hi!", "emote": "Wave" },
+        { "text": "Bow! Bow!", "emote": "Bow" },
+        { "text": "Yaaay!", "emote": "Cheer" },
+        { "text": "I can dance too, look!", "emote": "Dance" }
+      ]
+    },
+    "Dwarf": {
+      "words": {
+        "culture_greeting": ["Hail", "Stone keep you", "Well met, tall one"],
+        "trade.Hammer": ["smith", "forgemaster"],
+        "trade.Mine": ["delver", "miner"],
+        "town_start": ["Khaz", "Dun", "Barak", "Grim", "Thar"],
+        "town_end": ["hold", "deep", "forge", "dum", "gate"]
+      },
+      "lines": [
+        "{culture_greeting}.",
+        "{culture_greeting}. Mind the beards.",
+        "You stand in {home_town}. Wipe your feet.",
+        "Good stone round {home_town}. The best.",
+        { "text": "Ore's running thick today.", "trade": "Mine" },
+        { "text": "A {trade}'s work is never done.", "trade": ["Hammer", "Mine"] },
+        { "text": "Nobody passes without my say.", "trade": ["Patrol", "Watch"] },
+        { "text": "{culture_greeting}!", "emote": "Wave" },
+        { "text": "A proper bow. Your beard does you credit.", "emote": "Bow" },
+        { "text": "To the forge and the stone!", "emote": "Cheer" },
+        { "text": "Dwarves don't dance. Much.", "emote": "Dance" }
+      ]
+    },
+    "Elf": {
+      "words": {
+        "culture_greeting": ["Be welcome", "Starlight on your path", "Peace, traveller"],
+        "town_start": ["Ael", "Sil", "Lith", "Ith", "Calen"],
+        "town_end": ["wen", "dor", "lorien", "ost", "ithil"]
+      },
+      "lines": [
+        "{culture_greeting}.",
+        "The trees of {home_town} are old. Older than you.",
+        "Walk softly here.",
+        { "text": "The stars are bright tonight.", "when": "night" },
+        { "text": "The forest wakes.", "when": "dawn" },
+        { "text": "My arrows fly true. Keep that in mind.", "trade": ["Patrol", "Watch", "Hunt"] },
+        { "text": "{culture_greeting}.", "emote": "Wave" },
+        { "text": "Gracefully done.", "emote": "Bow" },
+        { "text": "Your joy is loud.", "emote": "Cheer" },
+        { "text": "You dance like a sapling in a gale.", "emote": "Dance" }
+      ]
+    },
+    "Goblin": {
+      "words": {
+        "culture_greeting": ["Oi", "Wot you want", "Hehe, hello"],
+        "town_start": ["Snag", "Grub", "Muck", "Rot", "Gnash"],
+        "town_end": ["pit", "hole", "heap", "warren", "mire"]
+      },
+      "lines": [
+        "{culture_greeting}?",
+        "{culture_greeting}. Shinies? Got shinies?",
+        "This is {home_town}. Ours. Not yours.",
+        "Don't touch nothing.",
+        { "text": "Is that a {player}? Looks tasty.", "weight": 0.5 },
+        { "text": "Stay back or I'll bonk you.", "trade": ["Patrol", "Watch"] },
+        { "text": "Wot you waving at?", "emote": "Wave" },
+        { "text": "Hehe. Bow lower.", "emote": "Bow" },
+        { "text": "Oi oi oi!", "emote": "Cheer" },
+        { "text": "Silly dancing! Hehehe!", "emote": "Dance" }
+      ]
+    },
+    "Ogre": {
+      "words": {
+        "culture_greeting": ["Hrm", "Grah", "You. Small one"],
+        "town_start": ["Gor", "Brug", "Mog", "Thud", "Krag"],
+        "town_end": ["rock", "smash", "lump", "maw", "crag"]
+      },
+      "lines": [
+        "{culture_greeting}.",
+        "{home_town}. Mine.",
+        "Hungry.",
+        "Too small to eat. Go away.",
+        { "text": "Sleep now. Smash later.", "when": "night" },
+        { "text": "Hrm. Wave.", "emote": "Wave" },
+        { "text": "Small one bows. Good.", "emote": "Bow" },
+        { "text": "GRAAAH!", "emote": "Cheer" },
+        { "text": "Ogre stomp too.", "emote": "Dance" }
+      ]
+    },
+    "Hermit": {
+      "lines": [
+        "Leave me be.",
+        "Go on, off with you.",
+        "Nobody comes out here. Why are you here?",
+        { "text": "Quiet out here. I like it quiet.", "weight": 2 },
+        { "text": "Don't wave at me.", "emote": "Wave" },
+        { "text": "Hmph. Polite, at least.", "emote": "Bow" },
+        { "text": "Keep it down!", "emote": ["Cheer", "Dance"] }
+      ]
+    }
+  }
+}

@@ -58,7 +58,9 @@ namespace Punchy.Fauna
             if (hasPlayer)
                 foreach (var (s, body) in SystemAPI.Query<RefRW<CreatureState>, RefRO<CreatureBody>>().WithAll<PlayerAvatar>())
                 {
-                    Drive(ref s.ValueRW, ref body.ValueRO.Blob.Value, player, motion.Grounded, dt);
+                    Drive(ref s.ValueRW, ref body.ValueRO.Blob.Value, player, motion.Grounded || motion.OnTrunk || motion.OnWall, dt);
+                    // Up a trunk: the body upright against the bark, as climbing animals hang on, its gait run by the climb.
+                    s.ValueRW.Vertical += ((motion.OnTrunk || motion.OnWall ? 1f : 0f) - s.ValueRO.Vertical) * math.min(1f, dt * 6f);
                     // On the wing: wings out, nose up or down with the climb.
                     Wings(ref s.ValueRW, ref body.ValueRO.Blob.Value, motion.Flying, motion.Pitch, motion.Flapping, dt);
                     // (Climbing onto a ledge: the climbing pose over whatever else, run through as the climb goes.)
@@ -67,6 +69,10 @@ namespace Punchy.Fauna
                     {
                         s.ValueRW.Action = IdleAction.Mantle;
                         s.ValueRW.ActionTime = 0.12f + 0.73f * math.saturate(motion.Mantle);
+                        // (Where its hands hold: on the rim, at the ledge's height, a little ahead of where it began.)
+                        var across = math.normalizesafe(motion.MantleTo.xz - motion.MantleFrom.xz);
+                        var rim = motion.MantleFrom.xz + across * 0.4f * math.max(s.ValueRO.Scale, 0.3f);
+                        s.ValueRW.Anchor = new float3(rim.x, motion.MantleTo.y, rim.y);
                     }
                 }
 
@@ -80,12 +86,21 @@ namespace Punchy.Fauna
                 ref var b = ref body.ValueRO.Blob.Value;
                 // (Another player's flying body: off the ground and well above it. The climb from how it rose.)
                 var was = s.ValueRO.Position;
-                Drive(ref s.ValueRW, ref b, transforms[ghost], looks[ghost].Grounded, dt);
+                Drive(ref s.ValueRW, ref b, transforms[ghost], looks[ghost].Grounded || looks[ghost].Climbing, dt);
+                // (Another player climbing: upright against the trunk or wall, as ours is.)
+                s.ValueRW.Vertical += ((looks[ghost].Climbing ? 1f : 0f) - s.ValueRO.Vertical) * math.min(1f, dt * 6f);
                 var flying = b.Habitat == Habitat.Flies && !looks[ghost].Grounded;
                 var run = math.distance(was.xz, s.ValueRO.Position.xz);
                 var pitch = run > 1e-4f ? math.atan2(s.ValueRO.Position.y - was.y, run) : 0f;
                 Wings(ref s.ValueRW, ref b, flying, pitch, pitch > 0.1f, dt);
                 Pose(ref s.ValueRW, ref b, (IdleAction)looks[ghost].Pose, dt, terrain);
+                // (Another player climbing onto a ledge: its hands on the rim, a little ahead of it at the height it sent.)
+                if (looks[ghost].Rim > 0)
+                {
+                    var p = s.ValueRO.Position;
+                    var ahead = new float2(math.sin(s.ValueRO.Yaw), math.cos(s.ValueRO.Yaw)) * 0.4f * math.max(s.ValueRO.Scale, 0.3f);
+                    s.ValueRW.Anchor = new float3(p.x + ahead.x, p.y + Punchy.Net.NetPlayerSendSystem.RimFromByte(looks[ghost].Rim), p.z + ahead.y);
+                }
             }
         }
 
@@ -144,7 +159,8 @@ namespace Punchy.Fauna
         {
             var forward = math.mul(player.Rotation, new float3(0f, 0f, 1f));
             var yaw = math.atan2(forward.x, forward.z);
-            var moved = math.distance(c.Position.xz, player.Position.xz);
+            // (Climbing, up the trunk counts too.)
+            var moved = c.Vertical > 0.5f ? math.distance(c.Position, player.Position) : math.distance(c.Position.xz, player.Position.xz);
             if (moved > 5f)
                 moved = 0f;   // teleported
             c.Position = player.Position;

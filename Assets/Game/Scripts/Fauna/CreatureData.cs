@@ -66,6 +66,14 @@ namespace Punchy.Fauna
         public bool ColdBlooded;
         /// <summary>No legs, and a chain lying along the ground off the body (a snake's): it moves along a serpentine wave.</summary>
         public bool Slithers;
+        /// <summary>Walks on hooves (CreatureSpecies.Hooves): a clop on hard ground.</summary>
+        public bool Hooves;
+        /// <summary>What a player in this body can climb (CreatureSpecies.ClimbsAs, or from Crawls and Climbing).</summary>
+        public ClimbAbility ClimbsAs;
+        /// <summary>Its answer to someone emoting near it (CreatureSpecies.EmoteReaction, Default worked out).</summary>
+        public EmoteReaction Reaction;
+        /// <summary>Tunnels through the ground (CreatureSpecies.Tunnels): a sand or snow worm.</summary>
+        public bool Tunnels;
         /// <summary>Drawn and kept about from this far off; 0 = as any other (see CreatureSpecies.SeenFrom).</summary>
         public float SeenFrom;
         /// <summary>Never moves, and snaps at what comes near (see CreatureSpecies.Rooted).</summary>
@@ -629,6 +637,12 @@ namespace Punchy.Fauna
             root.RunRock = math.radians(species.RunRock);
             root.Upright = species.Upright;
             root.ColdBlooded = species.ColdBlooded;
+            root.Hooves = species.Hooves;
+            root.Tunnels = species.Tunnels;
+            root.ClimbsAs = species.ClimbsAs != ClimbAbility.None ? species.ClimbsAs
+                          : species.Crawls ? ClimbAbility.AnySurface : species.Climbing > 0f ? ClimbAbility.Trees : ClimbAbility.None;
+            root.Reaction = species.EmoteReaction != EmoteReaction.Default ? species.EmoteReaction
+                          : species.Friendly ? EmoteReaction.Wags : species.FleeDistance > 0f ? EmoteReaction.Flees : EmoteReaction.Ignores;
             root.Habitat = species.Habitat;
             root.SwimDepth = species.SwimDepth;
             root.Leaps = species.Leaps;

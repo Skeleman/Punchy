@@ -33,6 +33,9 @@ namespace Punchy.Fauna
             public float Streak;
             /// <summary>Above 0: see-through by this much (dithered), fading out rather than shrinking at the end.</summary>
             public float Dither;
+            /// <summary>Thrown and falling: above 0, it comes to rest where it lands on its Floor and lies there for the
+            /// rest of its life (a clod of sand or snow), rather than being gone.</summary>
+            public float Rests;
         }
 
         const float Gravity = 9.81f;
@@ -100,7 +103,7 @@ namespace Punchy.Fauna
                     steps.Remove(entities[i]);
                     continue;
                 }
-                if (b.Breaches)
+                if (b.Breaches || b.Tunnels)
                 {
                     Splash(entities[i], s, ref b, terrain, now);
                     continue;
@@ -243,46 +246,16 @@ namespace Punchy.Fauna
             });
         }
 
-        const float WakeLife = 2.2f;
-
         /// <summary>
-        /// A land animal swimming leaves a V of ripples behind its head: a pair of pale streaks on the surface every
-        /// little way, angled back either side, that spread and fade in a couple of seconds. True while it's in the water.
+        /// Whether a land animal is swimming (in water deeper than half its standing height): it leaves no footprints
+        /// then. Its wake is the water's own now (Water.shader's V and rings, fed by CreatureWakeSystem).
         /// </summary>
         bool Wake(Entity e, in CreatureState s, ref CreatureBlob b, in TerrainSource terrain, float now)
         {
             if (!b.CrossesWater)
                 return false;
             var g = terrain.SampleGround(s.Position.xz);
-            if (!g.HasWater || s.Position.y > g.WaterSurface - b.StandHeight * s.Scale * 0.5f)
-                return false;
-            if (s.Speed < 0.1f)
-                return true;
-            var spacing = math.max(b.BodyLength * s.Scale * 0.35f, 0.15f);
-            if (steps.TryGetValue(e, out var last) && math.distance(last.xyz, s.Position) < spacing)
-                return true;
-            steps[e] = new float4(s.Position, -1f);   // (-1: a wake's, not a gait phase)
-            var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
-            var head = s.Position + forward * b.BodyLength * s.Scale * 0.6f;
-            var width = math.max(b.FrontRadius * s.Scale, 0.05f);
-            for (int side = -1; side <= 1; side += 2)
-            {
-                // Back and out from the head at about 30°.
-                var back = math.normalize(-forward + new float3(forward.z, 0f, -forward.x) * side * 0.6f);
-                var at = new float3(head.x, g.WaterSurface + 0.015f, head.z) + back * width;
-                Add(new Trace
-                {
-                    Position = at,
-                    Rotation = quaternion.LookRotationSafe(back, new float3(0f, 1f, 0f)),
-                    Length = width * 2.2f,
-                    Radius = width * 0.18f,
-                    Flatten = 0.12f,
-                    Color = new float4(0.82f, 0.88f, 0.92f, 0f),
-                    Born = now,
-                    Life = WakeLife
-                });
-            }
-            return true;
+            return g.HasWater && s.Position.y <= g.WaterSurface - b.StandHeight * s.Scale * 0.5f;
         }
 
         /// <summary>
@@ -294,20 +267,30 @@ namespace Punchy.Fauna
         void Splash(Entity e, in CreatureState s, ref CreatureBlob b, in TerrainSource terrain, float now)
         {
             var g = terrain.SampleGround(s.Position.xz);
-            var isUnder = g.HasWater && s.Position.y < g.WaterSurface;
+            // (A worm breaks the ground, not water: its spray is sand, or snow.)
+            var surfaceY = b.Tunnels ? g.Height : g.WaterSurface;
+            var isUnder = (b.Tunnels || g.HasWater) && s.Position.y < surfaceY;
             var known = under.TryGetValue(e, out var was);
             under[e] = isUnder;
-            if (!known || was == isUnder || !g.HasWater)
+            if (!known || was == isUnder || !b.Tunnels && !g.HasWater)
                 return;
             var size = math.max(b.FrontRadius * s.Scale, 0.2f);
             var rng = new Unity.Mathematics.Random(math.hash(new float2(now, e.Index)) | 1u);
-            var centre = new float3(s.Position.x, g.WaterSurface, s.Position.z);
+            var centre = new float3(s.Position.x, surfaceY, s.Position.z);
             // (Water-tinted and see-through; only the odd one catches the light white.)
             var water = new float4(0.55f, 0.7f, 0.74f, 0f);
             var crest = new float4(0.95f, 0.97f, 0.98f, 0.25f);
             var foam = new float4(0.94f, 0.96f, 0.97f, 0f);
+            if (b.Tunnels)
+            {
+                var snowy = terrain.SampleSurface(s.Position.xz, g, terrain.SampleNormal(s.Position.xz, 1f)).Snow > 0.4f;
+                water = snowy ? new float4(0.9f, 0.92f, 0.96f, 0f) : new float4(0.76f, 0.64f, 0.45f, 0f);
+                crest = snowy ? new float4(0.97f, 0.98f, 1f, 0.1f) : new float4(0.85f, 0.74f, 0.55f, 0f);
+                foam = snowy ? new float4(0.93f, 0.95f, 0.98f, 0f) : new float4(0.7f, 0.58f, 0.4f, 0f);
+            }
             // Droplets: up and out, as fast as the serpent is big (a few metres high for one this size), and a column of
             // them straight up from where it broke the surface; each drawn as a streak along the way it's flying.
+            // (A worm's are clods of sand or snow: not streaks, and they lie where they land for a while, fading.)
             var lift = 5f + 3f * math.sqrt(size);
             for (int k = 0; k < 110; k++)
             {
@@ -315,7 +298,22 @@ namespace Punchy.Fauna
                 var out0 = rng.NextFloat2Direction();
                 var up = lift * (column ? rng.NextFloat(1.1f, 1.6f) : rng.NextFloat(0.4f, 1.1f));
                 var r = size * rng.NextFloat(0.04f, 0.11f);
-                Add(new Trace
+                Add(b.Tunnels ? new Trace
+                {
+                    Position = centre + new float3(out0.x, 0f, out0.y) * size * (column ? rng.NextFloat(0f, 0.4f) : rng.NextFloat(0.3f, 1.2f)),
+                    Rotation = quaternion.identity,
+                    Length = r,
+                    Radius = r,
+                    Flatten = 0.7f,
+                    Color = rng.NextFloat() < 0.15f ? crest : water,
+                    Born = now,
+                    Life = rng.NextFloat(25f, 40f),
+                    Velocity = new float3(out0.x, 0f, out0.y) * (column ? rng.NextFloat(0.2f, 0.8f) : rng.NextFloat(1f, 4f)) * math.sqrt(size) + new float3(0f, up, 0f),
+                    Falls = 1f,
+                    Floor = surfaceY + r * 0.3f,
+                    Dither = 0.02f,
+                    Rests = 1f
+                } : new Trace
                 {
                     Position = centre + new float3(out0.x, 0f, out0.y) * size * (column ? rng.NextFloat(0f, 0.4f) : rng.NextFloat(0.3f, 1.2f)),
                     Rotation = quaternion.identity,
@@ -327,7 +325,7 @@ namespace Punchy.Fauna
                     Life = 2f * up / Gravity + 0.1f,
                     Velocity = new float3(out0.x, 0f, out0.y) * (column ? rng.NextFloat(0.2f, 0.8f) : rng.NextFloat(1f, 4f)) * math.sqrt(size) + new float3(0f, up, 0f),
                     Falls = 1f,
-                    Floor = g.WaterSurface - r,
+                    Floor = surfaceY - r,
                     Streak = 0.035f,
                     Dither = 0.4f
                 });
@@ -472,20 +470,30 @@ namespace Punchy.Fauna
                     };
                     continue;
                 }
-                // Thrown: where it is by now, and how big; gone once it falls back below its floor.
+                // Thrown: where it is by now, and how big; gone once it falls back below its floor, or lying where it
+                // landed on it.
                 var age = now - t.Born;
                 var position = t.Position + t.Velocity * age - new float3(0f, 0.5f * Gravity * t.Falls * age * age, 0f);
+                var resting = false;
                 if (t.Falls > 0f && age > 0.05f && position.y < t.Floor)
                 {
-                    output[at++] = default;
-                    continue;
+                    if (t.Rests <= 0f)
+                    {
+                        output[at++] = default;
+                        continue;
+                    }
+                    // (When it came down through its floor, from where it was thrown.)
+                    var landed = (t.Velocity.y + math.sqrt(math.max(t.Velocity.y * t.Velocity.y + 2f * Gravity * t.Falls * (t.Position.y - t.Floor), 0f))) / (Gravity * t.Falls);
+                    position = t.Position + t.Velocity * landed;
+                    position.y = t.Floor;
+                    resting = true;
                 }
                 var grow = 1f + t.Grow * age;
                 // A falling drop is a streak along the way it's going, drawn out the faster it flies, tapering behind.
                 var rotation = t.Rotation;
                 var length = t.Length * grow;
                 var tail = t.Radius * grow;
-                if (t.Streak > 0f)
+                if (t.Streak > 0f && !resting)
                 {
                     var velocity = t.Velocity - new float3(0f, Gravity * age, 0f);
                     var speed = math.length(velocity);

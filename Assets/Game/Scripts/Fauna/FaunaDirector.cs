@@ -589,6 +589,10 @@ namespace Punchy.Fauna
                 FlySpeed = PlayerSpecies.PlayerFlySpeed > 0f ? PlayerSpecies.PlayerFlySpeed
                          : PlayerSpecies.Body.PlayerFlySpeed > 0f ? PlayerSpecies.Body.PlayerFlySpeed : b.FlySpeed * 2f,
                 Climbs = b.Hands || b.Climbing > 0f || b.Crawls,
+                ClimbsTrees = b.ClimbsAs != ClimbAbility.None,
+                ClimbsWalls = b.ClimbsAs == ClimbAbility.AnySurface,
+                // (A lizard scurries up; a tree climber as nimbly as it's keen: a monkey quick, a cat less, a bear hauling.)
+                ClimbSpeed = b.ClimbsAs == ClimbAbility.AnySurface ? 1.4f : math.min(0.6f + 1.6f * b.Climbing, 1.6f),
                 // (A lava swimmer walks on land as a player; only fish swim and flop.)
                 Swims = b.Habitat == Habitat.Swims && !b.LavaDweller,
                 Hovers = b.Haunts,
@@ -674,6 +678,11 @@ namespace Punchy.Fauna
                 if (!networked || math.lengthsq(t.Position) > 1e-6f)
                     players.Add(t.Position);
             transforms.Dispose();
+            // (Someone joined or left: the head counts per player grow or shrink with them now, not at the next tally,
+            // which comes only a few times a second; until then the new player's are nought.)
+            var size = math.max(1, players.Count) * species.Count;
+            if (counts == null || counts.Length != size)
+                System.Array.Resize(ref counts, size);
         }
 
         float NearestPlayer(float2 xz)

@@ -52,7 +52,8 @@ namespace Punchy.Fauna
             var halfLength = b.BodyLength * 0.5f * scale;
             // Animals stand on the terrain; the player's body can be above it (jumping, swimming).
             // Swimmers and floaters are carried at their own height (the body's centre at Position).
-            var aquatic = b.Habitat == Habitat.Swims || b.Habitat == Habitat.Floats;
+            // (A tunneller, a sand worm, is drawn where it is, under the ground or arcing out of it, like a swimmer.)
+            var aquatic = b.Habitat == Habitat.Swims || b.Habitat == Habitat.Floats || b.Tunnels;
             // (A lava swimmer out on land, a player's bone lizard, stands on its legs.)
             if (aquatic && b.LavaDweller)
             {
@@ -218,6 +219,13 @@ namespace Punchy.Fauna
             // Body.
             ref var body = ref b.Segments[0];
             output[offset] = Instance(rootPos + math.mul(rootRot, new float3(0f, 0f, -halfLength + body.RadiusStart * scale)), rootRot, ref body, scale, b.SegmentColor(0, coat));
+            if (Golden(ref b, in s))
+            {
+                var trunk = output[offset];
+                trunk.Color = new float4(0.95f, 0.6f, 0.12f, trunk.Color.w);
+                trunk.Material.x = (float)SegmentMaterial.Metal;
+                output[offset] = trunk;
+            }
 
             var segPos = new FixedList4096Bytes<float3>();
             var segRot = new FixedList4096Bytes<quaternion>();
@@ -254,9 +262,10 @@ namespace Punchy.Fauna
                 {
                     fold = math.max(s.Lie, part.Socket.z > 0f ? s.Bow * 0.5f : 0f);
                     // Sitting folds the hind legs; sitting up tall tucks the front paws too; in flight all tuck up.
+                    // (A player's body up a trunk is a puppet: its front paws hold on, as a climbing animal's do.)
                     if (hind)
                         fold = math.max(fold, s.Sit);
-                    else if (s.Mode != CreatureMode.Climb && s.Mode != CreatureMode.Web)
+                    else if (s.Mode != CreatureMode.Climb && s.Mode != CreatureMode.Web && s.Mode != CreatureMode.Puppet)
                         fold = math.max(fold, math.saturate(s.Vertical * 1.6f));
                     // In flight the legs trail back under the tail instead (below).
                     fold *= 1f - s.Fly;
@@ -295,6 +304,11 @@ namespace Punchy.Fauna
                         var k = 2f * math.PI / wave;
                         var direction = math.atan(0.12f * wave * k * math.cos(k * (s.Phase * wave - (back + length * 0.5f))));
                         a = new float3((direction - heading) * s.Fly, (direction - heading) * (1f - s.Fly), 0f);
+                        // A worm bursting out of the ground goes over in one clean arc, not a wave: its body bent evenly
+                        // along it, tail drooping behind the head, most at the top of the arc and straight where it
+                        // comes out and goes back in.
+                        if (b.Tunnels && s.Air > 0f)
+                            a = new float3(1.1f * math.sin(math.PI * s.Air) / part.SegmentCount, 0f, 0f);
                         heading = direction;
                         back += length;
                     }
@@ -553,10 +567,27 @@ namespace Punchy.Fauna
                     }
                 }
 
+                // Climbing onto a ledge: the hands stay on its rim (Anchor, set as the climb began) while the body pulls
+                // up past them, the arms bending to keep them there, until it's over the top and pressing down instead.
+                if (part.Role == LimbRole.Arm && part.SegmentCount >= 2 && s.Action == IdleAction.Mantle && b.Upright &&
+                    math.lengthsq(s.Anchor) > 0f && part.FirstSegment + part.SegmentCount <= MaxSegments)
+                {
+                    var hold = 1f - math.smoothstep(0.45f, 0.7f, (s.ActionTime - 0.12f) / 0.73f);
+                    if (hold > 0.01f)
+                    {
+                        var s1 = part.FirstSegment + 1;
+                        var hand = segPos[s1] + math.mul(segRot[s1], new float3(0f, 0f, b.Segments[s1].Length * scale));
+                        var right = new float3(forward.z, 0f, -forward.x);
+                        var grip = s.Anchor + right * part.Side * 0.18f * scale;
+                        pos += PlaceFoot(ref b, ref part, ref segPos, ref segRot, (grip - hand) * hold, scale);
+                    }
+                }
+
                 endPos.Add(pos);
                 endRot.Add(rot);
             }
 
+            var golden = Golden(ref b, in s);
             for (int seg = 1; seg < b.Segments.Length && seg < MaxSegments; seg++)
             {
                 ref var segment = ref b.Segments[seg];
@@ -568,9 +599,25 @@ namespace Punchy.Fauna
                 var colour = b.SegmentColor(seg, coat);
                 if (segment.Hair != 0)
                     colour = b.HairColor(id, colour);
-                output[offset + seg] = Instance(segPos[seg], segRot[seg], ref segment, scale, colour);
+                var piece = Instance(segPos[seg], segRot[seg], ref segment, scale, colour);
+                // A rare golden one: its body gold and gleaming as metal (eyes and other fixed colours as they are).
+                if (golden && segment.Fixed == 0)
+                {
+                    piece.Color = new float4(math.lerp(new float3(0.95f, 0.6f, 0.12f), new float3(0.7f, 0.4f, 0.06f), segment.Accent), colour.w);
+                    piece.Material.x = (float)SegmentMaterial.Metal;
+                }
+                output[offset + seg] = piece;
             }
         }
+
+        /// <summary>
+        /// One animal in GoldenOdds is golden, by its individual (fixed at birth and sent with it, so every machine sees
+        /// the same one): any but folk, ghosts and players' bodies.
+        /// </summary>
+        public static bool Golden(ref CreatureBlob b, in CreatureState s) =>
+            !b.Hands && !b.Haunts && s.Mode != CreatureMode.Puppet && (math.hash(new uint2(s.Individual, 0x601Du)) >> 8) % GoldenOdds == 0u;   // (the hash's low bits follow the individual's, always odd)
+
+        public const uint GoldenOdds = 400;
 
         /// <summary>How far into an idle action it is, as a weight: eases in, holds, eases out.</summary>
         static float ActionEnvelope(float t) => math.smoothstep(0f, 0.12f, t) * (1f - math.smoothstep(0.85f, 1f, t));

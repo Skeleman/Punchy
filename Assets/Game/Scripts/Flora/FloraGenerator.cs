@@ -29,6 +29,12 @@ namespace Punchy.Flora
         public float TrunkRadius;
         public float Height;
         /// <summary>
+        /// How far the trunk's centre has leaned from its foot (x, z, unscaled, before the plant's rotation) at half its
+        /// height and at its height (or the trunk's top, if that's lower), so climbers keep to the trunk as drawn rather
+        /// than a straight post at its foot. Zero for plants without a tree trunk.
+        /// </summary>
+        public Vector2 TrunkLeanMid, TrunkLeanTop;
+        /// <summary>
         /// Collision shape for plants that aren't a single trunk (rocks): upright cylinders (x, z offset from the
         /// plant's base, radius, height of the top), before the plant's own rotation and scale. Empty = the trunk.
         /// </summary>
@@ -175,6 +181,11 @@ namespace Punchy.Flora
                     model.Pools.AddRange(g.Pools);
                     model.DoorHeight = g.DoorHeight;
                     model.Height = g.Height;
+                    if (g.TrunkAxis != null)
+                    {
+                        model.TrunkLeanMid = AxisAt(g.TrunkAxis, g.Height * 0.5f);
+                        model.TrunkLeanTop = AxisAt(g.TrunkAxis, g.Height);
+                    }
                 }
                 // Built things stand rigid in the wind (benches, halls, palisades swayed like plants, Z-11); a garden's
                 // plants still move, and cloth has its own motion (Flora.hlsl).
@@ -238,6 +249,11 @@ namespace Punchy.Flora
             public float Height, Width, TrunkRadius, DoorHeight;
             /// <summary>A tree's trunk centreline and radii, bottom to top (Broadleaf), for things that hang on it.</summary>
             public List<Vector3> TrunkPath;
+            /// <summary>
+            /// A tree's trunk centreline, bottom to top (Broadleaf, Conifer, Palm), for FloraModel's lean only. (Separate from
+            /// TrunkPath, which also turns on brackets and bark faces: setting that for more forms would change them.)
+            /// </summary>
+            public List<Vector3> TrunkAxis;
             public List<float> TrunkRadii;
             /// <summary>A tree's limbs (Broadleaf), each a path from the trunk outwards, for things that hang from them.</summary>
             public List<List<Vector3>> Limbs;
@@ -355,6 +371,7 @@ namespace Punchy.Flora
                 trunkRadii.Add(r0 * Mathf.Lerp(1f, 0.3f, t) * (i == 0 ? 1.45f : i == 1 ? 1.1f : 1f));
             }
             g.TrunkPath = trunk;
+            g.TrunkAxis = trunk;
             g.TrunkRadii = trunkRadii;
 
             var crownCentre = new Vector3(lean.x * 0.6f, (crownBase + height) * 0.5f, lean.z * 0.6f);
@@ -477,6 +494,7 @@ namespace Punchy.Flora
 
             var lean = g.Flat(g.R() * Mathf.PI * 2f) * g.Range(0f, 0.03f) * height;
             Vector3 Axis(float y) => lean * Mathf.Clamp01(y / height);
+            g.TrunkAxis = new List<Vector3> { Vector3.zero, Axis(height) + Vector3.up * height };
 
             var tierCount = Mathf.RoundToInt(Mathf.Lerp(5f, 11f, s.Fullness));
             var tiers = new List<(float y, float radius, float tierHeight, float twist, Color color, float[] jitter)>();
@@ -608,6 +626,7 @@ namespace Punchy.Flora
                 path.Add(TrunkAt(t));
                 radii.Add(r0 * Mathf.Lerp(1.4f, 0.8f, Mathf.Sqrt(t)) * (g.Lod == 0 ? (i % 2 == 0 ? 1.06f : 0.95f) : 1f));
             }
+            g.TrunkAxis = new List<Vector3>(path);
             var firstBark = b.VertexCount;
             b.Tube(path, radii, g.Sides(8, 6, 4), g.Bark, FloraPart.Bark);
             b.Blob(top, Vector3.one * r0 * 1.5f, Quaternion.identity, g.Lod == 0 ? 1 : 0, 0.3f, g.Variant, (g.Bark * 0.8f), FloraPart.Bark);
@@ -1683,6 +1702,19 @@ namespace Punchy.Flora
         /// A face in the bark of a share of a tree's variants (FloraSpecies.BarkFace): two hollow eyes that glow faintly
         /// and blink (FloraPart.Eye), brows of bark, and a dark mouth below, on one side of the trunk at eye height.
         /// </summary>
+        /// <summary>The offset (x, z) of a centreline from its foot at a height, between its points (held past its ends).</summary>
+        static Vector2 AxisAt(List<Vector3> axis, float y)
+        {
+            var at = axis[axis.Count - 1];
+            for (int i = 1; i < axis.Count; i++)
+                if (axis[i].y >= y)
+                {
+                    at = Vector3.Lerp(axis[i - 1], axis[i], Mathf.InverseLerp(axis[i - 1].y, axis[i].y, y));
+                    break;
+                }
+            return new Vector2(at.x - axis[0].x, at.z - axis[0].z);
+        }
+
         static void BarkFace(Grower g)
         {
             if (g.R() >= g.S.BarkFace || g.Lod == 2)

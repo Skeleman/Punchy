@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
   m_Name: StaticRam
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
+  Hooves: 1
   VariantOf: {fileID: 11400000, guid: 415ad693352ff6144884617f030e7387, type: 2}
   VariantScale: 1.05
   VariantHead: 1

@@ -14,7 +14,10 @@ namespace Punchy.Audio
         // The small life's calls (AmbientLife):
         CricketChirp, Croak, Cicada, Drum, Zip,
         // For the world session: an electric spire's bolt.
-        Zap
+        Zap,
+        // Footsteps by what's underfoot (CreatureAudioSystem.Step): a soft pad of a paw, and feet in grass, snow, on
+        // rock and in sand.
+        StepPaw, StepGrass, StepSnow, StepRock, StepSand
     }
 
     /// <summary>
@@ -35,7 +38,8 @@ namespace Punchy.Audio
             SoundId.Quack => 4, SoundId.Honk => 3, SoundId.Gobble => 3, SoundId.Caw => 4, SoundId.Coo => 3, SoundId.Cry => 3,
             SoundId.Screech => 2, SoundId.Rooster => 2, SoundId.Bark => 4, SoundId.Meow => 3, SoundId.Snort => 3,
             SoundId.Whinny => 2, SoundId.Bleat => 3, SoundId.Moo => 3, SoundId.Grunt => 3, SoundId.Pant => 3,
-            SoundId.CricketChirp => 3, SoundId.Croak => 4, SoundId.Cicada => 2, SoundId.Drum => 3, SoundId.Zip => 3, SoundId.Zap => 3, _ => 1
+            SoundId.CricketChirp => 3, SoundId.Croak => 4, SoundId.Cicada => 2, SoundId.Drum => 3, SoundId.Zip => 3, SoundId.Zap => 3,
+            SoundId.StepPaw => 3, SoundId.StepGrass => 3, SoundId.StepSnow => 3, SoundId.StepRock => 3, SoundId.StepSand => 3, _ => 1
         };
 
         public static bool Loops(SoundId id) => id == SoundId.BeeBuzz || id == SoundId.Crickets || id == SoundId.FireCrackle ||
@@ -89,6 +93,11 @@ namespace Punchy.Audio
                 SoundId.Drum => Drum(rng),
                 SoundId.Zip => Zip(rng),
                 SoundId.Zap => Zap(rng),
+                SoundId.StepPaw => Paw(rng),
+                SoundId.StepGrass => Underfoot(rng, 0.16f, 2600f, 0.05f, 0.25f, 0f),
+                SoundId.StepSnow => Crunch(rng),
+                SoundId.StepRock => Tap(rng),
+                SoundId.StepSand => Underfoot(rng, 0.13f, 1300f, 0.035f, 0.35f, 0f),
                 _ => new float[1]
             };
         }
@@ -333,6 +342,82 @@ namespace Punchy.Audio
                 s[i] = grit + thud + burble;
             }
             return Normalise(s, 0.5f);
+        }
+
+        /// <summary>A padded paw coming down: a very soft, low thump and the faintest brush (a wolf's, a cat's).</summary>
+        static float[] Paw(System.Random rng)
+        {
+            var n = (int)(0.09f * Rate);
+            var s = new float[n];
+            var a = Pole(Lerp(280f, 420f, R(rng)));
+            var lp = 0f;
+            var thudHz = Lerp(55f, 85f, R(rng));
+            for (int i = 0; i < n; i++)
+            {
+                var t = i / (float)Rate;
+                lp += a * (Noise(rng) - lp);
+                s[i] = lp * Env(t, 0.006f, 0.02f) * 0.6f + Mathf.Sin(2f * Mathf.PI * thudHz * t) * Env(t, 0.004f, 0.018f) * 0.5f;
+            }
+            return Normalise(s, 0.35f);
+        }
+
+        /// <summary>
+        /// A foot in something soft that rustles or hisses (grass, sand): noise through a low-pass at cut, rising over a few
+        /// milliseconds and dying away over decay, with a little thud under it.
+        /// </summary>
+        static float[] Underfoot(System.Random rng, float seconds, float cut, float decay, float thud, float unused)
+        {
+            var n = (int)(seconds * Rate);
+            var s = new float[n];
+            var a = Pole(cut * Lerp(0.8f, 1.2f, R(rng)));
+            var lp = 0f;
+            var thudHz = Lerp(60f, 90f, R(rng));
+            for (int i = 0; i < n; i++)
+            {
+                var t = i / (float)Rate;
+                lp += a * (Noise(rng) - lp);
+                s[i] = lp * Env(t, 0.012f, decay) + Mathf.Sin(2f * Mathf.PI * thudHz * t) * Env(t, 0.003f, 0.02f) * thud;
+            }
+            return Normalise(s, 0.4f);
+        }
+
+        /// <summary>A foot in snow: a crunch, a quick run of tiny brittle crackles squeezed out as the snow packs down.</summary>
+        static float[] Crunch(System.Random rng)
+        {
+            var n = (int)(0.16f * Rate);
+            var s = new float[n];
+            var band = new Band();
+            var grains = 10 + rng.Next(8);
+            var at = new float[grains];
+            for (int g = 0; g < grains; g++)
+                at[g] = Mathf.Pow(R(rng), 1.6f) * 0.12f;
+            for (int i = 0; i < n; i++)
+            {
+                var t = i / (float)Rate;
+                var crackle = 0f;
+                for (int g = 0; g < grains; g++)
+                    if (t >= at[g])
+                        crackle += Env(t - at[g], 0.0005f, 0.004f);
+                s[i] = band.Run(Noise(rng), 2400f, 1.5f) * crackle * 0.6f + Noise(rng) * Env(t, 0.01f, 0.05f) * 0.08f;
+            }
+            return Normalise(s, 0.4f);
+        }
+
+        /// <summary>A shoe or boot on rock: a short hard tap and a little grit.</summary>
+        static float[] Tap(System.Random rng)
+        {
+            var n = (int)(0.1f * Rate);
+            var s = new float[n];
+            var band = new Band();
+            var click = Lerp(1500f, 2300f, R(rng));
+            var body = Lerp(140f, 210f, R(rng));
+            for (int i = 0; i < n; i++)
+            {
+                var t = i / (float)Rate;
+                s[i] = band.Run(Noise(rng), click, 3f) * Env(t, 0.0008f, 0.008f) * 0.8f +
+                       Mathf.Sin(2f * Mathf.PI * body * t) * Env(t, 0.001f, 0.015f) * 0.3f + Noise(rng) * Env(t, 0.002f, 0.02f) * 0.08f;
+            }
+            return Normalise(s, 0.45f);
         }
 
         /// <summary>A hoof on hard ground: a woody click with a short hollow body.</summary>

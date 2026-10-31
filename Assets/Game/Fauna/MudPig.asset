@@ -1,0 +1,215 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
+  m_Name: MudPig
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
+  VariantOf: {fileID: 0}
+  VariantScale: 1
+  VariantHead: 1
+  VariantThickness: 1
+  VariantLegs: 1
+  BodyLength: 0.95
+  BodyRadius: 0.3
+  BodyTaper: 0.85
+  BodyFlatten: 1.05
+  Base: {r: 0.33, g: 0.26, b: 0.21, a: 1}
+  Accent: {r: 0.13, g: 0.11, b: 0.09, a: 1}
+  AccentGlow: 0
+  Coats:
+  - Name: MudPig
+    Base: {r: 0.33, g: 0.26, b: 0.21, a: 1}
+    Accent: {r: 0.13, g: 0.11, b: 0.09, a: 1}
+    AccentGlow: 0
+    Weight: 1
+  Size: {x: 0.85, y: 1.1}
+  HairColors: []
+  Parts:
+  - Limb: {fileID: 11400000, guid: 5754e7ae7bf05e44aa4156707c6e0336, type: 2}
+    Parent: -1
+    Socket: {x: 0.5, y: -0.45, z: -0.7}
+    Direction: {x: 90, y: 0, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.48
+    Thickness: 2.3
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: ca532975d0d08d14ba12a36051e875e1, type: 2}
+    Parent: -1
+    Socket: {x: 0.5, y: -0.55, z: 0.65}
+    Direction: {x: 90, y: 0, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.48
+    Thickness: 2.3
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 1778852a41bd78248a322b4d0e24a214, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0.05, z: 1}
+    Direction: {x: 65, y: 0, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.8
+    Thickness: 1.1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: e2908f016c793cb4bbe748ec1f631804, type: 2}
+    Parent: 2
+    Socket: {x: 0.08, y: 0.08, z: -0.16}
+    Direction: {x: -10, y: 75, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.9
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 8db8692701365314db1a0b5e9ab1cbd1, type: 2}
+    Parent: 2
+    Socket: {x: 0.09, y: 0.05, z: -0.09}
+    Direction: {x: 0, y: 0, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: e7e821c79d71b7b409b46c7e0f36c49e, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0.45, z: -1}
+    Direction: {x: 20, y: 180, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.5
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: e9c720cef8661874ab88d1f631acbd63, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0.92, z: 0.7}
+    Direction: {x: -80, y: 0, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: e9c720cef8661874ab88d1f631acbd63, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0.92, z: 0.4}
+    Direction: {x: -80, y: 0, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1.15
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: e9c720cef8661874ab88d1f631acbd63, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0.92, z: 0.1}
+    Direction: {x: -80, y: 0, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1.05
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: e9c720cef8661874ab88d1f631acbd63, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0.92, z: -0.2}
+    Direction: {x: -80, y: 0, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.9
+    Thickness: 1
+    StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: e9c720cef8661874ab88d1f631acbd63, type: 2}
+    Parent: -1
+    Socket: {x: 0, y: 0.92, z: -0.5}
+    Direction: {x: -80, y: 0, z: 0}
+    Mirror: 0
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 0.75
+    Thickness: 1
+    StyleGroup: 0
+  WalkSpeed: 0.9
+  RunSpeed: 5
+  Bob: {x: 0.015, y: 0.06}
+  BobsPerCycle: {x: 2, y: 1}
+  RunRock: 4
+  Upright: 0
+  LeglessStride: {x: 0.6, y: 0.9}
+  WanderRadius: 25
+  IdleTime: {x: 5, y: 15}
+  FleeDistance: 9
+  TurnRate: 70
+  SeenFrom: 0
+  GroupSize: {x: 3, y: 8}
+  NearWater: 0
+  Habitat: 0
+  SwimDepth: 0.6
+  Leaps: 0
+  Active: 0
+  Grazing: 0.7
+  Thirst: 0.4
+  Playfulness: 0.05
+  Child: 0
+  Laziness: 0.45
+  Hunts: []
+  Hunger: 0.3
+  ChaseTime: 10
+  Idles: 2089
+  Fidgets: 0.45
+  Climbing: 0
+  SpinsWebs: 0
+  WebSize: 0.6
+  Burrows: 0
+  CaveDweller: 0
+  Crawls: 0
+  ColdBlooded: 0
+  Role: 0
+  Hooves: 1
+  ClimbsAs: 0
+  EmoteReaction: 2
+  Voice: 0
+  CaveAffinity: 0
+  Roosts: 0
+  Friendly: 0
+  LavaDweller: 0
+  Haunts: 0
+  CrossesWater: 1
+  Nests: 0
+  DrawnToLight: 0
+  DrivenOff: 0
+  GuardKit: 0
+  GuardArmour: {r: 0.55, g: 0.57, b: 0.6, a: 1}
+  GuardSash: {r: 0.62, g: 0.12, b: 0.1, a: 1}
+  Rooted: 0
+  Disguised: 0
+  FlightHeight: {x: 8, y: 18}
+  FlySpeed: 7
+  PlayerFlySpeed: 0
+  FlapRate: 6
+  Glide: 0
+  Perching: 0.6
+  Soars: 0
+  Breaches: 0
+  RaidsHives: 0
+  Calls:
+  - Sound: 33
+    Interval: {x: 12, y: 35}
+    Pitch: {x: 1.05, y: 1.3}
+    Volume: 0.5
+    Reach: 25
+    When: 0
