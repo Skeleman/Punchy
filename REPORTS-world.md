@@ -2,6 +2,23 @@
 
 Newest first.
 
+## 2026-10-30: Zach's answers on Z-12 and Z-38; RockAt for the worm, zache-73
+
+- **Z-12 stretched base (654d748, z-p2): DONE in code.** The flora shader worked out "grounding" (darker toward the
+  ground: a tight 12 cm contact band plus a broader rise) at the vertices. On a foundation skirt, whose bottom ring
+  sits 1.6 m down, that band was interpolated linearly over the whole exposed face: stretched toward the bottom, and
+  no dark band at the ground (also G-22). It's now per pixel, from the interpolated height above the base (exact,
+  since it's linear in y). That fixes every skirted building. Check: a fountain or forum on a slope, from below the base.
+- **Z-38 small glowing caps (e2f1c97, z-p2): DONE in code, fungal forest only.** New FungalGlowCap and FungalGlimmerCap
+  (amber-brown and dusky brown, still glowing) replace GlowCap and GlimmerCap in the fungal forest's flora list only.
+  The poison swamp, sparkling forest and fairy rings keep the originals.
+- **For zache-db's worm (Z-28), on world-laptop/blocked-top e58eed2:**
+  - `Blocked(..., out float top)`: buildings and placed props, top = model height x scale.
+  - `RockAt(ref f, source, xz, radius, out float top)`: scattered rocks (any solid non-tree on the tree layer: boulders,
+    tors, standing stones, hoodoos), from Place() on the cells within radius + 6 m. No streamed state.
+  - zache-db merged it into wip/worm-arc (9213d8e); their build is the compile check, then I land it on
+    world-features.
+
 ## 2026-10-30: Z-30 wood grain, option (a), zache-73
 
 `world-laptop/z-p2` ee5a1f9, not compiled.
