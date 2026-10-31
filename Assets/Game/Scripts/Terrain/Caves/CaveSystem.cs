@@ -1400,6 +1400,8 @@ namespace Punchy.Terrain
                     mesh.SetVertices(b.Positions.AsArray());
                     mesh.SetNormals(b.Normals.AsArray());
                     mesh.SetColors(b.Colors.AsArray());
+                    if (ShardProbe)
+                        LogShards(b);
                     mesh.SetUVs(0, b.Data.AsArray());
                     mesh.SetIndices(b.Indices.AsArray(), MeshTopology.Triangles, 0);
                     var min = (float3)kv.Key * chunkSize;
@@ -1542,6 +1544,29 @@ namespace Punchy.Terrain
         }
 
         static readonly bool ShardProbe = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-caveshards") >= 0;
+
+        /// <summary>"-caveshards": logs where a chunk has ownerless (magenta) walls, so a shot can frame them.</summary>
+        static void LogShards(Built b)
+        {
+            var count = 0;
+            var sum = float3.zero;
+            var lo = new float3(float.MaxValue);
+            var hi = new float3(float.MinValue);
+            for (int i = 0; i < b.Colors.Length; i++)
+            {
+                var c = b.Colors[i];
+                if (c.x != 1f || c.y != 0f || c.z != 1f)
+                    continue;
+                var p = b.Positions[i];
+                count++;
+                sum += p;
+                lo = math.min(lo, p);
+                hi = math.max(hi, p);
+            }
+            if (count > 0)
+                Debug.Log($"CaveSystem shards: {count} vertices round ({sum.x / count:F1}, {sum.y / count:F1}, {sum.z / count:F1}), " +
+                          $"box ({lo.x:F0},{lo.y:F0},{lo.z:F0})-({hi.x:F0},{hi.y:F0},{hi.z:F0})");
+        }
 
         [BurstCompile]
         struct MeshJob : IJob
