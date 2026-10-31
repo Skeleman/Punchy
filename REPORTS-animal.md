@@ -2,6 +2,34 @@
 
 Newest first.
 
+## 2026-10-31: slot 6 (part 1): merged build compiles, Z-22 still not judged, worm coil and Z-07 Play spins found
+- **Build:** tmp/animal-slot6 f5b6597 (animal-behaviours 4f2f0a4 + world-features 3976d17 + wip/poses 2755204):
+  compiled clean. Smoke against 3976d17: nothing worse beyond noise, 0 exceptions. The J-006 glide floor flag
+  predates this build (1% low went 26.4 to 29.6).
+- **Z-22:** `-watchfrom 0.6,2.5` sits too low. Only legs and shadows are in frame (the shadows show a raise and
+  strike). DwarfHold smith: the arm raises, then strikes. Too small to pass. wip/poses NOT merged.
+  - No miners exist on this seed: DwarfMiningCamp and HumanMiningCamp aren't among the placed landmarks.
+- **Z-20 large:** Monkey (0.38 m) is held on open forearms and looks right. Marmot is held too.
+  - Both squirm free in under 5 s.
+  - Turkey and RedFox fled (CanCarry needs a pettable animal of 0.5 m or less).
+  - Remote carrier: the client's join timed out at the handshake (host at 3-10 fps while loading), so it fell back
+    to solo. Retry with the client 45 s after the host.
+- **Z-28:** found the flat curl. `Tunnel()` kept turning in the air towards a close target, so the worm orbited and
+  coiled flat in mid-air (Tors torsside-23 and Glacier).
+  - Fix: wip/z28-air ba7ff69 on animal-behaviours. There is no turning while Air > 0, so the arc also stays straight
+    over the obstacle it was aimed to clear.
+  - Not yet seen in a build.
+  - Boulder routes from above (watchpitch 70): too close to read.
+- **Z-07 Play (from -spincheck at PrairieDogTown, a lake and OakGrove; 20 lines):** two causes.
+  - Stage 0 (target 0.3-0.65 m): the bow turns to track a partner running round it.
+  - Stage 1 (target 8 or 20 m): blocked ahead, a coin toss of side every frame while Play re-aims at the obstacle.
+  - Fix: wip/z07-play (holds heading through the bow; veers to one side). Compiled into tmp f0aacd5 only if pass c
+    ran.
+- **Pass b was still running at handback:** build 1e7fb47 (tmp + z28-air), then higher work close-ups
+  (`-watchfrom 1.7,3`), the net retry and worm shots, into results/animal-slot/s6-workb, s6-host, s6-client and
+  s6-wormb. Its script releases the lock and leaves the main checkout on b/weather-mapjob when it exits. Pass c
+  (f0aacd5, spin re-check) has not started.
+
 ## 2026-10-30: slot 5: Z-07 fixed, worm and wake pairs, carry and worm arcs merged
 - **Build:** world-features + animal-behaviours + spin-check + poses + carry + worm-arc + both pairs compiled clean,
   blocked-top included (zache-73: Blocked(..., out top) and RockAt build). Rebuilt with the Z-07 fix: clean.

@@ -20,7 +20,8 @@ slot.
 - **wip/brain-sample da5da2c:** profiler item 13 work. Not for merge.
 
 ## Open rows
-- **Z-07:** the elf (Home) and dormouse (Climb) spins are fixed (97 spin lines to 14 at the same spots). Left: Play-mode
+- **Z-07 (slot 6):** Play spins traced to the bow and the blocked side-step coin toss: wip/z07-play, unbuilt.
+- **Z-07 (earlier):** the elf (Home) and dormouse (Climb) spins are fixed (97 spin lines to 14 at the same spots). Left: Play-mode
   circling (ducks, prairie dogs, rabbits, small birds, target 8-20 m, under 0.3 m/s, 270 deg in 1.2-2.9 s). Likely
   the chase itself; look at Play stage 1 steering if Zach still sees it.
 - **Z-20:** cat and dog carries look right (arms open under the animal, front-on and side-on). Open: a large animal
@@ -28,18 +29,21 @@ slot.
   `-watch Human` followed a villager: use `-body Dog` on the client and stand it next to the host).
 - **Z-22:** woodcutter, smith and miner close up (`-watch Human:Chop -watchfrom 0.5,2.5` or `-camlook`).
   DwarfMiningCamp isn't a `-place` name (it stayed at DwarfHold).
-- **Z-28:** breach arcs side-on look clean. Open: a jump over a rock or ledge and a route past boulders from above
+- **Z-28 (slot 6):** flat curl = turning in the air; fix wip/z28-air.
+- **Z-28 (earlier):** breach arcs side-on look clean. Open: a jump over a rock or ledge and a route past boulders from above
   (Glacier Grotto and Dunes CaveEntrance had none in view). One side-on series showed the body lying in a flat curl
   on the snow after landing (shots side-18..20): check it.
 - **P3, needing a design note first:** Z-50 gallop, Z-51 several voices, Z-52 NPC species reactions (ownKind is
   started in Z-25), Z-53 chases.
 
 ## Slot list (next)
-1. Build animal-behaviours + world-features + wip/poses (the merged branches compiled together in slot 5 as
-   tmp a38b87b).
-2. Z-22 close-ups and the remaining Z-20 and Z-28 shots above; merge wip/poses if Z-22 passes.
-3. Ask the profiler for the worm marks' cost with 32 slots (BENCH item 17 re-run).
-
+0. Check pass b's output (scratchpad slot6b.out; results/animal-slot/s6-workb, s6-host/s6-client, s6-wormb), which
+   was still running at the slot-6 handback, before anything else.
+1. Judge Z-22 from s6-workb (chop, smith, dwarf smith at 1.7,3). If it passes, merge wip/poses into animal-behaviours.
+2. Build tmp f0aacd5 (tmp/animal-slot6 + wip/z28-air + wip/z07-play): -spincheck shot list spin6 (PrairieDogTown,
+   Lake, OakGrove), then the worm6b list. Merge z28-air and z07-play if the coil and the Play spins are gone.
+3. Z-20 remote carrier: the host carries a Dog; the client joins 45 s later as -body Cat (-camlook or -watch Dog).
+4. Miners: no mining camp is placed on this seed, so Z-22 miners need another seed or a hand-placed camp.
 ## Key files
 - **Worms:** Fauna/CreatureBrainSystem.cs `Tunnel()` (arc depth `deep`, `Obstructed`, the leap check);
   CreatureBurrowSystem.cs; MarkMask.cs; Shaders/TerrainSurface.shader `BurrowMarks`.
