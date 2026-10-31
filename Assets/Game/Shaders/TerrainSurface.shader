@@ -50,8 +50,10 @@ Shader "Punchy/Terrain Surface"
             // Worms under the sand and snow (the animal session's CreatureBurrowSystem): x, y its age (0..1 over its
             // life), z, w the radius (m) of the worm that made it: positive a bump (the mound over a worm's head, or one
             // it left in its trail), negative a crater where one broke out of the ground or dived back in.
-            float4 _PunchyBurrowers[64];
+            float4 _PunchyBurrowers[32];
             int _PunchyBurrowerCount;
+            // How far out the marks are drawn (GraphicsSettings: DetailRange(BurrowRange), the feeder's range too).
+            float _PunchyBurrowRange;
             // Where the marks are, coarsely (CreatureBurrowSystem's MarkMask): a cell 1 where some mark reaches into it,
             // and (x, z of the map's corner, cells per metre, cells across).
             TEXTURE2D(_PunchyBurrowMask);
@@ -170,9 +172,9 @@ Shader "Punchy/Terrain Surface"
                 half3 normalWS = NormalizeNormalPerPixel(input.normalWS);
                 float2 p = input.positionWS.xz;
                 half burrowDarken = 0;
-                // (Worms' marks only out to 150 m, as far as the feeder sends them, and only in the mask's cells a mark
-                // reaches into: the rest of the terrain skips the loop.)
-                [branch] if (_PunchyBurrowerCount > 0 && distance < 150 && NearBurrowMark(p))
+                // (Worms' marks only out to _PunchyBurrowRange, as far as the feeder sends them, and only in the mask's
+                // cells a mark reaches into: the rest of the terrain skips the loop.)
+                [branch] if (_PunchyBurrowerCount > 0 && distance < _PunchyBurrowRange && NearBurrowMark(p))
                 {
                     float2 burrowTilt = BurrowMarks(p, burrowDarken);
                     normalWS = normalize(normalWS + half3(burrowTilt.x, 0, burrowTilt.y));
