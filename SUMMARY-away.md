@@ -85,3 +85,15 @@ FEEDBACK-v0.10.md (Z-IDs). No release goes out without Zach's go.
 - Passed: Z-09, Z-10 (marsh only), Z-11 heavy rain, Z-30 where seen close. No cave-mouth shards anywhere.
 - Left: a cave stream with no pool (design call), hall and inn timber close-ups, a non-marsh river in fog.
 - Decision: next slot builds a v0.11 *candidate* (world b39522b + animal 77c03e9) and runs the release gate, so Zach can decide on return. No tag, no publish.
+
+## 2026-10-31 16:30 — v0.11 CANDIDATE ready for Zach's decision (GATE-v0.11-candidate.md, RELEASE-NOTES-v0.11-draft.md)
+- cand/v0.11 21f1193 = world b39522b + animal 77c03e9 (clean merge). No tag, no release.
+- Gate vs v0.10.0: Release build, boot and quit pass (0 exceptions, 0 NaN). Townwalk 1% low 37.8 vs 39.2. Glide at cap 60 29.7 vs 29.6 (borderline J-006, same as v0.10). Looks pass at 9 stops. MP pass (joined townwalk 22.8 vs 19.5).
+- Flag: glide uncapped shows 50–80 ms spikes in 3 of 4 candidate runs (none in 10 runs of the base builds); ABBA 1% low 31.3 vs 35.6. Doesn't block the release, in the gate's view; the profiler is profiling it now.
+- Zip (local only): Punchy/Builds/Zip-v0.11-cand, 49,468,639 bytes, SHA-256 847f35c1cb4319fa8966122a98442eb957b2237b31577480c0cc237774ad7337.
+
+## On your return: decisions for Zach
+1. Release v0.11 from cand/v0.11, or wait for the glide-spike profile?
+2. Default graphics preset: keep Medium (glide ~30, below J-006), a "Balanced" in-between (view 0.8, detail 0.75, shadows 0.8: glide 34–36, passes), or Low (the profiler's pick, ~57)?
+3. Setup: restart the world and animal lanes from their handoffs, or keep the one-at-a-time task sessions? Since 21:25 they've merged about 10 Z-batches without a usage-limit hit; they cost roughly 150–300k tokens per slot.
+4. Design calls: Z-20 remote carry (the host never targets a client's body); the cave stream with no pool; the P3 rows Z-50–Z-53.
