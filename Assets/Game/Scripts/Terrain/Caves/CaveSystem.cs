@@ -1541,9 +1541,9 @@ namespace Punchy.Terrain
             }
         }
 
-        [BurstCompile]
         static readonly bool ShardProbe = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-caveshards") >= 0;
 
+        [BurstCompile]
         struct MeshJob : IJob
         {
             public TerrainSource Source;
