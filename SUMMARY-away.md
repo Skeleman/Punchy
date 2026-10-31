@@ -78,3 +78,10 @@ FEEDBACK-v0.10.md (Z-IDs). No release goes out without Zach's go.
 - Merged with b870008, the tree built clean (a66c520); the smoke on the near-identical c477c0f showed only noise.
 - Left: Z-20 remote carry needs a design call (the host never targets a client's body); songbird and dormouse Wander spins.
 - Next: world slot 3 (Z-10 fog, Z-11 rain, cave shards, close-up of the newly marked timber).
+
+## 2026-10-31 12:00 — world slot 3 (world-features b39522b)
+- Merged; built clean (c7bb5f3, the same tree), 0 exceptions in 6 look runs. Each fix checked by sight before and after.
+- Z-31/Z-32: stone house walls are flat blocks; the banding at night and in rain is gone. Z-34: the lines across cave streams were streak foam, now off underground. Z-35: falls run at the asset's 2.5 s fall time with spray at the lip.
+- Passed: Z-09, Z-10 (marsh only), Z-11 heavy rain, Z-30 where seen close. No cave-mouth shards anywhere.
+- Left: a cave stream with no pool (design call), hall and inn timber close-ups, a non-marsh river in fog.
+- Decision: next slot builds a v0.11 *candidate* (world b39522b + animal 77c03e9) and runs the release gate, so Zach can decide on return. No tag, no publish.
