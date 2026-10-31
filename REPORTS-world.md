@@ -2,6 +2,55 @@
 
 Newest first.
 
+## 2026-10-31: world slot 2 (task session): targets found, owed looks taken, Z-30 grain fixed, merged b870008
+
+- **world-features b870008** (pushed) = 3976d17 + world-laptop/z30-more (6 commits). Built clean as 8b0a657 (same
+  tree): 0 script or shader errors; 0 exceptions and 0 NaN-bounds lines in 7 look runs (~80 shots).
+- **animal-behaviours 9b7459b + world-features b870008** (tmp/animal-world-check 5f4c917): built clean, 0 errors.
+  Not merged; tmp branch deleted.
+- **Targeting:** `-place prop:<Species>[@x,z][#n]` (DebugControls) finds any placed plant (landmark props, town
+  buildings, biome scatter), logs the 8 nearest with coordinates, height and front, and frames one. One run gave:
+  Bench (111.4, 25.7, -404.8) and 30 more; Stall (-355.6, 12.2, -4079.4) at OgreCamp; Smithy (76.3, 25.8, -367.8);
+  Inn (168.1, 25.7, -401.4); Hall (513.0, 28.1, -943.5); StoneHall (1973.3, 65.1, 2479.9); Fountain and Forum
+  (260.8, 32.1, 3250.9); ElfBench (267.0, 32.1, 3253.2); EmberPine (-800.8, 25.9, -3573.5); Woodpile
+  (87.6, 25.7, -439.9); Bridge (231.6, 16.9, -638.5); AncientTree (-5.9, 5.3, 1250.5), 31.9 m tall. No Pen found.
+  Geyser pool ~(1182, 51.5, 2799); MudPits pools ~(197, 20, -3666); FoggyMarsh place (-304, 5, 817).
+- **Rain:** `-benchday <day type>` on b/bench-runner db3c1f2. The day types are Sunny, Partly cloudy, Overcast, Stormy
+  and Changeable. Stormy doesn't rain everywhere (the village had a cloud deck). Under Partly cloudy, seed 4, rain
+  reaches the village square about 90 s in.
+- **Shot lists under the bench route:** `-benchroute -benchstops here -benchlong here 900` holds the weather while
+  `-shotlist` takes many in-game shots in one session (HANDOFF-world "How to test").
+- **Looks, judged by sight:**
+  - **Z-30 failed, then fixed.** The bench close-ups before (7f519c0) and after (3976d17) looked the same: the grain
+    was at most 18% darker and mostly faded by the pixel footprint. 632f479 draws lines about 3 cm apart, up to 45%
+    darker, over broad bands, and the same close-up now shows clear streaks along the planks. 69f3185 marks more
+    timber: pens, the inn's band, posts and porch, the hall's walls, posts, beams and poles, bridges, the smithy's
+    posts, the anvil block and the chopping block.
+  - Z-33 pass: three frames 0.3 s apart show broad, slow rolls, with no high-frequency shake. The speed itself can't
+    be measured from stills.
+  - Z-36 pass: the geyser pool shows flat rings lying on the water beside the bubble domes.
+  - Z-37 weak pass: at night (in rain) a few coloured fireflies hover above the ground by the great tree. The tree
+    stands in a dense marsh canopy, which makes it hard to frame.
+  - Z-39 pass: the ember slivers on the pine crowns are short upright dashes.
+  - Z-40 pass: embers and dark coals sit inside a raised stone rim and glow at night.
+  - Z-41 pass: the stone hall's ridge shows a rounded tile band. Stone houses have hipped roofs, with no ridge.
+  - Z-12 pass where seen: the forum slab's edge at 270,3248 shows no stretch and a dark band at the ground. The
+    ground there is barely below the slab, so it's not a hard case.
+  - Z-09 pass with `-meteors`: the aurora (on with the same switch) stays behind the clouds. No shooting star was
+    caught in 6 frames (rain streaks look alike).
+  - Z-10 inconclusive: fog and rain in the marsh veil its streams, and no unfogged water was seen.
+  - Z-11 partly judged: no wiggle in two frames 0.3 s apart, and no screen-space image on the planks in light rain.
+    The stone legs look glassy in dry and wet shots alike.
+- **Found for the animal lane (TraceSystem, not changed):** when a dog walks under a bench, its paw prints land on
+  the bench seat. `Underfoot` samples prop tops at foot + 0.3 m and takes the seat above; it needs
+  `hit.Height <= at.y + ~0.3`. Shots: ws2/e/z11-bench-rain-b and -c.
+- **Cave-mouth shards:** `-caveshards` (CaveSystem) draws walls no cave owns in magenta. None showed at the
+  CaveEntrance, Grotto (glacier) or nearest-cave mouths from the places' default views. The big cave's mouth wasn't
+  in view; a close look at a known shard spot is next.
+- Shots: Punchy-wt/Tools/bench/results/ws2/{probe,a,b,c,d,e,f}, with contact sheets in ws2/.
+- Unity and every Punchy.exe started here are closed; the main checkout is on b/weather-mapjob; the bench lock is
+  clear.
+
 ## 2026-10-31: world slot 1 (task session): z-p2 built, benched, merged; looks partly done
 
 - **world-features 3976d17** (pushed) = 247c690 + world-laptop/z-p2 (13 commits; blocked-top was already in via
