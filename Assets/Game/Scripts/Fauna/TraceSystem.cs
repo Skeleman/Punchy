@@ -121,12 +121,16 @@ namespace Punchy.Fauna
         Punchy.Flora.SupportGrids grids;
         DynamicBuffer<Punchy.Flora.FloraSupport> tops;
 
-        /// <summary>The ground under a point: the terrain, or a prop's top there if that's higher (onProp says which).</summary>
+        /// <summary>
+        /// The ground under a point: the terrain, or a prop's top there if that's higher (onProp says which). Only a top
+        /// at about the feet's height counts (up to 0.2 m above them): a bench seat or a table over an animal walking
+        /// under it is higher than the feet, and its paw prints went on the seat.
+        /// </summary>
         float Underfoot(in TerrainSource terrain, float3 at, out bool onProp)
         {
             var height = terrain.SampleHeight(at.xz);
             onProp = false;
-            if (hasTops && Punchy.Flora.PropSupport.Sample(ref grids.Set.Value, tops, at + new float3(0f, 0.3f, 0f), 0f, 0.4f, out var hit) &&
+            if (hasTops && Punchy.Flora.PropSupport.Sample(ref grids.Set.Value, tops, at + new float3(0f, 0.1f, 0f), 0f, 0.1f, out var hit) &&
                 hit.Height > height)
             {
                 height = hit.Height;
