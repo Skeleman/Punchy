@@ -1,4 +1,4 @@
-# Handoff: profiler (laptop), refreshed 2026-10-31 after slot 6
+# Handoff: profiler (laptop), refreshed 2026-10-31 after slot 7
 
 Read COORDINATION.md first. This lane benches and profiles builds when the supervisor hands it the Unity slot. Only
 one Unity runs at a time on the laptop. When the slot is done: post BENCH-REPORTS (newest first), send one message
@@ -18,7 +18,7 @@ saying "Unity closed", and send no ack-only messages.
   play.sh (ReleaseBuild for Builds/Play).
 
 ## Archived builds worth keeping (Builds/)
-- Bench-b870008 (Z-30 grain, more timber).
+- Bench-b870008 (Z-30 grain, more timber). Profile-21f1193 (cand/v0.11 dev), Bench-21f1193, Bench-a66c520.
 - Bench-3976d17 / Profile-3976d17 (world-features with z-p2 and 32-slot worm marks), Bench-247c690.
 - Bench-bc89606: world-features before the cave-chunk, worm and blocked work; the A side of many checks.
 - Bench-256e6a9 (cave-chunk), Bench-d60e085 (unmasked worm marks), Bench-2de3029 (worm mask), Bench-b70dbfa (wake
@@ -34,7 +34,8 @@ saying "Unity closed", and send no ack-only messages.
 - Worm marks, 32 slots (3976d17): +0.2 ms, inside the noise. The Glacier frame has native worms wandering through it;
   a frame in another biome with one spawned worm would be tighter.
 - The ~500 ms spikes in the world smoke (both 247c690 and 3976d17) did not reproduce in slot 5 on any build. If they
-  return, check for other processes or an open editor during the run.
+  return, check for other processes or an open editor during the run. The v0.11 gate's 50-80 ms cap-0 glide windows
+  also didn't reproduce in slot 7 (4 runs).
 - Wakes: re-check with a camera over open water (the slot 4 frame was inside a canopy).
 - Item 15 cave-chunk: busiest chunk frame only −16%. A per-chunk timing log would show whether the mouth chunk is the
   one that's slow.

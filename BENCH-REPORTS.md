@@ -2,6 +2,44 @@
 
 Newest first.
 
+## 2026-10-31: slot 7, cand/v0.11 21f1193 glide cap 0 spikes: not reproduced in 4 runs (2 dev captures, 2 release); no system to name
+0 exceptions. No dialogs. Every glide ended at 1197/1198,359.
+
+### Dev captures (Profile-21f1193, `-benchstops glide -fpscap 0 -profilestop glide`)
+| capture | 1% low | worst ms | frames > 33.3 ms (of 2000) | 5 s windows (worst ms/slow frames) |
+|---|---|---|---|---|
+| r1 | 32.7 | 46.8 | 1 | 33/0 47/3 37/1 32/0 16/0 16/0 35/1 |
+| r2 | 34.1 | 36.6 | 1 | 30/0 33/1 32/0 37/1 30/0 25/0 29/0 |
+
+- The single spike frame in each capture is the ordinary streaming hitch seen since slot 5:
+  - workers busy with BuildChunkMeshJob (+2 / +5 ms), GroundDetail SampleGroundJob (+7 ms in r1), FloraSystem
+    PlaceJob, SurfaceGlow ScanJob (one call of 22–24 ms) and WeatherField MapJob;
+  - the render thread waiting on them (Semaphore.WaitForSignal +11 / +19 ms);
+  - main thread extras: Mono.JIT +3.2 ms (r1); GC.Collect plus CollectIncremental +4.7 ms incl (r2).
+- Animal side: TraceSystem (paw prints, the trace-seat change in 77c03e9) costs 0.05–0.07 ms per frame. Its single
+  worst frame was 3.1 ms, on r2's spike frame. That's a minor contributor, not a 50–80 ms cause.
+  CreatureRenderSystem PoseJob +3 ms and BrainJob +1.5 ms on spike frames: the same as before the merge.
+- Nothing on either branch shows a 50 ms+ call or frame.
+
+### Release builds, same session, ABBA (Bench-21f1193 vs Bench-a66c520), glide cap 0
+| run | 1% low | worst ms |
+|---|---|---|
+| 21f1193 r1 | 35.3 | 37.7 |
+| a66c520 r1 | 35.6 | 37.5 |
+| a66c520 r2 | 36.6 | 35.3 |
+| 21f1193 r2 | 36.3 | 39.5 |
+
+### Read
+- The candidate is level with a66c520 today: 35.8 vs 36.1, with worst frames 38–40 ms on both.
+- Across all 4 of today's candidate runs, no 5 s window went over 47 ms. The gate's 50–80 ms windows (3 of 4 runs
+  earlier) didn't come back.
+- So I can't attribute them to the world side (b39522b) or the animal side (77c03e9): neither shows a cost that would
+  explain them.
+- With the 500 ms stalls in the world smoke (slot 5) also gone the next session, the likelier story is an outside load
+  on the laptop during the gate session, not the merged tree. If it shows up again, check `tasklist` during the run
+  and take a capture on the spot.
+- Not a blocker by these numbers.
+
 ## 2026-10-31: slot 6, world-features b870008 (Z-30 grain 632f479 + more timber 69f3185) vs 3976d17: no change beyond noise; no GPU cost from the grain in town
 0 exceptions and no NaN-bounds lines in any run. No dialogs, and no 500 ms spikes (worst frame 45 ms). Every stop ended
 at the same spot (town 136,-475, townwalk 366,-406, glide 1197/1198,359).
