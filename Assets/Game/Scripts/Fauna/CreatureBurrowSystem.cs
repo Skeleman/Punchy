@@ -10,7 +10,7 @@ namespace Punchy.Fauna
     /// <summary>
     /// Tells the ground where worms have been tunnelling, for the world session's TerrainSurface.shader: a mound over
     /// each one's head and a trail of bumps it leaves behind, each staying where it was raised (TrailTime), and a crater
-    /// where one has broken out of the ground or dived back in (CraterTime). The 64 nearest the camera within Range go
+    /// where one has broken out of the ground or dived back in (CraterTime). The 32 nearest the camera within Range go
     /// out as _PunchyBurrowers and _PunchyBurrowerCount, each (x world x, y its age 0..1, z world z, w the radius of the
     /// worm that made it, in metres: positive a bump, negative a crater); 0 an empty slot. While a worm is out in its
     /// arc it raises no bumps: its body is there to be seen. From state every machine already has (positions are on
@@ -20,9 +20,13 @@ namespace Punchy.Fauna
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
     public partial class CreatureBurrowSystem : SystemBase
     {
-        public const int MaxBurrowers = 64;
-        /// <summary>How far from the camera a worm's marks are shown (TerrainSurface.shader draws them no further).</summary>
-        const float Range = 150f;
+        public const int MaxBurrowers = 32;
+        /// <summary>
+        /// How far from the camera a worm's marks are shown: _PunchyBurrowRange, which GraphicsSettings publishes as
+        /// DetailRange(BurrowRange) and TerrainSurface.shader draws them within (150 m before it's set).
+        /// </summary>
+        static float Range { get { var r = Shader.GetGlobalFloat(RangeId); return r > 0 ? r : 150f; } }
+        static readonly int RangeId = Shader.PropertyToID("_PunchyBurrowRange");
         /// <summary>How long a bump in a worm's trail stays (s), sinking away as its age runs to 1.</summary>
         const float TrailTime = 30f;
         /// <summary>How long a crater stays (s), fading as its age runs to 1.</summary>
@@ -134,7 +138,7 @@ namespace Punchy.Fauna
             Shader.SetGlobalInteger(CountId, count);
         }
 
-        /// <summary>Into a slot if it's within Range and among the 64 nearest the camera so far.</summary>
+        /// <summary>Into a slot if it's within Range and among the 32 nearest the camera so far.</summary>
         void Offer(Vector4 value, float distance)
         {
             if (distance > Range)
