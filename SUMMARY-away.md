@@ -66,3 +66,8 @@ FEEDBACK-v0.10.md (Z-IDs). No release goes out without Zach's go.
 - Passed by sight: Z-33 banners, Z-36 ripples, Z-39 ember pine, Z-40 forge, Z-41 ridge, Z-12 skirt, Z-09 (aurora behind clouds), Z-37 fireflies (weak).
 - Open: Z-10 fog not judged; Z-11 rain (light, no wiggle); cave shards not seen. New animal bug: paw prints land on the bench seat when a dog walks under it.
 - Next: the profiler checks the cost of the new grain on b870008.
+
+## 2026-10-31 08:15 — profiler slot 6 (b870008 vs 3976d17, BENCH-REPORTS 309d31f)
+- The new wood grain costs nothing measurable: Medium ABBA within noise (glide 1% low 31.1→31.0), town GPU 9.5 vs 9.8 ms. No exceptions, no NaN, no 500 ms spikes.
+- In-between gfx on b870008: glide 35.6, still passes. Medium glide is still about 31, below J-006.
+- Next: animal slot 7 (Z-07 Play circling, the bench paw prints, the Z-20 remote carry, a build of the animal-behaviours head).
