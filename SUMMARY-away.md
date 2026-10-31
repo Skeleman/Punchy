@@ -3,6 +3,22 @@
 Kept by the supervisor (kind-possum), newest first. The full detail is in REPORTS-*.md, BENCH-REPORTS.md and
 FEEDBACK-v0.10.md (Z-IDs). No release goes out without Zach's go.
 
+## 2026-10-30 ~22:30: first task-session slot (animal)
+- A fresh task session ran the animal slot from HANDOFF-animal.md: about 163k tokens for the whole slot (the old lane
+  paid ~50k per call at its size).
+- **Merged:** animal-behaviours 4f2f0a4, world-features 247c690.
+  - Worm trail with 32 marks and its range on the graphics Detail slider; the swimmer ripples; the worm arc and rock
+    avoidance (Z-28); carrying (Z-20, checked with a cat and a dog); creature graphics ranges; RockAt.
+  - **Z-07 spinning fixed:** animals turned at full speed within 10 cm of their target; an elf's door past its leash
+    pointed it at its own spot. The spin log dropped from 97 lines to 14.
+- **Still open:**
+  - Z-22 worker swings: too small in frame, so poses aren't merged.
+  - Spins while ducks, rabbits and prairie dogs play.
+  - Carrying a large animal, and a remote carrier.
+  - Z-28 jumps over rocks; one worm lies curled after landing.
+- **Graphics default:** the profiler measured Low as the only preset with frame-rate headroom on this laptop (Medium
+  gliding sits at ~30, as in v0.10). Left for Zach to decide; an in-between setting is queued for a test.
+
 ## 2026-10-30 21:25: usage limit; setup change
 - All four sessions hit the account's 5-hour usage limit at 17:21 and stalled until it reset at 20:30 (about 3 h lost).
 - Token telemetry: the world and animal lanes' contexts (~800k and ~530k tokens, re-read on every call) were ~75% of
