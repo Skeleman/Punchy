@@ -118,11 +118,8 @@ Shader "Punchy/Flora"
                 o.positionWS = v.positionWS;
                 o.positionCS = TransformWorldToHClip(v.positionWS);
                 o.normalWS = v.normalWS;
-                // Darker towards the ground and on downward faces (leaves and petals: towards the ground only).
-                int partV = (int)round(input.data.y);
-                half solid = partV == 1 || partV == 2 || partV == 5 ? 0 : 1;
-                half grounding = PunchyGrounding(v.positionWS.y - v.plant.position.y, v.normalWS.y, solid);
-                o.color = half4(input.color.rgb, input.data.w * grounding);
+                // (Darker towards the ground: worked out per pixel in Frag, from baseHeight.)
+                o.color = half4(input.color.rgb, input.data.w);
                 uint g = v.plant.ground;
                 o.ground = half4(g & 255, (g >> 8) & 255, (g >> 16) & 255, g >> 24) / 255.0;
                 o.baseHeight = float2(v.positionWS.y - v.plant.position.y, v.plant.scale);
@@ -255,7 +252,10 @@ Shader "Punchy/Flora"
                 half ndl = dot(n, light.direction);
                 half diffuse = leafy ? saturate(ndl * 0.6 + 0.4) : saturate(ndl * 0.8 + 0.2);
                 half through = leafy ? pow(saturate(dot(-v, light.direction)), 4) * 0.55 : 0;
-                half ao = input.color.a;
+                // Darker towards the ground and on downward faces (leaves and petals: towards the ground only), per pixel:
+                // worked out at the vertices it smeared the tight band at the ground over a whole face, so a building's
+                // foundation exposed on a slope (a metre or two of skirt) showed it stretched down its length (Z-12, G-22).
+                half ao = input.color.a * PunchyGrounding(input.baseHeight.x, n.y, part == 1 || part == 2 || part == 5 ? 0 : 1);
 
                 // Metal leaves: dim diffuse, the colour mostly comes from tinted reflections.
                 half3 color = albedo * (light.color * shadow * (diffuse + through) * lerp(0.6, 1, ao) + sky * ao) * (metal ? 0.45 : 1);
