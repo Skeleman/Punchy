@@ -1475,7 +1475,7 @@ namespace Punchy.Terrain
             b.Job = new MeshJob
             {
                 Source = source, Origin = origin, Cells = cells, Voxel = chunkVoxel,
-                Field = b.Field, CaveField = b.CaveField,
+                Field = b.Field, CaveField = b.CaveField, ShardProbe = ShardProbe,
                 Positions = b.Positions, Normals = b.Normals, Colors = b.Colors, Data = b.Data, Indices = b.Indices
             }.Schedule(field);
             JobHandle.ScheduleBatchedJobs();
@@ -1541,6 +1541,8 @@ namespace Punchy.Terrain
             }
         }
 
+        static readonly bool ShardProbe = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-caveshards") >= 0;
+
         [BurstCompile]
         struct MeshJob : IJob
         {
@@ -1555,6 +1557,8 @@ namespace Punchy.Terrain
             public NativeList<float4> Colors;
             public NativeList<float4> Data;
             public NativeList<int> Indices;
+            /// <summary>"-caveshards": walls no cave owns drawn magenta (the grey shards at cave mouths, style 0).</summary>
+            public bool ShardProbe;
 
             int Point(int x, int y, int z) => (z * (Cells.y + 1) + y) * (Cells.x + 1) + x;
             int Cell(int x, int y, int z) => (z * Cells.y + y) * Cells.x + x;
@@ -1687,6 +1691,11 @@ namespace Punchy.Terrain
                 }
                 data = new float4(math.max(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), open),
                                   0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f), cave >= 0 ? set.Caves[cave].Style : 0, ribShade);
+                if (ShardProbe && cave < 0)
+                {
+                    data.x = 1f;
+                    return new float4(1f, 0f, 1f, 1f);
+                }
                 return new float4(albedo, math.max(math.max(fromMouth, nearSurface), open));
             }
         }

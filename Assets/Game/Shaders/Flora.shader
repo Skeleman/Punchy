@@ -58,11 +58,17 @@ Shader "Punchy/Flora"
                 float along = axis == 1 ? p.x : axis == 2 ? p.y : p.z;
                 float2 across = axis == 1 ? p.yz : axis == 2 ? p.xz : p.xy;
                 float sideways = across.x + across.y;
-                float wobble = PunchyValueNoise(float2(along * 0.7, sideways * 2.0)) - 0.5;
-                half fine = smoothstep(0.4, 0.8, PunchyValueNoise(float2(sideways * 40 + wobble * 3, along * 1.4)));
-                half broad = smoothstep(0.35, 0.8, PunchyValueNoise(float2((across.x - across.y) * 9 + wobble * 2, along * 0.45)));
-                half grain = fine * 0.55 * PunchyOctave(0.025, footprint) + broad * 0.45 * PunchyOctave(0.11, footprint);
-                return 1 - grain * 0.32;
+                // Lines about 3 cm apart running along the piece, bent by a slow waver and a quicker one so they read
+                // as long wavy streaks, some fainter than others; broad lighter and darker bands under them. (The first
+                // version's streaks, at most 18% darker and mostly faded out by the pixel footprint, didn't show.)
+                float wobble = (PunchyValueNoise(float2(along * 0.6, sideways * 1.5)) - 0.5) * 2.0
+                             + (PunchyValueNoise(float2(along * 2.3, sideways * 5.0 + 7.1)) - 0.5) * 0.5;
+                float lines = sideways * 33 + wobble * 2;
+                half streak = smoothstep(0.55, 0.95, abs(frac(lines) * 2 - 1));
+                streak *= 0.55 + 0.45 * PunchyValueNoise(float2(lines * 0.5, along * 0.8));
+                half broad = PunchyValueNoise(float2(sideways * 8 + wobble, along * 0.35)) - 0.5;
+                half grain = streak * 0.45 * PunchyOctave(0.03, footprint) + broad * 0.35 * PunchyOctave(0.12, footprint);
+                return 1 - grain;
             }
 
             half3 PunchyWeathering(float3 p, half3 n, float footprint, half r)

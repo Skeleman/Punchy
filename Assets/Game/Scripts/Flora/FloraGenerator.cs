@@ -3064,6 +3064,7 @@ namespace Punchy.Flora
             var postRadius = Mathf.Max(0.05f, height * 0.055f);
             var posts = Mathf.Max(6, g.Count(s.Branches));
             var tops = new List<Vector3>();
+            b.Wood = true;   // posts, rails and trough are timber, with its grain (Z-30)
             for (int k = 0; k < posts; k++)
             {
                 var a = (k + 0.5f) / posts * Mathf.PI * 2f;
@@ -3090,6 +3091,7 @@ namespace Punchy.Flora
             }
             // A trough inside.
             b.Box(new Vector3(-radius * 0.45f, 0.22f, -radius * 0.35f), new Vector3(1.4f, 0.44f, 0.5f), Quaternion.Euler(0f, 30f, 0f), g.Bark * 0.7f, FloraPart.Bark);
+            b.Wood = false;
             // The rails stop the player (all but the gate).
             for (int k = 0; k < posts; k++)
             {
@@ -3179,6 +3181,7 @@ namespace Punchy.Flora
             b.Box(new Vector3(0f, wall * 0.5f - 0.1f, 0f), new Vector3(half * 2f, wall + 0.2f, front * 2f), Quaternion.identity, g.Bark, FloraPart.Bark);
             b.Occlude(first, (p, n) => GroundOcclusion(p, wall * 0.4f));
             var timber = g.Bark * 0.5f;
+            b.Wood = true;   // the timber band and corner posts (Z-30)
             if (g.Lod < 2)
             {
                 b.Box(new Vector3(0f, wall * 0.5f, 0f), new Vector3(half * 2f + 0.08f, 0.2f, front * 2f + 0.08f), Quaternion.identity, timber, FloraPart.Bark);
@@ -3186,6 +3189,7 @@ namespace Punchy.Flora
                 foreach (var z in new[] { -1f, 1f })
                     b.Box(new Vector3(x * half, wall * 0.5f, z * front), new Vector3(0.25f, wall, 0.25f), Quaternion.identity, timber, FloraPart.Bark);
             }
+            b.Wood = false;
 
             // Gabled roof: two slabs meeting at a ridge along X, and the gable ends filled in.
             var roof = g.FoliageColor();
@@ -3213,11 +3217,15 @@ namespace Punchy.Flora
                 foreach (var (x, y) in new[] { (-0.55f, 0.27f), (0.55f, 0.27f), (-0.55f, 0.75f), (0f, 0.75f), (0.55f, 0.75f) })
                     Window(g, new Vector3(x * half, y * wall, front + 0.03f), Quaternion.identity, 0.6f, 0.75f);
             var porch = 2.4f;
+            b.Wood = true;   // the porch deck and its posts (Z-30)
             b.Box(new Vector3(0f, 0.15f, front + porch * 0.5f), new Vector3(half * 1.8f, 0.3f, porch), Quaternion.identity, g.Bark * 0.75f, FloraPart.Bark);
+            b.Wood = false;
             b.Beam(new Vector3(0f, wall * 0.48f, front), new Vector3(0f, wall * 0.4f, front + porch + 0.3f), half * 1.9f, 0.12f, roof, FloraPart.Bark);
+            b.Wood = true;
             foreach (var x in new[] { -0.85f, 0.85f })
                 b.Tube(new List<Vector3> { new Vector3(x * half, 0.3f, front + porch - 0.1f), new Vector3(x * half, wall * 0.41f, front + porch - 0.1f) },
                        new List<float> { 0.1f, 0.1f }, g.Sides(6, 4, 3), timber, FloraPart.Bark);
+            b.Wood = false;
             // A sign hanging from the porch roof.
             if (g.Lod < 2)
                 b.Box(new Vector3(half * 0.55f, wall * 0.3f, front + porch + 0.2f), new Vector3(0.9f, 0.55f, 0.06f), Quaternion.identity, AccentAt(g, 1), FloraPart.Bark);
@@ -3247,6 +3255,7 @@ namespace Punchy.Flora
             // Stone plinth, then timber walls with posts.
             var first = b.VertexCount;
             b.Box(new Vector3(0f, plinth * 0.5f - 0.15f, 0f), new Vector3(half * 2f + 0.4f, plinth + 0.3f, front * 2f + 0.4f), Quaternion.identity, stone, FloraPart.Bark);
+            b.Wood = true;   // timber walls, posts and the wall plate (Z-30)
             b.Box(new Vector3(0f, (plinth + wall) * 0.5f, 0f), new Vector3(half * 2f, wall - plinth, front * 2f), Quaternion.identity, g.Bark, FloraPart.Bark);
             b.Occlude(first, (p, n) => GroundOcclusion(p, wall * 0.4f));
             if (g.Lod < 2)
@@ -3260,6 +3269,7 @@ namespace Punchy.Flora
                 }
                 b.Box(new Vector3(0f, wall - 0.12f, 0f), new Vector3(half * 2f + 0.12f, 0.25f, front * 2f + 0.12f), Quaternion.identity, timber, FloraPart.Bark);
             }
+            b.Wood = false;
 
             // Steep gabled roof along X, overhanging; gable ends filled; crossed beams rising past the ridge at each end.
             var roof = g.FoliageColor();
@@ -3275,10 +3285,12 @@ namespace Punchy.Flora
                 var v1 = b.Vertex(new Vector3(x * half, wall, front), Vector3.right * x, g.Bark, FloraPart.Bark, 0.9f);
                 var v2 = b.Vertex(new Vector3(x * half, ridge, 0f), Vector3.right * x, g.Bark, FloraPart.Bark, 0.9f);
                 b.Triangle(v0, v1, v2);
+                b.Wood = true;
                 if (g.Lod < 2)
                     foreach (var z in new[] { -1f, 1f })
                         b.Beam(new Vector3(x * (half + 0.6f), wall + (ridge - wall) * 0.55f, z * front * 0.55f), new Vector3(x * (half + 0.6f), ridge + 1.1f, -z * 0.5f),
                                0.22f, 0.18f, timber, FloraPart.Bark);
+                    b.Wood = false;
                 g.Perches.Add(new Vector3(x * half * 0.9f, ridge + 0.33f, 0f));
                 g.Perches.Add(new Vector3(x * (half + 0.6f), ridge + 1.19f, 0.5f));
             }
@@ -3302,14 +3314,18 @@ namespace Punchy.Flora
                 foreach (var x in new[] { -2.2f, 2.2f })
                 {
                     var foot = new Vector3(x, 0f, front + 1.4f);
+                    b.Wood = true;
                     b.Tube(new List<Vector3> { foot + Vector3.down * 0.2f, foot + Vector3.up * (wall + 1.2f) }, new List<float> { 0.08f, 0.06f }, g.Sides(6, 4, 3), timber, FloraPart.Bark);
+                    b.Wood = false;
                     g.Perches.Add(foot + Vector3.up * (wall + 1.2f));
                     // A banner hung from a short bar near the top of the pole, free to wave below it.
                     var top = wall + 1.1f;
                     var banner = b.VertexCount;
                     b.Sheet(foot + new Vector3(x * 0.12f - 0.45f, top, 0f), Vector3.right * 0.9f, Vector3.down * 1.8f, g.Sides(4, 1, 1), g.Sides(6, 2, 1), AccentAt(g, 1), FloraPart.Bark);
                     b.Cloth(banner, p => (foot.y + top - p.y) / 1.8f);
+                    b.Wood = true;
                     b.Box(foot + new Vector3(x * 0.12f, top, 0f), new Vector3(1.0f, 0.05f, 0.05f), Quaternion.identity, timber, FloraPart.Bark);
+                    b.Wood = false;
                 }
             }
 
@@ -3573,6 +3589,7 @@ namespace Punchy.Flora
             g.Width = length;
             g.TrunkRadius = 0f;
             var wood = g.Bark;
+            b.Wood = true;   // planks, stringers, piles and rails are timber, with its grain (Z-30)
             // Planks, each a slightly different shade and height so the deck doesn't read as one board.
             var planks = g.Lod == 0 ? 22 : g.Lod == 1 ? 11 : 1;
             for (int k = 0; k < planks; k++)
@@ -3594,6 +3611,7 @@ namespace Punchy.Flora
                 if (g.Lod == 0)
                     b.Box(new Vector3(x * (half - 0.05f), rail * 0.5f, 0f), new Vector3(0.06f, 0.07f, length), Quaternion.identity, wood * 0.8f, FloraPart.Bark);
             }
+            b.Wood = false;
         }
 
         /// <summary>
@@ -3642,10 +3660,12 @@ namespace Punchy.Flora
             g.TrunkRadius = 0f;
 
             // An open shed: corner posts under a pyramid roof.
+            b.Wood = true;   // the shed's corner posts (Z-30)
             foreach (var x in new[] { -1f, 1f })
             foreach (var z in new[] { -1f, 1f })
                 b.Tube(new List<Vector3> { new Vector3(x * half, -0.05f, z * depth), new Vector3(x * half, eaves, z * depth) },
                        new List<float> { 0.12f, 0.11f }, g.Sides(6, 4, 3), g.Bark, FloraPart.Bark);
+            b.Wood = false;
             var roof = b.VertexCount;
             b.Tube(new List<Vector3> { Vector3.up * (eaves - 0.1f), Vector3.up * height }, new List<float> { Mathf.Max(half, depth) * 1.414f * 1.15f, 0.05f },
                    4, g.FoliageColor(), FloraPart.Bark, cap: true);
@@ -3679,7 +3699,9 @@ namespace Punchy.Flora
             // The anvil on its block.
             var anvil = new Vector3(half * 0.3f, 0f, depth * 0.25f);
             var iron = new Color(0.06f, 0.06f, 0.07f);
+            b.Wood = true;   // the anvil's block (Z-30)
             b.Box(anvil + Vector3.up * 0.3f, new Vector3(0.35f, 0.6f, 0.35f), Quaternion.identity, g.Bark * 0.6f, FloraPart.Bark);
+            b.Wood = false;
             b.Box(anvil + Vector3.up * 0.72f, new Vector3(0.75f, 0.24f, 0.3f), Quaternion.identity, iron, FloraPart.Metal);
         }
 
@@ -3791,7 +3813,9 @@ namespace Punchy.Flora
             }
             // The chopping block in front, with an axe in it.
             var block = new Vector3(length * 0.25f, 0f, log * 2.05f * 2.5f + 0.6f);
+            b.Wood = true;   // the chopping block (Z-30)
             b.Tube(new List<Vector3> { block + Vector3.down * 0.05f, block + Vector3.up * 0.5f }, new List<float> { 0.3f, 0.28f }, g.Sides(9, 6, 4), g.Bark * 0.85f, FloraPart.Bark);
+            b.Wood = false;
             b.Blob(block + Vector3.up * 0.5f, new Vector3(0.28f, 0.02f, 0.28f), Quaternion.identity, 1, 0f, 0f, g.Bark * 1.3f, FloraPart.Bark);
             if (g.Lod < 2)
             {
