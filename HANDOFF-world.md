@@ -1,4 +1,4 @@
-# Handoff: world lane (laptop, from zache-73), 2026-10-30 evening
+# Handoff: world lane (laptop, from zache-73), 2026-10-31 (after slot 1)
 
 Supervisor: the laptop session "Unity build analytics supervisor setup" (kind-possum); tasks by message and in
 QUEUE-world.md; report per batch in REPORTS-world.md (LF, newest first) plus one message. One Unity at a time on the
@@ -6,23 +6,23 @@ laptop: open Unity (or bench builds) only in a slot the supervisor gives you, an
 Worktree: C:\Users\zache\Projects\Punchy-world. Zach's feedback list: FEEDBACK-v0.10.md (W rows are this lane).
 
 ## Branches
-- **world-features 0c637a9** (pushed): cave hitch, F-40 trodden mask, G-37 rocks, worm marks, cave-chunk, gfx settings
-  (F5 panel + Quit), P1 rows Z-09/10/11/12a/13, zache-db's gfx-creatures.
-- **world-laptop/z-p2 e2f1c97** (13 commits on world-features, UNCOMPILED): Z-33 banners + cloth LOD, Z-37 fireflies,
-  Z-38 brown caps (incl. FungalGlowCap/FungalGlimmerCap, fungal forest only), Z-39 ember slivers, Z-36 bubble ripples,
-  Z-41 ridge tiles, Z-42 IceSlab/IceCrag + FloraSpecies.KeepOwnColour, Z-40 forge ember pit, Z-30 wood grain
-  (FloraMeshBuilder.Wood), Z-12 per-pixel grounding (Flora.shader).
-- **world-laptop/blocked-top e58eed2** (2 commits, UNCOMPILED): FloraPlacement.Blocked(..., out top) and RockAt(...).
-  zache-db merged it into wip/worm-arc; when they report it builds clean, land it on world-features.
+- **world-features 3976d17** (pushed): everything from 247c690 (worm/wake halves, worm arcs, blocked-top + RockAt,
+  gfx-creatures) plus the whole of z-p2: Z-33 banners + cloth LOD, Z-37 fireflies, Z-38 brown caps, Z-39 ember slivers,
+  Z-36 bubble ripples, Z-41 ridge tiles, Z-42 IceSlab/IceCrag, Z-40 forge pit, Z-30 wood grain, Z-12 per-pixel grounding.
+  Built clean; ABBA vs 247c690 (townwalk, glide) no change beyond noise; 0 exceptions in 35 look runs.
+- world-laptop/z-p2 and world-laptop/blocked-top are fully merged (can be deleted).
 
-## Next slot (one combined local branch, built once)
-1. Merge z-p2 + blocked-top locally onto world-features, build (bench runner `build`), fix compile errors.
-2. `bench.sh smoke <new> <wf>`; if NOT CLEAN, confirm with `bench.sh ab <wf> <new> townwalk` (ABBA) before chasing.
-3. Looks (contact sheets): Z-33 banners, Z-36 geyser pops, Z-37 great tree at night, Z-38 fungal forest, Z-39 ember
-   forest, Z-40 smithy forge, Z-41 stone house roof, Z-42 glacier, Z-30 wood before (Bench-7f519c0) / after,
-   Z-12 a fountain/forum on a slope from below the base, Z-09 night with clouds, Z-10 river + fog, Z-11 bench in rain.
-4. Probe the grey shards at cave mouths (style-0 cave mesh: orphan surface-net islands?), then fix.
-5. Merge what passes to world-features; push; report.
+## Next slot
+1. Looks still owed on world-features 3976d17 (the first slot's shots missed most targets, see REPORTS 2026-10-31):
+   Z-30 bench/stall wood before (Bench-7f519c0) / after (Bench-3976d17) close up; Z-33 banners moving; Z-36 a pop ripple
+   up close; Z-37 fireflies by the great tree at night; Z-39 ember pine at night up close; Z-40 smithy forge; Z-41 ridge
+   close; Z-12 fountain skirt from below; Z-09 shooting star vs clouds; Z-10 river under fog; Z-11 bench in rain.
+2. First find the targets' real coordinates: `-place tree:<species>` only finds plants on the tree layer (Bench, Stall,
+   Smithy, EmberPine fell back to a forest), the memory's falls/cave-mouth points are stale (fallsplace stop reported
+   637,2475). A probe that logs the nearest placed prop of a species (FloraPlacement) would settle it in one run.
+3. Rain: bench route stops force "Partly cloudy" except storm/stormshore (Mountains, Lake shore); a `-benchday <name>`
+   flag in BenchmarkRoute (bench runner branch) would allow rain at any spot.
+4. Then Z-30 follow-up (mark smithy, inn, hall, pen, bridge, woodpile timber), cave-mouth grey shards probe.
 
 ## Open rows
 - Z-31 vertical lines in close-up detail on buildings: look first (suspect triplanar detail texture seam).
@@ -63,3 +63,5 @@ Worktree: C:\Users\zache\Projects\Punchy-world. Zach's feedback list: FEEDBACK-v
 - `git commit -p` with piped input does commit; don't chain git after a Python assert; check `git log` before push.
 - GitHub pushes sometimes fail with 500s: retry. Branch switches can take >2 min (hooks): use long timeouts.
 - Benches: smoke can say NOT CLEAN from round order alone; ABBA `ab` decides.
+- Window grabs (CopyFromScreen) from a background shell capture whatever window is on top, and keystrokes go
+  to it too: use the bench route's in-game `-benchshots` (one shot per stop; `-camlook` holds the camera).

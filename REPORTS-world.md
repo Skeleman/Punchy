@@ -2,6 +2,22 @@
 
 Newest first.
 
+## 2026-10-31: world slot 1 (task session): z-p2 built, benched, merged; looks partly done
+
+- **world-features 3976d17** (pushed) = 247c690 + world-laptop/z-p2 (13 commits; blocked-top was already in via
+  worm-arc). Built clean first time. Smoke vs 247c690 said NOT CLEAN (glide cap 0 1% low 36->23 from ~500 ms spikes);
+  the ABBA `ab 247c690 3976d17 townwalk,glide` says no change beyond noise (townwalk 48.6->54.4, glide 35.6->34.2).
+  35 look runs, 0 exceptions.
+- **Seen and fine:** Z-38 fungal forest caps read tawny/brown; Z-42 glacier has IceCrag (stacked icy tor, reads a bit
+  like a cairn of pancakes) and IceSlab blocks next to the arch; dwarf hold hall roofs and stone houses by day and night
+  at 20 m show no artefacts; geyser pool bubbles show (ripple not judged at that distance).
+- **Not judged (shots missed the target):** Z-30 before/after, Z-33, Z-36 ripple, Z-37, Z-39, Z-40, Z-41 up close,
+  Z-12 skirt, Z-09, Z-10, Z-11, Z-31, Z-32, Z-34, Z-35, cave-mouth shards. Causes: `-place tree:` only knows tree-layer
+  plants; stale falls/cave coordinates; no rain outside the storm stops. Next slot in HANDOFF-world.md.
+- Seen in passing: big screen-door dithered patches where a canopy or giant cap is between camera and player (the
+  see-through dither) in fungal, falls and storm shots; expected, but they're large on giant caps.
+- Unity and every Punchy.exe started here closed; main checkout on b/weather-mapjob; bench lock clear.
+
 ## 2026-10-30: Zach's answers on Z-12 and Z-38; RockAt for the worm, zache-73
 
 - **Z-12 stretched base (654d748, z-p2): DONE in code.** The flora shader worked out "grounding" (darker toward the
