@@ -31,6 +31,7 @@ MonoBehaviour:
   Finish: 0
   GlowingAccents: 0
   GlowPulse: 0.12
+  StoneSeat: 1
   MaxSlope: 30
   Elevation: {x: 0.5, y: 10000}
   GrassAffinity: 0

@@ -23,8 +23,8 @@ MonoBehaviour:
   Flexibility: 0
   FlowerHead: 0
   Bark: {r: 0.7, g: 0.66, b: 0.56, a: 1}
-  Foliage: {r: 0.88, g: 0.84, b: 0.74, a: 1}
-  FoliageVariation: {r: 0.78, g: 0.72, b: 0.6, a: 1}
+  Foliage: {r: 0.74, g: 0.64, b: 0.5, a: 1}
+  FoliageVariation: {r: 0.6, g: 0.48, b: 0.34, a: 1}
   Accents: []
   AccentAmount: 0.3
   ColorVariation: 0.12

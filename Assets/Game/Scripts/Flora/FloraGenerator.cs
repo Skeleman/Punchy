@@ -40,6 +40,11 @@ namespace Punchy.Flora
         /// </summary>
         public readonly List<Vector4> Colliders = new List<Vector4>();
         /// <summary>
+        /// Basins of open water it holds (a fountain's): centre (x, y, z) and radius (w), before the plant's own rotation
+        /// and scale. FloraSystem draws them with the terrain's own water (Z-12).
+        /// </summary>
+        public readonly List<Vector4> Pools = new List<Vector4>();
+        /// <summary>
         /// Places a bird can sit on its top (a roof's peak or ridge ends, a chimney, a post), before the plant's own
         /// rotation and scale. Empty for most plants (see FloraPlacement.NearPerches).
         /// </summary>
@@ -125,6 +130,7 @@ namespace Punchy.Flora
                     case FloraForm.Ruin: Ruin(g); break;
                     case FloraForm.Bedroll: Bedroll(g); break;
                     case FloraForm.RailFence: RailFence(g); break;
+                    case FloraForm.FloatingRock: FloatingRock(g); break;
                     case FloraForm.Tent: Tent(g); break;
                     case FloraForm.Tower: Tower(g); break;
                     case FloraForm.Pen: Pen(g); break;
@@ -172,6 +178,7 @@ namespace Punchy.Flora
                     model.TrunkRadius = g.TrunkRadius;
                     model.Colliders.AddRange(g.Colliders);
                     model.Perches.AddRange(g.Perches);
+                    model.Pools.AddRange(g.Pools);
                     model.DoorHeight = g.DoorHeight;
                     model.Height = g.Height;
                     if (g.TrunkAxis != null)
@@ -180,7 +187,10 @@ namespace Punchy.Flora
                         model.TrunkLeanTop = AxisAt(g.TrunkAxis, g.Height);
                     }
                 }
-                model.Lods[lod] = builder.ToMesh($"{species.name} {variant} LOD{lod}", g.Height, g.Width, species.Flexibility);
+                // Built things stand rigid in the wind (benches, halls, palisades swayed like plants, Z-11); a garden's
+                // plants still move, and cloth has its own motion (Flora.hlsl).
+                var flexibility = Founded(species.Form) && species.Form != FloraForm.Garden ? 0f : species.Flexibility;
+                model.Lods[lod] = builder.ToMesh($"{species.name} {variant} LOD{lod}", g.Height, g.Width, flexibility);
             }
             return model;
         }
@@ -249,6 +259,7 @@ namespace Punchy.Flora
             public List<List<Vector3>> Limbs;
             public readonly List<Vector4> Colliders = new List<Vector4>();
             public readonly List<Vector3> Perches = new List<Vector3>();
+            public readonly List<Vector4> Pools = new List<Vector4>();
 
             /// <summary>
             /// Adds upright cylinders covering a rotated ellipsoid's footprint: a row of circles along its longer
@@ -1200,9 +1211,20 @@ namespace Punchy.Flora
                            new List<float> { stemRadius * 1.25f, stemRadius, stemRadius * 0.9f }, g.Sides(7, 5, 3), g.Bark, FloraPart.Bark);
                 b.Occlude(firstStem, (p, n) => GroundOcclusion(p, h * 0.3f) * 0.9f);
 
-                // The cap, and darker gills underneath it.
+                // The cap, and darker gills underneath it. A glowing giant's cap is plain (a natural colour between its
+                // glow and its stem's), its light only in the veins of its gills (G-31/F-46: not mostly glowing).
+                var glowingGiant = giant && s.Finish == FoliageFinish.Glowing;
+                // ...and leans brown, from dark umber to tawny, keeping a hint of its kind's hue, so the forest's crowns read as
+                // one earthy canopy rather than pastel green, violet and blue (Z-38).
+                // (Drawn only for them, so other mushrooms' random draws and shapes stay as they were.)
+                var capColor = color;
+                if (glowingGiant)
+                {
+                    var brown = Color.Lerp(new Color(0.34f, 0.22f, 0.13f), new Color(0.56f, 0.42f, 0.27f), g.R()).linear;
+                    capColor = Color.Lerp(Color.Lerp(color, g.Bark, 0.6f) * 0.75f, brown, 0.6f);
+                }
                 var cap = b.Blob(top + tilt * Vector3.up * capHeight * 0.25f, new Vector3(capRadius, capHeight, capRadius), tilt,
-                                 g.Lod == 0 ? 2 : g.Lod == 1 ? 1 : 0, 0.06f, seed, color, FloraPart.Foliage);
+                                 g.Lod == 0 ? 2 : g.Lod == 1 ? 1 : 0, 0.06f, seed, capColor, glowingGiant ? FloraPart.Bark : FloraPart.Foliage);
                 // Giants: a near-flat underside (the cap's lower half squashed in its own frame), so the gills under it
                 // hide from a side view.
                 if (giant)
@@ -1231,22 +1253,25 @@ namespace Punchy.Flora
                     b.Blob(top - tilt * Vector3.up * capHeight * 0.05f, new Vector3(capRadius * 0.92f, capHeight * 0.18f, capRadius * 0.92f), tilt,
                            0, 0f, seed, color * 0.45f, FloraPart.Foliage, 0.45f);
                 // Giants: gills, thin dark lines radiating from the stem under the cap, just below its lower curve, so
-                // they show from beneath and never from the side.
-                if (giant && g.Lod == 0)
+                // they show from beneath and never from the side; a glowing giant's glow in its colour (fewer a step
+                // further off, so the light still shows there).
+                if (giant && (g.Lod == 0 || glowingGiant && g.Lod == 1))
                 {
                     var centre = top + tilt * Vector3.up * capHeight * 0.25f;
-                    var gill = Color.Lerp(color, g.Bark, 0.4f) * 0.45f;
+                    var gill = glowingGiant ? color : Color.Lerp(color, g.Bark, 0.4f) * 0.45f;
+                    var gillPart = glowingGiant ? FloraPart.Glow : FloraPart.Bark;
+                    var gillCount = g.Lod == 0 ? 30 : 14;
                     Vector3 Under(Vector3 dir, float r) =>
                         centre + tilt * (dir * r - Vector3.up * (capHeight * 0.3f * Mathf.Sqrt(Mathf.Max(1f - r * r / (capRadius * capRadius), 0f)) + 0.01f));
-                    for (int k = 0; k < 30; k++)
+                    for (int k = 0; k < gillCount; k++)
                     {
-                        var dir = Quaternion.AngleAxis(k * 12f + g.Range(-3f, 3f), Vector3.up) * Vector3.forward;
+                        var dir = Quaternion.AngleAxis(k * 360f / gillCount + g.Range(-3f, 3f), Vector3.up) * Vector3.forward;
                         var inner = Under(dir, stemRadius * 1.3f);
                         var mid = Under(dir, capRadius * 0.55f);
                         var outer = Under(dir, capRadius * 0.88f);
                         var shade = gill * g.Range(0.8f, 1.2f);
-                        b.Beam(inner, mid, capRadius * 0.05f, capRadius * 0.006f, shade, FloraPart.Bark);
-                        b.Beam(mid, outer, capRadius * 0.045f, capRadius * 0.006f, shade, FloraPart.Bark);
+                        b.Beam(inner, mid, capRadius * 0.05f, capRadius * 0.006f, shade, gillPart);
+                        b.Beam(mid, outer, capRadius * 0.045f, capRadius * 0.006f, shade, gillPart);
                     }
                 }
                 // Spots on the cap.
@@ -1393,10 +1418,19 @@ namespace Punchy.Flora
             for (int side = -1; side <= 1; side += 2)
                 b.Box(new Vector3(side * 0.62f, (BenchSeat - 0.06f) * 0.5f, 0f), new Vector3(0.22f, BenchSeat - 0.06f, 0.36f),
                       Quaternion.Euler(0f, g.Range(-3f, 3f), 0f), stone, FloraPart.Bark);
-            // Two planks side by side, a hair apart.
-            for (int k = 0; k < 2; k++)
-                b.Box(new Vector3(0f, BenchSeat - 0.03f, (k - 0.5f) * 0.2f), new Vector3(1.8f, 0.06f, 0.18f),
-                      Quaternion.Euler(0f, g.Range(-1f, 1f), 0f), g.Bark * g.Range(0.92f, 1.05f), FloraPart.Bark);
+            // Two planks side by side, a hair apart; or one carved stone slab, overhanging its feet (Z-11: the elves'
+            // stone benches had wooden planks).
+            if (g.S.StoneSeat)
+                b.Box(new Vector3(0f, BenchSeat - 0.05f, 0f), new Vector3(1.9f, 0.1f, 0.44f),
+                      Quaternion.Euler(0f, g.Range(-1f, 1f), 0f), g.Bark * g.Range(0.95f, 1.03f), FloraPart.Bark);
+            else
+            {
+                b.Wood = true;
+                for (int k = 0; k < 2; k++)
+                    b.Box(new Vector3(0f, BenchSeat - 0.03f, (k - 0.5f) * 0.2f), new Vector3(1.8f, 0.06f, 0.18f),
+                          Quaternion.Euler(0f, g.Range(-1f, 1f), 0f), g.Bark * g.Range(0.92f, 1.05f), FloraPart.Bark);
+                b.Wood = false;
+            }
             g.Colliders.Add(new Vector4(-0.5f, 0f, 0.3f, BenchSeat));
             g.Colliders.Add(new Vector4(0.5f, 0f, 0.3f, BenchSeat));
         }
@@ -1821,44 +1855,41 @@ namespace Punchy.Flora
             var height = g.Range(s.Height);
             var half = height * Mathf.Max(s.Spread, 0.5f) * 0.5f;
             var leg = height * Mathf.Max(s.Thickness, 0.05f);
+            var part = s.Finish == FoliageFinish.Glass ? FloraPart.Glass : FloraPart.Bark;
+            var lean = g.Range(-0.12f, 0.12f) * half;
+            // Each variant its own shape (G-29: on an open glacier one model seen again and again gave itself away): a
+            // wider or narrower span, a fuller or more pointed bow, one foot sunk deeper than the other; about a quarter
+            // broken (two horns with the crown fallen in), and some of the rest with a smaller arch crossing them.
+            half *= g.Range(0.8f, 1.25f);
+            var profile = g.Range(0.6f, 1.5f);
+            var footRise = -g.Range(0f, 0.15f) * height;   // only ever lower: a raised foot would stand off flat ground
+            var broken = g.R() < 0.25f;
+            var gap = g.Range(0.38f, 0.5f);
+            var twin = !broken && g.R() < 0.2f;
+            var twinTurn = g.Range(55f, 125f);
             g.Height = height;
             g.Width = half * 2f + leg * 2f;
             g.TrunkRadius = 0f;
-            var part = s.Finish == FoliageFinish.Glass ? FloraPart.Glass : FloraPart.Bark;
-            var lean = g.Range(-0.12f, 0.12f) * half;
             var rings = g.Lod == 0 ? 18 : g.Lod == 1 ? 11 : 7;
             var sides = g.Sides(9, 7, 5);
-            var path = new List<Vector3>();
-            var radii = new List<float>();
-            for (int i = 0; i <= rings; i++)
-            {
-                var t = i / (float)rings;
-                var a = t * Mathf.PI;
-                // A half ellipse from foot to foot (feet a little below the ground), leaning slightly one way.
-                var p = new Vector3(-Mathf.Cos(a) * half, Mathf.Sin(a) * height - 0.3f, Mathf.Sin(a) * lean);
-                p += new Vector3(g.Range(-0.08f, 0.08f), g.Range(-0.06f, 0.06f), g.Range(-0.1f, 0.1f)) * leg;
-                path.Add(p);
-                var thick = Mathf.Lerp(1f, 0.55f, Mathf.Sin(a));
-                radii.Add(leg * thick * (i == 0 || i == rings ? 1.35f : 1f) * g.Range(0.88f, 1.1f));
-            }
-            // The feet carry on straight down into the ground, so they stay seated where it isn't quite level (F-44).
-            var sink = 0.5f + height * 0.12f;
-            path.Insert(0, path[0] + Vector3.down * sink);
-            radii.Insert(0, radii[0]);
-            path.Add(path[path.Count - 1] + Vector3.down * sink);
-            radii.Add(radii[radii.Count - 1]);
             var first = b.VertexCount;
-            b.Tube(path, radii, sides, g.FoliageColor(), part);
+            Bow(half, height, lean, 0f, 1f);
+            if (twin)
+            {
+                // A smaller arch through the first, turned across it, its feet inside the big one's.
+                var twinFirst = b.VertexCount;
+                Bow(half * 0.62f, height * 0.7f, -lean * 0.5f, 0f, 1f);
+                RotateFrom(b, twinFirst, Quaternion.Euler(0f, twinTurn, 0f));
+            }
             // Darker underneath, where the bow shades itself.
             b.Occlude(first, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y * 0.5f + 0.6f)));
-            if (g.Lod < 2 && part == FloraPart.Glass)
+            if (g.Lod < 2 && part == FloraPart.Glass && !broken)
             {
                 // Icicles under the crown (ice arches only; not rock ones).
                 for (int k = 0; k < 6; k++)
                 {
                     var t = g.Range(0.3f, 0.7f);
-                    var a = t * Mathf.PI;
-                    var top = new Vector3(-Mathf.Cos(a) * half, Mathf.Sin(a) * height - 0.3f - leg * 0.45f, Mathf.Sin(a) * lean);
+                    var top = Point(half, height, lean, t) + Vector3.down * leg * 0.45f;
                     var length = leg * g.Range(0.8f, 2.2f);
                     b.Tube(new List<Vector3> { top, top + Vector3.down * length }, new List<float> { leg * 0.16f, leg * 0.02f },
                            g.Sides(5, 4, 3), g.FoliageColor(), part);
@@ -1866,6 +1897,56 @@ namespace Punchy.Flora
             }
             foreach (var x in new[] { -half, half })
                 g.Colliders.Add(new Vector4(x, 0f, leg * 1.3f, height * 0.4f));
+
+            // A point on a bow at t (0 one foot, 1 the other): a half ellipse raised to the profile's power, the far foot
+            // footRise lower, leaning slightly one way (sin clamped at 0: sin(pi) is a hair below 0 in floats, and a negative
+            // to a fractional power is NaN, which left every arch with NaN bounds).
+            Vector3 Point(float w, float h, float l, float t)
+            {
+                var a = t * Mathf.PI;
+                return new Vector3(-Mathf.Cos(a) * w, Mathf.Pow(Mathf.Max(Mathf.Sin(a), 0f), profile) * h - 0.3f + footRise * t, Mathf.Sin(a) * l);
+            }
+
+            // One bow of ice or rock (broken into two horns if this variant is), its feet carried on straight down into
+            // the ground so they stay seated where it isn't quite level (F-44).
+            void Bow(float w, float h, float l, float from, float to)
+            {
+                var path = new List<Vector3>();
+                var radii = new List<float>();
+                for (int i = 0; i <= rings; i++)
+                {
+                    var t = Mathf.Lerp(from, to, i / (float)rings);
+                    var p = Point(w, h, l, t);
+                    p += new Vector3(g.Range(-0.08f, 0.08f), g.Range(-0.06f, 0.06f), g.Range(-0.1f, 0.1f)) * leg;
+                    path.Add(p);
+                    var thick = Mathf.Lerp(1f, 0.55f, Mathf.Sin(t * Mathf.PI));
+                    radii.Add(leg * thick * (i == 0 || i == rings ? 1.35f : 1f) * g.Range(0.88f, 1.1f));
+                }
+                var sink = 0.5f + h * 0.12f;
+                if (!broken)
+                {
+                    path.Insert(0, path[0] + Vector3.down * sink);
+                    radii.Insert(0, radii[0]);
+                    path.Add(path[path.Count - 1] + Vector3.down * sink);
+                    radii.Add(radii[radii.Count - 1]);
+                    b.Tube(path, radii, sides, g.FoliageColor(), part);
+                    return;
+                }
+                // Broken: each foot up to the gap, capped where it snapped.
+                var cut = Mathf.RoundToInt(rings * gap);
+                var left = path.GetRange(0, cut + 1);
+                var leftRadii = radii.GetRange(0, cut + 1);
+                left.Insert(0, left[0] + Vector3.down * sink);
+                leftRadii.Insert(0, leftRadii[0]);
+                b.Tube(left, leftRadii, sides, g.FoliageColor(), part, cap: true);
+                var right = path.GetRange(rings - cut, cut + 1);
+                var rightRadii = radii.GetRange(rings - cut, cut + 1);
+                right.Reverse();
+                rightRadii.Reverse();
+                right.Insert(0, right[0] + Vector3.down * sink);
+                rightRadii.Insert(0, rightRadii[0]);
+                b.Tube(right, rightRadii, sides, g.FoliageColor(), part, cap: true);
+            }
         }
 
         static void Bones(Grower g)
@@ -2270,6 +2351,79 @@ namespace Punchy.Flora
                        g.Sides(1, 1, 0), 0.3f, g.R() * 100f, Color.Lerp(g.Bark, g.Bark * 1.4f, g.R()), FloraPart.Metal, 1f, 0.5f);
             }
             b.Orbit(floating, height * 0.06f);
+        }
+
+        /// <summary>
+        /// An enormous magnetic rock floating over the electric wastelands (G-37), turning slowly and bobbing (Orbit): a
+        /// jagged mass of a few blocks, shaped by variant (a tall shard, a flat slab, a cluster), smaller shards round it,
+        /// and arcs crackling from it to some of them; a scorched, cracked mound on the ground beneath.
+        /// </summary>
+        static void FloatingRock(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var size = g.Range(s.Height);
+            var lift = size * g.Range(0.6f, 1.1f) + 2f;
+            g.Height = lift + size;
+            g.Width = size * 1.6f;
+            g.TrunkRadius = 0f;
+
+            var mound = size * 0.6f;
+            var first = b.VertexCount;
+            b.Blob(Vector3.up * mound * 0.04f, new Vector3(mound, mound * 0.18f, mound * 0.9f), Quaternion.Euler(0f, g.R() * 360f, 0f),
+                   g.Sides(2, 1, 0), 0.45f, g.R() * 100f, g.Bark * 0.6f, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, mound));
+
+            var floating = b.VertexCount;
+            var centre = Vector3.up * (lift + size * 0.5f);
+            var kind = g.Variant % 3;
+            var dims = kind == 0 ? new Vector3(0.42f, 1f, 0.5f) : kind == 1 ? new Vector3(1f, 0.32f, 0.8f) : new Vector3(0.72f, 0.62f, 0.7f);
+            dims *= size * 0.5f;
+            var blocks = kind == 2 ? 4 : 2;
+            for (int k = 0; k < blocks; k++)
+            {
+                var offset = k == 0 ? Vector3.zero : Vector3.Scale(new Vector3(g.Range(-0.7f, 0.7f), g.Range(-0.5f, 0.5f), g.Range(-0.7f, 0.7f)), dims);
+                var scale = k == 0 ? 1f : g.Range(0.45f, 0.7f);
+                b.Blob(centre + offset, dims * scale, Quaternion.Euler(g.Range(-25f, 25f), g.R() * 360f, g.Range(-25f, 25f)),
+                       g.Sides(2, 1, 1), 0.38f, g.R() * 100f, Color.Lerp(g.Bark, g.Bark * 1.5f, g.R() * 0.5f), FloraPart.Bark);
+            }
+            // The mass only turns (a per-vertex bob would warp something this big); the shards and arcs bob as well.
+            b.Orbit(floating, 0f);
+            var loose = b.VertexCount;
+            // Shards round it.
+            var shards = new List<Vector3>();
+            var count = g.Lod == 2 ? 3 : 7;
+            for (int k = 0; k < count; k++)
+            {
+                var a = k / (float)count * 6.28f + g.Range(-0.3f, 0.3f);
+                var at = centre + new Vector3(Mathf.Cos(a), g.Range(-0.6f, 0.6f), Mathf.Sin(a)) * size * g.Range(0.75f, 1.05f);
+                var piece = size * g.Range(0.05f, 0.12f);
+                b.Blob(at, new Vector3(piece, piece * g.Range(0.6f, 1.2f), piece * g.Range(0.6f, 1f)), Quaternion.Euler(g.R() * 360f, g.R() * 360f, g.R() * 360f),
+                       g.Sides(1, 1, 0), 0.35f, g.R() * 100f, g.Bark * 1.3f, FloraPart.Metal, 1f, 0.5f);
+                shards.Add(at);
+            }
+            // Arcs from the rock to some of its shards (they crackle: FloraPart.Arc).
+            if (g.Lod < 2)
+            {
+                var arcColor = s.Foliage.linear;
+                for (int k = 0; k < shards.Count; k += 2)
+                {
+                    var from = centre + (shards[k] - centre).normalized * Mathf.Min(dims.x, dims.z) * 0.9f;
+                    var to = shards[k];
+                    var path = new List<Vector3>();
+                    var radii = new List<float>();
+                    var points = g.Sides(8, 5, 3);
+                    for (int j = 0; j < points; j++)
+                    {
+                        var t = j / (points - 1f);
+                        var zig = j == 0 || j == points - 1 ? Vector3.zero : (new Vector3(g.R(), g.R(), g.R()) - Vector3.one * 0.5f) * Vector3.Distance(from, to) * 0.2f;
+                        path.Add(Vector3.Lerp(from, to, t) + zig);
+                        radii.Add(size * 0.006f);
+                    }
+                    b.Tube(path, radii, 3, arcColor, FloraPart.Arc);
+                }
+            }
+            b.Orbit(loose, size * 0.03f);
         }
 
         static void Columns(Grower g)
@@ -2725,6 +2879,7 @@ namespace Punchy.Flora
         {
             var s = g.S;
             var b = g.B;
+            b.Wood = true;   // timber throughout, with its grain (Z-30)
             var height = g.Range(s.Height);
             const float length = 3f;
             g.Height = height;
@@ -2971,6 +3126,8 @@ namespace Punchy.Flora
             g.TrunkRadius = 0f;
             var post = 0.06f;
             var frontHeight = height * 0.82f;
+            // Posts and counter are timber, with its grain (Z-30).
+            b.Wood = true;
             foreach (var x in new[] { -0.5f, 0.5f })
             foreach (var z in new[] { -0.5f, 0.5f })
             {
@@ -2980,6 +3137,7 @@ namespace Punchy.Flora
             }
             // Counter across the front, and goods laid out on it.
             b.Box(new Vector3(0f, 0.45f, depth * 0.5f - 0.15f), new Vector3(width * 0.95f, 0.9f, 0.45f), Quaternion.identity, g.Bark * 0.8f, FloraPart.Bark);
+            b.Wood = false;
             if (g.Lod < 2)
                 for (int k = 0; k < 7; k++)
                 {
@@ -2996,7 +3154,7 @@ namespace Punchy.Flora
             {
                 var x = k / (float)stripes - 0.5f;
                 var colour = k % 2 == 0 ? g.FoliageColor() : AccentAt(g, 0);
-                b.Sheet(back + Vector3.right * x * width * 1.1f, Vector3.right * width * 1.1f / stripes, front - back, 1, g.Sides(5, 3, 1), colour, FloraPart.Bark);
+                b.Sheet(back + Vector3.right * x * width * 1.1f, Vector3.right * width * 1.1f / stripes, front - back, 1, g.Sides(5, 2, 1), colour, FloraPart.Bark);
             }
             b.Cloth(awning, p => 0.3f * Mathf.Sin(Mathf.Clamp01(Mathf.InverseLerp(back.z, front.z, p.z)) * Mathf.PI), taut: true);
         }
@@ -3034,6 +3192,9 @@ namespace Punchy.Flora
             var ridge = height;
             foreach (var z in new[] { -1f, 1f })
                 b.Beam(new Vector3(0f, wall - 0.25f, z * (front + 0.6f)), new Vector3(0f, ridge + 0.1f, 0f), half * 2f + 0.8f, 0.18f, roof, FloraPart.Bark);
+            // A rounded ridge tile along the top, so the slabs meet in a soft bevel, not a hard point (Z-41).
+            b.Tube(new List<Vector3> { new Vector3(-half - 0.4f, ridge + 0.13f, 0f), new Vector3(half + 0.4f, ridge + 0.13f, 0f) },
+                   new List<float> { 0.15f, 0.15f }, g.Sides(6, 4, 3), roof * 0.92f, FloraPart.Bark, cap: true);
             foreach (var x in new[] { -1f, 1f })
             {
                 var v0 = b.Vertex(new Vector3(x * half, wall, -front), Vector3.right * x, g.Bark, FloraPart.Bark, 0.9f);
@@ -3042,8 +3203,8 @@ namespace Punchy.Flora
                 b.Triangle(v0, v1, v2);
             }
             b.Box(new Vector3(half * 0.6f, height * 0.85f, -front * 0.35f), new Vector3(0.6f, height * 0.5f, 0.6f), Quaternion.identity, Stone(g), FloraPart.Bark);
-            g.Perches.Add(new Vector3(-half - 0.2f, ridge + 0.19f, 0f));
-            g.Perches.Add(new Vector3(half + 0.2f, ridge + 0.19f, 0f));
+            g.Perches.Add(new Vector3(-half - 0.2f, ridge + 0.29f, 0f));
+            g.Perches.Add(new Vector3(half + 0.2f, ridge + 0.29f, 0f));
             g.Perches.Add(new Vector3(half * 0.6f, height * 1.1f, -front * 0.35f));
 
             // Door, windows (lit at night) and the porch out front.
@@ -3105,6 +3266,9 @@ namespace Punchy.Flora
             var ridge = height;
             foreach (var z in new[] { -1f, 1f })
                 b.Beam(new Vector3(0f, wall - 0.35f, z * (front + 0.9f)), new Vector3(0f, ridge + 0.1f, 0f), half * 2f + 1.2f, 0.22f, roof, FloraPart.Bark);
+            // A rounded ridge tile along the top (Z-41: a soft bevel, not a hard point).
+            b.Tube(new List<Vector3> { new Vector3(-half - 0.6f, ridge + 0.14f, 0f), new Vector3(half + 0.6f, ridge + 0.14f, 0f) },
+                   new List<float> { 0.18f, 0.18f }, g.Sides(6, 4, 3), roof * 0.92f, FloraPart.Bark, cap: true);
             foreach (var x in new[] { -1f, 1f })
             {
                 var v0 = b.Vertex(new Vector3(x * half, wall, -front), Vector3.right * x, g.Bark, FloraPart.Bark, 0.9f);
@@ -3115,7 +3279,7 @@ namespace Punchy.Flora
                     foreach (var z in new[] { -1f, 1f })
                         b.Beam(new Vector3(x * (half + 0.6f), wall + (ridge - wall) * 0.55f, z * front * 0.55f), new Vector3(x * (half + 0.6f), ridge + 1.1f, -z * 0.5f),
                                0.22f, 0.18f, timber, FloraPart.Bark);
-                g.Perches.Add(new Vector3(x * half * 0.9f, ridge + 0.21f, 0f));
+                g.Perches.Add(new Vector3(x * half * 0.9f, ridge + 0.33f, 0f));
                 g.Perches.Add(new Vector3(x * (half + 0.6f), ridge + 1.19f, 0.5f));
             }
 
@@ -3143,7 +3307,7 @@ namespace Punchy.Flora
                     // A banner hung from a short bar near the top of the pole, free to wave below it.
                     var top = wall + 1.1f;
                     var banner = b.VertexCount;
-                    b.Sheet(foot + new Vector3(x * 0.12f - 0.45f, top, 0f), Vector3.right * 0.9f, Vector3.down * 1.8f, g.Sides(4, 2, 1), g.Sides(6, 3, 1), AccentAt(g, 1), FloraPart.Bark);
+                    b.Sheet(foot + new Vector3(x * 0.12f - 0.45f, top, 0f), Vector3.right * 0.9f, Vector3.down * 1.8f, g.Sides(4, 1, 1), g.Sides(6, 2, 1), AccentAt(g, 1), FloraPart.Bark);
                     b.Cloth(banner, p => (foot.y + top - p.y) / 1.8f);
                     b.Box(foot + new Vector3(x * 0.12f, top, 0f), new Vector3(1.0f, 0.05f, 0.05f), Quaternion.identity, timber, FloraPart.Bark);
                 }
@@ -3347,7 +3511,7 @@ namespace Punchy.Flora
             var flapTurn = Quaternion.Euler(-Mathf.Atan2(foot, height) * Mathf.Rad2Deg * 0.4f, 0f, 0f);
             var flapTop = new Vector3(0f, doorY * 0.5f, doorZ) + flapTurn * new Vector3(-0.8f, doorY * 0.5f, 0.04f);
             var flap = b.VertexCount;
-            b.Sheet(flapTop, flapTurn * Vector3.right * 1.6f, flapTurn * Vector3.down * doorY, g.Sides(4, 2, 1), g.Sides(4, 2, 1), s.Foliage.linear * 0.5f, FloraPart.Bark, 0.6f);
+            b.Sheet(flapTop, flapTurn * Vector3.right * 1.6f, flapTurn * Vector3.down * doorY, g.Sides(4, 1, 1), g.Sides(4, 2, 1), s.Foliage.linear * 0.5f, FloraPart.Bark, 0.6f);
             b.Cloth(flap, p => (flapTop.y - p.y) / doorY * 0.45f);
             if (g.Lod < 2)
             {
@@ -3371,6 +3535,7 @@ namespace Punchy.Flora
         {
             var s = g.S;
             var b = g.B;
+            b.Wood = true;   // timber throughout, with its grain (Z-30)
             var height = g.Range(s.Height);
             g.Height = height;
             g.Width = 1.6f;
@@ -3486,10 +3651,28 @@ namespace Punchy.Flora
                    4, g.FoliageColor(), FloraPart.Bark, cap: true);
             RotateFrom(b, roof, Quaternion.Euler(0f, 45f, 0f));
 
-            // The forge at the back: a stone hearth of glowing coals, and its chimney up through the roof.
+            // The forge at the back: a stone hearth with its coals sunk in a pit inside a raised rim (Z-40: they sat on top),
+            // glowing embers among dark coals, and its chimney up through the roof.
             var hearth = new Vector3(0f, 0.55f, -depth * 0.45f);
-            b.Box(hearth, new Vector3(half * 1.1f, 1.1f, depth * 0.8f), Quaternion.identity, Stone(g), FloraPart.Bark);
-            b.Blob(hearth + Vector3.up * 0.58f, new Vector3(half * 0.4f, 0.12f, depth * 0.28f), Quaternion.identity, 1, 0.3f, g.R() * 50f, AccentAt(g, 0), FloraPart.Glow);
+            float hearthX = half * 1.1f, hearthZ = depth * 0.8f, bed = 0.85f, rim = 0.15f;
+            b.Box(new Vector3(hearth.x, bed * 0.5f, hearth.z), new Vector3(hearthX, bed, hearthZ), Quaternion.identity, Stone(g), FloraPart.Bark);
+            foreach (var side in new[] { -1f, 1f })
+            {
+                b.Box(new Vector3(hearth.x, (bed + 1.1f) * 0.5f, hearth.z + side * (hearthZ - rim) * 0.5f), new Vector3(hearthX, 1.1f - bed, rim),
+                      Quaternion.identity, Stone(g), FloraPart.Bark);
+                b.Box(new Vector3(hearth.x + side * (hearthX - rim) * 0.5f, (bed + 1.1f) * 0.5f, hearth.z), new Vector3(rim, 1.1f - bed, hearthZ - rim * 2f),
+                      Quaternion.identity, Stone(g), FloraPart.Bark);
+            }
+            var pit = new Vector2(hearthX * 0.5f - rim - 0.08f, hearthZ * 0.5f - rim - 0.08f);
+            var embers = g.Lod == 0 ? 7 : 3;
+            for (int k = 0; k < embers; k++)
+            {
+                var at = new Vector3(hearth.x + g.Range(-pit.x, pit.x), bed + 0.02f, hearth.z + g.Range(-pit.y, pit.y));
+                var size = g.Range(0.08f, 0.17f);
+                var glowing = k % 3 != 2;
+                b.Blob(at, new Vector3(size, size * 0.6f, size * g.Range(0.8f, 1.2f)), Quaternion.Euler(0f, g.R() * 360f, 0f), 1, 0.3f, g.R() * 50f,
+                       glowing ? AccentAt(g, 0) : g.Bark * 0.25f, glowing ? FloraPart.Glow : FloraPart.Bark);
+            }
             b.Box(new Vector3(0f, (1.1f + height + 0.8f) * 0.5f, -depth * 0.7f), new Vector3(0.7f, height + 0.8f - 1.1f, 0.6f), Quaternion.identity, Stone(g) * 0.85f, FloraPart.Bark);
             g.Perches.Add(Vector3.up * height);
             g.Perches.Add(new Vector3(0f, height + 0.8f, -depth * 0.7f));
@@ -3548,14 +3731,34 @@ namespace Punchy.Flora
             b.Tube(new List<Vector3> { Vector3.down * 0.1f, Vector3.up * 0.6f }, new List<float> { radius, radius }, sides, g.Bark, FloraPart.Bark);
             b.Occlude(first, (p, n) => GroundOcclusion(p, 0.6f));
             b.Tube(new List<Vector3> { Vector3.up * 0.58f, Vector3.up * 0.7f }, new List<float> { radius + 0.12f, radius + 0.12f }, sides, g.Bark * 1.05f, FloraPart.Bark);
+            // The rim's top: a flat stone ring from just inside the wall out to the rim's edge (from above, the gap
+            // between the wall and the rim showed the ground below, Z-12).
+            var rimTop = b.VertexCount;
+            for (int k = 0; k < sides; k++)
+            {
+                var a = k * Mathf.PI * 2f / sides;
+                var round = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                b.Vertex(round * (radius - 0.08f) + Vector3.up * 0.7f, Vector3.up, g.Bark * 1.05f, FloraPart.Bark, 1f);
+                b.Vertex(round * (radius + 0.12f) + Vector3.up * 0.7f, Vector3.up, g.Bark * 1.05f, FloraPart.Bark, 1f);
+            }
+            for (int k = 0; k < sides; k++)
+            {
+                int inner0 = rimTop + k * 2, inner1 = rimTop + (k + 1) % sides * 2;
+                b.Triangle(inner0, inner1, inner0 + 1);
+                b.Triangle(inner0 + 1, inner1, inner1 + 1);
+            }
+            // The water itself is drawn by FloraSystem with the terrain's water (Pools); this disc, just under it, stands in
+            // beyond the range it's drawn to.
             var water = s.Foliage.linear;
-            b.Blob(Vector3.up * 0.66f, new Vector3(radius * 0.97f, 0.03f, radius * 0.97f), Quaternion.identity, g.Sides(2, 1, 1), 0f, 0f, water, FloraPart.Metal);
+            b.Blob(Vector3.up * 0.64f, new Vector3(radius * 0.97f, 0.03f, radius * 0.97f), Quaternion.identity, g.Sides(2, 1, 1), 0f, 0f, water, FloraPart.Metal);
+            g.Pools.Add(new Vector4(0f, 0.66f, 0f, radius * 0.97f));
 
             // A pillar holding up a smaller bowl, brimming, with a finial on top.
             b.Tube(new List<Vector3> { Vector3.up * 0.5f, Vector3.up * height * 0.72f }, new List<float> { 0.22f, 0.16f }, g.Sides(8, 6, 4), g.Bark, FloraPart.Bark);
             g.Colliders.Add(new Vector4(0f, 0f, 0.3f, height * 0.72f));
             b.Blob(Vector3.up * height * 0.75f, new Vector3(radius * 0.38f, 0.14f, radius * 0.38f), Quaternion.identity, g.Sides(2, 1, 1), 0f, 0f, g.Bark, FloraPart.Bark);
-            b.Blob(Vector3.up * (height * 0.75f + 0.1f), new Vector3(radius * 0.34f, 0.03f, radius * 0.34f), Quaternion.identity, 1, 0f, 0f, water, FloraPart.Metal);
+            b.Blob(Vector3.up * (height * 0.75f + 0.08f), new Vector3(radius * 0.34f, 0.03f, radius * 0.34f), Quaternion.identity, 1, 0f, 0f, water, FloraPart.Metal);
+            g.Pools.Add(new Vector4(0f, height * 0.75f + 0.1f, 0f, radius * 0.34f));
             b.Tube(new List<Vector3> { Vector3.up * height * 0.78f, Vector3.up * height }, new List<float> { 0.09f, 0.03f }, g.Sides(6, 4, 3), g.Bark, FloraPart.Bark, cap: true);
         }
 

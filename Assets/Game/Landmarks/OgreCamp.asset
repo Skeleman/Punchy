@@ -78,6 +78,7 @@ MonoBehaviour:
     Count: 2
     Angle: 0
     Clearance: 4.5
+    Trodden: 7
   - Species: {fileID: 11400000, guid: bb680d1260298604d98103ae46a2b5bc, type: 2}
     Density: 1
     Ring: {x: 0.11666667, y: 0.11666667}

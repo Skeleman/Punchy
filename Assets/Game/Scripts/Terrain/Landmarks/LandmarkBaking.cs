@@ -558,6 +558,7 @@ namespace Punchy.Terrain
             ref var root = ref builder.ConstructRoot<LandmarkSetBlob>();
 
             var pools = new List<LandmarkPoolData>();
+            var trodden = new List<LandmarkTroddenData>();
             var typeArray = builder.Allocate(ref root.Types, types.Count);
             for (int t = 0; t < types.Count; t++)
             {
@@ -565,6 +566,12 @@ namespace Punchy.Terrain
                 var first = pools.Count;
                 foreach (var p in type.Pools)
                     pools.Add(new LandmarkPoolData { Offset = p.Offset, Radius = p.Radius, Depth = p.Depth });
+                // Worn ground round placed props, at the spots FloraPlacement puts them.
+                var firstTrodden = trodden.Count;
+                foreach (var p in type.Props)
+                    if (p.Species != null && p.Count > 0 && p.Trodden > 0f)
+                        for (int k = 0; k < p.Count; k++)
+                            trodden.Add(new LandmarkTroddenData { Offset = LandmarkLayout.Spot(p.Ring.x, p.Angle + k * 360f / p.Count), Radius = p.Trodden });
                 var water = type.WaterColor.linear;
                 typeArray[t] = new LandmarkTypeData
                 {
@@ -577,6 +584,8 @@ namespace Punchy.Terrain
                     Roughness = type.Roughness,
                     FirstPool = first,
                     PoolCount = pools.Count - first,
+                    FirstTrodden = firstTrodden,
+                    TroddenCount = trodden.Count - firstTrodden,
                     OverrideWater = type.OverrideWater ? 1 : 0,
                     Water = new float4(water.r, water.g, water.b, type.WaterMurk),
                     WaterGlow = type.WaterGlow,
@@ -590,6 +599,9 @@ namespace Punchy.Terrain
             var poolArray = builder.Allocate(ref root.Pools, pools.Count);
             for (int i = 0; i < pools.Count; i++)
                 poolArray[i] = pools[i];
+            var troddenArray = builder.Allocate(ref root.Trodden, trodden.Count);
+            for (int i = 0; i < trodden.Count; i++)
+                troddenArray[i] = trodden[i];
             var instanceArray = builder.Allocate(ref root.Instances, instances.Count);
             for (int i = 0; i < instances.Count; i++)
                 instanceArray[i] = instances[i];

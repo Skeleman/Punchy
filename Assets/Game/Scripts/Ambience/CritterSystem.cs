@@ -62,7 +62,7 @@ namespace Punchy.Ambience
         [StructLayout(LayoutKind.Sequential)]
         public struct Critter
         {
-            public float3 Position;   // home, on the ground
+            public float3 Position;   // home: on the ground, or a layer or two up round a great tree
             public float Random;
             public float4 Color;
         }
@@ -166,7 +166,7 @@ namespace Punchy.Ambience
         {
             scratch.Clear();
             foreach (var kv in tiles)
-                if (math.distance(TileCentre(kv.Key), camXZ) > Radius + TileSize * 1.5f)
+                if (math.distance(TileCentre(kv.Key), camXZ) > Punchy.Settings.GraphicsSettings.DetailRange(Radius) + TileSize * 1.5f)
                     scratch.Add(kv.Key);
             foreach (var key in scratch)
             {
@@ -175,14 +175,15 @@ namespace Punchy.Ambience
             }
 
             scratch.Clear();
-            var r = (int)math.ceil(Radius / TileSize) + 1;
+            var radius = Punchy.Settings.GraphicsSettings.DetailRange(Radius);
+            var r = (int)math.ceil(radius / TileSize) + 1;
             var centre = (int2)math.floor(camXZ / TileSize);
             for (int z = -r; z <= r; z++)
             for (int x = -r; x <= r; x++)
             {
                 var c = centre + new int2(x, z);
                 var min = (float2)c * TileSize;
-                if (!tiles.ContainsKey(c) && math.distance(math.clamp(camXZ, min, min + TileSize), camXZ) < Radius)
+                if (!tiles.ContainsKey(c) && math.distance(math.clamp(camXZ, min, min + TileSize), camXZ) < radius)
                     scratch.Add(c);
             }
             if (scratch.Count == 0)
@@ -351,9 +352,12 @@ namespace Punchy.Ambience
                 else
                     color = math.lerp(new float3(0.75f, 1f, 0.25f), new float3(1f, 0.85f, 0.3f), rng.NextFloat());
 
+                // The great tree's fireflies fill its height as well as its feet: two in three hover higher, a layer
+                // or two up round the crown (Z-37); the shader still drifts each one round its own spot.
+                var lift = colours ? rng.NextInt(3) * 4f : 0f;
                 Output[i] = new Critter
                 {
-                    Position = new float3(xz.x, math.max(ground.Height, ground.HasWater ? ground.WaterSurface : ground.Height), xz.y),
+                    Position = new float3(xz.x, math.max(ground.Height, ground.HasWater ? ground.WaterSurface : ground.Height) + lift, xz.y),
                     Random = rng.NextFloat(),
                     Color = new float4(color, 1f)
                 };

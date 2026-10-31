@@ -59,6 +59,18 @@ MonoBehaviour:
     Glow: 0.3
     Period: 0
     Duty: 0.25
+  - Kind: 3
+    Offset: {x: 0, y: 0}
+    Height: 0
+    Width: 3
+    Size: 0.1
+    Particles: 30
+    Lifetime: 1.8
+    Color: {r: 0.7, g: 1, b: 0.5, a: 1}
+    Opacity: 0.6
+    Glow: 0.6
+    Period: 0
+    Duty: 0.25
   Residents:
   - Species: {fileID: 11400000, guid: ea3b1d325a970834bb97ef8d83d14ff0, type: 2}
     Count: {x: 2, y: 4}

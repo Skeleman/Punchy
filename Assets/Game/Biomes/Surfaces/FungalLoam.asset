@@ -12,12 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e24e316f8fdd0004ebea7acc0e8c3824, type: 3}
   m_Name: FungalLoam
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.TerrainSurface
-  Albedo: {r: 0.2, g: 0.15, b: 0.17, a: 1}
-  Smoothness: 0.12
+  Albedo: {r: 0.29, g: 0.21, b: 0.17, a: 1}
+  Smoothness: 0.06
   Metallic: 0
   Emission: {r: 0, g: 0, b: 0, a: 1}
   ColorVariation: 0.16
   Bumpiness: 0.4
   GrassDensity: 0.25
   Pebbles: 0.05
+  Strata: 0
   SnowDepth: 0

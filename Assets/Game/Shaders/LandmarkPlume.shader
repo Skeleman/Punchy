@@ -4,7 +4,8 @@ Shader "Punchy/Landmark Plume"
     // own glow, faded where they touch the ground and seen through the atmosphere.
     SubShader
     {
-        Tags { "RenderType" = "Transparent" "Queue" = "Transparent" "RenderPipeline" = "UniversalPipeline" }
+        // After the water, which otherwise could draw over puffs and bubbles on its surface.
+        Tags { "RenderType" = "Transparent" "Queue" = "Transparent+10" "RenderPipeline" = "UniversalPipeline" }
         Blend SrcAlpha OneMinusSrcAlpha
         ZWrite Off
         Cull Off
@@ -33,6 +34,7 @@ Shader "Punchy/Landmark Plume"
                 float alpha : TEXCOORD2;
                 float4 screen : TEXCOORD3;
                 nointerpolation uint emitter : TEXCOORD4;
+                nointerpolation float age : TEXCOORD5;   // negative: a bubble (see BuildPlume)
             };
 
             Varyings Vert(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
@@ -45,12 +47,37 @@ Shader "Punchy/Landmark Plume"
                 o.alpha = p.alpha;
                 o.screen = ComputeScreenPos(o.positionCS);
                 o.emitter = instance / _MaxParticles;
+                o.age = p.age;
                 return o;
             }
 
             half4 Frag(Varyings input) : SV_Target
             {
                 LandmarkEmitter e = _LandmarkEmitters[input.emitter];
+                // A bubble: a glinting dome that swells, then, where it burst, ripples spreading as a swimmer's do (Z-36:
+                // the swimmers' rings, Water.shader): a lit crest with darker troughs either side and a weaker ring
+                // inside it, dying away as (1 - t) squared.
+                if (input.age < 0)
+                {
+                    float a = -input.age;
+                    float d = length(input.uv);
+                    half dome = (1 - smoothstep(0.85, 1, d)) * (0.25 + 0.75 * smoothstep(0.55, 0.15, length(input.uv - float2(-0.3, 0.35))));
+                    const float w = 0.07;
+                    float dd = d - 0.8;
+                    half crest = exp(-dd * dd / (w * w)) + 0.5 * exp(-(d - 0.45) * (d - 0.45) / (w * w));
+                    half trough = exp(-(dd + 0.15) * (dd + 0.15) / (w * w)) + 0.7 * exp(-(dd - 0.14) * (dd - 0.14) / (w * w));
+                    half fade = 1 - saturate((a - 0.6) / 0.4);
+                    half ripple = (crest + trough * 0.7) * fade * fade;
+                    half shape = a < 0.6 ? dome * smoothstep(0, 0.15, a) : ripple;
+                    half bubbleAlpha = shape * input.alpha;
+                    clip(bubbleAlpha - 0.002);
+                    Light sunLight = GetMainLight();
+                    half3 bubbleLit = e.color.rgb * PunchyEffectLight(e, input.positionWS, half3(0, 1, 0), sunLight.color * 0.8, SampleSH(half3(0, 1, 0))) + e.color.rgb * e.color.a;
+                    // The ripple's troughs are the water darkened, its crests the light caught on it.
+                    if (a >= 0.6)
+                        bubbleLit = lerp(e.color.rgb * 0.3, bubbleLit * 1.2, crest / max(crest + trough, 1e-3));
+                    return half4(PunchyAtmosphere(bubbleLit, input.positionWS), bubbleAlpha);
+                }
                 float soft = saturate(1 - dot(input.uv, input.uv));
                 float wisp = PunchyValueNoise(input.uv * 2.0 + input.positionWS.xz * 0.15 + input.positionWS.y * 0.1) * 0.6 + 0.4;
                 half alpha = soft * soft * wisp * input.alpha;

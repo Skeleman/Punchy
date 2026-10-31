@@ -93,12 +93,13 @@ namespace Punchy.Ambience
                 Gather(source, palette.Landmarks, cam.transform.position);
             }
             var eye = cam.transform.position;
+            var flameRange = Punchy.Settings.GraphicsSettings.DetailRange(FlameRange);
             // Night-only fires catch as the light goes (the sky's night past a fifth) and die down at dawn.
             var lit = math.saturate((Shader.GetGlobalFloat(NightId) - 0.2f) / 0.3f);
             foreach (var f in fires)
             {
                 var size = f.night ? f.size * lit : f.size;
-                if (size > 0.02f && (f.at - eye).sqrMagnitude < FlameRange * FlameRange)
+                if (size > 0.02f && (f.at - eye).sqrMagnitude < flameRange * flameRange)
                     FireSystem.AddFlame(f.at, size, f.seed, f.palette);
             }
             Draw();
@@ -132,7 +133,7 @@ namespace Punchy.Ambience
             {
                 ref var inst = ref set.Instances[i];
                 var type = inst.Type < types.Length ? types[inst.Type] : null;
-                if (type != null && type.Effects.Count > 0 && math.distance(inst.Position, cam) < Range + set.Types[inst.Type].Radius * inst.Scale)
+                if (type != null && type.Effects.Count > 0 && math.distance(inst.Position, cam) < Punchy.Settings.GraphicsSettings.ViewRange(Range) + set.Types[inst.Type].Radius * inst.Scale)
                     nearby.Add(i);
             }
             // Cave waterfalls near the camera (they're small and underground: within CaveRange), as -(index + 1).
@@ -140,7 +141,7 @@ namespace Punchy.Ambience
             {
                 ref var caveFalls = ref source.Caves.Value.Waterfalls;
                 for (int k = 0; k < caveFalls.Length; k++)
-                    if (math.distance(caveFalls[k].Lip.xz, cam) < CaveRange)
+                    if (math.distance(caveFalls[k].Lip.xz, cam) < Punchy.Settings.GraphicsSettings.DetailRange(CaveRange))
                         nearby.Add(-(k + 1));
             }
             if (nearby.Count == lastNearby.Count && nearby.TrueForAll(lastNearby.Contains))
@@ -266,6 +267,9 @@ namespace Punchy.Ambience
                     }
                     else
                     {
+                        // Bubbles ride the plume's draw, flagged by a negative lifetime (LandmarkEffects.hlsl).
+                        if (effect.Kind == LandmarkEffectKind.Bubbles)
+                            emitter.Shape.w = -math.max(effect.Lifetime, 0.1f);
                         plumes.Add(emitter);
                         maxParticles = math.max(maxParticles, effect.Particles);
                         top = y + effect.Height * inst.Scale;

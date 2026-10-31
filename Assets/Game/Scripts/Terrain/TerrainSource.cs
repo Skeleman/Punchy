@@ -418,17 +418,23 @@ namespace Punchy.Terrain
         /// couple of metres round (CaveSystem.WallReach), under the terrain, so the terrain's per-vertex cut never shows a
         /// gap. 100 away from caves.
         /// </summary>
-        public float MouthCut(float2 xz, float h)
+        public float MouthCut(float2 xz, float h) => MouthCut(xz, h, out _);
+
+        /// <summary>MouthCut, and the cave field's own distance at the point it samples (100 away from caves).</summary>
+        public float MouthCut(float2 xz, float h, out float cave)
         {
+            cave = 100f;
             if (!Caves.IsCreated || !CaveSampling.NearColumn(ref Caves.Value, xz))
                 return 100f;
             // Into the ground along its normal, as the walls' field measures depth across the slope: mouths open in cliff
             // faces, where straight down is somewhere else entirely.
-            const float depth = 0.35f;
             var normal = SampleNormal(xz, 0.5f);
-            var cave = CaveDistance(new float3(xz.x, h, xz.y) - normal * depth);
-            return math.min(CaveSampling.SmoothMin(depth - 0.1f, cave, CaveSampling.MouthBlend), 100f);
+            cave = CaveDistance(new float3(xz.x, h, xz.y) - normal * MouthCutDepth);
+            return math.min(CaveSampling.SmoothMin(MouthCutDepth - 0.1f, cave, CaveSampling.MouthBlend), 100f);
         }
+
+        /// <summary>How far into the ground MouthCut samples the cave field.</summary>
+        public const float MouthCutDepth = 0.35f;
 
         /// <summary>
         /// How far the ground surface at a spot (height h) is from cave air: negative where the terrain is cut away
@@ -609,6 +615,8 @@ namespace Punchy.Terrain
                 LandmarkSampling.Ground(ref Landmarks.Value, xz, context.EdgeNoise, context.ColorNoise, ref result);
             if (Settlements.IsCreated)
                 SettlementSampling.Ground(ref Settlements.Value, xz, context.EdgeNoise, context.ColorNoise, ref result);
+            if (Landmarks.IsCreated)
+                LandmarkSampling.TroddenGround(ref Landmarks.Value, xz, context.EdgeNoise, ref result);
             return result;
         }
 

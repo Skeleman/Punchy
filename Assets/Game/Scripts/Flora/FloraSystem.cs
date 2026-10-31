@@ -79,6 +79,8 @@ namespace Punchy.Flora
         class Layer
         {
             public LayerSettings Settings;
+            /// <summary>Settings' Radius and LOD distances at the graphics settings (see ScaleRanges).</summary>
+            public float Radius, Lod1Distance, Lod2Distance;
             public int Index;
             public int ModelBase, ModelCount;
             public readonly Dictionary<int2, NativeArray<FloraInstance>> Tiles = new Dictionary<int2, NativeArray<FloraInstance>>();
@@ -139,7 +141,7 @@ namespace Punchy.Flora
         float nextConfigCheck;
 
         World queryWorld;
-        EntityQuery terrainQuery, paletteQuery, playerQuery;
+        EntityQuery terrainQuery, paletteQuery, playerQuery, configQuery;
         Entity obstacleEntity;
         /// <summary>Every model's support grid (a SupportGrids singleton) and, per model, its grid's index (-1 none).</summary>
         BlobAssetReference<SupportGridSet> supportSet;
@@ -184,11 +186,88 @@ namespace Punchy.Flora
 
         void OnDisable() => Teardown();
 
+        // ------------------------------------------------------------------------------------------- fountains' water
+
+        /// <summary>A basin of water in a plant in a loaded tile (FloraModel.Pools: a fountain's), in the world.</summary>
+        struct Basin
+        {
+            public int Layer;
+            public int2 Tile;
+            public float3 Centre;
+            public float Radius;
+            public int Model;
+        }
+        readonly List<Basin> basins = new List<Basin>();
+        /// <summary>One water disc per model (its species' water colour baked in), made when first drawn.</summary>
+        readonly Dictionary<int, Mesh> basinMeshes = new Dictionary<int, Mesh>();
+        /// <summary>How far fountains' water is drawn with the terrain's water (at Detail 1); beyond it their models' own discs stand in.</summary>
+        const float BasinRange = 80f;
+
+        /// <summary>Notes the basins of a newly loaded tile's plants (turned and scaled as the plants are).</summary>
+        void AddBasins(Layer l, int2 tile, NativeArray<FloraInstance> plants)
+        {
+            foreach (var plant in plants)
+            {
+                if (plant.Model < 0 || plant.Model >= models.Count || models[plant.Model].Pools.Count == 0)
+                    continue;
+                float c = math.cos(plant.Yaw), sn = math.sin(plant.Yaw);
+                foreach (var pool in models[plant.Model].Pools)
+                {
+                    var offset = new float2(pool.x * c - pool.z * sn, pool.x * sn + pool.z * c) * plant.Scale;
+                    basins.Add(new Basin
+                    {
+                        Layer = l.Index,
+                        Tile = tile,
+                        Centre = plant.Position + new float3(offset.x, pool.y * plant.Scale, offset.y),
+                        Radius = pool.w * plant.Scale,
+                        Model = plant.Model
+                    });
+                }
+            }
+        }
+
+        /// <summary>
+        /// Fountains' water near the camera, drawn as the landmark pools are (CaveSystem): a disc in the terrain's water
+        /// material, so it ripples, reflects and catches the light as all other water does (Z-12; it was a shiny disc).
+        /// </summary>
+        void DrawBasins(float3 camPos)
+        {
+            // (Only called once TryGetWorld has made the queries.)
+            if (basins.Count == 0 || configQuery.IsEmpty)
+                return;
+            var water = configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value;
+            if (water == null)
+                return;
+            foreach (var basin in basins)
+            {
+                if (math.distance(basin.Centre, camPos) > Punchy.Settings.GraphicsSettings.DetailRange(BasinRange) + basin.Radius)
+                    continue;
+                if (!basinMeshes.TryGetValue(basin.Model, out var mesh))
+                {
+                    var colour = models[basin.Model].Species.Foliage.linear;
+                    mesh = CaveSystem.MakePoolMesh(new float4(colour.r, colour.g, colour.b, 0.1f), 0f);
+                    mesh.name = "Fountain basin";
+                    basinMeshes[basin.Model] = mesh;
+                }
+                var rp = new RenderParams(water)
+                {
+                    worldBounds = new Bounds(basin.Centre, new Vector3(basin.Radius * 2f, 1f, basin.Radius * 2f)),
+                    shadowCastingMode = ShadowCastingMode.Off,
+                    receiveShadows = true
+                };
+                Graphics.RenderMesh(rp, mesh, 0, Matrix4x4.TRS(basin.Centre, Quaternion.identity, new Vector3(basin.Radius, 1f, basin.Radius)));
+            }
+        }
+
         void Teardown()
         {
             foreach (var l in layers)
                 l?.Release();
             Array.Clear(layers, 0, layers.Length);
+            basins.Clear();
+            foreach (var mesh in basinMeshes.Values)
+                Destroy(mesh);
+            basinMeshes.Clear();
             foreach (var m in models)
                 m.Destroy();
             models.Clear();
@@ -226,6 +305,7 @@ namespace Punchy.Flora
                 configStamp = ConfigStamp(palette);
             }
 
+            ScaleRanges();
             // Deep in a cave the surface's plants are out of sight: no placing, no drawing (obstacles stay).
             var hidden = Punchy.Terrain.CaveSystem.SurfaceHidden >= 0.99f;
             var camXZ = new float2(cam.transform.position.x, cam.transform.position.z);
@@ -240,6 +320,7 @@ namespace Punchy.Flora
             if (!hidden)
             {
                 Draw(cam);
+                DrawBasins(cam.transform.position);
                 DrawBolts(source, camXZ);
             }
         }
@@ -257,6 +338,7 @@ namespace Punchy.Flora
             {
                 var em = world.EntityManager;
                 terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+                configQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainConfig>());
                 paletteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
                 playerQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
                 // Other players by their NetPlayer ghosts' transforms (not their avatars' CreatureState, which waits on
@@ -378,13 +460,29 @@ namespace Punchy.Flora
 
         float2 TileCentre(Layer l, int2 c) => ((float2)c + 0.5f) * l.Settings.TileSize;
 
+        /// <summary>
+        /// Each layer's draw radius and LOD distances at the graphics settings: the ground layer's at its Detail distance,
+        /// shrubs' and trees' at its View distance. A layer never streams in closer than SupportRange and a tile and a
+        /// half, since the supports the player stands on come from its streamed tiles (UpdateSupports).
+        /// </summary>
+        void ScaleRanges()
+        {
+            foreach (var l in layers)
+            {
+                var scale = l.Index == 0 ? Punchy.Settings.GraphicsSettings.Detail : Punchy.Settings.GraphicsSettings.View;
+                l.Radius = math.max(l.Settings.Radius * scale, SupportRange + l.Settings.TileSize * 1.5f);
+                l.Lod1Distance = l.Settings.Lod1Distance * scale;
+                l.Lod2Distance = l.Settings.Lod2Distance * scale;
+            }
+        }
+
         void Stream(in TerrainSource source, float2 camXZ)
         {
             // Unload tiles that fell out of range.
             foreach (var l in layers)
             {
                 scratch.Clear();
-                var keep = l.Settings.Radius + l.Settings.TileSize * 1.5f;
+                var keep = l.Radius + l.Settings.TileSize * 1.5f;
                 foreach (var kv in l.Tiles)
                     if (math.distance(TileCentre(l, kv.Key), camXZ) > keep)
                         scratch.Add(kv.Key);
@@ -392,6 +490,7 @@ namespace Punchy.Flora
                 {
                     l.Tiles[key].Dispose();
                     l.Tiles.Remove(key);
+                    basins.RemoveAll(b => b.Layer == l.Index && b.Tile.Equals(key));
                 }
                 if (scratch.Count > 0)
                 {
@@ -420,14 +519,14 @@ namespace Punchy.Flora
                     continue;
 
                 scratch.Clear();
-                var r = (int)math.ceil(l.Settings.Radius / l.Settings.TileSize) + 1;
+                var r = (int)math.ceil(l.Radius / l.Settings.TileSize) + 1;
                 var centre = (int2)math.floor(camXZ / l.Settings.TileSize);
                 for (int z = -r; z <= r; z++)
                 for (int x = -r; x <= r; x++)
                 {
                     var c = centre + new int2(x, z);
                     var min = (float2)c * l.Settings.TileSize;
-                    if (!l.Tiles.ContainsKey(c) && math.distance(math.clamp(camXZ, min, min + l.Settings.TileSize), camXZ) < l.Settings.Radius)
+                    if (!l.Tiles.ContainsKey(c) && math.distance(math.clamp(camXZ, min, min + l.Settings.TileSize), camXZ) < l.Radius)
                         scratch.Add(c);
                 }
                 if (scratch.Count == 0)
@@ -474,6 +573,7 @@ namespace Punchy.Flora
                     if (cells[i].Model >= 0)
                         plants[n++] = cells[i];
                 l.Tiles[tile] = plants;
+                AddBasins(l, tile, plants);
             }
             l.PlacingTiles.Dispose();
             l.PlacingOutput.Dispose();
@@ -606,7 +706,7 @@ namespace Punchy.Flora
                 Culling.SetInt(ModelBaseId, l.ModelBase);
                 Culling.SetVectorArray(PlanesId, planeVectors);
                 Culling.SetVector(CameraId, camPos);
-                Culling.SetVector(LodId, new Vector4(s.Lod1Distance, s.Lod2Distance, s.Radius, 0f));
+                Culling.SetVector(LodId, new Vector4(l.Lod1Distance, l.Lod2Distance, l.Radius, 0f));
                 Culling.SetVector(ShadowId, new Vector4(s.CastShadows ? shadowDistance : 0f, ShadowMargin, 0f, 0f));
                 Culling.SetBuffer(cull, InstancesId, l.Instances);
                 Culling.SetBuffer(cull, VisibleId, l.Visible);
@@ -631,15 +731,15 @@ namespace Punchy.Flora
                     var max = l.ModelMax[m] + reach;
                     var nearest = math.distance(math.clamp(eye, min, max), eye);
                     var farthest = math.length(math.max(math.abs(eye - min), math.abs(eye - max)));
-                    if (nearest > Near(s.Radius))
+                    if (nearest > Near(l.Radius))
                         continue;
                     var bounds = new Bounds((Vector3)((min + max) * 0.5f), (Vector3)(max - min));
                     for (int lod = 0; lod < 3; lod++)
                     {
-                        if (lod == 2 && s.Lod2Distance >= s.Radius)
+                        if (lod == 2 && l.Lod2Distance >= l.Radius)
                             continue;
-                        var lodNear = lod == 0 ? 0f : lod == 1 ? s.Lod1Distance : s.Lod2Distance;
-                        var lodFar = lod == 0 ? s.Lod1Distance : lod == 1 && s.Lod2Distance < s.Radius ? s.Lod2Distance : s.Radius;
+                        var lodNear = lod == 0 ? 0f : lod == 1 ? l.Lod1Distance : l.Lod2Distance;
+                        var lodFar = lod == 0 ? l.Lod1Distance : lod == 1 && l.Lod2Distance < l.Radius ? l.Lod2Distance : l.Radius;
                         if (nearest > Near(lodFar) || farthest < lodNear * 0.9f - 5f)
                             continue;
                         var rp = new RenderParams(l.Material)
@@ -786,6 +886,8 @@ namespace Punchy.Flora
         bool boltsLoaded;
         /// <summary>Bolts are found among arcing spires within this distance of the camera.</summary>
         const float BoltRange = 160f;
+        /// <summary>BoltRange at the graphics settings' View distance.</summary>
+        float BoltReach => Punchy.Settings.GraphicsSettings.ViewRange(BoltRange);
 
         /// <summary>
         /// Electric bolts between neighbouring arcing spires (FloraForm.ArcSpire): every spire near the camera pairs with
@@ -836,7 +938,7 @@ namespace Punchy.Flora
             if (firing.Count == 0)
                 return;
             var rp = new RenderParams(boltMaterial) { shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false,
-                                                       worldBounds = new Bounds(new Vector3(camXZ.x, 0f, camXZ.y), Vector3.one * 2f * BoltRange + Vector3.up * 2000f) };
+                                                       worldBounds = new Bounds(new Vector3(camXZ.x, 0f, camXZ.y), Vector3.one * 2f * BoltReach + Vector3.up * 2000f) };
             Graphics.RenderMeshInstanced(rp, boltMesh, 0, firing);
         }
 
@@ -861,8 +963,8 @@ namespace Punchy.Flora
             for (int li = 1; li < 3 && li < layers.Length; li++)
             {
                 var size = layers[li].Settings.TileSize;
-                var c0 = (int2)math.floor((camXZ - BoltRange) / size);
-                var c1 = (int2)math.floor((camXZ + BoltRange) / size);
+                var c0 = (int2)math.floor((camXZ - BoltReach) / size);
+                var c1 = (int2)math.floor((camXZ + BoltReach) / size);
                 for (int ty = c0.y; ty <= c1.y; ty++)
                 for (int tx = c0.x; tx <= c1.x; tx++)
                 {
@@ -872,7 +974,7 @@ namespace Punchy.Flora
                     {
                         if (inst.Model < 0 || inst.Model >= models.Count || models[inst.Model].Species == null || models[inst.Model].Species.Form != FloraForm.ArcSpire)
                             continue;
-                        if (math.distancesq(inst.Position.xz, camXZ) > BoltRange * BoltRange)
+                        if (math.distancesq(inst.Position.xz, camXZ) > BoltReach * BoltReach)
                             continue;
                         tips.Add(inst.Position + new float3(0f, models[inst.Model].Height * inst.Scale * 0.85f, 0f));
                     }

@@ -108,6 +108,10 @@ MonoBehaviour:
   Flora:
   - Species: {fileID: 11400000, guid: c1e1acfeb6f61d04599b0b0cfecb6ad8, type: 2}
     Density: 0.008
+  - Species: {fileID: 11400000, guid: cb97a59ea96540529b315e3385e0e3f4, type: 2}
+    Density: 0.02
+  - Species: {fileID: 11400000, guid: b34ea01fc16c4662a1aec12ab109046f, type: 2}
+    Density: 0.006
   Habitability: 0
   Cultures: 0
   Landmarks:

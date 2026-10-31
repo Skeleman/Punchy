@@ -1820,7 +1820,7 @@ namespace Punchy.Fauna
                         {
                             var p = s.Home + rng.NextFloat2Direction() * rng.NextFloat(0.2f, 1f) * b.WanderRadius;
                             var g = Terrain.SampleGround(p);
-                            if (g.HasWater && g.WaterSurface > g.Height)
+                            if (g.HasWater && g.WaterSurface > g.Height || Obstructed(p, radius, out _))
                                 continue;
                             var flat = Terrain.SampleNormal(p, 3f).y;
                             if (flat > best)
@@ -1829,6 +1829,53 @@ namespace Punchy.Fauna
                                 s.Target = p;
                             }
                         }
+                    }
+                    // Rock or a cliff ahead: it doesn't tunnel through. Close ahead of its head, it turns off to whichever
+                    // side is clear and makes for somewhere that way. Further on, where its next arc would be up in the
+                    // air, and due to breach soon anyway with the ground flat here: if the arc clears it there (the arc's
+                    // height at that point over the ground's rise there and whatever rock or building stands on it, with a
+                    // body's radius to spare) and comes down somewhere clear, it breaches now and leaps it.
+                    // (Looked at four times a second, not every step: a rock lookup places every plant in a few cells.)
+                    var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                    var reach = math.max(radius * 6f, 6f);
+                    var look = (int)(s.Clock * 4f) != (int)((s.Clock - dt) * 4f);
+                    if (look && (Obstructed(s.Position.xz + forward * reach, radius, out _) || Obstructed(s.Position.xz + forward * reach * 0.5f, radius, out _)))
+                    {
+                        var side = rng.NextBool() ? 1f : -1f;
+                        for (int k = 0; k < 4; k++)
+                        {
+                            var turn = side * (k < 2 ? 0.8f : 1.6f) * (k % 2 == 0 ? 1f : -1f);
+                            var way = new float2(math.sin(s.Yaw + turn), math.cos(s.Yaw + turn));
+                            if (!Obstructed(s.Position.xz + way * reach, radius, out _) && !Obstructed(s.Position.xz + way * reach * 2f, radius, out _))
+                            {
+                                s.Target = s.Position.xz + way * math.max(reach * 3f, 20f);
+                                break;
+                            }
+                        }
+                    }
+                    else if (look && s.Timer > 0f && s.Timer < 15f && Terrain.SampleNormal(s.Position.xz, 3f).y > 0.97f)
+                    {
+                        // (The arc as Air will run it: its height above where it starts, and how far on each part of it
+                        // comes; above the ground from out to in.)
+                        var high = radius * 6f;
+                        var above = 1f - 2f * math.asin(deep / (deep + high)) / math.PI;
+                        var span = b.RunSpeed * 3f / math.max(above, 0.05f);
+                        var obstacle = false;
+                        var clears = true;
+                        for (int k = 1; k < 8 && clears; k++)
+                        {
+                            var u = (1f - above) * 0.5f + above * k / 8f;
+                            var p = s.Position.xz + forward * span * u;
+                            if (!Obstructed(p, radius, out var standing))
+                                continue;
+                            obstacle = true;
+                            var arc = (deep + high) * math.sin(math.PI * u) - deep;
+                            var rise = Terrain.SampleHeight(p) - ground;
+                            clears = arc > rise + standing + radius;
+                        }
+                        var lands = s.Position.xz + forward * span * (1f + above) * 0.5f;
+                        if (obstacle && clears && !Obstructed(lands, radius, out _))
+                            s.Timer = 0f;
                     }
                     // Its time come and the ground flat here (dunes, a snowfield): up it bursts. (Not yet: soon again.)
                     if (s.Timer <= 0f)
@@ -1849,6 +1896,24 @@ namespace Punchy.Fauna
                 var under = s.Air > 0f ? deep : depth;
                 s.Position.y = ground - under + (under + s.AirHeight) * (s.Air > 0f ? math.sin(math.PI * s.Air) : 0f);
                 CreatureMotion.AdvancePhase(ref s, ref b, dt);
+            }
+
+            /// <summary>
+            /// Something a worm under the ground won't go through at this point, within its own radius and a half: a cliff
+            /// or steep bank (the ground's slope), a building or a landmark's rock (FloraPlacement.Blocked), or a boulder,
+            /// tor or standing stone out in the wild (FloraPlacement.RockAt); and how tall what stands there is (m above
+            /// its foot; 0 for a slope, whose rise the caller samples).
+            /// </summary>
+            bool Obstructed(float2 at, float radius, out float top)
+            {
+                top = 0f;
+                var steep = Terrain.SampleNormal(at, 3f).y < 0.8f;
+                if (!HasFlora)
+                    return steep;
+                var built = FloraPlacement.Blocked(ref Flora.Value, Terrain, at, radius * 1.5f, out var builtTop);
+                var rock = FloraPlacement.RockAt(ref Flora.Value, Terrain, at, radius * 1.5f, out var rockTop);
+                top = math.max(built ? builtTop : 0f, rock ? rockTop : 0f);
+                return steep || built || rock;
             }
 
             /// <summary>Turns on the spot towards a point.</summary>
