@@ -908,7 +908,21 @@ namespace Punchy.Fauna
                     {
                         s.Speed *= 0.5f;
                         if (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Play && s.Stage == 1)
-                            s.Target = s.Position.xz + new float2(-forward.y, forward.x) * (rng.NextBool() ? 20f : -20f);
+                        {
+                            // Running, it veers along whatever's in the way: to the side its run leans to (head-on, its
+                            // own side), the other side if that's blocked too, or back the way it came if both are.
+                            // Never a coin toss: a fresh one each frame left it turning on the spot (Z-07, quail
+                            // fleeing on a slope, playing prairie dogs).
+                            var left = new float2(-forward.y, forward.x);
+                            var lean = math.dot(s.Target - s.Position.xz, left);
+                            var side = math.abs(lean) > 0.5f ? math.sign(lean) : (s.Seed & 1u) == 0u ? 1f : -1f;
+                            var way = left * side;
+                            var reach = 1.5f * s.Scale + 0.5f;
+                            if (!CaveWalker(s, ref b) && !b.Haunts && !b.LavaDweller && s.Mode != CreatureMode.Swim &&
+                                !Open(s.Position.xz, s.Position.xz + way * reach, b.Habitat, landBound))
+                                way = Open(s.Position.xz, s.Position.xz - way * reach, b.Habitat, landBound) ? -way : -forward;
+                            s.Target = s.Position.xz + way * 20f;
+                        }
                         else if (s.Mode == CreatureMode.Wander || s.Mode == CreatureMode.Drink && s.Stage == 0 ||
                                  s.Mode == CreatureMode.Climb && s.Stage == 0 || s.Mode == CreatureMode.Web && s.Stage == 0)
                             Pause(ref s, ref b, ref rng);
@@ -1522,12 +1536,20 @@ namespace Punchy.Fauna
                 {
                     s.Target = other.Position.xz;
                     if (s.StageTime < 1f)
-                        bow = 1f;   // play bow, then off
+                    {
+                        // Play bow, then off. It holds its heading while it bows (the head follows the partner): a
+                        // partner close by and running round it turned it on the spot (Z-07).
+                        bow = 1f;
+                        s.Target = s.Position.xz + new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                    }
                     else
                     {
                         targetSpeed = math.lerp(walk, run, 0.75f);
                         var reach = (b.BodyLength * s.Scale + Bodies[p].Blob.Value.BodyLength * other.Scale) * 0.6f + 0.3f;
-                        if (distance < reach)
+                        // (A near miss counts too: a partner that's run close past it, beside or behind, within a few
+                        // reaches. Otherwise one running round it turned it on the spot, Z-07.)
+                        var bearing = math.abs(WrapAngle(math.atan2(to.x, to.y) - s.Yaw));
+                        if (distance < reach || distance < reach * 3f + 0.5f && bearing > 1.2f && s.StageTime > 2f)
                         {
                             s.Stage = 1;
                             s.StageTime = 0f;
@@ -1551,9 +1573,42 @@ namespace Punchy.Fauna
                     var toCentre = s.Focus - s.Position.xz;
                     var wander = math.length(toCentre);
                     var range = s.Leash > 0f ? s.Leash * 0.6f : 12f;
+                    // Out there the run is bent round towards the middle: its angle from the way in is narrowed, keeping
+                    // the side it leans to (dead away from the middle, its own side). Not a blend of the two ways: with
+                    // the chaser between it and the middle they point opposite, and a few metres past the range they
+                    // cancelled, leaving the way to go to noise; it turned on the spot at full rate (Z-07).
                     if (wander > range)
-                        dir = math.lerp(math.normalizesafe(dir), toCentre / wander, math.saturate((wander - range) / 6f));
-                    s.Target = s.Position.xz + math.normalizesafe(dir, flee) * 8f;
+                    {
+                        var inward = toCentre / wander;
+                        var pull = math.saturate((wander - range) / 6f);
+                        var fled = math.normalizesafe(dir, flee);
+                        var theta = math.atan2(inward.x * fled.y - inward.y * fled.x, math.dot(inward, fled));
+                        var lean = math.abs(theta) > math.PI - 0.35f ? (s.Seed & 1u) == 0u ? 1f : -1f : math.sign(theta);
+                        var angle = lean * math.min(math.abs(theta), math.lerp(math.PI, math.PI * 0.25f, pull));
+                        math.sincos(angle, out var sn, out var cs);
+                        dir = new float2(inward.x * cs - inward.y * sn, inward.x * sn + inward.y * cs);
+                    }
+                    // A run aimed at something in the way (water, a steep bank) turns off along it, its own side
+                    // first: left to the steering, it was stopped, sent aside, then aimed back in again each frame
+                    // (Z-07).
+                    var aim = math.normalizesafe(dir, flee);
+                    var probe = 1.5f * s.Scale + 0.5f;
+                    var land = b.Habitat == Habitat.Land;
+                    if (!CaveWalker(s, ref b) && !Open(s.Position.xz, s.Position.xz + aim * probe, b.Habitat, land))
+                    {
+                        var own = (s.Seed & 1u) == 0u ? 1f : -1f;
+                        for (int k = 1; k <= 6; k++)
+                        {
+                            math.sincos(own * (k % 2 == 1 ? 1f : -1f) * 0.8f * ((k + 1) / 2), out var ts, out var tc);
+                            var tried = new float2(aim.x * tc - aim.y * ts, aim.x * ts + aim.y * tc);
+                            if (Open(s.Position.xz, s.Position.xz + tried * probe, b.Habitat, land))
+                            {
+                                aim = tried;
+                                break;
+                            }
+                        }
+                    }
+                    s.Target = s.Position.xz + aim * 8f;
                     targetSpeed = math.lerp(walk, run, distance > 12f ? 0.3f : 0.6f);
                 }
             }
@@ -5657,6 +5712,11 @@ namespace Punchy.Fauna
                 }
                 return best < float.MaxValue;
             }
+
+            /// <summary>Whether a step from one spot to the next is open ground for it: walkable, and (for a land-bound
+            /// animal) not too steep. The running veers' look either side (Z-07).</summary>
+            bool Open(float2 from, float2 to, Habitat habitat, bool landBound) =>
+                Walkable(to, habitat) && !(landBound && SlopeAhead(from, to) > 0.8f);
 
             /// <summary>Lava deep enough to swim in (a volcano's crater lake, a lava biome's pools).</summary>
             bool InLava(float2 xz)
