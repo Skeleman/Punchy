@@ -834,7 +834,9 @@ namespace Punchy.Fauna
                 }
 
                 // Animals with a home never head out of range of it (penned animals stay in their pen, even fleeing).
-                if (s.Leash > 0f && moving && s.Mode != CreatureMode.Patrol && s.Mode != CreatureMode.Swim)
+                // Going indoors is going home: a door beyond the leash would otherwise be cut short to a spot it stands
+                // on for a minute, turning on it (Z-07, an elf by the ElfGrove fountain).
+                if (s.Leash > 0f && moving && s.Mode != CreatureMode.Patrol && s.Mode != CreatureMode.Swim && s.Mode != CreatureMode.Home)
                 {
                     var fromHome = s.Target - s.Home;
                     var far = math.length(fromHome);
@@ -853,9 +855,11 @@ namespace Punchy.Fauna
 
                     // Turn towards the target, then move; slow down while turning sharply.
                     var turn = 0f;
-                    if (moving)
+                    // (Not within 10 cm of the target: the way to it there is noise, and following it spins the body on
+                    // the spot at its full turn rate, Z-07.)
+                    var to = s.Target - s.Position.xz;
+                    if (moving && math.lengthsq(to) > 0.01f)
                     {
-                        var to = s.Target - s.Position.xz;
                         var wanted = WrapAngle(math.atan2(to.x, to.y) - s.Yaw);
                         turn = math.clamp(wanted, -b.TurnRate * dt, b.TurnRate * dt);
                         targetSpeed *= math.saturate(math.cos(wanted) * 1.5f);
