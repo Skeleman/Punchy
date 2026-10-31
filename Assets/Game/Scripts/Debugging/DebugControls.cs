@@ -407,6 +407,21 @@ namespace Punchy.Debugging
             if (weatherArg >= 0 && weatherArg + 1 < args.Length && playerQuery.TryGetSingleton<LocalTransform>(out var under) &&
                 FindAnyObjectByType<WeatherSystem>() is WeatherSystem weather)
                 weather.ForceAt(args[weatherArg + 1], new Vector2(under.Position.x, under.Position.z));
+            // "-waterprobe 1" (2, 3; 0 off): the water drawn as its foam, its thickness over the bed, or its alpha.
+            var probeArg = System.Array.IndexOf(args, "-waterprobe");
+            if (probeArg >= 0 && probeArg + 1 < args.Length && float.TryParse(args[probeArg + 1], out var probe))
+                Shader.SetGlobalFloat("_PunchyWaterProbe", probe);
+            // "-camrel dx,dy,dz,tx,ty,tz": like -camlook, but both points relative to where the player ends up (after any
+            // -place), for framing a place whose coordinates aren't known.
+            var camRel = System.Array.IndexOf(args, "-camrel");
+            if (camRel >= 0 && camRel + 1 < args.Length && ParseFloats(args[camRel + 1]) is float[] rel && rel.Length >= 6 &&
+                playerQuery.TryGetSingleton<LocalTransform>(out var origin))
+            {
+                Vector3 camFrom = (Vector3)origin.Position + new Vector3(rel[0], rel[1], rel[2]);
+                Vector3 camTo = (Vector3)origin.Position + new Vector3(rel[3], rel[4], rel[5]);
+                PoseCamera(camFrom, Quaternion.LookRotation(camTo - camFrom));
+                Debug.Log($"DebugControls: camera {camFrom.x:F1},{camFrom.y:F1},{camFrom.z:F1} looking at {camTo.x:F1},{camTo.y:F1},{camTo.z:F1}");
+            }
         }
 
         /// <summary>Puts the player on the floor beside the nearest anchor of a kind, anywhere in the world.</summary>

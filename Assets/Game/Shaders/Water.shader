@@ -86,6 +86,8 @@ Shader "Punchy/Water"
             CBUFFER_END
             // 0 above ground, 1 with the camera deep in a cave (CaveSystem).
             float _PunchyUnderground;
+            // Test only (DebugControls "-waterprobe n"): 1 shows the foam, 2 the water's thickness over the bed, 3 the alpha.
+            float _PunchyWaterProbe;
             // Ripples swimmers have left in the water near the camera (CreatureWakeSystem): x, age (0..1 over its life),
             // z, how strongly it was stirred (0 an empty slot).
             float4 _PunchySwimmers[48];
@@ -462,9 +464,7 @@ Shader "Punchy/Water"
                 half underRock = max(_PunchyUnderground, _UnderRock);
                 half3 reflection = PunchySkyColor(r, false, true) * lerp(1, 0.04, underRock);
                 // ...and the scene where the reflected ray finds it (the far bank, trees, rocks, creatures).
-                // (Not on running cave water: the march stepped through the cave's depth in thin bright lines across the
-                // flow, fixed in place, the striping on cave streams, Z-34.)
-                if (frontFace && _ScreenReflection > 0 && lava < 0.99 && caveRun < 0.5)
+                if (frontFace && _ScreenReflection > 0 && lava < 0.99)
                 {
                     half4 scene = ScreenReflection(input.positionWS + float3(0, 0.02, 0), r);
                     reflection = lerp(reflection, scene.rgb, scene.a * _ScreenReflection);
@@ -569,6 +569,8 @@ Shader "Punchy/Water"
                     alpha = lerp(alpha, 1, lava);
                 }
 
+                if (_PunchyWaterProbe > 0.5)
+                    return _PunchyWaterProbe < 1.5 ? half4(foam, foam, foam, 1) : _PunchyWaterProbe < 2.5 ? half4(saturate(thickness), frac(thickness * 4), 0, 1) : half4(alpha, alpha, alpha, 1);
                 // The atmosphere (fog and weather) only above ground; a cave pool is right in front of you.
                 if (_PunchyUnderground < 0.999)
                     color = lerp(PunchyAtmosphere(color, input.positionWS), color, _PunchyUnderground);
