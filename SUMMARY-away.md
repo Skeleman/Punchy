@@ -39,3 +39,10 @@ FEEDBACK-v0.10.md (Z-IDs). No release goes out without Zach's go.
   - Animal Z-20 carry, Z-21/22 poses, Z-28 worm arc + rocks, Z-07 spin check.
   - The worm trail and wakes, after the profiler's cost pass.
 - **Unity now:** the profiler (item 17 worm/wake cost, the graphics preset sweep). Next the world lane, then the animal lane.
+
+## 2026-10-31 00:55 — world task slot (world-features 3976d17)
+- Merged world-laptop/z-p2 (Z-30 grain, Z-31..Z-42, Z-12 skirt, Z-38 caps). Clean build; no exceptions in 35 look runs.
+- Passed on sight: Z-38 brown caps, Z-42 ice slab/crag (crag reads a bit like a cairn), dwarf roofs/stone houses day and night.
+- Not judged (shots missed): Z-30 before/after, Z-31..37, Z-39..41 close-ups, Z-12 skirt, Z-09/10/11 and cave-mouth shards. Causes: `-place tree:` can't find props, stale falls/cave coordinates, no rain outside storm stops. Next slot in HANDOFF-world.md.
+- Smoke flagged glide 1% low 36→23 from ~500 ms spikes; ABBA rerun showed no change beyond noise. Decision: keep the merge; the profiler re-checks glide spikes in its next slot.
+- Note: synthetic key presses went to another window. Task sessions are told not to send keys outside the Punchy window.
