@@ -118,7 +118,7 @@ MonoBehaviour:
     Width: 5
     Size: 1.5
     Particles: 40
-    Lifetime: 4
+    Lifetime: 2.5
     Color: {r: 0.5, g: 0.66, b: 0.7, a: 1}
     Opacity: 0.85
     Glow: 0

@@ -327,6 +327,25 @@ namespace Punchy.Weather
         public void NextDayType() => SetDayType(dayType + 1, true);
 
         /// <summary>
+        /// Test flag "-weather Storm" (DebugControls, also per shot-list line): the cells round a point cleared and a
+        /// cell of that preset forced over it, as the ] key does ("-weather Clear" only clears).
+        /// </summary>
+        public bool ForceAt(string presetName, Vector2 xz)
+        {
+            var index = Presets.FindIndex(p => p != null && string.Equals(p.name, presetName, System.StringComparison.OrdinalIgnoreCase));
+            if (!field.Ready || index < 0)
+            {
+                Debug.LogWarning($"Weather: can't force '{presetName}' (ready {field.Ready})");
+                return false;
+            }
+            field.Clear(xz, 2000f);
+            if (index > 0)
+                field.ForceCell(index, xz, 1500f);
+            Debug.Log($"Weather: forced {Presets[index].name} at {xz.x:F0},{xz.y:F0}");
+            return true;
+        }
+
+        /// <summary>
         /// Test flag -weatherseed n: seeds UnityEngine.Random so a launch starts with the same day type and weather
         /// cells every time (the weather is otherwise random per session, which swings fps a lot in perf tests).
         /// </summary>

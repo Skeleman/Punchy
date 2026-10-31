@@ -336,6 +336,8 @@ namespace Punchy.Debugging
                     PlaceByTree(treeSource, args[i + 1].Substring(5));
                 else if (args[i] == "-place" && args[i + 1].StartsWith("prop:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var propSource))
                     PlaceByProp(propSource, args[i + 1].Substring(5));
+                else if (args[i] == "-place" && args[i + 1].StartsWith("cavestream", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var streamSource))
+                    PlaceByCaveStream(streamSource, args[i + 1].Substring(10));
                 else if (args[i] == "-place" && string.Equals(args[i + 1], "meadow", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var meadowSource))
                     PlaceInMeadow(meadowSource);
                 else if (args[i] == "-place" && string.Equals(args[i + 1], "clearlake", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var lakeSource))
@@ -400,6 +402,26 @@ namespace Punchy.Debugging
             if (at >= 0 && at + 1 < args.Length && System.Enum.TryParse<AnchorKind>(args[at + 1], true, out var kind) &&
                 EnsureLocations(out var terrain))
                 GoToAnchor(terrain, kind);
+            // "-weather Storm" (any WeatherPreset; Clear clears): that weather forced over the player, where it ends up.
+            var weatherArg = System.Array.IndexOf(args, "-weather");
+            if (weatherArg >= 0 && weatherArg + 1 < args.Length && playerQuery.TryGetSingleton<LocalTransform>(out var under) &&
+                FindAnyObjectByType<WeatherSystem>() is WeatherSystem weather)
+                weather.ForceAt(args[weatherArg + 1], new Vector2(under.Position.x, under.Position.z));
+            // "-waterprobe 1" (2, 3; 0 off): the water drawn as its foam, its thickness over the bed, or its alpha.
+            var probeArg = System.Array.IndexOf(args, "-waterprobe");
+            if (probeArg >= 0 && probeArg + 1 < args.Length && float.TryParse(args[probeArg + 1], out var probe))
+                Shader.SetGlobalFloat("_PunchyWaterProbe", probe);
+            // "-camrel dx,dy,dz,tx,ty,tz": like -camlook, but both points relative to where the player ends up (after any
+            // -place), for framing a place whose coordinates aren't known.
+            var camRel = System.Array.IndexOf(args, "-camrel");
+            if (camRel >= 0 && camRel + 1 < args.Length && ParseFloats(args[camRel + 1]) is float[] rel && rel.Length >= 6 &&
+                playerQuery.TryGetSingleton<LocalTransform>(out var origin))
+            {
+                Vector3 camFrom = (Vector3)origin.Position + new Vector3(rel[0], rel[1], rel[2]);
+                Vector3 camTo = (Vector3)origin.Position + new Vector3(rel[3], rel[4], rel[5]);
+                PoseCamera(camFrom, Quaternion.LookRotation(camTo - camFrom));
+                Debug.Log($"DebugControls: camera {camFrom.x:F1},{camFrom.y:F1},{camFrom.z:F1} looking at {camTo.x:F1},{camTo.y:F1},{camTo.z:F1}");
+            }
         }
 
         /// <summary>Puts the player on the floor beside the nearest anchor of a kind, anywhere in the world.</summary>
@@ -997,6 +1019,60 @@ namespace Punchy.Debugging
                 }
             }
             Debug.LogWarning($"DebugControls: no {styleName} cave with a chamber");
+        }
+
+        /// <summary>
+        /// "-place cavestream" ("#2" the second nearest): by the end of the nearest cave stream (where it meets its pool),
+        /// the camera a few metres back up the stream looking at the end. Logs the 8 nearest streams' two ends.
+        /// </summary>
+        void PlaceByCaveStream(in TerrainSource source, string spec)
+        {
+            if (!source.Caves.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var pick = 1;
+            if (spec.StartsWith("#"))
+                int.TryParse(spec.Substring(1), out pick);
+            ref var set = ref source.Caves.Value;
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(player);
+            var ends = new List<(float distance, int stream)>();
+            for (int s = 0; s < set.Streams.Length; s++)
+            {
+                ref var stream = ref set.Streams[s];
+                if (stream.PointCount < 2)
+                    continue;
+                var end = set.StreamPoints[stream.FirstPoint + stream.PointCount - 1].Position;
+                ends.Add((math.distance(end.xz, t.Position.xz), s));
+            }
+            if (ends.Count == 0)
+            {
+                Debug.LogWarning("DebugControls: no cave streams");
+                return;
+            }
+            ends.Sort((p, q) => p.distance.CompareTo(q.distance));
+            for (int k = 0; k < math.min(8, ends.Count); k++)
+            {
+                ref var stream = ref set.Streams[ends[k].stream];
+                var a = set.StreamPoints[stream.FirstPoint].Position;
+                var b = set.StreamPoints[stream.FirstPoint + stream.PointCount - 1].Position;
+                Debug.Log($"DebugControls: cave stream {ends[k].stream} ({stream.PointCount} points) from ({a.x:F1}, {a.y:F1}, {a.z:F1}) to ({b.x:F1}, {b.y:F1}, {b.z:F1})");
+            }
+            ref var chosen = ref set.Streams[ends[math.clamp(pick - 1, 0, ends.Count - 1)].stream];
+            var last = set.StreamPoints[chosen.FirstPoint + chosen.PointCount - 1].Position;
+            // Back up the stream about 5 m (or to its start).
+            var back = last;
+            for (int k = chosen.PointCount - 2; k >= 0; k--)
+            {
+                back = set.StreamPoints[chosen.FirstPoint + k].Position;
+                if (math.distance(back, last) > 5f)
+                    break;
+            }
+            var floor = source.FloorUnder(back + new float3(0f, 0.5f, 0f), out _);
+            t.Position = new float3(back.x, floor + 0.05f, back.z);
+            em.SetComponentData(player, t);
+            var eye = (Vector3)(back + new float3(0f, 2.5f, 0f));
+            PoseCamera(eye, Quaternion.LookRotation((Vector3)last - eye));
+            Debug.Log($"DebugControls: by cave stream end ({last.x:F1}, {last.y:F1}, {last.z:F1}), camera {eye.x:F1},{eye.y:F1},{eye.z:F1}");
         }
 
         /// <summary>
