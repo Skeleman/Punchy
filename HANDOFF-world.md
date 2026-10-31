@@ -1,75 +1,65 @@
-# Handoff: world feature manager (v0.10 in progress)
+# Handoff: world lane (laptop, from zache-73), 2026-10-30 evening
 
-Refreshed 2026-10-30 (last update before the main account ran out) for whoever carries the world lane on next (J-042). Worktree `D:\Unity\Punchy-world` (main PC),
-branch `world-features`. Read COORDINATION.md first; this note is only what's specific to the world lane now.
+Supervisor: the laptop session "Unity build analytics supervisor setup" (kind-possum); tasks by message and in
+QUEUE-world.md; report per batch in REPORTS-world.md (LF, newest first) plus one message. One Unity at a time on the
+laptop: open Unity (or bench builds) only in a slot the supervisor gives you, and say "Unity closed" after.
+Worktree: C:\Users\zache\Projects\Punchy-world. Zach's feedback list: FEEDBACK-v0.10.md (W rows are this lane).
 
-## State
+## Branches
+- **world-features 0c637a9** (pushed): cave hitch, F-40 trodden mask, G-37 rocks, worm marks, cave-chunk, gfx settings
+  (F5 panel + Quit), P1 rows Z-09/10/11/12a/13, zache-db's gfx-creatures.
+- **world-laptop/z-p2 e2f1c97** (13 commits on world-features, UNCOMPILED): Z-33 banners + cloth LOD, Z-37 fireflies,
+  Z-38 brown caps (incl. FungalGlowCap/FungalGlimmerCap, fungal forest only), Z-39 ember slivers, Z-36 bubble ripples,
+  Z-41 ridge tiles, Z-42 IceSlab/IceCrag + FloraSpecies.KeepOwnColour, Z-40 forge ember pit, Z-30 wood grain
+  (FloraMeshBuilder.Wood), Z-12 per-pixel grounding (Flora.shader).
+- **world-laptop/blocked-top e58eed2** (2 commits, UNCOMPILED): FloraPlacement.Blocked(..., out top) and RockAt(...).
+  zache-db merged it into wip/worm-arc; when they report it builds clean, land it on world-features.
 
-- **v0.9.0 is published** (rc/v0.9.0 39f5558). Everything on `world-features` since then counts toward v0.10.
-- **`world-features` 1cbdd9f** (pushed). Since v0.9: G-17 Work anchors at anvils and chopping blocks, kind-possum's audit
-  items (cached queries in WorldSync/NetMenu, batched DisableRendering), G-18 + G-23 roads, G-28 white water, G-34 big
-  full cratered blue moon with corona, G-35 cave detail fades at mouths, G-15/F-25 swimmer rings and wakes (Water.shader
-  reads the animal session's `_PunchySwimmers`), G-36 + G-30 rocks take the biome's rock on dry ground, lakes cut
-  through by a gorge are lowered to the breach, G-29 ice arch variety, G-31/F-46 fungal forest (matte giant caps with
-  glowing gills, drier ground, orange grass, less fog), G-33/F-47 ember slivers in leaves, F-50 Bubbles landmark effect
-  (pop rings on geysers and hot springs; plumes draw after water), G-37 MagneticRock landmark (FloatingRock form). animal-behaviours 69d04db is merged in.
-- **Landmark baseline: 101 landmarks, hash E128CB1D** (1e53043 rerouted roads and rerolled roadside landmarks to 100 /
-  7AFF6C9F; 1cbdd9f added one MagneticRock at -1068,-3840). The supervisor wants no other landmark changes in v0.10; any new landmark type must take
-  only its own spots, and the hash diff goes in the batch report.
+## Next slot (one combined local branch, built once)
+1. Merge z-p2 + blocked-top locally onto world-features, build (bench runner `build`), fix compile errors.
+2. `bench.sh smoke <new> <wf>`; if NOT CLEAN, confirm with `bench.sh ab <wf> <new> townwalk` (ABBA) before chasing.
+3. Looks (contact sheets): Z-33 banners, Z-36 geyser pops, Z-37 great tree at night, Z-38 fungal forest, Z-39 ember
+   forest, Z-40 smithy forge, Z-41 stone house roof, Z-42 glacier, Z-30 wood before (Bench-7f519c0) / after,
+   Z-12 a fountain/forum on a slope from below the base, Z-09 night with clouds, Z-10 river + fog, Z-11 bench in rain.
+4. Probe the grey shards at cave mouths (style-0 cave mesh: orphan surface-net islands?), then fix.
+5. Merge what passes to world-features; push; report.
 
-## Unfinished (next, in order)
+## Open rows
+- Z-31 vertical lines in close-up detail on buildings: look first (suspect triplanar detail texture seam).
+- Z-32 stone house lit/dark bands: look first (normals or the built double-sided flip).
+- Z-34 cave stream meets pool / striping; Z-35 waterfall top gap + faster fall (effect Lifetime) + spray: look first.
+- Z-30: after the look, mark more timber with `b.Wood = true` (smithy, inn, hall, pen, bridge, woodpile block).
+- Cave-mouth grey shards (above). P3 rows (Z-54, Z-60..64) need a design note first.
 
-1. **G-37 decoration rocks** (supervisor's ask, after the worms): besides the one MagneticRock showpiece, scatter smaller
-   floating rocks (6-15 m, 3-4 shapes) through the electric wastelands as biome *flora* (not landmarks, so the list
-   stays 101 / E128CB1D): a second species on the FloatingRock form (`MagneticMonolith` is the 22-40 m one; copy it,
-   Height 6-15, Variants 4) added to ElectricWastelands' Flora list at a low density. The form's variants already
-   give shard / slab / cluster shapes.
-2. **Worm marks** (`wip/world-worms`, world half of the animal session's `wip/worms`): TerrainSurface.shader reads
-   `_PunchyBurrowers[8]` (x, yaw, z, w = radius, negative while breaching). Works but faint: the furrow shows, the crater
-   barely. Strengthen the tilt and darkening, test (set the globals by hand in play or merge wip/worms), then land it
-   and tell the animal session, who keeps its feeder off animal-behaviours until then.
-3. **F-40** darker ground under market stalls: the footprint sheet in the Stall model never shows, even raised 10 cm
-   (cd90cf0 on `wip/world-v09-v010`). Find why (dirt band? culling? LOD?) before re-landing.
-4. **caveapproach hitch** (~110 ms at -2773,-726, every round): probably HideFarChunks, batched since 000ef06; needs a
-   re-bench on 1cbdd9f and, if still there, that frame's markers.
-5. Tier 1 left: F-33 limestone stalactites, F-27 lava fills the crater, F-39 street lamps/torches per culture.
-6. **Phase B rivers** (later): smooth the river centreline and per-segment data; that also fixes the zigzag shading
-   at sharp river corners (F-24's "corner oddities").
+## Key files
+- Flora models: Scripts/Flora/FloraGenerator.cs (form builders: Stall, Bench, Fountain, Smithy, RailFence, Signpost,
+  mushrooms ~1150, gabled roofs ~3150/3220; Founded(); ToMesh flexibility), FloraMeshBuilder.cs (Vertex marks: Bark +
+  0.08 strata, 0.25 seams, 0.4 veins, 0.02 wood; Skirt; Sheet/Box/Beam/Tube/Blob; Cloth).
+- Placement: Flora/FloraPlacement.cs (Place(..., footprint), Blocked, RockAt, OnBuiltPlot, OnRoad, RockTint, FloraRules).
+- Flora draw: Flora/FloraSystem.cs (layers, ScaleRanges, basins = fountain water, bolts); Shaders/Flora.shader
+  (Frag: weathering, wood grain, ember slivers, grounding) and Flora.hlsl (wind, cloth).
+- Landmarks: Terrain/Landmarks/LandmarkData.cs (Ground, TroddenGround, pools), LandmarkBaking.cs, LandmarkType.cs.
+- Settlements/roads: Terrain/Settlements/RoadBaking.cs (ClearPlots), RoadsideBaking.cs, SettlementData.cs.
+- Terrain: TerrainSource.cs (SampleSurface, MouthCut), TerrainStreamingSystem.cs (ApplyViewDistance, MaxBuildFrames),
+  BuildChunkMeshJob.cs; Caves/CaveSystem.cs (Look(), MakePoolMesh, plants/drips).
+- Settings: Scripts/Settings/GraphicsSettings.cs (View/Detail/Shadows, F5 panel, -gfx/-gfxset), Overlay.cs.
+- Sky/water: Shaders/Sky.hlsl (cloud march, shooting stars), Water.shader (queue Transparent-10), LandmarkPlume.shader +
+  LandmarkEffects.hlsl (bubbles).
 
-Waiting on Zach (need his spot or a screenshot):
-- **G-32** mushroom-biome trees "more colourful at a distance": not reproduced (210 m vs 235 m across the LOD switch
-  look the same in fog; fog is applied after the glow).
-- **G-22** forum/fountain base stretching the stone, no dark band at the bottom: not visible on flat ground. Likely
-  FloraMeshBuilder.Skirt (every ground-level vertex drops 1.6 m) where a slope exposes it.
-- **Ember leak**: gold highlights in an ordinary forest after G-33/F-47: not reproduced (temperate crowns show none).
-  The gate is tightened to the exact ember mark (98a61db). Only EmberOak and EmberPine carry it.
+## How to test without the editor
+- Build: from Punchy-wt/Tools/bench, `B=$(pwd) bash -c ". ./lib.sh; build <commit> Build Bench-<commit>"` (~5 min; builds
+  in Projects\Punchy and restores it). Local commits work (shared object store).
+- Shots: run the build from Builds/Bench (`fixed` in lib.sh) with `-benchroute -benchshots <dir>` (mkdir first) and
+  `-place <Landmark> -benchstops here`, or `-benchstops spot -benchspot x,z,yaw`, plus `-cam x,y,z,yaw,pitch` /
+  `-camlook x,y,z,tx,ty,tz` and `-gfx Low|Ultra`. Timed frames: grab the window with System.Drawing CopyFromScreen,
+  tile into a contact sheet, kill the game by exact PID.
+- OgreCamp is clear (fire ~ -359,-4061; stall ~ -355,-4079); GoblinCamp sits in fog; elf grove forum at 270,3248.
 
-WIP branches: `wip/world-worms` (worm marks), `wip/world-v09-v010` (F-40 attempt, earlier F-50 attempt; F-50 itself is
-landed), `wip/world-g18-roads` (superseded by 1e53043; delete).
-
-## Open questions
-
-- kind-possum: bench the swimmer wakes on a lake with ducks (up to 16 swimmers per water pixel), the F-50 bubbles at
-  a geyser, and the lake look stop at 1328, 1730, yaw -90.
-
-## Gotchas
-
-- **Probe:** an untracked `Assets/Temp/Editor/WorldProbe.cs` (never commit Assets/Temp) does landmark lists and hashes
-  (`LmList`), water/rock/cave numbers and framed shots via `unity command eval`. Play flags go in `Temp/PlayArgs.txt`
-  (`-time 12 -nohud`, `-place <Biome>`).
-- **Editors:** Zach allows both editors at once; keep 4 GB free. Each refresh spawns two AssetImportWorkers (~1.5 GB
-  each): kill this tree's own afterwards. Never stop the animal session's processes.
-- **Close the editor before switching commits** (an RC build, a merge that touches a scene): otherwise a modal "scene
-  modified externally" dialog blocks it, and after a kill "Recovering Scene Backups" appears (delete this tree's
-  `Temp/__Backupscenes` before reopening).
-- **Builds:** `EditorApplication.delayCall` never fires in an idle editor. Call `BuildPipeline.BuildPlayer` directly
-  in an eval, which times out at 30 s while the build carries on; write the summary to `Temp/build-result.txt` and poll
-  it. Player builds go to `Builds/Dev/Punchy.exe` (one fixed path, rule 14), D3D11 first. Smoke test without -screen
-  flags.
-- **Shots:** offscreen `Shot` renders miss some live state; for particles or plumes use `ScreenCapture` with the camera
-  posed (camera MonoBehaviours disabled first). Shader edits need play mode stopped, then Refresh, or play resets.
-- **Line endings** are per file. Python/sed edits must keep CRLF files CRLF (`git ls-files --eol` before every add).
-- **Stable seeds:** landmark spots and roadside spots are keyed by position. Rerouting roads rerolls roadside landmarks.
-- The flora `Ground` channel: alpha 255 = a rock tint (`FloraPlacement.RockTintMark`), any other non-zero alpha = a
-  built thing's dirt band.
-- The friend's repo (anweather/5e-compatible-game) has no licence: ideas only, never code or assets.
+## Gotchas learned today
+- Git Bash `sed -i` turns CRLF files LF: edit with Python in binary/newline='' and check `git ls-files --eol`.
+- Settlement streets/squares repaint ground after landmarks: anything that must show in a town goes after them.
+- Probe builds (Debug.Log blob data, exaggerated values) settle "why doesn't it show" faster than tuning.
+- Unity fixes a global array's length at first set (an editor needs a restart after a slot-count change).
+- `git commit -p` with piped input does commit; don't chain git after a Python assert; check `git log` before push.
+- GitHub pushes sometimes fail with 500s: retry. Branch switches can take >2 min (hooks): use long timeouts.
+- Benches: smoke can say NOT CLEAN from round order alone; ABBA `ab` decides.
