@@ -737,9 +737,10 @@ namespace Punchy.Terrain
                 ref var pool = ref set.Pools[i];
                 if (pool.Lava > 0f || math.distance(pool.Centre, end) > 0.05f)
                     continue;
-                // Far enough in that the ribbon's square end lies inside the disc across its whole width.
+                // Far enough in that the ribbon's square end lies inside the disc across its whole width, and at most
+                // half way out: the disc's outer ring tucks under the floor that holds it, so the open water is smaller.
                 var half = points[points.Count - 1].Width * 0.58f;
-                var stop = math.sqrt(math.max(pool.Radius * pool.Radius * 0.98f - half * half, 0f));
+                var stop = math.min(math.sqrt(math.max(pool.Radius * pool.Radius * 0.98f - half * half, 0f)), pool.Radius * 0.5f);
                 var last = points.Count - 1;
                 while (last > 1 && math.distance(points[last - 1].Position.xz, pool.Centre.xz) < stop)
                     last--;

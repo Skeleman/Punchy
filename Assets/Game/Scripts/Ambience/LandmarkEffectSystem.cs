@@ -264,6 +264,16 @@ namespace Punchy.Ambience
                         emitter.Drop = math.max(emitter.Position.y - bottom, 1f);
                         falls.Add(emitter);
                         top = emitter.Position.y;
+                        // White water breaking over the lip (Z-35; the landing's spray is the type's own plume).
+                        plumes.Add(new Emitter
+                        {
+                            Position = emitter.Position + new float3(outDir.x, -0.3f, outDir.y) * 0.8f,
+                            Seed = math.frac(math.abs(inst.Seed) * 0.53f + e * 0.29f),
+                            Color = new float4(0.94f, 0.96f, 1f, 0f),
+                            Shape = new float4(1.2f * inst.Scale, effect.Width * inst.Scale, 1.1f * inst.Scale, 1.4f),
+                            Timing = new float4(0f, 0.25f, 0.35f, 24f)
+                        });
+                        maxParticles = math.max(maxParticles, 24);
                     }
                     else
                     {

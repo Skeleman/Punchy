@@ -441,10 +441,7 @@ Shader "Punchy/Water"
                     float reach = saturate(1 - length(toLantern) / _PunchyLanternColor.w);
                     reach *= reach;
                     lanternLit = _PunchyLanternColor.rgb * _PunchyLantern.w * reach;
-                    // On running cave water a soft sheen: a needle-sharp glint picked out every ripple crest across the
-                    // flow as a thin white line (the striping across cave streams, Z-34).
-                    lanternGlint = pow(saturate(dot(n, normalize(normalize(toLantern) + v))), lerp(400, 24, caveRun)) * reach * _PunchyLantern.w
-                                   * lerp(1, 0.2, caveRun);
+                    lanternGlint = pow(saturate(dot(n, normalize(normalize(toLantern) + v))), 400) * reach * _PunchyLantern.w;
                 }
                 body += waterColor * lanternLit * 0.8;
                 // Shallows: light focused by the fine ripples dances over the bed where the water is thin.
@@ -465,7 +462,9 @@ Shader "Punchy/Water"
                 half underRock = max(_PunchyUnderground, _UnderRock);
                 half3 reflection = PunchySkyColor(r, false, true) * lerp(1, 0.04, underRock);
                 // ...and the scene where the reflected ray finds it (the far bank, trees, rocks, creatures).
-                if (frontFace && _ScreenReflection > 0 && lava < 0.99)
+                // (Not on running cave water: the march stepped through the cave's depth in thin bright lines across the
+                // flow, fixed in place, the striping on cave streams, Z-34.)
+                if (frontFace && _ScreenReflection > 0 && lava < 0.99 && caveRun < 0.5)
                 {
                     half4 scene = ScreenReflection(input.positionWS + float3(0, 0.02, 0), r);
                     reflection = lerp(reflection, scene.rgb, scene.a * _ScreenReflection);

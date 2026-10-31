@@ -2703,12 +2703,12 @@ namespace Punchy.Flora
             var corner = half * 1.414f;              // a 4-sided tube's radius to its corners
             var square = Quaternion.Euler(0f, 45f, 0f);
 
-            // Walls: a square prism, rotated so its faces point along the axes.
+            // Walls: a block with flat faces (Z-32: a four-sided tube's smoothed normals turned 45 degrees at each corner,
+            // so every wall shaded from lit edges to a dark middle, or the reverse, and at a glancing view the
+            // double-sided flip caught part of a wall).
             var first = b.VertexCount;
-            var path = new List<Vector3> { Vector3.down * 0.15f, Vector3.up * wall };
-            b.Tube(path, new List<float> { corner, corner }, 4, g.Bark, FloraPart.Bark);
+            b.Box(new Vector3(0f, (wall - 0.15f) * 0.5f, 0f), new Vector3(half * 2f, wall + 0.15f, half * 2f), Quaternion.identity, g.Bark, FloraPart.Bark);
             b.Recolor(first, (p, c) => p.y < 0.6f ? c * 0.8f : c);   // darker footing
-            RotateFrom(b, first, square);
             b.Occlude(first, (p, n) => GroundOcclusion(p, wall * 0.5f));
 
             // Wall detail: dressed quoins up each corner (alternating long and short blocks), a plinth course round
