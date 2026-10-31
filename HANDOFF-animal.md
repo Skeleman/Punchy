@@ -1,116 +1,81 @@
-# Handoff: animal behavior manager (v0.10 in progress)
+# Handoff: animal lane (laptop, session zache-db)
 
-Refreshed 2026-10-30 (end of session, handing to kind-possum) for whoever carries the animal lane next, including a solo session (J-042, HANDOFF-solo.md).
-Lane, rules and the shared log live in `COORDINATION.md`, `MULTIPLAYER.md` and `GLOSSARY.md`; this note is what those
-don't say. Checkout: `D:\Unity\Punchy`, branch `animal-behaviours` (pushed; v0.9.0 published from 39f5558).
+Refreshed 2026-10-30 evening. The supervisor is kind-possum, the "Unity build analytics supervisor setup" session.
+Worktree `Projects/Punchy-animal`, branch `animal-behaviours` (d0388e2, pushed). Reports go newest-first in
+REPORTS-animal.md, with one message to the supervisor per finished batch. Never open Unity without the supervisor's
+slot.
 
-## State: done since v0.9.0 (all pushed on animal-behaviours, each checked in play)
+## Branches (all pushed)
+- **animal-behaviours d0388e2:** includes v010-fixes (Z-02 player side, Z-03, Z-04, Z-05, Z-06, Z-08, Z-14, Z-23..Z-26),
+  trunk-lean, worm-look and trunk-hug. Compiled and partly checked in slot 3.
+- **wip/gfx-creatures 6f6dd94:** creature render ranges × GraphicsSettings.DetailRange. Compiled. It sits on the world
+  gfx branch, so the world lane merges it into world-features.
+- **Feeder/shader pairs.** Each pair must land together; the new feeder against the old shader misreads the slots.
+  - Worms: wip/worm-trail bd5e706 (CreatureBurrowSystem: bumps, craters, MarkMask) with wip/worm-trail-shader 5198212
+    (TerrainSurface BurrowMarks, 64 slots, NearBurrowMark).
+    - First cost check was +0.5 ms against a 0.3 bar; the mask was added afterwards. The re-run is profiler BENCH
+      item 17.
+    - Still to wire: the feeder's Range should read GraphicsSettings.DetailRange(BurrowRange), and the world lane's
+      shader gate `_PunchyBurrowRange`.
+  - Wakes: wip/wake-trail 138874c (CreatureWakeSystem ripples, MarkMask) with wip/wake-trail-shader 4f597bf
+    (Water.shader SwimmerWakes rings, 48 slots, 45 m gate, NearRipple). Seen rendering in slot 3; cost also in item 17.
+- **wip/worm-arc 9213d8e:** Z-28 on top of worm-trail, plus a merge of world-laptop/blocked-top (it now carries
+  world-features history: merge it into world-features, not animal-behaviours). Uncompiled, including zache-73's
+  Blocked(..., out top) and RockAt. Tell zache-73 whether it builds clean.
+- **wip/spin-check 7d03e22:** `-spincheck [deg,s]`, default 270° in 3 s, logs spinning creatures; -watch line shows yaw
+  and turn rate. Uncompiled.
+- **wip/poses 2755204:** Z-21 (sprint foot keeps run angles) and Z-22 (SwingLift/SwingBody: wind-up, torso into the
+  swing). Uncompiled.
+- **wip/carry 95d50e8:** Z-20. CreatureState.CarryWidth is local, set in HeldPoseSystem; the Carry arms open by it;
+  the animal is placed between the posed hand tips. Uncompiled.
+- **wip/brain-sample da5da2c:** profiler item 13 work, up to date with an older animal-behaviours. Not for merge.
 
-- Bird and fish bodies (G-02..G-09): stick pitches gently with the camera, steep climb/dive, real dive speed-up, perching
-  (FloraPlacement.NearPerches; solo and host only), trunk sliding, per-species PlayerFlySpeed; fish swim up/down with
-  the camera, no sprint-dive, fast rise from deep, surface leap with speed, land hop; bone lizard walks on land.
-- Creatures: cave-pool fish (drawn only), smith/woodcutter at the world's Work anchors (G-17), torches for goblins and
-  ogres (F-14), great-tree fireflies (F-19), oasis/graveyard residents (F-15/16), songbird perches, darker crow, drink
-  pose, F-07 mantle hands on the rim (local player only), F-17 ocotillo mimic, F-18 mud-pit pigs, rare golden animals
-  (1 in 400 by Individual, nothing new on the wire), G-14 footsteps by ground (Hooves flag), F-25 swimmer wakes are the
-  water's (CreatureWakeSystem feeds `_PunchySwimmers`, the world's Water.shader draws them).
-- Fixes and perf: host IndexOutOfRange in TrySpawn on join (counts resized in GatherPlayers; not yet run on two
-  machines), cheaper wake feeder (0.14 to 0.01 ms), cheaper F-10 easing (30 m, jitter skipped), AmbientLife.Near
-  (0.36 to 0.05 ms), spawn queue, species Role/Voice fields instead of names.
+## Open rows
+- **Z-07** (spinning: a mouse near Start, an elf at the ElfGrove fountain, 2-3 s each): run `-spincheck` for a few
+  minutes at Start (as a Dog body) and at `-place ElfGrove` at a few hours. Fix from the logged mode, stage, target and
+  focus.
+- **Z-20, Z-21, Z-22, Z-28:** compile and shoot (see the slot list).
+- **P3, needing a design note first:** Z-50 gallop, Z-51 several voices, Z-52 NPC species reactions (ownKind is
+  started in Z-25), Z-53 chases.
 
-## Unfinished
+## Slot list (next)
+1. Build one test branch: world-features + animal-behaviours + spin-check + poses + carry + worm-arc. Build with the
+   scratchpad build.sh/run.sh (lib.sh `build <commit> Build <out>` under results/.lock; run from Builds/Bench with
+   -shotlist and a timeout).
+2. Z-07: `-spincheck` at Start and at ElfGrove.
+3. Z-21: a human sprinting, side-on. Z-22: a woodcutter, smith and miner (`-place HumanVillage`/`DwarfHold` by day).
+4. Z-20: carry a cat, a dog and a large animal, side-on and front-on, plus a remote carrier seen from a client
+   (`-host` / `-join`). Check which way the shoulders open (flip `part.Side * open` if the arms close) and where the
+   animal sits along the forearms.
+5. Z-28: a breach side-on (`-watchfrom`), a jump over a rock or ledge, and a route past boulders from above. Tell
+   zache-73 the compile result for blocked-top.
+6. Merge what passes, write the report, message "Unity closed".
 
-- **Climbing (F-03/F-04), done:** CreatureSpecies.ClimbsAs (Trees / AnySurface); trunks for monkeys, cats, squirrels,
-  bears; lizards and spiders also huts and houses onto the roof; leap off with jump; mid-air latch under 8 m/s.
-  Others see it (WIRE: NetPlayerLook.Climbing bool, 6d70335) and others' mantling hands (WIRE: NetPlayerLook.Rim byte,
-  2a8007a): both await kind-possum's two-machine check. Cave-rock crawling stays on `wip/player-crawl`.
-- **Worms, on `wip/worms` (fd5a752):** CreatureSpecies.Tunnels; SandWorm (Dunes, GlassDesert), SnowWorm (Glacier,
-  Tundra); CreatureBurrowSystem feeds `_PunchyBurrowers[8]` (x, yaw, z, radius, negative while out) to the world's
-  TerrainSurface.shader (agreed; their mound, furrow and crater are on `wip/world-worms`, working but faint, for the next world session to strengthen and land). Merge into animal-behaviours once that lands and is checked.
-- **Open question, BrainJob growth:** ~0.6 ms more on workers than at e4010f2, not EaseGait (kind-possum). Profiler
-  markers Brain.Hunter/Predator/Chaser/Alarm/Playmate/Needs/Fidget/Decide/Advance/EaseGait are in (ea3bdad); a capture
-  should name the culprit. Candidates changed in that range: Think wrapper + EaseGait call, Accelerate in the movers,
-  3D threat distance (F-06), F-14 light choice.
-- **NPC conversations, merged into animal-behaviours (9148308, addd134; in v0.10 on the supervisor's go):**
-  - Walk-by lines: folk say a short line over their heads (FolkTalkSystem, DialogueArchive).
-  - Emotes start conversations: folk who answer your emote also say a line keyed to it.
-  - Animals react to emotes by species (CreatureSpecies.EmoteReaction): Wags, Curious (new Greet stage), Flees or
-    Ignores.
-  - All local text, nothing new on the wire. Checked in a dwarf hold and a human village.
-  - Next steps from the roadmap: dialogue options (`replies` on a line; unknown keys are already kept), and lines
-    shaped by personality and skills once those exist.
-- Perching on joined clients (no FloraLookup there).
-- Not yet seen in play: the oasis heron and swallows (maybe the settled cap was full).
-- Old local branches safe to delete: `wip/fish-ghost`, `wip/gear`, `wip/living-plants`, `wip/moths-swallows`.
+## Key files
+- **Worms:** Fauna/CreatureBrainSystem.cs `Tunnel()` (arc depth `deep`, `Obstructed`, the leap check);
+  CreatureBurrowSystem.cs; MarkMask.cs; Shaders/TerrainSurface.shader `BurrowMarks`.
+- **Wakes:** CreatureWakeSystem.cs; Water.shader `SwimmerWakes`.
+- **Poses:** CreatureAnimator.cs: `Evaluate` (part chain and serpent wave at about line 290), `ActionPose` (emotes,
+  Carry), `TaskPose`/`SwingBody`, the pitch and height posture block at about line 110.
+- **Player:** Player/PlayerMovementSystem.cs (`Floor`, `SwimOrFlop`, `Fly`, `ClimbTrunk`, `TrunkCentre`);
+  Fauna/PlayerAvatarSystem.cs `Pose()` (sit, lie, bow); FaunaDirector.cs builds PlayerBody (Size, JumpFactor).
+- **Audio:** Audio/SoundSynth.cs (append new SoundIds only), CreatureAudioSystem.cs (calls, Countryside, frog
+  chorus), GameAudio.cs (shared; one low-pass per voice).
+- **Talk:** FolkTalkSystem.cs, StreamingAssets/dialogue.json (Ghost culture).
+- **Debug:** Debugging/DebugControls.cs (flags: -watch, -watchfrom, -spawn, -place tree:/meadow, -emote, -spincheck,
+  -footdrift).
 
-## Dialogue file: `Assets/StreamingAssets/dialogue.json`
-
-In a build it's `Punchy_Data/StreamingAssets/dialogue.json`. Edit it while the game runs: it's read again a second
-after it's saved. A broken edit keeps the last good file and logs the parse error once (with line and position).
-
-```json
-{
-  "format": 1,
-  "cultures": {
-    "Any":   { "words": { "trade.Fish": ["fisher"], "town_start": ["Ash"], "town_end": ["ford"] },
-               "lines": [ "Mind how you go." ] },
-    "Dwarf": { "words": { "culture_greeting": ["Hail", "Stone keep you"] },
-               "lines": [ "{culture_greeting}.",
-                          { "text": "Ore's running thick today.", "trade": "Mine" },
-                          { "text": "Sleep now.", "when": "night", "weight": 2 } ] }
-  }
-}
-```
-
-- **Cultures** are species asset names. A speaker looks in its own species first (`HumanChild`), then the species
-  that one is based on (`Human`), then `Any`. Lines come from the first of the first two that has any that fit, plus
-  `Any`'s at 0.3x weight. Seeded: Any, Human, HumanChild, Dwarf, Elf, Goblin, Ogre, Hermit.
-- **Lines** are a plain string or an object with `text`. Optional fields:
-  - `when`: day, night, dawn, morning, afternoon or evening/dusk.
-  - `trade`: one CreatureTask name or a list (Hammer, Chop, Gesture, Tend, Watch, Hunt, Patrol, Fish, Mine, Travel,
-    Hermit, Camper).
-  - `weight`: default 1.
-  - `emote`: Wave, Bow, Cheer or Dance, one or a list. The line is then only an answer to that emote, never said in
-    passing. A speaker with no emote lines anywhere in its chain answers with an ordinary line.
-  - Unknown keys are kept on the line (`Line.Raw`), so dialogue options (`replies` and the like) can be added later
-    without a format change.
-- **Slots** are written `{name}` and filled in this order:
-  - A word list with that name, looked up through the same chain. A culture's own list wins over Any's, and words can
-    hold slots themselves.
-  - `{trade}` reads the list `trade.<Task>`; `{time_of_day}` reads `time.<morning|afternoon|evening|night>`, falling
-    back to the plain word.
-  - The built-ins: `{home_town}`, `{species}` (the speaker's kind) and `{player}` (your body's species; filled only
-    for folk of another kind).
-  - A line with a slot that can't be filled is skipped (for example `{home_town}` for a traveller or a hermit). A
-    filled slot at the start of a line gets a capital letter.
-- **Town names** are `town_start` + `town_end`, picked from the culture of the town's folk (its landmark's upright
-  residents) and hashed from where the town stands, so every machine names a town the same.
-- **Emote answers** are caught when one of the folk within 15 m starts gesturing back (the brain decides who answers,
-  from 20 m, and turns them to face you) within 4 s of your own emote. An answer skips the walk-by pacing and replaces
-  that speaker's own line.
-- **Animal reactions (EmoteReaction):**
-  - Default: Friendly species wag, ones with a FleeDistance flee, the rest ignore.
-  - Set to Curious: Cat, Monkey, Crow, Pigeon, Horse, MountainGoat, MudPig.
-  - Set to Ignores: Bison, Camel, DesertTortoise.
-  - Variants take their base species' reaction.
-- **Pacing:** in FolkTalkSystem's constants. Folk speak within 5 m, each at most every 90 s, one new line every 2.5 s,
-  and at most 3 lines up at once. Folk who are asleep, resting, fleeing or at home stay quiet.
-
-## Gotchas worth keeping
-
-- **Editor:** both editors may run at once (Zach's OK); keep play runs short. Never write an unbounded loop in a probe:
-  a hung editor can't be killed by the session (permission), only by Zach. Close your own with a probe calling
-  `EditorApplication.Exit(0)` on delayCall. After a forced close Unity leaves `Assets/_Recovery` (untracked; ignore).
-- **Probes:** `unity command script run --file X.cs --entry Class.Method`; job markers on worker threads don't show in
-  a ProfilerRecorder from a probe (ask kind-possum for captures). Puppet foot-slide runs vary about 2x run to run.
-- **Editing files:** UTF-8 always, encode before writing (a cp1252 write truncated a file once); each file keeps its
-  own line endings (never Git Bash `sed` on CRLF files: it strips them). Staging part of a file: hunks with full
-  context (`git diff -U3`, `git apply --cached`), never `-U0` (it misplaced code once).
-- **Assets by hand:** a YAML list written `Field: []` needs rewriting as a block before appending entries; after
-  editing an asset on disk, Assets/Refresh and a ForceBake (subscene reimport, wait ~2 min) before play.
-- **Hashing:** `math.hash(uint2)` keeps the low bit of its input; Individuals are odd, so use high bits (`>> 8`).
-- **Wire:** append-only tables; new species or landmark residents move the fingerprint (supervisor's go, rule 11).
-- **Shots:** look at your own at ~560 px; set the camera from a probe with its MonoBehaviours disabled; pass
-  `-weather clear` for colour checks; no images to the supervisor unless asked.
-- **Builds (rule 14):** only `Builds/Windows/Punchy.exe` or `Builds/Dev/Punchy.exe`. Captures: PrintWindow on the game
-  window only; keys only when the game has focus.
+## Gotchas
+- Line endings: LF for DebugControls, CreatureBrainSystem, CreatureBurrowSystem, CreatureWakeSystem,
+  CreatureBreathSystem, HeldPoseSystem, MarkMask and the reports; CRLF for CreatureAnimator, CreatureData, TraceSystem,
+  SoundSynth, GameAudio, CreatureAudioSystem, PlayerMovementSystem, PlayerAvatarSystem, AmbienceSystem and both
+  shaders. Edit with Python byte-level replacements, not sed.
+- `-watch Human` picks your own body: play as `-body Dog`. A lone palm: `-place Dunes -place tree:Palm`.
+- The default camera sits behind the player. For side shots, use `-goto x,z` plus `-camlook` (an open meadow is about
+  x -255, z 27, ground 35.4).
+- HLSL `&&` doesn't short-circuit. Unity fixes a global array's length the first time it's set in a session (an
+  editor keeps the old size until restart).
+- CreatureState fields are local (ghosts copy fields one by one), so adding one isn't a network change. SoundIds are
+  stored by number: append only.
+- Worm arcs start deep, so obstacles under about 20 m ahead are crossed underground.
+- Keep shell calls batched, and send only one message per batch.
