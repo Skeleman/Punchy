@@ -1843,7 +1843,12 @@ namespace Punchy.Fauna
                             s.Timer = 3f;
                     }
                 }
-                TurnTowards(ref s, ref b, s.Target, dt);
+                // (Out of the ground it flies straight on: turning in the air, at a run, round a target close by
+                // coiled its body flat in the air, and an arc that bends misses the obstacle it was meant to clear.)
+                if (s.Air > 0f)
+                    s.YawRate = 0f;
+                else
+                    TurnTowards(ref s, ref b, s.Target, dt);
                 s.Position.xz += new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * s.Speed * dt;
                 ground = Terrain.SampleHeight(s.Position.xz);
                 var under = s.Air > 0f ? deep : depth;
