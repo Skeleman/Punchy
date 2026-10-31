@@ -2,6 +2,27 @@
 
 Newest first.
 
+## 2026-10-31: slot 6 (part 2): wip/z28-air and wip/poses merged (animal-behaviours 9b7459b); Z-07 Play spins not fixed
+- **Pass b (1e7fb47, built clean):** judged from results/animal-slot/s6-workb, s6-wormb, s6-host/s6-client.
+  - **Z-22 PASS:** the woodcutter (chopb) lifts the axe two-handed and brings it down onto the block; the human
+    smith (smithb) and the dwarf smith (dsmithb) raise the hammer and strike the anvil. The top of the human's head is
+    cropped at 1.7,3, but the arms and the tool read clearly. Miners still can't be shot (no mining camp on this seed).
+  - **Z-28 PASS:** with wip/z28-air the worms fly out straight. From above (torshigh-08/10/24) the body is a straight
+    line, and in the side shots it arcs cleanly and dives back in. No flat curl on landing.
+  - **Z-20 remote carrier: inconclusive.** `-interact Dog:carry` on the host never picked a dog up (interact-Dog-carry-*
+    and host-* show dogs milling round its feet). The client did see the host's body and the dogs correctly.
+- **Pass c (f0aacd5 = slot-6 tmp + z28-air + z07-play):** built clean (0 error CS). Smoke vs f5b6597: no change beyond
+  noise (1% lows townwalk@60 36.9->38.9, glide@60 29.6->30.8).
+  - **Z-07 spin count 15** at the same spots (f5b6597 before z07-play: 20; slot 5: 14). Play lines 12 vs 13: the stage-1
+    circling (target 8-20 m, speed under 0.3, 180-300 deg/s) is still there for prairie dogs, rabbits, quail, trout,
+    a swallow and a coyote. **wip/z07-play FAILS, not merged.** The bow and the side-step coin toss weren't the main cause.
+  - Z-28 landing shots on f0aacd5 (s6-wormc): straight in the air, clean dive-in on the snow too.
+- **Merged and pushed:** wip/z28-air (f116dd4) and wip/poses (9b7459b) into animal-behaviours. That exact tree wasn't
+  built on its own; both are in the f0aacd5 build, which compiled clean.
+- **Unity and Punchy are closed, the bench lock is clear, and the main checkout is on b/weather-mapjob.**
+- NEXT: Z-07 Play stage-1 steering (look at why yaw rate saturates while speed is near 0 with the target 8-20 m away);
+  Z-20 remote carrier needs a carry hook that actually picks up (or a Cat); miners need a camp.
+
 ## 2026-10-31: slot 6 (part 1): merged build compiles, Z-22 still not judged, worm coil and Z-07 Play spins found
 - **Build:** tmp/animal-slot6 f5b6597 (animal-behaviours 4f2f0a4 + world-features 3976d17 + wip/poses 2755204):
   compiled clean. Smoke against 3976d17: nothing worse beyond noise, 0 exceptions. The J-006 glide floor flag
