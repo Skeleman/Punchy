@@ -112,11 +112,11 @@ MonoBehaviour:
     Density: 0.06
   - Species: {fileID: 11400000, guid: c23ff5b54d2b09c4f8b4fc96e423afce, type: 2}
     Density: 0.8
-  - Species: {fileID: 11400000, guid: a9cbbae6f97c066488f4202fc7884908, type: 2}
+  - Species: {fileID: 11400000, guid: 864e59253477416cb815ca6e19454785, type: 2}
     Density: 3
   - Species: {fileID: 11400000, guid: f0bc63d3dde59f142948a597920d6c11, type: 2}
     Density: 2
-  - Species: {fileID: 11400000, guid: 17cfe4343a148844db935df7595a8316, type: 2}
+  - Species: {fileID: 11400000, guid: 38130232f3c941809fe251080a4c6f1e, type: 2}
     Density: 1.5
   Habitability: 2
   Cultures: 13

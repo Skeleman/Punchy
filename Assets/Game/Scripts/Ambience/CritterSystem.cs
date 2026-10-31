@@ -62,7 +62,7 @@ namespace Punchy.Ambience
         [StructLayout(LayoutKind.Sequential)]
         public struct Critter
         {
-            public float3 Position;   // home, on the ground
+            public float3 Position;   // home: on the ground, or a layer or two up round a great tree
             public float Random;
             public float4 Color;
         }
@@ -352,9 +352,12 @@ namespace Punchy.Ambience
                 else
                     color = math.lerp(new float3(0.75f, 1f, 0.25f), new float3(1f, 0.85f, 0.3f), rng.NextFloat());
 
+                // The great tree's fireflies fill its height as well as its feet: two in three hover higher, a layer
+                // or two up round the crown (Z-37); the shader still drifts each one round its own spot.
+                var lift = colours ? rng.NextInt(3) * 4f : 0f;
                 Output[i] = new Critter
                 {
-                    Position = new float3(xz.x, math.max(ground.Height, ground.HasWater ? ground.WaterSurface : ground.Height), xz.y),
+                    Position = new float3(xz.x, math.max(ground.Height, ground.HasWater ? ground.WaterSurface : ground.Height) + lift, xz.y),
                     Random = rng.NextFloat(),
                     Color = new float4(color, 1f)
                 };

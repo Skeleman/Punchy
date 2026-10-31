@@ -49,6 +49,22 @@ Shader "Punchy/Flora"
             /// them), mottling at 0.7, 2.5 and 9 m, and rain streaks down the walls. Each octave drops out as it gets
             /// too fine for the pixels (PunchyOctave) and those left are scaled up to the same contrast, so a far wall
             /// keeps a few octaves of variation instead of fading to one flat colour. Returns an albedo multiplier.
+            /// Wood grain (Z-30): fine and broad streaks running along the piece (its grain axis, in the plant's own frame,
+            /// so they turn with it), wavering a little, darker in the lines; each scale drops out as it gets too fine for
+            /// the pixels, as the weathering's octaves do. Returns an albedo multiplier.
+            half PunchyWoodGrain(float3 p, half axisCode, float footprint)
+            {
+                int axis = (int)round(axisCode * 4);
+                float along = axis == 1 ? p.x : axis == 2 ? p.y : p.z;
+                float2 across = axis == 1 ? p.yz : axis == 2 ? p.xz : p.xy;
+                float sideways = across.x + across.y;
+                float wobble = PunchyValueNoise(float2(along * 0.7, sideways * 2.0)) - 0.5;
+                half fine = smoothstep(0.4, 0.8, PunchyValueNoise(float2(sideways * 40 + wobble * 3, along * 1.4)));
+                half broad = smoothstep(0.35, 0.8, PunchyValueNoise(float2((across.x - across.y) * 9 + wobble * 2, along * 0.45)));
+                half grain = fine * 0.55 * PunchyOctave(0.025, footprint) + broad * 0.45 * PunchyOctave(0.11, footprint);
+                return 1 - grain * 0.32;
+            }
+
             half3 PunchyWeathering(float3 p, half3 n, float footprint, half r)
             {
                 p += r * 37;
@@ -89,6 +105,10 @@ Shader "Punchy/Flora"
                 // its base.
                 nointerpolation half4 ground : TEXCOORD5;
                 float2 baseHeight : TEXCOORD6;   // height above the base, instance scale
+                // Wood's grain (Z-30): the point in the plant's own frame, and which of its axes the grain runs along
+                // (FloraMeshBuilder.Wood: the vertex colour's alpha on wood, 0.25 X, 0.5 Y, 0.75 Z).
+                float3 grainPos : TEXCOORD7;
+                nointerpolation half grainAxis : TEXCOORD8;
             };
 
             Varyings Vert(FloraAttributes input)
@@ -98,15 +118,14 @@ Shader "Punchy/Flora"
                 o.positionWS = v.positionWS;
                 o.positionCS = TransformWorldToHClip(v.positionWS);
                 o.normalWS = v.normalWS;
-                // Darker towards the ground and on downward faces (leaves and petals: towards the ground only).
-                int partV = (int)round(input.data.y);
-                half solid = partV == 1 || partV == 2 || partV == 5 ? 0 : 1;
-                half grounding = PunchyGrounding(v.positionWS.y - v.plant.position.y, v.normalWS.y, solid);
-                o.color = half4(input.color.rgb, input.data.w * grounding);
+                // (Darker towards the ground: worked out per pixel in Frag, from baseHeight.)
+                o.color = half4(input.color.rgb, input.data.w);
                 uint g = v.plant.ground;
                 o.ground = half4(g & 255, (g >> 8) & 255, (g >> 16) & 255, g >> 24) / 255.0;
                 o.baseHeight = float2(v.positionWS.y - v.plant.position.y, v.plant.scale);
                 o.extra = float4(input.data.y, v.fade, v.plant.snow, v.plant.random);
+                o.grainPos = input.positionOS;
+                o.grainAxis = input.color.a;
                 // Keyed on the pane (each has a slightly different colour) and the building.
                 float3 key = round(input.color.rgb * 255);
                 o.windowHour = frac(sin(dot(key, float3(0.917, 0.473, 0.131)) * 10 + v.plant.random * 61.7) * 43758.5453);
@@ -146,6 +165,9 @@ Shader "Punchy/Flora"
                 bool strata = part == 0 && frac(input.extra.x) > 0.04 && frac(input.extra.x) < 0.15;
                 if (part == 0 && built || strata)
                     albedo *= PunchyWeathering(input.positionWS, n, footprint, r);
+                // Timber (marked Bark + 0.02): grain along each piece (Z-30: wood read as leather or plaster).
+                if (part == 0 && frac(input.extra.x) > 0.01 && frac(input.extra.x) < 0.035)
+                    albedo *= PunchyWoodGrain(input.grainPos, input.grainAxis, footprint);
                 // Banded rock (FloraSpecies.RockStrata): exactly the terrain's strata (TerrainSurface.shader), same
                 // world heights and colours, so a rock prop's layers line up with the cliff beside it.
                 if (strata)
@@ -230,7 +252,10 @@ Shader "Punchy/Flora"
                 half ndl = dot(n, light.direction);
                 half diffuse = leafy ? saturate(ndl * 0.6 + 0.4) : saturate(ndl * 0.8 + 0.2);
                 half through = leafy ? pow(saturate(dot(-v, light.direction)), 4) * 0.55 : 0;
-                half ao = input.color.a;
+                // Darker towards the ground and on downward faces (leaves and petals: towards the ground only), per pixel:
+                // worked out at the vertices it smeared the tight band at the ground over a whole face, so a building's
+                // foundation exposed on a slope (a metre or two of skirt) showed it stretched down its length (Z-12, G-22).
+                half ao = input.color.a * PunchyGrounding(input.baseHeight.x, n.y, part == 1 || part == 2 || part == 5 ? 0 : 1);
 
                 // Metal leaves: dim diffuse, the colour mostly comes from tinted reflections.
                 half3 color = albedo * (light.color * shadow * (diffuse + through) * lerp(0.6, 1, ao) + sky * ao) * (metal ? 0.45 : 1);
@@ -298,9 +323,13 @@ Shader "Punchy/Flora"
                 // crown, hot at their middle, pulsing slowly out of step (G-33/F-47).
                 if (part == 1 && abs(frac(input.extra.x) - 0.25) < 0.04)   // only the exact ember mark, nothing else on a leaf
                 {
-                    float3 q = input.positionWS * float3(3.1, 1.7, 3.1);
-                    float vein = abs(PunchyValueNoise(q.xz + q.y * 1.9 + r * 17.0) - 0.5) + abs(PunchyValueNoise(q.zy * 1.6 - 3.3) - 0.5) * 0.5;
-                    half sliver = 1 - smoothstep(0.015, 0.05, vein);
+                    // Along the grain (Z-39): the noise varies across the crown and only slowly with height, so where it
+                    // crosses its midline are near-upright sheets, cutting the needles as upright slivers, broken into
+                    // dashes a hand or two long by a mask along the height.
+                    float3 q = input.positionWS;
+                    float vein = abs(PunchyValueNoise(q.xz * 3.1 + q.y * 0.15 + r * 17.0) - 0.5) + abs(PunchyValueNoise(q.zx * 5.3 + q.y * 0.25 - 3.3) - 0.5) * 0.5;
+                    half dash = smoothstep(0.35, 0.6, PunchyValueNoise(float2(q.y * 2.2, dot(q.xz, float2(1.7, 2.3)) + r * 7.0)));
+                    half sliver = (1 - smoothstep(0.015, 0.05, vein)) * dash;
                     half patch = smoothstep(0.45, 0.7, PunchyValueNoise(input.positionWS.xz * 0.35 + r * 11.0));
                     half pulse = 0.6 + 0.4 * sin(_PunchyClock * 1.1 - input.positionWS.y * 0.6 + r * 23);
                     color += half3(1.0, 0.4, 0.1) * sliver * patch * pulse * 1.8;

@@ -216,6 +216,8 @@ namespace Punchy.Flora
         public bool Breathes;
         [Tooltip("Benches: one carved stone slab for a seat instead of two planks (the elves' benches).")]
         public bool StoneSeat;
+        [Tooltip("Rocks: keep their own colour wherever they lie (ice), instead of taking the biome's rock on dry ground.")]
+        public bool KeepOwnColour;
 
         [Header("Placement")]
         [Tooltip("Steepest ground it grows on, in degrees.")]
