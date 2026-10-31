@@ -3,6 +3,15 @@
 Kept by the supervisor (kind-possum), newest first. The full detail is in REPORTS-*.md, BENCH-REPORTS.md and
 FEEDBACK-v0.10.md (Z-IDs). No release goes out without Zach's go.
 
+## 2026-10-30 21:25: usage limit; setup change
+- All four sessions hit the account's 5-hour usage limit at 17:21 and stalled until it reset at 20:30 (about 3 h lost).
+- Token telemetry: the world and animal lanes' contexts (~800k and ~530k tokens, re-read on every call) were ~75% of
+  the spend. Dashboard: https://claude.ai/artifact/XrDf6foLq56Umx9HziqiwA
+- **Decision:** world and animal write HANDOFF-<lane>.md and pause. Their queued code items run as short, fresh task
+  sessions started from the handoff, one at a time. The profiler finishes slot 4 (worm/wake cost, gfx preset sweep).
+- **For Zach on return:** restart the world and animal lane sessions from their handoff files (cheap), or keep the
+  task-session setup.
+
 ## 2026-10-30 17:05: starting point
 - **Merged so far (v0.11):**
   - World: graphics settings (F5 panel, presets, Quit), cave-mouth hitch, Blocked fast path, F-40 trodden ground,
