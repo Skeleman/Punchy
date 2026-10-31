@@ -86,7 +86,7 @@ Shader "Punchy/Water"
             CBUFFER_END
             // 0 above ground, 1 with the camera deep in a cave (CaveSystem).
             float _PunchyUnderground;
-            // Test only (DebugControls "-waterprobe n"): 1 shows the foam, 2 the water's thickness over the bed, 3 the alpha.
+            // Test only (DebugControls "-waterprobe n"): 1 shows the foam, 2 the water's thickness over the bed, 3 the alpha, 4 the foam's parts (shore, churn, streaks).
             float _PunchyWaterProbe;
             // Ripples swimmers have left in the water near the camera (CreatureWakeSystem): x, age (0..1 over its life),
             // z, how strongly it was stirred (0 an empty slot).
@@ -521,8 +521,9 @@ Shader "Punchy/Water"
                 // mesh's corners and drew zigzags), and flecks ride the streaks downstream on any river.
                 half churn = smoothstep(0.35, 0.75, length(flowingSlope));
                 half flecks = 0.45 + 0.55 * smoothstep(0.35, 0.65, PunchyValueNoise(p * 4.3) * 0.6 + PunchyValueNoise(p * 1.7 + 3.1) * 0.4);
-                foam = max(foam, min(rapids * rapids * churn * flecks, 0.6));
-                foam = max(foam, flowAmount * smoothstep(0.9 - 0.06 * rapids, 0.98, streaks) * (0.2 + 0.4 * rapids) * distanceFade * (1 - viscous));
+                half3 foamParts = half3(foam, min(rapids * rapids * churn * flecks, 0.6),
+                                        flowAmount * smoothstep(0.9 - 0.06 * rapids, 0.98, streaks) * (0.2 + 0.4 * rapids) * distanceFade * (1 - viscous));
+                foam = max(foam, max(foamParts.y, foamParts.z));
                 foam = max(foam, wakeFoam * (1 - viscous));
                 half3 foamLit = _FoamColor.rgb * (ambient + light.color * shadow * saturate(light.direction.y) + lanternLit);
                 color = lerp(color, foamLit, foam * (1 - lava));
@@ -570,7 +571,7 @@ Shader "Punchy/Water"
                 }
 
                 if (_PunchyWaterProbe > 0.5)
-                    return _PunchyWaterProbe < 1.5 ? half4(foam, foam, foam, 1) : _PunchyWaterProbe < 2.5 ? half4(saturate(thickness), frac(thickness * 4), 0, 1) : half4(alpha, alpha, alpha, 1);
+                    return _PunchyWaterProbe < 1.5 ? half4(foam, foam, foam, 1) : _PunchyWaterProbe > 3.5 ? half4(foamParts * 2, 1) : _PunchyWaterProbe < 2.5 ? half4(saturate(thickness), frac(thickness * 4), 0, 1) : half4(alpha, alpha, alpha, 1);
                 // The atmosphere (fog and weather) only above ground; a cave pool is right in front of you.
                 if (_PunchyUnderground < 0.999)
                     color = lerp(PunchyAtmosphere(color, input.positionWS), color, _PunchyUnderground);
