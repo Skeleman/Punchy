@@ -46,3 +46,10 @@ FEEDBACK-v0.10.md (Z-IDs). No release goes out without Zach's go.
 - Not judged (shots missed): Z-30 before/after, Z-31..37, Z-39..41 close-ups, Z-12 skirt, Z-09/10/11 and cave-mouth shards. Causes: `-place tree:` can't find props, stale falls/cave coordinates, no rain outside storm stops. Next slot in HANDOFF-world.md.
 - Smoke flagged glide 1% low 36→23 from ~500 ms spikes; ABBA rerun showed no change beyond noise. Decision: keep the merge; the profiler re-checks glide spikes in its next slot.
 - Note: synthetic key presses went to another window. Task sessions are told not to send keys outside the Punchy window.
+
+## 2026-10-31 03:00 — profiler slot 5 on 3976d17 (BENCH-REPORTS e36f31e)
+- In-between gfx (view 0.8, detail 0.75, shadows 0.8) holds J-006 on glide. Glide 1% low: in-between 34.0, Medium 28.9, Low 57.4. Townwalk: 51.9, 41.6, 57.5.
+- Worm marks at 32 slots: +0.2 ms GPU, inside the noise.
+- The ~500 ms glide spikes in the world smoke didn't come back: worst frame 43 ms over 10 runs. They hit the older build too and weren't GC or shader compiles, so likely an outside stall. Not a z-p2 regression.
+- For Zach: the default preset is still his call. Options: keep Medium, make the in-between a "Balanced" default (passes glide, less visible downgrade), or use Low (the profiler's pick).
+- Next: animal task slot.
