@@ -2,6 +2,36 @@
 
 Newest first.
 
+## 2026-10-31: slot 7: Z-07 Play spins fixed, bench paw prints fixed (animal-behaviours 77c03e9); remote carry not possible yet
+- **Merged build:** animal-behaviours 9b7459b + world-features b870008 is the same tree as 5f4c917 (built clean in world
+  slot 2). Smoke of c477c0f (that tree + both fixes, first Z-07 version) vs b870008: OK, no change beyond noise (1% lows
+  townwalk@60 41.2->38.2, townwalk@0 45.9->45.8, glide@60 30.8->30.1, glide@0 28.5->33.4), 0 exceptions.
+- **Z-07 cause:** two things in Play stage 1.
+  - Past its range from the game's middle, the run was `lerp(away from the chaser, towards the middle, pull)`. With the
+    chaser between it and the middle those point opposite ways and cancel at about range + 3 m. That's why the spin
+    lines had focus 15 m (range 12) and target 8 m: the way to go was noise. Now the run's angle from the way in is
+    narrowed, keeping the side it leans to (dead outward: its own side).
+  - Blocked ahead (water, a steep bank), Flee and Play tossed a coin for the side every frame (target 20 m lines, also
+    quail fleeing on a slope). Now: its lean side, the other if that's blocked, else back. Play also steers its own run
+    off an obstacle (tries 45 deg steps, its own side first). A near miss in stage 0 (beside or behind, within 3 reaches,
+    after 2 s) counts as a tag.
+- **Z-07 counts (same spots, spin6 list, Dog body), 3 runs each:** 5f4c917 38 lines, 29 Play; a66c520 24 lines, 6 Play.
+  The c477c0f build (first fix only) had 28/11: the outward-cancel lines went, the blocked coin toss stayed.
+  **Merged wip/z07-play2 (960df87, includes 1257001's bow hold).** Left: Songbird and Dormouse Wander spins (focus
+  ~900 m, target 3-17 m) and Dormouse Climb at 0.15 m, not Play.
+- **Bench paw prints PASS by sight:** TraceSystem `Underfoot` now only takes a prop top up to 0.2 m above the feet.
+  Human player at the bench (111.4, -404.8) with `-spawn Dog:4`: on 5f4c917 the seat is covered in dark prints (s7-bench2-5f4c917
+  b-29); on a66c520 dogs go round and under it for 90 s and the seat stays clean (b-24, b-29). **Merged wip/trace-seat
+  (6283358).**
+- **Z-20 remote carry: not possible with the test hook.** Host Human `-interact Dog:carry` with a client `-body Dog`
+  standing 3 m away (both see each other, s7-host/s7-client): the host never targets it. `-interact` only looks at
+  creatures without PlayerAvatar, and carrying a player body isn't a feature. Needs a design call.
+- animal-behaviours 77c03e9 + b870008 has the same tree as a66c520 (built clean, 0 error CS, 0 shader errors).
+- `-camlook` in a shot list line with `-spawn` didn't take (camera stayed behind the player): frame bench shots from
+  the player instead.
+- Shots: Punchy-wt/Tools/bench/results/animal-slot/s7-*; sheets s7-bench2-old/new.jpg, s7-net.jpg.
+- **Unity and Punchy are closed, the bench lock is clear, and the main checkout is on b/weather-mapjob.**
+
 ## 2026-10-31: slot 6 (part 2): wip/z28-air and wip/poses merged (animal-behaviours 9b7459b); Z-07 Play spins not fixed
 - **Pass b (1e7fb47, built clean):** judged from results/animal-slot/s6-workb, s6-wormb, s6-host/s6-client.
   - **Z-22 PASS:** the woodcutter (chopb) lifts the axe two-handed and brings it down onto the block; the human

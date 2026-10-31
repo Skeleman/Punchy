@@ -1,11 +1,13 @@
 # Handoff: animal lane (laptop, session zache-db)
 
-Refreshed 2026-10-31 (after animal slot 6). The supervisor is kind-possum, the "Unity build analytics supervisor setup" session.
-Worktree `Projects/Punchy-animal`, branch `animal-behaviours` (9b7459b, pushed). Reports go newest-first in
+Refreshed 2026-10-31 (after animal slot 7). The supervisor is kind-possum, the "Unity build analytics supervisor setup" session.
+Worktree `Projects/Punchy-animal`, branch `animal-behaviours` (77c03e9, pushed). Reports go newest-first in
 REPORTS-animal.md, with one message to the supervisor per finished batch. Never open Unity without the supervisor's
 slot.
 
 ## Branches (all pushed)
+- **animal-behaviours 77c03e9 (slot 7):** 9b7459b plus wip/z07-play2 (960df87: Play spins 29 to 6) and wip/trace-seat
+  (6283358: no paw prints on bench seats). Merged with world-features b870008 it is the a66c520 tree (built clean).
 - **animal-behaviours 9b7459b:** 4f2f0a4 plus wip/z28-air (f116dd4) and wip/poses (9b7459b), merged in slot 6.
 - **animal-behaviours 4f2f0a4 (slot 5):** d0388e2 plus spin-check, z07-spin, carry, worm-trail (feeder) and wake-trail (feeder),
   merged in slot 5.
@@ -18,17 +20,15 @@ slot.
 - **wip/z07-spin d337490 (merged):** no turning within 10 cm of the target, and Home mode isn't leash-clamped.
 - **wip/poses 2755204 (merged slot 6):** Z-22 chop, smith and dwarf smith close-ups pass.
 - **wip/z28-air ba7ff69 (merged slot 6):** worms fly straight; no flat coil.
-- **wip/z07-play 1257001 (NOT merged):** builds clean, but the Play spins stay (15 lines, 12 Play, vs 20/13 before).
+- **wip/z07-play 1257001:** superseded; its bow hold is in wip/z07-play2.
 - **wip/brain-sample da5da2c:** profiler item 13 work. Not for merge.
 
 ## Open rows
-- **Z-07 (slot 6):** wip/z07-play (bow, side-step coin toss) built and run: Play spins unchanged; not merged.
-- **Z-07 (earlier):** the elf (Home) and dormouse (Climb) spins are fixed (97 spin lines to 14 at the same spots). Left: Play-mode
-  circling (ducks, prairie dogs, rabbits, small birds, target 8-20 m, under 0.3 m/s, 270 deg in 1.2-2.9 s). Likely
-  the chase itself; look at Play stage 1 steering if Zach still sees it.
+- **Z-07:** Play circling fixed (slot 7: the outward-cancel lerp and the blocked coin toss). Left: Songbird and
+  Dormouse Wander spins (focus ~900 m) and Dormouse Climb at 0.15 m; low priority.
 - **Z-20:** cat and dog carries look right (arms open under the animal, front-on and side-on). Open: a large animal
-  (MudPig and Deer ran or weren't picked up; find one that can be), and a remote carrier from a client (the client's
-  `-watch Human` followed a villager: use `-body Dog` on the client and stand it next to the host).
+  (MudPig and Deer ran or weren't picked up; find one that can be), and a remote carrier: carrying a client's player body isn't a feature (`-interact` skips player
+  bodies; slot 7). Needs a design call, or test a client carrying an animal while the host watches.
 - **Z-22:** woodcutter and smiths pass (slot 6). Miner close up still open (`-watch Human:Chop -watchfrom 0.5,2.5` or `-camlook`).
   DwarfMiningCamp isn't a `-place` name (it stayed at DwarfHold).
 - **Z-28 (slot 6):** flat curl fixed (wip/z28-air merged).
@@ -38,14 +38,13 @@ slot.
 - **P3, needing a design note first:** Z-50 gallop, Z-51 several voices, Z-52 NPC species reactions (ownKind is
   started in Z-25), Z-53 chases.
 
-- **New (world slot 2):** paw prints land on a bench seat when a dog walks under it (TraceSystem `Underfoot` picks the seat).
+- **Bench paw prints:** fixed and merged (slot 7).
 
 ## Slot list (next)
-1. Z-07 Play stage 1: circling persists with wip/z07-play (target 8-20 m, speed < 0.3, yaw rate saturated). Read the
-   stage-1 steering in CreatureBrainSystem; the results are in results/animal-slot/s6-spinc.
-2. Z-20 remote carrier: `-interact Dog:carry` on the host never picks a dog up (s6-host); find a carry that takes,
-   then the client `-body Cat` shots.
-3. Miners: no mining camp is placed on this seed, so Z-22 miners need another seed or a hand-placed camp.
+1. Z-20 remote carrier: a client (`-join`, Human body) with `-interact Cat:carry` near a `-spawn Cat:2` host; host
+   shots of the client carrying. Large animal: find a pettable one of 0.5 m or less that holds still.
+2. Miners: no mining camp on this seed, so Z-22 miners need another seed or a hand-placed camp.
+3. Z-07 leftovers (Songbird/Dormouse Wander) if Zach still sees them.
 ## Key files
 - **Worms:** Fauna/CreatureBrainSystem.cs `Tunnel()` (arc depth `deep`, `Obstructed`, the leap check);
   CreatureBurrowSystem.cs; MarkMask.cs; Shaders/TerrainSurface.shader `BurrowMarks`.
@@ -73,4 +72,5 @@ slot.
 - CreatureState fields are local (ghosts copy fields one by one), so adding one isn't a network change. SoundIds are
   stored by number: append only.
 - Worm arcs start deep, so obstacles under about 20 m ahead are crossed underground.
+- In shot lists, `-camlook` on a line with `-spawn` didn't take; frame from the player (stand it where you want to look).
 - Keep shell calls batched, and send only one message per batch.
