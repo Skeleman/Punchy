@@ -1542,7 +1542,10 @@ namespace Punchy.Fauna
                     {
                         targetSpeed = math.lerp(walk, run, 0.75f);
                         var reach = (b.BodyLength * s.Scale + Bodies[p].Blob.Value.BodyLength * other.Scale) * 0.6f + 0.3f;
-                        if (distance < reach)
+                        // (A near miss counts too: a partner that's run close past it, beside or behind, within a few
+                        // reaches. Otherwise one running round it turned it on the spot, Z-07.)
+                        var bearing = math.abs(WrapAngle(math.atan2(to.x, to.y) - s.Yaw));
+                        if (distance < reach || distance < reach * 3f + 0.5f && bearing > 1.2f && s.StageTime > 2f)
                         {
                             s.Stage = 1;
                             s.StageTime = 0f;
@@ -1566,8 +1569,21 @@ namespace Punchy.Fauna
                     var toCentre = s.Focus - s.Position.xz;
                     var wander = math.length(toCentre);
                     var range = s.Leash > 0f ? s.Leash * 0.6f : 12f;
+                    // Out there the run is bent round towards the middle: its angle from the way in is narrowed, keeping
+                    // the side it leans to (dead away from the middle, its own side). Not a blend of the two ways: with
+                    // the chaser between it and the middle they point opposite, and a few metres past the range they
+                    // cancelled, leaving the way to go to noise; it turned on the spot at full rate (Z-07).
                     if (wander > range)
-                        dir = math.lerp(math.normalizesafe(dir), toCentre / wander, math.saturate((wander - range) / 6f));
+                    {
+                        var inward = toCentre / wander;
+                        var pull = math.saturate((wander - range) / 6f);
+                        var fled = math.normalizesafe(dir, flee);
+                        var theta = math.atan2(inward.x * fled.y - inward.y * fled.x, math.dot(inward, fled));
+                        var lean = math.abs(theta) > math.PI - 0.35f ? (s.Seed & 1u) == 0u ? 1f : -1f : math.sign(theta);
+                        var angle = lean * math.min(math.abs(theta), math.lerp(math.PI, math.PI * 0.25f, pull));
+                        math.sincos(angle, out var sn, out var cs);
+                        dir = new float2(inward.x * cs - inward.y * sn, inward.x * sn + inward.y * cs);
+                    }
                     s.Target = s.Position.xz + math.normalizesafe(dir, flee) * 8f;
                     targetSpeed = math.lerp(walk, run, distance > 12f ? 0.3f : 0.6f);
                 }
