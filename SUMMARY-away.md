@@ -71,3 +71,10 @@ FEEDBACK-v0.10.md (Z-IDs). No release goes out without Zach's go.
 - The new wood grain costs nothing measurable: Medium ABBA within noise (glide 1% low 31.1→31.0), town GPU 9.5 vs 9.8 ms. No exceptions, no NaN, no 500 ms spikes.
 - In-between gfx on b870008: glide 35.6, still passes. Medium glide is still about 31, below J-006.
 - Next: animal slot 7 (Z-07 Play circling, the bench paw prints, the Z-20 remote carry, a build of the animal-behaviours head).
+
+## 2026-10-31 10:00 — animal slot 7 (animal-behaviours 77c03e9)
+- Merged wip/z07-play2 960df87. Z-07 cause: a run past its range blended "away from the chaser" with "back to the middle", which cancelled out, and blocked runs tossed a coin for a side every frame. Spin lines over 3 runs: 38 → 24, Play spins 29 → 6.
+- Merged wip/trace-seat 6283358: paw prints stay on the ground and no longer cover a bench seat (checked by sight).
+- Merged with b870008, the tree built clean (a66c520); the smoke on the near-identical c477c0f showed only noise.
+- Left: Z-20 remote carry needs a design call (the host never targets a client's body); songbird and dormouse Wander spins.
+- Next: world slot 3 (Z-10 fog, Z-11 rain, cave shards, close-up of the newly marked timber).
