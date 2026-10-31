@@ -59,3 +59,10 @@ FEEDBACK-v0.10.md (Z-IDs). No release goes out without Zach's go.
 - Not merged: wip/z07-play. Spin lines went 20 → 15 but Play circling barely changed (13 → 12).
 - Still open: Z-07 Play circling, the Z-20 remote carry (the host never picked up a dog), and miners (no mining camp on this seed).
 - Token note: a task session that hands back while its own scripts are still running wakes again at each step (about 190k per wake). From now on, task sessions finish their runs before handing back.
+
+## 2026-10-31 08:00 — world slot 2 (world-features b870008)
+- Merged world-laptop/z30-more: the grain rewrite 632f479 now shows clear plank streaks, plus more timber marked (69f3185, not yet seen up close). Built clean; no exceptions in 7 runs. animal-behaviours 9b7459b + b870008 also compile together (tmp, not merged).
+- Tooling: `-place prop:<Species>` logs real prop coordinates; `-benchday` (b/bench-runner db3c1f2) allows any weather at any stop; `-caveshards` probe.
+- Passed by sight: Z-33 banners, Z-36 ripples, Z-39 ember pine, Z-40 forge, Z-41 ridge, Z-12 skirt, Z-09 (aurora behind clouds), Z-37 fireflies (weak).
+- Open: Z-10 fog not judged; Z-11 rain (light, no wiggle); cave shards not seen. New animal bug: paw prints land on the bench seat when a dog walks under it.
+- Next: the profiler checks the cost of the new grain on b870008.

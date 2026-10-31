@@ -38,6 +38,8 @@ slot.
 - **P3, needing a design note first:** Z-50 gallop, Z-51 several voices, Z-52 NPC species reactions (ownKind is
   started in Z-25), Z-53 chases.
 
+- **New (world slot 2):** paw prints land on a bench seat when a dog walks under it (TraceSystem `Underfoot` picks the seat).
+
 ## Slot list (next)
 1. Z-07 Play stage 1: circling persists with wip/z07-play (target 8-20 m, speed < 0.3, yaw rate saturated). Read the
    stage-1 steering in CreatureBrainSystem; the results are in results/animal-slot/s6-spinc.
