@@ -907,17 +907,21 @@ namespace Punchy.Fauna
                     if (!followsWall && (blocked || landBound && s.Speed > 0.05f && SlopeAhead(s.Position.xz, ahead) > 0.8f))
                     {
                         s.Speed *= 0.5f;
-                        if (s.Mode == CreatureMode.Flee)
-                            s.Target = s.Position.xz + new float2(-forward.y, forward.x) * (rng.NextBool() ? 20f : -20f);
-                        else if (s.Mode == CreatureMode.Play && s.Stage == 1)
+                        if (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Play && s.Stage == 1)
                         {
-                            // Playing, it veers along whatever's in the way to the side its run leans to, the same
-                            // side every frame (Play aims it again each frame: a coin toss each time left it turning
-                            // on the spot, Z-07); head-on, its own side.
+                            // Running, it veers along whatever's in the way: to the side its run leans to (head-on, its
+                            // own side), the other side if that's blocked too, or back the way it came if both are.
+                            // Never a coin toss: a fresh one each frame left it turning on the spot (Z-07, quail
+                            // fleeing on a slope, playing prairie dogs).
                             var left = new float2(-forward.y, forward.x);
                             var lean = math.dot(s.Target - s.Position.xz, left);
                             var side = math.abs(lean) > 0.5f ? math.sign(lean) : (s.Seed & 1u) == 0u ? 1f : -1f;
-                            s.Target = s.Position.xz + left * side * 20f;
+                            var way = left * side;
+                            var reach = 1.5f * s.Scale + 0.5f;
+                            if (!CaveWalker(s, ref b) && !b.Haunts && !b.LavaDweller && s.Mode != CreatureMode.Swim &&
+                                !Open(s.Position.xz, s.Position.xz + way * reach, b.Habitat, landBound))
+                                way = Open(s.Position.xz, s.Position.xz - way * reach, b.Habitat, landBound) ? -way : -forward;
+                            s.Target = s.Position.xz + way * 20f;
                         }
                         else if (s.Mode == CreatureMode.Wander || s.Mode == CreatureMode.Drink && s.Stage == 0 ||
                                  s.Mode == CreatureMode.Climb && s.Stage == 0 || s.Mode == CreatureMode.Web && s.Stage == 0)
@@ -1584,7 +1588,27 @@ namespace Punchy.Fauna
                         math.sincos(angle, out var sn, out var cs);
                         dir = new float2(inward.x * cs - inward.y * sn, inward.x * sn + inward.y * cs);
                     }
-                    s.Target = s.Position.xz + math.normalizesafe(dir, flee) * 8f;
+                    // A run aimed at something in the way (water, a steep bank) turns off along it, its own side
+                    // first: left to the steering, it was stopped, sent aside, then aimed back in again each frame
+                    // (Z-07).
+                    var aim = math.normalizesafe(dir, flee);
+                    var probe = 1.5f * s.Scale + 0.5f;
+                    var land = b.Habitat == Habitat.Land;
+                    if (!CaveWalker(s, ref b) && !Open(s.Position.xz, s.Position.xz + aim * probe, b.Habitat, land))
+                    {
+                        var own = (s.Seed & 1u) == 0u ? 1f : -1f;
+                        for (int k = 1; k <= 6; k++)
+                        {
+                            math.sincos(own * (k % 2 == 1 ? 1f : -1f) * 0.8f * ((k + 1) / 2), out var ts, out var tc);
+                            var tried = new float2(aim.x * tc - aim.y * ts, aim.x * ts + aim.y * tc);
+                            if (Open(s.Position.xz, s.Position.xz + tried * probe, b.Habitat, land))
+                            {
+                                aim = tried;
+                                break;
+                            }
+                        }
+                    }
+                    s.Target = s.Position.xz + aim * 8f;
                     targetSpeed = math.lerp(walk, run, distance > 12f ? 0.3f : 0.6f);
                 }
             }
@@ -5688,6 +5712,11 @@ namespace Punchy.Fauna
                 }
                 return best < float.MaxValue;
             }
+
+            /// <summary>Whether a step from one spot to the next is open ground for it: walkable, and (for a land-bound
+            /// animal) not too steep. The running veers' look either side (Z-07).</summary>
+            bool Open(float2 from, float2 to, Habitat habitat, bool landBound) =>
+                Walkable(to, habitat) && !(landBound && SlopeAhead(from, to) > 0.8f);
 
             /// <summary>Lava deep enough to swim in (a volcano's crater lake, a lava biome's pools).</summary>
             bool InLava(float2 xz)
