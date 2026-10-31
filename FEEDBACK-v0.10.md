@@ -15,12 +15,12 @@ network table changes the fingerprint: fine for v0.11, but say so in the report.
 | Z-04 | A | Can't jump out of water as a fish (fish leaps). |
 | Z-05 | A | The player's animal makes random noises; only wild animals should. The player makes noise only through emotes. |
 | Z-06 | A | Drink emote still lifts the rear legs (the v0.10 notes said it was fixed: find out why it isn't). Horses sitting looks very odd. |
-| Z-07 | A | NPCs and a squirrel sit in place spinning. |
+| Z-07 | A | NPCs and a squirrel sit in place spinning. Zach: a mouse near the start spawn and an elf at an ElfGrove fountain, each for 2-3 s. |
 | Z-08 | A | Cold breath on the chicken comes out well above its head. Anchor breath to each creature's mouth/head socket. |
 | Z-09 | W | Shooting stars render in front of clouds. |
 | Z-10 | W | River renders on top of nearer fog (fog doesn't occlude the river): fog in the water shader / queue order. |
 | Z-11 | W | Benches wiggle (wind/rain flutter on a rigid prop?). Bench wetness shows a screen-space image (changes with camera angle). Elven stone benches use the plank model. |
-| Z-12 | W | Fountain: the lower basin rim is incomplete (floor visible from above); stretched texture at `-goto 270,3248`; its water should use the game's water shader. |
+| Z-12 | W | Fountain: the lower basin rim is incomplete (floor visible from above); stretched texture at `-goto 270,3248` (Zach: the slab's downward extension stretches where the ground is lower); its water should use the game's water shader. |
 | Z-13 | W | A road runs through a cabbage patch at `-goto 147,-542`. |
 | Z-14 | A | Night noise (howl or ghost?) is too in-your-face, too frequent and a bit staticky: identify it, make it rarer, softer and distant (low-pass, reverb). Traced (W) to the wolves' SoundId.Howl (CreatureAudioSystem.cs:148): animal lane. |
 
@@ -45,7 +45,7 @@ network table changes the fingerprint: fine for v0.11, but say so in the report.
 | Z-35 | W | Waterfall: faster fall, whitewater spray at top and bottom; it nearly meets the top (close the gap). |
 | Z-36 | W | Bubble pop: use the fish-style surface ripple. |
 | Z-37 | W | Great tree fireflies fly higher too (another layer or two). |
-| Z-38 | W | Fungal forest cap colours converge toward brown (Morrowind feel). |
+| Z-38 | W | Fungal forest cap colours converge toward brown (Morrowind feel). Zach: the small glowing caps too, in the fungal forest only. |
 | Z-39 | W | Ember slivers in pine needles aligned vertically with the grain. |
 | Z-40 | W | Smelter furnace: glowing embers, recessed like a pit. |
 | Z-41 | W | Roof edges get a slight bevel instead of a hard point. |
