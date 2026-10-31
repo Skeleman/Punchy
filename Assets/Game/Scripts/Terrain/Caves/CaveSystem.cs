@@ -724,15 +724,49 @@ namespace Punchy.Terrain
             ref var stream = ref set.Streams[index];
             var vertices = new List<WaterVertex>();
             var indices = new List<int>();
-            var count = stream.PointCount;
+            var points = new List<CaveStreamPoint>();
+            for (int k = 0; k < stream.PointCount; k++)
+                points.Add(set.StreamPoints[stream.FirstPoint + k]);
+            // A stream that ends in a pool (CaveBaking puts one on its last point) stops at the pool's rim, full width,
+            // where the rim is wide enough to take it, instead of running on into the middle as a lighter tongue drawn
+            // over the pool's water (Z-34).
+            var intoPool = false;
+            var end = points[points.Count - 1].Position;
+            for (int i = 0; i < set.Pools.Length && !intoPool && points.Count >= 3; i++)
+            {
+                ref var pool = ref set.Pools[i];
+                if (pool.Lava > 0f || math.distance(pool.Centre, end) > 0.05f)
+                    continue;
+                // Far enough in that the ribbon's square end lies inside the disc across its whole width.
+                var half = points[points.Count - 1].Width * 0.58f;
+                var stop = math.sqrt(math.max(pool.Radius * pool.Radius * 0.98f - half * half, 0f));
+                var last = points.Count - 1;
+                while (last > 1 && math.distance(points[last - 1].Position.xz, pool.Centre.xz) < stop)
+                    last--;
+                // The crossing on the segment from the last point outside the rim to the next one in.
+                var outside = points[last - 1];
+                var inside = points[last];
+                var a = math.distance(outside.Position.xz, pool.Centre.xz);
+                var b = math.distance(inside.Position.xz, pool.Centre.xz);
+                if (a < stop)
+                    break;
+                var cross = inside;
+                cross.Position = math.lerp(outside.Position, inside.Position, math.saturate((a - stop) / math.max(a - b, 1e-3f)));
+                cross.Position.y = pool.Centre.y;
+                points.RemoveRange(last, points.Count - last);
+                points.Add(cross);
+                intoPool = true;
+            }
+            var count = points.Count;
             for (int k = 0; k < count; k++)
             {
-                ref var p = ref set.StreamPoints[stream.FirstPoint + k];
-                var prev = set.StreamPoints[stream.FirstPoint + math.max(k - 1, 0)].Position;
-                var next = set.StreamPoints[stream.FirstPoint + math.min(k + 1, count - 1)].Position;
+                var p = points[k];
+                var prev = points[math.max(k - 1, 0)].Position;
+                var next = points[math.min(k + 1, count - 1)].Position;
                 var along = math.normalizesafe((next - prev).xz, new float2(1f, 0f));
-                // Narrowing to a trickle at both ends, rather than stopping square.
-                var taper = math.lerp(0.15f, 1f, math.saturate(math.min(k, count - 1 - k) / 2f));
+                // Narrowing to a trickle at both ends, rather than stopping square (but full width into a pool).
+                var fromEnd = intoPool ? 2 : count - 1 - k;
+                var taper = math.lerp(0.15f, 1f, math.saturate(math.min(k, fromEnd) / 2f));
                 // A little past where the banks rise out of the water (the edges tuck under them), so it fills the channel.
                 var side = new float2(-along.y, along.x) * p.Width * 0.58f * taper;
                 var drop = (prev.y - next.y) / math.max(math.distance(prev.xz, next.xz), 0.1f);

@@ -441,7 +441,10 @@ Shader "Punchy/Water"
                     float reach = saturate(1 - length(toLantern) / _PunchyLanternColor.w);
                     reach *= reach;
                     lanternLit = _PunchyLanternColor.rgb * _PunchyLantern.w * reach;
-                    lanternGlint = pow(saturate(dot(n, normalize(normalize(toLantern) + v))), 400) * reach * _PunchyLantern.w;
+                    // On running cave water a soft sheen: a needle-sharp glint picked out every ripple crest across the
+                    // flow as a thin white line (the striping across cave streams, Z-34).
+                    lanternGlint = pow(saturate(dot(n, normalize(normalize(toLantern) + v))), lerp(400, 24, caveRun)) * reach * _PunchyLantern.w
+                                   * lerp(1, 0.2, caveRun);
                 }
                 body += waterColor * lanternLit * 0.8;
                 // Shallows: light focused by the fine ripples dances over the bed where the water is thin.
