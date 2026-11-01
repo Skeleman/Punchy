@@ -111,7 +111,11 @@
         { "text": "Pointy ears, soft hands. Ever lifted a hammer, {player}?", "stance": "Rival" },
         { "text": "Leaf-eater. Hah! Only teasing.", "stance": "Rival" },
         { "text": "A bow from an elf? Call it even.", "stance": "Rival", "emote": "Bow" },
-        { "text": "Wave all you like, it won't make you taller.", "stance": "Rival", "emote": "Wave" }
+        { "text": "Wave all you like, it won't make you taller.", "stance": "Rival", "emote": "Wave" },
+        { "text": "A human. Count your fingers after, {player}.", "stance": "Wary" },
+        { "text": "Tall folk. Always in a hurry.", "stance": "Wary" },
+        { "text": "Off with you, {player}. I've work to do.", "stance": "Annoyed" },
+        { "text": "Hmph. Humans.", "stance": "Annoyed" }
       ]
     },
     "Elf": {
@@ -135,7 +139,11 @@
         { "text": "Careful, {player}. The trees here are older than your beard.", "stance": "Rival" },
         { "text": "Stout as ever. Do try not to trample the moss.", "stance": "Rival" },
         { "text": "Oh, a bow. How very... sturdy of you.", "stance": "Rival", "emote": "Bow" },
-        { "text": "Yes, yes, we see you down there.", "stance": "Rival", "emote": "Wave" }
+        { "text": "Yes, yes, we see you down there.", "stance": "Rival", "emote": "Wave" },
+        { "text": "A {player}. You are far from your fields.", "stance": "Wary" },
+        { "text": "Humans cut trees. We remember.", "stance": "Wary" },
+        { "text": "Leave us, {player}.", "stance": "Annoyed" },
+        { "text": "How loud you are.", "stance": "Annoyed" }
       ]
     },
     "Goblin": {
