@@ -839,7 +839,7 @@ namespace Punchy.Debugging
                 request.TargetGhost = em.HasComponent<Unity.NetCode.GhostInstance>(interactTarget)
                     ? em.GetComponentData<Unity.NetCode.GhostInstance>(interactTarget).ghostId : 0;
                 requestQuery.SetSingleton(request);
-                Debug.Log($"DebugControls: interact {act} {parts[0]}");
+                Debug.Log($"DebugControls: interact {act} {parts[0]} (ghost {request.TargetGhost}, {math.distance(em.GetComponentData<CreatureState>(interactTarget).Position.xz, em.GetComponentData<LocalTransform>(playerEntity).Position.xz):F1} m away)");
             }
 
             var now = Time.timeSinceLevelLoad;
