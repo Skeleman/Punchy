@@ -123,3 +123,7 @@ FEEDBACK-v0.10.md (Z-IDs). No release goes out without Zach's go.
 ## 2026-11-01 ~00:00 — Zach back
 - Zach answered the firewall prompt. His decisions: **rebuild the v0.11 candidate** with animal c810406 (remote interaction fix) and re-gate; **default graphics preset stays Medium**; he restarts the world and animal lane sessions from their handoffs (restart notes added to both).
 - The supervisor runs the candidate rebuild and gate now (holds Unity about 4 h). Still no release until Zach says go after the new gate.
+
+## 2026-11-01 01:05 — weekly usage limit hit
+- The v0.11 rebuild session stopped on the account's weekly limit (resets 18:00 America/Phoenix). It had merged c810406 into cand/v0.11 (pushed 00:01) and updated the draft release notes (committed in 5de654a), but hadn't built or gated it. The machine is clean: no Unity or Punchy, lock clear, main checkout on b/weather-mapjob.
+- Hourly supervisor check-ins stopped to save the limit. After the reset: resume the rebuild session (its work so far is saved) to build, gate and pack cand/v0.11.
