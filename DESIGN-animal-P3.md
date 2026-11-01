@@ -115,3 +115,8 @@ no Unity). The game has no orcs: read as **Ogre** (GoblinCamp/OgreCamp) unless Z
 Goblin-Ogre -0.5, Human-Dwarf -0.4, Human-Elf -0.4 (both ways). Dwarf-Elf is its own **Rival** stance (teasing lines,
 a mock bow or head-shake, never wary), not a negative affinity. Open: should an annoyed NPC say anything, or just
 turn away? (Default: a curt line.)
+Also from Zach: **fish folk** are neutral toward all races (affinity 0), and the **blind cave pygmies** are a little
+wary of all races (affinity -0.25 toward every other folk, so a higher wary chance and no annoyed reaction). Neither
+species exists yet (the `Cultures` flag FishFolk = 64 and REALMS-PLAN list fish folk as "later"; pygmies aren't in
+the code at all), so their values go in as data on the species when they're added, plus a per-species default
+affinity field (`AffinityToAll`) to cover the "toward every race" cases.
