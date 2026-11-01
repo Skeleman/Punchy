@@ -119,3 +119,7 @@ FEEDBACK-v0.10.md (Z-IDs). No release goes out without Zach's go.
 - Likely cause: a **Windows Security Alert (firewall) dialog** for Builds/bench-a4a5378/Punchy.exe, open since 19:48. A test launched that build's exe from its own folder, so Windows asked about it as a new program. Nobody clicked it. **Zach: please answer it** (allow on private networks, or cancel). Agents don't touch firewall settings.
 - Media Player and Chrome are open, so Zach may be on the machine. **Unity slots are paused** until Zach answers the dialog and says the machine is free. Then retest 21f1193 glide at cap 60 twice to confirm the stalls are gone.
 - Lesson for task sessions: launch builds only from Builds/Bench (the path Windows has already approved), never from an archive folder.
+
+## 2026-11-01 ~00:00 — Zach back
+- Zach answered the firewall prompt. His decisions: **rebuild the v0.11 candidate** with animal c810406 (remote interaction fix) and re-gate; **default graphics preset stays Medium**; he restarts the world and animal lane sessions from their handoffs (restart notes added to both).
+- The supervisor runs the candidate rebuild and gate now (holds Unity about 4 h). Still no release until Zach says go after the new gate.

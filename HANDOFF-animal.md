@@ -90,3 +90,10 @@ slot.
 - In shot lists, `-camlook` on a line with `-spawn` didn't take; frame from the player (stand it where you want to look).
 - Burst's Debug.Log formats only G/D/X (no `F1`). On the host, `-watch Human` doesn't find a remote player's body.
 - Keep shell calls batched, and send only one message per batch.
+
+## Restart notes (supervisor, 2026-11-01 ~00:00)
+- Zach is restarting this lane from this handoff. Read it, then the newest entry in your REPORTS file, then SUMMARY-away.md (what happened while he was away).
+- Zach's decisions: rebuild the v0.11 candidate with animal c810406 (the InteractRpc fix). The default graphics preset stays Medium. Design calls are still open (Z-34 stream without a pool; P3 rows).
+- Unity: the supervisor's v0.11 rebuild and gate holds the slot first (about 4 h). Do code-only work until the supervisor gives you a slot.
+- Launch builds only from Builds/Bench. Starting an exe from an archive folder (Builds/bench-<sha>) set off a Windows firewall prompt that stalled every bench on 2026-10-31.
+- Token habits that worked: batch shell calls (several greps in one call), one git call per merge step, no ack-only messages, and don't hand back while your own background runs are still going.
