@@ -39,7 +39,10 @@
         { "text": "Oh! Hello.", "emote": "Wave" },
         { "text": "No need to bow to me.", "emote": "Bow" },
         { "text": "Ha! Yes!", "emote": "Cheer" },
-        { "text": "Now that's a dance!", "emote": "Dance" }
+        { "text": "Now that's a dance!", "emote": "Dance" },
+        { "text": "Good to see one of our own.", "stance": "Kin" },
+        { "text": "Ah, family. Welcome.", "stance": "Kin" },
+        { "text": "Well met, friend.", "stance": "Warm" }
       ]
     },
     "Human": {
@@ -62,7 +65,13 @@
         { "text": "Such manners. Welcome to {home_town}.", "emote": "Bow" },
         { "text": "What are we cheering?", "emote": "Cheer" },
         { "text": "Ha, go on then!", "emote": "Dance" },
-        { "text": "Not while I'm on duty.", "emote": "Dance", "trade": ["Patrol", "Watch"] }
+        { "text": "Not while I'm on duty.", "emote": "Dance", "trade": ["Patrol", "Watch"] },
+        { "text": "A {player}. Keep your hands where I can see them.", "stance": "Wary" },
+        { "text": "Hm. {player}s don't usually come this way.", "stance": "Wary" },
+        { "text": "...", "stance": "Wary", "weight": 0.5},
+        { "text": "Not now.", "stance": "Annoyed" },
+        { "text": "Go bother someone else, {player}.", "stance": "Annoyed" },
+        { "text": "Hmph.", "stance": "Annoyed", "weight": 0.5}
       ]
     },
     "HumanChild": {
@@ -97,7 +106,12 @@
         { "text": "{culture_greeting}!", "emote": "Wave" },
         { "text": "A proper bow. Your beard does you credit.", "emote": "Bow" },
         { "text": "To the forge and the stone!", "emote": "Cheer" },
-        { "text": "Dwarves don't dance. Much.", "emote": "Dance" }
+        { "text": "Dwarves don't dance. Much.", "emote": "Dance" },
+        { "text": "An elf! Mind the low ceilings, beanpole.", "stance": "Rival" },
+        { "text": "Pointy ears, soft hands. Ever lifted a hammer, {player}?", "stance": "Rival" },
+        { "text": "Leaf-eater. Hah! Only teasing.", "stance": "Rival" },
+        { "text": "A bow from an elf? Call it even.", "stance": "Rival", "emote": "Bow" },
+        { "text": "Wave all you like, it won't make you taller.", "stance": "Rival", "emote": "Wave" }
       ]
     },
     "Elf": {
@@ -116,7 +130,12 @@
         { "text": "{culture_greeting}.", "emote": "Wave" },
         { "text": "Gracefully done.", "emote": "Bow" },
         { "text": "Your joy is loud.", "emote": "Cheer" },
-        { "text": "You dance like a sapling in a gale.", "emote": "Dance" }
+        { "text": "You dance like a sapling in a gale.", "emote": "Dance" },
+        { "text": "A dwarf, above ground? Did the tunnels run out?", "stance": "Rival" },
+        { "text": "Careful, {player}. The trees here are older than your beard.", "stance": "Rival" },
+        { "text": "Stout as ever. Do try not to trample the moss.", "stance": "Rival" },
+        { "text": "Oh, a bow. How very... sturdy of you.", "stance": "Rival", "emote": "Bow" },
+        { "text": "Yes, yes, we see you down there.", "stance": "Rival", "emote": "Wave" }
       ]
     },
     "Goblin": {
@@ -135,7 +154,11 @@
         { "text": "Wot you waving at?", "emote": "Wave" },
         { "text": "Hehe. Bow lower.", "emote": "Bow" },
         { "text": "Oi oi oi!", "emote": "Cheer" },
-        { "text": "Silly dancing! Hehehe!", "emote": "Dance" }
+        { "text": "Silly dancing! Hehehe!", "emote": "Dance" },
+        { "text": "Big one. Ogre-thing. Not too close.", "stance": "Wary" },
+        { "text": "Watching you, {player}. Watching.", "stance": "Wary" },
+        { "text": "Go away, lump.", "stance": "Annoyed" },
+        { "text": "Ugh. {player}. Ugh.", "stance": "Annoyed" }
       ]
     },
     "Ogre": {
@@ -153,7 +176,11 @@
         { "text": "Hrm. Wave.", "emote": "Wave" },
         { "text": "Small one bows. Good.", "emote": "Bow" },
         { "text": "GRAAAH!", "emote": "Cheer" },
-        { "text": "Ogre stomp too.", "emote": "Dance" }
+        { "text": "Ogre stomp too.", "emote": "Dance" },
+        { "text": "Little sneaky {player}. Hands off ogre stuff.", "stance": "Wary" },
+        { "text": "Hmm. Goblin smell.", "stance": "Wary" },
+        { "text": "Go. Before ogre squash.", "stance": "Annoyed" },
+        { "text": "Grr. Not talking to {player}.", "stance": "Annoyed" }
       ]
     },
     "Hermit": {

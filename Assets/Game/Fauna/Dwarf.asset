@@ -379,3 +379,8 @@ MonoBehaviour:
   Perching: 0.6
   Soars: 0
   Breaches: 0
+  Regard:
+  - Species: {fileID: 11400000, guid: 46b822fc6510e9c438d06b7c0598a487, type: 2}
+    Value: 0
+    Rival: 1
+  RegardToAll: 0

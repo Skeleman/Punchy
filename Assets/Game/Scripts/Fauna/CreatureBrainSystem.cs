@@ -419,8 +419,13 @@ namespace Punchy.Fauna
                     }
                     s.Focus = threat;
                 }
-                else if (emote != IdleAction.None && !b.Rooted)
-                    Answer(ref s, ref b, ref rng, emote, player, playerDistance, dt);
+                // How one of the folk takes the nearest player's body (Z-52): kin, a rival, wary, annoyed, warm or neither.
+                var stance = b.Upright && b.Hands && !b.Haunts && nearest < PlayerSpecies.Length
+                    ? b.StanceToward(PlayerSpecies[nearest], s.Individual) : FolkStance.Neutral;
+                if (!threatened && emote != IdleAction.None && !b.Rooted)
+                    Answer(ref s, ref b, ref rng, emote, player, playerDistance, dt, stance);
+                if (!threatened && stance != FolkStance.Neutral)
+                    Regarding(ref s, ref b, ref rng, stance, player, playerDistance, dt);
 
                 // A ghost abroad at night: someone coming close and it's gone, to appear again further off (dithering
                 // back in, as anything new does); someone within sight, and it drifts closer to watch them from a few
@@ -4479,21 +4484,39 @@ namespace Punchy.Fauna
             /// Friendly animals come over to see; one sitting by them play-bows back to a bow. A curious one comes partway
             /// and watches (Greet's Curious stage); the skittish run sooner (commotion, in Think); some pay no heed.
             /// </summary>
-            void Answer(ref CreatureState s, ref CreatureBlob b, ref Random rng, IdleAction emote, float3 player, float distance, float dt)
+            void Answer(ref CreatureState s, ref CreatureBlob b, ref Random rng, IdleAction emote, float3 player, float distance, float dt,
+                        FolkStance stance)
             {
                 if (b.Upright)
                 {
                     if (distance > 20f || !(Free(s.Mode) || s.Mode == CreatureMode.Work))
                         return;
+                    // (Wary of the player's folk: no answer. Annoyed: it turns its back and walks off a few metres.)
+                    if (stance == FolkStance.Wary)
+                        return;
+                    if (stance == FolkStance.Annoyed)
+                    {
+                        if (s.Mode != CreatureMode.Wander && s.Mode != CreatureMode.Work && distance < 12f)
+                        {
+                            SetMode(ref s, CreatureMode.Wander);
+                            s.Target = s.Position.xz + math.normalizesafe(s.Position.xz - player.xz, rng.NextFloat2Direction()) * rng.NextFloat(5f, 8f);
+                        }
+                        return;
+                    }
                     // Answering already: keep facing them.
                     if (s.Action >= IdleAction.Wave)
                     {
                         TurnTowards(ref s, ref b, player.xz, dt);
                         return;
                     }
-                    if (s.Action != IdleAction.None || CreatureBlob.Trait(s.Individual, 21) < -0.75f || rng.NextFloat() > dt * 2.5f)
+                    // (Kin and the warm are never too shy to answer.)
+                    var shy = CreatureBlob.Trait(s.Individual, 21) < -0.75f && stance != FolkStance.Kin && stance != FolkStance.Warm;
+                    if (s.Action != IdleAction.None || shy || rng.NextFloat() > dt * 2.5f)
                         return;
                     var reply = emote != IdleAction.Dance ? emote : CreatureBlob.Trait(s.Individual, 22) > 0f ? IdleAction.Dance : IdleAction.Cheer;
+                    // A rival answers anything with a mock bow (a dwarf to an elf, or the other way).
+                    if (stance == FolkStance.Rival)
+                        reply = IdleAction.Bow;
                     SetMode(ref s, CreatureMode.Idle);
                     s.Action = reply;
                     s.ActionTime = 0f;
@@ -4527,6 +4550,35 @@ namespace Punchy.Fauna
                     s.ActionTime = 0f;
                     s.ActionLength = 2.2f;
                 }
+            }
+
+            /// <summary>
+            /// The folk's regard for the player's body, unasked (Z-52): a wary one standing within 3 m steps back to keep
+            /// 4-5 m off; kin, the warm and rivals standing about now and then wave (a rival bows, mocking) at someone
+            /// 1.5-6 m off in front of them.
+            /// </summary>
+            void Regarding(ref CreatureState s, ref CreatureBlob b, ref Random rng, FolkStance stance, float3 player, float distance, float dt)
+            {
+                if (s.Mode != CreatureMode.Idle || s.Action != IdleAction.None || s.Stage >= MessageWait)
+                    return;
+                if (stance == FolkStance.Wary)
+                {
+                    if (distance < 3f)
+                    {
+                        SetMode(ref s, CreatureMode.Wander);
+                        s.Target = s.Position.xz + math.normalizesafe(s.Position.xz - player.xz, rng.NextFloat2Direction()) * (4.5f - distance);
+                    }
+                    return;
+                }
+                if (stance == FolkStance.Annoyed || distance < 1.5f || distance > 6f || rng.NextFloat() > dt * 0.05f)
+                    return;
+                var to = player.xz - s.Position.xz;
+                if (math.abs(WrapAngle(math.atan2(to.x, to.y) - s.Yaw)) > 1f)
+                    return;
+                s.Action = stance == FolkStance.Rival ? IdleAction.Bow : IdleAction.Wave;
+                s.ActionTime = 0f;
+                s.ActionLength = s.Action == IdleAction.Wave ? 2f : 1.8f;
+                s.Focus = player.xz;
             }
 
             /// <summary>Greet's stage for a curious animal come to look (EmoteReaction.Curious), not to sit by them.</summary>

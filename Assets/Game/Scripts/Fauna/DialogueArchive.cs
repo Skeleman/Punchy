@@ -29,6 +29,9 @@ namespace Punchy.Fauna
             public float Weight = 1f;
             /// <summary>An answer to one of these emotes (Wave, Bow, Cheer, Dance), never said walking by; or null.</summary>
             public string[] Emotes;
+            /// <summary>Only from folk taking the player this way (FolkStance names, as written: Kin, Rival, Wary, Annoyed,
+            /// Warm): the wary and annoyed say only these, the others these half the time; or null (anyone else).</summary>
+            public string[] Stances;
             /// <summary>Kept for later (dialogue options): the raw object, so new keys need no format change.</summary>
             public JObject Raw;
         }
@@ -43,6 +46,8 @@ namespace Punchy.Fauna
         public struct Speaker
         {
             public string Species, BodySpecies, Trade, HomeTown, PlayerSpecies;
+            /// <summary>How the speaker takes the player's body (a FolkStance name), or null for Neutral.</summary>
+            public string Stance;
             public float Hour;
         }
 
@@ -128,6 +133,7 @@ namespace Punchy.Fauna
                                     When = (string)o["when"],
                                     Trades = o["trade"] != null ? Strings(o["trade"]) : null,
                                     Emotes = o["emote"] != null ? Strings(o["emote"]) : null,
+                                    Stances = o["stance"] != null ? Strings(o["stance"]) : null,
                                     Weight = o["weight"] != null ? (float)o["weight"] : 1f,
                                     Raw = o
                                 });
@@ -158,15 +164,27 @@ namespace Punchy.Fauna
         /// </summary>
         public string Pick(Speaker who, ref Unity.Mathematics.Random rng, string emote = null)
         {
+            // Taking the player some way (Z-52): the wary and annoyed say only a line for that (for this emote, or any)
+            // or nothing; kin, the warm and rivals one half the time, and their usual lines otherwise.
+            if (who.Stance != null)
+            {
+                var only = who.Stance == nameof(FolkStance.Wary) || who.Stance == nameof(FolkStance.Annoyed);
+                if (only || rng.NextFloat() < 0.5f)
+                {
+                    var stanced = Pick(who, ref rng, emote, emote != null, true);
+                    if (stanced != null || only)
+                        return stanced;
+                }
+            }
             if (emote != null)
             {
-                var answer = Pick(who, ref rng, emote, true);
-                return answer ?? Pick(who, ref rng, null, false);
+                var answer = Pick(who, ref rng, emote, true, false);
+                return answer ?? Pick(who, ref rng, null, false, false);
             }
-            return Pick(who, ref rng, null, false);
+            return Pick(who, ref rng, null, false, false);
         }
 
-        string Pick(Speaker who, ref Unity.Mathematics.Random rng, string emote, bool answering)
+        string Pick(Speaker who, ref Unity.Mathematics.Random rng, string emote, bool answering, bool stanced)
         {
             var candidates = new List<Line>();
             var shared = new HashSet<Line>();
@@ -177,7 +195,10 @@ namespace Punchy.Fauna
                 if (own && !isAny)
                     continue;
                 foreach (var line in c.Lines)
-                    if (Fits(line, who) && (answering ? line.Emotes != null && Array.IndexOf(line.Emotes, emote) >= 0 : line.Emotes == null))
+                    if (Fits(line, who) && (stanced
+                            ? line.Stances != null && Array.IndexOf(line.Stances, who.Stance) >= 0 &&
+                              (line.Emotes == null || answering && Array.IndexOf(line.Emotes, emote) >= 0)
+                            : line.Stances == null && (answering ? line.Emotes != null && Array.IndexOf(line.Emotes, emote) >= 0 : line.Emotes == null)))
                     {
                         candidates.Add(line);
                         own |= !isAny;
