@@ -316,14 +316,23 @@ namespace Punchy.Fauna
             if (handled.TryGetValue(holder, out var last) && last == serial)
                 return;
             handled[holder] = serial;
+            // (A joined player's request, logged on the host: a remote carry that does nothing is otherwise silent.)
+            var remote = holder != Interactions.HolderId(0);
             if (!states.HasComponent(target) || !bodies.HasComponent(target))
+            {
+                if (remote)
+                    UnityEngine.Debug.Log($"Interactions: player {holder} act {(int)act}: no such animal");
                 return;
+            }
             var forward = math.mul(player.Rotation, new float3(0f, 0f, 1f));
             var yaw = math.atan2(forward.x, forward.z);
             var s = states[target];
             // Too far to have reached it (an old request, or it moved off): nothing happens.
             var reach = act == InteractAct.Startle ? Interactions.LungeReach : Interactions.Reach;
-            if (act != InteractAct.PutDown && math.distance(s.Position.xz, player.Position.xz) > reach + 1.5f)
+            var gap = math.distance(s.Position.xz, player.Position.xz);
+            if (remote)
+                UnityEngine.Debug.Log($"Interactions: player {holder} act {(int)act} on an animal {gap:F1} m away (mode {(int)s.Mode}, folk {(folk ? 1 : 0)})");
+            if (act != InteractAct.PutDown && gap > reach + 1.5f)
                 return;
             Interactions.Apply(ref s, ref bodies[target].Blob.Value, terrain, act, holder, player.Position, yaw, folk);
             states[target] = s;
