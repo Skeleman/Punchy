@@ -100,3 +100,10 @@ FEEDBACK-v0.10.md (Z-IDs). No release goes out without Zach's go.
 
 ## 2026-10-31 18:40 — work resumed
 - No sign of Zach by 18:40, so I'm keeping work going (his "keep working"). Started animal slot 8, about 2 h: Z-20 remote carry, using the client-carries-cat plan, and Z-22 miners on a seed with a mining camp. Zach: if you want the laptop, say so and the slot stops at a clean point.
+
+## 2026-10-31 ~20:30 — animal slot 8 (animal-behaviours c0ac39c)
+- Merged wip/remote-carry: logging only (the host logs each joined player's interaction request). Built clean with world b39522b, scene seed 3.
+- Z-22 miners pass by sight (seed 3 human camp): the pick goes up overhead with both hands and down to the hip.
+- Large-animal carry: DesertTortoise (0.35 m) can be picked up but squirms free in 2–5 s (it's wild); most dogs are over the 0.65 m limit.
+- **Real MP bug found (Z-20):** the host handles a joined player's PickUp only with the following PutDown, about 8.5 s late, so nothing shows for remote carries. Suspect: NetPlayerCommand Act/ActSerial, an IInputComponentData input whose one-frame press gets lost. Likely in v0.10 and the v0.11 candidate too. Zach: this may affect other remote interactions; it's worth knowing before the v0.11 decision. Next slot: animal fixes it.
+- Note: two wip commits went out without the session trailer (pushed before it noticed). Left as is; no rewriting of pushed history.
