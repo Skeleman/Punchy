@@ -113,3 +113,9 @@ FEEDBACK-v0.10.md (Z-IDs). No release goes out without Zach's go.
 - Fix (wip/net-interact 6d6d569): a new InteractRpc carries each interaction and is handled the frame it arrives; pose stays on the command. Built clean (a4a5378). The host sees a joined player's carry one shot after the PickUp; the host's own carry is unchanged; 0 exceptions. The slow-host condition didn't recur, so it's shown under normal load only.
 - The smoke flagged townwalk 1% low at cap 60, judged round-order noise. Profiler ABBA asked to confirm.
 - For Zach: cand/v0.11 doesn't include this fix. Options: release the candidate as is, or rebuild it with c810406 and re-gate (about 4 h).
+
+## 2026-10-31 21:45 — profiler slot 8 (BENCH-REPORTS 6701f79); Unity work PAUSED
+- c810406 shows no regression from the code itself. But ~520 ms single-frame stalls came back on both builds from about 21:07 (21f1193 was clean at 16:20), so tonight's fps numbers are void. MP on a4a5378: 2 players, 0 exceptions.
+- Likely cause: a **Windows Security Alert (firewall) dialog** for Builds/bench-a4a5378/Punchy.exe, open since 19:48. A test launched that build's exe from its own folder, so Windows asked about it as a new program. Nobody clicked it. **Zach: please answer it** (allow on private networks, or cancel). Agents don't touch firewall settings.
+- Media Player and Chrome are open, so Zach may be on the machine. **Unity slots are paused** until Zach answers the dialog and says the machine is free. Then retest 21f1193 glide at cap 60 twice to confirm the stalls are gone.
+- Lesson for task sessions: launch builds only from Builds/Bench (the path Windows has already approved), never from an archive folder.
