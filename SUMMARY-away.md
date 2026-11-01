@@ -107,3 +107,9 @@ FEEDBACK-v0.10.md (Z-IDs). No release goes out without Zach's go.
 - Large-animal carry: DesertTortoise (0.35 m) can be picked up but squirms free in 2–5 s (it's wild); most dogs are over the 0.65 m limit.
 - **Real MP bug found (Z-20):** the host handles a joined player's PickUp only with the following PutDown, about 8.5 s late, so nothing shows for remote carries. Suspect: NetPlayerCommand Act/ActSerial, an IInputComponentData input whose one-frame press gets lost. Likely in v0.10 and the v0.11 candidate too. Zach: this may affect other remote interactions; it's worth knowing before the v0.11 decision. Next slot: animal fixes it.
 - Note: two wip commits went out without the session trailer (pushed before it noticed). Left as is; no rewriting of pushed history.
+
+## 2026-10-31 ~21:00 — animal slot 9: Z-20 remote interactions (animal-behaviours c810406)
+- Cause: the server reads interaction input only on its own tick. On a slow host (5–9 fps, clock behind; partly because both games run on this laptop) a joined player's PickUp was seen only on catch-up, in the same frame as the PutDown. This affects every interaction (pet, pick up, put down, startle) and is in v0.10.0 too.
+- Fix (wip/net-interact 6d6d569): a new InteractRpc carries each interaction and is handled the frame it arrives; pose stays on the command. Built clean (a4a5378). The host sees a joined player's carry one shot after the PickUp; the host's own carry is unchanged; 0 exceptions. The slow-host condition didn't recur, so it's shown under normal load only.
+- The smoke flagged townwalk 1% low at cap 60, judged round-order noise. Profiler ABBA asked to confirm.
+- For Zach: cand/v0.11 doesn't include this fix. Options: release the candidate as is, or rebuild it with c810406 and re-gate (about 4 h).
