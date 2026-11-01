@@ -269,6 +269,12 @@ namespace Punchy.Fauna
                     s.Gone = true;
                     return;
                 }
+                // An animal a fox, wolf or the like has pounced on and caught (Z-53): gone (eaten).
+                if (b.Habitat == Habitat.Land && b.Hunted && Pounced(self, in s))
+                {
+                    s.Gone = true;
+                    return;
+                }
 
                 var flier = b.Habitat == Habitat.Flies;
                 var perched = flier && !Flying(s) && s.Position.y > Terrain.SampleHeight(s.Position.xz) + 0.3f;
@@ -570,6 +576,16 @@ namespace Punchy.Fauna
                         }
                         else if (threatened && math.distance(s.Position.xz, s.Target) < 2f)
                             s.Target = s.Position.xz + math.normalizesafe(s.Position.xz - s.Focus, new float2(1f, 0f)) * 30f;
+                        // Prey with something close behind it jinks: every second or two a sharp turn of up to 50° off
+                        // straight away (Z-53: a chase that weaves, and that a hunter can close on).
+                        else if (threatened && b.Hunted && b.Habitat == Habitat.Land && math.distance(s.Position.xz, s.Focus) < 20f &&
+                                 s.StageTime > 1f + (s.Seed % 8u) * 0.125f)
+                        {
+                            var fleeDir = math.normalizesafe(s.Position.xz - s.Focus, new float2(1f, 0f));
+                            math.sincos(rng.NextFloat(-0.87f, 0.87f), out var jinkSin, out var jinkCos);
+                            s.Target = s.Position.xz + new float2(fleeDir.x * jinkCos - fleeDir.y * jinkSin, fleeDir.x * jinkSin + fleeDir.y * jinkCos) * 30f;
+                            s.StageTime = 0f;
+                        }
                         else if (!threatened && (s.ModeTime > 3f || math.distance(s.Position.xz, s.Target) < 2f))
                             Pause(ref s, ref b, ref rng);
                         break;
@@ -1155,6 +1171,9 @@ namespace Punchy.Fauna
                 var drink = b.Thirst * 1.2f * awake * (onGround && !flier ? 1f : 0f) * Urge(s.Thirst);
                 var play = playmate != Entity.Null ? b.Playfulness * 2f * Urge(s.Lonely) : 0f;
                 var hunt = prey != Entity.Null ? b.Hunger * 2.5f * Urge(s.Hunger) : 0f;
+                // (Keener with prey close: Z-53, so more chases start where they can be seen.)
+                if (prey != Entity.Null && Lookup.TryGetValue(prey, out var preyAt) && math.distance(States[preyAt].Position.xz, s.Position.xz) < 20f)
+                    hunt *= 1.5f;
                 // Climbers go up trees to sit, and to sleep (they sleep up there, not on the ground).
                 var climb = b.Climbing > 0f && HasFlora && !flier ? b.Climbing * (sleepy > 0.5f ? 8f : 2.5f) : 0f;
                 // Townsfolk sit a while by the well, or lie back on the ground near it, by day.
@@ -1618,7 +1637,44 @@ namespace Punchy.Fauna
                       ref float targetSpeed, ref float desiredLook, ref float headDown, ref bool moving)
             {
                 s.Timer -= Dt;
-                if (!Lookup.TryGetValue(s.Partner, out var p) || s.Timer <= 0f)
+                var found = Lookup.TryGetValue(s.Partner, out var p);
+                // Eating what it caught: head down over the spot a while, then a long rest, its hunger met.
+                if (s.Stage == HuntEat)
+                {
+                    headDown = 1f;
+                    if (s.Timer <= 0f)
+                    {
+                        s.Hunger = math.max(0f, s.Hunger - 0.6f);
+                        SetMode(ref s, CreatureMode.Rest);
+                        s.Timer = rng.NextFloat(30f, 60f);
+                    }
+                    return;
+                }
+                // The pounce: a short lunge at it. On a hit the prey, seeing it (Pounced), is caught and gone; a miss,
+                // or a hit it got clear of, and the hunter gives up, winded, as the prey runs on.
+                if (s.Stage == HuntPounceHit || s.Stage == HuntPounceMiss)
+                {
+                    if (s.Stage == HuntPounceHit && (!found || States[p].Gone))
+                    {
+                        NextStage(ref s, HuntEat);
+                        s.Timer = rng.NextFloat(8f, 15f);
+                        s.Partner = Entity.Null;
+                        return;
+                    }
+                    if (s.StageTime > 0.6f || !found)
+                    {
+                        Tired(ref s, ref rng);
+                        return;
+                    }
+                    var at = States[p].Position.xz - s.Position.xz;
+                    s.Target = States[p].Position.xz;
+                    desiredLook = math.clamp(WrapAngle(math.atan2(at.x, at.y) - s.Yaw), -1f, 1f);
+                    moving = true;
+                    targetSpeed = b.RunSpeed * s.Scale * (s.StageTime < 0.35f ? 1.4f : 0.5f);
+                    headDown = 0.4f;
+                    return;
+                }
+                if (!found || s.Timer <= 0f)
                 {
                     Tired(ref s, ref rng);
                     return;
@@ -1626,24 +1682,62 @@ namespace Punchy.Fauna
                 var prey = States[p];
                 var to = prey.Position.xz - s.Position.xz;
                 var distance = math.length(to);
-                if (distance > 60f || distance < b.BodyLength * s.Scale + 0.5f)
+                if (distance > 60f || prey.Gone || prey.Mode == CreatureMode.Held)
                 {
                     Tired(ref s, ref rng);
+                    return;
+                }
+                // Within a leap of it: the pounce. Half of them land (none in a settlement, where the folk's animals
+                // are safe: there it's always a miss).
+                if (distance < b.BodyLength * s.Scale + 1.1f)
+                {
+                    var hit = rng.NextFloat() < 0.5f && SettlementOf(prey.Position.xz) < 0;
+                    NextStage(ref s, hit ? HuntPounceHit : HuntPounceMiss);
                     return;
                 }
                 s.Target = prey.Position.xz;
                 desiredLook = math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -1f, 1f);
                 moving = true;
+                // Creeping up slow and low (prey notices a stalker only close: FindPredator), then the run, with a burst
+                // of speed for its first few seconds (Z-53: so a chase closes in sight rather than trailing off).
                 if (distance > 14f && s.Stage == 0)
                 {
-                    targetSpeed = b.WalkSpeed * s.Scale * 0.8f;
+                    targetSpeed = b.WalkSpeed * s.Scale * 0.5f;
                     headDown = 0.35f;
                 }
                 else
                 {
-                    s.Stage = 1;
-                    targetSpeed = b.RunSpeed * s.Scale;
+                    if (s.Stage == 0)
+                        NextStage(ref s, 1);
+                    targetSpeed = b.RunSpeed * s.Scale * (s.StageTime < 3.5f ? 1.25f : 1f);
                 }
+            }
+
+            /// <summary>A land hunter's stages (CreatureMode.Hunt): 0 stalking, 1 running, then the pounce, landed or
+            /// missed, and eating what it caught. (Fliers diving use 1-3 in Dive; folk hunters FolkHunting's.)</summary>
+            const byte HuntPounceHit = 2, HuntEat = 3, HuntPounceMiss = 4;
+
+            /// <summary>Whether a land hunter's pounce has landed on this animal (it is caught).</summary>
+            bool Pounced(Entity self, in CreatureState s)
+            {
+                if (s.Mode == CreatureMode.Held || s.Holder != 0)
+                    return false;
+                var c = Cell(s.Position.xz);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        var other = States[j];
+                        ref var ob = ref Bodies[j].Blob.Value;
+                        if (other.Mode == CreatureMode.Hunt && other.Partner == self && other.Stage == HuntPounceHit &&
+                            ob.Habitat != Habitat.Flies && math.distance(other.Position.xz, s.Position.xz) < ob.BodyLength * other.Scale + 1.3f)
+                            return true;
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return false;
             }
 
             /// <summary>
@@ -5197,7 +5291,8 @@ namespace Punchy.Fauna
                         var other = States[j];
                         // In three dimensions: a bird circling high overhead isn't close.
                         var d = math.distance(other.Position, s.Position);
-                        var range = (other.Mode == CreatureMode.Hunt && other.Partner == self ? 30f : 8f) * alert;
+                        // (A hunter still creeping up on it is noticed only close; one running at it from well off.)
+                        var range = (other.Mode == CreatureMode.Hunt && other.Partner == self ? (other.Stage == 0 ? 12f : 30f) : 8f) * alert;
                         // A bird of prey overhead goes unnoticed until it dives (a fish only sees it hit the water).
                         if (Bodies[j].Blob.Value.Habitat == Habitat.Flies)
                             range = other.Mode == CreatureMode.Hunt && other.Partner == self && other.Stage == 2 ? 3f : 0f;
@@ -5363,7 +5458,9 @@ namespace Punchy.Fauna
                         continue;
                     do
                     {
-                        if (Entities[j] == self || !Hunts(ref b, Bodies[j].Species))
+                        // (Never one someone is holding or petting, or one already caught.)
+                        if (Entities[j] == self || !Hunts(ref b, Bodies[j].Species) || States[j].Holder != 0 ||
+                            States[j].Mode == CreatureMode.Held || States[j].Gone)
                             continue;
                         var d = math.distance(States[j].Position.xz, s.Position.xz);
                         if (d < best)
