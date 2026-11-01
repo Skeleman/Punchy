@@ -2,6 +2,25 @@
 
 Newest first.
 
+## 2026-11-01: Z-53 chases coded (wip/z53-chase c0a9188, code only, not compiled)
+- **DONE (code):** a land hunter's pounce at body length + 1.1 m lands half the time (always a miss inside a
+  settlement). The prey sees the landed pounce (`Pounced`), is Gone (FaunaDirector removes it and counts it in
+  `Caught`, as with a diving bird's fish), and the hunter eats head-down for 8-15 s, then rests 30-60 s (Hunger
+  -0.6). A miss means Tired, and the prey runs on. The run opens with 1.25x RunSpeed for 3.5 s. The stalk is at
+  0.5x walk speed and prey notices it at 12 m × alert (30 m once it runs). Prey (Hunted, Land) with a threat
+  within 20 m jinks up to ±50° every 1-1.9 s. Hunt appeal is ×1.5 with prey within 20 m. Held, petted or Gone
+  animals are never prey. New `-huntlog` (DebugControls): one line per stage change and how each hunt ended
+  (ate / missed / slipped away / tired).
+- **Correction to the design note:** the 1.25x burst (and the 1.4x lunge) is above Sprint's 1.05x start, so hunters
+  partly gallop (sprint about 0.35) during the burst. Check that the legs don't slide; if they do, drop the burst
+  to 1.04x.
+- **Slot check (pass/fail):** build with world-features. `-place Dunes -spawn Coyote:1 -spawn Rabbit:3 -watch Coyote
+  -huntlog`, with 0.5 s shots for 90 s (and RedFox/Rabbit in a meadow). Pass: 0 error CS / Burst; at least one
+  "pounce landed" then "ended: ate" and one "missed" in the log; shots show the chase closing in frame and the hunter
+  head-down after the catch; no spin-log rise (`-spincheck`); no "Mesh bounds" lines. Brain cost: townwalk
+  `Brain.Predator` 2 ABBA captures vs c810406 (the jink is per fleeing prey only).
+- **NEXT:** Z-52 (Zach's race stances, approved after Z-53) on wip/z52-stance.
+
 ## 2026-11-01: P3 design notes for OK (code-only, no Unity)
 - **NEXT / needs OK:** DESIGN-animal-P3.md covers Z-50 gallop, Z-51 voices, Z-52 species reactions and Z-53 chases.
   For each it gives what the code does now, the proposal, the cost and a slot check. Suggested order: Z-53, Z-51,
