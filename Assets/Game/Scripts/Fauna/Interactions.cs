@@ -331,7 +331,7 @@ namespace Punchy.Fauna
             var reach = act == InteractAct.Startle ? Interactions.LungeReach : Interactions.Reach;
             var gap = math.distance(s.Position.xz, player.Position.xz);
             if (remote)
-                UnityEngine.Debug.Log($"Interactions: player {holder} act {(int)act} on an animal {gap:F1} m away (mode {(int)s.Mode}, folk {(folk ? 1 : 0)})");
+                UnityEngine.Debug.Log($"Interactions: player {holder} act {(int)act} on an animal {(int)(gap * 100f)} cm away (mode {(int)s.Mode}, folk {(folk ? 1 : 0)})");
             if (act != InteractAct.PutDown && gap > reach + 1.5f)
                 return;
             Interactions.Apply(ref s, ref bodies[target].Blob.Value, terrain, act, holder, player.Position, yaw, folk);
