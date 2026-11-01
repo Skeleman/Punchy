@@ -2,6 +2,30 @@
 
 Newest first.
 
+## 2026-11-01: Z-52 race stances coded (wip/z52-stance db78556, code only, not compiled)
+- **DONE (code):** `CreatureSpecies.Regard` (species, -1..1, Rival) plus `RegardToAll`. FaunaDirector bakes each
+  folk's regard and kinship into the blob by species index, and `CreatureBlob.StanceToward` hashes (individual,
+  player species) to a fixed stance, so the host's brain and each machine's FolkTalkSystem agree with nothing
+  sent (Individual is already a creature ghost field).
+  - **Kin** (same base species) and **Warm**: always answer emotes (never shy), and now and then wave first at
+    someone 1.5-6 m off in front of them.
+  - **Rival:** answers any emote with a mock bow, bows first now and then, and teases.
+  - **Wary:** doesn't answer emotes, and an idle one steps back to 4-5 m when the player is within 3 m.
+  - **Annoyed:** walks off 5-8 m from an emote.
+  - Odds: wary = -regard × 0.8; annoyed = -regard × 0.5 from -0.3. So humans toward a dwarf or elf player: 32%
+    wary, 20% annoyed. Goblins and ogres toward each other: 40% / 25%.
+- **Data (Zach):** Human → Dwarf and Elf -0.4 (one way, as he said it), Goblin ↔ Ogre -0.5 ("orcs" read as Ogre),
+  Dwarf ↔ Elf Rival. Fish folk and cave pygmies don't exist yet, so they get RegardToAll 0 and -0.25 when added.
+- **Dialogue:** lines take a `"stance"` key. The wary and annoyed say only stance lines (or nothing); kin, warm and
+  rivals say them half the time. There are 27 new lines (Any: Kin and Warm; Human: Wary and Annoyed; Dwarf and Elf:
+  Rival, including Bow and Wave answers; Goblin and Ogre: Wary and Annoyed).
+- **Slot check (pass/fail):** 0 error CS / Burst. `-body Elf` in a dwarf hold and `-body Dwarf` in an elf grove:
+  folk bow back to a Wave, and rival lines show. `-body Dwarf` in a human village: some folk back off and walk away
+  from a Wave, and wary or annoyed lines show. `-body Human` in a human village: more waves back, kin lines. MP: a
+  joined client in an Elf body in a dwarf hold sees the same bows (host brain) and lines (its own FolkTalk).
+- **Wary/annoyed are about the player's body, not who they are:** a human player in a dwarf body gets the dwarf
+  treatment.
+
 ## 2026-11-01: Z-53 chases coded (wip/z53-chase c0a9188, code only, not compiled)
 - **DONE (code):** a land hunter's pounce at body length + 1.1 m lands half the time (always a miss inside a
   settlement). The prey sees the landed pounce (`Pounced`), is Gone (FaunaDirector removes it and counts it in

@@ -112,7 +112,7 @@ from strangers.
 **Zach (2026-11-01, via the supervisor):** goblins and orcs are cool toward each other; humans are cool toward
 dwarves and toward elves; dwarves and elves have a playful rivalry. **Z-52 OK to code after Z-53** (wip/ branch,
 no Unity). The game has no orcs: read as **Ogre** (GoblinCamp/OgreCamp) unless Zach says otherwise. As affinities:
-Goblin-Ogre -0.5, Human-Dwarf -0.4, Human-Elf -0.4 (both ways). Dwarf-Elf is its own **Rival** stance (teasing lines,
+Goblin-Ogre -0.5 (both ways), Human toward Dwarf and Elf -0.4 (one way, as Zach said it). Dwarf-Elf is its own **Rival** stance (teasing lines,
 a mock bow or head-shake, never wary), not a negative affinity. Open: should an annoyed NPC say anything, or just
 turn away? (Default: a curt line.)
 Also from Zach: **fish folk** are neutral toward all races (affinity 0), and the **blind cave pygmies** are a little
