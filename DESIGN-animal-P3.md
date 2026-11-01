@@ -38,7 +38,8 @@ seen:
 **Check in a slot:** `-place Dunes` / `-spawn Coyote:1 -spawn Rabbit:3`, then `-watch Coyote`, with 0.5 s shots
 for 60 s. Pass: at least one chase that closes in frame, a pounce, and an eat or slip in the log
 (`Hunt end: caught|slipped|tired`, a new log line).
-**Open question for Zach:** is it fine for prey to vanish (be eaten)? If not, use only the "slipped away" ending.
+**Zach (2026-11-01, via the supervisor):** a caught animal can be eaten. **Z-53 OK to code** on a wip/ branch (no Unity).
+Z-50 and Z-51 wait for his OK; Z-52 waits for which races are cool toward each other.
 
 ## Z-51: several voices per animal
 **Now:** `CreatureSpecies.Calls` is already a list. Each entry has its own sound, interval, pitch range, volume,
