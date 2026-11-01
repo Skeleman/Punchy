@@ -2,6 +2,18 @@
 
 Newest first.
 
+## 2026-11-01: Z-34 stream with no pool (code only, restarted lane), zache-73
+
+- **DONE, waiting on a slot: Z-34 leftover.** `world-laptop/z34-pool` 91f6b6a (off world-features b39522b, pushed,
+  not merged). This follows Zach's call: CaveBaking.StreamEnd walks back from the stream's last point, up to 12
+  points (~18 m), to the first spot that works. Either the floor ahead falls 1.5 m or more (a hole or crevice, so
+  no pool), or a pool of 1.2-2.5 m at the stream's level passes RimHolds. The stream is trimmed there. With
+  neither, the stream is left out. Streams are seed-derived, so nothing to sync. Players still need the same build.
+- **Slot check:** a bench build (compile), then `-place cavestream#n` shots of each stream end. These include
+  (-1454, 37, -1153), which should now end in a pool, or end shorter, or be gone. Look for a shortened stream that
+  now stops short of its chamber, and for any stream ending at a drop.
+- **NEXT (slot):** Z-30 hall/inn posts close up; Z-10 non-marsh river fog. P3 rows need design notes first.
+
 ## 2026-10-31: world slot 3 (task session): Z-32/Z-31 fixed, Z-34 fixed, Z-35 done, Z-09/Z-10/Z-11 judged, merged b39522b
 
 - **world-features b39522b** (pushed) = b870008 + world-laptop/slot3 (6 commits; branch deleted). Same tree as
