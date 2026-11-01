@@ -109,5 +109,9 @@ and ghosts let a ghost close (Z-25). Folk come to talk (`Greet`, line 456), and 
 **Check in a slot:** `-body Elf` walking through a dwarf town and an elf grove, and `-body Human` in the same
 places, with emote and line logs. Pass: visibly more greeting from kin, and occasional wary or annoyed reactions
 from strangers.
-**Open questions for Zach:** which races should be cool toward each other (if any), and should an annoyed NPC say
-anything or just turn away?
+**Zach (2026-11-01, via the supervisor):** goblins and orcs are cool toward each other; humans are cool toward
+dwarves and toward elves; dwarves and elves have a playful rivalry. **Z-52 OK to code after Z-53** (wip/ branch,
+no Unity). The game has no orcs: read as **Ogre** (GoblinCamp/OgreCamp) unless Zach says otherwise. As affinities:
+Goblin-Ogre -0.5, Human-Dwarf -0.4, Human-Elf -0.4 (both ways). Dwarf-Elf is its own **Rival** stance (teasing lines,
+a mock bow or head-shake, never wary), not a negative affinity. Open: should an annoyed NPC say anything, or just
+turn away? (Default: a curt line.)
