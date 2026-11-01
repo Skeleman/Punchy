@@ -15,7 +15,7 @@ namespace Punchy.Fauna
     // The player's machine chooses (InteractionInputSystem): the animal in front of the player, and what to do with it.
     // It writes an InteractionRequest, numbered so each is acted on once. Where the animals are simulated (the one
     // world of a game without netcode, or the server) InteractionApplySystem acts on it: alone, straight from the
-    // request; networked, from the request riding on the player's NetPlayerCommand (the target named by ghost id).
+    // request; networked, from the player's InteractRpc (the target named by ghost id), the frame it arrives.
     // The animal then reacts by its nature: a friendly one enjoys it, a domestic one enjoys it or puts up with it (or
     // walks off), a wild one bolts. A carried animal follows its holder's hands (on the holder's own machine, placed
     // at the hands directly, so it doesn't lag behind its interpolated ghost) and is never despawned.
@@ -232,7 +232,7 @@ namespace Punchy.Fauna
 
     /// <summary>
     /// Where the animals are simulated, acts on players' interaction requests: alone, the local request; on a server,
-    /// each player's request as sent on their NetPlayerCommand (the animal named by its ghost id).
+    /// each player's request as sent in an InteractRpc (the animal named by its ghost id), the frame it arrives.
     /// </summary>
     [BurstCompile]
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ServerSimulation)]
@@ -279,25 +279,39 @@ namespace Punchy.Fauna
                            Interactions.CanHold(table, species));
             }
 
-            // Networked: each player's, from their command.
+            // Networked: each player's, from the RPCs that came in (in the order sent), where the player says they
+            // stood, with the body their command says they have.
             var ghosts = default(NativeHashMap<int, Entity>);
             var present = new NativeHashSet<int>(8, Allocator.Temp);
-            foreach (var (command, owner, t) in SystemAPI.Query<RefRO<NetPlayerCommand>, RefRO<GhostOwner>, RefRO<LocalTransform>>().WithAll<NetPlayer>())
+            var speciesOf = new NativeHashMap<int, int>(8, Allocator.Temp);
+            foreach (var (command, owner) in SystemAPI.Query<RefRO<NetPlayerCommand>, RefRO<GhostOwner>>().WithAll<NetPlayer>())
             {
-                var c = command.ValueRO;
                 var holder = Interactions.HolderId(owner.ValueRO.NetworkId);
                 present.Add(holder);
-                if (c.Act == 0 || handled.TryGetValue(holder, out var last) && last == c.ActSerial)
+                speciesOf[holder] = command.ValueRO.Species;
+            }
+            var done = new EntityCommandBuffer(Allocator.Temp);
+            foreach (var (rpc, receive, entity) in SystemAPI.Query<RefRO<InteractRpc>, RefRO<ReceiveRpcCommandRequest>>().WithEntityAccess())
+            {
+                done.DestroyEntity(entity);
+                var connection = receive.ValueRO.SourceConnection;
+                var r = rpc.ValueRO;
+                if (r.Act == 0 || !SystemAPI.HasComponent<NetworkId>(connection))
                     continue;
+                var holder = Interactions.HolderId(SystemAPI.GetComponent<NetworkId>(connection).Value);
                 if (!ghosts.IsCreated)
                 {
                     ghosts = new NativeHashMap<int, Entity>(256, Allocator.Temp);
-                    foreach (var (ghost, entity) in SystemAPI.Query<RefRO<GhostInstance>>().WithAll<CreatureState>().WithEntityAccess())
-                        ghosts[ghost.ValueRO.ghostId] = entity;
+                    foreach (var (ghost, e) in SystemAPI.Query<RefRO<GhostInstance>>().WithAll<CreatureState>().WithEntityAccess())
+                        ghosts[ghost.ValueRO.ghostId] = e;
                 }
-                ghosts.TryGetValue(c.ActTarget, out var target);
-                Handle(holder, (InteractAct)c.Act, c.ActSerial, target, t.ValueRO, terrain, Interactions.CanHold(table, c.Species));
+                ghosts.TryGetValue(r.Target, out var target);
+                var species = speciesOf.TryGetValue(holder, out var sp) ? sp : -1;
+                var at = LocalTransform.FromPositionRotation(r.Position, quaternion.RotateY(r.Yaw));
+                Handle(holder, (InteractAct)r.Act, r.Serial, target, at, terrain, Interactions.CanHold(table, species));
             }
+            done.Playback(state.EntityManager);
+            speciesOf.Dispose();
             // Forget players who have left: a NetworkId is reused, and a newcomer's first request could match the old
             // serial and be skipped. (Alone, the one player is HolderId(0) and never leaves.)
             if (handled.Count > present.Count + 1)
@@ -316,14 +330,23 @@ namespace Punchy.Fauna
             if (handled.TryGetValue(holder, out var last) && last == serial)
                 return;
             handled[holder] = serial;
+            // (A joined player's request, logged on the host: a remote carry that does nothing is otherwise silent.)
+            var remote = holder != Interactions.HolderId(0);
             if (!states.HasComponent(target) || !bodies.HasComponent(target))
+            {
+                if (remote)
+                    UnityEngine.Debug.Log($"Interactions: player {holder} act {(int)act}: no such animal");
                 return;
+            }
             var forward = math.mul(player.Rotation, new float3(0f, 0f, 1f));
             var yaw = math.atan2(forward.x, forward.z);
             var s = states[target];
             // Too far to have reached it (an old request, or it moved off): nothing happens.
             var reach = act == InteractAct.Startle ? Interactions.LungeReach : Interactions.Reach;
-            if (act != InteractAct.PutDown && math.distance(s.Position.xz, player.Position.xz) > reach + 1.5f)
+            var gap = math.distance(s.Position.xz, player.Position.xz);
+            if (remote)
+                UnityEngine.Debug.Log($"Interactions: player {holder} act {(int)act} on an animal {(int)(gap * 100f)} cm away (mode {(int)s.Mode}, folk {(folk ? 1 : 0)})");
+            if (act != InteractAct.PutDown && gap > reach + 1.5f)
                 return;
             Interactions.Apply(ref s, ref bodies[target].Blob.Value, terrain, act, holder, player.Position, yaw, folk);
             states[target] = s;

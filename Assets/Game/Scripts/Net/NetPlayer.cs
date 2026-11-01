@@ -38,10 +38,6 @@ namespace Punchy.Net
         public int Species;
         public uint Individual;
         public int Coat;
-        /// <summary>The owner's latest interaction with an animal (an InteractAct), numbered so the server acts on it
-        /// once, and the animal's ghost id.</summary>
-        public byte Act, ActSerial;
-        public int ActTarget;
         /// <summary>The pose the owner's body is in (an IdleAction: Pet, Carry, Throw, an emote, or None).</summary>
         public byte Pose;
     }
@@ -74,6 +70,21 @@ namespace Punchy.Net
     }
 
     public struct GoInGameRequest : IRpcCommand { }
+
+    /// <summary>
+    /// Client to server: an interaction with an animal (an InteractAct, numbered so the server acts on it once), the
+    /// animal's ghost id, and where the player stood and faced when making it. An RPC rather than a NetPlayerCommand
+    /// field: the server samples input only at its own current tick, so a request riding on the command waits until
+    /// the server's tick reaches the client's (seconds, on a host that has fallen behind) and can surface in the same
+    /// step as the next one. An RPC is reliable and is acted on the frame it arrives.
+    /// </summary>
+    public struct InteractRpc : IRpcCommand
+    {
+        public byte Act, Serial;
+        public int Target;
+        public float3 Position;
+        public float Yaw;
+    }
 
     /// <summary>
     /// Client: once connected, go in game (start the snapshot and command streams) and ask for a player. Waits for the
@@ -144,6 +155,9 @@ namespace Punchy.Net
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     public partial struct NetPlayerSendSystem : ISystem
     {
+        /// <summary>The last interaction sent to the server (InteractionRequest.Serial), so each goes once.</summary>
+        int sentSerial;
+
         /// <summary>A ledge's rim over the body, -1 to 3 m, in a byte (1..255; 0 means no ledge), and back.</summary>
         public static byte RimToByte(float over) => (byte)math.clamp((int)math.round((over + 1f) * 63.5f) + 1, 1, 255);
         public static float RimFromByte(byte b) => (b - 1) / 63.5f - 1f;
@@ -152,6 +166,7 @@ namespace Punchy.Net
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetPlayer>();
+            sentSerial = -1;
         }
 
         [BurstCompile]
@@ -179,12 +194,21 @@ namespace Punchy.Net
                     command.Individual = avatar.ValueRO.Individual;
                     command.Coat = body.ValueRO.Coat;
                 }
-            // What we're doing with an animal, if anything.
+            // What we're doing with an animal, if anything: a new request goes to the server as an RPC (once); the
+            // pose rides on the command.
             if (SystemAPI.TryGetSingleton<InteractionRequest>(out var interaction))
             {
-                command.Act = (byte)interaction.Act;
-                command.ActSerial = interaction.Serial;
-                command.ActTarget = interaction.TargetGhost;
+                if (interaction.Act != InteractAct.None && interaction.Serial != sentSerial && command.Valid)
+                {
+                    sentSerial = interaction.Serial;
+                    var rpc = state.EntityManager.CreateEntity();
+                    state.EntityManager.AddComponentData(rpc, new InteractRpc
+                    {
+                        Act = (byte)interaction.Act, Serial = interaction.Serial, Target = interaction.TargetGhost,
+                        Position = command.Position, Yaw = command.Yaw,
+                    });
+                    state.EntityManager.AddComponent<SendRpcCommandRequest>(rpc);
+                }
                 // (Climbing onto a ledge shows as the climbing pose.)
                 command.Pose = mantling ? (byte)Punchy.Fauna.IdleAction.Mantle : (byte)interaction.Pose;
             }
