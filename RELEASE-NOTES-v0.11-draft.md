@@ -1,7 +1,7 @@
 # Punchy v0.11.0 (DRAFT, not released)
 
-Draft for Zach to review. Candidate: branch `cand/v0.11` (world-features b39522b + animal-behaviours 77c03e9).
-Gate results: GATE-v0.11-candidate.md. Open choice before release: the default graphics preset (see the end).
+Draft for Zach to review. Candidate 2: branch `cand/v0.11` 4eea658 (world-features b39522b + animal-behaviours c810406).
+Gate results: GATE-v0.11-candidate2.md (first candidate 21f1193: GATE-v0.11-candidate.md).
 
 ## New since v0.10.0
 
@@ -59,6 +59,9 @@ Gate results: GATE-v0.11-candidate.md. Open choice before release: the default g
 - Smoother streaming on the way into caves.
 
 ## Multiplayer
+- **Petting, picking up and putting down animals now work for players who joined a game.** Before, when the host's
+  game was running slowly, a joined player's pick-up could arrive seconds late, together with the put-down, so the
+  animal never seemed to leave the ground. Now the host sees it straight away, and everyone sees you carrying it.
 - **Builds**: everyone needs v0.11.0 (the world changed, so v0.10.0 and v0.11.0 players can't join each other).
 - **Tested** by hosting and joining on one PC (see the gate file).
 
@@ -67,8 +70,8 @@ Unzip `Punchy-v0.11.0-windows.zip` anywhere and run `Punchy.exe`. Windows 64-bit
 
 ---
 Notes for Zach (delete before publishing):
-- Default graphics preset is still your call: the candidate ships Medium (as v0.10 looked). On the laptop, Medium glide
-  sits ~31 fps 1% low; a "Balanced" in-between (view 0.8, detail 0.75, shadows 0.8) gives ~35; Low ~57.
-- Known open: Z-20 a large animal or a remote player carrying; Z-07 songbird/dormouse wander spins; Z-22 miners not
-  checked (no mining camp on this seed); one cave stream ends without a pool.
+- Default graphics preset: Medium, your call of 2026-11-01 (as v0.10 looked). On the laptop, Medium glide sits ~31 fps
+  1% low; a "Balanced" in-between (view 0.8, detail 0.75, shadows 0.8) gives ~35; Low ~57.
+- Known open: Z-20 carrying a large animal (most dogs are over the 0.65 m limit) or another player; Z-07
+  songbird/dormouse wander spins; one cave stream ends without a pool. Z-22 miners passed by sight on seed 3 (slot 8).
 - Check the F5 / Quit line: F5 isn't listed in the F1 key list yet.
