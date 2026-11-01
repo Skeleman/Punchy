@@ -14,7 +14,7 @@ Worktree: C:\Users\zache\Projects\Punchy-world. Zach's feedback list: FEEDBACK-v
 
 ## Next slot
 1. Z-34 leftover: the stream ending at (-1454, 37, -1153) has no pool (CaveBaking.PlaceStreams leaves it out when
-   RimHolds fails), so it stops mid-floor. Option: shrink to 0.8 m, or taper the stream into a seep. Design call.
+   RimHolds fails), so it stops mid-floor. **Zach's call (2026-11-01):** a cave stream may end without a pool only where it drops into a hole or crevice. Otherwise give it a pool, or end it at a hole/crevice.
 2. Z-30: hall and inn posts close up (only seen at 9 m); Pen still not found on this seed.
 3. Z-10: a non-marsh river under fog: MarshFog forced over the River place showed no fog. Try `-weather Rain` at dawn
    or find which preset fogs there.
@@ -80,7 +80,7 @@ Worktree: C:\Users\zache\Projects\Punchy-world. Zach's feedback list: FEEDBACK-v
 
 ## Restart notes (supervisor, 2026-11-01 ~00:00)
 - Zach is restarting this lane from this handoff. Read it, then the newest entry in your REPORTS file, then SUMMARY-away.md (what happened while he was away).
-- Zach's decisions: rebuild the v0.11 candidate with animal c810406 (the InteractRpc fix). The default graphics preset stays Medium. Design calls are still open (Z-34 stream without a pool; P3 rows).
+- Zach's decisions: rebuild the v0.11 candidate with animal c810406 (the InteractRpc fix). The default graphics preset stays Medium. Z-34: a stream may end without a pool only where it drops into a hole or crevice (Zach). P3 rows still need design notes.
 - Unity: the supervisor's v0.11 rebuild and gate holds the slot first (about 4 h). Do code-only work until the supervisor gives you a slot.
 - Launch builds only from Builds/Bench. Starting an exe from an archive folder (Builds/bench-<sha>) set off a Windows firewall prompt that stalled every bench on 2026-10-31.
 - Token habits that worked: batch shell calls (several greps in one call), one git call per merge step, no ack-only messages, and don't hand back while your own background runs are still going.
