@@ -1,11 +1,14 @@
 # Handoff: animal lane (laptop, session zache-db)
 
-Refreshed 2026-10-31 (after animal slot 8). The supervisor is kind-possum, the "Unity build analytics supervisor setup" session.
-Worktree `Projects/Punchy-animal`, branch `animal-behaviours` (c0ac39c, pushed). Reports go newest-first in
+Refreshed 2026-10-31 (after animal slot 9). The supervisor is kind-possum, the "Unity build analytics supervisor setup" session.
+Worktree `Projects/Punchy-animal`, branch `animal-behaviours` (c810406, pushed). Reports go newest-first in
 REPORTS-animal.md, with one message to the supervisor per finished batch. Never open Unity without the supervisor's
 slot.
 
 ## Branches (all pushed)
+- **animal-behaviours c810406 (slot 9):** c0ac39c plus wip/net-interact (6d6d569: interactions go to the server as
+  `InteractRpc`, not on NetPlayerCommand). Built clean as a4a5378 (with world-features b39522b; tmp branch
+  tmp/animal-slot9-net, local only).
 - **animal-behaviours c0ac39c (slot 8):** 77c03e9 plus wip/remote-carry (20bb420: the host logs each joined player's
   interaction request; the client's `-interact` log adds ghost id and distance). It built clean in 4c2f633 (with
   world-features b39522b and scene seed 3).
@@ -33,9 +36,10 @@ slot.
   Dormouse Wander spins (focus ~900 m) and Dormouse Climb at 0.15 m; low priority.
 - **Z-20:** cat and dog carries look right in solo. Large animal: DesertTortoise (0.35 m, flee 0) is picked up, but
   being wild it squirms free in 2-5 s. Dogs are mostly over the 0.65 m limit.
-  **Remote carrier FAILS (slot 8):** the host handles a joined player's PickUp only together with the PutDown,
-  about 8.5 s late. Suspect NetPlayerCommand (IInputComponentData) Act/ActSerial. Log them per server tick, or send
-  acts as an RPC or InputEvent.
+  **Remote carrier FIXED (slot 9):** requests went on NetPlayerCommand, which the server samples only at its own
+  tick. A slow host (5-9 fps, shared clock behind real time) saw them seconds late. They now go as `InteractRpc`
+  (Pet, PickUp, PutDown, Startle). Host shot s9b-Cat h-046 shows the joined player carrying a cat. v0.10.0 has the
+  old path.
 - **Z-22:** woodcutter, smiths (slot 6) and miners (slot 8, seed 3 build) all pass by sight. Our seed (1337) has no
   mining camp. Seed 3 has a human camp at (209,-3878) with its mine at (316,-3955): use
   `-goto 209,-3878 -time 10`, then `-watch Human:Mine` per shot-list line. Miners reach the face (stage 101)
@@ -50,10 +54,7 @@ slot.
 - **Bench paw prints:** fixed and merged (slot 7).
 
 ## Slot list (next)
-1. Z-20 remote carry: find why the server sees a joined player's Act/ActSerial late (see Open rows). Fix, then
-   test with host `-host -body Human -spawn Dog:4` and its shot list lines `-watch Dog`, and a client
-   `-join 127.0.0.1 -body Human -interact Dog:carry`. The host must pass `-host`, or both run solo.
-2. Z-07 leftovers (Songbird/Dormouse Wander) if Zach still sees them.
+1. Z-07 leftovers (Songbird/Dormouse Wander) if Zach still sees them.
 ## Key files
 - **Worms:** Fauna/CreatureBrainSystem.cs `Tunnel()` (arc depth `deep`, `Obstructed`, the leap check);
   CreatureBurrowSystem.cs; MarkMask.cs; Shaders/TerrainSurface.shader `BurrowMarks`.
@@ -69,6 +70,11 @@ slot.
   -footdrift).
 
 ## Gotchas
+- MP test: host `-host -body Human -shotlist` (`-spawn Cat:2 -wait 25`, then `-watch Cat -wait 0.5` lines), client
+  `-join 127.0.0.1 -body Human -interact Cat:carry`. The host must pass `-host`, or both run solo. Spawned cats are
+  wild and squirm free in 2-5 s, so use 0.5 s host shots.
+- A one-shot client-to-server action belongs in an RPC (or an InputEvent), not a plain IInputComponentData field:
+  the server reads input only at its own tick.
 - Line endings: LF for DebugControls, CreatureBrainSystem, CreatureBurrowSystem, CreatureWakeSystem,
   CreatureBreathSystem, HeldPoseSystem, MarkMask and the reports; CRLF for CreatureAnimator, CreatureData, TraceSystem,
   SoundSynth, GameAudio, CreatureAudioSystem, PlayerMovementSystem, PlayerAvatarSystem, AmbienceSystem and both

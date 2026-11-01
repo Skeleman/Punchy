@@ -2,6 +2,49 @@
 
 Newest first.
 
+## 2026-10-31: slot 9: Z-20 remote interactions fixed: sent as an RPC (animal-behaviours c810406)
+- **Root cause:** a joined player's request (Act, ActSerial, ActTarget) rode on NetPlayerCommand, an
+  IInputComponentData. The client kept it set until the next request, so it wasn't a lost one-frame press. But the
+  server copies input into the component only for its own current tick (`ApplyInputDataFromBufferJob`:
+  `GetDataAtTick` on a 64-entry ring, the last tick of a step batch). If no entry is at or before that tick, it
+  writes default (Act 0). With two Punchy on the laptop the host fell to 5-9 fps. The server runs 1 step per frame
+  (batch 4), so its shared clock ran at 0.2-0.5x real time (slot 8: 43.9 to 45.8 s in 10 s), and the client
+  logged "Large serverTick prediction error" all through. The client's ticks ran far ahead of the server's, so
+  the PickUp ticks weren't sampled until the server caught up. Then PickUp and PutDown showed up in one batched
+  frame, about 8.5 s late.
+- **Fix (wip/net-interact 6d6d569):** a new `InteractRpc` (act, serial, ghost id, the player's position and yaw).
+  The client's NetPlayerSendSystem sends it once per new InteractionRequest.Serial. InteractionApplySystem
+  handles it on the server the frame it arrives (body from the command's Species, handled-serial dedupe kept). The
+  three Act fields are gone from NetPlayerCommand; the pose still rides on it (continuous state, fine as input).
+  Solo is unchanged (it reads the local request).
+- **Interactions on that path:** all of InteractAct: Pet, PickUp, PutDown, Startle (the lunge). Every request
+  from a joined client, and the host's own player too (the host's client world sends to its own server world). The
+  game has no other client-to-server action (no punch or open yet). The other RPCs are GoInGame, Lightning and
+  WorldCheck. Other things a player does (pose, emotes, sit, climb) are continuous state on the command.
+- **v0.10.0 (519fb5b), from git alone:** same code path. NetPlayerCommand has Act/ActSerial/ActTarget, and
+  InteractionApplySystem reads c.Act from the command. So remote pet, carry and lunge on a slow host are delayed
+  or merged in v0.10.0 too.
+- **Build:** a4a5378 (tmp/animal-slot9-net = wip/net-interact + world-features b39522b, scene seed 1337) built
+  clean: 0 error CS, 0 Burst (BC) errors, 0 shader errors. The netcode generator made the InteractRpc serializer.
+- **MP test PASS** (host `-host -body Human`, shot list `-spawn Cat:2` then `-watch Cat`; client
+  `-join 127.0.0.1 -body Human -interact Cat:carry`):
+  - s9-Cat: the host logged `act 2 ... 89 cm` and `Cat now Held` in the same shot line as the client's PickUp. The
+    client saw `Cat is Held (holder 3); player pose Carry, body Carry` at 3 s (slot 8: holder 0, pose None). Client
+    shot interact-Cat-carry-25 shows the cat in the arms.
+  - s9b-Cat (0.5 s host shots): PickUp to Held within one shot (h-038 to h-039). The cat stayed Held until the
+    client's PutDown about 8 s later, handled as its own request. **Host shot h-046 shows the joined
+    player carrying the cat.**
+  - s9-Dog: PickUp and PutDown now reach the host several seconds apart, as two requests. The dog wasn't lifted (Greet,
+    over the 0.65 m limit), as before.
+  - Host's own (s9-hostself, `-host -interact Cat:carry`): PickUp is handled the same frame, Held with pose Carry,
+    and the PutDown follows. Unchanged.
+  - 0 exceptions in all logs. Host fps this time was 26-60 with the client in (slot 8: 5-9), so a slow host wasn't
+    reproduced. An RPC doesn't depend on tick sync, though.
+- **Smoke a4a5378 vs b39522b:** no change beyond noise; it says NOT CLEAN only on townwalk@60 1% low 9.6->8.2. That's round order: round 1 5.2 vs 8.1 (new build first), round 2 11.1 vs 11.2. Both builds have ~500 ms worst frames at cap 60. Glide@60 1% low 5.6->6.8, townwalk@0 ~38-54 both. 0 exceptions. The solo path has no change but an empty RPC query.
+- **Merged:** wip/net-interact into animal-behaviours as c810406 (pushed). cand/v0.11 is untouched.
+- Shots: Punchy-wt/Tools/bench/results/animal-slot/s9-*, s9b-*.
+- **Unity and Punchy are closed, the bench lock is clear, and the main checkout is on b/weather-mapjob.**
+
 ## 2026-10-31: slot 8: miners pass by sight; remote carry reaches the host about 8 s late (animal-behaviours c0ac39c)
 - **Seed probe:** a batchmode editor method (not committed) built TerrainAuthoring.BuildSource for world seeds 1-15.
   Seed 1337 (ours) and seed 8 have a MineEntrance but no camp. Seed 3 has a HumanMiningCamp at (209,-3878) by its
