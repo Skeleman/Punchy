@@ -2,6 +2,18 @@
 
 Newest first.
 
+## 2026-11-01: P3 design notes for OK (code-only, no Unity)
+- **NEXT / needs OK:** DESIGN-animal-P3.md covers Z-50 gallop, Z-51 voices, Z-52 species reactions and Z-53 chases.
+  For each it gives what the code does now, the proposal, the cost and a slot check. Suggested order: Z-53, Z-51,
+  Z-50 (after Z-21), Z-52.
+- **Z-53 finding:** chases do exist, but a hunt ends with nothing happening on contact (no catch), prey such as
+  rabbits is about as fast as foxes and coyotes, and prey starts fleeing at 30 m, before the hunter's sprint at
+  14 m. So chases are long, even and end off-screen.
+- **Z-50 finding:** NPC quadrupeds never gallop (Sprint is only above RunSpeed, so players only), and the legs keep
+  their trot phases even then.
+- **Open questions for Zach:** may prey be eaten (vanish) in Z-53? Which races, if any, are cool toward each other
+  in Z-52?
+
 ## 2026-10-31: slot 9: Z-20 remote interactions fixed: sent as an RPC (animal-behaviours c810406)
 - **Root cause:** a joined player's request (Act, ActSerial, ActTarget) rode on NetPlayerCommand, an
   IInputComponentData. The client kept it set until the next request, so it wasn't a lost one-frame press. But the
