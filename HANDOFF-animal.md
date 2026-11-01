@@ -1,11 +1,16 @@
 # Handoff: animal lane (laptop, session zache-db)
 
-Refreshed 2026-10-31 (after animal slot 7). The supervisor is kind-possum, the "Unity build analytics supervisor setup" session.
-Worktree `Projects/Punchy-animal`, branch `animal-behaviours` (77c03e9, pushed). Reports go newest-first in
+Refreshed 2026-10-31 (after animal slot 8). The supervisor is kind-possum, the "Unity build analytics supervisor setup" session.
+Worktree `Projects/Punchy-animal`, branch `animal-behaviours` (c0ac39c, pushed). Reports go newest-first in
 REPORTS-animal.md, with one message to the supervisor per finished batch. Never open Unity without the supervisor's
 slot.
 
 ## Branches (all pushed)
+- **animal-behaviours c0ac39c (slot 8):** 77c03e9 plus wip/remote-carry (20bb420: the host logs each joined player's
+  interaction request; the client's `-interact` log adds ghost id and distance). It built clean in 4c2f633 (with
+  world-features b39522b and scene seed 3).
+- **Local only, not pushed:** 866dc99 in Punchy-animal (tmp/animal-slot8-seed3) is the merged tree with World.Seed 3
+  in World.unity, for building a human mining camp.
 - **animal-behaviours 77c03e9 (slot 7):** 9b7459b plus wip/z07-play2 (960df87: Play spins 29 to 6) and wip/trace-seat
   (6283358: no paw prints on bench seats). Merged with world-features b870008 it is the a66c520 tree (built clean).
 - **animal-behaviours 9b7459b:** 4f2f0a4 plus wip/z28-air (f116dd4) and wip/poses (9b7459b), merged in slot 6.
@@ -26,11 +31,15 @@ slot.
 ## Open rows
 - **Z-07:** Play circling fixed (slot 7: the outward-cancel lerp and the blocked coin toss). Left: Songbird and
   Dormouse Wander spins (focus ~900 m) and Dormouse Climb at 0.15 m; low priority.
-- **Z-20:** cat and dog carries look right (arms open under the animal, front-on and side-on). Open: a large animal
-  (MudPig and Deer ran or weren't picked up; find one that can be), and a remote carrier: carrying a client's player body isn't a feature (`-interact` skips player
-  bodies; slot 7). Needs a design call, or test a client carrying an animal while the host watches.
-- **Z-22:** woodcutter and smiths pass (slot 6). Miner close up still open (`-watch Human:Chop -watchfrom 0.5,2.5` or `-camlook`).
-  DwarfMiningCamp isn't a `-place` name (it stayed at DwarfHold).
+- **Z-20:** cat and dog carries look right in solo. Large animal: DesertTortoise (0.35 m, flee 0) is picked up, but
+  being wild it squirms free in 2-5 s. Dogs are mostly over the 0.65 m limit.
+  **Remote carrier FAILS (slot 8):** the host handles a joined player's PickUp only together with the PutDown,
+  about 8.5 s late. Suspect NetPlayerCommand (IInputComponentData) Act/ActSerial. Log them per server tick, or send
+  acts as an RPC or InputEvent.
+- **Z-22:** woodcutter, smiths (slot 6) and miners (slot 8, seed 3 build) all pass by sight. Our seed (1337) has no
+  mining camp. Seed 3 has a human camp at (209,-3878) with its mine at (316,-3955): use
+  `-goto 209,-3878 -time 10`, then `-watch Human:Mine` per shot-list line. Miners reach the face (stage 101)
+  about 2 minutes in.
 - **Z-28 (slot 6):** flat curl fixed (wip/z28-air merged).
 - **Z-28 (earlier):** breach arcs side-on look clean. Open: a jump over a rock or ledge and a route past boulders from above
   (Glacier Grotto and Dunes CaveEntrance had none in view). One side-on series showed the body lying in a flat curl
@@ -41,10 +50,10 @@ slot.
 - **Bench paw prints:** fixed and merged (slot 7).
 
 ## Slot list (next)
-1. Z-20 remote carrier: a client (`-join`, Human body) with `-interact Cat:carry` near a `-spawn Cat:2` host; host
-   shots of the client carrying. Large animal: find a pettable one of 0.5 m or less that holds still.
-2. Miners: no mining camp on this seed, so Z-22 miners need another seed or a hand-placed camp.
-3. Z-07 leftovers (Songbird/Dormouse Wander) if Zach still sees them.
+1. Z-20 remote carry: find why the server sees a joined player's Act/ActSerial late (see Open rows). Fix, then
+   test with host `-host -body Human -spawn Dog:4` and its shot list lines `-watch Dog`, and a client
+   `-join 127.0.0.1 -body Human -interact Dog:carry`. The host must pass `-host`, or both run solo.
+2. Z-07 leftovers (Songbird/Dormouse Wander) if Zach still sees them.
 ## Key files
 - **Worms:** Fauna/CreatureBrainSystem.cs `Tunnel()` (arc depth `deep`, `Obstructed`, the leap check);
   CreatureBurrowSystem.cs; MarkMask.cs; Shaders/TerrainSurface.shader `BurrowMarks`.
@@ -73,4 +82,5 @@ slot.
   stored by number: append only.
 - Worm arcs start deep, so obstacles under about 20 m ahead are crossed underground.
 - In shot lists, `-camlook` on a line with `-spawn` didn't take; frame from the player (stand it where you want to look).
+- Burst's Debug.Log formats only G/D/X (no `F1`). On the host, `-watch Human` doesn't find a remote player's body.
 - Keep shell calls batched, and send only one message per batch.

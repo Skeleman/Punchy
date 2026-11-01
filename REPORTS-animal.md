@@ -2,6 +2,44 @@
 
 Newest first.
 
+## 2026-10-31: slot 8: miners pass by sight; remote carry reaches the host about 8 s late (animal-behaviours c0ac39c)
+- **Seed probe:** a batchmode editor method (not committed) built TerrainAuthoring.BuildSource for world seeds 1-15.
+  Seed 1337 (ours) and seed 8 have a MineEntrance but no camp. Seed 3 has a HumanMiningCamp at (209,-3878) by its
+  mine at (316,-3955). Seeds 1, 2, 4-7 and 9-15 have DwarfMiningCamps (seeds 4 and 7 have two). Probe builds: 866dc99 (77c03e9 + world-features b39522b + scene seed 3, local only) and 4c2f633
+  (the same plus wip/remote-carry). Both built clean: 0 error CS, 0 Burst errors, 0 shader errors.
+- **Z-22 miners PASS by sight** (s8-mine, seed 3, `-goto 209,-3878 -time 10`, then `-watch Human:Mine` per line).
+  Miners walk from the camp to the mine with the pick on the shoulder, along the passage (stages 1, 11-13) to an ore face
+  (101), swing there for about 45 s, then carry ore out (113-111, 199, 200). At the face: side-on, the pick is raised
+  overhead in both hands (m-052) and brought down to hip height in front (m-042). From behind, the raise is straight up,
+  facing the rock (m-049). The follow camera in narrow passages often ends up inside the miner's body (m-044, m-046).
+  That's the test camera, not the pose.
+- **Large animal (solo):** DesertTortoise (0.29-0.35 m, flee 0) holds still and is picked up (Held, pose Carry at
+  3 s). Being wild, it squirms free after 2-5 s by design, so only the 2.5 s shot shows it in the arms
+  (s8-tortoise). Dogs are mostly over the 0.65 m friendly limit (0.48-0.80 m). Cats are 0.29-0.36 m but wild when
+  spawned, and they flee from the joining player.
+- **Z-20 remote carrier: FAILS. The host gets the request late.** Runs: host `-host -body Dog` (or Human) with
+  `-spawn X:2/4`, and a client `-join 127.0.0.1 -body Human -interact X:carry`. Notes:
+  - The first run lacked `-host`, so it ran solo (the default) and the client dropped to solo.
+  - With wip/remote-carry's logs, every run (Cat, DesertTortoise, Dog) shows the host handling the client's PickUp
+    (ghost found, 0.9 m, folk 1) in the same frame as its PutDown, about 8.5 s after the client sent it.
+  - In the Dog run, the dog was Held at the PutDown (31 cm, in the hands). So the pickup works, but only for that
+    frame. Nothing is visible from the host's side.
+  - The client never sees its own pose change (pose None).
+  - Suspect: NetPlayerCommand is an IInputComponentData. Act and ActSerial look like they only reach the server's
+    copy when the next request arrives. Next: log Act and ActSerial per tick on the server, or send the act as an
+    RPC or InputEvent.
+  - The cat runs also failed because the cat was fleeing (mode 2) when the request arrived.
+- **Merged:** wip/remote-carry (86701ec, 20bb420: the host logs each joined player's interaction request; the client's
+  `-interact` log adds the ghost id and distance) into animal-behaviours as c0ac39c. It built clean in 4c2f633.
+- Test notes:
+  - `-watch Human` on the host finds no remote player body: no "watching" line.
+  - `-watch Dog` (host Human) works. A fixed `-camlook` on every line also works.
+  - A joined client starts at the host's spot (0,65,0 on this island) and is placed 2.5 m off.
+  - Burst's Debug.Log can't format `F1` (BC1343).
+- Shots: Punchy-wt/Tools/bench/results/animal-slot/s8-* (s8-mine, s8-tortoise, s8b..d and s8-*-Dog/DesertTortoise
+  host/client pairs).
+- **Unity and Punchy are closed, the bench lock is clear, and the main checkout is on b/weather-mapjob.**
+
 ## 2026-10-31: slot 7: Z-07 Play spins fixed, bench paw prints fixed (animal-behaviours 77c03e9); remote carry not possible yet
 - **Merged build:** animal-behaviours 9b7459b + world-features b870008 is the same tree as 5f4c917 (built clean in world
   slot 2). Smoke of c477c0f (that tree + both fixes, first Z-07 version) vs b870008: OK, no change beyond noise (1% lows
