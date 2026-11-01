@@ -97,3 +97,6 @@ FEEDBACK-v0.10.md (Z-IDs). No release goes out without Zach's go.
 2. Default graphics preset: keep Medium (glide ~30, below J-006), a "Balanced" in-between (view 0.8, detail 0.75, shadows 0.8: glide 34–36, passes), or Low (the profiler's pick, ~57)?
 3. Setup: restart the world and animal lanes from their handoffs, or keep the one-at-a-time task sessions? Since 21:25 they've merged about 10 Z-batches without a usage-limit hit; they cost roughly 150–300k tokens per slot.
 4. Design calls: Z-20 remote carry (the host never targets a client's body); the cave stream with no pool; the P3 rows Z-50–Z-53.
+
+## 2026-10-31 18:40 — work resumed
+- No sign of Zach by 18:40, so I'm keeping work going (his "keep working"). Started animal slot 8, about 2 h: Z-20 remote carry, using the client-carries-cat plan, and Z-22 miners on a seed with a mining camp. Zach: if you want the laptop, say so and the slot stops at a clean point.
