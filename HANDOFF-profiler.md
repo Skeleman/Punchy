@@ -1,4 +1,4 @@
-# Handoff: profiler (laptop), refreshed 2026-10-31 after slot 7
+# Handoff: profiler (laptop), refreshed 2026-10-31 after slot 8
 
 Read COORDINATION.md first. This lane benches and profiles builds when the supervisor hands it the Unity slot. Only
 one Unity runs at a time on the laptop. When the slot is done: post BENCH-REPORTS (newest first), send one message
@@ -36,6 +36,10 @@ saying "Unity closed", and send no ack-only messages.
 - The ~500 ms spikes in the world smoke (both 247c690 and 3976d17) did not reproduce in slot 5 on any build. If they
   return, check for other processes or an open editor during the run. The v0.11 gate's 50-80 ms cap-0 glide windows
   also didn't reproduce in slot 7 (4 runs).
+- Slot 8: the ~520 ms stalls came back on every build (even 21f1193, clean at 16:20), while a Windows Security Alert
+  firewall dialog for builds/bench-a4a5378/punchy.exe sat open (since 19:48). That's the prime suspect; retest once
+  Zach clears it. Read the full `dialogs` line before runs (it was cut off in our logs); results with ~500 ms worst
+  frames are void.
 - Wakes: re-check with a camera over open water (the slot 4 frame was inside a canopy).
 - Item 15 cave-chunk: busiest chunk frame only −16%. A per-chunk timing log would show whether the mouth chunk is the
   one that's slow.

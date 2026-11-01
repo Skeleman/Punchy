@@ -2,6 +2,49 @@
 
 Newest first.
 
+## 2026-10-31: slot 8, a4a5378 (animal c810406 InteractRpc + world b39522b) vs cand/v0.11 21f1193: no regression visible; the ~520 ms stalls are back on BOTH builds and swamp the 1% lows
+0 exceptions in every log. Every stop ended at the same spot (townwalk 366,-406, glide 1197/1198,359).
+
+### ABBA, cap 60 (a4a5378, 21f1193, 21f1193, a4a5378)
+| run | townwalk 1% low · worst ms | glide 1% low · worst ms |
+|---|---|---|
+| a4a5378 r1 | 18.6 · 524 | 7.9 · 532 |
+| 21f1193 r1 | 18.1 · 512 | 6.4 · 529 |
+| 21f1193 r2 | 18.3 · 524 | 5.0 · 522 |
+| a4a5378 r2 | 36.5 · 36 | 3.9 · 527 |
+
+- Means: glide 5.9 vs 5.7, townwalk 27.6 vs 18.2. The runner says NOT CLEAN on J-006 for both builds alike.
+- Every difference comes from how many ~500–530 ms single-frame stalls landed in a stop:
+  - 1 in every townwalk except a4a5378 r2 (so a4a5378 "wins" townwalk);
+  - 2–5 in every glide.
+- With the stall windows set aside, the 5 s window worsts are the same on both builds (24–46 ms). Avg fps is level:
+  glide 51.5 vs 51.6, townwalk 58.5 vs 57.8. GPU is level: 10.4 vs 10.2, 8.7 vs 8.9.
+- **Verdict: no regression from c810406 visible.** It needs a stall-free session to measure finer. The a4a5378 smoke's
+  NOT CLEAN was the same stalls: its base b39522b had them just as badly (glide cap 60 1% low 8.0 / 3.2).
+
+### MP joined townwalk on a4a5378 (host cap 60 plus a local client, one run)
+players 2 at both stops, 0 exceptions and 0 IndexOutOfRange on host and client. Town 1% low 7.5, townwalk 3.6, worst
+528/525 ms: the same stalls again, so the fps numbers can't be read. Avg 53.5 / 47.2 fps, host cpu 18.7 / 21.2 ms, GPU
+11.5 / 11.6.
+
+### The ~520 ms stalls: environmental, and now caught live
+- The same build 21f1193 ran glide cap 0 clean at 16:20 today (worst 38–40 ms, 4 runs). At 21:07–21:39 every run of it
+  stalled.
+- So it's the machine's state, not the code: the world smoke 3976d17/247c690, the a4a5378/b39522b smoke and this slot
+  all had them, on old builds and new alike.
+- What was different on the machine this time:
+  1. **A Windows Security Alert (firewall) dialog** has been open since 19:48 for
+     `C:\users\zache\projects\punchy\builds\bench-a4a5378\punchy.exe` ("NewBlocked 4"). It covers the whole a4a5378
+     smoke and this slot. It wasn't clicked; that's for Zach.
+     - The runner normally runs games only from Builds/Bench, so something launched that archive exe directly.
+     - `dialogs` does list it ("rundll32: Windows Security Alert"), but the column was cut off in our logs.
+  2. Media Player and Chrome are open (Zach may be back on the machine).
+- Suspect 1, to test once Zach has dealt with the dialog: rerun 21f1193 glide cap 60 twice. If the stalls go, it was
+  the pending firewall prompt (or the game's blocked network calls timing out at ~0.5 s).
+- SmartByteTelemetry has 2900 s of CPU since boot but used only 0.19 s in a 10 s sample, so it's unlikely.
+- Gate rule from here: before a run, read the full `dialogs` output, not just the start of the line. With a dialog
+  open, results that show ~500 ms worst frames are void.
+
 ## 2026-10-31: slot 7, cand/v0.11 21f1193 glide cap 0 spikes: not reproduced in 4 runs (2 dev captures, 2 release); no system to name
 0 exceptions. No dialogs. Every glide ended at 1197/1198,359.
 
