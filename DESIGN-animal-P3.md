@@ -39,7 +39,7 @@ seen:
 for 60 s. Pass: at least one chase that closes in frame, a pounce, and an eat or slip in the log
 (`Hunt end: caught|slipped|tired`, a new log line).
 **Zach (2026-11-01, via the supervisor):** a caught animal can be eaten. **Z-53 OK to code** on a wip/ branch (no Unity).
-Z-50 and Z-51 wait for his OK; Z-52 waits for which races are cool toward each other.
+Z-50 and Z-51 approved later the same day (code on wip/ branches, Z-51 first).
 
 ## Z-51: several voices per animal
 **Now:** `CreatureSpecies.Calls` is already a list. Each entry has its own sound, interval, pitch range, volume,
@@ -111,8 +111,8 @@ places, with emote and line logs. Pass: visibly more greeting from kin, and occa
 from strangers.
 **Zach (2026-11-01, via the supervisor):** goblins and orcs are cool toward each other; humans are cool toward
 dwarves and toward elves; dwarves and elves have a playful rivalry. **Z-52 OK to code after Z-53** (wip/ branch,
-no Unity). The game has no orcs: read as **Ogre** (GoblinCamp/OgreCamp) unless Zach says otherwise. As affinities:
-Goblin-Ogre -0.5 (both ways), Human toward Dwarf and Elf -0.4 (one way, as Zach said it). Dwarf-Elf is its own **Rival** stance (teasing lines,
+no Unity). Zach confirmed **Ogre** (he meant ogre, not orc). As affinities:
+Goblin-Ogre -0.5 (both ways), Human-Dwarf and Human-Elf -0.4 (both ways: Zach confirmed). Ogre confirmed (not orcs). Dwarf-Elf is its own **Rival** stance (teasing lines,
 a mock bow or head-shake, never wary), not a negative affinity. Open: should an annoyed NPC say anything, or just
 turn away? (Default: a curt line.)
 Also from Zach: **fish folk** are neutral toward all races (affinity 0), and the **blind cave pygmies** are a little
