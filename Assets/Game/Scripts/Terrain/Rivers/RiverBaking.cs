@@ -131,8 +131,47 @@ namespace Punchy.Terrain
                     }
                     shore[i] = best;
                 }
+                // Main upstream neighbour (the widest feeder) of each river cell, for the curve tangents.
+                var up = builder.Allocate(ref root.Up, count);
+                for (int i = 0; i < count; i++) up[i] = -1;
+                for (int i = 0; i < count; i++)
+                {
+                    var d = down[i];
+                    if (width[i] <= 0f || d < 0) continue;
+                    if (up[d] < 0 || width[i] > width[up[d]]) up[d] = i;
+                }
+                // Waterfalls: segments whose bed steps down by FallDrop or more (placed on the finished blob below).
+                var fallCells = new System.Collections.Generic.List<int>();
+                if (settings.FallDrop > 0f)
+                {
+                    for (int i = 0; i < count; i++)
+                    {
+                        var d = down[i];
+                        if (width[i] <= 0f || d < 0 || width[d] <= 0f || lakes[i] > 0f || lakes[d] > 0f) continue;
+                        if (bed[i] - bed[d] < settings.FallDrop || bed[i] <= source.World.SeaLevel + 1f) continue;
+                        fallCells.Add(i);
+                    }
+                }
+                var fallArray = builder.Allocate(ref root.Falls, fallCells.Count);
+                for (int k = 0; k < fallCells.Count; k++)
+                    fallArray[k] = new RiverFall { Drop = water[fallCells[k]] - water[down[fallCells[k]]], Width = fallCells[k] };
                 var blob = builder.CreateBlobAssetReference<RiverMapBlob>(allocator);
                 builder.Dispose();
+                if (fallCells.Count > 0)
+                {
+                    // Lips need the finished blob (the curve reads Up, Down and the points). Width holds the cell until here.
+                    ref var done = ref blob.Value;
+                    for (int k = 0; k < done.Falls.Length; k++)
+                    {
+                        var cell = (int)done.Falls[k].Width;
+                        var mid = RiverSampling.CurveMid(ref done, cell, out var fallFlow);
+                        done.Falls[k] = new RiverFall
+                        {
+                            Lip = new float3(mid.x, water[cell], mid.y), Out = fallFlow, Drop = done.Falls[k].Drop,
+                            Width = math.max(done.Width[cell], 3f)
+                        };
+                    }
+                }
                 return blob;
             }
             finally

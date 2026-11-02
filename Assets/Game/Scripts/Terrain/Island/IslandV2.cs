@@ -254,6 +254,8 @@ namespace Punchy.Terrain
             v1.SourceCatchment = 0.25f;
             v1.FullCatchment = 25f;
             v1.MinLakeArea = 0.1f; v1.MinLakeDepth = 4f;
+            // W-05b: smooth curved segments, and drops of 4 m or more stay as steps (waterfalls) instead of being spread into gorges.
+            v1.Smooth = true; v1.FallDrop = 4f; v1.MaxGradient = 1.5f;
             return v1;
         }
     }
@@ -267,6 +269,25 @@ namespace Punchy.Terrain
     {
         bool done;
         EntityQuery query;
+
+        /// <summary>Source height, mouth height, length and width of the longest rivers, and the waterfall count.</summary>
+        static string RiverReport(ref RiverMapBlob map)
+        {
+            var rows = new List<(float length, string text)>();
+            int sources = 0;
+            for (int i = 0; i < map.Width.Length; i++)
+            {
+                if (map.Width[i] <= 0f || map.Up[i] >= 0) continue;
+                sources++;
+                float length = 0f; int c = i, steps = 0; var p = map.Point(c);
+                while (map.Down[c] >= 0 && map.Width[map.Down[c]] > 0f && steps++ < 4000) { var n = map.Down[c]; var q = map.Point(n); length += math.distance(p, q); p = q; c = n; }
+                rows.Add((length, $"src {map.Bed[i]:F0} m -> end {map.Bed[c]:F0} m (drop {map.Bed[i] - map.Bed[c]:F0}), {length:F0} m, w {map.Width[i]:F0}-{map.Width[c]:F0}"));
+            }
+            rows.Sort((a, b) => b.length.CompareTo(a.length));
+            var sb = new System.Text.StringBuilder($"rivers: {sources} sources, {map.Falls.Length} waterfalls; longest:");
+            for (int k = 0; k < math.min(6, rows.Count); k++) sb.Append($" | {rows[k].text}");
+            return sb.ToString();
+        }
 
         protected override void OnCreate()
         {
@@ -315,6 +336,7 @@ namespace Punchy.Terrain
                 hashText = $"{lines.Count} landmarks, hash {h:X8}";
             }
             Debug.Log($"[island] {gen.Report}; baked in {watch.ElapsedMilliseconds} ms; {hashText}");
+            if (source.Rivers.IsCreated) Debug.Log("[island] " + RiverReport(ref source.Rivers.Value));
         }
     }
 }

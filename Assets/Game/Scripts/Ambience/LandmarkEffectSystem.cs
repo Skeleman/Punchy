@@ -27,6 +27,9 @@ namespace Punchy.Ambience
         const float FlameRange = 150f;
         /// <summary>How far a cave's waterfall carries out from its notch as it falls (m).</summary>
         const float FallReach = 0.9f;
+        /// <summary>River waterfalls: how far the water carries out as it falls (m), the distance they are drawn from, and the index offset.</summary>
+        const float RiverFallReach = 1.6f, RiverFallRange = 350f;
+        const int RiverFallBase = 1000000;
 
         /// <summary>One effect. Must match LandmarkEffects.hlsl.</summary>
         [StructLayout(LayoutKind.Sequential)]
@@ -144,6 +147,14 @@ namespace Punchy.Ambience
                     if (math.distance(caveFalls[k].Lip.xz, cam) < Punchy.Settings.GraphicsSettings.DetailRange(CaveRange))
                         nearby.Add(-(k + 1));
             }
+            // River waterfalls (version 2 rivers) within sight, as -(RiverFallBase + index).
+            if (source.Rivers.IsCreated && source.RiverSettings.FallDrop > 0f)
+            {
+                ref var riverFalls = ref source.Rivers.Value.Falls;
+                for (int k = 0; k < riverFalls.Length; k++)
+                    if (math.distance(riverFalls[k].Lip.xz, cam) < Punchy.Settings.GraphicsSettings.DetailRange(RiverFallRange))
+                        nearby.Add(-(RiverFallBase + k));
+            }
             if (nearby.Count == lastNearby.Count && nearby.TrueForAll(lastNearby.Contains))
                 return;
             lastNearby.Clear();
@@ -156,6 +167,42 @@ namespace Punchy.Ambience
             float3 min = float.MaxValue, max = float.MinValue;
             foreach (var i in nearby)
             {
+                if (i <= -RiverFallBase)
+                {
+                    // A river waterfall: a curtain over the step in the bed, white water at the lip and spray and foam at the foot.
+                    var rf = source.Rivers.Value.Falls[-i - RiverFallBase];
+                    var seed = math.frac(-i * 0.618f);
+                    falls.Add(new Emitter
+                    {
+                        Position = rf.Lip,
+                        Seed = seed,
+                        Color = new float4(0.55f, 0.68f, 0.72f, 0f),
+                        Shape = new float4(RiverFallReach, rf.Width * 0.8f, 1.1f, 1.8f),
+                        Timing = new float4(0f, 0.25f, 0.8f, 20f),
+                        Out = rf.Out,
+                        Drop = rf.Drop
+                    });
+                    var foot = rf.Lip + new float3(rf.Out.x, 0f, rf.Out.y) * RiverFallReach - new float3(0f, rf.Drop, 0f);
+                    plumes.Add(new Emitter
+                    {
+                        Position = foot, Seed = math.frac(seed + 0.31f), Color = new float4(0.95f, 0.97f, 1f, 0f),
+                        Shape = new float4(2.5f, rf.Width * 0.9f, 0.9f, 1.4f), Timing = new float4(0f, 0.25f, 0.6f, 24f)
+                    });
+                    plumes.Add(new Emitter
+                    {
+                        Position = foot + new float3(0f, 0.1f, 0f), Seed = math.frac(seed + 0.62f), Color = new float4(0.92f, 0.94f, 0.96f, 0f),
+                        Shape = new float4(0.3f, rf.Width * 1.3f, 1.2f, 2.2f), Timing = new float4(0f, 0.25f, 0.6f, 24f)
+                    });
+                    plumes.Add(new Emitter
+                    {
+                        Position = rf.Lip + new float3(rf.Out.x, -0.3f, rf.Out.y) * 0.8f, Seed = math.frac(seed + 0.9f), Color = new float4(0.94f, 0.96f, 1f, 0f),
+                        Shape = new float4(1.2f, rf.Width * 0.8f, 1.1f, 1.4f), Timing = new float4(0f, 0.25f, 0.4f, 24f)
+                    });
+                    maxParticles = math.max(maxParticles, 24);
+                    min = math.min(min, foot - 6f);
+                    max = math.max(max, rf.Lip + 6f);
+                    continue;
+                }
                 if (i < 0)
                 {
                     // A cave's waterfall: a small curtain from its notch in the wall into its pool, churning white

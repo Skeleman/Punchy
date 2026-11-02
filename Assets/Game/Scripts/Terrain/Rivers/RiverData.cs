@@ -41,6 +41,12 @@ namespace Punchy.Terrain
         [UnityEngine.Tooltip("Extra water from snow-covered ground (meltwater), added at full snow depth.")]
         public float Snowmelt;
 
+        [UnityEngine.Header("Shape (version 2)")]
+        [UnityEngine.Tooltip("Run each river segment as a smooth curve (Hermite spline through the segment points) instead of a straight line.")]
+        public bool Smooth;
+        [UnityEngine.Tooltip("A segment whose bed drops at least this much (m) becomes a waterfall: a step in the bed. 0 = none. Set MaxGradient high too, or the drop is spread into a gorge.")]
+        public float FallDrop;
+
         public static RiverSettings Default => new RiverSettings
         {
             Enabled = true,
@@ -68,7 +74,7 @@ namespace Punchy.Terrain
             ChannelDepth == o.ChannelDepth && BankSlope == o.BankSlope && MaxGradient == o.MaxGradient && Meander == o.Meander &&
             MaxCarveDistance == o.MaxCarveDistance && MinLakeArea == o.MinLakeArea && MinLakeDepth == o.MinLakeDepth &&
             LowlandRain == o.LowlandRain && HighlandRain == o.HighlandRain && HighlandHeight == o.HighlandHeight &&
-            Snowmelt == o.Snowmelt;
+            Snowmelt == o.Snowmelt && Smooth == o.Smooth && FallDrop == o.FallDrop;
     }
 
     /// <summary>
@@ -103,6 +109,10 @@ namespace Punchy.Terrain
         /// a bay or beach pocket of that lake that the cell grid misses (TerrainSource fills it if it connects).
         /// </summary>
         public BlobArray<float> ShoreLevel;
+        /// <summary>The main upstream neighbour of each river cell (the widest feeding it), -1 = a source. Used to bend curves.</summary>
+        public BlobArray<int> Up;
+        /// <summary>Waterfalls (only when RiverSettings.FallDrop &gt; 0): where a segment's bed steps down.</summary>
+        public BlobArray<RiverFall> Falls;
 
         public float2 Point(int index) => JitteredPoint(index, Resolution, Origin, CellSize, Meander, Seed);
 
@@ -114,6 +124,15 @@ namespace Punchy.Terrain
             var jitter = new float2(h & 0xFFFF, h >> 16) / 65535f - 0.5f;
             return origin + ((float2)cell + 0.5f + jitter * meander) * cellSize;
         }
+    }
+
+    /// <summary>A river waterfall: the lip of the water, which way it runs, how far it falls and how wide it is.</summary>
+    public struct RiverFall
+    {
+        public float3 Lip;
+        public float2 Out;
+        public float Drop;
+        public float Width;
     }
 
     public struct RiverQuery
@@ -185,6 +204,34 @@ namespace Punchy.Terrain
             return q;
         }
 
+        /// <summary>Hermite curve of a segment: from a to b, bent towards the upstream and downstream neighbours so bends are smooth.</summary>
+        static void Curve(ref RiverMapBlob map, int start, int down, out float2 a, out float2 b, out float2 ta, out float2 tb)
+        {
+            a = map.Point(start);
+            b = map.Point(down);
+            var ab = b - a;
+            var len = math.length(ab);
+            var up = map.Up[start];
+            ta = (up >= 0 ? math.normalizesafe(b - map.Point(up), ab) : math.normalizesafe(ab)) * len;
+            var next = map.Down[down];
+            tb = (next >= 0 ? math.normalizesafe(map.Point(next) - a, ab) : math.normalizesafe(ab)) * len;
+        }
+
+        static float2 Hermite(float2 a, float2 b, float2 ta, float2 tb, float u)
+        {
+            var u2 = u * u; var u3 = u2 * u;
+            return (2 * u3 - 3 * u2 + 1) * a + (u3 - 2 * u2 + u) * ta + (-2 * u3 + 3 * u2) * b + (u3 - u2) * tb;
+        }
+
+        /// <summary>The curve's midpoint and flow direction there (a waterfall's lip).</summary>
+        public static float2 CurveMid(ref RiverMapBlob map, int start, out float2 flow)
+        {
+            var down = map.Down[start];
+            Curve(ref map, start, down, out var a, out var b, out var ta, out var tb);
+            flow = math.normalizesafe(Hermite(a, b, ta, tb, 0.51f) - Hermite(a, b, ta, tb, 0.49f), b - a);
+            return Hermite(a, b, ta, tb, 0.5f);
+        }
+
         static void Consider(ref RiverMapBlob map, in RiverSettings s, float2 xz, int start, ref RiverQuery q)
         {
             if (start < 0)
@@ -193,12 +240,43 @@ namespace Punchy.Terrain
             var a = map.Point(start);
             var b = down >= 0 ? map.Point(down) : a;
             var ab = b - a;
-            var t = math.saturate(math.dot(xz - a, ab) / math.max(math.dot(ab, ab), 1e-6f));
-            var distance = math.distance(xz, a + ab * t);
+            float t, distance;
+            var flow = math.normalizesafe(ab);
+            if (s.Smooth && down >= 0)
+            {
+                // Nearest point on the curve: five samples, then refine either side of the best one.
+                Curve(ref map, start, down, out a, out b, out var ta, out var tb);
+                var best = 0; var bestD = float.MaxValue;
+                for (int k = 0; k <= 4; k++)
+                {
+                    var d = math.distancesq(xz, Hermite(a, b, ta, tb, k * 0.25f));
+                    if (d < bestD) { bestD = d; best = k; }
+                }
+                t = best * 0.25f; distance = math.sqrt(bestD);
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    var step = pass == 0 ? 0.125f : 0.0625f;
+                    var centre = t;
+                    for (int sgn = -1; sgn <= 1; sgn += 2)
+                    {
+                        var u = math.saturate(centre + sgn * step);
+                        var d = math.distance(xz, Hermite(a, b, ta, tb, u));
+                        if (d < distance) { distance = d; t = u; }
+                    }
+                }
+                flow = math.normalizesafe(Hermite(a, b, ta, tb, math.min(t + 0.02f, 1f)) - Hermite(a, b, ta, tb, math.max(t - 0.02f, 0f)), flow);
+            }
+            else
+            {
+                t = math.saturate(math.dot(xz - a, ab) / math.max(math.dot(ab, ab), 1e-6f));
+                distance = math.distance(xz, a + ab * t);
+            }
 
             var endLevel = down >= 0 ? map.Bed[down] : map.Bed[start];
             var endWidth = down >= 0 && map.Width[down] > 0f ? map.Width[down] : map.Width[start];
-            var level = math.lerp(map.Bed[start], endLevel, t);
+            // A waterfall is a step in the bed half way along the segment.
+            var tl = s.FallDrop > 0f && map.Bed[start] - endLevel >= s.FallDrop ? math.smoothstep(0.46f, 0.54f, t) : t;
+            var level = math.lerp(map.Bed[start], endLevel, tl);
             var width = math.lerp(map.Width[start], endWidth, t);
             var carve = Profile(distance, level, width, s);
 
@@ -206,7 +284,7 @@ namespace Punchy.Terrain
             if (carve < q.Carve)
             {
                 q.Carve = carve;
-                q.Water = math.lerp(map.WaterLevel[start], down >= 0 ? map.WaterLevel[down] : map.WaterLevel[start], t);
+                q.Water = math.lerp(map.WaterLevel[start], down >= 0 ? map.WaterLevel[down] : map.WaterLevel[start], tl);
             }
             if (distance - width * 0.5f < q.Distance - q.Width * 0.5f)
             {
@@ -214,7 +292,7 @@ namespace Punchy.Terrain
                 q.Distance = distance;
                 q.Level = level;
                 q.Width = width;
-                q.Flow = math.normalizesafe(ab);
+                q.Flow = flow;
                 q.Gradient = (map.Bed[start] - endLevel) / math.max(math.length(ab), 1e-3f);
             }
         }
