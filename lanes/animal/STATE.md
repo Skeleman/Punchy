@@ -12,13 +12,11 @@ Builds/Windows is the A-21 build. Editor open on port 7800; no Punchy.exe of our
   player pose Carry, twice; childcarry-800 shows the adult holding the child.
 - #7 met: meadow run with dogs and hares only: Dog sprinting at Jackrabbit 7.7 m, both in frame (dogchase-800).
 - New flags: `-leapphase p` (freeze leap phase), `-hunter Species` (which hunter -shotonhunt frames), `-gaitlog`.
-- Tip: `-shotonhunt` can fire just after a catch (hunter resting); give a second line as a backup.
 
 ## A-20 (artefacts PunchyMilestones/animal/a20/)
 - #7 met in the build: dogs had no prey because the Resources Dog's Hunts pointed at Resources copies of the hares
   (reference match). FaunaDirector.Lists now matches by name. Dog 0.60 stalked a hare and Growl (52) played at 7 m;
   a dog at 0.68 ate a rabbit. Calm dogs (0.49 at 4.7 m, 0.31 at 5.1 m) stayed in Play.
-- #7 side shot weak: -watch Dog:Hunt shows the dog side-on with no hare in frame; -huntside 6 locked onto a Wolf.
 - #16 NOT met in the build: village children (21.8/17.0 kg, tame, leash 68 m) walked off on all 3 carries. Held fine
   in the editor (19.6 kg, Carry pose). Likely the 25% walk-off for tame non-friendly creatures in Interactions.Apply
   (seeded from s.Seed, so the same child always refuses). Next: calm flag on InteractionRequest (Apply is Burst).
