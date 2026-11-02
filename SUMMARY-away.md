@@ -127,3 +127,8 @@ FEEDBACK-v0.10.md (Z-IDs). No release goes out without Zach's go.
 ## 2026-11-01 01:05 — weekly usage limit hit
 - The v0.11 rebuild session stopped on the account's weekly limit (resets 18:00 America/Phoenix). It had merged c810406 into cand/v0.11 (pushed 00:01) and updated the draft release notes (committed in 5de654a), but hadn't built or gated it. The machine is clean: no Unity or Punchy, lock clear, main checkout on b/weather-mapjob.
 - Hourly supervisor check-ins stopped to save the limit. After the reset: resume the rebuild session (its work so far is saved) to build, gate and pack cand/v0.11.
+
+## 2026-11-02 ~00:30 — v0.11.0 published (Zach's go)
+- Pre-release https://github.com/Skeleman/Punchy/releases/tag/v0.11.0, tag v0.11.0 = cand/v0.11 4eea658 (world b39522b + animal c810406).
+- Gate (GATE-v0.11-candidate2.md): all pass; the remote carry works. Zip 49,494,933 bytes, SHA-256 4544dbd2dc5748de1b1183b79d7c555c79df8a34292f9b0e05856f9949d4a046, 237 files, no `.from` marker.
+- Issue #2 closed. #11 (Z-21) may already be fixed in this build: Zach to check in play.
