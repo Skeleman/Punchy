@@ -712,3 +712,8 @@ b/weather-mapjob.
 ## W-09 (2026-11-02)
 - **DONE:** #19 ponds 1287 -> 219 blobs (3850 -> 361 wet cells, p90 7 -> 3). #20 v2 top-down ridge map. #44 puffs readable (alpha 0.6, density cut). #39 paving channel plus cobble shader on Cobbles/Flagstones. world-features 0e19871 pushed; v1 101 / E128CB1D holds; one build.
 - **NOT DONE:** single-cell ponds still 165 of 219; cobble stones not visible in the town shot (look needs tuning); v2 hash not rechecked.
+
+## W-15 (2026-11-02)
+- **DONE:** #23 cave bake 1350 -> 555 ms in the editor (rubble 566 -> 90, plants 379 -> 60; parallel per cave, joined in cave order), player caves stage 1380 -> 591 ms, v2 ready 7.2 s; cave hash unchanged; v2 127 / 831FF2EE holds. #35 BATFOLK-PLAN.md (36 lines; placement does not change v1). #35 `-whitepools` test look. world-features fb6d7ee pushed; one build.
+- **NOT DONE:** white pool not judged done: the editor shot reads as milky water, but in the build it reads as a glowing white disc with a hard rim. v1 hash not rechecked in a player (no landmark code touched; caves bake after landmarks).
+- **Shots:** PunchyMilestones/world/w15 (v2-white-pool, editor-pool-default, editor-pool-white).

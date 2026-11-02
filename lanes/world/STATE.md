@@ -1,8 +1,8 @@
-# World lane: state (2026-11-02, after W-14)
+# World lane: state (2026-11-02, after W-15)
 
 Worktree `Punchy-world` (main PC), branch `world-features`. Backlog: `gh issue list -l lane:world`.
 Released: v0.11.0 = world b39522b + animal c810406.
-Pushed head: world-features d473bf1 (W-14). Builds/Dev holds a build of it. v1 101 / E128CB1D, v2 127 / 831FF2EE hold. v1 ponds 33 blobs, 154 wet cells, none under 3 cells.
+Pushed head: world-features fb6d7ee (W-15). Builds/Dev holds a build of it. v1 101 / E128CB1D, v2 127 / 831FF2EE hold. v1 ponds 33 blobs, 154 wet cells, none under 3 cells.
 No Punchy.exe of mine runs.
 
 ## W-05 / W-05b
@@ -19,24 +19,6 @@ No Punchy.exe of mine runs.
 - Whole-world diagnostic passes (PondCount etc.) cost seconds each; log from the real pass's data, never re-sample.
 - Hashes without avalanche (math.hash of small ints) need a Scramble before comparing draws.
 
-## W-07
-- #19: ponds are back (Ponds() in TerrainSource) behind TerrainSource.PondsOn, set only at the end of BuildPlaces. The first try moved roadside landmarks because settlements/caves/anchors sampled the dug ground. v2: 243 ponds, 359 wet cells.
-- #18: RiverSettings.SourceHeight (v2: 45 m): a river cell under it counts only if a river cell drains into it. v2 springs: bed min 18/median 64 -> 44/90 m, 31 -> 22 sources, 67 -> 60 falls, v2 130 landmarks DA354F63. `PUNCHY_SPRINGS=old` env restores old springs.
-- #30: storm flag is `-weather Storm` (per shot-list line). Flowers lean with the wind in the shot; no swivel judged from one still.
-
-## W-08
-- #19: ponds dug only in a biome core (weight > 0.4), noise scale 0.2. Blobs 2614 -> 1287; cells per pond min 1, median 1, p90 7, max 39. Single-cell still ~51%: NOT fully dropped. Inland swamp pond at -4488,1438 (7x7 wet).
-- #44: SandPuffs already existed (W-02); alpha 0.3 -> 0.4. 1 quad (6 verts) per puff, ~1.5 per 100 m2, est ~380 in range (not measured). Dunes shot shows haze, no distinct puffs.
-- #20 v2: ridged chains with passes + height variation. Ridge cells 1408 -> 9760; border-line ridge height min 13, p10 20, median 81, max 170 m. v2 127 landmarks, hash 831FF2EE. 4600 m top-down shot renders blank sky: needs the IslandV2Preview map instead.
-- #30: flowers calm/storm pair taken at the same spot (not viewed).
-
-## W-10
-- #19: TerrainSource.PondMask (baked HeightmapBlob, 16 m grid) zeroes ponds under PondMinCells=3 after BuildPlaces. 219 -> 33 blobs, min 1/median 1/p90 3 -> 3/4/7, max 19. Log line `[ponds]`.
-- #44: SandPuffs colour (1.3, 0.55, 0.2, a 2.5), size 1.2-2.4, height 0.6-1.4. 126-132 puffs in range at the Dunes spot (SandPuffs only, WorldProbe.PuffType). Earlier tints matched the sand: that was why no puff showed.
-- #39: cobbles 0.5 x 0.6 m, grout 0.04-0.12, stone greyed and brightened, bump 0.8. Stones read clearly on the village plaza at 2-15 m.
-- Probe: WorldProbe.PuffType, Paving(x,z), BigPonds(k). Spots: Dunes 1800,-1800 (H 10.7); plaza 115,-405 (H 25.7); swamp ponds round -2700,1450.
-- Editor: cam.Render misses ambient particles (Graphics.RenderPrimitives); use ScreenCapture in play to judge them.
-
 ## W-13
 - #15 DONE: `-weather` (ForceAt) forces a cell with Forced=true, which skips the biome weather list (CPU Sample/Describe and MapJob). ] key unchanged. Shots w13 fog-grassland / fog-temperate.
 - #34 DONE: blue moon face *1.6 -> *0.7 (was clipping + blooming over itself), corona smoothstep from 1.0 r. Edge reads crisp.
@@ -47,6 +29,12 @@ No Punchy.exe of mine runs.
 - #23 cave render: v1 106 / v2 127 creatures at the chamber, both SurfaceHidden 1.00, 1 roost (cap 21 / 28), 0 pools. Not world-owned; handed to animal lane.
 - Probe: WorldProbe.Creatures(r), CaveGo(x,z) (deepest node of nearest cave), CaveRender(). v2 cave by bench stop: mouth -1665,2520, deepest -1703,41,2377.
 
+## W-15
+- #23 cave bake: rubble + plants per cave in Parallel.For, joined in cave order. Editor 1350 -> 555 ms; player caves stage 1380 -> 591, v2 ready 7.2 s. Cave hash 9CB26E0C6AEB39BA unchanged. Biggest left: settlements ~1.0 s.
+- #35 white pool: `-whitepools` (draw-only, launch-wide). Look (0.92,0.95,0.97, murk 0.24), glow 0.28. Murk > ~0.3 = hard opaque slab (snow). Build shot still reads as a glowing white disc: needs softer rim alpha / ripples (NOT judged done).
+- #35 bat folk: lanes/world/BATFOLK-PLAN.md (after-caves stage, own RNG, v1/v2 hashes untouched).
+- Probe: WorldProbe.CaveHash, CaveBench(n). v2 pool spot: cam 2998.6,-0.77,-2133.2 -> 3002.04,-3.69,-2135.88.
+
 ## Open
-- #23 follow-ups: volcano markers (need a spec), v2 default decision. Rivers: springs on high ground; shot of a small fall. #13 Z-35 fall speed. #14 cave-mouth shards.
+- #35 white pool rim + bat folk step 1. #23 follow-ups: settlements bake ~1 s, volcano markers (need a spec), v2 default decision. Rivers: springs on high ground; shot of a small fall. #13 Z-35 fall speed. #14 cave-mouth shards.
 - Design-note P3: #17, #18-#22. Roadmap #24.
