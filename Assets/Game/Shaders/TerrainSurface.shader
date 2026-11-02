@@ -118,6 +118,7 @@ Shader "Punchy/Terrain Surface"
                 half   bump       : TEXCOORD6;
                 float  cave       : TEXCOORD7;
                 half   strata     : TEXCOORD8;
+                half   paving     : TEXCOORD9;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -125,6 +126,22 @@ Shader "Punchy/Terrain Surface"
             float MicroHeight(float2 p)
             {
                 return PunchyValueNoise(p / 0.7) * 0.6 + PunchyValueNoise(p / 0.21 + 17.3) * 0.4;
+            }
+
+            // Cobbles (W-09): staggered rows of rounded stones about 0.3 m wide with mortar gaps. Returns the stone's
+            // shade in x, the mortar share in y and the dome tilt of the stone's top in zw.
+            float4 Cobbles(float2 p)
+            {
+                float row = floor(p.y / 0.3);
+                float2 q = float2(p.x / 0.36 + (frac(row * 0.5) > 0.25 ? 0.5 : 0.0) + row * 0.37, p.y / 0.3);
+                float2 cell = floor(q);
+                uint h = (uint)(int)cell.x * 73856093u ^ (uint)(int)cell.y * 19349663u;
+                h = (h ^ (h >> 13)) * 1274126177u; h ^= h >> 16;
+                float shade = (h & 255u) / 255.0 - 0.5;
+                float2 f = frac(q) - 0.5;
+                float edge = 0.5 - max(abs(f.x) * 0.9, abs(f.y));
+                float mortar = 1 - smoothstep(0.03, 0.11, edge);
+                return float4(shade, mortar, -f.x * 0.9, -f.y);
             }
 
             // -0.5..0.5 per cell of p (an integer hash: far from the origin a sin hash breaks up).
@@ -160,6 +177,7 @@ Shader "Punchy/Terrain Surface"
                 o.bump = input.morph.z;
                 o.cave = input.morph.w;
                 o.strata = input.strata.x;
+                o.paving = input.strata.y;
                 return o;
             }
 
@@ -202,6 +220,13 @@ Shader "Punchy/Terrain Surface"
 
                 half relief = detailFade * 0.45 * (1 - puddle);
                 normalWS = normalize(normalWS - half3(micro.x, 0, micro.y) * relief);
+                half cobbleFade = smoothstep(0.25, 0.6, input.paving) * (1 - smoothstep(30, 80, distance));
+                float4 cb = float4(0, 0, 0, 0);
+                [branch] if (cobbleFade > 0.001)
+                {
+                    cb = Cobbles(p);
+                    normalWS = normalize(normalWS + half3(cb.z, 0, cb.w) * 0.5 * (1 - cb.y) * cobbleFade * (1 - puddle));
+                }
                 // Rock faces (steep ground) up close: the caves' shared grain and fine relief, read three ways, so cliffs
                 // carry the same detail as cave walls.
                 half rockShade = 1;
@@ -241,6 +266,13 @@ Shader "Punchy/Terrain Surface"
                 {
                     half grain = Grain(p * 37) * 0.6 + Grain(float2(p.x * 0.866 - p.y * 0.5, p.x * 0.5 + p.y * 0.866) * 15 + 11.3) * 0.4;   // turned: no grid
                     albedo *= 1 + grain * 0.5 * (1 - smoothstep(6, 22, distance)) * (1 - input.extra.y) * detailFade;
+                }
+                // Paved ground (settlement streets and squares): cobbles up close, fading to plain stone grey before
+                // the gaps could shimmer; the stones' domes catch the light.
+                [branch] if (cobbleFade > 0.001)
+                {
+                    albedo *= 1 + cb.x * 0.45 * cobbleFade;
+                    albedo *= 1 - cb.y * 0.5 * cobbleFade;
                 }
                 // Rock strata (mesa cliffs, canyon walls): bands of darker red and paler cream rock by height, a thick
                 // set and a thin one, wandering a little along the cliff. Broad enough to read from far off.
