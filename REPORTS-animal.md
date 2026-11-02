@@ -824,3 +824,9 @@ different files.
 - #7 NOT met: the hunting gate is in place (dogs at 0.6 and up hunt hares, calm dogs never do, and hares ignore calm dogs), but the run had no hares near any dog, so no chase and no Growl.
 - #16 partly met: Dog 36.4 kg carried; Human 65.2 kg too heavy. Child 23.6 kg passes the weight check, but the spawned wild child fled.
 - NEXT: find where the spawned rabbits go in the meadow run, then a dog-chase plus Growl shot; carry a tame or village child.
+
+## A-21 (2026-11-02): leaping run, child carry, dog chase, animal-behaviours 08da339 (one build)
+- #6 met: wolf, dog and cat use a leaping run (GallopStyle.Leap). The gathered and extended phases both read in side-on shots (frozen with -leapphase). Deer and horse stay Rotary (from -gaitlog). Coyote inherits Leap as a Wolf variant.
+- #16 met: the walk-off is rolled per attempt, and a settled village child never walks off. The build log shows HumanChild Held in the Carry pose on 2 of 2 carries, and a shot shows the adult holding the child.
+- #7 met: a dog sprinting at a jackrabbit 7.7 m away, side-on, both in frame.
+- NEXT: Zach's look at the leap poses (front-leg spread, gather hold length).

@@ -1,7 +1,18 @@
-# Animal lane: state (2026-11-02, after batch A-20)
+# Animal lane: state (2026-11-02, after batch A-21)
 
-Worktree `Punchy` (animal lane only). `animal-behaviours` = origin e2eda9a (A-20).
-Builds/Windows is the A-20 build. Editor open on port 7800; no Punchy.exe of ours running.
+Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 08da339 (A-21).
+Builds/Windows is the A-21 build. Editor open on port 7800; no Punchy.exe of ours running.
+
+## A-21 (artefacts PunchyMilestones/animal/a21/)
+- #6 met in the build: GallopStyle.Leap (double suspension). Gathered (feet under body, front legs back and wide, spine
+  flexed) snaps to extended (front reach, hind stretch, airborne) and eases back. leapgather-800/leapextend-800 read.
+- #6 per species (-gaitlog): Wolf, Cat, Dog Leap (Coyote too, as a Wolf variant); Deer, Horse, Bison, Pronghorn,
+  BlackBear Rotary; small animals Bound.
+- #16 met: walk-off rolled per attempt; settled (leashed) village child never walks off. Build log: HumanChild Held,
+  player pose Carry, twice; childcarry-800 shows the adult holding the child.
+- #7 met: meadow run with dogs and hares only: Dog sprinting at Jackrabbit 7.7 m, both in frame (dogchase-800).
+- New flags: `-leapphase p` (freeze leap phase), `-hunter Species` (which hunter -shotonhunt frames), `-gaitlog`.
+- Tip: `-shotonhunt` can fire just after a catch (hunter resting); give a second line as a backup.
 
 ## A-20 (artefacts PunchyMilestones/animal/a20/)
 - #7 met in the build: dogs had no prey because the Resources Dog's Hunts pointed at Resources copies of the hares
@@ -28,19 +39,13 @@ Builds/Windows is the A-20 build. Editor open on port 7800; no Punchy.exe of our
   whole wolf, 9.9 m/s, mid-bound with legs gathered, 0 plants in the way (hunt-800.png). Zach's look.
 - #49: after the host quits, the client reloads into solo and logs DunesColossus and Mantrap placed again; 0 exceptions.
 
-## A-16 (test-only, artefacts PunchyMilestones/animal/a16/)
-- #12: player standing still, 16 Songbirds, 200 s: five 25 s+ Wander/flying windows, weighted ~22.5 deg/s.
-- #7: Growl can't play with current data: Dog.asset has Hunts [], FleeDistance 0, Hunger 0, and no species hunts
-  dogs, so Flee only comes from a Startle (Bolt). Needs a design call (dogs chase rabbits?).
-- #48 met: client sees the host's Human upside down mid-somersault (client/remoteroll-800.png).
-
 ## Unverified (merged anyway; Zach's check in the build)
 - #41 (A-10c, ae5b491): head glow fixed; host-to-client lunge not shown. Plant shove never landed in a test.
 - #8 Z-52: live folk lines seen only twice.
 
 ## Open
 - #12: numbers in (A-16); Zach's look. #33: sideways still 0 m/s on stick right.
-- #7: side-on dog-and-hare shot; #16: calm child carry in the build (see A-20). #6, #43, #49: Zach's look.
+- #6 (leaping run), #7, #16, #43, #49: Zach's look.
 - Dormouse Climb 11-70 deg/s, probably round a trunk; secondary.
 - #10 new species (needs design).
 - Animals still flee a flyer high above (confirm with Zach before filing more).
