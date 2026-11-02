@@ -787,3 +787,13 @@ b/weather-mapjob.
   - Needs a decision: flatten the swamp, allow terraced pools, or move the swamp.
 - Rows 2 and 4: NOT DONE, no build made.
 - Hashes: no terrain code committed, so they are unchanged by construction.
+
+## W-24 (2026-11-02)
+- Row 1 DONE (#23): stepped pools. world-features 9568761.
+  - PoisonSwamp at -2400,500, before -> after: pools 3 -> 15, wet cells 15 -> 33, steps 2 -> 119.
+  - Island-wide: 1 pond -> 5 ponds.
+- Row 2 NOT DONE: in the build shot from 30 m up, the terraces are too small to read as steps. Next: a bigger step or bank, or a closer shot.
+- Row 3 DONE: the lake shot from lower down shows no walls or holes.
+- Row 4 DONE: the hut thatch is even at 40 m.
+- Hashes unchanged: v2 125 / AFA9CC63, caves D531293D622E785A; v1 101 / E128CB1D.
+- Shots: PunchyMilestones/world/w24. 1 build.
