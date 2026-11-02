@@ -124,6 +124,7 @@ namespace Punchy.Terrain
         public static void BuildPlaces(ref TerrainSource source, List<BiomeDefinition> palette, List<LandmarkType> landmarkTypes,
                                        List<PlacedLandmark> placed, List<RoadsideLandmark> roadsideTypes, Allocator allocator)
         {
+            source.PondsOn = false;
             if (source.RiverSettings.Enabled && palette.Count > 0)
                 source.Rivers = RiverBaking.Build(source, source.RiverSettings, allocator);
             if (palette.Count > 0)
@@ -141,6 +142,7 @@ namespace Punchy.Terrain
             if (source.Landmarks.IsCreated)
                 source.Caves = CaveBaking.Build(source, palette, landmarkTypes, allocator);
             source.Anchors = AnchorBaking.Build(source, landmarkTypes, allocator);
+            source.PondsOn = true;
         }
 
         class Baker : Baker<TerrainAuthoring>

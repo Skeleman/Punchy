@@ -46,6 +46,8 @@ namespace Punchy.Terrain
         public bool Smooth;
         [UnityEngine.Tooltip("A segment whose bed drops at least this much (m) becomes a waterfall: a step in the bed. 0 = none. Set MaxGradient high too, or the drop is spread into a gorge.")]
         public float FallDrop;
+        [UnityEngine.Tooltip("A river may only start on ground at least this high above sea level (m); lower cells carry water only downstream of such a source. 0 = anywhere.")]
+        public float SourceHeight;
 
         public static RiverSettings Default => new RiverSettings
         {
@@ -74,7 +76,7 @@ namespace Punchy.Terrain
             ChannelDepth == o.ChannelDepth && BankSlope == o.BankSlope && MaxGradient == o.MaxGradient && Meander == o.Meander &&
             MaxCarveDistance == o.MaxCarveDistance && MinLakeArea == o.MinLakeArea && MinLakeDepth == o.MinLakeDepth &&
             LowlandRain == o.LowlandRain && HighlandRain == o.HighlandRain && HighlandHeight == o.HighlandHeight &&
-            Snowmelt == o.Snowmelt && Smooth == o.Smooth && FallDrop == o.FallDrop;
+            Snowmelt == o.Snowmelt && Smooth == o.Smooth && FallDrop == o.FallDrop && SourceHeight == o.SourceHeight;
     }
 
     /// <summary>

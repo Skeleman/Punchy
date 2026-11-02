@@ -126,6 +126,8 @@ namespace Punchy.Terrain
         /// before taking <c>ref Anchors.Value</c>.
         /// </summary>
         public BlobAssetReference<AnchorSetBlob> Anchors;
+        /// <summary>Set when every place is baked: biome ponds are dug only after that, so they never move a landmark, road, cave or anchor.</summary>
+        public bool PondsOn;
 
         bool HasBiomes => Biomes.IsCreated && Biomes.Value.Biomes.Length > 0;
         bool UsesBiomeMap => BiomeKind == BiomeSourceKind.Map && BiomeMap.IsCreated;
@@ -241,6 +243,59 @@ namespace Punchy.Terrain
             return World.SeaLevel + height;
         }
 
+        /// <summary>
+        /// Biome ponds (a swamp's pools) dug into the ground. Only once the landmarks exist: rivers, landmarks and
+        /// settlements are placed on the ground without them, so the ponds never move any of those.
+        /// </summary>
+        float Ponds(float2 xz, in BiomeWeights shape, float h)
+        {
+            if (!PondsOn || !HasBiomes)
+                return h;
+            ref var set = ref Biomes.Value;
+            var dig = 0f;
+            for (int i = 0; i < 4; i++)
+            {
+                var w = shape.Weights[i];
+                if (w > 0f)
+                    dig += w * BiomeSampling.Pond(ref set.Biomes[shape.Ids[i]], xz);
+            }
+            return h - dig;
+        }
+
+        /// <summary>Counts separate biome ponds (cells digging 0.3 m or more, 4-connected) on a grid of the given step; for logs.</summary>
+        public int PondCount(float step, out int wetCells)
+        {
+            wetCells = 0;
+            if (!PondsOn || !HasBiomes) return 0;
+            int n = (int)(World.WorldSize / step), found = 0;
+            var wet = new bool[n * n];
+            var half = World.WorldSize * 0.5f;
+            for (int z = 0; z < n; z++)
+                for (int x = 0; x < n; x++)
+                {
+                    var xz = new float2(x + 0.5f, z + 0.5f) * step - half;
+                    SampleBiomes(xz, out _, out var shape);
+                    var h = ShapeHeight(xz, shape);
+                    wet[z * n + x] = h - Ponds(xz, shape, h) >= 0.3f;
+                    if (wet[z * n + x]) wetCells++;
+                }
+            var stack = new System.Collections.Generic.Stack<int>();
+            for (int i = 0; i < wet.Length; i++)
+            {
+                if (!wet[i]) continue;
+                found++; wet[i] = false; stack.Push(i);
+                while (stack.Count > 0)
+                {
+                    var c = stack.Pop(); int cx = c % n, cz = c / n;
+                    if (cx > 0 && wet[c - 1]) { wet[c - 1] = false; stack.Push(c - 1); }
+                    if (cx < n - 1 && wet[c + 1]) { wet[c + 1] = false; stack.Push(c + 1); }
+                    if (cz > 0 && wet[c - n]) { wet[c - n] = false; stack.Push(c - n); }
+                    if (cz < n - 1 && wet[c + n]) { wet[c + n] = false; stack.Push(c + n); }
+                }
+            }
+            return found;
+        }
+
         /// <summary>Ground height before river carving (what rivers are routed over).</summary>
         public float BaseHeight(float2 xz)
         {
@@ -254,14 +309,17 @@ namespace Punchy.Terrain
         {
             // A loaded heightmap already contains carved channels and landmark shapes.
             if (UsesHeightmap)
-                return Settle(xz, Heightmap.Value.Sample(xz));
+            {
+                SampleBiomes(xz, out _, out var heightmapShape);
+                return Settle(xz, Ponds(xz, heightmapShape, Heightmap.Value.Sample(xz)));
+            }
             SampleBiomes(xz, out _, out var shape);
             var h = ShapeHeight(xz, shape);
             if (Rivers.IsCreated)
                 h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz), RiverSettings, h);
             if (Landmarks.IsCreated)
                 h = LandmarkSampling.Shape(ref Landmarks.Value, xz, h);
-            return Settle(xz, h);
+            return Settle(xz, Ponds(xz, shape, h));
         }
 
         /// <summary>
@@ -380,6 +438,19 @@ namespace Punchy.Terrain
                     }
                     ruleDepth = math.max(ruleDepth, math.lerp(farAbove, pool - g.Height, claim));
                 }
+            }
+            // Biome ponds (a swamp's pools): water was decided above from the ground without them, so a pond is wet only
+            // where it digs below the water level the biome already has (sea level in the lowlands).
+            var dug = Ponds(xz, shape, g.Height);
+            if (dug < g.Height)
+            {
+                if (dug < World.SeaLevel && water < World.SeaLevel)
+                {
+                    water = World.SeaLevel;
+                    flow = float2.zero;
+                }
+                ruleDepth = math.max(ruleDepth, math.max(water, World.SeaLevel) - dug);
+                g.Height = dug;
             }
             // Settlements keep clear of water, so their levelling doesn't change the water rules above.
             g.Height = Settle(xz, g.Height);

@@ -256,6 +256,11 @@ namespace Punchy.Terrain
             v1.MinLakeArea = 0.1f; v1.MinLakeDepth = 4f;
             // W-05b: smooth curved segments, and drops of 4 m or more stay as steps (waterfalls) instead of being spread into gorges.
             v1.Smooth = true; v1.FallDrop = 4f; v1.MaxGradient = 1.5f;
+            // W-07 (#18): springs on high ground. A river may only start 45 m or more above the sea (ridges, outcrops, upland lake rims). PUNCHY_SPRINGS=old keeps the W-06 values.
+            if (System.Environment.GetEnvironmentVariable("PUNCHY_SPRINGS") != "old")
+            {
+                v1.SourceHeight = 45f;
+            }
             return v1;
         }
     }
@@ -274,17 +279,18 @@ namespace Punchy.Terrain
         static string RiverReport(ref RiverMapBlob map)
         {
             var rows = new List<(float length, string text)>();
-            int sources = 0;
+            int sources = 0; var srcH = new List<float>();
             for (int i = 0; i < map.Width.Length; i++)
             {
                 if (map.Width[i] <= 0f || map.Up[i] >= 0) continue;
-                sources++;
+                sources++; srcH.Add(map.Bed[i]);
                 float length = 0f; int c = i, steps = 0; var p = map.Point(c);
                 while (map.Down[c] >= 0 && map.Width[map.Down[c]] > 0f && steps++ < 4000) { var n = map.Down[c]; var q = map.Point(n); length += math.distance(p, q); p = q; c = n; }
                 rows.Add((length, $"src {map.Bed[i]:F0} m -> end {map.Bed[c]:F0} m (drop {map.Bed[i] - map.Bed[c]:F0}), {length:F0} m, w {map.Width[i]:F0}-{map.Width[c]:F0}"));
             }
             rows.Sort((a, b) => b.length.CompareTo(a.length));
-            var sb = new System.Text.StringBuilder($"rivers: {sources} sources, {map.Falls.Length} waterfalls; longest:");
+            srcH.Sort();
+            var sb = new System.Text.StringBuilder($"rivers: {sources} sources (bed min {(srcH.Count > 0 ? srcH[0] : 0):F0} median {(srcH.Count > 0 ? srcH[srcH.Count / 2] : 0):F0} max {(srcH.Count > 0 ? srcH[srcH.Count - 1] : 0):F0}), {map.Falls.Length} waterfalls; longest:");
             for (int k = 0; k < math.min(6, rows.Count); k++) sb.Append($" | {rows[k].text}");
             // Falls by drop, and how many sit within 60 m of another (chains of them count as one cluster).
             int[] bucket = new int[4]; int near = 0, clusters = 0;
@@ -352,6 +358,7 @@ namespace Punchy.Terrain
                 hashText = $"{lines.Count} landmarks, hash {h:X8}";
             }
             Debug.Log($"[island] {gen.Report}; baked in {watch.ElapsedMilliseconds} ms; {hashText}");
+            { var ponds = source.PondCount(16f, out var wetCells); Debug.Log($"[island] ponds: {ponds} separate, {wetCells} wet cells of 16 m"); }
             if (source.Rivers.IsCreated) Debug.Log("[island] " + RiverReport(ref source.Rivers.Value));
         }
     }

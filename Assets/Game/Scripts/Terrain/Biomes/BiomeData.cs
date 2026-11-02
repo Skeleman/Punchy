@@ -90,6 +90,7 @@ namespace Punchy.Terrain
         public TerrainShapeKind Shape;
         public float Relief;
         public float FeatureFrequency;
+        public float PondDepth, PondFrequency, PondCover;
         public int Octaves;
         public float Sharpness;
         public int TerraceSteps;
@@ -894,6 +895,21 @@ namespace Punchy.Terrain
 
         static float Suitability(ref BiomeBlobData b, float4 climate, float influence) =>
             b.Frequency * math.lerp(1f, ClimateFit(ref b, climate), influence);
+
+        /// <summary>
+        /// How far a biome's ponds dig below the ground at xz (metres, 0 between ponds): contours of warped noise, so the
+        /// pools are small, irregular and join where two contours meet, instead of round.
+        /// </summary>
+        public static float Pond(ref BiomeBlobData b, float2 xz)
+        {
+            if (b.PondDepth <= 0f)
+                return 0f;
+            var p = xz * b.PondFrequency + b.NoiseOffset * 0.37f;
+            p += new float2(noise.snoise(p * 0.6f + 11.1f), noise.snoise(p * 0.6f - 7.3f)) * 0.7f;
+            var n = noise.snoise(p) * 0.65f + noise.snoise(p * 2.1f + 5.5f) * 0.35f;   // about -0.8 .. 0.8
+            var edge = math.lerp(0.55f, -0.35f, b.PondCover / 0.8f);
+            return math.smoothstep(edge, edge + 0.3f, n) * b.PondDepth;
+        }
 
         /// <summary>Height of one biome's relief above its base elevation, at xz (metres).</summary>
         public static float Relief(ref BiomeBlobData b, float2 xz)

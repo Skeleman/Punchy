@@ -564,13 +564,24 @@ namespace Punchy.Terrain
                 var cellArea = CellSize * CellSize / 1e6f; // km²
                 var source = math.max(Settings.SourceCatchment, 1e-3f);
                 var range = math.log(math.max(Settings.FullCatchment / source, 1.0001f));
+                // Springs on high ground (SourceHeight): a river cell below that height counts only if a river cell drains into it.
+                var fed = new NativeArray<bool>(flow.Length, Allocator.Temp);
+                if (Settings.SourceHeight > 0f)
+                    for (int k = Order.Length - 1; k >= 0; k--)
+                    {
+                        var c = Order[k];
+                        var on = Elevation[c] >= SeaLevel && flow[c] * cellArea >= source && (fed[c] || Elevation[c] - SeaLevel >= Settings.SourceHeight);
+                        if (on && Down[c] >= 0) fed[Down[c]] = true;
+                        fed[c] = on;
+                    }
                 for (int i = 0; i < flow.Length; i++)
                 {
                     var catchment = flow[i] * cellArea;
-                    Width[i] = Elevation[i] >= SeaLevel && catchment >= source
+                    Width[i] = Elevation[i] >= SeaLevel && catchment >= source && (Settings.SourceHeight <= 0f || fed[i])
                         ? math.lerp(Settings.MinWidth, Settings.MaxWidth, math.saturate(math.log(catchment / source) / range))
                         : 0f;
                 }
+                fed.Dispose();
                 flow.Dispose();
             }
         }
