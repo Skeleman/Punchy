@@ -2,6 +2,16 @@
 
 Newest first.
 
+## 2026-11-02 batch A-18: herd calls at the budget; whole wolf mid-gallop; colossus and mantrap back in solo
+- DONE: #43 calls within 6 m still play but now take their share of the budget (debt down to 10); calls the biome can't sound no longer spend it (animal-behaviours b549d00)
+- DONE: #6 hunt reshot in the open meadow (-255, 27) with -huntside 6; -huntside now counts plants between camera and hunter and takes the clearer side (same commit)
+- DONE: #49 client run extended past the reload: after the host quit, the client logged DunesColossus placed (1780, 12.7, -1973) and Mantrap placed 26 again, then 45 s solo
+- Checks: compile clean; 1 build (Succeeded, 0 errors). Herd (6 Deer + 4 Bison, 120 s): 73 calls in 2 min = 36.5/min (A-15: 94, ~47/min); 11 windows after the first 66 in 110 s = 36.0/min, the extra one is the 2-call burst saved before the window. huntside: wolf 9.9 m/s, stage 1, 0 plants in the way. Host/client: 0 exceptions both. No Punchy.exe of mine left (one world-lane Builds/Dev player running, left alone)
+- Shots: PunchyMilestones/animal/a18/hunt-800.png (whole wolf side-on in open grass, mid-bound with all four legs gathered under it); a18/herd-800.png (herd test view, not reviewed)
+- Learned: lanes/animal/TESTING.md (hunt spot and the plant count)
+- NEXT: #7/#12 wait on Zach; #43 strict 36.0 needs CallBurst lowered or a 0.59 rate if Zach wants it exact
+- Budget: ~45 calls, 1 build
+
 ## 2026-11-02 batch A-17: no client NRE when the host quits; side-on hunt reshoot
 - DONE: #49 (new) client falling back to solo no longer throws in TerrainSource.HasBiomes: DunesColossus and Mantrap re-fetch TerrainSource when the default world changes and rebuild after the scene reload (animal-behaviours 17d4b40)
 - DONE: #6 hunt reshot side-on 1 s into the sprint in clear weather (new -huntside flag, same commit)

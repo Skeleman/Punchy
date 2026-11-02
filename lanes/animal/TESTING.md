@@ -8,6 +8,8 @@ Read `lanes/shared/checks.md` first.
 - Side views: `-goto x,z` plus `-camlook`; open meadow about (-255, 27), ground 35.4. `-camlook` on a line that
   also has `-spawn` doesn't take: stand the player where you want to look from.
 - A lone palm: `-place Dunes -place tree:Palm`.
+- Hunt side view: `-goto -255,27` (open meadow), then `-spawn Wolf:2 -spawn Deer:4 -spawn Rabbit:4 -huntlog -shotonhunt
+  -huntside 6 -wait 90`. The huntside log line gives the plants counted between camera and wolf (0 = clear).
 - Spin and drift probes: `-spincheck` (spin log lines; compare counts over 3 runs), `-footdrift`.
 
 ## Known spots
