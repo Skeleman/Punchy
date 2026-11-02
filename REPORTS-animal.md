@@ -897,3 +897,21 @@ NOT DONE (task 3 shot; task 2 partly). animal-behaviours c601c66 pushed (merge e
   was used for the reach fix and the bubble retry.
 - NEXT: fix the talk spacing when the pair is already close (well/seat) and why no bubble shows. Then retake the
   shot without `-nohud`. Ask Zach whether 2-minute gaps are fine or whether the cooldown should drop.
+
+## A-28 (2026-11-02): talk spacing and bubble
+DONE (4/4). animal-behaviours 0b06bf3 pushed.
+- Task 1: pairs that meet already close now step back to the talk spacing, still facing each other; walking up,
+  they slow as the gap closes (the full-speed stop had carried both into each other). Each `FolkChat:` line now
+  ends with the distance. Editor run: four talks ended 1.28, 1.28, 1.29, 1.28 m apart, including the Stonewick
+  well pair at (133, -418) that stood 0.3-0.5 m apart in A-27.
+- Task 2: the bubble was being drawn, but at eye height as a bare "...", so it read as a pair of eyes (that is
+  why A-27 saw none). Shown is only for lines said to the player within 5 m, so it is empty for a chatshot
+  camera by design. The bubble now sits 0.4 m higher in a pale rounded box. Editor shot shows it.
+- Task 3: build run, HUD on, `-chatshot`: two separate folk facing each other at 1.3-1.4 m, bubble over the
+  speaker. Viewed at 800 px. Shot 1 (second line) has the bubble touching the tall elder's head top.
+- Task 4: `[island] generator version 1 (baked); 101 landmarks, hash E128CB1D`. The no-flag run is v1 on this
+  branch (only `-island v2` switches; main's v2 default is not merged here), so one run covers both.
+- Checks: compile clean, build Succeeded, 0 exceptions, player quit on its own (no Punchy.exe left).
+- Shots: PunchyMilestones animal/a28: build_talk_0_800.png (main), build_talk_1_800.png, editor_talk_800.png
+  (full size in build/ and editor/).
+- NEXT: optional bubble height per body size; Zach's call on the 2-minute talk gaps (cooldown).
