@@ -2,6 +2,32 @@
 
 Newest first.
 
+## 2026-11-02: queue item 10, host + client on world-features a19bc79 (W-22, v2 default): FAIL, the host loses its own player during the v2 launch bake; v1 PASS
+Bench-a19bc79, `-host` plus a local `-join 127.0.0.1`, 75 s, then both quit. Pairs: no `-island` flag (twice) and
+`-island v1` on both. 0 exceptions, 0 NullReference, 0 IndexOutOfRange in all 6 logs. No dialogs.
+- **No flag (v2), both runs the same:**
+  - Both sides log "[island] generator version 2" and **125 landmarks, hash AFA9CC63**, not the queue's
+    127 / 831FF2EE. Those were main 0cc3ed7's values; W-21's blur fix and W-24/25 have changed the island since.
+    WorldSync agrees ("player 1 has the same world (E28B402B); welcome").
+  - **The host's own player is lost.**
+    - The host process bakes v2 twice: its server world ("v2 ready at 10.1 s") and its in-process client world
+      (14.1 s).
+    - The main thread is blocked ~4 s each time, so its local client connection times out: "Net (server):
+      connection 1 disconnected (Timeout)", then "Net (client): ... (ClosedByRemote)".
+    - From then on the host logs "in game False, players 0" every 10 s. The joining client connects, is welcomed,
+      and is "in game True, players 1": it sees only itself.
+    - In the shots, each side shows one body at (0,163,0). The joiner spawned on the same spot, not 3 m off as on v1.
+  - For the world lane (#23): bake once per process and share it with both worlds, or keep the transport ticking
+    (or raise the disconnect timeout) while baking.
+  - Not checked: hosting from solo with F2, which creates the netcode worlds after the solo bake. It likely bakes
+    again in the new worlds.
+- **`-island v1`:** both log "generator version 1 (baked)" and **101 landmarks, hash E128CB1D**, as expected.
+  - Host "players 2" while joined; the client sees the host's body 3 m away (client at 3,65,2).
+  - Both quit cleanly; the host logs the client's ClosedByRemote at its quit.
+- #49 (client NullReference in TerrainSource.HasBiomes when the host quits): not seen in any pair here.
+- Shots: `shots/q23/mp-v2-default-vs-v1-a19bc79.jpg` (top: no flag, host left / client right; bottom: v1).
+- Cost: about 15 calls, about $2 (estimate: the usage log had not caught up with this session yet).
+
 ## 2026-11-02: queue item 9, review of BatFolkBaking/BatFolkMeshes (world fb047dc) and folk chats (animal A-26 ed767e0): nothing urgent, two things that grow with creature count
 Read-only review, plus a townwalk cap-60 dev profile of main 0cc3ed7 (before A-26) vs ed767e0 to size them.
 **Profile:** frame median 16.69 vs 16.68 ms, p95 18.97 vs 18.88; spikes 3 vs 1. No cost visible in the frame.

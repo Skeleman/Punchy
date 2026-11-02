@@ -36,7 +36,7 @@ Released: v0.11.0 = cand/v0.11 4eea658 (world b39522b + animal c810406).
 
 ## Likely next jobs
 - 2026-11-02 afternoon items 7-9 done (BENCH-REPORTS): bench stops fixed for v2 (b/bench-runner c7018e0); main v2 cave
-  CPU 1.8x v1 (camera LateUpdate +1.8 ms), v2 ready 9.6-10.1 s; review of bat folk and folk chats. Item 10 waits on W-22.
+  CPU 1.8x v1 (camera LateUpdate +1.8 ms), v2 ready 9.6-10.1 s; review of bat folk and folk chats. Item 10 (a19bc79): v2-default host loses its own player during the double launch bake (Timeout); v1 MP fine.
 - Item 6 done: v2 cave stop CreatureRenderSystem 10.5 ms main thread, v2 townwalk misses the town (BENCH-REPORTS).
 - Re-profile townwalk when the animal lane fixes TraceSystem; #48 remote flying/swimming descent if asked.
 
