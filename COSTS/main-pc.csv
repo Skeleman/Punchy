@@ -16,4 +16,7 @@ date,machine,session,title,model,subagent,calls,input,cache_read,cache_write,out
 2026-10-30,main-pc,2ec7abd1,,claude-opus-5-5,0,194,552,34346125,526324,81454,246604,12.71
 2026-10-30,main-pc,cc15de43,world feature manager,claude-opus-5-5,0,417,906,280724708,1802807,305643,918955,76.68
 2026-10-30,main-pc,e4223cb1,Animal behavior manager,claude-opus-5-5,0,447,928,264447761,2399841,413746,966147,80.37
-2026-11-02,main-pc,adfd014f,,claude-opus-5-5,0,21,46,2601792,246445,46601,182993,3.42
+2026-11-02,main-pc,adfd014f,,claude-opus-5-5,0,63,150,6868744,332321,74893,187750,5.53
+2026-11-02,main-pc,agent-a0,,claude-sonnet-5-5,1,13,26,615925,36883,3332,60967,0.25
+2026-11-02,main-pc,agent-a2,,claude-sonnet-5-5,1,56,118,4383744,113750,30681,113752,1.47
+2026-11-02,main-pc,agent-ab,,claude-opus-5-5,1,72,150,7084824,146174,34662,146176,2.84

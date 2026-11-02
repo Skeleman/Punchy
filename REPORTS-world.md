@@ -2,6 +2,17 @@
 
 Newest first.
 
+## 2026-11-02 batch W-01: menu+pad wheel, cave pools, bigger bluer moon, roof lips merged into world-features a96a1dc
+- DONE: #4 #5 wip/ui-wheel merged (CLAUDE.md conflict: kept docs index). Compiles, builds, Multiplayer tab shows pad glyphs and the Exit game button (world-features 54b394f)
+- DONE: #3 z34-pool merged (22e7534). Cave stream 2 now ends in a pool 7 m earlier; streams 0 and 2 shortened 15 to 10 points
+- DONE: #34 blue moon radius 0.034 to 0.13 rad, much bluer, one thin crack, maria and small craters (a96a1dc)
+- DONE: #32 roof rim lip on Hut, StoneHouse, Tower, Shrine (6449002); subtle, about 0.14 m thick
+- NOT DONE: #4 #5 pad input behaviour (A then B, wheel enter/delete/ring switch/cancel): a shot list can't press buttons; needs Zach or a pad. `-menu Graphics` shot showed no menu
+- Checks: 5 batch-mode builds succeeded, no exceptions in the player logs; before build (pre-change) and after build, same camera and time. Landmark hash not measured (no landmark code touched)
+- Shots: D:\Unity\PunchyMilestones\world\W-01\ moonnight_before/after.png, moondusk_before/after.png, roof_before/after.png, cave_before/after.png, mm.png (800 px); full size in gallery\
+- Learned: docs/agents/rendering.md (blue moon pin recipe)
+- NEXT: Zach plays the menu with a pad (#4 #5); run WorldProbe landmark hash; #15 look checks; delete merged wip branches
+
 ## 2026-11-01 — #4 Exit game button (wip/ui-menu e0c7814; merged into wip/ui-wheel 6feebef)
 - The menu's "Quit game" is now **Exit game**: full width, bold, red-tinted, a focus stop on every tab. The confirm reads "Exit the game?" Cancel / Exit, with Cancel first so the held focus lands on it. B backs out of the confirm.
 - Compiles; not built. Slot check: shot of the foot and of the confirm (`-menu Graphics -forcepad xbox`); A, then B cancels.
