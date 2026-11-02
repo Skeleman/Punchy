@@ -843,3 +843,22 @@ b/weather-mapjob.
   - w27b-mp-v2.jpg and w27b-mp-v1.jpg (host and client side by side)
   - w27b-tower-far-south.jpg and w27b-tower-far-north.jpg
 - 1 build.
+
+## W-28 icebergs (2026-11-02), world-features 10a5ee1
+- Row 1 DONE:
+  - v2: big 6, chunks 56, floes 38 off the Cold realm coast (km cells -5,1 -4,1 -2,3 -2,4 -1,4).
+  - v1 has a cold coast in the east (km 3,2 4,1 4,2): big 1, chunks 8, floes 1.
+  - No bergs in rivers or lakes (open sea only), none off warm coasts, and settlements kept clear by 350 m or more.
+- Row 2 DONE:
+  - Faceted white/pale-blue ice. One draw per 1024 m region: v2 5 draws, 6232 tris; v1 3 draws, 2140 tris.
+  - Climb onto big bergs by a ramp on the shore side.
+  - No bob. The underwater part shows only near the surface.
+- Row 2b DONE:
+  - Cave in the berg mesh, so the cave system is untouched.
+  - v2 berg (-4332, 1739), chamber (-4337, 1.2, 1740). v1 berg (4226, 2354).
+  - Cave cost: 1026 tris, 1 draw.
+  - Walk test: water to chamber and back, 922 steps, 0 blocked.
+- Row 3 DONE: [coast](PunchyMilestones/world/w28/w28-coast.png), [coast wide](PunchyMilestones/world/w28/w28-coast-wide.png), [berg](PunchyMilestones/world/w28/w28-berg.png), [chamber](PunchyMilestones/world/w28/w28-chamber.png).
+- **Checks:** hashes unchanged: v2 126 / 053C63D5, caves 5D90D9CFC5326976; v1 102 / 51EA6463, caves 47C703C0E17F77CB.
+- Open: a small gap at the chamber's tunnel joint. W-27 tower steps may not hold the player (Floor ignores the tower floor).
+- 1 build. No Punchy.exe left running.
