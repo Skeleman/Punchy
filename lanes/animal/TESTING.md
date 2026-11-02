@@ -19,6 +19,9 @@ Read `lanes/shared/checks.md` first.
 - Host: `-host -body Human -shotlist <list>` with `-spawn Cat:2 -wait 25`, then `-watch Cat -wait 0.5` lines.
   Client: `-join 127.0.0.1 -body Human -interact Cat:carry`. Without `-host` both run solo. On the host,
   `-watch Human` doesn't find a remote player's body.
+- Remote roll (#48, A-16): host `-host -body Human`, list: `-goto -255,27 -wait 45`, then
+  `-actiontest roll:Human,Human,Human -wait 14`. Client (start 12 s later) `-join 127.0.0.1 -body Human`, list:
+  `-goto -245,27 -remoteroll -wait 70`: logs the first remote Roll, frames 5 m side-on, shoots remoteroll.png at 0.4.
 
 ## Gotchas
 - Worm arcs start deep, so obstacles under about 20 m ahead are crossed underground.

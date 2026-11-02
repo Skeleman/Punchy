@@ -2,6 +2,17 @@
 
 Newest first.
 
+## 2026-11-02 batch A-16: songbird windows in; client sees a remote roll; Growl blocked by dog data
+- DONE: #12 five Wander/flying windows of 25 s+ with the player standing still (16 Songbirds): 24.1, 19.8, 10.5, 16.0, 46.4 deg/s (38/30/35/27/26 s), weighted ~22.5 (A-14 ~23.5)
+- DONE: #48 client logs the remote roll (Roll 0.03, shot at 0.40) and sees the host upside down mid-somersault (new -remoteroll test flag, animal-behaviours 995ca68)
+- DONE (why not): #7 Growl can't fire: Dog.asset Hunts [], FleeDistance 0, no species hunts dogs; 3 dogs by 6 rabbits 60 s = 0 voices. Design call needed
+- NOT DONE: #6 hunt.png caught the wolf at sprint start (1.2 m/s), tiny and far, rain on the first line; gallop not readable
+- Checks: compile clean; 1 build; 0 exceptions solo/host; 1 NRE on client after host quit (TerrainSource.HasBiomes in fall back to solo); host roll 0.53 s 4.1 m
+- Shots: PunchyMilestones/animal/a16/client/remoteroll-800.png (host's Human mid-somersault seen by the client); a16/hunt-800.png (wolf too far, not usable)
+- Learned: lanes/animal/TESTING.md (remote roll recipe), STATE.md test notes (16 birds for 25 s windows; -shotonhunt file name)
+- NEXT: #6 reframe (closer, ~1 s into the sprint); #7 decide whether dogs chase rabbits; client NRE on host quit (file it?)
+- Budget: ~62 calls, 1 build (reshoot of #12 with 16 birds in the soft extra)
+
 ## 2026-11-02 batch A-15: lizard seen mid-climb on the barn wall; Hiss heard; herd calls counted
 - DONE: #33 mid-climb shot from 9 m out in front of the barn face shows the Lizard on the wall (animal-behaviours 99b6fa7).
 - DONE: #43 94 played calls in 120 s near 6 Deer + 4 Bison = ~47/min (budget 36/min; calls within 6 m skip it, ambient included).
