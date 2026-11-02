@@ -517,18 +517,20 @@ half3 PunchyBlueMoonFace(float3 dir, float3 m, float radius, half3 tint, out hal
     // Craters at three scales, each cell with its own size and depth, soft shaded bowls and soft rims (not discs).
     // The bowl is a smooth dish darkening toward its centre, the rim a broad gentle ridge; a few cells stay empty.
     half craters = 0;
-    // W-11: a fourth, fine scale so the face keeps its detail at the larger size.
-    for (int k = 0; k < 4; k++)
+    // W-11: a fourth, fine scale so the face keeps its detail at the larger size. W-12: a fifth, finer still, and
+    // crisper crater walls and rims, so the face reads sharp at night (#34).
+    for (int k = 0; k < 5; k++)
     {
-        float freq = k == 0 ? 2.6 : (k == 1 ? 6.0 : (k == 2 ? 13.0 : 29.0));
+        float freq = k == 0 ? 2.6 : (k == 1 ? 6.0 : (k == 2 ? 13.0 : (k == 3 ? 29.0 : 61.0)));
         float3 cr = PunchyMoonCells(uv * freq + 4.7 + k * 9.3);
         float pick = frac(cr.z * 7.3);
         float live = step(k == 0 ? 0.3 : 0.45, cr.z);
         float size = lerp(0.12, 0.5, pick * pick);        // many small, a few large
         float d = cr.x / size;
-        float depth = lerp(0.35, 1.0, frac(cr.z * 13.7)) * (k == 0 ? 0.9 : (k == 3 ? 0.45 : 0.7));
-        float bowlK = 1 - smoothstep(0.0, 1.0, d);
-        float rimK = exp(-pow((d - 1.05) / 0.22, 2));
+        float depth = lerp(0.35, 1.0, frac(cr.z * 13.7)) * (k == 0 ? 0.9 : (k == 3 ? 0.45 : (k == 4 ? 0.35 : 0.7)));
+        // A dish shaded toward its centre inside a steep wall, and a narrow rim just outside it.
+        float bowlK = (1 - smoothstep(0.7, 1.0, d)) * (0.55 + 0.45 * saturate(1 - d));
+        float rimK = exp(-pow((d - 1.04) / 0.11, 2));
         craters += live * (-depth * 0.5 * bowlK * bowlK * (1 + 0.5 * bowlK) + depth * 0.22 * rimK);
     }
     // Rock: mottled, with a coarse and a fine grain; maria as broad darker patches, warped so their edges wander.
@@ -537,7 +539,7 @@ half3 PunchyBlueMoonFace(float3 dir, float3 m, float radius, half3 tint, out hal
                 + PunchyValueNoise(uv * 8.0 + warp * 0.8 + 5.5) * 0.2;
     half seas = 1 - 0.4 * smoothstep(0.38, 0.62, basin);
     half rock = 0.72 + 0.5 * (PunchyValueNoise(uv * 6.5 + 3.3) * 0.35 + PunchyValueNoise(uv * 17 + 8.8) * 0.3 + PunchyValueNoise(uv * 48 + 2.4) * 0.2
-                            + PunchyValueNoise(uv * 120 + 6.1) * 0.15);
+                            + PunchyValueNoise(uv * 120 + 6.1) * 0.1 + PunchyValueNoise(uv * 260 + 9.7) * 0.08);
     // A lit sphere: sun from the upper left, a soft terminator and a dark limb; the dark side keeps a faint glow.
     float3 n = float3(uv, z);
     half lit = smoothstep(-0.25, 0.55, dot(n, normalize(float3(-0.55, 0.4, 0.75))));

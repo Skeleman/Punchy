@@ -45,6 +45,12 @@ namespace Punchy.Ambience
         [Range(0f, 1f)] public float Twinkle = 0.5f;
         [Tooltip("Drawn out to this distance.")]
         [Min(5f)] public float Range = 50f;
+        [Tooltip("Scales every biome's density for this type (1 = as the biomes list it). Lets a type thin out without re-baking biomes.")]
+        [Min(0f)] public float DensityScale = 1f;
+        [Tooltip("Share of the colour taken from the ground under each particle (0 = Color only, 1 = ground colour × Color). Dust uses it to match the sand.")]
+        [Range(0f, 1f)] public float GroundTint;
+        [Tooltip("Mist only: 0 = flat wisp; 1 = a soft volume (billowing noise, sun-lit side and self-shadow, wide soft fades) for big dust or cloud patches.")]
+        [Range(0f, 1f)] public float Volume;
     }
 
     /// <summary>An ambient particle type in a biome, and how many.</summary>

@@ -16,7 +16,9 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   (TerrainAuthoring inspector), paint it, and set Biome Source to Map.
 - **Data-driven assets, not code, define content.** Biomes (`Assets/Game/Biomes`) list their surfaces, terrain shape,
   water look, weather odds, ambience, flora, fauna and ambient particles. Most new content is a new asset or a
-  biome list entry.
+  biome list entry. To thin an ambient particle type everywhere, set its `DensityScale` instead of editing biome
+  densities (a biome edit re-bakes the terrain); `GroundTint` takes each particle's colour from the ground under
+  it, and `Volume` (Mist) makes big soft cloud-like patches (dune dust).
 - **Plants and animals are procedural, not models.** `FloraGenerator` grows every plant species in a few seeded
   variants at three LODs; creatures are assemblies of `LimbType` parts drawn as instanced tapered capsules. There
   are no imported meshes for either.

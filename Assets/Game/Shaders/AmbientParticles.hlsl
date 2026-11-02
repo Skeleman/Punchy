@@ -11,13 +11,16 @@ struct AmbientParticle
 {
     float3 position;
     float random;
+    float3 ground;   // ground colour under it (white unless the type takes the ground tint)
+    float pad;
 };
 
 StructuredBuffer<AmbientParticle> _AmbientParticles;
 float4 _ParticleColor;    // rgb colour (HDR for glow), a opacity
 float4 _ParticleSize;     // size min, max, height min, max
 float4 _ParticleMotion;   // wander radius, rise speed, wind drift, travel distance
-float4 _ParticleShape;    // twinkle, amount (condition), range
+float4 _ParticleShape;    // twinkle, amount (condition), range, volume (0 flat wisp .. 1 soft volume)
+float _ParticleGroundTint;  // share of the colour taken from the ground under each particle
 float2 _PunchyWindDirection;
 half _PunchyWind;
 
@@ -31,6 +34,9 @@ struct ParticleVertex
     float2 uv;
     float visibility;   // presence × travel fade × distance fade
     float twinkle;
+    float3 tint;        // colour × ground tint
+    float size;         // half-width in metres
+    float random;
 };
 
 ParticleVertex BuildParticle(uint vertex, uint instance)
@@ -61,7 +67,10 @@ ParticleVertex BuildParticle(uint vertex, uint instance)
     }
 
     float3 centre = home + offset;
-    float distanceFade = 1 - smoothstep(_ParticleShape.z * 0.75, _ParticleShape.z, length(centre - GetCameraPositionWS()));
+    float camDistance = length(centre - GetCameraPositionWS());
+    float distanceFade = 1 - smoothstep(_ParticleShape.z * 0.75, _ParticleShape.z, camDistance);
+    // A soft volume fades out as the camera walks into it, instead of filling the screen.
+    distanceFade *= lerp(1, smoothstep(size * 0.5, size * 1.5, camDistance), _ParticleShape.w);
     float visibility = presence * fade * distanceFade;
 
     float3 right = UNITY_MATRIX_V[0].xyz, up = UNITY_MATRIX_V[1].xyz;
@@ -72,6 +81,9 @@ ParticleVertex BuildParticle(uint vertex, uint instance)
     o.visibility = visibility;
     float flicker = 0.5 + 0.5 * sin(t * (2.0 + r * 6.0) + r * 31.0) * sin(t * (1.3 + r * 2.0) + r * 11.0);
     o.twinkle = lerp(1, flicker * flicker * 1.6, _ParticleShape.x);
+    o.tint = _ParticleColor.rgb * lerp(1, p.ground, _ParticleGroundTint);
+    o.size = size;
+    o.random = r;
     return o;
 }
 
