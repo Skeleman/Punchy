@@ -2,6 +2,16 @@
 
 Newest first.
 
+## 2026-11-02 batch W-12: big sand-coloured dune dust, crisper blue moon, river fog still missing
+- DONE: #44 dune dust is now a few large (5-10 m) sand-coloured soft-volume patches: new AmbientParticleType DensityScale / GroundTint / Volume, no biome re-bake, no raymarching. Puffs in range at Dunes 1800,-1800: 126-132 before, ~30 after (world-features 482e7c8)
+- DONE: #34 blue moon face: fifth, finer crater scale and crisper walls and rims; radius unchanged (482e7c8)
+- NOT DONE: #15 river framed well (Grassland 305,-581; Temperate -1875,-1562) but no fog: forced MarshFog is masked by each biome's weather list (Grassland has none; Temperate at chance 0.2 still clear after 15 s)
+- Checks: compile and shader messages clean; build Succeeded, errors 0; v1 101 / E128CB1D measured in editor play; v2 hash not re-measured (no terrain or landmark code touched, expected 127 / 831FF2EE); shot-list players quit by themselves.
+- Shots: PunchyMilestones/world/w12. dunes-close: soft sand-coloured cloud patches on the horizon. dunes-wide: patches only faint against the sand. moon-night: crater speckle visible, halo still softens the edge. river-fog*: river in view, no fog.
+- Learned: docs/agents/world.md (DensityScale / GroundTint / Volume)
+- NEXT: #15 let `-weather` bypass the biome mask for tests (or check how allowed scales with chance), then retake. #44 if the wide view should show the patches, raise contrast a little (darker tint or more lit side). #34 less glow over the disc if it still reads soft.
+- Budget: about 110 calls (ceiling 85), 1 build, 2 player runs (the second retook #15 in Temperate).
+
 ## 2026-11-02 batch W-11: v2 ponds, big blue moon, timber/fog looks
 - DONE: #19 v2 ponds come back: the core test uses the biome map's sharp weights on v2 (blurred weights never passed 0.4). v2 1 pond, 15 wet cells, min/median/p90 15/15/15, 0 single-cell; v1 unchanged 33 blobs 3/4/7 (world-features 959fd34)
 - DONE: #34 blue moon radius 0.13 -> 0.22 rad (about 6.5x v0.11.0), extra crater scale and rock octave so the face keeps detail (959fd34)
