@@ -16,5 +16,8 @@ namespace Punchy.Terrain
         /// biome no realm lists). With realms on, every region's biome is one of its realm's, so this is its realm.
         /// </summary>
         public int[] BiomeRealms;
+        /// <summary>Hand-placed and roadside landmarks, kept so generator version 2 can bake the world again at launch.</summary>
+        public System.Collections.Generic.List<PlacedLandmark> Placed;
+        public System.Collections.Generic.List<RoadsideLandmark> Roadside;
     }
 }

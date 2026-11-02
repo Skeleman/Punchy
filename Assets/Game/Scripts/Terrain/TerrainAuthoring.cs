@@ -116,24 +116,31 @@ namespace Punchy.Terrain
                                                                      UseRealms && Realms != null ? Realms.Plan(palette) : null, xz => coast.OceanFactor(xz) < 0.5f);
                 }
             }
-            if (Rivers.Enabled && palette.Count > 0)
-                source.Rivers = RiverBaking.Build(source, Rivers, allocator);
+            BuildPlaces(ref source, palette, LandmarkTypes(), PlacedLandmarks, Roadside, allocator);
+            return source;
+        }
+
+        /// <summary>Rivers, landmarks, settlements, caves and anchors, in that order: the part of a bake that follows the ground.</summary>
+        public static void BuildPlaces(ref TerrainSource source, List<BiomeDefinition> palette, List<LandmarkType> landmarkTypes,
+                                       List<PlacedLandmark> placed, List<RoadsideLandmark> roadsideTypes, Allocator allocator)
+        {
+            if (source.RiverSettings.Enabled && palette.Count > 0)
+                source.Rivers = RiverBaking.Build(source, source.RiverSettings, allocator);
             if (palette.Count > 0)
-                source.Landmarks = LandmarkBaking.Build(source, palette, LandmarkTypes(), PlacedLandmarks, allocator);
+                source.Landmarks = LandmarkBaking.Build(source, palette, landmarkTypes, placed, allocator);
             if (source.Landmarks.IsCreated)
             {
-                source.Settlements = SettlementBaking.Build(source, LandmarkTypes(), Roadside, out var roadside, allocator);
+                source.Settlements = SettlementBaking.Build(source, landmarkTypes, roadsideTypes, out var roadside, allocator);
                 if (roadside.Count > 0)
                 {
                     var before = source.Landmarks;
-                    source.Landmarks = LandmarkBaking.Append(before, LandmarkTypes(), roadside, allocator);
+                    source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, roadside, allocator);
                     before.Dispose();
                 }
             }
             if (source.Landmarks.IsCreated)
-                source.Caves = CaveBaking.Build(source, palette, LandmarkTypes(), allocator);
-            source.Anchors = AnchorBaking.Build(source, LandmarkTypes(), allocator);
-            return source;
+                source.Caves = CaveBaking.Build(source, palette, landmarkTypes, allocator);
+            source.Anchors = AnchorBaking.Build(source, landmarkTypes, allocator);
         }
 
         class Baker : Baker<TerrainAuthoring>
@@ -196,7 +203,7 @@ namespace Punchy.Terrain
                     for (int b = 0; b < palette.Count; b++)
                         biomeRealms[b] = System.Array.FindIndex(plan.Members, m => System.Array.IndexOf(m, b) >= 0);
                 }
-                AddComponentObject(entity, new BiomePalette { Biomes = palette.ToArray(), Landmarks = landmarks.ToArray(), BiomeRealms = biomeRealms });
+                AddComponentObject(entity, new BiomePalette { Biomes = palette.ToArray(), Landmarks = landmarks.ToArray(), BiomeRealms = biomeRealms, Placed = authoring.PlacedLandmarks, Roadside = authoring.Roadside });
 
                 var heightmap = default(BlobAssetReference<HeightmapBlob>);
                 if (authoring.HeightSource == HeightSourceKind.Heightmap)

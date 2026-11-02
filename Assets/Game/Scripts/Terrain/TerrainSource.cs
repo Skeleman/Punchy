@@ -99,6 +99,8 @@ namespace Punchy.Terrain
 
         public HeightSourceKind HeightKind;
         public BlobAssetReference<HeightmapBlob> Heightmap;
+        /// <summary>Generator version 2 only: metres added to the biome shape heights (ridges between realms, the lake bowl).</summary>
+        public BlobAssetReference<HeightmapBlob> Island;
 
         public BiomeSourceKind BiomeKind;
         public BiomeNoiseSettings BiomeNoise;
@@ -234,6 +236,8 @@ namespace Punchy.Terrain
                 ref var biome = ref set.Biomes[shape.Ids[i]];
                 height += w * (biome.BaseElevation + BiomeSampling.Relief(ref biome, xz));
             }
+            if (Island.IsCreated)
+                height += Island.Value.Sample(xz);
             return World.SeaLevel + height;
         }
 
@@ -621,7 +625,7 @@ namespace Punchy.Terrain
         }
 
         public bool Equals(TerrainSource o) =>
-            World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap &&
+            World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
             RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && Anchors == o.Anchors;
     }
