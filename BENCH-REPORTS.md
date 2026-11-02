@@ -2,6 +2,28 @@
 
 Newest first.
 
+## 2026-11-02: queue item 1, smoke world-features 8d83102 vs v0.11.0 4eea658: PASS, no change beyond noise
+Townwalk and glide at cap 60 and uncapped, then cave and caveapproach uncapped. Two rounds each, alternating which
+build ran first. No dialogs open, 0 exceptions, 0 "Mesh bounds" in all 12 logs. End spots are the same on both builds
+(townwalk 366,-406, glide 1197/1198,359, cave -2677,-697, caveapproach -2773,-726), so it's the same island.
+
+| stop (1% low, mean of 2) | 4eea658 | 8d83102 |
+|---|---|---|
+| townwalk cap 60 | 33.8 | 34.2 |
+| glide cap 60 | 28.4 | 30.1 |
+| townwalk uncapped | 47.2 | 43.1 |
+| glide uncapped | 39.0 | 35.8 |
+| cave uncapped | 90.0 | 95.2 |
+| caveapproach uncapped | 48.0 | 46.2 |
+
+- Average fps is level at every stop (within 1-2%), and so are CPU and GPU frame times (GPU glide 10.0/10.1 vs
+  10.0/10.3 ms). The uncapped 1% lows split both ways, inside the usual round-to-round spread (4eea658 alone ranges
+  44.2-51.8 on caveapproach).
+- Worst frame 45 ms over all runs: none of the ~500 ms stalls. Glide cap 60 slow frames 9/6 vs 16/14 (new is better).
+- The sand puffs and night sky aren't on these routes (route stops are at noon); item 2 measures them.
+- No gate shots (a smoke, not a release gate); item 2/3 shots cover the new visuals.
+- Cost: 55 calls, peak 124k context, $2.2 (includes preparing items 2-5).
+
 ## 2026-10-31: slot 8, a4a5378 (animal c810406 InteractRpc + world b39522b) vs cand/v0.11 21f1193: no regression visible; the ~520 ms stalls are back on BOTH builds and swamp the 1% lows
 0 exceptions in every log. Every stop ended at the same spot (townwalk 366,-406, glide 1197/1198,359).
 
