@@ -2,6 +2,17 @@
 
 Newest first.
 
+## 2026-11-03 batch A-08: hunts already on the branch; #46 deer-only recheck says height fear helps at 30 m
+- DONE: #9 merge: wip/animal-p3 (hunt code, Z-53) is already an ancestor of animal-behaviours (merged in A-03/A-07), so nothing to merge. Only change: `-lift` test counts spawned deer (animal-behaviours, pushed, compile clean).
+- DONE: #9 `-huntlog` over about 190 s (Wolf+4 Deer, Coyote+4 Rabbit, plus wild RedFox).
+- DONE: #46 recheck, deer only, first sample 4 s in, 3 runs per height, one build.
+- NOT DONE: #9 mid-chase shot: hunt-wolf.png (100 s in) shows one human mid-stride in meadow, no chase; the log has no timestamps to aim a shot.
+- Checks: 12 stalks, 8 runs, 4 pounces (2 landed, 2 missed), 2 ate, 7 ended tired, 2 ended missed. None in a settlement by the code rule; the log has no settlement flag, so not verified by position.
+- Checks: #46 Fled/~deer (3 runs): ground after 0,0,0 of 5-6 vs flat 4,5,6 of 8-10; 5 m after 1,1,0 vs flat 0,1,1; 15 m after 0,0,0 vs flat 0,0,2; 30 m after 0,0,0 vs flat 2,2,1. Deer counts within 40 m varied 5-10 (not always 8).
+- Checks: ground should be identical in both modes (gap under 1.5 m) yet differs 0 vs 4-6: unexplained confound (spawn timing?), so only the 30 m row is a clean win; 5 and 15 m are noise-sized.
+- Checks: 0 exceptions, player quit on its own, no Punchy.exe left.
+- Shots: PunchyMilestones/animal/a08/hunt-wolf.png, hunt-coyote.png (no chase visible) / fear-r{1,2,3}-h{0.1,5,15,30}[-flat].png (24, herd under a lifted player; not reviewed) / player.log, list.txt.
+
 ## 2026-11-02 batch A-06b: songbird flare spin cut by 75% (#12); wall top-out/climb-down not working yet (#33)
 - DONE: #12 FlyTo: in the flare (last 1.5 m) turning eases off and the bird drifts onto the spot instead of wheeling round it at 450 deg/s (animal-behaviours 30fae95).
 - DONE: #12 `-spincheck` now splits Wander by stage and traces one songbird: the spin was the flare (268-278 deg/s, trace: +/-450 deg/s within 0.1-0.9 m of the spot while the height settles).

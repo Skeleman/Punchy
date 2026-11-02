@@ -1,4 +1,4 @@
-# Animal lane: state (2026-11-03, after batch A-07)
+# Animal lane: state (2026-11-03, after batch A-08)
 
 Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 32f90e4 (A-07: height fear, call switches, wall top release).
 Builds/Windows is the A-07 build (has `-flatfear -nobiometable -callrate -calllog`). Editor open on port 7800; no Punchy.exe running.
@@ -10,7 +10,12 @@ Builds/Windows is the A-07 build (has `-flatfear -nobiometable -callrate -calllo
 - #8 Z-52: live folk lines seen only twice.
 - #43: rate set by budget (0.6/s); no played-calls-per-minute count yet.
 
-## Done this batch
+## A-08 done
+- #9: hunt code was already on animal-behaviours (wip/animal-p3 is an ancestor). -huntlog 190 s: 12 stalks, 4 pounces (2 landed), 2 ate, 7 tired. No mid-chase shot yet (needs a hook that shoots when a hunter's Stage is Running).
+- #46 deer-only (3 runs, Fled/~7): 30 m after 0,0,0 vs flat 2,2,1; 5 and 15 m noise-sized; ground differs 0 vs 4-6 though formulas match (unexplained). Artefacts: PunchyMilestones/animal/a08/.
+- Builds/Windows is the A-08 build (-lift counts deer only). Pushed animal-behaviours.
+
+## Done earlier (A-06b)
 - #12 (mostly): FlyTo flare eases turning off and drifts onto the spot. Songbird Wander 100-125 -> 25-31 deg/s;
   flare stage 268-278 -> 18-25. `-noflaresettle` gives the old way from the same build.
 - `-spincheck` splits Wander into /ground /flying /flare /stage2+ and traces one songbird (40 lines, 0.5 s).
