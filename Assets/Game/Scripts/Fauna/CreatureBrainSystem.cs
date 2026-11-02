@@ -3676,10 +3676,24 @@ namespace Punchy.Fauna
                 s.LookKind = 1;
                 s.LookEntity = s.Partner;
                 s.LookFor = math.max(s.LookFor, 0.3f);
-                if (joined && gap > want + 0.25f)
+                var spare = gap - want;
+                if (joined && spare > 0.15f)
                 {
                     s.Target = o.Position.xz - to / math.max(gap, 0.01f) * (want * 0.5f);
+                    // (Slowing as the gap closes: both walk, so stopping from full speed carried them into each other; A-28.)
+                    s.Speed = math.min(s.Speed, math.max(0.25f, spare * 1.2f));
                     return true;
+                }
+                // (Stood: no carrying on into the other.)
+                s.Speed = math.min(s.Speed, math.max(0f, spare));
+                if (joined && spare < -0.15f)
+                {
+                    // Too close (they met at a well or a seat, A-28): each steps back, still facing the other, half the
+                    // shortfall each. (On top of each other: the one who started it steps one way, the other the other.)
+                    var away = gap > 0.05f ? -to / gap : new float2(0f, s.ChatRole == 1 ? -1f : 1f);
+                    var next = s.Position.xz + away * math.min(0.9f * dt, -spare * 0.5f);
+                    if (Walkable(next, b.Habitat))
+                        s.Position.xz = next;
                 }
                 if (gap > 0.01f)
                     s.Yaw = WrapAngle(s.Yaw + math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -b.TurnRate * dt, b.TurnRate * dt));

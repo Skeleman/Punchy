@@ -53,6 +53,8 @@ namespace Punchy.Fauna
             public float Start;
             public float3 At;
             public int Children;
+            /// <summary>How far apart the pair stood (m, last seen while both were in the talk; A-28).</summary>
+            public float Apart;
         }
         readonly Dictionary<Entity, Chat> chats = new Dictionary<Entity, Chat>();
         readonly Dictionary<Entity, int> childrenBy = new Dictionary<Entity, int>();
@@ -287,7 +289,8 @@ namespace Punchy.Fauna
                 if (s.Mode != CreatureMode.Idle || s.Stage != CreatureAnimator.ChatTalk && s.Stage != CreatureAnimator.ChatListen)
                     continue;
                 if (s.Stage == CreatureAnimator.ChatTalk && !Quiet && cam != null && math.distancesq((float3)cam.transform.position, s.Position) < 30f * 30f)
-                    Bubbles.Add(Head(s, ref bodies[i].Blob.Value) + new float3(0f, 0.1f, 0f));
+                    // (Clear of the head: Head is about eye height, where a bare "..." read as a pair of eyes; A-28.)
+                    Bubbles.Add(Head(s, ref bodies[i].Blob.Value) + new float3(0f, 0.4f, 0f));
                 if (s.ChatRole == 3)
                     childrenBy[s.Partner] = (childrenBy.TryGetValue(s.Partner, out var n) ? n : 0) + 1;
                 if (s.ChatRole != 1)
@@ -304,6 +307,16 @@ namespace Punchy.Fauna
                         Start = now,
                         At = s.Position
                     };
+                }
+                if (EntityManager.Exists(s.Partner) && EntityManager.HasComponent<CreatureState>(s.Partner))
+                {
+                    var p = EntityManager.GetComponentData<CreatureState>(s.Partner);
+                    if (p.Mode == CreatureMode.Idle && (p.Stage == CreatureAnimator.ChatTalk || p.Stage == CreatureAnimator.ChatListen))
+                    {
+                        var c = chats[entities[i]];
+                        c.Apart = math.distance(p.Position.xz, s.Position.xz);
+                        chats[entities[i]] = c;
+                    }
                 }
             }
             foreach (var pair in childrenBy)
@@ -324,7 +337,7 @@ namespace Punchy.Fauna
                 if (now - c.Start >= 4f)
                     talksThisWindow++;
                 var town = hasTerrain ? HomeTown(new CreatureState { Position = c.At }, terrain) : null;
-                UnityEngine.Debug.Log($"FolkChat: {c.Names} at ({c.At.x:F0}, {c.At.z:F0}){(town != null ? " in " + town : "")} for {now - c.Start:F1} s" +
+                UnityEngine.Debug.Log($"FolkChat: {c.Names} at ({c.At.x:F0}, {c.At.z:F0}){(town != null ? " in " + town : "")} for {now - c.Start:F1} s, {c.Apart:F2} m apart" +
                                       $"{(c.Children > 0 ? $", {c.Children} child(ren) by them" : "")}");
             }
             if (ChatMix && cam != null && now >= nextMix)
@@ -415,7 +428,7 @@ namespace Punchy.Fauna
     public class FolkTalkLabels : MonoBehaviour
     {
         static FolkTalkLabels instance;
-        GUIStyle style, shadow;
+        GUIStyle style, shadow, bubble;
 
         public static void Ensure()
         {
@@ -431,6 +444,24 @@ namespace Punchy.Fauna
         {
             if (instance != null && instance.enabled != show)
                 instance.enabled = show;
+        }
+
+        /// <summary>A white rounded box (32 px, 10 px corners) for the bubble's 9-slice background.</summary>
+        static Texture2D RoundBox()
+        {
+            const int n = 32;
+            const float r = 10f;
+            var tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.DontSave };
+            for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                var dx = Mathf.Max(0f, Mathf.Max(r - (x + 0.5f), x + 0.5f - (n - r)));
+                var dy = Mathf.Max(0f, Mathf.Max(r - (y + 0.5f), y + 0.5f - (n - r)));
+                var a = Mathf.Clamp01(r + 0.5f - Mathf.Sqrt(dx * dx + dy * dy));
+                tex.SetPixel(x, y, new Color(1f, 0.98f, 0.93f, 0.92f * a));
+            }
+            tex.Apply();
+            return tex;
         }
 
         void OnGUI()
@@ -461,19 +492,22 @@ namespace Punchy.Fauna
                 GUI.Label(new Rect(rect.x + 1.5f, rect.y + 1.5f, rect.width, rect.height), said.Text, shadow);
                 GUI.Label(rect, said.Text, style);
             }
-            // (Talking folk: a small "..." over the head.)
+            // (Talking folk: a small speech bubble with "..." over the head: a pale rounded box, so it reads at a glance.)
+            if (bubble == null)
+                bubble = new GUIStyle(GUI.skin.label)
+                {
+                    alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, border = new RectOffset(10, 10, 10, 10),
+                    padding = new RectOffset(0, 0, 0, 0), normal = { background = RoundBox(), textColor = new Color(0.15f, 0.13f, 0.12f) }
+                };
             foreach (var head in FolkTalkSystem.Bubbles)
             {
                 var screen = cam.WorldToScreenPoint(head);
                 if (screen.z < 0.3f)
                     continue;
-                var size = Mathf.RoundToInt(Screen.height / 30f * Mathf.Clamp(5f / screen.z, 0.5f, 1.3f));
-                style.fontSize = shadow.fontSize = size;
-                var rect = new Rect(screen.x - size * 1.5f, Screen.height - screen.y - size * 1.4f, size * 3f, size * 1.4f);
-                style.normal.textColor = new Color(1f, 1f, 1f, 0.95f);
-                shadow.normal.textColor = new Color(0f, 0f, 0f, 0.7f);
-                GUI.Label(new Rect(rect.x + 1.5f, rect.y + 1.5f, rect.width, rect.height), "...", shadow);
-                GUI.Label(rect, "...", style);
+                var size = Mathf.RoundToInt(Screen.height / 34f * Mathf.Clamp(5f / screen.z, 0.5f, 1.3f));
+                bubble.fontSize = size;
+                var rect = new Rect(screen.x - size * 1.1f, Screen.height - screen.y - size * 1.2f, size * 2.2f, size * 1.2f);
+                GUI.Label(rect, "...", bubble);
             }
         }
     }
