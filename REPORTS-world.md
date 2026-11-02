@@ -797,3 +797,11 @@ b/weather-mapjob.
 - Row 4 DONE: the hut thatch is even at 40 m.
 - Hashes unchanged: v2 125 / AFA9CC63, caves D531293D622E785A; v1 101 / E128CB1D.
 - Shots: PunchyMilestones/world/w24. 1 build.
+
+## W-25 (2026-11-02)
+- Row 1 DONE (#23): swamp pools are now irregular ~15 m paddy cells with banks 0.3 m above the higher neighbour. world-features a19bc79.
+  - PoisonSwamp box, W-24 -> W-25: pools 15 -> 15, wet cells 33 -> 33, steps 119 -> 89, level pools 858 -> 173, mean pool 9 -> 32 m2.
+  - At -2260,569 (slope 0.48) the pools are 7 m wide between risers. The W-24 bands there were 1-2 m wide.
+- Row 2 DONE: the build shot from 30 m up the slope reads as a staircase of paddies with dark banks. So does the 8 m side shot.
+- Hashes unchanged: v2 125 / AFA9CC63, caves D531293D622E785A; v1 101 / E128CB1D.
+- Shots: PunchyMilestones/world/w25. 1 build.
