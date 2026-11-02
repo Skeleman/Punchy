@@ -1,21 +1,30 @@
-# Animal lane: state (2026-11-02, after batch A-13)
+# Animal lane: state (2026-11-02, after batch A-14)
 
-Worktree `Punchy` (animal lane only). `animal-behaviours` = origin dedc3db (A-13).
-Builds/Windows is the A-12 build (`-mimicshot rest|run`, used with `-spawn OcotilloMimic:1 -place tree:Ocotillo`). Editor open on port 7800; no Punchy.exe running.
+Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 753e5de (A-14).
+Builds/Windows is the A-14 build. Editor open on port 7800; no Punchy.exe running.
 
-## A-13 done (animal-behaviours dedc3db, artefacts PunchyMilestones/animal/a13/)
-- #33: `-place wall:<Species>` works (sets the body). Lizard on a 1.1 m wall (121.5, -489.4): UP at 1.1 s, TOP-OUT at 2.0 s (grounded on top, no stick), STEP-DOWN at 10.3 s, DOWN at 10.6 s; sideways 0.9 m/s. Events log as `wall test: UP/TOP-OUT/STEP-DOWN/DOWN`. Only a low wall found (not a tall garden wall). Mid-climb shot missed (wallclimb.png shows the village, no lizard): the side camera set by -place wall is overridden at shot time.
-- #12: NOT met. Added a 100 deg/s^2 yaw-rate limit and a takeoff damp in FlyTo; SpinCheck counts Wander only after 5 s of it, windows 30 s. Songbird Wander/flying 0.1 (20 s sample), 28.3 (32 s), 56.7 (10 s) deg/s. Flying samples are short (10-32 s). Next: log per-bird turn with its target jumps; check Stage 1 re-targeting and the flare turn.
-- #46: `-goflat` finds a dry spot with ground spread under 0.5 m over 30 m: (-357, -47), ground 21.6 m, spread 0.39 m. Fled of deer within 40 m, 4 samples, weighted vs flat (-flatfear): ground 1,0,0,0 vs 0,0,0,1; 5 m 0,0,0,0 vs 0,5,0,0; 15 m 0,0,0,0 vs 0,0,0,0; 30 m 0,0,0,0 vs 0,0,0,0. Ground row now matches (flat terrain); no gain from the weighting shows. Fear weighting looks neutral, not harmful.
+## A-14 (animal-behaviours 753e5de, artefacts PunchyMilestones/animal/a14/)
+- #33: `-place wall` now wants a flat-topped wall of 2 m or more and walks through settlements (logs `wall search:`
+  with the tallest flat top it saw, gives up after 8). Found a 4.9 m barn wall at settlement 6 (519, -937).
+  Player: UP 1.0 s, TOP-OUT 6.6 s (4.9 m up), STEP-DOWN 10.2 s, DOWN 10.8 s. The shot list waits for the
+  placement now, but the mid-climb shot (wallclimb.png, 1.2 s) has the camera hard against the barn: the wall face
+  is faded out and no lizard shows. NOT met. Next: frame from the `to watch` camlook (8-10 m back) at shot time, or
+  pull the side camera back past the building's fade distance.
+- #12: per-bird flight trace on `-spincheck` (retargets, takeoff and flare turns with yaw rate). Cause named: two
+  parts. (1) Takeoff turns to spots behind the bird (bearing 100-180 deg, 150-280 deg/s in the first 3 s); some are
+  tree picks whose search circle reaches behind. (2) Wheeling near the spot (140-800 deg within 6 m) when the bird
+  arrives high or at an angle and circles back at minimum airspeed. Fix kept: trees only within 75 deg ahead and
+  8 m off. Player run Wander/flying: 27.2 (40 s), 28.4 (18 s), 15.3 (16 s), 5.8 (6 s) deg/s. NOT met.
+  Tried and reverted: a turning-circle speed cap (never bit), a land-ahead retarget (61-68 deg/s, worse).
+  Next: trace why ground-spot bearings exceed 90 deg at takeoff; let it descend steeper near the spot instead of
+  wheeling.
 
-## A-12 (earlier): see git history (mimic 2.0/3.2 done, colossus 968 m from a town).
+## A-13 (earlier): #33 1.1 m wall UP/TOP-OUT/STEP-DOWN; #46 fear weighting neutral on flat ground.
 
 ## A-11b done (#17, open for Zach's look; animal-behaviours 8a3349e, Builds/Windows is this build)
 - Mimic: 10 arms (5 mirrored pairs), splay 18-28 deg mean 23 (real recipe: 9-18 stems, 4-28 deg mean 16, 2.5-5 m). Mimic ~3 m.
 - FleeDistance 6 -> 2.4: startle at 5.2 m (target 4-5; try 2.0 for 4). Fold 0.55 s unchanged. RunSpeed 5 -> 3: max 8.99 m/s (target 9-10; 3.2 = 9.6).
-- Settle: Rest from curl 0 to 0.95 takes 4.97 s (curl eases exponentially at 0.6/s; the arms read up well before that).
 - `-mimicshot rest|run|settle` (rest uses a fixed 3.5 m when the flora blob height reads 0). Real-vs-mimic numbers are logged at each start.
-- Rest shot is far (camera 13 m back): both plants read, but small. Run shot: unclear which plant is the mimic.
 - Spawn rule unchanged (FaunaDirector.TrySpawn Sonoran 0.2/ha). Artefacts: PunchyMilestones/animal/a11b/.
 
 ## Unverified (merged anyway; Zach's check in the build)
@@ -34,15 +43,8 @@ Builds/Windows is the A-12 build (`-mimicshot rest|run`, used with `-spawn Ocoti
 - Artefacts: PunchyMilestones/animal/a09/ (player.log, list.txt, col300/col60 plus -800).
 
 ## Open
-- #12: left over is Wander/flying 28-35 deg/s (was 30-34 before too) and /ground 31-46 (7-21 s only). Under 20
-  needs the flying stage looked at: trace is used up by the first bird; re-pick it per run or per stage.
-- #33: `-place wall` now picks a round hut in a settlement (rim 30.1, conical thatch roof). Lizard climbs at
-  0.5-1.2 m/s, ends 1.2 m in over the eave at feet 30.8, still OnWall, stick 0 (harness stops 0.3 m from goal),
-  so the top-out (needs pressing) never runs. Sideways: stick right gives along 0.0 m/s. Down: on stick down it
-  lands on the roof (OnWall False), walks off and falls at -3.6 m/s; the step-off latch needs wasOnProp, which a
-  roof/terrain top may not set. Next: release OnWall when support is under the feet without stick; drop the
-  wasOnProp guard (use "had ground under the feet and now a drop > stepUp"); log why sideways is 0
-  (WallProbe line while stick right). Better: choose a flat-topped wall for `-place wall`.
+- #12: Wander/flying 15-28 deg/s; takeoff turn and near-spot wheeling (see A-14).
+- #33: mid-climb shot framing (see A-14). Sideways still 0 m/s on stick right.
 - Dormouse Climb 11-70 deg/s, probably round a trunk; secondary.
 - #16 carrying large animals. #10 new species (needs design).
 - Animals still flee a flyer high above (confirm with Zach before filing more).
@@ -56,4 +58,3 @@ Builds/Windows is the A-12 build (`-mimicshot rest|run`, used with `-spawn Ocoti
   climb test `-autowalk -body Monkey -place tree:Oak`.
 - Editor: `unity recompile`; BuildPlayer via eval using EditorBuildSettings.scenes (times out at 30 s but finishes:
   wait for a Temp file, about 65 s).
-- Artefacts: PunchyMilestones/animal/a06b/ (fix.log = before/after spin, fix2.log = clean after + full wall run).

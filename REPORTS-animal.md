@@ -2,6 +2,16 @@
 
 Newest first.
 
+## 2026-11-02 batch A-14: songbird turn cause named; lizard tops out a 4.9 m wall
+- DONE: none fully. Code in animal-behaviours 753e5de.
+- NOT DONE: #12 cause named (takeoff turns to spots behind the bird, 150-280 deg/s, and wheeling near the spot, 140-800 deg/s); tree picks now ahead-only, but Wander/flying is still 27.2 (40 s), 28.4 (18 s), 15.3 (16 s) deg/s.
+- NOT DONE: #33 lizard climbs a 4.9 m flat-topped barn wall (settlement 6): UP 1.0 s, TOP-OUT 6.6 s, STEP-DOWN 10.2 s, DOWN 10.8 s. The mid-climb shot has the camera against the barn with the face faded out; no lizard visible.
+- Checks: compile clean, one build, player quit itself (3 shots in 188 s), no Punchy.exe left. Wall search logged settlement 3 tallest flat top 1.7 m, moved 616 m to settlement 6. Songbird windows from the player log.
+- Shots: PunchyMilestones/animal/a14/wallclimb-800.png (village from beside a barn, barn face faded, no lizard). song.png (songbird run, not checked).
+- Learned: lanes/animal/STATE.md.
+- NEXT: #33 frame the climb from the `to watch` camlook 8-10 m back; #12 trace ground-spot bearings over 90 deg at takeoff and let birds descend steeper near the spot.
+- Over budget: about 110 calls (card 60), 1 build; #12 fix iterations in the editor (3 tries, 2 reverted).
+
 ## 2026-11-02 batch A-11: ocotillo mimic walks on its arms
 - DONE: #17 the base legs are gone; its 8 ocotillo arms are the legs (4 mirrored pairs). Arms up at rest, fold down in about 0.55 s on a startle, plant their tips, lift the body and run off on the tips, then Curl brings the arms back up (animal-behaviours a07d0cb).
 - NOT DONE: #17 rest look is not yet hard to tell from a real ocotillo (denser and straighter bunch). Settle time not measured.
