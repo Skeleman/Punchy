@@ -2,6 +2,17 @@
 
 Newest first.
 
+## 2026-11-02 batch A-15: lizard seen mid-climb on the barn wall; Hiss heard; herd calls counted
+- DONE: #33 mid-climb shot from 9 m out in front of the barn face shows the Lizard on the wall (animal-behaviours 99b6fa7).
+- DONE: #43 94 played calls in 120 s near 6 Deer + 4 Bison = ~47/min (budget 36/min; calls within 6 m skip it, ambient included).
+- NOT DONE: #12 one try kept (spots within 60 deg, steeper close near the spot): 38.3 (18 s), 0.0 (36 s), 13.2 (5 s), 12.6 (21 s) deg/s, weighted ~12.7 vs ~23.5; only one 25 s+ window because the birds rest or flee the autowalker.
+- NOT DONE: #7 Hiss(49) played twice (fleeing cats, focus ~3 m); Growl(52) never: the dogs never entered Hunt or Flee near the wolf in 70 s.
+- Checks: compile clean; 2 builds; run 1 (4 shots) and wallclimb reshoot quit themselves; no Punchy.exe left. Wall search: settlement 3 tallest 1.7 m, moved to settlement 6 (4.9 m); UP at 1.2 s, shot at 2.5 s.
+- Shots: PunchyMilestones/animal/a15/wallclimb-800.png (barn corner, Lizard head-up on the face right of the door). song/voices/herd-800.png are log runs, not checked.
+- Learned: lanes/animal/TESTING.md (wall shot framing), STATE.md.
+- NEXT: #12 a long songbird run with the player standing still to get three 25 s windows; #7 a dog-by-rabbit test for Growl.
+- Over budget: about 75 calls (card 60), 2 builds; second build for the #33 reshoot (camera square to the face).
+
 ## 2026-11-02 batch A-14: songbird turn cause named; lizard tops out a 4.9 m wall
 - DONE: none fully. Code in animal-behaviours 753e5de.
 - NOT DONE: #12 cause named (takeoff turns to spots behind the bird, 150-280 deg/s, and wheeling near the spot, 140-800 deg/s); tree picks now ahead-only, but Wander/flying is still 27.2 (40 s), 28.4 (18 s), 15.3 (16 s) deg/s.
