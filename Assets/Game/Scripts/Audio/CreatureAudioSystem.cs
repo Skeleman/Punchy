@@ -39,6 +39,15 @@ namespace Punchy.Audio
         /// <summary>Calls played, and let go over the budget, since start (for tests); and whether the budget applies.</summary>
         public static int CallsPlayed, CallsThinned;
         public static bool ThinCalls = true;
+        /// <summary>Tests ("-voicelog"): log each cat or dog voice and howl as it plays (Z-51), with the mode behind it.</summary>
+        public static bool LogVoices;
+
+        static void LogVoice(SoundId id, in CreatureState s, float distance)
+        {
+            if (LogVoices && (id >= SoundId.Hiss || id == SoundId.Howl || id == SoundId.Bark || id == SoundId.Meow))
+                UnityEngine.Debug.Log($"CreatureAudio: voice {id} ({(int)id}) from a {s.Mode} creature {distance:F1} m away" +
+                                      $" (focus {math.distance(s.Position.xz, s.Focus):F1} m)");
+        }
 
         EntityQuery query;
         /// <summary>What each creature was doing last frame (its gait phase, action, flap count).</summary>
@@ -202,7 +211,10 @@ namespace Punchy.Audio
                             if (!Spend(d))
                                 continue;
                             if (GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f), pitch * Jitter(), call.Volume, call.Reach))
+                            {
                                 CallsPlayed++;
+                                LogVoice(call.Sound, s, d);
+                            }
                         }
                 }
                 last[e] = (s.Phase, s.Action, flap, slots);
@@ -300,7 +312,10 @@ namespace Punchy.Audio
                             sound = SoundId.Whine;
                         if (sound != (SoundId)(-1) && GameAudio.PlayOneShot(sound, mouthAt, (0.92f + (s.Individual % 11u) * 0.015f) * Jitter(),
                                                                             sound == SoundId.Whine ? 0.4f : 0.5f, 25f))
+                        {
                             mv.voiced = now;
+                            LogVoice(sound, s, d);
+                        }
                     }
                     mv.mode = s.Mode;
                     moodVoice[entities[i]] = mv;

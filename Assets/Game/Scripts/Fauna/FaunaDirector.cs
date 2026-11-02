@@ -547,6 +547,8 @@ namespace Punchy.Fauna
         /// <summary>The species asset at an index (for things that read its data directly, as the sound does).</summary>
         public CreatureSpecies SpeciesAt(int index) => index >= 0 && index < species.Count ? species[index] : null;
         public int SpeciesCount => species.Count;
+        /// <summary>The baked body at an index (tests read a species' tables from it: the stance check).</summary>
+        public BlobAssetReference<CreatureBlob> BlobAt(int index) => index >= 0 && index < blobs.Count ? blobs[index] : default;
         /// <summary>How many animals birds of prey have caught (for the test log).</summary>
         public static int Caught;
         public Habitat SpeciesHabitat(int index) => species[index].Body.Habitat;

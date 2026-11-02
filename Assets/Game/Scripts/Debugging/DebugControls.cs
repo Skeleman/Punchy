@@ -413,6 +413,12 @@ namespace Punchy.Debugging
             }
             // "-huntlog": log land hunters' chases (Z-53).
             huntLog = System.Array.IndexOf(args, "-huntlog") >= 0;
+            // "-voicelog": log cats' and dogs' voices and howls as they play (Z-51); "-stancelog": folk lines with the
+            // speaker's stance, and the stance odds per player body (Z-52).
+            if (System.Array.IndexOf(args, "-voicelog") >= 0)
+                Punchy.Audio.CreatureAudioSystem.LogVoices = true;
+            if (System.Array.IndexOf(args, "-stancelog") >= 0)
+                FolkTalkSystem.LogStances = true;
             // "-nohud": no readout (for screenshots).
             // "-meteors": every night a meteor shower (Sky.hlsl's test switch), for checking shooting stars against clouds (Z-09).
             if (System.Array.IndexOf(args, "-meteors") >= 0)

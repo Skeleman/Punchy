@@ -39,6 +39,34 @@ namespace Punchy.Fauna
         /// <summary>Lines said since start (for tests); and off for screenshots that shouldn't have any.</summary>
         public static int LinesSaid, Answers;
         public static bool Quiet;
+        /// <summary>
+        /// Tests ("-stancelog", Z-52): log each line with the speaker's stance, and once per player body, how every folk
+        /// species takes that body over 4000 individuals (the odds the stance hash gives).
+        /// </summary>
+        public static bool LogStances;
+        int stanceTableFor = -1;
+
+        void LogStanceTable(int playerIndex)
+        {
+            stanceTableFor = playerIndex;
+            var report = new System.Text.StringBuilder($"FolkTalk: stances toward a {director.SpeciesAt(playerIndex)?.name} body:");
+            for (int sp = 0; sp < director.SpeciesCount; sp++)
+            {
+                var blob = director.BlobAt(sp);
+                if (!blob.IsCreated || !blob.Value.Upright || !blob.Value.Hands || blob.Value.Haunts)
+                    continue;
+                var counts = new int[6];
+                for (uint ind = 1; ind <= 4000; ind++)
+                    counts[(int)blob.Value.StanceToward(playerIndex, ind * 2654435761u + 12345u)]++;
+                report.Append($" {director.SpeciesAt(sp).name}[");
+                for (int k = 0; k < counts.Length; k++)
+                    if (counts[k] > 0)
+                        report.Append($"{(FolkStance)k} {counts[k] / 40f:F0}% ");
+                report.Length--;
+                report.Append(']');
+            }
+            UnityEngine.Debug.Log(report.ToString());
+        }
 
         EntityQuery query, playerQuery, paletteQuery;
         readonly Dictionary<Entity, float> nextTalk = new Dictionary<Entity, float>();
@@ -101,6 +129,9 @@ namespace Punchy.Fauna
                     }
                 }
 
+            if (LogStances && playerIndex >= 0 && playerIndex != stanceTableFor)
+                LogStanceTable(playerIndex);
+
             for (int i = 0; i < states.Length; i++)
             {
                 var s = states[i];
@@ -159,6 +190,9 @@ namespace Punchy.Fauna
                 }
                 nextAny = now + Gap;
                 LinesSaid++;
+                if (LogStances)
+                    UnityEngine.Debug.Log($"FolkTalk: {who.Species} ({who.Stance ?? "Neutral"}) to a {director.SpeciesAt(playerIndex)?.name}" +
+                                          $"{(answering ? " answering " + emoted : "")}: {text}");
                 Shown.Add(new Said { Who = entities[i], Text = text, Head = Head(s, ref b), Start = now, Until = now + 3.5f + text.Length * 0.05f });
             }
             FolkTalkLabels.Ensure();
