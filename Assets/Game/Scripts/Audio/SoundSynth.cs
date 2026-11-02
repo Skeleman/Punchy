@@ -19,7 +19,10 @@ namespace Punchy.Audio
         // rock and in sand.
         StepPaw, StepGrass, StepSnow, StepRock, StepSand,
         // A rattlesnake's rattle (appended: assets keep sounds by number); frogs' chorus at night, held on.
-        Rattle, FrogChorus
+        Rattle, FrogChorus,
+        // More voices for cats and dogs (Z-51): a cat's hiss and its night yowl, a dog's whine, growl and its own softer
+        // howl (not the wolf's).
+        Hiss, Yowl, Whine, Growl, DogHowl
     }
 
     /// <summary>
@@ -41,7 +44,8 @@ namespace Punchy.Audio
             SoundId.Screech => 2, SoundId.Rooster => 2, SoundId.Bark => 4, SoundId.Meow => 3, SoundId.Snort => 3,
             SoundId.Whinny => 2, SoundId.Bleat => 3, SoundId.Moo => 3, SoundId.Grunt => 3, SoundId.Pant => 3,
             SoundId.CricketChirp => 3, SoundId.Croak => 4, SoundId.Cicada => 2, SoundId.Drum => 3, SoundId.Zip => 3, SoundId.Zap => 3,
-            SoundId.StepPaw => 3, SoundId.StepGrass => 3, SoundId.StepSnow => 3, SoundId.StepRock => 3, SoundId.StepSand => 3, SoundId.Rattle => 2, _ => 1
+            SoundId.StepPaw => 3, SoundId.StepGrass => 3, SoundId.StepSnow => 3, SoundId.StepRock => 3, SoundId.StepSand => 3, SoundId.Rattle => 2,
+            SoundId.Hiss => 3, SoundId.Yowl => 3, SoundId.Whine => 3, SoundId.Growl => 3, SoundId.DogHowl => 3, _ => 1
         };
 
         public static bool Loops(SoundId id) => id == SoundId.BeeBuzz || id == SoundId.Crickets || id == SoundId.FireCrackle ||
@@ -102,6 +106,11 @@ namespace Punchy.Audio
                 SoundId.StepSand => Underfoot(rng, 0.13f, 1300f, 0.035f, 0.35f, 0f),
                 SoundId.Rattle => Rattle(rng),
                 SoundId.FrogChorus => FrogChorus(rng),
+                SoundId.Hiss => Hiss(rng),
+                SoundId.Yowl => Yowl(rng),
+                SoundId.Whine => Whine(rng),
+                SoundId.Growl => Growl(rng),
+                SoundId.DogHowl => Howl(rng, 1.6f, 2.4f, 430f, 520f, 0.45f),
                 _ => new float[1]
             };
         }
@@ -303,10 +312,13 @@ namespace Punchy.Audio
         }
 
         /// <summary>A wolf's howl: a slow glide up to a long held note and down again, with vibrato and a breathy edge.</summary>
-        static float[] Howl(System.Random rng)
+        static float[] Howl(System.Random rng) => Howl(rng, 2.6f, 3.6f, 280f, 340f, 0.6f);
+
+        /// <summary>A howl of some length and pitch (a dog's is shorter, higher and quieter than a wolf's).</summary>
+        static float[] Howl(System.Random rng, float shortest, float longest, float lowest, float highest, float peak)
         {
-            var seconds = Lerp(2.6f, 3.6f, R(rng));
-            var low = Lerp(280f, 340f, R(rng));
+            var seconds = Lerp(shortest, longest, R(rng));
+            var low = Lerp(lowest, highest, R(rng));
             var high = low * Lerp(1.7f, 2.1f, R(rng));
             var n = (int)(seconds * Rate);
             var s = new float[n];
@@ -324,7 +336,7 @@ namespace Punchy.Audio
                 var env = Mathf.SmoothStep(0f, 1f, Mathf.Min(u / 0.12f, 1f)) * Mathf.SmoothStep(0f, 1f, Mathf.Min((1f - u) / 0.2f, 1f));
                 s[i] = env * (tone + breath);
             }
-            return Normalise(Distant(s, 1.2f), 0.6f);
+            return Normalise(Distant(s, 1.2f), peak);
         }
 
         /// <summary>
@@ -932,6 +944,48 @@ namespace Punchy.Audio
             }
             return Normalise(Seamless(s, fade), 0.45f);
         }
+
+        /// <summary>A cat's hiss: a sharp burst of high breath noise, easing off (no voice in it).</summary>
+        static float[] Hiss(System.Random rng)
+        {
+            var n = (int)(Lerp(0.6f, 1f, R(rng)) * Rate);
+            var s = new float[n];
+            var band = new Band();
+            var hz = Lerp(3500f, 4800f, R(rng));
+            for (int i = 0; i < n; i++)
+            {
+                var t = i / (float)Rate;
+                var u = i / (float)n;
+                s[i] = band.Run(Noise(rng), hz * (1f - 0.15f * u), 1.2f) * Env(t, 0.02f, 0.35f) * (1f - u);
+            }
+            return Normalise(s, 0.45f);
+        }
+
+        /// <summary>A cat's yowl at night: a long, wavering, rising-and-falling meow ("mrrraoww").</summary>
+        static float[] Yowl(System.Random rng)
+        {
+            var b = J(rng, 0.1f);
+            return Normalise(Voice(rng,
+                new Seg(Lerp(0.5f, 0.8f, R(rng)), 420f * b, 720f * b, 600f, 1800f, 0.1f, 0.35f, 0f, 0.05f, 6f, 900f),
+                new Seg(Lerp(0.6f, 1f, R(rng)), 720f * b, 380f * b, 900f, 1900f, 0.12f, 0.35f, 0f, 0.07f, 5f, 600f)), 0.5f);
+        }
+
+        /// <summary>A dog's whine: a thin, nasal, high note rising then falling away, once or twice.</summary>
+        static float[] Whine(System.Random rng)
+        {
+            var k = 1 + rng.Next(2);
+            var segs = new Seg[k];
+            for (int i = 0; i < k; i++)
+            {
+                var b = J(rng, 0.1f);
+                segs[i] = new Seg(Lerp(0.35f, 0.6f, R(rng)), 780f * b, 640f * b, 950f, 2300f, 0.08f, 0.15f, Lerp(0.1f, 0.25f, R(rng)), 0.03f, 7f);
+            }
+            return Normalise(Voice(rng, segs), 0.4f);
+        }
+
+        /// <summary>A dog's growl: a low, rough, rattling hum (fast flutter, lots of breath).</summary>
+        static float[] Growl(System.Random rng) =>
+            Normalise(Voice(rng, new Seg(Lerp(0.8f, 1.4f, R(rng)), 110f * J(rng, 0.12f), 100f, 380f, 1100f, 0.5f, 0.6f, 0f, 0.08f, 24f)), 0.5f);
 
         /// <summary>One pant: a quick breathy "hah" (the system plays them in a rhythm that quickens with exertion).</summary>
         static float[] Pant(System.Random rng)

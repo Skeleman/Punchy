@@ -201,3 +201,9 @@ MonoBehaviour:
     Volume: 0.5
     Reach: 20
     When: 0
+  - Sound: 50
+    Interval: {x: 60, y: 150}
+    Pitch: {x: 0.9, y: 1.1}
+    Volume: 0.4
+    Reach: 60
+    When: 2
