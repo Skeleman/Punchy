@@ -97,9 +97,9 @@ namespace Punchy.Debugging
             // a cave or mine costs before you're in it).
             yield return Stop("hereapproach", () => hereSet && PlaceAt(new float3(hereAt.x, float.NaN, hereAt.z) - ApproachDirection * ApproachFrom, 0f) &&
                                                     SetWeather("Partly cloudy", 10), ApproachSpeed, 0.1f, ApproachMeasure);
-            yield return Stop("town", () => JumpTo(controls, "HumanVillage") && SetWeather("Partly cloudy", 11));
+            yield return Stop("town", () => JumpToVillage(controls) && SetWeather("Partly cloudy", 11));
             // Walking through the village (streets, plots, roads leading out), at walking pace.
-            yield return Stop("townwalk", () => JumpTo(controls, "HumanVillage") && SetWeather("Partly cloudy", 24), 6f, 0.1f, 30f);
+            yield return Stop("townwalk", () => JumpToVillage(controls) && SetWeather("Partly cloudy", 24), 6f, 0.1f, 30f);
             yield return Stop("forest", () => JumpTo(controls, "OakGrove") && SetWeather("Partly cloudy", 12));
             yield return Stop("cave", () => PlaceInBiggestCave() && SetWeather("Partly cloudy", 13));
             // -benchmouth x,y,z,yaw: deep in the biggest cave, then halfway through out to that point at its mouth, so the
@@ -123,7 +123,10 @@ namespace Punchy.Debugging
             // Water filling much of the view: a lake shore, a river (often rapids), and the shore again in a storm.
             // The lake is a fixed spot (the auto-found "Lake shore" ended on dry glacier shore): a Mountains lake from
             // world-features 807ee9f, ground 117.0, lake 116.8, looking west over the water.
-            yield return Stop("lake", () => PlaceAt(new float3(1328f, float.NaN, 1730f), -90f) && SetWeather("Partly cloudy", 19));
+            // On another island (v2) that spot is dry land, so the stop falls back to the auto-found shore.
+            yield return Stop("lake", () => (HasWater(new float2(1288f, 1730f)) ? PlaceAt(new float3(1328f, float.NaN, 1730f), -90f)
+                                                                                  : JumpTo(controls, "Lake shore", true)) &&
+                                            SetWeather("Partly cloudy", 19));
             yield return Stop("river", () => JumpTo(controls, "River") && SetWeather("Partly cloudy", 20));
             yield return Stop("stormshore", () => JumpTo(controls, "Lake shore") && SetWeather("Stormy", 21));
             // Travel across terrain chunks: a sprint and a glide at play speeds (spikes here matter), then an 80 m/s
@@ -459,8 +462,30 @@ namespace Punchy.Debugging
             return true;
         }
 
-        /// <summary>Jumps to the first of DebugControls' places whose name contains the text (as -place does).</summary>
-        static bool JumpTo(DebugControls controls, string place)
+        /// <summary>
+        /// The human village nearest the start: "Nearest settlement (HumanVillage)" when the nearest settlement is one (v1),
+        /// else the HumanVillage landmark entry. A plain "contains" match would take a biome's entry first ("Sonoran:
+        /// HumanVillage", in the desert on v2).
+        /// </summary>
+        static bool JumpToVillage(DebugControls controls) =>
+            JumpTo(controls, "Nearest settlement (HumanVillage)") || JumpTo(controls, "HumanVillage", true);
+
+        /// <summary>Whether a point is under water (the fixed lake spot looks 40 m west over it).</summary>
+        static bool HasWater(float2 xz)
+        {
+            if (!TryGetWorld(out var em, out _))
+                return false;
+            using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (terrainQuery.IsEmpty)
+                return false;
+            var ground = terrainQuery.GetSingleton<TerrainSource>().SampleGround(xz);
+            return ground.HasWater && ground.WaterDepth > 0f;
+        }
+
+        /// <summary>
+        /// Jumps to the first of DebugControls' places whose name contains the text (as -place does), or is exactly it.
+        /// </summary>
+        static bool JumpTo(DebugControls controls, string place, bool exact = false)
         {
             var type = typeof(DebugControls);
             const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
@@ -472,7 +497,8 @@ namespace Punchy.Debugging
             for (int i = 0; i < list.Count; i++)
             {
                 var name = list[i].GetType().GetField("Name")?.GetValue(list[i]) as string;
-                if (name == null || name.IndexOf(place, System.StringComparison.OrdinalIgnoreCase) < 0)
+                if (name == null || (exact ? !string.Equals(name, place, System.StringComparison.OrdinalIgnoreCase)
+                                           : name.IndexOf(place, System.StringComparison.OrdinalIgnoreCase) < 0))
                     continue;
                 current.SetValue(controls, i - 1);
                 controls.Jump(1);
