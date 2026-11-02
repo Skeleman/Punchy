@@ -2,6 +2,15 @@
 
 Newest first.
 
+## 2026-11-02 batch W-05b: smooth v2 rivers and waterfalls
+- DONE: #18 v2 rivers follow Hermite curves through the river points (no grid angles), width grows downstream (9-45 m), bed carved on the smoothed line (world-features e3ab4af).
+- DONE: #42 waterfalls where a segment's bed drops 4 m or more: bed step half way along the segment, curtain and spray from the landmark effect emitters. 98 falls (includes stacked cascades).
+- NOT DONE: springs not rewritten (still catchment/snowmelt, not on ridge crests); waterfall look unreviewed close up (see Checks); fall curtain not visible in the one shot.
+- Checks: v1 unchanged in play on SampleScene: 101 landmarks, E128CB1D. v2 now 129 landmarks, hash 62B8C643 (was 134 / 71F2AF0C; rivers shift landmark spots), same in the player; bake 3.5 s. 31 river sources; longest 6548 m (src 86 m -> 0 m), then 6305 m (33 -> 0), 6125 m (90 -> 0); widths 9-45 m. Biggest fall: a 32 m single step at width 9.5 m. Builds/Dev succeeded, player quit on its own, no Punchy.exe of mine left.
+- Shots: PunchyMilestones/world/w05b/map-v2-rivers.png (top-down, smooth rivers), bend.png (ground view of a curved river bend, bank and forest), fall.png (looking up at the big fall's cliff face from downstream: a steep dark wall, water curtain not visible).
+- Learned: lanes/world/STATE.md.
+- NEXT: look at a lower fall (4-8 m) for curtain and spray; place springs on high ground; decide v2 as default.
+
 ## 2026-11-02 batch W-05: generator version 2 wired behind -island v2
 - DONE: #23 layout B (five realms) as generator version 2, selected by `-island v2`; v1 default unchanged (world-features b5c7f88, wip/island-v2 merged).
 - NOT DONE: #18 rivers still angular at bends (width 9-60 m done); #42 waterfalls not started (v2 rivers near sea level).
