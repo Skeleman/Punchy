@@ -49,6 +49,12 @@ namespace Punchy.Audio
         /// <summary>A purring cat's loop; each dog's exertion (seconds of running, easing off) and when it last panted.</summary>
         readonly Dictionary<Entity, int> purrs = new Dictionary<Entity, int>();
         readonly Dictionary<Entity, (float exertion, float panted)> dogBreath = new Dictionary<Entity, (float, float)>();
+        /// <summary>Per cat or dog in hearing: its mode last frame and when it last made a mood sound (hiss, growl, whine).</summary>
+        readonly Dictionary<Entity, (CreatureMode mode, float voiced)> moodVoice = new Dictionary<Entity, (CreatureMode, float)>();
+        /// <summary>Per-play variation (Z-51: repeats differ). Local and cosmetic, so per-machine randomness is fine.</summary>
+        readonly System.Random jitter = new System.Random(0x51A7);
+        /// <summary>A pitch shift of up to ±6% for one play (pitch and speed together, as a clip's playback rate).</summary>
+        float Jitter() => 1f + ((float)jitter.NextDouble() * 2f - 1f) * 0.06f;
         float hour;
         readonly List<Entity> stale = new List<Entity>();
         readonly Dictionary<int, int> hiveLoops = new Dictionary<int, int>();
@@ -166,8 +172,9 @@ namespace Punchy.Audio
                             ref var part = ref b.Parts[p];
                             if (part.Role != LimbRole.Leg || part.Parent >= 0)
                                 continue;
-                            var now = math.frac(s.Phase + part.Phase);
-                            var then = math.frac(was.phase + part.Phase);
+                            var legPhase = b.LegPhase(ref part, b.Sprint(s, s.GaitSpeed));
+                            var now = math.frac(s.Phase + legPhase);
+                            var then = math.frac(was.phase + legPhase);
                             if (now < then && then - now > 0.5f)
                                 Step(s, ref b, part.Side, terrain);
                         }
@@ -194,7 +201,7 @@ namespace Punchy.Audio
                             }
                             if (!Spend(d))
                                 continue;
-                            if (GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f), pitch, call.Volume, call.Reach))
+                            if (GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f), pitch * Jitter(), call.Volume, call.Reach))
                                 CallsPlayed++;
                         }
                 }
@@ -275,6 +282,29 @@ namespace Punchy.Audio
                     else
                         GameAudio.MoveLoop(handle, s.Position, 0.5f);
                 }
+                // What it's doing now, voiced (Z-51): a cat hisses as it bolts from something close; a dog growls as it
+                // runs at game or backs off from a threat, and whines when the one it was keeping company leaves it. (At
+                // most one such sound every 6 s each.)
+                if ((cats[species] || dogs[species]) && d < 25f)
+                {
+                    var had = moodVoice.TryGetValue(entities[i], out var mv);
+                    var mouthAt = s.Position + new float3(0f, bodies[i].Blob.Value.StandHeight * s.Scale, 0f);
+                    if (had && mv.mode != s.Mode && now - mv.voiced > 6f)
+                    {
+                        var sound = (SoundId)(-1);
+                        if (cats[species] && s.Mode == CreatureMode.Flee && math.distance(s.Position.xz, s.Focus) < 6f)
+                            sound = SoundId.Hiss;
+                        else if (dogs[species] && (s.Mode == CreatureMode.Hunt || s.Mode == CreatureMode.Flee && math.distance(s.Position.xz, s.Focus) < 8f))
+                            sound = SoundId.Growl;
+                        else if (dogs[species] && mv.mode == CreatureMode.Greet && s.Mode != CreatureMode.Flee)
+                            sound = SoundId.Whine;
+                        if (sound != (SoundId)(-1) && GameAudio.PlayOneShot(sound, mouthAt, (0.92f + (s.Individual % 11u) * 0.015f) * Jitter(),
+                                                                            sound == SoundId.Whine ? 0.4f : 0.5f, 25f))
+                            mv.voiced = now;
+                    }
+                    mv.mode = s.Mode;
+                    moodVoice[entities[i]] = mv;
+                }
                 if (dogs[species] && d < 12f)
                 {
                     dogBreath.TryGetValue(entities[i], out var breath);
@@ -302,6 +332,8 @@ namespace Punchy.Audio
                 GameAudio.StopLoop(purrs[e]);
                 purrs.Remove(e);
             }
+            if (moodVoice.Count > 512)
+                moodVoice.Clear();
             states.Dispose();
             bodies.Dispose();
             entities.Dispose();

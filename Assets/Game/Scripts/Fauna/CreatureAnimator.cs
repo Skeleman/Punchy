@@ -98,9 +98,13 @@ namespace Punchy.Fauna
             var headTilt = new float3(CreatureBlob.Trait(id, 6) * 0.1f, 0f, CreatureBlob.Trait(id, 7) * 0.07f);
 
             // Past a run, folk sprint: leaning well in, and lifting clear of the ground between steps.
-            var sprint = b.Sprint(s.GaitSpeed);
+            var sprint = b.Sprint(s, s.GaitSpeed);
             if (b.Upright)
                 pitch += sprint * 0.3f;
+            // A gallop rocks the body fore and aft once a stride, the hinds gathering under it and the fores reaching out
+            // (Z-50); a bound, which flexes the back more, further.
+            else if (b.Gallops)
+                pitch += sprint * (b.Bounds ? 0.12f : 0.07f) * math.sin(2f * math.PI * s.Phase);
             var bobs = math.lerp(b.BobsPerCycle.x, b.BobsPerCycle.y, run);
             var bob = math.lerp(b.Bob.x, b.Bob.y, run) * bounce * move * scale * (0.5f - 0.5f * math.cos(2f * math.PI * bobs * s.Phase));
             pitch += b.RunRock * run * move * math.sin(2f * math.PI * s.Phase);
@@ -245,7 +249,7 @@ namespace Punchy.Fauna
                 var pos = parentPos + math.mul(parentRot, part.Socket * scale);
                 var rot = math.mul(parentRot, part.Rest);
                 var hip = pos;
-                var phase = math.frac(s.Phase + part.Phase);
+                var phase = math.frac(s.Phase + b.LegPhase(ref part, sprint));
                 var hidden = part.Parent >= 0 && partHidden[part.Parent] ||
                              part.StyleGroup > 0 && CreatureBlob.Style(id, part.StyleGroup, part.StyleCount) != part.StyleIndex;
                 partHidden.Add(hidden);

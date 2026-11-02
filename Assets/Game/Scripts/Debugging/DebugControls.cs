@@ -80,6 +80,61 @@ namespace Punchy.Debugging
         {
             FootDrift();
             SpinCheck();
+            HuntLog();
+        }
+
+        // ---------------------------------------------------------------- hunt log
+
+        /// <summary>"-huntlog": logs each land hunter's chase as it goes (Z-53): stalk, run, pounce (landed or missed),
+        /// eating, and how the hunt ended (ate, missed, slipped away, tired). Diving birds and folk hunters are left out.</summary>
+        static bool huntLog;
+        /// <summary>Per creature: its mode and stage last frame.</summary>
+        readonly System.Collections.Generic.Dictionary<Entity, int2> hunts = new System.Collections.Generic.Dictionary<Entity, int2>();
+
+        void HuntLog()
+        {
+            if (!huntLog || queryWorld == null || !queryWorld.IsCreated)
+                return;
+            var em = queryWorld.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            var entities = q.ToEntityArray(Allocator.Temp);
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            FaunaDirector director = null;
+            for (int i = 0; i < states.Length; i++)
+            {
+                var c = states[i];
+                var e = entities[i];
+                var now = new int2((int)c.Mode, c.Stage);
+                var landHunt = c.Mode == CreatureMode.Hunt && c.Stage < FolkHunting.Stalk && bodies[i].Blob.Value.Habitat != Habitat.Flies;
+                var had = hunts.TryGetValue(e, out var was);
+                if (!landHunt)
+                {
+                    if (had)
+                    {
+                        hunts.Remove(e);
+                        HuntLine(director ??= FindAnyObjectByType<FaunaDirector>(), bodies[i], c,
+                            "ended: " + (was.y == 3 ? "ate" : was.y == 4 ? "missed" : was.y == 2 ? "slipped away" : "tired") + $", now {c.Mode}");
+                    }
+                    continue;
+                }
+                if (!had || was.y != now.y)
+                    HuntLine(director ??= FindAnyObjectByType<FaunaDirector>(), bodies[i], c,
+                        now.y switch { 0 => "stalking", 1 => "running", 2 => "pounce landed", 3 => "eating", 4 => "pounce missed", _ => $"stage {now.y}" });
+                hunts[e] = now;
+            }
+            if (hunts.Count > 4000)
+                hunts.Clear();
+            entities.Dispose();
+            states.Dispose();
+            bodies.Dispose();
+        }
+
+        static void HuntLine(FaunaDirector director, CreatureBody body, CreatureState c, string what)
+        {
+            var name = director != null ? director.SpeciesAt(body.Species)?.name : body.Species.ToString();
+            Debug.Log($"DebugControls: hunt: {name} {what} (speed {c.Speed:F1}, hunger {c.Hunger:F2}) at " +
+                      $"({c.Position.x:F1}, {c.Position.y:F1}, {c.Position.z:F1}); caught so far {FaunaDirector.Caught}");
         }
 
         // ---------------------------------------------------------------- spin check
@@ -185,7 +240,7 @@ namespace Punchy.Debugging
                 var tip = seg.Position + math.mul(seg.Rotation, new float3(0f, 0f, seg.Length));
                 footLowest[foot] = footFrames == 0 ? tip.y : math.min(footLowest[foot] + Time.deltaTime * 0.05f, tip.y);
                 // (On the ground in the gait's stance half, not just low: a low swing isn't a planted foot.)
-                var down = tip.y < footLowest[foot] + 0.04f && s.Speed > 0.2f && math.frac(s.Phase + part.Phase) < 0.5f;
+                var down = tip.y < footLowest[foot] + 0.04f && s.Speed > 0.2f && math.frac(s.Phase + b.LegPhase(ref part, b.Sprint(s, s.GaitSpeed))) < 0.5f;
                 if (down && !footPlanted[foot])
                 {
                     footPlanted[foot] = true;
@@ -356,6 +411,8 @@ namespace Punchy.Debugging
                 spinDegrees = spin[0];
                 spinSeconds = spin[1];
             }
+            // "-huntlog": log land hunters' chases (Z-53).
+            huntLog = System.Array.IndexOf(args, "-huntlog") >= 0;
             // "-nohud": no readout (for screenshots).
             // "-meteors": every night a meteor shower (Sky.hlsl's test switch), for checking shooting stars against clouds (Z-09).
             if (System.Array.IndexOf(args, "-meteors") >= 0)
