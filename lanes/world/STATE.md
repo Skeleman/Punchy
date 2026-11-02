@@ -1,8 +1,8 @@
-# World lane: state (2026-11-02, after W-09)
+# World lane: state (2026-11-02, after W-10)
 
 Worktree `Punchy-world` (main PC), branch `world-features`. Backlog: `gh issue list -l lane:world`.
 Released: v0.11.0 = world b39522b + animal c810406.
-Pushed head: world-features 0e19871 (W-09). Builds/Dev holds a build of it. v1 101 / E128CB1D holds. Ponds now 219 blobs, 361 wet cells, 165 single-cell.
+Pushed head: world-features c5ddbe2 (W-10). Builds/Dev holds a build of it. v1 101 / E128CB1D, v2 127 / 831FF2EE hold. Ponds 33 blobs, 154 wet cells, none under 3 cells.
 No Punchy.exe of mine runs.
 
 ## W-05 / W-05b
@@ -33,11 +33,12 @@ No Punchy.exe of mine runs.
 - #20 v2: ridged chains with passes + height variation. Ridge cells 1408 -> 9760; border-line ridge height min 13, p10 20, median 81, max 170 m. v2 127 landmarks, hash 831FF2EE. 4600 m top-down shot renders blank sky: needs the IslandV2Preview map instead.
 - #30: flowers calm/storm pair taken at the same spot (not viewed).
 
-## W-09
-- #19: ponds need the field above the edge at +-17 m on both axes (BiomeData.PondErode, PondEdgeShift 0.17). 1287 -> 219 blobs, 3850 -> 361 wet cells, min 1 / median 1 / p90 3 / max 19. Single-cell 165 of 219 (75%): worse ratio, not solved at the 16 m grid.
-- #20: v2 top-down map via WorldProbe.V2Map (untracked): realms and ridge bands read clearly. PunchyMilestones/world/w09.
-- #44: puffs alpha 0.6, size 4-9, height 0-0.4, drift 3.5, Dunes puff density 1.5 -> 0.5. 1229 particles in range at the Dunes spot (all types).
-- #39: terrain vertex Strata.y = paving; Cobbles 1, Flagstones 0.8; shader Cobbles() fades out 30-80 m. In the town shot the effect is faint (flat brown ground, no visible stones).
+## W-10
+- #19: TerrainSource.PondMask (baked HeightmapBlob, 16 m grid) zeroes ponds under PondMinCells=3 after BuildPlaces. 219 -> 33 blobs, min 1/median 1/p90 3 -> 3/4/7, max 19. Log line `[ponds]`.
+- #44: SandPuffs colour (1.3, 0.55, 0.2, a 2.5), size 1.2-2.4, height 0.6-1.4. 126-132 puffs in range at the Dunes spot (SandPuffs only, WorldProbe.PuffType). Earlier tints matched the sand: that was why no puff showed.
+- #39: cobbles 0.5 x 0.6 m, grout 0.04-0.12, stone greyed and brightened, bump 0.8. Stones read clearly on the village plaza at 2-15 m.
+- Probe: WorldProbe.PuffType, Paving(x,z), BigPonds(k). Spots: Dunes 1800,-1800 (H 10.7); plaza 115,-405 (H 25.7); swamp ponds round -2700,1450.
+- Editor: cam.Render misses ambient particles (Graphics.RenderPrimitives); use ScreenCapture in play to judge them.
 
 ## Open
 - #23 follow-ups: volcano markers, v2 default decision. Rivers: springs on high ground; shot of a small fall. #15 look checks (Z-30 posts, Z-10 fog). #13 Z-35 fall speed. #14 cave-mouth shards.

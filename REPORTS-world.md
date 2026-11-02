@@ -2,6 +2,15 @@
 
 Newest first.
 
+## 2026-11-02 batch W-10: pond pruning, readable sand puffs, cobbles
+- DONE: #19 small ponds dropped by a baked PondMask (wet cells labelled on the 16 m grid, ponds under 3 cells removed). Blobs 219 -> 33, wet cells 361 -> 154, min/median/p90 1/1/3 -> 3/4/7, single-cell 165 -> 0 (world-features c5ddbe2)
+- DONE: #44 sand puffs warmer than the sand, more opaque, smaller, hanging 0.6-1.4 m; 126-132 SandPuffs in range at the Dunes spot, a few per screen (c5ddbe2)
+- DONE: #39 cobbles bigger (0.5 x 0.6 m), wider grout, stronger stone/grout contrast (c5ddbe2)
+- Checks: compile clean; 2 builds to Builds/Dev, 0 errors; v1 101 / E128CB1D, v2 127 / 831FF2EE; shot list quit by itself, no Punchy.exe of mine left.
+- Shots: PunchyMilestones/world/w10/w10-dunes-puff-b.png (orange puff close at left, about 10 m, more along the dune line), w10-town-ground.png (plaza stones and grout clear from the feet to the benches), w10-swamp-ponds.png (a few mid-sized ponds in the marsh, no specks)
+- Learned: docs/agents/world.md (pond mask)
+- NEXT: v2 default decision; puff density/colour per biome if Zach wants them softer; springs on ridge crests.
+
 ## 2026-11-02 batch W-07: ponds, high springs, fall shot, storm flowers
 - DONE: #19 ponds re-enabled; they are dug only after rivers, landmarks, settlements, caves and anchors are baked (TerrainSource.PondsOn). Cause of the earlier 102 / 2294FB88: roadside landmarks were placed on the dug ground. v1 now 101 / E128CB1D in play with ponds on.
 - DONE: #18 v2 springs: SourceHeight 45 m. Source beds min 18 -> 44, median 64 -> 90 m; 31 -> 22 sources; v2 130 landmarks DA354F63. First try (rain weights) barely moved them (median 68), dropped.
