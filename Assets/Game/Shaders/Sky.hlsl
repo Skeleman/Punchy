@@ -31,7 +31,7 @@ float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
 float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share
 float3 _PunchyBlueMoon;        // towards the second, blue moon
-static const float PunchyBlueMoonRadius = 0.13;    // radians: about 7x the big moon's, a sister planet (Zach, #34)
+static const float PunchyBlueMoonRadius = 0.22;    // radians (about 25 degrees across): 6.5x its v0.11.0 size, a sister planet (Zach, #34)
 half3  _PunchySunColor;        // sun colour × brightness (0 once set)
 half3  _PunchySkyZenith;
 half3  _PunchySkyHorizon;      // also the fog colour, so distant terrain fades seamlessly into the sky
@@ -517,15 +517,16 @@ half3 PunchyBlueMoonFace(float3 dir, float3 m, float radius, half3 tint, out hal
     // Craters at three scales, each cell with its own size and depth, soft shaded bowls and soft rims (not discs).
     // The bowl is a smooth dish darkening toward its centre, the rim a broad gentle ridge; a few cells stay empty.
     half craters = 0;
-    for (int k = 0; k < 3; k++)
+    // W-11: a fourth, fine scale so the face keeps its detail at the larger size.
+    for (int k = 0; k < 4; k++)
     {
-        float freq = k == 0 ? 2.6 : (k == 1 ? 6.0 : 13.0);
+        float freq = k == 0 ? 2.6 : (k == 1 ? 6.0 : (k == 2 ? 13.0 : 29.0));
         float3 cr = PunchyMoonCells(uv * freq + 4.7 + k * 9.3);
         float pick = frac(cr.z * 7.3);
         float live = step(k == 0 ? 0.3 : 0.45, cr.z);
         float size = lerp(0.12, 0.5, pick * pick);        // many small, a few large
         float d = cr.x / size;
-        float depth = lerp(0.35, 1.0, frac(cr.z * 13.7)) * (k == 0 ? 0.9 : 0.7);
+        float depth = lerp(0.35, 1.0, frac(cr.z * 13.7)) * (k == 0 ? 0.9 : (k == 3 ? 0.45 : 0.7));
         float bowlK = 1 - smoothstep(0.0, 1.0, d);
         float rimK = exp(-pow((d - 1.05) / 0.22, 2));
         craters += live * (-depth * 0.5 * bowlK * bowlK * (1 + 0.5 * bowlK) + depth * 0.22 * rimK);
@@ -535,7 +536,8 @@ half3 PunchyBlueMoonFace(float3 dir, float3 m, float radius, half3 tint, out hal
     float basin = PunchyValueNoise(uv * 1.5 + warp * 1.6 + 7.1) * 0.5 + PunchyValueNoise(uv * 3.4 + warp * 1.1 + 1.3) * 0.3
                 + PunchyValueNoise(uv * 8.0 + warp * 0.8 + 5.5) * 0.2;
     half seas = 1 - 0.4 * smoothstep(0.38, 0.62, basin);
-    half rock = 0.72 + 0.5 * (PunchyValueNoise(uv * 6.5 + 3.3) * 0.4 + PunchyValueNoise(uv * 17 + 8.8) * 0.35 + PunchyValueNoise(uv * 48 + 2.4) * 0.25);
+    half rock = 0.72 + 0.5 * (PunchyValueNoise(uv * 6.5 + 3.3) * 0.35 + PunchyValueNoise(uv * 17 + 8.8) * 0.3 + PunchyValueNoise(uv * 48 + 2.4) * 0.2
+                            + PunchyValueNoise(uv * 120 + 6.1) * 0.15);
     // A lit sphere: sun from the upper left, a soft terminator and a dark limb; the dark side keeps a faint glow.
     float3 n = float3(uv, z);
     half lit = smoothstep(-0.25, 0.55, dot(n, normalize(float3(-0.55, 0.4, 0.75))));
@@ -571,7 +573,7 @@ half3 PunchyMoonDisc(float3 dir, out half cover)
     float a = _PunchyMoonPhase.x * 6.2832;
     half bigCover, blueCover;
     half3 moons = PunchyMoonFace(dir, _PunchyMoonDirection, 0.0172, float3(sin(a), 0.15 * sin(a), -cos(a)), half3(0.9, 0.92, 1.0), bigCover);
-    // The blue moon: always full, about seven times the big moon's size, cratered and cracked (Zach, G-34).
+    // The blue moon: a lit rocky sphere, a sister planet about 13 times the big moon's size (Zach, #34).
     moons += PunchyBlueMoonFace(dir, _PunchyBlueMoon, PunchyBlueMoonRadius, half3(0.0, 0.02, 2.4), blueCover) * (1 - bigCover);
     cover = max(bigCover, blueCover);
     return moons;

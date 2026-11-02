@@ -260,12 +260,15 @@ namespace Punchy.Terrain
             if (!PondsOn || !HasBiomes)
                 return h;
             ref var set = ref Biomes.Value;
+            // W-11: a biome map (island v2) has small swamp patches whose blurred shape weights never pass 0.4, so
+            // it had no ponds at all; there the core test uses the map's sharp weights. Cell-based worlds (v1) are unchanged.
+            var core = UsesBiomeMap ? BiomeSampling.SampleMap(ref BiomeMap.Value, xz) : shape;
             var dig = 0f;
             for (int i = 0; i < 4; i++)
             {
-                var w = shape.Weights[i];
+                var w = core.Weights[i];
                 if (w > 0.4f)   // W-08: only in a biome's core; at region borders the blend left lone specks
-                    dig += math.smoothstep(0.4f, 0.75f, w) * BiomeSampling.Pond(ref set.Biomes[shape.Ids[i]], xz);
+                    dig += math.smoothstep(0.4f, 0.75f, w) * BiomeSampling.Pond(ref set.Biomes[core.Ids[i]], xz);
             }
             if (dig > 0f && PondMask.IsCreated)
                 dig *= PondMask.Value.Sample(xz);

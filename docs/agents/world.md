@@ -41,3 +41,5 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
 - **Ponds are pruned after baking:** `BuildPlaces` labels wet cells on a 16 m grid and bakes `PondMask`, which
   zeroes every pond under `PondMinCells` (3) cells. Landmarks are placed before ponds, so this never moves them;
   a new pond rule goes through the mask, not more erosion or threshold tuning.
+  With a biome map (island v2) the core test uses the map's sharp weights: the blurred shape weights never pass
+  0.4 in its small swamp patches, which left v2 with no ponds at all.
