@@ -2,6 +2,32 @@
 
 Newest first.
 
+## 2026-11-01: UI-1 main menu (code only), zache-73
+
+- **DONE, waiting on a slot: UI-1.** `wip/ui-menu` 0796b07 (off world-features b39522b, pushed, not merged).
+  IMGUI, as the panels already were. New Scripts/UI: MainMenu (Esc/Start opens and closes it; tabs
+  Multiplayer + Graphics; Quit at the foot; B/Circle/Esc backs out; LB/RB or Q/E switch tabs), MenuNav (focus stops
+  for the d-pad/stick/arrows with key repeat; A/Enter presses; left/right steps sliders), Prompts (draws
+  `[[control path]]` tokens as icons or names). The F2 and F5 toggles are gone. ThirdPersonCamera's Esc cursor unlock
+  is folded into the menu. While it's open the Player action map is off (kept off across a join's rebuild). The frame
+  cap is also a Graphics row. The help text says Esc menu; CLAUDE.md and MULTIPLAYER.md are updated.
+- **Glyphs:** InputGlyphs.Token/ActionToken/Icon/Plain. The interact prompt, the HUD control hints (now drawn under
+  the readout) and the menu footer use them. Icons load from `Assets/Game/Resources/Prompts/<kind>/<control>.png`
+  (kind keyboard, mouse, xbox or playstation; control as in the path, '/' as '_': buttonSouth, dpad_up, escape, e).
+  This is Resources rather than UI/Prompts, so they ship without a serialized reference. A generic pad and any
+  missing icon fall back to today's names.
+- **BLOCKED: the icon pack.** Kenney Input Prompts is **1.5a**, CC0 (kenney.nl/assets/input-prompts). Its download is
+  behind a scripted donate/download step that an automated fetch can't reach, and I didn't try to get around it.
+  **Zach:** please download the zip and unzip it to an empty folder outside the repo, then tell me the path. I'll
+  copy only the needed PNGs and License.txt in, renamed to the layout above. Until then everything shows as text.
+- **Gap 8 hook:** `MenuNav.TextEntry` (current text, max length, allowed characters, result callback). While it's
+  unset, a text field chosen on a pad shows "Typing ... needs a keyboard for now". The pad itself is not built.
+- **Checked:** the new UI files, InputGlyphs and Settings/*.cs compile with dotnet against Unity 6000.5.8f1's DLLs.
+  NetMenu, DebugControls and InteractionInputSystem wait for the bench build.
+- **Slot check:** the bench build. Then `-menu Multiplayer` / `-menu Graphics` shots, the same with `-forcepad xbox`
+  and `-forcepad playstation`. Then a pad by hand if one is plugged in: Esc/Start open and close, B backs out, tabs
+  switch, sliders step, A on Host. Check for 0 IMGUI layout errors in the log.
+
 ## 2026-11-01: Z-34 stream with no pool (code only, restarted lane), zache-73
 
 - **DONE, waiting on a slot: Z-34 leftover.** `world-laptop/z34-pool` 91f6b6a (off world-features b39522b, pushed,
