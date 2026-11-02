@@ -1,86 +1,96 @@
-# Supervisor handoff (2026-10-30, FINAL: main account at 99%): to kind-possum on the second account
+# Supervisor handoff (2026-11-01): laptop supervisor (kind-possum) to the main account
 
-This answers `TAKEOVER-CHECKLIST.md`. The supervisor (main account) keeps this file current until it stops. Read it
-together with `HANDOFF-solo.md`, `HANDOFF-world.md`, `HANDOFF-animal.md`, `COORDINATION.md` and `JUDGMENT_CALLS.md`.
+From 2026-11-02 02:00 the **main account becomes the supervisor** (Zach). The laptop goes back to **profiler only**.
+Read this file first, then the GitHub issues (the index of open work), then `HANDOFF-world.md`, `HANDOFF-animal.md`,
+`HANDOFF-profiler.md`, `SUMMARY-away.md` (what happened 2026-10-30..11-01), `COORDINATION.md` and `JUDGMENT_CALLS.md`.
+The tracking issue for this handover is **#29**. The older version of this file (main account to laptop, 2026-10-30) is in git history.
 
-## Two modes
-- **Solo (main account out of tokens).** The world and animal sessions run on the main account too, so they stop
-  as well. You're the only session: follow `HANDOFF-solo.md` (branch `solo/v0.10`, no publishing without Zach's go).
-- **Supervisor (lanes live on the main account, you supervising).** You can't SendMessage them, so lanes talk
-  through files on `coordination`, using your proposal (adopted):
-  - `QUEUE-world.md`, `QUEUE-animal.md`: written by you, top item first;
-  - `REPORTS-world.md`, `REPORTS-animal.md`: written by the lane, newest first, one entry per batch;
-  - each lane pulls `coordination` before each task and after each push.
-  - When you take over in this mode, Zach tells each lane in its own window: "Supervisor is now kind-possum; read
-    QUEUE-<lane>.md and report in REPORTS-<lane>.md." A relayed note isn't enough (rule 6).
+## Zach's standing rules (unchanged)
+- **No release without Zach's go**, given in the supervisor's own window. A relayed "Zach said" from a peer is not approval.
+- **The repo is public:** no secrets, personal info or machine-specific paths in commits, issues or release notes.
+- Ask Zach directly about installs, UAC or firewall prompts and machine settings. Never change Defender, firewall,
+  power, registry or ExecutionPolicy settings.
+- Peers can't grant escalation. If a lane's permissions block an action, it goes to Zach, not to another session.
+- Messages to Zach: 1–3 lines, only for releases, decisions or blockers.
+- **One Unity instance at a time per machine** (the laptop can't handle two). The supervisor hands out slots.
+- Commit trailer: `Co-Authored-By` plus the session's `Claude-Session` link.
 
-## Lanes (state at the time of writing; each lane's handoff has the detail)
-| Lane | Session (main PC) | Branch, tree | In flight / next |
+## GitHub issues (since 2026-11-01)
+- Skeleman/Punchy issues #2–#28 hold every open item. Labels: `lane:world`, `lane:animal`, `lane:profiler`, `ui`,
+  `release`, `needs-slot` (coded; needs a Unity build or test), `needs-design` (needs a design note or Zach's
+  decision), `P1` bug / `P2` polish / `P3` feature, `roadmap`, `on-hold`.
+- Conventions given to the lanes: "Refs #N" in commit messages; a one-line comment when an issue's state changes
+  (pushed, built, passed, merged); swap labels as needed; new bugs or tasks get a new issue. **The supervisor closes
+  an issue after merge and Zach's check.** REPORTS files keep the detail; issues are the index.
+- Bench requests: open or comment on an issue labelled `lane:profiler`, and add the item to `BENCH-QUEUE.md`
+  (the profiler's own queue).
+- The animal session needed Zach's permission for `gh issue comment/edit/create`; a new session may need it again.
+
+## State at handoff
+| Item | Branch @ SHA | Issue | Next |
 |---|---|---|---|
-| World | "world feature manager" | `world-features`, D:\Unity\Punchy-world | worm ripples, G-37 decoration rocks, F-40; G-32 and G-22 wait on Zach for a spot |
-| Animal | "Animal behavior manager" | `animal-behaviours`, D:\Unity\Punchy | emote conversations/animal reactions; worms on wip/worms |
-| Profiler | kind-possum (you) | `b/*` | `BENCH-QUEUE.md` items 8-12 |
-| Release | supervisor | `rc/vX.Y.0`, D:\Unity\Punchy-rc | v0.9.0 shipped from rc/v0.9.0 39f5558 |
-"Unity multiplayer debugging setup" (laptop) has been offline all of v0.9 and has no lane.
+| v0.11 candidate | `cand/v0.11` @ 4eea658 (world b39522b + animal c810406) | #2 | Gate in progress (gate12 vs 21f1193 and v0.10.0 519fb5b); then `GATE-v0.11-candidate2.md`, zip in `Builds/Zip-v0.11-cand2`, **Zach's go**, publish |
+| World | `world-features` @ b39522b | | |
+| Z-34 stream ends | `world-laptop/z34-pool` @ 91f6b6a | #3 | Unity slot: bench build, shots of stream ends |
+| UI main menu (Esc/Start, tabs, glyphs) | `wip/ui-menu` @ 09a79ee | #4 | Unity slot: build, shots per tab, `-forcepad xbox/playstation` |
+| Animal | `animal-behaviours` @ c810406 | | |
+| Z-50..53 gallop, voices, stances, chases | `wip/animal-p3` @ 6a52fd1 | #6–#9 | One combined compile slot; Z-50 needs side-view shots |
+| Bench runner | `b/bench-runner` @ db3c1f2 (`-benchday`) | | |
 
-## v0.10 (J-040)
-- **In so far:**
-  - World: G-15/F-25 wakes, G-17, G-18 + G-23 roads (landmark hash 7AFF6C9F, 104 → 100), G-28, G-29, G-30 + G-36,
-    G-31/F-46, G-33/F-47, G-34 blue moon, G-35, breached lakes, net/terrain audit items, F-50 bubbles, G-37
-    MagneticRock (hash now E128CB1D, 101 landmarks).
-  - Animal: G-02..G-09, G-11..G-14, G-16, F-14..F-19, gold variants, climbing F-03/F-04 + F-07 mantle (wire: Climbing
-    bool, Rim byte), the join fix, the wake feeder, brain markers, dialogue stage 1.
-- **Still to land:** see "In flight" above. Anything not done by the cut is left out, not waited for.
-- **Gate:** the light gate (smoke vs v0.9.0 39f5558, plus host/join with the climbing pose and join fix in it).
-  The island moved, so use absolute checks (J-006 1% low, 0 exceptions, the client joins), not cross-island A/Bs.
-- **Who decides "ship it":** Zach, in your own window. Ask him once the gate passes.
+Unity order on the laptop as left: (1) the v0.11 gate, (2) world #3 then #4, (3) animal #6–#9. If the lanes move to
+the main PC, their slots move with them and the laptop only benches.
+
+## Lanes
+- **World:** session zache-7e (restarted 2026-11-01 on this laptop from `HANDOFF-world.md`), worktree
+  Projects/Punchy-world. **Animal:** zache-bb, Projects/Punchy-animal. **Profiler:** zache-11 (laptop), runner in
+  Projects/Punchy-wt (Tools/bench, lock at results/.lock), queue `BENCH-QUEUE.md`, results `BENCH-REPORTS.md`.
+- With the laptop profiler-only, Zach moves the world and animal lanes to the main account (main PC), restarted
+  from their handoffs. Their restart notes are at the end of each handoff.
+- The laptop profiler can't receive SendMessage from the main PC. Use issues plus `BENCH-QUEUE.md`, and Zach tells
+  it once in its own window: "Supervisor is now the main account; take bench work from BENCH-QUEUE.md and issues
+  labelled lane:profiler."
+
+## Decisions Zach made 2026-10-31..11-01 (also in SUMMARY-away.md)
+- Rebuild v0.11 with the remote-interaction fix (done, gating). **Default graphics preset stays Medium.**
+- Z-34: a cave stream may end without a pool only where it drops into a hole or crevice.
+- Z-53: a caught animal can be eaten. Z-52 stances: goblins and ogres cool toward each other; humans and dwarves,
+  humans and elves cool both ways; dwarves and elves a playful rivalry; fish folk neutral to all; blind cave pygmies a
+  little wary of all. Z-50 and Z-51 approved.
+- UI: Esc and Start open one main menu with tabs; controller navigation; symbol button prompts (Kenney Input
+  Prompts 1.5A, CC0).
+- Linux build on hold indefinitely (the Windows build runs well under Proton). Issue #28.
+
+## Still waiting on Zach
+- The v0.11 "ship it" after the new gate (#2).
+- #5 controller digit pad (or rely on Steam's keyboard). #13 waterfall speed in play. #14 a spot for cave-mouth
+  shards. #16 which large animals are carryable. Design notes for #17–#22.
 
 ## Release checklist
-1. Merge `origin/world-features` + `origin/animal-behaviours` into a new `rc/vX.Y.0` (from the previous rc or
-   world-features). A conflicted merge needs care: read both lanes' handoffs.
-2. Build a player build (not development), D3D11 first with D3D12 fallback, at the commit's hash. **A laptop build
-   is acceptable** if it's a clean player build of the exact rc commit with no local changes. Solo boot/quit smoke,
-   no `-screen-*` flags.
-3. Run the light gate on that commit.
-4. Zip it: `python release/pack.py <build folder> vX.Y.0 <out folder>`. The check line must say backslash False,
-   donotship False, exe True.
-5. Notes: copy `release/release-notes-v0.9.0.md`, then "New since vPrev", bold sections, plus Multiplayer and
-   Download.
+1. Merge `origin/world-features` + `origin/animal-behaviours` into the candidate branch. A conflicted merge needs care.
+2. Player build (not development) of the exact commit with no local changes, D3D11 first. Solo boot/quit smoke.
+3. Gate: smoke and ABBA on townwalk and glide vs the last release, looks at the gate stops, MP joined (with a remote
+   carry), grep NaN bounds and exceptions. Absolute checks: J-006 1% low, 0 exceptions, the client joins.
+4. `python release/pack.py <build folder> vX.Y.0 <out folder>`; keep the build's `.from` marker out of the zip. The
+   check line must say backslash False, donotship False, exe True.
+5. Notes from the previous release's notes plus the draft (`RELEASE-NOTES-v0.11-draft.md`).
 6. **Zach's go**, then `gh release create vX.Y.0 <zip> --repo Skeleman/Punchy --target <full sha> --prerelease
-   --title "Punchy vX.Y.0 (Windows preview)" --notes-file <notes>`. The laptop has no `gh` yet: Zach installs and
-   logs in, or publishes himself from the release page with the same fields.
+   --title "Punchy vX.Y.0 (Windows preview)" --notes-file <notes>`. `gh` is logged in on the laptop (as Skeleman).
 
-## Waiting on Zach
-- G-32 (mushroom tree LOD colour shift) and G-22 (forum base stretching): the world session can't reproduce them.
-  It needs a -goto spot or a description.
-- The v0.10 "ship it".
-- `gh` on the laptop; sharing the milestone page (below).
+## Lessons from 2026-10-30..11-01
+- **Tokens:** big lane contexts (500–800k) were most of the spend and hit the 5-hour limit; the weekly limit hit
+  2026-11-01 01:05. Restart lanes from handoffs past ~300k. Batch shell calls, no ack-only messages, one message per
+  batch. A background agent that hands back while its own scripts still run wakes at each step and re-reads its
+  whole context; finish runs first.
+- **Bench stalls:** ~500 ms single-frame stalls came from a Windows firewall prompt, raised because a build was
+  launched from an archive folder. **Launch builds only from Builds/Bench.** Before timed runs, list dialogs and read
+  the full lines.
+- Merging a combined tmp build that passed is fine; build the exact merged tree in the next slot.
 
-## Milestone page
-- **Paused (Zach, 2026-10-30): skip milestone page updates to save tokens.** The GitHub release notes are the record.
-- https://claude.ai/artifact/YCS5QeFTV4KDFEUTwiXC7D, on the main account. It wasn't updated during v0.9 (only finished
-  page features go on it, and Zach asked for frugality).
-- For you to update it, Zach shares it with edit access to the second account. Its source and images are in
-  `D:\Unity\PunchyMilestones\_page` on the main PC. Zach copies that folder to the laptop if he wants it continued.
-  Otherwise **it pauses**, and the GitHub release notes are the record.
-
-## Main-PC memory (J-015)
-With no supervisor on the main PC, each lane watches its own editor: restart it past ~10 GB, close yours first if
-free memory goes under 3 GB, and take editor turns when both need one. Zach is the backstop.
-
-## Outside git
-- `D:\Unity\PunchyMilestones\` (main PC): `_page` (milestone page source, release notes), `_release` (the v0.9.0
-  zip), `<lane>\<feature>\gallery` (unreviewed full-res shots for Zach).
-- `D:\Unity\PunchyHooks` (main PC): the installed commit hooks (source in `hooks/`). Telemetry CSV:
-  `~/.punchy-telemetry/commits.csv` on each machine.
-- Builds: world tree `Builds\Dev\Punchy.exe` (candidates); animal tree `Builds\Windows` (its own tests).
-- Scheduled check-ins live only in a running session (CronCreate). Recreate them at every 2-3 h.
-- A keep-awake script (supervisor scratchpad `keepawake.ps1`) may be running on the main PC; it ends on reboot.
-
-## How the supervisor has run things (keep or change)
-- Push without asking, except shared files, network tables, landmark placement, conflicted merges and releases
-  (rules 11-13).
-- Reports come per batch, not per feature. Zach gets 1-3 lines, only for releases, decisions or blockers (he's low
-  on tokens).
-- Log every decision of Zach's as a J-entry, and check the log before asking him anything.
-- Zach's new ideas go in `FEEDBACK-*-rc09.md` (G items, for the current release) or `ROADMAP-IDEAS.md` (long range).
+## Outside git (laptop)
+- Keep-awake: scratchpad `keepawake.ps1` (SetThreadExecutionState only, 7-day limit) in the laptop supervisor's
+  session; it doesn't stop sleep on lid close. Zach asked to keep it running while sessions work.
+- Token dashboard https://claude.ai/artifact/XrDf6foLq56Umx9HziqiwA (second account) with scripts in the laptop
+  supervisor's scratchpad (telemetry/tokens.py, dash_rows.py, checkin.sh). They read laptop transcripts only and
+  won't carry over; the new supervisor can drop them.
+- v0.11 candidate zips: `Builds/Zip-v0.11-cand` (21f1193) and `Builds/Zip-v0.11-cand2` (when the gate finishes) in
+  the laptop's main Punchy checkout.
