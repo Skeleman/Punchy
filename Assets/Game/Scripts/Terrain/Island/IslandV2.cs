@@ -366,6 +366,7 @@ namespace Punchy.Terrain
                 done = true;
                 Debug.Log($"[island] generator version 1 (baked); {LandmarkHash(ref source, palette)}");
                 Debug.Log(BatFolkBaking.Report(source));
+                Debug.Log(IcebergBaking.Report(source));
                 return;
             }
             done = true;
@@ -393,7 +394,7 @@ namespace Punchy.Terrain
             source.Island = gen.Island;
             source.BiomeCells = default;
             source.RiverSettings = IslandV2.Rivers(source.RiverSettings);
-            source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Anchors = default; source.PondMask = default;
+            source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.Anchors = default; source.PondMask = default;
             var types = new List<LandmarkType>(palette.Landmarks);
             TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent);
             EntityManager.SetComponentData(entity, source);
@@ -435,6 +436,7 @@ namespace Punchy.Terrain
                 source.Settlements = baked.Settlements;
                 source.Caves = baked.Caves;
                 source.BatFolk = baked.BatFolk;
+                source.Icebergs = baked.Icebergs;
                 source.Anchors = baked.Anchors;
                 source.PondsOn = baked.PondsOn;
                 source.PondMask = baked.PondMask;

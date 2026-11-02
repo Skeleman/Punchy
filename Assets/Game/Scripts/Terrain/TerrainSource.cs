@@ -128,6 +128,8 @@ namespace Punchy.Terrain
         public BlobAssetReference<AnchorSetBlob> Anchors;
         /// <summary>Bat folk settlements (#35, baked after caves, read by nothing else): their chambers and which cave pools are white.</summary>
         public BlobAssetReference<BatFolkSetBlob> BatFolk;
+        /// <summary>Icebergs off the cold coasts (W-28, baked last, scenery with its own seed stream) and the one berg's ice cave.</summary>
+        public BlobAssetReference<IcebergSetBlob> Icebergs;
         /// <summary>Set when every place is baked: biome ponds are dug only after that, so they never move a landmark, road, cave or anchor.</summary>
         public bool PondsOn;
         /// <summary>
@@ -834,13 +836,21 @@ namespace Punchy.Terrain
 
         /// <summary>Whether the tower's body or a step too high to step onto stands where a body at p would be (W-27).</summary>
         public bool TowerWall(float3 p, float stepUp, float head) =>
-            Tower(p.xz, out var tower, out var height) && SaltTowerShape.Wall(SaltTowerShape.Layout(tower, height), p, stepUp, head);
+            Tower(p.xz, out var tower, out var height) && SaltTowerShape.Wall(SaltTowerShape.Layout(tower, height), p, stepUp, head)
+            || Icebergs.IsCreated && IcebergShape.Wall(ref Icebergs.Value, World.SeaLevel, p, stepUp, head);
 
         /// <summary>A bridge deck under a point that's on or just below it (see SettlementSampling.Deck).</summary>
         public bool Deck(float3 p, out float deck)
         {
             deck = 0f;
-            return Settlements.IsCreated && SettlementSampling.Deck(ref Settlements.Value, p, out deck);
+            var onDeck = Settlements.IsCreated && SettlementSampling.Deck(ref Settlements.Value, p, out deck);
+            // W-28: an iceberg's top, sides or ice cave floor stands bodies the same way.
+            if (Icebergs.IsCreated && IcebergShape.Deck(ref Icebergs.Value, World.SeaLevel, p, out var ice) && (!onDeck || ice > deck))
+            {
+                deck = ice;
+                onDeck = true;
+            }
+            return onDeck;
         }
 
         /// <summary>How deep a bay beside the lake at <paramref name="lakeCentre"/> may be: no deeper than the lake itself
@@ -1006,6 +1016,6 @@ namespace Punchy.Terrain
         public bool Equals(TerrainSource o) =>
             World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
-            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Anchors == o.Anchors && PondMask == o.PondMask;
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && Anchors == o.Anchors && PondMask == o.PondMask;
     }
 }

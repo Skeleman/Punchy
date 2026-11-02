@@ -85,3 +85,4 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   RiverQuery.FallWater keeps the upper surface up to the lip.
 - Surface falls run their length in half the effect's lifetime (LandmarkWaterfall.shader); cave falls keep 1.62.
   LandmarkEffectSystem.FallSounds plays WaterfallRush loops at the 4 nearest falls, logged as `[falls] sound sources`.
+- Icebergs (`Terrain/Icebergs`) are scenery from their own stream (seed ^ 0x1CEB3A65): they never touch landmarks or the cave hash. The beach strip on land has the "Ocean" biome as its dominant biome, so a sea-touches-biome test must cross it (IcebergBaking treats it as neutral shore for 320 m). Berg collision rides on `TerrainSource.TowerWall`/`Deck`.
