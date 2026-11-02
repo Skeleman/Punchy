@@ -38,4 +38,4 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
 9. Review only, no edits: `BatFolkBaking`/`BatFolkMeshes` (world) and FolkChat in CreatureState/Idle (animal A-26):
    per-frame allocations, main-thread work, anything that grows with creature count. Findings go in BENCH-REPORTS.
 10. W-22 has landed (world-features 5016957, "v2 default"): host + client with no `-island` flag. Both must log
-   125 / D709D95C (v2 hash changed again in W-26 afc068c; check after the M-02 merge on main); then `-island v1` on both gives 101 / E128CB1D. No join errors.
+   126 / 053C63D5 on world-features after W-27 (main 0bd91cb: 125 / D709D95C); then `-island v1` on both gives 102 / 51EA6463 (main: 101 / E128CB1D). No join errors.
