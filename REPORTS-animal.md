@@ -835,3 +835,9 @@ different files.
 - #23 met on v1: the cause was the cave cull's per-creature managed SampleHeight on the main thread, at 1.6 ms (100 creatures) and 2.1 ms (131). Now a Burst job at 0.03-0.04 ms. System total 1.9 -> 0.33 ms and 2.4 -> 0.44 ms. The before/after cave shots look the same. Not yet confirmed on v2.
 - #6 retake: the log reads "4 m side-on", but in the shot the wolf faces the camera, so the gathered phase is not shown side-on.
 - NEXT: on v2, `-renderpasslog` with and without `-oldcull`; make -huntside place the camera from the hunter's heading at shot time.
+
+## A-23 (2026-11-02): side-on hunt camera, leap and dog-chase retakes, animal-behaviours 5557c9a (two builds)
+- #6 met: -huntside now sits off the hunter's own heading at shot time (the hunter-to-prey line was 157-162 deg off it). Gathered and extended leap phases both shot side-on at 4 m; gait values unchanged.
+- #7 met: dog chase retaken side-on at 5 m with the new -huntpair (aims between hunter and prey); dog and hare both clearly visible, 2.1 m apart.
+- Second build: back-to-back -shotonhunt lines caught the last line's wolf walking (extend shot 1); fixed by skipping that hunter until its sprint ends, then retaken.
+- NEXT: Zach's look at the leap poses (leapgather-800, leapextend2-800) and dogchase-800.

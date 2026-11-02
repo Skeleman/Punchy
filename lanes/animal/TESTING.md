@@ -10,6 +10,9 @@ Read `lanes/shared/checks.md` first.
 - A lone palm: `-place Dunes -place tree:Palm`.
 - Hunt side view: `-goto -255,27` (open meadow), then `-spawn Wolf:2 -spawn Deer:4 -spawn Rabbit:4 -huntlog -shotonhunt
   -huntside 6 -wait 90`. The huntside log line gives the plants counted between camera and wolf (0 = clear).
+- Since A-23 `-huntside d` sits d m off the hunter's own heading (Yaw) every frame; add `-huntpair` to aim at the
+  middle of hunter and prey (steps back if they are far apart). Dog chase: `-hunter Dog -huntside 5 -huntpair`.
+  Back-to-back -shotonhunt lines skip the last line's hunter until its sprint ends (A-23 extend shot caught it walking).
 - Spin and drift probes: `-spincheck` (spin log lines; compare counts over 3 runs), `-footdrift`.
 
 ## Known spots
