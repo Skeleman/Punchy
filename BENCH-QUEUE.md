@@ -28,3 +28,14 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
 5. Host/join on animal-behaviours b5e9715: a remote player's roll (B/Circle) shows the somersault on the other
    screen; no join errors.
 6. Later: when world-features gains `-island v2` (batch W-05), smoke `-island v2` vs default on the same build.
+
+## Added 2026-11-02 (afternoon). main = 0cc3ed7 (both lanes merged, #51). Zach: v2 becomes the default (W-22, pending)
+7. Bench stops on v2, done on your b/bench branch: townwalk has to reach a village on v2 (item 6 ended in desert
+   scrub). Also check cave/caveapproach land in a real cave on v2. Every stop must work on both islands (rule 12c).
+8. Smoke main 0cc3ed7, `-island v2` vs v1, same build, ABBA, with your fixed stops. Compare against item 6: A-22 moved
+   the cave cull to Burst (main PC: 7.1 → 0.33 ms) and W-15/W-16 cut bake time (v2 ready ~7.2 s on the main PC).
+   Pass = v2 cave CPU within 1.3x of v1, and v2 load under 10 s on the laptop.
+9. Review only, no edits: `BatFolkBaking`/`BatFolkMeshes` (world) and FolkChat in CreatureState/Idle (animal A-26):
+   per-frame allocations, main-thread work, anything that grows with creature count. Findings go in BENCH-REPORTS.
+10. After W-22 lands (world-features, "v2 default"): host + client with no `-island` flag. Both must log
+   127 / 831FF2EE; then `-island v1` on both gives 101 / E128CB1D. No join errors.
