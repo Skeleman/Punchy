@@ -773,3 +773,17 @@ b/weather-mapjob.
 - Row 4 #13 DONE: fall speed fallLength/(3 lifetime) -> 2x (fall 0: 1.15 -> 2.30 m/s). Sound log: `[falls] sound sources 1 (of 1 falls drawn), max distance 44 m`. Curve in STATE.
 - Row 5 NOT DONE: LOD1 hut roof meshes check out in numbers; ran out of call budget before an editor look.
 - Shots: PunchyMilestones/world/w22 (w22-fall0-side, w22-fall0-above, w22-walls-lake). 1 build. world-features 5016957.
+
+## W-23 (2026-11-02), partial
+
+- Row 3: DONE in 253080d. Hut roofs lost their thatch relief by 45 m: the bark detail fade, not the LOD.
+  - Built things now fade it over 60-140 m.
+  - Before/after at 40 m (View 0.6, LOD1) and 45 m (View 1, LOD0): the roofs keep an even thatch.
+  - Shots: w23-hut-40m-view06 vs w23-hut-40m-v0.6-after, and w23-hut-45m-zoom vs w23-hut-45m-v1-after.
+- Row 1: NOT DONE, reverted.
+  - The v2 swamp sits on a slope: median 0.16 m/m, and 89% of its cells are over 0.12.
+  - With "no pools on slopes", denser noise gives 0 pools at a 0.12 limit, or 15 single-cell specks at 0.22.
+  - Before: 1 pool, 15 wet cells.
+  - Needs a decision: flatten the swamp, allow terraced pools, or move the swamp.
+- Rows 2 and 4: NOT DONE, no build made.
+- Hashes: no terrain code committed, so they are unchanged by construction.

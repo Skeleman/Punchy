@@ -1,30 +1,32 @@
-# World lane STATE (after W-22, 2026-11-02)
+# World lane state
 
-Pushed head: world-features 5016957 (W-22: d436650 biome-blend fix + 5016957 v2 default / falls). Builds/Dev holds the W-22 build (= 5016957).
-Player logs: no flag = v2 125 / AFA9CC63 (caves D531293D622E785A); `-island v1` = v1 101 / E128CB1D.
+Updated 2026-11-02 after W-23 (partial). Branch world-features @ 253080d.
 
-## Island
-- #23 v2 island: `Terrain/Island/IslandV2.cs`. v2 is the DEFAULT since W-22; `-island v1` / PUNCHY_ISLAND=v1 for v1.
-  No netcode sync: host and client each read their own launch (a v0.11 peer defaults to v1 and would mismatch).
-- W-21 biome-blend fix applied (BiomeData.SampleMapBlurred: sum all ids, keep top 4 minus 5th). 127 -> 125 lost:
-  OakGrove 1757.3,2593.3 and Waterfall -1993.9,3009.8. Caves 37 -> 37, settlements 6 -> 6, bat folk unchanged
-  (cave 2 chamber 3001,3,-2135, huts 3).
-- #18/#42 smooth rivers + falls (v2 only). 71 waterfalls in v2.
+## Done in W-23
+- Row 3 (hut roofs at the middle distance): not an LOD or shadow bug. The bark relief (cave detail texture,
+  albedo plus a strong normal bump) faded over 18-45 m, so a thatch roof became a plain cone whose facets
+  showed at 30-55 m. That is also where huts switch to LOD1 on the Low view preset (View 0.6, LOD1 about 33 m).
+  Fix: built things fade that relief over 60-140 m (Flora.shader). Shader only, hashes untouched.
 
-## Falls (W-22)
-- RiverQuery.FallWater: upper surface runs to the lip (the pool's 50 m channel reached under it; 16 m cells).
-  Fall 0 (lip -2450.5,21.4,-960.3) profile: water 21.4 over ground 16-19 to the lip, then 16.9. Hashes unchanged.
-- LandmarkWaterfall.shader: surface fall speed 2 x fallLength/3/lifetime (fall 0: 1.15 -> 2.30 m/s); cave falls 1.62.
-- LandmarkEffectSystem.FallSounds: WaterfallRush loops at the 4 nearest drawn falls; volume lerp(0.45,1,t),
-  reach lerp(40,60,t), t = saturate((drop-2)/12); x (1 - smoothstep(0.6 reach, reach, d)); GameAudio log rolloff.
-  Log `[falls] sound sources N (of M falls drawn), max distance X m`.
+## Open from W-23
+- Row 1 (#23, denser v2 swamp pools): tried and reverted, nothing committed.
+  - Tried a v2-only pond noise density of 1.6x with +0.15 cover, plus dropping pond cells on slopes or under
+    settlement levelling.
+  - Finding: the v2 PoisonSwamp around (-2400,500) is a hillside. Its median pre-pond slope is 0.16 m/m over
+    16 m, and 976 of 1101 cells are above 0.12.
+  - Result: the slope rule removes almost every pool (0.12 left 0 pools; 0.22 left 15 single-cell specks,
+    all under PondMinCells). Before the change: 1 pool, 15 wet cells island-wide.
+  - Options:
+    - (a) flatten the swamp's base height in v2 (a biome or shape change, so it may move hashes; warn first);
+    - (b) allow pools on slopes and let the pond dig level them (terraced pools);
+    - (c) place the swamp on flatter ground in the v2 map.
+- Rows 2 and 4: no build was made (the call budget ran out after row 1). Both still need the build shots:
+  - Row 2: the swamp from about 30 m up.
+  - Row 4: -2165,255 lower down, with the lake in frame.
 
-## Open
-- Hut/MudHut LOD1 roof shading (W-22 row 5) NOT fixed: LOD0/1/2 meshes checked in eval: normals point out/up,
-  no flipped triangles, colours/uv same. Flora.hlsl and FloraCull have no LOD-specific normal code. Needs an
-  editor shot at 30-55 m to see the actual artifact (maybe the LOD0/LOD1 crossfade band or shadows).
-- -2165,255 shot shows smooth hills, no walls; the lake itself was not in frame.
+## Hashes
+v2 125 / AFA9CC63, caves D531293D622E785A; v1 101 / E128CB1D. Nothing terrain-side was committed.
 
-## Tools
-- Untracked Assets/Temp/Editor/WorldProbe.cs: LmList, CaveBench, FallList, FallGo, Shot. Lists in Assets/Temp/lmlist-*.txt.
-- Shot recipes: lanes/world/TESTING.md. Shots: PunchyMilestones/world/w22.
+## Notes
+- Shots: PunchyMilestones/world/w23 (800 px).
+- Scratch eval scripts: Punchy-world/Temp/w23_*.cs.
