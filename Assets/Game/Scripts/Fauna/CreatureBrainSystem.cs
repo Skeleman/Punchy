@@ -5261,7 +5261,15 @@ namespace Punchy.Fauna
                 // (Right over the spot the bearing means nothing: hold the heading.)
                 var wanted = distance < 0.1f ? 0f : WrapAngle(math.atan2(to.x, to.y) - s.Yaw) + Swerve(s, ref b, distance);
                 var turnRate = b.TurnRate * 1.5f * (settle ? 1f - flare : 1f);
+                // (#12/A-13: the takeoff turn damped: while it is still getting off the ground the turn rate builds up with its flight.)
+                turnRate *= math.lerp(0.3f, 1f, math.saturate(s.Fly));
                 var turn = math.clamp(wanted, -turnRate * dt, turnRate * dt);
+                // (#12/A-13: and the turn rate itself changes smoothly, at most 100 deg/s each second, so a new spot behind
+                // it eases into the turn rather than snapping to the full rate.)
+                var rateStep = math.radians(100f) * dt * dt;
+                turn = math.clamp(turn, s.YawRate * dt - rateStep, s.YawRate * dt + rateStep);
+                if (turn * wanted > 0f && math.abs(turn) > math.abs(wanted))
+                    turn = wanted;
                 s.Yaw = WrapAngle(s.Yaw + turn);
                 s.YawRate = turn / math.max(dt, 1e-4f);
                 // Airspeed never drops below the minimum (a bird above its landing spot circles down rather than

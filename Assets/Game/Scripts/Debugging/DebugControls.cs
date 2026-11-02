@@ -471,6 +471,7 @@ namespace Punchy.Debugging
         /// seconds (#12: the songbirds' wandering split into on the ground, flying, and the flare near the spot).</summary>
         readonly System.Collections.Generic.Dictionary<int, float4> turnSum = new System.Collections.Generic.Dictionary<int, float4>();
         float turnLogAt, traceAt;
+        readonly System.Collections.Generic.Dictionary<Entity, float> wanderSince = new System.Collections.Generic.Dictionary<Entity, float>();
         Entity traced = Entity.Null;
         int traceLines;
         readonly System.Collections.Generic.Dictionary<Entity, float> spinLogged = new System.Collections.Generic.Dictionary<Entity, float>();
@@ -499,7 +500,13 @@ namespace Punchy.Debugging
                 var step = math.abs(math.atan2(math.sin(c.Yaw - w.x), math.cos(c.Yaw - w.x)));
                 w.x = c.Yaw;
                 // (Heading change per second of the songbirds' and dormice's wandering, for the Z-12 before/after.)
-                if (bodies[i].Species >= 0)
+                // (A-13 #12: Wander counts only after 5 s of it, so the turn out of a flee or a takeoff is left out.)
+                if (c.Mode != CreatureMode.Wander)
+                    wanderSince[e] = -1f;
+                else if (!wanderSince.TryGetValue(e, out var ws) || ws < 0f)
+                    wanderSince[e] = now;
+                var settledWander = c.Mode != CreatureMode.Wander || now - wanderSince[e] > 5f;
+                if (bodies[i].Species >= 0 && settledWander)
                 {
                     var targetGap = math.distance(c.Position.xz, c.Target);
                     var bucket = c.Mode != CreatureMode.Wander ? 0 : c.Stage == 0 ? 1 : c.Stage == 1 ? (targetGap < 1.5f ? 3 : 2) : 4;
@@ -564,7 +571,7 @@ namespace Punchy.Debugging
                         Debug.Log($"DebugControls: heading change: {kv.Key}:{kv.Value}");
                 }
                 turnSum.Clear();
-                turnLogAt = now + 20f;
+                turnLogAt = now + 30f;
             }
             if (spins.Count > 4000)
                 spins.Clear();
@@ -904,10 +911,13 @@ namespace Punchy.Debugging
                     PlaceInMeadow(meadowSource);
                 else if (args[i] == "-place" && string.Equals(args[i + 1], "clearlake", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var lakeSource))
                     PlaceByClearLake(lakeSource);
-                else if (args[i] == "-place" && (string.Equals(args[i + 1], "ledge", System.StringComparison.OrdinalIgnoreCase) || string.Equals(args[i + 1], "wall", System.StringComparison.OrdinalIgnoreCase)))
+                else if (args[i] == "-place" && (string.Equals(args[i + 1], "ledge", System.StringComparison.OrdinalIgnoreCase) || args[i + 1].StartsWith("wall", System.StringComparison.OrdinalIgnoreCase)))
                 {
                     // ("wall": the same, for a wall-climbing body: the nearest wall of a building or rock, not a rim to mantle.)
-                    wallRequest = string.Equals(args[i + 1], "wall", System.StringComparison.OrdinalIgnoreCase);
+                    wallRequest = args[i + 1].StartsWith("wall", System.StringComparison.OrdinalIgnoreCase);
+                    // ("wall:Lizard": as that body; A-13 #33.)
+                    if (wallRequest && args[i + 1].IndexOf(':') > 0)
+                        SetBody(args[i + 1].Substring(args[i + 1].IndexOf(':') + 1));
                     // To the nearest settlement first: its buildings, wells and stalls have the ledges (PlaceByLedge,
                     // once their tops have loaded round the player).
                     var town = locations.FindIndex(l => l.Name.StartsWith("Nearest settlement"));
@@ -960,6 +970,24 @@ namespace Punchy.Debugging
                     em.SetComponentData(goer, t);
                     Debug.Log($"DebugControls: to {gx:F0},{gz:F0}");
                 }
+            }
+            // "-goflat" (A-13 #46): to the nearest dry spot whose ground height spread over a 30 m circle is under 0.5 m
+            // (found once, by rings round the start; the spot and its measured spread are logged).
+            if (System.Array.IndexOf(args, "-goflat") >= 0 && EnsureLocations(out var flatSource) && playerQuery.TryGetSingletonEntity<LocalTransform>(out var flatGoer))
+            {
+                if (!flatSpot.HasValue)
+                    flatSpot = FindFlatSpot(flatSource, out flatSpread);
+                if (flatSpot.HasValue)
+                {
+                    var em = queryWorld.EntityManager;
+                    var t = em.GetComponentData<LocalTransform>(flatGoer);
+                    var f = flatSpot.Value;
+                    t.Position = new float3(f.x, flatSource.SampleHeight(f) + 0.1f, f.y);
+                    em.SetComponentData(flatGoer, t);
+                    Debug.Log($"DebugControls: flat spot at ({f.x:F0}, {f.y:F0}), ground {flatSource.SampleHeight(f):F1} m, height spread {flatSpread:F2} m over 30 m");
+                }
+                else
+                    Debug.LogWarning("DebugControls: -goflat: no flat spot found");
             }
             // "-at Pool" (any AnchorKind): on the floor by the nearest anchor of that kind (after any -place).
             var at = System.Array.IndexOf(args, "-at");
@@ -1924,6 +1952,38 @@ namespace Punchy.Debugging
         /// "-place meadow": the nearest flat, grassy stretch of Grassland, the camera at eye height looking a little
         /// down across it; the player parked out of shot.
         /// </summary>
+        static float2? flatSpot;
+        static float flatSpread;
+
+        /// <summary>The nearest dry spot (rings of 30 m from the origin) whose ground height, centre and two rings out to 15 m, varies under 0.5 m.</summary>
+        static float2? FindFlatSpot(in TerrainSource source, out float spread)
+        {
+            spread = 0f;
+            for (int ring = 0; ring <= 150; ring++)
+                for (int k = 0; k < math.max(ring * 8, 1); k++)
+                {
+                    var angle = k * 2f * math.PI / math.max(ring * 8, 1);
+                    var at = new float2(math.cos(angle), math.sin(angle)) * ring * 30f;
+                    var lo = float.MaxValue;
+                    var hi = float.MinValue;
+                    var dry = true;
+                    for (int r = 0; r < 17 && dry; r++)
+                    {
+                        var xz = r == 0 ? at : at + new float2(math.cos(r * math.PI / 4f), math.sin(r * math.PI / 4f)) * (r <= 8 ? 7.5f : 15f);
+                        var g = source.SampleGround(xz);
+                        dry = !(g.HasWater && g.WaterSurface > g.Height - 0.5f);
+                        lo = math.min(lo, g.Height);
+                        hi = math.max(hi, g.Height);
+                    }
+                    if (dry && hi - lo < 0.5f)
+                    {
+                        spread = hi - lo;
+                        return at;
+                    }
+                }
+            return null;
+        }
+
         void PlaceInMeadow(in TerrainSource source)
         {
             if (!playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
@@ -2091,8 +2151,11 @@ namespace Punchy.Debugging
                         var flat = true;
                         var inward = new float3(-dir.x, 0f, -dir.y);
                         var across = new float3(-dir.y, 0f, dir.x);
-                        for (int q = 0; q < 5 && flat; q++)
+                        // (A wall's cap is thin: for a wall climber's test only the first 0.4 m in and the sides are asked.)
+                        for (int q = 0; q < (wallRequest ? 5 : 5) && flat; q++)
                         {
+                            if (wallRequest && (q == 1 || q == 2))
+                                continue;
                             var probe = hit.Edge + inward * (q < 3 ? 0.4f * (q + 1) : 0.8f) + across * (q == 3 ? 0.5f : q == 4 ? -0.5f : 0f);
                             probe.y = hit.Height - 0.3f;
                             flat = PropSupport.Sample(ref set, props, probe, 0.2f, 0.6f, out var top) && math.abs(top.Height - hit.Height) < 0.15f;
@@ -2128,6 +2191,12 @@ namespace Punchy.Debugging
                 PlayerMovementSystem.WallProbe.Data = 1;
                 StartClimbTest(t.Position, rim, rim, false, $"wall at ({V(rim.x)}, {V(rim.y)}, {V(rim.z)}), {bestHit.Height - bestFeet.y:F1} m up; player from ({V(t.Position.x)}, {V(t.Position.z)})");
                 climbWall = true;
+                // (A-13: a side view of the climb, 5 m off to one side and level with the rim, for the mid-climb shot.)
+                var wallAcross = math.normalizesafe(rim.xz - t.Position.xz, new float2(0f, 1f));
+                var wallSide = new float2(wallAcross.y, -wallAcross.x);
+                var wallMid = (rim.xz + t.Position.xz) * 0.5f + wallAcross * 0.3f;
+                PoseCamera(new Vector3(wallMid.x + wallSide.x * 5f, rim.y + 0.3f, wallMid.y + wallSide.y * 5f),
+                           Quaternion.LookRotation(new Vector3(wallMid.x, rim.y - 0.6f, wallMid.y) - new Vector3(wallMid.x + wallSide.x * 5f, rim.y + 0.3f, wallMid.y + wallSide.y * 5f)));
                 return;
             }
             climbWall = false;
@@ -2155,6 +2224,7 @@ namespace Punchy.Debugging
             if (System.Array.IndexOf(LaunchArgs, "-autowalk") < 0)
                 return;
             climbHome = home.xz;
+            climbHomeY = home.y;
             climbTarget = target.xz;
             climbJumps = jumps;
             climbSince = Time.time;
@@ -2172,7 +2242,8 @@ namespace Punchy.Debugging
         static bool climbHolding;
         /// <summary>"-place wall": a wall climber's test (up, along, down), and the last time it logged.</summary>
         static bool wallRequest, climbWall;
-        float wallLogAt, wallLastAt;
+        float wallLogAt, wallLastAt, climbHomeY;
+        int wallStage;
         float3 wallLast;
 
         void ClimbTest()
@@ -2216,6 +2287,30 @@ namespace Punchy.Debugging
                 var sideways = phase >= 1.5f && phase < 3.5f && wm.OnWall;
                 if (sideways)
                     PlayerInputSystem.TestMove = new float2(look.y, -look.x);
+                // Up / top-out / step-down events, each logged once per cycle.
+                if (phase < 0.5f)
+                    wallStage = 0;
+                var rise = player.Position.y - climbHomeY;
+                if (wallStage == 0 && wm.OnWall && rise > 0.5f)
+                {
+                    wallStage = 1;
+                    Debug.Log($"DebugControls: wall test: UP, on the wall {V(rise)} m above the start at {V(phase)} s");
+                }
+                if (wallStage <= 1 && !wm.OnWall && wm.Grounded && rise > 1f && toward)
+                {
+                    wallStage = 2;
+                    Debug.Log($"DebugControls: wall test: TOP-OUT, standing on the top {V(rise)} m above the start at {V(phase)} s");
+                }
+                if (wallStage == 2 && !toward && wm.OnWall)
+                {
+                    wallStage = 3;
+                    Debug.Log($"DebugControls: wall test: STEP-DOWN, over the edge and on the wall at {V(rise)} m at {V(phase)} s");
+                }
+                if (wallStage == 3 && !toward && !wm.OnWall && wm.Grounded && rise < 0.5f)
+                {
+                    wallStage = 4;
+                    Debug.Log($"DebugControls: wall test: DOWN, back on the ground at {V(phase)} s");
+                }
                 if (Time.time >= wallLogAt)
                 {
                     wallLogAt = Time.time + 1f;
