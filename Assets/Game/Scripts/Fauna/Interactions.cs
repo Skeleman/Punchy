@@ -137,7 +137,9 @@ namespace Punchy.Fauna
         public static void Apply(ref CreatureState s, ref CreatureBlob b, in TerrainSource terrain, InteractAct act, int holder,
                                  float3 player, float yaw, bool holderIsFolk)
         {
-            var rng = new Random(s.Seed | 1u);
+            // (Its seed mixed with its clock, so each try rolls afresh: from the seed alone, the same animal gave the same
+            // answer every time, and a village child that once walked off always did, #16.)
+            var rng = new Random(BiomeSampling.Scramble(s.Seed ^ math.asuint(s.Clock) * 0x9E3779B9u) | 1u);
             switch (act)
             {
                 case InteractAct.Pet:
@@ -162,8 +164,9 @@ namespace Punchy.Fauna
                         Bolt(ref s, ref b, terrain, player, ref rng);
                         break;
                     }
-                    // A domestic animal that isn't in the mood walks off (a friendly one always is).
-                    if (!b.Friendly && rng.NextFloat() < (carry ? 0.25f : 0.2f))
+                    // A domestic animal that isn't in the mood walks off (a friendly one always is, and so is a
+                    // village child, who is used to being picked up).
+                    if (!b.Friendly && !(b.Child && s.Leash > 0f) && rng.NextFloat() < (carry ? 0.25f : 0.2f))
                     {
                         SetMode(ref s, CreatureMode.Wander);
                         var away = math.normalizesafe(s.Position.xz - player.xz, new float2(1f, 0f));

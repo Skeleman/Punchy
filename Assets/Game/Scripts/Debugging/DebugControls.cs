@@ -95,6 +95,26 @@ namespace Punchy.Debugging
         // ---------------------------------------------------------------- A-09 shots
 
         static bool shotOnHunt;
+        static string huntSpecies;
+
+        /// <summary>"-gaitlog" (A-21, #6): each four-legged species among the loaded creatures and its gallop.</summary>
+        void GaitLog()
+        {
+            if (queryWorld == null || !queryWorld.IsCreated)
+                return;
+            var director = FindAnyObjectByType<FaunaDirector>();
+            using var q = queryWorld.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<CreatureBody>());
+            var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var seen = new System.Collections.Generic.HashSet<int>();
+            foreach (var body in bodies)
+            {
+                ref var b = ref body.Blob.Value;
+                if (!b.Gallops || !seen.Add(body.Species))
+                    continue;
+                Debug.Log($"DebugControls: gait {director?.SpeciesAt(body.Species)?.name}: {(b.LeapingRun ? "Leap" : b.Bounds ? "Bound" : "Rotary")}");
+            }
+            bodies.Dispose();
+        }
         bool huntShotTaken;
         static float colossusShotDistance;
         static string mantrapShotMode;
@@ -123,6 +143,8 @@ namespace Punchy.Debugging
             {
                 var h = states[i];
                 if (h.Mode != CreatureMode.Hunt || h.Stage != 1 || bodies[i].Blob.Value.Habitat == Habitat.Flies)
+                    continue;
+                if (huntSpecies != null && FindAnyObjectByType<FaunaDirector>()?.SpeciesAt(bodies[i].Species)?.name != huntSpecies)
                     continue;
                 var prey = -1;
                 var best = 60f;
@@ -201,7 +223,7 @@ namespace Punchy.Debugging
             {
                 huntShotLogged = true;
                 Debug.Log($"DebugControls: huntside: hunter speed {h.Speed:F1}, mode {h.Mode} stage {h.Stage}, camera {huntSide:F0} m side-on, " +
-                          $"{elapsed:F2} s into the line, plants in the way {blocked}");
+                          $"{elapsed:F2} s into the line, plants in the way {blocked}, leap gather {CreatureAnimator.LeapGather(h.Phase):F2}");
             }
         }
 
@@ -1086,6 +1108,16 @@ namespace Punchy.Debugging
             var huntSideArg = System.Array.IndexOf(args, "-huntside");
             huntSide = huntSideArg >= 0 && huntSideArg + 1 < args.Length && float.TryParse(args[huntSideArg + 1], System.Globalization.NumberStyles.Float,
                 System.Globalization.CultureInfo.InvariantCulture, out var hs) ? hs : 0f;
+            // A-21 (#6): "-leapphase 0.15" holds every leaping run (dogs, cats, wolves) at that point of its stride, for a
+            // shot of each phase; "-hunter Dog" makes -shotonhunt wait for that species; "-gaitlog" logs each loaded
+            // four-legged species' gallop (Leap, Bound or Rotary).
+            var leapArg = System.Array.IndexOf(args, "-leapphase");
+            CreatureAnimator.LeapFreeze.Data = leapArg >= 0 && leapArg + 1 < args.Length && float.TryParse(args[leapArg + 1], System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var lp) ? math.frac(lp) + 1f : 0f;
+            var hunterArg = System.Array.IndexOf(args, "-hunter");
+            huntSpecies = hunterArg >= 0 && hunterArg + 1 < args.Length ? args[hunterArg + 1] : null;
+            if (System.Array.IndexOf(args, "-gaitlog") >= 0)
+                GaitLog();
             // "-remoteroll": a client frames, logs and shoots another player's somersault (#48).
             remoteRoll = System.Array.IndexOf(args, "-remoteroll") >= 0;
             remoteRollStep = 0;

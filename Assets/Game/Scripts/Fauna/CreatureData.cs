@@ -78,6 +78,8 @@ namespace Punchy.Fauna
         /// <summary>Its gallop is a bound (the hind pair together, then the front pair: rabbits, squirrels, weasels)
         /// rather than a rotary gallop (each foot in turn).</summary>
         public bool Bounds;
+        /// <summary>Its gallop is a leaping run (CreatureAnimator.LeapGather): gathered, then a long leap (#6).</summary>
+        public bool LeapingRun;
         /// <summary>Cold-blooded (CreatureSpecies.ColdBlooded): its breath doesn't show in the cold.</summary>
         public bool ColdBlooded;
         /// <summary>No legs, and a chain lying along the ground off the body (a snake's): it moves along a serpentine wave.</summary>
@@ -749,6 +751,7 @@ namespace Punchy.Fauna
             root.BodyLength = species.BodyLength;
             // (Short bodies bound, longer ones gallop, unless the species says.)
             root.Bounds = species.Gallop == GallopStyle.Bound || species.Gallop == GallopStyle.Auto && species.BodyLength < 0.5f;
+            root.LeapingRun = species.Gallop == GallopStyle.Leap;
             // A variant's own proportions (a child's big head, chunky limbs and short legs) on the body it's based on.
             var own = variant != species;
             var headScale = own ? variant.VariantHead : 1f;
@@ -1053,7 +1056,7 @@ namespace Punchy.Fauna
                         continue;
                     var hind = part.Socket.z < 0f;
                     var right = part.Side < 0f;
-                    part.GallopPhase = (hind ? 0f : b.Bounds ? 0.5f : 0.45f) + (b.Bounds ? 0f : right ? 0.1f : 0f);
+                    part.GallopPhase = b.LeapingRun ? 0f : (hind ? 0f : b.Bounds ? 0.5f : 0.45f) + (b.Bounds ? 0f : right ? 0.1f : 0f);
                 }
             var chain = false;
             for (int i = 0; i < b.Parts.Length; i++)

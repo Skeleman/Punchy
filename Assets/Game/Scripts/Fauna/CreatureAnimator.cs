@@ -36,6 +36,27 @@ namespace Punchy.Fauna
         public static readonly SharedStatic<float4> Wind = SharedStatic<float4>.GetOrCreate<WindKey>();
         class WindKey { }
 
+        /// <summary>"-leapphase p" (DebugControls): holds every leaping run at that point of its stride, for shots of
+        /// each phase (#6). 0 = off, otherwise p + 1.</summary>
+        public static readonly SharedStatic<float> LeapFreeze = SharedStatic<float>.GetOrCreate<LeapFreezeKey>();
+        class LeapFreezeKey { }
+
+        /// <summary>
+        /// How gathered a leaping run (CreatureBlob.LeapingRun: dogs, cats, wolves) is at a point of its stride: 1 with all
+        /// four feet under the body, 0 stretched out in the leap. Held gathered, a snap out into the leap, held in the
+        /// air, then eased back in (#6, the owner's spec).
+        /// </summary>
+        public static float LeapGather(float p)
+        {
+            if (LeapFreeze.Data > 0f)
+                p = LeapFreeze.Data - 1f;
+            p = math.frac(p);
+            if (p < 0.3f) return 1f;
+            if (p < 0.38f) return 1f - math.smoothstep(0.3f, 0.38f, p);
+            if (p < 0.68f) return 0f;
+            return math.smoothstep(0.68f, 1f, p);
+        }
+
         /// <param name="detail">Near the camera: the legs fitted to the ground under each foot (the hips lowered on a
         /// slope, each foot reaching for the ground, tipped with it, rolling heel to toe). Further off, where none of
         /// that shows, they keep to the body's plane, saving the ground samples.</param>
@@ -99,8 +120,14 @@ namespace Punchy.Fauna
 
             // Past a run, folk sprint: leaning well in, and lifting clear of the ground between steps.
             var sprint = b.Sprint(s, s.GaitSpeed);
+            // A leaping run (#6): how far into it, and how gathered it is now (1 gathered, 0 in the leap).
+            var leap = b.LeapingRun && !b.Upright ? sprint : 0f;
+            var gather = leap > 0f ? LeapGather(s.Phase) : 0f;
             if (b.Upright)
                 pitch += sprint * 0.3f;
+            // (Gathered, the back rounds and the chest dips; launching into the leap, the nose comes up a little.)
+            else if (b.LeapingRun)
+                pitch += leap * (0.08f * gather - 0.06f * (1f - gather));
             // A gallop rocks the body fore and aft once a stride, the hinds gathering under it and the fores reaching out
             // (Z-50); a bound, which flexes the back more, further.
             else if (b.Gallops)
@@ -171,7 +198,10 @@ namespace Punchy.Fauna
             var up = math.saturate(s.Vertical);
             // (Sprinting folk leave the ground between steps; a gallop has one moment in the air a stride, as the front
             // legs leave the ground and before the hind ones come down.)
-            var lift = height - bob + (b.Gallops
+            // (A leaping run crouches a little gathered and flies clear in the leap, every foot off the ground.)
+            var lift = height - bob + (b.LeapingRun
+                ? leap * b.StandHeight * scale * (0.3f * (1f - gather) - 0.06f * gather)
+                : b.Gallops
                 ? sprint * 0.12f * b.StandHeight * scale * math.pow(math.max(0f, math.cos(2f * math.PI * (s.Phase - 0.02f))), 2f)
                 : sprint * 0.08f * scale * (0.5f + 0.5f * math.cos(4f * math.PI * s.Phase)));
             // Hanging head down in a web, the body sits right at its anchor (the web's centre).
@@ -341,6 +371,25 @@ namespace Punchy.Fauna
                         var spider = math.lerp(stand, b.Angles(seg, jointPhase, 1f, run), math.saturate(gaitMove * 3f));
                         a = math.lerp(spider, b.Poses[k + CreatureBlob.Idle], s.Curl);
                     }
+                    else if (leap > 0f && part.Role == LimbRole.Leg && part.Parent < 0)
+                    {
+                        // A leaping run (#6), from the body's phase rather than each leg's: gathered, the front legs swept
+                        // back and out wide and the hinds forward and centred, all four under the body; in the leap the
+                        // fronts reach forward and the hinds stretch out behind. The run's reach and push keys, the hip's
+                        // swing pushed further than a run's.
+                        var k = seg * CreatureBlob.PoseCount;
+                        var idle = b.Poses[k + CreatureBlob.Idle];
+                        var reachKey = b.Poses[k + CreatureBlob.RunReach];
+                        var pushKey = b.Poses[k + CreatureBlob.RunPush];
+                        var foot = part.SegmentCount >= 3 && j == part.SegmentCount - 1;
+                        var gain = foot ? 1f : j == 0 ? 1.8f : 1.3f;
+                        var gathered = idle + ((hind ? reachKey : pushKey) - idle) * gain;
+                        var extended = idle + ((hind ? pushKey : reachKey) - idle) * (foot ? 1f : gain * 1.15f);
+                        var pose = math.lerp(extended, gathered, gather);
+                        if (!hind && j == 0)
+                            pose.z += part.Side * 0.3f * gather;
+                        a = math.lerp(b.LegAngles(seg, jointPhase, gaitMove, run, sprint), pose, leap);
+                    }
                     else if (part.Role == LimbRole.Leg && sprint > 0f)
                     {
                         // A sprinting leg: the longer stride, and in the swing the knee driven high and the heel kicked up.
@@ -382,7 +431,7 @@ namespace Punchy.Fauna
                     if (torso && j == 0)
                         a.x += lean;
                     if (part.Role == LimbRole.Head && j == 0)
-                        a += headTilt;
+                        a += headTilt + new float3(0.2f * leap * gather, 0f, 0f);
                     // A guard's right arm: bent to hold its weapon upright at its side once it's drawn, or raised forward
                     // with a torch; running at a beast, the weapon levelled at it, held low and forward at the hip. (With
                     // the weapon worn, or an elf's bow on its back, the arms swing free.)

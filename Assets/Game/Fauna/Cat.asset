@@ -18,6 +18,7 @@ MonoBehaviour:
   VariantThickness: 1
   VariantLegs: 1
   BodyLength: 0.85
+  Gallop: 3
   BodyRadius: 0.15
   BodyTaper: 0.95
   BodyFlatten: 1.1
