@@ -381,7 +381,7 @@ half PunchyCirrus(float3 dir)
 float PunchyHash1(float x) { return frac(sin(x * 12.9898) * 43758.5453); }
 
 // Shooting stars: the night is cut into 6 s slots on the shared clock, and in a slot a streak may cross the sky (about
-// one slot in four; on a meteor shower night up to four in nearly every slot). Where it starts, which way it falls,
+// one slot in sixteen, about 0.6 a night minute; on a meteor shower night up to four in nearly every slot). Where it starts, which way it falls,
 // how long and how fast all come from a hash of its slot, so every player sees the same ones. The shower comes once a
 // lunar cycle, a couple of nights after the full moon (the moon's phase is shared too).
 half3 PunchyShootingStars(float3 dir)
@@ -397,7 +397,7 @@ half3 PunchyShootingStars(float3 dir)
         if (k >= count)
             break;
         float s = fmod(slot, 4096) * 7.13 + k * 31.7;
-        if (PunchyHash1(s) > (shower > 0.5 ? 0.9 : 0.25))
+        if (PunchyHash1(s) > (shower > 0.5 ? 0.9 : 0.06))
             continue;
         float start = PunchyHash1(s + 1.1) * (slotLength - 1.5);
         float life = lerp(0.5, 1.1, PunchyHash1(s + 2.3));
@@ -421,7 +421,7 @@ half3 PunchyShootingStars(float3 dir)
         float head = len * t;
         float tail = len * 0.35;
         half trail = saturate(1 - (head - along) / tail) * step(along, head) * step(head - tail, along);
-        half streak = 1 - smoothstep(0.0012, 0.0035, across);
+        half streak = 1 - smoothstep(0.0005, 0.0015, across);
         sum += half3(1.0, 0.95, 0.85) * trail * trail * streak * sin(t * 3.1416) * 5;
     }
     return sum;
