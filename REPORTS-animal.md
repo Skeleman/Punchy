@@ -875,3 +875,25 @@ NOT DONE (task 3 shot). animal-behaviours 855a835 pushed.
 - Shots: D:\Unity\PunchyMilestones\animal\a26\a26-shot0..4-800.png (full size in shots\).
 - NEXT: in play mode, count Mode/Task/Leash of Stonewick folk at 30-60 s, widen ChatFree if needed, retake
   with `-chatshot` on the `-place` line. Merge main into animal-behaviours for the hash line.
+
+## A-27 (2026-11-02): merge main, folk keep talking
+NOT DONE (task 3 shot; task 2 partly). animal-behaviours c601c66 pushed (merge ed767e0 of main 0cc3ed7).
+- Task 1: merged main with a merge commit, no conflicts, 0 compile errors, pushed.
+- Task 2: ChatFree now also allows the walk to and the stay at a post, and the walk to a seat. A talk from work
+  goes back to the post. The reach is 30 m (they walk up to each other), with a wider grid search. Rarity limits
+  unchanged.
+  - New `-chatmix` 15 s mix log. It shows no stale roles. The limits are the 90-200 s cooldown and free folk
+    30-130 m apart.
+  - Build run 1 (114 s): 3, 1 talks per minute. Run 2 (276 s): 1, 1, 0, 0, 1 (gap from 90 to 240 s).
+  - Talks now continue past the first 20 s (before: none after 20 s). Two-minute gaps remain.
+- Task 3: `-chatshot` framed a pair at the Stonewick well, side-on at 4 m, 0 plants in the way. It is not
+  usable: the two stood 0.3-0.5 m apart, overlapping, and no bubble showed. `-nohud` hides bubbles
+  (InteractionPrompt.Hidden). Run 2 had the HUD on and still no bubble. Viewed at 800 px.
+- Task 4: `[island] generator version 1 (baked); 101 landmarks, hash E128CB1D` in both runs.
+- Checks: compile clean, build Succeeded, 0 exceptions, both players quit on their own (no Punchy.exe of mine left).
+- Shots: D:\Unity\PunchyMilestones\animal\a27\a27-shot-0..3.png (run 1, -nohud) and a27-run2-shot-0..4.png
+  (run 2, HUD on). Full size in full\ and full2\. Logs: a27_log.txt, a27_log2.txt.
+- Budget: over (about 100 calls, 2 builds plus one rerun of build 2 without a new build). The soft allowance
+  was used for the reach fix and the bubble retry.
+- NEXT: fix the talk spacing when the pair is already close (well/seat) and why no bubble shows. Then retake the
+  shot without `-nohud`. Ask Zach whether 2-minute gaps are fine or whether the cooldown should drop.
