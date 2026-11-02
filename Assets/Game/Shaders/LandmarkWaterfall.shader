@@ -52,9 +52,9 @@ Shader "Punchy/Landmark Waterfall"
                 float2 uv = input.uv;
                 // A cave's fall is small and seen close: finer, faster streaks with gaps between them.
                 float fine = lerp(1.0, 3.5, e.underRock);
-                // A landmark's fall runs its whole length in the effect's Lifetime (Z-35: it used to crawl at a fixed
-                // rate whatever its height); a cave's keeps its own pace.
-                float speed = e.underRock > 0.5 ? 1.62 : input.fallLength / 3.0 / max(e.shape.w, 0.3);
+                // A landmark's or river's fall runs its whole length in half the effect's Lifetime (Z-35: it used to
+                // crawl at a fixed rate whatever its height; W-22 #13: twice as fast again); a cave's keeps its own pace.
+                float speed = e.underRock > 0.5 ? 1.62 : 2.0 * input.fallLength / 3.0 / max(e.shape.w, 0.3);
                 // Streaks: narrow across, long down, rushing downwards.
                 float along = uv.y * input.fallLength / 3.0 * lerp(1.0, 1.3, e.underRock) - _Time.y * speed;
                 float streak = PunchyValueNoise(float2(uv.x * e.shape.y * 1.6 * fine, along)) * 0.6 +

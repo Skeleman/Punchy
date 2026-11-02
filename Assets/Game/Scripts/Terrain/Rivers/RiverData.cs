@@ -145,6 +145,7 @@ namespace Punchy.Terrain
         public float Width;
         public float Carve;      // lowest carved height among nearby rivers (handles confluences)
         public float Water;      // water surface of the river that carved the ground lowest here
+        public float FallWater;  // upper surface of a waterfall whose channel covers this point above its lip (else MinValue)
         public float2 Flow;      // downstream direction at the closest point
         public float Gradient;   // drop per metre of the riverbed at the closest point
     }
@@ -193,7 +194,7 @@ namespace Punchy.Terrain
 
         public static RiverQuery Query(ref RiverMapBlob map, in RiverSettings s, float2 xz)
         {
-            var q = new RiverQuery { Carve = float.MaxValue, Distance = float.MaxValue };
+            var q = new RiverQuery { Carve = float.MaxValue, Distance = float.MaxValue, FallWater = float.MinValue };
             var cell = (int2)math.floor((xz - map.Origin) / map.CellSize);
             for (int y = -1; y <= 1; y++)
             for (int x = -1; x <= 1; x++)
@@ -203,6 +204,11 @@ namespace Punchy.Terrain
                 Consider(ref map, s, xz, candidates.x, ref q);
                 Consider(ref map, s, xz, candidates.y, ref q);
             }
+            // Above a waterfall's lip the pool below carves its wide bowl back up under the upper river (cells are
+            // narrower than the channel), so the lower water would win there and leave land between the two surfaces.
+            // The upper surface runs on to the lip instead, and the curtain falls from there (W-22).
+            if (q.FallWater > q.Water)
+                q.Water = q.FallWater;
             return q;
         }
 
@@ -277,7 +283,8 @@ namespace Punchy.Terrain
             var endLevel = down >= 0 ? map.Bed[down] : map.Bed[start];
             var endWidth = down >= 0 && map.Width[down] > 0f ? map.Width[down] : map.Width[start];
             // A waterfall is a step in the bed half way along the segment.
-            var tl = s.FallDrop > 0f && map.Bed[start] - endLevel >= s.FallDrop ? math.smoothstep(0.46f, 0.54f, t) : t;
+            var fall = s.FallDrop > 0f && map.Bed[start] - endLevel >= s.FallDrop;
+            var tl = fall ? math.smoothstep(0.46f, 0.54f, t) : t;
             var level = math.lerp(map.Bed[start], endLevel, tl);
             var width = math.lerp(map.Width[start], endWidth, t);
             var carve = Profile(distance, level, width, s);
@@ -288,6 +295,8 @@ namespace Punchy.Terrain
                 q.Carve = carve;
                 q.Water = math.lerp(map.WaterLevel[start], down >= 0 ? map.WaterLevel[down] : map.WaterLevel[start], tl);
             }
+            if (fall && tl < 0.5f && distance < width * 0.5f)
+                q.FallWater = math.max(q.FallWater, math.lerp(map.WaterLevel[start], map.WaterLevel[down], tl));
             if (distance - width * 0.5f < q.Distance - q.Width * 0.5f)
             {
                 q.Found = true;

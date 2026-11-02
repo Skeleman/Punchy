@@ -65,3 +65,16 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   With a biome map (island v2) the core test uses the map's sharp weights: the blurred shape weights never pass
   0.4 in its small swamp patches, which left v2 with no ponds at all.
 - Roads (W-16): the A* routes run in parallel on a managed copy of the cost grid with a precomputed wander array; Emit and bridge sampling run in parallel and are added serially in pair order, so output is identical. The `[bake] stages` line splits settlements into towns/roads/roadside/blob. Settlements went from about 970 ms to about 290 ms (editor bench, hash unchanged).
+
+## Island version and waterfalls (W-22)
+
+- v2 is the default island: no flag runs v2 (landmarks 125 / AFA9CC63, cave hash D531293D622E785A since the W-21
+  biome-blend fix). `-island v1` or PUNCHY_ISLAND=v1 runs v1 (101 / E128CB1D). The island isn't synced over the
+  network: host and client each read their own launch, so start both the same way.
+- BiomeData.SampleMapBlurred sums every biome id's weight and keeps the top 4 minus the 5th. Keeping only the first 4
+  ids it met made weights jump where a fifth biome came in, which raised vertical walls and pits.
+- Above a fall's lip the lower pool's wide channel reaches back under the upper river (river cells are 16 m, channels
+  up to ~50 m), so the lowest-carve rule picked the lower water and land showed between the surfaces.
+  RiverQuery.FallWater keeps the upper surface up to the lip.
+- Surface falls run their length in half the effect's lifetime (LandmarkWaterfall.shader); cave falls keep 1.62.
+  LandmarkEffectSystem.FallSounds plays WaterfallRush loops at the 4 nearest falls, logged as `[falls] sound sources`.
