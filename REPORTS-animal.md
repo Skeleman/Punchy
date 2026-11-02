@@ -830,3 +830,8 @@ different files.
 - #16 met: the walk-off is rolled per attempt, and a settled village child never walks off. The build log shows HumanChild Held in the Carry pose on 2 of 2 carries, and a shot shows the adult holding the child.
 - #7 met: a dog sprinting at a jackrabbit 7.7 m away, side-on, both in frame.
 - NEXT: Zach's look at the leap poses (front-leg spread, gather hold length).
+
+## A-22 (2026-11-02): render-system cave cost, leap retake, animal-behaviours 7844da3 (one build)
+- #23 met on v1: the cause was the cave cull's per-creature managed SampleHeight on the main thread, at 1.6 ms (100 creatures) and 2.1 ms (131). Now a Burst job at 0.03-0.04 ms. System total 1.9 -> 0.33 ms and 2.4 -> 0.44 ms. The before/after cave shots look the same. Not yet confirmed on v2.
+- #6 retake: the log reads "4 m side-on", but in the shot the wolf faces the camera, so the gathered phase is not shown side-on.
+- NEXT: on v2, `-renderpasslog` with and without `-oldcull`; make -huntside place the camera from the hunter's heading at shot time.

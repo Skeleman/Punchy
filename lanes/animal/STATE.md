@@ -1,7 +1,17 @@
-# Animal lane: state (2026-11-02, after batch A-21)
+# Animal lane: state (2026-11-02, after batch A-22)
 
-Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 08da339 (A-21).
-Builds/Windows is the A-21 build. Editor open on port 7800; no Punchy.exe of ours running.
+Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 7844da3 (A-22).
+Builds/Windows is the A-22 build. Editor open on port 7800; no Punchy.exe of ours running.
+
+## A-22 (artefacts PunchyMilestones/animal/a22/)
+- #23: cave cull did a managed TerrainSource.SampleHeight per creature on the main thread when SurfaceHidden.
+  v1 cave 3: cull 1.6 ms at 100 creatures, 2.1 ms at 131 (Mono player). Now a Burst job (.Run()): 0.03-0.04 ms.
+  System total 1.9 -> 0.33 ms (100) and 2.4 -> 0.44 ms (131). cavebefore/caveafter-800 look the same.
+  Not checked on v2 (not in this tree): run `-renderpasslog` with and without `-oldcull` there.
+- #6 retake: log says "4 m side-on, gather 1.00", but the wolf faces the camera in leapgather4-800, so it is not side-on.
+  -huntside places the camera from the line, not from the hunter's heading at shot time.
+- New flags: `-renderpasslog` (ms per pass every 3 s), `-oldcull` (old managed cull for comparisons).
+- `-incave` on the same line as `-goto` picks the cave nearest the start; put it on the next line.
 
 ## A-21 (artefacts PunchyMilestones/animal/a21/)
 - #6 met in the build: GallopStyle.Leap (double suspension). Gathered (feet under body, front legs back and wide, spine
@@ -30,20 +40,13 @@ Builds/Windows is the A-21 build. Editor open on port 7800; no Punchy.exe of our
 - #16 partly met: weights in kg in all 113 species, CarryCapacity 40 kg. Dog 36.4 kg was held; adult Human 65.2 kg
   was too heavy. HumanChild 23.6 kg passed the weight check, but the spawned (wild) child fled, so no pick-up.
 
-## A-18 (artefacts PunchyMilestones/animal/a18/)
-- #43: close calls (within 6 m) still play but spend the budget (debt down to 10). Herd test 73 calls in 2 min =
-  36.5/min (A-15 ~47); after the first window 36.0/min. The extra call is the 2-call saved burst.
-- #6: -huntside now counts shrubs/trees between camera and hunter and takes the clearer side. Meadow (-255, 27):
-  whole wolf, 9.9 m/s, mid-bound with legs gathered, 0 plants in the way (hunt-800.png). Zach's look.
-- #49: after the host quits, the client reloads into solo and logs DunesColossus and Mantrap placed again; 0 exceptions.
-
 ## Unverified (merged anyway; Zach's check in the build)
 - #41 (A-10c, ae5b491): head glow fixed; host-to-client lunge not shown. Plant shove never landed in a test.
 - #8 Z-52: live folk lines seen only twice.
 
 ## Open
 - #12: numbers in (A-16); Zach's look. #33: sideways still 0 m/s on stick right.
-- #6 (leaping run), #7, #16, #43, #49: Zach's look.
+- #6 (leaping run, side-on gather shot), #7, #16, #43, #49: Zach's look. #23: confirm on v2.
 - Dormouse Climb 11-70 deg/s, probably round a trunk; secondary.
 - #10 new species (needs design).
 - Animals still flee a flyer high above (confirm with Zach before filing more).
