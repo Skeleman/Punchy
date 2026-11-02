@@ -961,3 +961,24 @@ DONE (all four rows). animal-behaviours de2e8e0, on top of the origin/main merge
 - Shots: PunchyMilestones animal/a29: a29-talk-2.png (role line), a29-smith-at-work.png, a29-baker-at-work.png,
   a29-wellkeeper.png, a29-talk-healer-line.png (bubble shows "..."); full size in raw/.
 - NEXT: job-specific work poses or props; Job as a ghost field if jobs ever stop following the task.
+## A-30 (2026-11-02): cave collision and camera
+- Row 1 DONE: causes were that the body radius did not scale with size (0.35 m always), the ground probe was one
+  point, there was one wall test at floor+1 m and no ceiling test, and steps were only blocked over 0.6 m. Old max
+  penetration on v2: seg 246 (65 deg) 0.46 (size 1), 0.60 (size 1.6); seg 87 (55 deg) 0.79 (size 1.6); seg 9 0.34;
+  bat chamber 0.14.
+- Row 2 MOSTLY: PlayerMovementSystem.PushOutOfSolids (knee/middle/head spheres scaled to size, 4 passes, steep
+  floor slide, ceiling undo); SolidDistance is the landmark hook. New max: seg 246 0.035 / 0.039, seg 9 and the
+  chamber 0. Left: seg 87 brief spikes up to 0.20 (6 of ~624 frames), size 0.45 wedged at about 0.05 on seg 246.
+  Open ground is untouched (gated on caves).
+- Row 3 DONE (no avatar fade): CaveArm sphere trace, ease out, pivot drop under ceilings, near plane 0.1 / 0.05.
+  Probe over 10368 views: view-in-rock 589 -> 12, lens-in-rock 239 -> 25.
+- Row 4 PARTIAL: one build, succeeded, v2 125 / D709D95C, quit on its own. The camera shots are clean (wall,
+  wall2, passage, ceiling: no rock interior). The slope before/after shots show only dark rock (`-camlook`
+  framing missed the body), so there is no visual before/after.
+- World card: TerrainSource.CaveDistance overstates the distance by up to 1.8x below a passage's axis; make it a
+  true lower bound.
+- Commits bd26880, f50f7a0 on animal-behaviours, pushed.
+- Shots: PunchyMilestones animal/a30: a30-cam-wall.png, a30-cam-wall2.png, a30-cam-passage.png,
+  a30-cam-ceiling.png, a30-slope-before.png and a30-slope-after.png (unusable); full size in raw/.
+- NEXT: retake the slope shots with `-goto` + `-view`; seg 87 spikes and the small-body wedge; avatar fade; the
+  talk-bubble "..." (A-29); v1 hash check.
