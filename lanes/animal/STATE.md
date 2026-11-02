@@ -1,6 +1,7 @@
 # Animal lane: state (2026-11-02)
 
 Worktree `Punchy` (main PC; only the animal lane writes there), branch `animal-behaviours` c810406.
+Branch head 2026-11-02: 4cb6ba3 (v0.11.0 tree + docs split; both lanes start here).
 Backlog: `gh issue list -l lane:animal`. Released: v0.11.0 includes c810406 (Z-20 InteractRpc fix).
 
 ## In flight: P3 rows, one combined branch, nothing compiled yet
