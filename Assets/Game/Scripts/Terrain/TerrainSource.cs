@@ -809,6 +809,33 @@ namespace Punchy.Terrain
         public bool IsRock(float3 p, float margin = 0f) =>
             p.y < SampleHeight(p.xz) - margin && CaveDistance(p) > -margin;
 
+        /// <summary>The climbable tower (W-27, SaltTowerShape) whose steps reach a point, if any, and its height.</summary>
+        public bool Tower(float2 xz, out LandmarkInstance tower, out float height)
+        {
+            tower = default;
+            height = 0f;
+            if (!Landmarks.IsCreated)
+                return false;
+            ref var set = ref Landmarks.Value;
+            var range = LandmarkSampling.CellRange(ref set, xz);
+            for (int k = range.x; k < range.x + range.y; k++)
+            {
+                var inst = set.Instances[set.Items[k]];
+                var h = set.Types[inst.Type].TowerHeight;
+                if (h > 0f && math.distancesq(inst.Position, xz) < SaltTowerShape.Reach * SaltTowerShape.Reach)
+                {
+                    tower = inst;
+                    height = h;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>Whether the tower's body or a step too high to step onto stands where a body at p would be (W-27).</summary>
+        public bool TowerWall(float3 p, float stepUp, float head) =>
+            Tower(p.xz, out var tower, out var height) && SaltTowerShape.Wall(SaltTowerShape.Layout(tower, height), p, stepUp, head);
+
         /// <summary>A bridge deck under a point that's on or just below it (see SettlementSampling.Deck).</summary>
         public bool Deck(float3 p, out float deck)
         {
@@ -840,6 +867,8 @@ namespace Punchy.Terrain
         public float FloorUnder(float3 p, out bool inCave)
         {
             inCave = false;
+            if (Tower(p.xz, out var tower, out var towerHeight) && SaltTowerShape.Floor(SaltTowerShape.Layout(tower, towerHeight), p, out var step))
+                return math.max(step, SampleHeight(p.xz));
             if (Deck(p, out var deck))
                 return math.max(deck, SampleHeight(p.xz));
             var surface = SampleHeight(p.xz);

@@ -146,6 +146,17 @@ namespace Punchy.Terrain
                     before.Dispose();
                 }
             }
+            // W-27: one-per-island landmarks (the salt tower) go last of all, once roads and settlements are known.
+            if (source.Landmarks.IsCreated)
+            {
+                var singles = SaltTowerBaking.Place(source, palette, landmarkTypes);
+                if (singles.Count > 0)
+                {
+                    var before = source.Landmarks;
+                    source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, singles, allocator);
+                    before.Dispose();
+                }
+            }
             Stage("settlements");
             stages.Append(' ').Append(SettlementBaking.LastTiming);
             if (source.Landmarks.IsCreated)

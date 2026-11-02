@@ -160,6 +160,8 @@ namespace Punchy.Player
                 var blocked = false;
                 if (tops)
                     position.xz = KeepOutOfPropWalls(ref grids.Set.Value, props, from, position.xz, stepUp, 1.7f * size, out blocked);
+                // The salt tower's body and its steps from below (W-27): slid along the same way.
+                position.xz = KeepOutOfTower(terrain, from, position.xz, stepUp, 1.7f * size, ref blocked);
 
                 // A ledge within reach ahead: climbed onto, for a jump at it (or reaching it in the air, pressing on).
                 var pressing = math.lengthsq(input.MoveDirection) > 0.04f;
@@ -631,6 +633,17 @@ namespace Punchy.Player
                 return slideX;
             var slideZ = new float2(from.x, to.y);
             return !PropSupport.Wall(ref set, props, new float3(slideZ.x, from.y, slideZ.y), stepUp, head, out _) ? slideZ : from.xz;
+        }
+
+        /// <summary>A move into the salt tower's body or a step too high to step onto: cut back to its clear X or Z part, or cancelled.</summary>
+        static float2 KeepOutOfTower(in TerrainSource terrain, float3 from, float2 to, float stepUp, float head, ref bool blocked)
+        {
+            if (!terrain.TowerWall(new float3(to.x, from.y, to.y), stepUp, head))
+                return to;
+            blocked = true;
+            if (!terrain.TowerWall(new float3(to.x, from.y, from.z), stepUp, head))
+                return new float2(to.x, from.z);
+            return !terrain.TowerWall(new float3(from.x, from.y, to.y), stepUp, head) ? new float2(from.x, to.y) : from.xz;
         }
 
         /// <summary>
