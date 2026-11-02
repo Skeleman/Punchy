@@ -491,6 +491,24 @@ namespace Punchy.Fauna
                             a += (j == 0 ? new float3(-1.25f, 0f, part.Side * 0.6f) : j == 1 ? new float3(-0.7f, 0f, 0f) : float3.zero) * reach;
                         }
                     }
+                    // Two folk talking (A-26): the one talking with both forearms up in front, hands going as it speaks (the
+                    // right more than the left); the one listening with its arms easy at its sides, nodding now and then.
+                    if (b.Upright && s.Mode == CreatureMode.Idle && (s.Stage == ChatTalk || s.Stage == ChatListen))
+                    {
+                        if (part.Role == LimbRole.Arm && s.Stage == ChatTalk)
+                        {
+                            a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.9f);
+                            var big = part.Side > 0f ? 1f : 0.55f;
+                            var beat = math.sin(s.Clock * 4.1f + part.Side * 1.3f) * 0.6f + math.sin(s.Clock * 6.7f + part.Side) * 0.4f;
+                            a += (j == 0 ? new float3(-0.35f - 0.18f * beat, 0f, part.Side * (0.12f + 0.1f * beat))
+                                : j == 1 ? new float3(-1.05f - 0.35f * beat, 0f, 0f) : float3.zero) * big;
+                        }
+                        else if (part.Role == LimbRole.Arm)
+                            a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.8f);
+                        if (part.Role == LimbRole.Head && j == 0)
+                            a.x += s.Stage == ChatListen ? 0.22f * math.max(0f, math.sin(s.Clock * 4.5f)) * math.saturate(math.sin(s.Clock * 0.8f) * 3f)
+                                                         : 0.07f * math.sin(s.Clock * 6.3f);
+                    }
                     // One of the folk at a hive: the stick hand up over the head jabbing at the comb, the other half up
                     // to shield the face; running off with it, that free arm flapping at the bees.
                     if (b.Upright && part.Role == LimbRole.Arm && s.Mode == CreatureMode.Work && j <= 1)
@@ -955,6 +973,8 @@ namespace Punchy.Fauna
         /// <summary>Idle-mode stages of one of the townsfolk a messenger bird has come to: waiting for it (the forearm
         /// up for it to land on), taking the message from its leg, reading it.</summary>
         public const byte MessageWait = 60, MessageTake = 61, MessageRead = 62;
+        /// <summary>Idle stages: two folk stopped to talk, the one talking (hands going) and the one listening (nodding). A-26.</summary>
+        public const byte ChatTalk = 70, ChatListen = 71;
         /// <summary>Work-mode stages of a bear raiding a wild hive: on its way, reared up at the comb, making off.
         /// (The bees mob it while it's at the comb: CreatureRenderSystem's Swarm.)</summary>
         public const byte RaidWalk = 150, RaidAtComb = 151, RaidLeave = 152, RaidLick = 153;

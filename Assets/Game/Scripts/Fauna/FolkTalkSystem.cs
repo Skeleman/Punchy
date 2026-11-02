@@ -40,6 +40,27 @@ namespace Punchy.Fauna
         public static int LinesSaid, Answers;
         public static bool Quiet;
         /// <summary>
+        /// Two folk stopped to talk (A-26, CreatureBrainSystem.Chatting): a small "..." over the head of whichever is
+        /// talking (from the Stage byte, so every machine shows it); and on the host or solo (where who is talking to
+        /// whom is known) one log line per talk, with the pair, the place and how long it went on. Talks logged since start.
+        /// </summary>
+        public static readonly List<float3> Bubbles = new List<float3>();
+        public static int Chats;
+        struct Chat
+        {
+            public Entity With;
+            public string Names;
+            public float Start;
+            public float3 At;
+            public int Children;
+            /// <summary>How far apart the pair stood (m, last seen while both were in the talk; A-28).</summary>
+            public float Apart;
+        }
+        readonly Dictionary<Entity, Chat> chats = new Dictionary<Entity, Chat>();
+        readonly Dictionary<Entity, int> childrenBy = new Dictionary<Entity, int>();
+        readonly HashSet<Entity> talking = new HashSet<Entity>();
+        readonly List<Entity> ended = new List<Entity>();
+        /// <summary>
         /// Tests ("-stancelog", Z-52): log each line with the speaker's stance, and once per player body, how every folk
         /// species takes that body over 4000 individuals (the odds the stance hash gives).
         /// </summary>
@@ -94,6 +115,7 @@ namespace Punchy.Fauna
         {
             var now = UnityEngine.Time.time;
             Tidy(now);
+            WatchChats(now, SystemAPI.TryGetSingleton<TerrainSource>(out var chatTerrain), chatTerrain);
             var archive = DialogueArchive.Current;
             if (archive == null || Quiet || playerQuery.CalculateEntityCount() != 1 || !SystemAPI.TryGetSingleton<TerrainSource>(out var terrain))
                 return;
@@ -196,7 +218,138 @@ namespace Punchy.Fauna
                 Shown.Add(new Said { Who = entities[i], Text = text, Head = Head(s, ref b), Start = now, Until = now + 3.5f + text.Length * 0.05f });
             }
             FolkTalkLabels.Ensure();
-            FolkTalkLabels.Show(Shown.Count > 0);
+            FolkTalkLabels.Show(Shown.Count > 0 || Bubbles.Count > 0);
+        }
+
+        /// <summary>
+        /// Tests ("-chatmix", A-27): every 15 s, what the townsfolk within 80 m of the camera are doing (by Mode, how many
+        /// are leashed to a home, waiting out a talk's cooldown, and free to stop for one), and the talks of 4 s or more
+        /// that ended in those 15 s.
+        /// </summary>
+        public static bool ChatMix;
+        float nextMix = 15f;
+        int talksThisWindow;
+
+        void LogMix(float now, float3 at, NativeArray<CreatureState> states, NativeArray<CreatureBody> bodies)
+        {
+            nextMix = now + 15f;
+            var modes = new SortedDictionary<string, int>();
+            int folk = 0, leashed = 0, cooling = 0, free = 0;
+            int starters = 0, stale = 0;
+            var closest = float.MaxValue;
+            for (int i = 0; i < states.Length; i++)
+            {
+                var s = states[i];
+                ref var b = ref bodies[i].Blob.Value;
+                if (!b.Upright || !b.Hands || b.Haunts || b.Child || s.Mode == CreatureMode.Puppet || math.distancesq(s.Position, at) > 80f * 80f)
+                    continue;
+                folk++;
+                var key = s.Mode == CreatureMode.Work || s.Mode == CreatureMode.Sit ? $"{s.Mode}{s.Stage}" : s.Mode.ToString();
+                modes[key] = (modes.TryGetValue(key, out var n) ? n : 0) + 1;
+                if (s.Leash > 0f)
+                    leashed++;
+                if (s.ChatCool > 0f)
+                    cooling++;
+                if (CreatureBrainSystem.ChatFree(in s, ref b))
+                    free++;
+                if (s.ChatRole == 1)
+                    starters++;
+                if (s.ChatRole != 0 && !(s.Mode == CreatureMode.Idle && (s.Stage == CreatureAnimator.ChatTalk || s.Stage == CreatureAnimator.ChatListen)))
+                    stale++;
+                if (s.ChatCool <= 0f && s.ChatRole == 0 && CreatureBrainSystem.ChatFree(in s, ref b))
+                    for (int j = i + 1; j < states.Length; j++)
+                    {
+                        ref var ob = ref bodies[j].Blob.Value;
+                        if (!ob.Child && states[j].ChatCool <= 0f && states[j].ChatRole == 0 && CreatureBrainSystem.ChatFree(states[j], ref ob))
+                            closest = math.min(closest, math.distance(states[j].Position.xz, s.Position.xz));
+                    }
+            }
+            var mix = new System.Text.StringBuilder();
+            foreach (var pair in modes)
+                mix.Append($" {pair.Key}:{pair.Value}");
+            UnityEngine.Debug.Log($"FolkChat mix at {now:F0} s: {folk} grown folk within 80 m, leashed {leashed}, cooling {cooling}, " +
+                                  $"free {free}, starters {starters}, stale {stale}, closest free pair {(closest < 1e6f ? closest.ToString("F0") + " m" : "none")}, talks (>=4 s) in the last 15 s: {talksThisWindow}; modes{mix}");
+            talksThisWindow = 0;
+        }
+
+        void WatchChats(float now, bool hasTerrain, in TerrainSource terrain)
+        {
+            Bubbles.Clear();
+            if (director == null && UnityEngine.Time.frameCount % 60 == 0)
+                director = Object.FindAnyObjectByType<FaunaDirector>();
+            var cam = Camera.main;
+            var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var entities = query.ToEntityArray(Allocator.Temp);
+            talking.Clear();
+            childrenBy.Clear();
+            for (int i = 0; i < states.Length; i++)
+            {
+                var s = states[i];
+                if (s.Mode != CreatureMode.Idle || s.Stage != CreatureAnimator.ChatTalk && s.Stage != CreatureAnimator.ChatListen)
+                    continue;
+                if (s.Stage == CreatureAnimator.ChatTalk && !Quiet && cam != null && math.distancesq((float3)cam.transform.position, s.Position) < 30f * 30f)
+                    // (Clear of the head: Head is about eye height, where a bare "..." read as a pair of eyes; A-28.)
+                    Bubbles.Add(Head(s, ref bodies[i].Blob.Value) + new float3(0f, 0.4f, 0f));
+                if (s.ChatRole == 3)
+                    childrenBy[s.Partner] = (childrenBy.TryGetValue(s.Partner, out var n) ? n : 0) + 1;
+                if (s.ChatRole != 1)
+                    continue;
+                talking.Add(entities[i]);
+                if (!chats.ContainsKey(entities[i]))
+                {
+                    var other = EntityManager.Exists(s.Partner) && EntityManager.HasComponent<CreatureBody>(s.Partner)
+                        ? director?.SpeciesAt(EntityManager.GetComponentData<CreatureBody>(s.Partner).Species)?.name : null;
+                    chats[entities[i]] = new Chat
+                    {
+                        With = s.Partner,
+                        Names = $"{director?.SpeciesAt(bodies[i].Species)?.name ?? "?"} & {other ?? "?"}",
+                        Start = now,
+                        At = s.Position
+                    };
+                }
+                if (EntityManager.Exists(s.Partner) && EntityManager.HasComponent<CreatureState>(s.Partner))
+                {
+                    var p = EntityManager.GetComponentData<CreatureState>(s.Partner);
+                    if (p.Mode == CreatureMode.Idle && (p.Stage == CreatureAnimator.ChatTalk || p.Stage == CreatureAnimator.ChatListen))
+                    {
+                        var c = chats[entities[i]];
+                        c.Apart = math.distance(p.Position.xz, s.Position.xz);
+                        chats[entities[i]] = c;
+                    }
+                }
+            }
+            foreach (var pair in childrenBy)
+                if (chats.TryGetValue(pair.Key, out var c) && pair.Value > c.Children)
+                {
+                    c.Children = pair.Value;
+                    chats[pair.Key] = c;
+                }
+            ended.Clear();
+            foreach (var pair in chats)
+                if (!talking.Contains(pair.Key))
+                    ended.Add(pair.Key);
+            foreach (var e in ended)
+            {
+                var c = chats[e];
+                chats.Remove(e);
+                Chats++;
+                if (now - c.Start >= 4f)
+                    talksThisWindow++;
+                var town = hasTerrain ? HomeTown(new CreatureState { Position = c.At }, terrain) : null;
+                UnityEngine.Debug.Log($"FolkChat: {c.Names} at ({c.At.x:F0}, {c.At.z:F0}){(town != null ? " in " + town : "")} for {now - c.Start:F1} s, {c.Apart:F2} m apart" +
+                                      $"{(c.Children > 0 ? $", {c.Children} child(ren) by them" : "")}");
+            }
+            if (ChatMix && cam != null && now >= nextMix)
+                LogMix(now, (float3)cam.transform.position, states, bodies);
+            states.Dispose();
+            bodies.Dispose();
+            entities.Dispose();
+            if (Bubbles.Count > 0)
+            {
+                FolkTalkLabels.Ensure();
+                FolkTalkLabels.Show(true);
+            }
         }
 
         static string Stance(FolkStance stance) => stance == FolkStance.Neutral ? null : stance.ToString();
@@ -228,7 +381,7 @@ namespace Punchy.Fauna
                 foreach (var e in stale)
                     nextTalk.Remove(e);
             }
-            if (Shown.Count == 0)
+            if (Shown.Count == 0 && Bubbles.Count == 0)
                 FolkTalkLabels.Show(false);
         }
 
@@ -275,7 +428,7 @@ namespace Punchy.Fauna
     public class FolkTalkLabels : MonoBehaviour
     {
         static FolkTalkLabels instance;
-        GUIStyle style, shadow;
+        GUIStyle style, shadow, bubble;
 
         public static void Ensure()
         {
@@ -291,6 +444,24 @@ namespace Punchy.Fauna
         {
             if (instance != null && instance.enabled != show)
                 instance.enabled = show;
+        }
+
+        /// <summary>A white rounded box (32 px, 10 px corners) for the bubble's 9-slice background.</summary>
+        static Texture2D RoundBox()
+        {
+            const int n = 32;
+            const float r = 10f;
+            var tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.DontSave };
+            for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                var dx = Mathf.Max(0f, Mathf.Max(r - (x + 0.5f), x + 0.5f - (n - r)));
+                var dy = Mathf.Max(0f, Mathf.Max(r - (y + 0.5f), y + 0.5f - (n - r)));
+                var a = Mathf.Clamp01(r + 0.5f - Mathf.Sqrt(dx * dx + dy * dy));
+                tex.SetPixel(x, y, new Color(1f, 0.98f, 0.93f, 0.92f * a));
+            }
+            tex.Apply();
+            return tex;
         }
 
         void OnGUI()
@@ -320,6 +491,23 @@ namespace Punchy.Fauna
                 shadow.normal.textColor = new Color(0f, 0f, 0f, 0.75f * fade);
                 GUI.Label(new Rect(rect.x + 1.5f, rect.y + 1.5f, rect.width, rect.height), said.Text, shadow);
                 GUI.Label(rect, said.Text, style);
+            }
+            // (Talking folk: a small speech bubble with "..." over the head: a pale rounded box, so it reads at a glance.)
+            if (bubble == null)
+                bubble = new GUIStyle(GUI.skin.label)
+                {
+                    alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, border = new RectOffset(10, 10, 10, 10),
+                    padding = new RectOffset(0, 0, 0, 0), normal = { background = RoundBox(), textColor = new Color(0.15f, 0.13f, 0.12f) }
+                };
+            foreach (var head in FolkTalkSystem.Bubbles)
+            {
+                var screen = cam.WorldToScreenPoint(head);
+                if (screen.z < 0.3f)
+                    continue;
+                var size = Mathf.RoundToInt(Screen.height / 34f * Mathf.Clamp(5f / screen.z, 0.5f, 1.3f));
+                bubble.fontSize = size;
+                var rect = new Rect(screen.x - size * 1.1f, Screen.height - screen.y - size * 1.2f, size * 2.2f, size * 1.2f);
+                GUI.Label(rect, "...", bubble);
             }
         }
     }

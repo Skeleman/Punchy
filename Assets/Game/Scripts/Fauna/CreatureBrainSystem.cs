@@ -48,6 +48,27 @@ namespace Punchy.Fauna
         const float HeightFear = 2.5f;
         public static readonly Unity.Burst.SharedStatic<int> FlareSettleOff = Unity.Burst.SharedStatic<int>.GetOrCreate<FlareSettleKey>();
         struct FlareSettleKey { }
+        /// <summary>A-26 tests ("-chattest"): folk stop to talk far more often, from further apart, cooldowns short.</summary>
+        public static readonly Unity.Burst.SharedStatic<int> ForceChat = Unity.Burst.SharedStatic<int>.GetOrCreate<ForceChatKey>();
+        struct ForceChatKey { }
+
+        /// <summary>
+        /// One of the townsfolk who could stop for a talk (A-26, widened in A-27, when a settled town of a few folk, most
+        /// at their posts, had all but stopped talking): about the town, walking somewhere, standing idle (or fidgeting at
+        /// an idle action), on its way to its post or a seat, or at a post in town (a smith or a vendor breaks off for a
+        /// word, then goes back to it); not seated, fishing, on guard, reading a letter, or on a round of its own (miners,
+        /// travellers, messengers, raids).
+        /// </summary>
+        internal static bool ChatFree(in CreatureState s, ref CreatureBlob b) =>
+            b.Upright && b.Hands && !b.Haunts && s.Leash > 0f && s.Task != CreatureTask.Patrol && s.Task != CreatureTask.Watch &&
+            s.Held != HeldItem.Letter && s.Gone == false &&
+            (s.Mode == CreatureMode.Wander || s.Mode == CreatureMode.Idle && s.Stage < CreatureAnimator.MessageWait ||
+             s.Mode == CreatureMode.Work && WalksToPost(s.Task) && (s.Stage == 0 || s.Stage == 1 && s.Task != CreatureTask.Fish && s.Task != CreatureTask.Hermit) ||
+             s.Mode == CreatureMode.Sit && s.Stage == 0);
+
+        /// <summary>A worker whose walk to work is a plain walk to its post (it can stop on the way and walk on after).</summary>
+        static bool WalksToPost(CreatureTask task) =>
+            task != CreatureTask.Mine && task != CreatureTask.Travel && task != CreatureTask.Messenger && task != CreatureTask.Critter;
         const float CellSize = 16f;
         // (Where the brain's time goes, for the profiler: its searches for danger and company, its needs and idle
         // actions, its choices, its moving and its gait.)
@@ -475,6 +496,14 @@ namespace Punchy.Fauna
                     s.Target = ashore;
                 }
 
+                // Two folk stopped to talk (A-26): a talk something else broke off is over for this one; and now and then
+                // two whose paths cross (or who stand near each other at a well or a seat) stop for one.
+                s.ChatCool = math.max(s.ChatCool - dt, 0f);
+                if (s.ChatRole != 0 && !(s.Mode == CreatureMode.Idle && (s.Stage == ChatTalk || s.Stage == ChatListen)))
+                    s.ChatRole = 0;
+                if (s.ChatRole == 0 && ChatFree(in s, ref b))
+                    StartChat(self, ref s, ref b, ref rng, dt);
+
                 // A messenger bird coming to this one: it stops what it's doing to meet it.
                 if (b.Upright && b.Hands && s.Leash > 0f && (Free(s.Mode) || s.Mode == CreatureMode.Greet) && !(s.Mode == CreatureMode.Idle && s.Stage >= MessageWait) &&
                     rng.NextFloat() < 0.25f && FindMessenger(self, in s, out var messenger))
@@ -508,6 +537,16 @@ namespace Punchy.Fauna
                 switch (s.Mode)
                 {
                     case CreatureMode.Idle:
+                        if (s.Stage == ChatTalk || s.Stage == ChatListen)
+                        {
+                            if (Chatting(self, ref s, ref b, ref rng, dt))
+                            {
+                                targetSpeed = walk;
+                                moving = true;
+                            }
+                            desiredLook = 0f;
+                            break;
+                        }
                         if (s.Stage >= MessageWait)
                         {
                             Receiving(ref s, ref b, ref rng, dt);
@@ -1423,7 +1462,8 @@ namespace Punchy.Fauna
             {
                 using var profiled = FidgetMarker.Auto();
                 var lying = s.Mode == CreatureMode.Rest && s.Lie > 0.5f;
-                var calm = s.Mode == CreatureMode.Idle || s.Mode == CreatureMode.Rest ||
+                // (Talking with someone: hands and head are busy with that, A-26.)
+                var calm = s.Mode == CreatureMode.Idle && !InChat(s) || s.Mode == CreatureMode.Rest ||
                            s.Mode == CreatureMode.Climb && s.Stage == 3 ||
                            s.Mode == CreatureMode.Greet && s.Speed < 0.2f;
                 // (Being petted or held, it carries on with what it was given to do: a wag, a wriggle; nothing new. A
@@ -3481,6 +3521,209 @@ namespace Punchy.Fauna
                     if (s.Timer <= 0f)
                         Pause(ref s, ref b, ref rng);
                 }
+            }
+
+            // ------------------------------------------------------------------------------- talking to each other
+
+            // (A-26. Idle stages, like the messenger's: the Stage byte is all a client sees, and the animator's gestures
+            // and the speech bubble come from it. Who's with whom (Partner, ChatRole) stays on the host; a talk shared
+            // with clients in full would need the partner sent as well.)
+            const byte ChatTalk = CreatureAnimator.ChatTalk, ChatListen = CreatureAnimator.ChatListen;
+            /// <summary>At most this many pairs talk at once round a town; a talk lasts 4-10 s; then each waits this long before another.</summary>
+            const int MaxChats = 3;
+            const float ChatCoolMin = 90f, ChatCoolMax = 200f;
+            // (How far apart two grown folk can be for one to stop the other for a talk: they walk up to each other.)
+            const float ChatReach = 30f;
+
+            static bool InChat(in CreatureState o) => o.Mode == CreatureMode.Idle && (o.Stage == ChatTalk || o.Stage == ChatListen);
+
+            /// <summary>
+            /// Now and then, one of the townsfolk free to talk: stops for someone who stopped for it (2); a grown one, every
+            /// 40 s or so with another free within ChatReach, stops it for a talk (1: they walk up to each other), unless a few pairs round the town already
+            /// are; a child, now and then, goes to stand by a talk under way (3).
+            /// </summary>
+            void StartChat(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
+            {
+                var forced = ForceChat.Data != 0;
+                if (rng.NextFloat() < 0.3f && FindChat(self, in s, 0, ChatReach, out var asker))
+                {
+                    BeginChat(ref s, asker, ChatListen, 2);
+                    return;
+                }
+                if (s.ChatCool > 0f)
+                    return;
+                if (b.Child)
+                {
+                    if (rng.NextFloat() < dt * (forced ? 0.3f : 0.05f) && FindChat(self, in s, 2, forced ? 14f : 8f, out var adult))
+                        BeginChat(ref s, adult, ChatListen, 3);
+                    return;
+                }
+                // (Up to ChatReach, as far as the other looks for one who stopped for it: once a town settles its few folk are
+                // spread over its posts and streets, and seldom pass within a few metres; A-27.)
+                if (rng.NextFloat() >= dt * (forced ? 1f : 1f / 40f) || !FindChat(self, in s, 1, ChatReach, out var other) ||
+                    ChatsNear(math.all(s.Home == float2.zero) ? s.Position.xz : s.Home) >= MaxChats)
+                    return;
+                BeginChat(ref s, other, ChatTalk, 1);
+                s.Timer = rng.NextFloat(4f, 10f);
+            }
+
+            /// <summary>
+            /// Stops for a talk, keeping what it was doing in ChatWalk / ChatResume: 1 walking somewhere (ChatResume the
+            /// target), 2 on its way to or at its post (ChatResume.x the time left at work: Timer is the talk's while it lasts),
+            /// 3 on its way to a seat (it picks something new after), 0 standing about.
+            /// </summary>
+            static void BeginChat(ref CreatureState s, Entity with, byte stage, byte role)
+            {
+                s.ChatWalk = (byte)(s.Mode == CreatureMode.Wander ? 1 : s.Mode == CreatureMode.Work ? 2 : s.Mode == CreatureMode.Sit ? 3 : 0);
+                s.ChatResume = s.ChatWalk == 2 ? new float2(s.Timer, 0f) : s.Target;
+                SetMode(ref s, CreatureMode.Idle);
+                s.Stage = stage;
+                s.Partner = with;
+                s.ChatRole = role;
+            }
+
+            /// <summary>After a talk, on to wherever it was going (or a pause where it stood), not to talk again for a while.</summary>
+            static void EndChat(ref CreatureState s, ref CreatureBlob b, ref Random rng, float cool)
+            {
+                var to = s.ChatResume;
+                if (s.ChatWalk == 1)
+                {
+                    SetMode(ref s, CreatureMode.Wander);
+                    s.Target = to;
+                }
+                else if (s.ChatWalk == 2)
+                {
+                    // (On to its post, with the time at work it had left.)
+                    SetMode(ref s, CreatureMode.Work);
+                    s.Target = s.WorkSpot;
+                    s.Timer = math.max(to.x, 5f);
+                }
+                else
+                    Pause(ref s, ref b, ref rng);
+                s.ChatRole = 0;
+                s.ChatWalk = 0;
+                s.ChatCool = cool;
+            }
+
+            /// <summary>
+            /// Nearest within reach: (0) one who stopped for this one; (1) a grown one free to stop for a talk (only toward
+            /// a later entity, so two don't stop each other at once); (2) a grown one who started a talk, for a child.
+            /// </summary>
+            bool FindChat(Entity self, in CreatureState s, int kind, float reach, out Entity found)
+            {
+                found = Entity.Null;
+                var best = reach * reach;
+                var c = Cell(s.Position.xz);
+                var r = (int)math.ceil(reach / CellSize);
+                for (int z = -r; z <= r; z++)
+                for (int x = -r; x <= r; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        var o = States[j];
+                        var d = math.distancesq(o.Position.xz, s.Position.xz);
+                        if (d >= best || Entities[j] == self)
+                            continue;
+                        ref var ob = ref Bodies[j].Blob.Value;
+                        var ok = kind == 0 ? InChat(o) && o.ChatRole == 1 && o.Partner == self
+                               : kind == 1 ? !ob.Child && o.ChatRole == 0 && o.ChatCool <= 0f && Entities[j].Index > self.Index && ChatFree(in o, ref ob)
+                               : InChat(o) && o.ChatRole == 1 && !ob.Child;
+                        if (ok)
+                        {
+                            best = d;
+                            found = Entities[j];
+                        }
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return found != Entity.Null;
+            }
+
+            /// <summary>Talks under way within 60 m (one per pair: those who started them).</summary>
+            int ChatsNear(float2 at)
+            {
+                var n = 0;
+                for (int j = 0; j < States.Length; j++)
+                    if (States[j].ChatRole == 1 && math.distancesq(States[j].Position.xz, at) < 3600f)
+                        n++;
+                return n;
+            }
+
+            /// <summary>
+            /// Talking: the two walk up to each other (true while walking) and stand a little over a metre apart, turned to
+            /// each other and looking at each other, one talking (ChatTalk: hands going) while the other listens and nods
+            /// (ChatListen), changing over every few seconds; a child by them listens. The one who started it ends it after
+            /// its 4-10 s; the other (and the child) when it sees that.
+            /// </summary>
+            bool Chatting(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
+            {
+                var forced = ForceChat.Data != 0;
+                var cool = forced ? rng.NextFloat(15f, 30f) : rng.NextFloat(ChatCoolMin, ChatCoolMax);
+                var has = Lookup.TryGetValue(s.Partner, out var j);
+                var o = has ? States[j] : default;
+                var joined = s.ChatRole == 1 ? has && InChat(o) && o.ChatRole == 2 && o.Partner == self
+                                             : has && InChat(o) && o.ChatRole == 1 && (s.ChatRole == 3 || o.Partner == self);
+                if (!joined && (s.ChatRole != 1 || s.ModeTime > 2.5f) || s.ModeTime > 30f)
+                {
+                    // (Not taken up within a moment: a shorter wait before trying again.)
+                    EndChat(ref s, ref b, ref rng, s.ChatRole == 1 && !joined ? cool * 0.2f : cool);
+                    return false;
+                }
+                var to = o.Position.xz - s.Position.xz;
+                var gap = math.length(to);
+                var want = s.ChatRole == 3 ? 1.9f : 1.25f;
+                s.LookKind = 1;
+                s.LookEntity = s.Partner;
+                s.LookFor = math.max(s.LookFor, 0.3f);
+                var spare = gap - want;
+                if (joined && spare > 0.15f)
+                {
+                    s.Target = o.Position.xz - to / math.max(gap, 0.01f) * (want * 0.5f);
+                    // (Slowing as the gap closes: both walk, so stopping from full speed carried them into each other; A-28.)
+                    s.Speed = math.min(s.Speed, math.max(0.25f, spare * 1.2f));
+                    return true;
+                }
+                // (Stood: no carrying on into the other.)
+                s.Speed = math.min(s.Speed, math.max(0f, spare));
+                if (joined && spare < -0.15f)
+                {
+                    // Too close (they met at a well or a seat, A-28): each steps back, still facing the other, half the
+                    // shortfall each. (On top of each other: the one who started it steps one way, the other the other.)
+                    var away = gap > 0.05f ? -to / gap : new float2(0f, s.ChatRole == 1 ? -1f : 1f);
+                    var next = s.Position.xz + away * math.min(0.9f * dt, -spare * 0.5f);
+                    if (Walkable(next, b.Habitat))
+                        s.Position.xz = next;
+                }
+                if (gap > 0.01f)
+                    s.Yaw = WrapAngle(s.Yaw + math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -b.TurnRate * dt, b.TurnRate * dt));
+                if (!joined)
+                    return false;
+                if (s.ChatRole == 1)
+                {
+                    s.Timer -= dt;
+                    if (s.Timer <= 0f)
+                    {
+                        EndChat(ref s, ref b, ref rng, cool);
+                        return false;
+                    }
+                    // (Turn about: after a couple of seconds, now and then, the other's turn.)
+                    if (s.StageTime > 1.8f && rng.NextFloat() < dt / 0.8f)
+                    {
+                        s.Stage = s.Stage == ChatTalk ? ChatListen : ChatTalk;
+                        s.StageTime = 0f;
+                    }
+                }
+                else if (s.ChatRole == 2 && gap < want + 0.5f)
+                {
+                    var stage = o.Stage == ChatTalk ? ChatListen : ChatTalk;
+                    if (s.Stage != stage)
+                    {
+                        s.Stage = stage;
+                        s.StageTime = 0f;
+                    }
+                }
+                return false;
             }
 
             // ------------------------------------------------------------------------------- travelling
