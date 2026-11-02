@@ -2,6 +2,38 @@
 
 Newest first.
 
+## 2026-11-02: queue item 3, #31 houses lit wrong on the laptop: graphics tier, GPU and quality level ruled out; cause not found from laptop shots alone
+Bench-8d83102, `-benchstops town -benchhour 12|18.5|22 -gfx Medium|High -nohud`, 1280x720, 0 exceptions.
+- **What the laptop runs:** D3D11 on the GTX 1060 Max-Q (Zach's own v0.11.0 Player.log, 2026-11-01, shows the same,
+  so it isn't the Intel GPU). Quality level "PC" (PC_RPAsset): the Standalone default, and no UnityGraphicsQuality is
+  saved in the registry, so both machines get the same pipeline asset. Medium: shadow distance 50 m, 4 cascades,
+  2048 main shadow map, soft shadows. The game's own saved window is **1280x720 windowed** on the laptop.
+- **Tier ruled out:** noon Medium and High look the same and measure the same (stone wall luma 45.9 at both).
+- **What looks off at this view:**
+  - The stone house walls are flat and dark at noon: luma 46 vs 70 for the hut walls beside them and for a far stone
+    house. The near house's front wall and its quoin face read the same, so no light/shade difference between faces.
+  - Faint bright dotted lines along the stone house's wall base and corner seams, at noon and at 22:00 (sheet below).
+  - At 22:00 most windows are dark (at 18:30 they are lit): probably by design, noted only.
+  - No Z-32-style banding (lit edges, dark centre) at 18:30 or 22:00 in clear weather.
+- **Likely causes, not confirmed:** (1) a different build: Zach's laptop log is v0.11.0 (has the Z-32 flat walls),
+  so check which build the main PC played; (2) resolution: 1280x720 here vs probably larger on the main PC, which makes
+  thin seams and shadow texels wider on screen (the dotted seam lines fit that); (3) the stone material's darkness at
+  noon if the main PC shows the same wall brighter.
+- **To settle it:** the same shot on the main PC from the same build: `-benchroute -benchstops town -benchhour 12
+  -gfx Medium -nohud -weatherseed 4 -benchshots <dir>` at 1280x720, then once at its usual size. The same picture
+  means it's resolution or taste; a brighter wall means a machine difference (then GPU and driver from Player.log).
+- Shots: `shots/q23/31-stonehouse-medium-12-18h30-22.png` (stone house, noon / 18:30 / 22:00, Medium, 2x crop).
+- Cost: 14 calls, $0.8 (session total so far $3.3).
+
+## 2026-11-02: queue item 2, Dunes sand puffs and night sky GPU on the laptop: PASS (+0.9 ms and +0.35 ms)
+Bench-8d83102 and Bench-4eea658, uncapped, Medium, alternating order, 2 runs each, 0 exceptions, same spot
+(3236,-1416).
+- **Sand puffs:** `-place Dunes -benchstops here -camrel 0,4,-8,0,1,12`, with and without `-nosandpuffs`.
+  GPU 4.9/4.7 ms on vs 3.9/3.9 off: **+0.9 ms** (main PC +1.0). Pass (< +1.5). Avg fps level (116 vs 112).
+- **Night sky:** same spot at 00:00, camera on the big moon (`-camrel 0,2,0,-11,83,-57`, moon in frame behind
+  cloud). GPU 11.3/11.0 ms on 8d83102 vs 10.9/10.7 on v0.11.0: **+0.35 ms**. 1% low 66.6/69.5 vs 57.0/61.1.
+- Cost: included in item 3's line.
+
 ## 2026-11-02: queue item 1, smoke world-features 8d83102 vs v0.11.0 4eea658: PASS, no change beyond noise
 Townwalk and glide at cap 60 and uncapped, then cave and caveapproach uncapped. Two rounds each, alternating which
 build ran first. No dialogs open, 0 exceptions, 0 "Mesh bounds" in all 12 logs. End spots are the same on both builds
