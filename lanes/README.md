@@ -24,6 +24,7 @@ so finishing in place is cheaper than a follow-up batch.
   spend up to about 25 more calls and one more build to finish it.
 - Never start a new task, or a task you dropped, in the extra budget.
 - If one fix plus a rebuild still doesn't get it there, stop and report what you ruled out.
+- Card budget plus 25 is the ceiling (60 -> about 85). Past it, stop wherever you are and report.
 - Report the overrun in one line: calls used, builds used, and why.
 
 ## Where new knowledge goes
