@@ -1298,6 +1298,7 @@ namespace Punchy.Debugging
             // "-meteors": every night a meteor shower (Sky.hlsl's test switch), for checking shooting stars against clouds (Z-09).
             if (System.Array.IndexOf(args, "-meteors") >= 0)
                 Shader.SetGlobalFloat("_PunchySkyTest", 1f);
+            Punchy.Player.PlayerMovementSystem.NoPushOut.Data = System.Array.IndexOf(args, "-nopushout") >= 0;
             if (System.Array.IndexOf(args, "-nohud") >= 0)
             {
                 ShowReadout = false;
@@ -1316,6 +1317,9 @@ namespace Punchy.Debugging
                     if (rig != null)
                         rig.SetView(rig.transform.eulerAngles.y, viewPitch);
                 }
+                // "-view yaw,pitch": the player's own camera turned that way (A-30: aimed at a cave wall).
+                if (args[i] == "-view" && ParseFloats(args[i + 1]) is float[] view && view.Length >= 2 && FindAnyObjectByType<ThirdPersonCamera>() is ThirdPersonCamera viewRig)
+                    viewRig.SetView(view[0], view[1]);
                 // "-watchpitch 45": watch from above (to see over leaves), rather than low or level.
                 if (args[i] == "-watchpitch" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var watchPitch))
                     watchPitchOverride = watchPitch;
@@ -1415,6 +1419,9 @@ namespace Punchy.Debugging
                     var em = queryWorld.EntityManager;
                     var t = em.GetComponentData<LocalTransform>(goer);
                     t.Position = new float3(gx, ground.SampleHeight(new float2(gx, gz)) + 0.1f, gz);
+                    // "-goto x,y,z": onto the floor under that point (in a cave), not the ground surface.
+                    if (parts.Length >= 3 && float.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var gy))
+                        t.Position.y = ground.FloorUnder(new float3(gx, gy + 1f, gz), out _) + 0.05f;
                     em.SetComponentData(goer, t);
                     Debug.Log($"DebugControls: to {gx:F0},{gz:F0}");
                 }
