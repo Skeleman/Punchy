@@ -27,10 +27,16 @@ Released: v0.11.0 = cand/v0.11 4eea658 (world b39522b + animal c810406).
   If they return, check `dialogs` (read the full line) and other processes before blaming the code.
 - Worm marks at 32 slots: +0.2 ms, inside the noise; a one-worm frame outside the Glacier would be tighter.
 - Wakes: re-check with a camera over open water. Item 15 cave-chunk: a per-chunk timing log would settle it.
+- 2026-11-02 queue items 1-5 done (BENCH-REPORTS): world 8d83102 and animal b5e9715 smokes pass; Dunes puffs
+  +0.9 ms GPU, night sky +0.35; remote roll seen (#48).
+- #31 houses lit wrong: tier, GPU and quality level ruled out on the laptop. Waiting on the same town shot from
+  the main PC (flags in the report). Laptop plays at 1280x720 windowed.
+- TraceSystem 0.05 -> 0.40 ms median at townwalk since Z-50 (c0b26df), reported on #6. Re-profile after a fix.
+- Archived this session: Bench-8d83102, Bench-b5e9715, Profile-b5e9715, Profile-4eea658.
 
 ## Likely next jobs
-- Bench the next combined lane builds when the supervisor queues them: world #3/#4/#5 (UI menu, wheel, Z-34)
-  and animal #6-#9 (gallop, voices, stances, chases: AI and audio cost on townwalk).
+- Queue item 6: `-island v2` vs default on the same world-features build, once W-05 lands there.
+- Re-profile townwalk when the animal lane fixes TraceSystem; #48 remote flying/swimming descent if asked.
 
 ## Modules
 - `lanes/profiler/FILES.md`: machine, paths, runner, archived builds.

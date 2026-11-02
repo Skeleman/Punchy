@@ -33,6 +33,14 @@ Read `lanes/shared/checks.md` first.
 - `-place CaveNetwork` doesn't frame the big cave's mouth; `-benchspot -2822,-648,90` stands at the mouth, facing in.
 - Gate shots are 1280x720 (the bench window); frame-rate numbers are measured at that size.
 
+## MP framing (learned 2026-11-02, item 5)
+- Host spawns at (0,65,0) facing +z; a local client spawns about 3 m away, near (0.5,65,1.5). An `-actiontest roll`
+  on the host jogs it along +z (about 20 m per 3.5 s slot).
+- On the client, `-camrel 0,4,-3,0,0,14` (behind and above, down the path) frames the host's first rolls.
+  `-watch <Species>` doesn't pick up a remote avatar; `-goto` doesn't move a joined client.
+- Shots are saved at the screen's size (1920x1080), not the window's: crop by that size.
+- Time the shots against the host's own shot (its mtime) to find the frames during a roll.
+
 ## Baselines (Medium, cap 60, 1% low)
 - v0.11.0 (4eea658): townwalk 35.0, glide 29.6, glide uncapped 37.1, MP joined townwalk 25.9.
 - 0c637a9: townwalk ~41, glide ~31, caveapproach ~35, forest ~51. Glide at cap 60 has sat near 30 since v0.8.

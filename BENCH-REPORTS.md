@@ -2,6 +2,21 @@
 
 Newest first.
 
+## 2026-11-02: queue item 5, host/join on animal-behaviours b5e9715: PASS, a remote player's roll shows the somersault (#48)
+Bench-b5e9715, host `-host -nohud` plus a local client `-join 127.0.0.1`. Host shot list: wait 45 s, then
+`-actiontest roll:Dog,Dog,Dog` (6 rolls, 0.53-0.56 s, 3.9-4.4 m). Client: shots every 0.2 s from cameras placed
+relative to its spawn.
+- **Players 2** on the host from 20 s to the end; **0 exceptions, 0 IndexOutOfRange** on host and client in all 5
+  runs (`results/q5`, `q5b`-`q5e`). Both players quit on their own (no Punchy.exe left).
+- **Seen on the client:** the host's Dog jogs (c-067), goes over onto its back with its legs up (c-068) and tumbles
+  through inverted (c-072), then lands and jogs on, 10-15 m down the path. So the Roll pose byte reaches the remote
+  avatar and drives the somersault.
+- Framing took 5 tries (now in TESTING.md): `-watch Dog` doesn't pick up a remote avatar, `-goto` doesn't move a
+  joined client, and fixed `-camlook` points near the origin were inside the slope.
+- Not checked here: descent while flying or swimming seen remotely (#48 lists it); one body only (Dog).
+- Shots: `shots/q23/48-remote-dog-roll-b5e9715.png` (client crops: jog, legs up, inverted, landed).
+- Cost (items 4 and 5): 37 calls, peak 210k context, $2.3 (session $5.7).
+
 ## 2026-11-02: queue item 4, smoke animal-behaviours b5e9715 vs v0.11.0 4eea658: PASS on fps; TraceSystem 8x on the main thread (Z-50)
 Townwalk and glide at cap 60 and uncapped, 2 rounds alternating, then a townwalk cap-60 dev profile on each build plus
 profdiff. 0 exceptions, 0 "Mesh bounds"; same end spots (townwalk 366,-406, glide 1197,359). No dialogs.
