@@ -27,3 +27,4 @@ Read before changing any shader, material or render setting.
 - `line` is an HLSL keyword (geometry shaders): a variable called `line` breaks the Flora shader.
 - HLSL `&&` doesn't short-circuit.
 - Unity fixes a global array's length the first time it's set in a session; the editor needs a restart after a slot-count change.
+- A white bloom blob on a procedural mesh is usually a zero normal: `Vector3.normalized` returns zero below magnitude 1e-5 (tiny triangles, e.g. 4 mm tooth tips), the shader normalizes it to NaN and bloom spreads it. Use `math.normalizesafe` with a fallback (A-10c, #41).
