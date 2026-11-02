@@ -25,4 +25,6 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
    lane fixes it.
 4. Smoke animal-behaviours b5e9715 vs v0.11.0 (townwalk cap 60 plus one profile; ABBA). New: dodge/roll, fish
    sprint, wall climb (A-04), fear height check while flying.
-5. Later: when world-features gains `-island v2` (batch W-05), smoke `-island v2` vs default on the same build.
+5. Host/join on animal-behaviours b5e9715: a remote player's roll (B/Circle) shows the somersault on the other
+   screen; no join errors.
+6. Later: when world-features gains `-island v2` (batch W-05), smoke `-island v2` vs default on the same build.
