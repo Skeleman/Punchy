@@ -2,6 +2,16 @@
 
 Newest first.
 
+## 2026-11-02 batch W-02: code for moon/dunes/flowers written and compiled, NOT built or seen (blocked on a leftover player)
+- DONE: landmark hash on a96a1dc: 101 landmarks, hash E128CB1D, same as the G-37 baseline, so the z34 CaveBaking change moved no landmark
+- DONE (code only, local commit ec53f8a on world-features, not pushed): #34 per Zach's new direction: near #0000FF, lit sphere (terminator, dark limb), rock mottling, mixed-size soft craters, crack removed, round corona replaced by faint wavy rim tendrils
+- DONE (code only): #44 SandPuffs ambient type (ColdMist style, sand tint, wind drift 2.2) on Dunes density 1.5; `-nosandpuffs` flag for the GPU comparison
+- DONE (cause found, code only): #30 cause is the wind sway shader, not a character push (flora has no push code; only grass blades do). Shear moved vertices sideways without keeping length, and the mesh's per-vertex sway grew with distance from the axis so a flower head's far petals swung further than near ones (swelling/swivel). Fix: Flora.hlsl bend keeps length (sphere round the base); flowers bend by height only. Note it changes all swaying plants slightly: look at trees
+- NOT DONE: build, shots, GPU ms, #4 `-menu Graphics`: building failed because a W-01 player (Builds\Dev\Punchy.exe, pid 11484, plus its crash handler 16700) is still running and locks the exe. Killing it was refused by the permission system. Shaders compile in the editor (no errors after refresh); editor closed
+- Checks: editor compile and shader refresh clean; no play-mode visual check. `-menu Graphics` reading of MainMenu.cs shows nothing obvious; needs a run
+- Shots: none
+- NEXT: Zach or supervisor stops pid 11484 (and 16700), then rerun W-02 tasks 2-5: one build, one shot list (moonnight same framing as W-01, dunes x2 with and without -nosandpuffs, Daisy side view calm vs Storm, -menu Graphics alone), then push world-features
+
 ## 2026-11-02 batch W-01: menu+pad wheel, cave pools, bigger bluer moon, roof lips merged into world-features a96a1dc
 - DONE: #4 #5 wip/ui-wheel merged (CLAUDE.md conflict: kept docs index). Compiles, builds, Multiplayer tab shows pad glyphs and the Exit game button (world-features 54b394f)
 - DONE: #3 z34-pool merged (22e7534). Cave stream 2 now ends in a pool 7 m earlier; streams 0 and 2 shortened 15 to 10 points

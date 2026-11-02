@@ -1,28 +1,31 @@
-# World lane: state (2026-11-02, after W-01)
+# World lane: state (2026-11-02, after W-02, blocked)
 
 Worktree `Punchy-world` (main PC), branch `world-features`. Backlog: `gh issue list -l lane:world`.
 Released: v0.11.0 = world b39522b + animal c810406.
-Branch head: a96a1dc (pushed). It holds: wip/ui-wheel (UI-1 menu, #4 Exit game, #5 pad wheel; CLAUDE.md kept as the
-docs index), z34-pool (#3), #34 blue moon, #32 roof lips. Built to Builds/Dev, no exceptions in the player logs.
+Pushed head: a96a1dc. Local only: ec53f8a (W-02 code: moon, sand puffs, flower bend), compiled, never built or seen.
+
+## BLOCKER
+A player from W-01 still runs: Builds\Dev\Punchy.exe pid 11484 + crash handler 16700. It locks the exe, so a
+build fails ("Copying the file failed"). Stop it, then build. Always stop shot-list players by PID at the end.
+
+## In ec53f8a (to verify in one build + one shot list)
+- #34 moon: near #0000FF, lit sphere, rock mottling, mixed craters, no crack, wavy rim tendrils instead of a halo.
+  Same framing as W-01 moonnight: -goto -255,27 -time 21 -camlook -255,40,27,-184,108,6 (pin -bluemoondays 0).
+- #44 dunes: Assets/Game/Ambience/SandPuffs.asset on Dunes (density 1.5). `-nosandpuffs` drops it for GPU compare.
+  Find dunes with `-place Dunes`.
+- #30 flowers: cause is Flora.hlsl wind shear + mesh sway growing with distance from axis (no character push exists
+  for flora). Bend now length-keeping; flowers by height only. Check trees and bushes did not change badly.
+  Daisy etc: `-place prop:Daisy`; wind via `-weather Storm` vs Clear.
+- #4 `-menu Graphics` no menu: MainMenu.Start reads -menu then SetOpen; code looks right, test alone with -nohud off.
+
+## Checked
+- Landmark hash a96a1dc: 101, E128CB1D (= G-37 baseline).
+- W-01 items (#3 #32 #4 #5 build) as before; pad input behaviour still needs hands or a pad.
+- Assets/Resources/ appeared untracked (editor-made test settings); not committed.
 
 ## Branches still unmerged
-- `b/bench-runner` db3c1f2: `-benchday`. Tooling only.
-- wip/ui-menu, wip/ui-wheel, world-laptop/z34-pool are now inside world-features; safe to delete later.
-
-## Checked in W-01 (see REPORTS-world.md)
-- #3: stream 2 end moved (-1453.9,36.7,-1152.7) to (-1446.9,39.2,-1152.0), 15 to 10 points, ends in a pool; stream 0
-  also shortened (15 to 10). Streams 1, 3, 4 unchanged.
-- #34: radius 0.034 to 0.13 rad, bluer, one thin crack, maria and small craters (Zach's latest wording applied).
-- #32: lip ring under the rim of Hut, StoneHouse, Tower, Shrine roofs (about 0.14 m). Subtle at town distance.
-
-## Still unchecked (needs hands or a pad)
-- #4/#5: pad input (A then B on Exit confirm; Code/IP wheel enter, delete, ring switch, cancel). A shot list can't
-  press buttons; `-menu Multiplayer -forcepad xbox` shows glyphs and the Exit game button at the foot. The
-  `-menu Graphics` shot came out with no menu open.
-- Landmark hash: no landmark or placement code touched, but not measured; z34's CaveBaking change alters cave
-  streams, so run the WorldProbe hash once.
+- `b/bench-runner` db3c1f2: `-benchday`. wip/ui-menu, wip/ui-wheel, world-laptop/z34-pool are inside world-features.
 
 ## Open, not started
-- #15 look checks owed: Z-30 hall/inn posts close up, Z-10 fog over a non-marsh river.
-- #13 Z-35 fall speed: Zach judges in play. #14 cave-mouth shards: needs a spot from Zach.
-- P3 rows needing a design note first: #17 Z-54, #18-#22 Z-60..Z-64. Roadmap: #23 realms, #24 dungeons.
+- #15 look checks owed (Z-30 posts close up, Z-10 fog over non-marsh river). #13 Z-35 fall speed (Zach in play).
+  #14 cave-mouth shards (needs a spot). P3 needing a design note: #17, #18-#22. Roadmap #23, #24.
