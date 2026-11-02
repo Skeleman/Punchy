@@ -2,6 +2,7 @@
 
 Worktree `Punchy-world` (main PC), branch `world-features`. Backlog: `gh issue list -l lane:world`.
 Released: v0.11.0 = world b39522b + animal c810406.
+Branch head 2026-11-02: 4cb6ba3 (v0.11.0 tree + docs split; both lanes start here).
 
 ## Branches in flight (pushed, not merged into world-features)
 - `world-laptop/z34-pool` 91f6b6a: #3 Z-34, a cave stream gets a pool or ends at a hole/crevice (Zach's rule:
