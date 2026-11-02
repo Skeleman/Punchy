@@ -2,6 +2,20 @@
 
 Newest first.
 
+## 2026-11-02 batch A-02: second check run on the P3 build; voices mostly confirmed, gallop and folk lines still not seen, no merge
+- DONE: #7 voices heard in the log: Yowl (cat), Whine, Bark, DogHowl (night at timescale 4, 210 s run)
+- NOT DONE: #7 Hiss (49) and Growl (52) not triggered in 80 s of 3 dogs beside 3 cats
+- NOT DONE: #6 gallop: the watch camera stayed on the player (no coyote with Task Hunt was picked); no leg shot
+- NOT DONE: #8 live folk lines: 0 lines in 70 s at DwarfHold, ElfGrove and HumanVillage. Cause: FolkTalk Reach is
+  5 m and -place stands the player at the landmark, no folk in range. Odds table re-logged and matches.
+- NOT DONE: #4 merge into animal-behaviours: held, rows 1-3 not all verified. #33, #43 not started (budget spent on the run).
+- Checks: one 11-shot list, 620 s, 0 exceptions; hunts logged (stalk, run, pounce missed, tired, 1 hunt each in 2 lines)
+- Shots: none worth review (gal-3 shows only the player). Gallery: PunchyMilestones/animal/p3-a02/gallery/
+- Learned: lanes/animal/STATE.md (talk reach, watch task filter, player doesn't quit after a list)
+- Note: my player (Builds/Windows, PID 31528) is still open; Stop-Process was denied, please close it.
+- NEXT: one more list with `-watch Coyote -watchfrom 1,5`, spawned folk at each town, dog+cat for 90 s; then merge.
+  If it fails again, merge on the numbers and make #6 and live lines Zach's check.
+
 ## 2026-11-02 batch A-01: P3 compiled and built; chases pass, the other three rows only partly checked
 - DONE: #6-#9 merge wip/animal-p3 onto v0.11 (clean, CRLF kept), compile clean, build 0 errors (wip/a01-p3 a1bc1ef)
 - DONE: #9 chases end in a catch and eating: 28 pounces, 9 landed, 7 ate, 1 slipped away, 19 missed, 18 tired
