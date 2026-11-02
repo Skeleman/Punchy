@@ -512,16 +512,38 @@ namespace Punchy.Fauna
             float3 camPos = cam.transform.position, camFwd = cam.transform.forward;
             // (Behind: more than about 100 degrees off the way the camera looks, well outside any view it has.)
             const float behindCos = -0.17f;
+            PassStart(bodies.Length);
+            Pass(0);
             {
+                // Which to keep: worked out in Burst (CullJob). In a cave every creature's ground height is sampled, and
+                // done here in managed code that was most of this system's time at a cave stop (A-22, #23).
+                var keepFlags = new NativeArray<bool>(bodies.Length, Allocator.TempJob);
+                if (OldCull)
+                    for (int i = 0; i < bodies.Length; i++)
+                    {
+                        var to = states[i].Position - camPos;
+                        var far = math.lengthsq(to) > BehindCullRange * BehindCullRange;
+                        var behind = far && math.dot(math.normalizesafe(to), camFwd) < behindCos &&
+                                     math.length(to) > bodies[i].Blob.Value.SeenFrom * 0.5f;
+                        var underground = hidden && !(states[i].Position.y < hiddenFrom.SampleHeight(states[i].Position.xz) - 1f);
+                        keepFlags[i] = states[i].Mode == CreatureMode.Puppet || !behind && !underground;
+                    }
+                else
+                    new CullJob
+                    {
+                        States = states,
+                        Bodies = bodies,
+                        Terrain = hiddenFrom,
+                        CameraPosition = camPos,
+                        CameraForward = camFwd,
+                        BehindCos = behindCos,
+                        Hidden = hidden,
+                        Keep = keepFlags
+                    }.Run(bodies.Length);
                 var keep = 0;
                 for (int i = 0; i < bodies.Length; i++)
                 {
-                    var to = states[i].Position - camPos;
-                    var far = math.lengthsq(to) > BehindCullRange * BehindCullRange;
-                    var behind = far && math.dot(math.normalizesafe(to), camFwd) < behindCos &&
-                                 math.length(to) > bodies[i].Blob.Value.SeenFrom * 0.5f;
-                    var underground = hidden && !(states[i].Position.y < hiddenFrom.SampleHeight(states[i].Position.xz) - 1f);
-                    if (states[i].Mode == CreatureMode.Puppet || !behind && !underground)
+                    if (keepFlags[i])
                     {
                         bodies[keep] = bodies[i];
                         states[keep] = states[i];
@@ -544,7 +566,9 @@ namespace Punchy.Fauna
                     states = s2;
                     entities = e2;
                 }
+                keepFlags.Dispose();
             }
+            Pass(1);
             SwingDoors(states);
             var offsets = new NativeArray<int>(bodies.Length, Allocator.TempJob);
             var hanging = new NativeList<float3>(8, Allocator.Temp);
@@ -563,6 +587,7 @@ namespace Punchy.Fauna
                     emoting.Add(states[i].Position);
             }
 
+            Pass(2);
             // Colonies at the roosts near the camera.
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
             if (!roosts.IsCreated)
@@ -630,6 +655,7 @@ namespace Punchy.Fauna
                             swarmTargets[i] = states[k].Position;
                 total += day ? SwarmRound + SwarmForagers : SwarmNight;
             }
+            Pass(3);
             // The small life round the listener (AmbientLife: songbirds, owls, crickets, frogs...), drawn only.
             var critters = AmbientLife.Near(World, camAt0);
             total += critters.Count * CritterParts;
@@ -643,6 +669,7 @@ namespace Punchy.Fauna
             var traces = World.GetExistingSystemManaged<TraceSystem>();
             var traceCount = traces != null ? traces.Count : 0;
             total += traceCount;
+            Pass(4);
 
             var instances = new NativeArray<SegmentInstance>(total, Allocator.TempJob);
             // Over the copies, a few creatures per batch, so every worker takes a share (per chunk, it was one or two).
@@ -664,6 +691,7 @@ namespace Punchy.Fauna
                 FadeFar = 165f,
                 Night = night
             }.Schedule(bodies.Length, 8);
+            Pass(5);
             // While the creatures are posed on the workers, the rest is drawn here into its own array (the colonies, the
             // bees, the small life, the birds overhead, the traces), copied in after them once they're done, rather than
             // the main thread waiting on the posing first.
@@ -687,7 +715,9 @@ namespace Punchy.Fauna
             at = WriteCaveFish(skyClock, extras, at);
             if (traceCount > 0)
                 at = traces.Write(extras, at, (float)SystemAPI.Time.ElapsedTime);
+            Pass(6);
             posing.Complete();
+            Pass(7);
             // (Nothing else to draw, some frames: then there's nothing to copy, and no room after the creatures to copy to.)
             if (extras.Length > 0)
                 NativeArray<SegmentInstance>.Copy(extras, 0, instances, colonyStart, extras.Length);
@@ -726,9 +756,11 @@ namespace Punchy.Fauna
                 if (far <= LanternLightRange * LanternLightRange)
                     Punchy.Terrain.CaveSystem.MovingLights.Add((entities[i].Index, centre, torch ? TorchLight : LanternLight));
             }
+            var kept = bodies.Length;
             bodies.Dispose();
             states.Dispose();
             entities.Dispose();
+            Pass(8);
 
             if (buffer == null || buffer.count < total)
             {
@@ -761,6 +793,99 @@ namespace Punchy.Fauna
                 rp.matProps = flatProps;
                 rp.shadowCastingMode = ShadowCastingMode.Off;
                 Graphics.RenderMeshPrimitives(rp, settings.Capsule, 0, total - colonyStart);
+            }
+            Pass(9);
+            PassEnd(kept, colonyStart, total, hidden);
+        }
+
+        // ------------------------------------------------------------------------------- pass timing (A-22, #23)
+
+        /// <summary>"-renderpasslog": logs this system's main-thread time per pass, averaged over about 3 s.</summary>
+        public static bool PassLog;
+        /// <summary>"-oldcull": the managed cull loop (before A-22), for before numbers from the same build.</summary>
+        public static bool OldCull;
+        static readonly string[] PassNames = { "copy", "cull", "counts", "anchors", "gather", "schedule", "extras", "posewait", "lights", "upload+draw" };
+        readonly double[] passMs = new double[10];
+        long passMark;
+        int passFrames, passCreatures, passKept, passSegments, passCreatureSegments;
+        float passSince = -1f;
+
+        void PassStart(int creatures)
+        {
+            if (!PassLog)
+                return;
+            passMark = System.Diagnostics.Stopwatch.GetTimestamp();
+            passCreatures += creatures;
+        }
+
+        void Pass(int index)
+        {
+            if (!PassLog)
+                return;
+            var t = System.Diagnostics.Stopwatch.GetTimestamp();
+            passMs[index] += (t - passMark) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            passMark = t;
+        }
+
+        void PassEnd(int kept, int creatureSegments, int segments, bool hidden)
+        {
+            if (!PassLog)
+                return;
+            passFrames++;
+            passKept += kept;
+            passCreatureSegments += creatureSegments;
+            passSegments += segments;
+            var now = UnityEngine.Time.realtimeSinceStartup;
+            if (passSince < 0f)
+                passSince = now;
+            if (now - passSince < 3f)
+                return;
+            var line = new System.Text.StringBuilder("CreatureRenderSystem passes (ms/frame, ");
+            line.Append(passFrames).Append(" frames, ").Append(OldCull ? "old cull" : "burst cull").Append(hidden ? ", cave hidden" : "")
+                .Append("): creatures ").Append(passCreatures / passFrames).Append(" kept ").Append(passKept / passFrames)
+                .Append(" segs ").Append(passCreatureSegments / passFrames).Append('/').Append(passSegments / passFrames);
+            var sum = 0.0;
+            for (int i = 0; i < passMs.Length; i++)
+            {
+                line.Append(" | ").Append(PassNames[i]).Append(' ').Append((passMs[i] / passFrames).ToString("0.000"));
+                sum += passMs[i];
+                passMs[i] = 0;
+            }
+            line.Append(" | total ").Append((sum / passFrames).ToString("0.000"));
+            Debug.Log(line.ToString());
+            passFrames = passCreatures = passKept = passSegments = passCreatureSegments = 0;
+            passSince = now;
+        }
+
+        /// <summary>
+        /// Which creatures to pose and draw: not those well behind the camera, nor (deep in a cave, out of sight of
+        /// every mouth) those up on the surface. Players' bodies always. In Burst: the cave test samples the ground under
+        /// every creature, which in managed code cost several ms a frame.
+        /// </summary>
+        [BurstCompile]
+        struct CullJob : IJobParallelFor
+        {
+            [ReadOnly] public NativeArray<CreatureState> States;
+            [ReadOnly] public NativeArray<CreatureBody> Bodies;
+            public TerrainSource Terrain;
+            public float3 CameraPosition, CameraForward;
+            public float BehindCos;
+            public bool Hidden;
+            public NativeArray<bool> Keep;
+
+            public void Execute(int i)
+            {
+                var state = States[i];
+                if (state.Mode == CreatureMode.Puppet)
+                {
+                    Keep[i] = true;
+                    return;
+                }
+                var to = state.Position - CameraPosition;
+                var far = math.lengthsq(to) > BehindCullRange * BehindCullRange;
+                var behind = far && math.dot(math.normalizesafe(to), CameraForward) < BehindCos &&
+                             math.length(to) > Bodies[i].Blob.Value.SeenFrom * 0.5f;
+                Keep[i] = !behind && !(Hidden && !(state.Position.y < Terrain.SampleHeight(state.Position.xz) - 1f));
             }
         }
 

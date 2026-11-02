@@ -16,3 +16,4 @@ Read before adding jobs, per-frame work or anything that samples the terrain.
 - A static field placed between `[BurstCompile]` and its struct is a compile error (the attribute lands on the field).
 - Burst's `Debug.Log` formats only G/D/X (no `F1`).
 - `math.hash(uintN)` has no avalanche: scramble it before comparing per-name random draws.
+- A per-creature managed `TerrainSource.SampleHeight` on the main thread costs ~16 us each in the Mono player (2.1 ms for 130 creatures in `CreatureRenderSystem`'s cave cull); run such loops as a Burst job (`.Run()` is fine).

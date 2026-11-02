@@ -1086,6 +1086,9 @@ namespace Punchy.Debugging
             spinCheck = spinAt >= 0;
             // ("-noflaresettle": fliers steer their flare the old way, for #12's before numbers from the same build.)
             Punchy.Fauna.CreatureBrainSystem.FlareSettleOff.Data = System.Array.IndexOf(args, "-noflaresettle") >= 0 ? 1 : 0;
+            // A-22 (#23): "-renderpasslog" logs CreatureRenderSystem's time per pass; "-oldcull" culls the old (managed) way.
+            Punchy.Fauna.CreatureRenderSystem.PassLog = System.Array.IndexOf(args, "-renderpasslog") >= 0;
+            Punchy.Fauna.CreatureRenderSystem.OldCull = System.Array.IndexOf(args, "-oldcull") >= 0;
             if (spinCheck && spinAt + 1 < args.Length && ParseFloats(args[spinAt + 1]) is float[] spin && spin.Length >= 2)
             {
                 spinDegrees = spin[0];
