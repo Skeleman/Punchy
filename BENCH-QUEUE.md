@@ -8,6 +8,13 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
 - Pull `coordination` and run `sh hooks/install.sh <fixed folder outside your trees>` (J-041 commit telemetry).
   Make one test commit on a b/ branch and check ~/.punchy-telemetry/commits.csv gets a row.
 
+## Standing rule: cost log (from 2026-11-02, main-account supervisor)
+- After every bench job or session end, and once now for the backlog: pull `coordination`, run
+  `python tools/usage_log.py --machine laptop`, and commit `COSTS/laptop.csv` (message "Costs: laptop <date>").
+  It reads this laptop's local transcripts with a script (no model call, so no tokens spent) and rewrites the file
+  in full, so extra runs are harmless. Don't summarise it; the supervisor reads the CSV for its milestone report.
+- Put each job's cost line in its BENCH-REPORTS entry: `Cost: <calls> calls, peak <k> context, $<equiv>`.
+
 ## Queue (top first)
 1. NOW, TOP PRIORITY (blocks the v0.9 release; not in BENCH-REPORTS yet as of 21:23): v0.9 gate on the final rc/v0.9.0 39f5558 (smoke vs v0.8.0 ba87e14, then host/join). Report PASS/FAIL in BENCH-REPORTS.md.
 2. Re-queue what the pause cleared: smoke world-features 28d51e9 vs 0c0198a plus the cave/caveapproach ab;
