@@ -28,8 +28,12 @@ namespace Punchy.Fauna
         public static bool Placed { get; private set; }
         /// <summary>"-mantraptest": a scripted run (see RunTest), started once.</summary>
         public static bool TestRequested;
-        /// <summary>"-mantrapshot lunge": the strike is held at its peak for a few seconds so a shot can catch it.</summary>
+        /// <summary>"-mantrapshot lunge": the strike is held at its peak for HoldTime so a shot can catch it.</summary>
         public static bool HoldStrike;
+        /// <summary>How long "-mantrapshot lunge" holds the strike at its peak (A-10c: was 8 s).</summary>
+        public const float HoldTime = 0.3f;
+        /// <summary>Set the frame a held strike starts, so the shot list can take its shot during the hold.</summary>
+        public static bool StrikeHeld;
         /// <summary>"-mantrapstill": the player is put 0.8 m from plant 0 and put back there between bites (a hit check).</summary>
         public static bool StillRequested;
         /// <summary>Thin fog for the plant shots (set by "-mantrapshot").</summary>
@@ -291,7 +295,14 @@ namespace Punchy.Fauna
                     wantYaw = YawTo(p, p.StrikeAt);
                     if (p.Phi >= 100f || p.StageTime > 0.3f)
                     {
-                        if (HoldStrike && p.Hold < 8f) { p.Hold += dt; break; }
+                        if (HoldStrike && p.Hold < HoldTime)
+                        {
+                            if (p.Hold == 0f) StrikeHeld = true;
+                            p.Hold += dt;
+                            break;
+                        }
+                        if (HoldStrike && p.Hold > 0f)
+                            Debug.Log($"Mantrap: strike held {p.Hold:F2} s at phi {p.Phi:F0}");
                         p.Stage = 3; p.StageTime = 0f;
                         Snap(p);
                     }

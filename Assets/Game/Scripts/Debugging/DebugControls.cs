@@ -95,6 +95,7 @@ namespace Punchy.Debugging
         bool huntShotTaken;
         static float colossusShotDistance;
         static string mantrapShotMode;
+        static bool mantrapLungePending;
 
         /// <summary>
         /// "-shotonhunt" on a shot-list line: the moment a land hunter's chase turns to a run, the camera is put 16 m to the
@@ -167,12 +168,21 @@ namespace Punchy.Debugging
         /// </summary>
         void MantrapShot()
         {
+            // A-10c: the lunge shot is taken 0.15 s into the 0.3 s strike hold (the line's -wait is the longest it waits).
+            if (mantrapLungePending && Mantrap.StrikeHeld && shotIndex >= 0 && shotStarted >= 0f)
+            {
+                mantrapLungePending = false;
+                shotWait = Time.realtimeSinceStartup - shotStarted + 0.15f;
+                Debug.Log($"DebugControls: mantrap strike held, shot in 0.15 s (hold {Mantrap.HoldTime:F2} s)");
+            }
             if (mantrapShotMode == null || !Mantrap.Placed || Mantrap.Spots.Count == 0 || !EnsureLocations(out var ground) ||
                 !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
                 return;
             var lunge = mantrapShotMode == "lunge";
             mantrapShotMode = null;
             Mantrap.HoldStrike = lunge;
+            Mantrap.StrikeHeld = false;
+            mantrapLungePending = lunge;
             Mantrap.ThinFog = true;
             var at = Mantrap.Spot(0);
             var stand = new float2(at.x, at.z - (lunge ? 0.6f : 5f));   // player south of the plant; camera east, level with the head
@@ -2218,6 +2228,7 @@ namespace Punchy.Debugging
             colossusShotDistance = 0f;
             mantrapShotMode = null;
             Mantrap.HoldStrike = false;
+            mantrapLungePending = false;
             Mantrap.ThinFog = false;
             if (posed != Entity.Null && queryWorld != null && queryWorld.IsCreated && queryWorld.EntityManager.Exists(posed))
                 queryWorld.EntityManager.DestroyEntity(posed);

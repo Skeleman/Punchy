@@ -463,7 +463,9 @@ namespace Punchy.Fauna
 
             void Tri(Vector3 a, Vector3 b, Vector3 c, Color color)
             {
-                var n = Vector3.Cross(b - a, c - a).normalized;
+                // Not Vector3.normalized: it returns zero below 1e-5, and the mantrap's 4 mm tooth tips fall under that; a zero
+                // normal turns NaN in the shader and bloom spreads it into a white blob (A-10c, #41).
+                var n = (Vector3)math.normalizesafe(math.cross((float3)(b - a), (float3)(c - a)), new float3(0f, 1f, 0f));
                 var hash = math.frac(math.sin(math.dot((float3)(a + b + c), new float3(12.9898f, 78.233f, 37.719f))) * 43758.547f);
                 var tint = color * (0.93f + 0.14f * hash);
                 tint.a = 1f;
