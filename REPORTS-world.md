@@ -826,3 +826,20 @@ b/weather-mapjob.
   - v2 126 / 053C63D5.
   - v1 has salt flats: 102 / 51EA6463 (+SaltTower 3080,320 only).
   - Caves not re-run.
+
+## W-27b v2 multiplayer (2026-11-02, world-features 96a80de)
+- Row 1 DONE: merged main 0bd91cb (704229f). One trivial C# conflict, in PlayerMovementSystem.cs: I kept both blocks. 0 compile errors.
+- Row 2 DONE (#23): v2 bakes once per process. Later worlds copy the blobs (`IslandV2System.Shared`).
+  - Host: one "v2 ready" (ServerWorld); ClientWorld logged "shared ... no rebake".
+- Row 3 DONE (build, 75 s, host plus local join):
+  - v2: 126 / 053C63D5 on both sides; players 2; each side sees the other 3 m away.
+  - v1: 102 / 51EA6463 on both sides; players 2; 3 m.
+  - F2 hosting tested in the editor only: it shared the bake, kept the hash and did not time out.
+- Leftovers:
+  - Caves: v2 5D90D9CFC5326976 (unchanged); v1 47C703C0E17F77CB.
+  - Roads near the tower: v2 nearest road 5963 m (street 687 m); v1 nearest road 1385 m. Nothing runs into either tower.
+  - Tower far shots retaken at noon in Clear weather, along the patch's long axis.
+- Shots, all in world/w27b:
+  - w27b-mp-v2.jpg and w27b-mp-v1.jpg (host and client side by side)
+  - w27b-tower-far-south.jpg and w27b-tower-far-north.jpg
+- 1 build.

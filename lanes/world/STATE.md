@@ -1,42 +1,46 @@
 # World lane state
 
-Updated 2026-11-02 after W-27. Branch world-features @ fba3a7f (pushed). One build (Builds/Dev).
+Updated 2026-11-02 after W-27b. Branch world-features @ 96a80de (pushed, includes main 0bd91cb). One build (Builds/Dev).
 
-## Done in W-27 (salt tower)
-- New landmark type SaltTower (`OnePerIsland`, `TowerHeight` 76 m, +-10% per island). It is listed at
-  density 0 in SaltFlat, so it never rolls with the other landmarks.
-- `SaltTowerBaking.Place` runs after roads and roadside landmarks and is appended last. Types() also puts
-  one-per-island types last, so no other index or landmark moves.
-  - Spot: the deepest point of the largest salt-flat patch (40 m grid, weight >= 0.75, dry). Relief must be
-    0.15 m or less, it must be clear of every landmark footprint + 40 m, and at least 300 m from settlements.
-    Roads are not checked.
-  - v2: 3720,-800, height 73.4 m above base 7.0, 245 steps of 0.300 m, 280 m in from the patch edge.
-  - v1: 3080,320, height 69.9 m, 234 steps.
-- `SaltTowerShape` is analytic: a body of radius 7.5, steps at radius 8.4 (a 1.05 m standing circle, drawn
-  as a 2.3 m hex), two straight tunnels through the body, and a summit slab of radius 8.
-  - `TerrainSource.FloorUnder` stands bodies on the steps and summit.
-  - `TerrainSource.TowerWall` and `PlayerMovementSystem.KeepOutOfTower` keep the player out of the column
-    and out of steps from below.
-- `SaltTowerSystem` (presentation, solo and client) draws 9 jittered hex columns, split into blocks, with
-  the tunnels cut out. LODs: LOD0 7048 tris (< 250 m), LOD1 1660 (< 1200 m), LOD2 692.
-- Walker (`CreekProbe2.TowerWalk` in the untracked probe): 2336 moves of 0.1 m from the ground to the
-  summit centre. Max rise 0.339 m against a 0.4 step up. Max drop 0, blocked 0, top reached True.
+## Done in W-27b (#23, v2 multiplayer)
+- Merged origin/main 0bd91cb (PR #52) with merge commit 704229f. One C# conflict in PlayerMovementSystem.cs
+  (W-27 `KeepOutOfTower` next to main's #33 wall-probe block). It was trivial and I kept both sides. 0 compile errors.
+- `IslandV2System.Shared` (IslandV2.cs): the first world in a process to bake v2 keeps its blobs. Each later
+  world (in-process client, solo, F2 server/client) copies them into its own TerrainSource and logs
+  "v2 shared with <world> ... (no rebake)" with the landmark hash. The blobs are Persistent and never
+  disposed at runtime, so sharing is safe. A SubsystemRegistration hook resets this for domain-reload-off.
+  - So the host now does one bake of about 4 s, in ServerWorld before the local client connects. The client
+    copies the data, which takes no measurable time.
+- Build test, 75 s each, host plus local join:
+  - v2: one "v2 ready" per process. Both sides log 126 / 053C63D5. Host shows players 2, nearest player 3 m.
+    The joiner sees the host at 3 m. 0 exceptions.
+  - v1 (`-island v1`): both sides log 102 / 51EA6463, players 2, 3 m.
+- F2 (host from solo) was tested in the editor only, because the shot list has no host command. ServerWorld
+  and ClientWorld both shared the solo bake (same hash), the host stayed in game, and nothing timed out.
+
+## W-27 leftovers (checked)
+- Caves: v2 37 caves, 5D90D9CFC5326976 (unchanged by the tower). v1 17 caves, 47C703C0E17F77CB.
+- Roads near the tower:
+  - v2: nearest town street edge 687 m, nearest road edge 5963 m.
+  - v1: nearest road edge 1385 m.
+  - No road runs into either tower.
+- Salt patch long axis:
+  - v2: (0.151, 0.988), from -769 to +413 m past the tower.
+  - v1: (0.241, -0.970).
+- Far shots retaken from the south (3652,-1245) and the north (3776,-431), at noon in Clear weather.
 
 ## Open
-- The far shot from 400 m west looks over Sonoran scrub: the patch is only 0.4 km2, so 400 m out is off
-  the flat. The tower reads as small and grey from there, and rain was falling in all three shots.
-- The summit is a plain slab. A rim or cairn could be added if Zach wants one.
-- The column body uses the summit collision height everywhere, so the drawn blocks and the collision
-  match only roughly at the tunnel mouths.
-- Caves hash not re-run (caves bake after the tower; the tower only adds a landmark footprint).
+- F2 hosting is not covered in a build. A `-host`-style shot-list command would let it be scripted.
+- The summit is a plain slab, and the collision only roughly matches the drawn blocks at the tunnel mouths.
+- No transport keep-alive was added: one bake per process before connecting is enough for now. A bake that
+  ever runs past 10 s (DisconnectTimeoutMS) would still drop the local client.
 
 ## Hashes
-- v2 125 / D709D95C -> 126 / 053C63D5. Diff against lmlist-w26v2: only `+ SaltTower 3720.0 -800.0`.
-- v1 101 / E128CB1D -> 102 / 51EA6463. v1 has salt flats. Diff against lmlist-w25v1: only
-  `+ SaltTower 3080.0 320.0`.
+- v2 126 / 053C63D5, caves 5D90D9CFC5326976.
+- v1 102 / 51EA6463, caves 47C703C0E17F77CB.
 
 ## Notes
-- Shots: PunchyMilestones/world/w27 (800 px), raw shots in w27/raw.
-- Scratch: Punchy-world/Temp/w27_*. Shot list: w27_shots.txt. Player log: w27player.log.
-- The world editor logs to Punchy-world/Temp/editor-w04.log, not the default Editor.log.
-- The v1 island bakes in an import worker; its SaltTower log line carries a `[Worker2]` prefix there.
+- Shots: PunchyMilestones/world/w27b (800 px), raw shots in w27b/raw.
+- Scratch: Punchy-world/Temp/w27b_*. Player logs: w27b_v2host.log, w27b_v2join.log, w27b_v1host.log, w27b_v1join.log.
+- The world editor logs to Punchy-world/Temp/editor-w04.log. Stale WorldProbe CS7036 lines there are harmless.
+- Run `unity command eval` from bash with single quotes; PowerShell mangles the quotes.
