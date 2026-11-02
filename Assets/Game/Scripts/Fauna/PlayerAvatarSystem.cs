@@ -65,6 +65,7 @@ namespace Punchy.Fauna
                     Wings(ref s.ValueRW, ref body.ValueRO.Blob.Value, motion.Flying, motion.Pitch, motion.Flapping, dt);
                     // (Climbing onto a ledge: the climbing pose over whatever else, run through as the climb goes.)
                     Pose(ref s.ValueRW, ref body.ValueRO.Blob.Value, motion.Mantle > 0f ? IdleAction.Mantle : pose, dt, terrain);
+                    s.ValueRW.Roll = motion.Roll;
                     if (motion.Mantle > 0f)
                     {
                         s.ValueRW.Action = IdleAction.Mantle;
@@ -93,7 +94,10 @@ namespace Punchy.Fauna
                 var run = math.distance(was.xz, s.ValueRO.Position.xz);
                 var pitch = run > 1e-4f ? math.atan2(s.ValueRO.Position.y - was.y, run) : 0f;
                 Wings(ref s.ValueRW, ref b, flying, pitch, pitch > 0.1f, dt);
-                Pose(ref s.ValueRW, ref b, (IdleAction)looks[ghost].Pose, dt, terrain);
+                // (Another player rolling: the somersault runs from when it was first seen, for as long as it says so.)
+                var rollPose = (IdleAction)looks[ghost].Pose == IdleAction.Roll;
+                Pose(ref s.ValueRW, ref b, rollPose ? IdleAction.None : (IdleAction)looks[ghost].Pose, dt, terrain);
+                s.ValueRW.Roll = rollPose ? math.min(s.ValueRO.Roll + dt / PlayerMovementSystem.RollTime, 0.999f) : 0f;
                 // (Another player climbing onto a ledge: its hands on the rim, a little ahead of it at the height it sent.)
                 if (looks[ghost].Rim > 0)
                 {
@@ -169,6 +173,10 @@ namespace Punchy.Fauna
             var moved = c.Vertical > 0.5f ? math.distance(c.Position, player.Position) : math.distance(c.Position.xz, player.Position.xz);
             if (moved > 5f)
                 moved = 0f;   // teleported
+            // (Climbing down: the gait cycle runs the other way, so a body going down the trunk isn't climbing up on the spot.)
+            if (c.Vertical > 0.5f && player.Position.y < c.Position.y - 1e-4f)
+                moved = -moved;
+            var stepped = moved;
             c.Position = player.Position;
             c.Mode = CreatureMode.Puppet;
             c.Clock += dt;
@@ -179,11 +187,11 @@ namespace Punchy.Fauna
             c.Sway += (-c.YawRate * 0.35f - c.Sway) * math.min(1f, dt * 4f);
 
             // Speed from how far it actually went; the gait holds still in the air.
-            var speed = grounded ? moved / dt : 0f;
+            var speed = grounded ? math.abs(moved) / dt : 0f;
             c.Speed += (speed - c.Speed) * math.min(1f, dt * 12f);
             c.GaitSpeed = c.Speed;   // (already eased)
             if (grounded)
-                c.Phase = math.frac(c.Phase + CreatureMotion.StepPhase(ref b, c, moved));
+                c.Phase = math.frac(c.Phase + CreatureMotion.StepPhase(ref b, c, stepped));
         }
 
         /// <summary>

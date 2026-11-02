@@ -36,10 +36,19 @@ namespace Punchy.Fauna
         public float2 IdleTime, Size;
         public ActiveTime Active;
         public float Grazing, Thirst, Playfulness, Laziness, Hunger, ChaseTime;
+        /// <summary>Kg at the middle of the Size range (see WeightAt).</summary>
+        public float Weight;
+        /// <summary>Range individuals' aggression is rolled in, and how aggressive one must be to hunt (CreaturePersonality).</summary>
+        public float2 Aggression;
+        public float HuntAggression;
         /// <summary>Species (FaunaDirector indices) it hunts.</summary>
         public BlobArray<int> Prey;
         /// <summary>Whether anything hunts it (so it needs to watch out for predators).</summary>
         public bool Hunted;
+        /// <summary>Folk only (empty for the rest): by FaunaDirector species index, its regard for a player in that body
+        /// (-1 cool .. 1 warm) and its kinship (FolkKin: 1 its own kind, 2 a rival). See StanceToward.</summary>
+        public BlobArray<float> Regard;
+        public BlobArray<byte> Kinship;
         public IdleActions Idles;
         public float Fidgets, Climbing;
         public bool SpinsWebs, Burrows, CaveDweller, Roosts, Friendly, CrossesWater, Haunts, LavaDweller, DrawnToLight, DrivenOff;
@@ -66,6 +75,11 @@ namespace Punchy.Fauna
         public bool Child;
         /// <summary>Four legs and not upright (horses, dogs, deer...): past a run it gallops (Sprint).</summary>
         public bool Gallops;
+        /// <summary>Its gallop is a bound (the hind pair together, then the front pair: rabbits, squirrels, weasels)
+        /// rather than a rotary gallop (each foot in turn).</summary>
+        public bool Bounds;
+        /// <summary>Its gallop is a leaping run (CreatureAnimator.LeapGather): gathered, then a long leap (#6).</summary>
+        public bool LeapingRun;
         /// <summary>Cold-blooded (CreatureSpecies.ColdBlooded): its breath doesn't show in the cold.</summary>
         public bool ColdBlooded;
         /// <summary>No legs, and a chain lying along the ground off the body (a snake's): it moves along a serpentine wave.</summary>
@@ -97,6 +111,14 @@ namespace Punchy.Fauna
         /// A fixed random number in -1..1 for one trait of one individual (posture, arm swing, hair…): the same for
         /// as long as the animal lives.
         /// </summary>
+        /// <summary>What an individual of this size (CreatureState.Scale) weighs, kg: the species' Weight by size cubed.</summary>
+        public float WeightAt(float scale)
+        {
+            var mid = math.max((Size.x + Size.y) * 0.5f, 1e-3f);
+            var r = scale / mid;
+            return Weight * r * r * r;
+        }
+
         public static float Trait(uint individual, int trait) =>
             math.hash(new uint2(individual, (uint)trait * 2654435761u + 17u)) / (float)uint.MaxValue * 2f - 1f;
 
@@ -143,6 +165,51 @@ namespace Punchy.Fauna
         /// a moment in the air each stride). Only players' bodies go that fast.
         /// </summary>
         public float Sprint(float speed) => Upright || Gallops ? math.smoothstep(RunSpeed * 1.05f, RunSpeed * 1.6f, speed) : 0f;
+
+        /// <summary>
+        /// How one of these folk (this individual) takes a player in a body of this species (Z-52). Its own kind are kin,
+        /// a rival folk a rival. Otherwise a cool regard makes some wary (up to 80% at -1) and, from -0.3, some annoyed
+        /// (up to half); a warm one makes some warm. Each individual's stance toward a species is fixed (a hash), so
+        /// the host's brain and every machine's FolkTalkSystem agree with nothing sent.
+        /// </summary>
+        public FolkStance StanceToward(int species, uint individual)
+        {
+            if (species < 0 || species >= Regard.Length)
+                return FolkStance.Neutral;
+            if (Kinship[species] == FolkKin.Kin)
+                return FolkStance.Kin;
+            if (Kinship[species] == FolkKin.Rival)
+                return FolkStance.Rival;
+            var regard = Regard[species];
+            var roll = (math.hash(new uint2(individual, (uint)species * 2654435761u)) & 0xFFFFu) / 65536f;
+            if (regard > 0f)
+                return roll < regard ? FolkStance.Warm : FolkStance.Neutral;
+            var annoyed = regard <= -0.3f ? -regard * 0.5f : 0f;
+            var wary = -regard * 0.8f;
+            return roll < annoyed ? FolkStance.Annoyed : roll < annoyed + wary ? FolkStance.Wary : FolkStance.Neutral;
+        }
+
+        /// <summary>
+        /// Sprint for this creature as it is now: an animal running for its life or after game gallops from just under
+        /// its run speed (Z-50: so a chase is seen at a gallop; otherwise only players' bodies go fast enough).
+        /// Everything that reads a leg's phase or stride uses this, so feet stay put.
+        /// </summary>
+        public float Sprint(in CreatureState s, float speed) =>
+            Gallops && (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Hunt) && speed > RunSpeed * 0.85f * s.Scale
+                ? math.max(Sprint(speed), math.smoothstep(RunSpeed * 0.85f, RunSpeed * 1.15f, speed / math.max(s.Scale, 0.01f)))
+                : Sprint(speed);
+
+        /// <summary>
+        /// A leg's place in the cycle (added to the body's Phase): its own (walk, trot) blended toward its gallop's by
+        /// how far into a sprint the body is, the short way round the cycle.
+        /// </summary>
+        public float LegPhase(ref CreaturePart part, float sprint)
+        {
+            if (!Gallops || sprint <= 0f || part.Role != LimbRole.Leg)
+                return part.Phase;
+            var d = math.frac(part.GallopPhase - part.Phase + 0.5f) - 0.5f;
+            return math.frac(part.Phase + d * sprint);
+        }
 
         /// <summary>A sprinting leg's sweep, longer than its run's by this share (a gallop's more).</summary>
         public float SprintStride => Gallops ? 0.6f : 0.35f;
@@ -192,6 +259,9 @@ namespace Punchy.Fauna
         public float Spring;
         /// <summary>+1, or -1 for the mirror image (yaw and roll flipped).</summary>
         public float Side;
+        /// <summary>A gallop's phase for a leg of a four-legged body (CreatureBlob.LegPhase): rotary, hind left 0, hind
+        /// right 0.1, fore left 0.45, fore right 0.55; bounding, the hinds 0 and the fores 0.5.</summary>
+        public float GallopPhase;
         /// <summary>Phase lag per joint down the chain (a travelling ripple).</summary>
         public float JointPhaseStep;
         /// <summary>Segments bend to lie on the ground.</summary>
@@ -345,6 +415,29 @@ namespace Punchy.Fauna
                              "evening, lies down on a bedroll for the night, and goes on its way in the morning.")] Camper
     }
 
+    /// <summary>How one of the folk takes the player's body (CreatureBlob.StanceToward, Z-52).</summary>
+    public enum FolkStance : byte
+    {
+        /// <summary>As ever: answers emotes (unless shy), talks when passed.</summary>
+        Neutral,
+        /// <summary>One of its own: always answers, now and then waves first.</summary>
+        Kin,
+        /// <summary>A playful rival: answers any emote with a mock bow, teases.</summary>
+        Rival,
+        /// <summary>Keeps a few metres off, watching; doesn't answer emotes; says only wary lines.</summary>
+        Wary,
+        /// <summary>Turns away from an emote and walks off; says only curt lines.</summary>
+        Annoyed,
+        /// <summary>Warm toward the player's folk: always answers, now and then waves first.</summary>
+        Warm
+    }
+
+    /// <summary>CreatureBlob.Kinship values.</summary>
+    public static class FolkKin
+    {
+        public const byte Stranger = 0, Kin = 1, Rival = 2;
+    }
+
     /// <summary>
     /// The stages of a hunter's outing (CreatureMode.Hunt for a creature with the Hunt task, numbered apart from an
     /// animal's own chase): walking out and creeping up on the game, aiming, the throw, then a short run after it.
@@ -432,6 +525,29 @@ namespace Punchy.Fauna
             Length(kit) * scale > 0.6f * 2f * standHeight * scale;
     }
 
+    /// <summary>
+    /// An individual's temperament (#50): values rolled once from its Individual within its species' ranges. Never
+    /// stored or sent: Individual is replicated, so every machine (host, client) works out the same values. Add new
+    /// values here; only Aggression drives behaviour so far (a dog hunts when it's over the species' HuntAggression).
+    /// </summary>
+    public struct CreaturePersonality
+    {
+        /// <summary>0 (meek) .. 1 (fierce).</summary>
+        public float Aggression;
+
+        // (Trait slots 60+ are the personality's; the animator and brain use lower ones.)
+        const int AggressionTrait = 60;
+
+        public static CreaturePersonality Of(ref CreatureBlob b, uint individual) => new CreaturePersonality
+        {
+            Aggression = math.lerp(b.Aggression.x, b.Aggression.y, CreatureBlob.Trait(individual, AggressionTrait) * 0.5f + 0.5f)
+        };
+
+        /// <summary>Whether this individual is fierce enough to hunt at all (species with no threshold: always).</summary>
+        public static bool WillHunt(ref CreatureBlob b, uint individual) =>
+            b.HuntAggression <= 0f || Of(ref b, individual).Aggression >= b.HuntAggression;
+    }
+
     /// <summary>A creature's position, heading, gait and what it's up to.</summary>
     public struct CreatureState : IComponentData
     {
@@ -478,6 +594,15 @@ namespace Punchy.Fauna
         /// <summary>Where it lives (a settlement, a den); with Leash &gt; 0 it wanders no further than that from it.</summary>
         public float2 Home;
         public float Leash;
+        /// <summary>
+        /// Two folk stopped to talk (CreatureBrainSystem.Chatting; local, host only, not sent): seconds before this one
+        /// starts or joins another talk; its part in one (1 started it, 2 the one it stopped, 3 a child standing by);
+        /// what it was doing before, to carry on after (ChatWalk 1 walking: ChatResume its target; 2 on its way to its
+        /// post: ChatResume.x its time left at work; 3 on its way to a seat; see BeginChat).
+        /// </summary>
+        public float ChatCool;
+        public byte ChatRole, ChatWalk;
+        public float2 ChatResume;
         /// <summary>Fixed for life: picks this individual's traits (posture, gait, hair). Set at spawn.</summary>
         public uint Individual;
         /// <summary>A worker's job, where it stands to do it, and what it faces there.</summary>
@@ -501,6 +626,8 @@ namespace Punchy.Fauna
         public float Vertical;
         /// <summary>In flight: wings beating or spread, legs tucked.</summary>
         public float Fly;
+        /// <summary>A player's body rolling on the ground: how far through the somersault (0..1; 0 = not rolling).</summary>
+        public float Roll;
 
         /// <summary>An idle action under way and how far through it is (0..1), and how long it lasts.</summary>
         public IdleAction Action;
@@ -595,7 +722,9 @@ namespace Punchy.Fauna
         /// </summary>
         /// <param name="prey">Indices of the species it hunts.</param>
         /// <param name="hunted">Whether any species hunts it.</param>
-        public static BlobAssetReference<CreatureBlob> Build(CreatureSpecies variant, IReadOnlyList<int> prey = null, bool hunted = false)
+        /// <param name="regard">Folk only: its regard for each species (by index), and its kinship (FolkKin).</param>
+        public static BlobAssetReference<CreatureBlob> Build(CreatureSpecies variant, IReadOnlyList<int> prey = null, bool hunted = false,
+                                                             IReadOnlyList<float> regard = null, IReadOnlyList<byte> kinship = null)
         {
             var species = variant.Body;
             // Expand slots: mirrored slots become left and right copies; children follow every copy of their parent.
@@ -629,6 +758,9 @@ namespace Punchy.Fauna
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<CreatureBlob>();
             root.BodyLength = species.BodyLength;
+            // (Short bodies bound, longer ones gallop, unless the species says.)
+            root.Bounds = species.Gallop == GallopStyle.Bound || species.Gallop == GallopStyle.Auto && species.BodyLength < 0.5f;
+            root.LeapingRun = species.Gallop == GallopStyle.Leap;
             // A variant's own proportions (a child's big head, chunky limbs and short legs) on the body it's based on.
             var own = variant != species;
             var headScale = own ? variant.VariantHead : 1f;
@@ -666,6 +798,10 @@ namespace Punchy.Fauna
             root.Laziness = variant.Laziness;
             root.Hunger = variant.Hunger;
             root.ChaseTime = variant.ChaseTime;
+            root.Weight = own && variant.Weight <= 0f ? species.Weight * sizeScale * sizeScale * sizeScale : variant.Weight;
+            root.Aggression = new float2(math.saturate(math.min(variant.Aggression.x, variant.Aggression.y)),
+                                         math.saturate(math.max(variant.Aggression.x, variant.Aggression.y)));
+            root.HuntAggression = variant.HuntAggression;
             root.Hunted = hunted;
             root.Idles = species.Idles;
             root.Fidgets = species.Fidgets;
@@ -704,6 +840,14 @@ namespace Punchy.Fauna
             var preyArray = builder.Allocate(ref root.Prey, prey?.Count ?? 0);
             for (int i = 0; i < preyArray.Length; i++)
                 preyArray[i] = prey[i];
+            var regards = regard != null && kinship != null && regard.Count == kinship.Count ? regard.Count : 0;
+            var regardArray = builder.Allocate(ref root.Regard, regards);
+            var kinArray = builder.Allocate(ref root.Kinship, regards);
+            for (int i = 0; i < regards; i++)
+            {
+                regardArray[i] = regard[i];
+                kinArray[i] = kinship[i];
+            }
 
             var partArray = builder.Allocate(ref root.Parts, parts.Count);
             var segArray = builder.Allocate(ref root.Segments, segmentCount);
@@ -904,7 +1048,7 @@ namespace Punchy.Fauna
                 ref var part = ref b.Parts[i];
                 if (part.Role != LimbRole.Leg || part.Parent >= 0)
                     continue;
-                stand += -Foot(ref b, ref part, CreatureBlob.Idle).y;
+                stand += -Foot(ref b, ref part, b.Disguised ? CreatureBlob.WalkReach : CreatureBlob.Idle).y;
                 walk += math.abs(Foot(ref b, ref part, CreatureBlob.WalkReach).z - Foot(ref b, ref part, CreatureBlob.WalkPush).z) * 2f;
                 run += math.abs(Foot(ref b, ref part, CreatureBlob.RunReach).z - Foot(ref b, ref part, CreatureBlob.RunPush).z) * 2f;
                 legs++;
@@ -913,6 +1057,16 @@ namespace Punchy.Fauna
             b.WalkStride = legs > 0 ? math.max(walk / legs, 0.05f) : math.max(leglessStride.x, 0.05f);
             b.RunStride = legs > 0 ? math.max(run / legs, 0.05f) : math.max(leglessStride.y, 0.05f);
             b.Gallops = !b.Upright && legs == 4;
+            if (b.Gallops)
+                for (int i = 0; i < b.Parts.Length; i++)
+                {
+                    ref var part = ref b.Parts[i];
+                    if (part.Role != LimbRole.Leg || part.Parent >= 0)
+                        continue;
+                    var hind = part.Socket.z < 0f;
+                    var right = part.Side < 0f;
+                    part.GallopPhase = b.LeapingRun ? 0f : (hind ? 0f : b.Bounds ? 0.5f : 0.45f) + (b.Bounds ? 0f : right ? 0.1f : 0f);
+                }
             var chain = false;
             for (int i = 0; i < b.Parts.Length; i++)
                 chain |= b.Parts[i].FollowGround && b.Parts[i].Parent < 0;

@@ -38,6 +38,7 @@ MonoBehaviour:
     AccentGlow: 0
     Weight: 1
   Size: {x: 0.97, y: 1.04}
+  Weight: 55
   HairColors:
   - {r: 0.82, g: 0.84, b: 0.86, a: 1}
   - {r: 0.9, g: 0.86, b: 0.7, a: 1}
@@ -428,3 +429,11 @@ MonoBehaviour:
   Perching: 0.6
   Soars: 0
   Breaches: 0
+  Regard:
+  - Species: {fileID: 11400000, guid: 92efcd8c205109b498ebcc61830248fd, type: 2}
+    Value: 0
+    Rival: 1
+  - Species: {fileID: 11400000, guid: 8e349b1519701e84fbe7923c0c10f2fd, type: 2}
+    Value: -0.4
+    Rival: 0
+  RegardToAll: 0

@@ -24,8 +24,23 @@ namespace Punchy.Player
     [UpdateBefore(typeof(TerrainStreamingSystem))]
     public partial struct PlayerMovementSystem : ISystem
     {
+        /// <summary>#33 debug probe: 1 logs the wall latch's terms every frame (set by DebugControls' -place wall).</summary>
+        public static readonly SharedStatic<int> WallProbe = SharedStatic<int>.GetOrCreate<WallProbeKey>();
+        struct WallProbeKey { }
+        /// <summary>How tall a prop's top can be and still count as a wall for a wall climber (m).</summary>
+        const float WallClimbHead = 8f;
+        /// <summary>On a wall, how far ahead the top's rim is looked for (Ledge starts 0.3 m out, past a small body's reach).</summary>
+        const float WallLedgeReach = 0.5f;
+        /// <summary>#33: how far above a wall climber's feet (m, for a body of size 1) a top just past the wall's face can
+        /// be for it to climb over onto it.</summary>
+        const float TopOutReach = 0.8f;
+
         /// <summary>A walk (the walk toggle) for a human body, m/s; other bodies by their speed next to a human.</summary>
         public const float Stroll = 1.6f;
+        /// <summary>A roll's length (s), its pace next to the everyday jog, and the fastest it goes (m/s: a horse doesn't roll 15).</summary>
+        public const float RollTime = 0.55f, RollSpeed = 1.3f, RollMost = 8f;
+        /// <summary>The way down on the wing with the right face button: a steady descent at this nose-down angle (radians).</summary>
+        const float DescendPitch = 0.5f;
 
         [BurstCompile]
         public void OnCreate(ref SystemState state)
@@ -38,7 +53,7 @@ namespace Punchy.Player
         public void OnUpdate(ref SystemState state)
         {
             var dt = SystemAPI.Time.DeltaTime;
-            var input = SystemAPI.GetSingleton<PlayerInput>();
+            var rawInput = SystemAPI.GetSingleton<PlayerInput>();
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
             var body = SystemAPI.TryGetSingleton<PlayerBody>(out var playerBody) ? playerBody : new PlayerBody { SpeedFactor = 1f };
             SystemAPI.TryGetSingletonBuffer<FloraObstacle>(out var obstacles, true);
@@ -54,6 +69,7 @@ namespace Punchy.Player
                 ref var t = ref transform.ValueRW;
                 ref var m = ref motion.ValueRW;
                 var settings = motor.ValueRO;
+                var input = rawInput;
 
                 var position = t.Position;
                 // (Over deep water but up in the air, jumping across a river: not swimming yet, so neither slowed nor carried
@@ -129,10 +145,54 @@ namespace Punchy.Player
                     continue;
                 }
 
+                // The right face button on the ground: a roll, a quick dive forward the way the stick points (or the way it
+                // faces), over in half a second, with a short wait before the next. No steering while it lasts.
+                m.RollCooldown = math.max(m.RollCooldown - dt, 0f);
+                if (m.Roll <= 0f && input.CrouchPressed && m.Grounded && !swimming && !m.OnWall && m.RollCooldown <= 0f)
+                {
+                    m.Roll = 1e-4f;
+                    m.RollDir = math.normalizesafe(input.MoveDirection, math.normalizesafe(math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz, new float2(0f, 1f)));
+                }
+                var rolling = m.Roll > 0f;
+                if (rolling)
+                {
+                    m.Roll += dt / RollTime;
+                    if (m.Roll >= 1f || !m.Grounded || swimming)
+                    {
+                        m.Roll = 0f;
+                        m.RollCooldown = 0.35f;
+                        rolling = false;
+                    }
+                    else
+                        input.MoveDirection = m.RollDir;
+                }
                 var pace = input.Walk ? Stroll : settings.WalkSpeed * (input.Sprint ? settings.SprintMultiplier : 1f);
+                if (rolling)
+                    pace = settings.WalkSpeed * RollSpeed;
                 var speed = pace * math.max(body.SpeedFactor, 0.1f) * (swimming ? settings.SwimSpeedMultiplier : 1f);
+                if (rolling)
+                    speed = math.min(speed, RollMost);
                 var from = position;
-                position.xz += input.MoveDirection * speed * dt;
+                // Up a wall already: the stick is read against the wall (forward up, back down, sideways along it).
+                var wallUp = 0f;
+                var wallSideNow = 0f;
+                var move = input.MoveDirection;
+                if (m.OnWall && body.ClimbsWalls)
+                {
+                    var into = math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz;
+                    StickOnSurface(input, out wallUp, out var wallSide);
+                    // (The camera looking away from the wall, as when it has stepped back off a top: pushing on, away from
+                    // the wall, climbs down, and the stick's right is still the screen's right.)
+                    if (math.dot(math.normalizesafe(input.CameraForward, into), into) < 0f)
+                    {
+                        wallUp = -wallUp;
+                        wallSide = -wallSide;
+                    }
+                    wallSideNow = wallSide;
+                    var across = new float2(into.y, -into.x);
+                    move = into + across * wallSide * math.max(body.ClimbSpeed, 0.3f) / math.max(speed, 0.1f);
+                }
+                position.xz += move * speed * dt;
                 if (swimming)
                 {
                     // Rivers carry swimmers downstream: harder in rapids, but never faster than they can swim, so
@@ -152,21 +212,41 @@ namespace Punchy.Player
                     m.VerticalVelocity = 0f;
                     continue;
                 }
+                var probeWanted = position.xz;
                 if (obstacles.IsCreated)
                     position.xz = SlideAroundObstacles(obstacles, position, settings.Radius, stepUp);
+                var probeSlid = position.xz;
                 if (inCave)
                     position.xz = KeepOutOfCaveWalls(terrain, from, position.xz, settings.Radius);
+                var probeCave = position.xz;
                 // Props' tops too high to step onto are walls (a boulder, a fountain's rim from outside): slid along.
                 var blocked = false;
+                // (#33: a wall climber counts anything it can't step onto as a wall, however far above its own head the
+                // top is; with head height a lizard never met a garden wall, whose only surface is its top.)
+                var wallHead = body.ClimbsWalls ? WallClimbHead : 1.7f * size;
                 if (tops)
-                    position.xz = KeepOutOfPropWalls(ref grids.Set.Value, props, from, position.xz, stepUp, 1.7f * size, out blocked);
+                    position.xz = KeepOutOfPropWalls(ref grids.Set.Value, props, from, position.xz, stepUp, wallHead, out blocked);
                 // The salt tower's body and its steps from below (W-27): slid along the same way.
                 position.xz = KeepOutOfTower(terrain, from, position.xz, stepUp, 1.7f * size, ref blocked);
+                // (#33 probe, -place wall only: every term of the wall latch below, and what stopped the move first.)
+                if (WallProbe.Data == 1 && body.ClimbsWalls)
+                {
+                    var anyTop = float.MinValue;
+                    var anyWall = tops && PropSupport.Wall(ref grids.Set.Value, props, new float3(probeWanted.x, from.y, probeWanted.y), stepUp, 50f, out anyTop);
+                    var headTop = float.MinValue;
+                    var headWall = tops && PropSupport.Wall(ref grids.Set.Value, props, new float3(probeWanted.x, from.y, probeWanted.y), stepUp, 1.7f * size, out headTop);
+                    var slid = math.distance(probeWanted, probeSlid);
+                    var caved = math.distance(probeSlid, probeCave);
+                    var propCut = math.distance(probeCave, position.xz);
+                    var lenMove = math.length(move);
+                    UnityEngine.Debug.Log($"WallProbe: blocked {(blocked ? 1 : 0)} pressing {(pressing0(move) ? 1 : 0)} |move| {lenMove} grounded {(m.Grounded ? 1 : 0)} onWall {(m.OnWall ? 1 : 0)} vv {m.VerticalVelocity} cooldown {m.LatchCooldown} jump {(input.JumpPressed ? 1 : 0)} swim {(swimming ? 1 : 0)} tops {(tops ? 1 : 0)} size {size} stepUp {stepUp} head {1.7f * size} wallAtHead {(headWall ? 1 : 0)} wallAny {(anyWall ? 1 : 0)} anyTopAboveFeet {anyTop - from.y} wallUp {wallUp} wallSide {wallSideNow} climbSpeed {body.ClimbSpeed} speed {speed} slideCut {slid} caveCut {caved} propCut {propCut} feetY {from.y} x {from.x} z {from.z}");
+                }
 
                 // A ledge within reach ahead: climbed onto, for a jump at it (or reaching it in the air, pressing on).
-                var pressing = math.lengthsq(input.MoveDirection) > 0.04f;
+                var pressing = math.lengthsq(move) > 0.04f;
                 if (tops && body.Climbs && !swimming && pressing && (input.JumpPressed || !m.Grounded && blocked) &&
-                    PropSupport.Ledge(ref grids.Set.Value, props, from, math.normalize(input.MoveDirection), 0.9f * size, stepUp,
+                    PropSupport.Ledge(ref grids.Set.Value, props, from, math.normalize(input.MoveDirection),
+                                      m.OnWall ? math.max(0.9f * size, WallLedgeReach) : 0.9f * size, stepUp,
                                       MantleReach * size, out var ledge))
                 {
                     m.Mantle = 1e-4f;
@@ -190,7 +270,18 @@ namespace Punchy.Player
                 {
                     m.VerticalVelocity = settings.JumpSpeed * 0.8f;
                     m.LatchCooldown = 0.5f;
-                    position.xz = from.xz - math.normalizesafe(input.MoveDirection) * 0.4f;
+                    position.xz = from.xz - math.normalizesafe(math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz) * 0.4f;
+                }
+                else if (wasOnWall && body.ClimbsWalls && tops && wallUp >= 0f && !swimming &&
+                         PropSupport.Sample(ref grids.Set.Value, props, from, 0.3f, stepUp, out var perch) &&
+                         perch.Height >= from.y - 0.3f && perch.Height <= from.y + stepUp)
+                {
+                    // Feet on a top (a wall's, after the climb): let go of the wall, with no stick needed (#33).
+                    m.Grounded = true;
+                    m.VerticalVelocity = 0f;
+                    position.y = math.max(from.y, perch.Height);
+                    t.Position = position;
+                    continue;
                 }
                 else if (body.ClimbsWalls && blocked && pressing && !swimming && !input.JumpPressed &&
                          (m.Grounded || wasOnWall || m.VerticalVelocity > -LatchFall && m.LatchCooldown <= 0f))
@@ -198,10 +289,36 @@ namespace Punchy.Player
                     m.OnWall = true;
                     m.Grounded = false;
                     m.VerticalVelocity = 0f;
-                    position.y = from.y + math.max(body.ClimbSpeed, 0.3f) * dt;
+                    // (Latching on, the push is the way it faces; once on, the stick climbs: forward up, back down.)
+                    var rising = wasOnWall ? wallUp : 1f;
+                    // At the top: a top within reach just past the wall's face (the rim; on a rounded rock, the top it has
+                    // crept onto) and it climbs over onto it, rather than clinging on below the rim (#33).
+                    var wallInto = math.normalizesafe(math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz);
+                    var overAt = position.xz + wallInto * (settings.Radius + 0.15f);
+                    if (tops && wasOnWall && rising > 0f &&
+                        PropSupport.Sample(ref grids.Set.Value, props, new float3(overAt.x, from.y, overAt.y), 0f, TopOutReach * math.max(size, 0.5f), out var over) &&
+                        over.Height > from.y - stepUp)
+                    {
+                        m.OnWall = false;
+                        m.Mantle = 1e-4f;
+                        m.MantleFrom = from;
+                        m.MantleTo = new float3(overAt.x, over.Height, overAt.y);
+                        t.Position = from;
+                        continue;
+                    }
+                    position.y = from.y + rising * math.max(body.ClimbSpeed, 0.3f) * dt;
+                    if (wasOnWall && rising < 0f && Floor(terrain, position, settings.SwimDepth, out var foot, out _) && position.y <= foot)
+                    {
+                        // Down at the foot of it: off, standing.
+                        m.OnWall = false;
+                        m.Grounded = true;
+                        position.y = foot;
+                        t.Position = position;
+                        continue;
+                    }
                     t.Position = position;
                     var face = new float3(input.MoveDirection.x, 0f, input.MoveDirection.y);
-                    if (math.lengthsq(face) > 1e-4f)
+                    if (!wasOnWall && math.lengthsq(face) > 1e-4f)
                         t.Rotation = quaternion.LookRotationSafe(face, math.up());
                     continue;
                 }
@@ -215,6 +332,7 @@ namespace Punchy.Player
 
                 Floor(terrain, position, settings.SwimDepth, out var ground, out _);
                 // Standing on a prop's top, if it's higher than the ground there; slid off it where it's steep.
+                var wasOnProp = m.OnProp;
                 m.OnProp = false;
                 if (tops && PropSupport.Sample(ref grids.Set.Value, props, position, settings.Radius * 0.6f, stepUp, out var top) && top.Height > ground)
                 {
@@ -222,6 +340,20 @@ namespace Punchy.Player
                     m.OnProp = true;
                     if (m.Grounded && top.Normal.y < SlideSlope && math.lengthsq(top.Normal.xz) > 1e-6f)
                         position.xz += math.normalize(top.Normal.xz) * SlideSpeed * dt;
+                }
+                // A wall climber walking off a top's edge goes over onto the wall, turned to face it, and climbs down
+                // (#33: it used to let go and fall). Its feet start just below the rim, so the wall holds it.
+                if (body.ClimbsWalls && tops && wasOnProp && !m.OnProp && m.Grounded && pressing && !input.JumpPressed && !swimming &&
+                    position.y - ground > math.max(settings.GroundSnapDistance + speed * dt, stepUp))
+                {
+                    var off = math.normalizesafe(position.xz - from.xz, input.MoveDirection);
+                    m.OnWall = true;
+                    m.Grounded = false;
+                    m.VerticalVelocity = 0f;
+                    position.y = from.y - stepUp - 0.05f;
+                    t.Position = position;
+                    t.Rotation = quaternion.LookRotationSafe(new float3(-off.x, 0f, -off.y), math.up());
+                    continue;
                 }
                 if (m.Grounded && position.y - ground <= settings.GroundSnapDistance + speed * dt)
                 {
@@ -315,10 +447,11 @@ namespace Punchy.Player
             // (Rising out of it in a leap: in the air, not swimming, until it comes back down.)
             if (water && position.y < ground.WaterSurface + 0.1f && m.VerticalVelocity <= 0f)
             {
-                var speed = settings.WalkSpeed * math.max(body.SpeedFactor, 0.1f) * (input.Sprint ? 1.6f : 1f);
-                // Swimming the way the camera looks: across, and up or down with it.
+                var speed = settings.WalkSpeed * math.max(body.SpeedFactor, 0.1f) * (input.Sprint ? FishSprint : 1f);
+                // Swimming the way the camera looks: across, and up or down with it. Sprinting holds its depth instead (a
+                // fast dash across, level), and jump and crouch still rise and sink.
                 var push = math.length(input.MoveDirection);
-                var pitch = math.clamp(input.CameraPitch, -1.2f, 1.2f);
+                var pitch = input.Sprint ? 0f : math.clamp(input.CameraPitch, -1.2f, 1.2f);
                 var next = position.xz + input.MoveDirection * speed * math.cos(pitch) * dt;
                 var ahead = terrain.SampleGround(next);
                 // (It keeps to the water: no swimming up onto the bank except by leaping out with jump.)
@@ -387,6 +520,9 @@ namespace Punchy.Player
             Face(ref t, input, settings, dt);
         }
 
+        /// <summary>A fish's sprint next to its ordinary swim.</summary>
+        const float FishSprint = 2.8f;
+
         static void Face(ref LocalTransform t, in PlayerInput input, in PlayerMotor settings, float dt)
         {
             var flatMove = new float3(input.MoveDirection.x, 0f, input.MoveDirection.y);
@@ -421,18 +557,20 @@ namespace Punchy.Player
 
             var dive = input.DiveHeld;
             var climb = input.JumpHeld && !dive;
-            m.Flapping = climb || steering;
+            // The right face button: down at a steady angle, gliding (the dive button is the steep stoop).
+            var descend = input.CrouchHeld && !dive && !climb;
+            m.Flapping = climb || steering && !descend;
             Floor(terrain, t.Position, settings.SwimDepth, out var ground, out _);
             var height = t.Position.y - ground;
             // Nose: steeply up to climb, steeply down to dive (quickly, deliberately); with the stick pushed, a little
             // up or down the way the camera looks; held level beating on, or sinking gently gliding. Near the ground on
             // the way down, it flares: nose up, slowing to land.
-            var targetPitch = climb ? SteepClimb : dive ? -SteepDive
+            var targetPitch = climb ? SteepClimb : dive ? -SteepDive : descend ? -DescendPitch
                             : steering ? math.clamp(input.CameraPitch * 0.6f, -GentlePitch, GentlePitch) : -0.12f;
-            var flaring = !climb && !dive && height < Punchy.Fauna.CreatureMotion.FlareDistance * 1.5f && m.Pitch <= 0.05f;
+            var flaring = !climb && !dive && !descend && height < Punchy.Fauna.CreatureMotion.FlareDistance * 1.5f && m.Pitch <= 0.05f;
             if (flaring)
                 targetPitch = math.max(targetPitch, -0.15f);
-            var pitchRate = climb || dive ? 2.5f : 0.8f;
+            var pitchRate = climb || dive || descend ? 2.5f : 0.8f;
             m.Pitch += math.clamp(targetPitch - m.Pitch, -pitchRate * dt, pitchRate * dt);
 
             // Speed: wingbeats bring it up to flying speed; a glide bleeds it off slowly. Climbing costs speed; diving
@@ -562,10 +700,11 @@ namespace Punchy.Player
             var speed = math.max(body.ClimbSpeed, 0.3f);
             var inward = -outward;
             var round = new float2(-outward.y, outward.x);
-            var up = math.dot(input.MoveDirection, inward);
+            // (The stick against the surface, not the world: forward is up, back is down, and right is to the body's
+            // right as it faces the trunk, which is the way TrunkAngle grows.)
+            StickOnSurface(input, out var up, out var side);
             // (Round it only for a push mostly sideways: a push roughly at the trunk climbs straight, rather than
             // working its way round.)
-            var side = math.dot(input.MoveDirection, round);
             side = math.sign(side) * math.max(math.abs(side) - 0.45f, 0f) / 0.55f;
             var y = t.Position.y + up * speed * dt;
             // Feet on the bark (the body hangs a leg's length out from them: CreatureAnimator), drawn in to it over a
@@ -607,9 +746,22 @@ namespace Punchy.Player
             m.VerticalVelocity = 0f;
         }
 
+        /// <summary>
+        /// The stick as the player pushes it on the screen: forward (+, up a surface) and right (+), from the world-space
+        /// move and where the camera looks. A test's move with no camera reads as forward.
+        /// </summary>
+        static void StickOnSurface(in PlayerInput input, out float forward, out float right)
+        {
+            var look = math.normalizesafe(input.CameraForward, new float2(0f, 1f));
+            forward = math.dot(input.MoveDirection, look);
+            right = math.dot(input.MoveDirection, new float2(look.y, -look.x));
+        }
+
         /// <summary>The centre (x, z) of the trunk a body holds, at a height: as drawn, leaning or bending as it may.</summary>
         public static float2 TrunkCentre(in PlayerMotion m, float y) =>
             FloraObstacle.CentreAt(m.TrunkBase, m.TrunkHeight, m.TrunkLeanMid, m.TrunkLeanTop, y);
+
+        static bool pressing0(float2 move) => math.lengthsq(move) > 0.04f;
 
         /// <summary>The highest a body of human size steps up onto without a climb (m).</summary>
         const float StepUp = 0.4f;

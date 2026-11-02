@@ -71,6 +71,8 @@ namespace Punchy.Fauna
         // world runs the animals: the server world when hosting, the local world without netcode, none on a client
         // that joined someone else.
         World queryWorld, simWorld;
+        /// <summary>The world that simulates animals (the server's, when hosting); null before the director is up.</summary>
+        public World SimWorld => simWorld;
         EntityQuery terrainQuery, paletteQuery, playerQuery, avatarQuery, replicaQuery, newReplicaQuery;
         EntityQuery wildQuery, simCreatureQuery, netPlayerQuery, simPlayerQuery, ghostSpawnerQuery, floraQuery;
         /// <summary>When the far ones are next let go (and the counts tallied): four times a second is plenty.</summary>
@@ -375,21 +377,35 @@ namespace Punchy.Fauna
             speciesByName.Clear();
             for (int i = 0; i < species.Count; i++)
                 speciesByName[species[i].name] = i;
-            // Who hunts whom: a listed species covers its variants too.
+            // Who hunts whom: a listed species covers its variants too. Matched by name, not by object: in a built
+            // player a species loaded from Resources (the Domestics table's Dog) points at Resources copies of its
+            // prey, which aren't the objects the palette listed (A-20: dogs saw no rabbits in the build).
+            static bool Lists(List<CreatureSpecies> list, CreatureSpecies s)
+            {
+                if (list == null || s == null)
+                    return false;
+                foreach (var x in list)
+                    if (x != null && x.name == s.name)
+                        return true;
+                return false;
+            }
             var hunted = new bool[species.Count];
             var preyLists = new List<int>[species.Count];
             for (int i = 0; i < species.Count; i++)
             {
                 preyLists[i] = new List<int>();
                 for (int j = 0; j < species.Count; j++)
-                    if (j != i && (species[i].Hunts.Contains(species[j]) || species[i].Hunts.Contains(species[j].Body)))
+                    if (j != i && (Lists(species[i].Hunts, species[j]) || Lists(species[i].Hunts, species[j].Body)))
                     {
                         preyLists[i].Add(j);
                         hunted[j] = true;
                     }
             }
             for (int i = 0; i < species.Count; i++)
-                blobs.Add(CreatureBlobBuilder.Build(species[i], preyLists[i], hunted[i]));
+            {
+                Regards(i, out var regard, out var kinship);
+                blobs.Add(CreatureBlobBuilder.Build(species[i], preyLists[i], hunted[i], regard, kinship));
+            }
 
             capsule = BuildCapsule(12, 6, 4);
             var em = queryWorld.EntityManager;
@@ -468,6 +484,39 @@ namespace Punchy.Fauna
         }
 
         /// <summary>
+        /// Folk (upright species) only: how species i regards a player in each species' body (Z-52), from its Regard
+        /// list (a listed species covers its variants) or else RegardToAll, and its kinship: its own kind (the same
+        /// species it's based on) kin, a Rival entry a rival. Null for the rest.
+        /// </summary>
+        void Regards(int i, out float[] regard, out byte[] kinship)
+        {
+            regard = null;
+            kinship = null;
+            var folk = species[i].Body;
+            if (folk == null || !folk.Upright)
+                return;
+            regard = new float[species.Count];
+            kinship = new byte[species.Count];
+            for (int j = 0; j < species.Count; j++)
+            {
+                var other = species[j];
+                if (other.Body == folk)
+                {
+                    kinship[j] = FolkKin.Kin;
+                    continue;
+                }
+                regard[j] = folk.RegardToAll;
+                foreach (var r in folk.Regard)
+                    if (r != null && r.Species != null && (r.Species == other || r.Species == other.Body))
+                    {
+                        regard[j] = r.Value;
+                        kinship[j] = r.Rival ? FolkKin.Rival : FolkKin.Stranger;
+                        break;
+                    }
+            }
+        }
+
+        /// <summary>
         /// Changes whenever any species, limb type or prey list in use is edited (editor only): the sum of their
         /// dirty counters, which Unity bumps on every inspector edit. Cheap enough to check every second.
         /// </summary>
@@ -511,6 +560,8 @@ namespace Punchy.Fauna
         /// <summary>The species asset at an index (for things that read its data directly, as the sound does).</summary>
         public CreatureSpecies SpeciesAt(int index) => index >= 0 && index < species.Count ? species[index] : null;
         public int SpeciesCount => species.Count;
+        /// <summary>The baked body at an index (tests read a species' tables from it: the stance check).</summary>
+        public BlobAssetReference<CreatureBlob> BlobAt(int index) => index >= 0 && index < blobs.Count ? blobs[index] : default;
         /// <summary>How many animals birds of prey have caught (for the test log).</summary>
         public static int Caught;
         public Habitat SpeciesHabitat(int index) => species[index].Body.Habitat;

@@ -74,7 +74,7 @@ namespace Punchy.Fauna
             var scale = math.max(s.Scale, 0.01f);
             var move = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), s.GaitSpeed);
             var run = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), s.GaitSpeed);
-            var sprint = b.Sprint(s.GaitSpeed);
+            var sprint = b.Sprint(s, s.GaitSpeed);
             var stride = math.lerp(b.WalkStride, b.RunStride, run) * (1f + b.SprintStride * sprint);
             var sweep = 0f;
             var planted = 0;
@@ -83,7 +83,7 @@ namespace Punchy.Fauna
                 ref var part = ref b.Parts[i];
                 if (part.Role != LimbRole.Leg || part.Parent >= 0 || part.SegmentCount == 0)
                     continue;
-                var p = math.frac(s.Phase + part.Phase);
+                var p = math.frac(s.Phase + b.LegPhase(ref part, sprint));
                 if (p >= 0.5f)
                     continue;   // swinging through the air
                 const float step = 0.01f;
@@ -110,11 +110,16 @@ namespace Punchy.Fauna
         /// Where a leg's foot is in the body's frame (unscaled; x right, z forward) at a point of its cycle, posed as the
         /// animator poses it for this speed.
         /// </summary>
-        public static float3 FootAt(ref CreatureBlob b, ref CreaturePart part, float p, float speed)
+        public static float3 FootAt(ref CreatureBlob b, ref CreaturePart part, float p, float speed) => FootAt(ref b, ref part, p, speed, b.Sprint(speed));
+
+        /// <summary>FootAt for this creature as it is now (its Sprint can depend on what it's doing: a chase's gallop).</summary>
+        public static float3 FootAt(ref CreatureBlob b, ref CreaturePart part, float p, in CreatureState s) =>
+            FootAt(ref b, ref part, p, s.GaitSpeed, b.Sprint(s, s.GaitSpeed));
+
+        static float3 FootAt(ref CreatureBlob b, ref CreaturePart part, float p, float speed, float sprint)
         {
             var move = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), speed);
             var run = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), speed);
-            var sprint = b.Sprint(speed);
             var pos = part.Socket;
             var rot = part.Rest;
             for (int j = 0; j < part.SegmentCount; j++)
@@ -200,7 +205,7 @@ namespace Punchy.Fauna
                   move1 = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), s.GaitSpeed);
             float run0 = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), before),
                   run1 = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), s.GaitSpeed);
-            float sprint0 = b.Sprint(before), sprint1 = b.Sprint(s.GaitSpeed);
+            float sprint0 = b.Sprint(s, before), sprint1 = b.Sprint(s, s.GaitSpeed);
             var shift = 0f;
             var planted = 0;
             for (int i = 0; i < b.Parts.Length; i++)
@@ -208,7 +213,7 @@ namespace Punchy.Fauna
                 ref var part = ref b.Parts[i];
                 if (part.Role != LimbRole.Leg || part.Parent >= 0 || part.SegmentCount == 0)
                     continue;
-                var p = math.frac(s.Phase + part.Phase);
+                var p = math.frac(s.Phase + b.LegPhase(ref part, sprint1));
                 if (p < 0.03f || p > 0.47f)
                     continue;   // swinging, or just touching down or lifting off
                 shift += FootZ(ref b, ref part, p, move1, run1, sprint1, 0f) - FootZ(ref b, ref part, p, move0, run0, sprint0, 0f);

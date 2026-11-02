@@ -34,11 +34,24 @@ namespace Punchy.Audio
     {
         const float StepReach = 18f, HowlReach = 160f, WingReach = 25f, HiveReach = 18f, FarthestCall = 260f;
         /// <summary>The calls' budget: this many a second on average, up to CallBurst saved up; always heard within CloseCall m.</summary>
-        const float CallsPerSecond = 1.5f, CallBurst = 3f, CloseCall = 6f;
+        const float CallBurst = 2f, CloseCall = 6f;
+        /// <summary>How far close calls may run the budget into debt (about 17 s of quiet further off at 0.6/s).</summary>
+        const float CallDebt = 10f;
+        /// <summary>Calls a second on average (tests: "-callrate").</summary>
+        public static float CallRate = 0.6f;
         float callBudget = CallBurst;
         /// <summary>Calls played, and let go over the budget, since start (for tests); and whether the budget applies.</summary>
         public static int CallsPlayed, CallsThinned;
         public static bool ThinCalls = true;
+        /// <summary>Tests ("-voicelog"): log each cat or dog voice and howl as it plays (Z-51), with the mode behind it.</summary>
+        public static bool LogVoices;
+
+        static void LogVoice(SoundId id, in CreatureState s, float distance)
+        {
+            if (LogVoices && (id >= SoundId.Hiss || id == SoundId.Howl || id == SoundId.Bark || id == SoundId.Meow))
+                UnityEngine.Debug.Log($"CreatureAudio: voice {id} ({(int)id}) from a {s.Mode} creature {distance:F1} m away" +
+                                      $" (focus {math.distance(s.Position.xz, s.Focus):F1} m)");
+        }
 
         EntityQuery query;
         /// <summary>What each creature was doing last frame (its gait phase, action, flap count).</summary>
@@ -49,6 +62,12 @@ namespace Punchy.Audio
         /// <summary>A purring cat's loop; each dog's exertion (seconds of running, easing off) and when it last panted.</summary>
         readonly Dictionary<Entity, int> purrs = new Dictionary<Entity, int>();
         readonly Dictionary<Entity, (float exertion, float panted)> dogBreath = new Dictionary<Entity, (float, float)>();
+        /// <summary>Per cat or dog in hearing: its mode last frame and when it last made a mood sound (hiss, growl, whine).</summary>
+        readonly Dictionary<Entity, (CreatureMode mode, float voiced)> moodVoice = new Dictionary<Entity, (CreatureMode, float)>();
+        /// <summary>Per-play variation (Z-51: repeats differ). Local and cosmetic, so per-machine randomness is fine.</summary>
+        readonly System.Random jitter = new System.Random(0x51A7);
+        /// <summary>A pitch shift of up to ±6% for one play (pitch and speed together, as a clip's playback rate).</summary>
+        float Jitter() => 1f + ((float)jitter.NextDouble() * 2f - 1f) * 0.06f;
         float hour;
         readonly List<Entity> stale = new List<Entity>();
         readonly Dictionary<int, int> hiveLoops = new Dictionary<int, int>();
@@ -105,7 +124,7 @@ namespace Punchy.Audio
             }
             GameAudio.Terrain = terrain;
             GameAudio.HasTerrain = true;
-            callBudget = math.min(callBudget + SystemAPI.Time.DeltaTime * CallsPerSecond, CallBurst);
+            callBudget = math.min(callBudget + SystemAPI.Time.DeltaTime * CallRate, CallBurst);
             Creatures(ear, terrain);
             Hives(ear, terrain, night);
             Countryside(ear, night);
@@ -166,8 +185,9 @@ namespace Punchy.Audio
                             ref var part = ref b.Parts[p];
                             if (part.Role != LimbRole.Leg || part.Parent >= 0)
                                 continue;
-                            var now = math.frac(s.Phase + part.Phase);
-                            var then = math.frac(was.phase + part.Phase);
+                            var legPhase = b.LegPhase(ref part, b.Sprint(s, s.GaitSpeed));
+                            var now = math.frac(s.Phase + legPhase);
+                            var then = math.frac(was.phase + legPhase);
                             if (now < then && then - now > 0.5f)
                                 Step(s, ref b, part.Side, terrain);
                         }
@@ -192,10 +212,17 @@ namespace Punchy.Audio
                                     continue;
                                 herdCalls[call.Sound] = (clock, s.Position);
                             }
+                            // (A bird, owl, frog or insect call only where the biome has that sound: AmbientSounds.)
+                            var group = AmbientSounds.Of(call.Sound);
+                            if (group != AmbientGroup.None && (AmbientSounds.At(terrain, s.Position.xz) & group) == AmbientGroup.None)
+                                continue;
                             if (!Spend(d))
                                 continue;
-                            if (GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f), pitch, call.Volume, call.Reach))
+                            if (GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f), pitch * Jitter(), call.Volume, call.Reach))
+                            {
                                 CallsPlayed++;
+                                LogVoice(call.Sound, s, d);
+                            }
                         }
                 }
                 last[e] = (s.Phase, s.Action, flap, slots);
@@ -215,8 +242,15 @@ namespace Punchy.Audio
         /// <summary>Whether a call this far off fits the budget (taking its share if so).</summary>
         bool Spend(float distance)
         {
-            if (!ThinCalls || distance < CloseCall)
+            if (!ThinCalls)
                 return true;
+            // A call right by the listener always plays, but still takes its share (the budget may go into debt, down to
+            // CallDebt), so the calls further off wait it out and the total keeps to CallRate (#43: ~47/min before).
+            if (distance < CloseCall)
+            {
+                callBudget = math.max(callBudget - 1f, -CallDebt);
+                return true;
+            }
             if (callBudget >= 1f)
             {
                 callBudget -= 1f;
@@ -275,6 +309,32 @@ namespace Punchy.Audio
                     else
                         GameAudio.MoveLoop(handle, s.Position, 0.5f);
                 }
+                // What it's doing now, voiced (Z-51): a cat hisses as it bolts from something close; a dog growls as it
+                // runs at game or backs off from a threat, and whines when the one it was keeping company leaves it. (At
+                // most one such sound every 6 s each.)
+                if ((cats[species] || dogs[species]) && d < 25f)
+                {
+                    var had = moodVoice.TryGetValue(entities[i], out var mv);
+                    var mouthAt = s.Position + new float3(0f, bodies[i].Blob.Value.StandHeight * s.Scale, 0f);
+                    if (had && mv.mode != s.Mode && now - mv.voiced > 6f)
+                    {
+                        var sound = (SoundId)(-1);
+                        if (cats[species] && s.Mode == CreatureMode.Flee && math.distance(s.Position.xz, s.Focus) < 6f)
+                            sound = SoundId.Hiss;
+                        else if (dogs[species] && (s.Mode == CreatureMode.Hunt || s.Mode == CreatureMode.Flee && math.distance(s.Position.xz, s.Focus) < 8f))
+                            sound = SoundId.Growl;
+                        else if (dogs[species] && mv.mode == CreatureMode.Greet && s.Mode != CreatureMode.Flee)
+                            sound = SoundId.Whine;
+                        if (sound != (SoundId)(-1) && GameAudio.PlayOneShot(sound, mouthAt, (0.92f + (s.Individual % 11u) * 0.015f) * Jitter(),
+                                                                            sound == SoundId.Whine ? 0.4f : 0.5f, 25f))
+                        {
+                            mv.voiced = now;
+                            LogVoice(sound, s, d);
+                        }
+                    }
+                    mv.mode = s.Mode;
+                    moodVoice[entities[i]] = mv;
+                }
                 if (dogs[species] && d < 12f)
                 {
                     dogBreath.TryGetValue(entities[i], out var breath);
@@ -302,6 +362,8 @@ namespace Punchy.Audio
                 GameAudio.StopLoop(purrs[e]);
                 purrs.Remove(e);
             }
+            if (moodVoice.Count > 512)
+                moodVoice.Clear();
             states.Dispose();
             bodies.Dispose();
             entities.Dispose();
@@ -381,6 +443,7 @@ namespace Punchy.Audio
         void Countryside(float3 ear, float night)
         {
             var life = AmbientLife.Near(World, ear);
+            var here = SystemAPI.TryGetSingleton<TerrainSource>(out var land) ? AmbientSounds.At(land, ear.xz) : AmbientGroup.All;
             // (Frogs near the water at night: their chorus held on under the single croaks, from among them, as loud as
             // there are many of them.)
             var frogs = 0;
@@ -402,7 +465,7 @@ namespace Punchy.Audio
                 var thinned = a.Kind == AmbientKind.Songbird && ThinCalls && (((uint)a.Calls + a.Id) & 1u) != 0u;
                 if (a.Hidden && !was.hidden && a.Kind == AmbientKind.Frog)
                     GameAudio.PlayOneShot(SoundId.Splash, a.Position, 1.7f, 0.35f, 15f);
-                else if (!a.Hidden && a.Calls != was.calls && !thinned && Spend(math.distance(a.Position, ear)) && ++CallsPlayed > 0)
+                else if (!a.Hidden && a.Calls != was.calls && !thinned && (here & AmbientSounds.Of(a.Kind)) != AmbientGroup.None && Spend(math.distance(a.Position, ear)) && ++CallsPlayed > 0)
                     switch (a.Kind)
                     {
                         case AmbientKind.Songbird:

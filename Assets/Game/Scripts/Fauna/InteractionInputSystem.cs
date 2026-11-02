@@ -273,10 +273,13 @@ namespace Punchy.Fauna
                     r.Held = entity;
                 if (s.Holder == Me && s.Mode == CreatureMode.Petted)
                     r.Petting = true;
-                if (Interactions.CanPet(ref b, s) && math.abs(s.Position.y - Player.y) <= 1.5f)
+                // Pettable animals, plus anything light enough to carry (a child): lunging stays for animals.
+                var pet = Interactions.CanPet(ref b, s);
+                var carry = Folk && Interactions.CanCarry(ref b, s, Interactions.OnLand(Terrain, s.Position));
+                if ((pet || carry) && math.abs(s.Position.y - Player.y) <= 1.5f)
                 {
                     var d = math.distance(s.Position.xz, ReachPoint.xz) - b.BodyLength * s.Scale * 0.5f;
-                    if (d < r.LungeBest)
+                    if (pet && d < r.LungeBest)
                     {
                         r.LungeBest = d;
                         r.LungeTarget = entity;
@@ -285,7 +288,7 @@ namespace Punchy.Fauna
                     {
                         r.Best = d;
                         r.Target = entity;
-                        r.TargetCarry = Folk && Interactions.CanCarry(ref b, s, Interactions.OnLand(Terrain, s.Position));
+                        r.TargetCarry = carry;
                         r.TargetSpecies = body.Species;
                     }
                 }

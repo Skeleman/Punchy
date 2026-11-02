@@ -12,6 +12,9 @@ Read before changing anything players see, input, network tables or world state.
     see the local player's view. Server-side code finds its world through `NetWorlds.Server`, which is the local
     world when solo. Use `world.IsServer()` when it matters.
   - Code must work in all three: local, client and server.
+  - A MonoBehaviour that keeps a copy of `TerrainSource` must fetch it again when the default world changes: its blobs
+    are freed with the old world (an NRE in `HasBiomes` otherwise, see `DunesColossus.CurrentSource`). `PlaySolo()`
+    also reloads the scene, and `[RuntimeInitializeOnLoadMethod(AfterSceneLoad)]` runs only once: hook `sceneLoaded`.
 - Systems that touch input, cameras, meshes or rendering need
   `[WorldSystemFilter(LocalSimulation | ClientSimulation)]` or a presentation group, so they never run on the
   server.

@@ -29,6 +29,8 @@ namespace Punchy.Fauna
         [Header("Body")]
         [Tooltip("Length of the torso, nose-end to tail-end of the trunk, in metres.")]
         [Min(0.01f)] public float BodyLength = 0.8f;
+        [Tooltip("How a four-legged body gallops past a run: Auto bounds if under 0.5 m long, else a rotary gallop; Leap is the dogs', cats' and wolves' leaping run.")]
+        public GallopStyle Gallop;
         [Min(0.005f)] public float BodyRadius = 0.15f;
         [Tooltip("Rear radius relative to the front (below 1 = slimmer hips).")]
         [Range(0.2f, 2f)] public float BodyTaper = 1f;
@@ -42,6 +44,10 @@ namespace Punchy.Fauna
         public List<CreatureCoat> Coats = new List<CreatureCoat>();
         [Tooltip("Random size of individuals.")]
         public Vector2 Size = new Vector2(0.9f, 1.1f);
+        [Tooltip("What a typical one weighs, in kg (an individual in the middle of the Size range; others by size cubed). " +
+                 "Decides whether someone can lift it (Interactions.CarryCapacity). Variants: their own weight; 0 = the " +
+                 "base species' scaled by VariantScale cubed.")]
+        [Min(0f)] public float Weight = 5f;
         [Tooltip("Colours an individual's hair and beard (segments marked Hair) are picked from. Empty = the " +
                  "species this is a variant of, or the segments' own colour.")]
         public List<Color> HairColors = new List<Color>();
@@ -107,6 +113,12 @@ namespace Punchy.Fauna
         [Range(0f, 1f)] public float Hunger = 0.3f;
         [Tooltip("Seconds it keeps up a chase before giving up.")]
         [Min(1f)] public float ChaseTime = 10f;
+
+        [Header("Personality (each individual rolls its own, the same on every machine)")]
+        [Tooltip("Range of aggression, 0 (meek) to 1 (fierce), individuals are rolled in (see CreaturePersonality).")]
+        public Vector2 Aggression = new Vector2(0.2f, 0.5f);
+        [Tooltip("Only individuals at least this aggressive hunt (0 = every one does): dogs chase hares only when fierce.")]
+        [Range(0f, 1f)] public float HuntAggression;
 
         [Header("Habits")]
         [Tooltip("Little things it does while standing about (pawing the ground, grooming, scratching, sitting…).")]
@@ -217,6 +229,14 @@ namespace Punchy.Fauna
                  "with the bees mobbing it, then makes off well away from it.")]
         public bool RaidsHives;
 
+        [Header("Folk regard")]
+        [Tooltip("How its folk regard players in other folk's bodies (Z-52): -1 cool (more of them wary, some annoyed) to 1 " +
+                 "warm (more of them wave); Rival, a playful rivalry (teasing, a mock bow). A listed species covers its " +
+                 "variants. Its own kind is always kin. A variant uses the species it's based on.")]
+        public List<FolkRegard> Regard = new List<FolkRegard>();
+        [Tooltip("Regard for every other folk not listed in Regard (blind cave pygmies: a little wary of all).")]
+        [Range(-1f, 1f)] public float RegardToAll;
+
         [Header("Sound")]
         [Tooltip("Its calls (CreatureAudioSystem plays them near the listener, each individual on its own clock): a hen's " +
                  "cluck, a duck's quack, a dog's bark. A variant with none uses the species it's based on.")]
@@ -311,7 +331,18 @@ namespace Punchy.Fauna
         // A rooted creature striking at something within reach (not an idle action any species picks).
         Snap,
         // A player sitting down or lying back where they are, or on a seat (postures held until they move).
-        SitDown, LieBack
+        SitDown, LieBack,
+        // A player's roll on the ground (the right face button); a body-wide somersault, not an action's limb pose.
+        Roll
+    }
+
+    public enum GallopStyle : byte
+    {
+        Auto,
+        [Tooltip("Each foot in turn: hind, hind, fore, fore (horses, dogs, deer).")] Rotary,
+        [Tooltip("The hind pair together, then the front pair (rabbits, squirrels, weasels).")] Bound,
+        [Tooltip("A leaping run, two moments in the air a stride (dogs, cats, wolves): all four feet gathered under the " +
+                 "body, held, then a snap out into a long leap, front legs reaching, hind legs stretched back (#6).")] Leap
     }
 
     public enum ActiveTime : byte
@@ -326,6 +357,16 @@ namespace Punchy.Fauna
 
     /// <summary>One of a species' calls: which sound, how often (seconds between, by individual), how high, how loud and
     /// how far it carries, and at what time of day.</summary>
+    /// <summary>How a folk regards another (CreatureSpecies.Regard).</summary>
+    [Serializable]
+    public class FolkRegard
+    {
+        public CreatureSpecies Species;
+        [Range(-1f, 1f)] public float Value;
+        [Tooltip("A playful rivalry rather than coolness (dwarves and elves): teasing lines and a mock bow, never wary.")]
+        public bool Rival;
+    }
+
     [Serializable]
     public class CreatureCall
     {

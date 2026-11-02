@@ -40,6 +40,35 @@ namespace Punchy.Fauna
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     public partial struct CreatureBrainSystem : ISystem
     {
+        /// <summary>#12 A/B switch for one build: 1 (DebugControls' -noflaresettle) steers the flare the old way, wheeling
+        /// round to face the landing spot at the full turn rate.</summary>
+        /// <summary>#46 tests ("-flatfear"): fear by plain 3D distance, as before the height weighting.</summary>
+        public static readonly Unity.Burst.SharedStatic<int> HeightFearOff = Unity.Burst.SharedStatic<int>.GetOrCreate<HeightFearKey>();
+        struct HeightFearKey { }
+        const float HeightFear = 2.5f;
+        public static readonly Unity.Burst.SharedStatic<int> FlareSettleOff = Unity.Burst.SharedStatic<int>.GetOrCreate<FlareSettleKey>();
+        struct FlareSettleKey { }
+        /// <summary>A-26 tests ("-chattest"): folk stop to talk far more often, from further apart, cooldowns short.</summary>
+        public static readonly Unity.Burst.SharedStatic<int> ForceChat = Unity.Burst.SharedStatic<int>.GetOrCreate<ForceChatKey>();
+        struct ForceChatKey { }
+
+        /// <summary>
+        /// One of the townsfolk who could stop for a talk (A-26, widened in A-27, when a settled town of a few folk, most
+        /// at their posts, had all but stopped talking): about the town, walking somewhere, standing idle (or fidgeting at
+        /// an idle action), on its way to its post or a seat, or at a post in town (a smith or a vendor breaks off for a
+        /// word, then goes back to it); not seated, fishing, on guard, reading a letter, or on a round of its own (miners,
+        /// travellers, messengers, raids).
+        /// </summary>
+        internal static bool ChatFree(in CreatureState s, ref CreatureBlob b) =>
+            b.Upright && b.Hands && !b.Haunts && s.Leash > 0f && s.Task != CreatureTask.Patrol && s.Task != CreatureTask.Watch &&
+            s.Held != HeldItem.Letter && s.Gone == false &&
+            (s.Mode == CreatureMode.Wander || s.Mode == CreatureMode.Idle && s.Stage < CreatureAnimator.MessageWait ||
+             s.Mode == CreatureMode.Work && WalksToPost(s.Task) && (s.Stage == 0 || s.Stage == 1 && s.Task != CreatureTask.Fish && s.Task != CreatureTask.Hermit) ||
+             s.Mode == CreatureMode.Sit && s.Stage == 0);
+
+        /// <summary>A worker whose walk to work is a plain walk to its post (it can stop on the way and walk on after).</summary>
+        static bool WalksToPost(CreatureTask task) =>
+            task != CreatureTask.Mine && task != CreatureTask.Travel && task != CreatureTask.Messenger && task != CreatureTask.Critter;
         const float CellSize = 16f;
         // (Where the brain's time goes, for the profiler: its searches for danger and company, its needs and idle
         // actions, its choices, its moving and its gait.)
@@ -269,6 +298,12 @@ namespace Punchy.Fauna
                     s.Gone = true;
                     return;
                 }
+                // An animal a fox, wolf or the like has pounced on and caught (Z-53): gone (eaten).
+                if (b.Habitat == Habitat.Land && b.Hunted && Pounced(self, in s))
+                {
+                    s.Gone = true;
+                    return;
+                }
 
                 var flier = b.Habitat == Habitat.Flies;
                 var perched = flier && !Flying(s) && s.Position.y > Terrain.SampleHeight(s.Position.xz) + 0.3f;
@@ -291,12 +326,16 @@ namespace Punchy.Fauna
                 var facing = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
                 if (playerSpeed < 2.5f)
                     alert *= math.dot(facing, math.normalizesafe(-away)) < 0.3f ? 0.1f : 0.5f;
-                var playerDistance = math.length(away);
+                var playerDistance = math.distance(s.Position, player);   // (3D: high overhead is far)
                 // Danger is judged by real distance, so high overhead is far: a player flying over the herd doesn't
                 // scatter it, and nor does someone walking on the ground over a cave. (On foot across level ground it's
                 // much the same as the distance across.) A bird in the air keeps on with a hunt unless the player is
                 // really close.
-                var threatDistance = math.distance(s.Position, player);
+                // (#46: and the height gap counts for more than the ground between: a flyer hovering over the herd, 15 m up,
+                // is further off than 15 m. Within 1.5 m of level it's the plain distance, so ground-level fear is as it was.)
+                var gapUp = math.abs(s.Position.y - player.y);
+                var heightWeight = HeightFearOff.Data == 0 && gapUp > 1.5f ? 1.5f + (gapUp - 1.5f) * HeightFear : gapUp;
+                var threatDistance = math.length(new float3(s.Position.x - player.x, heightWeight, s.Position.z - player.z));
                 var nerve = s.Mode == CreatureMode.Hunt && flier ? 0.4f : 1f;
                 // Someone cheering or dancing about is noticed (and run from) further off; waving, a little. (Only by
                 // the skittish: a curious one comes to look, and some pay it no heed.)
@@ -419,8 +458,13 @@ namespace Punchy.Fauna
                     }
                     s.Focus = threat;
                 }
-                else if (emote != IdleAction.None && !b.Rooted)
-                    Answer(ref s, ref b, ref rng, emote, player, playerDistance, dt);
+                // How one of the folk takes the nearest player's body (Z-52): kin, a rival, wary, annoyed, warm or neither.
+                var stance = b.Upright && b.Hands && !b.Haunts && nearest < PlayerSpecies.Length
+                    ? b.StanceToward(PlayerSpecies[nearest], s.Individual) : FolkStance.Neutral;
+                if (!threatened && emote != IdleAction.None && !b.Rooted)
+                    Answer(ref s, ref b, ref rng, emote, player, playerDistance, dt, stance);
+                if (!threatened && stance != FolkStance.Neutral)
+                    Regarding(ref s, ref b, ref rng, stance, player, playerDistance, dt);
 
                 // A ghost abroad at night: someone coming close and it's gone, to appear again further off (dithering
                 // back in, as anything new does); someone within sight, and it drifts closer to watch them from a few
@@ -451,6 +495,14 @@ namespace Punchy.Fauna
                     SetMode(ref s, CreatureMode.Wander);
                     s.Target = ashore;
                 }
+
+                // Two folk stopped to talk (A-26): a talk something else broke off is over for this one; and now and then
+                // two whose paths cross (or who stand near each other at a well or a seat) stop for one.
+                s.ChatCool = math.max(s.ChatCool - dt, 0f);
+                if (s.ChatRole != 0 && !(s.Mode == CreatureMode.Idle && (s.Stage == ChatTalk || s.Stage == ChatListen)))
+                    s.ChatRole = 0;
+                if (s.ChatRole == 0 && ChatFree(in s, ref b))
+                    StartChat(self, ref s, ref b, ref rng, dt);
 
                 // A messenger bird coming to this one: it stops what it's doing to meet it.
                 if (b.Upright && b.Hands && s.Leash > 0f && (Free(s.Mode) || s.Mode == CreatureMode.Greet) && !(s.Mode == CreatureMode.Idle && s.Stage >= MessageWait) &&
@@ -485,6 +537,16 @@ namespace Punchy.Fauna
                 switch (s.Mode)
                 {
                     case CreatureMode.Idle:
+                        if (s.Stage == ChatTalk || s.Stage == ChatListen)
+                        {
+                            if (Chatting(self, ref s, ref b, ref rng, dt))
+                            {
+                                targetSpeed = walk;
+                                moving = true;
+                            }
+                            desiredLook = 0f;
+                            break;
+                        }
                         if (s.Stage >= MessageWait)
                         {
                             Receiving(ref s, ref b, ref rng, dt);
@@ -570,6 +632,16 @@ namespace Punchy.Fauna
                         }
                         else if (threatened && math.distance(s.Position.xz, s.Target) < 2f)
                             s.Target = s.Position.xz + math.normalizesafe(s.Position.xz - s.Focus, new float2(1f, 0f)) * 30f;
+                        // Prey with something close behind it jinks: every second or two a sharp turn of up to 50° off
+                        // straight away (Z-53: a chase that weaves, and that a hunter can close on).
+                        else if (threatened && b.Hunted && b.Habitat == Habitat.Land && math.distance(s.Position.xz, s.Focus) < 20f &&
+                                 s.StageTime > 1f + (s.Seed % 8u) * 0.125f)
+                        {
+                            var fleeDir = math.normalizesafe(s.Position.xz - s.Focus, new float2(1f, 0f));
+                            math.sincos(rng.NextFloat(-0.87f, 0.87f), out var jinkSin, out var jinkCos);
+                            s.Target = s.Position.xz + new float2(fleeDir.x * jinkCos - fleeDir.y * jinkSin, fleeDir.x * jinkSin + fleeDir.y * jinkCos) * 30f;
+                            s.StageTime = 0f;
+                        }
                         else if (!threatened && (s.ModeTime > 3f || math.distance(s.Position.xz, s.Target) < 2f))
                             Pause(ref s, ref b, ref rng);
                         break;
@@ -1142,7 +1214,8 @@ namespace Punchy.Fauna
                 if (b.Playfulness > 0f && sleepy < 0.5f && !perched && s.Task != CreatureTask.Critter)
                     FindKin(self, ref s, species, 15f, out playmate);
                 var prey = Entity.Null;
-                if (b.Prey.Length > 0 && b.Hunger > 0f && sleepy < 0.5f)
+                // (Only the fierce ones of a species with a hunting threshold: a dog chases hares if it's aggressive, #50.)
+                if (b.Prey.Length > 0 && b.Hunger > 0f && sleepy < 0.5f && CreaturePersonality.WillHunt(ref b, s.Individual))
                     FindPrey(self, ref s, ref b, flier ? 60f : 35f, out prey);
 
                 // On a branch, a bird can only rest, sleep or fly off.
@@ -1155,6 +1228,9 @@ namespace Punchy.Fauna
                 var drink = b.Thirst * 1.2f * awake * (onGround && !flier ? 1f : 0f) * Urge(s.Thirst);
                 var play = playmate != Entity.Null ? b.Playfulness * 2f * Urge(s.Lonely) : 0f;
                 var hunt = prey != Entity.Null ? b.Hunger * 2.5f * Urge(s.Hunger) : 0f;
+                // (Keener with prey close: Z-53, so more chases start where they can be seen.)
+                if (prey != Entity.Null && Lookup.TryGetValue(prey, out var preyAt) && math.distance(States[preyAt].Position.xz, s.Position.xz) < 20f)
+                    hunt *= 1.5f;
                 // Climbers go up trees to sit, and to sleep (they sleep up there, not on the ground).
                 var climb = b.Climbing > 0f && HasFlora && !flier ? b.Climbing * (sleepy > 0.5f ? 8f : 2.5f) : 0f;
                 // Townsfolk sit a while by the well, or lie back on the ground near it, by day.
@@ -1386,7 +1462,8 @@ namespace Punchy.Fauna
             {
                 using var profiled = FidgetMarker.Auto();
                 var lying = s.Mode == CreatureMode.Rest && s.Lie > 0.5f;
-                var calm = s.Mode == CreatureMode.Idle || s.Mode == CreatureMode.Rest ||
+                // (Talking with someone: hands and head are busy with that, A-26.)
+                var calm = s.Mode == CreatureMode.Idle && !InChat(s) || s.Mode == CreatureMode.Rest ||
                            s.Mode == CreatureMode.Climb && s.Stage == 3 ||
                            s.Mode == CreatureMode.Greet && s.Speed < 0.2f;
                 // (Being petted or held, it carries on with what it was given to do: a wag, a wriggle; nothing new. A
@@ -1618,7 +1695,44 @@ namespace Punchy.Fauna
                       ref float targetSpeed, ref float desiredLook, ref float headDown, ref bool moving)
             {
                 s.Timer -= Dt;
-                if (!Lookup.TryGetValue(s.Partner, out var p) || s.Timer <= 0f)
+                var found = Lookup.TryGetValue(s.Partner, out var p);
+                // Eating what it caught: head down over the spot a while, then a long rest, its hunger met.
+                if (s.Stage == HuntEat)
+                {
+                    headDown = 1f;
+                    if (s.Timer <= 0f)
+                    {
+                        s.Hunger = math.max(0f, s.Hunger - 0.6f);
+                        SetMode(ref s, CreatureMode.Rest);
+                        s.Timer = rng.NextFloat(30f, 60f);
+                    }
+                    return;
+                }
+                // The pounce: a short lunge at it. On a hit the prey, seeing it (Pounced), is caught and gone; a miss,
+                // or a hit it got clear of, and the hunter gives up, winded, as the prey runs on.
+                if (s.Stage == HuntPounceHit || s.Stage == HuntPounceMiss)
+                {
+                    if (s.Stage == HuntPounceHit && (!found || States[p].Gone))
+                    {
+                        NextStage(ref s, HuntEat);
+                        s.Timer = rng.NextFloat(8f, 15f);
+                        s.Partner = Entity.Null;
+                        return;
+                    }
+                    if (s.StageTime > 0.6f || !found)
+                    {
+                        Tired(ref s, ref rng);
+                        return;
+                    }
+                    var at = States[p].Position.xz - s.Position.xz;
+                    s.Target = States[p].Position.xz;
+                    desiredLook = math.clamp(WrapAngle(math.atan2(at.x, at.y) - s.Yaw), -1f, 1f);
+                    moving = true;
+                    targetSpeed = b.RunSpeed * s.Scale * (s.StageTime < 0.35f ? 1.4f : 0.5f);
+                    headDown = 0.4f;
+                    return;
+                }
+                if (!found || s.Timer <= 0f)
                 {
                     Tired(ref s, ref rng);
                     return;
@@ -1626,24 +1740,62 @@ namespace Punchy.Fauna
                 var prey = States[p];
                 var to = prey.Position.xz - s.Position.xz;
                 var distance = math.length(to);
-                if (distance > 60f || distance < b.BodyLength * s.Scale + 0.5f)
+                if (distance > 60f || prey.Gone || prey.Mode == CreatureMode.Held)
                 {
                     Tired(ref s, ref rng);
+                    return;
+                }
+                // Within a leap of it: the pounce. Half of them land (none in a settlement, where the folk's animals
+                // are safe: there it's always a miss).
+                if (distance < b.BodyLength * s.Scale + 1.1f)
+                {
+                    var hit = rng.NextFloat() < 0.5f && SettlementOf(prey.Position.xz) < 0;
+                    NextStage(ref s, hit ? HuntPounceHit : HuntPounceMiss);
                     return;
                 }
                 s.Target = prey.Position.xz;
                 desiredLook = math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -1f, 1f);
                 moving = true;
+                // Creeping up slow and low (prey notices a stalker only close: FindPredator), then the run, with a burst
+                // of speed for its first few seconds (Z-53: so a chase closes in sight rather than trailing off).
                 if (distance > 14f && s.Stage == 0)
                 {
-                    targetSpeed = b.WalkSpeed * s.Scale * 0.8f;
+                    targetSpeed = b.WalkSpeed * s.Scale * 0.5f;
                     headDown = 0.35f;
                 }
                 else
                 {
-                    s.Stage = 1;
-                    targetSpeed = b.RunSpeed * s.Scale;
+                    if (s.Stage == 0)
+                        NextStage(ref s, 1);
+                    targetSpeed = b.RunSpeed * s.Scale * (s.StageTime < 3.5f ? 1.25f : 1f);
                 }
+            }
+
+            /// <summary>A land hunter's stages (CreatureMode.Hunt): 0 stalking, 1 running, then the pounce, landed or
+            /// missed, and eating what it caught. (Fliers diving use 1-3 in Dive; folk hunters FolkHunting's.)</summary>
+            const byte HuntPounceHit = 2, HuntEat = 3, HuntPounceMiss = 4;
+
+            /// <summary>Whether a land hunter's pounce has landed on this animal (it is caught).</summary>
+            bool Pounced(Entity self, in CreatureState s)
+            {
+                if (s.Mode == CreatureMode.Held || s.Holder != 0)
+                    return false;
+                var c = Cell(s.Position.xz);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        var other = States[j];
+                        ref var ob = ref Bodies[j].Blob.Value;
+                        if (other.Mode == CreatureMode.Hunt && other.Partner == self && other.Stage == HuntPounceHit &&
+                            ob.Habitat != Habitat.Flies && math.distance(other.Position.xz, s.Position.xz) < ob.BodyLength * other.Scale + 1.3f)
+                            return true;
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return false;
             }
 
             /// <summary>
@@ -3371,6 +3523,209 @@ namespace Punchy.Fauna
                 }
             }
 
+            // ------------------------------------------------------------------------------- talking to each other
+
+            // (A-26. Idle stages, like the messenger's: the Stage byte is all a client sees, and the animator's gestures
+            // and the speech bubble come from it. Who's with whom (Partner, ChatRole) stays on the host; a talk shared
+            // with clients in full would need the partner sent as well.)
+            const byte ChatTalk = CreatureAnimator.ChatTalk, ChatListen = CreatureAnimator.ChatListen;
+            /// <summary>At most this many pairs talk at once round a town; a talk lasts 4-10 s; then each waits this long before another.</summary>
+            const int MaxChats = 3;
+            const float ChatCoolMin = 90f, ChatCoolMax = 200f;
+            // (How far apart two grown folk can be for one to stop the other for a talk: they walk up to each other.)
+            const float ChatReach = 30f;
+
+            static bool InChat(in CreatureState o) => o.Mode == CreatureMode.Idle && (o.Stage == ChatTalk || o.Stage == ChatListen);
+
+            /// <summary>
+            /// Now and then, one of the townsfolk free to talk: stops for someone who stopped for it (2); a grown one, every
+            /// 40 s or so with another free within ChatReach, stops it for a talk (1: they walk up to each other), unless a few pairs round the town already
+            /// are; a child, now and then, goes to stand by a talk under way (3).
+            /// </summary>
+            void StartChat(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
+            {
+                var forced = ForceChat.Data != 0;
+                if (rng.NextFloat() < 0.3f && FindChat(self, in s, 0, ChatReach, out var asker))
+                {
+                    BeginChat(ref s, asker, ChatListen, 2);
+                    return;
+                }
+                if (s.ChatCool > 0f)
+                    return;
+                if (b.Child)
+                {
+                    if (rng.NextFloat() < dt * (forced ? 0.3f : 0.05f) && FindChat(self, in s, 2, forced ? 14f : 8f, out var adult))
+                        BeginChat(ref s, adult, ChatListen, 3);
+                    return;
+                }
+                // (Up to ChatReach, as far as the other looks for one who stopped for it: once a town settles its few folk are
+                // spread over its posts and streets, and seldom pass within a few metres; A-27.)
+                if (rng.NextFloat() >= dt * (forced ? 1f : 1f / 40f) || !FindChat(self, in s, 1, ChatReach, out var other) ||
+                    ChatsNear(math.all(s.Home == float2.zero) ? s.Position.xz : s.Home) >= MaxChats)
+                    return;
+                BeginChat(ref s, other, ChatTalk, 1);
+                s.Timer = rng.NextFloat(4f, 10f);
+            }
+
+            /// <summary>
+            /// Stops for a talk, keeping what it was doing in ChatWalk / ChatResume: 1 walking somewhere (ChatResume the
+            /// target), 2 on its way to or at its post (ChatResume.x the time left at work: Timer is the talk's while it lasts),
+            /// 3 on its way to a seat (it picks something new after), 0 standing about.
+            /// </summary>
+            static void BeginChat(ref CreatureState s, Entity with, byte stage, byte role)
+            {
+                s.ChatWalk = (byte)(s.Mode == CreatureMode.Wander ? 1 : s.Mode == CreatureMode.Work ? 2 : s.Mode == CreatureMode.Sit ? 3 : 0);
+                s.ChatResume = s.ChatWalk == 2 ? new float2(s.Timer, 0f) : s.Target;
+                SetMode(ref s, CreatureMode.Idle);
+                s.Stage = stage;
+                s.Partner = with;
+                s.ChatRole = role;
+            }
+
+            /// <summary>After a talk, on to wherever it was going (or a pause where it stood), not to talk again for a while.</summary>
+            static void EndChat(ref CreatureState s, ref CreatureBlob b, ref Random rng, float cool)
+            {
+                var to = s.ChatResume;
+                if (s.ChatWalk == 1)
+                {
+                    SetMode(ref s, CreatureMode.Wander);
+                    s.Target = to;
+                }
+                else if (s.ChatWalk == 2)
+                {
+                    // (On to its post, with the time at work it had left.)
+                    SetMode(ref s, CreatureMode.Work);
+                    s.Target = s.WorkSpot;
+                    s.Timer = math.max(to.x, 5f);
+                }
+                else
+                    Pause(ref s, ref b, ref rng);
+                s.ChatRole = 0;
+                s.ChatWalk = 0;
+                s.ChatCool = cool;
+            }
+
+            /// <summary>
+            /// Nearest within reach: (0) one who stopped for this one; (1) a grown one free to stop for a talk (only toward
+            /// a later entity, so two don't stop each other at once); (2) a grown one who started a talk, for a child.
+            /// </summary>
+            bool FindChat(Entity self, in CreatureState s, int kind, float reach, out Entity found)
+            {
+                found = Entity.Null;
+                var best = reach * reach;
+                var c = Cell(s.Position.xz);
+                var r = (int)math.ceil(reach / CellSize);
+                for (int z = -r; z <= r; z++)
+                for (int x = -r; x <= r; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        var o = States[j];
+                        var d = math.distancesq(o.Position.xz, s.Position.xz);
+                        if (d >= best || Entities[j] == self)
+                            continue;
+                        ref var ob = ref Bodies[j].Blob.Value;
+                        var ok = kind == 0 ? InChat(o) && o.ChatRole == 1 && o.Partner == self
+                               : kind == 1 ? !ob.Child && o.ChatRole == 0 && o.ChatCool <= 0f && Entities[j].Index > self.Index && ChatFree(in o, ref ob)
+                               : InChat(o) && o.ChatRole == 1 && !ob.Child;
+                        if (ok)
+                        {
+                            best = d;
+                            found = Entities[j];
+                        }
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return found != Entity.Null;
+            }
+
+            /// <summary>Talks under way within 60 m (one per pair: those who started them).</summary>
+            int ChatsNear(float2 at)
+            {
+                var n = 0;
+                for (int j = 0; j < States.Length; j++)
+                    if (States[j].ChatRole == 1 && math.distancesq(States[j].Position.xz, at) < 3600f)
+                        n++;
+                return n;
+            }
+
+            /// <summary>
+            /// Talking: the two walk up to each other (true while walking) and stand a little over a metre apart, turned to
+            /// each other and looking at each other, one talking (ChatTalk: hands going) while the other listens and nods
+            /// (ChatListen), changing over every few seconds; a child by them listens. The one who started it ends it after
+            /// its 4-10 s; the other (and the child) when it sees that.
+            /// </summary>
+            bool Chatting(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
+            {
+                var forced = ForceChat.Data != 0;
+                var cool = forced ? rng.NextFloat(15f, 30f) : rng.NextFloat(ChatCoolMin, ChatCoolMax);
+                var has = Lookup.TryGetValue(s.Partner, out var j);
+                var o = has ? States[j] : default;
+                var joined = s.ChatRole == 1 ? has && InChat(o) && o.ChatRole == 2 && o.Partner == self
+                                             : has && InChat(o) && o.ChatRole == 1 && (s.ChatRole == 3 || o.Partner == self);
+                if (!joined && (s.ChatRole != 1 || s.ModeTime > 2.5f) || s.ModeTime > 30f)
+                {
+                    // (Not taken up within a moment: a shorter wait before trying again.)
+                    EndChat(ref s, ref b, ref rng, s.ChatRole == 1 && !joined ? cool * 0.2f : cool);
+                    return false;
+                }
+                var to = o.Position.xz - s.Position.xz;
+                var gap = math.length(to);
+                var want = s.ChatRole == 3 ? 1.9f : 1.25f;
+                s.LookKind = 1;
+                s.LookEntity = s.Partner;
+                s.LookFor = math.max(s.LookFor, 0.3f);
+                var spare = gap - want;
+                if (joined && spare > 0.15f)
+                {
+                    s.Target = o.Position.xz - to / math.max(gap, 0.01f) * (want * 0.5f);
+                    // (Slowing as the gap closes: both walk, so stopping from full speed carried them into each other; A-28.)
+                    s.Speed = math.min(s.Speed, math.max(0.25f, spare * 1.2f));
+                    return true;
+                }
+                // (Stood: no carrying on into the other.)
+                s.Speed = math.min(s.Speed, math.max(0f, spare));
+                if (joined && spare < -0.15f)
+                {
+                    // Too close (they met at a well or a seat, A-28): each steps back, still facing the other, half the
+                    // shortfall each. (On top of each other: the one who started it steps one way, the other the other.)
+                    var away = gap > 0.05f ? -to / gap : new float2(0f, s.ChatRole == 1 ? -1f : 1f);
+                    var next = s.Position.xz + away * math.min(0.9f * dt, -spare * 0.5f);
+                    if (Walkable(next, b.Habitat))
+                        s.Position.xz = next;
+                }
+                if (gap > 0.01f)
+                    s.Yaw = WrapAngle(s.Yaw + math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -b.TurnRate * dt, b.TurnRate * dt));
+                if (!joined)
+                    return false;
+                if (s.ChatRole == 1)
+                {
+                    s.Timer -= dt;
+                    if (s.Timer <= 0f)
+                    {
+                        EndChat(ref s, ref b, ref rng, cool);
+                        return false;
+                    }
+                    // (Turn about: after a couple of seconds, now and then, the other's turn.)
+                    if (s.StageTime > 1.8f && rng.NextFloat() < dt / 0.8f)
+                    {
+                        s.Stage = s.Stage == ChatTalk ? ChatListen : ChatTalk;
+                        s.StageTime = 0f;
+                    }
+                }
+                else if (s.ChatRole == 2 && gap < want + 0.5f)
+                {
+                    var stage = o.Stage == ChatTalk ? ChatListen : ChatTalk;
+                    if (s.Stage != stage)
+                    {
+                        s.Stage = stage;
+                        s.StageTime = 0f;
+                    }
+                }
+                return false;
+            }
+
             // ------------------------------------------------------------------------------- travelling
 
             /// <summary>
@@ -4544,21 +4899,39 @@ namespace Punchy.Fauna
             /// Friendly animals come over to see; one sitting by them play-bows back to a bow. A curious one comes partway
             /// and watches (Greet's Curious stage); the skittish run sooner (commotion, in Think); some pay no heed.
             /// </summary>
-            void Answer(ref CreatureState s, ref CreatureBlob b, ref Random rng, IdleAction emote, float3 player, float distance, float dt)
+            void Answer(ref CreatureState s, ref CreatureBlob b, ref Random rng, IdleAction emote, float3 player, float distance, float dt,
+                        FolkStance stance)
             {
                 if (b.Upright)
                 {
                     if (distance > 20f || !(Free(s.Mode) || s.Mode == CreatureMode.Work))
                         return;
+                    // (Wary of the player's folk: no answer. Annoyed: it turns its back and walks off a few metres.)
+                    if (stance == FolkStance.Wary)
+                        return;
+                    if (stance == FolkStance.Annoyed)
+                    {
+                        if (s.Mode != CreatureMode.Wander && s.Mode != CreatureMode.Work && distance < 12f)
+                        {
+                            SetMode(ref s, CreatureMode.Wander);
+                            s.Target = s.Position.xz + math.normalizesafe(s.Position.xz - player.xz, rng.NextFloat2Direction()) * rng.NextFloat(5f, 8f);
+                        }
+                        return;
+                    }
                     // Answering already: keep facing them.
                     if (s.Action >= IdleAction.Wave)
                     {
                         TurnTowards(ref s, ref b, player.xz, dt);
                         return;
                     }
-                    if (s.Action != IdleAction.None || CreatureBlob.Trait(s.Individual, 21) < -0.75f || rng.NextFloat() > dt * 2.5f)
+                    // (Kin and the warm are never too shy to answer.)
+                    var shy = CreatureBlob.Trait(s.Individual, 21) < -0.75f && stance != FolkStance.Kin && stance != FolkStance.Warm;
+                    if (s.Action != IdleAction.None || shy || rng.NextFloat() > dt * 2.5f)
                         return;
                     var reply = emote != IdleAction.Dance ? emote : CreatureBlob.Trait(s.Individual, 22) > 0f ? IdleAction.Dance : IdleAction.Cheer;
+                    // A rival answers anything with a mock bow (a dwarf to an elf, or the other way).
+                    if (stance == FolkStance.Rival)
+                        reply = IdleAction.Bow;
                     SetMode(ref s, CreatureMode.Idle);
                     s.Action = reply;
                     s.ActionTime = 0f;
@@ -4592,6 +4965,35 @@ namespace Punchy.Fauna
                     s.ActionTime = 0f;
                     s.ActionLength = 2.2f;
                 }
+            }
+
+            /// <summary>
+            /// The folk's regard for the player's body, unasked (Z-52): a wary one standing within 3 m steps back to keep
+            /// 4-5 m off; kin, the warm and rivals standing about now and then wave (a rival bows, mocking) at someone
+            /// 1.5-6 m off in front of them.
+            /// </summary>
+            void Regarding(ref CreatureState s, ref CreatureBlob b, ref Random rng, FolkStance stance, float3 player, float distance, float dt)
+            {
+                if (s.Mode != CreatureMode.Idle || s.Action != IdleAction.None || s.Stage >= MessageWait)
+                    return;
+                if (stance == FolkStance.Wary)
+                {
+                    if (distance < 3f)
+                    {
+                        SetMode(ref s, CreatureMode.Wander);
+                        s.Target = s.Position.xz + math.normalizesafe(s.Position.xz - player.xz, rng.NextFloat2Direction()) * (4.5f - distance);
+                    }
+                    return;
+                }
+                if (stance == FolkStance.Annoyed || distance < 1.5f || distance > 6f || rng.NextFloat() > dt * 0.05f)
+                    return;
+                var to = player.xz - s.Position.xz;
+                if (math.abs(WrapAngle(math.atan2(to.x, to.y) - s.Yaw)) > 1f)
+                    return;
+                s.Action = stance == FolkStance.Rival ? IdleAction.Bow : IdleAction.Wave;
+                s.ActionTime = 0f;
+                s.ActionLength = s.Action == IdleAction.Wave ? 2f : 1.8f;
+                s.Focus = player.xz;
             }
 
             /// <summary>Greet's stage for a curious animal come to look (EmoteReaction.Curious), not to sit by them.</summary>
@@ -4984,6 +5386,11 @@ namespace Punchy.Fauna
             bool StartFlight(ref CreatureState s, ref CreatureBlob b, ref Random rng, bool toSleep)
             {
                 var range = math.max(b.WanderRadius, 20f);
+                // (#12/A-12: somewhere ahead of it, within 90 deg of its heading, so the turn to face the new spot stays
+                // small; a spot behind meant a half turn in a couple of seconds, songbirds' wandering at 25-31 deg/s.)
+                // (#12/A-15: ground spots within 60 deg, so with the drift of a takeoff hop the bearing stays under 90.)
+                var ahead = s.Yaw + rng.NextFloat(-math.PI / 3f, math.PI / 3f);
+                var aheadDir = new float2(math.sin(ahead), math.cos(ahead));
                 // A soarer mostly goes up to circle a while over somewhere near (not straight after a spell of it).
                 if (b.Soars && !toSleep && s.Stage != 2 && rng.NextFloat() < 0.75f)
                 {
@@ -5005,7 +5412,8 @@ namespace Punchy.Fauna
                     return true;
                 }
                 if (HasFlora && (toSleep || rng.NextFloat() < b.Perching) &&
-                    FloraPlacement.FindTree(ref Flora.Value, Terrain, s.Position.xz + rng.NextFloat2Direction() * range * 0.5f, range * 0.6f, 3f, ref rng, out var tree))
+                    FloraPlacement.FindTree(ref Flora.Value, Terrain, s.Position.xz + aheadDir * range * 0.5f, range * 0.6f, 3f, ref rng, out var tree) &&
+                    (toSleep || AheadAndClear(s, tree.Base.xz)))
                 {
                     SetMode(ref s, CreatureMode.Wander);
                     s.Stage = 1;
@@ -5016,7 +5424,7 @@ namespace Punchy.Fauna
                 }
                 if (toSleep)
                     return false;
-                var spot = s.Position.xz + rng.NextFloat2Direction() * range * rng.NextFloat(0.5f, 1.2f);
+                var spot = s.Position.xz + aheadDir * range * rng.NextFloat(0.5f, 1.2f);
                 if (!OpenGround(spot))
                     return false;
                 SetMode(ref s, CreatureMode.Wander);
@@ -5024,6 +5432,18 @@ namespace Punchy.Fauna
                 s.Target = spot;
                 s.TargetHeight = Terrain.SampleHeight(spot);
                 return true;
+            }
+
+            /// <summary>
+            /// A tree worth flying to: within 75 deg of its heading and at least 8 m off. (#12/A-14: the tree search
+            /// circle reaches behind the bird and right next to it; the per-flight trace showed those picks, at bearings
+            /// of 100-170 deg or 4-10 m away, made the long turns and the circling round the spot.)
+            /// </summary>
+            static bool AheadAndClear(in CreatureState s, float2 spot)
+            {
+                var to = spot - s.Position.xz;
+                var distance = math.length(to);
+                return distance >= 8f && math.abs(WrapAngle(math.atan2(to.x, to.y) - s.Yaw)) <= math.radians(75f);
             }
 
             /// <summary>
@@ -5091,16 +5511,28 @@ namespace Punchy.Fauna
             {
                 var to = target - s.Position.xz;
                 var distance = math.length(to);
+                var flare = math.saturate(1f - distance / CreatureMotion.FlareDistance);
+                // In the flare it no longer wheels round to face the spot: it eases its turning off and drifts the last
+                // stretch onto the spot, a little sideways if need be (#12: at the full turn rate it circled the spot
+                // tightly, waiting for its height to settle, and songbirds' wandering turned at over 100 deg/s).
+                var settle = flare > 0f && FlareSettleOff.Data == 0;
                 // (Right over the spot the bearing means nothing: hold the heading.)
                 var wanted = distance < 0.1f ? 0f : WrapAngle(math.atan2(to.x, to.y) - s.Yaw) + Swerve(s, ref b, distance);
-                var turnRate = b.TurnRate * 1.5f;
+                var turnRate = b.TurnRate * 1.5f * (settle ? 1f - flare : 1f);
+                // (#12/A-13: the takeoff turn damped: while it is still getting off the ground the turn rate builds up with its flight.)
+                turnRate *= math.lerp(0.3f, 1f, math.saturate(s.Fly));
                 var turn = math.clamp(wanted, -turnRate * dt, turnRate * dt);
+                // (#12/A-13: and the turn rate itself changes smoothly, at most 100 deg/s each second, so a new spot behind
+                // it eases into the turn rather than snapping to the full rate.)
+                var rateStep = math.radians(100f) * dt * dt;
+                turn = math.clamp(turn, s.YawRate * dt - rateStep, s.YawRate * dt + rateStep);
+                if (turn * wanted > 0f && math.abs(turn) > math.abs(wanted))
+                    turn = wanted;
                 s.Yaw = WrapAngle(s.Yaw + turn);
                 s.YawRate = turn / math.max(dt, 1e-4f);
                 // Airspeed never drops below the minimum (a bird above its landing spot circles down rather than
                 // sinking), except in the flare, where it slows to touch down within a body length or two.
                 var minSpeed = b.FlySpeed * CreatureMotion.MinAirspeed;
-                var flare = math.saturate(1f - distance / CreatureMotion.FlareDistance);
                 var cruiseSpeed = math.max(speed * math.saturate(math.cos(wanted) + 0.4f), minSpeed);
                 var wantSpeed = math.lerp(cruiseSpeed, math.max(distance * 1.5f, 0.3f), flare);
                 // Taking off from standing: a hop forward, straight into the minimum speed.
@@ -5111,7 +5543,10 @@ namespace Punchy.Fauna
                     s.Speed = math.max(s.Speed, minSpeed);
                 // Always moving forward: arriving over the spot too high, it carries on past and circles down.
                 var step = s.Speed * dt;
-                s.Position.xz += new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * step;
+                var heading = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                if (settle && distance > 1e-3f)
+                    heading = math.normalizesafe(math.lerp(heading, to / distance, flare), heading);
+                s.Position.xz += heading * math.min(step, settle ? distance : step);
 
                 // Height: cruising, or coming down the glide slope to the landing spot; never climbing or sinking
                 // steeper than the flight angle allows for how far it moved forward.
@@ -5125,7 +5560,11 @@ namespace Punchy.Fauna
                 var wantY = math.min(cruise, touchdown + math.max(distance - 0.3f, 0f) * CreatureMotion.GlideSlope);
                 // (In the flare, the last few centimetres settle as it slows.)
                 var steepest = math.max(step / math.max(dt, 1e-4f) * CreatureMotion.MaxClimb, flare * 0.4f);
-                var vy = math.clamp((wantY - s.Position.y) * 1.5f, -steepest, steepest);
+                // (#12/A-15: within 6 m of the spot it closes on the glide slope harder and may dive steeper, so it
+                // arrives low enough to land rather than overshooting high and wheeling back round at minimum airspeed.)
+                var near = math.saturate(1f - distance / 6f);
+                var gain = math.lerp(1.5f, 4f, near);
+                var vy = math.clamp((wantY - s.Position.y) * gain, -steepest * math.lerp(1f, 1.8f, near), steepest);
                 // In the flare the last of the height goes at a steady rate (not ever more slowly), so it settles as
                 // it slows rather than hanging over the spot.
                 var gap = wantY - s.Position.y;
@@ -5257,12 +5696,15 @@ namespace Punchy.Fauna
                         continue;
                     do
                     {
-                        if (Entities[j] == self || !Hunts(ref Bodies[j].Blob.Value, species))
+                        // (A calm dog that never hunts is no hunter: prey takes no notice of it.)
+                        if (Entities[j] == self || !Hunts(ref Bodies[j].Blob.Value, species) ||
+                            !CreaturePersonality.WillHunt(ref Bodies[j].Blob.Value, States[j].Individual))
                             continue;
                         var other = States[j];
                         // In three dimensions: a bird circling high overhead isn't close.
                         var d = math.distance(other.Position, s.Position);
-                        var range = (other.Mode == CreatureMode.Hunt && other.Partner == self ? 30f : 8f) * alert;
+                        // (A hunter still creeping up on it is noticed only close; one running at it from well off.)
+                        var range = (other.Mode == CreatureMode.Hunt && other.Partner == self ? (other.Stage == 0 ? 12f : 30f) : 8f) * alert;
                         // A bird of prey overhead goes unnoticed until it dives (a fish only sees it hit the water).
                         if (Bodies[j].Blob.Value.Habitat == Habitat.Flies)
                             range = other.Mode == CreatureMode.Hunt && other.Partner == self && other.Stage == 2 ? 3f : 0f;
@@ -5428,7 +5870,9 @@ namespace Punchy.Fauna
                         continue;
                     do
                     {
-                        if (Entities[j] == self || !Hunts(ref b, Bodies[j].Species))
+                        // (Never one someone is holding or petting, or one already caught.)
+                        if (Entities[j] == self || !Hunts(ref b, Bodies[j].Species) || States[j].Holder != 0 ||
+                            States[j].Mode == CreatureMode.Held || States[j].Gone)
                             continue;
                         var d = math.distance(States[j].Position.xz, s.Position.xz);
                         if (d < best)

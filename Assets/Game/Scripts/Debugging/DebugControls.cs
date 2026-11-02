@@ -58,10 +58,13 @@ namespace Punchy.Debugging
             SpawnRequested();
             PlaceByLedge();
             ClimbTest();
+            ActionTest();
             Watch();
             Pose();
             Interact();
             ShotList();
+            Lift();
+            CallLog();
             var keyboard = Keyboard.current;
             if (keyboard == null)
                 return;
@@ -83,6 +86,710 @@ namespace Punchy.Debugging
         {
             FootDrift();
             SpinCheck();
+            HuntLog();
+            PersonalityLog();
+            ShotOnHunt();
+            ChatShot();
+            RemoteRoll();
+            ColossusShot();
+            MantrapShot();
+            MimicShot();
+        }
+
+        // ---------------------------------------------------------------- A-09 shots
+
+        static bool shotOnHunt;
+        static string huntSpecies;
+
+        /// <summary>"-gaitlog" (A-21, #6): each four-legged species among the loaded creatures and its gallop.</summary>
+        void GaitLog()
+        {
+            if (queryWorld == null || !queryWorld.IsCreated)
+                return;
+            var director = FindAnyObjectByType<FaunaDirector>();
+            using var q = queryWorld.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<CreatureBody>());
+            var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var seen = new System.Collections.Generic.HashSet<int>();
+            foreach (var body in bodies)
+            {
+                ref var b = ref body.Blob.Value;
+                if (!b.Gallops || !seen.Add(body.Species))
+                    continue;
+                Debug.Log($"DebugControls: gait {director?.SpeciesAt(body.Species)?.name}: {(b.LeapingRun ? "Leap" : b.Bounds ? "Bound" : "Rotary")}");
+            }
+            bodies.Dispose();
+        }
+        bool huntShotTaken;
+        static float colossusShotDistance;
+        static string mantrapShotMode;
+        static bool mantrapLungePending;
+
+        /// <summary>
+        /// "-shotonhunt" on a shot-list line: the moment a land hunter's chase turns to a run, the camera is put 16 m to the
+        /// side of the hunter and its nearest prey and the line's shot is brought forward to 0.3 s later (#9). The line's -wait
+        /// is the longest it waits for a hunt.
+        /// </summary>
+        void ShotOnHunt()
+        {
+            if (!shotOnHunt || shotIndex < 0 || shotStarted < 0f || queryWorld == null || !queryWorld.IsCreated)
+                return;
+            if (huntShotTaken)
+            {
+                FollowHunter();
+                return;
+            }
+            var em = queryWorld.EntityManager;
+            // (A-23: the last line's hunter is skipped until its sprint ends, or a back-to-back line caught it slowing down
+            // and shot it walking.)
+            if (staleHunter != Entity.Null && (!em.Exists(staleHunter) || !em.HasComponent<CreatureState>(staleHunter) ||
+                                               em.GetComponentData<CreatureState>(staleHunter) is var st && (st.Mode != CreatureMode.Hunt || st.Stage != 1)))
+                staleHunter = Entity.Null;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var entities = q.ToEntityArray(Allocator.Temp);
+            for (int i = 0; i < states.Length; i++)
+            {
+                var h = states[i];
+                if (h.Mode != CreatureMode.Hunt || h.Stage != 1 || entities[i] == staleHunter || bodies[i].Blob.Value.Habitat == Habitat.Flies)
+                    continue;
+                if (huntSpecies != null && FindAnyObjectByType<FaunaDirector>()?.SpeciesAt(bodies[i].Species)?.name != huntSpecies)
+                    continue;
+                var prey = -1;
+                var best = 60f;
+                for (int j = 0; j < states.Length; j++)
+                {
+                    if (j == i || bodies[j].Species == bodies[i].Species)
+                        continue;
+                    var d = math.distance(states[j].Position, h.Position);
+                    if (d < best) { best = d; prey = j; }
+                }
+                if (prey < 0)
+                    continue;
+                var p = states[prey].Position;
+                var mid = (h.Position + p) * 0.5f;
+                var along = math.normalizesafe(p - h.Position, new float3(0f, 0f, 1f));
+                var side = math.normalizesafe(new float3(-along.z, 0f, along.x));
+                var from = mid + side * (16f + best * 0.5f) + new float3(0f, 3.5f, 0f);
+                PoseCamera(from, Quaternion.LookRotation((Vector3)(mid + new float3(0f, 0.8f, 0f)) - (Vector3)from));
+                huntShotTaken = true;
+                shotWait = Time.realtimeSinceStartup - shotStarted + (huntSide > 0f ? huntDelay : 0.3f);
+                huntHunter = entities[i];
+                huntPrey = entities[prey];
+                huntSideDir = side;
+                huntShotLine = shotIndex;
+                if (huntSide > 0f)
+                    FollowHunter();
+                var director = FindAnyObjectByType<FaunaDirector>();
+                Debug.Log($"DebugControls: shotonhunt: {director?.SpeciesAt(bodies[i].Species)?.name} sprinting at {director?.SpeciesAt(bodies[prey].Species)?.name}, {best:F1} m apart, hunter speed {h.Speed:F1}, at ({h.Position.x:F0}, {h.Position.z:F0})");
+                break;
+            }
+            states.Dispose();
+            bodies.Dispose();
+            entities.Dispose();
+        }
+
+        // "-huntside 7" with -shotonhunt (#6): instead of the wide two-animal view, the camera rides that many metres
+        // side-on of the hunter, and the shot is taken huntDelay seconds into the sprint (so the gallop has started).
+        static float huntSide;
+        static bool huntPair;
+        const float huntDelay = 1f;
+        Entity huntHunter, huntPrey, staleHunter;
+        float3 huntSideDir;
+        int huntShotLine = -1;
+        bool huntShotLogged;
+
+        void FollowHunter()
+        {
+            if (huntSide <= 0f || shotIndex != huntShotLine || huntHunter == Entity.Null)
+                return;
+            var em = queryWorld.EntityManager;
+            if (!em.Exists(huntHunter) || !em.HasComponent<CreatureState>(huntHunter))
+                return;
+            var h = em.GetComponentData<CreatureState>(huntHunter);
+            // Side-on to the hunter's own heading this frame (A-23: the hunter-to-prey line drifted off the heading as the
+            // wolf curved after the hare, and the A-22 shot came out head-on), keeping the side picked at the start.
+            var along = new float3(math.sin(h.Yaw), 0f, math.cos(h.Yaw));
+            var side = math.normalizesafe(new float3(-along.z, 0f, along.x));
+            if (math.dot(side, huntSideDir) < 0f)
+                side = -side;
+            var target = h.Position + new float3(0f, 0.6f, 0f);
+            var distance = huntSide;
+            var gap = 0f;
+            if (huntPair && em.Exists(huntPrey) && em.HasComponent<CreatureState>(huntPrey))
+            {
+                var p = em.GetComponentData<CreatureState>(huntPrey).Position;
+                gap = math.distance(p.xz, h.Position.xz);
+                target = (h.Position + p) * 0.5f + new float3(0f, 0.5f, 0f);
+                // Step back if the pair is wider than the view holds at this distance (about 1.6 d across).
+                distance = math.max(huntSide, gap * 0.65f);
+            }
+            // (A-18: keep the side with a clear view. A shrub or tree between the camera and the hunter hid half the
+            // wolf in A-17, so if this side has plants in the way and the other has fewer, swap over.)
+            var blocked = SightBlockers(target, target + side * distance + new float3(0f, 0.9f, 0f));
+            var otherBlocked = blocked > 0 ? SightBlockers(target, target - side * distance + new float3(0f, 0.9f, 0f)) : 0;
+            if (blocked > 0 && otherBlocked < blocked)
+            {
+                side = -side;
+                (blocked, otherBlocked) = (otherBlocked, blocked);
+            }
+            huntSideDir = side;
+            var from = target + side * distance + new float3(0f, 0.9f, 0f);
+            PoseCamera(from, Quaternion.LookRotation((Vector3)(target - from)));
+            var elapsed = Time.realtimeSinceStartup - shotStarted;
+            if (!huntShotLogged && elapsed >= shotWait - 0.05f)
+            {
+                huntShotLogged = true;
+                Debug.Log($"DebugControls: huntside: hunter speed {h.Speed:F1}, mode {h.Mode} stage {h.Stage}, camera {distance:F1} m side-on of the heading{(huntPair ? $" (pair, {gap:F1} m apart)" : "")}, " +
+                          $"prey line {PreyLineAngle(h, along):F0} deg off the heading, " +
+                          $"{elapsed:F2} s into the line, plants in the way {blocked}, leap gather {CreatureAnimator.LeapGather(h.Phase):F2}");
+            }
+        }
+
+        /// <summary>How far the hunter-to-prey line is turned from the hunter's heading, degrees (-1 with no prey).</summary>
+        float PreyLineAngle(CreatureState h, float3 along)
+        {
+            var em = queryWorld.EntityManager;
+            if (!em.Exists(huntPrey) || !em.HasComponent<CreatureState>(huntPrey))
+                return -1f;
+            var line = em.GetComponentData<CreatureState>(huntPrey).Position - h.Position;
+            line.y = 0f;
+            return math.degrees(math.acos(math.clamp(math.dot(math.normalizesafe(line), along), -1f, 1f)));
+        }
+
+        /// <summary>
+        /// Shrubs and trees (and rocks) standing between two points: placed plants in the shrub and tree layers taller than
+        /// half a metre whose footprint or crown comes within reach of the line on the ground (FloraPlacement.Place, the
+        /// same pure function FloraSystem draws from). -1 if the flora tables aren't up yet.
+        /// </summary>
+        int SightBlockers(float3 a, float3 b)
+        {
+            if (!EnsureLocations(out var land))
+                return -1;
+            using var q = queryWorld.EntityManager.CreateEntityQuery(typeof(Punchy.Flora.FloraLookup));
+            if (!q.TryGetSingleton<Punchy.Flora.FloraLookup>(out var lookup) || !lookup.Blob.IsCreated)
+                return -1;
+            ref var f = ref lookup.Blob.Value;
+            var count = 0;
+            var lo = math.min(a.xz, b.xz) - 4f;
+            var hi = math.max(a.xz, b.xz) + 4f;
+            for (int layer = 1; layer <= Punchy.Flora.FloraPlacement.TreeLayer; layer++)
+            {
+                var size = f.CellSizes[layer];
+                var c0 = (int2)math.floor(lo / size);
+                var c1 = (int2)math.floor(hi / size);
+                for (int y = c0.y; y <= c1.y; y++)
+                for (int x = c0.x; x <= c1.x; x++)
+                {
+                    var plant = Punchy.Flora.FloraPlacement.Place(ref f, land, new int2(x, y), layer);
+                    if (plant.Model < 0 || plant.Model >= f.Models.Length)
+                        continue;
+                    var shape = f.Models[plant.Model];
+                    if (shape.Height * plant.Scale < 0.5f)
+                        continue;
+                    // (Its distance from the line on the ground, the ends left out: something right behind the hunter
+                    // or the camera doesn't hide the body.)
+                    var ab = b.xz - a.xz;
+                    var t = math.saturate(math.dot(plant.Position.xz - a.xz, ab) / math.max(math.lengthsq(ab), 1e-4f));
+                    if (t < 0.08f || t > 0.95f)
+                        continue;
+                    // (A tree whose crown starts above the camera only gets in the way with its trunk.)
+                    var crown = shape.CrownBase * plant.Scale > 1.8f ? 0f : shape.CrownRadius;
+                    var reach = math.max(math.max(crown, shape.TrunkRadius), 0.6f) * plant.Scale + 0.3f;
+                    if (math.distance(plant.Position.xz, a.xz + ab * t) < reach)
+                        count++;
+                }
+            }
+            return count;
+        }
+
+        static bool remoteRoll;
+        int remoteRollStep;
+
+        // A-26: "-chatshot" on a shot-list line: the first two folk stood talking (the one who started it and the one it
+        // stopped, within 1.8 m of each other) once the line has run 2 s: the camera 4 m side-on of the pair at head
+        // height, looking at the middle of them, and the line's shot brought forward to 1.2 s later (their gestures and
+        // turned heads settled). The line's -wait is the longest it waits for a talk.
+        static bool chatShot;
+        Entity chatA, chatB;
+        float3 chatSide;
+        int chatShotLine = -1;
+
+        void ChatShot()
+        {
+            if (!chatShot || shotIndex < 0 || shotStarted < 0f || queryWorld == null || !queryWorld.IsCreated)
+                return;
+            var em = queryWorld.EntityManager;
+            if (chatShotLine == shotIndex)
+            {
+                // (Held on the pair until the shot.)
+                if (em.Exists(chatA) && em.Exists(chatB))
+                    FrameChat(em.GetComponentData<CreatureState>(chatA).Position, em.GetComponentData<CreatureState>(chatB).Position, false);
+                return;
+            }
+            if (Time.realtimeSinceStartup - shotStarted < 2f)
+                return;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var entities = q.ToEntityArray(Allocator.Temp);
+            var eye = Camera.main != null ? (float3)Camera.main.transform.position : float3.zero;
+            var best = -1;
+            var bestPartner = -1;
+            var bestD = float.MaxValue;
+            for (int i = 0; i < states.Length; i++)
+            {
+                var a = states[i];
+                if (a.ChatRole != 1 || a.Mode != CreatureMode.Idle || a.Stage != CreatureAnimator.ChatTalk && a.Stage != CreatureAnimator.ChatListen)
+                    continue;
+                for (int j = 0; j < states.Length; j++)
+                    if (entities[j] == a.Partner && states[j].ChatRole == 2 && states[j].Partner == entities[i] &&
+                        math.distance(states[j].Position.xz, a.Position.xz) < 1.8f && states[j].Speed < 0.2f && a.Speed < 0.2f)
+                    {
+                        var d = math.distancesq(a.Position, eye);
+                        if (d < bestD)
+                        {
+                            bestD = d;
+                            best = i;
+                            bestPartner = j;
+                        }
+                    }
+            }
+            if (best >= 0)
+            {
+                chatA = entities[best];
+                chatB = entities[bestPartner];
+                chatShotLine = shotIndex;
+                FrameChat(states[best].Position, states[bestPartner].Position, true);
+                shotWait = Time.realtimeSinceStartup - shotStarted + 1.2f;
+                var director = FindAnyObjectByType<FaunaDirector>();
+                Debug.Log($"DebugControls: chatshot: {director?.SpeciesAt(em.GetComponentData<CreatureBody>(chatA).Species)?.name} and " +
+                          $"{director?.SpeciesAt(em.GetComponentData<CreatureBody>(chatB).Species)?.name} talking, " +
+                          $"{math.distance(states[best].Position.xz, states[bestPartner].Position.xz):F1} m apart, at ({states[best].Position.x:F0}, {states[best].Position.z:F0}), " +
+                          $"camera 4 m side-on ({SightBlockers((states[best].Position + states[bestPartner].Position) * 0.5f + new float3(0f, 1.2f, 0f), (states[best].Position + states[bestPartner].Position) * 0.5f + chatSide * 4f + new float3(0f, 1.4f, 0f))} plants in the way)");
+            }
+            states.Dispose();
+            entities.Dispose();
+        }
+
+        void FrameChat(float3 a, float3 b, bool pickSide)
+        {
+            var mid = (a + b) * 0.5f;
+            var along = math.normalizesafe(new float3(b.x - a.x, 0f, b.z - a.z), new float3(1f, 0f, 0f));
+            var side = new float3(-along.z, 0f, along.x);
+            if (pickSide)
+            {
+                // (The side with fewer plants between the camera and the pair.)
+                var target = mid + new float3(0f, 1.2f, 0f);
+                if (SightBlockers(target, target + side * 4f + new float3(0f, 0.2f, 0f)) > SightBlockers(target, target - side * 4f + new float3(0f, 0.2f, 0f)))
+                    side = -side;
+                chatSide = side;
+            }
+            else if (math.dot(side, chatSide) < 0f)
+                side = -side;
+            var look = mid + new float3(0f, 1.15f, 0f);
+            var from = mid + chatSide * 4f + new float3(0f, 1.45f, 0f);
+            PoseCamera(from, Quaternion.LookRotation((Vector3)(look - from)));
+        }
+
+        /// <summary>
+        /// "-remoteroll" on a shot-list line (a joined client, #48): the first time another player's body starts its
+        /// somersault (Roll above 0, from the Pose byte), the camera is put 5 m to its side and a log line written; once
+        /// Roll passes 0.4 a shot (remoteroll.png, into -shotdir) and a second line with the roll value.
+        /// </summary>
+        void RemoteRoll()
+        {
+            if (!remoteRoll || remoteRollStep >= 2 || queryWorld == null || !queryWorld.IsCreated)
+                return;
+            var em = queryWorld.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<RemoteAvatar>());
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            for (int i = 0; i < states.Length; i++)
+            {
+                var r = states[i];
+                if (r.Roll <= 0f)
+                    continue;
+                if (remoteRollStep == 0)
+                {
+                    var fwd = new float3(math.sin(r.Yaw), 0f, math.cos(r.Yaw));
+                    var from = r.Position + new float3(fwd.z, 0f, -fwd.x) * 5f + new float3(0f, 1.2f, 0f);
+                    PoseCamera(from, Quaternion.LookRotation((Vector3)(r.Position + new float3(0f, 0.5f, 0f)) - (Vector3)from));
+                    remoteRollStep = 1;
+                    Debug.Log($"DebugControls: remoteroll: remote player rolling (Roll {r.Roll:F2}) at ({r.Position.x:F1}, {r.Position.z:F1})");
+                }
+                else if (r.Roll > 0.4f)
+                {
+                    if (shotDir != null)
+                        Shot("remoteroll.png");
+                    remoteRollStep = 2;
+                    Debug.Log($"DebugControls: remoteroll: shot at Roll {r.Roll:F2}");
+                }
+                break;
+            }
+            states.Dispose();
+        }
+
+        /// <summary>"-colossusshot 300": the player and camera that far from the Dunes colossus (south-west of it), looking at its chest.</summary>
+        void ColossusShot()
+        {
+            if (colossusShotDistance <= 0f || !DunesColossus.Placed || !EnsureLocations(out var ground) ||
+                !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var d = colossusShotDistance;
+            colossusShotDistance = 0f;
+            var at = DunesColossus.Position;
+            var stand = at.xz + math.normalize(new float2(-0.6f, -0.8f)) * d;
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(player);
+            t.Position = new float3(stand.x, ground.SampleHeight(stand) + 0.1f, stand.y);
+            em.SetComponentData(player, t);
+            var eye = new Vector3(stand.x, ground.SampleHeight(stand) + (d > 150f ? 25f : 4f), stand.y);
+            var target = new Vector3(at.x, at.y + (d > 150f ? 33f : 38f), at.z);
+            PoseCamera(eye, Quaternion.LookRotation(target - eye));
+            if (ground.Settlements.IsCreated)
+            {
+                // A-12 (#40): how far the colossus stands from the nearest settlement.
+                ref var towns = ref ground.Settlements.Value;
+                var near = float.MaxValue;
+                var nearAt = float2.zero;
+                for (int k = 0; k < towns.Settlements.Length; k++)
+                {
+                    var dist = math.distance(towns.Settlements[k].Centre, at.xz);
+                    if (dist < near)
+                    {
+                        near = dist;
+                        nearAt = towns.Settlements[k].Centre;
+                    }
+                }
+                Debug.Log($"DebugControls: colossus at ({at.x:F0}, {at.z:F0}): nearest settlement {near:F0} m away at ({nearAt.x:F0}, {nearAt.y:F0}), of {towns.Settlements.Length}");
+            }
+            Debug.Log($"DebugControls: colossus shot from {d:F0} m: camera ({eye.x:F0}, {eye.y:F0}, {eye.z:F0}) looking at ({target.x:F0}, {target.y:F0}, {target.z:F0})");
+        }
+
+        /// <summary>
+        /// "-mantrapshot side": the player 5 m south of the first carnivorous plant and the camera 4 m east of it, looking at its
+        /// head side-on. "-mantrapshot lunge": the player 0.6 m from it, the camera 3 m east, and the strike held at its peak.
+        /// </summary>
+        void MantrapShot()
+        {
+            // A-10c: the lunge shot is taken 0.15 s into the 0.3 s strike hold (the line's -wait is the longest it waits).
+            if (mantrapLungePending && Mantrap.StrikeHeld && shotIndex >= 0 && shotStarted >= 0f)
+            {
+                mantrapLungePending = false;
+                shotWait = Time.realtimeSinceStartup - shotStarted + 0.15f;
+                Debug.Log($"DebugControls: mantrap strike held, shot in 0.15 s (hold {Mantrap.HoldTime:F2} s)");
+            }
+            if (mantrapShotMode == null || !Mantrap.Placed || Mantrap.Spots.Count == 0 || !EnsureLocations(out var ground) ||
+                !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var lunge = mantrapShotMode == "lunge";
+            mantrapShotMode = null;
+            Mantrap.HoldStrike = lunge;
+            Mantrap.StrikeHeld = false;
+            mantrapLungePending = lunge;
+            Mantrap.ThinFog = true;
+            var at = Mantrap.Spot(0);
+            var stand = new float2(at.x, at.z - (lunge ? 0.6f : 5f));   // player south of the plant; camera east, level with the head
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(player);
+            t.Position = new float3(stand.x, ground.SampleHeight(stand) + 0.1f, stand.y);
+            em.SetComponentData(player, t);
+            var cam = new float2(at.x + 4f, at.z - (lunge ? 0.3f : 0f));
+            var eye = new Vector3(cam.x, at.y + 2.5f, cam.y);
+            var target = new Vector3(at.x, at.y + (lunge ? 1.2f : 1.6f), at.z - (lunge ? 0.3f : 0f));
+            PoseCamera(eye, Quaternion.LookRotation(target - eye));
+            Debug.Log($"DebugControls: mantrap {(lunge ? "lunge" : "side")} shot at plant ({at.x:F0}, {at.z:F0}): camera {Vector3.Distance(eye, new Vector3(at.x, eye.y, at.z)):F1} m away");
+        }
+
+        // ---------------------------------------------------------------- A-11 ocotillo mimic
+
+        /// <summary>"-mimicshot rest|run" (with "-spawn OcotilloMimic:1 -place tree:Ocotillo"): "rest" stands the mimic 2.5 m
+        /// from the lone ocotillo and frames both side-on; "run" walks the player at it from 30 m, logs the startle distance,
+        /// fold time, run speed and settle time, and takes the shot mid-run.</summary>
+        static string mimicShotMode;
+        static bool mimicTreeSet;
+        static float3 mimicTree;
+        static float mimicTreeHeight;
+        Entity mimicEntity;
+        float mimicT0 = -1f, mimicLogAt, mimicStartT = -1f, mimicEndT = -1f, mimicMaxSpeed, mimicShotT = -1f;
+        float3 mimicStartPos, mimicRunPos, mimicEndPos;
+        float mimicRunT;
+        bool mimicFolded, mimicSettled, mimicRunMarked;
+
+        /// <summary>Real ocotillo (flora recipe) vs the mimic's arms, side by side in the log.</summary>
+        void LogMimicVsReal()
+        {
+            FloraSpecies real = null;
+            CreatureSpecies mimic = null;
+            foreach (var f in Resources.FindObjectsOfTypeAll<FloraSpecies>())
+                if (f.name == "Ocotillo")
+                    real = f;
+            foreach (var c in Resources.FindObjectsOfTypeAll<CreatureSpecies>())
+                if (c.name == "OcotilloMimic")
+                    mimic = c;
+            if (real == null || mimic == null)
+            {
+                Debug.Log($"DebugControls: mimic vs real: assets not found (real {real != null}, mimic {mimic != null})");
+                return;
+            }
+            // Recipe: stems Branches (random), tilt 4..28 deg off vertical (mean 16), length 0.7..1 of the height.
+            var arms = 0;
+            float sum = 0f, lo = 999f, hi = 0f;
+            foreach (var p in mimic.Parts)
+            {
+                var tilt = 90f + p.Direction.x;
+                var n = p.Mirror ? 2 : 1;
+                arms += n;
+                sum += tilt * n;
+                lo = Mathf.Min(lo, tilt);
+                hi = Mathf.Max(hi, tilt);
+            }
+            var size = (mimic.Size.x + mimic.Size.y) * 0.5f;
+            Debug.Log($"DebugControls: REAL ocotillo: stems {real.Branches.x:F0}-{real.Branches.y:F0}, splay 4-28 deg (mean 16), height {real.Height.x:F1}-{real.Height.y:F1} m");
+            Debug.Log($"DebugControls: MIMIC: arms {arms}, splay {lo:F0}-{hi:F0} deg (mean {sum / math.max(arms, 1):F0}), arm tilt from Direction only; run speed {mimic.RunSpeed:F1} x scale {size:F1}, flee distance {mimic.FleeDistance:F1} x scale");
+        }
+
+        void MimicShot()
+        {
+            if (mimicShotMode == null || !mimicTreeSet || !EnsureLocations(out var ground) ||
+                !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var director = FindAnyObjectByType<FaunaDirector>();
+            var index = director != null ? director.SpeciesIndex("OcotilloMimic") : -1;
+            if (index < 0)
+                return;
+            var em = queryWorld.EntityManager;
+            var now = Time.realtimeSinceStartup;
+            if (mimicT0 < 0f)
+            {
+                using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+                var entities = q.ToEntityArray(Allocator.Temp);
+                var pp = em.GetComponentData<LocalTransform>(player).Position;
+                var best = float.MaxValue;
+                mimicEntity = Entity.Null;
+                foreach (var e in entities)
+                {
+                    if (em.GetComponentData<CreatureBody>(e).Species != index)
+                        continue;
+                    var d = math.distance(em.GetComponentData<CreatureState>(e).Position, pp);
+                    if (d < best)
+                    {
+                        best = d;
+                        mimicEntity = e;
+                    }
+                }
+                entities.Dispose();
+                if (mimicEntity == Entity.Null)
+                    return;
+                var run = mimicShotMode == "run";
+                var at = mimicTree;
+                var spot = run ? new float2(at.x - 12f, at.z) : new float2(at.x - 2.5f, at.z);
+                var s = em.GetComponentData<CreatureState>(mimicEntity);
+                s.Position = new float3(spot.x, ground.SampleHeight(spot), spot.y);
+                s.Home = spot;
+                s.Mode = CreatureMode.Rest;
+                s.Timer = 600f;
+                s.Speed = 0f;
+                var settle = mimicShotMode == "settle";
+                s.Curl = settle ? 0f : 1f;
+                s.Lie = settle ? 0f : 1f;
+                em.SetComponentData(mimicEntity, s);
+                mimicT0 = now;
+                if (mimicTreeHeight < 0.5f)
+                    mimicTreeHeight = 3.5f; // the flora blob reads 0 for this tree: frame a fixed 3.5 m
+                LogMimicVsReal();
+                mimicLogAt = 0f;
+                Debug.Log($"DebugControls: mimic {mimicShotMode}: placed at ({spot.x:F1}, {spot.y:F1}), tree ({at.x:F1}, {at.z:F1}) {mimicTreeHeight:F1} m tall");
+            }
+            if (!em.Exists(mimicEntity))
+                return;
+            var m = em.GetComponentData<CreatureState>(mimicEntity);
+            var pt = em.GetComponentData<LocalTransform>(player);
+            if (mimicShotMode != "run")
+            {
+                if (mimicShotMode == "settle" && !mimicSettled && m.Curl >= 0.95f)
+                {
+                    mimicSettled = true;
+                    Debug.Log($"DebugControls: mimic SETTLE (safe, Rest, arms down) to arms fully up (curl >= 0.95) took {now - mimicT0:F2} s");
+                }
+                var far = new float2(m.Position.x + 60f, m.Position.z);
+                pt.Position = new float3(far.x, ground.SampleHeight(far) + 0.1f, far.y);
+                em.SetComponentData(player, pt);
+                var mid = new Vector3(mimicTree.x - 1.25f, mimicTree.y, mimicTree.z);
+                var dist = 5f; // A-12: about 5 m back, so both plants fill the frame
+                var eye = mid + new Vector3(0f, mimicTreeHeight * 0.5f, -dist);
+                PoseCamera(eye, Quaternion.LookRotation(mid + Vector3.up * mimicTreeHeight * 0.5f - eye));
+                if (now - mimicT0 > 3f && now - mimicLogAt > 1f)
+                {
+                    mimicLogAt = now;
+                    Debug.Log($"DebugControls: mimic rest: mode {m.Mode}, curl {m.Curl:F2}, lie {m.Lie:F2}, speed {m.Speed:F2}");
+                }
+                return;
+            }
+
+            // Run: until the startle the player walks at 6 m/s from 30 m east; after it, he stands where he was.
+            var dx = pt.Position.x - m.Position.x;
+            var dz = pt.Position.z - m.Position.z;
+            var range = math.sqrt(dx * dx + dz * dz);
+            var t = now - mimicT0;
+            if (mimicStartT < 0f && m.Mode != CreatureMode.Flee)
+            {
+                var from = math.max(1f, 30f - t * 6f);
+                var p = new float2(m.Position.x + from, m.Position.z);
+                pt.Position = new float3(p.x, ground.SampleHeight(p) + 0.1f, p.y);
+                em.SetComponentData(player, pt);
+            }
+            if (mimicStartT < 0f && m.Mode == CreatureMode.Flee)
+            {
+                mimicStartT = now;
+                mimicStartPos = m.Position;
+                Debug.Log($"DebugControls: mimic STARTLE at {range:F1} m (t {t:F1} s): curl {m.Curl:F2}, lie {m.Lie:F2}");
+            }
+            if (mimicStartT >= 0f)
+            {
+                var since = now - mimicStartT;
+                mimicMaxSpeed = math.max(mimicMaxSpeed, m.Speed);
+                if (!mimicFolded && m.Curl < 0.1f)
+                {
+                    mimicFolded = true;
+                    Debug.Log($"DebugControls: mimic FOLDED (curl < 0.1) {since:F2} s after the startle; lie {m.Lie:F2}");
+                }
+                if (!mimicRunMarked && since >= 1.5f)
+                {
+                    mimicRunMarked = true;
+                    mimicRunPos = m.Position;
+                    mimicRunT = now;
+                }
+                if (mimicShotT < 0f && since >= 2.2f && m.Mode == CreatureMode.Flee && shotIndex >= 0 && shotStarted >= 0f)
+                {
+                    mimicShotT = now;
+                    shotWait = now - shotStarted + 0.05f;
+                    Debug.Log($"DebugControls: mimic mid-run shot at {since:F2} s: speed {m.Speed:F2} m/s, {range:F1} m from the player, curl {m.Curl:F2}, lie {m.Lie:F2}");
+                }
+                if (mimicEndT < 0f && mimicRunMarked && m.Mode != CreatureMode.Flee)
+                {
+                    mimicEndT = now;
+                    mimicEndPos = m.Position;
+                    var span = math.max(now - mimicRunT, 0.01f);
+                    Debug.Log($"DebugControls: mimic FLEE END {since:F2} s after the startle, mode {m.Mode}: max speed {mimicMaxSpeed:F2} m/s, mean speed {math.distance(mimicRunPos.xz, mimicEndPos.xz) / span:F2} m/s over {span:F1} s, {range:F1} m from the player");
+                }
+                if (mimicEndT >= 0f && !mimicSettled && m.Curl >= 0.95f)
+                {
+                    mimicSettled = true;
+                    Debug.Log($"DebugControls: mimic SETTLED (curl >= 0.95) {now - mimicEndT:F2} s after the flee ended, mode {m.Mode}, lie {m.Lie:F2}");
+                }
+            }
+            if (now - mimicLogAt > 0.5f)
+            {
+                mimicLogAt = now;
+                Debug.Log($"DebugControls: mimic t {t:F1}: mode {m.Mode}, speed {m.Speed:F2}, curl {m.Curl:F2}, lie {m.Lie:F2}, {range:F1} m from the player");
+            }
+            // Side-on camera on the mimic, 9 m south of it.
+            var focus = new Vector3(m.Position.x, m.Position.y + 1.4f, m.Position.z);
+            var cam = focus + new Vector3(0f, 0.6f, -6f); // A-12: 6 m back: only the mimic in frame (the tree is 12+ m east)
+            PoseCamera(cam, Quaternion.LookRotation(focus - cam));
+        }
+
+        // ---------------------------------------------------------------- hunt log
+
+        /// <summary>"-huntlog": logs each land hunter's chase as it goes (Z-53): stalk, run, pounce (landed or missed),
+        /// eating, and how the hunt ended (ate, missed, slipped away, tired). Diving birds and folk hunters are left out.</summary>
+        static bool huntLog;
+        /// <summary>Per creature: its mode and stage last frame.</summary>
+        readonly System.Collections.Generic.Dictionary<Entity, int2> hunts = new System.Collections.Generic.Dictionary<Entity, int2>();
+
+        void HuntLog()
+        {
+            if (!huntLog || queryWorld == null || !queryWorld.IsCreated)
+                return;
+            var em = queryWorld.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            var entities = q.ToEntityArray(Allocator.Temp);
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            FaunaDirector director = null;
+            for (int i = 0; i < states.Length; i++)
+            {
+                var c = states[i];
+                var e = entities[i];
+                var now = new int2((int)c.Mode, c.Stage);
+                var landHunt = c.Mode == CreatureMode.Hunt && c.Stage < FolkHunting.Stalk && bodies[i].Blob.Value.Habitat != Habitat.Flies;
+                var had = hunts.TryGetValue(e, out var was);
+                if (!landHunt)
+                {
+                    if (had)
+                    {
+                        hunts.Remove(e);
+                        HuntLine(director ??= FindAnyObjectByType<FaunaDirector>(), bodies[i], c,
+                            "ended: " + (was.y == 3 ? "ate" : was.y == 4 ? "missed" : was.y == 2 ? "slipped away" : "tired") + $", now {c.Mode}");
+                    }
+                    continue;
+                }
+                if (!had || was.y != now.y)
+                    HuntLine(director ??= FindAnyObjectByType<FaunaDirector>(), bodies[i], c,
+                        now.y switch { 0 => "stalking", 1 => "running", 2 => "pounce landed", 3 => "eating", 4 => "pounce missed", _ => $"stage {now.y}" });
+                hunts[e] = now;
+            }
+            if (hunts.Count > 4000)
+                hunts.Clear();
+            entities.Dispose();
+            states.Dispose();
+            bodies.Dispose();
+        }
+
+        static void HuntLine(FaunaDirector director, CreatureBody body, CreatureState c, string what)
+        {
+            var name = director != null ? director.SpeciesAt(body.Species)?.name : body.Species.ToString();
+            var aggression = CreaturePersonality.Of(ref body.Blob.Value, c.Individual).Aggression;
+            Debug.Log($"DebugControls: hunt: {name} #{c.Individual:X8} {what} (speed {c.Speed:F1}, hunger {c.Hunger:F2}, aggression {aggression:F2}) at " +
+                      $"({c.Position.x:F1}, {c.Position.y:F1}, {c.Position.z:F1}); caught so far {FaunaDirector.Caught}");
+        }
+
+        // ---------------------------------------------------------------- personality log
+
+        /// <summary>"-personalitylog Dog": 8 s into the line (and again at 20 s), logs every creature of that species with
+        /// its Individual, aggression, whether it hunts, its mode and its nearest prey (#50, #7). Personality comes from the
+        /// replicated Individual, so a host and a joined client should print the same values.</summary>
+        static string personalitySpecies;
+        static float personalityAt = -1f;
+
+        void PersonalityLog()
+        {
+            if (personalitySpecies == null || queryWorld == null || !queryWorld.IsCreated)
+                return;
+            if (personalityAt < 0f)
+                personalityAt = Time.timeSinceLevelLoad;
+            var t = Time.timeSinceLevelLoad - personalityAt;
+            if (!(t > 8f && t - Time.deltaTime <= 8f) && !(t > 20f && t - Time.deltaTime <= 20f))
+                return;
+            var director = FindAnyObjectByType<FaunaDirector>();
+            var em = queryWorld.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var rows = new System.Collections.Generic.List<string>();
+            for (int i = 0; i < states.Length; i++)
+            {
+                var name = director != null ? director.SpeciesAt(bodies[i].Species)?.name : null;
+                if (name != personalitySpecies || states[i].Gone)
+                    continue;
+                ref var b = ref bodies[i].Blob.Value;
+                var c = states[i];
+                var prey = float.MaxValue;
+                for (int j = 0; j < states.Length; j++)
+                    for (int k = 0; k < b.Prey.Length; k++)
+                        if (bodies[j].Species == b.Prey[k] && !states[j].Gone)
+                            prey = math.min(prey, math.distance(states[j].Position, c.Position));
+                rows.Add($"#{c.Individual:X8} aggression {CreaturePersonality.Of(ref b, c.Individual).Aggression:F3} " +
+                         $"hunts {CreaturePersonality.WillHunt(ref b, c.Individual)} mode {c.Mode} weight {b.WeightAt(c.Scale):F1} kg " +
+                         $"prey {(prey < float.MaxValue ? prey.ToString("F1") + " m" : "none")}");
+            }
+            rows.Sort(System.StringComparer.Ordinal);
+            var role = queryWorld.Name;
+            Debug.Log($"DebugControls: personality ({role}, t {t:F0} s): {rows.Count} {personalitySpecies}");
+            for (int i = 0; i < rows.Count; i++)
+                Debug.Log($"DebugControls: personality {personalitySpecies} {i + 1}: {rows[i]}");
+            states.Dispose();
+            bodies.Dispose();
         }
 
         // ---------------------------------------------------------------- spin check
@@ -94,6 +801,13 @@ namespace Punchy.Debugging
         /// <summary>Per creature: its heading last frame, how far it has turned since standing still, for how long, and
         /// when it was last logged.</summary>
         readonly System.Collections.Generic.Dictionary<Entity, float4> spins = new System.Collections.Generic.Dictionary<Entity, float4>();
+        /// <summary>Per species, Mode and (wandering) stage: heading change (deg), seconds, speed x seconds, |yaw rate| x
+        /// seconds (#12: the songbirds' wandering split into on the ground, flying, and the flare near the spot).</summary>
+        readonly System.Collections.Generic.Dictionary<int, float4> turnSum = new System.Collections.Generic.Dictionary<int, float4>();
+        float turnLogAt, traceAt;
+        readonly System.Collections.Generic.Dictionary<Entity, float> wanderSince = new System.Collections.Generic.Dictionary<Entity, float>();
+        Entity traced = Entity.Null;
+        int traceLines;
         readonly System.Collections.Generic.Dictionary<Entity, float> spinLogged = new System.Collections.Generic.Dictionary<Entity, float>();
 
         /// <summary>
@@ -119,6 +833,35 @@ namespace Punchy.Debugging
                     w = new float4(c.Yaw, 0f, 0f, 0f);
                 var step = math.abs(math.atan2(math.sin(c.Yaw - w.x), math.cos(c.Yaw - w.x)));
                 w.x = c.Yaw;
+                // (Heading change per second of the songbirds' and dormice's wandering, for the Z-12 before/after.)
+                // (A-13 #12: Wander counts only after 5 s of it, so the turn out of a flee or a takeoff is left out.)
+                if (c.Mode != CreatureMode.Wander)
+                    wanderSince[e] = -1f;
+                else if (!wanderSince.TryGetValue(e, out var ws) || ws < 0f)
+                    wanderSince[e] = now;
+                var settledWander = c.Mode != CreatureMode.Wander || now - wanderSince[e] > 5f;
+                if (bodies[i].Species >= 0 && settledWander)
+                {
+                    var targetGap = math.distance(c.Position.xz, c.Target);
+                    var bucket = c.Mode != CreatureMode.Wander ? 0 : c.Stage == 0 ? 1 : c.Stage == 1 ? (targetGap < 1.5f ? 3 : 2) : 4;
+                    var key = (bodies[i].Species * 64 + (int)c.Mode) * 8 + bucket;
+                    turnSum.TryGetValue(key, out var acc);
+                    turnSum[key] = new float4(acc.x + math.degrees(step), acc.y + dt, acc.z + c.Speed * dt, acc.w + math.abs(math.degrees(c.YawRate)) * dt);                    // One wandering songbird traced twice a second (40 lines): stage, speed, yaw rate, how far from its
+                    // target and how far above its target height.
+                    if (c.Mode == CreatureMode.Wander && traceLines < 40 && (traced == Entity.Null ? c.Stage == 1 : traced == e) && now >= traceAt)
+                    {
+                        var director = FindAnyObjectByType<FaunaDirector>();
+                        if (director != null && director.SpeciesAt(bodies[i].Species)?.name == "Songbird")
+                        {
+                            traced = e;
+                            traceAt = now + 0.5f;
+                            traceLines++;
+                            Debug.Log($"DebugControls: songbird trace: stage {c.Stage} speed {c.Speed:F2} yaw rate {math.degrees(c.YawRate):F0} deg/s " +
+                                      $"target {targetGap:F2} m, above target height {c.Position.y - c.TargetHeight:F2} m, fly {c.Fly:F2}");
+                        }
+                    }
+                }
+                FlightTrace(e, c, bodies[i].Species, step, now);
                 if (c.Speed < 0.3f)
                 {
                     w.y += step;
@@ -141,11 +884,109 @@ namespace Punchy.Debugging
                 }
                 spins[e] = w;
             }
+            if (now >= turnLogAt)
+            {
+                if (turnLogAt > 0f)
+                {
+                    var director = FindAnyObjectByType<FaunaDirector>();
+                    // (A Mode histogram per species: creature-seconds in each mode, and the heading change in it.)
+                    var lines = new System.Collections.Generic.SortedDictionary<string, string>();
+                    foreach (var kv in turnSum)
+                    {
+                        var modeKey = kv.Key / 8;
+                        var species = director != null ? director.SpeciesAt(modeKey / 64)?.name : (modeKey / 64).ToString();
+                        species ??= (modeKey / 64).ToString();
+                        lines.TryGetValue(species, out var line);
+                        var stage = (kv.Key % 8) switch { 1 => "/ground", 2 => "/flying", 3 => "/flare", 4 => "/stage2+", _ => "" };
+                        var secs = math.max(kv.Value.y, 1e-3f);
+                        lines[species] = line + $" {(CreatureMode)(modeKey % 64)}{stage} {kv.Value.y:F0}s {kv.Value.x / secs:F1}deg/s v{kv.Value.z / secs:F1} yr{kv.Value.w / secs:F0};";
+                    }
+                    foreach (var kv in lines)
+                        Debug.Log($"DebugControls: heading change: {kv.Key}:{kv.Value}");
+                }
+                turnSum.Clear();
+                turnLogAt = now + 30f;
+            }
             if (spins.Count > 4000)
                 spins.Clear();
             entities.Dispose();
             states.Dispose();
             bodies.Dispose();
+        }
+
+        /// <summary>Per songbird in a flight (Wander stage 1): x start time, y heading change so far (deg), z of it while
+        /// above its glide line (arrived too high, circling down), w of it within 6 m of the spot.</summary>
+        readonly System.Collections.Generic.Dictionary<Entity, float4> flights = new System.Collections.Generic.Dictionary<Entity, float4>();
+        /// <summary>Per songbird in a flight: x bearing to the spot at takeoff (deg), y distance then, z peak |yaw rate|,
+        /// w heading change in its first 3 s (the takeoff turn).</summary>
+        readonly System.Collections.Generic.Dictionary<Entity, float4> flightStart = new System.Collections.Generic.Dictionary<Entity, float4>();
+        readonly System.Collections.Generic.Dictionary<Entity, float2> flightTarget = new System.Collections.Generic.Dictionary<Entity, float2>();
+        int flightLines, songbirdSpecies = -2;
+
+        /// <summary>
+        /// #12/A-14: one line per songbird flight as it ends, splitting its heading change into the takeoff turn, the
+        /// circling while too high over the spot, and the last 6 m; plus a line for every mid-flight retarget.
+        /// </summary>
+        void FlightTrace(Entity e, in CreatureState c, int species, float step, float now)
+        {
+            if (songbirdSpecies == -2)
+            {
+                var director = FindAnyObjectByType<FaunaDirector>();
+                if (director == null || director.SpeciesCount == 0)
+                    return;
+                songbirdSpecies = -1;
+                for (int k = 0; k < director.SpeciesCount; k++)
+                    if (director.SpeciesAt(k)?.name == "Songbird")
+                        songbirdSpecies = k;
+            }
+            if (species != songbirdSpecies || flightLines >= 120)
+                return;
+            var gap = math.distance(c.Position.xz, c.Target);
+            var inFlight = c.Mode == CreatureMode.Wander && c.Stage == 1;
+            if (inFlight && !flights.ContainsKey(e))
+            {
+                var to = c.Target - c.Position.xz;
+                var bearing = math.degrees(math.atan2(math.sin(math.atan2(to.x, to.y) - c.Yaw), math.cos(math.atan2(to.x, to.y) - c.Yaw)));
+                flights[e] = new float4(now, 0f, 0f, 0f);
+                flightStart[e] = new float4(bearing, gap, 0f, 0f);
+                flightTarget[e] = c.Target;
+                return;
+            }
+            if (inFlight)
+            {
+                var f = flights[e];
+                var st = flightStart[e];
+                var deg = math.degrees(step);
+                var glide = c.TargetHeight + math.max(gap - 0.3f, 0f) * Punchy.Fauna.CreatureMotion.GlideSlope;
+                f.y += deg;
+                if (c.Position.y > glide + 0.5f && gap < 15f)
+                    f.z += deg;
+                if (gap < 6f)
+                    f.w += deg;
+                if (now - f.x < 3f)
+                    st.w += deg;
+                st.z = math.max(st.z, math.abs(math.degrees(c.YawRate)));
+                if (math.distance(flightTarget[e], c.Target) > 0.5f)
+                {
+                    flightLines++;
+                    Debug.Log($"DebugControls: flight trace: retarget {math.distance(flightTarget[e], c.Target):F1} m at {now - f.x:F1} s");
+                    flightTarget[e] = c.Target;
+                }
+                flights[e] = f;
+                flightStart[e] = st;
+            }
+            else if (flights.TryGetValue(e, out var done))
+            {
+                var st = flightStart[e];
+                var secs = math.max(now - done.x, 1e-3f);
+                flightLines++;
+                Debug.Log($"DebugControls: flight trace: {secs:F1} s, start bearing {st.x:F0} deg at {st.y:F1} m, turned {done.y:F0} deg " +
+                          $"({done.y / secs:F1} deg/s): takeoff 3 s {st.w:F0}, high over spot {done.z:F0}, last 6 m {done.w:F0}; " +
+                          $"peak yaw rate {st.z:F0} deg/s; ended {c.Mode} stage {c.Stage}");
+                flights.Remove(e);
+                flightStart.Remove(e);
+                flightTarget.Remove(e);
+            }
         }
 
         // ---------------------------------------------------------------- foot drift
@@ -188,7 +1029,7 @@ namespace Punchy.Debugging
                 var tip = seg.Position + math.mul(seg.Rotation, new float3(0f, 0f, seg.Length));
                 footLowest[foot] = footFrames == 0 ? tip.y : math.min(footLowest[foot] + Time.deltaTime * 0.05f, tip.y);
                 // (On the ground in the gait's stance half, not just low: a low swing isn't a planted foot.)
-                var down = tip.y < footLowest[foot] + 0.04f && s.Speed > 0.2f && math.frac(s.Phase + part.Phase) < 0.5f;
+                var down = tip.y < footLowest[foot] + 0.04f && s.Speed > 0.2f && math.frac(s.Phase + b.LegPhase(ref part, b.Sprint(s, s.GaitSpeed))) < 0.5f;
                 if (down && !footPlanted[foot])
                 {
                     footPlanted[foot] = true;
@@ -317,6 +1158,10 @@ namespace Punchy.Debugging
             interactRequest = null;
             ledgeRequest = false;
             climbTarget = null;
+            liftHeight = 0f;
+            actionTest = null;
+            wallRequest = false;
+            Punchy.Player.PlayerInputSystem.TestCamera = null;
             shotDir = null;
             shotLines.Clear();
             shotIndex = -1;
@@ -354,11 +1199,101 @@ namespace Punchy.Debugging
             footDrift = System.Array.IndexOf(args, "-footdrift") >= 0;
             var spinAt = System.Array.IndexOf(args, "-spincheck");
             spinCheck = spinAt >= 0;
+            // ("-noflaresettle": fliers steer their flare the old way, for #12's before numbers from the same build.)
+            Punchy.Fauna.CreatureBrainSystem.FlareSettleOff.Data = System.Array.IndexOf(args, "-noflaresettle") >= 0 ? 1 : 0;
+            // A-22 (#23): "-renderpasslog" logs CreatureRenderSystem's time per pass; "-oldcull" culls the old (managed) way.
+            Punchy.Fauna.CreatureRenderSystem.PassLog = System.Array.IndexOf(args, "-renderpasslog") >= 0;
+            Punchy.Fauna.CreatureRenderSystem.OldCull = System.Array.IndexOf(args, "-oldcull") >= 0;
             if (spinCheck && spinAt + 1 < args.Length && ParseFloats(args[spinAt + 1]) is float[] spin && spin.Length >= 2)
             {
                 spinDegrees = spin[0];
                 spinSeconds = spin[1];
             }
+            // "-actiontest roll:Human,Dog" (or fly:Pigeon, fish:Trout): the right face button's checks (A-04), logged, each
+            // switching to the bodies named in turn (see ActionTest); "-setbody Lizard": switch to that body now.
+            var testArg = System.Array.IndexOf(args, "-actiontest");
+            if (testArg >= 0 && testArg + 1 < args.Length)
+            {
+                actionTest = args[testArg + 1];
+                actionStart = Time.time;
+                actionSlot = -1;
+            }
+            var bodyArg = System.Array.IndexOf(args, "-setbody");
+            if (bodyArg >= 0 && bodyArg + 1 < args.Length)
+                SetBody(args[bodyArg + 1]);
+            // "-shotonhunt": one shot the moment a land hunter enters its sprint, camera framing hunter and prey (#9).
+            shotOnHunt = System.Array.IndexOf(args, "-shotonhunt") >= 0;
+            var huntSideArg = System.Array.IndexOf(args, "-huntside");
+            huntSide = huntSideArg >= 0 && huntSideArg + 1 < args.Length && float.TryParse(args[huntSideArg + 1], System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var hs) ? hs : 0f;
+            // A-23 (#7): "-huntpair" with -huntside aims at the middle of hunter and prey instead of the hunter, so a close
+            // side-on view keeps both in frame.
+            huntPair = System.Array.IndexOf(args, "-huntpair") >= 0;
+            // A-21 (#6): "-leapphase 0.15" holds every leaping run (dogs, cats, wolves) at that point of its stride, for a
+            // shot of each phase; "-hunter Dog" makes -shotonhunt wait for that species; "-gaitlog" logs each loaded
+            // four-legged species' gallop (Leap, Bound or Rotary).
+            var leapArg = System.Array.IndexOf(args, "-leapphase");
+            CreatureAnimator.LeapFreeze.Data = leapArg >= 0 && leapArg + 1 < args.Length && float.TryParse(args[leapArg + 1], System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var lp) ? math.frac(lp) + 1f : 0f;
+            var hunterArg = System.Array.IndexOf(args, "-hunter");
+            huntSpecies = hunterArg >= 0 && hunterArg + 1 < args.Length ? args[hunterArg + 1] : null;
+            if (System.Array.IndexOf(args, "-gaitlog") >= 0)
+                GaitLog();
+            // "-remoteroll": a client frames, logs and shoots another player's somersault (#48).
+            remoteRoll = System.Array.IndexOf(args, "-remoteroll") >= 0;
+            // A-26: "-chattest" (launch line) makes folk stop to talk far more often (Punchy.Fauna.CreatureBrainSystem.ForceChat);
+            // "-chatshot" frames the first pair talking side-on (ChatShot).
+            if (System.Array.IndexOf(args, "-chattest") >= 0)
+                Punchy.Fauna.CreatureBrainSystem.ForceChat.Data = 1;
+            chatShot = System.Array.IndexOf(args, "-chatshot") >= 0;
+            // A-27: "-chatmix" (launch line) logs what the townsfolk round the camera are doing, and the talks, every 15 s
+            // (FolkTalkSystem.LogMix).
+            Punchy.Fauna.FolkTalkSystem.ChatMix = System.Array.IndexOf(LaunchArgs, "-chatmix") >= 0;
+            remoteRollStep = 0;
+            // A-09 (#40): "-nocolossus" hides the Dunes colossus, "-framelog" logs frame times, "-colossusshot 300" puts the
+            // player and camera that far from it.
+            DunesColossus.Hidden = System.Array.IndexOf(args, "-nocolossus") >= 0;
+            // A-10 (#41): "-nomantrap" hides the carnivorous plants, "-mantraptest" runs the 60 s scripted test on the first one,
+            // "-mantrapshot side|lunge" frames it.
+            Mantrap.Hidden = System.Array.IndexOf(args, "-nomantrap") >= 0;
+            if (System.Array.IndexOf(args, "-mantraptest") >= 0)
+                Mantrap.TestRequested = true;
+            if (System.Array.IndexOf(args, "-mantrapstill") >= 0)
+                Mantrap.StillRequested = true;
+            var mmArg = System.Array.IndexOf(args, "-mimicshot");
+            mimicShotMode = mmArg >= 0 && mmArg + 1 < args.Length ? args[mmArg + 1] : null;
+            var mtArg = System.Array.IndexOf(args, "-mantrapshot");
+            mantrapShotMode = mtArg >= 0 && mtArg + 1 < args.Length ? args[mtArg + 1] : null;
+            DunesColossus.FrameLog = System.Array.IndexOf(args, "-framelog") >= 0;
+            var colArg = System.Array.IndexOf(args, "-colossusshot");
+            colossusShotDistance = colArg >= 0 && colArg + 1 < args.Length && float.TryParse(args[colArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var cd) ? cd : 0f;
+            // "-huntlog": log land hunters' chases (Z-53).
+            huntLog = System.Array.IndexOf(args, "-huntlog") >= 0;
+            // "-personalitylog Dog": list each of that species' personality a few seconds in (#50).
+            var plArg = System.Array.IndexOf(args, "-personalitylog");
+            personalitySpecies = plArg >= 0 && plArg + 1 < args.Length ? args[plArg + 1] : null;
+            personalityAt = -1f;
+            // "-lift 15": the player held that high over the ground (see Lift), per shot line.
+            var liftArg = System.Array.IndexOf(args, "-lift");
+            liftHeight = liftArg >= 0 && liftArg + 1 < args.Length && float.TryParse(args[liftArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lh) ? lh : 0f;
+            liftNext = Time.time + 4f; // first sample 4 s in, once the spawned herd has settled
+            liftSample = 0;
+            // #46/#43 tests: "-flatfear" (plain 3D fear distance), "-nobiometable" (every biome has every sound),
+            // "-callrate 1.5" (the call budget a second), "-calllog" (calls played a 10 s window, with the biome).
+            Punchy.Fauna.CreatureBrainSystem.HeightFearOff.Data = System.Array.IndexOf(args, "-flatfear") >= 0 ? 1 : 0;
+            Punchy.Fauna.AmbientSounds.TableOff.Data = System.Array.IndexOf(args, "-nobiometable") >= 0 ? 1 : 0;
+            var rateArg = System.Array.IndexOf(args, "-callrate");
+            if (rateArg >= 0 && rateArg + 1 < args.Length && float.TryParse(args[rateArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var cr))
+                Punchy.Audio.CreatureAudioSystem.CallRate = cr;
+            callLog = System.Array.IndexOf(args, "-calllog") >= 0;
+            callLogNext = Time.time + 10f;
+            callLogFrom = Punchy.Audio.CreatureAudioSystem.CallsPlayed;
+            // "-voicelog": log cats' and dogs' voices and howls as they play (Z-51); "-stancelog": folk lines with the
+            // speaker's stance, and the stance odds per player body (Z-52).
+            if (System.Array.IndexOf(args, "-voicelog") >= 0)
+                Punchy.Audio.CreatureAudioSystem.LogVoices = true;
+            if (System.Array.IndexOf(args, "-stancelog") >= 0)
+                FolkTalkSystem.LogStances = true;
             // "-nohud": no readout (for screenshots).
             // "-meteors": every night a meteor shower (Sky.hlsl's test switch), for checking shooting stars against clouds (Z-09).
             if (System.Array.IndexOf(args, "-meteors") >= 0)
@@ -421,8 +1356,13 @@ namespace Punchy.Debugging
                     PlaceInMeadow(meadowSource);
                 else if (args[i] == "-place" && string.Equals(args[i + 1], "clearlake", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var lakeSource))
                     PlaceByClearLake(lakeSource);
-                else if (args[i] == "-place" && string.Equals(args[i + 1], "ledge", System.StringComparison.OrdinalIgnoreCase))
+                else if (args[i] == "-place" && (string.Equals(args[i + 1], "ledge", System.StringComparison.OrdinalIgnoreCase) || args[i + 1].StartsWith("wall", System.StringComparison.OrdinalIgnoreCase)))
                 {
+                    // ("wall": the same, for a wall-climbing body: the nearest wall of a building or rock, not a rim to mantle.)
+                    wallRequest = args[i + 1].StartsWith("wall", System.StringComparison.OrdinalIgnoreCase);
+                    // ("wall:Lizard": as that body; A-13 #33.)
+                    if (wallRequest && args[i + 1].IndexOf(':') > 0)
+                        SetBody(args[i + 1].Substring(args[i + 1].IndexOf(':') + 1));
                     // To the nearest settlement first: its buildings, wells and stalls have the ledges (PlaceByLedge,
                     // once their tops have loaded round the player).
                     var town = locations.FindIndex(l => l.Name.StartsWith("Nearest settlement"));
@@ -432,6 +1372,9 @@ namespace Punchy.Debugging
                         Jump(1);
                     }
                     ledgeRequest = true;
+                    wallVisited.Clear();
+                    wallTallest = 0f;
+                    wallSearchAt = 0f;
                 }
                 else if (args[i] == "-place")
                 {
@@ -475,6 +1418,24 @@ namespace Punchy.Debugging
                     em.SetComponentData(goer, t);
                     Debug.Log($"DebugControls: to {gx:F0},{gz:F0}");
                 }
+            }
+            // "-goflat" (A-13 #46): to the nearest dry spot whose ground height spread over a 30 m circle is under 0.5 m
+            // (found once, by rings round the start; the spot and its measured spread are logged).
+            if (System.Array.IndexOf(args, "-goflat") >= 0 && EnsureLocations(out var flatSource) && playerQuery.TryGetSingletonEntity<LocalTransform>(out var flatGoer))
+            {
+                if (!flatSpot.HasValue)
+                    flatSpot = FindFlatSpot(flatSource, out flatSpread);
+                if (flatSpot.HasValue)
+                {
+                    var em = queryWorld.EntityManager;
+                    var t = em.GetComponentData<LocalTransform>(flatGoer);
+                    var f = flatSpot.Value;
+                    t.Position = new float3(f.x, flatSource.SampleHeight(f) + 0.1f, f.y);
+                    em.SetComponentData(flatGoer, t);
+                    Debug.Log($"DebugControls: flat spot at ({f.x:F0}, {f.y:F0}), ground {flatSource.SampleHeight(f):F1} m, height spread {flatSpread:F2} m over 30 m");
+                }
+                else
+                    Debug.LogWarning("DebugControls: -goflat: no flat spot found");
             }
             // "-at Pool" (any AnchorKind): on the floor by the nearest anchor of that kind (after any -place).
             var at = System.Array.IndexOf(args, "-at");
@@ -928,6 +1889,12 @@ namespace Punchy.Debugging
                 var avatarQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerAvatar>(), ComponentType.ReadOnly<CreatureState>());
                 var avatar = avatarQuery.TryGetSingleton<CreatureState>(out var a) ? $"{a.Action} at {a.ActionTime:F2}" : "none";
                 Debug.Log($"DebugControls: {parts[0]} is {s.Mode} (stage {s.Stage}, holder {s.Holder}); player pose {request.Pose}, body {avatar}");
+                // #16: what it weighs against what a carrier can lift.
+                ref var wb = ref em.GetComponentData<CreatureBody>(interactTarget).Blob.Value;
+                var kg = wb.WeightAt(s.Scale);
+                Debug.Log($"DebugControls: carry check: {parts[0]} weighs {kg:F1} kg (scale {s.Scale:F2}), capacity {Interactions.CarryCapacity:F0} kg: " +
+                          (kg <= Interactions.CarryCapacity ? "light enough" : "too heavy, can't lift") + $"; held: {s.Mode == CreatureMode.Held}" +
+                          $"; tame (settled, leash {s.Leash:F0} m): {Interactions.Tame(ref wb, s)}");
             }
             // Its own screenshots: being petted or just picked up, then (carrying) walking, turning on the spot and
             // sprinting.
@@ -1000,6 +1967,9 @@ namespace Punchy.Debugging
             {
                 Debug.Log($"DebugControls: shot list done, {shotLines.Count} shots in {Time.realtimeSinceStartup - listStarted:F1} s");
                 shotIndex = -1;
+                // "-quit" on the launch line: the player closes itself when the list is done (agents can't kill it).
+                if (System.Array.IndexOf(LaunchArgs, "-quit") >= 0)
+                    Application.Quit();
 #if UNITY_EDITOR
                 UnityEditor.EditorApplication.isPlaying = false;
 #else
@@ -1026,6 +1996,15 @@ namespace Punchy.Debugging
                 shotStarted = Time.realtimeSinceStartup;
                 return;
             }
+            // (A-14 #33: a `-place wall` or ledge still being found (its props loading, or the search moving to another
+            // settlement): the wait starts once the player is placed, so the shot lands mid-climb on the side camera.)
+            if (ledgeRequest)
+            {
+                shotStarted = Time.realtimeSinceStartup;
+                shotWait = float.TryParse(Arg("-wait"), System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var placedWait) ? placedWait : 2f;
+                return;
+            }
             if (Time.realtimeSinceStartup - shotStarted < shotWait)
                 return;
             // Underground, also until the caves round the camera are built (up to 10 s more).
@@ -1036,6 +2015,68 @@ namespace Punchy.Debugging
             Debug.Log($"DebugControls: shot {shotIndex + 1}/{shotLines.Count} '{Arg("-shot")}' after {Time.realtimeSinceStartup - shotStarted:F1} s");
             shotIndex++;
             shotStarted = -1f;
+        }
+
+        /// <summary>
+        /// "-lift 15": the player held 15 m over the ground where it stands (as if flying there), and every 3 s a line
+        /// with how many creatures within 40 m are fleeing, of how many (the fear distance counts height).
+        /// </summary>
+        static float liftHeight;
+        static bool callLog;
+        float callLogNext;
+        int callLogFrom;
+
+        /// <summary>"-calllog": every 10 s, the calls played in the window (x6 is a minute), thinned ones, and the biome's sound set.</summary>
+        void CallLog()
+        {
+            if (!callLog || Time.time < callLogNext || !EnsureLocations(out var land) || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var self))
+                return;
+            callLogNext = Time.time + 10f;
+            var at = queryWorld.EntityManager.GetComponentData<LocalTransform>(self).Position;
+            var played = Punchy.Audio.CreatureAudioSystem.CallsPlayed;
+            Debug.Log($"DebugControls: calllog played {played - callLogFrom} in 10 s ({(played - callLogFrom) * 6} a minute), thinned total {Punchy.Audio.CreatureAudioSystem.CallsThinned}, " +
+                      $"sounds {Punchy.Fauna.AmbientSounds.At(land, at.xz)} at ({at.x:F0}, {at.z:F0})");
+            callLogFrom = played;
+        }
+        float liftNext;
+        int liftSample;
+
+        void Lift()
+        {
+            if (liftHeight <= 0f || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var self) || !EnsureLocations(out var ground))
+                return;
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(self);
+            t.Position.y = ground.SampleHeight(t.Position.xz) + liftHeight;
+            em.SetComponentData(self, t);
+            if (Time.time < liftNext)
+                return;
+            liftNext = Time.time + 3f;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var director = FindAnyObjectByType<FaunaDirector>();
+            int near = 0, fleeing = 0, over = 0;
+            float gapSum = 0f, gapMax = 0f, distSum = 0f;
+            for (int i = 0; i < states.Length; i++)
+            {
+                var s = states[i];
+                // Only deer (the spawned herd), not whatever else wanders near.
+                if (director == null || director.SpeciesAt(bodies[i].Species)?.name != "Deer" || math.distance(s.Position.xz, t.Position.xz) >= 40f)
+                    continue;
+                near++;
+                // (A1-09: the height gap to the deer, to see whether slopes put any past the 1.5 m where the weighting starts.)
+                var gap = math.abs(s.Position.y - t.Position.y);
+                gapSum += gap;
+                gapMax = math.max(gapMax, gap);
+                if (gap > 1.5f) over++;
+                distSum += math.distance(s.Position.xz, t.Position.xz);
+                if (s.Mode == CreatureMode.Flee)
+                    fleeing++;
+            }
+            states.Dispose();
+            bodies.Dispose();
+            Debug.Log($"DebugControls: lift {liftHeight:F1} m flat {Punchy.Fauna.CreatureBrainSystem.HeightFearOff.Data}: {fleeing} of {near} deer within 40 m fleeing (sample {++liftSample}); height gap mean {gapSum / math.max(near, 1):F2} max {gapMax:F2} m, {over} over 1.5 m, mean distance {distSum / math.max(near, 1):F1} m");
         }
 
         static float[] ParseFloats(string text)
@@ -1061,6 +2102,8 @@ namespace Punchy.Debugging
         }
 
         bool cameraPosed;
+        /// <summary>The camera's field of view before the wall shot narrowed it (0: not narrowed).</summary>
+        float wallFovWas;
 
         /// <summary>
         /// "-place cave:Ice" (any cave style): in the first cave of that style, on the floor of its first chamber,
@@ -1245,6 +2288,9 @@ namespace Punchy.Debugging
                         continue;
                     var at = plant.Position;
                     var height = flora.Models[plant.Model].Height * plant.Scale;
+                    mimicTree = at;
+                    mimicTreeHeight = height;
+                    mimicTreeSet = true;
                     t.Position = new float3(at.x + 6f, source.SampleHeight(at.xz + new float2(6f, 0f)) + 0.05f, at.z);
                     // Facing the trunk (west), so walking on climbs it.
                     t.Rotation = quaternion.RotateY(-math.PI * 0.5f);
@@ -1415,6 +2461,38 @@ namespace Punchy.Debugging
         /// "-place meadow": the nearest flat, grassy stretch of Grassland, the camera at eye height looking a little
         /// down across it; the player parked out of shot.
         /// </summary>
+        static float2? flatSpot;
+        static float flatSpread;
+
+        /// <summary>The nearest dry spot (rings of 30 m from the origin) whose ground height, centre and two rings out to 15 m, varies under 0.5 m.</summary>
+        static float2? FindFlatSpot(in TerrainSource source, out float spread)
+        {
+            spread = 0f;
+            for (int ring = 0; ring <= 150; ring++)
+                for (int k = 0; k < math.max(ring * 8, 1); k++)
+                {
+                    var angle = k * 2f * math.PI / math.max(ring * 8, 1);
+                    var at = new float2(math.cos(angle), math.sin(angle)) * ring * 30f;
+                    var lo = float.MaxValue;
+                    var hi = float.MinValue;
+                    var dry = true;
+                    for (int r = 0; r < 17 && dry; r++)
+                    {
+                        var xz = r == 0 ? at : at + new float2(math.cos(r * math.PI / 4f), math.sin(r * math.PI / 4f)) * (r <= 8 ? 7.5f : 15f);
+                        var g = source.SampleGround(xz);
+                        dry = !(g.HasWater && g.WaterSurface > g.Height - 0.5f);
+                        lo = math.min(lo, g.Height);
+                        hi = math.max(hi, g.Height);
+                    }
+                    if (dry && hi - lo < 0.5f)
+                    {
+                        spread = hi - lo;
+                        return at;
+                    }
+                }
+            return null;
+        }
+
         void PlaceInMeadow(in TerrainSource source)
         {
             if (!playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
@@ -1492,6 +2570,7 @@ namespace Punchy.Debugging
                         t.Position = new float3(stand.x, s.Height + 0.05f, stand.y);
                         t.Rotation = quaternion.RotateY(math.atan2(-dir.x, -dir.y));
                         em.SetComponentData(player, t);
+                        lastLake = at;
                         Debug.Log($"DebugControls: by a clear lake at ({at.x:F0}, {at.y:F0}), {g.WaterSurface - g.Height:F1} m deep");
                         return;
                     }
@@ -1522,6 +2601,9 @@ namespace Punchy.Debugging
                 }
                 return;
             }
+            // (A wall search moving on to another settlement: its props take a moment to load round the player.)
+            if (wallRequest && Time.timeSinceLevelLoad < wallSearchAt)
+                return;
             ledgeRequest = false;
             var props = em.GetBuffer<FloraSupport>(holder, true);
             var playerEntity = playerQuery.GetSingletonEntity();
@@ -1531,6 +2613,13 @@ namespace Punchy.Debugging
             // As PlayerMovementSystem: a step is 0.4 m, ledges are looked for 0.9 m ahead and climbed up to 1.8 m (all
             // times the body's size).
             float stepUp = 0.4f * size, reach = 0.9f * size, maxRise = 1.8f * size;
+            // (A wall for a climber: probed at a human's scale, any wall over a metre and up to 6 m, flat top or not.)
+            if (wallRequest)
+            {
+                stepUp = 0.4f;
+                reach = 0.9f;
+                maxRise = 6f;
+            }
             ref var set = ref grids.Set.Value;
             var best = float.MaxValue;
             float3 bestFeet = default;
@@ -1574,15 +2663,21 @@ namespace Punchy.Debugging
                         var flat = true;
                         var inward = new float3(-dir.x, 0f, -dir.y);
                         var across = new float3(-dir.y, 0f, dir.x);
-                        for (int q = 0; q < 5 && flat; q++)
+                        // (A wall's cap is thin: for a wall climber's test only the first 0.4 m in and the sides are asked.)
+                        for (int q = 0; q < (wallRequest ? 5 : 5) && flat; q++)
                         {
+                            if (wallRequest && (q == 1 || q == 2))
+                                continue;
                             var probe = hit.Edge + inward * (q < 3 ? 0.4f * (q + 1) : 0.8f) + across * (q == 3 ? 0.5f : q == 4 ? -0.5f : 0f);
                             probe.y = hit.Height - 0.3f;
                             flat = PropSupport.Sample(ref set, props, probe, 0.2f, 0.6f, out var top) && math.abs(top.Height - hit.Height) < 0.15f;
                         }
                         // (A sloping one only if nothing near has a flat one.)
                         var distance = math.distance(xz, t.Position.xz) + (flat ? 0f : SlopedTop);
-                        if (hit.Height - feet.y >= 0.55f * maxRise && level && distance < best)
+                        if (wallRequest && flat && level)
+                            wallTallest = math.max(wallTallest, hit.Height - feet.y);
+                        // (A-14 #33: a wall climber's test wants a flat-topped wall of WallMin or more.)
+                        if (hit.Height - feet.y >= (wallRequest ? WallMin : 0.55f * maxRise) && level && (flat || !wallRequest) && distance < best)
                         {
                             best = distance;
                             bestFeet = feet;
@@ -1593,6 +2688,8 @@ namespace Punchy.Debugging
                     }
                 }
             }
+            if (best == float.MaxValue && wallRequest && NextWallSettlement(source, em, playerEntity, t))
+                return;
             if (best == float.MaxValue)
             {
                 Debug.LogWarning("DebugControls: -place ledge: no ledge in reach near");
@@ -1606,12 +2703,93 @@ namespace Punchy.Debugging
             var rim = bestHit.Edge;
             // Over the rim, onto the top (a little further in than a mantle puts it, so it stops there).
             var over = rim + new float3(bestForward.x, 0f, bestForward.y) * 0.8f;
+            if (wallRequest)
+            {
+                PlayerMovementSystem.WallProbe.Data = 1;
+                StartClimbTest(t.Position, rim, rim, false, $"wall at ({V(rim.x)}, {V(rim.y)}, {V(rim.z)}), {bestHit.Height - bestFeet.y:F1} m up; player from ({V(t.Position.x)}, {V(t.Position.z)})");
+                climbWall = true;
+                // (A-15 #33: the mid-climb shot from 9 m back off the wall face and 1.5 m to one side, looking at the
+                // lower half of the wall. A-13/14 framed it from 5 m off to the side, which put the camera inside the
+                // building on a long wall and dithered the face away (PlayerReveal); from out in front, the wall is
+                // behind the climber and nothing of it is cut.)
+                // (Square on to the face itself, by the rim's outward normal: the line from the player to the rim can
+                // be well off it, which showed the face edge-on.)
+                var wallOut = math.normalizesafe(bestHit.EdgeNormal, math.normalizesafe(t.Position.xz - rim.xz, new float2(0f, -1f)));
+                var wallSide = new float2(wallOut.y, -wallOut.x);
+                var wallHeight = rim.y - bestFeet.y;
+                var eyeXZ = rim.xz + wallOut * 9f + wallSide * 1.5f;
+                var eyeY = math.max(source.SampleHeight(eyeXZ) + 1.6f, bestFeet.y + 1.8f);
+                var wallEye = new Vector3(eyeXZ.x, eyeY, eyeXZ.y);
+                var wallAim = new Vector3(rim.x, bestFeet.y + math.min(wallHeight * 0.4f, 2f), rim.z);
+                PoseCamera(wallEye, Quaternion.LookRotation(wallAim - wallEye));
+                // (A narrower view, so a lizard a quarter of a metre long reads from 9 m off.)
+                if (Camera.main != null)
+                {
+                    if (wallFovWas == 0f)
+                        wallFovWas = Camera.main.fieldOfView;
+                    Camera.main.fieldOfView = 28f;
+                }
+                Debug.Log($"DebugControls: wall camera at ({V(wallEye.x)}, {V(wallEye.y)}, {V(wallEye.z)}) looking at ({V(wallAim.x)}, {V(wallAim.y)}, {V(wallAim.z)}), wall {V(wallHeight)} m");
+                return;
+            }
+            climbWall = false;
             StartClimbTest(t.Position, over, rim, true, $"ledge rim at ({V(rim.x)}, {V(rim.y)}, {V(rim.z)}), {bestHit.Height - bestFeet.y:F1} m up, " +
                                                         (best < SlopedTop ? "flat top" : "sloping top (no flat one near)"));
         }
 
         /// <summary>How much further off a sloping top counts than a flat one, choosing a ledge (m).</summary>
         const float SlopedTop = 1000f;
+
+        /// <summary>The least height of a flat-topped wall for `-place wall` (m; A-14 #33: a tall garden wall, not a 1 m one).</summary>
+        const float WallMin = 2f;
+        /// <summary>`-place wall`'s search: the settlements already tried, the tallest flat-topped wall met in them, and when
+        /// the next one's props will have loaded.</summary>
+        readonly HashSet<int> wallVisited = new();
+        float wallTallest, wallSearchAt;
+
+        /// <summary>
+        /// No flat-topped wall of WallMin near: logs the tallest met here and moves the player to the nearest settlement not
+        /// yet tried, to look again once its props have loaded. False after eight settlements, or with none left.
+        /// </summary>
+        bool NextWallSettlement(in TerrainSource source, EntityManager em, Entity playerEntity, LocalTransform t)
+        {
+            if (!source.Settlements.IsCreated || wallVisited.Count >= 8)
+                return false;
+            ref var towns = ref source.Settlements.Value;
+            int here = -1, next = -1;
+            float hereDist = float.MaxValue, nextDist = float.MaxValue;
+            for (int k = 0; k < towns.Settlements.Length; k++)
+            {
+                var dist = math.distance(towns.Settlements[k].Centre, t.Position.xz);
+                if (dist < hereDist)
+                {
+                    hereDist = dist;
+                    here = k;
+                }
+            }
+            wallVisited.Add(here);
+            for (int k = 0; k < towns.Settlements.Length; k++)
+            {
+                var dist = math.distance(towns.Settlements[k].Centre, t.Position.xz);
+                if (!wallVisited.Contains(k) && dist < nextDist)
+                {
+                    nextDist = dist;
+                    next = k;
+                }
+            }
+            Debug.Log($"DebugControls: wall search: no flat-topped wall of {WallMin:F1} m at settlement {here} (tallest flat-topped {wallTallest:F1} m)" +
+                      (next >= 0 ? $"; trying settlement {next}, {nextDist:F0} m off" : "; none left"));
+            if (next < 0)
+                return false;
+            wallTallest = 0f;
+            var c = towns.Settlements[next].Centre;
+            t.Position = new float3(c.x, source.SampleHeight(c) + 0.5f, c.y);
+            em.SetComponentData(playerEntity, t);
+            em.SetComponentData(playerEntity, new PlayerMotion { Grounded = true });
+            ledgeRequest = true;
+            wallSearchAt = Time.timeSinceLevelLoad + 6f;
+            return true;
+        }
 
         /// <summary>
         /// Logs a climb test's spot, with flags for a client to watch it from the side; and with "-autowalk", starts it
@@ -1630,6 +2808,7 @@ namespace Punchy.Debugging
             if (System.Array.IndexOf(LaunchArgs, "-autowalk") < 0)
                 return;
             climbHome = home.xz;
+            climbHomeY = home.y;
             climbTarget = target.xz;
             climbJumps = jumps;
             climbSince = Time.time;
@@ -1645,14 +2824,24 @@ namespace Punchy.Debugging
         /// </summary>
         /// <summary>Whether the climb test's player held a trunk last frame (to log each new hold once).</summary>
         static bool climbHolding;
+        /// <summary>"-place wall": a wall climber's test (up, along, down), and the last time it logged.</summary>
+        static bool wallRequest, climbWall;
+        float wallLogAt, wallLastAt, climbHomeY;
+        int wallStage;
+        float3 wallLast;
 
         void ClimbTest()
         {
             if (!climbTarget.HasValue || interactRequest != null || !EnsureLocations(out _) ||
                 !playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return;
-            var toward = math.fmod(Time.time - climbSince, 20f) < 12f;
-            var goal = toward ? climbTarget.Value : climbHome;
+            // (The camera stays turned to the climb, so the stick reads forward going out and back coming home.)
+            PlayerInputSystem.TestCamera = math.normalizesafe(climbTarget.Value - climbHome, new float2(0f, 1f));
+            var cycle = climbWall ? 28f : 20f;
+            var phase = math.fmod(Time.time - climbSince, cycle);
+            var toward = phase < (climbWall ? 10f : 12f);
+            // (A wall: aimed a metre past the rim, so the body keeps pushing into it rather than stopping short.)
+            var goal = toward ? climbTarget.Value + (climbWall ? math.normalizesafe(climbTarget.Value - climbHome) : float2.zero) : climbHome;
             var to = goal - player.Position.xz;
             var distance = math.length(to);
             PlayerInputSystem.TestMove = distance > 0.3f ? to / distance : float2.zero;
@@ -1672,12 +2861,246 @@ namespace Punchy.Debugging
             }
             else
                 climbHolding = false;
+            // A wall: early in the climb, pushing right across it (the stick's right against the camera, which looks at
+            // the wall), then back down. A log line a second: where on the wall, and which way it's pushed.
+            if (climbWall && playerQuery.TryGetSingletonEntity<PlayerTag>(out var wallSelf))
+            {
+                var wm = queryWorld.EntityManager.GetComponentData<PlayerMotion>(wallSelf);
+                var look = math.normalizesafe(PlayerInputSystem.TestCamera ?? new float2(0f, 1f), new float2(0f, 1f));
+                // (Early in the climb, 1.5-3.5 s after -place wall: it reaches the top in about 4 s.)
+                var sideways = phase >= 1.5f && phase < 3.5f && wm.OnWall;
+                if (sideways)
+                    PlayerInputSystem.TestMove = new float2(look.y, -look.x);
+                // Up / top-out / step-down events, each logged once per cycle.
+                if (phase < 0.5f)
+                    wallStage = 0;
+                var rise = player.Position.y - climbHomeY;
+                if (wallStage == 0 && wm.OnWall && rise > 0.5f)
+                {
+                    wallStage = 1;
+                    Debug.Log($"DebugControls: wall test: UP, on the wall {V(rise)} m above the start at {V(phase)} s");
+                }
+                if (wallStage <= 1 && !wm.OnWall && wm.Grounded && rise > 1f && toward)
+                {
+                    wallStage = 2;
+                    Debug.Log($"DebugControls: wall test: TOP-OUT, standing on the top {V(rise)} m above the start at {V(phase)} s");
+                }
+                if (wallStage == 2 && !toward && wm.OnWall)
+                {
+                    wallStage = 3;
+                    Debug.Log($"DebugControls: wall test: STEP-DOWN, over the edge and on the wall at {V(rise)} m at {V(phase)} s");
+                }
+                if (wallStage == 3 && !toward && !wm.OnWall && wm.Grounded && rise < 0.5f)
+                {
+                    wallStage = 4;
+                    Debug.Log($"DebugControls: wall test: DOWN, back on the ground at {V(phase)} s");
+                }
+                if (Time.time >= wallLogAt)
+                {
+                    wallLogAt = Time.time + 1f;
+                    var stick = sideways ? "right" : toward ? "up" : "down";
+                    // (Rates since the last line: up and along the wall, m/s.)
+                    var step = player.Position - wallLast;
+                    var dtLog = math.max(Time.time - wallLastAt, 0.01f);
+                    wallLast = player.Position;
+                    wallLastAt = Time.time;
+                    Debug.Log($"DebugControls: wall test: test move {PlayerInputSystem.TestMove}, {V(distance)} m from the rim; stick {stick}, OnWall {wm.OnWall}, grounded {wm.Grounded}, player at ({V(player.Position.x)}, {V(player.Position.y)}, {V(player.Position.z)}), vertical {V(step.y / dtLog)} m/s, along {V(math.length(step.xz) / dtLog)} m/s");
+                }
+            }
             if (toward && climbJumps && distance > 0.5f && distance < 2f && Time.time >= climbNextJump)
             {
                 PlayerInputSystem.TestJump = true;
                 climbNextJump = Time.time + 0.6f;
             }
         }
+
+
+        // ---------------------------------------------------------------- right face button checks (A-04)
+
+        /// <summary>
+        /// "-actiontest roll:Human,Dog": for each body in turn, 3.5 s: switch to it, jog ahead (speed logged), one roll
+        /// with the stick pushed and one standing (distance and length logged; with -shotdir a shot mid-roll).
+        /// "-actiontest fly:Pigeon": takes off, climbs, glides, then holds the right face button (steady descent) and the
+        /// dive button, logging height and rate each second. "-actiontest fish:Trout" (after -place clearlake): in the
+        /// lake, swims, sprints and sinks 5 s, 5 s and 3 s, logging speed and depth against the surface; the camera
+        /// pitch is held at the usual downward look so a sprint that follows it would show.
+        /// </summary>
+        static string actionTest;
+        float actionStart;
+        int actionSlot;
+        float2 actionDir;
+        float3 actionMark;
+        float actionMarkAt, actionPath, actionY0;
+        bool rolling;
+        float3 rollFrom;
+        float rollAt;
+        float actionLogAt;
+
+        void SetBody(string name)
+        {
+            var avatars = FindAnyObjectByType<Punchy.Net.NetAvatars>();
+            if (avatars == null)
+                return;
+            var index = avatars.PlayableSpecies.FindIndex(s => s != null && s.name == name);
+            if (index < 0)
+                Debug.LogWarning($"DebugControls: no playable body '{name}'");
+            else
+                avatars.SetLocalSpecies(index);
+        }
+
+        void ActionTest()
+        {
+            if (actionTest == null || !EnsureLocations(out var source) || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var self))
+                return;
+            var em = queryWorld.EntityManager;
+            var player = em.GetComponentData<LocalTransform>(self);
+            var motion = em.GetComponentData<PlayerMotion>(self);
+            var colon = actionTest.IndexOf(':');
+            var kind = actionTest.Substring(0, colon);
+            var bodies = actionTest.Substring(colon + 1).Split(',');
+            var t = Time.time - actionStart;
+            var pos = player.Position;
+            if (kind == "roll")
+            {
+                var slot = (int)(t / 3.5f);
+                var lt = t - slot * 3.5f;
+                if (slot >= bodies.Length)
+                {
+                    actionTest = null;
+                    PlayerInputSystem.TestMove = null;
+                    return;
+                }
+                if (slot != actionSlot)
+                {
+                    actionSlot = slot;
+                    SetBody(bodies[slot]);
+                    rolling = false;
+                    actionDir = math.normalizesafe(math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz, new float2(0f, 1f));
+                }
+                // (Jogging from 0.6 s: speed over 0.8 to 1.2 s; the roll with the stick at 1.4 s; a standing one at 2.5 s.)
+                PlayerInputSystem.TestMove = lt >= 0.6f && lt < 2.0f ? actionDir : (float2?)null;
+                if (lt >= 0.8f && lt < 0.8f + Time.deltaTime)
+                {
+                    actionMark = pos;
+                    actionMarkAt = Time.time;
+                }
+                if (lt >= 1.2f && lt < 1.2f + Time.deltaTime)
+                    Debug.Log($"DebugControls: roll test {bodies[slot]}: jog {math.distance(pos.xz, actionMark.xz) / math.max(Time.time - actionMarkAt, 0.01f):F1} m/s");
+                if (lt >= 1.4f && lt < 1.4f + Time.deltaTime || lt >= 2.5f && lt < 2.5f + Time.deltaTime)
+                    PlayerInputSystem.TestRoll = true;
+                if (shotDir != null && slot == 0 || shotDir != null && bodies[slot] == "Dog" || shotDir != null && bodies[slot] == "Lizard")
+                    if (lt >= 1.4f + 0.2f && lt < 1.4f + 0.2f + Time.deltaTime)
+                        Shot($"roll-{bodies[slot]}.png");
+                if (motion.Roll > 0f && !rolling)
+                {
+                    rolling = true;
+                    rollFrom = pos;
+                    rollAt = Time.time;
+                }
+                else if (motion.Roll <= 0f && rolling)
+                {
+                    rolling = false;
+                    Debug.Log($"DebugControls: roll test {bodies[slot]}: roll {Time.time - rollAt:F2} s, {math.distance(pos.xz, rollFrom.xz):F1} m {(PlayerInputSystem.TestMove.HasValue ? "with the stick" : "standing")}");
+                }
+                return;
+            }
+            PlayerInputSystem.TestMove = null;
+            if (kind == "fly")
+            {
+                if (actionSlot < 0)
+                {
+                    actionSlot = 0;
+                    SetBody(bodies[0]);
+                    actionDir = math.normalizesafe(math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz, new float2(0f, 1f));
+                }
+                // (Phases: 1.5-9 climbing, 9-12 gliding, 12-16 the right face button, 16-18 the dive button.)
+                if (t >= 1.5f && t < 1.5f + Time.deltaTime)
+                    PlayerInputSystem.TestJump = true;
+                if (t >= 1.5f && t < 19f)
+                    PlayerInputSystem.TestMove = actionDir;
+                PlayerInputSystem.TestClimb = t >= 1.5f && t < 9f;
+                PlayerInputSystem.TestCrouch = t >= 12f && t < 16f;
+                PlayerInputSystem.TestSprint = t >= 16f && t < 18f;
+                if (t >= actionLogAt && t > 1f)
+                {
+                    actionLogAt = t + 1f;
+                    var ground = source.SampleHeight(pos.xz);
+                    var phase = t < 9f ? "climb" : t < 12f ? "glide" : t < 16f ? "crouch" : t < 18f ? "dive" : "end";
+                    Debug.Log($"DebugControls: fly test {bodies[0]} t {t:F0} {phase}: flying {motion.Flying}, {pos.y - ground:F1} m up, rate {(pos.y - actionMark.y) / 1f:F1} m/s, airspeed {motion.Airspeed:F1}, pitch {math.degrees(motion.Pitch):F0} deg");
+                    actionMark = pos;
+                }
+                if (t > 19f)
+                {
+                    actionTest = null;
+                    PlayerInputSystem.TestClimb = PlayerInputSystem.TestCrouch = PlayerInputSystem.TestSprint = false;
+                    PlayerInputSystem.TestMove = null;
+                }
+                return;
+            }
+            if (kind == "fish")
+            {
+                if (actionSlot < 0)
+                {
+                    actionSlot = 0;
+                    SetBody(bodies[0]);
+                    actionDir = math.normalizesafe(math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz, new float2(0f, 1f));
+                    fishPhase = 0;
+                }
+                // Into the lake, 8 m out and 0.6 m under its surface, at 1.0 s.
+                if (t >= 1f && t < 1f + Time.deltaTime)
+                {
+                    var at = lastLake ?? pos.xz + actionDir * 8f;
+                    var g = source.SampleGround(at);
+                    player.Position = new float3(at.x, g.WaterSurface - 0.6f, at.y);
+                    em.SetComponentData(self, player);
+                    Debug.Log($"DebugControls: fish test: in the lake at ({at.x:F0}, {at.y:F0}), {g.WaterSurface - g.Height:F1} m deep");
+                    actionMark = player.Position;
+                    actionPath = 0f;
+                    actionMarkAt = 2f;
+                    actionY0 = g.WaterSurface;
+                }
+                var phase = t < 2f ? 0 : t < 7f ? 1 : t < 12f ? 2 : t < 15f ? 3 : 4;
+                // (A gentle nose-down while swimming, so it ends mid-depth; the sprint then has the same look-down and must hold.)
+                PlayerInputSystem.TestPitch = phase == 1 ? -0.08f : -0.25f;
+                // (Back and forth every 1.2 s, so it stays in the water; speed is the path covered.)
+                var flip = (int)(t / 1.2f) % 2 == 0 ? 1f : -1f;
+                PlayerInputSystem.TestMove = phase == 1 || phase == 2 ? actionDir * flip : (float2?)null;
+                PlayerInputSystem.TestSprint = phase == 2;
+                PlayerInputSystem.TestCrouch = phase == 3;
+                if (phase >= 1 && t > 1.1f)
+                {
+                    actionPath += math.distance(pos.xz, actionMark.xz);
+                    actionMark = pos;
+                }
+                // At each phase's end: its speed, its depth under the surface, and how that moved.
+                var ends = new[] { 2f, 7f, 12f, 15f };
+                if (phase > fishPhase)
+                {
+                    var done = fishPhase;
+                    fishPhase = phase;
+                    if (done < 1)
+                        goto next;
+                    var names = new[] { "", "swim", "sprint", "crouch" };
+                    var len = ends[done] - ends[done - 1];
+                    Debug.Log($"DebugControls: fish test {names[done]}: path speed {actionPath / math.max(len, 0.01f):F1} m/s over {len:F0} s, depth now {actionY0 - pos.y:F2} m under the surface (was {actionY0 - actionMarkY:F2}), camera pitch held at -14 deg");
+                    actionPath = 0f;
+                    actionMarkY = pos.y;
+                }
+                next:
+                if (t < 2f)
+                    actionMarkY = actionY0 - 0.6f;
+                if (t > 16f)
+                {
+                    actionTest = null;
+                    PlayerInputSystem.TestSprint = PlayerInputSystem.TestCrouch = false;
+                    PlayerInputSystem.TestMove = null;
+                    PlayerInputSystem.TestPitch = null;
+                }
+            }
+        }
+        float actionMarkY;
+        static float2? lastLake;
+        int fishPhase;
 
         static bool IsTree(ref FloraBlob flora, in TerrainSource source, int2 cell)
         {
@@ -1692,9 +3115,38 @@ namespace Punchy.Debugging
                 foreach (var b in Camera.main.GetComponents<MonoBehaviour>())
                     b.enabled = true;
             cameraPosed = false;
+            // (The wall shot's narrower view, put back.)
+            if (wallFovWas > 0f && Camera.main != null)
+                Camera.main.fieldOfView = wallFovWas;
+            wallFovWas = 0f;
+            huntShotTaken = false;
+            huntShotLogged = false;
+            staleHunter = huntHunter;
+            huntHunter = Entity.Null;
+            colossusShotDistance = 0f;
+            mantrapShotMode = null;
+            mimicShotMode = null;
+            mimicT0 = -1f;
+            mimicStartT = mimicEndT = mimicShotT = -1f;
+            mimicMaxSpeed = 0f;
+            mimicFolded = mimicSettled = mimicRunMarked = false;
+            mimicEntity = Entity.Null;
+            Mantrap.HoldStrike = false;
+            mantrapLungePending = false;
+            Mantrap.ThinFog = false;
             if (posed != Entity.Null && queryWorld != null && queryWorld.IsCreated && queryWorld.EntityManager.Exists(posed))
                 queryWorld.EntityManager.DestroyEntity(posed);
             posed = Entity.Null;
+            liftHeight = 0f;
+            actionTest = null;
+            climbTarget = null;
+            wallRequest = false;
+            PlayerInputSystem.TestMove = null;
+            PlayerInputSystem.TestSprint = false;
+            PlayerInputSystem.TestCrouch = false;
+            PlayerInputSystem.TestClimb = false;
+            PlayerInputSystem.TestPitch = null;
+            PlayerInputSystem.TestCamera = null;
             swimSpot = null;
             poseRequest = null;
             watchSpecies = null;

@@ -31,6 +31,7 @@ MonoBehaviour:
     AccentGlow: 0
     Weight: 1
   Size: {x: 0.9, y: 1.1}
+  Weight: 0.05
   HairColors: []
   Parts:
   - Limb: {fileID: 11400000, guid: c9b82768dc3fad947871ba393c981909, type: 2}
