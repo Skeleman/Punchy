@@ -8,12 +8,7 @@ Builds/Windows is the A-12 build (`-mimicshot rest|run`, used with `-spawn Ocoti
 - #12: NOT met. Added a 100 deg/s^2 yaw-rate limit and a takeoff damp in FlyTo; SpinCheck counts Wander only after 5 s of it, windows 30 s. Songbird Wander/flying 0.1 (20 s sample), 28.3 (32 s), 56.7 (10 s) deg/s. Flying samples are short (10-32 s). Next: log per-bird turn with its target jumps; check Stage 1 re-targeting and the flare turn.
 - #46: `-goflat` finds a dry spot with ground spread under 0.5 m over 30 m: (-357, -47), ground 21.6 m, spread 0.39 m. Fled of deer within 40 m, 4 samples, weighted vs flat (-flatfear): ground 1,0,0,0 vs 0,0,0,1; 5 m 0,0,0,0 vs 0,5,0,0; 15 m 0,0,0,0 vs 0,0,0,0; 30 m 0,0,0,0 vs 0,0,0,0. Ground row now matches (flat terrain); no gain from the weighting shows. Fear weighting looks neutral, not harmful.
 
-## A-12 (earlier) (animal-behaviours 36f6dab, artefacts PunchyMilestones/animal/a12/)
-- #17: FleeDistance 2.0, RunSpeed 3.2: startle 4.6 m, run 10.13 m/s, fold 0.55 s. Rest camera 5 m, run camera 6 m back on the mimic. Ready for Zach's look.
-- #12: StartFlight picks the new spot within 90 deg of heading (no U-turns). Wander/flying 23.1 and 16.4 deg/s in two windows, 43.6 in a third (flee episode): noisy, not reliably under 20. Next: damp the takeoff turn, exclude flee.
-- #40: colossus (1780, -1973) is 968 m from the nearest settlement. Side-on shot col300.png, no HUD.
-- #46: NOT settled. Meadow (-255, 27) is not flat (gap 2.3-2.9 m). Needs a real flat (sand flat, lake shore).
-- #33: NOT done (budget). Needs `-place wall:<Species>` for a garden wall.
+## A-12 (earlier): see git history (mimic 2.0/3.2 done, colossus 968 m from a town).
 
 ## A-11b done (#17, open for Zach's look; animal-behaviours 8a3349e, Builds/Windows is this build)
 - Mimic: 10 arms (5 mirrored pairs), splay 18-28 deg mean 23 (real recipe: 9-18 stems, 4-28 deg mean 16, 2.5-5 m). Mimic ~3 m.
