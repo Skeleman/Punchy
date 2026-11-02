@@ -1,8 +1,8 @@
-# World lane: state (2026-11-02, after W-18)
+# World lane: state (2026-11-02, after W-19)
 
 Worktree `Punchy-world` (main PC), branch `world-features`. Backlog: `gh issue list -l lane:world`.
 Released: v0.11.0 = world b39522b + animal c810406.
-Pushed head: world-features 73709c8 (W-18). Builds/Dev holds the W-18 build (= 73709c8). Player logs: v1 101 / E128CB1D, v2 127 / 831FF2EE. v1 ponds 33 blobs, 154 wet cells, none under 3 cells.
+Pushed head: world-features 4ef8516 (W-19). Builds/Dev holds the W-19 build (= 4ef8516). Player logs: v1 101 / E128CB1D, v2 127 / 831FF2EE. v1 ponds 33 blobs, 154 wet cells, none under 3 cells.
 No Punchy.exe of mine runs.
 
 ## W-05 / W-05b
@@ -31,10 +31,13 @@ No Punchy.exe of mine runs.
 - Editor cave preview (W-17, tracked): play mode, `Punchy.EditorTools.CaveTools.PreviewAt(pos, target, whitePools)`, wait ~8 s, `CaveTools.HideReadout()`, `CaveTools.PreviewShot(path, 800)`. Underground and SurfaceHidden reach 1.00. Editor look is close to the build, a little brighter (lantern).
 - Probe: WorldProbe.Creatures(r), CaveGo(x,z), CaveRender(), CaveHash, CaveBench(n), TownBench(n) (play mode).
 
+- #35 W-19 step 3: `BatFolkSetBlob.Props` (Hut/Rack/Basket), `BatFolkMeshes.cs`, drawn in CaveSystem. v2 pick: huts 3 props 8.
+  Build shot frame (pool + racks): -goto 3002,-2140 -camlook 3002,2.5,-2140,3001,1.5,-2130. Huts sit above the frame, dark.
+
 ## Load times (#23)
 - v2 player ready ~7.2 s. `[bake] stages ms` logs each stage; `[island] generator version N ...; N landmarks, hash X` logs on v1 and v2.
 
 ## Open
-- #35 bat folk step 3 huts/props, step 4 light. v1 has no qualifying cave (deep big chambers have no pool): decide whether to loosen the pool rule or MinChamber for v1.
+- #35 bat folk step 4 light (huts unlit 8-14 m up: light them, or hang them lower / on ledges). v1 has no qualifying cave (deep big chambers have no pool): decide whether to loosen the pool rule or MinChamber for v1.
 - #23 follow-ups: volcano markers (need a spec), v2 default decision. Rivers: springs on high ground; shot of a small fall. #13 Z-35 fall speed. #14 cave-mouth shards.
 - Design-note P3: #17, #18-#22. Roadmap #24.
