@@ -244,7 +244,7 @@ namespace Punchy.Terrain
 
         /// <summary>
         /// A stream along the main passage of caves whose style rolls for one, from the second node in (clear of the
-        /// mouth) down to the end chamber, ending in a pool (F-30). Points every 1.5 m along the passage floor; the surface follows the floor
+        /// mouth) down to the end chamber, ending in a pool (F-30) or a drop into a hole (Z-34). Points every 1.5 m along the passage floor; the surface follows the floor
         /// but never rises along the flow, so where the floor climbs the channel cuts deeper.
         /// </summary>
         static void PlaceStreams(in TerrainSource source, List<CaveData> caves, List<CaveNode> nodes, List<CaveSegment> segments,
@@ -304,6 +304,19 @@ namespace Punchy.Terrain
                                 extras.StreamPoints[first + i] = point;
                             }
                         }
+                        // Z-34 (Zach): a stream never just stops on the floor. It ends where it drops into a hole or
+                        // crevice, or in a pool; failing both at its end, it ends further back where one holds, and with
+                        // neither anywhere near the end it's left out.
+                        var keep = StreamEnd(source, extras.StreamPoints, first, count, out var radius);
+                        if (keep < 4)
+                        {
+                            extras.StreamPoints.RemoveRange(first, count);
+                            cave.StreamCount = extras.Streams.Count - cave.FirstStream;
+                            caves[c] = cave;
+                            continue;
+                        }
+                        extras.StreamPoints.RemoveRange(first + keep, count - keep);
+                        count = keep;
                         min = float.MaxValue;
                         max = float.MinValue;
                         for (int i = 0; i < count; i++)
@@ -313,13 +326,10 @@ namespace Punchy.Terrain
                             max = math.max(max, point.Position.xz + point.Width);
                         }
                         extras.Streams.Add(new CaveStream { FirstPoint = first, PointCount = extras.StreamPoints.Count - first, Min = min, Max = max });
-                        // Every stream ends in a pool at its own level, shrunk until the floor holds it all round (or
-                        // left out), added to this cave's pools (later caves' ranges move up one).
+                        // The pool at the stream's end, at its own level, added to this cave's pools (later caves'
+                        // ranges move up one). None where it drops into a hole.
                         var end = extras.StreamPoints[extras.StreamPoints.Count - 1];
-                        var radius = math.clamp(end.Width * 1.6f, 1.2f, 2.5f);
-                        while (radius >= 1.2f && !RimHolds(source, end.Position, radius))
-                            radius *= 0.8f;
-                        if (radius >= 1.2f)
+                        if (radius > 0f)
                         {
                             extras.Pools.Insert(cave.FirstPool + cave.PoolCount, new CavePool
                             {
@@ -343,6 +353,47 @@ namespace Punchy.Terrain
                 cave.StreamCount = extras.Streams.Count - cave.FirstStream;
                 caves[c] = cave;
             }
+        }
+
+        /// <summary>
+        /// How many of a stream's points to keep so it ends well (0: none does): at the last point, or up to 12 points
+        /// (~18 m) back, where the floor drops away ahead into a hole or crevice (radius 0, no pool), or where a pool at
+        /// the stream's level, shrunk from its full size down to 1.2 m, has a floor that holds it all round.
+        /// </summary>
+        static int StreamEnd(in TerrainSource source, List<CaveStreamPoint> points, int first, int count, out float radius)
+        {
+            for (int i = count - 1; i >= math.max(3, count - 13); i--)
+            {
+                var p = points[first + i];
+                var flow = math.normalizesafe(p.Position.xz - points[first + i - 1].Position.xz);
+                if (DropsAway(source, p.Position, flow))
+                {
+                    radius = 0f;
+                    return i + 1;
+                }
+                radius = math.clamp(p.Width * 1.6f, 1.2f, 2.5f);
+                while (radius >= 1.2f && !RimHolds(source, p.Position, radius))
+                    radius *= 0.8f;
+                if (radius >= 1.2f)
+                    return i + 1;
+            }
+            radius = 0f;
+            return 0;
+        }
+
+        /// <summary>Whether the cave floor just ahead of a stream's surface falls away (a hole or crevice) 1.5 m or more.</summary>
+        static bool DropsAway(in TerrainSource source, float3 surface, float2 flow)
+        {
+            if (math.lengthsq(flow) < 0.5f)
+                return false;
+            foreach (var t in new[] { 1f, 1.75f, 2.5f })
+            {
+                var q = surface.xz + flow * t;
+                var floor = source.FloorUnder(new float3(q.x, surface.y + 1.5f, q.y), out var inCave);
+                if (inCave && floor < surface.y - 1.5f)
+                    return true;
+            }
+            return false;
         }
 
         static bool Joined(int a, int b, CaveData cave, List<CaveSegment> segments)
