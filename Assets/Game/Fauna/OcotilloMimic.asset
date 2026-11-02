@@ -36,7 +36,7 @@ MonoBehaviour:
   - Limb: {fileID: 11400000, guid: 58e755da71482524faa855d0faf3cfe2, type: 2}
     Parent: -1
     Socket: {x: 0.2294, y: 0.8, z: 0.3277}
-    Direction: {x: -76, y: 35, z: 0}
+    Direction: {x: -66, y: 35, z: 0}
     Mirror: 1
     Phase: 0
     MirrorPhase: 0.5
@@ -46,7 +46,7 @@ MonoBehaviour:
   - Limb: {fileID: 11400000, guid: 58e755da71482524faa855d0faf3cfe2, type: 2}
     Parent: -1
     Socket: {x: 0.3864, y: 0.8, z: 0.1035}
-    Direction: {x: -76, y: 75, z: 0}
+    Direction: {x: -72, y: 75, z: 0}
     Mirror: 1
     Phase: 0.5
     MirrorPhase: 0.5
@@ -56,7 +56,7 @@ MonoBehaviour:
   - Limb: {fileID: 11400000, guid: 58e755da71482524faa855d0faf3cfe2, type: 2}
     Parent: -1
     Socket: {x: 0.3625, y: 0.8, z: -0.1690}
-    Direction: {x: -76, y: 115, z: 0}
+    Direction: {x: -62, y: 115, z: 0}
     Mirror: 1
     Phase: 0
     MirrorPhase: 0.5
@@ -66,15 +66,25 @@ MonoBehaviour:
   - Limb: {fileID: 11400000, guid: 58e755da71482524faa855d0faf3cfe2, type: 2}
     Parent: -1
     Socket: {x: 0.1690, y: 0.8, z: -0.3625}
-    Direction: {x: -76, y: 155, z: 0}
+    Direction: {x: -70, y: 155, z: 0}
     Mirror: 1
     Phase: 0.5
     MirrorPhase: 0.5
     Scale: 1.7
     Thickness: 1
     StyleGroup: 0
+  - Limb: {fileID: 11400000, guid: 58e755da71482524faa855d0faf3cfe2, type: 2}
+    Parent: -1
+    Socket: {x: 0.0349, y: 0.8, z: 0.3985}
+    Direction: {x: -64, y: 5, z: 0}
+    Mirror: 1
+    Phase: 0.5
+    MirrorPhase: 0.5
+    Scale: 1.6
+    Thickness: 1
+    StyleGroup: 0
   WalkSpeed: 0.7
-  RunSpeed: 5
+  RunSpeed: 3
   Bob: {x: 0, y: 0}
   BobsPerCycle: {x: 2, y: 2}
   RunRock: 0
@@ -82,7 +92,7 @@ MonoBehaviour:
   LeglessStride: {x: 0.6, y: 0.9}
   WanderRadius: 15
   IdleTime: {x: 3, y: 15}
-  FleeDistance: 6
+  FleeDistance: 2.4
   TurnRate: 200
   SeenFrom: 0
   GroupSize: {x: 1, y: 1}

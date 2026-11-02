@@ -213,6 +213,39 @@ namespace Punchy.Debugging
         float mimicRunT;
         bool mimicFolded, mimicSettled, mimicRunMarked;
 
+        /// <summary>Real ocotillo (flora recipe) vs the mimic's arms, side by side in the log.</summary>
+        void LogMimicVsReal()
+        {
+            FloraSpecies real = null;
+            CreatureSpecies mimic = null;
+            foreach (var f in Resources.FindObjectsOfTypeAll<FloraSpecies>())
+                if (f.name == "Ocotillo")
+                    real = f;
+            foreach (var c in Resources.FindObjectsOfTypeAll<CreatureSpecies>())
+                if (c.name == "OcotilloMimic")
+                    mimic = c;
+            if (real == null || mimic == null)
+            {
+                Debug.Log($"DebugControls: mimic vs real: assets not found (real {real != null}, mimic {mimic != null})");
+                return;
+            }
+            // Recipe: stems Branches (random), tilt 4..28 deg off vertical (mean 16), length 0.7..1 of the height.
+            var arms = 0;
+            float sum = 0f, lo = 999f, hi = 0f;
+            foreach (var p in mimic.Parts)
+            {
+                var tilt = 90f + p.Direction.x;
+                var n = p.Mirror ? 2 : 1;
+                arms += n;
+                sum += tilt * n;
+                lo = Mathf.Min(lo, tilt);
+                hi = Mathf.Max(hi, tilt);
+            }
+            var size = (mimic.Size.x + mimic.Size.y) * 0.5f;
+            Debug.Log($"DebugControls: REAL ocotillo: stems {real.Branches.x:F0}-{real.Branches.y:F0}, splay 4-28 deg (mean 16), height {real.Height.x:F1}-{real.Height.y:F1} m");
+            Debug.Log($"DebugControls: MIMIC: arms {arms}, splay {lo:F0}-{hi:F0} deg (mean {sum / math.max(arms, 1):F0}), arm tilt from Direction only; run speed {mimic.RunSpeed:F1} x scale {size:F1}, flee distance {mimic.FleeDistance:F1} x scale");
+        }
+
         void MimicShot()
         {
             if (mimicShotMode == null || !mimicTreeSet || !EnsureLocations(out var ground) ||
@@ -254,10 +287,14 @@ namespace Punchy.Debugging
                 s.Mode = CreatureMode.Rest;
                 s.Timer = 600f;
                 s.Speed = 0f;
-                s.Curl = 1f;
-                s.Lie = 1f;
+                var settle = mimicShotMode == "settle";
+                s.Curl = settle ? 0f : 1f;
+                s.Lie = settle ? 0f : 1f;
                 em.SetComponentData(mimicEntity, s);
                 mimicT0 = now;
+                if (mimicTreeHeight < 0.5f)
+                    mimicTreeHeight = 3.5f; // the flora blob reads 0 for this tree: frame a fixed 3.5 m
+                LogMimicVsReal();
                 mimicLogAt = 0f;
                 Debug.Log($"DebugControls: mimic {mimicShotMode}: placed at ({spot.x:F1}, {spot.y:F1}), tree ({at.x:F1}, {at.z:F1}) {mimicTreeHeight:F1} m tall");
             }
@@ -267,6 +304,11 @@ namespace Punchy.Debugging
             var pt = em.GetComponentData<LocalTransform>(player);
             if (mimicShotMode != "run")
             {
+                if (mimicShotMode == "settle" && !mimicSettled && m.Curl >= 0.95f)
+                {
+                    mimicSettled = true;
+                    Debug.Log($"DebugControls: mimic SETTLE (safe, Rest, arms down) to arms fully up (curl >= 0.95) took {now - mimicT0:F2} s");
+                }
                 var far = new float2(m.Position.x + 60f, m.Position.z);
                 pt.Position = new float3(far.x, ground.SampleHeight(far) + 0.1f, far.y);
                 em.SetComponentData(player, pt);
