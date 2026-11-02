@@ -2,6 +2,14 @@
 
 Newest first.
 
+## 2026-11-02 batch A-10c: mantrap head glow fixed (zero normals on the tooth tips)
+- DONE: #41 head renders as a dark shell with red lining and teeth instead of a white blob. Cause: MeshBuilder used Vector3.normalized, which returns zero below 1e-5; the 4 mm tooth-tip spheres made 1008 (upper) / 864 (lower) zero normals, NaN in the shader, spread by bloom. Now math.normalizesafe (animal-behaviours ae5b491; also changes the colossus builder, whose triangles are big enough to be unaffected).
+- DONE: #41 lunge shot: strike held 0.30 s (was up to 8 s), shot taken 0.15 s into the hold.
+- Checks: editor probe zero normals upper/lower 1008/864 -> 0/0 (stalk, base, leaf 0 before and after; 336/288 triangles still under 1e-5 area but now get correct normals). Compile clean, one build (50 s), player quit itself, no Punchy.exe left. Log: "mantrap strike held, shot in 0.15 s (hold 0.30 s)", lunge shot 0.5 s into its line.
+- Shots: PunchyMilestones/animal/a10c/plant-side-800.png (stalk, leaves, head open: red lining and white teeth, dark rim, no glow; open because it tracks the player 5 m off, so not the card's "closed black head"). plant-lunge-800.png (stalk bent toward the player, two pink jaw halves apart at the top, no glow).
+- Learned: docs/agents/rendering.md (zero-normal NaN bloom).
+- NEXT: Zach's look at the head in the build; client view of a lunge; player shove test (autowalk out of reach).
+
 ## 2026-11-02 batch A-10b: mantrap hit check fixed, shots show a bloom blowout on the head
 - DONE: #41 head re-aims at its target during wind-up and strike; bite hits what is within 2 m of the head tip and never past 2.4 m of the stalk (animal-behaviours 96816e5). Added -mantrapstill; shots now camera at 2.5 m head height, 4 m east, thin fog.
 - NOT DONE: #41 plant-side/plant-lunge do not show the head: it renders as a white glow (looks like NaN/overbright feeding bloom; leaves and stalk fine). Fix needs another build. Host-to-client lunge: not possible as built (a plant only reacts to the local player and local animals, a remote player is not a target).

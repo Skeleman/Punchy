@@ -1,11 +1,11 @@
-# Animal lane: state (2026-11-03, after batch A-10)
+# Animal lane: state (2026-11-02, after batch A-10c)
 
-Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 767d3ca (A-09: colossus, -shotonhunt, gap log).
-Builds/Windows is the A-10 build (adds `-nomantrap -mantraptest -mantrapshot side|lunge`; Mantrap.cs on animal-behaviours fb3f028; has `-nocolossus -framelog -colossusshot -shotonhunt -flatfear -lift`). Editor open on port 7800; no Punchy.exe running.
+Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 347adea (A-10c: mantrap head normals fix + docs).
+Builds/Windows is the A-10c build (head glow fixed, lunge hold 0.3 s; A-10 added `-nomantrap -mantraptest -mantrapshot side|lunge`; Mantrap.cs on animal-behaviours fb3f028; has `-nocolossus -framelog -colossusshot -shotonhunt -flatfear -lift`). Editor open on port 7800; no Punchy.exe running.
 
 ## Unverified (merged anyway; Zach's check in the build)
-- #41 (A-10b, 96816e5): hit check verified (7/7 at 0.8 m). Head renders as a white glow in shots (bloom blowout, cause unfound). Host-to-client lunge not shown (remote player not a target). Builds/Windows has A-10b.
-- #41 plant: player shove never landed in the test (autowalk out of reach); head not visible in shots; client view not run.
+- #41 (A-10c, ae5b491): head glow fixed (tooth-tip zero normals 1008/864 -> 0; now normalizesafe). Hit check 7/7 at 0.8 m (A-10b). Shots a10c show the head open, no glow. Host-to-client lunge not shown (remote player not a target).
+- #41 plant: player shove never landed in the test (autowalk out of reach); client view not run.
 - #48 remote view of a roll (client sees the somersault from the Pose byte): never run on a client.
 - #6 Z-50 gallop: `-shotonhunt` now frames a sprint; check hunt0.png shows a gallop pose.
 - #7 Z-51: Hiss(49), Growl(52) not heard. Try Dog and Cat 4 m apart, or Dog next to Wolf.
