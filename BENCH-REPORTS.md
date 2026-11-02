@@ -2,6 +2,22 @@
 
 Newest first.
 
+## 2026-11-02: queue item 4, smoke animal-behaviours b5e9715 vs v0.11.0 4eea658: PASS on fps; TraceSystem 8x on the main thread (Z-50)
+Townwalk and glide at cap 60 and uncapped, 2 rounds alternating, then a townwalk cap-60 dev profile on each build plus
+profdiff. 0 exceptions, 0 "Mesh bounds"; same end spots (townwalk 366,-406, glide 1197,359). No dialogs.
+- **The runner's NOT CLEAN (glide cap 60 1% low 35.5 -> 29.4) is one base outlier:** v0.11.0's round-2 glide ran
+  unusually smoothly (1% low 57.3, worst 17.9 ms, 0 slow frames). Its other three glide runs today are 27.9-28.8, and
+  b5e9715 gives 29.1/29.6, which is the v0.11.0 baseline (29.6). Glide at cap 60 has sat near 30 since v0.8.
+- Townwalk cap 60 1% low 34.6 vs 34.8 (v0.11.0 vs b5e9715); uncapped 43.0 vs 48.0; glide uncapped 37.2 vs 36.7.
+  Average fps and GPU level everywhere.
+- **Profile (townwalk cap 60, 1750 frames each):** frame median 16.68 on both, p95 19.26 vs 19.67, spikes 3 vs 1.
+  - `Punchy.Fauna.TraceSystem` (main thread): median **0.05 -> 0.40 ms**, mean 0.20 -> 0.50, worst frame 3.6 -> 4.5.
+    The only change since v0.11.0 is c0b26df (Z-50 gallop): each leg now calls `b.LegPhase(ref leg, b.Sprint(...))`
+    and `FootAt(..., s)` per frame. For the animal lane: Burst-compile or cache that per creature (the brain already
+    knows the gait), as 0.3 ms on the main thread at townwalk will grow with the residents.
+  - CreatureAudioSystem mean 0.18 -> 0.22 (Z-51 voices); BrainJob, Brain.Advance unchanged.
+- Cost: see item 5's line.
+
 ## 2026-11-02: queue item 3, #31 houses lit wrong on the laptop: graphics tier, GPU and quality level ruled out; cause not found from laptop shots alone
 Bench-8d83102, `-benchstops town -benchhour 12|18.5|22 -gfx Medium|High -nohud`, 1280x720, 0 exceptions.
 - **What the laptop runs:** D3D11 on the GTX 1060 Max-Q (Zach's own v0.11.0 Player.log, 2026-11-01, shows the same,
