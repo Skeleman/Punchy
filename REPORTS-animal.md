@@ -2,6 +2,19 @@
 
 Newest first.
 
+## 2026-11-02 batch A-06b: songbird flare spin cut by 75% (#12); wall top-out/climb-down not working yet (#33)
+- DONE: #12 FlyTo: in the flare (last 1.5 m) turning eases off and the bird drifts onto the spot instead of wheeling round it at 450 deg/s (animal-behaviours 30fae95).
+- DONE: #12 `-spincheck` now splits Wander by stage and traces one songbird: the spin was the flare (268-278 deg/s, trace: +/-450 deg/s within 0.1-0.9 m of the spot while the height settles).
+- DONE: #33 harness: sideways push at 1.5-3.5 s after `-place wall`.
+- NOT DONE: #12 Songbird Wander after is 25-31 deg/s, not under 20: flying stage 28-35 deg/s (same as before), ground 31-46 over 7-21 s.
+- NOT DONE: #33 the top-out, step-off latch and camera stick flip are in but did not fire: `-place wall` now picks a round hut (cone roof); the Lizard ends on the roof still OnWall with no stick, sideways gives 0.0 m/s, and walking off falls at -3.6 m/s.
+- Checks: compile clean / one build Succeeded, 0 errors, 65 s / both runs quit, no Punchy.exe left / eol kept (PlayerMovementSystem crlf, others lf).
+- Checks: Songbird Wander before (-noflaresettle) 100 and 125 deg/s (flare 268/278, flying 30/34); after (clean run, 2 windows) 25 and 31 deg/s (flare 18.5/24.5, flying 28/35).
+- Checks: Lizard up 0.5, 0.7, 0.7, 1.2 m/s; sideways along 0.0 m/s; down: no climb, falls -3.6 m/s; OnWall stays True at the top until the stick goes down.
+- Shots: PunchyMilestones/animal/a06b/wall-2s.png (2 s after `-place wall`: Lizard still on the grass 2 m from a round thatched hut, not yet climbing) / spin-before.png, spin-after2.png (meadow at -255,27 with 6 Songbird).
+- Learned: lanes/animal/STATE.md test notes (a new shot-list line clears the climb test; spin windows straddle lines).
+- NEXT: #33 release OnWall when the feet have support, step-off latch without the wasOnProp guard, log the sideways 0; or a flat-topped wall for `-place wall`. #12 trace the flying stage.
+
 ## 2026-11-02 batch A-06: wall climb latches and climbs up (#33, partial); #12 cause narrowed to Songbird Wander, not fixed
 - DONE: #33 cause found by probe (every frame at the latch): the Lizard's wall test never had `blocked` and `pressing` true together. Three faults: the `-place wall` harness stopped pushing 0.3 m short of the rim; `PropSupport.Wall` only counts tops below head height (0.425 m for a Lizard) and a garden wall's only surface is its top, 3.4 m up; Ledge starts 0.3 m out, past the Lizard's 0.225 m reach. Fixed: ClimbsWalls bodies count tops up to 8 m as walls, the rim is looked for 0.5 m ahead on a wall, and the harness aims 1 m past the rim (animal-behaviours dcff671).
 - DONE: #33 check: OnWall True on `-place wall`, climbing up at 1.3-1.4 m/s (feet 27.0 -> 30.7 m in about 3 s).
