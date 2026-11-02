@@ -240,7 +240,7 @@ namespace Punchy.Debugging
                 var tip = seg.Position + math.mul(seg.Rotation, new float3(0f, 0f, seg.Length));
                 footLowest[foot] = footFrames == 0 ? tip.y : math.min(footLowest[foot] + Time.deltaTime * 0.05f, tip.y);
                 // (On the ground in the gait's stance half, not just low: a low swing isn't a planted foot.)
-                var down = tip.y < footLowest[foot] + 0.04f && s.Speed > 0.2f && math.frac(s.Phase + part.Phase) < 0.5f;
+                var down = tip.y < footLowest[foot] + 0.04f && s.Speed > 0.2f && math.frac(s.Phase + b.LegPhase(ref part, b.Sprint(s, s.GaitSpeed))) < 0.5f;
                 if (down && !footPlanted[foot])
                 {
                     footPlanted[foot] = true;

@@ -29,6 +29,8 @@ namespace Punchy.Fauna
         [Header("Body")]
         [Tooltip("Length of the torso, nose-end to tail-end of the trunk, in metres.")]
         [Min(0.01f)] public float BodyLength = 0.8f;
+        [Tooltip("How a four-legged body gallops past a run: Auto bounds if under 0.5 m long, else a rotary gallop.")]
+        public GallopStyle Gallop;
         [Min(0.005f)] public float BodyRadius = 0.15f;
         [Tooltip("Rear radius relative to the front (below 1 = slimmer hips).")]
         [Range(0.2f, 2f)] public float BodyTaper = 1f;
@@ -320,6 +322,13 @@ namespace Punchy.Fauna
         Snap,
         // A player sitting down or lying back where they are, or on a seat (postures held until they move).
         SitDown, LieBack
+    }
+
+    public enum GallopStyle : byte
+    {
+        Auto,
+        [Tooltip("Each foot in turn: hind, hind, fore, fore (horses, dogs, deer).")] Rotary,
+        [Tooltip("The hind pair together, then the front pair (rabbits, squirrels, weasels).")] Bound
     }
 
     public enum ActiveTime : byte

@@ -171,8 +171,9 @@ namespace Punchy.Fauna
                 ref var leg = ref b.Parts[i];
                 if (leg.Role != LimbRole.Leg || leg.Parent >= 0 || leg.SegmentCount == 0)
                     continue;
-                var before = math.frac(last.w + leg.Phase);
-                var after = math.frac(s.Phase + leg.Phase);
+                var legPhase = b.LegPhase(ref leg, b.Sprint(s, s.GaitSpeed));
+                var before = math.frac(last.w + legPhase);
+                var after = math.frac(s.Phase + legPhase);
                 touchdown = after < before && before - after >= 0.5f;
             }
             if (!touchdown)
@@ -187,11 +188,12 @@ namespace Punchy.Fauna
                 ref var part = ref b.Parts[i];
                 if (part.Role != LimbRole.Leg || part.Parent >= 0 || part.SegmentCount == 0)
                     continue;
-                var was = math.frac(last.w + part.Phase);
-                var now0 = math.frac(s.Phase + part.Phase);
+                var partPhase = b.LegPhase(ref part, b.Sprint(s, s.GaitSpeed));
+                var was = math.frac(last.w + partPhase);
+                var now0 = math.frac(s.Phase + partPhase);
                 if (now0 >= was || was - now0 < 0.5f)
                     continue;   // no touchdown (its cycle didn't wrap round to stance this frame)
-                var foot = CreatureMotion.FootAt(ref b, ref part, now0, s.GaitSpeed) * scale;
+                var foot = CreatureMotion.FootAt(ref b, ref part, now0, s) * scale;
                 Print(s, ref b, terrain, s.Position + right * foot.x + forward * foot.z, forward, now);
             }
         }

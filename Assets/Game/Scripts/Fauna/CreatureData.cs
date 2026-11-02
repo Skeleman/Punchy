@@ -70,6 +70,9 @@ namespace Punchy.Fauna
         public bool Child;
         /// <summary>Four legs and not upright (horses, dogs, deer...): past a run it gallops (Sprint).</summary>
         public bool Gallops;
+        /// <summary>Its gallop is a bound (the hind pair together, then the front pair: rabbits, squirrels, weasels)
+        /// rather than a rotary gallop (each foot in turn).</summary>
+        public bool Bounds;
         /// <summary>Cold-blooded (CreatureSpecies.ColdBlooded): its breath doesn't show in the cold.</summary>
         public bool ColdBlooded;
         /// <summary>No legs, and a chain lying along the ground off the body (a snake's): it moves along a serpentine wave.</summary>
@@ -171,6 +174,28 @@ namespace Punchy.Fauna
             return roll < annoyed ? FolkStance.Annoyed : roll < annoyed + wary ? FolkStance.Wary : FolkStance.Neutral;
         }
 
+        /// <summary>
+        /// Sprint for this creature as it is now: an animal running for its life or after game gallops from just under
+        /// its run speed (Z-50: so a chase is seen at a gallop; otherwise only players' bodies go fast enough).
+        /// Everything that reads a leg's phase or stride uses this, so feet stay put.
+        /// </summary>
+        public float Sprint(in CreatureState s, float speed) =>
+            Gallops && (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Hunt) && speed > RunSpeed * 0.85f * s.Scale
+                ? math.max(Sprint(speed), math.smoothstep(RunSpeed * 0.85f, RunSpeed * 1.15f, speed / math.max(s.Scale, 0.01f)))
+                : Sprint(speed);
+
+        /// <summary>
+        /// A leg's place in the cycle (added to the body's Phase): its own (walk, trot) blended toward its gallop's by
+        /// how far into a sprint the body is, the short way round the cycle.
+        /// </summary>
+        public float LegPhase(ref CreaturePart part, float sprint)
+        {
+            if (!Gallops || sprint <= 0f || part.Role != LimbRole.Leg)
+                return part.Phase;
+            var d = math.frac(part.GallopPhase - part.Phase + 0.5f) - 0.5f;
+            return math.frac(part.Phase + d * sprint);
+        }
+
         /// <summary>A sprinting leg's sweep, longer than its run's by this share (a gallop's more).</summary>
         public float SprintStride => Gallops ? 0.6f : 0.35f;
 
@@ -219,6 +244,9 @@ namespace Punchy.Fauna
         public float Spring;
         /// <summary>+1, or -1 for the mirror image (yaw and roll flipped).</summary>
         public float Side;
+        /// <summary>A gallop's phase for a leg of a four-legged body (CreatureBlob.LegPhase): rotary, hind left 0, hind
+        /// right 0.1, fore left 0.45, fore right 0.55; bounding, the hinds 0 and the fores 0.5.</summary>
+        public float GallopPhase;
         /// <summary>Phase lag per joint down the chain (a travelling ripple).</summary>
         public float JointPhaseStep;
         /// <summary>Segments bend to lie on the ground.</summary>
@@ -681,6 +709,8 @@ namespace Punchy.Fauna
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<CreatureBlob>();
             root.BodyLength = species.BodyLength;
+            // (Short bodies bound, longer ones gallop, unless the species says.)
+            root.Bounds = species.Gallop == GallopStyle.Bound || species.Gallop == GallopStyle.Auto && species.BodyLength < 0.5f;
             // A variant's own proportions (a child's big head, chunky limbs and short legs) on the body it's based on.
             var own = variant != species;
             var headScale = own ? variant.VariantHead : 1f;
@@ -973,6 +1003,16 @@ namespace Punchy.Fauna
             b.WalkStride = legs > 0 ? math.max(walk / legs, 0.05f) : math.max(leglessStride.x, 0.05f);
             b.RunStride = legs > 0 ? math.max(run / legs, 0.05f) : math.max(leglessStride.y, 0.05f);
             b.Gallops = !b.Upright && legs == 4;
+            if (b.Gallops)
+                for (int i = 0; i < b.Parts.Length; i++)
+                {
+                    ref var part = ref b.Parts[i];
+                    if (part.Role != LimbRole.Leg || part.Parent >= 0)
+                        continue;
+                    var hind = part.Socket.z < 0f;
+                    var right = part.Side < 0f;
+                    part.GallopPhase = (hind ? 0f : b.Bounds ? 0.5f : 0.45f) + (b.Bounds ? 0f : right ? 0.1f : 0f);
+                }
             var chain = false;
             for (int i = 0; i < b.Parts.Length; i++)
                 chain |= b.Parts[i].FollowGround && b.Parts[i].Parent < 0;

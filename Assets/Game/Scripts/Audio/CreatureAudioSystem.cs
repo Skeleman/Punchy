@@ -172,8 +172,9 @@ namespace Punchy.Audio
                             ref var part = ref b.Parts[p];
                             if (part.Role != LimbRole.Leg || part.Parent >= 0)
                                 continue;
-                            var now = math.frac(s.Phase + part.Phase);
-                            var then = math.frac(was.phase + part.Phase);
+                            var legPhase = b.LegPhase(ref part, b.Sprint(s, s.GaitSpeed));
+                            var now = math.frac(s.Phase + legPhase);
+                            var then = math.frac(was.phase + legPhase);
                             if (now < then && then - now > 0.5f)
                                 Step(s, ref b, part.Side, terrain);
                         }
