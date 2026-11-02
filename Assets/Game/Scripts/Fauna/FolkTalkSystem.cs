@@ -40,6 +40,25 @@ namespace Punchy.Fauna
         public static int LinesSaid, Answers;
         public static bool Quiet;
         /// <summary>
+        /// Two folk stopped to talk (A-26, CreatureBrainSystem.Chatting): a small "..." over the head of whichever is
+        /// talking (from the Stage byte, so every machine shows it); and on the host or solo (where who is talking to
+        /// whom is known) one log line per talk, with the pair, the place and how long it went on. Talks logged since start.
+        /// </summary>
+        public static readonly List<float3> Bubbles = new List<float3>();
+        public static int Chats;
+        struct Chat
+        {
+            public Entity With;
+            public string Names;
+            public float Start;
+            public float3 At;
+            public int Children;
+        }
+        readonly Dictionary<Entity, Chat> chats = new Dictionary<Entity, Chat>();
+        readonly Dictionary<Entity, int> childrenBy = new Dictionary<Entity, int>();
+        readonly HashSet<Entity> talking = new HashSet<Entity>();
+        readonly List<Entity> ended = new List<Entity>();
+        /// <summary>
         /// Tests ("-stancelog", Z-52): log each line with the speaker's stance, and once per player body, how every folk
         /// species takes that body over 4000 individuals (the odds the stance hash gives).
         /// </summary>
@@ -94,6 +113,7 @@ namespace Punchy.Fauna
         {
             var now = UnityEngine.Time.time;
             Tidy(now);
+            WatchChats(now, SystemAPI.TryGetSingleton<TerrainSource>(out var chatTerrain), chatTerrain);
             var archive = DialogueArchive.Current;
             if (archive == null || Quiet || playerQuery.CalculateEntityCount() != 1 || !SystemAPI.TryGetSingleton<TerrainSource>(out var terrain))
                 return;
@@ -196,7 +216,72 @@ namespace Punchy.Fauna
                 Shown.Add(new Said { Who = entities[i], Text = text, Head = Head(s, ref b), Start = now, Until = now + 3.5f + text.Length * 0.05f });
             }
             FolkTalkLabels.Ensure();
-            FolkTalkLabels.Show(Shown.Count > 0);
+            FolkTalkLabels.Show(Shown.Count > 0 || Bubbles.Count > 0);
+        }
+
+        void WatchChats(float now, bool hasTerrain, in TerrainSource terrain)
+        {
+            Bubbles.Clear();
+            if (director == null && UnityEngine.Time.frameCount % 60 == 0)
+                director = Object.FindAnyObjectByType<FaunaDirector>();
+            var cam = Camera.main;
+            var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var entities = query.ToEntityArray(Allocator.Temp);
+            talking.Clear();
+            childrenBy.Clear();
+            for (int i = 0; i < states.Length; i++)
+            {
+                var s = states[i];
+                if (s.Mode != CreatureMode.Idle || s.Stage != CreatureAnimator.ChatTalk && s.Stage != CreatureAnimator.ChatListen)
+                    continue;
+                if (s.Stage == CreatureAnimator.ChatTalk && !Quiet && cam != null && math.distancesq((float3)cam.transform.position, s.Position) < 30f * 30f)
+                    Bubbles.Add(Head(s, ref bodies[i].Blob.Value) + new float3(0f, 0.1f, 0f));
+                if (s.ChatRole == 3)
+                    childrenBy[s.Partner] = (childrenBy.TryGetValue(s.Partner, out var n) ? n : 0) + 1;
+                if (s.ChatRole != 1)
+                    continue;
+                talking.Add(entities[i]);
+                if (!chats.ContainsKey(entities[i]))
+                {
+                    var other = EntityManager.Exists(s.Partner) && EntityManager.HasComponent<CreatureBody>(s.Partner)
+                        ? director?.SpeciesAt(EntityManager.GetComponentData<CreatureBody>(s.Partner).Species)?.name : null;
+                    chats[entities[i]] = new Chat
+                    {
+                        With = s.Partner,
+                        Names = $"{director?.SpeciesAt(bodies[i].Species)?.name ?? "?"} & {other ?? "?"}",
+                        Start = now,
+                        At = s.Position
+                    };
+                }
+            }
+            foreach (var pair in childrenBy)
+                if (chats.TryGetValue(pair.Key, out var c) && pair.Value > c.Children)
+                {
+                    c.Children = pair.Value;
+                    chats[pair.Key] = c;
+                }
+            ended.Clear();
+            foreach (var pair in chats)
+                if (!talking.Contains(pair.Key))
+                    ended.Add(pair.Key);
+            foreach (var e in ended)
+            {
+                var c = chats[e];
+                chats.Remove(e);
+                Chats++;
+                var town = hasTerrain ? HomeTown(new CreatureState { Position = c.At }, terrain) : null;
+                UnityEngine.Debug.Log($"FolkChat: {c.Names} at ({c.At.x:F0}, {c.At.z:F0}){(town != null ? " in " + town : "")} for {now - c.Start:F1} s" +
+                                      $"{(c.Children > 0 ? $", {c.Children} child(ren) by them" : "")}");
+            }
+            states.Dispose();
+            bodies.Dispose();
+            entities.Dispose();
+            if (Bubbles.Count > 0)
+            {
+                FolkTalkLabels.Ensure();
+                FolkTalkLabels.Show(true);
+            }
         }
 
         static string Stance(FolkStance stance) => stance == FolkStance.Neutral ? null : stance.ToString();
@@ -228,7 +313,7 @@ namespace Punchy.Fauna
                 foreach (var e in stale)
                     nextTalk.Remove(e);
             }
-            if (Shown.Count == 0)
+            if (Shown.Count == 0 && Bubbles.Count == 0)
                 FolkTalkLabels.Show(false);
         }
 
@@ -320,6 +405,20 @@ namespace Punchy.Fauna
                 shadow.normal.textColor = new Color(0f, 0f, 0f, 0.75f * fade);
                 GUI.Label(new Rect(rect.x + 1.5f, rect.y + 1.5f, rect.width, rect.height), said.Text, shadow);
                 GUI.Label(rect, said.Text, style);
+            }
+            // (Talking folk: a small "..." over the head.)
+            foreach (var head in FolkTalkSystem.Bubbles)
+            {
+                var screen = cam.WorldToScreenPoint(head);
+                if (screen.z < 0.3f)
+                    continue;
+                var size = Mathf.RoundToInt(Screen.height / 30f * Mathf.Clamp(5f / screen.z, 0.5f, 1.3f));
+                style.fontSize = shadow.fontSize = size;
+                var rect = new Rect(screen.x - size * 1.5f, Screen.height - screen.y - size * 1.4f, size * 3f, size * 1.4f);
+                style.normal.textColor = new Color(1f, 1f, 1f, 0.95f);
+                shadow.normal.textColor = new Color(0f, 0f, 0f, 0.7f);
+                GUI.Label(new Rect(rect.x + 1.5f, rect.y + 1.5f, rect.width, rect.height), "...", shadow);
+                GUI.Label(rect, "...", style);
             }
         }
     }

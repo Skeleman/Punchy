@@ -594,6 +594,14 @@ namespace Punchy.Fauna
         /// <summary>Where it lives (a settlement, a den); with Leash &gt; 0 it wanders no further than that from it.</summary>
         public float2 Home;
         public float Leash;
+        /// <summary>
+        /// Two folk stopped to talk (CreatureBrainSystem.Chatting; local, host only, not sent): seconds before this one
+        /// starts or joins another talk; its part in one (1 started it, 2 the one it stopped, 3 a child standing by);
+        /// where it was walking to before (ChatWalk 1), to carry on there after.
+        /// </summary>
+        public float ChatCool;
+        public byte ChatRole, ChatWalk;
+        public float2 ChatResume;
         /// <summary>Fixed for life: picks this individual's traits (posture, gait, hair). Set at spawn.</summary>
         public uint Individual;
         /// <summary>A worker's job, where it stands to do it, and what it faces there.</summary>
