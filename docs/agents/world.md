@@ -77,6 +77,9 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   network: host and client each read their own launch, so start both the same way.
 - BiomeData.SampleMapBlurred sums every biome id's weight and keeps the top 4 minus the 5th. Keeping only the first 4
   ids it met made weights jump where a fifth biome came in, which raised vertical walls and pits.
+- v2 map Mountains pixels cover only ridge crests, but the ridge height and blurred shape lift the ground well past
+  them, so lowland surfaces climbed half of each flank. TerrainSource.HighlandSurface hands the surface to the
+  mountain biome where the lift passes 40-52 m (map mode only; v1 untouched). Changing it moves landmarks.
 - Above a fall's lip the lower pool's wide channel reaches back under the upper river (river cells are 16 m, channels
   up to ~50 m), so the lowest-carve rule picked the lower water and land showed between the surfaces.
   RiverQuery.FallWater keeps the upper surface up to the lip.

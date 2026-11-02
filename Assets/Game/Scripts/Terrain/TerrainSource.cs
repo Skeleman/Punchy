@@ -173,6 +173,7 @@ namespace Punchy.Terrain
                 // The painted map already contains the ocean.
                 surface = BiomeSampling.SampleMap(ref BiomeMap.Value, xz);
                 shape = BiomeSampling.SampleMapBlurred(ref BiomeMap.Value, xz, BiomeNoise.ShapeBlendDistance * 0.5f);
+                surface = HighlandSurface(xz, surface, shape);
                 return;
             }
 
@@ -181,6 +182,40 @@ namespace Punchy.Terrain
             var ocean = OceanFactor(xz);
             surface = BiomeSampling.WithOcean(BiomeSampling.Weights(cells, BiomeNoise.BlendDistance, BiomeNoise.CellSize), ocean, set.OceanIndex);
             shape = BiomeSampling.WithOcean(BiomeSampling.Weights(cells, BiomeNoise.ShapeBlendDistance, BiomeNoise.CellSize), ocean, set.OceanIndex);
+        }
+
+        // W-26 (#23): where a mountain range raises the ground by more than this, the mountain's own surface takes over.
+        const float HighlandStart = 40f, HighlandFull = 52f, HighlandWobble = 6f;
+
+        /// <summary>
+        /// W-26 (#23), biome map only: the map's mountain pixels cover just the ridge crests, while the island ridge
+        /// offset and the blurred shape weights raise the ground a few hundred metres either side, so lowland surfaces
+        /// (forest, swamp, desert) climbed about half of each flank. Here the mountain biome (ridged, base + relief at
+        /// least 200 m) takes the surface wherever the range lifts the ground past <see cref="HighlandStart"/>, fading
+        /// in over ~12 m of lift (about 20-40 m on a flank), with a noise wobble so the edge isn't a contour line.
+        /// </summary>
+        BiomeWeights HighlandSurface(float2 xz, BiomeWeights surface, in BiomeWeights shape)
+        {
+            ref var set = ref Biomes.Value;
+            for (int i = 0; i < 4; i++)
+            {
+                var ws = shape.Weights[i];
+                if (ws <= 0f)
+                    continue;
+                ref var b = ref set.Biomes[shape.Ids[i]];
+                if (b.Shape != TerrainShapeKind.Ridged || b.BaseElevation + b.Relief < 200f)
+                    continue;
+                var lift = ws * (b.BaseElevation + BiomeSampling.Relief(ref b, xz)) + (Island.IsCreated ? math.max(Island.Value.Sample(xz), 0f) : 0f);
+                lift += noise.snoise(xz * 0.025f + 71.3f) * HighlandWobble;
+                var t = math.smoothstep(HighlandStart, HighlandFull, lift);
+                if (t <= 0f)
+                    return surface;
+                surface.Weights *= 1f - t;
+                surface.Add(shape.Ids[i], t);
+                surface.Normalize();
+                return surface;
+            }
+            return surface;
         }
 
         /// <summary>
