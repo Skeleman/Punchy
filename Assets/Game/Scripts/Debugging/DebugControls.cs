@@ -135,6 +135,11 @@ namespace Punchy.Debugging
                 return;
             }
             var em = queryWorld.EntityManager;
+            // (A-23: the last line's hunter is skipped until its sprint ends, or a back-to-back line caught it slowing down
+            // and shot it walking.)
+            if (staleHunter != Entity.Null && (!em.Exists(staleHunter) || !em.HasComponent<CreatureState>(staleHunter) ||
+                                               em.GetComponentData<CreatureState>(staleHunter) is var st && (st.Mode != CreatureMode.Hunt || st.Stage != 1)))
+                staleHunter = Entity.Null;
             using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
             var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
             var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
@@ -142,7 +147,7 @@ namespace Punchy.Debugging
             for (int i = 0; i < states.Length; i++)
             {
                 var h = states[i];
-                if (h.Mode != CreatureMode.Hunt || h.Stage != 1 || bodies[i].Blob.Value.Habitat == Habitat.Flies)
+                if (h.Mode != CreatureMode.Hunt || h.Stage != 1 || entities[i] == staleHunter || bodies[i].Blob.Value.Habitat == Habitat.Flies)
                     continue;
                 if (huntSpecies != null && FindAnyObjectByType<FaunaDirector>()?.SpeciesAt(bodies[i].Species)?.name != huntSpecies)
                     continue;
@@ -183,8 +188,9 @@ namespace Punchy.Debugging
         // "-huntside 7" with -shotonhunt (#6): instead of the wide two-animal view, the camera rides that many metres
         // side-on of the hunter, and the shot is taken huntDelay seconds into the sprint (so the gallop has started).
         static float huntSide;
+        static bool huntPair;
         const float huntDelay = 1f;
-        Entity huntHunter, huntPrey;
+        Entity huntHunter, huntPrey, staleHunter;
         float3 huntSideDir;
         int huntShotLine = -1;
         bool huntShotLogged;
@@ -197,34 +203,54 @@ namespace Punchy.Debugging
             if (!em.Exists(huntHunter) || !em.HasComponent<CreatureState>(huntHunter))
                 return;
             var h = em.GetComponentData<CreatureState>(huntHunter);
-            // Side-on to the hunter's run: towards the prey while it's there, keeping the side picked at the start.
-            var along = em.Exists(huntPrey) && em.HasComponent<CreatureState>(huntPrey)
-                ? math.normalizesafe(em.GetComponentData<CreatureState>(huntPrey).Position - h.Position, new float3(0f, 0f, 1f))
-                : math.normalizesafe(math.cross(huntSideDir, new float3(0f, 1f, 0f)), new float3(0f, 0f, 1f));
-            along.y = 0f;
+            // Side-on to the hunter's own heading this frame (A-23: the hunter-to-prey line drifted off the heading as the
+            // wolf curved after the hare, and the A-22 shot came out head-on), keeping the side picked at the start.
+            var along = new float3(math.sin(h.Yaw), 0f, math.cos(h.Yaw));
             var side = math.normalizesafe(new float3(-along.z, 0f, along.x));
             if (math.dot(side, huntSideDir) < 0f)
                 side = -side;
             var target = h.Position + new float3(0f, 0.6f, 0f);
+            var distance = huntSide;
+            var gap = 0f;
+            if (huntPair && em.Exists(huntPrey) && em.HasComponent<CreatureState>(huntPrey))
+            {
+                var p = em.GetComponentData<CreatureState>(huntPrey).Position;
+                gap = math.distance(p.xz, h.Position.xz);
+                target = (h.Position + p) * 0.5f + new float3(0f, 0.5f, 0f);
+                // Step back if the pair is wider than the view holds at this distance (about 1.6 d across).
+                distance = math.max(huntSide, gap * 0.65f);
+            }
             // (A-18: keep the side with a clear view. A shrub or tree between the camera and the hunter hid half the
             // wolf in A-17, so if this side has plants in the way and the other has fewer, swap over.)
-            var blocked = SightBlockers(target, target + side * huntSide + new float3(0f, 0.9f, 0f));
-            var otherBlocked = blocked > 0 ? SightBlockers(target, target - side * huntSide + new float3(0f, 0.9f, 0f)) : 0;
+            var blocked = SightBlockers(target, target + side * distance + new float3(0f, 0.9f, 0f));
+            var otherBlocked = blocked > 0 ? SightBlockers(target, target - side * distance + new float3(0f, 0.9f, 0f)) : 0;
             if (blocked > 0 && otherBlocked < blocked)
             {
                 side = -side;
                 (blocked, otherBlocked) = (otherBlocked, blocked);
             }
             huntSideDir = side;
-            var from = target + side * huntSide + new float3(0f, 0.9f, 0f);
+            var from = target + side * distance + new float3(0f, 0.9f, 0f);
             PoseCamera(from, Quaternion.LookRotation((Vector3)(target - from)));
             var elapsed = Time.realtimeSinceStartup - shotStarted;
             if (!huntShotLogged && elapsed >= shotWait - 0.05f)
             {
                 huntShotLogged = true;
-                Debug.Log($"DebugControls: huntside: hunter speed {h.Speed:F1}, mode {h.Mode} stage {h.Stage}, camera {huntSide:F0} m side-on, " +
+                Debug.Log($"DebugControls: huntside: hunter speed {h.Speed:F1}, mode {h.Mode} stage {h.Stage}, camera {distance:F1} m side-on of the heading{(huntPair ? $" (pair, {gap:F1} m apart)" : "")}, " +
+                          $"prey line {PreyLineAngle(h, along):F0} deg off the heading, " +
                           $"{elapsed:F2} s into the line, plants in the way {blocked}, leap gather {CreatureAnimator.LeapGather(h.Phase):F2}");
             }
+        }
+
+        /// <summary>How far the hunter-to-prey line is turned from the hunter's heading, degrees (-1 with no prey).</summary>
+        float PreyLineAngle(CreatureState h, float3 along)
+        {
+            var em = queryWorld.EntityManager;
+            if (!em.Exists(huntPrey) || !em.HasComponent<CreatureState>(huntPrey))
+                return -1f;
+            var line = em.GetComponentData<CreatureState>(huntPrey).Position - h.Position;
+            line.y = 0f;
+            return math.degrees(math.acos(math.clamp(math.dot(math.normalizesafe(line), along), -1f, 1f)));
         }
 
         /// <summary>
@@ -1111,6 +1137,9 @@ namespace Punchy.Debugging
             var huntSideArg = System.Array.IndexOf(args, "-huntside");
             huntSide = huntSideArg >= 0 && huntSideArg + 1 < args.Length && float.TryParse(args[huntSideArg + 1], System.Globalization.NumberStyles.Float,
                 System.Globalization.CultureInfo.InvariantCulture, out var hs) ? hs : 0f;
+            // A-23 (#7): "-huntpair" with -huntside aims at the middle of hunter and prey instead of the hunter, so a close
+            // side-on view keeps both in frame.
+            huntPair = System.Array.IndexOf(args, "-huntpair") >= 0;
             // A-21 (#6): "-leapphase 0.15" holds every leaping run (dogs, cats, wolves) at that point of its stride, for a
             // shot of each phase; "-hunter Dog" makes -shotonhunt wait for that species; "-gaitlog" logs each loaded
             // four-legged species' gallop (Leap, Bound or Rotary).
@@ -2949,6 +2978,7 @@ namespace Punchy.Debugging
             wallFovWas = 0f;
             huntShotTaken = false;
             huntShotLogged = false;
+            staleHunter = huntHunter;
             huntHunter = Entity.Null;
             colossusShotDistance = 0f;
             mantrapShotMode = null;
