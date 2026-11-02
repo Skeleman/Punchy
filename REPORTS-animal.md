@@ -2,6 +2,17 @@
 
 Newest first.
 
+## 2026-11-02 A-04: right face button (#48) and fish sprint (#47) done; #33 wall climb still not working
+- DONE: #48 B/Circle rolls on the ground (a somersault, 0.53 s), descends on the wing (glide at -29 deg), sinks in water; menus still cancel on B (animal-behaviours b5e9715, pushed)
+- DONE: #47 fish sprint 2.4x the swim and holds depth (animal-behaviours b5e9715)
+- NOT DONE: #33 Lizard wall climb: stick against the test wall gives OnWall False. No species has ClimbsAs AnySurface; setting it on Lizard and GiantSpider did not latch either (reverted). Test hook `-place wall` is in.
+- NOT DONE: #48 remote view of the roll (Pose byte replicated, remote somersault coded) was not run on a client
+- Checks: compiled, built, run with no exceptions in the final runs. Roll (stick / standing): Human 4.1 / 3.2 m, Dwarf 3.1 / 3.1, Dog 4.3, Horse 4.4, Rabbit 4.2, Lizard 2.8, Monkey 4.2, Rattlesnake 1.4, Chicken 4.3, Crow 3.5, GiantSpider 2.8, all 0.53 s.
+- Checks: descent, Crow: glide -2.4 m/s, crouch -8.7 to -12.1 m/s (pitch -29 deg); climb 8.7 m/s. Swim (Trout, 5 s each): swim 4.1 m/s, sprint 9.9 m/s, depth 0.78 -> 0.38 m (held, lake only 1.8 m deep; shallowing bed can push it up). Crouch sink not read (log index bug on the last phase, fixed).
+- Shots: PunchyMilestones/animal/a04/roll-Human.png (mid-roll, body inverted), fly-end.png (descent end), fish-end.png (sprint)
+- Learned: docs/agents/fauna.md (right face button line)
+- NEXT: #33: find why `blocked` stays false at the test wall (maybe terrain or a prop without `tops`); then give Lizard ClimbsAs AnySurface. Also a client run for the remote roll.
+
 ## 2026-11-02 batch A-03: climb stick on the surface, per-biome ambient sounds, 3D fear distance; P3 merged
 - DONE: #33 trunk climbing reads the stick against the camera (forward up, back down, right along it); going down plays the gait cycle backwards (animal-behaviours c52d716, pushed, includes P3).
 - DONE: #43 per-biome sound sets (AmbientSounds, empty allowed): silent Glacier, SaltFlat, Ashlands, ElectricWastelands, GlassDesert, Ocean; no songbirds/woodpeckers (spawns or calls) in those plus Dunes, Sonoran, Mesa, Poison Swamp; call budget 1.5/s to 0.6/s.
