@@ -2,6 +2,14 @@
 
 Newest first.
 
+## 2026-11-02 batch W-13: river fog finally shows (test flag), blue moon face crisp
+- DONE: #15 `-weather <name>` now forces a cell that ignores the biome's weather list (tests only; ] key and natural weather unchanged). MarshFog shot over both W-12 rivers (world-features fd25279)
+- DONE: #34 blue moon face brightness 1.6 -> 0.7 (it clipped and bloomed over itself) and the corona now starts at the disc edge (was 0.98 r); size 0.22 rad, tendrils and halo outside unchanged (fd25279)
+- Checks: compile clean; editor play: Describe() reads MarshFog at Grassland 197,-663 and Temperate -1885,-1562 after ForceAt (Grassland had none before); one build Succeeded, errors 0; v1 101 / E128CB1D (editor play), v2 127 / 831FF2EE (player log); all my players quit by themselves.
+- Shots: PunchyMilestones/world/w13. w13-fog-grassland-800: thick white fog, river with its bridge visible below. w13-fog-temperate-800: river clear in front, light mist over the far bank and forest. w13-moon-night-800: blue moon at 23:30, disc edge crisp with a dark rim, maria and craters read, tendrils outside as before.
+- Learned: lanes/world/STATE.md (blue moon direction per hour on day 0)
+- NEXT: #23 v2 follow-ups (volcano markers, default decision), #13 Z-35 fall speed, #14 cave-mouth shards. Temperate fog is light; a denser MarshFog preset is a design call.
+
 ## 2026-11-02 batch W-12: big sand-coloured dune dust, crisper blue moon, river fog still missing
 - DONE: #44 dune dust is now a few large (5-10 m) sand-coloured soft-volume patches: new AmbientParticleType DensityScale / GroundTint / Volume, no biome re-bake, no raymarching. Puffs in range at Dunes 1800,-1800: 126-132 before, ~30 after (world-features 482e7c8)
 - DONE: #34 blue moon face: fifth, finer crater scale and crisper walls and rims; radius unchanged (482e7c8)

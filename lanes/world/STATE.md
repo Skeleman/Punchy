@@ -1,8 +1,8 @@
-# World lane: state (2026-11-02, after W-12)
+# World lane: state (2026-11-02, after W-13)
 
 Worktree `Punchy-world` (main PC), branch `world-features`. Backlog: `gh issue list -l lane:world`.
 Released: v0.11.0 = world b39522b + animal c810406.
-Pushed head: world-features 482e7c8 (W-12). Builds/Dev holds a build of it. v1 101 / E128CB1D, v2 127 / 831FF2EE hold. v1 ponds 33 blobs, 154 wet cells, none under 3 cells.
+Pushed head: world-features fd25279 (W-13). Builds/Dev holds a build of it. v1 101 / E128CB1D, v2 127 / 831FF2EE hold. v1 ponds 33 blobs, 154 wet cells, none under 3 cells.
 No Punchy.exe of mine runs.
 
 ## W-05 / W-05b
@@ -49,6 +49,11 @@ No Punchy.exe of mine runs.
   Temperate (MarshFog 0.2) stayed clear. River spots: Grassland 305,-581 bank 197,-663 H 19.1; Temperate -1875,-1562 bank -1885,-1562 H 30.5.
 - Probe: WorldProbe.RiverSpots(ext, step, k, biome).
 
+## W-13
+- #15 DONE: `-weather` (ForceAt) forces a cell with Forced=true, which skips the biome weather list (CPU Sample/Describe and MapJob). ] key unchanged. Shots w13 fog-grassland / fog-temperate.
+- #34 DONE: blue moon face *1.6 -> *0.7 (was clipping + blooming over itself), corona smoothstep from 1.0 r. Edge reads crisp.
+- Blue moon on day 0 (dir): 20:36 near zenith (0.95 up); 23:30 (-0.86,0.49,-0.15). Frame: -goto -255,27 -time 23.5 -camlook -255,72,27,-341,121,12 (y 37 is behind a tree).
+
 ## Open
-- #23 follow-ups: volcano markers, v2 default decision. Rivers: springs on high ground; shot of a small fall. #15 fog-over-river: make -weather bypass the biome mask for tests, retake at the W-12 spots. #13 Z-35 fall speed. #14 cave-mouth shards.
+- #23 follow-ups: volcano markers, v2 default decision. Rivers: springs on high ground; shot of a small fall. #13 Z-35 fall speed. #14 cave-mouth shards.
 - Design-note P3: #17, #18-#22. Roadmap #24.
