@@ -36,6 +36,11 @@ namespace Punchy.Fauna
         public float2 IdleTime, Size;
         public ActiveTime Active;
         public float Grazing, Thirst, Playfulness, Laziness, Hunger, ChaseTime;
+        /// <summary>Kg at the middle of the Size range (see WeightAt).</summary>
+        public float Weight;
+        /// <summary>Range individuals' aggression is rolled in, and how aggressive one must be to hunt (CreaturePersonality).</summary>
+        public float2 Aggression;
+        public float HuntAggression;
         /// <summary>Species (FaunaDirector indices) it hunts.</summary>
         public BlobArray<int> Prey;
         /// <summary>Whether anything hunts it (so it needs to watch out for predators).</summary>
@@ -104,6 +109,14 @@ namespace Punchy.Fauna
         /// A fixed random number in -1..1 for one trait of one individual (posture, arm swing, hair…): the same for
         /// as long as the animal lives.
         /// </summary>
+        /// <summary>What an individual of this size (CreatureState.Scale) weighs, kg: the species' Weight by size cubed.</summary>
+        public float WeightAt(float scale)
+        {
+            var mid = math.max((Size.x + Size.y) * 0.5f, 1e-3f);
+            var r = scale / mid;
+            return Weight * r * r * r;
+        }
+
         public static float Trait(uint individual, int trait) =>
             math.hash(new uint2(individual, (uint)trait * 2654435761u + 17u)) / (float)uint.MaxValue * 2f - 1f;
 
@@ -510,6 +523,29 @@ namespace Punchy.Fauna
             Length(kit) * scale > 0.6f * 2f * standHeight * scale;
     }
 
+    /// <summary>
+    /// An individual's temperament (#50): values rolled once from its Individual within its species' ranges. Never
+    /// stored or sent: Individual is replicated, so every machine (host, client) works out the same values. Add new
+    /// values here; only Aggression drives behaviour so far (a dog hunts when it's over the species' HuntAggression).
+    /// </summary>
+    public struct CreaturePersonality
+    {
+        /// <summary>0 (meek) .. 1 (fierce).</summary>
+        public float Aggression;
+
+        // (Trait slots 60+ are the personality's; the animator and brain use lower ones.)
+        const int AggressionTrait = 60;
+
+        public static CreaturePersonality Of(ref CreatureBlob b, uint individual) => new CreaturePersonality
+        {
+            Aggression = math.lerp(b.Aggression.x, b.Aggression.y, CreatureBlob.Trait(individual, AggressionTrait) * 0.5f + 0.5f)
+        };
+
+        /// <summary>Whether this individual is fierce enough to hunt at all (species with no threshold: always).</summary>
+        public static bool WillHunt(ref CreatureBlob b, uint individual) =>
+            b.HuntAggression <= 0f || Of(ref b, individual).Aggression >= b.HuntAggression;
+    }
+
     /// <summary>A creature's position, heading, gait and what it's up to.</summary>
     public struct CreatureState : IComponentData
     {
@@ -750,6 +786,10 @@ namespace Punchy.Fauna
             root.Laziness = variant.Laziness;
             root.Hunger = variant.Hunger;
             root.ChaseTime = variant.ChaseTime;
+            root.Weight = own && variant.Weight <= 0f ? species.Weight * sizeScale * sizeScale * sizeScale : variant.Weight;
+            root.Aggression = new float2(math.saturate(math.min(variant.Aggression.x, variant.Aggression.y)),
+                                         math.saturate(math.max(variant.Aggression.x, variant.Aggression.y)));
+            root.HuntAggression = variant.HuntAggression;
             root.Hunted = hunted;
             root.Idles = species.Idles;
             root.Fidgets = species.Fidgets;

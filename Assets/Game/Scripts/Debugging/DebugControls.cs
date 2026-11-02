@@ -84,6 +84,7 @@ namespace Punchy.Debugging
             FootDrift();
             SpinCheck();
             HuntLog();
+            PersonalityLog();
             ShotOnHunt();
             RemoteRoll();
             ColossusShot();
@@ -601,8 +602,57 @@ namespace Punchy.Debugging
         static void HuntLine(FaunaDirector director, CreatureBody body, CreatureState c, string what)
         {
             var name = director != null ? director.SpeciesAt(body.Species)?.name : body.Species.ToString();
-            Debug.Log($"DebugControls: hunt: {name} {what} (speed {c.Speed:F1}, hunger {c.Hunger:F2}) at " +
+            var aggression = CreaturePersonality.Of(ref body.Blob.Value, c.Individual).Aggression;
+            Debug.Log($"DebugControls: hunt: {name} #{c.Individual:X8} {what} (speed {c.Speed:F1}, hunger {c.Hunger:F2}, aggression {aggression:F2}) at " +
                       $"({c.Position.x:F1}, {c.Position.y:F1}, {c.Position.z:F1}); caught so far {FaunaDirector.Caught}");
+        }
+
+        // ---------------------------------------------------------------- personality log
+
+        /// <summary>"-personalitylog Dog": 8 s into the line (and again at 20 s), logs every creature of that species with
+        /// its Individual, aggression, whether it hunts, its mode and its nearest prey (#50, #7). Personality comes from the
+        /// replicated Individual, so a host and a joined client should print the same values.</summary>
+        static string personalitySpecies;
+        static float personalityAt = -1f;
+
+        void PersonalityLog()
+        {
+            if (personalitySpecies == null || queryWorld == null || !queryWorld.IsCreated)
+                return;
+            if (personalityAt < 0f)
+                personalityAt = Time.timeSinceLevelLoad;
+            var t = Time.timeSinceLevelLoad - personalityAt;
+            if (!(t > 8f && t - Time.deltaTime <= 8f) && !(t > 20f && t - Time.deltaTime <= 20f))
+                return;
+            var director = FindAnyObjectByType<FaunaDirector>();
+            var em = queryWorld.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var rows = new System.Collections.Generic.List<string>();
+            for (int i = 0; i < states.Length; i++)
+            {
+                var name = director != null ? director.SpeciesAt(bodies[i].Species)?.name : null;
+                if (name != personalitySpecies || states[i].Gone)
+                    continue;
+                ref var b = ref bodies[i].Blob.Value;
+                var c = states[i];
+                var prey = float.MaxValue;
+                for (int j = 0; j < states.Length; j++)
+                    for (int k = 0; k < b.Prey.Length; k++)
+                        if (bodies[j].Species == b.Prey[k] && !states[j].Gone)
+                            prey = math.min(prey, math.distance(states[j].Position, c.Position));
+                rows.Add($"#{c.Individual:X8} aggression {CreaturePersonality.Of(ref b, c.Individual).Aggression:F3} " +
+                         $"hunts {CreaturePersonality.WillHunt(ref b, c.Individual)} mode {c.Mode} weight {b.WeightAt(c.Scale):F1} kg " +
+                         $"prey {(prey < float.MaxValue ? prey.ToString("F1") + " m" : "none")}");
+            }
+            rows.Sort(System.StringComparer.Ordinal);
+            var role = queryWorld.Name;
+            Debug.Log($"DebugControls: personality ({role}, t {t:F0} s): {rows.Count} {personalitySpecies}");
+            for (int i = 0; i < rows.Count; i++)
+                Debug.Log($"DebugControls: personality {personalitySpecies} {i + 1}: {rows[i]}");
+            states.Dispose();
+            bodies.Dispose();
         }
 
         // ---------------------------------------------------------------- spin check
@@ -1058,6 +1108,10 @@ namespace Punchy.Debugging
             colossusShotDistance = colArg >= 0 && colArg + 1 < args.Length && float.TryParse(args[colArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var cd) ? cd : 0f;
             // "-huntlog": log land hunters' chases (Z-53).
             huntLog = System.Array.IndexOf(args, "-huntlog") >= 0;
+            // "-personalitylog Dog": list each of that species' personality a few seconds in (#50).
+            var plArg = System.Array.IndexOf(args, "-personalitylog");
+            personalitySpecies = plArg >= 0 && plArg + 1 < args.Length ? args[plArg + 1] : null;
+            personalityAt = -1f;
             // "-lift 15": the player held that high over the ground (see Lift), per shot line.
             var liftArg = System.Array.IndexOf(args, "-lift");
             liftHeight = liftArg >= 0 && liftArg + 1 < args.Length && float.TryParse(args[liftArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lh) ? lh : 0f;
@@ -1672,6 +1726,11 @@ namespace Punchy.Debugging
                 var avatarQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerAvatar>(), ComponentType.ReadOnly<CreatureState>());
                 var avatar = avatarQuery.TryGetSingleton<CreatureState>(out var a) ? $"{a.Action} at {a.ActionTime:F2}" : "none";
                 Debug.Log($"DebugControls: {parts[0]} is {s.Mode} (stage {s.Stage}, holder {s.Holder}); player pose {request.Pose}, body {avatar}");
+                // #16: what it weighs against what a carrier can lift.
+                ref var wb = ref em.GetComponentData<CreatureBody>(interactTarget).Blob.Value;
+                var kg = wb.WeightAt(s.Scale);
+                Debug.Log($"DebugControls: carry check: {parts[0]} weighs {kg:F1} kg (scale {s.Scale:F2}), capacity {Interactions.CarryCapacity:F0} kg: " +
+                          (kg <= Interactions.CarryCapacity ? "light enough" : "too heavy, can't lift") + $"; held: {s.Mode == CreatureMode.Held}");
             }
             // Its own screenshots: being petted or just picked up, then (carrying) walking, turning on the spot and
             // sprinting.

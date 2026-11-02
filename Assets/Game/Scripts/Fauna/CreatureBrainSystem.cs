@@ -1175,7 +1175,8 @@ namespace Punchy.Fauna
                 if (b.Playfulness > 0f && sleepy < 0.5f && !perched && s.Task != CreatureTask.Critter)
                     FindKin(self, ref s, species, 15f, out playmate);
                 var prey = Entity.Null;
-                if (b.Prey.Length > 0 && b.Hunger > 0f && sleepy < 0.5f)
+                // (Only the fierce ones of a species with a hunting threshold: a dog chases hares if it's aggressive, #50.)
+                if (b.Prey.Length > 0 && b.Hunger > 0f && sleepy < 0.5f && CreaturePersonality.WillHunt(ref b, s.Individual))
                     FindPrey(self, ref s, ref b, flier ? 60f : 35f, out prey);
 
                 // On a branch, a bird can only rest, sleep or fly off.
@@ -5452,7 +5453,9 @@ namespace Punchy.Fauna
                         continue;
                     do
                     {
-                        if (Entities[j] == self || !Hunts(ref Bodies[j].Blob.Value, species))
+                        // (A calm dog that never hunts is no hunter: prey takes no notice of it.)
+                        if (Entities[j] == self || !Hunts(ref Bodies[j].Blob.Value, species) ||
+                            !CreaturePersonality.WillHunt(ref Bodies[j].Blob.Value, States[j].Individual))
                             continue;
                         var other = States[j];
                         // In three dimensions: a bird circling high overhead isn't close.

@@ -38,6 +38,7 @@ MonoBehaviour:
     AccentGlow: 0
     Weight: 1
   Size: {x: 0.97, y: 1.04}
+  Weight: 55
   HairColors:
   - {r: 0.82, g: 0.84, b: 0.86, a: 1}
   - {r: 0.9, g: 0.86, b: 0.7, a: 1}

@@ -24,6 +24,7 @@ MonoBehaviour:
   AccentGlow: 0.8
   Coats: []
   Size: {x: 0.9, y: 1.1}
+  Weight: 0.15
   HairColors: []
   Parts: []
   WalkSpeed: 1.4

@@ -44,6 +44,10 @@ namespace Punchy.Fauna
         public List<CreatureCoat> Coats = new List<CreatureCoat>();
         [Tooltip("Random size of individuals.")]
         public Vector2 Size = new Vector2(0.9f, 1.1f);
+        [Tooltip("What a typical one weighs, in kg (an individual in the middle of the Size range; others by size cubed). " +
+                 "Decides whether someone can lift it (Interactions.CarryCapacity). Variants: their own weight; 0 = the " +
+                 "base species' scaled by VariantScale cubed.")]
+        [Min(0f)] public float Weight = 5f;
         [Tooltip("Colours an individual's hair and beard (segments marked Hair) are picked from. Empty = the " +
                  "species this is a variant of, or the segments' own colour.")]
         public List<Color> HairColors = new List<Color>();
@@ -109,6 +113,12 @@ namespace Punchy.Fauna
         [Range(0f, 1f)] public float Hunger = 0.3f;
         [Tooltip("Seconds it keeps up a chase before giving up.")]
         [Min(1f)] public float ChaseTime = 10f;
+
+        [Header("Personality (each individual rolls its own, the same on every machine)")]
+        [Tooltip("Range of aggression, 0 (meek) to 1 (fierce), individuals are rolled in (see CreaturePersonality).")]
+        public Vector2 Aggression = new Vector2(0.2f, 0.5f);
+        [Tooltip("Only individuals at least this aggressive hunt (0 = every one does): dogs chase hares only when fierce.")]
+        [Range(0f, 1f)] public float HuntAggression;
 
         [Header("Habits")]
         [Tooltip("Little things it does while standing about (pawing the ground, grooming, scratching, sitting…).")]

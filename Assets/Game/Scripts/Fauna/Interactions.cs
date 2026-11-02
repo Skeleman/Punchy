@@ -75,16 +75,30 @@ namespace Punchy.Fauna
             s.Mode != CreatureMode.Climb && s.Mode != CreatureMode.Web && s.Mode != CreatureMode.Burrow &&
             s.Mode != CreatureMode.Roost && s.Mode != CreatureMode.Puppet && s.Mode != CreatureMode.Held;
 
-        /// <summary>The longest body that can be picked up; friendly animals (small dogs, puppies) a little longer.</summary>
-        public const float CarryLength = 0.5f, FriendlyCarryLength = 0.65f;
+        /// <summary>
+        /// The most anyone can lift, kg (#16). One figure for every carrier for now: a placeholder for a Strength stat.
+        /// Enough for a child, a dog or a sheep's lamb, not a grown person or a deer.
+        /// </summary>
+        public const float CarryCapacity = 40f;
+
+        /// <summary>How heavy it is for its carrier, 0 (nothing) .. 1 (all they can lift).</summary>
+        public static float Load(ref CreatureBlob b, in CreatureState s) => math.saturate(b.WeightAt(s.Scale) / CarryCapacity);
 
         /// <summary>
-        /// Small enough to pick up (cats, chickens, small dogs, rabbits, songbirds…), and somewhere it can be: a duck on
-        /// the bank, not on the water (onLand).
+        /// Light enough to lift (CarryCapacity: cats, dogs, rabbits, birds, a folk child), and somewhere it can be: a
+        /// duck on the bank, not on the water (onLand). Folk can be carried too (a child), as long as they're light enough.
         /// </summary>
         public static bool CanCarry(ref CreatureBlob b, in CreatureState s, bool onLand) =>
-            CanPet(ref b, s) && (b.Habitat != Habitat.Floats || onLand) &&
-            b.BodyLength * s.Scale <= (b.Friendly ? FriendlyCarryLength : CarryLength);
+            (CanPet(ref b, s) || b.Upright && b.Hands && CanTouchUpright(s)) && (b.Habitat != Habitat.Floats || onLand) &&
+            b.WeightAt(s.Scale) <= CarryCapacity;
+
+        /// <summary>Folk who are about on the ground, not working at something fixed, held or gone.</summary>
+        static bool CanTouchUpright(in CreatureState s) =>
+            !s.Gone && s.Fly < 0.5f && s.Mode != CreatureMode.Held && s.Mode != CreatureMode.Puppet &&
+            s.Mode != CreatureMode.Climb && s.Mode != CreatureMode.Sleep;
+
+        /// <summary>How long a carried one puts up with it, as a share of a light one's time: a full armful a third as long.</summary>
+        static float Squirm(ref CreatureBlob b, in CreatureState s) => math.lerp(1f, 0.33f, Load(ref b, s));
 
         /// <summary>Whether it stands on dry ground (a floating bird come ashore), for CanCarry.</summary>
         public static bool OnLand(in TerrainSource terrain, float3 at)
@@ -139,7 +153,7 @@ namespace Punchy.Fauna
                         if (carry && s.Mode != CreatureMode.Flee)
                         {
                             SetMode(ref s, CreatureMode.Held);
-                            s.Timer = rng.NextFloat(2f, 5f);
+                            s.Timer = rng.NextFloat(2f, 5f) * Squirm(ref b, s);
                             s.Holder = holder;
                             s.Focus = player.xz;
                             s.Speed = 0f;
@@ -159,8 +173,10 @@ namespace Punchy.Fauna
                     if (carry)
                     {
                         SetMode(ref s, CreatureMode.Held);
-                        // Friendly ones settle in; others put up with it a while, then squirm (see the brain).
-                        s.Timer = b.Friendly ? 1e6f : rng.NextFloat(5f, 14f);
+                        // Friendly ones settle in (unless they're a real armful); others put up with it a while, then
+                        // squirm (see the brain): the heavier, the sooner (#16).
+                        s.Timer = b.Friendly && Load(ref b, s) < 0.6f ? 1e6f
+                                : rng.NextFloat(b.Friendly ? 20f : 5f, b.Friendly ? 40f : 14f) * Squirm(ref b, s);
                     }
                     else
                     {

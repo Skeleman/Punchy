@@ -23,6 +23,7 @@ MonoBehaviour:
   AccentGlow: 0
   Coats: []
   Size: {x: 0.9, y: 1.1}
+  Weight: 0.15
   Parts: []
   WalkSpeed: 1.4
   RunSpeed: 6

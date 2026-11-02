@@ -33,6 +33,7 @@ MonoBehaviour:
     AccentGlow: 0.3
     Weight: 1
   Size: {x: 0.9, y: 1.1}
+  Weight: 0.5
   Parts: []
   WalkSpeed: 1.4
   RunSpeed: 6

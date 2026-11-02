@@ -47,6 +47,7 @@ MonoBehaviour:
     AccentGlow: 0
     Weight: 1
   Size: {x: 0.6, y: 1}
+  Weight: 20
   HairColors: []
   Parts:
   - Limb: {fileID: 11400000, guid: 2c2c89c13d2d68c4cb4c8822c3681830, type: 2}
@@ -172,9 +173,16 @@ MonoBehaviour:
   Playfulness: 0.8
   Child: 0
   Laziness: 0.5
-  Hunts: []
-  Hunger: 0
+  Hunts:
+  - {fileID: 11400000, guid: b85e826784a0af94ca6077752232e2c0, type: 2}
+  - {fileID: 11400000, guid: a39ec461d9f42564980a2dcc5559e6cc, type: 2}
+  - {fileID: 11400000, guid: 6e1d1db8793d05748afa094a60364350, type: 2}
+  - {fileID: 11400000, guid: be75da16c46401c42981cc0b39f59986, type: 2}
+  - {fileID: 11400000, guid: dd4bde564fc47f54e93889002b012bdd, type: 2}
+  Hunger: 0.7
   ChaseTime: 10
+  Aggression: {x: 0.1, y: 0.9}
+  HuntAggression: 0.6
   Idles: 2430
   Fidgets: 0.7
   Climbing: 0
