@@ -1597,6 +1597,9 @@ namespace Punchy.Debugging
             var index = watchDirector != null ? watchDirector.SpeciesIndex(watchParts[0]) : -1;
             var watchTask = CreatureTask.None;
             var hasTask = watchParts.Length > 1 && System.Enum.TryParse(watchParts[1], true, out watchTask);
+            // ("Human:Baker": only those with that job, A-29.)
+            var watchJob = FolkJob.None;
+            var hasJob = !hasTask && watchParts.Length > 1 && System.Enum.TryParse(watchParts[1], true, out watchJob);
             if (index < 0 || !playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return;
             if (Time.unscaledTime >= nextWatchPick || !em.Exists(watched))
@@ -1610,7 +1613,7 @@ namespace Punchy.Debugging
                     if (em.GetComponentData<CreatureBody>(e).Species != index)
                         continue;
                     var c = em.GetComponentData<CreatureState>(e);
-                    if (hasTask && c.Task != watchTask)
+                    if (hasTask && c.Task != watchTask || hasJob && FolkJobs.Of(c) != watchJob)
                         continue;
                     var g = terrainQuery.GetSingleton<TerrainSource>().SampleGround(c.Position.xz);
                     var swimming = g.HasWater && c.Position.y < g.WaterSurface - 0.2f;
@@ -3184,6 +3187,8 @@ namespace Punchy.Debugging
                 cam.SetView(location.Yaw, 12f);
         }
 
+        float3 locationsKey;
+
         bool EnsureLocations(out TerrainSource source)
         {
             source = default;
@@ -3201,6 +3206,15 @@ namespace Punchy.Debugging
             }
             if (!terrainQuery.TryGetSingleton(out source) || playerQuery.CalculateEntityCount() != 1 || paletteQuery.CalculateEntityCount() != 1)
                 return false;
+            // (The baked v1 island comes first and v2 replaces it: find the spots again when the landmarks change, A-29b.)
+            var landmarkKey = float3.zero;
+            if (source.Landmarks.IsCreated && source.Landmarks.Value.Instances.Length > 0)
+                landmarkKey = new float3(source.Landmarks.Value.Instances.Length, source.Landmarks.Value.Instances[0].Position);
+            if (math.any(landmarkKey != locationsKey))
+            {
+                locationsKey = landmarkKey;
+                locations.Clear();
+            }
             if (locations.Count == 0)
                 FindLocations(source, queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity()));
             return locations.Count > 0;

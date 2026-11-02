@@ -602,6 +602,8 @@ namespace Punchy.Fauna
         /// </summary>
         public float ChatCool;
         public byte ChatRole, ChatWalk;
+        /// <summary>A folk's job when the host handed it one (FolkJob; 0 = the one its Task implies). Local, not a ghost field (A-29).</summary>
+        public byte Job;
         public float2 ChatResume;
         /// <summary>Fixed for life: picks this individual's traits (posture, gait, hair). Set at spawn.</summary>
         public uint Individual;

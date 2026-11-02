@@ -975,6 +975,7 @@ namespace Punchy.Fauna
             if (!source.Landmarks.IsCreated)
                 return;
             ref var set = ref source.Landmarks.Value;
+            LogBatJobs(source);
             scratch.Clear();
             foreach (var i in occupied)
                 if (NearestPlayer(set.Instances[i].Position) > DespawnDistance + 20f)
@@ -995,6 +996,17 @@ namespace Punchy.Fauna
                 var place = inst;
                 var radius = set.Types[inst.Type].Radius * inst.Scale;
                 SpawnDomestics(source, landmarks[inst.Type], inst.Position, radius);
+                // Village jobs (A-29): free grown townsfolk take the posts this landmark's anchors offer (a baker at the
+                // hearth, a herder by the yard, a fisher at the nearest water...), more the bigger the village, at least
+                // one left free. Sized from the residents' smallest counts and no rng drawn, so every spawn draw stays.
+                var freeFolk = 0;
+                foreach (var r in landmarks[inst.Type].Residents)
+                    if (FreeFolk(r))
+                        freeFolk += math.max(0, r.Count.x);
+                VillagePosts(source, inst.Position, radius, freeFolk, posts);
+                var nextPost = 0;
+                jobCounts.Clear();
+                var stayFree = 0;
                 foreach (var r in landmarks[inst.Type].Residents)
                 {
                     var index = SpeciesIndex(r.Species);
@@ -1027,12 +1039,27 @@ namespace Punchy.Fauna
                             continue;
                         var scale = r.Size.y > 0f ? rng.NextFloat(r.Size.x, math.max(r.Size.x, r.Size.y)) : 0f;
                         var timer = rng.NextFloat(40f, 120f);
+                        // (A free folk taking the next post: it lives and works there, like a landmark's own worker.)
+                        var posted = false;
+                        var post = default(Post);
+                        if (FreeFolk(r) && nextPost < posts.Count && (stayFree > 0 || nextPost < freeFolk - 1))
+                        {
+                            post = posts[nextPost++];
+                            posted = true;
+                        }
+                        else if (FreeFolk(r))
+                            stayFree++;
+                        var job = posted ? post.Job : FolkJobs.FromTask(task);
+                        if (job != FolkJob.None)
+                            jobCounts[job] = (jobCounts.TryGetValue(job, out var had) ? had : 0) + 1;
+                        var myHome = posted ? post.Stand : home;
+                        var myLeash = posted ? post.Task == CreatureTask.Patrol ? radius * 0.8f : 7f : leash;
                         Enqueue(index, new float3(p.x, g.Height, p.y), SpawnTier.Settled, e =>
                         {
                             var em = simWorld.EntityManager;
                             var state = em.GetComponentData<CreatureState>(e);
-                            state.Home = home;
-                            state.Leash = leash;
+                            state.Home = myHome;
+                            state.Leash = myLeash;
                             if (scale > 0f)
                                 state.Scale = scale;
                             if (worker)
@@ -1043,10 +1070,124 @@ namespace Punchy.Fauna
                                 state.Mode = CreatureMode.Work;
                                 state.Timer = timer;
                             }
+                            else if (posted)
+                            {
+                                state.Task = post.Task;
+                                state.Job = (byte)post.Job;
+                                state.WorkSpot = post.Stand;
+                                state.WorkFace = post.Face;
+                                state.Mode = CreatureMode.Work;
+                                state.Timer = timer;
+                            }
                             em.SetComponentData(e, state);
                         });
                     }
                 }
+                if (jobCounts.Count > 0 || stayFree > 0)
+                {
+                    var line = new System.Text.StringBuilder();
+                    foreach (var pair in jobCounts)
+                        line.Append(line.Length > 0 ? ", " : "").Append(pair.Key).Append(' ').Append(pair.Value);
+                    Debug.Log($"FolkJobs: {landmarks[inst.Type].name} at ({inst.Position.x:F0}, {inst.Position.y:F0}) radius {radius:F0}: {line}, free {stayFree}");
+                }
+            }
+        }
+
+        struct Post
+        {
+            public FolkJob Job;
+            public CreatureTask Task;
+            public float2 Stand, Face;
+        }
+
+        readonly List<Post> posts = new List<Post>();
+        readonly Dictionary<FolkJob, int> jobCounts = new Dictionary<FolkJob, int>();
+
+        /// <summary>A resident with no task, pen or leash, grown and upright: one who can be handed a village job.</summary>
+        static bool FreeFolk(LandmarkResident r) =>
+            r.Task == CreatureTask.None && r.Leash <= 0f && r.Species != null && r.Species.Body != null && r.Species.Body.Upright &&
+            !r.Species.name.Contains("Child");
+
+        /// <summary>
+        /// The village posts (FolkJobs.VillagePosts) a landmark can staff with this many free folk: each by the
+        /// nearest unused anchor of its kind. Standing a step from the anchor, toward the village centre, facing it;
+        /// a fisher at the water's edge (its brain finds the shore from there).
+        /// </summary>
+        static void VillagePosts(in TerrainSource source, float2 centre, float radius, int free, List<Post> into)
+        {
+            into.Clear();
+            if (!source.Anchors.IsCreated || free < 2)
+                return;
+            ref var set = ref source.Anchors.Value;
+            var near = new NativeList<int>(16, Allocator.Temp);
+            var used = new NativeList<int>(8, Allocator.Temp);
+            var at = new float3(centre.x, source.SampleHeight(centre), centre.y);
+            foreach (var p in FolkJobs.VillagePosts)
+            {
+                if (free < p.MinFree)
+                    continue;
+                var taken = false;
+                foreach (var q in into)
+                    taken |= q.Job == p.Job;
+                if (taken)
+                    continue;
+                near.Clear();
+                Anchors.Near(ref set, at, radius + p.Beyond, p.Kind, ref near);
+                var best = -1;
+                var bestD = float.MaxValue;
+                foreach (var i in near)
+                {
+                    var d = math.distancesq(set.Anchors[i].Position.xz, centre);
+                    if (d < bestD && !used.Contains(i))
+                    {
+                        bestD = d;
+                        best = i;
+                    }
+                }
+                if (best < 0)
+                    continue;
+                used.Add(best);
+                var spot = set.Anchors[best].Position.xz;
+                var toCentre = centre - spot;
+                var dir = math.lengthsq(toCentre) > 0.01f ? math.normalize(toCentre) : new float2(0f, 1f);
+                var stand = p.Task == CreatureTask.Fish || p.Task == CreatureTask.Patrol ? spot : spot + dir * 1.2f;
+                into.Add(new Post { Job = p.Job, Task = p.Task, Stand = stand, Face = p.Task == CreatureTask.Fish ? spot - dir : spot });
+            }
+            near.Dispose();
+            used.Dispose();
+        }
+
+        // (The chambers last logged, by count and first centre: the v1 bake comes first and can have none, then v2's.)
+        float4 batJobsLogged = new float4(-1f);
+
+        /// <summary>
+        /// Once per island: the jobs each bat folk chamber would hand out, one per prop (a roost keeper per hut, a tanner per
+        /// drying rack, a forager per basket) and a fisher for its white pool. Planned only: no bat folk species walks
+        /// yet, and adding one shifts the species network indices (rule 11), so this is the table for when it does.
+        /// </summary>
+        void LogBatJobs(in TerrainSource source)
+        {
+            if (!source.BatFolk.IsCreated)
+                return;
+            ref var bats = ref source.BatFolk.Value;
+            var key = new float4(bats.Sites.Length, bats.Sites.Length > 0 ? bats.Sites[0].Centre : float3.zero);
+            if (math.all(key == batJobsLogged))
+                return;
+            batJobsLogged = key;
+            for (int s = 0; s < bats.Sites.Length; s++)
+            {
+                int huts = 0, racks = 0, baskets = 0;
+                for (int i = 0; i < bats.Props.Length; i++)
+                    if (bats.Props[i].Site == s)
+                    {
+                        var job = FolkJobs.BatJob(bats.Props[i].Kind);
+                        if (job == FolkJob.RoostKeeper) huts++;
+                        else if (job == FolkJob.Tanner) racks++;
+                        else baskets++;
+                    }
+                var site = bats.Sites[s];
+                Debug.Log($"FolkJobs: bat folk chamber {s} (cave {site.Cave}) at ({site.Centre.x:F0}, {site.Centre.y:F0}, {site.Centre.z:F0}) radius {site.Radius:F0}: " +
+                          $"RoostKeeper {huts}, Tanner {racks}, Forager {baskets}, PoolFisher 1 (planned)");
             }
         }
 

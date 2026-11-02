@@ -45,6 +45,18 @@ namespace Punchy.Fauna
         /// whom is known) one log line per talk, with the pair, the place and how long it went on. Talks logged since start.
         /// </summary>
         public static readonly List<float3> Bubbles = new List<float3>();
+        /// <summary>
+        /// What each bubble says (same order as Bubbles): a line from the talker's job pool, flavoured by its race and
+        /// temper (A-29), picked once per talk on each machine (from the job its Task implies on a joined client); "..."
+        /// for a folk with no job or no line.
+        /// </summary>
+        public static readonly List<string> BubbleLines = new List<string>();
+        readonly Dictionary<Entity, string> chatLines = new Dictionary<Entity, string>();
+        readonly HashSet<Entity> stillTalking = new HashSet<Entity>();
+        static float hourNow = 12f;
+        Unity.Mathematics.Random lineRng = new Unity.Mathematics.Random(0x51A7u);
+        /// <summary>FolkLine log lines written (the first 40 talks, and every one with -chattest).</summary>
+        static int linesLogged;
         public static int Chats;
         struct Chat
         {
@@ -127,6 +139,7 @@ namespace Punchy.Fauna
                 NameTowns(archive, terrain);
             var player = playerQuery.GetSingleton<LocalTransform>().Position;
             var hour = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Hour : 12f;
+            hourNow = hour;
 
             var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
             var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
@@ -190,7 +203,10 @@ namespace Punchy.Fauna
                 {
                     Species = species?.name,
                     BodySpecies = species?.Body.name,
-                    Trade = s.Task != CreatureTask.None ? s.Task.ToString() : null,
+                    // (A handed-out job speaks for itself: a baker tends, but it isn't a well-keeper.)
+                    Trade = s.Task != CreatureTask.None && s.Job == 0 ? s.Task.ToString() : null,
+                    Job = FolkJobs.Name(FolkJobs.Of(s)),
+                    Mood = Mood(s, b.Upright && b.Hands && !b.Haunts ? b.StanceToward(playerIndex, s.Individual) : FolkStance.Neutral),
                     HomeTown = s.Task == CreatureTask.Travel || s.Task == CreatureTask.Camper ? null : HomeTown(s, terrain),
                     PlayerSpecies = playerKind != null && playerKind == species?.Body.name ? null : playerSpecies,
                     // (The same stance the host's brain works out: a hash of who it is and the player's body.)
@@ -275,6 +291,8 @@ namespace Punchy.Fauna
         void WatchChats(float now, bool hasTerrain, in TerrainSource terrain)
         {
             Bubbles.Clear();
+            BubbleLines.Clear();
+            stillTalking.Clear();
             if (director == null && UnityEngine.Time.frameCount % 60 == 0)
                 director = Object.FindAnyObjectByType<FaunaDirector>();
             var cam = Camera.main;
@@ -289,8 +307,17 @@ namespace Punchy.Fauna
                 if (s.Mode != CreatureMode.Idle || s.Stage != CreatureAnimator.ChatTalk && s.Stage != CreatureAnimator.ChatListen)
                     continue;
                 if (s.Stage == CreatureAnimator.ChatTalk && !Quiet && cam != null && math.distancesq((float3)cam.transform.position, s.Position) < 30f * 30f)
+                {
                     // (Clear of the head: Head is about eye height, where a bare "..." read as a pair of eyes; A-28.)
                     Bubbles.Add(Head(s, ref bodies[i].Blob.Value) + new float3(0f, 0.4f, 0f));
+                    stillTalking.Add(entities[i]);
+                    if (!chatLines.TryGetValue(entities[i], out var said))
+                    {
+                        said = RoleLine(s, bodies[i].Species) ?? "...";
+                        chatLines[entities[i]] = said;
+                    }
+                    BubbleLines.Add(said);
+                }
                 if (s.ChatRole == 3)
                     childrenBy[s.Partner] = (childrenBy.TryGetValue(s.Partner, out var n) ? n : 0) + 1;
                 if (s.ChatRole != 1)
@@ -340,6 +367,16 @@ namespace Punchy.Fauna
                 UnityEngine.Debug.Log($"FolkChat: {c.Names} at ({c.At.x:F0}, {c.At.z:F0}){(town != null ? " in " + town : "")} for {now - c.Start:F1} s, {c.Apart:F2} m apart" +
                                       $"{(c.Children > 0 ? $", {c.Children} child(ren) by them" : "")}");
             }
+            // (A line is kept while its folk is talking, a fresh one next time.)
+            if (chatLines.Count > stillTalking.Count)
+            {
+                ended.Clear();
+                foreach (var pair in chatLines)
+                    if (!stillTalking.Contains(pair.Key))
+                        ended.Add(pair.Key);
+                foreach (var e in ended)
+                    chatLines.Remove(e);
+            }
             if (ChatMix && cam != null && now >= nextMix)
                 LogMix(now, (float3)cam.transform.position, states, bodies);
             states.Dispose();
@@ -353,6 +390,38 @@ namespace Punchy.Fauna
         }
 
         static string Stance(FolkStance stance) => stance == FolkStance.Neutral ? null : stance.ToString();
+
+        /// <summary>A folk's temper for its lines: how it takes the player wins (the wary and annoyed are grumpy with
+        /// them, kin and the warm cheerful), else its own from its Individual hash (A-29).</summary>
+        static string Mood(in CreatureState s, FolkStance stance) =>
+            (stance == FolkStance.Wary || stance == FolkStance.Annoyed ? FolkMood.Grumpy
+                : stance == FolkStance.Warm || stance == FolkStance.Kin ? FolkMood.Cheerful
+                : FolkJobs.Mood(s.Individual)).ToString();
+
+        /// <summary>A talking folk's bubble line from its job pool (A-29), or null; logged as FolkLine for the first talks.</summary>
+        string RoleLine(in CreatureState s, int speciesIndex)
+        {
+            var job = FolkJobs.Of(s);
+            var archive = DialogueArchive.Current;
+            if (job == FolkJob.None || archive == null || director == null)
+                return null;
+            var species = director.SpeciesAt(speciesIndex);
+            var who = new DialogueArchive.Speaker
+            {
+                Species = species?.name,
+                BodySpecies = species?.Body.name,
+                Job = FolkJobs.Name(job),
+                Mood = FolkJobs.Mood(s.Individual).ToString(),
+                Hour = hourNow
+            };
+            var text = archive.PickRole(who, ref lineRng);
+            if (text != null && (linesLogged < 40 || ChatMix))
+            {
+                linesLogged++;
+                UnityEngine.Debug.Log($"FolkLine: {who.Job} ({who.Species}, {who.Mood}): \"{text}\"");
+            }
+            return text;
+        }
 
         /// <summary>Townsfolk awake and about: upright, with hands, not a ghost or a player's body, not asleep, fleeing or at home.</summary>
         static bool CanTalk(in CreatureState s, ref CreatureBlob b) =>
@@ -499,15 +568,19 @@ namespace Punchy.Fauna
                     alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, border = new RectOffset(10, 10, 10, 10),
                     padding = new RectOffset(0, 0, 0, 0), normal = { background = RoundBox(), textColor = new Color(0.15f, 0.13f, 0.12f) }
                 };
-            foreach (var head in FolkTalkSystem.Bubbles)
+            // (With a role line in it (A-29) the bubble is as wide as the line, in a smaller hand than the "...".)
+            for (int k = 0; k < FolkTalkSystem.Bubbles.Count; k++)
             {
-                var screen = cam.WorldToScreenPoint(head);
+                var screen = cam.WorldToScreenPoint(FolkTalkSystem.Bubbles[k]);
                 if (screen.z < 0.3f)
                     continue;
-                var size = Mathf.RoundToInt(Screen.height / 34f * Mathf.Clamp(5f / screen.z, 0.5f, 1.3f));
+                var text = k < FolkTalkSystem.BubbleLines.Count ? FolkTalkSystem.BubbleLines[k] : "...";
+                var dots = text == "...";
+                var size = Mathf.RoundToInt(Screen.height / (dots ? 34f : 48f) * Mathf.Clamp(5f / screen.z, 0.5f, 1.3f));
                 bubble.fontSize = size;
-                var rect = new Rect(screen.x - size * 1.1f, Screen.height - screen.y - size * 1.2f, size * 2.2f, size * 1.2f);
-                GUI.Label(rect, "...", bubble);
+                var width = dots ? size * 2.2f : bubble.CalcSize(new GUIContent(text)).x + size * 1.4f;
+                var rect = new Rect(screen.x - width * 0.5f, Screen.height - screen.y - size * 1.6f, width, size * (dots ? 1.2f : 1.6f));
+                GUI.Label(rect, text, bubble);
             }
         }
     }
