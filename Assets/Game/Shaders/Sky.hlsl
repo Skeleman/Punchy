@@ -520,9 +520,12 @@ half3 PunchyBlueMoonFace(float3 dir, float3 m, float radius, half3 tint, out hal
     half crater = step(0.45, cr.z);
     half bowl = crater * (1 - smoothstep(0.6, 1.0, d));
     half rim = crater * smoothstep(0.75, 0.95, d) * (1 - smoothstep(0.95, 1.2, d));
-    // Cracks: thin borders of a finer pattern, only in patches.
-    float3 ck = PunchyMoonCells(uv * 7.5 - 2.3);
-    half crack = (1 - smoothstep(0.025, 0.09, ck.y - ck.x)) * smoothstep(0.3, 0.5, PunchyValueNoise(uv * 1.7 + 9.2));
+    // One single crack running across the whole face (Zach, #34): a wandering line a little off the middle, tilted,
+    // with a fine jagged wobble, and no other cracks.
+    float along = uv.x * 0.94 + uv.y * 0.34;
+    float across = uv.y * 0.94 - uv.x * 0.34;
+    float wobble = (PunchyValueNoise(float2(along * 2.6 + 3.1, 1.7)) - 0.5) * 0.34 + (PunchyValueNoise(float2(along * 9.0, 5.3)) - 0.5) * 0.06;
+    half crack = 1 - smoothstep(0.012, 0.04, abs(across - 0.08 - wobble));
     half seas = 1 - 0.25 * smoothstep(0.35, 0.65, PunchyValueNoise(uv * 2.3 + 7.1));
     half shade = seas * (1 - 0.35 * bowl) * (1 + 0.35 * rim) * (1 - 0.8 * crack) * (0.55 + 0.45 * z);
     return tint * cover * shade * 1.6;
@@ -534,7 +537,7 @@ half3 PunchyBlueCorona(float3 dir, float radius)
     float a = sqrt(max(2 * (1 - dot(dir, _PunchyBlueMoon)), 0));   // angle to it (small angles)
     float outside = max(a - radius, 0);
     half glow = exp(-outside / (radius * 0.6)) * 0.55 + exp(-pow((a - radius * 1.7) / (radius * 0.15), 2)) * 0.12;
-    return half3(0.3, 0.55, 1.4) * glow * smoothstep(radius * 0.98, radius * 1.02, a);
+    return half3(0.1, 0.4, 1.8) * glow * smoothstep(radius * 0.98, radius * 1.02, a);
 }
 
 // Both moons where a direction falls on them: the big moon lit by its phase, the small blue one by the sun from
@@ -545,7 +548,7 @@ half3 PunchyMoonDisc(float3 dir, out half cover)
     half bigCover, blueCover;
     half3 moons = PunchyMoonFace(dir, _PunchyMoonDirection, 0.0172, float3(sin(a), 0.15 * sin(a), -cos(a)), half3(0.9, 0.92, 1.0), bigCover);
     // The blue moon: always full, about seven times the big moon's size, cratered and cracked (Zach, G-34).
-    moons += PunchyBlueMoonFace(dir, _PunchyBlueMoon, PunchyBlueMoonRadius, half3(0.28, 0.52, 1.45), blueCover) * (1 - bigCover);
+    moons += PunchyBlueMoonFace(dir, _PunchyBlueMoon, PunchyBlueMoonRadius, half3(0.1, 0.38, 1.9), blueCover) * (1 - bigCover);
     cover = max(bigCover, blueCover);
     return moons;
 }
