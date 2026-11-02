@@ -34,7 +34,7 @@ namespace Punchy.Audio
     {
         const float StepReach = 18f, HowlReach = 160f, WingReach = 25f, HiveReach = 18f, FarthestCall = 260f;
         /// <summary>The calls' budget: this many a second on average, up to CallBurst saved up; always heard within CloseCall m.</summary>
-        const float CallsPerSecond = 1.5f, CallBurst = 3f, CloseCall = 6f;
+        const float CallsPerSecond = 0.6f, CallBurst = 2f, CloseCall = 6f;
         float callBudget = CallBurst;
         /// <summary>Calls played, and let go over the budget, since start (for tests); and whether the budget applies.</summary>
         public static int CallsPlayed, CallsThinned;
@@ -209,6 +209,10 @@ namespace Punchy.Audio
                                 herdCalls[call.Sound] = (clock, s.Position);
                             }
                             if (!Spend(d))
+                                continue;
+                            // (A bird, owl, frog or insect call only where the biome has that sound: AmbientSounds.)
+                            var group = AmbientSounds.Of(call.Sound);
+                            if (group != AmbientGroup.None && (AmbientSounds.At(terrain, s.Position.xz) & group) == AmbientGroup.None)
                                 continue;
                             if (GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f), pitch * Jitter(), call.Volume, call.Reach))
                             {
@@ -428,6 +432,7 @@ namespace Punchy.Audio
         void Countryside(float3 ear, float night)
         {
             var life = AmbientLife.Near(World, ear);
+            var here = SystemAPI.TryGetSingleton<TerrainSource>(out var land) ? AmbientSounds.At(land, ear.xz) : AmbientGroup.All;
             // (Frogs near the water at night: their chorus held on under the single croaks, from among them, as loud as
             // there are many of them.)
             var frogs = 0;
@@ -449,7 +454,7 @@ namespace Punchy.Audio
                 var thinned = a.Kind == AmbientKind.Songbird && ThinCalls && (((uint)a.Calls + a.Id) & 1u) != 0u;
                 if (a.Hidden && !was.hidden && a.Kind == AmbientKind.Frog)
                     GameAudio.PlayOneShot(SoundId.Splash, a.Position, 1.7f, 0.35f, 15f);
-                else if (!a.Hidden && a.Calls != was.calls && !thinned && Spend(math.distance(a.Position, ear)) && ++CallsPlayed > 0)
+                else if (!a.Hidden && a.Calls != was.calls && !thinned && (here & AmbientSounds.Of(a.Kind)) != AmbientGroup.None && Spend(math.distance(a.Position, ear)) && ++CallsPlayed > 0)
                     switch (a.Kind)
                     {
                         case AmbientKind.Songbird:

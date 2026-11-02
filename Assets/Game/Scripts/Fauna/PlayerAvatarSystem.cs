@@ -169,6 +169,10 @@ namespace Punchy.Fauna
             var moved = c.Vertical > 0.5f ? math.distance(c.Position, player.Position) : math.distance(c.Position.xz, player.Position.xz);
             if (moved > 5f)
                 moved = 0f;   // teleported
+            // (Climbing down: the gait cycle runs the other way, so a body going down the trunk isn't climbing up on the spot.)
+            if (c.Vertical > 0.5f && player.Position.y < c.Position.y - 1e-4f)
+                moved = -moved;
+            var stepped = moved;
             c.Position = player.Position;
             c.Mode = CreatureMode.Puppet;
             c.Clock += dt;
@@ -179,11 +183,11 @@ namespace Punchy.Fauna
             c.Sway += (-c.YawRate * 0.35f - c.Sway) * math.min(1f, dt * 4f);
 
             // Speed from how far it actually went; the gait holds still in the air.
-            var speed = grounded ? moved / dt : 0f;
+            var speed = grounded ? math.abs(moved) / dt : 0f;
             c.Speed += (speed - c.Speed) * math.min(1f, dt * 12f);
             c.GaitSpeed = c.Speed;   // (already eased)
             if (grounded)
-                c.Phase = math.frac(c.Phase + CreatureMotion.StepPhase(ref b, c, moved));
+                c.Phase = math.frac(c.Phase + CreatureMotion.StepPhase(ref b, c, stepped));
         }
 
         /// <summary>

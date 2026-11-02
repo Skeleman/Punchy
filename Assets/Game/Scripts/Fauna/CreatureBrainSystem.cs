@@ -297,7 +297,7 @@ namespace Punchy.Fauna
                 var facing = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
                 if (playerSpeed < 2.5f)
                     alert *= math.dot(facing, math.normalizesafe(-away)) < 0.3f ? 0.1f : 0.5f;
-                var playerDistance = math.length(away);
+                var playerDistance = math.distance(s.Position, player);   // (3D: high overhead is far)
                 // Danger is judged by real distance, so high overhead is far: a player flying over the herd doesn't
                 // scatter it, and nor does someone walking on the ground over a cave. (On foot across level ground it's
                 // much the same as the distance across.) A bird in the air keeps on with a hunt unless the player is

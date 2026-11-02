@@ -10,6 +10,81 @@ using UnityEngine;
 
 namespace Punchy.Fauna
 {
+    /// <summary>The kinds of countryside sound a biome can have (AmbientSounds): its table is a set of these.</summary>
+    [System.Flags]
+    public enum AmbientGroup : byte { None = 0, Birds = 1, NightBirds = 2, Insects = 4, Frogs = 8, All = 15 }
+
+    /// <summary>
+    /// Which countryside sounds each biome has (Z-43): one table, the biome's set of AmbientGroups, and the empty set
+    /// is allowed (the glacier, the salt flat and the glass desert have no animal sound at all). Songbirds and
+    /// woodpeckers, their spawns (the critter spots) and their calls, are kept out of the dry and hostile biomes.
+    /// Keyed by the biome's NameHash (BiomeBaking.NameHash, FNV-1a of its asset name), so it runs in Burst jobs and
+    /// doesn't touch the biome assets (editing one re-bakes the terrain). A biome not listed has them all.
+    /// </summary>
+    public static class AmbientSounds
+    {
+        /// <summary>The sounds at a spot's dominant biome.</summary>
+        public static AmbientGroup At(in TerrainSource terrain, float2 xz)
+        {
+            if (!terrain.Biomes.IsCreated)
+                return AmbientGroup.All;
+            var index = terrain.SampleGround(xz).Biomes.Dominant();
+            ref var set = ref terrain.Biomes.Value;
+            return index >= 0 && index < set.Biomes.Length ? ForBiome(set.Biomes[index].NameHash) : AmbientGroup.All;
+        }
+
+        public static AmbientGroup ForBiome(uint nameHash)
+        {
+            const AmbientGroup B = AmbientGroup.Birds, N = AmbientGroup.NightBirds, I = AmbientGroup.Insects, F = AmbientGroup.Frogs;
+            switch (nameHash)
+            {
+                case 498137844u: return B | N | I | F;       // Grassland
+                case 748784547u: return B | N | I;           // Mountains
+                case 2483322509u: return B | N | I;          // EmberForest
+                case 3183111906u: return B | N | I | F;      // FoggyMarsh
+                case 3657515439u: return N | I | F;          // FungalForest
+                case 1203221319u: return B | N | I | F;      // SparklingForest
+                case 232645075u: return I | F;               // PoisonSwamp
+                case 315160912u: return I;                   // Dunes
+                case 3368052845u: return N | I;              // Sonoran
+                case 659108819u: return N | I;               // MesaCanyonlands
+                case 3623817682u: return AmbientGroup.None;  // Glacier
+                case 3701048830u: return AmbientGroup.None;  // SaltFlat
+                case 441784083u: return AmbientGroup.None;   // Ashlands
+                case 2317849686u: return AmbientGroup.None;  // ElectricWastelands
+                case 3103161546u: return AmbientGroup.None;  // GlassDesert
+                case 2049690417u: return AmbientGroup.None;  // Ocean
+                default: return AmbientGroup.All;
+            }
+        }
+
+        public static AmbientGroup Of(AmbientKind k) => k switch
+        {
+            AmbientKind.Songbird or AmbientKind.Woodpecker => AmbientGroup.Birds,
+            AmbientKind.Owl => AmbientGroup.NightBirds,
+            AmbientKind.Frog => AmbientGroup.Frogs,
+            _ => AmbientGroup.Insects
+        };
+
+        public static AmbientGroup Of(AmbientLife.CritterKind k) => k switch
+        {
+            AmbientLife.CritterKind.Songbird or AmbientLife.CritterKind.Woodpecker => AmbientGroup.Birds,
+            AmbientLife.CritterKind.Owl => AmbientGroup.NightBirds,
+            AmbientLife.CritterKind.Frog => AmbientGroup.Frogs,
+            _ => AmbientGroup.All   // (a mouse is silent already, and lives anywhere)
+        };
+
+        /// <summary>The group a creature's call belongs to (None for the ones that aren't countryside sounds).</summary>
+        public static AmbientGroup Of(Punchy.Audio.SoundId s) => s switch
+        {
+            Punchy.Audio.SoundId.Chirp or Punchy.Audio.SoundId.Song or Punchy.Audio.SoundId.Drum => AmbientGroup.Birds,
+            Punchy.Audio.SoundId.Owl => AmbientGroup.NightBirds,
+            Punchy.Audio.SoundId.Croak => AmbientGroup.Frogs,
+            Punchy.Audio.SoundId.CricketChirp or Punchy.Audio.SoundId.Zip or Punchy.Audio.SoundId.Cicada => AmbientGroup.Insects,
+            _ => AmbientGroup.None
+        };
+    }
+
     /// <summary>The small life round the listener that makes the countryside's sounds (AmbientLife).</summary>
     public enum AmbientKind : byte { Songbird, Woodpecker, Owl, Cricket, Grasshopper, Frog, Cicada }
 
@@ -324,6 +399,7 @@ namespace Punchy.Fauna
             var seed = math.hash(new int3(cell, 0xC417)) | 1u;
             var rng = new Unity.Mathematics.Random(seed);
             var centre = ((float2)cell + 0.5f) * CellSize;
+            var first = into.Length;
             var treeRng = new Unity.Mathematics.Random(seed ^ 0x7EE);
             if (FloraPlacement.FindTree(ref flora, terrain, centre, CellSize * 0.5f, 3f, ref treeRng, out var tree))
             {
@@ -393,6 +469,17 @@ namespace Punchy.Fauna
                 else if (mouse)
                     into.Add(new CritterSpot { Kind = CritterKind.Mouse, Id = id, Position = at });
             }
+            // Only the sounds the biome has (Z-43: no songbirds in the dry and hostile biomes). Dropped after the draws
+            // above, so the spots that stay are the same ones as before.
+            var kept = first;
+            for (int i = first; i < into.Length; i++)
+            {
+                var spot = into[i];
+                if ((AmbientSounds.At(terrain, spot.Position.xz) & AmbientSounds.Of(spot.Kind)) != AmbientSounds.Of(spot.Kind))
+                    continue;
+                into[kept++] = spot;
+            }
+            into.Length = kept;
         }
 
         /// <summary>Where one is this moment, by the shared clock t (seconds).</summary>

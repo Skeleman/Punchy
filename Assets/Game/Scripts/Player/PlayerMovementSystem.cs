@@ -132,7 +132,17 @@ namespace Punchy.Player
                 var pace = input.Walk ? Stroll : settings.WalkSpeed * (input.Sprint ? settings.SprintMultiplier : 1f);
                 var speed = pace * math.max(body.SpeedFactor, 0.1f) * (swimming ? settings.SwimSpeedMultiplier : 1f);
                 var from = position;
-                position.xz += input.MoveDirection * speed * dt;
+                // Up a wall already: the stick is read against the wall (forward up, back down, sideways along it).
+                var wallUp = 0f;
+                var move = input.MoveDirection;
+                if (m.OnWall && body.ClimbsWalls)
+                {
+                    var into = math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz;
+                    StickOnSurface(input, out wallUp, out var wallSide);
+                    var across = new float2(into.y, -into.x);
+                    move = into + across * wallSide * math.max(body.ClimbSpeed, 0.3f) / math.max(speed, 0.1f);
+                }
+                position.xz += move * speed * dt;
                 if (swimming)
                 {
                     // Rivers carry swimmers downstream: harder in rapids, but never faster than they can swim, so
@@ -162,7 +172,7 @@ namespace Punchy.Player
                     position.xz = KeepOutOfPropWalls(ref grids.Set.Value, props, from, position.xz, stepUp, 1.7f * size, out blocked);
 
                 // A ledge within reach ahead: climbed onto, for a jump at it (or reaching it in the air, pressing on).
-                var pressing = math.lengthsq(input.MoveDirection) > 0.04f;
+                var pressing = math.lengthsq(move) > 0.04f;
                 if (tops && body.Climbs && !swimming && pressing && (input.JumpPressed || !m.Grounded && blocked) &&
                     PropSupport.Ledge(ref grids.Set.Value, props, from, math.normalize(input.MoveDirection), 0.9f * size, stepUp,
                                       MantleReach * size, out var ledge))
@@ -188,7 +198,7 @@ namespace Punchy.Player
                 {
                     m.VerticalVelocity = settings.JumpSpeed * 0.8f;
                     m.LatchCooldown = 0.5f;
-                    position.xz = from.xz - math.normalizesafe(input.MoveDirection) * 0.4f;
+                    position.xz = from.xz - math.normalizesafe(math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz) * 0.4f;
                 }
                 else if (body.ClimbsWalls && blocked && pressing && !swimming && !input.JumpPressed &&
                          (m.Grounded || wasOnWall || m.VerticalVelocity > -LatchFall && m.LatchCooldown <= 0f))
@@ -196,10 +206,21 @@ namespace Punchy.Player
                     m.OnWall = true;
                     m.Grounded = false;
                     m.VerticalVelocity = 0f;
-                    position.y = from.y + math.max(body.ClimbSpeed, 0.3f) * dt;
+                    // (Latching on, the push is the way it faces; once on, the stick climbs: forward up, back down.)
+                    var rising = wasOnWall ? wallUp : 1f;
+                    position.y = from.y + rising * math.max(body.ClimbSpeed, 0.3f) * dt;
+                    if (wasOnWall && rising < 0f && Floor(terrain, position, settings.SwimDepth, out var foot, out _) && position.y <= foot)
+                    {
+                        // Down at the foot of it: off, standing.
+                        m.OnWall = false;
+                        m.Grounded = true;
+                        position.y = foot;
+                        t.Position = position;
+                        continue;
+                    }
                     t.Position = position;
                     var face = new float3(input.MoveDirection.x, 0f, input.MoveDirection.y);
-                    if (math.lengthsq(face) > 1e-4f)
+                    if (!wasOnWall && math.lengthsq(face) > 1e-4f)
                         t.Rotation = quaternion.LookRotationSafe(face, math.up());
                     continue;
                 }
@@ -560,10 +581,11 @@ namespace Punchy.Player
             var speed = math.max(body.ClimbSpeed, 0.3f);
             var inward = -outward;
             var round = new float2(-outward.y, outward.x);
-            var up = math.dot(input.MoveDirection, inward);
+            // (The stick against the surface, not the world: forward is up, back is down, and right is to the body's
+            // right as it faces the trunk, which is the way TrunkAngle grows.)
+            StickOnSurface(input, out var up, out var side);
             // (Round it only for a push mostly sideways: a push roughly at the trunk climbs straight, rather than
             // working its way round.)
-            var side = math.dot(input.MoveDirection, round);
             side = math.sign(side) * math.max(math.abs(side) - 0.45f, 0f) / 0.55f;
             var y = t.Position.y + up * speed * dt;
             // Feet on the bark (the body hangs a leg's length out from them: CreatureAnimator), drawn in to it over a
@@ -603,6 +625,17 @@ namespace Punchy.Player
             t.Position = new float3(at.x, y, at.y);
             t.Rotation = quaternion.LookRotationSafe(new float3(-outward.x, 0f, -outward.y), math.up());
             m.VerticalVelocity = 0f;
+        }
+
+        /// <summary>
+        /// The stick as the player pushes it on the screen: forward (+, up a surface) and right (+), from the world-space
+        /// move and where the camera looks. A test's move with no camera reads as forward.
+        /// </summary>
+        static void StickOnSurface(in PlayerInput input, out float forward, out float right)
+        {
+            var look = math.normalizesafe(input.CameraForward, new float2(0f, 1f));
+            forward = math.dot(input.MoveDirection, look);
+            right = math.dot(input.MoveDirection, new float2(look.y, -look.x));
         }
 
         /// <summary>The centre (x, z) of the trunk a body holds, at a height: as drawn, leaning or bending as it may.</summary>

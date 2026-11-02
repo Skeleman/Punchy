@@ -59,6 +59,7 @@ namespace Punchy.Debugging
             Pose();
             Interact();
             ShotList();
+            Lift();
             var keyboard = Keyboard.current;
             if (keyboard == null)
                 return;
@@ -369,6 +370,8 @@ namespace Punchy.Debugging
             interactRequest = null;
             ledgeRequest = false;
             climbTarget = null;
+            liftHeight = 0f;
+            Punchy.Player.PlayerInputSystem.TestCamera = null;
             shotDir = null;
             shotLines.Clear();
             shotIndex = -1;
@@ -413,6 +416,9 @@ namespace Punchy.Debugging
             }
             // "-huntlog": log land hunters' chases (Z-53).
             huntLog = System.Array.IndexOf(args, "-huntlog") >= 0;
+            // "-lift 15": the player held that high over the ground (see Lift), per shot line.
+            var liftArg = System.Array.IndexOf(args, "-lift");
+            liftHeight = liftArg >= 0 && liftArg + 1 < args.Length && float.TryParse(args[liftArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lh) ? lh : 0f;
             // "-voicelog": log cats' and dogs' voices and howls as they play (Z-51); "-stancelog": folk lines with the
             // speaker's stance, and the stance odds per player body (Z-52).
             if (System.Array.IndexOf(args, "-voicelog") >= 0)
@@ -1058,6 +1064,9 @@ namespace Punchy.Debugging
             {
                 Debug.Log($"DebugControls: shot list done, {shotLines.Count} shots in {Time.realtimeSinceStartup - listStarted:F1} s");
                 shotIndex = -1;
+                // "-quit" on the launch line: the player closes itself when the list is done (agents can't kill it).
+                if (System.Array.IndexOf(LaunchArgs, "-quit") >= 0)
+                    Application.Quit();
 #if UNITY_EDITOR
                 UnityEditor.EditorApplication.isPlaying = false;
 #endif
@@ -1092,6 +1101,38 @@ namespace Punchy.Debugging
             Debug.Log($"DebugControls: shot {shotIndex + 1}/{shotLines.Count} '{Arg("-shot")}' after {Time.realtimeSinceStartup - shotStarted:F1} s");
             shotIndex++;
             shotStarted = -1f;
+        }
+
+        /// <summary>
+        /// "-lift 15": the player held 15 m over the ground where it stands (as if flying there), and every 3 s a line
+        /// with how many creatures within 40 m are fleeing, of how many (the fear distance counts height).
+        /// </summary>
+        static float liftHeight;
+        float liftNext;
+
+        void Lift()
+        {
+            if (liftHeight <= 0f || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var self) || !EnsureLocations(out var ground))
+                return;
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(self);
+            t.Position.y = ground.SampleHeight(t.Position.xz) + liftHeight;
+            em.SetComponentData(self, t);
+            if (Time.time < liftNext)
+                return;
+            liftNext = Time.time + 3f;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            int near = 0, fleeing = 0;
+            foreach (var s in states)
+                if (math.distance(s.Position.xz, t.Position.xz) < 40f && !s.Position.Equals(t.Position))
+                {
+                    near++;
+                    if (s.Mode == CreatureMode.Flee)
+                        fleeing++;
+                }
+            states.Dispose();
+            Debug.Log($"DebugControls: lift {liftHeight:F0} m: {fleeing} of {near} creatures within 40 m fleeing");
         }
 
         static float[] ParseFloats(string text)
@@ -1665,6 +1706,8 @@ namespace Punchy.Debugging
             if (!climbTarget.HasValue || interactRequest != null || !EnsureLocations(out _) ||
                 !playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return;
+            // (The camera stays turned to the climb, so the stick reads forward going out and back coming home.)
+            PlayerInputSystem.TestCamera = math.normalizesafe(climbTarget.Value - climbHome, new float2(0f, 1f));
             var toward = math.fmod(Time.time - climbSince, 20f) < 12f;
             var goal = toward ? climbTarget.Value : climbHome;
             var to = goal - player.Position.xz;
@@ -1709,6 +1752,7 @@ namespace Punchy.Debugging
             if (posed != Entity.Null && queryWorld != null && queryWorld.IsCreated && queryWorld.EntityManager.Exists(posed))
                 queryWorld.EntityManager.DestroyEntity(posed);
             posed = Entity.Null;
+            liftHeight = 0f;
             swimSpot = null;
             poseRequest = null;
             watchSpecies = null;

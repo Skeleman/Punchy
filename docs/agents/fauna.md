@@ -61,3 +61,4 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
 - Joint axes depend on which way a part points: for a part pointing up (an upright torso, neck or head), a yaw
   leans it sideways and a roll (z) twists it about its length.
 - Joint angles accumulate along chains: a snake or tail ripple needs small per-joint angles (about 10–15°).
+- **Climbing** reads the stick against the camera (`PlayerMovementSystem.StickOnSurface`): forward up, back down, right along the surface; tests hold the camera with `PlayerInputSystem.TestCamera`. Ambient sounds are a per-biome set (`AmbientSounds`, keyed by biome NameHash; empty allowed), and the global call budget is 0.6/s.
