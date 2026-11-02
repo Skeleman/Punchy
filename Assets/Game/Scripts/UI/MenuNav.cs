@@ -138,13 +138,16 @@ namespace Punchy.UI
         }
 
         /// <summary>A button: true when clicked, or pressed while focused.</summary>
-        public bool Button(string text, params GUILayoutOption[] options)
+        public bool Button(string text, params GUILayoutOption[] options) => Button(text, GUI.skin.button, options);
+
+        /// <summary>A button in a style of its own (the menu's Exit game).</summary>
+        public bool Button(string text, GUIStyle style, params GUILayoutOption[] options)
         {
             var focused = Next(out var pressed);
             var colour = GUI.backgroundColor;
             if (focused)
                 GUI.backgroundColor = Highlight;
-            var clicked = GUILayout.Button(text, options);
+            var clicked = GUILayout.Button(text, style, options);
             GUI.backgroundColor = colour;
             return clicked || pressed;
         }
