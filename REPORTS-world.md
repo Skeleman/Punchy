@@ -2,6 +2,15 @@
 
 Newest first.
 
+## 2026-11-02 batch W-07: ponds, high springs, fall shot, storm flowers
+- DONE: #19 ponds re-enabled; they are dug only after rivers, landmarks, settlements, caves and anchors are baked (TerrainSource.PondsOn). Cause of the earlier 102 / 2294FB88: roadside landmarks were placed on the dug ground. v1 now 101 / E128CB1D in play with ponds on.
+- DONE: #18 v2 springs: SourceHeight 45 m. Source beds min 18 -> 44, median 64 -> 90 m; 31 -> 22 sources; v2 130 landmarks DA354F63. First try (rain weights) barely moved them (median 68), dropped.
+- DONE: #42 filtered v2 fall shot: 60 falls now (21+10+20+16 old bins -> 16/9/19/16), 51 clusters. Not clearly too many; 28 are 8 m or more.
+- DONE: #30 `-weather Storm` forces a storm; shot taken in a meadow, rain and wind visible, flowers lean.
+- Builds/Dev built twice (second after the springs rewrite). Players quit on their own. A Punchy.exe (PID 36200) runs that is not mine.
+- Shots: PunchyMilestones/world/w07/pond.png, storm-flowers.png, v2fall.png.
+- NEXT: pond spot was a wide shallow bay near the coast, pick an inland swamp pond; v2 default decision.
+
 ## 2026-11-02 batch W-06: small falls, cave stream ends, ocotillo mimics
 - DONE: #42 v2 fall filter (world-features 646202c): falls with a water drop under 3 m dropped (5 were under 2 m, some negative, invisible) and falls under 8 m within 60 m of a bigger kept one merged. 98 -> 67 falls. Close shot of an unfiltered 4.6 m fall (riverfall-before.png) shows a teal curtain with white spikes; the filtered result is not re-shot (needs a v2 run).
 - DONE: #3 z34-pool was already merged (ancestor of HEAD). Cave stream ends, v1: pool 5, hole 0, left out 0, kept 5. v2: pool 12, hole 2, left out 0, kept 14. Logged as [cave-streams] at bake.

@@ -2,7 +2,7 @@
 
 Worktree `Punchy-world` (main PC), branch `world-features`. Backlog: `gh issue list -l lane:world`.
 Released: v0.11.0 = world b39522b + animal c810406.
-Pushed head: world-features 646202c (W-06: v2 falls 98 -> 67, cave stream end counts, -place riverfall); before that e3ab4af (v2 smooth rivers + waterfalls, behind `-island v2`). Builds/Dev holds a build of it.
+Pushed head: world-features 380d59a (W-07: swamp ponds on, dug only after all places bake; v2 springs need 45 m height). Builds/Dev holds a build of it. v1 101 / E128CB1D holds with ponds on (2614 pond blobs on a 16 m grid, 4329 wet cells). Island.meta now tracked; empty Assets/Resources removed.
 No Punchy.exe of mine runs.
 
 ## W-05 / W-05b
@@ -35,6 +35,11 @@ No Punchy.exe of mine runs.
 - Launch-wide flags (-nosandpuffs, -menu, -bluemoondays) mean one player per variant.
 - Assets/Resources, Assets/Temp (+ .meta) stay untracked on purpose.
 - Hashes without avalanche (math.hash of small ints) need a Scramble before comparing draws.
+
+## W-07
+- #19: ponds are back (Ponds() in TerrainSource) behind TerrainSource.PondsOn, set only at the end of BuildPlaces. The first try moved roadside landmarks because settlements/caves/anchors sampled the dug ground. v2: 243 ponds, 359 wet cells.
+- #18: RiverSettings.SourceHeight (v2: 45 m): a river cell under it counts only if a river cell drains into it. v2 springs: bed min 18/median 64 -> 44/90 m, 31 -> 22 sources, 67 -> 60 falls, v2 130 landmarks DA354F63. `PUNCHY_SPRINGS=old` env restores old springs.
+- #30: storm flag is `-weather Storm` (per shot-list line). Flowers lean with the wind in the shot; no swivel judged from one still.
 
 ## Open
 - #23 follow-ups: volcano markers, v2 default decision. Rivers: springs on high ground; shot of a small fall. #15 look checks (Z-30 posts, Z-10 fog). #13 Z-35 fall speed. #14 cave-mouth shards.
