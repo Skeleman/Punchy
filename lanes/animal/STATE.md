@@ -1,7 +1,13 @@
-# Animal lane: state (2026-11-02, after batch A-10c)
+# Animal lane: state (2026-11-02, after batch A-11)
 
-Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 347adea (A-10c: mantrap head normals fix + docs).
-Builds/Windows is the A-10c build (head glow fixed, lunge hold 0.3 s; A-10 added `-nomantrap -mantraptest -mantrapshot side|lunge`; Mantrap.cs on animal-behaviours fb3f028; has `-nocolossus -framelog -colossusshot -shotonhunt -flatfear -lift`). Editor open on port 7800; no Punchy.exe running.
+Worktree `Punchy` (animal lane only). `animal-behaviours` = origin a07d0cb (A-11: ocotillo mimic arms-as-legs).
+Builds/Windows is the A-11 build (adds `-mimicshot rest|run`, used with `-spawn OcotilloMimic:1 -place tree:Ocotillo`). Editor open on port 7800; no Punchy.exe running.
+
+## A-11 done (#17, open for Zach's look)
+- OcotilloMimic: no base legs; 8 arms (4 mirrored pairs, OcotilloCane now Role Leg) are the legs. Disguised blends arm keys by Curl: Idle = arms up, WalkReach/Push = spider stance on the tips (CreatureAnimator, MeasureGait uses WalkReach for stand height, IK scaled by 1-Curl).
+- Probe: startle 11.5 m, fold 0.55 s, run 15.8 m/s (RunSpeed 5 x scale ~3.1; card says scuttle: consider 3.2 = 10 m/s), settle not measured (probe ended at the shot; Curl rises 0.6/s so about 1.6 s).
+- Rest side shot: mimic is a denser, straighter bunch than the real ocotillo (arms 14 deg off vertical, real ones splay wider). Try Direction x -68 and 5-6 arms. Tree height reads 0 in the flora blob, so the rest camera framed low.
+- Spawn rule unchanged (FaunaDirector.TrySpawn Sonoran 0.2/ha). Artefacts: PunchyMilestones/animal/a11/.
 
 ## Unverified (merged anyway; Zach's check in the build)
 - #41 (A-10c, ae5b491): head glow fixed (tooth-tip zero normals 1008/864 -> 0; now normalizesafe). Hit check 7/7 at 0.8 m (A-10b). Shots a10c show the head open, no glow. Host-to-client lunge not shown (remote player not a target).
@@ -17,9 +23,6 @@ Builds/Windows is the A-10c build (head glow fixed, lunge hold 0.3 s; A-10 added
 - #9 `-shotonhunt`: wolf sprint at turkey, 14 m apart, shot saved (hunt0.png). Prey can be any species.
 - #46 ground row: code identical below 1.5 m gap; spawned herd sits on slopes (gap mean 0.2-6 m, up to 6 over 1.5 m), so weighted vs flat differ by terrain, not code. Fled sample 1: weighted 0,5,4 vs flat 3,0,0 (no pattern). Needs flat ground (a sand flat or lake shore) and one build to settle.
 - Artefacts: PunchyMilestones/animal/a09/ (player.log, list.txt, col300/col60 plus -800).
-
-## A-08 done
-- #9 hunt code already on animal-behaviours; #46 deer-only: 30 m after 0,0,0 vs flat 2,2,1.
 
 ## Done earlier (A-06b)
 - #12 (mostly): FlyTo flare eases turning off and drifts onto the spot. Songbird Wander 100-125 -> 25-31 deg/s;

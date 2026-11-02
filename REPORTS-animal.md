@@ -2,6 +2,14 @@
 
 Newest first.
 
+## 2026-11-02 batch A-11: ocotillo mimic walks on its arms
+- DONE: #17 the base legs are gone; its 8 ocotillo arms are the legs (4 mirrored pairs). Arms up at rest, fold down in about 0.55 s on a startle, plant their tips, lift the body and run off on the tips, then Curl brings the arms back up (animal-behaviours a07d0cb).
+- NOT DONE: #17 rest look is not yet hard to tell from a real ocotillo (denser and straighter bunch). Settle time not measured.
+- Checks: compile clean, one build (53 s), player quit itself, no Punchy.exe left, no exceptions in the log. Startle at 11.5 m from the player (FleeDistance 6 x body scale ~3.1 x alert, so it is early), fold 0.55 s (curl 0.93 to under 0.1), run speed max 15.8 m/s (RunSpeed 5 x 3.1; too fast for a scuttle, try 3.2), settle by formula about 1.6 s (Curl +0.6/s), not logged.
+- Shots: PunchyMilestones/animal/a11/mimic-rest-800.png (mimic left, real ocotillo right, side-on: mimic is a tight upright bunch of 7 red-tipped stems, real one is wider, looser). mimic-run-800.png (8 jointed arms planted on their tips, body lifted about 1.5 m, running away from the player, real ocotillo left; legs read as a large spider).
+- Learned: lanes/animal/STATE.md. Spawn rule needs no change (FaunaDirector.TrySpawn, Sonoran 0.2/ha).
+- NEXT: widen the arm splay (Direction x -68), measure settle time, lower RunSpeed, Zach's look in the build.
+
 ## 2026-11-02 batch A-10c: mantrap head glow fixed (zero normals on the tooth tips)
 - DONE: #41 head renders as a dark shell with red lining and teeth instead of a white blob. Cause: MeshBuilder used Vector3.normalized, which returns zero below 1e-5; the 4 mm tooth-tip spheres made 1008 (upper) / 864 (lower) zero normals, NaN in the shader, spread by bloom. Now math.normalizesafe (animal-behaviours ae5b491; also changes the colossus builder, whose triangles are big enough to be unaffected).
 - DONE: #41 lunge shot: strike held 0.30 s (was up to 8 s), shot taken 0.15 s into the hold.
