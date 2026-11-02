@@ -62,3 +62,5 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
   leans it sideways and a roll (z) twists it about its length.
 - Joint angles accumulate along chains: a snake or tail ripple needs small per-joint angles (about 10–15°).
 - **Climbing** reads the stick against the camera (`PlayerMovementSystem.StickOnSurface`): forward up, back down, right along the surface; tests hold the camera with `PlayerInputSystem.TestCamera`. Ambient sounds are a per-biome set (`AmbientSounds`, keyed by biome NameHash; empty allowed), and the global call budget is 0.6/s.
+
+- Right face button (B / Circle, the crouch action): a roll on the ground (PlayerMotion.Roll, replicated as IdleAction.Roll in the Pose byte), a slow glide-descent on the wing, a sink in the water. A fish sprint (Sprint) is 2.8x and holds depth. B still cancels in menus. `-actiontest roll|fly|fish:<Body>` logs each.

@@ -30,7 +30,7 @@ namespace Punchy.Player
         /// <summary>The toggles as they stand (for the readout).</summary>
         public static bool Sprinting, Walking;
         /// <summary>Tests: press jump once (cleared after the frame), and hold it (in flight: climb).</summary>
-        public static bool TestJump, TestClimb;
+        public static bool TestJump, TestClimb, TestRoll;
         /// <summary>Test input: the camera's pitch to report (radians), instead of the camera's own.</summary>
         public static float? TestPitch;
 
@@ -125,11 +125,13 @@ namespace Punchy.Player
                 DiveHeld = TestSprint || !typing && sprint != null && sprint.IsPressed(),
                 JumpPressed = TestJump || !typing && jump != null && jump.WasPressedThisFrame(),
                 JumpHeld = TestClimb || !typing && jump != null && jump.IsPressed(),
+                CrouchPressed = TestRoll || !typing && crouch != null && crouch.WasPressedThisFrame(),
                 CrouchHeld = TestCrouch || !typing && crouch != null && crouch.IsPressed(),
                 CameraForward = TestCamera.HasValue ? math.normalizesafe(TestCamera.Value, new float2(0f, 1f)) : TestMove.HasValue && math.lengthsq(TestMove.Value) > 0f ? math.normalize(TestMove.Value) : cameraForward,
                 CameraPitch = TestPitch ?? cameraPitch
             });
             TestJump = false;
+            TestRoll = false;
         }
     }
 }

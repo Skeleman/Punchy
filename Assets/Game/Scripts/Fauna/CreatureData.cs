@@ -579,6 +579,8 @@ namespace Punchy.Fauna
         public float Vertical;
         /// <summary>In flight: wings beating or spread, legs tucked.</summary>
         public float Fly;
+        /// <summary>A player's body rolling on the ground: how far through the somersault (0..1; 0 = not rolling).</summary>
+        public float Roll;
 
         /// <summary>An idle action under way and how far through it is (0..1), and how long it lasts.</summary>
         public IdleAction Action;

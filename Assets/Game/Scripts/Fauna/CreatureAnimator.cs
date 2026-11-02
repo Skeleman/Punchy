@@ -159,6 +159,13 @@ namespace Punchy.Fauna
             else if (s.Action == IdleAction.Sniff)
                 pitch += act * 0.08f;
 
+            // A player's roll: a forward somersault (a full turn of the body), tucked up off the ground as it goes over.
+            if (s.Roll > 0f)
+            {
+                pitch += 2f * math.PI * s.Roll;
+                height += math.sin(math.PI * s.Roll) * 0.35f * b.StandHeight * scale;
+            }
+
             var rootRot = math.mul(quaternion.RotateY(s.Yaw), math.mul(quaternion.RotateX(pitch), quaternion.RotateZ(roll)));
             // Pitched up against a trunk, the body keeps its legs' length out from it (behind it) rather than above.
             var up = math.saturate(s.Vertical);

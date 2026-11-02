@@ -26,6 +26,10 @@ namespace Punchy.Player
     {
         /// <summary>A walk (the walk toggle) for a human body, m/s; other bodies by their speed next to a human.</summary>
         public const float Stroll = 1.6f;
+        /// <summary>A roll's length (s), its pace next to the everyday jog, and the fastest it goes (m/s: a horse doesn't roll 15).</summary>
+        public const float RollTime = 0.55f, RollSpeed = 1.3f, RollMost = 8f;
+        /// <summary>The way down on the wing with the right face button: a steady descent at this nose-down angle (radians).</summary>
+        const float DescendPitch = 0.5f;
 
         [BurstCompile]
         public void OnCreate(ref SystemState state)
@@ -38,7 +42,7 @@ namespace Punchy.Player
         public void OnUpdate(ref SystemState state)
         {
             var dt = SystemAPI.Time.DeltaTime;
-            var input = SystemAPI.GetSingleton<PlayerInput>();
+            var rawInput = SystemAPI.GetSingleton<PlayerInput>();
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
             var body = SystemAPI.TryGetSingleton<PlayerBody>(out var playerBody) ? playerBody : new PlayerBody { SpeedFactor = 1f };
             SystemAPI.TryGetSingletonBuffer<FloraObstacle>(out var obstacles, true);
@@ -54,6 +58,7 @@ namespace Punchy.Player
                 ref var t = ref transform.ValueRW;
                 ref var m = ref motion.ValueRW;
                 var settings = motor.ValueRO;
+                var input = rawInput;
 
                 var position = t.Position;
                 // (Over deep water but up in the air, jumping across a river: not swimming yet, so neither slowed nor carried
@@ -129,8 +134,33 @@ namespace Punchy.Player
                     continue;
                 }
 
+                // The right face button on the ground: a roll, a quick dive forward the way the stick points (or the way it
+                // faces), over in half a second, with a short wait before the next. No steering while it lasts.
+                m.RollCooldown = math.max(m.RollCooldown - dt, 0f);
+                if (m.Roll <= 0f && input.CrouchPressed && m.Grounded && !swimming && !m.OnWall && m.RollCooldown <= 0f)
+                {
+                    m.Roll = 1e-4f;
+                    m.RollDir = math.normalizesafe(input.MoveDirection, math.normalizesafe(math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz, new float2(0f, 1f)));
+                }
+                var rolling = m.Roll > 0f;
+                if (rolling)
+                {
+                    m.Roll += dt / RollTime;
+                    if (m.Roll >= 1f || !m.Grounded || swimming)
+                    {
+                        m.Roll = 0f;
+                        m.RollCooldown = 0.35f;
+                        rolling = false;
+                    }
+                    else
+                        input.MoveDirection = m.RollDir;
+                }
                 var pace = input.Walk ? Stroll : settings.WalkSpeed * (input.Sprint ? settings.SprintMultiplier : 1f);
+                if (rolling)
+                    pace = settings.WalkSpeed * RollSpeed;
                 var speed = pace * math.max(body.SpeedFactor, 0.1f) * (swimming ? settings.SwimSpeedMultiplier : 1f);
+                if (rolling)
+                    speed = math.min(speed, RollMost);
                 var from = position;
                 // Up a wall already: the stick is read against the wall (forward up, back down, sideways along it).
                 var wallUp = 0f;
@@ -334,10 +364,11 @@ namespace Punchy.Player
             // (Rising out of it in a leap: in the air, not swimming, until it comes back down.)
             if (water && position.y < ground.WaterSurface + 0.1f && m.VerticalVelocity <= 0f)
             {
-                var speed = settings.WalkSpeed * math.max(body.SpeedFactor, 0.1f) * (input.Sprint ? 1.6f : 1f);
-                // Swimming the way the camera looks: across, and up or down with it.
+                var speed = settings.WalkSpeed * math.max(body.SpeedFactor, 0.1f) * (input.Sprint ? FishSprint : 1f);
+                // Swimming the way the camera looks: across, and up or down with it. Sprinting holds its depth instead (a
+                // fast dash across, level), and jump and crouch still rise and sink.
                 var push = math.length(input.MoveDirection);
-                var pitch = math.clamp(input.CameraPitch, -1.2f, 1.2f);
+                var pitch = input.Sprint ? 0f : math.clamp(input.CameraPitch, -1.2f, 1.2f);
                 var next = position.xz + input.MoveDirection * speed * math.cos(pitch) * dt;
                 var ahead = terrain.SampleGround(next);
                 // (It keeps to the water: no swimming up onto the bank except by leaping out with jump.)
@@ -406,6 +437,9 @@ namespace Punchy.Player
             Face(ref t, input, settings, dt);
         }
 
+        /// <summary>A fish's sprint next to its ordinary swim.</summary>
+        const float FishSprint = 2.8f;
+
         static void Face(ref LocalTransform t, in PlayerInput input, in PlayerMotor settings, float dt)
         {
             var flatMove = new float3(input.MoveDirection.x, 0f, input.MoveDirection.y);
@@ -440,18 +474,20 @@ namespace Punchy.Player
 
             var dive = input.DiveHeld;
             var climb = input.JumpHeld && !dive;
-            m.Flapping = climb || steering;
+            // The right face button: down at a steady angle, gliding (the dive button is the steep stoop).
+            var descend = input.CrouchHeld && !dive && !climb;
+            m.Flapping = climb || steering && !descend;
             Floor(terrain, t.Position, settings.SwimDepth, out var ground, out _);
             var height = t.Position.y - ground;
             // Nose: steeply up to climb, steeply down to dive (quickly, deliberately); with the stick pushed, a little
             // up or down the way the camera looks; held level beating on, or sinking gently gliding. Near the ground on
             // the way down, it flares: nose up, slowing to land.
-            var targetPitch = climb ? SteepClimb : dive ? -SteepDive
+            var targetPitch = climb ? SteepClimb : dive ? -SteepDive : descend ? -DescendPitch
                             : steering ? math.clamp(input.CameraPitch * 0.6f, -GentlePitch, GentlePitch) : -0.12f;
-            var flaring = !climb && !dive && height < Punchy.Fauna.CreatureMotion.FlareDistance * 1.5f && m.Pitch <= 0.05f;
+            var flaring = !climb && !dive && !descend && height < Punchy.Fauna.CreatureMotion.FlareDistance * 1.5f && m.Pitch <= 0.05f;
             if (flaring)
                 targetPitch = math.max(targetPitch, -0.15f);
-            var pitchRate = climb || dive ? 2.5f : 0.8f;
+            var pitchRate = climb || dive || descend ? 2.5f : 0.8f;
             m.Pitch += math.clamp(targetPitch - m.Pitch, -pitchRate * dt, pitchRate * dt);
 
             // Speed: wingbeats bring it up to flying speed; a glide bleeds it off slowly. Climbing costs speed; diving

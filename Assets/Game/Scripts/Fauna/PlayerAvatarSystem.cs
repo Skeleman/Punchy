@@ -65,6 +65,7 @@ namespace Punchy.Fauna
                     Wings(ref s.ValueRW, ref body.ValueRO.Blob.Value, motion.Flying, motion.Pitch, motion.Flapping, dt);
                     // (Climbing onto a ledge: the climbing pose over whatever else, run through as the climb goes.)
                     Pose(ref s.ValueRW, ref body.ValueRO.Blob.Value, motion.Mantle > 0f ? IdleAction.Mantle : pose, dt, terrain);
+                    s.ValueRW.Roll = motion.Roll;
                     if (motion.Mantle > 0f)
                     {
                         s.ValueRW.Action = IdleAction.Mantle;
@@ -93,7 +94,10 @@ namespace Punchy.Fauna
                 var run = math.distance(was.xz, s.ValueRO.Position.xz);
                 var pitch = run > 1e-4f ? math.atan2(s.ValueRO.Position.y - was.y, run) : 0f;
                 Wings(ref s.ValueRW, ref b, flying, pitch, pitch > 0.1f, dt);
-                Pose(ref s.ValueRW, ref b, (IdleAction)looks[ghost].Pose, dt, terrain);
+                // (Another player rolling: the somersault runs from when it was first seen, for as long as it says so.)
+                var rollPose = (IdleAction)looks[ghost].Pose == IdleAction.Roll;
+                Pose(ref s.ValueRW, ref b, rollPose ? IdleAction.None : (IdleAction)looks[ghost].Pose, dt, terrain);
+                s.ValueRW.Roll = rollPose ? math.min(s.ValueRO.Roll + dt / PlayerMovementSystem.RollTime, 0.999f) : 0f;
                 // (Another player climbing onto a ledge: its hands on the rim, a little ahead of it at the height it sent.)
                 if (looks[ghost].Rim > 0)
                 {

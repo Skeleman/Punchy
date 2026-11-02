@@ -47,6 +47,12 @@ namespace Punchy.Player
         /// <summary>A fish's leap or hop: how fast it carries on across while in the air (m/s).</summary>
         public float HopSpeed;
         /// <summary>
+        /// A roll on the ground (the right face button): how far through it (0..1; 0 when not rolling), which way it
+        /// goes, and the wait before the next one (s).
+        /// </summary>
+        public float Roll, RollCooldown;
+        public float2 RollDir;
+        /// <summary>
         /// Up a tree trunk (a climbing body): the trunk's foot, its radius and height, and where round it the body is
         /// (radians, from the trunk out to the body).
         /// </summary>
@@ -98,6 +104,8 @@ namespace Punchy.Player
         public bool JumpHeld, DiveHeld;
         /// <summary>The crouch button held down (a hovering body: sinking).</summary>
         public bool CrouchHeld;
+        /// <summary>The crouch button (the right face button, B / Circle) pressed this frame: a roll on the ground.</summary>
+        public bool CrouchPressed;
         /// <summary>Where the camera looks, world XZ (in flight: the way to steer).</summary>
         public float2 CameraForward;
         /// <summary>How far the camera looks up (+) or down (−), radians (a bird's gentle climbs, a fish's swim).</summary>

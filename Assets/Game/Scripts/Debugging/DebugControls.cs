@@ -55,6 +55,7 @@ namespace Punchy.Debugging
             SpawnRequested();
             PlaceByLedge();
             ClimbTest();
+            ActionTest();
             Watch();
             Pose();
             Interact();
@@ -371,6 +372,8 @@ namespace Punchy.Debugging
             ledgeRequest = false;
             climbTarget = null;
             liftHeight = 0f;
+            actionTest = null;
+            wallRequest = false;
             Punchy.Player.PlayerInputSystem.TestCamera = null;
             shotDir = null;
             shotLines.Clear();
@@ -414,6 +417,18 @@ namespace Punchy.Debugging
                 spinDegrees = spin[0];
                 spinSeconds = spin[1];
             }
+            // "-actiontest roll:Human,Dog" (or fly:Pigeon, fish:Trout): the right face button's checks (A-04), logged, each
+            // switching to the bodies named in turn (see ActionTest); "-setbody Lizard": switch to that body now.
+            var testArg = System.Array.IndexOf(args, "-actiontest");
+            if (testArg >= 0 && testArg + 1 < args.Length)
+            {
+                actionTest = args[testArg + 1];
+                actionStart = Time.time;
+                actionSlot = -1;
+            }
+            var bodyArg = System.Array.IndexOf(args, "-setbody");
+            if (bodyArg >= 0 && bodyArg + 1 < args.Length)
+                SetBody(args[bodyArg + 1]);
             // "-huntlog": log land hunters' chases (Z-53).
             huntLog = System.Array.IndexOf(args, "-huntlog") >= 0;
             // "-lift 15": the player held that high over the ground (see Lift), per shot line.
@@ -485,8 +500,10 @@ namespace Punchy.Debugging
                     PlaceInMeadow(meadowSource);
                 else if (args[i] == "-place" && string.Equals(args[i + 1], "clearlake", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var lakeSource))
                     PlaceByClearLake(lakeSource);
-                else if (args[i] == "-place" && string.Equals(args[i + 1], "ledge", System.StringComparison.OrdinalIgnoreCase))
+                else if (args[i] == "-place" && (string.Equals(args[i + 1], "ledge", System.StringComparison.OrdinalIgnoreCase) || string.Equals(args[i + 1], "wall", System.StringComparison.OrdinalIgnoreCase)))
                 {
+                    // ("wall": the same, for a wall-climbing body: the nearest wall of a building or rock, not a rim to mantle.)
+                    wallRequest = string.Equals(args[i + 1], "wall", System.StringComparison.OrdinalIgnoreCase);
                     // To the nearest settlement first: its buildings, wells and stalls have the ledges (PlaceByLedge,
                     // once their tops have loaded round the player).
                     var town = locations.FindIndex(l => l.Name.StartsWith("Nearest settlement"));
@@ -1547,6 +1564,7 @@ namespace Punchy.Debugging
                         t.Position = new float3(stand.x, s.Height + 0.05f, stand.y);
                         t.Rotation = quaternion.RotateY(math.atan2(-dir.x, -dir.y));
                         em.SetComponentData(player, t);
+                        lastLake = at;
                         Debug.Log($"DebugControls: by a clear lake at ({at.x:F0}, {at.y:F0}), {g.WaterSurface - g.Height:F1} m deep");
                         return;
                     }
@@ -1586,6 +1604,13 @@ namespace Punchy.Debugging
             // As PlayerMovementSystem: a step is 0.4 m, ledges are looked for 0.9 m ahead and climbed up to 1.8 m (all
             // times the body's size).
             float stepUp = 0.4f * size, reach = 0.9f * size, maxRise = 1.8f * size;
+            // (A wall for a climber: probed at a human's scale, any wall over a metre and up to 6 m, flat top or not.)
+            if (wallRequest)
+            {
+                stepUp = 0.4f;
+                reach = 0.9f;
+                maxRise = 6f;
+            }
             ref var set = ref grids.Set.Value;
             var best = float.MaxValue;
             float3 bestFeet = default;
@@ -1636,8 +1661,8 @@ namespace Punchy.Debugging
                             flat = PropSupport.Sample(ref set, props, probe, 0.2f, 0.6f, out var top) && math.abs(top.Height - hit.Height) < 0.15f;
                         }
                         // (A sloping one only if nothing near has a flat one.)
-                        var distance = math.distance(xz, t.Position.xz) + (flat ? 0f : SlopedTop);
-                        if (hit.Height - feet.y >= 0.55f * maxRise && level && distance < best)
+                        var distance = math.distance(xz, t.Position.xz) + (flat || wallRequest ? 0f : SlopedTop);
+                        if (hit.Height - feet.y >= (wallRequest ? 1.2f : 0.55f * maxRise) && level && distance < best)
                         {
                             best = distance;
                             bestFeet = feet;
@@ -1661,6 +1686,13 @@ namespace Punchy.Debugging
             var rim = bestHit.Edge;
             // Over the rim, onto the top (a little further in than a mantle puts it, so it stops there).
             var over = rim + new float3(bestForward.x, 0f, bestForward.y) * 0.8f;
+            if (wallRequest)
+            {
+                StartClimbTest(t.Position, rim, rim, false, $"wall at ({V(rim.x)}, {V(rim.y)}, {V(rim.z)}), {bestHit.Height - bestFeet.y:F1} m up; player from ({V(t.Position.x)}, {V(t.Position.z)})");
+                climbWall = true;
+                return;
+            }
+            climbWall = false;
             StartClimbTest(t.Position, over, rim, true, $"ledge rim at ({V(rim.x)}, {V(rim.y)}, {V(rim.z)}), {bestHit.Height - bestFeet.y:F1} m up, " +
                                                         (best < SlopedTop ? "flat top" : "sloping top (no flat one near)"));
         }
@@ -1700,6 +1732,9 @@ namespace Punchy.Debugging
         /// </summary>
         /// <summary>Whether the climb test's player held a trunk last frame (to log each new hold once).</summary>
         static bool climbHolding;
+        /// <summary>"-place wall": a wall climber's test (up, along, down), and the last time it logged.</summary>
+        static bool wallRequest, climbWall;
+        float wallLogAt;
 
         void ClimbTest()
         {
@@ -1708,7 +1743,9 @@ namespace Punchy.Debugging
                 return;
             // (The camera stays turned to the climb, so the stick reads forward going out and back coming home.)
             PlayerInputSystem.TestCamera = math.normalizesafe(climbTarget.Value - climbHome, new float2(0f, 1f));
-            var toward = math.fmod(Time.time - climbSince, 20f) < 12f;
+            var cycle = climbWall ? 28f : 20f;
+            var phase = math.fmod(Time.time - climbSince, cycle);
+            var toward = phase < (climbWall ? 10f : 12f);
             var goal = toward ? climbTarget.Value : climbHome;
             var to = goal - player.Position.xz;
             var distance = math.length(to);
@@ -1729,12 +1766,216 @@ namespace Punchy.Debugging
             }
             else
                 climbHolding = false;
+            // A wall: the middle of the cycle, pushing right across it (the stick's right against the camera, which looks at
+            // the wall), then back down. A log line a second: where on the wall, and which way it's pushed.
+            if (climbWall && playerQuery.TryGetSingletonEntity<PlayerTag>(out var wallSelf))
+            {
+                var wm = queryWorld.EntityManager.GetComponentData<PlayerMotion>(wallSelf);
+                var look = math.normalizesafe(PlayerInputSystem.TestCamera ?? new float2(0f, 1f), new float2(0f, 1f));
+                var sideways = phase >= 10f && phase < 14f && wm.OnWall;
+                if (sideways)
+                    PlayerInputSystem.TestMove = new float2(look.y, -look.x);
+                if (Time.time >= wallLogAt)
+                {
+                    wallLogAt = Time.time + 1f;
+                    var stick = sideways ? "right" : toward ? "up" : "down";
+                    Debug.Log($"DebugControls: wall test: stick {stick}, OnWall {wm.OnWall}, grounded {wm.Grounded}, player at ({V(player.Position.x)}, {V(player.Position.y)}, {V(player.Position.z)})");
+                }
+            }
             if (toward && climbJumps && distance > 0.5f && distance < 2f && Time.time >= climbNextJump)
             {
                 PlayerInputSystem.TestJump = true;
                 climbNextJump = Time.time + 0.6f;
             }
         }
+
+
+        // ---------------------------------------------------------------- right face button checks (A-04)
+
+        /// <summary>
+        /// "-actiontest roll:Human,Dog": for each body in turn, 3.5 s: switch to it, jog ahead (speed logged), one roll
+        /// with the stick pushed and one standing (distance and length logged; with -shotdir a shot mid-roll).
+        /// "-actiontest fly:Pigeon": takes off, climbs, glides, then holds the right face button (steady descent) and the
+        /// dive button, logging height and rate each second. "-actiontest fish:Trout" (after -place clearlake): in the
+        /// lake, swims, sprints and sinks 5 s, 5 s and 3 s, logging speed and depth against the surface; the camera
+        /// pitch is held at the usual downward look so a sprint that follows it would show.
+        /// </summary>
+        static string actionTest;
+        float actionStart;
+        int actionSlot;
+        float2 actionDir;
+        float3 actionMark;
+        float actionMarkAt, actionPath, actionY0;
+        bool rolling;
+        float3 rollFrom;
+        float rollAt;
+        float actionLogAt;
+
+        void SetBody(string name)
+        {
+            var avatars = FindAnyObjectByType<Punchy.Net.NetAvatars>();
+            if (avatars == null)
+                return;
+            var index = avatars.PlayableSpecies.FindIndex(s => s != null && s.name == name);
+            if (index < 0)
+                Debug.LogWarning($"DebugControls: no playable body '{name}'");
+            else
+                avatars.SetLocalSpecies(index);
+        }
+
+        void ActionTest()
+        {
+            if (actionTest == null || !EnsureLocations(out var source) || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var self))
+                return;
+            var em = queryWorld.EntityManager;
+            var player = em.GetComponentData<LocalTransform>(self);
+            var motion = em.GetComponentData<PlayerMotion>(self);
+            var colon = actionTest.IndexOf(':');
+            var kind = actionTest.Substring(0, colon);
+            var bodies = actionTest.Substring(colon + 1).Split(',');
+            var t = Time.time - actionStart;
+            var pos = player.Position;
+            if (kind == "roll")
+            {
+                var slot = (int)(t / 3.5f);
+                var lt = t - slot * 3.5f;
+                if (slot >= bodies.Length)
+                {
+                    actionTest = null;
+                    PlayerInputSystem.TestMove = null;
+                    return;
+                }
+                if (slot != actionSlot)
+                {
+                    actionSlot = slot;
+                    SetBody(bodies[slot]);
+                    rolling = false;
+                    actionDir = math.normalizesafe(math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz, new float2(0f, 1f));
+                }
+                // (Jogging from 0.6 s: speed over 0.8 to 1.2 s; the roll with the stick at 1.4 s; a standing one at 2.5 s.)
+                PlayerInputSystem.TestMove = lt >= 0.6f && lt < 2.0f ? actionDir : (float2?)null;
+                if (lt >= 0.8f && lt < 0.8f + Time.deltaTime)
+                {
+                    actionMark = pos;
+                    actionMarkAt = Time.time;
+                }
+                if (lt >= 1.2f && lt < 1.2f + Time.deltaTime)
+                    Debug.Log($"DebugControls: roll test {bodies[slot]}: jog {math.distance(pos.xz, actionMark.xz) / math.max(Time.time - actionMarkAt, 0.01f):F1} m/s");
+                if (lt >= 1.4f && lt < 1.4f + Time.deltaTime || lt >= 2.5f && lt < 2.5f + Time.deltaTime)
+                    PlayerInputSystem.TestRoll = true;
+                if (shotDir != null && slot == 0 || shotDir != null && bodies[slot] == "Dog" || shotDir != null && bodies[slot] == "Lizard")
+                    if (lt >= 1.4f + 0.2f && lt < 1.4f + 0.2f + Time.deltaTime)
+                        Shot($"roll-{bodies[slot]}.png");
+                if (motion.Roll > 0f && !rolling)
+                {
+                    rolling = true;
+                    rollFrom = pos;
+                    rollAt = Time.time;
+                }
+                else if (motion.Roll <= 0f && rolling)
+                {
+                    rolling = false;
+                    Debug.Log($"DebugControls: roll test {bodies[slot]}: roll {Time.time - rollAt:F2} s, {math.distance(pos.xz, rollFrom.xz):F1} m {(PlayerInputSystem.TestMove.HasValue ? "with the stick" : "standing")}");
+                }
+                return;
+            }
+            PlayerInputSystem.TestMove = null;
+            if (kind == "fly")
+            {
+                if (actionSlot < 0)
+                {
+                    actionSlot = 0;
+                    SetBody(bodies[0]);
+                    actionDir = math.normalizesafe(math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz, new float2(0f, 1f));
+                }
+                // (Phases: 1.5-9 climbing, 9-12 gliding, 12-16 the right face button, 16-18 the dive button.)
+                if (t >= 1.5f && t < 1.5f + Time.deltaTime)
+                    PlayerInputSystem.TestJump = true;
+                if (t >= 1.5f && t < 19f)
+                    PlayerInputSystem.TestMove = actionDir;
+                PlayerInputSystem.TestClimb = t >= 1.5f && t < 9f;
+                PlayerInputSystem.TestCrouch = t >= 12f && t < 16f;
+                PlayerInputSystem.TestSprint = t >= 16f && t < 18f;
+                if (t >= actionLogAt && t > 1f)
+                {
+                    actionLogAt = t + 1f;
+                    var ground = source.SampleHeight(pos.xz);
+                    var phase = t < 9f ? "climb" : t < 12f ? "glide" : t < 16f ? "crouch" : t < 18f ? "dive" : "end";
+                    Debug.Log($"DebugControls: fly test {bodies[0]} t {t:F0} {phase}: flying {motion.Flying}, {pos.y - ground:F1} m up, rate {(pos.y - actionMark.y) / 1f:F1} m/s, airspeed {motion.Airspeed:F1}, pitch {math.degrees(motion.Pitch):F0} deg");
+                    actionMark = pos;
+                }
+                if (t > 19f)
+                {
+                    actionTest = null;
+                    PlayerInputSystem.TestClimb = PlayerInputSystem.TestCrouch = PlayerInputSystem.TestSprint = false;
+                    PlayerInputSystem.TestMove = null;
+                }
+                return;
+            }
+            if (kind == "fish")
+            {
+                if (actionSlot < 0)
+                {
+                    actionSlot = 0;
+                    SetBody(bodies[0]);
+                    actionDir = math.normalizesafe(math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz, new float2(0f, 1f));
+                    fishPhase = 0;
+                }
+                // Into the lake, 8 m out and 0.6 m under its surface, at 1.0 s.
+                if (t >= 1f && t < 1f + Time.deltaTime)
+                {
+                    var at = lastLake ?? pos.xz + actionDir * 8f;
+                    var g = source.SampleGround(at);
+                    player.Position = new float3(at.x, g.WaterSurface - 0.6f, at.y);
+                    em.SetComponentData(self, player);
+                    Debug.Log($"DebugControls: fish test: in the lake at ({at.x:F0}, {at.y:F0}), {g.WaterSurface - g.Height:F1} m deep");
+                    actionMark = player.Position;
+                    actionPath = 0f;
+                    actionMarkAt = 2f;
+                    actionY0 = g.WaterSurface;
+                }
+                var phase = t < 2f ? 0 : t < 7f ? 1 : t < 12f ? 2 : t < 15f ? 3 : 4;
+                // (A gentle nose-down while swimming, so it ends mid-depth; the sprint then has the same look-down and must hold.)
+                PlayerInputSystem.TestPitch = phase == 1 ? -0.08f : -0.25f;
+                // (Back and forth every 1.2 s, so it stays in the water; speed is the path covered.)
+                var flip = (int)(t / 1.2f) % 2 == 0 ? 1f : -1f;
+                PlayerInputSystem.TestMove = phase == 1 || phase == 2 ? actionDir * flip : (float2?)null;
+                PlayerInputSystem.TestSprint = phase == 2;
+                PlayerInputSystem.TestCrouch = phase == 3;
+                if (phase >= 1 && t > 1.1f)
+                {
+                    actionPath += math.distance(pos.xz, actionMark.xz);
+                    actionMark = pos;
+                }
+                // At each phase's end: its speed, its depth under the surface, and how that moved.
+                var ends = new[] { 2f, 7f, 12f, 15f };
+                if (phase > fishPhase)
+                {
+                    var done = fishPhase;
+                    fishPhase = phase;
+                    if (done < 1)
+                        goto next;
+                    var names = new[] { "", "swim", "sprint", "crouch" };
+                    var len = ends[done] - ends[done - 1];
+                    Debug.Log($"DebugControls: fish test {names[done]}: path speed {actionPath / math.max(len, 0.01f):F1} m/s over {len:F0} s, depth now {actionY0 - pos.y:F2} m under the surface (was {actionY0 - actionMarkY:F2}), camera pitch held at -14 deg");
+                    actionPath = 0f;
+                    actionMarkY = pos.y;
+                }
+                next:
+                if (t < 2f)
+                    actionMarkY = actionY0 - 0.6f;
+                if (t > 16f)
+                {
+                    actionTest = null;
+                    PlayerInputSystem.TestSprint = PlayerInputSystem.TestCrouch = false;
+                    PlayerInputSystem.TestMove = null;
+                    PlayerInputSystem.TestPitch = null;
+                }
+            }
+        }
+        float actionMarkY;
+        static float2? lastLake;
+        int fishPhase;
 
         static bool IsTree(ref FloraBlob flora, in TerrainSource source, int2 cell)
         {
@@ -1753,6 +1994,15 @@ namespace Punchy.Debugging
                 queryWorld.EntityManager.DestroyEntity(posed);
             posed = Entity.Null;
             liftHeight = 0f;
+            actionTest = null;
+            climbTarget = null;
+            wallRequest = false;
+            PlayerInputSystem.TestMove = null;
+            PlayerInputSystem.TestSprint = false;
+            PlayerInputSystem.TestCrouch = false;
+            PlayerInputSystem.TestClimb = false;
+            PlayerInputSystem.TestPitch = null;
+            PlayerInputSystem.TestCamera = null;
             swimSpot = null;
             poseRequest = null;
             watchSpecies = null;

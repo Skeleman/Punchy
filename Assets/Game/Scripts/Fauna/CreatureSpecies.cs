@@ -321,7 +321,9 @@ namespace Punchy.Fauna
         // A rooted creature striking at something within reach (not an idle action any species picks).
         Snap,
         // A player sitting down or lying back where they are, or on a seat (postures held until they move).
-        SitDown, LieBack
+        SitDown, LieBack,
+        // A player's roll on the ground (the right face button); a body-wide somersault, not an action's limb pose.
+        Roll
     }
 
     public enum GallopStyle : byte
