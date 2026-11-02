@@ -808,3 +808,9 @@ different files.
 - #12: NOT met. Songbird Wander/flying 0.1, 28.3, 56.7 deg/s (short samples). Yaw-rate limit and takeoff damp added.
 - #46: flat spot (-357, -47), spread 0.39 m. Weighted vs flat fled: ground 1,0,0,0 vs 0,0,0,1; 5 m 0 vs 5 once; 15 and 30 m all 0. No gain visible.
 - NEXT: #12 per-bird target-jump trace; tall garden wall and a working mid-climb shot for #33.
+
+## A-19 (2026-11-02): personality, dogs hunt hares, carry by weight, animal-behaviours e37a463 (one build)
+- #50 met: aggression is worked out from the replicated Individual. Host and client gave identical values for 10 dogs (0.130 to 0.875).
+- #7 NOT met: the hunting gate is in place (dogs at 0.6 and up hunt hares, calm dogs never do, and hares ignore calm dogs), but the run had no hares near any dog, so no chase and no Growl.
+- #16 partly met: Dog 36.4 kg carried; Human 65.2 kg too heavy. Child 23.6 kg passes the weight check, but the spawned wild child fled.
+- NEXT: find where the spawned rabbits go in the meadow run, then a dog-chase plus Growl shot; carry a tame or village child.

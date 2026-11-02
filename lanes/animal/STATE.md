@@ -1,7 +1,16 @@
-# Animal lane: state (2026-11-02, after batch A-18)
+# Animal lane: state (2026-11-02, after batch A-19)
 
-Worktree `Punchy` (animal lane only). `animal-behaviours` = origin b549d00 (A-18).
-Builds/Windows is the A-18 build. Editor open on port 7800; no Punchy.exe of ours running.
+Worktree `Punchy` (animal lane only). `animal-behaviours` = origin e37a463 (A-19).
+Builds/Windows is the A-19 build. Editor open on port 7800; no Punchy.exe of ours running.
+
+## A-19 (artefacts PunchyMilestones/animal/a19/)
+- #50 met: CreaturePersonality (Aggression) is worked out from the replicated Individual. Host and client logged the
+  same values for all 10 dogs (`-personalitylog Dog`).
+- #7 NOT met: dogs at aggression 0.6 and up hunt Rabbit and the hares, but no dog saw a live hare in the 40 s meadow
+  run ("prey none", even though 8 Rabbits were spawned), so no chase and no Growl. Find out where the spawned
+  rabbits go.
+- #16 partly met: weights in kg in all 113 species, CarryCapacity 40 kg. Dog 36.4 kg was held; adult Human 65.2 kg
+  was too heavy. HumanChild 23.6 kg passed the weight check, but the spawned (wild) child fled, so no pick-up.
 
 ## A-18 (artefacts PunchyMilestones/animal/a18/)
 - #43: close calls (within 6 m) still play but spend the budget (debt down to 10). Herd test 73 calls in 2 min =
@@ -28,9 +37,9 @@ Builds/Windows is the A-18 build. Editor open on port 7800; no Punchy.exe of our
 
 ## Open
 - #12: numbers in (A-16); Zach's look. #33: sideways still 0 m/s on stick right.
-- #7 Growl: design question above. #6, #43, #49: Zach's look.
+- #7: see A-19. #6, #43, #49: Zach's look.
 - Dormouse Climb 11-70 deg/s, probably round a trunk; secondary.
-- #16 carrying large animals. #10 new species (needs design).
+- #10 new species (needs design).
 - Animals still flee a flyer high above (confirm with Zach before filing more).
 
 ## Test notes
