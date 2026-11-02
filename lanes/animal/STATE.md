@@ -1,7 +1,16 @@
-# Animal lane: state (2026-11-02, after batch A-19)
+# Animal lane: state (2026-11-02, after batch A-20)
 
-Worktree `Punchy` (animal lane only). `animal-behaviours` = origin e37a463 (A-19).
-Builds/Windows is the A-19 build. Editor open on port 7800; no Punchy.exe of ours running.
+Worktree `Punchy` (animal lane only). `animal-behaviours` = origin e2eda9a (A-20).
+Builds/Windows is the A-20 build. Editor open on port 7800; no Punchy.exe of ours running.
+
+## A-20 (artefacts PunchyMilestones/animal/a20/)
+- #7 met in the build: dogs had no prey because the Resources Dog's Hunts pointed at Resources copies of the hares
+  (reference match). FaunaDirector.Lists now matches by name. Dog 0.60 stalked a hare and Growl (52) played at 7 m;
+  a dog at 0.68 ate a rabbit. Calm dogs (0.49 at 4.7 m, 0.31 at 5.1 m) stayed in Play.
+- #7 side shot weak: -watch Dog:Hunt shows the dog side-on with no hare in frame; -huntside 6 locked onto a Wolf.
+- #16 NOT met in the build: village children (21.8/17.0 kg, tame, leash 68 m) walked off on all 3 carries. Held fine
+  in the editor (19.6 kg, Carry pose). Likely the 25% walk-off for tame non-friendly creatures in Interactions.Apply
+  (seeded from s.Seed, so the same child always refuses). Next: calm flag on InteractionRequest (Apply is Burst).
 
 ## A-19 (artefacts PunchyMilestones/animal/a19/)
 - #50 met: CreaturePersonality (Aggression) is worked out from the replicated Individual. Host and client logged the
@@ -25,19 +34,13 @@ Builds/Windows is the A-19 build. Editor open on port 7800; no Punchy.exe of our
   dogs, so Flee only comes from a Startle (Bolt). Needs a design call (dogs chase rabbits?).
 - #48 met: client sees the host's Human upside down mid-somersault (client/remoteroll-800.png).
 
-## A-15 (earlier): #33 Lizard mid-climb on barn face (open for Zach); #7 Hiss heard.
-
 ## Unverified (merged anyway; Zach's check in the build)
 - #41 (A-10c, ae5b491): head glow fixed; host-to-client lunge not shown. Plant shove never landed in a test.
 - #8 Z-52: live folk lines seen only twice.
 
-## A-09 done
-- #40 Dunes colossus: seed 1337 at (1780, 12.7, -1973), 67 m. Town distance not checked. GPU ms unavailable.
-- #46 needs flat ground (a sand flat or lake shore) and one build to settle.
-
 ## Open
 - #12: numbers in (A-16); Zach's look. #33: sideways still 0 m/s on stick right.
-- #7: see A-19. #6, #43, #49: Zach's look.
+- #7: side-on dog-and-hare shot; #16: calm child carry in the build (see A-20). #6, #43, #49: Zach's look.
 - Dormouse Climb 11-70 deg/s, probably round a trunk; secondary.
 - #10 new species (needs design).
 - Animals still flee a flyer high above (confirm with Zach before filing more).

@@ -2,6 +2,16 @@
 
 Newest first.
 
+## 2026-11-02 batch A-20: built dogs see hares and growl; calm child carry still fails in the build
+- DONE: #7 dogs in a built player now hunt hares: species prey matched by name, not object (Resources copies broke it) (animal-behaviours e2eda9a)
+- NOT DONE: #7 side-on chase shot with the hare in frame: -huntside 6 caught a Wolf; the dog shot has no hare
+- NOT DONE: #16 village children (tame, not fleeing) walked off on all 3 build carries; held in Carry pose in the editor only. Likely the 25% tame walk-off in Interactions.Apply
+- Checks: compile clean; 1 build (Succeeded). Build log: Dog aggression 0.60 Hunt, "CreatureAudio: voice Growl (52)" at 7.0 m; Dog 0.68 pounced and ate; calm Dog 0.49 at 4.7 m in Play, 0.31 at 5.1 m in Play. Carry: 21.8 kg tame (leash 68 m) child ended Wander, held False. 0 exceptions both runs. No Punchy.exe left
+- Shots: PunchyMilestones/animal/a20/watchhunt-800.png (white dog side-on mid-hunt in the meadow, hare out of frame); a20/chase-800.png (dog stalking side-on, HUD on, no hare); a20/chase2-800.png (huntside on a wolf, not reviewed)
+- Learned: docs/agents/fauna.md (match species by name); lanes/animal/TESTING.md (-shotonhunt ends the line)
+- NEXT: #16 calm test flag on InteractionRequest (or no walk-off for folk children) plus one build; #7 a hare-only meadow run so huntside picks a dog
+- Budget: ~62 calls, 1 build
+
 ## 2026-11-02 batch A-18: herd calls at the budget; whole wolf mid-gallop; colossus and mantrap back in solo
 - DONE: #43 calls within 6 m still play but now take their share of the budget (debt down to 10); calls the biome can't sound no longer spend it (animal-behaviours b549d00)
 - DONE: #6 hunt reshot in the open meadow (-255, 27) with -huntside 6; -huntside now counts plants between camera and hunter and takes the clearer side (same commit)

@@ -32,3 +32,4 @@ Read `lanes/shared/checks.md` first.
 - A wall climber's mid-climb shot: about 2 s after `-place wall` (the Lizard climbs 3.4 m in about 3 s).
   `-place wall:Lizard -wait 2.5` frames it from 9 m out along the rim's outward normal (28 deg view): Lizard about
   0.5 m up the barn face. A camera beside or inside the building dithers the face away (PlayerReveal).
+- `-shotonhunt` ends its line at the first sprint, so later logs on that line (`-personalitylog`) never print: put `-personalitylog Dog -watch Dog:Hunt` on its own line. Growl lines start with `CreatureAudio:`, not `DebugControls:`. `-huntside` takes the first land hunter to sprint (it may be a wolf).
