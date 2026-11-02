@@ -512,8 +512,7 @@ namespace Punchy.Debugging
                     var bucket = c.Mode != CreatureMode.Wander ? 0 : c.Stage == 0 ? 1 : c.Stage == 1 ? (targetGap < 1.5f ? 3 : 2) : 4;
                     var key = (bodies[i].Species * 64 + (int)c.Mode) * 8 + bucket;
                     turnSum.TryGetValue(key, out var acc);
-                    turnSum[key] = new float4(acc.x + math.degrees(step), acc.y + dt, acc.z + c.Speed * dt, acc.w + math.abs(math.degrees(c.YawRate)) * dt);
-                    // One wandering songbird traced twice a second (40 lines): stage, speed, yaw rate, how far from its
+                    turnSum[key] = new float4(acc.x + math.degrees(step), acc.y + dt, acc.z + c.Speed * dt, acc.w + math.abs(math.degrees(c.YawRate)) * dt);                    // One wandering songbird traced twice a second (40 lines): stage, speed, yaw rate, how far from its
                     // target and how far above its target height.
                     if (c.Mode == CreatureMode.Wander && traceLines < 40 && (traced == Entity.Null ? c.Stage == 1 : traced == e) && now >= traceAt)
                     {
@@ -528,6 +527,7 @@ namespace Punchy.Debugging
                         }
                     }
                 }
+                FlightTrace(e, c, bodies[i].Species, step, now);
                 if (c.Speed < 0.3f)
                 {
                     w.y += step;
@@ -578,6 +578,81 @@ namespace Punchy.Debugging
             entities.Dispose();
             states.Dispose();
             bodies.Dispose();
+        }
+
+        /// <summary>Per songbird in a flight (Wander stage 1): x start time, y heading change so far (deg), z of it while
+        /// above its glide line (arrived too high, circling down), w of it within 6 m of the spot.</summary>
+        readonly System.Collections.Generic.Dictionary<Entity, float4> flights = new System.Collections.Generic.Dictionary<Entity, float4>();
+        /// <summary>Per songbird in a flight: x bearing to the spot at takeoff (deg), y distance then, z peak |yaw rate|,
+        /// w heading change in its first 3 s (the takeoff turn).</summary>
+        readonly System.Collections.Generic.Dictionary<Entity, float4> flightStart = new System.Collections.Generic.Dictionary<Entity, float4>();
+        readonly System.Collections.Generic.Dictionary<Entity, float2> flightTarget = new System.Collections.Generic.Dictionary<Entity, float2>();
+        int flightLines, songbirdSpecies = -2;
+
+        /// <summary>
+        /// #12/A-14: one line per songbird flight as it ends, splitting its heading change into the takeoff turn, the
+        /// circling while too high over the spot, and the last 6 m; plus a line for every mid-flight retarget.
+        /// </summary>
+        void FlightTrace(Entity e, in CreatureState c, int species, float step, float now)
+        {
+            if (songbirdSpecies == -2)
+            {
+                var director = FindAnyObjectByType<FaunaDirector>();
+                if (director == null || director.SpeciesCount == 0)
+                    return;
+                songbirdSpecies = -1;
+                for (int k = 0; k < director.SpeciesCount; k++)
+                    if (director.SpeciesAt(k)?.name == "Songbird")
+                        songbirdSpecies = k;
+            }
+            if (species != songbirdSpecies || flightLines >= 120)
+                return;
+            var gap = math.distance(c.Position.xz, c.Target);
+            var inFlight = c.Mode == CreatureMode.Wander && c.Stage == 1;
+            if (inFlight && !flights.ContainsKey(e))
+            {
+                var to = c.Target - c.Position.xz;
+                var bearing = math.degrees(math.atan2(math.sin(math.atan2(to.x, to.y) - c.Yaw), math.cos(math.atan2(to.x, to.y) - c.Yaw)));
+                flights[e] = new float4(now, 0f, 0f, 0f);
+                flightStart[e] = new float4(bearing, gap, 0f, 0f);
+                flightTarget[e] = c.Target;
+                return;
+            }
+            if (inFlight)
+            {
+                var f = flights[e];
+                var st = flightStart[e];
+                var deg = math.degrees(step);
+                var glide = c.TargetHeight + math.max(gap - 0.3f, 0f) * Punchy.Fauna.CreatureMotion.GlideSlope;
+                f.y += deg;
+                if (c.Position.y > glide + 0.5f && gap < 15f)
+                    f.z += deg;
+                if (gap < 6f)
+                    f.w += deg;
+                if (now - f.x < 3f)
+                    st.w += deg;
+                st.z = math.max(st.z, math.abs(math.degrees(c.YawRate)));
+                if (math.distance(flightTarget[e], c.Target) > 0.5f)
+                {
+                    flightLines++;
+                    Debug.Log($"DebugControls: flight trace: retarget {math.distance(flightTarget[e], c.Target):F1} m at {now - f.x:F1} s");
+                    flightTarget[e] = c.Target;
+                }
+                flights[e] = f;
+                flightStart[e] = st;
+            }
+            else if (flights.TryGetValue(e, out var done))
+            {
+                var st = flightStart[e];
+                var secs = math.max(now - done.x, 1e-3f);
+                flightLines++;
+                Debug.Log($"DebugControls: flight trace: {secs:F1} s, start bearing {st.x:F0} deg at {st.y:F1} m, turned {done.y:F0} deg " +
+                          $"({done.y / secs:F1} deg/s): takeoff 3 s {st.w:F0}, high over spot {done.z:F0}, last 6 m {done.w:F0}; " +
+                          $"peak yaw rate {st.z:F0} deg/s; ended {c.Mode} stage {c.Stage}");
+                flights.Remove(e);
+                flightStart.Remove(e);
+                flightTarget.Remove(e);
+            }
         }
 
         // ---------------------------------------------------------------- foot drift
@@ -927,6 +1002,9 @@ namespace Punchy.Debugging
                         Jump(1);
                     }
                     ledgeRequest = true;
+                    wallVisited.Clear();
+                    wallTallest = 0f;
+                    wallSearchAt = 0f;
                 }
                 else if (args[i] == "-place")
                 {
@@ -1540,6 +1618,15 @@ namespace Punchy.Debugging
                 shotStarted = Time.realtimeSinceStartup;
                 return;
             }
+            // (A-14 #33: a `-place wall` or ledge still being found (its props loading, or the search moving to another
+            // settlement): the wait starts once the player is placed, so the shot lands mid-climb on the side camera.)
+            if (ledgeRequest)
+            {
+                shotStarted = Time.realtimeSinceStartup;
+                shotWait = float.TryParse(Arg("-wait"), System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var placedWait) ? placedWait : 2f;
+                return;
+            }
             if (Time.realtimeSinceStartup - shotStarted < shotWait)
                 return;
             // Underground, also until the caves round the camera are built (up to 10 s more).
@@ -2092,6 +2179,9 @@ namespace Punchy.Debugging
                 }
                 return;
             }
+            // (A wall search moving on to another settlement: its props take a moment to load round the player.)
+            if (wallRequest && Time.timeSinceLevelLoad < wallSearchAt)
+                return;
             ledgeRequest = false;
             var props = em.GetBuffer<FloraSupport>(holder, true);
             var playerEntity = playerQuery.GetSingletonEntity();
@@ -2162,7 +2252,10 @@ namespace Punchy.Debugging
                         }
                         // (A sloping one only if nothing near has a flat one.)
                         var distance = math.distance(xz, t.Position.xz) + (flat ? 0f : SlopedTop);
-                        if (hit.Height - feet.y >= (wallRequest ? 1.2f : 0.55f * maxRise) && level && distance < best)
+                        if (wallRequest && flat && level)
+                            wallTallest = math.max(wallTallest, hit.Height - feet.y);
+                        // (A-14 #33: a wall climber's test wants a flat-topped wall of WallMin or more.)
+                        if (hit.Height - feet.y >= (wallRequest ? WallMin : 0.55f * maxRise) && level && (flat || !wallRequest) && distance < best)
                         {
                             best = distance;
                             bestFeet = feet;
@@ -2173,6 +2266,8 @@ namespace Punchy.Debugging
                     }
                 }
             }
+            if (best == float.MaxValue && wallRequest && NextWallSettlement(source, em, playerEntity, t))
+                return;
             if (best == float.MaxValue)
             {
                 Debug.LogWarning("DebugControls: -place ledge: no ledge in reach near");
@@ -2206,6 +2301,57 @@ namespace Punchy.Debugging
 
         /// <summary>How much further off a sloping top counts than a flat one, choosing a ledge (m).</summary>
         const float SlopedTop = 1000f;
+
+        /// <summary>The least height of a flat-topped wall for `-place wall` (m; A-14 #33: a tall garden wall, not a 1 m one).</summary>
+        const float WallMin = 2f;
+        /// <summary>`-place wall`'s search: the settlements already tried, the tallest flat-topped wall met in them, and when
+        /// the next one's props will have loaded.</summary>
+        readonly HashSet<int> wallVisited = new();
+        float wallTallest, wallSearchAt;
+
+        /// <summary>
+        /// No flat-topped wall of WallMin near: logs the tallest met here and moves the player to the nearest settlement not
+        /// yet tried, to look again once its props have loaded. False after eight settlements, or with none left.
+        /// </summary>
+        bool NextWallSettlement(in TerrainSource source, EntityManager em, Entity playerEntity, LocalTransform t)
+        {
+            if (!source.Settlements.IsCreated || wallVisited.Count >= 8)
+                return false;
+            ref var towns = ref source.Settlements.Value;
+            int here = -1, next = -1;
+            float hereDist = float.MaxValue, nextDist = float.MaxValue;
+            for (int k = 0; k < towns.Settlements.Length; k++)
+            {
+                var dist = math.distance(towns.Settlements[k].Centre, t.Position.xz);
+                if (dist < hereDist)
+                {
+                    hereDist = dist;
+                    here = k;
+                }
+            }
+            wallVisited.Add(here);
+            for (int k = 0; k < towns.Settlements.Length; k++)
+            {
+                var dist = math.distance(towns.Settlements[k].Centre, t.Position.xz);
+                if (!wallVisited.Contains(k) && dist < nextDist)
+                {
+                    nextDist = dist;
+                    next = k;
+                }
+            }
+            Debug.Log($"DebugControls: wall search: no flat-topped wall of {WallMin:F1} m at settlement {here} (tallest flat-topped {wallTallest:F1} m)" +
+                      (next >= 0 ? $"; trying settlement {next}, {nextDist:F0} m off" : "; none left"));
+            if (next < 0)
+                return false;
+            wallTallest = 0f;
+            var c = towns.Settlements[next].Centre;
+            t.Position = new float3(c.x, source.SampleHeight(c) + 0.5f, c.y);
+            em.SetComponentData(playerEntity, t);
+            em.SetComponentData(playerEntity, new PlayerMotion { Grounded = true });
+            ledgeRequest = true;
+            wallSearchAt = Time.timeSinceLevelLoad + 6f;
+            return true;
+        }
 
         /// <summary>
         /// Logs a climb test's spot, with flags for a client to watch it from the side; and with "-autowalk", starts it

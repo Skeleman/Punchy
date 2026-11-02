@@ -5167,7 +5167,8 @@ namespace Punchy.Fauna
                     return true;
                 }
                 if (HasFlora && (toSleep || rng.NextFloat() < b.Perching) &&
-                    FloraPlacement.FindTree(ref Flora.Value, Terrain, s.Position.xz + aheadDir * range * 0.5f, range * 0.6f, 3f, ref rng, out var tree))
+                    FloraPlacement.FindTree(ref Flora.Value, Terrain, s.Position.xz + aheadDir * range * 0.5f, range * 0.6f, 3f, ref rng, out var tree) &&
+                    (toSleep || AheadAndClear(s, tree.Base.xz)))
                 {
                     SetMode(ref s, CreatureMode.Wander);
                     s.Stage = 1;
@@ -5186,6 +5187,18 @@ namespace Punchy.Fauna
                 s.Target = spot;
                 s.TargetHeight = Terrain.SampleHeight(spot);
                 return true;
+            }
+
+            /// <summary>
+            /// A tree worth flying to: within 75 deg of its heading and at least 8 m off. (#12/A-14: the tree search
+            /// circle reaches behind the bird and right next to it; the per-flight trace showed those picks, at bearings
+            /// of 100-170 deg or 4-10 m away, made the long turns and the circling round the spot.)
+            /// </summary>
+            static bool AheadAndClear(in CreatureState s, float2 spot)
+            {
+                var to = spot - s.Position.xz;
+                var distance = math.length(to);
+                return distance >= 8f && math.abs(WrapAngle(math.atan2(to.x, to.y) - s.Yaw)) <= math.radians(75f);
             }
 
             /// <summary>
