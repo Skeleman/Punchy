@@ -328,7 +328,8 @@ namespace Punchy.Weather
 
         /// <summary>
         /// Test flag "-weather Storm" (DebugControls, also per shot-list line): the cells round a point cleared and a
-        /// cell of that preset forced over it, as the ] key does ("-weather Clear" only clears).
+        /// cell of that preset forced over it, as the ] key does ("-weather Clear" only clears). The forced cell ignores
+        /// the biome's weather list, so a test can show e.g. MarshFog over any river (tests only; W-13, #15).
         /// </summary>
         public bool ForceAt(string presetName, Vector2 xz)
         {
@@ -340,7 +341,7 @@ namespace Punchy.Weather
             }
             field.Clear(xz, 2000f);
             if (index > 0)
-                field.ForceCell(index, xz, 1500f);
+                field.ForceCell(index, xz, 1500f, ignoreBiome: true);
             Debug.Log($"Weather: forced {Presets[index].name} at {xz.x:F0},{xz.y:F0}");
             return true;
         }
