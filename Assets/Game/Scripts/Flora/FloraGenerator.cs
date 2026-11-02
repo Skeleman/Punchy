@@ -190,7 +190,7 @@ namespace Punchy.Flora
                 // Built things stand rigid in the wind (benches, halls, palisades swayed like plants, Z-11); a garden's
                 // plants still move, and cloth has its own motion (Flora.hlsl).
                 var flexibility = Founded(species.Form) && species.Form != FloraForm.Garden ? 0f : species.Flexibility;
-                model.Lods[lod] = builder.ToMesh($"{species.name} {variant} LOD{lod}", g.Height, g.Width, flexibility);
+                model.Lods[lod] = builder.ToMesh($"{species.name} {variant} LOD{lod}", g.Height, g.Width, flexibility, species.Form == FloraForm.Flowers);
             }
             return model;
         }

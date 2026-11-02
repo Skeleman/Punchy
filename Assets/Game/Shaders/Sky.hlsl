@@ -513,38 +513,52 @@ half3 PunchyBlueMoonFace(float3 dir, float3 m, float radius, half3 tint, out hal
     float3 v = dir - m * moonDot;
     float2 uv = float2(dot(v, right), dot(v, up)) / sin(radius);
     float z = sqrt(saturate(1 - dot(uv, uv)));
-    // Craters: in about half the cells, a bowl a third to a half of the cell across.
-    float3 cr = PunchyMoonCells(uv * 3.2 + 4.7);
-    float size = lerp(0.28, 0.48, frac(cr.z * 7.3));
-    float d = cr.x / size;
-    half crater = step(0.45, cr.z);
-    half bowl = crater * (1 - smoothstep(0.6, 1.0, d));
-    half rim = crater * smoothstep(0.75, 0.95, d) * (1 - smoothstep(0.95, 1.2, d));
-    // One single crack running across the whole face (Zach, #34): a wandering line a little off the middle, tilted,
-    // with a fine jagged wobble, and no other cracks.
-    float along = uv.x * 0.94 + uv.y * 0.34;
-    float across = uv.y * 0.94 - uv.x * 0.34;
-    float wobble = (PunchyValueNoise(float2(along * 2.6 + 3.1, 1.7)) - 0.5) * 0.34 + (PunchyValueNoise(float2(along * 9.0, 5.3)) - 0.5) * 0.06;
-    half crack = 1 - smoothstep(0.004, 0.015, abs(across - 0.08 - wobble));
-    // Maria: big dark basins with soft, ragged edges (two octaves), and a fine grain of highlands over everything.
-    float basin = PunchyValueNoise(uv * 1.6 + 7.1) * 0.65 + PunchyValueNoise(uv * 3.7 + 1.3) * 0.35;
-    half seas = 1 - 0.45 * smoothstep(0.42, 0.62, basin);
-    half grain = 0.88 + 0.24 * (PunchyValueNoise(uv * 24 + 3.3) * 0.5 + PunchyValueNoise(uv * 55 + 8.8) * 0.5);
-    // Small craters between the big ones, and a few bright rayed ones.
-    float3 sm = PunchyMoonCells(uv * 8.5 + 1.9);
-    half smallBowl = step(0.55, sm.z) * (1 - smoothstep(0.1, 0.2, sm.x));
-    half smallRim = step(0.55, sm.z) * smoothstep(0.17, 0.2, sm.x) * (1 - smoothstep(0.2, 0.27, sm.x));
-    half shade = seas * grain * (1 - 0.35 * bowl) * (1 + 0.35 * rim) * (1 - 0.3 * smallBowl) * (1 + 0.3 * smallRim) * (1 - 0.85 * crack) * (0.5 + 0.5 * z);
+    // Craters at three scales, each cell with its own size and depth, soft shaded bowls and soft rims (not discs).
+    // The bowl is a smooth dish darkening toward its centre, the rim a broad gentle ridge; a few cells stay empty.
+    half craters = 0;
+    for (int k = 0; k < 3; k++)
+    {
+        float freq = k == 0 ? 2.6 : (k == 1 ? 6.0 : 13.0);
+        float3 cr = PunchyMoonCells(uv * freq + 4.7 + k * 9.3);
+        float pick = frac(cr.z * 7.3);
+        float live = step(k == 0 ? 0.3 : 0.45, cr.z);
+        float size = lerp(0.12, 0.5, pick * pick);        // many small, a few large
+        float d = cr.x / size;
+        float depth = lerp(0.35, 1.0, frac(cr.z * 13.7)) * (k == 0 ? 0.9 : 0.7);
+        float bowlK = 1 - smoothstep(0.0, 1.0, d);
+        float rimK = exp(-pow((d - 1.05) / 0.22, 2));
+        craters += live * (-depth * 0.5 * bowlK * bowlK * (1 + 0.5 * bowlK) + depth * 0.22 * rimK);
+    }
+    // Rock: mottled, with a coarse and a fine grain; maria as broad darker patches, warped so their edges wander.
+    float2 warp = float2(PunchyValueNoise(uv * 2.1 + 17.0), PunchyValueNoise(uv * 2.1 + 41.0)) - 0.5;
+    float basin = PunchyValueNoise(uv * 1.5 + warp * 1.6 + 7.1) * 0.5 + PunchyValueNoise(uv * 3.4 + warp * 1.1 + 1.3) * 0.3
+                + PunchyValueNoise(uv * 8.0 + warp * 0.8 + 5.5) * 0.2;
+    half seas = 1 - 0.4 * smoothstep(0.38, 0.62, basin);
+    half rock = 0.72 + 0.5 * (PunchyValueNoise(uv * 6.5 + 3.3) * 0.4 + PunchyValueNoise(uv * 17 + 8.8) * 0.35 + PunchyValueNoise(uv * 48 + 2.4) * 0.25);
+    // A lit sphere: sun from the upper left, a soft terminator and a dark limb; the dark side keeps a faint glow.
+    float3 n = float3(uv, z);
+    half lit = smoothstep(-0.25, 0.55, dot(n, normalize(float3(-0.55, 0.4, 0.75))));
+    half limb = pow(saturate(z), 0.45);
+    half shade = seas * rock * saturate(1 + craters) * (0.1 + 0.9 * lit) * (0.2 + 0.8 * limb);
     return tint * cover * shade * 1.6;
 }
 
 // The blue moon's corona: a soft glow just outside its disc with a faint ring a little further out, hidden behind it.
 half3 PunchyBlueCorona(float3 dir, float radius)
 {
-    float a = sqrt(max(2 * (1 - dot(dir, _PunchyBlueMoon)), 0));   // angle to it (small angles)
-    float outside = max(a - radius, 0);
-    half glow = exp(-outside / (radius * 0.6)) * 0.55 + exp(-pow((a - radius * 1.7) / (radius * 0.15), 2)) * 0.12;
-    return half3(0.05, 0.3, 2.0) * glow * smoothstep(radius * 0.98, radius * 1.02, a);
+    float3 m = _PunchyBlueMoon;
+    float a = sqrt(max(2 * (1 - dot(dir, m)), 0));   // angle to it (small angles)
+    float outside = max(a - radius, 0) / radius;
+    // Angle round the rim; filaments are wavy streaks that reach out a little way, like prominences on the sun.
+    float3 right = normalize(cross(float3(0, 1, 0), m));
+    float3 up = cross(m, right);
+    float3 v = dir - m * dot(dir, m);
+    float th = atan2(dot(v, up), dot(v, right));
+    float wave = th * 5 + sin(outside * 9 + th * 3 + _Time.y * 0.15) * 0.8;
+    float fil = PunchyValueNoise(float2(wave, _Time.y * 0.05)) * 0.7 + PunchyValueNoise(float2(th * 17 + outside * 4, 3.1)) * 0.3;
+    half tendrils = smoothstep(0.45, 0.85, fil) * exp(-outside * 3.2) * 0.3;
+    half glow = exp(-outside * 6) * 0.07;
+    return half3(0.0, 0.03, 2.0) * (glow + tendrils) * smoothstep(0.98, 1.02, a / radius);
 }
 
 // Both moons where a direction falls on them: the big moon lit by its phase, the small blue one by the sun from
@@ -555,7 +569,7 @@ half3 PunchyMoonDisc(float3 dir, out half cover)
     half bigCover, blueCover;
     half3 moons = PunchyMoonFace(dir, _PunchyMoonDirection, 0.0172, float3(sin(a), 0.15 * sin(a), -cos(a)), half3(0.9, 0.92, 1.0), bigCover);
     // The blue moon: always full, about seven times the big moon's size, cratered and cracked (Zach, G-34).
-    moons += PunchyBlueMoonFace(dir, _PunchyBlueMoon, PunchyBlueMoonRadius, half3(0.05, 0.3, 2.2), blueCover) * (1 - bigCover);
+    moons += PunchyBlueMoonFace(dir, _PunchyBlueMoon, PunchyBlueMoonRadius, half3(0.0, 0.02, 2.4), blueCover) * (1 - bigCover);
     cover = max(bigCover, blueCover);
     return moons;
 }

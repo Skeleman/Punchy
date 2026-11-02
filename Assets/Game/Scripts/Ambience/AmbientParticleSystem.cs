@@ -115,12 +115,16 @@ namespace Punchy.Ambience
             return palette != null && palette.Biomes != null;
         }
 
+        // Bench flag: the same build without the dunes' sand puffs, to measure what they cost.
+        static readonly bool NoSand = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-nosandpuffs") >= 0;
+        static bool Skipped(AmbientParticleType t) => NoSand && t.name == "SandPuffs";
+
         void Build(BiomePalette palette, in TerrainSource source)
         {
             foreach (var biome in palette.Biomes)
                 if (biome != null)
                     foreach (var p in biome.Particles)
-                        if (p.Type != null && !types.Contains(p.Type))
+                        if (p.Type != null && !Skipped(p.Type) && !types.Contains(p.Type))
                             types.Add(p.Type);
             biomeCount = palette.Biomes.Length;
             densities = new NativeArray<float>(math.max(1, biomeCount * types.Count), Allocator.Persistent);

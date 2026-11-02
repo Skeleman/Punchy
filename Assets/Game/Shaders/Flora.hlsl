@@ -126,8 +126,11 @@ FloraVertex FloraTransform(FloraAttributes input)
     float gust = (0.6 + 0.4 * sin(phase) * sin(phase * 0.37 + 1.3)) * (0.08 + 0.92 * _PunchyWind);
     // (A door leaf's x is its distance from the hinge, not how much it bends.)
     float sway = ((int)round(input.data.y) == 12 ? 0 : input.data.x) * (0.05 + 0.045 * p.y);
+    // A bend, not a shear (#30): the vertex swings on a sphere round the plant's base, so a stem keeps its length
+    // instead of stretching as it leans.
+    float bendLen = length(p);
     p += windDir * sway * gust * 2.2;
-    p.y -= sway * gust * sway * 0.6;   // bending, not stretching
+    p *= bendLen / max(length(p), 1e-4);
     float flutter = ((int)round(input.data.y) == 12 ? 0 : max(input.data.z, 0)) * (0.15 + _PunchyWind) * 0.022 * plant.scale;
     p += n * sin(_Time.y * 7.3 + dot(input.positionOS, float3(3.1, 2.3, 4.7)) + plant.random * 20) * flutter;
     // Motions carried in the flutter channel as negatives (FloraMeshBuilder.Motion, Sway), on the shared clock: a slow
