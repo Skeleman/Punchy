@@ -1,7 +1,7 @@
-# Animal lane: state (2026-11-02, after batch A-04)
+# Animal lane: state (2026-11-02, after batch A-05)
 
-Worktree `Punchy` (animal lane only). `animal-behaviours` = origin b5e9715 (A-04: right face button, fish sprint).
-Builds/Windows is the A-04 build. Editor closed; no Punchy.exe of the lane running.
+Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 609c5e5 (A-05: ankle cap, probes).
+Builds/Windows is the A-05 build (without the #33 revert). Editor closed; no Punchy.exe of the lane running.
 
 ## Unverified (merged anyway; Zach's check in the build)
 - #48 remote view of a roll (client sees the somersault from the Pose byte): never run on a client.
@@ -16,10 +16,11 @@ Builds/Windows is the A-04 build. Editor closed; no Punchy.exe of the lane runni
 - #47: fish sprint 2.8x speed (measured 4.1 -> 9.9 m/s) and holds depth (0.78 -> 0.38 m in a 1.8 m lake).
 
 ## Open
-- #33 wall climb (Lizard): not working. `-place wall` puts a wall; the stick pushes into it but OnWall stays False.
-  No species has ClimbsAs AnySurface (Lizard.asset has no field; adding `ClimbsAs: 2` did not latch). Check
-  PropSupport / KeepOutOfPropWalls `blocked` for that wall; the player stops at x 146.0 against a wall at 145.8.
-- #11 Z-21 foot bend. #12 dormouse spins. #16 carrying large animals. #10 new species (needs design).
+- #33 wall climb (Lizard): OnWall stays False; the player stops at the wall but never latches. A-05 ruled out ClimbsWalls
+  and the prop head-height filter. Next: log `blocked`, pressing and the latch terms in PlayerMovementSystem.
+- #12 dormouse/songbird spin: A-05 spincheck run (6 each, meadow, 66 s) logged nothing; DebugControls now logs
+  "heading change" per species for Mode Wander every 30 s, but it printed none, so check Mode first.
+- #11 done (cap 38 deg, AnkleBend in CreatureAnimator). #16 carrying large animals. #10 new species (needs design).
 - Animals still flee a flyer high above (confirm with Zach before filing more).
 
 ## Test notes
@@ -29,4 +30,4 @@ Builds/Windows is the A-04 build. Editor closed; no Punchy.exe of the lane runni
 - Climb test: `-autowalk -body Monkey -place tree:Oak`.
 - Editor: `unity open .`, wait for `unity status` ready, `unity recompile`; BuildPlayer via eval using
   EditorBuildSettings.scenes (times out at 30 s but finishes: wait for a Temp file); `unity close <project path>`.
-- Artefacts: PunchyMilestones/animal/a04/ (shots1-3, run logs, shots).
+- Artefacts: PunchyMilestones/animal/a05/ (ankle-800.png, run1.log).

@@ -2,6 +2,15 @@
 
 Newest first.
 
+## 2026-11-02 batch A-05: ankle bend of long strides capped (#11); #33 and #12 not solved
+- DONE: #11 long-stride run bends the foot at most 38 deg from standing (was 42 deg at RunPush, 48 deg at RunLift) (animal-behaviours 609c5e5)
+- NOT DONE: #33 wall climb. Rerun at `-setbody Lizard -place wall -autowalk` (headless-free build): OnWall stays False, player stops against the wall (along 6.6 -> 0 m/s, vertical 0.0 m/s), so no climb speeds. Tried a taller head height in KeepOutOfPropWalls (WallReach 8 m); no change, reverted. Ruled out: ClimbsWalls (Lizard Crawls:1 gives AnySurface). Not yet checked: SlideAroundObstacles/Floor stopping the player before `blocked` is set; log blocked, the probe ray and hit collider in PlayerMovementSystem (line ~233 latch) first.
+- NOT DONE: #12 dormouse/songbird spin. `-spincheck 270,3` with 6 Songbird + 6 Dormouse at the meadow for 66 s printed no spin warning and no "heading change" line, so no cause and no before/after. The heading probe in DebugControls only counts Mode == Wander; the birds were probably never in Wander there (log the Mode histogram next).
+- Checks: compile clean / build Succeeded, 0 errors / no exceptions in run1.log / ankle numbers are analytic from the HumanLeg keys, not measured in game; no before shot.
+- Shots: PunchyMilestones/animal/a05/ankle-800.png (Human sprinting, side watch, with the cap)
+- Learned: lanes/animal/STATE.md
+- NEXT: #33 with probe logging first (20 calls max), then #12 with a Mode histogram; #16.
+
 ## 2026-11-02 A-04: right face button (#48) and fish sprint (#47) done; #33 wall climb still not working
 - DONE: #48 B/Circle rolls on the ground (a somersault, 0.53 s), descends on the wing (glide at -29 deg), sinks in water; menus still cancel on B (animal-behaviours b5e9715, pushed)
 - DONE: #47 fish sprint 2.4x the swim and holds depth (animal-behaviours b5e9715)
