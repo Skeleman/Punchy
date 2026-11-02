@@ -3,11 +3,13 @@
 Worktree `Punchy` (animal lane only). `animal-behaviours` = origin a07d0cb (A-11: ocotillo mimic arms-as-legs).
 Builds/Windows is the A-11 build (adds `-mimicshot rest|run`, used with `-spawn OcotilloMimic:1 -place tree:Ocotillo`). Editor open on port 7800; no Punchy.exe running.
 
-## A-11 done (#17, open for Zach's look)
-- OcotilloMimic: no base legs; 8 arms (4 mirrored pairs, OcotilloCane now Role Leg) are the legs. Disguised blends arm keys by Curl: Idle = arms up, WalkReach/Push = spider stance on the tips (CreatureAnimator, MeasureGait uses WalkReach for stand height, IK scaled by 1-Curl).
-- Probe: startle 11.5 m, fold 0.55 s, run 15.8 m/s (RunSpeed 5 x scale ~3.1; card says scuttle: consider 3.2 = 10 m/s), settle not measured (probe ended at the shot; Curl rises 0.6/s so about 1.6 s).
-- Rest side shot: mimic is a denser, straighter bunch than the real ocotillo (arms 14 deg off vertical, real ones splay wider). Try Direction x -68 and 5-6 arms. Tree height reads 0 in the flora blob, so the rest camera framed low.
-- Spawn rule unchanged (FaunaDirector.TrySpawn Sonoran 0.2/ha). Artefacts: PunchyMilestones/animal/a11/.
+## A-11b done (#17, open for Zach's look; animal-behaviours 8a3349e, Builds/Windows is this build)
+- Mimic: 10 arms (5 mirrored pairs), splay 18-28 deg mean 23 (real recipe: 9-18 stems, 4-28 deg mean 16, 2.5-5 m). Mimic ~3 m.
+- FleeDistance 6 -> 2.4: startle at 5.2 m (target 4-5; try 2.0 for 4). Fold 0.55 s unchanged. RunSpeed 5 -> 3: max 8.99 m/s (target 9-10; 3.2 = 9.6).
+- Settle: Rest from curl 0 to 0.95 takes 4.97 s (curl eases exponentially at 0.6/s; the arms read up well before that).
+- `-mimicshot rest|run|settle` (rest uses a fixed 3.5 m when the flora blob height reads 0). Real-vs-mimic numbers are logged at each start.
+- Rest shot is far (camera 13 m back): both plants read, but small. Run shot: unclear which plant is the mimic.
+- Spawn rule unchanged (FaunaDirector.TrySpawn Sonoran 0.2/ha). Artefacts: PunchyMilestones/animal/a11b/.
 
 ## Unverified (merged anyway; Zach's check in the build)
 - #41 (A-10c, ae5b491): head glow fixed (tooth-tip zero normals 1008/864 -> 0; now normalizesafe). Hit check 7/7 at 0.8 m (A-10b). Shots a10c show the head open, no glow. Host-to-client lunge not shown (remote player not a target).

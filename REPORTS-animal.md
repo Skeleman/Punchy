@@ -739,3 +739,9 @@ different files.
 - 60 s test (`-mantraptest`): plant 0 tracked the whole time (3264 frames); 4 lunges (1 Deer walk-past, 3 on the player). Animal hit: shoved and fled. Player hit NOT confirmed: `-autowalk` moved the player past 1.6 m before the snap landed (3 of 3 logged "out of reach"; head tip 1.2-1.6 m from target).
 - Shots in PunchyMilestones/animal/a10: plant-lunge shows the plant (leaves, stalk) but the head is hidden in foliage; plant-side is badly framed (fog, plant mostly out of frame). Need a reframe.
 - NEXT: hit test against the target's position at the strike start (reach 2.4 m), not at the snap; frame on the head; check client view.
+
+## A-11b (2026-11-02): ocotillo mimic polish, #17
+- animal-behaviours 8a3349e. Mimic now 10 arms (5 pairs), splay 18-28 deg (mean 23) vs real recipe 9-18 stems, 4-28 deg (mean 16), 2.5-5 m.
+- Startle 11.5 -> 5.2 m (FleeDistance 2.4); fold 0.55 s; run max 15.8 -> 8.99 m/s (RunSpeed 3); settle (Rest, curl 0 to 0.95) 4.97 s.
+- Shots in PunchyMilestones/animal/a11b: rest (mimic and real side by side, full height, camera far), run (mid-flee), settle.
+- NEXT: Zach's look; tune FleeDistance 2.0 / RunSpeed 3.2 if wanted; closer rest camera.
