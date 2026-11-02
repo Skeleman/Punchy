@@ -35,6 +35,8 @@ Released: v0.11.0 = cand/v0.11 4eea658 (world b39522b + animal c810406).
 - Builds/ was wiped by mistake on 2026-11-02 and partly rebuilt; see FILES.md for what exists and what to rebuild.
 
 ## Likely next jobs
+- 2026-11-02 afternoon items 7-9 done (BENCH-REPORTS): bench stops fixed for v2 (b/bench-runner c7018e0); main v2 cave
+  CPU 1.8x v1 (camera LateUpdate +1.8 ms), v2 ready 9.6-10.1 s; review of bat folk and folk chats. Item 10 waits on W-22.
 - Item 6 done: v2 cave stop CreatureRenderSystem 10.5 ms main thread, v2 townwalk misses the town (BENCH-REPORTS).
 - Re-profile townwalk when the animal lane fixes TraceSystem; #48 remote flying/swimming descent if asked.
 

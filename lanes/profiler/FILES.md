@@ -8,7 +8,7 @@
 ## Paths
 - Main checkout `Projects/Punchy`: builds happen there in detached HEAD, then it returns to `b/weather-mapjob`
   (lib.sh HOME_BRANCH). Untracked `.vsconfig` and `Assets/Resources.meta` aren't ours; leave them.
-- Runner: worktree `Projects/Punchy-wt`, branch `b/bench-runner` (db3c1f2, adds `-benchday <day type>`), in
+- Runner: worktree `Projects/Punchy-wt`, branch `b/bench-runner` (c7018e0: stops work on island v2 too), in
   `Tools/bench/`:
   - `bench.sh` (smoke | ab | baseline | profile | profdiff | bisect | mp);
   - `lib.sh` (build, run, runcsv, profile, compare, table, fixed, dialogs, keepawake);
@@ -23,7 +23,7 @@
 - 2026-11-02 a cleanup removed every build folder by mistake (a keep-list filter that never matched); rebuilt the
   same morning: Bench-4eea658 / Profile-4eea658 (v0.11.0), Bench-bc89606 (world-features before the cave-chunk,
   worm and blocked work; the A side of many checks), Bench-8d83102, Bench-b5e9715 / Profile-b5e9715, Bench-e3ab4af /
-  Profile-e3ab4af. `Builds/Bench` holds Bench-4eea658.
+  Profile-e3ab4af, then Bench-0cc3ed7 / Profile-0cc3ed7 (main) and Profile-ed767e0 (A-26).
 - Gone, rebuild on demand (`build <sha> Build Bench-<sha>`, ~5-7 min each): 21f1193, a66c520, b870008 (Z-30 grain),
   3976d17 (32-slot worm marks), 247c690, 256e6a9, d60e085, 2de3029, b70dbfa, 0c637a9, 3d1893d, 793f103; dev builds
   3481353 / 74d8148 (Brain.Blocked markers, on wip/brain-blocked*). No `Play` or release zips: v0.11.0 and earlier are

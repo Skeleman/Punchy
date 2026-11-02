@@ -2,6 +2,104 @@
 
 Newest first.
 
+## 2026-11-02: queue item 9, review of BatFolkBaking/BatFolkMeshes (world fb047dc) and folk chats (animal A-26 ed767e0): nothing urgent, two things that grow with creature count
+Read-only review, plus a townwalk cap-60 dev profile of main 0cc3ed7 (before A-26) vs ed767e0 to size them.
+**Profile:** frame median 16.69 vs 16.68 ms, p95 18.97 vs 18.88; spikes 3 vs 1. No cost visible in the frame.
+
+**Bat folk (world)**
+- `BatFolkBaking.Build` is bake-time only. Attempts are bounded: 60 hut tries, 80 prop tries and a 200-step ceiling
+  march per site. On v2 it runs inside the launch bake (`BuildPlaces`, main thread); with 1 site that's a few
+  thousand CaveDistance samples, a small part of the 4.4 s v2 bake.
+- `BatFolkMeshes` builds every site's two meshes on the first drawn frame, on the main thread, with managed Lists.
+  With 1-2 sites and 3-6 huts each it's small. It would be a first-frame hitch only if sites grow to dozens.
+  - Build also loops all props for each site (sites × props).
+  - Fine now. If sites grow: build only sites within LoadRadius, or group props by site at bake.
+- Per frame `DrawBatFolk` does a distance check per site and two `Graphics.RenderMesh` calls. No allocation.
+- The meshes are rebuilt when TerrainSource changes (`Release` → `ReleaseBatFolk`), so v2's launch rebake doesn't
+  leave v1 meshes behind.
+- Small: they cast shadows (`ShadowCastingMode.On`). Underground the only lights are the lantern and glow lights
+  (no shadowing sun), so they add shadow-caster draws to the sun's cascades for nothing. `Off` saves 2 draws per
+  site in range.
+
+**Folk chats (animal A-26)**
+- `FolkTalkSystem` (main thread, managed) now copies the CreatureState, CreatureBody and Entity arrays of *every*
+  creature twice a frame: once in the new `WatchChats` and once in `OnUpdate`.
+  - Mean 0.046 → 0.068 ms at townwalk; worst frame 0.34 → 2.83 ms (one frame, likely the first
+    `FindAnyObjectByType` or a FolkChat log line).
+  - It grows linearly with every creature loaded, not only folk.
+  - Suggest one copy shared by both passes, or a query limited to upright folk. Better still, have the brain flag
+    talkers so the main thread reads only those.
+  - `WatchChats` also runs when `Quiet` or with no archive, before the early return.
+- Brain chat code: `StartChat` runs a 3×3-cell grid search for "someone who stopped for me" (kind 0) with
+  probability 0.3 *every frame* for every ChatFree folk (wandering townsfolk qualify most of the day). That's most
+  of the cost.
+  - Workers BrainJob mean 0.87 → 0.90 ms (+3%).
+  - Cheaper: let the asker set a flag on the asked, or look only when a neighbour's ChatRole changed.
+  - `ChatsNear` is an O(all creatures) scan, but only after the rng gate and a successful FindChat, so rare in
+    play. Under `-chattest` (rate ×40) it's O(N²) per frame: fine for tests, but don't read tests' frame times.
+- GC: chat-end log lines and `FolkTalkLabels.OnGUI` (a `new GUIContent` per line per repaint; IMGUI itself
+  allocates). OnGUI is now enabled whenever a "..." bubble is within 30 m, which is often in towns. Small, but it
+  is per-frame GC in towns.
+- Also seen: `TraceSystem` (main) mean 0.91 → 1.19 ms in this pair. It isn't chat code. Folk standing still to
+  talk may leave more traces in view, and townwalk Brain/Trace numbers swing with where animals stand, so take this
+  one loosely. TraceSystem was already flagged on #6 (0.05 → 0.40 median since Z-50).
+- Cost (items 7-9, with the Builds/ cleanup and rebuild): 69 calls, peak 340k context, $10.4.
+
+## 2026-11-02: queue item 8, smoke main 0cc3ed7 `-island v2` vs v1 (same build, fixed stops): cave CPU 1.8x (FAIL, was 2.6x); load 9.6-10.1 s (borderline PASS)
+Bench-0cc3ed7 with the item 7 stops (b/bench-runner c7018e0). Townwalk and glide at cap 60, then townwalk, glide,
+cave and caveapproach uncapped; 2 rounds ABBA. 0 exceptions, 0 "Mesh bounds" in all 8 logs. No dialogs.
+
+| stop (mean of 2) | v1 avg / 1% low / cpu / gpu | v2 avg / 1% low / cpu / gpu |
+|---|---|---|
+| townwalk cap 60 | 59.3 / 43.2 / 16.9 / 8.6 | 58.7 / 37.8 / 17.1 / 8.8 |
+| glide cap 60 | 56.2 / 29.0 / 17.8 / 9.9 | 58.5 / 36.9 / 17.1 / 9.2 |
+| townwalk uncapped | 85.0 / 50.7 / 11.8 / 8.1 | 87.5 / 44.0 / 11.4 / 8.0 |
+| glide uncapped | 47.0 / 19.1 / 21.3 / 12.3 (see below) | 79.0 / 41.5 / 12.7 / 8.0 |
+| cave uncapped | 172 / 109 / **5.8** / 1.5 | 96 / 39.3 / **10.5** / 2.4 |
+| caveapproach uncapped | 91.8 / 41.0 / 10.9 / 7.1 | 66.8 / 31.6 / 14.9 / 10.8 |
+
+- **Cave CPU: v2 10.5 ms vs v1 5.8 = 1.8x, over the 1.3x limit.** Item 6 (e3ab4af) was 19.7 vs 7.7 = 2.6x.
+  - A-22's Burst cave cull worked: `CreatureRenderSystem` is no longer in the v2 cave's growth list.
+  - Dev profile, cave uncapped (median frame 7.2 → 11.3 ms), what grew on v2:
+    - `ThirdPersonCamera.LateUpdate` +1.8 ms (1.1 → 3.0, main thread): the biggest single item, also in item 6.
+      The v2 chamber is tighter, so camera collision probes are the likely cause; for the world/camera owner.
+    - BrainJob workers +1.4 ms (0.25 → 1.7) and main +0.3: more animals near this cave on v2.
+    - Cave meshing still running during the measure (ColumnJob, FieldJob, MeshJob 0 → 0.7-0.8 ms each on workers):
+      v2's cave chunks are still streaming 10 s after placement (180 chunks vs 83 on v1).
+    - `AmbienceSystem.Update` +0.3, `CaveSystem.Update` +0.25, `InteractionInputSystem:ReachJob` +0.24.
+- **Load:** the game's own clock reads "[island] v2 ready at" 9.6, 9.7, 9.7 and 10.1 s (bake 4.4-4.7 s: generate
+  ~1.2, places ~3.3). That's under 10 s in 3 of 4 runs. The bench's "world ready" (streaming settled) is 14.5 s vs
+  8.7 s on v1. Pass on the stated measure, narrowly.
+- Same island checks: v2 127 landmarks, hash 831FF2EE. v1 stops at the same spots as item 6.
+- Bat folk on v2: "[batfolk] caves 3, picked 1 (of 37 caves)".
+- **v1 glide uncapped 47 fps in the smoke is void:** both rounds were slow (CPU and GPU both up). Two checks don't
+  reproduce it:
+  - Dev profile: median frame 11.6 vs 11.3 ms on e3ab4af.
+  - ABBA rerun of the same Bench builds: 0cc3ed7 82.6/82.2 fps (1% low 36.2/35.1), e3ab4af 84.0/82.9 (35.1/36.5).
+  - Read it as a laptop state during those two runs, not the code. v2's interleaved glide runs were fine, so the
+    v1 vs v2 glide row above isn't a v2 win either.
+  - Mantrap.Update (+0.19 ms main) is new on main's glide.
+- Shots: `shots/q23/bench-stops-v1-top-v2-bottom-0cc3ed7.jpg` (item 7's sheet; the same build and stops).
+- Cost: see item 9's line.
+
+## 2026-11-02: queue item 7, bench stops on island v2: fixed on b/bench-runner c7018e0; every place stop lands right on v1 and v2
+- **town/townwalk:** the route matched the first place whose name *contains* "HumanVillage". On v1 that is
+  "Nearest settlement (HumanVillage)"; on v2 the nearest settlement is a DwarfMiningCamp, so it fell through to
+  "Sonoran: HumanVillage". Now: "Nearest settlement (HumanVillage)" if present, else the HumanVillage landmark entry
+  by exact name. v1 is unchanged (town 136,-475, townwalk ends 366,-406). On v2 town is a desert human village
+  (3066,-913; huts in the shot).
+- **Correction to item 6:** v2's townwalk started at a village then too. The walk is 180 m (30 s at 6 m/s), so it
+  ends past the edge on both islands (the v1 end shot is open grass too). I judged item 6 from the end shot.
+- **lake:** the fixed spot (1328,1730) is from v1. It is now used only where the point 40 m ahead is water,
+  else the auto-found "Lake shore" (v2: 88,-247, over the spawn lake). v1 still uses the fixed spot.
+- **cave/caveapproach:** a real cave on v2 (surface hidden 1.00, 180 cave chunks, lantern lit; the approach is a
+  surface walk 100 m out). No change needed.
+- forest, nightgrove, storm, river and stormshore land in their biome or feature on both islands. On v2,
+  stormshore shares lake's "Lake shore" spot, as on any island whose nearest lake is the spawn lake.
+- 0 exceptions, 0 "Mesh bounds", no dialogs. Shots: `shots/q23/bench-stops-v1-top-v2-bottom-0cc3ed7.jpg` (10 stops
+  each, HUD on).
+- Cost: see item 9's line.
+
 ## 2026-11-02: queue item 6, world-features e3ab4af `-island v2` vs default (same build): v2 cave stop 2.4x slower on the CPU (CreatureRenderSystem 10.5 ms); townwalk doesn't reach a town on v2
 Same exe, `-island v2` or not. Townwalk and glide at cap 60, then townwalk, cave, caveapproach and glide uncapped; 2
 rounds, alternating which island went first. 0 exceptions, 0 "Mesh bounds" in all 8 logs. No dialogs.
