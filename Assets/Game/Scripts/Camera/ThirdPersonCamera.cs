@@ -168,7 +168,7 @@ namespace Punchy.CameraRig
 
         void HandleCursor()
         {
-            // A panel (F2 multiplayer, F5 graphics) needs the mouse; take it back once it closes.
+            // The main menu (Esc or Start) needs the mouse; take it back once it closes.
             if (Punchy.UI.Overlay.AnyOpen)
             {
                 if (Cursor.lockState == CursorLockMode.Locked)
@@ -181,9 +181,9 @@ namespace Punchy.CameraRig
                 menuWasOpen = false;
                 SetCursorCaptured(true);
             }
-            if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
-                SetCursorCaptured(false);
-            else if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+            // (Esc opens the menu, which frees the cursor above. A click takes it back after something else freed it,
+            // such as switching windows.)
+            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
                 SetCursorCaptured(true);
         }
 

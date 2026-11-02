@@ -410,9 +410,45 @@ namespace Punchy.Terrain
             Comparer<(float distance, Vector4 key, Vector4 position, Vector4 color)>.Create((a, b) => a.distance.CompareTo(b.distance));
         static readonly Comparer<(float distance, int pool)> PoolsByDistance =
             Comparer<(float distance, int pool)>.Create((a, b) => a.distance.CompareTo(b.distance));
-        static Mesh lavaPoolMesh, waterPoolMesh;
+        static Mesh lavaPoolMesh, waterPoolMesh, whitePoolMesh;
         /// <summary>Cave water's look in the water vertex layout: dark, clear and cold (rgb, murk).</summary>
         static readonly float4 CaveWater = new float4(0.1f, 0.28f, 0.3f, 0.1f);
+        /// <summary>
+        /// White pool water (bat folk caves, #35): milky and pale. Murk stays low (more than about 0.3 and
+        /// the shader's opacity turns the pool into a hard-edged slab that reads as snow), so the rim still fades into the
+        /// bed and it lies still, well under the thick-and-oily threshold (0.55); the whiteness comes from the colour and a
+        /// self-glow, which also shows it where nobody carries a light. The glow's hue swirl only trades blue for green, which stays near white.
+        /// W-17: toned down (the pool read as a milky blob); the shader also darkens and thins the middle (_SoftRim).
+        /// </summary>
+        static readonly float4 WhitePoolWater = new float4(0.72f, 0.8f, 0.82f, 0.18f);
+        const float WhitePoolGlow = 0.12f;
+        /// <summary>_SoftRim = 1 for white pool draws (the water shader fades them out towards the disc's rim).</summary>
+        static MaterialPropertyBlock softRimProps;
+        static MaterialPropertyBlock SoftRimProps
+        {
+            get
+            {
+                if (softRimProps == null)
+                {
+                    softRimProps = new MaterialPropertyBlock();
+                    softRimProps.SetFloat("_SoftRim", 1f);
+                }
+                return softRimProps;
+            }
+        }
+        /// <summary>
+        /// "-whitepools": every cave water pool is drawn as white pool water (a debug override: W-18 bat folk chambers
+        /// carry their own white pools in TerrainSource.BatFolk). Drawing only, so it changes nothing that is baked.
+        /// </summary>
+        public static bool WhitePools = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-whitepools") >= 0;
+        /// <summary>Switches the white pool look at runtime (editor previews): the pool meshes rebuild on the next draw.</summary>
+        public static void SetWhitePools(bool on)
+        {
+            WhitePools = on;
+            lavaPoolMesh = null;
+            waterPoolMesh = null;
+            whitePoolMesh = null;
+        }
         // Streams run shallow over dark rock: darker and greener than the pools, a little murkier.
         static readonly float4 CaveStreamWater = new float4(0.04f, 0.13f, 0.12f, 0.15f);
         /// <summary>One mesh per stream, built when the world's caves are first drawn (streams are few and fixed).</summary>
@@ -435,12 +471,15 @@ namespace Punchy.Terrain
                     nearPools.Add((d, i));
             }
             var water = UnderRockWater(configQuery.IsEmpty ? null : configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value);
+            // W-18: bat folk chambers' pools are white (per pool, from the bat folk stage); -whitepools turns them all white.
+            var batFolk = source.BatFolk.IsCreated && source.BatFolk.Value.WhitePools.Length == set.Pools.Length;
             if (nearPools.Count > 0)
             {
                 if (lavaPoolMesh == null)
                 {
                     lavaPoolMesh = MakePoolMesh(new float4(1f, 0.33f, 0.05f, 0.2f), 1f);
                     waterPoolMesh = MakePoolMesh(CaveWater, 0f);
+                    whitePoolMesh = MakePoolMesh(WhitePoolWater, new float2(WhitePoolGlow, 0f));
                 }
                 nearPools.Sort(PoolsByDistance);
                 foreach (var (_, i) in nearPools)
@@ -454,7 +493,11 @@ namespace Punchy.Terrain
                             shadowCastingMode = ShadowCastingMode.Off,
                             receiveShadows = false
                         };
-                        var mesh = pool.Lava > 0.5f ? lavaPoolMesh : waterPoolMesh;
+                        // White pools fade out towards their rim (W-16: the edge read as a hard glowing disc).
+                        var white = pool.Lava <= 0.5f && (WhitePools || (batFolk && source.BatFolk.Value.WhitePools[i] != 0));
+                        if (white)
+                            rp.matProps = SoftRimProps;
+                        var mesh = pool.Lava > 0.5f ? lavaPoolMesh : white ? whitePoolMesh : waterPoolMesh;
                         Graphics.RenderMesh(rp, mesh, 0, Matrix4x4.TRS(pool.Centre, Quaternion.identity, new Vector3(pool.Radius, 1f, pool.Radius)));
                     }
                     if (pool.Lava > 0.5f)

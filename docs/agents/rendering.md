@@ -28,3 +28,6 @@ Read before changing any shader, material or render setting.
 - HLSL `&&` doesn't short-circuit.
 - Unity fixes a global array's length the first time it's set in a session; the editor needs a restart after a slot-count change.
 - A white bloom blob on a procedural mesh is usually a zero normal: `Vector3.normalized` returns zero below magnitude 1e-5 (tiny triangles, e.g. 4 mm tooth tips), the shader normalizes it to NaN and bloom spreads it. Use `math.normalizesafe` with a fallback (A-10c, #41).
+- Blue moon (Sky.hlsl PunchyBlueMoonFace): radius 0.13 rad, one thin wandering crack, maria + craters at two scales;
+  its disc/corona tint must stay strongly blue (b channel > 2). Pin with `-bluemoondays 0`, then `-time 21` puts it
+  43 degrees up in the east, `-time 19` low in the east (compute with DayNightCycle.Evaluate).

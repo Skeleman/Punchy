@@ -19,7 +19,7 @@ namespace Punchy.Net
     {
         /// <summary>The current game's join code while hosting online (null otherwise).</summary>
         public static string JoinCode { get; private set; }
-        /// <summary>What's happening, or what went wrong, for the F2 panel.</summary>
+        /// <summary>What's happening, or what went wrong, for the Multiplayer tab.</summary>
         public static string Status { get; private set; }
         public static bool Busy { get; private set; }
 

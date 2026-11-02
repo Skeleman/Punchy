@@ -24,6 +24,8 @@ namespace Punchy.Terrain
         public float Pebbles;
         /// <summary>Rock strata amount (TerrainSurface.Strata).</summary>
         public float Strata;
+        /// <summary>Cobble paving amount (TerrainSurface.Paving).</summary>
+        public float Paving;
 
         public static SurfaceProps Lerp(in SurfaceProps a, in SurfaceProps b, float t) => new SurfaceProps
         {
@@ -35,7 +37,8 @@ namespace Punchy.Terrain
             Snow = math.lerp(a.Snow, b.Snow, t),
             Bump = math.lerp(a.Bump, b.Bump, t),
             Pebbles = math.lerp(a.Pebbles, b.Pebbles, t),
-            Strata = math.lerp(a.Strata, b.Strata, t)
+            Strata = math.lerp(a.Strata, b.Strata, t),
+            Paving = math.lerp(a.Paving, b.Paving, t)
         };
 
         public void AddScaled(in SurfaceProps s, float w)
@@ -49,6 +52,7 @@ namespace Punchy.Terrain
             Bump += s.Bump * w;
             Pebbles += s.Pebbles * w;
             Strata += s.Strata * w;
+            Paving += s.Paving * w;
         }
     }
 
@@ -90,6 +94,7 @@ namespace Punchy.Terrain
         public TerrainShapeKind Shape;
         public float Relief;
         public float FeatureFrequency;
+        public float PondDepth, PondFrequency, PondCover;
         public int Octaves;
         public float Sharpness;
         public int TerraceSteps;
@@ -894,6 +899,36 @@ namespace Punchy.Terrain
 
         static float Suitability(ref BiomeBlobData b, float4 climate, float influence) =>
             b.Frequency * math.lerp(1f, ClimateFit(ref b, climate), influence);
+
+        /// <summary>
+        /// How far a biome's ponds dig below the ground at xz (metres, 0 between ponds): contours of warped noise, so the
+        /// pools are small, irregular and join where two contours meet, instead of round.
+        /// </summary>
+        // W-08: weight of the broad octave (W-07 had 0.65, which left many 1-cell specks).
+        const float PondLow = 0.88f, PondScale = 0.2f;   // scale < 1 makes each pool larger (cover is set by the threshold, so fewer pools)
+
+        // W-09: a point is only dug if the pond field is above the contour this far around it too, so a blob narrower than
+        // about twice PondErode (under 3 cells of 16 m) never forms. The contour is lowered a little to give the width back.
+        const float PondErode = 17f, PondEdgeShift = 0.17f;
+
+        static float PondField(ref BiomeBlobData b, float2 xz)
+        {
+            var p = xz * (b.PondFrequency * PondScale) + b.NoiseOffset * 0.37f;
+            p += new float2(noise.snoise(p * 0.6f + 11.1f), noise.snoise(p * 0.6f - 7.3f)) * 0.7f;
+            return noise.snoise(p) * PondLow + noise.snoise(p * 2.1f + 5.5f) * (1f - PondLow);   // W-08: mostly the broad octave, so no specks; about -0.9 .. 0.9
+        }
+
+        public static float Pond(ref BiomeBlobData b, float2 xz)
+        {
+            if (b.PondDepth <= 0f)
+                return 0f;
+            var n = PondField(ref b, xz);
+            var edge = math.lerp(0.55f, -0.35f, b.PondCover / 0.8f) - PondEdgeShift;
+            if (n < edge) return 0f;   // cheap exit: most points are far from any pond
+            n = math.min(n, math.min(math.min(PondField(ref b, xz + new float2(PondErode, 0f)), PondField(ref b, xz - new float2(PondErode, 0f))),
+                                     math.min(PondField(ref b, xz + new float2(0f, PondErode)), PondField(ref b, xz - new float2(0f, PondErode)))));
+            return math.smoothstep(edge, edge + 0.3f, n) * b.PondDepth;
+        }
 
         /// <summary>Height of one biome's relief above its base elevation, at xz (metres).</summary>
         public static float Relief(ref BiomeBlobData b, float2 xz)

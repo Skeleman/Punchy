@@ -31,7 +31,7 @@ float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
 float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share
 float3 _PunchyBlueMoon;        // towards the second, blue moon
-static const float PunchyBlueMoonRadius = 0.034;   // radians: about twice the big moon's
+static const float PunchyBlueMoonRadius = 0.22;    // radians (about 25 degrees across): 6.5x its v0.11.0 size, a sister planet (Zach, #34)
 half3  _PunchySunColor;        // sun colour × brightness (0 once set)
 half3  _PunchySkyZenith;
 half3  _PunchySkyHorizon;      // also the fog colour, so distant terrain fades seamlessly into the sky
@@ -381,7 +381,7 @@ half PunchyCirrus(float3 dir)
 float PunchyHash1(float x) { return frac(sin(x * 12.9898) * 43758.5453); }
 
 // Shooting stars: the night is cut into 6 s slots on the shared clock, and in a slot a streak may cross the sky (about
-// one slot in four; on a meteor shower night up to four in nearly every slot). Where it starts, which way it falls,
+// one slot in 170, about 0.06 a night minute; on a meteor shower night up to four in nearly every slot). Where it starts, which way it falls,
 // how long and how fast all come from a hash of its slot, so every player sees the same ones. The shower comes once a
 // lunar cycle, a couple of nights after the full moon (the moon's phase is shared too).
 half3 PunchyShootingStars(float3 dir)
@@ -397,12 +397,13 @@ half3 PunchyShootingStars(float3 dir)
         if (k >= count)
             break;
         float s = fmod(slot, 4096) * 7.13 + k * 31.7;
-        if (PunchyHash1(s) > (shower > 0.5 ? 0.9 : 0.25))
+        if (PunchyHash1(s) > (shower > 0.5 ? 0.9 : 0.006))
             continue;
-        float start = PunchyHash1(s + 1.1) * (slotLength - 1.5);
+        float start = PunchyHash1(s + 1.1) * (slotLength - 2.0);
         float life = lerp(0.5, 1.1, PunchyHash1(s + 2.3));
         float t = (local - start) / life;
-        if (t < 0 || t > 1)
+        // t 0..1 is the flight; 1..1.5 is the fade-out (the head has stopped, the tail draws in and the light dies away)
+        if (t < 0 || t > 1.5)
             continue;
         float az = PunchyHash1(s + 3.7) * 6.2832;
         float el = lerp(0.35, 1.1, PunchyHash1(s + 4.9));
@@ -418,11 +419,11 @@ half3 PunchyShootingStars(float3 dir)
         float2 q = float2(dot(v, right), dot(v, up));
         float along = dot(q, way);
         float across = abs(q.x * way.y - q.y * way.x);
-        float head = len * t;
-        float tail = len * 0.35;
+        float head = len * min(t, 1);
+        float tail = max(len * 0.35 * (1 - smoothstep(1, 1.5, t)), 0.001);
         half trail = saturate(1 - (head - along) / tail) * step(along, head) * step(head - tail, along);
-        half streak = 1 - smoothstep(0.0012, 0.0035, across);
-        sum += half3(1.0, 0.95, 0.85) * trail * trail * streak * sin(t * 3.1416) * 5;
+        half streak = 1 - smoothstep(0.0005, 0.0015, across);
+        sum += half3(1.0, 0.95, 0.85) * trail * trail * streak * smoothstep(0, 0.12, t) * (1 - smoothstep(0.55, 1.5, t)) * 5;
     }
     return sum;
 }
@@ -513,28 +514,61 @@ half3 PunchyBlueMoonFace(float3 dir, float3 m, float radius, half3 tint, out hal
     float3 v = dir - m * moonDot;
     float2 uv = float2(dot(v, right), dot(v, up)) / sin(radius);
     float z = sqrt(saturate(1 - dot(uv, uv)));
-    // Craters: in about half the cells, a bowl a third to a half of the cell across.
-    float3 cr = PunchyMoonCells(uv * 3.2 + 4.7);
-    float size = lerp(0.28, 0.48, frac(cr.z * 7.3));
-    float d = cr.x / size;
-    half crater = step(0.45, cr.z);
-    half bowl = crater * (1 - smoothstep(0.6, 1.0, d));
-    half rim = crater * smoothstep(0.75, 0.95, d) * (1 - smoothstep(0.95, 1.2, d));
-    // Cracks: thin borders of a finer pattern, only in patches.
-    float3 ck = PunchyMoonCells(uv * 7.5 - 2.3);
-    half crack = (1 - smoothstep(0.025, 0.09, ck.y - ck.x)) * smoothstep(0.3, 0.5, PunchyValueNoise(uv * 1.7 + 9.2));
-    half seas = 1 - 0.25 * smoothstep(0.35, 0.65, PunchyValueNoise(uv * 2.3 + 7.1));
-    half shade = seas * (1 - 0.35 * bowl) * (1 + 0.35 * rim) * (1 - 0.8 * crack) * (0.55 + 0.45 * z);
-    return tint * cover * shade * 1.6;
+    // Craters at three scales, each cell with its own size and depth, soft shaded bowls and soft rims (not discs).
+    // The bowl is a smooth dish darkening toward its centre, the rim a broad gentle ridge; a few cells stay empty.
+    half craters = 0;
+    // W-11: a fourth, fine scale so the face keeps its detail at the larger size. W-12: a fifth, finer still, and
+    // crisper crater walls and rims, so the face reads sharp at night (#34).
+    for (int k = 0; k < 5; k++)
+    {
+        float freq = k == 0 ? 2.6 : (k == 1 ? 6.0 : (k == 2 ? 13.0 : (k == 3 ? 29.0 : 61.0)));
+        float3 cr = PunchyMoonCells(uv * freq + 4.7 + k * 9.3);
+        float pick = frac(cr.z * 7.3);
+        float live = step(k == 0 ? 0.3 : 0.45, cr.z);
+        float size = lerp(0.12, 0.5, pick * pick);        // many small, a few large
+        float d = cr.x / size;
+        float depth = lerp(0.35, 1.0, frac(cr.z * 13.7)) * (k == 0 ? 0.9 : (k == 3 ? 0.45 : (k == 4 ? 0.35 : 0.7)));
+        // A dish shaded toward its centre inside a steep wall, and a narrow rim just outside it.
+        float bowlK = (1 - smoothstep(0.7, 1.0, d)) * (0.55 + 0.45 * saturate(1 - d));
+        float rimK = exp(-pow((d - 1.04) / 0.11, 2));
+        craters += live * (-depth * 0.5 * bowlK * bowlK * (1 + 0.5 * bowlK) + depth * 0.22 * rimK);
+    }
+    // Rock: mottled, with a coarse and a fine grain; maria as broad darker patches, warped so their edges wander.
+    float2 warp = float2(PunchyValueNoise(uv * 2.1 + 17.0), PunchyValueNoise(uv * 2.1 + 41.0)) - 0.5;
+    float basin = PunchyValueNoise(uv * 1.5 + warp * 1.6 + 7.1) * 0.5 + PunchyValueNoise(uv * 3.4 + warp * 1.1 + 1.3) * 0.3
+                + PunchyValueNoise(uv * 8.0 + warp * 0.8 + 5.5) * 0.2;
+    half seas = 1 - 0.4 * smoothstep(0.38, 0.62, basin);
+    half rock = 0.72 + 0.5 * (PunchyValueNoise(uv * 6.5 + 3.3) * 0.35 + PunchyValueNoise(uv * 17 + 8.8) * 0.3 + PunchyValueNoise(uv * 48 + 2.4) * 0.2
+                            + PunchyValueNoise(uv * 120 + 6.1) * 0.1 + PunchyValueNoise(uv * 260 + 9.7) * 0.08);
+    // A lit sphere: sun from the upper left, a soft terminator and a dark limb; the dark side keeps a faint glow.
+    float3 n = float3(uv, z);
+    half lit = smoothstep(-0.25, 0.55, dot(n, normalize(float3(-0.55, 0.4, 0.75))));
+    half limb = pow(saturate(z), 0.45);
+    // Slow shimmer across the face: low-amplitude brightness noise drifting over about a minute (no flicker).
+    half shimmer = 1 + 0.12 * (PunchyValueNoise(uv * 4.0 + float2(_Time.y * 0.03, -_Time.y * 0.02)) + PunchyValueNoise(uv * 9.0 - _Time.y * 0.025) - 1);
+    half shade = seas * rock * shimmer * saturate(1 + craters) * (0.1 + 0.9 * lit) * (0.2 + 0.8 * limb);
+    // W-13 (#34): 1.6 -> 0.7, so the face stays near the bloom threshold instead of clipping and blooming over itself,
+    // which washed out the crater edges.
+    return tint * cover * shade * 0.7;
 }
 
 // The blue moon's corona: a soft glow just outside its disc with a faint ring a little further out, hidden behind it.
 half3 PunchyBlueCorona(float3 dir, float radius)
 {
-    float a = sqrt(max(2 * (1 - dot(dir, _PunchyBlueMoon)), 0));   // angle to it (small angles)
-    float outside = max(a - radius, 0);
-    half glow = exp(-outside / (radius * 0.6)) * 0.55 + exp(-pow((a - radius * 1.7) / (radius * 0.15), 2)) * 0.12;
-    return half3(0.3, 0.55, 1.4) * glow * smoothstep(radius * 0.98, radius * 1.02, a);
+    float3 m = _PunchyBlueMoon;
+    float a = sqrt(max(2 * (1 - dot(dir, m)), 0));   // angle to it (small angles)
+    float outside = max(a - radius, 0) / radius;
+    // Angle round the rim; filaments are wavy streaks that reach out a little way, like prominences on the sun.
+    float3 right = normalize(cross(float3(0, 1, 0), m));
+    float3 up = cross(m, right);
+    float3 v = dir - m * dot(dir, m);
+    float th = atan2(dot(v, up), dot(v, right));
+    float wave = th * 5 + sin(outside * 9 + th * 3 + _Time.y * 0.15) * 0.8;
+    float fil = PunchyValueNoise(float2(wave, _Time.y * 0.05)) * 0.7 + PunchyValueNoise(float2(th * 17 + outside * 4 + _Time.y * 0.12, 3.1 + _Time.y * 0.03)) * 0.3;
+    half tendrils = smoothstep(0.45, 0.85, fil) * exp(-outside * 3.2) * 0.3;
+    half glow = exp(-outside * 6) * 0.07;
+    // Starts at the disc's edge (W-13: was 0.98, which laid the glow over the rim of the face).
+    return half3(0.0, 0.03, 2.0) * (glow + tendrils) * smoothstep(1.0, 1.02, a / radius);
 }
 
 // Both moons where a direction falls on them: the big moon lit by its phase, the small blue one by the sun from
@@ -544,8 +578,8 @@ half3 PunchyMoonDisc(float3 dir, out half cover)
     float a = _PunchyMoonPhase.x * 6.2832;
     half bigCover, blueCover;
     half3 moons = PunchyMoonFace(dir, _PunchyMoonDirection, 0.0172, float3(sin(a), 0.15 * sin(a), -cos(a)), half3(0.9, 0.92, 1.0), bigCover);
-    // The blue moon: always full, about twice the big moon's size, cratered and cracked (Zach, G-34).
-    moons += PunchyBlueMoonFace(dir, _PunchyBlueMoon, PunchyBlueMoonRadius, half3(0.28, 0.52, 1.45), blueCover) * (1 - bigCover);
+    // The blue moon: a lit rocky sphere, a sister planet about 13 times the big moon's size (Zach, #34).
+    moons += PunchyBlueMoonFace(dir, _PunchyBlueMoon, PunchyBlueMoonRadius, half3(0.0, 0.02, 2.4), blueCover) * (1 - bigCover);
     cover = max(bigCover, blueCover);
     return moons;
 }

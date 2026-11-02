@@ -27,6 +27,8 @@ namespace Punchy.Terrain
         [Range(0f, 1f)] public float Pebbles;
         [Tooltip("Rock strata: bands of lighter and darker rock by height (mesa cliffs, canyon walls). 0 = none.")]
         [Range(0f, 1f)] public float Strata;
+        [Tooltip("Paved stone: a cobble pattern (stones with mortar gaps) drawn up close by the terrain shader. 0 = none.")]
+        [Range(0f, 1f)] public float Paving;
         [Tooltip("Depth of deformable snow here (read by the snow-trail system).")]
         [Range(0f, 1f)] public float SnowDepth;
     }

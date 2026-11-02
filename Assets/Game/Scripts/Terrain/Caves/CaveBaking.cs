@@ -40,6 +40,7 @@ namespace Punchy.Terrain
             var kinds = new List<CaveNodeKind>();
             var segments = new List<CaveSegment>();
             var attach = new List<Attach>();
+            var layoutWatch = System.Diagnostics.Stopwatch.StartNew();
             var terrain = source;   // local functions can't capture an in parameter
 
             for (int i = 0; i < landmarks.Instances.Length; i++)
@@ -213,22 +214,39 @@ namespace Punchy.Terrain
             // Pools, streams and speleothems sit on the finished floors and hang from the finished ceilings, so each is
             // placed against the caves as built so far, then everything is built again with them: water first (basins
             // and channels change the floors), then speleothems and rubble (kept out of the water).
+            // W-15: each step's time goes to the "[bake] caves ms" log line.
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var timing = new System.Text.StringBuilder("[bake] caves ms: shape " + layoutWatch.ElapsedMilliseconds);
+            void Step(string name) { timing.Append($" {name} {watch.ElapsedMilliseconds}"); watch.Restart(); }
             var extras = new Extras();
             var withCaves = source;
             var bare = BuildBlob(caves, nodes, kinds, segments, extras, Allocator.Persistent);
             withCaves.Caves = bare;
+            Step("blob");
             PlacePools(withCaves, caves, nodes, kinds, segments, styles, extras.Pools);
             PlaceWaterfalls(withCaves, caves, styles, extras);
+            Step("pools");
+            EndCounts[0] = EndCounts[1] = EndCounts[2] = 0;
             PlaceStreams(withCaves, caves, nodes, segments, styles, extras);
+            UnityEngine.Debug.Log($"[cave-streams] ends: pool {EndCounts[0]}, hole {EndCounts[1]}, left out {EndCounts[2]}; kept {extras.Streams.Count}");
+            Step("streams");
             bare.Dispose();
             var withWater = BuildBlob(caves, nodes, kinds, segments, extras, Allocator.Persistent);
             withCaves.Caves = withWater;
+            Step("blob");
             PlaceSpeleothems(withCaves, caves, nodes, kinds, segments, styles, extras.Pools, extras.Speleothems);
+            Step("speleothems");
             PlaceRubble(withCaves, caves, nodes, kinds, segments, styles, extras.Pools, extras.Speleothems);
+            Step("rubble");
             PlacePlants(withCaves, caves, nodes, kinds, segments, styles, CaveFloraTable.Collect(types), extras);
+            Step("plants");
             PlaceFittings(withCaves, caves, nodes, kinds, segments, styles, CaveFloraTable.Collect(types), extras);
+            Step("fittings");
             withWater.Dispose();
-            return BuildBlob(caves, nodes, kinds, segments, extras, allocator);
+            var result = BuildBlob(caves, nodes, kinds, segments, extras, allocator);
+            Step("blob");
+            UnityEngine.Debug.Log(timing.ToString());
+            return result;
         }
 
         /// <summary>What's placed in caves after their shape: pools, streams, speleothems (and rubble), plants.</summary>
@@ -244,9 +262,12 @@ namespace Punchy.Terrain
 
         /// <summary>
         /// A stream along the main passage of caves whose style rolls for one, from the second node in (clear of the
-        /// mouth) down to the end chamber, ending in a pool (F-30). Points every 1.5 m along the passage floor; the surface follows the floor
+        /// mouth) down to the end chamber, ending in a pool (F-30) or a drop into a hole (Z-34). Points every 1.5 m along the passage floor; the surface follows the floor
         /// but never rises along the flow, so where the floor climbs the channel cuts deeper.
         /// </summary>
+        /// <summary>Stream ends this bake: [0] in a pool, [1] into a hole, [2] left out (logged for #3).</summary>
+        static readonly int[] EndCounts = new int[3];
+
         static void PlaceStreams(in TerrainSource source, List<CaveData> caves, List<CaveNode> nodes, List<CaveSegment> segments,
                                  List<CaveStyle> styles, Extras extras)
         {
@@ -304,6 +325,20 @@ namespace Punchy.Terrain
                                 extras.StreamPoints[first + i] = point;
                             }
                         }
+                        // Z-34 (Zach): a stream never just stops on the floor. It ends where it drops into a hole or
+                        // crevice, or in a pool; failing both at its end, it ends further back where one holds, and with
+                        // neither anywhere near the end it's left out.
+                        var keep = StreamEnd(source, extras.StreamPoints, first, count, out var radius);
+                        EndCounts[keep < 4 ? 2 : radius > 0f ? 0 : 1]++;
+                        if (keep < 4)
+                        {
+                            extras.StreamPoints.RemoveRange(first, count);
+                            cave.StreamCount = extras.Streams.Count - cave.FirstStream;
+                            caves[c] = cave;
+                            continue;
+                        }
+                        extras.StreamPoints.RemoveRange(first + keep, count - keep);
+                        count = keep;
                         min = float.MaxValue;
                         max = float.MinValue;
                         for (int i = 0; i < count; i++)
@@ -313,13 +348,10 @@ namespace Punchy.Terrain
                             max = math.max(max, point.Position.xz + point.Width);
                         }
                         extras.Streams.Add(new CaveStream { FirstPoint = first, PointCount = extras.StreamPoints.Count - first, Min = min, Max = max });
-                        // Every stream ends in a pool at its own level, shrunk until the floor holds it all round (or
-                        // left out), added to this cave's pools (later caves' ranges move up one).
+                        // The pool at the stream's end, at its own level, added to this cave's pools (later caves'
+                        // ranges move up one). None where it drops into a hole.
                         var end = extras.StreamPoints[extras.StreamPoints.Count - 1];
-                        var radius = math.clamp(end.Width * 1.6f, 1.2f, 2.5f);
-                        while (radius >= 1.2f && !RimHolds(source, end.Position, radius))
-                            radius *= 0.8f;
-                        if (radius >= 1.2f)
+                        if (radius > 0f)
                         {
                             extras.Pools.Insert(cave.FirstPool + cave.PoolCount, new CavePool
                             {
@@ -343,6 +375,47 @@ namespace Punchy.Terrain
                 cave.StreamCount = extras.Streams.Count - cave.FirstStream;
                 caves[c] = cave;
             }
+        }
+
+        /// <summary>
+        /// How many of a stream's points to keep so it ends well (0: none does): at the last point, or up to 12 points
+        /// (~18 m) back, where the floor drops away ahead into a hole or crevice (radius 0, no pool), or where a pool at
+        /// the stream's level, shrunk from its full size down to 1.2 m, has a floor that holds it all round.
+        /// </summary>
+        static int StreamEnd(in TerrainSource source, List<CaveStreamPoint> points, int first, int count, out float radius)
+        {
+            for (int i = count - 1; i >= math.max(3, count - 13); i--)
+            {
+                var p = points[first + i];
+                var flow = math.normalizesafe(p.Position.xz - points[first + i - 1].Position.xz);
+                if (DropsAway(source, p.Position, flow))
+                {
+                    radius = 0f;
+                    return i + 1;
+                }
+                radius = math.clamp(p.Width * 1.6f, 1.2f, 2.5f);
+                while (radius >= 1.2f && !RimHolds(source, p.Position, radius))
+                    radius *= 0.8f;
+                if (radius >= 1.2f)
+                    return i + 1;
+            }
+            radius = 0f;
+            return 0;
+        }
+
+        /// <summary>Whether the cave floor just ahead of a stream's surface falls away (a hole or crevice) 1.5 m or more.</summary>
+        static bool DropsAway(in TerrainSource source, float3 surface, float2 flow)
+        {
+            if (math.lengthsq(flow) < 0.5f)
+                return false;
+            foreach (var t in new[] { 1f, 1.75f, 2.5f })
+            {
+                var q = surface.xz + flow * t;
+                var floor = source.FloorUnder(new float3(q.x, surface.y + 1.5f, q.y), out var inCave);
+                if (inCave && floor < surface.y - 1.5f)
+                    return true;
+            }
+            return false;
         }
 
         static bool Joined(int a, int b, CaveData cave, List<CaveSegment> segments)
@@ -455,14 +528,22 @@ namespace Punchy.Terrain
         static void PlaceRubble(in TerrainSource source, List<CaveData> caves, List<CaveNode> nodes, List<CaveNodeKind> kinds,
                                 List<CaveSegment> segments, List<CaveStyle> styles, List<CavePool> pools, List<CaveSpeleothem> result)
         {
+            // W-15: caves in parallel (each draws from its own seed and only reads the terrain), each into its own
+            // list, joined in cave order afterwards, so the result is exactly what one loop gave.
+            var terrain = source;   // lambdas can't capture an in parameter
+            var perCave = new List<CaveSpeleothem>[caves.Count];
+            var caveStyles = new CaveStyle[caves.Count];
             for (int c = 0; c < caves.Count; c++)
+                caveStyles[c] = caves[c].Style > 0 ? styles[caves[c].Style - 1] : null;
+            System.Threading.Tasks.Parallel.For(0, caves.Count, c =>
             {
+                var found = perCave[c] = new List<CaveSpeleothem>();
                 var cave = caves[c];
-                var style = cave.Style > 0 ? styles[cave.Style - 1] : null;
-                var density = style != null ? style.Rubble : 3f;
+                var style = caveStyles[c];
+                var density = !ReferenceEquals(style, null) ? style.Rubble : 3f;
                 if (density <= 0f)
-                    continue;
-                var size = style != null ? style.RubbleSize : 0.6f;
+                    return;
+                var size = !ReferenceEquals(style, null) ? style.RubbleSize : 0.6f;
                 var rng = new Random(math.hash(new uint2(caves[c].Key, 0x2B1Eu)) | 1u);
                 for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
                 {
@@ -471,6 +552,8 @@ namespace Punchy.Terrain
                     var centre = nodes[n].Position;
                     var spread = nodes[n].Radius * cave.Profile.x;
                     var count = (int)math.round(density * math.PI * spread * spread * 0.64f / 100f * rng.NextFloat(0.7f, 1.3f));
+                    // The floor under the chamber's middle, where every walk to the wall starts (once, not per stone).
+                    var floorHere = terrain.FloorUnder(centre, out _);
                     for (int k = 0; k < count; k++)
                     {
                         var r = size * rng.NextFloat(0.6f, 1.5f);
@@ -480,13 +563,12 @@ namespace Punchy.Terrain
                         if (rng.NextFloat() < 0.65f)
                         {
                             // Against the wall: walk out from the middle at knee height until rock, then back off.
-                            var floorHere = source.FloorUnder(centre, out _);
                             var from = new float3(centre.x, floorHere + 0.5f, centre.z);
                             var t = 0f;
                             var hit = false;
                             for (int s = 0; s < 80 && !hit; s++)
                             {
-                                var d = source.CaveDistance(from + new float3(dir.x, 0f, dir.y) * t);
+                                var d = terrain.CaveDistance(from + new float3(dir.x, 0f, dir.y) * t);
                                 if (d >= 0f) hit = true;
                                 else t += math.max(0.2f, -d * 0.4f);
                             }
@@ -498,14 +580,14 @@ namespace Punchy.Terrain
                             q = centre.xz + dir * spread * 0.8f * math.sqrt(rng.NextFloat());
                         if (InTheWay(q, 0.6f + r, n, nodes, segments, cave) || InPool(q, r, pools, cave))
                             continue;
-                        var floor = source.FloorUnder(new float3(q.x, centre.y, q.y), out var inCave);
-                        if (!inCave || source.CaveDistance(new float3(q.x, floor + 0.3f, q.y)) >= 0f)
+                        var floor = terrain.FloorUnder(new float3(q.x, centre.y, q.y), out var inCave);
+                        if (!inCave || terrain.CaveDistance(new float3(q.x, floor + 0.3f, q.y)) >= 0f)
                             continue;
                         var lean = rng.NextFloat(math.PI * 2f);
                         var root = new float3(q.x, floor + r * 0.3f, q.y);
                         var tip = root + new float3(math.cos(lean), rng.NextFloat(-0.1f, 0.2f), math.sin(lean)) * r * rng.NextFloat(0f, 0.8f);
                         // Loose rock sits on the floor rather than growing out of it: a tighter fillet than a stalagmite.
-                        result.Add(Rod(root, tip, r, r * rng.NextFloat(0.6f, 0.9f), 0.3f));
+                        found.Add(Rod(root, tip, r, r * rng.NextFloat(0.6f, 0.9f), 0.3f));
                     }
 
                     // A few chunky boulders per chamber, fallen near the walls: sharp-edged blocks of the cave's own
@@ -516,13 +598,12 @@ namespace Punchy.Terrain
                         var r = size * rng.NextFloat(1.6f, 2.6f);
                         var a = rng.NextFloat(math.PI * 2f);
                         var dir = new float2(math.cos(a), math.sin(a));
-                        var floorHere = source.FloorUnder(centre, out _);
                         var from = new float3(centre.x, floorHere + 0.5f, centre.z);
                         var t = 0f;
                         var hit = false;
                         for (int s = 0; s < 80 && !hit; s++)
                         {
-                            var d = source.CaveDistance(from + new float3(dir.x, 0f, dir.y) * t);
+                            var d = terrain.CaveDistance(from + new float3(dir.x, 0f, dir.y) * t);
                             if (d >= 0f) hit = true;
                             else t += math.max(0.2f, -d * 0.4f);
                         }
@@ -531,17 +612,20 @@ namespace Punchy.Terrain
                         var q = centre.xz + dir * (t - r * 0.9f);
                         if (InTheWay(q, 0.8f + r, n, nodes, segments, cave) || InPool(q, r, pools, cave))
                             continue;
-                        var floor = source.FloorUnder(new float3(q.x, centre.y, q.y), out var inCave);
-                        if (!inCave || source.CaveDistance(new float3(q.x, floor + r * 1.6f, q.y)) >= 0f)
+                        var floor = terrain.FloorUnder(new float3(q.x, centre.y, q.y), out var inCave);
+                        if (!inCave || terrain.CaveDistance(new float3(q.x, floor + r * 1.6f, q.y)) >= 0f)
                             continue;
                         // Set a little into the floor, so it rests on a flat face.
                         var middle = new float3(q.x, floor + r * 0.45f, q.y);
                         var block = Rod(middle, middle, r, r, 0.08f);
                         block.Block = rng.NextFloat(0.05f, 1f);
-                        result.Add(block);
+                        found.Add(block);
                     }
                 }
-            }
+            });
+            foreach (var list in perCave)
+                if (list != null)
+                    result.AddRange(list);
         }
 
         /// <summary>
@@ -553,12 +637,27 @@ namespace Punchy.Terrain
                                 List<CaveSegment> segments, List<CaveStyle> styles, List<Punchy.Flora.FloraSpecies> flora, Extras extras)
         {
             const float DaylightReach = 15f;
+            // W-15: caves in parallel, as PlaceRubble. Each cave's usable flora entries (and their species' index) are
+            // read on this thread first, so the workers touch no Unity object checks; joined in cave order afterwards.
+            var terrain = source;   // lambdas can't capture an in parameter
+            var perCave = new List<CavePlant>[caves.Count];
+            var entries = new List<(CaveFlora entry, int species)>[caves.Count];
             for (int c = 0; c < caves.Count; c++)
             {
-                var cave = caves[c];
-                var style = cave.Style > 0 ? styles[cave.Style - 1] : null;
+                var style = caves[c].Style > 0 ? styles[caves[c].Style - 1] : null;
                 if (style == null || style.Flora.Count == 0)
                     continue;
+                entries[c] = new List<(CaveFlora, int)>();
+                foreach (var entry in style.Flora)
+                    if (entry != null && entry.Species != null && entry.Density > 0f)
+                        entries[c].Add((entry, flora.IndexOf(entry.Species)));
+            }
+            System.Threading.Tasks.Parallel.For(0, caves.Count, c =>
+            {
+                if (entries[c] == null)
+                    return;
+                var found = perCave[c] = new List<CavePlant>();
+                var cave = caves[c];
                 var rng = new Random(math.hash(new uint2(caves[c].Key, 0xF10Au)) | 1u);
                 var shafts = new List<float2>();
                 for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
@@ -580,10 +679,8 @@ namespace Punchy.Terrain
                         continue;
                     var centre = nodes[n].Position;
                     var spread = nodes[n].Radius * cave.Profile.x * 0.75f;
-                    foreach (var entry in style.Flora)
+                    foreach (var (entry, species) in entries[c])
                     {
-                        if (entry == null || entry.Species == null || entry.Density <= 0f)
-                            continue;
                         // Rounded at random (most nodes expect less than one plant of a kind), so the density holds on average.
                         var expected = entry.Density * math.PI * spread * spread / 100f * rng.NextFloat(0.6f, 1.4f);
                         var count = (int)expected + (rng.NextFloat() < expected - (int)expected ? 1 : 0);
@@ -597,37 +694,40 @@ namespace Punchy.Terrain
                             // A narrow way through is enough for small plants: 0.6 m each side of the axis.
                             if (InTheWay(q, -0.6f, n, nodes, segments, cave) || InPool(q, 0.3f, extras.Pools, cave) || InStream(q, extras, cave))
                                 continue;
-                            var floor = source.FloorUnder(new float3(q.x, centre.y, q.y), out var inCave);
-                            if (!inCave || source.CaveDistance(new float3(q.x, floor + 0.5f, q.y)) > -0.3f)
+                            var floor = terrain.FloorUnder(new float3(q.x, centre.y, q.y), out var inCave);
+                            if (!inCave || terrain.CaveDistance(new float3(q.x, floor + 0.5f, q.y)) > -0.3f)
                                 continue;
                             var at = new float3(q.x, floor - 0.03f, q.y);
                             if (entry.Hanging)
                             {
                                 // From the ceiling, where the rock above is thin and the ground over it grows plants.
-                                var ceiling = source.CeilingOver(new float3(q.x, floor + 0.3f, q.y));
-                                var ground = source.SampleGround(q);
+                                var ceiling = terrain.CeilingOver(new float3(q.x, floor + 0.3f, q.y));
+                                var ground = terrain.SampleGround(q);
                                 // Head room: most strands (three quarters of the longest) clear a walker's head.
                                 if (ground.Height - ceiling > entry.MaxCover || ceiling - floor < entry.Species.Height.y * entry.Species.SizeRange.y * 0.75f + 1.8f
-                                    || source.SampleSurface(q, ground, source.SampleNormal(q, 1f)).Grass < 0.15f)
+                                    || terrain.SampleSurface(q, ground, terrain.SampleNormal(q, 1f)).Grass < 0.15f)
                                     continue;
                                 at = new float3(q.x, ceiling + 0.05f, q.y);
                             }
                             if (UnderRock(at, extras.Speleothems))
                                 continue;
                             var size = entry.Species.SizeRange;
-                            extras.Plants.Add(new CavePlant
+                            found.Add(new CavePlant
                             {
                                 Position = at,
                                 Yaw = rng.NextFloat(math.PI * 2f),
                                 Scale = math.lerp(size.x, size.y, rng.NextFloat()),
-                                Species = flora.IndexOf(entry.Species),
+                                Species = species,
                                 Variant = rng.NextInt(3),
                                 Random = rng.NextFloat()
                             });
                         }
                     }
                 }
-            }
+            });
+            foreach (var list in perCave)
+                if (list != null)
+                    extras.Plants.AddRange(list);
         }
 
         /// <summary>

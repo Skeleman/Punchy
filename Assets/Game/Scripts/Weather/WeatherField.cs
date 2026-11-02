@@ -83,6 +83,7 @@ namespace Punchy.Weather
             public Vector2 Drift;
             public float Radius;
             public int Preset;
+            public bool Forced;   // test flag -weather: ignores the biome's weather list (shows anywhere)
             public float Age, Grow, Hold, Fade;
 
             public float Intensity => Age < Grow ? Mathf.SmoothStep(0f, 1f, Age / Grow)
@@ -437,10 +438,11 @@ namespace Punchy.Weather
         }
 
         /// <summary>Forces a cell of the given preset centred on a point (for testing / scripted events).</summary>
-        public void ForceCell(int preset, Vector2 position, float radius)
+        public void ForceCell(int preset, Vector2 position, float radius, bool ignoreBiome = false)
         {
             Spawn(preset, position, 0f, 4f);
             cells[cells.Count - 1].Radius = radius;
+            cells[cells.Count - 1].Forced = ignoreBiome;
         }
 
         /// <summary>Starts fading every cell within the radius.</summary>
@@ -493,7 +495,7 @@ namespace Punchy.Weather
             {
                 var d = Vector2.Distance(c.Position, xz);
                 if (d >= c.Radius) continue;
-                var w = c.Intensity * math.smoothstep(1f, 0.55f, d / c.Radius) * BilinearAllowed(c.Preset, xz);
+                var w = c.Intensity * math.smoothstep(1f, 0.55f, d / c.Radius) * Allowed(c, xz);
                 if (w <= 0f) continue;
                 sum.AddScaled(WeatherValues.From(presets[c.Preset]), w);
                 total += w;
@@ -535,7 +537,7 @@ namespace Punchy.Weather
             {
                 var d = Vector2.Distance(c.Position, xz);
                 if (d >= c.Radius) continue;
-                var w = c.Intensity * math.smoothstep(1f, 0.55f, d / c.Radius) * BilinearAllowed(c.Preset, xz);
+                var w = c.Intensity * math.smoothstep(1f, 0.55f, d / c.Radius) * Allowed(c, xz);
                 if (w > bestWeight) { bestWeight = w; best = presets[c.Preset].name; }
             }
             if (best != null)
@@ -555,6 +557,8 @@ namespace Punchy.Weather
         public float RainFraction(Vector2 xz) => Ready ? Bilinear(rainFraction, xz) : 1f;
 
         float Bilinear(float[] data, Vector2 xz) => BilinearAt(i => data[i], xz);
+
+        float Allowed(Cell c, Vector2 xz) => c.Forced ? 1f : BilinearAllowed(c.Preset, xz);
 
         float BilinearAllowed(int preset, Vector2 xz)
         {
@@ -579,7 +583,7 @@ namespace Punchy.Weather
         {
             mapCells = new NativeArray<CellData>(cells.Count, Allocator.Persistent);
             for (int i = 0; i < cells.Count; i++)
-                mapCells[i] = new CellData { Position = cells[i].Position, Radius = cells[i].Radius, Intensity = cells[i].Intensity, Preset = cells[i].Preset };
+                mapCells[i] = new CellData { Position = cells[i].Position, Radius = cells[i].Radius, Intensity = cells[i].Intensity, Preset = cells[i].Preset, Forced = cells[i].Forced ? 1 : 0 };
 
             // The pressure pattern drifts at a couple of metres a second against 64 m texels, so it's baked about once a
             // second (and at once when the day's bias changes) rather than re-noised for every texel on every redraw.
@@ -644,6 +648,7 @@ namespace Punchy.Weather
             public float Radius;
             public float Intensity;
             public int Preset;
+            public int Forced;
         }
 
         /// <summary>The pressure pattern (Lowness) at every map texel.</summary>
@@ -706,7 +711,7 @@ namespace Punchy.Weather
                     var tower = PresetCloud[c.Preset];
                     if (tower.y > 3000f && d < c.Radius * 1.7f)
                     {
-                        var a = c.Intensity * math.smoothstep(1.7f, 1.0f, d / c.Radius) * Allowed[c.Preset * count + t];
+                        var a = c.Intensity * math.smoothstep(1.7f, 1.0f, d / c.Radius) * (c.Forced != 0 ? 1f : Allowed[c.Preset * count + t]);
                         if (a > anvil)
                         {
                             anvil = a;
@@ -715,7 +720,7 @@ namespace Punchy.Weather
                     }
 
                     if (d >= c.Radius) continue;
-                    var w = c.Intensity * math.smoothstep(1f, 0.55f, d / c.Radius) * Allowed[c.Preset * count + t];
+                    var w = c.Intensity * math.smoothstep(1f, 0.55f, d / c.Radius) * (c.Forced != 0 ? 1f : Allowed[c.Preset * count + t]);
                     if (w <= 0f) continue;
                     look += PresetLook[c.Preset] * w;
                     precip += PresetPrecip[c.Preset] * w;

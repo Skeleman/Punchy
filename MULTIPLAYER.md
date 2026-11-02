@@ -166,7 +166,7 @@ Newest entries go at the bottom. Format: `YYYY-MM-DD — A/B — what changed / 
   - **Connecting:**
     - Port 7979. By default a machine hosts: it listens on any IPv4 and its own client joins over loopback.
     - `-join <ip>` on the command line makes it a client only.
-    - The **F2** panel (`Net/NetMenu.cs`, on the "Net" object in SampleScene) shows the LAN address and player
+    - The **F2** panel (now the main menu's Multiplayer tab, Esc or Start; `Net/NetMenu.cs`, on the "Net" object in SampleScene) shows the LAN address and player
       count, and joins by IP. `GameBootstrap.Join` and `Host` dispose the worlds, recreate them and reload the
       scene.
     - Clients only go in game once the World subscene has loaded, because the ghost prefabs live there.

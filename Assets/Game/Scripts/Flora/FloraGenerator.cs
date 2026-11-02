@@ -190,7 +190,7 @@ namespace Punchy.Flora
                 // Built things stand rigid in the wind (benches, halls, palisades swayed like plants, Z-11); a garden's
                 // plants still move, and cloth has its own motion (Flora.hlsl).
                 var flexibility = Founded(species.Form) && species.Form != FloraForm.Garden ? 0f : species.Flexibility;
-                model.Lods[lod] = builder.ToMesh($"{species.name} {variant} LOD{lod}", g.Height, g.Width, flexibility);
+                model.Lods[lod] = builder.ToMesh($"{species.name} {variant} LOD{lod}", g.Height, g.Width, flexibility, species.Form == FloraForm.Flowers);
             }
             return model;
         }
@@ -2479,6 +2479,27 @@ namespace Punchy.Flora
             Moss(g, first);
         }
 
+        /// <summary>
+        /// A roof tube with a rounded eave (#32): from the underside the profile bevels out, rolls over a thick lip and
+        /// rises into the slope, so the roofing reads as having thickness instead of coming to a knife edge.
+        /// <paramref name="eaveY"/> is the lowest point of the lip, <paramref name="rim"/> its widest radius.
+        /// </summary>
+        static void RoofTube(FloraMeshBuilder b, float eaveY, float rim, int sides, Color color, FloraPart part, float apexY, float apexR,
+                             float midY, float midR, float lip = 0.2f)
+        {
+            var path = new List<Vector3>();
+            var radii = new List<float>();
+            void Add(float y, float r) { path.Add(Vector3.up * y); radii.Add(r); }
+            Add(eaveY + lip * 0.1f, rim * 0.84f);
+            Add(eaveY, rim * 0.93f);
+            Add(eaveY + lip * 0.4f, rim * 1.0f);
+            Add(eaveY + lip * 0.9f, rim * 0.985f);
+            if (midY > eaveY + lip)
+                Add(midY, midR);
+            Add(apexY, apexR);
+            b.Tube(path, radii, sides, color, part, cap: true);
+        }
+
         static void Hut(Grower g)
         {
             var s = g.S;
@@ -2509,8 +2530,8 @@ namespace Punchy.Flora
             var roof = b.VertexCount;
             var overhang = radius * 1.3f;
             var roofColor = g.FoliageColor();
-            b.Tube(new List<Vector3> { Vector3.up * (wall - 0.15f), Vector3.up * (wall + (height - wall) * 0.45f), Vector3.up * height },
-                   new List<float> { overhang, overhang * 0.55f, 0.05f }, sides, roofColor, FloraPart.Bark, cap: true);
+            // A thick lip at the rim (#32): a lower ring just inside the edge, so the eave has a visible thickness.
+            RoofTube(b, wall - 0.3f, overhang, sides, roofColor, FloraPart.Bark, height, 0.05f, wall + (height - wall) * 0.45f, overhang * 0.55f);
             b.Occlude(roof, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.2f)));
             g.Perches.Add(Vector3.up * height);
 
@@ -2735,7 +2756,7 @@ namespace Punchy.Flora
 
             // Low pyramid roof with an overhang, and a chimney.
             var roof = b.VertexCount;
-            b.Tube(new List<Vector3> { Vector3.up * (wall - 0.1f), Vector3.up * height }, new List<float> { corner * 1.2f, 0.05f }, 4, g.FoliageColor(), FloraPart.Bark, cap: true);
+            RoofTube(b, wall - 0.24f, corner * 1.2f, 4, g.FoliageColor(), FloraPart.Bark, height, 0.05f, 0f, 0f);   // rounded lip, not a knife edge (#32)
             RotateFrom(b, roof, square);
             b.Occlude(roof, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y + 0.3f)));
             var chimney = new Vector3(half * 0.55f, 0f, -half * 0.4f);
@@ -3014,8 +3035,7 @@ namespace Punchy.Flora
 
             // A tall, slightly flared roof.
             var roof = b.VertexCount;
-            b.Tube(new List<Vector3> { Vector3.up * (walls - 0.05f), Vector3.up * (walls + (height - walls) * 0.25f), Vector3.up * height },
-                   new List<float> { radius * 1.25f, radius * 0.7f, 0.02f }, sides, g.FoliageColor(), FloraPart.Foliage, cap: true);
+            RoofTube(b, walls - 0.2f, radius * 1.25f, sides, g.FoliageColor(), FloraPart.Foliage, height, 0.02f, walls + (height - walls) * 0.25f, radius * 0.7f);
             b.Occlude(roof, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y + 0.3f)));
             g.Perches.Add(Vector3.up * height);
 
@@ -3364,7 +3384,7 @@ namespace Punchy.Flora
                 b.Tube(new List<Vector3> { new Vector3(x * half * 0.82f, floor, z * half * 0.82f), new Vector3(x * half * 0.82f, eave, z * half * 0.82f) },
                        new List<float> { 0.12f, 0.1f }, g.Sides(6, 4, 3), timber, FloraPart.Bark);
             var roof = b.VertexCount;
-            b.Tube(new List<Vector3> { Vector3.up * (eave - 0.1f), Vector3.up * height }, new List<float> { half * 1.45f, 0.05f }, 4, g.FoliageColor(), FloraPart.Bark, cap: true);
+            RoofTube(b, eave - 0.22f, half * 1.45f, 4, g.FoliageColor(), FloraPart.Bark, height, 0.05f, 0f, 0f);
             RotateFrom(b, roof, Quaternion.Euler(0f, 45f, 0f));
             g.Perches.Add(Vector3.up * height);
             b.Occlude(roof, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y + 0.3f)));
@@ -3667,8 +3687,7 @@ namespace Punchy.Flora
                        new List<float> { 0.12f, 0.11f }, g.Sides(6, 4, 3), g.Bark, FloraPart.Bark);
             b.Wood = false;
             var roof = b.VertexCount;
-            b.Tube(new List<Vector3> { Vector3.up * (eaves - 0.1f), Vector3.up * height }, new List<float> { Mathf.Max(half, depth) * 1.414f * 1.15f, 0.05f },
-                   4, g.FoliageColor(), FloraPart.Bark, cap: true);
+            RoofTube(b, eaves - 0.2f, Mathf.Max(half, depth) * 1.414f * 1.15f, 4, g.FoliageColor(), FloraPart.Bark, height, 0.05f, 0f, 0f);
             RotateFrom(b, roof, Quaternion.Euler(0f, 45f, 0f));
 
             // The forge at the back: a stone hearth with its coals sunk in a pit inside a raised rim (Z-40: they sat on top),

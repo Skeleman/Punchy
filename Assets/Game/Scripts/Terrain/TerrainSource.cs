@@ -99,6 +99,8 @@ namespace Punchy.Terrain
 
         public HeightSourceKind HeightKind;
         public BlobAssetReference<HeightmapBlob> Heightmap;
+        /// <summary>Generator version 2 only: metres added to the biome shape heights (ridges between realms, the lake bowl).</summary>
+        public BlobAssetReference<HeightmapBlob> Island;
 
         public BiomeSourceKind BiomeKind;
         public BiomeNoiseSettings BiomeNoise;
@@ -124,6 +126,18 @@ namespace Punchy.Terrain
         /// before taking <c>ref Anchors.Value</c>.
         /// </summary>
         public BlobAssetReference<AnchorSetBlob> Anchors;
+        /// <summary>Bat folk settlements (#35, baked after caves, read by nothing else): their chambers and which cave pools are white.</summary>
+        public BlobAssetReference<BatFolkSetBlob> BatFolk;
+        /// <summary>Set when every place is baked: biome ponds are dug only after that, so they never move a landmark, road, cave or anchor.</summary>
+        public bool PondsOn;
+        /// <summary>
+        /// W-10: 0..1 per 16 m cell (cell centres, sampled bilinearly) scaling the biome ponds' dig: 0 over every pond
+        /// smaller than <see cref="PondMinCells"/> cells and the dry ring round it, so no specks of water are left.
+        /// Built at the end of a bake by <see cref="BuildPondMask"/>; without it every pond is dug.
+        /// </summary>
+        public BlobAssetReference<HeightmapBlob> PondMask;
+        public const float PondStep = 16f;
+        public const int PondMinCells = 3;
 
         bool HasBiomes => Biomes.IsCreated && Biomes.Value.Biomes.Length > 0;
         bool UsesBiomeMap => BiomeKind == BiomeSourceKind.Map && BiomeMap.IsCreated;
@@ -234,7 +248,176 @@ namespace Punchy.Terrain
                 ref var biome = ref set.Biomes[shape.Ids[i]];
                 height += w * (biome.BaseElevation + BiomeSampling.Relief(ref biome, xz));
             }
+            if (Island.IsCreated)
+                height += Island.Value.Sample(xz);
             return World.SeaLevel + height;
+        }
+
+        /// <summary>
+        /// Biome ponds (a swamp's pools) dug into the ground. Only once the landmarks exist: rivers, landmarks and
+        /// settlements are placed on the ground without them, so the ponds never move any of those.
+        /// </summary>
+        float Ponds(float2 xz, in BiomeWeights shape, float h)
+        {
+            if (!PondsOn || !HasBiomes)
+                return h;
+            ref var set = ref Biomes.Value;
+            // W-11: a biome map (island v2) has small swamp patches whose blurred shape weights never pass 0.4, so
+            // it had no ponds at all; there the core test uses the map's sharp weights. Cell-based worlds (v1) are unchanged.
+            var core = UsesBiomeMap ? BiomeSampling.SampleMap(ref BiomeMap.Value, xz) : shape;
+            var dig = 0f;
+            for (int i = 0; i < 4; i++)
+            {
+                var w = core.Weights[i];
+                if (w > 0.4f)   // W-08: only in a biome's core; at region borders the blend left lone specks
+                    dig += math.smoothstep(0.4f, 0.75f, w) * BiomeSampling.Pond(ref set.Biomes[core.Ids[i]], xz);
+            }
+            if (dig > 0f && PondMask.IsCreated)
+                dig *= PondMask.Value.Sample(xz);
+            return h - dig;
+        }
+
+        /// <summary>Counts separate biome ponds (cells digging 0.3 m or more, 4-connected) on a grid of the given step; for logs.</summary>
+        public int PondCount(float step, out int wetCells) => PondCount(step, out wetCells, out _);
+
+        /// <summary>As above, also describing the size spread (cells per pond) for logs.</summary>
+        public int PondCount(float step, out int wetCells, out string sizes)
+        {
+            sizes = "";
+            var sizeList = new System.Collections.Generic.List<int>();
+            wetCells = 0;
+            if (!PondsOn || !HasBiomes) return 0;
+            var wet = PondGrid(step, out var n, out wetCells);
+            LabelPonds(wet, n, sizeList);
+            int found = sizeList.Count;
+            sizes = DescribePonds(sizeList);
+            return found;
+        }
+
+        /// <summary>The size spread (cells per pond) of a list of pond sizes, for logs. Sorts the list.</summary>
+        static string DescribePonds(System.Collections.Generic.List<int> sizeList)
+        {
+            if (sizeList.Count == 0) return "";
+            sizeList.Sort();
+            int singles = 0; foreach (var z in sizeList) if (z == 1) singles++;
+            return $"cells per pond min {sizeList[0]} median {sizeList[sizeList.Count / 2]} p90 {sizeList[sizeList.Count * 9 / 10]} max {sizeList[sizeList.Count - 1]}, single-cell {singles}";
+        }
+
+        /// <summary>
+        /// Which cells of a step-metre grid over the world a biome pond digs 0.3 m or more into (row-major, n per row).
+        /// W-14: rows run in parallel (sampling only reads blobs); it was ~2.8 s per call on one thread in island v2's launch bake.
+        /// </summary>
+        bool[] PondGrid(float step, out int n, out int wetCells)
+        {
+            int size = (int)(World.WorldSize / step);
+            var wet = new bool[size * size];
+            var half = World.WorldSize * 0.5f;
+            var self = this;
+            System.Threading.Tasks.Parallel.For(0, size, z =>
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    var xz = new float2(x + 0.5f, z + 0.5f) * step - half;
+                    self.SampleBiomes(xz, out _, out var shape);
+                    var h = self.ShapeHeight(xz, shape);
+                    wet[z * size + x] = h - self.Ponds(xz, shape, h) >= 0.3f;
+                }
+            });
+            n = size;
+            wetCells = 0;
+            foreach (var w in wet) if (w) wetCells++;
+            return wet;
+        }
+
+        /// <summary>Labels 4-connected wet cells: each cell's pond index (-1 = dry); each pond's cell count is added to sizes.</summary>
+        static int[] LabelPonds(bool[] wet, int n, System.Collections.Generic.List<int> sizes)
+        {
+            var label = new int[wet.Length];
+            for (int i = 0; i < label.Length; i++) label[i] = -1;
+            var stack = new System.Collections.Generic.Stack<int>();
+            for (int i = 0; i < wet.Length; i++)
+            {
+                if (!wet[i] || label[i] >= 0) continue;
+                int id = sizes.Count, size = 0;
+                label[i] = id; stack.Push(i);
+                while (stack.Count > 0)
+                {
+                    var c = stack.Pop(); int cx = c % n, cz = c / n; size++;
+                    if (cx > 0 && wet[c - 1] && label[c - 1] < 0) { label[c - 1] = id; stack.Push(c - 1); }
+                    if (cx < n - 1 && wet[c + 1] && label[c + 1] < 0) { label[c + 1] = id; stack.Push(c + 1); }
+                    if (cz > 0 && wet[c - n] && label[c - n] < 0) { label[c - n] = id; stack.Push(c - n); }
+                    if (cz < n - 1 && wet[c + n] && label[c + n] < 0) { label[c + n] = id; stack.Push(c + n); }
+                }
+                sizes.Add(size);
+            }
+            return label;
+        }
+
+        /// <summary>
+        /// W-10: once the ponds are on, labels their connected wet cells on the PondStep grid and returns a mask that
+        /// drops every pond under PondMinCells cells: 0 on its cells and on the dry cells round it (unless they also
+        /// touch a kept pond), 1 elsewhere. Assign it to PondMask. Default when nothing is dropped.
+        /// </summary>
+        public BlobAssetReference<HeightmapBlob> BuildPondMask(Unity.Collections.Allocator allocator, out int dropped) => BuildPondMask(allocator, out dropped, out _);
+
+        /// <summary>
+        /// As above, with a log line of the ponds before and after the mask. W-14: "after" is the ponds of PondMinCells or
+        /// more from the same labelling (the mask keeps them whole), not a second full sampling pass.
+        /// </summary>
+        public BlobAssetReference<HeightmapBlob> BuildPondMask(Unity.Collections.Allocator allocator, out int dropped, out string report)
+        {
+            dropped = 0;
+            report = "no ponds";
+            if (!PondsOn || !HasBiomes) return default;
+            var wet = PondGrid(PondStep, out var n, out var wetBefore);
+            var sizes = new System.Collections.Generic.List<int>();
+            var label = LabelPonds(wet, n, sizes);
+            var kept = new System.Collections.Generic.List<int>();
+            int wetAfter = 0;
+            foreach (var z in sizes) if (z >= PondMinCells) { kept.Add(z); wetAfter += z; }
+            int pondsBefore = sizes.Count;
+            report = $"before {pondsBefore} separate, {wetBefore} wet; {DescribePonds(new System.Collections.Generic.List<int>(sizes))}. After {kept.Count} separate, {wetAfter} wet cells of 16 m; {DescribePonds(kept)}";
+            var mask = new ushort[n * n];
+            for (int i = 0; i < mask.Length; i++) mask[i] = ushort.MaxValue;
+            for (int i = 0; i < label.Length; i++)
+            {
+                if (label[i] < 0 || sizes[label[i]] >= PondMinCells) continue;
+                dropped++;
+                int cx = i % n, cz = i / n;
+                for (int dz = -1; dz <= 1; dz++)
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        int x = cx + dx, z = cz + dz;
+                        if (x < 0 || z < 0 || x >= n || z >= n) continue;
+                        int j = z * n + x;
+                        if (label[j] >= 0 ? sizes[label[j]] < PondMinCells : !TouchesKeptPond(label, sizes, n, x, z))
+                            mask[j] = 0;
+                    }
+            }
+            if (dropped == 0) return default;
+            using var builder = new BlobBuilder(Unity.Collections.Allocator.Temp);
+            ref var root = ref builder.ConstructRoot<HeightmapBlob>();
+            root.Resolution = n;
+            root.Origin = new float2(PondStep * 0.5f - World.WorldSize * 0.5f);
+            root.WorldSize = (n - 1) * PondStep;
+            root.MinHeight = 0f;
+            root.HeightStep = 1f / ushort.MaxValue;
+            var heights = builder.Allocate(ref root.Heights, mask.Length);
+            for (int i = 0; i < mask.Length; i++) heights[i] = mask[i];
+            return builder.CreateBlobAssetReference<HeightmapBlob>(allocator);
+        }
+
+        static bool TouchesKeptPond(int[] label, System.Collections.Generic.List<int> sizes, int n, int cx, int cz)
+        {
+            for (int dz = -1; dz <= 1; dz++)
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    int x = cx + dx, z = cz + dz;
+                    if (x < 0 || z < 0 || x >= n || z >= n) continue;
+                    var l = label[z * n + x];
+                    if (l >= 0 && sizes[l] >= PondMinCells) return true;
+                }
+            return false;
         }
 
         /// <summary>Ground height before river carving (what rivers are routed over).</summary>
@@ -250,14 +433,17 @@ namespace Punchy.Terrain
         {
             // A loaded heightmap already contains carved channels and landmark shapes.
             if (UsesHeightmap)
-                return Settle(xz, Heightmap.Value.Sample(xz));
+            {
+                SampleBiomes(xz, out _, out var heightmapShape);
+                return Settle(xz, Ponds(xz, heightmapShape, Heightmap.Value.Sample(xz)));
+            }
             SampleBiomes(xz, out _, out var shape);
             var h = ShapeHeight(xz, shape);
             if (Rivers.IsCreated)
                 h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz), RiverSettings, h);
             if (Landmarks.IsCreated)
                 h = LandmarkSampling.Shape(ref Landmarks.Value, xz, h);
-            return Settle(xz, h);
+            return Settle(xz, Ponds(xz, shape, h));
         }
 
         /// <summary>
@@ -376,6 +562,19 @@ namespace Punchy.Terrain
                     }
                     ruleDepth = math.max(ruleDepth, math.lerp(farAbove, pool - g.Height, claim));
                 }
+            }
+            // Biome ponds (a swamp's pools): water was decided above from the ground without them, so a pond is wet only
+            // where it digs below the water level the biome already has (sea level in the lowlands).
+            var dug = Ponds(xz, shape, g.Height);
+            if (dug < g.Height)
+            {
+                if (dug < World.SeaLevel && water < World.SeaLevel)
+                {
+                    water = World.SeaLevel;
+                    flow = float2.zero;
+                }
+                ruleDepth = math.max(ruleDepth, math.max(water, World.SeaLevel) - dug);
+                g.Height = dug;
             }
             // Settlements keep clear of water, so their levelling doesn't change the water rules above.
             g.Height = Settle(xz, g.Height);
@@ -621,8 +820,8 @@ namespace Punchy.Terrain
         }
 
         public bool Equals(TerrainSource o) =>
-            World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap &&
+            World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
-            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && Anchors == o.Anchors;
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Anchors == o.Anchors && PondMask == o.PondMask;
     }
 }
