@@ -124,12 +124,18 @@ namespace Punchy.Terrain
         public static void BuildPlaces(ref TerrainSource source, List<BiomeDefinition> palette, List<LandmarkType> landmarkTypes,
                                        List<PlacedLandmark> placed, List<RoadsideLandmark> roadsideTypes, Allocator allocator)
         {
+            // W-14: each stage's time goes to the "[bake] stages" log line (island v2 rebuilds all of this at launch).
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var stages = new System.Text.StringBuilder("[bake] stages ms:");
+            void Stage(string name) { stages.Append($" {name} {watch.ElapsedMilliseconds}"); watch.Restart(); }
             source.PondsOn = false;
             source.PondMask = default;
             if (source.RiverSettings.Enabled && palette.Count > 0)
                 source.Rivers = RiverBaking.Build(source, source.RiverSettings, allocator);
+            Stage("rivers");
             if (palette.Count > 0)
                 source.Landmarks = LandmarkBaking.Build(source, palette, landmarkTypes, placed, allocator);
+            Stage("landmarks");
             if (source.Landmarks.IsCreated)
             {
                 source.Settlements = SettlementBaking.Build(source, landmarkTypes, roadsideTypes, out var roadside, allocator);
@@ -140,14 +146,19 @@ namespace Punchy.Terrain
                     before.Dispose();
                 }
             }
+            Stage("settlements");
             if (source.Landmarks.IsCreated)
                 source.Caves = CaveBaking.Build(source, palette, landmarkTypes, allocator);
+            Stage("caves");
             source.Anchors = AnchorBaking.Build(source, landmarkTypes, allocator);
+            Stage("anchors");
             source.PondsOn = true;
             // W-10: label the ponds' wet cells and drop every pond under 3 cells (with the dry ring round it).
-            var pondsBefore = source.PondCount(TerrainSource.PondStep, out var wetBefore, out var sizesBefore);
-            source.PondMask = source.BuildPondMask(allocator, out var dropped);
-            { var n = source.PondCount(TerrainSource.PondStep, out var wet, out var sizes); UnityEngine.Debug.Log($"[ponds] before {pondsBefore} separate, {wetBefore} wet; {sizesBefore}. Dropped {dropped} cells. After {n} separate, {wet} wet cells of 16 m; {sizes}"); }
+            // W-14: one labelling pass gives the mask and the log (the two extra PondCount passes cost ~2.8 s each).
+            source.PondMask = source.BuildPondMask(allocator, out var dropped, out var pondReport);
+            Stage("pondmask");
+            UnityEngine.Debug.Log($"[ponds] {pondReport}. Dropped {dropped} cells.");
+            UnityEngine.Debug.Log(stages.ToString());
         }
 
         class Baker : Baker<TerrainAuthoring>

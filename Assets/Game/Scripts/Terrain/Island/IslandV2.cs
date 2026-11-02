@@ -336,6 +336,7 @@ namespace Punchy.Terrain
             var biomes = new List<BiomeDefinition>(palette.Biomes);
             bool hasOcean = source.Biomes.Value.OceanIndex >= 0;
             var gen = IslandV2.Generate(biomes, hasOcean, Allocator.Persistent);
+            long genMs = watch.ElapsedMilliseconds;
             source.BiomeKind = BiomeSourceKind.Map;
             source.BiomeMap = gen.Map;
             source.Island = gen.Island;
@@ -345,6 +346,7 @@ namespace Punchy.Terrain
             var types = new List<LandmarkType>(palette.Landmarks);
             TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent);
             EntityManager.SetComponentData(entity, source);
+            long placesMs = watch.ElapsedMilliseconds - genMs;
 
             string hashText = "no landmarks";
             if (source.Landmarks.IsCreated)
@@ -362,9 +364,11 @@ namespace Punchy.Terrain
                 foreach (var line in lines) foreach (var ch in line) h = (h ^ ch) * 16777619u;
                 hashText = $"{lines.Count} landmarks, hash {h:X8}";
             }
-            Debug.Log($"[island] {gen.Report}; baked in {watch.ElapsedMilliseconds} ms; {hashText}");
-            { var ponds = source.PondCount(16f, out var wetCells, out var sizes); Debug.Log($"[island] ponds: {ponds} separate, {wetCells} wet cells of 16 m; {sizes}"); }
+            Debug.Log($"[island] {gen.Report}; baked in {watch.ElapsedMilliseconds} ms (generate {genMs}, places {placesMs}); {hashText}");
+            var report = System.Diagnostics.Stopwatch.StartNew();
+            // (Ponds: the "[ponds]" line from BuildPlaces; W-14 dropped the second count here, ~2.8 s.)
             if (source.Rivers.IsCreated) Debug.Log("[island] " + RiverReport(ref source.Rivers.Value));
+            Debug.Log($"[island] reports {report.ElapsedMilliseconds} ms; v2 ready at {UnityEngine.Time.realtimeSinceStartup:F1} s since start");
         }
     }
 }

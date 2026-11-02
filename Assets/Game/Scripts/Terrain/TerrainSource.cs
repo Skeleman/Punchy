@@ -288,31 +288,42 @@ namespace Punchy.Terrain
             var wet = PondGrid(step, out var n, out wetCells);
             LabelPonds(wet, n, sizeList);
             int found = sizeList.Count;
-            if (sizeList.Count > 0)
-            {
-                sizeList.Sort();
-                int singles = 0; foreach (var z in sizeList) if (z == 1) singles++;
-                sizes = $"cells per pond min {sizeList[0]} median {sizeList[sizeList.Count / 2]} p90 {sizeList[sizeList.Count * 9 / 10]} max {sizeList[sizeList.Count - 1]}, single-cell {singles}";
-            }
+            sizes = DescribePonds(sizeList);
             return found;
         }
 
-        /// <summary>Which cells of a step-metre grid over the world a biome pond digs 0.3 m or more into (row-major, n per row).</summary>
+        /// <summary>The size spread (cells per pond) of a list of pond sizes, for logs. Sorts the list.</summary>
+        static string DescribePonds(System.Collections.Generic.List<int> sizeList)
+        {
+            if (sizeList.Count == 0) return "";
+            sizeList.Sort();
+            int singles = 0; foreach (var z in sizeList) if (z == 1) singles++;
+            return $"cells per pond min {sizeList[0]} median {sizeList[sizeList.Count / 2]} p90 {sizeList[sizeList.Count * 9 / 10]} max {sizeList[sizeList.Count - 1]}, single-cell {singles}";
+        }
+
+        /// <summary>
+        /// Which cells of a step-metre grid over the world a biome pond digs 0.3 m or more into (row-major, n per row).
+        /// W-14: rows run in parallel (sampling only reads blobs); it was ~2.8 s per call on one thread in island v2's launch bake.
+        /// </summary>
         bool[] PondGrid(float step, out int n, out int wetCells)
         {
-            n = (int)(World.WorldSize / step);
-            wetCells = 0;
-            var wet = new bool[n * n];
+            int size = (int)(World.WorldSize / step);
+            var wet = new bool[size * size];
             var half = World.WorldSize * 0.5f;
-            for (int z = 0; z < n; z++)
-                for (int x = 0; x < n; x++)
+            var self = this;
+            System.Threading.Tasks.Parallel.For(0, size, z =>
+            {
+                for (int x = 0; x < size; x++)
                 {
                     var xz = new float2(x + 0.5f, z + 0.5f) * step - half;
-                    SampleBiomes(xz, out _, out var shape);
-                    var h = ShapeHeight(xz, shape);
-                    wet[z * n + x] = h - Ponds(xz, shape, h) >= 0.3f;
-                    if (wet[z * n + x]) wetCells++;
+                    self.SampleBiomes(xz, out _, out var shape);
+                    var h = self.ShapeHeight(xz, shape);
+                    wet[z * size + x] = h - self.Ponds(xz, shape, h) >= 0.3f;
                 }
+            });
+            n = size;
+            wetCells = 0;
+            foreach (var w in wet) if (w) wetCells++;
             return wet;
         }
 
@@ -345,13 +356,25 @@ namespace Punchy.Terrain
         /// drops every pond under PondMinCells cells: 0 on its cells and on the dry cells round it (unless they also
         /// touch a kept pond), 1 elsewhere. Assign it to PondMask. Default when nothing is dropped.
         /// </summary>
-        public BlobAssetReference<HeightmapBlob> BuildPondMask(Unity.Collections.Allocator allocator, out int dropped)
+        public BlobAssetReference<HeightmapBlob> BuildPondMask(Unity.Collections.Allocator allocator, out int dropped) => BuildPondMask(allocator, out dropped, out _);
+
+        /// <summary>
+        /// As above, with a log line of the ponds before and after the mask. W-14: "after" is the ponds of PondMinCells or
+        /// more from the same labelling (the mask keeps them whole), not a second full sampling pass.
+        /// </summary>
+        public BlobAssetReference<HeightmapBlob> BuildPondMask(Unity.Collections.Allocator allocator, out int dropped, out string report)
         {
             dropped = 0;
+            report = "no ponds";
             if (!PondsOn || !HasBiomes) return default;
-            var wet = PondGrid(PondStep, out var n, out _);
+            var wet = PondGrid(PondStep, out var n, out var wetBefore);
             var sizes = new System.Collections.Generic.List<int>();
             var label = LabelPonds(wet, n, sizes);
+            var kept = new System.Collections.Generic.List<int>();
+            int wetAfter = 0;
+            foreach (var z in sizes) if (z >= PondMinCells) { kept.Add(z); wetAfter += z; }
+            int pondsBefore = sizes.Count;
+            report = $"before {pondsBefore} separate, {wetBefore} wet; {DescribePonds(new System.Collections.Generic.List<int>(sizes))}. After {kept.Count} separate, {wetAfter} wet cells of 16 m; {DescribePonds(kept)}";
             var mask = new ushort[n * n];
             for (int i = 0; i < mask.Length; i++) mask[i] = ushort.MaxValue;
             for (int i = 0; i < label.Length; i++)
