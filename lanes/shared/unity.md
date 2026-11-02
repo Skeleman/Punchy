@@ -12,3 +12,8 @@
   non-"Default" `Screenmanager*` values afterwards.
 - Never send keystrokes or window grabs outside the Punchy window; use in-game shot lists.
 - Install editors only with `unity install <ver> --no-elevate -d D:\Unity\Editors\<ver>` (no UAC prompts).
+
+## Players must exit on their own
+- A player left running locks `Builds/.../Punchy.exe`, and the next build fails (W-02 and A-03 were both blocked this way).
+  Agents are not allowed to kill processes. Make the last shot-list line quit the player, or launch it so it exits
+  when the list ends, and check `tasklist` shows no Punchy.exe of yours before you report.
