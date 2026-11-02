@@ -24,6 +24,14 @@ namespace Punchy.Player
     [UpdateBefore(typeof(TerrainStreamingSystem))]
     public partial struct PlayerMovementSystem : ISystem
     {
+        /// <summary>#33 debug probe: 1 logs the wall latch's terms every frame (set by DebugControls' -place wall).</summary>
+        public static readonly SharedStatic<int> WallProbe = SharedStatic<int>.GetOrCreate<WallProbeKey>();
+        struct WallProbeKey { }
+        /// <summary>How tall a prop's top can be and still count as a wall for a wall climber (m).</summary>
+        const float WallClimbHead = 8f;
+        /// <summary>On a wall, how far ahead the top's rim is looked for (Ledge starts 0.3 m out, past a small body's reach).</summary>
+        const float WallLedgeReach = 0.5f;
+
         /// <summary>A walk (the walk toggle) for a human body, m/s; other bodies by their speed next to a human.</summary>
         public const float Stroll = 1.6f;
         /// <summary>A roll's length (s), its pace next to the everyday jog, and the fastest it goes (m/s: a horse doesn't roll 15).</summary>
@@ -192,19 +200,39 @@ namespace Punchy.Player
                     m.VerticalVelocity = 0f;
                     continue;
                 }
+                var probeWanted = position.xz;
                 if (obstacles.IsCreated)
                     position.xz = SlideAroundObstacles(obstacles, position, settings.Radius, stepUp);
+                var probeSlid = position.xz;
                 if (inCave)
                     position.xz = KeepOutOfCaveWalls(terrain, from, position.xz, settings.Radius);
+                var probeCave = position.xz;
                 // Props' tops too high to step onto are walls (a boulder, a fountain's rim from outside): slid along.
                 var blocked = false;
+                // (#33: a wall climber counts anything it can't step onto as a wall, however far above its own head the
+                // top is; with head height a lizard never met a garden wall, whose only surface is its top.)
+                var wallHead = body.ClimbsWalls ? WallClimbHead : 1.7f * size;
                 if (tops)
-                    position.xz = KeepOutOfPropWalls(ref grids.Set.Value, props, from, position.xz, stepUp, 1.7f * size, out blocked);
+                    position.xz = KeepOutOfPropWalls(ref grids.Set.Value, props, from, position.xz, stepUp, wallHead, out blocked);
+                // (#33 probe, -place wall only: every term of the wall latch below, and what stopped the move first.)
+                if (WallProbe.Data == 1 && body.ClimbsWalls)
+                {
+                    var anyTop = float.MinValue;
+                    var anyWall = tops && PropSupport.Wall(ref grids.Set.Value, props, new float3(probeWanted.x, from.y, probeWanted.y), stepUp, 50f, out anyTop);
+                    var headTop = float.MinValue;
+                    var headWall = tops && PropSupport.Wall(ref grids.Set.Value, props, new float3(probeWanted.x, from.y, probeWanted.y), stepUp, 1.7f * size, out headTop);
+                    var slid = math.distance(probeWanted, probeSlid);
+                    var caved = math.distance(probeSlid, probeCave);
+                    var propCut = math.distance(probeCave, position.xz);
+                    var lenMove = math.length(move);
+                    UnityEngine.Debug.Log($"WallProbe: blocked {(blocked ? 1 : 0)} pressing {(pressing0(move) ? 1 : 0)} |move| {lenMove} grounded {(m.Grounded ? 1 : 0)} onWall {(m.OnWall ? 1 : 0)} vv {m.VerticalVelocity} cooldown {m.LatchCooldown} jump {(input.JumpPressed ? 1 : 0)} swim {(swimming ? 1 : 0)} tops {(tops ? 1 : 0)} size {size} stepUp {stepUp} head {1.7f * size} wallAtHead {(headWall ? 1 : 0)} wallAny {(anyWall ? 1 : 0)} anyTopAboveFeet {anyTop - from.y} slideCut {slid} caveCut {caved} propCut {propCut} feetY {from.y} x {from.x} z {from.z}");
+                }
 
                 // A ledge within reach ahead: climbed onto, for a jump at it (or reaching it in the air, pressing on).
                 var pressing = math.lengthsq(move) > 0.04f;
                 if (tops && body.Climbs && !swimming && pressing && (input.JumpPressed || !m.Grounded && blocked) &&
-                    PropSupport.Ledge(ref grids.Set.Value, props, from, math.normalize(input.MoveDirection), 0.9f * size, stepUp,
+                    PropSupport.Ledge(ref grids.Set.Value, props, from, math.normalize(input.MoveDirection),
+                                      m.OnWall ? math.max(0.9f * size, WallLedgeReach) : 0.9f * size, stepUp,
                                       MantleReach * size, out var ledge))
                 {
                     m.Mantle = 1e-4f;
@@ -677,6 +705,8 @@ namespace Punchy.Player
         /// <summary>The centre (x, z) of the trunk a body holds, at a height: as drawn, leaning or bending as it may.</summary>
         public static float2 TrunkCentre(in PlayerMotion m, float y) =>
             FloraObstacle.CentreAt(m.TrunkBase, m.TrunkHeight, m.TrunkLeanMid, m.TrunkLeanTop, y);
+
+        static bool pressing0(float2 move) => math.lengthsq(move) > 0.04f;
 
         /// <summary>The highest a body of human size steps up onto without a climb (m).</summary>
         const float StepUp = 0.4f;

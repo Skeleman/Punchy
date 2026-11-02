@@ -176,9 +176,9 @@ namespace Punchy.Debugging
                 var step = math.abs(math.atan2(math.sin(c.Yaw - w.x), math.cos(c.Yaw - w.x)));
                 w.x = c.Yaw;
                 // (Heading change per second of the songbirds' and dormice's wandering, for the Z-12 before/after.)
-                if (c.Mode == CreatureMode.Wander && bodies[i].Species >= 0)
+                if (bodies[i].Species >= 0)
                 {
-                    var key = bodies[i].Species;
+                    var key = bodies[i].Species * 64 + (int)c.Mode;
                     turnSum.TryGetValue(key, out var acc);
                     turnSum[key] = new float2(acc.x + math.degrees(step), acc.y + dt);
                 }
@@ -209,15 +209,20 @@ namespace Punchy.Debugging
                 if (turnLogAt > 0f)
                 {
                     var director = FindAnyObjectByType<FaunaDirector>();
+                    // (A Mode histogram per species: creature-seconds in each mode, and the heading change in it.)
+                    var lines = new System.Collections.Generic.SortedDictionary<string, string>();
                     foreach (var kv in turnSum)
                     {
-                        var species = director != null ? director.SpeciesAt(kv.Key)?.name : kv.Key.ToString();
-                        if (species == "Songbird" || species == "Dormouse")
-                            Debug.Log($"DebugControls: heading change: {species} wandering {kv.Value.x / math.max(kv.Value.y, 1e-3f):F1} deg/s over {kv.Value.y:F0} creature-seconds");
+                        var species = director != null ? director.SpeciesAt(kv.Key / 64)?.name : (kv.Key / 64).ToString();
+                        species ??= (kv.Key / 64).ToString();
+                        lines.TryGetValue(species, out var line);
+                        lines[species] = line + $" {(CreatureMode)(kv.Key % 64)} {kv.Value.y:F0}s {kv.Value.x / math.max(kv.Value.y, 1e-3f):F1}deg/s;";
                     }
+                    foreach (var kv in lines)
+                        Debug.Log($"DebugControls: heading change: {kv.Key}:{kv.Value}");
                 }
                 turnSum.Clear();
-                turnLogAt = now + 30f;
+                turnLogAt = now + 20f;
             }
             if (spins.Count > 4000)
                 spins.Clear();
@@ -1712,6 +1717,7 @@ namespace Punchy.Debugging
             var over = rim + new float3(bestForward.x, 0f, bestForward.y) * 0.8f;
             if (wallRequest)
             {
+                PlayerMovementSystem.WallProbe.Data = 1;
                 StartClimbTest(t.Position, rim, rim, false, $"wall at ({V(rim.x)}, {V(rim.y)}, {V(rim.z)}), {bestHit.Height - bestFeet.y:F1} m up; player from ({V(t.Position.x)}, {V(t.Position.z)})");
                 climbWall = true;
                 return;
@@ -1771,7 +1777,8 @@ namespace Punchy.Debugging
             var cycle = climbWall ? 28f : 20f;
             var phase = math.fmod(Time.time - climbSince, cycle);
             var toward = phase < (climbWall ? 10f : 12f);
-            var goal = toward ? climbTarget.Value : climbHome;
+            // (A wall: aimed a metre past the rim, so the body keeps pushing into it rather than stopping short.)
+            var goal = toward ? climbTarget.Value + (climbWall ? math.normalizesafe(climbTarget.Value - climbHome) : float2.zero) : climbHome;
             var to = goal - player.Position.xz;
             var distance = math.length(to);
             PlayerInputSystem.TestMove = distance > 0.3f ? to / distance : float2.zero;
@@ -1809,7 +1816,7 @@ namespace Punchy.Debugging
                     var dtLog = math.max(Time.time - wallLastAt, 0.01f);
                     wallLast = player.Position;
                     wallLastAt = Time.time;
-                    Debug.Log($"DebugControls: wall test: stick {stick}, OnWall {wm.OnWall}, grounded {wm.Grounded}, player at ({V(player.Position.x)}, {V(player.Position.y)}, {V(player.Position.z)}), vertical {V(step.y / dtLog)} m/s, along {V(math.length(step.xz) / dtLog)} m/s");
+                    Debug.Log($"DebugControls: wall test: test move {PlayerInputSystem.TestMove}, {V(distance)} m from the rim; stick {stick}, OnWall {wm.OnWall}, grounded {wm.Grounded}, player at ({V(player.Position.x)}, {V(player.Position.y)}, {V(player.Position.z)}), vertical {V(step.y / dtLog)} m/s, along {V(math.length(step.xz) / dtLog)} m/s");
                 }
             }
             if (toward && climbJumps && distance > 0.5f && distance < 2f && Time.time >= climbNextJump)
