@@ -85,6 +85,7 @@ namespace Punchy.Debugging
             SpinCheck();
             HuntLog();
             ShotOnHunt();
+            RemoteRoll();
             ColossusShot();
             MantrapShot();
             MimicShot();
@@ -141,6 +142,46 @@ namespace Punchy.Debugging
             }
             states.Dispose();
             bodies.Dispose();
+        }
+
+        static bool remoteRoll;
+        int remoteRollStep;
+
+        /// <summary>
+        /// "-remoteroll" on a shot-list line (a joined client, #48): the first time another player's body starts its
+        /// somersault (Roll above 0, from the Pose byte), the camera is put 5 m to its side and a log line written; once
+        /// Roll passes 0.4 a shot (remoteroll.png, into -shotdir) and a second line with the roll value.
+        /// </summary>
+        void RemoteRoll()
+        {
+            if (!remoteRoll || remoteRollStep >= 2 || queryWorld == null || !queryWorld.IsCreated)
+                return;
+            var em = queryWorld.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<RemoteAvatar>());
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            for (int i = 0; i < states.Length; i++)
+            {
+                var r = states[i];
+                if (r.Roll <= 0f)
+                    continue;
+                if (remoteRollStep == 0)
+                {
+                    var fwd = new float3(math.sin(r.Yaw), 0f, math.cos(r.Yaw));
+                    var from = r.Position + new float3(fwd.z, 0f, -fwd.x) * 5f + new float3(0f, 1.2f, 0f);
+                    PoseCamera(from, Quaternion.LookRotation((Vector3)(r.Position + new float3(0f, 0.5f, 0f)) - (Vector3)from));
+                    remoteRollStep = 1;
+                    Debug.Log($"DebugControls: remoteroll: remote player rolling (Roll {r.Roll:F2}) at ({r.Position.x:F1}, {r.Position.z:F1})");
+                }
+                else if (r.Roll > 0.4f)
+                {
+                    if (shotDir != null)
+                        Shot("remoteroll.png");
+                    remoteRollStep = 2;
+                    Debug.Log($"DebugControls: remoteroll: shot at Roll {r.Roll:F2}");
+                }
+                break;
+            }
+            states.Dispose();
         }
 
         /// <summary>"-colossusshot 300": the player and camera that far from the Dunes colossus (south-west of it), looking at its chest.</summary>
@@ -886,6 +927,9 @@ namespace Punchy.Debugging
                 SetBody(args[bodyArg + 1]);
             // "-shotonhunt": one shot the moment a land hunter enters its sprint, camera framing hunter and prey (#9).
             shotOnHunt = System.Array.IndexOf(args, "-shotonhunt") >= 0;
+            // "-remoteroll": a client frames, logs and shoots another player's somersault (#48).
+            remoteRoll = System.Array.IndexOf(args, "-remoteroll") >= 0;
+            remoteRollStep = 0;
             // A-09 (#40): "-nocolossus" hides the Dunes colossus, "-framelog" logs frame times, "-colossusshot 300" puts the
             // player and camera that far from it.
             DunesColossus.Hidden = System.Array.IndexOf(args, "-nocolossus") >= 0;
