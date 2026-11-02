@@ -1,30 +1,27 @@
-# World lane: state (2026-11-02, after W-02b)
+# World lane: state (2026-11-02, after W-03)
 
 Worktree `Punchy-world` (main PC), branch `world-features`. Backlog: `gh issue list -l lane:world`.
 Released: v0.11.0 = world b39522b + animal c810406.
-Pushed head: 3728ef9 (W-02 code ec53f8a, quit-on-done fe2dda9, moon animation 3728ef9). Built to Builds\Dev, checked.
-No Punchy.exe of mine runs. The one running (animal tree path) is not ours.
+Pushed head: 8d83102 (shooting stars rarer/thinner/fading, bench-runner merged a428b48). No new player build of it.
+Also pushed: `wip/island-v2` (IslandV2Preview.cs, editor-only, not merged). No Punchy.exe of mine runs.
 
-## Done and seen in W-02b
-- #34 moon: blue lit sphere, wavy tendrils that drift (cycle ~20-40 s), slow low shimmer. Needs `-bluemoondays 0`
-  in the launch args for the shot (else the normal moon shows). Frame: -goto -255,27 -time 21
-  -camlook -255,40,27,-184,108,6.
-- #44 dunes puffs: haze at the Dunes cave mouth (`-place Dunes`); `-nosandpuffs` for compare. GPU ms NOT measured:
-  -benchroute lives on unmerged b/bench-runner.
-- #30 flower bend: meadow (-255,27) camlook -258,36.0,27,-250,35.9,27, Clear vs Storm: upright, no stretch. Oak fine.
-- #4 `-menu Graphics` works launched alone (-nohud off effect not needed).
-- Shot-list players Application.Quit at the end (was editor-only); batch build:
-  `unity build . --target StandaloneWindows64 -o Builds/Dev/Punchy.exe -l Logs/x.log --no-tail` (no editor needed).
-- Landmark hash unchanged (no placement code touched).
+## Done in W-03
+- #45 shooting stars: gate 0.25 -> 0.06 (about 2.5 -> 0.6 per night minute), width halved, fade-out 1.0-1.5 of life.
+- #44 Dunes GPU 4.1 ms with puffs, 3.1 ms without (one run each). Bench: Tools/bench (bench.sh, BenchmarkRoute).
+  Bench build copies BenchmarkRoute + BProfileTools into Assets, builds, removes them; flags
+  `-benchroute -benchstops here -place X -benchgpupasses -fpscap 0`.
+- #23 island v2 spike: maps in PunchyMilestones/world/island-v2. Realms (warped Voronoi), typed border ridges with
+  passes, central lake bowl, rivers by priority-flood + steepest descent. Run:
+  `Unity -batchmode -projectPath Punchy-world -executeMethod Punchy.EditorTools.IslandV2Preview.Render -out <dir>`.
 
 ## Gotchas
-- `-place prop:Daisy` finds nothing: ground-scatter flowers are not props. Use a meadow spot with a low camlook.
-- Launch-wide flags (-nosandpuffs, -menu, -bluemoondays) mean one player per variant; run them one at a time.
-- Assets/Resources (Unity test-runner json) and Assets/Temp stay untracked on purpose.
+- Shot lists: `-camlook` is per line; repeat it on every line. `-meteors` forces a shower; `-weather Clear` for sky.
+- `-place prop:Daisy` finds nothing: ground-scatter flowers are not props.
+- Launch-wide flags (-nosandpuffs, -menu, -bluemoondays) mean one player per variant.
+- Assets/Resources, Assets/Temp (+ .meta) stay untracked on purpose.
+- Hashes without avalanche (math.hash of small ints) need a Scramble before comparing draws.
 
-## Branches still unmerged
-- `b/bench-runner` db3c1f2: `-benchday`, -benchroute. wip/ui-menu, wip/ui-wheel, world-laptop/z34-pool are inside world-features.
-
-## Open, not started
-- #45 shooting stars much rarer and thinner (sky code). #15 look checks owed (Z-30 posts, Z-10 fog over non-marsh river).
-- #13 Z-35 fall speed (Zach in play). #14 cave-mouth shards (needs a spot). Design-note P3: #17, #18-#22. Roadmap #23, #24.
+## Open
+- #23: choose a layout, thicker rivers, volcano markers, then wire behind generator version (landmark hash must stay
+  E128CB1D for version 1). #15 look checks (Z-30 posts, Z-10 fog). #13 Z-35 fall speed. #14 cave-mouth shards.
+- Design-note P3: #17, #18-#22. Roadmap #24.

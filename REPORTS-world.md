@@ -2,6 +2,21 @@
 
 Newest first.
 
+## 2026-11-02 batch W-03: shooting stars rarer/thinner/fading, Dunes GPU measured, island v2 preview maps
+- DONE: #45 shooting stars about 4x rarer (about 2.5 -> 0.6 streaks per night minute), half as thick, and they fade
+  out (tail draws in, light dies over the last third) (world-features 3dbd8df, 8d83102)
+- DONE: #44 b/bench-runner merged (a428b48). Dunes GPU, same view (-place Dunes, -benchgpupasses): 4.1 ms with puffs,
+  3.1 ms with -nosandpuffs (FrameTime.GPU 4.15 vs 3.39). One run each, so noisy; puffs cost roughly 1 ms.
+- DONE: #23 island v2 spike: 3 preview maps + 8-10 line notes, editor-side only, generator version 2 (wip/island-v2
+  not merged). v0.11 island untouched (no placement code touched, landmark hash E128CB1D unchanged).
+  Cold/Volcanic never border: 0 offending pixels on all three. Rivers reach the coast but read thin.
+- Checks: Sky.hlsl compiles in batch build and shots; benches ran in the same build; preview script compiles in batchmode.
+  No Punchy.exe of mine running.
+- Shots: PunchyMilestones/world/W-03/fade3/streak-mid-fade-gone.png (streak mid, fading, gone);
+  PunchyMilestones/world/island-v2/island-v2-{A-four,B-five,C-six}-realms.png
+- Learned: none added to docs.
+- NEXT: pick one island v2 layout, thicken rivers, then wire it behind the generator version; #15 look checks; #13, #14.
+
 ## 2026-11-02 batch W-02b: W-02 built and seen, moon animation added, pushed (3728ef9)
 - DONE: #34 blue moon: rocky blue sphere with wavy rim tendrils; plus Zach's follow-up: tendrils drift slowly and a
   faint slow shimmer crosses the face. 2 frames 20 s apart show different tendrils (world-features 3728ef9, pushed)
