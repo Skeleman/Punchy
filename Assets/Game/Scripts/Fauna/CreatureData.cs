@@ -996,7 +996,7 @@ namespace Punchy.Fauna
                 ref var part = ref b.Parts[i];
                 if (part.Role != LimbRole.Leg || part.Parent >= 0)
                     continue;
-                stand += -Foot(ref b, ref part, CreatureBlob.Idle).y;
+                stand += -Foot(ref b, ref part, b.Disguised ? CreatureBlob.WalkReach : CreatureBlob.Idle).y;
                 walk += math.abs(Foot(ref b, ref part, CreatureBlob.WalkReach).z - Foot(ref b, ref part, CreatureBlob.WalkPush).z) * 2f;
                 run += math.abs(Foot(ref b, ref part, CreatureBlob.RunReach).z - Foot(ref b, ref part, CreatureBlob.RunPush).z) * 2f;
                 legs++;

@@ -87,6 +87,7 @@ namespace Punchy.Debugging
             ShotOnHunt();
             ColossusShot();
             MantrapShot();
+            MimicShot();
         }
 
         // ---------------------------------------------------------------- A-09 shots
@@ -195,6 +196,153 @@ namespace Punchy.Debugging
             var target = new Vector3(at.x, at.y + (lunge ? 1.2f : 1.6f), at.z - (lunge ? 0.3f : 0f));
             PoseCamera(eye, Quaternion.LookRotation(target - eye));
             Debug.Log($"DebugControls: mantrap {(lunge ? "lunge" : "side")} shot at plant ({at.x:F0}, {at.z:F0}): camera {Vector3.Distance(eye, new Vector3(at.x, eye.y, at.z)):F1} m away");
+        }
+
+        // ---------------------------------------------------------------- A-11 ocotillo mimic
+
+        /// <summary>"-mimicshot rest|run" (with "-spawn OcotilloMimic:1 -place tree:Ocotillo"): "rest" stands the mimic 2.5 m
+        /// from the lone ocotillo and frames both side-on; "run" walks the player at it from 30 m, logs the startle distance,
+        /// fold time, run speed and settle time, and takes the shot mid-run.</summary>
+        static string mimicShotMode;
+        static bool mimicTreeSet;
+        static float3 mimicTree;
+        static float mimicTreeHeight;
+        Entity mimicEntity;
+        float mimicT0 = -1f, mimicLogAt, mimicStartT = -1f, mimicEndT = -1f, mimicMaxSpeed, mimicShotT = -1f;
+        float3 mimicStartPos, mimicRunPos, mimicEndPos;
+        float mimicRunT;
+        bool mimicFolded, mimicSettled, mimicRunMarked;
+
+        void MimicShot()
+        {
+            if (mimicShotMode == null || !mimicTreeSet || !EnsureLocations(out var ground) ||
+                !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var director = FindAnyObjectByType<FaunaDirector>();
+            var index = director != null ? director.SpeciesIndex("OcotilloMimic") : -1;
+            if (index < 0)
+                return;
+            var em = queryWorld.EntityManager;
+            var now = Time.realtimeSinceStartup;
+            if (mimicT0 < 0f)
+            {
+                using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+                var entities = q.ToEntityArray(Allocator.Temp);
+                var pp = em.GetComponentData<LocalTransform>(player).Position;
+                var best = float.MaxValue;
+                mimicEntity = Entity.Null;
+                foreach (var e in entities)
+                {
+                    if (em.GetComponentData<CreatureBody>(e).Species != index)
+                        continue;
+                    var d = math.distance(em.GetComponentData<CreatureState>(e).Position, pp);
+                    if (d < best)
+                    {
+                        best = d;
+                        mimicEntity = e;
+                    }
+                }
+                entities.Dispose();
+                if (mimicEntity == Entity.Null)
+                    return;
+                var run = mimicShotMode == "run";
+                var at = mimicTree;
+                var spot = run ? new float2(at.x - 12f, at.z) : new float2(at.x - 2.5f, at.z);
+                var s = em.GetComponentData<CreatureState>(mimicEntity);
+                s.Position = new float3(spot.x, ground.SampleHeight(spot), spot.y);
+                s.Home = spot;
+                s.Mode = CreatureMode.Rest;
+                s.Timer = 600f;
+                s.Speed = 0f;
+                s.Curl = 1f;
+                s.Lie = 1f;
+                em.SetComponentData(mimicEntity, s);
+                mimicT0 = now;
+                mimicLogAt = 0f;
+                Debug.Log($"DebugControls: mimic {mimicShotMode}: placed at ({spot.x:F1}, {spot.y:F1}), tree ({at.x:F1}, {at.z:F1}) {mimicTreeHeight:F1} m tall");
+            }
+            if (!em.Exists(mimicEntity))
+                return;
+            var m = em.GetComponentData<CreatureState>(mimicEntity);
+            var pt = em.GetComponentData<LocalTransform>(player);
+            if (mimicShotMode != "run")
+            {
+                var far = new float2(m.Position.x + 60f, m.Position.z);
+                pt.Position = new float3(far.x, ground.SampleHeight(far) + 0.1f, far.y);
+                em.SetComponentData(player, pt);
+                var mid = new Vector3(mimicTree.x - 1.25f, mimicTree.y, mimicTree.z);
+                var dist = 8f + mimicTreeHeight * 1.5f;
+                var eye = mid + new Vector3(0f, mimicTreeHeight * 0.5f, -dist);
+                PoseCamera(eye, Quaternion.LookRotation(mid + Vector3.up * mimicTreeHeight * 0.5f - eye));
+                if (now - mimicT0 > 3f && now - mimicLogAt > 1f)
+                {
+                    mimicLogAt = now;
+                    Debug.Log($"DebugControls: mimic rest: mode {m.Mode}, curl {m.Curl:F2}, lie {m.Lie:F2}, speed {m.Speed:F2}");
+                }
+                return;
+            }
+
+            // Run: until the startle the player walks at 6 m/s from 30 m east; after it, he stands where he was.
+            var dx = pt.Position.x - m.Position.x;
+            var dz = pt.Position.z - m.Position.z;
+            var range = math.sqrt(dx * dx + dz * dz);
+            var t = now - mimicT0;
+            if (mimicStartT < 0f && m.Mode != CreatureMode.Flee)
+            {
+                var from = math.max(1f, 30f - t * 6f);
+                var p = new float2(m.Position.x + from, m.Position.z);
+                pt.Position = new float3(p.x, ground.SampleHeight(p) + 0.1f, p.y);
+                em.SetComponentData(player, pt);
+            }
+            if (mimicStartT < 0f && m.Mode == CreatureMode.Flee)
+            {
+                mimicStartT = now;
+                mimicStartPos = m.Position;
+                Debug.Log($"DebugControls: mimic STARTLE at {range:F1} m (t {t:F1} s): curl {m.Curl:F2}, lie {m.Lie:F2}");
+            }
+            if (mimicStartT >= 0f)
+            {
+                var since = now - mimicStartT;
+                mimicMaxSpeed = math.max(mimicMaxSpeed, m.Speed);
+                if (!mimicFolded && m.Curl < 0.1f)
+                {
+                    mimicFolded = true;
+                    Debug.Log($"DebugControls: mimic FOLDED (curl < 0.1) {since:F2} s after the startle; lie {m.Lie:F2}");
+                }
+                if (!mimicRunMarked && since >= 1.5f)
+                {
+                    mimicRunMarked = true;
+                    mimicRunPos = m.Position;
+                    mimicRunT = now;
+                }
+                if (mimicShotT < 0f && since >= 2.2f && m.Mode == CreatureMode.Flee && shotIndex >= 0 && shotStarted >= 0f)
+                {
+                    mimicShotT = now;
+                    shotWait = now - shotStarted + 0.05f;
+                    Debug.Log($"DebugControls: mimic mid-run shot at {since:F2} s: speed {m.Speed:F2} m/s, {range:F1} m from the player, curl {m.Curl:F2}, lie {m.Lie:F2}");
+                }
+                if (mimicEndT < 0f && mimicRunMarked && m.Mode != CreatureMode.Flee)
+                {
+                    mimicEndT = now;
+                    mimicEndPos = m.Position;
+                    var span = math.max(now - mimicRunT, 0.01f);
+                    Debug.Log($"DebugControls: mimic FLEE END {since:F2} s after the startle, mode {m.Mode}: max speed {mimicMaxSpeed:F2} m/s, mean speed {math.distance(mimicRunPos.xz, mimicEndPos.xz) / span:F2} m/s over {span:F1} s, {range:F1} m from the player");
+                }
+                if (mimicEndT >= 0f && !mimicSettled && m.Curl >= 0.95f)
+                {
+                    mimicSettled = true;
+                    Debug.Log($"DebugControls: mimic SETTLED (curl >= 0.95) {now - mimicEndT:F2} s after the flee ended, mode {m.Mode}, lie {m.Lie:F2}");
+                }
+            }
+            if (now - mimicLogAt > 0.5f)
+            {
+                mimicLogAt = now;
+                Debug.Log($"DebugControls: mimic t {t:F1}: mode {m.Mode}, speed {m.Speed:F2}, curl {m.Curl:F2}, lie {m.Lie:F2}, {range:F1} m from the player");
+            }
+            // Side-on camera on the mimic, 9 m south of it.
+            var focus = new Vector3(m.Position.x, m.Position.y + 1.4f, m.Position.z);
+            var cam = focus + new Vector3(0f, 0.8f, -9f);
+            PoseCamera(cam, Quaternion.LookRotation(focus - cam));
         }
 
         // ---------------------------------------------------------------- hunt log
@@ -607,6 +755,8 @@ namespace Punchy.Debugging
                 Mantrap.TestRequested = true;
             if (System.Array.IndexOf(args, "-mantrapstill") >= 0)
                 Mantrap.StillRequested = true;
+            var mmArg = System.Array.IndexOf(args, "-mimicshot");
+            mimicShotMode = mmArg >= 0 && mmArg + 1 < args.Length ? args[mmArg + 1] : null;
             var mtArg = System.Array.IndexOf(args, "-mantrapshot");
             mantrapShotMode = mtArg >= 0 && mtArg + 1 < args.Length ? args[mtArg + 1] : null;
             DunesColossus.FrameLog = System.Array.IndexOf(args, "-framelog") >= 0;
@@ -1542,6 +1692,9 @@ namespace Punchy.Debugging
                         continue;
                     var at = plant.Position;
                     var height = flora.Models[plant.Model].Height * plant.Scale;
+                    mimicTree = at;
+                    mimicTreeHeight = height;
+                    mimicTreeSet = true;
                     t.Position = new float3(at.x + 6f, source.SampleHeight(at.xz + new float2(6f, 0f)) + 0.05f, at.z);
                     // Facing the trunk (west), so walking on climbs it.
                     t.Rotation = quaternion.RotateY(-math.PI * 0.5f);
@@ -2227,6 +2380,12 @@ namespace Punchy.Debugging
             huntShotTaken = false;
             colossusShotDistance = 0f;
             mantrapShotMode = null;
+            mimicShotMode = null;
+            mimicT0 = -1f;
+            mimicStartT = mimicEndT = mimicShotT = -1f;
+            mimicMaxSpeed = 0f;
+            mimicFolded = mimicSettled = mimicRunMarked = false;
+            mimicEntity = Entity.Null;
             Mantrap.HoldStrike = false;
             mantrapLungePending = false;
             Mantrap.ThinFog = false;

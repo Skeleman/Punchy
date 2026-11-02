@@ -216,6 +216,8 @@ namespace Punchy.Fauna
                     ref var leg = ref b.Parts[i];
                     if (leg.Role != LimbRole.Leg || leg.Parent >= 0 || leg.SegmentCount < 2)
                         continue;
+                    if (b.Disguised && s.Curl > 0.5f)
+                        continue;
                     // (Where its foot stands, not straight under the hip: on a bank the two can be far apart in height.
                     // Its give is none for a straight leg, more for a bent one.)
                     var foot = rootPos + math.mul(rootRot, (leg.Socket + leg.Stance) * scale);
@@ -329,6 +331,15 @@ namespace Punchy.Fauna
                         var flap = CreatureBlob.Cycle(b.Poses[k + CreatureBlob.WalkReach], b.Poses[k + CreatureBlob.WalkPush],
                                                       b.Poses[k + CreatureBlob.WalkLift], jointPhase);
                         a = math.lerp(b.Poses[k + CreatureBlob.Idle], flap, s.Fly);
+                    }
+                    else if (b.Disguised && part.Role == LimbRole.Leg)
+                    {
+                        // A plant that walks on its arms: arms up at rest (the Idle keys), folded down onto their tips
+                        // as it is startled (Curl falls), and walking the gait keys on the tips.
+                        var k = seg * CreatureBlob.PoseCount;
+                        var stand = 0.5f * (b.Poses[k + CreatureBlob.WalkReach] + b.Poses[k + CreatureBlob.WalkPush]);
+                        var spider = math.lerp(stand, b.Angles(seg, jointPhase, 1f, run), math.saturate(gaitMove * 3f));
+                        a = math.lerp(spider, b.Poses[k + CreatureBlob.Idle], s.Curl);
                     }
                     else if (part.Role == LimbRole.Leg && sprint > 0f)
                     {
@@ -544,6 +555,8 @@ namespace Punchy.Fauna
                     for (int j = 0; j < part.SegmentCount; j++)
                         reach += b.Segments[part.FirstSegment + j].Length * scale;
                     var correction = ((actual - nominal) * (1f - fold) + (folds ? 0f : lowered) + sink) * (1f - airborne);
+                    if (b.Disguised)
+                        correction *= 1f - s.Curl;
                     correction = math.clamp(correction, -0.45f * reach, 0.45f * reach);
                     pos += PlaceFoot(ref b, ref part, ref segPos, ref segRot, new float3(0f, correction, 0f), scale);
 
