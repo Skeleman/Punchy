@@ -84,7 +84,7 @@ MonoBehaviour:
     Thickness: 1
     StyleGroup: 0
   WalkSpeed: 0.7
-  RunSpeed: 3
+  RunSpeed: 3.2
   Bob: {x: 0, y: 0}
   BobsPerCycle: {x: 2, y: 2}
   RunRock: 0
@@ -92,7 +92,7 @@ MonoBehaviour:
   LeglessStride: {x: 0.6, y: 0.9}
   WanderRadius: 15
   IdleTime: {x: 3, y: 15}
-  FleeDistance: 2.4
+  FleeDistance: 2
   TurnRate: 200
   SeenFrom: 0
   GroupSize: {x: 1, y: 1}

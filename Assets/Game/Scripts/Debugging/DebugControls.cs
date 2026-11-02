@@ -160,6 +160,23 @@ namespace Punchy.Debugging
             var eye = new Vector3(stand.x, ground.SampleHeight(stand) + (d > 150f ? 25f : 4f), stand.y);
             var target = new Vector3(at.x, at.y + (d > 150f ? 33f : 38f), at.z);
             PoseCamera(eye, Quaternion.LookRotation(target - eye));
+            if (ground.Settlements.IsCreated)
+            {
+                // A-12 (#40): how far the colossus stands from the nearest settlement.
+                ref var towns = ref ground.Settlements.Value;
+                var near = float.MaxValue;
+                var nearAt = float2.zero;
+                for (int k = 0; k < towns.Settlements.Length; k++)
+                {
+                    var dist = math.distance(towns.Settlements[k].Centre, at.xz);
+                    if (dist < near)
+                    {
+                        near = dist;
+                        nearAt = towns.Settlements[k].Centre;
+                    }
+                }
+                Debug.Log($"DebugControls: colossus at ({at.x:F0}, {at.z:F0}): nearest settlement {near:F0} m away at ({nearAt.x:F0}, {nearAt.y:F0}), of {towns.Settlements.Length}");
+            }
             Debug.Log($"DebugControls: colossus shot from {d:F0} m: camera ({eye.x:F0}, {eye.y:F0}, {eye.z:F0}) looking at ({target.x:F0}, {target.y:F0}, {target.z:F0})");
         }
 
@@ -313,7 +330,7 @@ namespace Punchy.Debugging
                 pt.Position = new float3(far.x, ground.SampleHeight(far) + 0.1f, far.y);
                 em.SetComponentData(player, pt);
                 var mid = new Vector3(mimicTree.x - 1.25f, mimicTree.y, mimicTree.z);
-                var dist = 8f + mimicTreeHeight * 1.5f;
+                var dist = 5f; // A-12: about 5 m back, so both plants fill the frame
                 var eye = mid + new Vector3(0f, mimicTreeHeight * 0.5f, -dist);
                 PoseCamera(eye, Quaternion.LookRotation(mid + Vector3.up * mimicTreeHeight * 0.5f - eye));
                 if (now - mimicT0 > 3f && now - mimicLogAt > 1f)
@@ -383,7 +400,7 @@ namespace Punchy.Debugging
             }
             // Side-on camera on the mimic, 9 m south of it.
             var focus = new Vector3(m.Position.x, m.Position.y + 1.4f, m.Position.z);
-            var cam = focus + new Vector3(0f, 0.8f, -9f);
+            var cam = focus + new Vector3(0f, 0.6f, -6f); // A-12: 6 m back: only the mimic in frame (the tree is 12+ m east)
             PoseCamera(cam, Quaternion.LookRotation(focus - cam));
         }
 

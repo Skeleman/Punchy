@@ -5142,6 +5142,10 @@ namespace Punchy.Fauna
             bool StartFlight(ref CreatureState s, ref CreatureBlob b, ref Random rng, bool toSleep)
             {
                 var range = math.max(b.WanderRadius, 20f);
+                // (#12/A-12: somewhere ahead of it, within 90 deg of its heading, so the turn to face the new spot stays
+                // small; a spot behind meant a half turn in a couple of seconds, songbirds' wandering at 25-31 deg/s.)
+                var ahead = s.Yaw + rng.NextFloat(-math.PI * 0.5f, math.PI * 0.5f);
+                var aheadDir = new float2(math.sin(ahead), math.cos(ahead));
                 // A soarer mostly goes up to circle a while over somewhere near (not straight after a spell of it).
                 if (b.Soars && !toSleep && s.Stage != 2 && rng.NextFloat() < 0.75f)
                 {
@@ -5163,7 +5167,7 @@ namespace Punchy.Fauna
                     return true;
                 }
                 if (HasFlora && (toSleep || rng.NextFloat() < b.Perching) &&
-                    FloraPlacement.FindTree(ref Flora.Value, Terrain, s.Position.xz + rng.NextFloat2Direction() * range * 0.5f, range * 0.6f, 3f, ref rng, out var tree))
+                    FloraPlacement.FindTree(ref Flora.Value, Terrain, s.Position.xz + aheadDir * range * 0.5f, range * 0.6f, 3f, ref rng, out var tree))
                 {
                     SetMode(ref s, CreatureMode.Wander);
                     s.Stage = 1;
@@ -5174,7 +5178,7 @@ namespace Punchy.Fauna
                 }
                 if (toSleep)
                     return false;
-                var spot = s.Position.xz + rng.NextFloat2Direction() * range * rng.NextFloat(0.5f, 1.2f);
+                var spot = s.Position.xz + aheadDir * range * rng.NextFloat(0.5f, 1.2f);
                 if (!OpenGround(spot))
                     return false;
                 SetMode(ref s, CreatureMode.Wander);
