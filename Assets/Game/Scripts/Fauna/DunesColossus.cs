@@ -455,7 +455,7 @@ namespace Punchy.Fauna
         // ---------------------------------------------------------------- mesh pieces
 
         /// <summary>Flat-shaded triangles with a little per-facet brightness variation (so the stone reads as cut).</summary>
-        sealed class MeshBuilder
+        internal sealed class MeshBuilder
         {
             readonly List<Vector3> verts = new List<Vector3>();
             readonly List<Vector3> normals = new List<Vector3>();
@@ -487,6 +487,33 @@ namespace Punchy.Fauna
                     var a = P(i, j); var b = P(i + 1, j); var c = P(i + 1, j + 1); var d = P(i, j + 1);
                     if (j > 0) Tri(a, c, b, color);
                     if (j < lat - 1) Tri(a, d, c, color);
+                }
+            }
+
+            /// <summary>The upper half of an ellipsoid (a bowl opening downwards), for coconut-shell shapes; inside = wound to face inwards.</summary>
+            public void Dome(Vector3 centre, Vector3 radii, Quaternion rotation, Color color, bool inside = false, int lon = 12, int lat = 4)
+            {
+                Vector3 P(int i, int j)
+                {
+                    var phi = Mathf.PI * 0.5f * j / lat;
+                    var theta = 2f * Mathf.PI * (i % lon) / lon;
+                    var v = new Vector3(Mathf.Sin(phi) * Mathf.Cos(theta) * radii.x, Mathf.Cos(phi) * radii.y, Mathf.Sin(phi) * Mathf.Sin(theta) * radii.z);
+                    return centre + rotation * v;
+                }
+                for (int j = 0; j < lat; j++)
+                for (int i = 0; i < lon; i++)
+                {
+                    var a = P(i, j); var b = P(i + 1, j); var c = P(i + 1, j + 1); var d = P(i, j + 1);
+                    if (inside)
+                    {
+                        if (j > 0) Tri(a, b, c, color);
+                        Tri(a, c, d, color);
+                    }
+                    else
+                    {
+                        if (j > 0) Tri(a, c, b, color);
+                        Tri(a, d, c, color);
+                    }
                 }
             }
 

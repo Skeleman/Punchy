@@ -71,6 +71,8 @@ namespace Punchy.Fauna
         // world runs the animals: the server world when hosting, the local world without netcode, none on a client
         // that joined someone else.
         World queryWorld, simWorld;
+        /// <summary>The world that simulates animals (the server's, when hosting); null before the director is up.</summary>
+        public World SimWorld => simWorld;
         EntityQuery terrainQuery, paletteQuery, playerQuery, avatarQuery, replicaQuery, newReplicaQuery;
         EntityQuery wildQuery, simCreatureQuery, netPlayerQuery, simPlayerQuery, ghostSpawnerQuery, floraQuery;
         /// <summary>When the far ones are next let go (and the counts tallied): four times a second is plenty.</summary>

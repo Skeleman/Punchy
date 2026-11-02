@@ -86,6 +86,7 @@ namespace Punchy.Debugging
             HuntLog();
             ShotOnHunt();
             ColossusShot();
+            MantrapShot();
         }
 
         // ---------------------------------------------------------------- A-09 shots
@@ -93,6 +94,7 @@ namespace Punchy.Debugging
         static bool shotOnHunt;
         bool huntShotTaken;
         static float colossusShotDistance;
+        static string mantrapShotMode;
 
         /// <summary>
         /// "-shotonhunt" on a shot-list line: the moment a land hunter's chase turns to a run, the camera is put 16 m to the
@@ -157,6 +159,31 @@ namespace Punchy.Debugging
             var target = new Vector3(at.x, at.y + (d > 150f ? 33f : 38f), at.z);
             PoseCamera(eye, Quaternion.LookRotation(target - eye));
             Debug.Log($"DebugControls: colossus shot from {d:F0} m: camera ({eye.x:F0}, {eye.y:F0}, {eye.z:F0}) looking at ({target.x:F0}, {target.y:F0}, {target.z:F0})");
+        }
+
+        /// <summary>
+        /// "-mantrapshot side": the player 5 m south of the first carnivorous plant and the camera 4 m east of it, looking at its
+        /// head side-on. "-mantrapshot lunge": the player 0.6 m from it, the camera 3 m east, and the strike held at its peak.
+        /// </summary>
+        void MantrapShot()
+        {
+            if (mantrapShotMode == null || !Mantrap.Placed || Mantrap.Spots.Count == 0 || !EnsureLocations(out var ground) ||
+                !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var lunge = mantrapShotMode == "lunge";
+            mantrapShotMode = null;
+            Mantrap.HoldStrike = lunge;
+            var at = Mantrap.Spot(0);
+            var stand = new float2(at.x, at.z - (lunge ? 0.6f : 5f));
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(player);
+            t.Position = new float3(stand.x, ground.SampleHeight(stand) + 0.1f, stand.y);
+            em.SetComponentData(player, t);
+            var cam = new float2(at.x + (lunge ? 3f : 4f), at.z - (lunge ? 0.3f : 0f));
+            var eye = new Vector3(cam.x, ground.SampleHeight(cam) + 1.4f, cam.y);
+            var target = new Vector3(at.x, at.y + (lunge ? 1.0f : 1.6f), at.z - (lunge ? 0.3f : 0f));
+            PoseCamera(eye, Quaternion.LookRotation(target - eye));
+            Debug.Log($"DebugControls: mantrap {(lunge ? "lunge" : "side")} shot at plant ({at.x:F0}, {at.z:F0}): camera {Vector3.Distance(eye, new Vector3(at.x, eye.y, at.z)):F1} m away");
         }
 
         // ---------------------------------------------------------------- hunt log
@@ -562,6 +589,13 @@ namespace Punchy.Debugging
             // A-09 (#40): "-nocolossus" hides the Dunes colossus, "-framelog" logs frame times, "-colossusshot 300" puts the
             // player and camera that far from it.
             DunesColossus.Hidden = System.Array.IndexOf(args, "-nocolossus") >= 0;
+            // A-10 (#41): "-nomantrap" hides the carnivorous plants, "-mantraptest" runs the 60 s scripted test on the first one,
+            // "-mantrapshot side|lunge" frames it.
+            Mantrap.Hidden = System.Array.IndexOf(args, "-nomantrap") >= 0;
+            if (System.Array.IndexOf(args, "-mantraptest") >= 0)
+                Mantrap.TestRequested = true;
+            var mtArg = System.Array.IndexOf(args, "-mantrapshot");
+            mantrapShotMode = mtArg >= 0 && mtArg + 1 < args.Length ? args[mtArg + 1] : null;
             DunesColossus.FrameLog = System.Array.IndexOf(args, "-framelog") >= 0;
             var colArg = System.Array.IndexOf(args, "-colossusshot");
             colossusShotDistance = colArg >= 0 && colArg + 1 < args.Length && float.TryParse(args[colArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var cd) ? cd : 0f;
@@ -2179,6 +2213,8 @@ namespace Punchy.Debugging
             cameraPosed = false;
             huntShotTaken = false;
             colossusShotDistance = 0f;
+            mantrapShotMode = null;
+            Mantrap.HoldStrike = false;
             if (posed != Entity.Null && queryWorld != null && queryWorld.IsCreated && queryWorld.EntityManager.Exists(posed))
                 queryWorld.EntityManager.DestroyEntity(posed);
             posed = Entity.Null;
