@@ -539,7 +539,9 @@ half3 PunchyBlueMoonFace(float3 dir, float3 m, float radius, half3 tint, out hal
     float3 n = float3(uv, z);
     half lit = smoothstep(-0.25, 0.55, dot(n, normalize(float3(-0.55, 0.4, 0.75))));
     half limb = pow(saturate(z), 0.45);
-    half shade = seas * rock * saturate(1 + craters) * (0.1 + 0.9 * lit) * (0.2 + 0.8 * limb);
+    // Slow shimmer across the face: low-amplitude brightness noise drifting over about a minute (no flicker).
+    half shimmer = 1 + 0.12 * (PunchyValueNoise(uv * 4.0 + float2(_Time.y * 0.03, -_Time.y * 0.02)) + PunchyValueNoise(uv * 9.0 - _Time.y * 0.025) - 1);
+    half shade = seas * rock * shimmer * saturate(1 + craters) * (0.1 + 0.9 * lit) * (0.2 + 0.8 * limb);
     return tint * cover * shade * 1.6;
 }
 
@@ -555,7 +557,7 @@ half3 PunchyBlueCorona(float3 dir, float radius)
     float3 v = dir - m * dot(dir, m);
     float th = atan2(dot(v, up), dot(v, right));
     float wave = th * 5 + sin(outside * 9 + th * 3 + _Time.y * 0.15) * 0.8;
-    float fil = PunchyValueNoise(float2(wave, _Time.y * 0.05)) * 0.7 + PunchyValueNoise(float2(th * 17 + outside * 4, 3.1)) * 0.3;
+    float fil = PunchyValueNoise(float2(wave, _Time.y * 0.05)) * 0.7 + PunchyValueNoise(float2(th * 17 + outside * 4 + _Time.y * 0.12, 3.1 + _Time.y * 0.03)) * 0.3;
     half tendrils = smoothstep(0.45, 0.85, fil) * exp(-outside * 3.2) * 0.3;
     half glow = exp(-outside * 6) * 0.07;
     return half3(0.0, 0.03, 2.0) * (glow + tendrils) * smoothstep(0.98, 1.02, a / radius);
