@@ -1,24 +1,28 @@
-# Animal lane: state (2026-11-02, after batch A-23)
+# Animal lane: state (2026-11-02, after batch A-24)
 
-Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 5557c9a (A-23).
-Builds/Windows is the A-23 build. Editor open on port 7800; no Punchy.exe of ours running.
+Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 5557c9a (unchanged by A-24); status clean
+apart from the old untracked `Assets/_Recovery/` (from 10-30, not ours to delete).
+Local branch `merge-test` ac8031a = 5557c9a + origin/world-features fb6d7ee (NOT pushed). Builds/Windows is the
+merge-test build (has `-island v2`). Editor open on port 7800, back on animal-behaviours, 0 compile errors.
+
+## A-24 (artefacts PunchyMilestones/animal/a24/)
+- Merge rehearsal: one conflict, docs/agents/rendering.md (both sides added a bullet at the end; kept both).
+  Editor compiles merge-test with 0 errors. No scene/ProjectSettings/Packages changes in the merge.
+- #23 confirmed on v2: at the v2 cave stop (-1653,2380 then -incave: cave 10), with 135-145 creatures, CreatureRenderSystem takes 7.1-7.3 ms with
+  `-oldcull` (cull 7.0) and 0.32-0.35 ms with Burst (cull 0.2). Hashes: v2 127 / 831FF2EE (player log), v1
+  101 / E128CB1D (editor play mode on merge-test; the v1 player doesn't print a hash).
+- Editor v1 landmark hash: Temp/a24_hash.cs, eval in Play mode (Edit mode has no TerrainSource).
 
 ## A-23 (artefacts PunchyMilestones/animal/a23/)
-- #6 met: `-huntside d` places the camera d m perpendicular to the hunter's Yaw every frame (was the hunter-to-prey
-  line, which ran 157-162 deg off the heading when the nearest "prey" was behind the wolf). leapgather-800 (gather
-  1.00) and leapextend2-800 (gather 0.00) are both side-on at 4 m, wolf at 12.3 m/s. Gait values untouched.
-- #7 met: `-huntpair` aims between hunter and prey (steps back past 1.6 d apart). dogchase-800: dog and
-  SnowshoeHare 2.1 m apart, 5 m side-on, both clear.
-- Back-to-back -shotonhunt lines skip the previous line's hunter until its sprint ends (staleHunter); without it
-  the extend shot caught the slowing wolf walking.
-- huntside log line now gives "prey line N deg off the heading".
+- #6 met: `-huntside d` sits d m off the hunter's Yaw every frame (leapgather-800, leapextend2-800, side-on 4 m).
+- #7 met: `-huntpair` aims between hunter and prey (dogchase-800). Back-to-back -shotonhunt lines skip the
+  previous line's hunter until its sprint ends (staleHunter).
 
 ## A-22 (artefacts PunchyMilestones/animal/a22/)
 - #23: cave cull now a Burst job: 0.03-0.04 ms (was 1.6-2.1 ms); system total 1.9 -> 0.33 ms (100 creatures).
-  Not checked on v2 (not in this tree): run `-renderpasslog` with and without `-oldcull` there.
 - Flags: `-renderpasslog` (ms per pass every 3 s), `-oldcull`. `-incave` goes on the line after `-goto`.
 
-## A-21 (artefacts PunchyMilestones/animal/a21/)
+## A-21
 - #6 GallopStyle.Leap: Wolf, Cat, Dog (Coyote as Wolf variant); Deer, Horse, Bison, Pronghorn, BlackBear Rotary;
   small animals Bound (-gaitlog).
 - #16 met: walk-off rolled per attempt; settled village child never walks off (childcarry-800).
@@ -34,7 +38,7 @@ Builds/Windows is the A-23 build. Editor open on port 7800; no Punchy.exe of our
 
 ## Open
 - #12: numbers in (A-16); Zach's look. #33: sideways still 0 m/s on stick right.
-- #6, #7, #16, #43, #49: Zach's look. #23: confirm on v2.
+- #6, #7, #16, #43, #49: Zach's look. #23: v2 confirmed (A-24), Zach can close.
 - #10 new species (needs design).
 - Animals still flee a flyer high above (confirm with Zach before filing more).
 
@@ -47,5 +51,5 @@ Builds/Windows is the A-23 build. Editor open on port 7800; no Punchy.exe of our
 - Shot lists survive the client's scene reload: a second line runs on in the solo game (A-18 #49).
 - `-actiontest roll:A,B|fly:Body|fish:Trout`; `-setbody X`; `-place wall`; `-place clearlake`;
   climb test `-autowalk -body Monkey -place tree:Oak`. Client roll check: see TESTING.md.
-- Editor: `unity recompile` (no --port); BuildPlayer via `unity command --port 7800 eval "$(cat Temp/a23_build.cs)"`
-  from Git Bash (PowerShell strips the quotes); times out at 30 s but finishes, ~2-3 min; wait for Temp/a23build.txt.
+- Editor: `unity recompile` (no --port); BuildPlayer via `unity command --port 7800 eval "$(cat Temp/a24_build.cs)"`
+  from Git Bash (PowerShell strips the quotes); times out at 30 s but finishes, ~2-3 min; wait for Temp/a24build.txt.

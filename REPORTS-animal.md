@@ -841,3 +841,9 @@ different files.
 - #7 met: dog chase retaken side-on at 5 m with the new -huntpair (aims between hunter and prey); dog and hare both clearly visible, 2.1 m apart.
 - Second build: back-to-back -shotonhunt lines caught the last line's wolf walking (extend shot 1); fixed by skipping that hunter until its sprint ends, then retaken.
 - NEXT: Zach's look at the leap poses (leapgather-800, leapextend2-800) and dogchase-800.
+
+## A-24 (2026-11-02): merge rehearsal and #23 on v2, local merge-test ac8031a (one build)
+- Merge rehearsal: merging origin/world-features fb6d7ee into animal-behaviours 5557c9a (local `merge-test`, not pushed) hits one conflict, docs/agents/rendering.md (both sides added a bullet at the end; kept both). The editor compiles with 0 errors.
+- #23 confirmed on v2: at the v2 cave stop with 135-145 creatures, CreatureRenderSystem takes 7.1-7.3 ms with `-oldcull` and 0.32-0.35 ms with the Burst cull (cull 7.0 -> 0.2). Hashes hold: v2 127 / 831FF2EE, v1 101 / E128CB1D. 0 exceptions.
+- Worktree is back on animal-behaviours, clean (apart from the old untracked Assets/_Recovery).
+- NEXT: Zach can close #23; merge-test is ready for the real merge when the supervisor calls it.
