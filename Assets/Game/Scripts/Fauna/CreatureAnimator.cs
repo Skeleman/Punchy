@@ -57,6 +57,20 @@ namespace Punchy.Fauna
             return math.smoothstep(0.68f, 1f, p);
         }
 
+        /// <summary>How much less a leaping run's hip swings at either extreme than the pushed run key gives (A-25, #6:
+        /// the owner found the legs going near horizontal; about 30° back from that).</summary>
+        public const float LeapHipEase = 0.52f;
+
+        /// <summary>A leaping run's hip at one extreme (gathered or in the leap): the run key's swing pushed out by
+        /// gain, then its fore-and-aft swing (x) drawn LeapHipEase back towards the rest pose.</summary>
+        public static float3 LeapHip(float3 idle, float3 key, float gain)
+        {
+            var pose = idle + (key - idle) * gain;
+            var swing = pose.x - idle.x;
+            pose.x = idle.x + math.sign(swing) * math.max(math.abs(swing) - LeapHipEase, 0f);
+            return pose;
+        }
+
         /// <param name="detail">Near the camera: the legs fitted to the ground under each foot (the hips lowered on a
         /// slope, each foot reaching for the ground, tipped with it, rolling heel to toe). Further off, where none of
         /// that shows, they keep to the body's plane, saving the ground samples.</param>
@@ -385,6 +399,12 @@ namespace Punchy.Fauna
                         var gain = foot ? 1f : j == 0 ? 1.8f : 1.3f;
                         var gathered = idle + ((hind ? reachKey : pushKey) - idle) * gain;
                         var extended = idle + ((hind ? pushKey : reachKey) - idle) * (foot ? 1f : gain * 1.15f);
+                        // (The hip eased back from the extremes, A-25: the legs went near horizontal.)
+                        if (j == 0)
+                        {
+                            gathered = LeapHip(idle, hind ? reachKey : pushKey, gain);
+                            extended = LeapHip(idle, hind ? pushKey : reachKey, gain * 1.15f);
+                        }
                         var pose = math.lerp(extended, gathered, gather);
                         if (!hind && j == 0)
                             pose.z += part.Side * 0.3f * gather;
