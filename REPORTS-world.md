@@ -722,3 +722,9 @@ b/weather-mapjob.
 - **DONE:** #23 settlements stage ~970 -> ~290 ms in the editor (roads 833 -> 150), settlement hash unchanged (bench B4E4858C9FE1CF46 / roadside 14650FB0739D0383, baked 2433C3F949E9CE3E); v2 player settlements 344 ms. v2 player log 127 / 831FF2EE. world-features d69a710 pushed; one build.
 - **NOT DONE:** #35 the rim is soft now, but the build shot still reads as a bright milky blob, not water. v1 player log has no hash line: v1 never logged one. Added the log after the single build, so the next build must confirm 101 / E128CB1D (no landmark code touched).
 - **Shots:** PunchyMilestones/world/w16 (v2-white-pool, v2-white-pool-wide).
+
+## W-17 (2026-11-02)
+- **DONE:** #35 white pools now darken and stay see-through across the middle (body alpha x0.55), glow only a pale band inside the soft rim, colour/glow toned down; default pools unchanged. Build shot at 800 px reads as a pale translucent pool, floor showing through. Editor cave preview: `CaveTools.PreviewAt` + `PreviewShot` (tracked), editor shot taken before the build. Player logs v1 101 / E128CB1D, v2 127 / 831FF2EE. world-features 60a8ebd pushed; one build.
+- **NOT DONE:** nothing from the card. Bat folk not started (out of scope).
+- **Note:** first v2 player run lost its shots (shot dir missing); reran the player, no rebuild.
+- **Shots:** PunchyMilestones/world/w17 (v2-white-pool, v2-white-pool-wide, editor-white-pool).
