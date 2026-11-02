@@ -860,3 +860,18 @@ different files.
 - Row 4: PR #51 merged with a merge commit; main 0cc3ed7 contains both lane heads (merge-base --is-ancestor). Lane branches kept.
 - Row 5: worktree back on animal-behaviours, clean (apart from Assets/_Recovery), editor recompiled with 0 errors. Not done: deleting local `merge-test` (ac8031a); `git branch -D` was blocked by the permission classifier and `-d` refuses (its merge commit isn't on main).
 - NEXT: Zach or the supervisor deletes local merge-test (and the merged `merge/lanes-to-main` branches if wanted).
+
+## A-26 (2026-11-02): coyote leap, folk talks
+NOT DONE (task 3 shot). animal-behaviours 855a835 pushed.
+- #6: coyote inherits Wolf's Leap; build `-gaitlog`: `gait Coyote: Leap`. No code change.
+- Folk talks in code: two townsfolk stop, face each other, take turns talking (hand beats) and listening (nods),
+  4-10 s, then resume their walk; cooldown 90-200 s per folk, at most 3 talks per town, children may stand by.
+  Local fields and Idle stages only (rule 11 kept); host/solo log `FolkChat: Human & Human at (141, -396) in
+  Stonewick for 10.2 s` (two in the run). `-chattest` forces, `-chatshot` frames. Synced: would need the partner sent.
+- Shot: both talks finished before the `-chatshot` line began; no talks for the next 120 s despite `-chattest`,
+  so shots 1-2 show a lone folk (viewed at 800 px). Suspect few residents stay ChatFree once at their day jobs.
+- Checks: compile clean, build Succeeded, no exceptions in the player log. v1 101 / E128CB1D could not be read: this
+  branch lacks main's `[island]` hash log (main not merged in). Gait values untouched; no placement code touched.
+- Shots: D:\Unity\PunchyMilestones\animal\a26\a26-shot0..4-800.png (full size in shots\).
+- NEXT: in play mode, count Mode/Task/Leash of Stonewick folk at 30-60 s, widen ChatFree if needed, retake
+  with `-chatshot` on the `-place` line. Merge main into animal-behaviours for the hash line.

@@ -16,6 +16,9 @@ Read `lanes/shared/checks.md` first.
   The shot can still fire at sprint start (A-25: 6 m/s, leap only part blended): read `hunter speed` in the huntside
   line and retake under ~10 m/s. Leg angles without a build: Temp/a25_angles.cs (eval builds the Wolf blob).
 - Spin and drift probes: `-spincheck` (spin log lines; compare counts over 3 runs), `-footdrift`.
+- Since A-26 `-chattest` (launch arg) forces folk talks (15-30 s cooldown); `-chatshot` on a shot line frames the
+  nearest talking pair 4 m side-on once the line is 2 s in. Talks burst in the first ~20 s after `-place`, so put
+  `-chatshot` on the `-place HumanVillage` line itself. Each talk logs `FolkChat: A & B at (x, z) in Town for N s`.
 
 ## Known spots
 - Our seed (1337) has no mining camp. Seed 3 (local branch tmp/animal-slot8-seed3 866dc99, World.Seed 3) has a
