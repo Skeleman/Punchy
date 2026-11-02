@@ -2,6 +2,14 @@
 
 Newest first.
 
+## 2026-11-02 batch A-17: no client NRE when the host quits; side-on hunt reshoot
+- DONE: #49 (new) client falling back to solo no longer throws in TerrainSource.HasBiomes: DunesColossus and Mantrap re-fetch TerrainSource when the default world changes and rebuild after the scene reload (animal-behaviours 17d4b40)
+- DONE: #6 hunt reshot side-on 1 s into the sprint in clear weather (new -huntside flag, same commit)
+- Checks: compile clean; 1 build (Succeeded, 0 errors); host/client run, host quits at 30 s: client 0 exceptions, host 0 (A-16: 1 NRE). Colossus re-placement in the solo game not seen (client list ended at the reload). huntside log: Wolf 7.1 m/s, stage 1, 1.0 s after sprint start. No Punchy.exe of mine left.
+- Shots: PunchyMilestones/animal/a17/hunt-800.png (7 m: wolf mid-stride, partly behind a shrub; clear sky); a17/retry/hunt-800.png (6 m: legs spread fore/aft, a bound reads, back half behind the shrub)
+- Learned: docs/agents/multiplayer.md (cached TerrainSource and AfterSceneLoad after a world swap)
+- NEXT: #6 if Zach wants the full body: another hunt spot without the shrub; #7/#12 wait on Zach
+
 ## 2026-11-02 batch A-16: songbird windows in; client sees a remote roll; Growl blocked by dog data
 - DONE: #12 five Wander/flying windows of 25 s+ with the player standing still (16 Songbirds): 24.1, 19.8, 10.5, 16.0, 46.4 deg/s (38/30/35/27/26 s), weighted ~22.5 (A-14 ~23.5)
 - DONE: #48 client logs the remote roll (Roll 0.03, shot at 0.40) and sees the host upside down mid-somersault (new -remoteroll test flag, animal-behaviours 995ca68)
