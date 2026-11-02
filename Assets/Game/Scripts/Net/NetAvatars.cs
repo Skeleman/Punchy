@@ -14,7 +14,7 @@ namespace Punchy.Net
     /// travels as its index here, so every machine must have the same list in the same order (append, never reorder).
     /// For each remote NetPlayer this spawns a creature puppet of their species, coat and individual, which
     /// PlayerAvatarSystem drives from the interpolated ghost; it also tells the network which body the local player
-    /// has (FaunaDirector's Player Species), and F2's panel can switch it.
+    /// has (FaunaDirector's Player Species), and the menu's Multiplayer tab can switch it.
     /// </summary>
     public class NetAvatars : MonoBehaviour
     {

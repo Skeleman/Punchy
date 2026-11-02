@@ -16,7 +16,9 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   (TerrainAuthoring inspector), paint it, and set Biome Source to Map.
 - **Data-driven assets, not code, define content.** Biomes (`Assets/Game/Biomes`) list their surfaces, terrain shape,
   water look, weather odds, ambience, flora, fauna and ambient particles. Most new content is a new asset or a
-  biome list entry.
+  biome list entry. To thin an ambient particle type everywhere, set its `DensityScale` instead of editing biome
+  densities (a biome edit re-bakes the terrain); `GroundTint` takes each particle's colour from the ground under
+  it, and `Volume` (Mist) makes big soft cloud-like patches (dune dust).
 - **Plants and animals are procedural, not models.** `FloraGenerator` grows every plant species in a few seeded
   variants at three LODs; creatures are assemblies of `LimbType` parts drawn as instanced tapered capsules. There
   are no imported meshes for either.
@@ -36,5 +38,24 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   At entrances the terrain stores each vertex's distance to cave air (Morph.w) and its shader cuts the surface
   just inside the cave's edge, in every pass (near LODs only); `CaveSystem` builds the cave walls with surface
   nets in background jobs, sets `CaveSystem.Underground` (weather stops) and lights a lantern on the player.
+  Rubble and plants are placed per cave in `Parallel.For` and joined in cave order, so the output is the same as
+  a serial pass; keep any new per-cave pass that way (no shared RNG or lists across caves). `[bake] caves ms`
+  logs each step. `-whitepools` draws every cave water pool as white pool water (`CaveSystem.WhitePoolWater`,
+  #35); murk above about 0.3 makes the pool a hard-edged opaque slab that reads as snow. White pools set `_SoftRim`:
+  the rim fades, the middle darkens and stays see-through (body alpha x0.55), and the glow is a band inside the rim.
+- **Bat folk (#35, W-18):** `BatFolkBaking` runs after CaveBaking, reads the caves only and writes its own blob
+  (`TerrainSource.BatFolk`), so landmark and cave hashes never see it. A cave qualifies with a chamber >= 9 m
+  at least 3 nodes in and a water pool (the chamber's own, else the nearest in the cave); up to 1 in 6 (min 1) is
+  picked by a scrambled mouth-cell hash on its own seed stream. Its `WhitePools` (per cave pool) draws those
+  pools white; `-whitepools` is now a debug override. Logs `[batfolk] caves N, picked K` (v1 player: from the blob).
+- **Cave previews in the editor:** a camera moved into a cave alone shows nothing (chunks stream, `Underground` and
+  the lantern follow the player over a few frames). In play mode call `CaveTools.PreviewAt(pos, target, whitePools)`,
+  wait a few seconds, then `CaveTools.PreviewShot(path)`.
 - **Plants, animals and particles are not baked:** editing their assets in Play mode applies live within about a
   second (the systems hash their config and rebuild).
+- **Ponds are pruned after baking:** `BuildPlaces` labels wet cells on a 16 m grid and bakes `PondMask`, which
+  zeroes every pond under `PondMinCells` (3) cells. Landmarks are placed before ponds, so this never moves them;
+  a new pond rule goes through the mask, not more erosion or threshold tuning.
+  With a biome map (island v2) the core test uses the map's sharp weights: the blurred shape weights never pass
+  0.4 in its small swamp patches, which left v2 with no ponds at all.
+- Roads (W-16): the A* routes run in parallel on a managed copy of the cost grid with a precomputed wander array; Emit and bridge sampling run in parallel and are added serially in pair order, so output is identical. The `[bake] stages` line splits settlements into towns/roads/roadside/blob. Settlements went from about 970 ms to about 290 ms (editor bench, hash unchanged).

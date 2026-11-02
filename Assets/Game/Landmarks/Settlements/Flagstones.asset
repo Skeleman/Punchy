@@ -20,4 +20,5 @@ MonoBehaviour:
   Bumpiness: 0.35
   GrassDensity: 0
   Pebbles: 0.2
+  Paving: 0.8
   SnowDepth: 0

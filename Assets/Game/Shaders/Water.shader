@@ -28,6 +28,9 @@ Shader "Punchy/Water"
         _Sparkle("Sun Sparkle", Range(0, 1)) = 0.6
         // 1 on CaveSystem's copy for cave pools and streams: always under rock, whatever the camera's depth.
         [HideInInspector] _UnderRock("Under Rock", Float) = 0
+        // 1 for white pools (CaveSystem, per draw): the pool fades out towards its rim (the disc mesh's depth) instead of
+        // ending in a hard edge, and its glow with it.
+        [HideInInspector] _SoftRim("Soft Rim", Float) = 0
     }
 
     SubShader
@@ -83,6 +86,7 @@ Shader "Punchy/Water"
                 float _DetailScale;
                 half _Sparkle;
                 half _UnderRock;
+                half _SoftRim;
             CBUFFER_END
             // 0 above ground, 1 with the camera deep in a cave (CaveSystem).
             float _PunchyUnderground;
@@ -340,6 +344,12 @@ Shader "Punchy/Water"
                 float murk = saturate(input.look.a);
                 float glow = input.glow.x;
                 float lava = saturate(input.glow.y);
+                // White pools (#35): 1 in the middle, easing to 0 at the disc's edge (depth there is 1 - r², so the outer
+                // third or so fades), so the shore shows through and no hard rim is drawn. 1 everywhere on other water.
+                half rim = lerp(1, smoothstep(0.0, 0.55, depth), _SoftRim);
+                // White pools' middle (W-17: it read as a milky blob): 0 at the shore, 1 at the centre. The body there
+                // darkens to a deep, dark water colour and the glow thins out, so only a pale sheen is left round it.
+                half whiteMiddle = _SoftRim * smoothstep(0.25, 1.0, depth);
                 // Very murky water is thick, like oil or sludge.
                 float viscous = smoothstep(0.55, 0.9, murk) * (1 - lava);
                 float distanceFade = saturate(1 - distance(input.positionWS, GetCameraPositionWS()) / 350);
@@ -430,6 +440,7 @@ Shader "Punchy/Water"
                 half3 shallowColor = lerp(_ShallowColor.rgb, input.look.rgb, saturate(murk * 1.5));
                 half3 deepColor = lerp(_DeepColor.rgb, input.look.rgb * 0.2, saturate(murk * 1.5));
                 half3 waterColor = lerp(deepColor, shallowColor, exp(-thickness * _Absorption * (1 + murk * 8)));
+                waterColor *= 1 - 0.7 * whiteMiddle;
                 // River streaks: lighter and darker bands drifting downstream.
                 waterColor *= lerp(1, 0.88 + 0.24 * streaks, flowAmount * (1 - murk));
                 half3 body = waterColor * (ambient + light.color * saturate(dot(n, light.direction)) * shadow * 0.6);
@@ -483,8 +494,11 @@ Shader "Punchy/Water"
                                * _Sparkle * distanceFade * (1 - murk) * (1 - lava);
                 color += light.color * glitter * 10;
                 // Toxic pools glow from within, pulsing slowly in patches.
-                color += input.look.rgb * glow * (1 - lava) * (0.7 + 0.3 * sin(t * 0.6 + PunchyValueNoise(p * 0.08) * 6.28)) * 1.5;
-                half alpha = saturate(1 - exp(-thickness * _Opacity * (1 + murk * 12)) + fresnel + glint + glitter + lanternGlint);
+                // (White pools: a band of pale glow just inside the soft rim, faint in the middle.)
+                color += input.look.rgb * glow * rim * rim * (1 - 0.8 * whiteMiddle) * (1 - lava) * (0.7 + 0.3 * sin(t * 0.6 + PunchyValueNoise(p * 0.08) * 6.28)) * 1.5;
+                // White pools stay see-through over their whole width, so the floor shows under the middle too.
+                half bodyAlpha = (1 - exp(-thickness * _Opacity * (1 + murk * 12))) * lerp(1, 0.55, _SoftRim);
+                half alpha = saturate(bodyAlpha + fresnel + glint + glitter + lanternGlint);
 
                 // Thick water: an oily rainbow film in the reflection, and pale scum drifting in slow rafts.
                 if (viscous > 0)
@@ -572,6 +586,8 @@ Shader "Punchy/Water"
                     color = lerp(color, lavaColor, lava);
                     alpha = lerp(alpha, 1, lava);
                 }
+
+                alpha *= rim;
 
                 if (_PunchyWaterProbe > 0.5)
                     return _PunchyWaterProbe < 1.5 ? half4(foam, foam, foam, 1) : _PunchyWaterProbe > 3.5 ? half4(foamParts * 2, 1) : _PunchyWaterProbe < 2.5 ? half4(saturate(thickness), frac(thickness * 4), 0, 1) : half4(alpha, alpha, alpha, 1);

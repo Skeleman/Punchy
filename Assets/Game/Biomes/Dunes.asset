@@ -82,7 +82,9 @@ MonoBehaviour:
   Cold: 0
   Fireflies: 0
   Butterflies: 0
-  Particles: []
+  Particles:
+  - Type: {fileID: 11400000, guid: 5a4e0c2f9d3b4c61a7e8b1d2f3c40951, type: 2}
+    Density: 0.5
   Flora:
   - Species: {fileID: 11400000, guid: f399cff58012ddf4c84819c2b674fbef, type: 2}
     Density: 0.2

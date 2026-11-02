@@ -139,12 +139,33 @@ namespace Punchy.Terrain
                     }
             }
 
-            foreach (var (from, to, settlement, toTown, other) in pairs)
+            // W-16: every route reads only the finished grid, so they're found in parallel (a managed copy of the grid,
+            // so worker threads never touch the NativeArray), then laid in pair order as before: the same streets and plots.
+            var cells = grid.ToArray();
+            grid.Dispose();
+            var paths = new List<float2>[pairs.Count];
+            // The wander factor of every cell, worked out once for all routes (each route used to call the noise for
+            // every neighbour it tried, the same cells over and over).
+            var seed = source.World.Seed;
+            var offset = new float2(seed % 1000u, (seed / 1000u) % 1000u) * 0.37f;
+            var wander = new float[cells.Length];
+            var origin = min;
+            System.Threading.Tasks.Parallel.For(0, size.y, y =>
             {
-                var path = Route(grid, size, min, from, to, source.World.Seed);
+                for (int x = 0; x < size.x; x++)
+                    wander[y * size.x + x] = Wander(origin + new float2(x, y) * Cell, offset);
+            });
+            System.Threading.Tasks.Parallel.For(0, pairs.Count, i =>
+            {
+                var found = Route(cells, wander, size, min, pairs[i].from, pairs[i].to);
+                paths[i] = found == null ? null : Smooth(Smooth(Relax(found, 3)));
+            });
+            for (int i = 0; i < pairs.Count; i++)
+            {
+                var (_, _, settlement, toTown, other) = pairs[i];
+                var path = paths[i];
                 if (path == null)
                     continue;
-                path = Smooth(Smooth(Relax(path, 3)));
                 var layout = layouts[settlements[settlement].Layout];
                 Emit(source, path, layout.RoadWidth * settlements[settlement].Scale, settlement, settlements, streets);
                 ClearPlots(path, layout.RoadWidth * settlements[settlement].Scale, plots);
@@ -157,7 +178,6 @@ namespace Punchy.Terrain
                 if (toTown)
                     AddGate(source, path, other, settlements, layouts, plots, true);
             }
-            grid.Dispose();
         }
 
         [BurstCompile]
@@ -191,16 +211,20 @@ namespace Punchy.Terrain
         }
 
         /// <summary>A* over the grid's 8-neighbours: distance, made dearer by slope (forbidden past MaxSlope), fords, and
-        /// forbidden through deep water and cave entrances. Null if there's no way.</summary>
-        static List<float2> Route(NativeArray<float4> grid, int2 size, float2 origin, float2 from, float2 to, uint seed)
+        /// forbidden through deep water and cave entrances. Null if there's no way. Pure (reads only its arguments), so
+        /// routes run in parallel. Cost and came-from are flat arrays over the grid (W-16: the dictionaries cost most of
+        /// the time); unreached cells hold +inf and -1, which behave as the missing keys did.</summary>
+        static List<float2> Route(float4[] grid, float[] wanders, int2 size, float2 origin, float2 from, float2 to)
         {
             int Index(int2 c) => c.y * size.x + c.x;
-            var offset = new float2(seed % 1000u, (seed / 1000u) % 1000u) * 0.37f;
             int2 CellOf(float2 p) => math.clamp((int2)math.round((p - origin) / Cell), 0, size - 1);
             var start = CellOf(from);
             var goal = CellOf(to);
-            var cost = new Dictionary<int, float> { [Index(start)] = 0f };
-            var came = new Dictionary<int, int>();
+            var cost = new float[grid.Length];
+            var came = new int[grid.Length];
+            System.Array.Fill(cost, float.PositiveInfinity);
+            System.Array.Fill(came, -1);
+            cost[Index(start)] = 0f;
             var open = new SortedSet<(float f, int index)> { (0f, Index(start)) };
             var steps = new int2[] { new(1, 0), new(-1, 0), new(0, 1), new(0, -1), new(1, 1), new(1, -1), new(-1, 1), new(-1, -1) };
             var expanded = 0;
@@ -216,7 +240,8 @@ namespace Punchy.Terrain
                     while (true)
                     {
                         path.Add(origin + new float2(at % size.x, at / size.x) * Cell);
-                        if (!came.TryGetValue(at, out at))
+                        at = came[at];
+                        if (at < 0)
                             break;
                     }
                     path.Reverse();
@@ -249,15 +274,15 @@ namespace Punchy.Terrain
                     // Wandering: broad, seeded patches of ground up to 1.8 times dearer, so a road bends round them on
                     // its way instead of running dead straight for kilometres (G-23). Never below 1, so the distance
                     // heuristic still holds.
-                    var at = origin + (float2)n * Cell;
-                    var wander = 1f + 0.4f * (noise.snoise(at / WanderScale + offset) + 1f);
+                    var wander = wanders[ni];
                     var g = cost[current.index] + run * (1f + 25f * slope * slope + wet) * wander;
                     // Each bridge costs as much again to build, so a road along a river doesn't hop back and forth.
                     if (there.y > FordDepth && here.y <= FordDepth)
                         g += 400f;
-                    if (cost.TryGetValue(ni, out var old) && old <= g)
+                    var old = cost[ni];
+                    if (old <= g)
                         continue;
-                    if (cost.ContainsKey(ni))
+                    if (!float.IsPositiveInfinity(old))
                         open.Remove((old + Heuristic(n, goal), ni));
                     cost[ni] = g;
                     came[ni] = current.index;
@@ -268,6 +293,14 @@ namespace Punchy.Terrain
 
             float Heuristic(int2 a, int2 b) => math.distance((float2)a, (float2)b) * Cell;
         }
+
+        /// <summary>
+        /// Wandering: broad, seeded patches of ground up to 1.8 times dearer, so a road bends round them on its way
+        /// instead of running dead straight for kilometres (G-23). Never below 1, so the distance heuristic still holds.
+        /// Not inlined, so every caller gets the very same float result.
+        /// </summary>
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        static float Wander(float2 at, float2 offset) => 1f + 0.4f * (noise.snoise(at / WanderScale + offset) + 1f);
 
         /// <summary>
         /// Bridges where the road crosses water too deep to ford: each wet run with any deep water in it gets spans from
@@ -292,12 +325,14 @@ namespace Punchy.Terrain
             points.Add(path[path.Count - 1]);
             var depths = new float[points.Count];
             var surfaces = new float[points.Count];
-            for (int i = 0; i < points.Count; i++)
+            // (Sampled in parallel: each point is independent, and the order below is unchanged.)
+            var src = source;
+            System.Threading.Tasks.Parallel.For(0, points.Count, i =>
             {
-                var g = source.SampleGround(points[i]);
+                var g = src.SampleGround(points[i]);
                 depths[i] = g.HasWater ? g.WaterSurface - g.Height : 0f;
                 surfaces[i] = g.WaterSurface;
-            }
+            });
             // The channel: water deeper than this (shallow margins and marsh are forded, as the road leaves them).
             const float channel = 0.3f;
             for (int i = 0; i < points.Count; i++)
@@ -482,25 +517,37 @@ namespace Punchy.Terrain
         static void Emit(in TerrainSource source, List<float2> path, float width, int settlement, List<SettlementData> settlements,
                          List<SettlementStreet> streets)
         {
+            // Every stretch first (ends and a skip flag), sampled in parallel, then added in order (W-16).
+            var stretches = new List<(float2 p0, float2 p1)>();
             for (int i = 0; i < path.Count - 1; i++)
             {
                 var a = path[i];
                 var b = path[i + 1];
                 var n = math.max(1, (int)math.ceil(math.distance(a, b) / StretchLength));
                 for (int k = 0; k < n; k++)
+                    stretches.Add((math.lerp(a, b, k / (float)n), math.lerp(a, b, (k + 1) / (float)n)));
+            }
+            var laid = new (bool skip, float3 from, float3 to)[stretches.Count];
+            var src = source;
+            System.Threading.Tasks.Parallel.For(0, stretches.Count, i =>
+            {
+                var (p0, p1) = stretches[i];
+                var mid = (p0 + p1) * 0.5f;
+                var inside = false;
+                foreach (var s in settlements)
+                    if (math.distance(mid, s.Centre) < s.Radius * 0.85f)
+                        inside = true;
+                var g = src.SampleGround(mid);
+                if (inside || g.HasWater && g.WaterSurface > g.Height - 0.1f || src.IsCaveHole(mid))
+                    laid[i] = (true, default, default);
+                else
+                    laid[i] = (false, new float3(p0.x, src.SampleHeight(p0), p0.y), new float3(p1.x, src.SampleHeight(p1), p1.y));
+            });
+            {
+                foreach (var (skip, from, to) in laid)
                 {
-                    var p0 = math.lerp(a, b, k / (float)n);
-                    var p1 = math.lerp(a, b, (k + 1) / (float)n);
-                    var mid = (p0 + p1) * 0.5f;
-                    var inside = false;
-                    foreach (var s in settlements)
-                        if (math.distance(mid, s.Centre) < s.Radius * 0.85f)
-                            inside = true;
-                    var g = source.SampleGround(mid);
-                    if (inside || g.HasWater && g.WaterSurface > g.Height - 0.1f || source.IsCaveHole(mid))
+                    if (skip)
                         continue;
-                    var from = new float3(p0.x, source.SampleHeight(p0), p0.y);
-                    var to = new float3(p1.x, source.SampleHeight(p1), p1.y);
                     var reach = width * 0.5f + SettlementSampling.StreetBlend;
                     streets.Add(new SettlementStreet
                     {

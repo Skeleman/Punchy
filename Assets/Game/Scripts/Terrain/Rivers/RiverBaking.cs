@@ -131,8 +131,69 @@ namespace Punchy.Terrain
                     }
                     shore[i] = best;
                 }
+                // Main upstream neighbour (the widest feeder) of each river cell, for the curve tangents.
+                var up = builder.Allocate(ref root.Up, count);
+                for (int i = 0; i < count; i++) up[i] = -1;
+                for (int i = 0; i < count; i++)
+                {
+                    var d = down[i];
+                    if (width[i] <= 0f || d < 0) continue;
+                    if (up[d] < 0 || width[i] > width[up[d]]) up[d] = i;
+                }
+                // Waterfalls: segments whose bed steps down by FallDrop or more (placed on the finished blob below).
+                var fallCells = new System.Collections.Generic.List<int>();
+                if (settings.FallDrop > 0f)
+                {
+                    for (int i = 0; i < count; i++)
+                    {
+                        var d = down[i];
+                        if (width[i] <= 0f || d < 0 || width[d] <= 0f || lakes[i] > 0f || lakes[d] > 0f) continue;
+                        if (bed[i] - bed[d] < settings.FallDrop || bed[i] <= source.World.SeaLevel + 1f) continue;
+                        fallCells.Add(i);
+                    }
+                }
+                if (fallCells.Count > 0)
+                {
+                    // #42: a step whose water surface drops under 3 m shows no curtain (the bed steps, the water doesn't), and a
+                    // thin fall (under 8 m) within 60 m of a bigger one reads as the same cascade: both go, leaving one fall.
+                    float Drop(int c) => water[c] - water[down[c]];
+                    float2 Centre(int c) => origin + (new float2(c % resolution, c / resolution) + 0.5f) * cellSize;
+                    var big = new System.Collections.Generic.List<int>(fallCells);
+                    big.RemoveAll(c => Drop(c) < 3f);
+                    big.Sort((a, c) => Drop(c).CompareTo(Drop(a)));
+                    var kept = new System.Collections.Generic.List<int>();
+                    foreach (var c in big)
+                    {
+                        var thin = Drop(c) < 8f;
+                        var merged = false;
+                        if (thin)
+                            foreach (var k in kept)
+                                if (math.distance(Centre(c), Centre(k)) < 60f) { merged = true; break; }
+                        if (!merged) kept.Add(c);
+                    }
+                    kept.Sort();
+                    fallCells = kept;
+                }
+                var fallArray = builder.Allocate(ref root.Falls, fallCells.Count);
+                for (int k = 0; k < fallCells.Count; k++)
+                    fallArray[k] = new RiverFall { Drop = water[fallCells[k]] - water[down[fallCells[k]]], Width = fallCells[k] };
                 var blob = builder.CreateBlobAssetReference<RiverMapBlob>(allocator);
                 builder.Dispose();
+                if (fallCells.Count > 0)
+                {
+                    // Lips need the finished blob (the curve reads Up, Down and the points). Width holds the cell until here.
+                    ref var done = ref blob.Value;
+                    for (int k = 0; k < done.Falls.Length; k++)
+                    {
+                        var cell = (int)done.Falls[k].Width;
+                        var mid = RiverSampling.CurveMid(ref done, cell, out var fallFlow);
+                        done.Falls[k] = new RiverFall
+                        {
+                            Lip = new float3(mid.x, water[cell], mid.y), Out = fallFlow, Drop = done.Falls[k].Drop,
+                            Width = math.max(done.Width[cell], 3f)
+                        };
+                    }
+                }
                 return blob;
             }
             finally
@@ -503,13 +564,24 @@ namespace Punchy.Terrain
                 var cellArea = CellSize * CellSize / 1e6f; // km²
                 var source = math.max(Settings.SourceCatchment, 1e-3f);
                 var range = math.log(math.max(Settings.FullCatchment / source, 1.0001f));
+                // Springs on high ground (SourceHeight): a river cell below that height counts only if a river cell drains into it.
+                var fed = new NativeArray<bool>(flow.Length, Allocator.Temp);
+                if (Settings.SourceHeight > 0f)
+                    for (int k = Order.Length - 1; k >= 0; k--)
+                    {
+                        var c = Order[k];
+                        var on = Elevation[c] >= SeaLevel && flow[c] * cellArea >= source && (fed[c] || Elevation[c] - SeaLevel >= Settings.SourceHeight);
+                        if (on && Down[c] >= 0) fed[Down[c]] = true;
+                        fed[c] = on;
+                    }
                 for (int i = 0; i < flow.Length; i++)
                 {
                     var catchment = flow[i] * cellArea;
-                    Width[i] = Elevation[i] >= SeaLevel && catchment >= source
+                    Width[i] = Elevation[i] >= SeaLevel && catchment >= source && (Settings.SourceHeight <= 0f || fed[i])
                         ? math.lerp(Settings.MinWidth, Settings.MaxWidth, math.saturate(math.log(catchment / source) / range))
                         : 0f;
                 }
+                fed.Dispose();
                 flow.Dispose();
             }
         }

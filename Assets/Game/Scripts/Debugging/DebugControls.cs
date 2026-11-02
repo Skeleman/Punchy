@@ -24,6 +24,7 @@ namespace Punchy.Debugging
     ///  Y            advance the clock two hours;  T  toggle fast time (DayNightCycle);
     ///  ] / [        force the next weather over the player / clear it (WeatherSystem);
     ///  F1           show / hide this readout (and the interaction prompt with it: the whole HUD).
+    /// The player-facing panels (multiplayer, graphics, quit) are in the main menu on Esc or Start (UI.MainMenu).
     /// </summary>
     public class DebugControls : MonoBehaviour
     {
@@ -44,7 +45,9 @@ namespace Punchy.Debugging
         int current = -1;
         EntityQuery playerQuery, terrainQuery, paletteQuery;
         World queryWorld;
-        GUIStyle style;
+        GUIStyle style, hintStyle;
+        /// <summary>The control hints, under the readout: prompt text with button tokens (UI.Prompts draws their icons).</summary>
+        string hints;
         string readout;
         Vector2 readoutSize;
         float nextReadout;
@@ -1253,6 +1256,8 @@ namespace Punchy.Debugging
                     PlaceByProp(propSource, args[i + 1].Substring(5));
                 else if (args[i] == "-place" && args[i + 1].StartsWith("cavestream", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var streamSource))
                     PlaceByCaveStream(streamSource, args[i + 1].Substring(10));
+                else if (args[i] == "-place" && args[i + 1].StartsWith("riverfall", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var fallSource))
+                    PlaceByRiverFall(fallSource, args[i + 1].Substring(9));
                 else if (args[i] == "-place" && string.Equals(args[i + 1], "meadow", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var meadowSource))
                     PlaceInMeadow(meadowSource);
                 else if (args[i] == "-place" && string.Equals(args[i + 1], "clearlake", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var lakeSource))
@@ -1873,6 +1878,8 @@ namespace Punchy.Debugging
                     Application.Quit();
 #if UNITY_EDITOR
                 UnityEditor.EditorApplication.isPlaying = false;
+#else
+                Application.Quit(); // a player of ours must end by itself (it locks the exe)
 #endif
                 return;
             }
@@ -2097,6 +2104,48 @@ namespace Punchy.Debugging
             var eye = (Vector3)(back + new float3(0f, 2.5f, 0f));
             PoseCamera(eye, Quaternion.LookRotation((Vector3)last - eye));
             Debug.Log($"DebugControls: by cave stream end ({last.x:F1}, {last.y:F1}, {last.z:F1}), camera {eye.x:F1},{eye.y:F1},{eye.z:F1}");
+        }
+
+        /// <summary>
+        /// "-place riverfall[#n]" (island v2): below the nth nearest river waterfall of 4-8 m (the small ones), the camera 12 m
+        /// downstream at standing eye height looking at the middle of the fall. Logs the 8 nearest small falls.
+        /// </summary>
+        void PlaceByRiverFall(in TerrainSource source, string spec)
+        {
+            if (!source.Rivers.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var pick = 1;
+            if (spec.StartsWith("#"))
+                int.TryParse(spec.Substring(1), out pick);
+            ref var falls = ref source.Rivers.Value.Falls;
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(player);
+            var near = new List<(float distance, int fall)>();
+            for (int f = 0; f < falls.Length; f++)
+                if (falls[f].Drop < 8f)
+                    near.Add((math.distance(falls[f].Lip.xz, t.Position.xz), f));
+            if (near.Count == 0)
+            {
+                Debug.LogWarning("DebugControls: no small river falls (island v2 only)");
+                return;
+            }
+            near.Sort((p, q) => p.distance.CompareTo(q.distance));
+            for (int k = 0; k < math.min(8, near.Count); k++)
+            {
+                ref var f = ref falls[near[k].fall];
+                Debug.Log($"DebugControls: river fall {near[k].fall} drop {f.Drop:F1} width {f.Width:F1} lip ({f.Lip.x:F1}, {f.Lip.y:F1}, {f.Lip.z:F1})");
+            }
+            ref var chosen = ref falls[near[math.clamp(pick - 1, 0, near.Count - 1)].fall];
+            var outDir = math.normalizesafe(chosen.Out);
+            var foot = chosen.Lip.xz + outDir * 1.6f;
+            var stand = foot + outDir * 12f;
+            var ground = source.SampleHeight(stand);
+            t.Position = new float3(stand.x, ground + 0.05f, stand.y);
+            em.SetComponentData(player, t);
+            var eye = new Vector3(stand.x, ground + 1.7f, stand.y);
+            var target = new Vector3(chosen.Lip.x, chosen.Lip.y - chosen.Drop * 0.5f, chosen.Lip.z);
+            PoseCamera(eye, Quaternion.LookRotation(target - eye));
+            Debug.Log($"DebugControls: below river fall (drop {chosen.Drop:F1} m) lip ({chosen.Lip.x:F1}, {chosen.Lip.y:F1}, {chosen.Lip.z:F1}), camera {eye.x:F1},{eye.y:F1},{eye.z:F1}");
         }
 
         /// <summary>
@@ -3292,6 +3341,18 @@ namespace Punchy.Debugging
                 readoutSize = style.CalcSize(new GUIContent(readout));
             }
             GUI.Box(new Rect(10, 10, readoutSize.x + 12, readoutSize.y + 8), readout, style);
+            if (!string.IsNullOrEmpty(hints))
+            {
+                if (hintStyle == null)
+                {
+                    hintStyle = new GUIStyle(GUI.skin.label) { fontSize = 13, richText = true };
+                    hintStyle.normal.textColor = new Color(0.73f, 0.73f, 0.73f);
+                }
+                var size = Punchy.UI.Prompts.Measure(hints, hintStyle);
+                var at = new Rect(10, 10 + readoutSize.y + 12, size.x + 12, size.y + 6);
+                GUI.Box(at, GUIContent.none, style);
+                Punchy.UI.Prompts.Draw(new Rect(at.x + 6, at.y + 3, size.x, size.y), hints, hintStyle);
+            }
         }
 
         /// <summary>The player's controls, each by its button on the device in use (unbound ones left out).</summary>
@@ -3303,7 +3364,7 @@ namespace Punchy.Debugging
                 if (!string.IsNullOrEmpty(button))
                     hints.Add($"{button} {what}");
             }
-            static string A(string action) => Punchy.Player.InputGlyphs.Action("Player/" + action);
+            static string A(string action) => Punchy.Player.InputGlyphs.ActionToken("Player/" + action);
             if (flying)
             {
                 Add(A("Jump"), "(hold) climb");
@@ -3363,9 +3424,10 @@ namespace Punchy.Debugging
             }
             var pace = flying ? "flying" : Punchy.Player.PlayerInputSystem.Sprinting ? "sprint" : Punchy.Player.PlayerInputSystem.Walking ? "walk" : "jog";
             lines.Add($"pace: <b>{pace}</b>   input: {(Punchy.Player.InputGlyphs.Gamepad ? Punchy.Player.InputGlyphs.PadKind + " gamepad" : "keyboard & mouse")}");
-            lines.Add("<color=#bbbbbb>" + ControlHints(flies, flying) + "</color>");
+            // (The control hints draw under the readout, so their buttons can be icons.)
+            hints = ControlHints(flies, flying) + " · " + Punchy.Player.InputGlyphs.Token(Punchy.Player.InputGlyphs.Gamepad ? "<Gamepad>/start" : "<Keyboard>/escape") + " menu";
             if (!Punchy.Player.InputGlyphs.Gamepad)
-                lines.Add("<color=#bbbbbb>N/Shift+N place · B day type · Y +2 h · T fast time · ] force weather · [ clear · F3 copy position · F5 graphics / quit · F1 hide</color>");
+                lines.Add("<color=#bbbbbb>N/Shift+N place · B day type · Y +2 h · T fast time · ] force weather · [ clear · F3 copy position · F1 hide</color>");
 
             return string.Join("\n", lines);
         }

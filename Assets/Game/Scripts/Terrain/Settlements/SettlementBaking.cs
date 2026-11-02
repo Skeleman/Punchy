@@ -62,6 +62,7 @@ namespace Punchy.Terrain
                                                                    IReadOnlyList<RoadsideLandmark> roadside,
                                                                    out List<LandmarkInstance> roadsideLandmarks, Allocator allocator)
         {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
             roadsideLandmarks = new List<LandmarkInstance>();
             var layouts = Layouts(types);
             if (layouts.Count == 0 || !source.Landmarks.IsCreated)
@@ -88,11 +89,19 @@ namespace Punchy.Terrain
                 new Planner(source, type, type.Settlement, inst, i, settlements.Count, firstBuilding[index], streets, plots)
                     .Lay(index, settlements);
             }
+            var lap = watch.ElapsedMilliseconds;
             var roads = new List<RoadsideBaking.RoadPath>();
             RoadBaking.Build(source, layouts, firstBuilding, settlements, streets, plots, roads);
+            var roadsDone = watch.ElapsedMilliseconds;
             roadsideLandmarks = RoadsideBaking.Place(source, types, roadside, roads, settlements, streets, layouts, firstBuilding, plots);
-            return BuildBlob(layouts, firstBuilding, settlements, streets, plots, allocator);
+            var roadsideDone = watch.ElapsedMilliseconds;
+            var blob = BuildBlob(layouts, firstBuilding, settlements, streets, plots, allocator);
+            LastTiming = $"(towns {lap} roads {roadsDone - lap} roadside {roadsideDone - roadsDone} blob {watch.ElapsedMilliseconds - roadsideDone})";
+            return blob;
         }
+
+        /// <summary>W-16: the last Build's steps in ms, for the "[bake] stages" log line.</summary>
+        public static string LastTiming = "";
 
         /// <summary>One settlement being laid out.</summary>
         class Planner

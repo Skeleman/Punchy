@@ -116,24 +116,54 @@ namespace Punchy.Terrain
                                                                      UseRealms && Realms != null ? Realms.Plan(palette) : null, xz => coast.OceanFactor(xz) < 0.5f);
                 }
             }
-            if (Rivers.Enabled && palette.Count > 0)
-                source.Rivers = RiverBaking.Build(source, Rivers, allocator);
+            BuildPlaces(ref source, palette, LandmarkTypes(), PlacedLandmarks, Roadside, allocator);
+            return source;
+        }
+
+        /// <summary>Rivers, landmarks, settlements, caves and anchors, in that order: the part of a bake that follows the ground.</summary>
+        public static void BuildPlaces(ref TerrainSource source, List<BiomeDefinition> palette, List<LandmarkType> landmarkTypes,
+                                       List<PlacedLandmark> placed, List<RoadsideLandmark> roadsideTypes, Allocator allocator)
+        {
+            // W-14: each stage's time goes to the "[bake] stages" log line (island v2 rebuilds all of this at launch).
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var stages = new System.Text.StringBuilder("[bake] stages ms:");
+            void Stage(string name) { stages.Append($" {name} {watch.ElapsedMilliseconds}"); watch.Restart(); }
+            source.PondsOn = false;
+            source.PondMask = default;
+            if (source.RiverSettings.Enabled && palette.Count > 0)
+                source.Rivers = RiverBaking.Build(source, source.RiverSettings, allocator);
+            Stage("rivers");
             if (palette.Count > 0)
-                source.Landmarks = LandmarkBaking.Build(source, palette, LandmarkTypes(), PlacedLandmarks, allocator);
+                source.Landmarks = LandmarkBaking.Build(source, palette, landmarkTypes, placed, allocator);
+            Stage("landmarks");
             if (source.Landmarks.IsCreated)
             {
-                source.Settlements = SettlementBaking.Build(source, LandmarkTypes(), Roadside, out var roadside, allocator);
+                source.Settlements = SettlementBaking.Build(source, landmarkTypes, roadsideTypes, out var roadside, allocator);
                 if (roadside.Count > 0)
                 {
                     var before = source.Landmarks;
-                    source.Landmarks = LandmarkBaking.Append(before, LandmarkTypes(), roadside, allocator);
+                    source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, roadside, allocator);
                     before.Dispose();
                 }
             }
+            Stage("settlements");
+            stages.Append(' ').Append(SettlementBaking.LastTiming);
             if (source.Landmarks.IsCreated)
-                source.Caves = CaveBaking.Build(source, palette, LandmarkTypes(), allocator);
-            source.Anchors = AnchorBaking.Build(source, LandmarkTypes(), allocator);
-            return source;
+                source.Caves = CaveBaking.Build(source, palette, landmarkTypes, allocator);
+            Stage("caves");
+            // #35: bat folk read the caves only and write nothing anything else reads, so every hash stays put.
+            source.BatFolk = BatFolkBaking.Build(source, allocator);
+            UnityEngine.Debug.Log(BatFolkBaking.LastLog);
+            Stage("batfolk");
+            source.Anchors = AnchorBaking.Build(source, landmarkTypes, allocator);
+            Stage("anchors");
+            source.PondsOn = true;
+            // W-10: label the ponds' wet cells and drop every pond under 3 cells (with the dry ring round it).
+            // W-14: one labelling pass gives the mask and the log (the two extra PondCount passes cost ~2.8 s each).
+            source.PondMask = source.BuildPondMask(allocator, out var dropped, out var pondReport);
+            Stage("pondmask");
+            UnityEngine.Debug.Log($"[ponds] {pondReport}. Dropped {dropped} cells.");
+            UnityEngine.Debug.Log(stages.ToString());
         }
 
         class Baker : Baker<TerrainAuthoring>
@@ -196,7 +226,7 @@ namespace Punchy.Terrain
                     for (int b = 0; b < palette.Count; b++)
                         biomeRealms[b] = System.Array.FindIndex(plan.Members, m => System.Array.IndexOf(m, b) >= 0);
                 }
-                AddComponentObject(entity, new BiomePalette { Biomes = palette.ToArray(), Landmarks = landmarks.ToArray(), BiomeRealms = biomeRealms });
+                AddComponentObject(entity, new BiomePalette { Biomes = palette.ToArray(), Landmarks = landmarks.ToArray(), BiomeRealms = biomeRealms, Placed = authoring.PlacedLandmarks, Roadside = authoring.Roadside });
 
                 var heightmap = default(BlobAssetReference<HeightmapBlob>);
                 if (authoring.HeightSource == HeightSourceKind.Heightmap)
@@ -223,7 +253,9 @@ namespace Punchy.Terrain
                 if (source.Landmarks.IsCreated) AddBlobAsset(ref source.Landmarks, out _);
                 if (source.Settlements.IsCreated) AddBlobAsset(ref source.Settlements, out _);
                 if (source.Caves.IsCreated) AddBlobAsset(ref source.Caves, out _);
+                if (source.BatFolk.IsCreated) AddBlobAsset(ref source.BatFolk, out _);
                 if (source.Anchors.IsCreated) AddBlobAsset(ref source.Anchors, out _);
+                if (source.PondMask.IsCreated) AddBlobAsset(ref source.PondMask, out _);
                 AddComponent(entity, source);
             }
 

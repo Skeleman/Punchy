@@ -83,6 +83,9 @@ namespace Punchy.Terrain
                     Shape = b.Shape,
                     Relief = b.Relief,
                     FeatureFrequency = 1f / math.max(b.FeatureSize, 1f),
+                    PondDepth = b.PondDepth,
+                    PondFrequency = 1f / math.max(b.PondSize, 2f),
+                    PondCover = b.PondCover,
                     Octaves = math.clamp(b.Octaves, 1, 8),
                     Sharpness = b.Sharpness,
                     TerraceSteps = b.TerraceSteps,
@@ -152,6 +155,7 @@ namespace Punchy.Terrain
                     Bump = s.Bumpiness,
                     Pebbles = s.Pebbles,
                     Strata = s.Strata,
+                    Paving = s.Paving,
                     Snow = s.SnowDepth
                 },
                 ColorVariation = s.ColorVariation
