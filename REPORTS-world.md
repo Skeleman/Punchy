@@ -16,10 +16,13 @@ Newest first.
   (kind keyboard, mouse, xbox or playstation; control as in the path, '/' as '_': buttonSouth, dpad_up, escape, e).
   This is Resources rather than UI/Prompts, so they ship without a serialized reference. A generic pad and any
   missing icon fall back to today's names.
-- **BLOCKED: the icon pack.** Kenney Input Prompts is **1.5a**, CC0 (kenney.nl/assets/input-prompts). Its download is
-  behind a scripted donate/download step that an automated fetch can't reach, and I didn't try to get around it.
-  **Zach:** please download the zip and unzip it to an empty folder outside the repo, then tell me the path. I'll
-  copy only the needed PNGs and License.txt in, renamed to the layout above. Until then everything shows as text.
+- **DONE: the icon pack.** `wip/ui-menu` 09a79ee. Kenney Input Prompts **1.5A** (License.txt says 1.5A; the
+  folder Zach downloaded is named 1.5), CC0. 23 PNGs from the 64 px Default set: Xbox and PlayStation South/East/North
+  (colour), shoulders, start (Xbox Menu, PS5 Options), stick presses; keyboard escape, enter, e, q, space, left shift,
+  left ctrl. The pack's License.txt sits beside them. No fonts or .url files. They're in
+  `Assets/Game/Resources/Prompts`, not UI/Prompts, so InputGlyphs.Icon can load them by name without a serialized
+  reference. GUI textures, no mipmaps, uncompressed (metas committed). Also in the slot: check the icon size and
+  sharpness at 720p.
 - **Gap 8 hook:** `MenuNav.TextEntry` (current text, max length, allowed characters, result callback). While it's
   unset, a text field chosen on a pad shows "Typing ... needs a keyboard for now". The pad itself is not built.
 - **Checked:** the new UI files, InputGlyphs and Settings/*.cs compile with dotnet against Unity 6000.5.8f1's DLLs.
