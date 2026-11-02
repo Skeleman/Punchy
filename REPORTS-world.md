@@ -805,3 +805,9 @@ b/weather-mapjob.
 - Row 2 DONE: the build shot from 30 m up the slope reads as a staircase of paddies with dark banks. So does the 8 m side shot.
 - Hashes unchanged: v2 125 / AFA9CC63, caves D531293D622E785A; v1 101 / E128CB1D.
 - Shots: PunchyMilestones/world/w25. 1 build.
+
+## W-26 (2026-11-02)
+- **Row 1 DONE** (#23): lowland surfaces climbed about half of each v2 mountain flank, because the map marks Mountains only on the crests while the ridge lifts the ground further out. `TerrainSource.HighlandSurface` gives the surface to the mountain biome above a 40-52 m lift (map mode only). Other surface on Mountains area 2.7% -> 1.3%; on ground lifted 40 m+ 13.0% -> 3.4%. Edge bands 16 -> 4 m, 24 -> 8 m (that edge also moved 36-44 m further out), and a small change at the third edge.
+- **Row 2 DONE**: before (editor) vs after (build), daylight, about 150 m out. Lowland patches are gone from the upper flanks. Pines on the crests are the Mountains biome's own layer.
+- **Checks:** v2 125 / AFA9CC63 -> 125 / D709D95C, caves D531293D622E785A -> 5D90D9CFC5326976 (editor). Lost: Grotto -1086.4,2981.1. New: CrystalGrotto -0.1,-406.2. Caves 37/37, settlements unchanged, bat folk unchanged. v1 not re-run (map-only code path). world-features afc068c pushed. 1 build.
+- **Shots:** PunchyMilestones/world/w26/w26-before-flank1.png, w26-before-flank2.png, w26-after-flank1.png, w26-after-flank2.png.
