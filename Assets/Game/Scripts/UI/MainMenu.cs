@@ -8,9 +8,9 @@ namespace Punchy.UI
 {
     /// <summary>
     /// The main menu (UI-1). Esc, or Start on a controller, opens and closes it. It has a tab for each player-facing
-    /// panel (Multiplayer from NetMenu, Graphics from GraphicsSettings; each adds its own with AddTab) and Quit at the
+    /// panel (Multiplayer from NetMenu, Graphics from GraphicsSettings; each adds its own with AddTab) and Exit game at the
     /// foot. Controller or keyboard: the d-pad or left stick moves (MenuNav), A / Cross chooses, B / Circle backs out
-    /// (cancels the quit question, otherwise closes), LB / RB (Q / E on the keyboard) switches tab. A text field chosen
+    /// (cancels the exit question, otherwise closes), LB / RB (Q / E on the keyboard) switches tab. A text field chosen
     /// on the controller opens the TextWheel to type in it. The mouse clicks
     /// everything as before. While it's open, Overlay.AnyOpen holds the camera, frees the cursor and stops the player's
     /// actions (their action map is off).
@@ -38,7 +38,7 @@ namespace Punchy.UI
         bool confirmQuit;
         int openedFrame = -1;
         InputAction cancel;
-        GUIStyle box, heading, tabOn, tabOff, footer;
+        GUIStyle box, heading, tabOn, tabOff, footer, exit;
 
         /// <summary>
         /// Adds a tab, or replaces the one with that title (NetMenu adds its own again after a join reloads the scene).
@@ -148,7 +148,7 @@ namespace Punchy.UI
                 SetOpen(false);
                 return;
             }
-            // Back (B / Circle / Esc): out of a text field, then out of the quit question, then the menu closes.
+            // Back (B / Circle / Esc): out of a text field, then out of the exit question, then the menu closes.
             cancel ??= InputSystem.actions?.FindAction("UI/Cancel");
             if (cancel != null && cancel.WasPressedThisFrame())
             {
@@ -195,6 +195,7 @@ namespace Punchy.UI
             tabOn ??= new GUIStyle(GUI.skin.button) { fontStyle = FontStyle.Bold };
             tabOff ??= new GUIStyle(GUI.skin.button);
             footer ??= new GUIStyle(GUI.skin.label) { richText = true, fontSize = 12 };
+            exit ??= new GUIStyle(GUI.skin.button) { fontStyle = FontStyle.Bold, fontSize = 14 };
 
             nav.Begin();
             // (Behind the text wheel the menu is drawn, but greyed and not clickable.)
@@ -225,25 +226,31 @@ namespace Punchy.UI
             }
 
             GUILayout.FlexibleSpace();
-            // Quit, for every tab (it asks first).
+            // Exit game, on every tab: full width, bold and red so it's easy to find. It asks first; Cancel comes
+            // first in the question, so the focus (which stays where Exit game was) lands on it and A A doesn't quit.
+            var colour = GUI.backgroundColor;
+            GUI.backgroundColor = ExitColour;
             if (!confirmQuit)
             {
-                if (nav.Button("Quit game"))
+                if (nav.Button("Exit game", exit, GUILayout.Height(30)))
                     confirmQuit = true;
             }
             else
             {
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("Quit the game?");
-                if (nav.Button("Quit"))
+                GUILayout.Label("Exit the game?", heading, GUILayout.Height(30));
+                GUI.backgroundColor = colour;
+                if (nav.Button("Cancel", exit, GUILayout.Height(30), GUILayout.Width(90)))
+                    confirmQuit = false;
+                GUI.backgroundColor = ExitColour;
+                if (nav.Button("Exit", exit, GUILayout.Height(30), GUILayout.Width(90)))
                 {
                     PlayerPrefs.Save();
                     Quit();
                 }
-                if (nav.Button("Cancel"))
-                    confirmQuit = false;
                 GUILayout.EndHorizontal();
             }
+            GUI.backgroundColor = colour;
             GUILayout.Space(6);
             Prompts.Layout(FooterPrompt(), footer);
             GUILayout.EndArea();
@@ -258,6 +265,8 @@ namespace Punchy.UI
         static string FooterPrompt() => InputGlyphs.Gamepad
             ? $"{InputGlyphs.Token("<Gamepad>/buttonSouth")} choose    {InputGlyphs.Token("<Gamepad>/buttonEast")} back    {InputGlyphs.Token("<Gamepad>/start")} close"
             : $"{InputGlyphs.Token("<Keyboard>/enter")} choose    {InputGlyphs.Token("<Keyboard>/escape")} back / close";
+
+        static readonly Color ExitColour = new Color(1f, 0.45f, 0.4f);
 
         static void Quit()
         {
