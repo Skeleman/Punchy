@@ -23,3 +23,5 @@ Read `lanes/shared/checks.md` first.
 ## Gotchas
 - Worm arcs start deep, so obstacles under about 20 m ahead are crossed underground.
 - Paw prints use TraceSystem Underfoot; check them on benches and bridges.
+- `-spincheck` is read per shot-list line; `-autowalk` only from the launch line. Without both, a spin or climb run logs nothing.
+- A wall climber's mid-climb shot: about 2 s after `-place wall` (the Lizard climbs 3.4 m in about 3 s).

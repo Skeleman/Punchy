@@ -1,7 +1,7 @@
-# Animal lane: state (2026-11-02, after batch A-05)
+# Animal lane: state (2026-11-02, after batch A-06)
 
-Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 609c5e5 (A-05: ankle cap, probes).
-Builds/Windows is the A-05 build (without the #33 revert). Editor closed; no Punchy.exe of the lane running.
+Worktree `Punchy` (animal lane only). `animal-behaviours` = origin dcff671 (A-06: wall latch, probes).
+Builds/Windows is the A-06 fix build, without the reverted FlyTo change. Editor open on port 7800; no Punchy.exe running.
 
 ## Unverified (merged anyway; Zach's check in the build)
 - #48 remote view of a roll (client sees the somersault from the Pose byte): never run on a client.
@@ -11,23 +11,25 @@ Builds/Windows is the A-05 build (without the #33 revert). Editor closed; no Pun
 - #43: rate set by budget (0.6/s); no played-calls-per-minute count yet.
 
 ## Done this batch
-- #48: B/Circle (the crouch action) rolls on the ground (0.53 s, 1.4-4.4 m by body), descends flying (Crow -9 to -12 m/s
-  against -2.4 gliding), sinks swimming. Still cancels in menus.
-- #47: fish sprint 2.8x speed (measured 4.1 -> 9.9 m/s) and holds depth (0.78 -> 0.38 m in a 1.8 m lake).
+- #33 (partial): ClimbsWalls bodies count prop tops up to 8 m (WallClimbHead) as walls; on a wall the rim is looked for
+  0.5 m ahead (WallLedgeReach); `-place wall` aims 1 m past the rim. Lizard: OnWall True, up at 1.3-1.4 m/s.
+- Probes kept: WallProbe (SharedStatic, set by `-place wall` only) logs every latch term each frame;
+  `-spincheck` logs heading change per species per Mode every 20 s.
 
 ## Open
-- #33 wall climb (Lizard): OnWall stays False; the player stops at the wall but never latches. A-05 ruled out ClimbsWalls
-  and the prop head-height filter. Next: log `blocked`, pressing and the latch terms in PlayerMovementSystem.
-- #12 dormouse/songbird spin: A-05 spincheck run (6 each, meadow, 66 s) logged nothing; DebugControls now logs
-  "heading change" per species for Mode Wander every 30 s, but it printed none, so check Mode first.
-- #11 done (cap 38 deg, AnkleBend in CreatureAnimator). #16 carrying large animals. #10 new species (needs design).
+- #33: at the top the Lizard stays OnWall instead of mantling; climbing down lets go and falls; sideways untested
+  (the harness's sideways phase at 10-14 s comes after it has reached the top).
+- #12: Songbird Wander turns 102-125 deg/s (other modes 0-3). Not the FlyTo touchdown orbit (holding heading within
+  0.5 m and a 3 cm touchdown changed nothing). Next: split by Stage (Soar/FlyTo/Land), log YawRate and Speed for one bird.
+- Dormouse Climb 11-70 deg/s, probably round a trunk; secondary.
+- #16 carrying large animals. #10 new species (needs design).
 - Animals still flee a flyer high above (confirm with Zach before filing more).
 
 ## Test notes
-- Shot list needs `-shotdir`; launch with `-quit`. Flags reset per line.
-- New: `-actiontest roll:A,B|fly:Body|fish:Trout` logs rolls, descents and swim vs sprint; `-setbody X`; `-place wall`
-  (with `-autowalk`) for the climb test; `-place clearlake` records the lake for the fish test.
-- Climb test: `-autowalk -body Monkey -place tree:Oak`.
-- Editor: `unity open .`, wait for `unity status` ready, `unity recompile`; BuildPlayer via eval using
-  EditorBuildSettings.scenes (times out at 30 s but finishes: wait for a Temp file); `unity close <project path>`.
-- Artefacts: PunchyMilestones/animal/a05/ (ankle-800.png, run1.log).
+- Shot list needs `-shotdir`; launch with `-quit` and `-autowalk` (launch line only). `-spincheck` goes on the
+  shot-list line. Flags reset per line.
+- `-actiontest roll:A,B|fly:Body|fish:Trout`; `-setbody X`; `-place wall` (Lizard: climb takes about 3 s, so shoot
+  at about 2 s for mid-climb); `-place clearlake`; climb test `-autowalk -body Monkey -place tree:Oak`.
+- Editor: `unity recompile`; BuildPlayer via eval using EditorBuildSettings.scenes (times out at 30 s but finishes:
+  wait for a Temp file).
+- Artefacts: PunchyMilestones/animal/a06/ (probe3.log, fix.log, probe-wall/fix-wall/fix-spin.png).

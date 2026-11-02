@@ -2,6 +2,16 @@
 
 Newest first.
 
+## 2026-11-02 batch A-06: wall climb latches and climbs up (#33, partial); #12 cause narrowed to Songbird Wander, not fixed
+- DONE: #33 cause found by probe (every frame at the latch): the Lizard's wall test never had `blocked` and `pressing` true together. Three faults: the `-place wall` harness stopped pushing 0.3 m short of the rim; `PropSupport.Wall` only counts tops below head height (0.425 m for a Lizard) and a garden wall's only surface is its top, 3.4 m up; Ledge starts 0.3 m out, past the Lizard's 0.225 m reach. Fixed: ClimbsWalls bodies count tops up to 8 m as walls, the rim is looked for 0.5 m ahead on a wall, and the harness aims 1 m past the rim (animal-behaviours dcff671).
+- DONE: #33 check: OnWall True on `-place wall`, climbing up at 1.3-1.4 m/s (feet 27.0 -> 30.7 m in about 3 s).
+- NOT DONE: #33 at the top the Lizard stays OnWall (grounded False) instead of mantling; the sideways phase (10-14 s) ran while it was at the top (along 0.0 m/s); going down it lets go and falls (vertical -3.6 m/s) instead of climbing down. So no sideways or down speeds, and the reversed walk cycle is not seen.
+- NOT DONE: #12 Mode histogram (probe3, 3 windows): Songbird Wander 102-125 deg/s over 189-443 creature-seconds, every other Songbird mode 0-3 deg/s; Dormouse Climb 11-70 deg/s, Wander 0-25 deg/s. The fault is in Songbird Wander flight. Tried holding the heading within 0.5 m of the landing spot and loosening touchdown to 3 cm (FlyTo): 115.7 / 125.2 deg/s after, against 102-115 before. No change, so reverted and not committed.
+- Checks: compile clean / fix build Succeeded, 0 errors / both shot lists quit on their own, no Punchy.exe left / eol checked (PlayerMovementSystem crlf, DebugControls lf).
+- Shots: PunchyMilestones/animal/a06/fix-wall.png (Lizard after the climb, 21 s in, back at the foot) / probe-wall.png (before: stopped short of the wall) / fix-spin.png (meadow, 6 Songbird + 6 Dormouse)
+- Learned: `-spincheck` is read from the shot-list line, `-autowalk` only from the launch line (A-05 logged nothing because of this). A mid-climb shot needs the shot at about 2 s after `-place wall`; the climb takes 3 s.
+- NEXT: #12 with a per-Stage split of Songbird Wander (Soar, FlyTo, Land) and YawRate vs Speed logged for one bird; #33 top-out (mantle from OnWall), sideways test mid-wall (move the sideways phase to 1.5-3.5 s), climb down instead of letting go.
+
 ## 2026-11-02 batch A-05: ankle bend of long strides capped (#11); #33 and #12 not solved
 - DONE: #11 long-stride run bends the foot at most 38 deg from standing (was 42 deg at RunPush, 48 deg at RunLift) (animal-behaviours 609c5e5)
 - NOT DONE: #33 wall climb. Rerun at `-setbody Lizard -place wall -autowalk` (headless-free build): OnWall stays False, player stops against the wall (along 6.6 -> 0 m/s, vertical 0.0 m/s), so no climb speeds. Tried a taller head height in KeepOutOfPropWalls (WallReach 8 m); no change, reverted. Ruled out: ClimbsWalls (Lizard Crawls:1 gives AnySurface). Not yet checked: SlideAroundObstacles/Floor stopping the player before `blocked` is set; log blocked, the probe ray and hit collider in PlayerMovementSystem (line ~233 latch) first.
