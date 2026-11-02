@@ -31,7 +31,7 @@ float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
 float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share
 float3 _PunchyBlueMoon;        // towards the second, blue moon
-static const float PunchyBlueMoonRadius = 0.034;   // radians: about twice the big moon's
+static const float PunchyBlueMoonRadius = 0.13;    // radians: about 7x the big moon's, a sister planet (Zach, #34)
 half3  _PunchySunColor;        // sun colour × brightness (0 once set)
 half3  _PunchySkyZenith;
 half3  _PunchySkyHorizon;      // also the fog colour, so distant terrain fades seamlessly into the sky
@@ -544,7 +544,7 @@ half3 PunchyMoonDisc(float3 dir, out half cover)
     float a = _PunchyMoonPhase.x * 6.2832;
     half bigCover, blueCover;
     half3 moons = PunchyMoonFace(dir, _PunchyMoonDirection, 0.0172, float3(sin(a), 0.15 * sin(a), -cos(a)), half3(0.9, 0.92, 1.0), bigCover);
-    // The blue moon: always full, about twice the big moon's size, cratered and cracked (Zach, G-34).
+    // The blue moon: always full, about seven times the big moon's size, cratered and cracked (Zach, G-34).
     moons += PunchyBlueMoonFace(dir, _PunchyBlueMoon, PunchyBlueMoonRadius, half3(0.28, 0.52, 1.45), blueCover) * (1 - bigCover);
     cover = max(bigCover, blueCover);
     return moons;

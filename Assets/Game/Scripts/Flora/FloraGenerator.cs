@@ -2509,8 +2509,9 @@ namespace Punchy.Flora
             var roof = b.VertexCount;
             var overhang = radius * 1.3f;
             var roofColor = g.FoliageColor();
-            b.Tube(new List<Vector3> { Vector3.up * (wall - 0.15f), Vector3.up * (wall + (height - wall) * 0.45f), Vector3.up * height },
-                   new List<float> { overhang, overhang * 0.55f, 0.05f }, sides, roofColor, FloraPart.Bark, cap: true);
+            // A thick lip at the rim (#32): a lower ring just inside the edge, so the eave has a visible thickness.
+            b.Tube(new List<Vector3> { Vector3.up * (wall - 0.3f), Vector3.up * (wall - 0.15f), Vector3.up * (wall + (height - wall) * 0.45f), Vector3.up * height },
+                   new List<float> { overhang * 0.94f, overhang, overhang * 0.55f, 0.05f }, sides, roofColor, FloraPart.Bark, cap: true);
             b.Occlude(roof, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.2f)));
             g.Perches.Add(Vector3.up * height);
 
@@ -2735,7 +2736,7 @@ namespace Punchy.Flora
 
             // Low pyramid roof with an overhang, and a chimney.
             var roof = b.VertexCount;
-            b.Tube(new List<Vector3> { Vector3.up * (wall - 0.1f), Vector3.up * height }, new List<float> { corner * 1.2f, 0.05f }, 4, g.FoliageColor(), FloraPart.Bark, cap: true);
+            b.Tube(new List<Vector3> { Vector3.up * (wall - 0.24f), Vector3.up * (wall - 0.1f), Vector3.up * height }, new List<float> { corner * 1.13f, corner * 1.2f, 0.05f }, 4, g.FoliageColor(), FloraPart.Bark, cap: true);   // lower rim ring: a lip, not a knife edge (#32)
             RotateFrom(b, roof, square);
             b.Occlude(roof, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y + 0.3f)));
             var chimney = new Vector3(half * 0.55f, 0f, -half * 0.4f);
@@ -3014,8 +3015,8 @@ namespace Punchy.Flora
 
             // A tall, slightly flared roof.
             var roof = b.VertexCount;
-            b.Tube(new List<Vector3> { Vector3.up * (walls - 0.05f), Vector3.up * (walls + (height - walls) * 0.25f), Vector3.up * height },
-                   new List<float> { radius * 1.25f, radius * 0.7f, 0.02f }, sides, g.FoliageColor(), FloraPart.Foliage, cap: true);
+            b.Tube(new List<Vector3> { Vector3.up * (walls - 0.2f), Vector3.up * (walls - 0.05f), Vector3.up * (walls + (height - walls) * 0.25f), Vector3.up * height },
+                   new List<float> { radius * 1.18f, radius * 1.25f, radius * 0.7f, 0.02f }, sides, g.FoliageColor(), FloraPart.Foliage, cap: true);
             b.Occlude(roof, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y + 0.3f)));
             g.Perches.Add(Vector3.up * height);
 
@@ -3364,7 +3365,7 @@ namespace Punchy.Flora
                 b.Tube(new List<Vector3> { new Vector3(x * half * 0.82f, floor, z * half * 0.82f), new Vector3(x * half * 0.82f, eave, z * half * 0.82f) },
                        new List<float> { 0.12f, 0.1f }, g.Sides(6, 4, 3), timber, FloraPart.Bark);
             var roof = b.VertexCount;
-            b.Tube(new List<Vector3> { Vector3.up * (eave - 0.1f), Vector3.up * height }, new List<float> { half * 1.45f, 0.05f }, 4, g.FoliageColor(), FloraPart.Bark, cap: true);
+            b.Tube(new List<Vector3> { Vector3.up * (eave - 0.22f), Vector3.up * (eave - 0.1f), Vector3.up * height }, new List<float> { half * 1.38f, half * 1.45f, 0.05f }, 4, g.FoliageColor(), FloraPart.Bark, cap: true);
             RotateFrom(b, roof, Quaternion.Euler(0f, 45f, 0f));
             g.Perches.Add(Vector3.up * height);
             b.Occlude(roof, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y + 0.3f)));
