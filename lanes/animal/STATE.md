@@ -1,39 +1,36 @@
-# Animal lane: state (2026-11-02, after batch M-02)
+# Animal lane: state (2026-11-02, after batch A-29b)
 
-Worktree `Punchy` (animal lane only). On `animal-behaviours` = origin 0b06bf3 (A-28). Status clean apart from the
-old untracked `Assets/_Recovery/` (not ours). Editor on port 7800, 0 errors.
-M-02 merged both lanes into main: PR #52, main 0bd91cb contains animal-behaviours 0b06bf3 and world-features
-afc068c. animal-behaviours itself does not have the merge yet: it still defaults to v1 with no flag. Merging
-origin/main into it (fast to do, no conflicts expected) brings the v2 default, bat folk huts and v2 surfaces.
-Local `merge-test` deleted (both parents were in main).
+Worktree `Punchy` (animal lane only). On `animal-behaviours` = origin de2e8e0 (A-29 + A-29b), which sits on
+70737ed (origin/main with PR #52 merged in), so the lane now defaults to v2 with no flag. Status clean apart from
+the old untracked `Assets/_Recovery/` (not ours). Editor on port 7800, 0 errors.
 
-## Folk talks (A-26 to A-28)
-- CreatureBrainSystem: ChatFree is `internal static` (FolkTalkSystem uses it too). It allows Wander, Idle before
-  MessageWait, Work on the way to or at the post (not Mine/Travel/Messenger/Critter, not fish or hermit once
-  there), and Sit on the way to the seat. A talk from Work goes back to Work (ChatWalk 2, with the time left).
-- Reach: ChatReach 30 m, they walk up to each other. Rarity limits unchanged: the dt/40 roll, the 90-200 s
-  cooldown, MaxChats 3 within 60 m.
-- Spacing (A-28, Chatting): want 1.25 m (child 1.9). Walking up they slow as the gap closes (Speed capped by
-  the spare gap), stood they don't carry on. Closer than want - 0.15 (met at a well or seat): each steps back
-  along the line between them, still facing, up to 0.9 m/s, only onto Walkable ground. Measured in the editor:
-  four talks ended 1.28-1.29 m apart (the well pair at (133, -418) that stood 0.3-0.5 m in A-27 included).
-- Each `FolkChat:` log line now ends with `N.NN m apart` (last seen while both were in the talk).
-- Bubble (A-28): it was always drawn, but at Head + 0.1 (about eye height) as a bare "...", so it read as eyes.
-  Now Head + 0.4 in a pale rounded 9-slice box (FolkTalkLabels.RoundBox). Still hidden by `-nohud`
-  (InteractionPrompt.Hidden). FolkTalkSystem.Shown is only for lines said to the player (within 5 m of the
-  player body), so a `-chatshot` camera never gets those; that is by design.
-- `-chatmix` on the LAUNCH line logs a 15 s mix of nearby grown folk (see A-27).
+## Folk jobs and role lines (A-29, A-29b)
+- `Fauna/FolkJobs.cs`: FolkJob enum (Baker, Healer, Smith, Gatekeeper, Woodcutter, WellKeeper, Guard, Merchant,
+  Herder, Fisher, Farmer, Trader, plus bat-folk RoostKeeper, Tanner, Forager, PoolFisher). FromTask maps a
+  resident's task to a job, Of reads it, Mood picks Plain/Cheerful/Grumpy, VillagePosts is the post table,
+  BatJob plans bat-folk chamber jobs.
+- CreatureData has `byte Job`. It is local, seed-derived state (not a ghost field): a joined client works out the
+  job the task implies. If jobs ever need to differ from the task, add Job to CreatureGhost.
+- FaunaDirector hands out village posts and logs one `FolkJobs:` line per village (job counts plus free folk)
+  and one per bat-folk chamber (planned jobs).
+- FolkTalkSystem.RoleLine: when a working folk talks, it says a line from its job's pool (DialogueArchive.PickRole,
+  tagged by mood) and logs `FolkLine: <Job> (<Race>, <Mood>): "<line>"`. dialogue.json has 251 lines.
+- `-watch Human:<Job>` (DebugControls) points the camera at a folk with that job.
+- A-29b fixes: (1) DebugControls cached landmark locations from the baked v1 island, so in the editor `-place`
+  went to v1 spots; the cache now resets when the landmark set changes (count + first position). (2) The bat
+  chamber line never printed because the v1 blob (0 sites) set a static flag first; it now uses a per-island key.
+- Herder, Fisher, Farmer and Trader did not come up in the villages checked (no matching anchors there).
 
 ## Open
-- Build shot 1 (second `-chatshot` line, tall elder talking) has the bubble touching the top of his head;
-  shot 0 is clean. If it matters, raise the bubble by StandHeight-relative height instead of a flat 0.4 m.
-- Two-minute gaps between talks remain. Lowering ChatCoolMin or walking free folk toward each other changes
-  the rarity limits: Zach's OK first.
+- Build shot 1 (A-28, tall elder) has the bubble touching his head top; raising it relative to body height is
+  still optional.
+- Two-minute gaps between talks remain. Changing the rarity limits needs Zach's OK.
 - Folk talks are host-only in detail (Partner/ChatRole); clients see the Stage byte (gestures and bubble).
+- Town names in FolkChat lines (e.g. Muckheap for HumanVillage) look odd; they are not from this lane.
 
 ## Testing recipe
-- Editor unattended Play: write launch args to `Temp/PlayArgs.txt` (e.g. `-chattest -shotlist <abs path>
-  -shotdir <abs path>`), enter Play over the CLI, then read the console through UnityEditor.LogEntries reflection
-  (Temp/a28_probe.cs also prints Bubbles/Shown counts and FolkTalkLabels state). Delete PlayArgs.txt afterwards.
-- Build talk shot: launch `-chattest -quit`, list line `-place HumanVillage -time 10 -weather Clear -chatshot
-  -wait 60` (HUD on). The chatshot fires about 4 s in at the Stonewick well pair.
+- Editor unattended Play: write launch args to `Temp/PlayArgs.txt`, enter Play over the CLI, read the console
+  through UnityEditor.LogEntries reflection (Temp/a29b_log.cs filters FolkJobs/FolkLine/FolkChat). Delete
+  PlayArgs.txt afterwards. The baked v1 island loads first, then v2 replaces it.
+- Build shots: shotlist lines like `-place HumanVillage -time 10 -weather Clear -watch Human:Smith -wait 20` for a
+  worker, `-chatshot` for a talk. `-quit` ends after the list.

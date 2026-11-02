@@ -932,3 +932,32 @@ DONE (all five rows).
 - Note: the editor could not be closed before the branch switches (closing it was refused); the open scene was
   clean, and a refresh plus recompile went through without dialogs.
 - NEXT: merge origin/main into animal-behaviours (and world-features) so the lanes carry the merge.
+
+## A-29 + A-29b (2026-11-02): folk jobs and role dialogue (one build)
+DONE (all four rows). animal-behaviours de2e8e0, on top of the origin/main merge 70737ed.
+- A-29: FolkJobs (job enum, task-to-job map, mood, village post table, bat-folk chamber jobs), `byte Job` in
+  CreatureData (local, not a ghost field), village posts and `FolkJobs:` log lines in FaunaDirector, role lines
+  in FolkTalkSystem (`FolkLine:` log), DialogueArchive.PickRole with mood tags, dialogue.json role pools (251
+  lines), `-watch Human:<Job>`.
+- Row 1 (editor, v2): two fixes. `-place` used landmark spots cached from the baked v1 island (now reset when the
+  landmark set changes). The bat chamber line was blocked by a static flag set by the v1 blob (now a per-island
+  key). Job counts:
+  - HumanVillage (2972, -885): Baker 1, Healer 1, Smith 1, Gatekeeper 1, Woodcutter 1, WellKeeper 1, free 6
+  - ElfGrove (-2511, -1518): Healer 1, Guard 1, WellKeeper 1, Gatekeeper 1, free 5
+  - DwarfHold (-2338, 1995): Baker 1, Healer 1, Guard 1, Smith 1, free 6
+  - OgreCamp (-2074, 1266): Baker 1, Gatekeeper 1, Merchant 2, free 5
+  - Bat-folk chamber 0 (cave 1) at (3001, 3, -2135): RoostKeeper 3, Tanner 2, Forager 6, PoolFisher 1 (planned)
+- Sample lines: WellKeeper (Human, Plain) "Mind the rope, it's fraying."; Baker (Human, Grumpy) "Bread's in the
+  oven, mind the heat."; Healer (Human, Cheerful) "Everyone's mending nicely this morning."; WellKeeper (Elf,
+  Cheerful) "Deep and cold, the way a well should be."; Smith (Dwarf, Cheerful) "Bring me iron and I'll make it
+  useful."; Smith (Dwarf, Cheerful) "Hot work, the forge."; Baker (Ogre, Plain) "First loaves were out before
+  dawn."; Baker (Ogre, Plain) "Flour on everything. Always."; build: Healer (Human, Grumpy) "Another scraped knee
+  from the woodpile."; Woodcutter (Human, Cheerful) "Nothing like a clean split!"
+- Row 2: eol checked (CreatureData stays CRLF), committed de2e8e0, pushed.
+- Row 3: build Succeeded. v2 (no flag) 125 / D709D95C; v1 (`-island v1`) 101 / E128CB1D. Both players quit on
+  their own. Shots viewed at 800 px: Baker walking to work, Smith at the forge, a talk with the WellKeeper line
+  "Everyone comes by the well sooner or later." in the bubble.
+- Not seen: Herder, Fisher, Farmer, Trader (no matching anchors in these villages).
+- Shots: PunchyMilestones animal/a29: a29-talk-2.png (role line), a29-smith-at-work.png, a29-baker-at-work.png,
+  a29-wellkeeper.png, a29-talk-healer-line.png (bubble shows "..."); full size in raw/.
+- NEXT: job-specific work poses or props; Job as a ghost field if jobs ever stop following the task.
