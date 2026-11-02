@@ -399,10 +399,11 @@ half3 PunchyShootingStars(float3 dir)
         float s = fmod(slot, 4096) * 7.13 + k * 31.7;
         if (PunchyHash1(s) > (shower > 0.5 ? 0.9 : 0.06))
             continue;
-        float start = PunchyHash1(s + 1.1) * (slotLength - 1.5);
+        float start = PunchyHash1(s + 1.1) * (slotLength - 2.0);
         float life = lerp(0.5, 1.1, PunchyHash1(s + 2.3));
         float t = (local - start) / life;
-        if (t < 0 || t > 1)
+        // t 0..1 is the flight; 1..1.5 is the fade-out (the head has stopped, the tail draws in and the light dies away)
+        if (t < 0 || t > 1.5)
             continue;
         float az = PunchyHash1(s + 3.7) * 6.2832;
         float el = lerp(0.35, 1.1, PunchyHash1(s + 4.9));
@@ -418,11 +419,11 @@ half3 PunchyShootingStars(float3 dir)
         float2 q = float2(dot(v, right), dot(v, up));
         float along = dot(q, way);
         float across = abs(q.x * way.y - q.y * way.x);
-        float head = len * t;
-        float tail = len * 0.35;
+        float head = len * min(t, 1);
+        float tail = max(len * 0.35 * (1 - smoothstep(1, 1.5, t)), 0.001);
         half trail = saturate(1 - (head - along) / tail) * step(along, head) * step(head - tail, along);
         half streak = 1 - smoothstep(0.0005, 0.0015, across);
-        sum += half3(1.0, 0.95, 0.85) * trail * trail * streak * sin(t * 3.1416) * 5;
+        sum += half3(1.0, 0.95, 0.85) * trail * trail * streak * smoothstep(0, 0.12, t) * (1 - smoothstep(0.55, 1.5, t)) * 5;
     }
     return sum;
 }
