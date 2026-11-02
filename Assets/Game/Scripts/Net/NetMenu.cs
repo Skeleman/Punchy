@@ -241,8 +241,7 @@ namespace Punchy.Net
             GUILayout.Space(6);
             GUILayout.Label("Join a host by IP (the address its Multiplayer tab shows):");
             GUILayout.BeginHorizontal();
-            address = nav.TextField(address, 0, "0123456789.", GUILayout.Width(200));
-            var addressNotice = nav.NeedsKeyboardNotice;
+            address = nav.TextField(address, 15, "0123456789.", GUILayout.Width(200));
             if (nav.Button("Join"))
             {
                 if (address.Trim() == lanAddress)
@@ -256,8 +255,6 @@ namespace Punchy.Net
                 }
             }
             GUILayout.EndHorizontal();
-            if (addressNotice)
-                GUILayout.Label("Typing an address needs a keyboard for now.");
             if (!solo && nav.Button(server != null ? "Stop hosting (play alone)" : "Leave (play alone)"))
             {
                 RelaySessions.Forget();
@@ -272,12 +269,9 @@ namespace Punchy.Net
             GUILayout.BeginHorizontal();
             GUILayout.Label("Code:", GUILayout.Width(40));
             code = nav.TextField(code, 8, null, GUILayout.Width(100));
-            var codeNotice = nav.NeedsKeyboardNotice;
             if (nav.Button("Join online"))
                 RelaySessions.Join(code);
             GUILayout.EndHorizontal();
-            if (codeNotice)
-                GUILayout.Label("Typing a code needs a keyboard for now.");
             GUI.enabled = true;
             if (RelaySessions.Status != null)
                 GUILayout.Label(RelaySessions.Status, new GUIStyle(GUI.skin.label) { wordWrap = true });

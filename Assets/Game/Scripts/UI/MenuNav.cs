@@ -17,10 +17,10 @@ namespace Punchy.UI
     public class MenuNav
     {
         /// <summary>
-        /// Where an on-screen text entry (a digit pad for the IP, letters for a join code) can plug in later, for
-        /// playing with only a controller (a Steam Deck). Called with the field's current text, its longest length and
-        /// the characters it takes (null: any), plus a callback for the result (null: cancelled). While unset, a text
-        /// field chosen on a controller says that typing needs a keyboard.
+        /// The on-screen text entry, for playing with only a controller (a Steam Deck): the main menu sets it to its
+        /// TextWheel. Called with the field's current text, its longest length and the characters it takes (null:
+        /// any), plus a callback for the result (null: cancelled). While unset, a text field chosen on a controller
+        /// says that typing needs a keyboard.
         /// </summary>
         public static Action<string, int, string, Action<string>> TextEntry;
 
@@ -35,6 +35,7 @@ namespace Punchy.UI
         int step, slide;
         Vector2 heldDirection;
         float repeatAt;
+        bool ignoreHeld;
 
         // A text entry's result waiting for its field, and which stop asked.
         string enteredText;
@@ -66,7 +67,14 @@ namespace Punchy.UI
                                                                        : new Vector2(Mathf.Abs(direction.x) > 0.5f ? Mathf.Sign(direction.x) : 0f, 0f);
             var now = Time.unscaledTime;
             var fire = false;
-            if (dir != heldDirection)
+            if (ignoreHeld)
+            {
+                // (A direction still held from before, the stick pointing in the text wheel, isn't a push.)
+                ignoreHeld = false;
+                heldDirection = dir;
+                repeatAt = float.MaxValue;
+            }
+            else if (dir != heldDirection)
             {
                 heldDirection = dir;
                 fire = dir != Vector2.zero;
@@ -118,6 +126,9 @@ namespace Punchy.UI
             step += slide;
             slide = 0;
         }
+
+        /// <summary>Whatever direction is held now doesn't move the focus until it's let go (after the text wheel).</summary>
+        public void IgnoreHeld() => ignoreHeld = true;
 
         /// <summary>Back to the first stop (on opening the menu or changing tab).</summary>
         public void Reset()

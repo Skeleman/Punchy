@@ -10,7 +10,8 @@ namespace Punchy.UI
     /// The main menu (UI-1). Esc, or Start on a controller, opens and closes it. It has a tab for each player-facing
     /// panel (Multiplayer from NetMenu, Graphics from GraphicsSettings; each adds its own with AddTab) and Quit at the
     /// foot. Controller or keyboard: the d-pad or left stick moves (MenuNav), A / Cross chooses, B / Circle backs out
-    /// (cancels the quit question, otherwise closes), LB / RB (Q / E on the keyboard) switches tab. The mouse clicks
+    /// (cancels the quit question, otherwise closes), LB / RB (Q / E on the keyboard) switches tab. A text field chosen
+    /// on the controller opens the TextWheel to type in it. The mouse clicks
     /// everything as before. While it's open, Overlay.AnyOpen holds the camera, frees the cursor and stops the player's
     /// actions (their action map is off).
     /// Test flags: "-menu &lt;Tab&gt;" opens it on that tab (for shots); with "-forcepad" (InputGlyphs) its prompts show a pad's.
@@ -33,6 +34,7 @@ namespace Punchy.UI
         static string currentTitle;
 
         readonly MenuNav nav = new MenuNav();
+        readonly TextWheel wheel = new TextWheel();
         bool confirmQuit;
         int openedFrame = -1;
         InputAction cancel;
@@ -64,6 +66,14 @@ namespace Punchy.UI
             instance = go.AddComponent<MainMenu>();
         }
 
+        void Awake() => MenuNav.TextEntry = wheel.Begin;
+
+        void OnDestroy()
+        {
+            if (MenuNav.TextEntry == (Action<string, int, string, Action<string>>)wheel.Begin)
+                MenuNav.TextEntry = null;
+        }
+
         void Start()
         {
             var args = Punchy.Debugging.DebugControls.LaunchArgs;
@@ -81,6 +91,7 @@ namespace Punchy.UI
             if (open == Open)
                 return;
             Open = open;
+            wheel.Close(false);
             confirmQuit = false;
             nav.Reset();
             nav.Active = open && InputGlyphs.Gamepad;
@@ -124,6 +135,14 @@ namespace Punchy.UI
             SetPlayerActions(false);
             if (Time.frameCount == openedFrame)
                 return;
+            // The text wheel (typing on a controller) has the input while it's open, and the frame it closes.
+            if (wheel.Busy)
+            {
+                wheel.Update();
+                if (!wheel.Open)
+                    nav.IgnoreHeld();
+                return;
+            }
             if (start)
             {
                 SetOpen(false);
@@ -178,6 +197,9 @@ namespace Punchy.UI
             footer ??= new GUIStyle(GUI.skin.label) { richText = true, fontSize = 12 };
 
             nav.Begin();
+            // (Behind the text wheel the menu is drawn, but greyed and not clickable.)
+            var enabled = GUI.enabled;
+            GUI.enabled = enabled && !wheel.Open;
             const float width = 420f, height = 500f;
             GUILayout.BeginArea(new Rect(Mathf.Round((Screen.width - width) * 0.5f), 50f, width, height), box);
 
@@ -225,7 +247,9 @@ namespace Punchy.UI
             GUILayout.Space(6);
             Prompts.Layout(FooterPrompt(), footer);
             GUILayout.EndArea();
+            GUI.enabled = enabled;
             nav.End();
+            wheel.Draw(new Vector2(Mathf.Round(Screen.width * 0.5f), 50f + height * 0.5f));
         }
 
         static string TabKey(int side) => InputGlyphs.Token(InputGlyphs.Gamepad ? side < 0 ? "<Gamepad>/leftShoulder" : "<Gamepad>/rightShoulder"
