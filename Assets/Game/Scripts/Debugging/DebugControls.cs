@@ -1724,6 +1724,8 @@ namespace Punchy.Debugging
         }
 
         bool cameraPosed;
+        /// <summary>The camera's field of view before the wall shot narrowed it (0: not narrowed).</summary>
+        float wallFovWas;
 
         /// <summary>
         /// "-place cave:Ice" (any cave style): in the first cave of that style, on the floor of its first chamber,
@@ -2286,12 +2288,28 @@ namespace Punchy.Debugging
                 PlayerMovementSystem.WallProbe.Data = 1;
                 StartClimbTest(t.Position, rim, rim, false, $"wall at ({V(rim.x)}, {V(rim.y)}, {V(rim.z)}), {bestHit.Height - bestFeet.y:F1} m up; player from ({V(t.Position.x)}, {V(t.Position.z)})");
                 climbWall = true;
-                // (A-13: a side view of the climb, 5 m off to one side and level with the rim, for the mid-climb shot.)
-                var wallAcross = math.normalizesafe(rim.xz - t.Position.xz, new float2(0f, 1f));
-                var wallSide = new float2(wallAcross.y, -wallAcross.x);
-                var wallMid = (rim.xz + t.Position.xz) * 0.5f + wallAcross * 0.3f;
-                PoseCamera(new Vector3(wallMid.x + wallSide.x * 5f, rim.y + 0.3f, wallMid.y + wallSide.y * 5f),
-                           Quaternion.LookRotation(new Vector3(wallMid.x, rim.y - 0.6f, wallMid.y) - new Vector3(wallMid.x + wallSide.x * 5f, rim.y + 0.3f, wallMid.y + wallSide.y * 5f)));
+                // (A-15 #33: the mid-climb shot from 9 m back off the wall face and 1.5 m to one side, looking at the
+                // lower half of the wall. A-13/14 framed it from 5 m off to the side, which put the camera inside the
+                // building on a long wall and dithered the face away (PlayerReveal); from out in front, the wall is
+                // behind the climber and nothing of it is cut.)
+                // (Square on to the face itself, by the rim's outward normal: the line from the player to the rim can
+                // be well off it, which showed the face edge-on.)
+                var wallOut = math.normalizesafe(bestHit.EdgeNormal, math.normalizesafe(t.Position.xz - rim.xz, new float2(0f, -1f)));
+                var wallSide = new float2(wallOut.y, -wallOut.x);
+                var wallHeight = rim.y - bestFeet.y;
+                var eyeXZ = rim.xz + wallOut * 9f + wallSide * 1.5f;
+                var eyeY = math.max(source.SampleHeight(eyeXZ) + 1.6f, bestFeet.y + 1.8f);
+                var wallEye = new Vector3(eyeXZ.x, eyeY, eyeXZ.y);
+                var wallAim = new Vector3(rim.x, bestFeet.y + math.min(wallHeight * 0.4f, 2f), rim.z);
+                PoseCamera(wallEye, Quaternion.LookRotation(wallAim - wallEye));
+                // (A narrower view, so a lizard a quarter of a metre long reads from 9 m off.)
+                if (Camera.main != null)
+                {
+                    if (wallFovWas == 0f)
+                        wallFovWas = Camera.main.fieldOfView;
+                    Camera.main.fieldOfView = 28f;
+                }
+                Debug.Log($"DebugControls: wall camera at ({V(wallEye.x)}, {V(wallEye.y)}, {V(wallEye.z)}) looking at ({V(wallAim.x)}, {V(wallAim.y)}, {V(wallAim.z)}), wall {V(wallHeight)} m");
                 return;
             }
             climbWall = false;
@@ -2677,6 +2695,10 @@ namespace Punchy.Debugging
                 foreach (var b in Camera.main.GetComponents<MonoBehaviour>())
                     b.enabled = true;
             cameraPosed = false;
+            // (The wall shot's narrower view, put back.)
+            if (wallFovWas > 0f && Camera.main != null)
+                Camera.main.fieldOfView = wallFovWas;
+            wallFovWas = 0f;
             huntShotTaken = false;
             colossusShotDistance = 0f;
             mantrapShotMode = null;

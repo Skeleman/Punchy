@@ -5144,7 +5144,8 @@ namespace Punchy.Fauna
                 var range = math.max(b.WanderRadius, 20f);
                 // (#12/A-12: somewhere ahead of it, within 90 deg of its heading, so the turn to face the new spot stays
                 // small; a spot behind meant a half turn in a couple of seconds, songbirds' wandering at 25-31 deg/s.)
-                var ahead = s.Yaw + rng.NextFloat(-math.PI * 0.5f, math.PI * 0.5f);
+                // (#12/A-15: ground spots within 60 deg, so with the drift of a takeoff hop the bearing stays under 90.)
+                var ahead = s.Yaw + rng.NextFloat(-math.PI / 3f, math.PI / 3f);
                 var aheadDir = new float2(math.sin(ahead), math.cos(ahead));
                 // A soarer mostly goes up to circle a while over somewhere near (not straight after a spell of it).
                 if (b.Soars && !toSleep && s.Stage != 2 && rng.NextFloat() < 0.75f)
@@ -5315,7 +5316,11 @@ namespace Punchy.Fauna
                 var wantY = math.min(cruise, touchdown + math.max(distance - 0.3f, 0f) * CreatureMotion.GlideSlope);
                 // (In the flare, the last few centimetres settle as it slows.)
                 var steepest = math.max(step / math.max(dt, 1e-4f) * CreatureMotion.MaxClimb, flare * 0.4f);
-                var vy = math.clamp((wantY - s.Position.y) * 1.5f, -steepest, steepest);
+                // (#12/A-15: within 6 m of the spot it closes on the glide slope harder and may dive steeper, so it
+                // arrives low enough to land rather than overshooting high and wheeling back round at minimum airspeed.)
+                var near = math.saturate(1f - distance / 6f);
+                var gain = math.lerp(1.5f, 4f, near);
+                var vy = math.clamp((wantY - s.Position.y) * gain, -steepest * math.lerp(1f, 1.8f, near), steepest);
                 // In the flare the last of the height goes at a steady rate (not ever more slowly), so it settles as
                 // it slows rather than hanging over the spot.
                 var gap = wantY - s.Position.y;
