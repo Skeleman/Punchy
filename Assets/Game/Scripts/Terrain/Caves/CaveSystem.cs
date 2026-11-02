@@ -288,7 +288,66 @@ namespace Punchy.Terrain
             if (caveWater != null)
                 Destroy(caveWater);
             caveWater = null;
+            ReleaseBatFolk();
             Shader.SetGlobalVector(LanternId, Vector4.zero);
+        }
+
+        // ------------------------------------------------------------------------------------------- bat folk
+
+        /// <summary>Per bat folk site: its pale and dark meshes (BatFolkMeshes), built when the world is first drawn.</summary>
+        readonly List<(Mesh pale, Mesh dark)> batFolkMeshes = new List<(Mesh, Mesh)>();
+        Material batFolkPale, batFolkDark;
+        static readonly int RockColorId = Shader.PropertyToID("_RockColor");
+        static readonly int DarkColorId = Shader.PropertyToID("_DarkColor");
+
+        /// <summary>
+        /// Draws the bat folk huts and floor props (#35, W-19) within LoadRadius with two copies of the cave material
+        /// (pale silk, dark wood), so they are lit like the walls: lantern, glow lights, no daylight.
+        /// </summary>
+        void DrawBatFolk(in TerrainSource source, float3 camPos)
+        {
+            if (!source.BatFolk.IsCreated)
+                return;
+            ref var bat = ref source.BatFolk.Value;
+            if (bat.Sites.Length == 0 || bat.Props.Length == 0)
+                return;
+            if (batFolkMeshes.Count == 0)
+            {
+                for (int s = 0; s < bat.Sites.Length; s++)
+                {
+                    BatFolkMeshes.Build(ref bat, s, out var pale, out var dark);
+                    batFolkMeshes.Add((pale, dark));
+                }
+                batFolkPale = new Material(Material) { name = "Bat folk pale" };
+                batFolkPale.SetColor(RockColorId, BatFolkMeshes.PaleRock);
+                batFolkPale.SetColor(DarkColorId, BatFolkMeshes.PaleDark);
+                batFolkDark = new Material(Material) { name = "Bat folk dark" };
+                batFolkDark.SetColor(RockColorId, BatFolkMeshes.DarkRock);
+                batFolkDark.SetColor(DarkColorId, BatFolkMeshes.DarkDark);
+            }
+            for (int s = 0; s < batFolkMeshes.Count; s++)
+            {
+                if (math.distance(bat.Sites[s].Centre, camPos) > LoadRadius)
+                    continue;
+                var (pale, dark) = batFolkMeshes[s];
+                if (pale != null)
+                    Graphics.RenderMesh(new RenderParams(batFolkPale) { worldBounds = pale.bounds, shadowCastingMode = ShadowCastingMode.On, receiveShadows = true }, pale, 0, Matrix4x4.identity);
+                if (dark != null)
+                    Graphics.RenderMesh(new RenderParams(batFolkDark) { worldBounds = dark.bounds, shadowCastingMode = ShadowCastingMode.On, receiveShadows = true }, dark, 0, Matrix4x4.identity);
+            }
+        }
+
+        void ReleaseBatFolk()
+        {
+            foreach (var (pale, dark) in batFolkMeshes)
+            {
+                if (pale != null) Destroy(pale);
+                if (dark != null) Destroy(dark);
+            }
+            batFolkMeshes.Clear();
+            if (batFolkPale != null) Destroy(batFolkPale);
+            if (batFolkDark != null) Destroy(batFolkDark);
+            batFolkPale = batFolkDark = null;
         }
 
         // ------------------------------------------------------------------------------------------- pools
@@ -1217,6 +1276,7 @@ namespace Punchy.Terrain
             // Outside every cave's air, buried chunks can't be seen.
             Draw(source.CaveDistance(camPos) >= 0f);
             DrawPools(source, camPos);
+            DrawBatFolk(source, camPos);
             DrawPlants(source, camPos);
             DrawDrips(source, camPos);
             UploadGlowing(camPos);

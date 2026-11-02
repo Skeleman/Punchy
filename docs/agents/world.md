@@ -48,6 +48,10 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   at least 3 nodes in and a water pool (the chamber's own, else the nearest in the cave); up to 1 in 6 (min 1) is
   picked by a scrambled mouth-cell hash on its own seed stream. Its `WhitePools` (per cave pool) draws those
   pools white; `-whitepools` is now a debug override. Logs `[batfolk] caves N, picked K` (v1 player: from the blob).
+  W-19: `Props` holds 3-6 hut pods (hung from the ceiling, anchor + stalk) and 4-8 racks/baskets per pick, from a
+  per-site RNG (scrambled stream ^ key), kept clear of pools and the path segments through the chamber node;
+  `BatFolkMeshes` builds them in the cave vertex layout, CaveSystem draws them with tinted cave-material copies.
+  Huts hang 8-14 m up, past the lantern: unlit until plan step 4, so frame them with a light or from below.
 - **Cave previews in the editor:** a camera moved into a cave alone shows nothing (chunks stream, `Underground` and
   the lantern follow the player over a few frames). In play mode call `CaveTools.PreviewAt(pos, target, whitePools)`,
   wait a few seconds, then `CaveTools.PreviewShot(path)`.
