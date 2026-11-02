@@ -262,9 +262,7 @@ namespace Punchy.Terrain
         /// <summary>
         /// As above; level is a terrace pool's own water surface (float.MinValue when none). W-24 (#23): a pond whose
         /// bed stays above sea level held no water, so ponds on a hillside swamp were dry pits. Those ponds are now
-        /// stepped pools instead: the ground (plus a little noise, so the steps wander) is cut into bands
-        /// <see cref="TerraceStep"/> high, each band's pool is flat at the band's foot, held by a low bank on its
-        /// downhill side and a cut face up to the next band's bank. Flat ground gets one level pool. Ponds that reach
+        /// stepped pools instead: level paddies behind low banks (see <see cref="Terrace"/>). Ponds that reach
         /// below sea level (lowland swamps) are unchanged.
         /// </summary>
         float Ponds(float2 xz, in BiomeWeights shape, float h, out float level)
@@ -323,31 +321,66 @@ namespace Punchy.Terrain
             return dig;
         }
 
-        /// <summary>W-24: the ground of a stepped pool at xz (h the natural ground, cover as from PondDig) and its water level.</summary>
+        /// <summary>
+        /// W-24/W-25: the ground of a stepped pool at xz (h the natural ground, cover as from PondDig) and its water level.
+        /// W-25 (#23): contour bands 0.6 m apart were only ~6 m wide on a gentle slope and ~1 m on a steep one, so they
+        /// read as mud lines, not paddies. The pond is now cut into irregular paddy cells about <see cref="PaddySize"/>
+        /// across (a warped, jittered cell grid), whatever the slope. Each cell is a level pool at the natural ground
+        /// height of its centre (cut on the uphill half, filled on the downhill half), and each border is a bank
+        /// <see cref="TerraceBank"/> above the higher of the two pools, so a lower paddy ends at a riser up to its neighbour.
+        /// </summary>
         float Terrace(float2 xz, float h, float cover, out float level)
         {
             level = float.MinValue;
-            // Bands follow the ground's contours; the wobble only moves the band edges, never a level. Bands follow the ground's contours; the wobble only moves the band edges, never a level.
-            var q = (h + noise.snoise(xz * 0.025f + 31.7f) * TerraceStep * 0.35f) / TerraceStep;
-            var k = math.floor(q);
-            var f = q - k;
-            var water = k * TerraceStep;
+            // Warp the grid so cells aren't rows of boxes; the warp is the same for every cell's distance test.
+            var p = (xz + new float2(noise.snoise(xz * 0.03f + 11.3f), noise.snoise(xz * 0.03f - 7.9f)) * PaddySize * 0.3f) / PaddySize;
+            var cell = (int2)math.floor(p);
+            // Nearest cell centre (A) first.
+            var dA = float.MaxValue;
+            var siteA = float2.zero;
+            for (int j = 0; j < 9; j++)
+            {
+                var s = PaddySite(cell + new int2(j % 3 - 1, j / 3 - 1));
+                var d = math.distance(p, s);
+                if (d < dA) { dA = d; siteA = s; }
+            }
+            var water = BaseHeight(siteA * PaddySize);
+            var bed = water - TerraceDepth;
+            var g = bed;
+            // Then a bank towards every neighbour whose border is close: the ground rises from this pool's bed to the
+            // bank on top of the border (the same height from both sides, so the ground stays continuous).
+            for (int j = 0; j < 9; j++)
+            {
+                var s = PaddySite(cell + new int2(j % 3 - 1, j / 3 - 1));
+                var e = (math.distance(p, s) - dA) * 0.5f * PaddySize;   // metres to that border (approx.)
+                if (e <= 0f || e > 6f)
+                    continue;
+                var top = math.max(water, BaseHeight(s * PaddySize)) + TerraceBank;
+                var w = math.clamp((top - bed) * 0.8f, 1.2f, 6f);   // a tall riser is wider, so it isn't a wall
+                g = math.max(g, math.lerp(top, bed, math.smoothstep(0f, w, e)));
+            }
             var bank = water + TerraceBank;
-            var upper = water + TerraceStep + TerraceBank;   // the next band's bank
-            var band = math.lerp(bank, water - TerraceDepth, math.smoothstep(0f, 0.22f, f));
-            band = math.lerp(band, upper, math.smoothstep(0.8f, 1f, f));
-            // Out towards the pond's edge the band blends back into the natural ground, which is above the water there
-            // (the wobble can put it a little below): a rim at bank height first, so the pool ends against it, not in mid air.
+            // Out towards the pond's edge the paddy blends back into the natural ground: a rim at bank height first,
+            // so the pool ends against it, not in mid air.
             var rim = math.lerp(h, math.max(h, bank), math.smoothstep(0f, 0.3f, cover));
             var inside = math.smoothstep(0.3f, 0.65f, math.saturate(cover));
-            var g = math.lerp(rim, band, inside);
+            g = math.lerp(rim, g, inside);
             if (inside > 0f && g < water - 0.02f)
                 level = water;
             return g;
         }
 
-        /// <summary>W-24: height between stepped pools (m), how far a bank stands above its pool, and the pools' depth.</summary>
-        public const float TerraceStep = 0.6f, TerraceBank = 0.15f, TerraceDepth = 0.45f;
+        /// <summary>W-25: a paddy cell's centre, in cell units (jittered inside its grid square).</summary>
+        static float2 PaddySite(int2 c)
+        {
+            var x = math.hash(c);
+            // math.hash has no avalanche on small ints: scramble before using the bits.
+            x ^= x >> 16; x *= 0x7feb352du; x ^= x >> 15; x *= 0x846ca68bu; x ^= x >> 16;
+            return (float2)c + 0.5f + (new float2(x & 0xffff, x >> 16) / 65535f - 0.5f) * 0.8f;
+        }
+
+        /// <summary>W-25: paddy cell size (m), how far a bank stands above the higher pool beside it, and the pools' depth.</summary>
+        public const float PaddySize = 15f, TerraceBank = 0.3f, TerraceDepth = 0.45f;
         /// <summary>W-24: island v2's pond noise frequency scale and extra cover (biome map worlds only).</summary>
         public const float V2PondDensity = 1.2f, V2PondCover = 0.3f;
 
