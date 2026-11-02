@@ -57,6 +57,8 @@ namespace Punchy.EditorTools
             withCaves.Caves = caves;
             var anchors = AnchorBaking.Build(withCaves, types, Allocator.Persistent);
             withCaves.Anchors = anchors;
+            // Bat folk pick from the new caves (pool indices change with them); a small blob, left to the editor session.
+            withCaves.BatFolk = BatFolkBaking.Build(withCaves, Allocator.Persistent);
             em.SetComponentData(terrain, withCaves);
             // The blobs this tool made last time are no longer referenced (the baked ones belong to the subscene).
             foreach (var b in madeCaves) if (b.IsCreated) b.Dispose();

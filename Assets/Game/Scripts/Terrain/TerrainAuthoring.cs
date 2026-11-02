@@ -151,6 +151,10 @@ namespace Punchy.Terrain
             if (source.Landmarks.IsCreated)
                 source.Caves = CaveBaking.Build(source, palette, landmarkTypes, allocator);
             Stage("caves");
+            // #35: bat folk read the caves only and write nothing anything else reads, so every hash stays put.
+            source.BatFolk = BatFolkBaking.Build(source, allocator);
+            UnityEngine.Debug.Log(BatFolkBaking.LastLog);
+            Stage("batfolk");
             source.Anchors = AnchorBaking.Build(source, landmarkTypes, allocator);
             Stage("anchors");
             source.PondsOn = true;
@@ -249,6 +253,7 @@ namespace Punchy.Terrain
                 if (source.Landmarks.IsCreated) AddBlobAsset(ref source.Landmarks, out _);
                 if (source.Settlements.IsCreated) AddBlobAsset(ref source.Settlements, out _);
                 if (source.Caves.IsCreated) AddBlobAsset(ref source.Caves, out _);
+                if (source.BatFolk.IsCreated) AddBlobAsset(ref source.BatFolk, out _);
                 if (source.Anchors.IsCreated) AddBlobAsset(ref source.Anchors, out _);
                 if (source.PondMask.IsCreated) AddBlobAsset(ref source.PondMask, out _);
                 AddComponent(entity, source);

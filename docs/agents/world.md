@@ -43,6 +43,11 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   logs each step. `-whitepools` draws every cave water pool as white pool water (`CaveSystem.WhitePoolWater`,
   #35); murk above about 0.3 makes the pool a hard-edged opaque slab that reads as snow. White pools set `_SoftRim`:
   the rim fades, the middle darkens and stays see-through (body alpha x0.55), and the glow is a band inside the rim.
+- **Bat folk (#35, W-18):** `BatFolkBaking` runs after CaveBaking, reads the caves only and writes its own blob
+  (`TerrainSource.BatFolk`), so landmark and cave hashes never see it. A cave qualifies with a chamber >= 9 m
+  at least 3 nodes in and a water pool (the chamber's own, else the nearest in the cave); up to 1 in 6 (min 1) is
+  picked by a scrambled mouth-cell hash on its own seed stream. Its `WhitePools` (per cave pool) draws those
+  pools white; `-whitepools` is now a debug override. Logs `[batfolk] caves N, picked K` (v1 player: from the blob).
 - **Cave previews in the editor:** a camera moved into a cave alone shows nothing (chunks stream, `Underground` and
   the lantern follow the player over a few frames). In play mode call `CaveTools.PreviewAt(pos, target, whitePools)`,
   wait a few seconds, then `CaveTools.PreviewShot(path)`.
