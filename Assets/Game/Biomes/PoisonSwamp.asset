@@ -22,9 +22,6 @@ MonoBehaviour:
   Shape: 0
   Relief: 2.5
   FeatureSize: 80
-  PondDepth: 1.9
-  PondSize: 13
-  PondCover: 0.3
   Octaves: 4
   Sharpness: 1
   TerraceSteps: 0

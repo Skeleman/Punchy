@@ -65,13 +65,6 @@ namespace Punchy.Terrain
         [Tooltip("Typical horizontal size of hills / spacing of ridges or dunes, in metres.")]
         [Min(1f)] public float FeatureSize = 400f;
         [Range(1, 8)] public int Octaves = 5;
-        [Tooltip("Ponds dug into the lowlands (a swamp's pools): how far below the ground they go, in metres. 0 = none. " +
-                 "Applied after rivers and landmarks are placed, so it never moves them.")]
-        [Min(0f)] public float PondDepth = 0f;
-        [Tooltip("Typical size of a pond and of the ground between ponds, in metres.")]
-        [Min(2f)] public float PondSize = 14f;
-        [Tooltip("Share of the biome's ground the ponds take, 0..1.")]
-        [Range(0f, 0.8f)] public float PondCover = 0.3f;
         [Tooltip("Above 1 flattens lowlands and sharpens peaks; below 1 rounds them off.")]
         [Range(0.3f, 4f)] public float Sharpness = 1.5f;
         [Tooltip("Quantise heights into steps for mesas and terraces. 0 = off.")]

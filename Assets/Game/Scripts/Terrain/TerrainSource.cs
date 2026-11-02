@@ -237,25 +237,6 @@ namespace Punchy.Terrain
             return World.SeaLevel + height;
         }
 
-        /// <summary>
-        /// Biome ponds (a swamp's pools) dug into the ground. Only once the landmarks exist: rivers, landmarks and
-        /// settlements are placed on the ground without them, so the ponds never move any of those.
-        /// </summary>
-        float Ponds(float2 xz, in BiomeWeights shape, float h)
-        {
-            if (!Landmarks.IsCreated || !HasBiomes)
-                return h;
-            ref var set = ref Biomes.Value;
-            var dig = 0f;
-            for (int i = 0; i < 4; i++)
-            {
-                var w = shape.Weights[i];
-                if (w > 0f)
-                    dig += w * BiomeSampling.Pond(ref set.Biomes[shape.Ids[i]], xz);
-            }
-            return h - dig;
-        }
-
         /// <summary>Ground height before river carving (what rivers are routed over).</summary>
         public float BaseHeight(float2 xz)
         {
@@ -269,17 +250,14 @@ namespace Punchy.Terrain
         {
             // A loaded heightmap already contains carved channels and landmark shapes.
             if (UsesHeightmap)
-            {
-                SampleBiomes(xz, out _, out var heightmapShape);
-                return Settle(xz, Ponds(xz, heightmapShape, Heightmap.Value.Sample(xz)));
-            }
+                return Settle(xz, Heightmap.Value.Sample(xz));
             SampleBiomes(xz, out _, out var shape);
             var h = ShapeHeight(xz, shape);
             if (Rivers.IsCreated)
                 h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz), RiverSettings, h);
             if (Landmarks.IsCreated)
                 h = LandmarkSampling.Shape(ref Landmarks.Value, xz, h);
-            return Settle(xz, Ponds(xz, shape, h));
+            return Settle(xz, h);
         }
 
         /// <summary>
@@ -398,19 +376,6 @@ namespace Punchy.Terrain
                     }
                     ruleDepth = math.max(ruleDepth, math.lerp(farAbove, pool - g.Height, claim));
                 }
-            }
-            // Biome ponds (a swamp's pools): water was decided above from the ground without them, so a pond is wet only
-            // where it digs below the water level the biome already has (sea level in the lowlands).
-            var dug = Ponds(xz, shape, g.Height);
-            if (dug < g.Height)
-            {
-                if (dug < World.SeaLevel && water < World.SeaLevel)
-                {
-                    water = World.SeaLevel;
-                    flow = float2.zero;
-                }
-                ruleDepth = math.max(ruleDepth, math.max(water, World.SeaLevel) - dug);
-                g.Height = dug;
             }
             // Settlements keep clear of water, so their levelling doesn't change the water rules above.
             g.Height = Settle(xz, g.Height);
