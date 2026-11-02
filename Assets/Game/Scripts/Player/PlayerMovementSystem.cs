@@ -31,6 +31,9 @@ namespace Punchy.Player
         const float WallClimbHead = 8f;
         /// <summary>On a wall, how far ahead the top's rim is looked for (Ledge starts 0.3 m out, past a small body's reach).</summary>
         const float WallLedgeReach = 0.5f;
+        /// <summary>#33: how far above a wall climber's feet (m, for a body of size 1) a top just past the wall's face can
+        /// be for it to climb over onto it.</summary>
+        const float TopOutReach = 0.8f;
 
         /// <summary>A walk (the walk toggle) for a human body, m/s; other bodies by their speed next to a human.</summary>
         public const float Stroll = 1.6f;
@@ -177,6 +180,13 @@ namespace Punchy.Player
                 {
                     var into = math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz;
                     StickOnSurface(input, out wallUp, out var wallSide);
+                    // (The camera looking away from the wall, as when it has stepped back off a top: pushing on, away from
+                    // the wall, climbs down, and the stick's right is still the screen's right.)
+                    if (math.dot(math.normalizesafe(input.CameraForward, into), into) < 0f)
+                    {
+                        wallUp = -wallUp;
+                        wallSide = -wallSide;
+                    }
                     var across = new float2(into.y, -into.x);
                     move = into + across * wallSide * math.max(body.ClimbSpeed, 0.3f) / math.max(speed, 0.1f);
                 }
@@ -266,6 +276,21 @@ namespace Punchy.Player
                     m.VerticalVelocity = 0f;
                     // (Latching on, the push is the way it faces; once on, the stick climbs: forward up, back down.)
                     var rising = wasOnWall ? wallUp : 1f;
+                    // At the top: a top within reach just past the wall's face (the rim; on a rounded rock, the top it has
+                    // crept onto) and it climbs over onto it, rather than clinging on below the rim (#33).
+                    var wallInto = math.normalizesafe(math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz);
+                    var overAt = position.xz + wallInto * (settings.Radius + 0.15f);
+                    if (tops && wasOnWall && rising > 0f &&
+                        PropSupport.Sample(ref grids.Set.Value, props, new float3(overAt.x, from.y, overAt.y), 0f, TopOutReach * math.max(size, 0.5f), out var over) &&
+                        over.Height > from.y - stepUp)
+                    {
+                        m.OnWall = false;
+                        m.Mantle = 1e-4f;
+                        m.MantleFrom = from;
+                        m.MantleTo = new float3(overAt.x, over.Height, overAt.y);
+                        t.Position = from;
+                        continue;
+                    }
                     position.y = from.y + rising * math.max(body.ClimbSpeed, 0.3f) * dt;
                     if (wasOnWall && rising < 0f && Floor(terrain, position, settings.SwimDepth, out var foot, out _) && position.y <= foot)
                     {
@@ -292,6 +317,7 @@ namespace Punchy.Player
 
                 Floor(terrain, position, settings.SwimDepth, out var ground, out _);
                 // Standing on a prop's top, if it's higher than the ground there; slid off it where it's steep.
+                var wasOnProp = m.OnProp;
                 m.OnProp = false;
                 if (tops && PropSupport.Sample(ref grids.Set.Value, props, position, settings.Radius * 0.6f, stepUp, out var top) && top.Height > ground)
                 {
@@ -299,6 +325,20 @@ namespace Punchy.Player
                     m.OnProp = true;
                     if (m.Grounded && top.Normal.y < SlideSlope && math.lengthsq(top.Normal.xz) > 1e-6f)
                         position.xz += math.normalize(top.Normal.xz) * SlideSpeed * dt;
+                }
+                // A wall climber walking off a top's edge goes over onto the wall, turned to face it, and climbs down
+                // (#33: it used to let go and fall). Its feet start just below the rim, so the wall holds it.
+                if (body.ClimbsWalls && tops && wasOnProp && !m.OnProp && m.Grounded && pressing && !input.JumpPressed && !swimming &&
+                    position.y - ground > math.max(settings.GroundSnapDistance + speed * dt, stepUp))
+                {
+                    var off = math.normalizesafe(position.xz - from.xz, input.MoveDirection);
+                    m.OnWall = true;
+                    m.Grounded = false;
+                    m.VerticalVelocity = 0f;
+                    position.y = from.y - stepUp - 0.05f;
+                    t.Position = position;
+                    t.Rotation = quaternion.LookRotationSafe(new float3(-off.x, 0f, -off.y), math.up());
+                    continue;
                 }
                 if (m.Grounded && position.y - ground <= settings.GroundSnapDistance + speed * dt)
                 {

@@ -40,6 +40,10 @@ namespace Punchy.Fauna
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     public partial struct CreatureBrainSystem : ISystem
     {
+        /// <summary>#12 A/B switch for one build: 1 (DebugControls' -noflaresettle) steers the flare the old way, wheeling
+        /// round to face the landing spot at the full turn rate.</summary>
+        public static readonly Unity.Burst.SharedStatic<int> FlareSettleOff = Unity.Burst.SharedStatic<int>.GetOrCreate<FlareSettleKey>();
+        struct FlareSettleKey { }
         const float CellSize = 16f;
         // (Where the brain's time goes, for the profiler: its searches for danger and company, its needs and idle
         // actions, its choices, its moving and its gait.)
@@ -5237,16 +5241,20 @@ namespace Punchy.Fauna
             {
                 var to = target - s.Position.xz;
                 var distance = math.length(to);
+                var flare = math.saturate(1f - distance / CreatureMotion.FlareDistance);
+                // In the flare it no longer wheels round to face the spot: it eases its turning off and drifts the last
+                // stretch onto the spot, a little sideways if need be (#12: at the full turn rate it circled the spot
+                // tightly, waiting for its height to settle, and songbirds' wandering turned at over 100 deg/s).
+                var settle = flare > 0f && FlareSettleOff.Data == 0;
                 // (Right over the spot the bearing means nothing: hold the heading.)
                 var wanted = distance < 0.1f ? 0f : WrapAngle(math.atan2(to.x, to.y) - s.Yaw) + Swerve(s, ref b, distance);
-                var turnRate = b.TurnRate * 1.5f;
+                var turnRate = b.TurnRate * 1.5f * (settle ? 1f - flare : 1f);
                 var turn = math.clamp(wanted, -turnRate * dt, turnRate * dt);
                 s.Yaw = WrapAngle(s.Yaw + turn);
                 s.YawRate = turn / math.max(dt, 1e-4f);
                 // Airspeed never drops below the minimum (a bird above its landing spot circles down rather than
                 // sinking), except in the flare, where it slows to touch down within a body length or two.
                 var minSpeed = b.FlySpeed * CreatureMotion.MinAirspeed;
-                var flare = math.saturate(1f - distance / CreatureMotion.FlareDistance);
                 var cruiseSpeed = math.max(speed * math.saturate(math.cos(wanted) + 0.4f), minSpeed);
                 var wantSpeed = math.lerp(cruiseSpeed, math.max(distance * 1.5f, 0.3f), flare);
                 // Taking off from standing: a hop forward, straight into the minimum speed.
@@ -5257,7 +5265,10 @@ namespace Punchy.Fauna
                     s.Speed = math.max(s.Speed, minSpeed);
                 // Always moving forward: arriving over the spot too high, it carries on past and circles down.
                 var step = s.Speed * dt;
-                s.Position.xz += new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * step;
+                var heading = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                if (settle && distance > 1e-3f)
+                    heading = math.normalizesafe(math.lerp(heading, to / distance, flare), heading);
+                s.Position.xz += heading * math.min(step, settle ? distance : step);
 
                 // Height: cruising, or coming down the glide slope to the landing spot; never climbing or sinking
                 // steeper than the flight angle allows for how far it moved forward.

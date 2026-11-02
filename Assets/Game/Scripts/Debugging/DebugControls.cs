@@ -148,8 +148,12 @@ namespace Punchy.Debugging
         /// <summary>Per creature: its heading last frame, how far it has turned since standing still, for how long, and
         /// when it was last logged.</summary>
         readonly System.Collections.Generic.Dictionary<Entity, float4> spins = new System.Collections.Generic.Dictionary<Entity, float4>();
-        readonly System.Collections.Generic.Dictionary<int, float2> turnSum = new System.Collections.Generic.Dictionary<int, float2>();
-        float turnLogAt;
+        /// <summary>Per species, Mode and (wandering) stage: heading change (deg), seconds, speed x seconds, |yaw rate| x
+        /// seconds (#12: the songbirds' wandering split into on the ground, flying, and the flare near the spot).</summary>
+        readonly System.Collections.Generic.Dictionary<int, float4> turnSum = new System.Collections.Generic.Dictionary<int, float4>();
+        float turnLogAt, traceAt;
+        Entity traced = Entity.Null;
+        int traceLines;
         readonly System.Collections.Generic.Dictionary<Entity, float> spinLogged = new System.Collections.Generic.Dictionary<Entity, float>();
 
         /// <summary>
@@ -178,9 +182,25 @@ namespace Punchy.Debugging
                 // (Heading change per second of the songbirds' and dormice's wandering, for the Z-12 before/after.)
                 if (bodies[i].Species >= 0)
                 {
-                    var key = bodies[i].Species * 64 + (int)c.Mode;
+                    var targetGap = math.distance(c.Position.xz, c.Target);
+                    var bucket = c.Mode != CreatureMode.Wander ? 0 : c.Stage == 0 ? 1 : c.Stage == 1 ? (targetGap < 1.5f ? 3 : 2) : 4;
+                    var key = (bodies[i].Species * 64 + (int)c.Mode) * 8 + bucket;
                     turnSum.TryGetValue(key, out var acc);
-                    turnSum[key] = new float2(acc.x + math.degrees(step), acc.y + dt);
+                    turnSum[key] = new float4(acc.x + math.degrees(step), acc.y + dt, acc.z + c.Speed * dt, acc.w + math.abs(math.degrees(c.YawRate)) * dt);
+                    // One wandering songbird traced twice a second (40 lines): stage, speed, yaw rate, how far from its
+                    // target and how far above its target height.
+                    if (c.Mode == CreatureMode.Wander && traceLines < 40 && (traced == Entity.Null ? c.Stage == 1 : traced == e) && now >= traceAt)
+                    {
+                        var director = FindAnyObjectByType<FaunaDirector>();
+                        if (director != null && director.SpeciesAt(bodies[i].Species)?.name == "Songbird")
+                        {
+                            traced = e;
+                            traceAt = now + 0.5f;
+                            traceLines++;
+                            Debug.Log($"DebugControls: songbird trace: stage {c.Stage} speed {c.Speed:F2} yaw rate {math.degrees(c.YawRate):F0} deg/s " +
+                                      $"target {targetGap:F2} m, above target height {c.Position.y - c.TargetHeight:F2} m, fly {c.Fly:F2}");
+                        }
+                    }
                 }
                 if (c.Speed < 0.3f)
                 {
@@ -213,10 +233,13 @@ namespace Punchy.Debugging
                     var lines = new System.Collections.Generic.SortedDictionary<string, string>();
                     foreach (var kv in turnSum)
                     {
-                        var species = director != null ? director.SpeciesAt(kv.Key / 64)?.name : (kv.Key / 64).ToString();
-                        species ??= (kv.Key / 64).ToString();
+                        var modeKey = kv.Key / 8;
+                        var species = director != null ? director.SpeciesAt(modeKey / 64)?.name : (modeKey / 64).ToString();
+                        species ??= (modeKey / 64).ToString();
                         lines.TryGetValue(species, out var line);
-                        lines[species] = line + $" {(CreatureMode)(kv.Key % 64)} {kv.Value.y:F0}s {kv.Value.x / math.max(kv.Value.y, 1e-3f):F1}deg/s;";
+                        var stage = (kv.Key % 8) switch { 1 => "/ground", 2 => "/flying", 3 => "/flare", 4 => "/stage2+", _ => "" };
+                        var secs = math.max(kv.Value.y, 1e-3f);
+                        lines[species] = line + $" {(CreatureMode)(modeKey % 64)}{stage} {kv.Value.y:F0}s {kv.Value.x / secs:F1}deg/s v{kv.Value.z / secs:F1} yr{kv.Value.w / secs:F0};";
                     }
                     foreach (var kv in lines)
                         Debug.Log($"DebugControls: heading change: {kv.Key}:{kv.Value}");
@@ -441,6 +464,8 @@ namespace Punchy.Debugging
             footDrift = System.Array.IndexOf(args, "-footdrift") >= 0;
             var spinAt = System.Array.IndexOf(args, "-spincheck");
             spinCheck = spinAt >= 0;
+            // ("-noflaresettle": fliers steer their flare the old way, for #12's before numbers from the same build.)
+            Punchy.Fauna.CreatureBrainSystem.FlareSettleOff.Data = System.Array.IndexOf(args, "-noflaresettle") >= 0 ? 1 : 0;
             if (spinCheck && spinAt + 1 < args.Length && ParseFloats(args[spinAt + 1]) is float[] spin && spin.Length >= 2)
             {
                 spinDegrees = spin[0];
@@ -1798,13 +1823,14 @@ namespace Punchy.Debugging
             }
             else
                 climbHolding = false;
-            // A wall: the middle of the cycle, pushing right across it (the stick's right against the camera, which looks at
+            // A wall: early in the climb, pushing right across it (the stick's right against the camera, which looks at
             // the wall), then back down. A log line a second: where on the wall, and which way it's pushed.
             if (climbWall && playerQuery.TryGetSingletonEntity<PlayerTag>(out var wallSelf))
             {
                 var wm = queryWorld.EntityManager.GetComponentData<PlayerMotion>(wallSelf);
                 var look = math.normalizesafe(PlayerInputSystem.TestCamera ?? new float2(0f, 1f), new float2(0f, 1f));
-                var sideways = phase >= 10f && phase < 14f && wm.OnWall;
+                // (Early in the climb, 1.5-3.5 s after -place wall: it reaches the top in about 4 s.)
+                var sideways = phase >= 1.5f && phase < 3.5f && wm.OnWall;
                 if (sideways)
                     PlayerInputSystem.TestMove = new float2(look.y, -look.x);
                 if (Time.time >= wallLogAt)
