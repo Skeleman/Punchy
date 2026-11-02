@@ -35,7 +35,7 @@ Released: v0.11.0 = cand/v0.11 4eea658 (world b39522b + animal c810406).
 - Archived this session: Bench-8d83102, Bench-b5e9715, Profile-b5e9715, Profile-4eea658.
 
 ## Likely next jobs
-- Queue item 6: `-island v2` vs default on the same world-features build, once W-05 lands there.
+- Item 6 done: v2 cave stop CreatureRenderSystem 10.5 ms main thread, v2 townwalk misses the town (BENCH-REPORTS).
 - Re-profile townwalk when the animal lane fixes TraceSystem; #48 remote flying/swimming descent if asked.
 
 ## Modules

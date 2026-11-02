@@ -2,6 +2,34 @@
 
 Newest first.
 
+## 2026-11-02: queue item 6, world-features e3ab4af `-island v2` vs default (same build): v2 cave stop 2.4x slower on the CPU (CreatureRenderSystem 10.5 ms); townwalk doesn't reach a town on v2
+Same exe, `-island v2` or not. Townwalk and glide at cap 60, then townwalk, cave, caveapproach and glide uncapped; 2
+rounds, alternating which island went first. 0 exceptions, 0 "Mesh bounds" in all 8 logs. No dialogs.
+
+| stop (mean of 2) | v1 avg / 1% low / cpu / gpu | v2 avg / 1% low / cpu / gpu |
+|---|---|---|
+| townwalk cap 60 | 59.1 / 39.6 / 16.9 / 8.3 | 57.0 / 28.0 / 17.6 / 9.3 |
+| glide cap 60 | 55.4 / 28.6 / 18.0 / 10.1 | 57.3 / 32.7 / 17.5 / 9.6 |
+| cave uncapped | 131 / 88.9 / 7.7 / 1.8 | **51 / 29.6 / 19.7 / 2.7** |
+| caveapproach uncapped | 95.7 / 53.4 / 10.5 / 6.6 | **68 / 34.6 / 14.7 / 11.3** |
+| glide uncapped | 82.6 / 36.4 / 12.1 / 8.3 | 95.0 / 47.5 / 10.5 / 7.3 |
+
+- **Load:** world ready at 15.8 s on v2 vs 8.5 s on v1 (all 4 runs each): +7 s to generate.
+- **The stops aren't the same places**, so read this as "v2's own stops", not a regression on one spot:
+  - townwalk on v2 ends at 3279,-839 in desert scrub, not in a village (v1: 366,-406, grassland by the town).
+    `JumpTo("HumanVillage")` or the route's walk needs a look on v2. Its 1% low 23.2 in round 1 is one 273 ms frame.
+  - glide starts at the same coordinates (1197,359) over different ground; v2 is lighter there.
+  - cave: v1 -2677,-697 (MesaCanyonlands); v2 -1653,2380 (Mountains, the HUD says rain outside).
+- **Cave profile (dev builds, uncapped, `PUNCHY_ISLAND=v2` for the v2 run):** frame median 8.9 ms on v1, 21.0 on v2.
+  - `CreatureRenderSystem` on the main thread: mean **2.2 -> 10.5 ms**, almost all self time (its PoseJob is 0.14),
+    so main-thread work or a wait in its update, not the posing job. For the animal/world lanes: many more creatures
+    near this cave, or something in the render system scaling badly there.
+  - `ThirdPersonCamera.LateUpdate` 1.2 -> 3.0 ms (tighter cave, more camera collision probes?).
+  - BrainJob (workers) 0.3 -> 1.8 ms: more animals near this cave on v2.
+- Shots: `shots/q23/island-v1-v2-townwalk-cave-approach-e3ab4af.png` (left v1, right v2: townwalk, cave, approach;
+  HUD on).
+- Cost: 15 calls, $1.2 (session $6.9).
+
 ## 2026-11-02: queue item 5, host/join on animal-behaviours b5e9715: PASS, a remote player's roll shows the somersault (#48)
 Bench-b5e9715, host `-host -nohud` plus a local client `-join 127.0.0.1`. Host shot list: wait 45 s, then
 `-actiontest roll:Dog,Dog,Dog` (6 rolls, 0.53-0.56 s, 3.9-4.4 m). Client: shots every 0.2 s from cameras placed
