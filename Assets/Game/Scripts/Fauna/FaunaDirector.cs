@@ -377,14 +377,25 @@ namespace Punchy.Fauna
             speciesByName.Clear();
             for (int i = 0; i < species.Count; i++)
                 speciesByName[species[i].name] = i;
-            // Who hunts whom: a listed species covers its variants too.
+            // Who hunts whom: a listed species covers its variants too. Matched by name, not by object: in a built
+            // player a species loaded from Resources (the Domestics table's Dog) points at Resources copies of its
+            // prey, which aren't the objects the palette listed (A-20: dogs saw no rabbits in the build).
+            static bool Lists(List<CreatureSpecies> list, CreatureSpecies s)
+            {
+                if (list == null || s == null)
+                    return false;
+                foreach (var x in list)
+                    if (x != null && x.name == s.name)
+                        return true;
+                return false;
+            }
             var hunted = new bool[species.Count];
             var preyLists = new List<int>[species.Count];
             for (int i = 0; i < species.Count; i++)
             {
                 preyLists[i] = new List<int>();
                 for (int j = 0; j < species.Count; j++)
-                    if (j != i && (species[i].Hunts.Contains(species[j]) || species[i].Hunts.Contains(species[j].Body)))
+                    if (j != i && (Lists(species[i].Hunts, species[j]) || Lists(species[i].Hunts, species[j].Body)))
                     {
                         preyLists[i].Add(j);
                         hunted[j] = true;

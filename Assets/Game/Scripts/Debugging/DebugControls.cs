@@ -1730,7 +1730,8 @@ namespace Punchy.Debugging
                 ref var wb = ref em.GetComponentData<CreatureBody>(interactTarget).Blob.Value;
                 var kg = wb.WeightAt(s.Scale);
                 Debug.Log($"DebugControls: carry check: {parts[0]} weighs {kg:F1} kg (scale {s.Scale:F2}), capacity {Interactions.CarryCapacity:F0} kg: " +
-                          (kg <= Interactions.CarryCapacity ? "light enough" : "too heavy, can't lift") + $"; held: {s.Mode == CreatureMode.Held}");
+                          (kg <= Interactions.CarryCapacity ? "light enough" : "too heavy, can't lift") + $"; held: {s.Mode == CreatureMode.Held}" +
+                          $"; tame (settled, leash {s.Leash:F0} m): {Interactions.Tame(ref wb, s)}");
             }
             // Its own screenshots: being petted or just picked up, then (carrying) walking, turning on the spot and
             // sprinting.
