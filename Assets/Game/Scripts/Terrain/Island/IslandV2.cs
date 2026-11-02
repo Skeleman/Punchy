@@ -8,8 +8,8 @@ using UnityEngine;
 namespace Punchy.Terrain
 {
     /// <summary>
-    /// Generator version 2 (#23, layout B: five realms). Version 1 (the shipping island) stays the default; run the player
-    /// with <c>-island v2</c> (or set the environment variable PUNCHY_ISLAND=v2 before entering play in the editor) and
+    /// Generator version 2 (#23, layout B: five realms). Version 1 (the first island) is now opt-in (W-22: v2 is the default); run the player
+    /// with <c>-island v1</c> (or set the environment variable PUNCHY_ISLAND=v1 before entering play in the editor) for v1. Otherwise
     /// <see cref="IslandV2System"/> bakes a second world at launch from the same biome assets: a realm pass divides the
     /// island into five climate families, each biome region takes a biome of its realm's family, border ridges rise where
     /// two realms meet (with gaps left as passes), and a lake bowl is pressed in beside the spawn. Rivers, landmarks,
@@ -35,13 +35,19 @@ namespace Punchy.Terrain
             { Family.Temperate, new[] { "Temperate", "Grassland" } },
         };
 
+        /// <summary>
+        /// W-22: version 2 is the default island. Only <c>-island v1</c> (or PUNCHY_ISLAND=v1) asks for version 1; the
+        /// command line wins over the environment. Host and client each decide from their own launch, so both must be
+        /// started the same way (no flag on either = both v2).
+        /// </summary>
         public static bool Requested()
         {
             var args = Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length - 1; i++)
-                if (args[i] == "-island" && args[i + 1].ToLowerInvariant() == "v2")
-                    return true;
-            return Environment.GetEnvironmentVariable("PUNCHY_ISLAND") == "v2";
+                if (args[i] == "-island")
+                    return args[i + 1].ToLowerInvariant() != "v1";
+            var env = Environment.GetEnvironmentVariable("PUNCHY_ISLAND");
+            return env == null || env.ToLowerInvariant() != "v1";
         }
 
         public struct Result

@@ -173,6 +173,7 @@ namespace Punchy.Terrain
                 // The painted map already contains the ocean.
                 surface = BiomeSampling.SampleMap(ref BiomeMap.Value, xz);
                 shape = BiomeSampling.SampleMapBlurred(ref BiomeMap.Value, xz, BiomeNoise.ShapeBlendDistance * 0.5f);
+                surface = HighlandSurface(xz, surface, shape);
                 return;
             }
 
@@ -181,6 +182,40 @@ namespace Punchy.Terrain
             var ocean = OceanFactor(xz);
             surface = BiomeSampling.WithOcean(BiomeSampling.Weights(cells, BiomeNoise.BlendDistance, BiomeNoise.CellSize), ocean, set.OceanIndex);
             shape = BiomeSampling.WithOcean(BiomeSampling.Weights(cells, BiomeNoise.ShapeBlendDistance, BiomeNoise.CellSize), ocean, set.OceanIndex);
+        }
+
+        // W-26 (#23): where a mountain range raises the ground by more than this, the mountain's own surface takes over.
+        const float HighlandStart = 40f, HighlandFull = 52f, HighlandWobble = 6f;
+
+        /// <summary>
+        /// W-26 (#23), biome map only: the map's mountain pixels cover just the ridge crests, while the island ridge
+        /// offset and the blurred shape weights raise the ground a few hundred metres either side, so lowland surfaces
+        /// (forest, swamp, desert) climbed about half of each flank. Here the mountain biome (ridged, base + relief at
+        /// least 200 m) takes the surface wherever the range lifts the ground past <see cref="HighlandStart"/>, fading
+        /// in over ~12 m of lift (about 20-40 m on a flank), with a noise wobble so the edge isn't a contour line.
+        /// </summary>
+        BiomeWeights HighlandSurface(float2 xz, BiomeWeights surface, in BiomeWeights shape)
+        {
+            ref var set = ref Biomes.Value;
+            for (int i = 0; i < 4; i++)
+            {
+                var ws = shape.Weights[i];
+                if (ws <= 0f)
+                    continue;
+                ref var b = ref set.Biomes[shape.Ids[i]];
+                if (b.Shape != TerrainShapeKind.Ridged || b.BaseElevation + b.Relief < 200f)
+                    continue;
+                var lift = ws * (b.BaseElevation + BiomeSampling.Relief(ref b, xz)) + (Island.IsCreated ? math.max(Island.Value.Sample(xz), 0f) : 0f);
+                lift += noise.snoise(xz * 0.025f + 71.3f) * HighlandWobble;
+                var t = math.smoothstep(HighlandStart, HighlandFull, lift);
+                if (t <= 0f)
+                    return surface;
+                surface.Weights *= 1f - t;
+                surface.Add(shape.Ids[i], t);
+                surface.Normalize();
+                return surface;
+            }
+            return surface;
         }
 
         /// <summary>
@@ -257,10 +292,35 @@ namespace Punchy.Terrain
         /// Biome ponds (a swamp's pools) dug into the ground. Only once the landmarks exist: rivers, landmarks and
         /// settlements are placed on the ground without them, so the ponds never move any of those.
         /// </summary>
-        float Ponds(float2 xz, in BiomeWeights shape, float h)
+        float Ponds(float2 xz, in BiomeWeights shape, float h) => Ponds(xz, shape, h, out _);
+
+        /// <summary>
+        /// As above; level is a terrace pool's own water surface (float.MinValue when none). W-24 (#23): a pond whose
+        /// bed stays above sea level held no water, so ponds on a hillside swamp were dry pits. Those ponds are now
+        /// stepped pools instead: level paddies behind low banks (see <see cref="Terrace"/>). Ponds that reach
+        /// below sea level (lowland swamps) are unchanged.
+        /// </summary>
+        float Ponds(float2 xz, in BiomeWeights shape, float h, out float level)
         {
-            if (!PondsOn || !HasBiomes)
+            level = float.MinValue;
+            var dig = PondDig(xz, shape, out var cover);
+            if (dig <= 0f)
                 return h;
+            if (h - dig < World.SeaLevel || cover <= 0f)
+                return h - dig;
+            return Terrace(xz, h, cover, out level);
+        }
+
+        /// <summary>
+        /// How far the biome ponds dig below the ground here before any terracing (masked, kept off streets and plots),
+        /// and cover, 0..1, how far inside a pond this is. The pond grid labels ponds by this, so a stepped pool's banks
+        /// don't split it into specks.
+        /// </summary>
+        float PondDig(float2 xz, in BiomeWeights shape, out float cover)
+        {
+            cover = 0f;
+            if (!PondsOn || !HasBiomes)
+                return 0f;
             ref var set = ref Biomes.Value;
             // W-11: a biome map (island v2) has small swamp patches whose blurred shape weights never pass 0.4, so
             // it had no ponds at all; there the core test uses the map's sharp weights. Cell-based worlds (v1) are unchanged.
@@ -269,13 +329,95 @@ namespace Punchy.Terrain
             for (int i = 0; i < 4; i++)
             {
                 var w = core.Weights[i];
-                if (w > 0.4f)   // W-08: only in a biome's core; at region borders the blend left lone specks
-                    dig += math.smoothstep(0.4f, 0.75f, w) * BiomeSampling.Pond(ref set.Biomes[core.Ids[i]], xz);
+                if (w <= 0.4f)   // W-08: only in a biome's core; at region borders the blend left lone specks
+                    continue;
+                ref var biome = ref set.Biomes[core.Ids[i]];
+                // W-24: v2's swamp is a hillside of stepped pools, so it gets more of them (v1 unchanged).
+                var d = math.smoothstep(0.4f, 0.75f, w) * (UsesBiomeMap ? BiomeSampling.Pond(ref biome, xz, V2PondDensity, V2PondCover) : BiomeSampling.Pond(ref biome, xz));
+                dig += d;
+                if (biome.PondDepth > 0f)
+                    cover += d / biome.PondDepth;
             }
-            if (dig > 0f && PondMask.IsCreated)
-                dig *= PondMask.Value.Sample(xz);
-            return h - dig;
+            if (dig <= 0f)
+                return 0f;
+            if (PondMask.IsCreated)
+            {
+                var mask = PondMask.Value.Sample(xz);
+                dig *= mask;
+                cover *= mask;
+            }
+            // W-24: no pool on a street or plot (Settle levels them afterwards, which left half-pools at their edges).
+            if (Settlements.IsCreated)
+            {
+                var keep = SettlementSampling.Keep(ref Settlements.Value, xz);
+                dig *= keep;
+                cover *= keep;
+            }
+            return dig;
         }
+
+        /// <summary>
+        /// W-24/W-25: the ground of a stepped pool at xz (h the natural ground, cover as from PondDig) and its water level.
+        /// W-25 (#23): contour bands 0.6 m apart were only ~6 m wide on a gentle slope and ~1 m on a steep one, so they
+        /// read as mud lines, not paddies. The pond is now cut into irregular paddy cells about <see cref="PaddySize"/>
+        /// across (a warped, jittered cell grid), whatever the slope. Each cell is a level pool at the natural ground
+        /// height of its centre (cut on the uphill half, filled on the downhill half), and each border is a bank
+        /// <see cref="TerraceBank"/> above the higher of the two pools, so a lower paddy ends at a riser up to its neighbour.
+        /// </summary>
+        float Terrace(float2 xz, float h, float cover, out float level)
+        {
+            level = float.MinValue;
+            // Warp the grid so cells aren't rows of boxes; the warp is the same for every cell's distance test.
+            var p = (xz + new float2(noise.snoise(xz * 0.03f + 11.3f), noise.snoise(xz * 0.03f - 7.9f)) * PaddySize * 0.3f) / PaddySize;
+            var cell = (int2)math.floor(p);
+            // Nearest cell centre (A) first.
+            var dA = float.MaxValue;
+            var siteA = float2.zero;
+            for (int j = 0; j < 9; j++)
+            {
+                var s = PaddySite(cell + new int2(j % 3 - 1, j / 3 - 1));
+                var d = math.distance(p, s);
+                if (d < dA) { dA = d; siteA = s; }
+            }
+            var water = BaseHeight(siteA * PaddySize);
+            var bed = water - TerraceDepth;
+            var g = bed;
+            // Then a bank towards every neighbour whose border is close: the ground rises from this pool's bed to the
+            // bank on top of the border (the same height from both sides, so the ground stays continuous).
+            for (int j = 0; j < 9; j++)
+            {
+                var s = PaddySite(cell + new int2(j % 3 - 1, j / 3 - 1));
+                var e = (math.distance(p, s) - dA) * 0.5f * PaddySize;   // metres to that border (approx.)
+                if (e <= 0f || e > 6f)
+                    continue;
+                var top = math.max(water, BaseHeight(s * PaddySize)) + TerraceBank;
+                var w = math.clamp((top - bed) * 0.8f, 1.2f, 6f);   // a tall riser is wider, so it isn't a wall
+                g = math.max(g, math.lerp(top, bed, math.smoothstep(0f, w, e)));
+            }
+            var bank = water + TerraceBank;
+            // Out towards the pond's edge the paddy blends back into the natural ground: a rim at bank height first,
+            // so the pool ends against it, not in mid air.
+            var rim = math.lerp(h, math.max(h, bank), math.smoothstep(0f, 0.3f, cover));
+            var inside = math.smoothstep(0.3f, 0.65f, math.saturate(cover));
+            g = math.lerp(rim, g, inside);
+            if (inside > 0f && g < water - 0.02f)
+                level = water;
+            return g;
+        }
+
+        /// <summary>W-25: a paddy cell's centre, in cell units (jittered inside its grid square).</summary>
+        static float2 PaddySite(int2 c)
+        {
+            var x = math.hash(c);
+            // math.hash has no avalanche on small ints: scramble before using the bits.
+            x ^= x >> 16; x *= 0x7feb352du; x ^= x >> 15; x *= 0x846ca68bu; x ^= x >> 16;
+            return (float2)c + 0.5f + (new float2(x & 0xffff, x >> 16) / 65535f - 0.5f) * 0.8f;
+        }
+
+        /// <summary>W-25: paddy cell size (m), how far a bank stands above the higher pool beside it, and the pools' depth.</summary>
+        public const float PaddySize = 15f, TerraceBank = 0.3f, TerraceDepth = 0.45f;
+        /// <summary>W-24: island v2's pond noise frequency scale and extra cover (biome map worlds only).</summary>
+        public const float V2PondDensity = 1.2f, V2PondCover = 0.3f;
 
         /// <summary>Counts separate biome ponds (cells digging 0.3 m or more, 4-connected) on a grid of the given step; for logs.</summary>
         public int PondCount(float step, out int wetCells) => PondCount(step, out wetCells, out _);
@@ -319,8 +461,7 @@ namespace Punchy.Terrain
                 {
                     var xz = new float2(x + 0.5f, z + 0.5f) * step - half;
                     self.SampleBiomes(xz, out _, out var shape);
-                    var h = self.ShapeHeight(xz, shape);
-                    wet[z * size + x] = h - self.Ponds(xz, shape, h) >= 0.3f;
+                    wet[z * size + x] = self.PondDig(xz, shape, out _) >= 0.3f;   // W-24: before terracing (banks would split a stepped pool)
                 }
             });
             n = size;
@@ -565,8 +706,20 @@ namespace Punchy.Terrain
             }
             // Biome ponds (a swamp's pools): water was decided above from the ground without them, so a pond is wet only
             // where it digs below the water level the biome already has (sea level in the lowlands).
-            var dug = Ponds(xz, shape, g.Height);
-            if (dug < g.Height)
+            var dug = Ponds(xz, shape, g.Height, out var terrace);
+            if (terrace > float.MinValue)
+            {
+                // W-24: a stepped pool holds its own level.
+                if (terrace > water)
+                {
+                    water = terrace;
+                    flow = float2.zero;
+                    g.Rapids = 0f;
+                }
+                ruleDepth = math.max(ruleDepth, water - dug);
+                g.Height = dug;
+            }
+            else if (dug < g.Height)
             {
                 if (dug < World.SeaLevel && water < World.SeaLevel)
                 {
@@ -576,6 +729,8 @@ namespace Punchy.Terrain
                 ruleDepth = math.max(ruleDepth, math.max(water, World.SeaLevel) - dug);
                 g.Height = dug;
             }
+            else if (dug > g.Height)
+                g.Height = dug;   // a stepped pool's bank, a little above the ground
             // Settlements keep clear of water, so their levelling doesn't change the water rules above.
             g.Height = Settle(xz, g.Height);
 

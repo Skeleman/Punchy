@@ -20,6 +20,30 @@ namespace Punchy.Terrain
         public int Pool;
     }
 
+    /// <summary>What a bat folk prop is (placeholder shapes until real assets exist).</summary>
+    public enum BatFolkPropKind : byte
+    {
+        /// <summary>A roost hut: a pale pod hanging on a silk stalk from the chamber ceiling.</summary>
+        Hut,
+        /// <summary>A drying rack on the floor: two posts, a bar and a hide hung over it.</summary>
+        Rack,
+        /// <summary>A squat woven basket on the floor.</summary>
+        Basket,
+    }
+
+    /// <summary>One placed bat folk thing (BATFOLK-PLAN step 3).</summary>
+    public struct BatFolkProp
+    {
+        /// <summary>Hut: the anchor on the ceiling. Floor props: the middle of the base, on the floor.</summary>
+        public float3 Position;
+        /// <summary>Hut: x pod radius, y pod length, z stalk length. Rack: x width, y height, z depth. Basket: x radius, y height.</summary>
+        public float3 Size;
+        public float Yaw;
+        public BatFolkPropKind Kind;
+        /// <summary>Index into BatFolkSetBlob.Sites.</summary>
+        public int Site;
+    }
+
     /// <summary>
     /// Bat folk settlements, kept apart from the caves: nothing else reads this, so landmark, settlement and cave
     /// output (and their hashes) are the same with or without it.
@@ -32,6 +56,8 @@ namespace Punchy.Terrain
         /// <summary>How many caves qualified (for the log).</summary>
         public int Qualifying;
         public float BiggestChamber;
+        /// <summary>Huts and floor props of every site, in site order (W-19).</summary>
+        public BlobArray<BatFolkProp> Props;
     }
 
     /// <summary>
@@ -111,6 +137,7 @@ namespace Punchy.Terrain
             var white = builder.Allocate(ref root.WhitePools, set.Pools.Length);
             for (int i = 0; i < set.Pools.Length; i++)
                 white[i] = 0;
+            var props = new List<BatFolkProp>();
             for (int i = 0; i < chosen.Count; i++)
             {
                 var (c, n, p, _) = chosen[i];
@@ -120,11 +147,173 @@ namespace Punchy.Terrain
                     Radius = set.Nodes[n].Radius * set.Caves[c].Profile.x, Pool = p
                 };
                 white[p] = 1;
+                PlaceProps(source, ref set, sites[i], i, stream, props);
             }
+            var propArray = builder.Allocate(ref root.Props, props.Count);
+            for (int i = 0; i < props.Count; i++)
+                propArray[i] = props[i];
             var blob = builder.CreateBlobAssetReference<BatFolkSetBlob>(allocator);
             builder.Dispose();
-            LastLog = Report(ref blob.Value, set.Caves.Length);
+            LastLog = Report(source, ref blob.Value, set.Caves.Length);
             return blob;
+        }
+
+        public const int MinHuts = 3, MaxHuts = 6, MinProps = 4, MaxProps = 8;
+        /// <summary>Floor props keep this far (m) off the cave's path through the chamber, so the way through stays open.</summary>
+        const float PathClear = 2.2f;
+
+        /// <summary>
+        /// BATFOLK-PLAN step 3: 3-6 roost huts hanging from the chamber's ceiling and 4-8 floor props round it, drawn
+        /// from the site's own RNG (the stage stream and the cave's Key). Every spot is tested against the cave field
+        /// (the walls, speleothems and rubble are all in it), so nothing is placed in or through rock; huts and props
+        /// keep clear of the cave's pools, and props of the path through the chamber. Reads the caves only.
+        /// </summary>
+        static void PlaceProps(in TerrainSource source, ref CaveSetBlob set, in BatFolkSite site, int siteIndex, uint stream,
+            List<BatFolkProp> props)
+        {
+            var rng = new Random(BiomeSampling.Scramble(stream ^ BiomeSampling.Scramble(site.Key * 0x9E3779B1u)) | 1u);
+            var wantHuts = rng.NextInt(MinHuts, MaxHuts + 1);
+            var wantProps = rng.NextInt(MinProps, MaxProps + 1);
+            ref var cave = ref set.Caves[site.Cave];
+            var first = props.Count;
+
+            // Huts: a pod hung on a silk stalk from the ceiling, its bottom 3-6 m above the floor (W-20: low enough for
+            // the lantern to reach, high enough to walk under), clear of the walls round the pod and along the stalk.
+            var huts = 0;
+            for (int attempt = 0; attempt < 60 && huts < wantHuts; attempt++)
+            {
+                var angle = rng.NextFloat(math.PI * 2f);
+                var dist = site.Radius * math.sqrt(rng.NextFloat(0.04f, 0.6f));
+                var radius = rng.NextFloat(0.55f, 0.85f);
+                var length = radius * rng.NextFloat(2.3f, 2.9f);
+                var lift = rng.NextFloat(3f, 6f);
+                var yaw = rng.NextFloat(math.PI * 2f);
+                var xz = site.Centre.xz + new float2(math.cos(angle), math.sin(angle)) * dist;
+                var start = new float3(xz.x, site.Centre.y, xz.y);
+                if (source.CaveDistance(start) > -0.5f || NearPool(ref set, cave, xz, radius + 0.6f))
+                    continue;
+                var ceiling = Ceiling(source, start);
+                var floor = source.FloorUnder(start, out var inCave);
+                // A low ceiling lifts the pod to just under it (short stalk), but never below 2.6 m of headroom.
+                var stalk = math.max(ceiling - floor - lift - length, 0.35f);
+                if (!inCave || ceiling - floor < length + stalk + 2.6f)
+                    continue;
+                // The pod's top, middle and bottom, each with room for its girth (the top narrows to the stalk).
+                var top = ceiling - stalk;
+                if (source.CaveDistance(new float3(xz.x, top - 0.15f, xz.y)) > -0.35f ||
+                    source.CaveDistance(new float3(xz.x, top - length * 0.55f, xz.y)) > -(radius + 0.2f) ||
+                    source.CaveDistance(new float3(xz.x, top - length + 0.1f, xz.y)) > -0.4f)
+                    continue;
+                // The stalk runs through air all the way (a long one must not pass through a ledge).
+                var blocked = false;
+                for (float y = ceiling - 0.5f; y > top && !blocked; y -= 1f)
+                    blocked = source.CaveDistance(new float3(xz.x, y, xz.y)) > -0.1f;
+                if (blocked)
+                    continue;
+                if (Crowded(props, first, xz, radius, BatFolkPropKind.Hut))
+                    continue;
+                props.Add(new BatFolkProp
+                {
+                    Position = new float3(xz.x, ceiling, xz.y), Size = new float3(radius, length, stalk), Yaw = yaw,
+                    Kind = BatFolkPropKind.Hut, Site = siteIndex
+                });
+                huts++;
+            }
+
+            // Floor props: a ring round the chamber, on floor flat enough to stand on, with headroom.
+            var placed = 0;
+            for (int attempt = 0; attempt < 80 && placed < wantProps; attempt++)
+            {
+                var angle = rng.NextFloat(math.PI * 2f);
+                var dist = site.Radius * rng.NextFloat(0.3f, 0.85f);
+                var rack = rng.NextFloat() < 0.4f;
+                var size = rack
+                    ? new float3(rng.NextFloat(1.3f, 1.8f), rng.NextFloat(1.2f, 1.6f), 0.35f)
+                    : new float3(rng.NextFloat(0.32f, 0.55f), rng.NextFloat(0.4f, 0.7f), 0f);
+                var reach = rack ? size.x * 0.5f + 0.15f : size.x;
+                var yaw = rng.NextFloat(math.PI * 2f);
+                var xz = site.Centre.xz + new float2(math.cos(angle), math.sin(angle)) * dist;
+                if (NearPool(ref set, cave, xz, reach + 0.8f) || OnPath(ref set, site.Chamber, xz, reach + PathClear))
+                    continue;
+                var floor = source.FloorUnder(new float3(xz.x, site.Centre.y + 1f, xz.y), out var inCave);
+                if (!inCave || source.CaveDistance(new float3(xz.x, floor + 0.3f, xz.y)) > -0.2f)
+                    continue;
+                // Flat: the floor under each corner of its footprint within 30 cm, each with air above it.
+                var flat = true;
+                for (int k = 0; k < 4 && flat; k++)
+                {
+                    var o = new float2(math.cos(yaw + k * math.PI * 0.5f), math.sin(yaw + k * math.PI * 0.5f)) * reach;
+                    var f = source.FloorUnder(new float3(xz.x + o.x, floor + 1f, xz.y + o.y), out var inside);
+                    flat = inside && math.abs(f - floor) < 0.3f &&
+                           source.CaveDistance(new float3(xz.x + o.x, f + size.y * 0.6f, xz.y + o.y)) < -0.15f;
+                }
+                if (!flat || source.CaveDistance(new float3(xz.x, floor + size.y + 0.6f, xz.y)) > -0.5f)
+                    continue;
+                if (Crowded(props, first, xz, reach, rack ? BatFolkPropKind.Rack : BatFolkPropKind.Basket))
+                    continue;
+                props.Add(new BatFolkProp
+                {
+                    // Sunk a little, so a gentle slope never shows a gap under it.
+                    Position = new float3(xz.x, floor - 0.08f, xz.y), Size = size, Yaw = yaw,
+                    Kind = rack ? BatFolkPropKind.Rack : BatFolkPropKind.Basket, Site = siteIndex
+                });
+                placed++;
+            }
+        }
+
+        /// <summary>The ceiling above a point in cave air: marches up through the air by part of the distance to rock.</summary>
+        static float Ceiling(in TerrainSource source, float3 p)
+        {
+            for (int i = 0; i < 200; i++)
+            {
+                var d = source.CaveDistance(p);
+                if (d > -0.05f)
+                    break;
+                p.y += math.max(-d * 0.4f, 0.05f);
+            }
+            return p.y;
+        }
+
+        /// <summary>Whether a spot is within <paramref name="margin"/> of the rim of any of the cave's pools.</summary>
+        static bool NearPool(ref CaveSetBlob set, in CaveData cave, float2 xz, float margin)
+        {
+            for (int i = cave.FirstPool; i < cave.FirstPool + cave.PoolCount; i++)
+                if (math.distance(set.Pools[i].Centre.xz, xz) < set.Pools[i].Radius + margin)
+                    return true;
+            return false;
+        }
+
+        /// <summary>Whether a spot is within <paramref name="margin"/> of the passage axis through the chamber node.</summary>
+        static bool OnPath(ref CaveSetBlob set, int chamber, float2 xz, float margin)
+        {
+            for (int s = 0; s < set.Segments.Length; s++)
+            {
+                ref var seg = ref set.Segments[s];
+                if (seg.A != chamber && seg.B != chamber)
+                    continue;
+                var a = set.Nodes[seg.A].Position.xz;
+                var ab = set.Nodes[seg.B].Position.xz - a;
+                var t = math.saturate(math.dot(xz - a, ab) / math.max(math.dot(ab, ab), 1e-4f));
+                if (math.distance(a + ab * t, xz) < margin)
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>Whether a new thing of this kind would crowd one already placed in the site (huts against huts, props against props).</summary>
+        static bool Crowded(List<BatFolkProp> props, int first, float2 xz, float reach, BatFolkPropKind kind)
+        {
+            var hut = kind == BatFolkPropKind.Hut;
+            for (int i = first; i < props.Count; i++)
+            {
+                var p = props[i];
+                if ((p.Kind == BatFolkPropKind.Hut) != hut)
+                    continue;
+                var other = p.Kind == BatFolkPropKind.Rack ? p.Size.x * 0.5f + 0.15f : p.Size.x;
+                if (math.distance(p.Position.xz, xz) < reach + other + (hut ? 0.9f : 0.7f))
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>
@@ -150,13 +339,26 @@ namespace Punchy.Terrain
             return best;
         }
 
-        static string Report(ref BatFolkSetBlob b, int caves)
+        static string Report(in TerrainSource source, ref BatFolkSetBlob b, int caves)
         {
             var sb = new StringBuilder($"[batfolk] caves {b.Qualifying}, picked {b.Sites.Length} (of {caves} caves; biggest deep chamber {b.BiggestChamber:F1} m)");
             for (int i = 0; i < b.Sites.Length; i++)
             {
                 ref var s = ref b.Sites[i];
-                sb.Append($"; cave {s.Cave} chamber {s.Centre.x:F0},{s.Centre.y:F0},{s.Centre.z:F0} r {s.Radius:F1} pool {s.Pool}");
+                int huts = 0, props = 0;
+                // Each hut's pod bottom above the floor under it (m), so its height can be checked from the log.
+                var heights = new StringBuilder();
+                for (int k = 0; k < b.Props.Length; k++)
+                    if (b.Props[k].Site == i)
+                    {
+                        ref var p = ref b.Props[k];
+                        if (p.Kind != BatFolkPropKind.Hut) { props++; continue; }
+                        huts++;
+                        var bottom = p.Position.y - p.Size.z - p.Size.y;
+                        var floor = source.FloorUnder(new float3(p.Position.x, bottom - 0.1f, p.Position.z), out _);
+                        heights.Append(heights.Length == 0 ? "" : "/").Append((bottom - floor).ToString("F1"));
+                    }
+                sb.Append($"; cave {s.Cave} chamber {s.Centre.x:F0},{s.Centre.y:F0},{s.Centre.z:F0} r {s.Radius:F1} pool {s.Pool} huts {huts} props {props} hut bottoms {heights} m");
             }
             return sb.ToString();
         }
@@ -166,7 +368,7 @@ namespace Punchy.Terrain
         {
             if (!source.BatFolk.IsCreated)
                 return "[batfolk] none baked";
-            return Report(ref source.BatFolk.Value, source.Caves.IsCreated ? source.Caves.Value.Caves.Length : 0);
+            return Report(source, ref source.BatFolk.Value,source.Caves.IsCreated ? source.Caves.Value.Caves.Length : 0);
         }
     }
 }

@@ -48,6 +48,12 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   at least 3 nodes in and a water pool (the chamber's own, else the nearest in the cave); up to 1 in 6 (min 1) is
   picked by a scrambled mouth-cell hash on its own seed stream. Its `WhitePools` (per cave pool) draws those
   pools white; `-whitepools` is now a debug override. Logs `[batfolk] caves N, picked K` (v1 player: from the blob).
+  W-19: `Props` holds 3-6 hut pods (hung from the ceiling, anchor + stalk) and 4-8 racks/baskets per pick, from a
+  per-site RNG (scrambled stream ^ key), kept clear of pools and the path segments through the chamber node;
+  `BatFolkMeshes` builds them in the cave vertex layout, CaveSystem draws them with tinted cave-material copies.
+  W-20: each hut's stalk is sized so the pod bottom hangs 3-6 m above the floor (in lantern reach; a low ceiling
+  gives a short stalk and >= 2.6 m headroom), the stalk is checked for air along its length, and the log ends with
+  `hut bottoms a/b/c m` per pick.
 - **Cave previews in the editor:** a camera moved into a cave alone shows nothing (chunks stream, `Underground` and
   the lantern follow the player over a few frames). In play mode call `CaveTools.PreviewAt(pos, target, whitePools)`,
   wait a few seconds, then `CaveTools.PreviewShot(path)`.
@@ -58,4 +64,24 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   a new pond rule goes through the mask, not more erosion or threshold tuning.
   With a biome map (island v2) the core test uses the map's sharp weights: the blurred shape weights never pass
   0.4 in its small swamp patches, which left v2 with no ponds at all.
+  Ponds above sea level are stepped pools (W-24/W-25, `TerrainSource.Terrace`): irregular ~15 m paddy cells, each
+  level at its centre's `BaseHeight`, with a bank 0.3 m above the higher neighbour. Contour bands (W-24) were ~1-6 m
+  wide and read as mud lines; cells keep the paddies wide on any slope. The 16 m pond
+  grid labels on the pre-terrace dig (`PondDig`), or the banks split every pond and the mask drops them.
 - Roads (W-16): the A* routes run in parallel on a managed copy of the cost grid with a precomputed wander array; Emit and bridge sampling run in parallel and are added serially in pair order, so output is identical. The `[bake] stages` line splits settlements into towns/roads/roadside/blob. Settlements went from about 970 ms to about 290 ms (editor bench, hash unchanged).
+
+## Island version and waterfalls (W-22)
+
+- v2 is the default island: no flag runs v2 (landmarks 125 / AFA9CC63, cave hash D531293D622E785A since the W-21
+  biome-blend fix). `-island v1` or PUNCHY_ISLAND=v1 runs v1 (101 / E128CB1D). The island isn't synced over the
+  network: host and client each read their own launch, so start both the same way.
+- BiomeData.SampleMapBlurred sums every biome id's weight and keeps the top 4 minus the 5th. Keeping only the first 4
+  ids it met made weights jump where a fifth biome came in, which raised vertical walls and pits.
+- v2 map Mountains pixels cover only ridge crests, but the ridge height and blurred shape lift the ground well past
+  them, so lowland surfaces climbed half of each flank. TerrainSource.HighlandSurface hands the surface to the
+  mountain biome where the lift passes 40-52 m (map mode only; v1 untouched). Changing it moves landmarks.
+- Above a fall's lip the lower pool's wide channel reaches back under the upper river (river cells are 16 m, channels
+  up to ~50 m), so the lowest-carve rule picked the lower water and land showed between the surfaces.
+  RiverQuery.FallWater keeps the upper surface up to the lip.
+- Surface falls run their length in half the effect's lifetime (LandmarkWaterfall.shader); cave falls keep 1.62.
+  LandmarkEffectSystem.FallSounds plays WaterfallRush loops at the 4 nearest falls, logged as `[falls] sound sources`.

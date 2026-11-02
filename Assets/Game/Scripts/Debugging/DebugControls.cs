@@ -89,6 +89,7 @@ namespace Punchy.Debugging
             HuntLog();
             PersonalityLog();
             ShotOnHunt();
+            ChatShot();
             RemoteRoll();
             ColossusShot();
             MantrapShot();
@@ -304,6 +305,91 @@ namespace Punchy.Debugging
 
         static bool remoteRoll;
         int remoteRollStep;
+
+        // A-26: "-chatshot" on a shot-list line: the first two folk stood talking (the one who started it and the one it
+        // stopped, within 1.8 m of each other) once the line has run 2 s: the camera 4 m side-on of the pair at head
+        // height, looking at the middle of them, and the line's shot brought forward to 1.2 s later (their gestures and
+        // turned heads settled). The line's -wait is the longest it waits for a talk.
+        static bool chatShot;
+        Entity chatA, chatB;
+        float3 chatSide;
+        int chatShotLine = -1;
+
+        void ChatShot()
+        {
+            if (!chatShot || shotIndex < 0 || shotStarted < 0f || queryWorld == null || !queryWorld.IsCreated)
+                return;
+            var em = queryWorld.EntityManager;
+            if (chatShotLine == shotIndex)
+            {
+                // (Held on the pair until the shot.)
+                if (em.Exists(chatA) && em.Exists(chatB))
+                    FrameChat(em.GetComponentData<CreatureState>(chatA).Position, em.GetComponentData<CreatureState>(chatB).Position, false);
+                return;
+            }
+            if (Time.realtimeSinceStartup - shotStarted < 2f)
+                return;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var entities = q.ToEntityArray(Allocator.Temp);
+            var eye = Camera.main != null ? (float3)Camera.main.transform.position : float3.zero;
+            var best = -1;
+            var bestPartner = -1;
+            var bestD = float.MaxValue;
+            for (int i = 0; i < states.Length; i++)
+            {
+                var a = states[i];
+                if (a.ChatRole != 1 || a.Mode != CreatureMode.Idle || a.Stage != CreatureAnimator.ChatTalk && a.Stage != CreatureAnimator.ChatListen)
+                    continue;
+                for (int j = 0; j < states.Length; j++)
+                    if (entities[j] == a.Partner && states[j].ChatRole == 2 && states[j].Partner == entities[i] &&
+                        math.distance(states[j].Position.xz, a.Position.xz) < 1.8f && states[j].Speed < 0.2f && a.Speed < 0.2f)
+                    {
+                        var d = math.distancesq(a.Position, eye);
+                        if (d < bestD)
+                        {
+                            bestD = d;
+                            best = i;
+                            bestPartner = j;
+                        }
+                    }
+            }
+            if (best >= 0)
+            {
+                chatA = entities[best];
+                chatB = entities[bestPartner];
+                chatShotLine = shotIndex;
+                FrameChat(states[best].Position, states[bestPartner].Position, true);
+                shotWait = Time.realtimeSinceStartup - shotStarted + 1.2f;
+                var director = FindAnyObjectByType<FaunaDirector>();
+                Debug.Log($"DebugControls: chatshot: {director?.SpeciesAt(em.GetComponentData<CreatureBody>(chatA).Species)?.name} and " +
+                          $"{director?.SpeciesAt(em.GetComponentData<CreatureBody>(chatB).Species)?.name} talking, " +
+                          $"{math.distance(states[best].Position.xz, states[bestPartner].Position.xz):F1} m apart, at ({states[best].Position.x:F0}, {states[best].Position.z:F0}), " +
+                          $"camera 4 m side-on ({SightBlockers((states[best].Position + states[bestPartner].Position) * 0.5f + new float3(0f, 1.2f, 0f), (states[best].Position + states[bestPartner].Position) * 0.5f + chatSide * 4f + new float3(0f, 1.4f, 0f))} plants in the way)");
+            }
+            states.Dispose();
+            entities.Dispose();
+        }
+
+        void FrameChat(float3 a, float3 b, bool pickSide)
+        {
+            var mid = (a + b) * 0.5f;
+            var along = math.normalizesafe(new float3(b.x - a.x, 0f, b.z - a.z), new float3(1f, 0f, 0f));
+            var side = new float3(-along.z, 0f, along.x);
+            if (pickSide)
+            {
+                // (The side with fewer plants between the camera and the pair.)
+                var target = mid + new float3(0f, 1.2f, 0f);
+                if (SightBlockers(target, target + side * 4f + new float3(0f, 0.2f, 0f)) > SightBlockers(target, target - side * 4f + new float3(0f, 0.2f, 0f)))
+                    side = -side;
+                chatSide = side;
+            }
+            else if (math.dot(side, chatSide) < 0f)
+                side = -side;
+            var look = mid + new float3(0f, 1.15f, 0f);
+            var from = mid + chatSide * 4f + new float3(0f, 1.45f, 0f);
+            PoseCamera(from, Quaternion.LookRotation((Vector3)(look - from)));
+        }
 
         /// <summary>
         /// "-remoteroll" on a shot-list line (a joined client, #48): the first time another player's body starts its
@@ -1155,6 +1241,14 @@ namespace Punchy.Debugging
                 GaitLog();
             // "-remoteroll": a client frames, logs and shoots another player's somersault (#48).
             remoteRoll = System.Array.IndexOf(args, "-remoteroll") >= 0;
+            // A-26: "-chattest" (launch line) makes folk stop to talk far more often (Punchy.Fauna.CreatureBrainSystem.ForceChat);
+            // "-chatshot" frames the first pair talking side-on (ChatShot).
+            if (System.Array.IndexOf(args, "-chattest") >= 0)
+                Punchy.Fauna.CreatureBrainSystem.ForceChat.Data = 1;
+            chatShot = System.Array.IndexOf(args, "-chatshot") >= 0;
+            // A-27: "-chatmix" (launch line) logs what the townsfolk round the camera are doing, and the talks, every 15 s
+            // (FolkTalkSystem.LogMix).
+            Punchy.Fauna.FolkTalkSystem.ChatMix = System.Array.IndexOf(LaunchArgs, "-chatmix") >= 0;
             remoteRollStep = 0;
             // A-09 (#40): "-nocolossus" hides the Dunes colossus, "-framelog" logs frame times, "-colossusshot 300" puts the
             // player and camera that far from it.
