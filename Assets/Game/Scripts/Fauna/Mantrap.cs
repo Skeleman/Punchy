@@ -30,12 +30,18 @@ namespace Punchy.Fauna
         public static bool TestRequested;
         /// <summary>"-mantrapshot lunge": the strike is held at its peak for a few seconds so a shot can catch it.</summary>
         public static bool HoldStrike;
+        /// <summary>"-mantrapstill": the player is put 0.8 m from plant 0 and put back there between bites (a hit check).</summary>
+        public static bool StillRequested;
+        /// <summary>Thin fog for the plant shots (set by "-mantrapshot").</summary>
+        public static bool ThinFog;
         public static readonly List<Vector3> Spots = new List<Vector3>();
 
         const int Segments = 6;
         const float SegmentLength = 0.4f;
         const float TrackRange = 8f;
         const float BiteRange = 1f;
+        const float Reach = 2f;           // a bite hits what is within this of the head tip...
+        const float MaxFromStalk = 2.4f;  // ...and never anything farther than this from the stalk
         const float Cooldown = 1.2f;
         const float Step = 90f;
         const float MinSeparation = 45f;
@@ -102,7 +108,7 @@ namespace Punchy.Fauna
         float testStart = -1f;
         int testStep;
         Entity testDeer;
-        float lastLog;
+        float lastLog, stillStart = -1f;
 
         void Update()
         {
@@ -135,6 +141,34 @@ namespace Punchy.Fauna
                 Tick(p, dt);
             if (TestRequested)
                 RunTest();
+            if (StillRequested)
+                RunStill();
+        }
+
+        void LateUpdate()
+        {
+            if (ThinFog && RenderSettings.fogDensity > 0.0003f)
+                RenderSettings.fogDensity = 0.0003f;
+        }
+
+        /// <summary>"-mantrapstill": 18 s with the player 0.8 m from plant 0, put back between bites; then a summary.</summary>
+        void RunStill()
+        {
+            if (Spots.Count == 0 || playerEntity == Entity.Null || plants.Count == 0)
+                return;
+            var plant = plants[0];
+            if (stillStart < 0f)
+            {
+                stillStart = Time.time;
+                Debug.Log("Mantrap: still test starts, player 0.8 m from plant 0");
+            }
+            if (plant.Stage == 0 || stillStart == Time.time)
+                MovePlayer(plant.Position + new Vector3(0.8f, 0f, 0f));
+            if (Time.time - stillStart > 18f)
+            {
+                StillRequested = false;
+                Debug.Log($"Mantrap: still test summary: plant 0 lunged {plant.Lunges}, player hit {lungesPlayer}");
+            }
         }
 
         // ---------------------------------------------------------------- targets
@@ -245,6 +279,7 @@ namespace Punchy.Fauna
                 case 1:   // wind-up: rear back, jaws wide
                     p.StageTime += dt;
                     wantPhi = -8f; wantJaw = 1f; bendSpeed = 140f; jawSpeed = 8f; turnSpeed = 360f;
+                    TrackStrike(p);
                     wantYaw = YawTo(p, p.StrikeAt);
                     p.Flare = Mathf.MoveTowards(p.Flare, 1f, dt * 8f);
                     if (p.StageTime >= 0.22f) { p.Stage = 2; p.StageTime = 0f; }
@@ -252,6 +287,7 @@ namespace Punchy.Fauna
                 case 2:   // strike: fast fold down on the spot, jaws still open
                     p.StageTime += dt;
                     wantPhi = 105f; wantJaw = 1f; bendSpeed = 700f; jawSpeed = 8f; turnSpeed = 720f;
+                    TrackStrike(p);
                     wantYaw = YawTo(p, p.StrikeAt);
                     if (p.Phi >= 100f || p.StageTime > 0.3f)
                     {
@@ -280,6 +316,13 @@ namespace Punchy.Fauna
             Pose(p, clock);
         }
 
+        /// <summary>The head keeps aiming at the target it chose while it winds up and strikes.</summary>
+        void TrackStrike(Plant p)
+        {
+            for (int i = 0; i < tEntity.Count; i++)
+                if (tKind[i] == p.StrikeKind && tEntity[i] == p.StrikeEntity) { p.StrikeAt = tPos[i]; return; }
+        }
+
         static float YawTo(Plant p, Vector3 at) => Mathf.Atan2(at.x - p.Position.x, at.z - p.Position.z) * Mathf.Rad2Deg;
 
         /// <summary>The bite: whatever is still within reach of the head gets shoved.</summary>
@@ -293,7 +336,7 @@ namespace Punchy.Fauna
             if (p.StrikeKind == 0 && playerEntity != Entity.Null && world != null && world.IsCreated && world.EntityManager.Exists(playerEntity))
             {
                 var pos = world.EntityManager.GetComponentData<LocalTransform>(playerEntity).Position;
-                if (math.distance(pos.xz, new float2(p.Position.x, p.Position.z)) < 1.6f)
+                if (InReach(p, tip, pos))
                 {
                     var away = new float3(pos.x - from.x, 0f, pos.z - from.z);
                     shoveDir = math.lengthsq(away) > 1e-4f ? math.normalize(away) : new float3(0f, 0f, 1f);
@@ -312,7 +355,7 @@ namespace Punchy.Fauna
             else if (p.StrikeKind == 1 && simManager.Exists(p.StrikeEntity) && simManager.HasComponent<CreatureState>(p.StrikeEntity))
             {
                 var s = simManager.GetComponentData<CreatureState>(p.StrikeEntity);
-                if (math.distance(s.Position.xz, new float2(p.Position.x, p.Position.z)) < 1.6f)
+                if (InReach(p, tip, s.Position))
                 {
                     var away = new float3(s.Position.x - from.x, 0f, s.Position.z - from.z);
                     away = math.lengthsq(away) > 1e-4f ? math.normalize(away) : new float3(0f, 0f, 1f);
@@ -330,6 +373,14 @@ namespace Punchy.Fauna
             }
             Debug.Log($"Mantrap: lunge {totalLunges} at ({p.Position.x:F0}, {p.Position.z:F0}) on {(p.StrikeKind == 0 ? "player" : "animal")}, " +
                       $"head tip {Vector3.Distance(new Vector3(tip.x, 0f, tip.z), new Vector3(p.StrikeAt.x, 0f, p.StrikeAt.z)):F2} m from it, hit {(hitKind == 0 ? "player shoved" : hitKind == 1 ? "animal sent fleeing" : "none (out of reach)")}");
+        }
+
+        /// <summary>Judged against the head tip (about 2 m), and never past 2.4 m from the stalk.</summary>
+        static bool InReach(Plant p, Vector3 tip, float3 at)
+        {
+            var fromStalk = math.distance(at.xz, new float2(p.Position.x, p.Position.z));
+            var fromTip = math.distance(at.xz, new float2(tip.x, tip.z));
+            return fromStalk < MaxFromStalk && fromTip < Reach;
         }
 
         // ---------------------------------------------------------------- posing

@@ -173,15 +173,16 @@ namespace Punchy.Debugging
             var lunge = mantrapShotMode == "lunge";
             mantrapShotMode = null;
             Mantrap.HoldStrike = lunge;
+            Mantrap.ThinFog = true;
             var at = Mantrap.Spot(0);
-            var stand = new float2(at.x, at.z - (lunge ? 0.6f : 5f));
+            var stand = new float2(at.x, at.z - (lunge ? 0.6f : 5f));   // player south of the plant; camera east, level with the head
             var em = queryWorld.EntityManager;
             var t = em.GetComponentData<LocalTransform>(player);
             t.Position = new float3(stand.x, ground.SampleHeight(stand) + 0.1f, stand.y);
             em.SetComponentData(player, t);
-            var cam = new float2(at.x + (lunge ? 3f : 4f), at.z - (lunge ? 0.3f : 0f));
-            var eye = new Vector3(cam.x, ground.SampleHeight(cam) + 1.4f, cam.y);
-            var target = new Vector3(at.x, at.y + (lunge ? 1.0f : 1.6f), at.z - (lunge ? 0.3f : 0f));
+            var cam = new float2(at.x + 4f, at.z - (lunge ? 0.3f : 0f));
+            var eye = new Vector3(cam.x, at.y + 2.5f, cam.y);
+            var target = new Vector3(at.x, at.y + (lunge ? 1.2f : 1.6f), at.z - (lunge ? 0.3f : 0f));
             PoseCamera(eye, Quaternion.LookRotation(target - eye));
             Debug.Log($"DebugControls: mantrap {(lunge ? "lunge" : "side")} shot at plant ({at.x:F0}, {at.z:F0}): camera {Vector3.Distance(eye, new Vector3(at.x, eye.y, at.z)):F1} m away");
         }
@@ -594,6 +595,8 @@ namespace Punchy.Debugging
             Mantrap.Hidden = System.Array.IndexOf(args, "-nomantrap") >= 0;
             if (System.Array.IndexOf(args, "-mantraptest") >= 0)
                 Mantrap.TestRequested = true;
+            if (System.Array.IndexOf(args, "-mantrapstill") >= 0)
+                Mantrap.StillRequested = true;
             var mtArg = System.Array.IndexOf(args, "-mantrapshot");
             mantrapShotMode = mtArg >= 0 && mtArg + 1 < args.Length ? args[mtArg + 1] : null;
             DunesColossus.FrameLog = System.Array.IndexOf(args, "-framelog") >= 0;
@@ -2215,6 +2218,7 @@ namespace Punchy.Debugging
             colossusShotDistance = 0f;
             mantrapShotMode = null;
             Mantrap.HoldStrike = false;
+            Mantrap.ThinFog = false;
             if (posed != Entity.Null && queryWorld != null && queryWorld.IsCreated && queryWorld.EntityManager.Exists(posed))
                 queryWorld.EntityManager.DestroyEntity(posed);
             posed = Entity.Null;
