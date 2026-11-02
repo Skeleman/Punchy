@@ -185,7 +185,11 @@ Shader "Punchy/Flora"
                 }
                 // Rock and bark up close: grain and fine relief from the shared detail texture (the caves' own), read
                 // three ways and blended by the surface's facing, fading out with distance.
-                float near = 1 - smoothstep(18, 45, distance(input.positionWS, GetCameraPositionWS()));
+                // Built things keep it much further (W-23): faded by 45 m, a thatch roof turned into a smooth, plain cone
+                // whose few facets showed, across the 30-55 m where huts also change LOD. Few of them, and the texture's
+                // mips keep the far relief from shimmering.
+                float detailFade = distance(input.positionWS, GetCameraPositionWS());
+                float near = built ? 1 - smoothstep(60, 140, detailFade) : 1 - smoothstep(18, 45, detailFade);
                 if (part == 0 && near > 0.01 && _PunchyCaveDetailReady > 0)
                 {
                     float3 q = input.positionWS * 0.9;

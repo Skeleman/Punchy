@@ -341,15 +341,74 @@ namespace Punchy.Terrain
             return result;
         }
 
-        /// <summary>A wide blur of the biome map (3×3 taps across the radius), for smooth elevation transitions.</summary>
+        /// <summary>
+        /// A wide blur of the biome map (3×3 taps across the radius), for smooth elevation transitions.
+        /// W-21: the taps can cover five or more biomes, and <see cref="BiomeWeights.Add"/> keeps only four, dropping
+        /// whichever came in weakest in tap order. A tall biome (mountains) switching in or out of the four made
+        /// metres-high vertical walls and pits (island v2, e.g. -2165,255). Every biome's full weight is summed
+        /// first; the four strongest keep their weight minus the fifth's, so a biome leaving the four fades to zero.
+        /// </summary>
         public static BiomeWeights SampleMapBlurred(ref BiomeMapBlob map, float2 xz, float radius)
         {
-            var result = default(BiomeWeights);
+            var ids = new FixedList128Bytes<int>();
+            var sums = new FixedList128Bytes<float>();
             for (int y = -1; y <= 1; y++)
             for (int x = -1; x <= 1; x++)
-                AddMapSample(ref map, xz + new float2(x, y) * radius, (2 - math.abs(x)) * (2 - math.abs(y)), ref result);
+                AddMapSample(ref map, xz + new float2(x, y) * radius, (2 - math.abs(x)) * (2 - math.abs(y)), ref ids, ref sums);
+
+            var result = default(BiomeWeights);
+            var used = 0;   // bit per list entry already taken
+            for (int k = 0; k < 4; k++)
+            {
+                var best = -1;
+                for (int i = 0; i < ids.Length; i++)
+                    if ((used & (1 << i)) == 0 && sums[i] > 0f && (best < 0 || sums[i] > sums[best]))
+                        best = i;
+                if (best < 0)
+                    break;
+                used |= 1 << best;
+                result.Ids[k] = ids[best];
+                result.Weights[k] = sums[best];
+            }
+            var fifth = 0f;
+            for (int i = 0; i < ids.Length; i++)
+                if ((used & (1 << i)) == 0)
+                    fifth = math.max(fifth, sums[i]);
+            if (fifth > 0f)
+                result.Weights = math.max(result.Weights - fifth, 0f);
             result.Normalize();
             return result;
+        }
+
+        static void AddMapSample(ref BiomeMapBlob map, float2 xz, float weight, ref FixedList128Bytes<int> ids, ref FixedList128Bytes<float> sums)
+        {
+            var max = map.Resolution - 1;
+            var uv = math.clamp((xz - map.Origin) / map.WorldSize * max, 0f, max);
+            var i0 = math.min((int2)math.floor(uv), max - 1);
+            var f = uv - i0;
+            var row = i0.y * map.Resolution + i0.x;
+            AddSum(map.Ids[row], weight * (1f - f.x) * (1f - f.y), ref ids, ref sums);
+            AddSum(map.Ids[row + 1], weight * f.x * (1f - f.y), ref ids, ref sums);
+            AddSum(map.Ids[row + map.Resolution], weight * (1f - f.x) * f.y, ref ids, ref sums);
+            AddSum(map.Ids[row + map.Resolution + 1], weight * f.x * f.y, ref ids, ref sums);
+        }
+
+        static void AddSum(int id, float weight, ref FixedList128Bytes<int> ids, ref FixedList128Bytes<float> sums)
+        {
+            if (weight <= 0f)
+                return;
+            for (int i = 0; i < ids.Length; i++)
+                if (ids[i] == id)
+                {
+                    sums[i] += weight;
+                    return;
+                }
+            // 36 contributions at most, so at most 31 distinct biomes fit the list; extra ones (never seen) are dropped.
+            if (ids.Length < ids.Capacity && ids.Length < 31)
+            {
+                ids.Add(id);
+                sums.Add(weight);
+            }
         }
 
         static void AddMapSample(ref BiomeMapBlob map, float2 xz, float weight, ref BiomeWeights result)
@@ -911,22 +970,24 @@ namespace Punchy.Terrain
         // about twice PondErode (under 3 cells of 16 m) never forms. The contour is lowered a little to give the width back.
         const float PondErode = 17f, PondEdgeShift = 0.17f;
 
-        static float PondField(ref BiomeBlobData b, float2 xz)
+        static float PondField(ref BiomeBlobData b, float2 xz, float density = 1f)
         {
-            var p = xz * (b.PondFrequency * PondScale) + b.NoiseOffset * 0.37f;
+            var p = xz * (b.PondFrequency * PondScale * density) + b.NoiseOffset * 0.37f;
             p += new float2(noise.snoise(p * 0.6f + 11.1f), noise.snoise(p * 0.6f - 7.3f)) * 0.7f;
             return noise.snoise(p) * PondLow + noise.snoise(p * 2.1f + 5.5f) * (1f - PondLow);   // W-08: mostly the broad octave, so no specks; about -0.9 .. 0.9
         }
 
-        public static float Pond(ref BiomeBlobData b, float2 xz)
+        /// <param name="density">W-24: scales the pond noise's frequency (more, smaller pools); 1 = the biome's own.</param>
+        /// <param name="coverAdd">W-24: added to the biome's PondCover.</param>
+        public static float Pond(ref BiomeBlobData b, float2 xz, float density = 1f, float coverAdd = 0f)
         {
             if (b.PondDepth <= 0f)
                 return 0f;
-            var n = PondField(ref b, xz);
-            var edge = math.lerp(0.55f, -0.35f, b.PondCover / 0.8f) - PondEdgeShift;
+            var n = PondField(ref b, xz, density);
+            var edge = math.lerp(0.55f, -0.35f, math.min(b.PondCover + coverAdd, 0.8f) / 0.8f) - PondEdgeShift;
             if (n < edge) return 0f;   // cheap exit: most points are far from any pond
-            n = math.min(n, math.min(math.min(PondField(ref b, xz + new float2(PondErode, 0f)), PondField(ref b, xz - new float2(PondErode, 0f))),
-                                     math.min(PondField(ref b, xz + new float2(0f, PondErode)), PondField(ref b, xz - new float2(0f, PondErode)))));
+            n = math.min(n, math.min(math.min(PondField(ref b, xz + new float2(PondErode, 0f), density), PondField(ref b, xz - new float2(PondErode, 0f), density)),
+                                     math.min(PondField(ref b, xz + new float2(0f, PondErode), density), PondField(ref b, xz - new float2(0f, PondErode), density))));
             return math.smoothstep(edge, edge + 0.3f, n) * b.PondDepth;
         }
 
