@@ -1,7 +1,7 @@
-# Animal lane: state (2026-11-02, after batch A-06b)
+# Animal lane: state (2026-11-03, after batch A-07)
 
-Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 30fae95 (A-06b: flare settle, wall tries).
-Builds/Windows is the A-06b build (has `-noflaresettle`). Editor open on port 7800; no Punchy.exe running.
+Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 32f90e4 (A-07: height fear, call switches, wall top release).
+Builds/Windows is the A-07 build (has `-flatfear -nobiometable -callrate -calllog`). Editor open on port 7800; no Punchy.exe running.
 
 ## Unverified (merged anyway; Zach's check in the build)
 - #48 remote view of a roll (client sees the somersault from the Pose byte): never run on a client.
@@ -15,6 +15,10 @@ Builds/Windows is the A-06b build (has `-noflaresettle`). Editor open on port 78
   flare stage 268-278 -> 18-25. `-noflaresettle` gives the old way from the same build.
 - `-spincheck` splits Wander into /ground /flying /flare /stage2+ and traces one songbird (40 lines, 0.5 s).
 - Wall test sideways phase moved to 1.5-3.5 s after `-place wall`.
+
+## A-07 done
+- #46 height fear x2.5 past 1.5 m (log inconclusive: counts all creatures; filter to deer). #43 Meadow 36-60 calls/min (was 96-132), Dunes 0, Glacier 0.
+- #33 flat boulder: topped out, OnWall False, sideways 0.9 m/s. Not yet on a garden wall.
 
 ## Open
 - #12: left over is Wander/flying 28-35 deg/s (was 30-34 before too) and /ground 31-46 (7-21 s only). Under 20

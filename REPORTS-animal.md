@@ -683,3 +683,13 @@ different files.
 - Not compiled or run by me (no editor slot); the profiler builds and runs `-body Monkey -place tree:Oak -autowalk`
   and `-place ledge -autowalk`. Merge to animal-behaviours after both pass.
 - NEXT: task 2 (Brain.Sample marker plus a moving count), code-only.
+
+## 2026-11-03: batch A-07, animal-behaviours 32f90e4 (one build, Builds/Windows)
+- #46: fear distance was already 3D. Now the height gap past 1.5 m counts x2.5 (level fear unchanged). `-flatfear` = old.
+  Hover log (fleeing/creatures within 40 m, 3 samples): after 5 m 5,4,0; 15 m 1,0,4,3; 30 m 6,3,0. Before 5 m 0,4,2;
+  15 m 0,7,4,4; 30 m 5,6,5. The log counts every creature near, not just the spawned deer: inconclusive.
+- #43: table already in (A-03). Calls per minute (x6 of 10 s windows), before (all biomes, 1.5/s) vs after (table, 0.6/s):
+  Meadow 96-132 -> 36-60; Dunes 0 -> 0; Glacier 0-12 -> 0. New flags `-calllog -nobiometable -callrate N`.
+- #33: `-place wall` now prefers a flat top (1.3 m boulder); Lizard tops out, OnWall False, grounded at the top, no
+  stick. New release: on a wall with feet on a top and no push down, it lets go. Sideways was 0.9 m/s in the probe.
+- NEXT: filter the #46 log to spawned deer; #33 run on a garden wall.
