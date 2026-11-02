@@ -709,3 +709,10 @@ different files.
 - #33: `-place wall` now prefers a flat top (1.3 m boulder); Lizard tops out, OnWall False, grounded at the top, no
   stick. New release: on a wall with feet on a top and no push down, it lets go. Sideways was 0.9 m/s in the probe.
 - NEXT: filter the #46 log to spawned deer; #33 run on a garden wall.
+
+## A-10 (2026-11-03): carnivorous plant, #41
+- New `Mantrap.cs` (animal-behaviours fb3f028): rooted plant, 6-joint stalk, four leaves, two black dome jaws with red lining and teeth; head tracks the nearest living thing within 8 m, lunges (wind-up, strike, snap, 1.2 s cooldown) within 1 m. Hit = shove (player: push + hop; animal: shoved and set fleeing); no damage system exists.
+- Placement: seeded survey, every peer builds the same plants; head simulated locally. 26 plants: FoggyMarsh 10, PoisonSwamp 8, FungalForest 8 (candidates 326/372/311; 10 rejected for settlement or landmark).
+- 60 s test (`-mantraptest`): plant 0 tracked the whole time (3264 frames); 4 lunges (1 Deer walk-past, 3 on the player). Animal hit: shoved and fled. Player hit NOT confirmed: `-autowalk` moved the player past 1.6 m before the snap landed (3 of 3 logged "out of reach"; head tip 1.2-1.6 m from target).
+- Shots in PunchyMilestones/animal/a10: plant-lunge shows the plant (leaves, stalk) but the head is hidden in foliage; plant-side is badly framed (fog, plant mostly out of frame). Need a reframe.
+- NEXT: hit test against the target's position at the strike start (reach 2.4 m), not at the snap; frame on the head; check client view.

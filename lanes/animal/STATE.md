@@ -1,9 +1,10 @@
-# Animal lane: state (2026-11-03, after batch A-09)
+# Animal lane: state (2026-11-03, after batch A-10)
 
 Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 767d3ca (A-09: colossus, -shotonhunt, gap log).
-Builds/Windows is the A-09 build (has `-nocolossus -framelog -colossusshot -shotonhunt -flatfear -lift`). Editor open on port 7800; no Punchy.exe running.
+Builds/Windows is the A-10 build (adds `-nomantrap -mantraptest -mantrapshot side|lunge`; Mantrap.cs on animal-behaviours fb3f028; has `-nocolossus -framelog -colossusshot -shotonhunt -flatfear -lift`). Editor open on port 7800; no Punchy.exe running.
 
 ## Unverified (merged anyway; Zach's check in the build)
+- #41 plant: player shove never landed in the test (autowalk out of reach); head not visible in shots; client view not run.
 - #48 remote view of a roll (client sees the somersault from the Pose byte): never run on a client.
 - #6 Z-50 gallop: `-shotonhunt` now frames a sprint; check hunt0.png shows a gallop pose.
 - #7 Z-51: Hiss(49), Growl(52) not heard. Try Dog and Cat 4 m apart, or Dog next to Wolf.
