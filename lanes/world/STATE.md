@@ -1,8 +1,8 @@
-# World lane: state (2026-11-02, after W-15)
+# World lane: state (2026-11-02, after W-16)
 
 Worktree `Punchy-world` (main PC), branch `world-features`. Backlog: `gh issue list -l lane:world`.
 Released: v0.11.0 = world b39522b + animal c810406.
-Pushed head: world-features fb6d7ee (W-15). Builds/Dev holds a build of it. v1 101 / E128CB1D, v2 127 / 831FF2EE hold. v1 ponds 33 blobs, 154 wet cells, none under 3 cells.
+Pushed head: world-features d69a710 (W-16). Builds/Dev holds the W-16 build minus the v1 hash log line (added after the build). v1 101 / E128CB1D, v2 127 / 831FF2EE hold. v1 ponds 33 blobs, 154 wet cells, none under 3 cells.
 No Punchy.exe of mine runs.
 
 ## W-05 / W-05b
@@ -35,6 +35,13 @@ No Punchy.exe of mine runs.
 - #35 bat folk: lanes/world/BATFOLK-PLAN.md (after-caves stage, own RNG, v1/v2 hashes untouched).
 - Probe: WorldProbe.CaveHash, CaveBench(n). v2 pool spot: cam 2998.6,-0.77,-2133.2 -> 3002.04,-3.69,-2135.88.
 
+## W-16
+- #23 settlements ~970 -> ~290 ms (editor bench, roads 833 -> 150): routes run in parallel (managed grid copy, wander array, flat A*); Emit and bridge sampling run in parallel and are laid in pair order. Hashes unchanged: bench B4E4858C9FE1CF46 / 14650FB0739D0383, baked 2433C3F949E9CE3E. v2 player: settlements 344 ms.
+- #35 `_SoftRim` (white pools only, via property block): alpha and glow fade with depth. The build edge is soft, but the pool still reads as a milky blob. Next: lower whiteness and opacity in the centre too.
+- v1 player logs no hash before d69a710; IslandV2System now logs `[island] generator version 1 (baked); N landmarks, hash X`. Check it in the next build.
+- The editor camera alone doesn't render cave interiors (Underground follows the player); judge cave looks in a build.
+- Probe: WorldProbe.TownBench(n) (needs play mode).
+
 ## Open
-- #35 white pool rim + bat folk step 1. #23 follow-ups: settlements bake ~1 s, volcano markers (need a spec), v2 default decision. Rivers: springs on high ground; shot of a small fall. #13 Z-35 fall speed. #14 cave-mouth shards.
+- #35 white pool centre whiteness + bat folk step 1. Confirm v1 101 / E128CB1D in a player log. #23 follow-ups: volcano markers (need a spec), v2 default decision. Rivers: springs on high ground; shot of a small fall. #13 Z-35 fall speed. #14 cave-mouth shards.
 - Design-note P3: #17, #18-#22. Roadmap #24.
