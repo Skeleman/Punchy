@@ -525,9 +525,16 @@ half3 PunchyBlueMoonFace(float3 dir, float3 m, float radius, half3 tint, out hal
     float along = uv.x * 0.94 + uv.y * 0.34;
     float across = uv.y * 0.94 - uv.x * 0.34;
     float wobble = (PunchyValueNoise(float2(along * 2.6 + 3.1, 1.7)) - 0.5) * 0.34 + (PunchyValueNoise(float2(along * 9.0, 5.3)) - 0.5) * 0.06;
-    half crack = 1 - smoothstep(0.012, 0.04, abs(across - 0.08 - wobble));
-    half seas = 1 - 0.25 * smoothstep(0.35, 0.65, PunchyValueNoise(uv * 2.3 + 7.1));
-    half shade = seas * (1 - 0.35 * bowl) * (1 + 0.35 * rim) * (1 - 0.8 * crack) * (0.55 + 0.45 * z);
+    half crack = 1 - smoothstep(0.004, 0.015, abs(across - 0.08 - wobble));
+    // Maria: big dark basins with soft, ragged edges (two octaves), and a fine grain of highlands over everything.
+    float basin = PunchyValueNoise(uv * 1.6 + 7.1) * 0.65 + PunchyValueNoise(uv * 3.7 + 1.3) * 0.35;
+    half seas = 1 - 0.45 * smoothstep(0.42, 0.62, basin);
+    half grain = 0.88 + 0.24 * (PunchyValueNoise(uv * 24 + 3.3) * 0.5 + PunchyValueNoise(uv * 55 + 8.8) * 0.5);
+    // Small craters between the big ones, and a few bright rayed ones.
+    float3 sm = PunchyMoonCells(uv * 8.5 + 1.9);
+    half smallBowl = step(0.55, sm.z) * (1 - smoothstep(0.1, 0.2, sm.x));
+    half smallRim = step(0.55, sm.z) * smoothstep(0.17, 0.2, sm.x) * (1 - smoothstep(0.2, 0.27, sm.x));
+    half shade = seas * grain * (1 - 0.35 * bowl) * (1 + 0.35 * rim) * (1 - 0.3 * smallBowl) * (1 + 0.3 * smallRim) * (1 - 0.85 * crack) * (0.5 + 0.5 * z);
     return tint * cover * shade * 1.6;
 }
 
@@ -537,7 +544,7 @@ half3 PunchyBlueCorona(float3 dir, float radius)
     float a = sqrt(max(2 * (1 - dot(dir, _PunchyBlueMoon)), 0));   // angle to it (small angles)
     float outside = max(a - radius, 0);
     half glow = exp(-outside / (radius * 0.6)) * 0.55 + exp(-pow((a - radius * 1.7) / (radius * 0.15), 2)) * 0.12;
-    return half3(0.1, 0.4, 1.8) * glow * smoothstep(radius * 0.98, radius * 1.02, a);
+    return half3(0.05, 0.3, 2.0) * glow * smoothstep(radius * 0.98, radius * 1.02, a);
 }
 
 // Both moons where a direction falls on them: the big moon lit by its phase, the small blue one by the sun from
@@ -548,7 +555,7 @@ half3 PunchyMoonDisc(float3 dir, out half cover)
     half bigCover, blueCover;
     half3 moons = PunchyMoonFace(dir, _PunchyMoonDirection, 0.0172, float3(sin(a), 0.15 * sin(a), -cos(a)), half3(0.9, 0.92, 1.0), bigCover);
     // The blue moon: always full, about seven times the big moon's size, cratered and cracked (Zach, G-34).
-    moons += PunchyBlueMoonFace(dir, _PunchyBlueMoon, PunchyBlueMoonRadius, half3(0.1, 0.38, 1.9), blueCover) * (1 - bigCover);
+    moons += PunchyBlueMoonFace(dir, _PunchyBlueMoon, PunchyBlueMoonRadius, half3(0.05, 0.3, 2.2), blueCover) * (1 - bigCover);
     cover = max(bigCover, blueCover);
     return moons;
 }

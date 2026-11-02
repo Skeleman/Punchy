@@ -27,3 +27,6 @@ Read before changing any shader, material or render setting.
 - `line` is an HLSL keyword (geometry shaders): a variable called `line` breaks the Flora shader.
 - HLSL `&&` doesn't short-circuit.
 - Unity fixes a global array's length the first time it's set in a session; the editor needs a restart after a slot-count change.
+- Blue moon (Sky.hlsl PunchyBlueMoonFace): radius 0.13 rad, one thin wandering crack, maria + craters at two scales;
+  its disc/corona tint must stay strongly blue (b channel > 2). Pin with `-bluemoondays 0`, then `-time 21` puts it
+  43 degrees up in the east, `-time 19` low in the east (compute with DayNightCycle.Evaluate).
