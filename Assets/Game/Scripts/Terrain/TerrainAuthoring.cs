@@ -125,6 +125,7 @@ namespace Punchy.Terrain
                                        List<PlacedLandmark> placed, List<RoadsideLandmark> roadsideTypes, Allocator allocator)
         {
             source.PondsOn = false;
+            source.PondMask = default;
             if (source.RiverSettings.Enabled && palette.Count > 0)
                 source.Rivers = RiverBaking.Build(source, source.RiverSettings, allocator);
             if (palette.Count > 0)
@@ -143,7 +144,10 @@ namespace Punchy.Terrain
                 source.Caves = CaveBaking.Build(source, palette, landmarkTypes, allocator);
             source.Anchors = AnchorBaking.Build(source, landmarkTypes, allocator);
             source.PondsOn = true;
-            { var n = source.PondCount(16f, out var wet, out var sizes); UnityEngine.Debug.Log($"[ponds] {n} separate, {wet} wet cells of 16 m; {sizes}"); }
+            // W-10: label the ponds' wet cells and drop every pond under 3 cells (with the dry ring round it).
+            var pondsBefore = source.PondCount(TerrainSource.PondStep, out var wetBefore, out var sizesBefore);
+            source.PondMask = source.BuildPondMask(allocator, out var dropped);
+            { var n = source.PondCount(TerrainSource.PondStep, out var wet, out var sizes); UnityEngine.Debug.Log($"[ponds] before {pondsBefore} separate, {wetBefore} wet; {sizesBefore}. Dropped {dropped} cells. After {n} separate, {wet} wet cells of 16 m; {sizes}"); }
         }
 
         class Baker : Baker<TerrainAuthoring>
@@ -234,6 +238,7 @@ namespace Punchy.Terrain
                 if (source.Settlements.IsCreated) AddBlobAsset(ref source.Settlements, out _);
                 if (source.Caves.IsCreated) AddBlobAsset(ref source.Caves, out _);
                 if (source.Anchors.IsCreated) AddBlobAsset(ref source.Anchors, out _);
+                if (source.PondMask.IsCreated) AddBlobAsset(ref source.PondMask, out _);
                 AddComponent(entity, source);
             }
 

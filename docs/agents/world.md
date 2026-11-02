@@ -38,3 +38,6 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   nets in background jobs, sets `CaveSystem.Underground` (weather stops) and lights a lantern on the player.
 - **Plants, animals and particles are not baked:** editing their assets in Play mode applies live within about a
   second (the systems hash their config and rebuild).
+- **Ponds are pruned after baking:** `BuildPlaces` labels wet cells on a 16 m grid and bakes `PondMask`, which
+  zeroes every pond under `PondMinCells` (3) cells. Landmarks are placed before ponds, so this never moves them;
+  a new pond rule goes through the mask, not more erosion or threshold tuning.

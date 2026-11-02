@@ -341,7 +341,7 @@ namespace Punchy.Terrain
             source.Island = gen.Island;
             source.BiomeCells = default;
             source.RiverSettings = IslandV2.Rivers(source.RiverSettings);
-            source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.Anchors = default;
+            source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.Anchors = default; source.PondMask = default;
             var types = new List<LandmarkType>(palette.Landmarks);
             TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent);
             EntityManager.SetComponentData(entity, source);
@@ -363,7 +363,7 @@ namespace Punchy.Terrain
                 hashText = $"{lines.Count} landmarks, hash {h:X8}";
             }
             Debug.Log($"[island] {gen.Report}; baked in {watch.ElapsedMilliseconds} ms; {hashText}");
-            { var ponds = source.PondCount(16f, out var wetCells); Debug.Log($"[island] ponds: {ponds} separate, {wetCells} wet cells of 16 m"); }
+            { var ponds = source.PondCount(16f, out var wetCells, out var sizes); Debug.Log($"[island] ponds: {ponds} separate, {wetCells} wet cells of 16 m; {sizes}"); }
             if (source.Rivers.IsCreated) Debug.Log("[island] " + RiverReport(ref source.Rivers.Value));
         }
     }
