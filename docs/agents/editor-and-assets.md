@@ -16,7 +16,8 @@ Read before editing assets or scenes, driving the editor from the CLI, or commit
   Python replacements (or the editor tools) and check `git ls-files --eol <file>` before every `git add`.
 - `EditorApplication.delayCall` never fires in an idle, unfocused editor: call `BuildPipeline.BuildPlayer` (or the
   action) directly in `unity command eval`, write results to a file under `Temp/` and poll it (the CLI times out
-  after 30 s, but the work carries on).
+  after 30 s, but the work carries on). That drop makes the editor's pipeline server log 2 errors mid-build, which
+  the build summary counts ("Succeeded 2 errors"); pass `--timeout 600` to the eval for builds and the count is 0.
 - Switching commits with the editor open raises a modal "scene modified externally" dialog that blocks the CLI.
   Close the editor before switching commits.
 - Unity's capture command saves inside the project (`Assets/Temp/...`): copy the shots out, then delete

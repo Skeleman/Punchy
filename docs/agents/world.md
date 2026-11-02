@@ -51,7 +51,9 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   W-19: `Props` holds 3-6 hut pods (hung from the ceiling, anchor + stalk) and 4-8 racks/baskets per pick, from a
   per-site RNG (scrambled stream ^ key), kept clear of pools and the path segments through the chamber node;
   `BatFolkMeshes` builds them in the cave vertex layout, CaveSystem draws them with tinted cave-material copies.
-  Huts hang 8-14 m up, past the lantern: unlit until plan step 4, so frame them with a light or from below.
+  W-20: each hut's stalk is sized so the pod bottom hangs 3-6 m above the floor (in lantern reach; a low ceiling
+  gives a short stalk and >= 2.6 m headroom), the stalk is checked for air along its length, and the log ends with
+  `hut bottoms a/b/c m` per pick.
 - **Cave previews in the editor:** a camera moved into a cave alone shows nothing (chunks stream, `Underground` and
   the lantern follow the player over a few frames). In play mode call `CaveTools.PreviewAt(pos, target, whitePools)`,
   wait a few seconds, then `CaveTools.PreviewShot(path)`.

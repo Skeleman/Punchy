@@ -154,7 +154,7 @@ namespace Punchy.Terrain
                 propArray[i] = props[i];
             var blob = builder.CreateBlobAssetReference<BatFolkSetBlob>(allocator);
             builder.Dispose();
-            LastLog = Report(ref blob.Value, set.Caves.Length);
+            LastLog = Report(source, ref blob.Value, set.Caves.Length);
             return blob;
         }
 
@@ -177,7 +177,8 @@ namespace Punchy.Terrain
             ref var cave = ref set.Caves[site.Cave];
             var first = props.Count;
 
-            // Huts: a spot under the ceiling, high enough above the floor to walk under, clear of the walls round the pod.
+            // Huts: a pod hung on a silk stalk from the ceiling, its bottom 3-6 m above the floor (W-20: low enough for
+            // the lantern to reach, high enough to walk under), clear of the walls round the pod and along the stalk.
             var huts = 0;
             for (int attempt = 0; attempt < 60 && huts < wantHuts; attempt++)
             {
@@ -185,7 +186,7 @@ namespace Punchy.Terrain
                 var dist = site.Radius * math.sqrt(rng.NextFloat(0.04f, 0.6f));
                 var radius = rng.NextFloat(0.55f, 0.85f);
                 var length = radius * rng.NextFloat(2.3f, 2.9f);
-                var stalk = rng.NextFloat(0.35f, 1.1f);
+                var lift = rng.NextFloat(3f, 6f);
                 var yaw = rng.NextFloat(math.PI * 2f);
                 var xz = site.Centre.xz + new float2(math.cos(angle), math.sin(angle)) * dist;
                 var start = new float3(xz.x, site.Centre.y, xz.y);
@@ -193,6 +194,8 @@ namespace Punchy.Terrain
                     continue;
                 var ceiling = Ceiling(source, start);
                 var floor = source.FloorUnder(start, out var inCave);
+                // A low ceiling lifts the pod to just under it (short stalk), but never below 2.6 m of headroom.
+                var stalk = math.max(ceiling - floor - lift - length, 0.35f);
                 if (!inCave || ceiling - floor < length + stalk + 2.6f)
                     continue;
                 // The pod's top, middle and bottom, each with room for its girth (the top narrows to the stalk).
@@ -200,6 +203,12 @@ namespace Punchy.Terrain
                 if (source.CaveDistance(new float3(xz.x, top - 0.15f, xz.y)) > -0.35f ||
                     source.CaveDistance(new float3(xz.x, top - length * 0.55f, xz.y)) > -(radius + 0.2f) ||
                     source.CaveDistance(new float3(xz.x, top - length + 0.1f, xz.y)) > -0.4f)
+                    continue;
+                // The stalk runs through air all the way (a long one must not pass through a ledge).
+                var blocked = false;
+                for (float y = ceiling - 0.5f; y > top && !blocked; y -= 1f)
+                    blocked = source.CaveDistance(new float3(xz.x, y, xz.y)) > -0.1f;
+                if (blocked)
                     continue;
                 if (Crowded(props, first, xz, radius, BatFolkPropKind.Hut))
                     continue;
@@ -330,20 +339,26 @@ namespace Punchy.Terrain
             return best;
         }
 
-        static string Report(ref BatFolkSetBlob b, int caves)
+        static string Report(in TerrainSource source, ref BatFolkSetBlob b, int caves)
         {
             var sb = new StringBuilder($"[batfolk] caves {b.Qualifying}, picked {b.Sites.Length} (of {caves} caves; biggest deep chamber {b.BiggestChamber:F1} m)");
             for (int i = 0; i < b.Sites.Length; i++)
             {
                 ref var s = ref b.Sites[i];
                 int huts = 0, props = 0;
+                // Each hut's pod bottom above the floor under it (m), so its height can be checked from the log.
+                var heights = new StringBuilder();
                 for (int k = 0; k < b.Props.Length; k++)
                     if (b.Props[k].Site == i)
                     {
-                        if (b.Props[k].Kind == BatFolkPropKind.Hut) huts++;
-                        else props++;
+                        ref var p = ref b.Props[k];
+                        if (p.Kind != BatFolkPropKind.Hut) { props++; continue; }
+                        huts++;
+                        var bottom = p.Position.y - p.Size.z - p.Size.y;
+                        var floor = source.FloorUnder(new float3(p.Position.x, bottom - 0.1f, p.Position.z), out _);
+                        heights.Append(heights.Length == 0 ? "" : "/").Append((bottom - floor).ToString("F1"));
                     }
-                sb.Append($"; cave {s.Cave} chamber {s.Centre.x:F0},{s.Centre.y:F0},{s.Centre.z:F0} r {s.Radius:F1} pool {s.Pool} huts {huts} props {props}");
+                sb.Append($"; cave {s.Cave} chamber {s.Centre.x:F0},{s.Centre.y:F0},{s.Centre.z:F0} r {s.Radius:F1} pool {s.Pool} huts {huts} props {props} hut bottoms {heights} m");
             }
             return sb.ToString();
         }
@@ -353,7 +368,7 @@ namespace Punchy.Terrain
         {
             if (!source.BatFolk.IsCreated)
                 return "[batfolk] none baked";
-            return Report(ref source.BatFolk.Value, source.Caves.IsCreated ? source.Caves.Value.Caves.Length : 0);
+            return Report(source, ref source.BatFolk.Value,source.Caves.IsCreated ? source.Caves.Value.Caves.Length : 0);
         }
     }
 }
