@@ -2,6 +2,13 @@
 
 Newest first.
 
+## 2026-11-02 batch A-10b: mantrap hit check fixed, shots show a bloom blowout on the head
+- DONE: #41 head re-aims at its target during wind-up and strike; bite hits what is within 2 m of the head tip and never past 2.4 m of the stalk (animal-behaviours 96816e5). Added -mantrapstill; shots now camera at 2.5 m head height, 4 m east, thin fog.
+- NOT DONE: #41 plant-side/plant-lunge do not show the head: it renders as a white glow (looks like NaN/overbright feeding bloom; leaves and stalk fine). Fix needs another build. Host-to-client lunge: not possible as built (a plant only reacts to the local player and local animals, a remote player is not a target).
+- Checks: compile clean; one build. Still test, player 0.8 m, no autowalk: 7 lunges in 18 s, 7 hit, tip 1.37-1.46 m from the target. Host+client: both printed placed 26 (10/8/8), first plant (-3038, 3.1, 825); players 2 on both.
+- Shots: PunchyMilestones/animal/a10b/plant-side-800.png (stalk, leaves, head as a white blob), plant-lunge-800.png (head folded down at the player with two glow blobs, player behind the leaves).
+- NEXT: find the glow (Colossus shader on the Mantrap shell: check NaN normals / degenerate triangles in the head mesh), rebuild, re-shoot.
+
 ## 2026-11-03 batch A-09: Dunes colossus first pass, -shotonhunt, #46 ground row not settled
 - DONE: #40 colossus at (1780, 12.7, -1973) on seed 1337, 67 m, head turn, arm drag with furrow, sandstorm, `-nocolossus`, shots at 300 m and 60 m. #9 `-shotonhunt` (wolf sprint at turkey, 14 m apart).
 - NOT DONE: #46 ground row (code unchanged below 1.5 m; test herd stands on slopes, gaps up to 6 m); GPU ms (timings read 0; both modes vsync-capped at 16.7 ms); town distance for the colossus not verified.
