@@ -17,6 +17,15 @@ A task agent loads only what its batch needs, so a lane can know a lot without e
 | A module | 120 lines | Split it by topic when it grows. |
 | A batch card | 40 lines | Tasks point to issues and modules; no pasted background. |
 
+## Budgets are soft
+The card's call count and build count are targets, not walls. A fresh agent re-reads everything,
+so finishing in place is cheaper than a follow-up batch.
+- A task that is one fix away from done (a number just off target, a reshoot, a small bug):
+  spend up to about 25 more calls and one more build to finish it.
+- Never start a new task, or a task you dropped, in the extra budget.
+- If one fix plus a rebuild still doesn't get it there, stop and report what you ruled out.
+- Report the overrun in one line: calls used, builds used, and why.
+
 ## Where new knowledge goes
 | You learned | Put it in |
 |---|---|
