@@ -1,19 +1,23 @@
-# Animal lane: state (2026-11-03, after batch A-08)
+# Animal lane: state (2026-11-03, after batch A-09)
 
-Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 32f90e4 (A-07: height fear, call switches, wall top release).
-Builds/Windows is the A-07 build (has `-flatfear -nobiometable -callrate -calllog`). Editor open on port 7800; no Punchy.exe running.
+Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 767d3ca (A-09: colossus, -shotonhunt, gap log).
+Builds/Windows is the A-09 build (has `-nocolossus -framelog -colossusshot -shotonhunt -flatfear -lift`). Editor open on port 7800; no Punchy.exe running.
 
 ## Unverified (merged anyway; Zach's check in the build)
 - #48 remote view of a roll (client sees the somersault from the Pose byte): never run on a client.
-- #6 Z-50 gallop: never framed. Needs a hook (shoot when a hunter's Speed > 0.9 x RunSpeed).
+- #6 Z-50 gallop: `-shotonhunt` now frames a sprint; check hunt0.png shows a gallop pose.
 - #7 Z-51: Hiss(49), Growl(52) not heard. Try Dog and Cat 4 m apart, or Dog next to Wolf.
 - #8 Z-52: live folk lines seen only twice.
 - #43: rate set by budget (0.6/s); no played-calls-per-minute count yet.
 
+## A-09 done
+- #40 Dunes colossus (Fauna/DunesColossus.cs, Shaders/Colossus.shader, Resources/Colossus.mat): seed 1337 at (1780, 12.7, -1973), 67 m, biggest Dunes region 93 cells. Head turn 37 s, arm drag 50 s with furrow, sandstorm. Town distance NOT checked. GPU ms unavailable (FrameTimingManager gives 0; frames vsync-capped 16.7 ms both ways): enable frame timing stats to measure.
+- #9 `-shotonhunt`: wolf sprint at turkey, 14 m apart, shot saved (hunt0.png). Prey can be any species.
+- #46 ground row: code identical below 1.5 m gap; spawned herd sits on slopes (gap mean 0.2-6 m, up to 6 over 1.5 m), so weighted vs flat differ by terrain, not code. Fled sample 1: weighted 0,5,4 vs flat 3,0,0 (no pattern). Needs flat ground (a sand flat or lake shore) and one build to settle.
+- Artefacts: PunchyMilestones/animal/a09/ (player.log, list.txt, col300/col60 plus -800).
+
 ## A-08 done
-- #9: hunt code was already on animal-behaviours (wip/animal-p3 is an ancestor). -huntlog 190 s: 12 stalks, 4 pounces (2 landed), 2 ate, 7 tired. No mid-chase shot yet (needs a hook that shoots when a hunter's Stage is Running).
-- #46 deer-only (3 runs, Fled/~7): 30 m after 0,0,0 vs flat 2,2,1; 5 and 15 m noise-sized; ground differs 0 vs 4-6 though formulas match (unexplained). Artefacts: PunchyMilestones/animal/a08/.
-- Builds/Windows is the A-08 build (-lift counts deer only). Pushed animal-behaviours.
+- #9 hunt code already on animal-behaviours; #46 deer-only: 30 m after 0,0,0 vs flat 2,2,1.
 
 ## Done earlier (A-06b)
 - #12 (mostly): FlyTo flare eases turning off and drifts onto the spot. Songbird Wander 100-125 -> 25-31 deg/s;

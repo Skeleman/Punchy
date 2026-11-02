@@ -2,6 +2,11 @@
 
 Newest first.
 
+## 2026-11-03 batch A-09: Dunes colossus first pass, -shotonhunt, #46 ground row not settled
+- DONE: #40 colossus at (1780, 12.7, -1973) on seed 1337, 67 m, head turn, arm drag with furrow, sandstorm, `-nocolossus`, shots at 300 m and 60 m. #9 `-shotonhunt` (wolf sprint at turkey, 14 m apart).
+- NOT DONE: #46 ground row (code unchanged below 1.5 m; test herd stands on slopes, gaps up to 6 m); GPU ms (timings read 0; both modes vsync-capped at 16.7 ms); town distance for the colossus not verified.
+- Branch animal-behaviours 767d3ca, one build, player quit itself.
+
 ## 2026-11-03 batch A-08: hunts already on the branch; #46 deer-only recheck says height fear helps at 30 m
 - DONE: #9 merge: wip/animal-p3 (hunt code, Z-53) is already an ancestor of animal-behaviours (merged in A-03/A-07), so nothing to merge. Only change: `-lift` test counts spawned deer (animal-behaviours, pushed, compile clean).
 - DONE: #9 `-huntlog` over about 190 s (Wolf+4 Deer, Coyote+4 Rabbit, plus wild RedFox).
