@@ -1,9 +1,14 @@
-# Animal lane: state (2026-11-02, after batch A-12)
+# Animal lane: state (2026-11-02, after batch A-13)
 
-Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 36f6dab (A-12).
+Worktree `Punchy` (animal lane only). `animal-behaviours` = origin dedc3db (A-13).
 Builds/Windows is the A-12 build (`-mimicshot rest|run`, used with `-spawn OcotilloMimic:1 -place tree:Ocotillo`). Editor open on port 7800; no Punchy.exe running.
 
-## A-12 done (animal-behaviours 36f6dab, artefacts PunchyMilestones/animal/a12/)
+## A-13 done (animal-behaviours dedc3db, artefacts PunchyMilestones/animal/a13/)
+- #33: `-place wall:<Species>` works (sets the body). Lizard on a 1.1 m wall (121.5, -489.4): UP at 1.1 s, TOP-OUT at 2.0 s (grounded on top, no stick), STEP-DOWN at 10.3 s, DOWN at 10.6 s; sideways 0.9 m/s. Events log as `wall test: UP/TOP-OUT/STEP-DOWN/DOWN`. Only a low wall found (not a tall garden wall). Mid-climb shot missed (wallclimb.png shows the village, no lizard): the side camera set by -place wall is overridden at shot time.
+- #12: NOT met. Added a 100 deg/s^2 yaw-rate limit and a takeoff damp in FlyTo; SpinCheck counts Wander only after 5 s of it, windows 30 s. Songbird Wander/flying 0.1 (20 s sample), 28.3 (32 s), 56.7 (10 s) deg/s. Flying samples are short (10-32 s). Next: log per-bird turn with its target jumps; check Stage 1 re-targeting and the flare turn.
+- #46: `-goflat` finds a dry spot with ground spread under 0.5 m over 30 m: (-357, -47), ground 21.6 m, spread 0.39 m. Fled of deer within 40 m, 4 samples, weighted vs flat (-flatfear): ground 1,0,0,0 vs 0,0,0,1; 5 m 0,0,0,0 vs 0,5,0,0; 15 m 0,0,0,0 vs 0,0,0,0; 30 m 0,0,0,0 vs 0,0,0,0. Ground row now matches (flat terrain); no gain from the weighting shows. Fear weighting looks neutral, not harmful.
+
+## A-12 (earlier) (animal-behaviours 36f6dab, artefacts PunchyMilestones/animal/a12/)
 - #17: FleeDistance 2.0, RunSpeed 3.2: startle 4.6 m, run 10.13 m/s, fold 0.55 s. Rest camera 5 m, run camera 6 m back on the mimic. Ready for Zach's look.
 - #12: StartFlight picks the new spot within 90 deg of heading (no U-turns). Wander/flying 23.1 and 16.4 deg/s in two windows, 43.6 in a third (flee episode): noisy, not reliably under 20. Next: damp the takeoff turn, exclude flee.
 - #40: colossus (1780, -1973) is 968 m from the nearest settlement. Side-on shot col300.png, no HUD.

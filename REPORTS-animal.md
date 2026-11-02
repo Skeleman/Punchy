@@ -752,3 +752,9 @@ different files.
 - #40: colossus 968 m from the nearest settlement. col300: the giant seen side-on across dunes, no HUD.
 - #46: not settled, test spot was not flat (gap 2.3-2.9 m). #33: not done.
 - NEXT: flat spot for #46; damp takeoff turn for #12; `-place wall:<Species>` for #33.
+
+## A-13 (2026-11-02): wall test, flier turns, flat-spot fear rows, animal-behaviours dedc3db (one build)
+- #33: `-place wall:Lizard`; up 1.1 s, top-out 2.0 s, step-down 10.3 s, down 10.6 s on a 1.1 m wall; sideways 0.9 m/s. Mid-climb shot missed (camera overridden).
+- #12: NOT met. Songbird Wander/flying 0.1, 28.3, 56.7 deg/s (short samples). Yaw-rate limit and takeoff damp added.
+- #46: flat spot (-357, -47), spread 0.39 m. Weighted vs flat fled: ground 1,0,0,0 vs 0,0,0,1; 5 m 0 vs 5 once; 15 and 30 m all 0. No gain visible.
+- NEXT: #12 per-bird target-jump trace; tall garden wall and a working mid-climb shot for #33.
