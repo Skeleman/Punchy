@@ -108,6 +108,10 @@ namespace Punchy.Fauna
                     Splash(entities[i], s, ref b, terrain, now);
                     continue;
                 }
+                // Nothing is printed over a cave mouth or from underground: the marks sit on the terrain's surface, which is cut
+                // away there (#14, prints hanging in the air).
+                if (NoSurface(terrain, s.Position))
+                    continue;
                 Feather(entities[i], s, ref b, terrain, now);
                 Stone(entities[i], s, terrain, now);
                 if (!Wake(entities[i], s, ref b, terrain, now))
@@ -138,6 +142,14 @@ namespace Punchy.Fauna
                 onProp = true;
             }
             return height;
+        }
+
+        /// <summary>True where the terrain surface isn't there to mark: over a cave's cut-out mouth, or from a position well
+        /// below it (inside a cave).</summary>
+        static bool NoSurface(in TerrainSource terrain, float3 at)
+        {
+            var h = terrain.SampleHeight(at.xz);
+            return at.y < h - 0.6f || terrain.MouthCut(at.xz, h) < 0.15f;
         }
 
         void Add(in Trace trace)
@@ -201,6 +213,8 @@ namespace Punchy.Fauna
         {
             // Up on a prop's top (a roof, a rock): a faint dusty print on it (the soft-ground test below is the terrain's).
             var top = Underfoot(terrain, new float3(at.x, s.Position.y, at.z), out var onProp);
+            if (!onProp && NoSurface(terrain, new float3(at.x, s.Position.y, at.z)))
+                return;
             if (onProp)
             {
                 var dust = math.clamp(b.FrontRadius * s.Scale * 0.35f, 0.02f, 0.25f);
