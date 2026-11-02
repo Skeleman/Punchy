@@ -1,8 +1,8 @@
-# World lane: state (2026-11-02, after W-20)
+# World lane: state (2026-11-02, after W-21)
 
 Worktree `Punchy-world` (main PC), branch `world-features`. Backlog: `gh issue list -l lane:world`.
 Released: v0.11.0 = world b39522b + animal c810406.
-Pushed head: world-features fb047dc (W-20). Builds/Dev holds the W-20 build (= fb047dc code). Player logs: v1 101 / E128CB1D, v2 127 / 831FF2EE. v1 ponds 33 blobs, 154 wet cells, none under 3 cells.
+Pushed head: world-features fb047dc (W-20; W-21 pushed nothing). Builds/Dev holds the W-20 build (= fb047dc code). Player logs: v1 101 / E128CB1D, v2 127 / 831FF2EE. v1 ponds 33 blobs, 154 wet cells, none under 3 cells.
 No Punchy.exe of mine runs.
 
 ## W-05 / W-05b
@@ -35,6 +35,13 @@ No Punchy.exe of mine runs.
 - W-20: hut stalks sized so pod bottoms hang 3-6 m above the floor; log `hut bottoms 3.9/4.6/4.7 m` (v2).
   Build frame (3 huts + racks + white pool): -goto 2997,-2143 -camlook 2997,1,-2143,3003,-0.5,-2134. Shots PunchyMilestones/world/w20.
 - Builds via eval: pass `--timeout 600`, or the CLI's 30 s drop logs 2 pipeline-server errors ("Succeeded 2 errors").
+
+## W-21 biome-blend walls (v2, held, not pushed)
+- v2 -2165,255 walls: `BiomeData.SampleMapBlurred` keeps 4 biomes; `BiomeWeights.Add` swaps out the weakest slot in tap order, so where 5+ biomes blend a weight flips in or out across 2 m (43.3 -> 36.0 m). Pits from it drop under the F-22 lake rule (TerrainSource ~507, lake cut when > depth+2 deep) = the missing water.
+- Fix in Punchy-world/Temp/w21-biome-blend.patch (sum all ids, keep top 4, subtract 5th, normalize): walls gone (38.3 -> 37.2 over 10 m) but v2 landmarks 127/831FF2EE -> 125/AFA9CC63, cave 9CB26E0C6AEB39BA -> D531293D622E785A. Needs Zach's OK to change the v2 hash.
+- v2 -2422,-971 fall gap: unchanged by the patch; separate (river/fall code). Fall 0 lip -2450.5,21.4,-960.3 drop 4.6 width 47.8.
+- Original cave-creek spot not located (nearest cave to the walls is 410 m away).
+- Shots need the player moved first (WorldProbe.GoTo, wait ~15 s) or chunks are fog.
 
 ## Load times (#23)
 - v2 player ready ~7.2 s. `[bake] stages ms` logs each stage; `[island] generator version N ...; N landmarks, hash X` logs on v1 and v2.

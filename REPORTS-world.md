@@ -751,3 +751,14 @@ b/weather-mapjob.
 - **Shots:** PunchyMilestones/world/w20/w20-batfolk-chamber.png (build, 800 px: huts, racks, white pool), preview3.png (editor preview of the same frame, brighter lantern), w20-v1-spawn.png (v1 check run).
 - **Learned:** docs/agents/world.md (hut hang rule), docs/agents/editor-and-assets.md (build eval timeout).
 - **NEXT:** #35 step 4 light is now optional (huts sit in lantern reach; the build is a little darker than the editor); step 5 residents to the animal lane; v1 rule (pool or MinChamber) still waits for Zach.
+
+## W-21 (2026-11-02) - v2 steep walls, missing water, fall gap
+- **NOT DONE (held for Zach):** fix found but not pushed: it changes the v2 landmark hash (hard rule).
+- **Cause (-2165,255 walls + missing water):** `BiomeData.SampleMapBlurred` (v2 biome map only) adds 9 taps x 4 corners into `BiomeWeights`, which holds 4 slots and replaces the weakest in tap order. Where 5+ biomes meet, a biome with ~0.07 weight drops out in one step: x -2163 -> -2161 at z 255, ground 43.3 -> 36.0 m (biome 4 base 105 swapped for biome 9). The same flip makes 21 m pits under a 26.5 m lake; the F-22 rule (TerrainSource ~507, no lake where it is > depth+2 deep) cuts the lake there = the holes in the water. Not the river or fall code: no river within 300 m.
+- **Fix (Punchy-world/Temp/w21-biome-blend.patch):** sum every biome id, keep the top 4, subtract the 5th's weight, normalize, so weights stay continuous. Editor: same row reads 38.3 -> 37.2 m over 10 m, no wall, no lake holes. But v2 landmarks 127 / 831FF2EE -> 125 / AFA9CC63 and cave hash 9CB26E0C6AEB39BA -> D531293D622E785A (heights move at every 5+ biome blend, so rivers, landmark checks and cave rock shift). Reverted; the editor is back to 127 / 831FF2EE and 9CB26E0C6AEB39BA.
+- **-2422,-971 fall gap:** separate problem; the patch leaves that view identical. Fall 0 lip -2450.5,21.4,-960.3, drop 4.6, width 47.8; land shows between the upper and lower river surfaces.
+- **Cave-creek (card task 1):** not located. The nearest cave to the walls (cave 5, mouth -2573,296) is 410 m away; Zach's "creek" is likely these biome-blend trenches.
+- **Checks:** v2 editor before: 127 / 831FF2EE, cave 9CB26E0C6AEB39BA; with patch: 125 / AFA9CC63, D531293D622E785A; after revert: 127 / 831FF2EE, 9CB26E0C6AEB39BA. v1 not run (editor is pinned to v2 by env; the patch only touches the v2 map path, so v1 101 / E128CB1D can't move). No build; no Punchy.exe touched.
+- **Shots:** PunchyMilestones/world/w21: w21_wall_before.png (walls behind trees, top right), w21_wall_after.png (smooth slopes, patch applied), w21_fall_before.png / w21_fall_after.png (same gap in both).
+- **NEXT:** Zach decides: accept a new v2 landmark hash for the blend fix (apply the patch, recheck towns/caves), or keep the hash and live with the walls. Then a separate card for the -2422,-971 fall gap (river/fall surfaces around fall 0), and a fresh hunt for the cave-creek spot with a -goto from Zach.
+
