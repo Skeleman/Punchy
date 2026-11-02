@@ -489,6 +489,8 @@ namespace Punchy.Debugging
             // "-lift 15": the player held that high over the ground (see Lift), per shot line.
             var liftArg = System.Array.IndexOf(args, "-lift");
             liftHeight = liftArg >= 0 && liftArg + 1 < args.Length && float.TryParse(args[liftArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lh) ? lh : 0f;
+            liftNext = Time.time + 4f; // first sample 4 s in, once the spawned herd has settled
+            liftSample = 0;
             // #46/#43 tests: "-flatfear" (plain 3D fear distance), "-nobiometable" (every biome has every sound),
             // "-callrate 1.5" (the call budget a second), "-calllog" (calls played a 10 s window, with the biome).
             Punchy.Fauna.CreatureBrainSystem.HeightFearOff.Data = System.Array.IndexOf(args, "-flatfear") >= 0 ? 1 : 0;
@@ -1207,6 +1209,7 @@ namespace Punchy.Debugging
             callLogFrom = played;
         }
         float liftNext;
+        int liftSample;
 
         void Lift()
         {
@@ -1221,16 +1224,22 @@ namespace Punchy.Debugging
             liftNext = Time.time + 3f;
             using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
             var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var director = FindAnyObjectByType<FaunaDirector>();
             int near = 0, fleeing = 0;
-            foreach (var s in states)
-                if (math.distance(s.Position.xz, t.Position.xz) < 40f && !s.Position.Equals(t.Position))
-                {
-                    near++;
-                    if (s.Mode == CreatureMode.Flee)
-                        fleeing++;
-                }
+            for (int i = 0; i < states.Length; i++)
+            {
+                var s = states[i];
+                // Only deer (the spawned herd), not whatever else wanders near.
+                if (director == null || director.SpeciesAt(bodies[i].Species)?.name != "Deer" || math.distance(s.Position.xz, t.Position.xz) >= 40f)
+                    continue;
+                near++;
+                if (s.Mode == CreatureMode.Flee)
+                    fleeing++;
+            }
             states.Dispose();
-            Debug.Log($"DebugControls: lift {liftHeight:F0} m: {fleeing} of {near} creatures within 40 m fleeing");
+            bodies.Dispose();
+            Debug.Log($"DebugControls: lift {liftHeight:F1} m flat {Punchy.Fauna.CreatureBrainSystem.HeightFearOff.Data}: {fleeing} of {near} deer within 40 m fleeing (sample {++liftSample})");
         }
 
         static float[] ParseFloats(string text)
