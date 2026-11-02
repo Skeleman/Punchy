@@ -23,10 +23,14 @@ namespace Punchy.Fauna
     /// </summary>
     public static class AmbientSounds
     {
+        /// <summary>Tests ("-nobiometable"): 1 gives every biome every sound, as before the table (#43's before numbers).</summary>
+        public static readonly Unity.Burst.SharedStatic<int> TableOff = Unity.Burst.SharedStatic<int>.GetOrCreate<TableOffKey>();
+        struct TableOffKey { }
+
         /// <summary>The sounds at a spot's dominant biome.</summary>
         public static AmbientGroup At(in TerrainSource terrain, float2 xz)
         {
-            if (!terrain.Biomes.IsCreated)
+            if (TableOff.Data != 0 || !terrain.Biomes.IsCreated)
                 return AmbientGroup.All;
             var index = terrain.SampleGround(xz).Biomes.Dominant();
             ref var set = ref terrain.Biomes.Value;

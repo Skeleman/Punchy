@@ -61,6 +61,7 @@ namespace Punchy.Debugging
             Interact();
             ShotList();
             Lift();
+            CallLog();
             var keyboard = Keyboard.current;
             if (keyboard == null)
                 return;
@@ -488,6 +489,16 @@ namespace Punchy.Debugging
             // "-lift 15": the player held that high over the ground (see Lift), per shot line.
             var liftArg = System.Array.IndexOf(args, "-lift");
             liftHeight = liftArg >= 0 && liftArg + 1 < args.Length && float.TryParse(args[liftArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lh) ? lh : 0f;
+            // #46/#43 tests: "-flatfear" (plain 3D fear distance), "-nobiometable" (every biome has every sound),
+            // "-callrate 1.5" (the call budget a second), "-calllog" (calls played a 10 s window, with the biome).
+            Punchy.Fauna.CreatureBrainSystem.HeightFearOff.Data = System.Array.IndexOf(args, "-flatfear") >= 0 ? 1 : 0;
+            Punchy.Fauna.AmbientSounds.TableOff.Data = System.Array.IndexOf(args, "-nobiometable") >= 0 ? 1 : 0;
+            var rateArg = System.Array.IndexOf(args, "-callrate");
+            if (rateArg >= 0 && rateArg + 1 < args.Length && float.TryParse(args[rateArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var cr))
+                Punchy.Audio.CreatureAudioSystem.CallRate = cr;
+            callLog = System.Array.IndexOf(args, "-calllog") >= 0;
+            callLogNext = Time.time + 10f;
+            callLogFrom = Punchy.Audio.CreatureAudioSystem.CallsPlayed;
             // "-voicelog": log cats' and dogs' voices and howls as they play (Z-51); "-stancelog": folk lines with the
             // speaker's stance, and the stance odds per player body (Z-52).
             if (System.Array.IndexOf(args, "-voicelog") >= 0)
@@ -1179,6 +1190,22 @@ namespace Punchy.Debugging
         /// with how many creatures within 40 m are fleeing, of how many (the fear distance counts height).
         /// </summary>
         static float liftHeight;
+        static bool callLog;
+        float callLogNext;
+        int callLogFrom;
+
+        /// <summary>"-calllog": every 10 s, the calls played in the window (x6 is a minute), thinned ones, and the biome's sound set.</summary>
+        void CallLog()
+        {
+            if (!callLog || Time.time < callLogNext || !EnsureLocations(out var land) || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var self))
+                return;
+            callLogNext = Time.time + 10f;
+            var at = queryWorld.EntityManager.GetComponentData<LocalTransform>(self).Position;
+            var played = Punchy.Audio.CreatureAudioSystem.CallsPlayed;
+            Debug.Log($"DebugControls: calllog played {played - callLogFrom} in 10 s ({(played - callLogFrom) * 6} a minute), thinned total {Punchy.Audio.CreatureAudioSystem.CallsThinned}, " +
+                      $"sounds {Punchy.Fauna.AmbientSounds.At(land, at.xz)} at ({at.x:F0}, {at.z:F0})");
+            callLogFrom = played;
+        }
         float liftNext;
 
         void Lift()
@@ -1715,7 +1742,7 @@ namespace Punchy.Debugging
                             flat = PropSupport.Sample(ref set, props, probe, 0.2f, 0.6f, out var top) && math.abs(top.Height - hit.Height) < 0.15f;
                         }
                         // (A sloping one only if nothing near has a flat one.)
-                        var distance = math.distance(xz, t.Position.xz) + (flat || wallRequest ? 0f : SlopedTop);
+                        var distance = math.distance(xz, t.Position.xz) + (flat ? 0f : SlopedTop);
                         if (hit.Height - feet.y >= (wallRequest ? 1.2f : 0.55f * maxRise) && level && distance < best)
                         {
                             best = distance;

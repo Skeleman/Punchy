@@ -34,7 +34,9 @@ namespace Punchy.Audio
     {
         const float StepReach = 18f, HowlReach = 160f, WingReach = 25f, HiveReach = 18f, FarthestCall = 260f;
         /// <summary>The calls' budget: this many a second on average, up to CallBurst saved up; always heard within CloseCall m.</summary>
-        const float CallsPerSecond = 0.6f, CallBurst = 2f, CloseCall = 6f;
+        const float CallBurst = 2f, CloseCall = 6f;
+        /// <summary>Calls a second on average (tests: "-callrate").</summary>
+        public static float CallRate = 0.6f;
         float callBudget = CallBurst;
         /// <summary>Calls played, and let go over the budget, since start (for tests); and whether the budget applies.</summary>
         public static int CallsPlayed, CallsThinned;
@@ -120,7 +122,7 @@ namespace Punchy.Audio
             }
             GameAudio.Terrain = terrain;
             GameAudio.HasTerrain = true;
-            callBudget = math.min(callBudget + SystemAPI.Time.DeltaTime * CallsPerSecond, CallBurst);
+            callBudget = math.min(callBudget + SystemAPI.Time.DeltaTime * CallRate, CallBurst);
             Creatures(ear, terrain);
             Hives(ear, terrain, night);
             Countryside(ear, night);

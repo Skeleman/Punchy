@@ -42,6 +42,10 @@ namespace Punchy.Fauna
     {
         /// <summary>#12 A/B switch for one build: 1 (DebugControls' -noflaresettle) steers the flare the old way, wheeling
         /// round to face the landing spot at the full turn rate.</summary>
+        /// <summary>#46 tests ("-flatfear"): fear by plain 3D distance, as before the height weighting.</summary>
+        public static readonly Unity.Burst.SharedStatic<int> HeightFearOff = Unity.Burst.SharedStatic<int>.GetOrCreate<HeightFearKey>();
+        struct HeightFearKey { }
+        const float HeightFear = 2.5f;
         public static readonly Unity.Burst.SharedStatic<int> FlareSettleOff = Unity.Burst.SharedStatic<int>.GetOrCreate<FlareSettleKey>();
         struct FlareSettleKey { }
         const float CellSize = 16f;
@@ -306,7 +310,11 @@ namespace Punchy.Fauna
                 // scatter it, and nor does someone walking on the ground over a cave. (On foot across level ground it's
                 // much the same as the distance across.) A bird in the air keeps on with a hunt unless the player is
                 // really close.
-                var threatDistance = math.distance(s.Position, player);
+                // (#46: and the height gap counts for more than the ground between: a flyer hovering over the herd, 15 m up,
+                // is further off than 15 m. Within 1.5 m of level it's the plain distance, so ground-level fear is as it was.)
+                var gapUp = math.abs(s.Position.y - player.y);
+                var heightWeight = HeightFearOff.Data == 0 && gapUp > 1.5f ? 1.5f + (gapUp - 1.5f) * HeightFear : gapUp;
+                var threatDistance = math.length(new float3(s.Position.x - player.x, heightWeight, s.Position.z - player.z));
                 var nerve = s.Mode == CreatureMode.Hunt && flier ? 0.4f : 1f;
                 // Someone cheering or dancing about is noticed (and run from) further off; waving, a little. (Only by
                 // the skittish: a curious one comes to look, and some pay it no heed.)

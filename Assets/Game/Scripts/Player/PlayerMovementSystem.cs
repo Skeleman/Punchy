@@ -175,6 +175,7 @@ namespace Punchy.Player
                 var from = position;
                 // Up a wall already: the stick is read against the wall (forward up, back down, sideways along it).
                 var wallUp = 0f;
+                var wallSideNow = 0f;
                 var move = input.MoveDirection;
                 if (m.OnWall && body.ClimbsWalls)
                 {
@@ -187,6 +188,7 @@ namespace Punchy.Player
                         wallUp = -wallUp;
                         wallSide = -wallSide;
                     }
+                    wallSideNow = wallSide;
                     var across = new float2(into.y, -into.x);
                     move = into + across * wallSide * math.max(body.ClimbSpeed, 0.3f) / math.max(speed, 0.1f);
                 }
@@ -235,7 +237,7 @@ namespace Punchy.Player
                     var caved = math.distance(probeSlid, probeCave);
                     var propCut = math.distance(probeCave, position.xz);
                     var lenMove = math.length(move);
-                    UnityEngine.Debug.Log($"WallProbe: blocked {(blocked ? 1 : 0)} pressing {(pressing0(move) ? 1 : 0)} |move| {lenMove} grounded {(m.Grounded ? 1 : 0)} onWall {(m.OnWall ? 1 : 0)} vv {m.VerticalVelocity} cooldown {m.LatchCooldown} jump {(input.JumpPressed ? 1 : 0)} swim {(swimming ? 1 : 0)} tops {(tops ? 1 : 0)} size {size} stepUp {stepUp} head {1.7f * size} wallAtHead {(headWall ? 1 : 0)} wallAny {(anyWall ? 1 : 0)} anyTopAboveFeet {anyTop - from.y} slideCut {slid} caveCut {caved} propCut {propCut} feetY {from.y} x {from.x} z {from.z}");
+                    UnityEngine.Debug.Log($"WallProbe: blocked {(blocked ? 1 : 0)} pressing {(pressing0(move) ? 1 : 0)} |move| {lenMove} grounded {(m.Grounded ? 1 : 0)} onWall {(m.OnWall ? 1 : 0)} vv {m.VerticalVelocity} cooldown {m.LatchCooldown} jump {(input.JumpPressed ? 1 : 0)} swim {(swimming ? 1 : 0)} tops {(tops ? 1 : 0)} size {size} stepUp {stepUp} head {1.7f * size} wallAtHead {(headWall ? 1 : 0)} wallAny {(anyWall ? 1 : 0)} anyTopAboveFeet {anyTop - from.y} wallUp {wallUp} wallSide {wallSideNow} climbSpeed {body.ClimbSpeed} speed {speed} slideCut {slid} caveCut {caved} propCut {propCut} feetY {from.y} x {from.x} z {from.z}");
                 }
 
                 // A ledge within reach ahead: climbed onto, for a jump at it (or reaching it in the air, pressing on).
@@ -267,6 +269,17 @@ namespace Punchy.Player
                     m.VerticalVelocity = settings.JumpSpeed * 0.8f;
                     m.LatchCooldown = 0.5f;
                     position.xz = from.xz - math.normalizesafe(math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz) * 0.4f;
+                }
+                else if (wasOnWall && body.ClimbsWalls && tops && wallUp >= 0f && !swimming &&
+                         PropSupport.Sample(ref grids.Set.Value, props, from, 0.3f, stepUp, out var perch) &&
+                         perch.Height >= from.y - 0.3f && perch.Height <= from.y + stepUp)
+                {
+                    // Feet on a top (a wall's, after the climb): let go of the wall, with no stick needed (#33).
+                    m.Grounded = true;
+                    m.VerticalVelocity = 0f;
+                    position.y = math.max(from.y, perch.Height);
+                    t.Position = position;
+                    continue;
                 }
                 else if (body.ClimbsWalls && blocked && pressing && !swimming && !input.JumpPressed &&
                          (m.Grounded || wasOnWall || m.VerticalVelocity > -LatchFall && m.LatchCooldown <= 0f))
