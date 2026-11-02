@@ -2,6 +2,14 @@
 
 Newest first.
 
+## 2026-11-02 batch W-06: small falls, cave stream ends, ocotillo mimics
+- DONE: #42 v2 fall filter (world-features 646202c): falls with a water drop under 3 m dropped (5 were under 2 m, some negative, invisible) and falls under 8 m within 60 m of a bigger kept one merged. 98 -> 67 falls. Close shot of an unfiltered 4.6 m fall (riverfall-before.png) shows a teal curtain with white spikes; the filtered result is not re-shot (needs a v2 run).
+- DONE: #3 z34-pool was already merged (ancestor of HEAD). Cave stream ends, v1: pool 5, hole 0, left out 0, kept 5. v2: pool 12, hole 2, left out 0, kept 14. Logged as [cave-streams] at bake.
+- DONE: #17 mimics do spawn on v1, no fix needed. Rule: FaunaDirector.TrySpawn shortfall race, density 0.2 per ha in Sonoran (about 0.9 expected in the 120 m radius), so about one at a time. Sonoran is 7 cells of 140 land (2.5 km2). Seen at (-295,-2224), (390,-2483), (-3702,-1439).
+- Checks: v1 hash 101 landmarks E128CB1D with the new code; Builds/Dev built (first attempt failed on a file copy lock, second succeeded); one player run, quit by itself, no Punchy.exe of mine left.
+- Shots: PunchyMilestones/world/w06/cavepool.png (v1 cave stream running into a green pool), mimic.png (ocotillo mimic, bulb root with feet under a trunk, in Sonoran), riverfall-before.png (v2 4.6 m fall, curtain visible).
+- NEXT: re-shot a filtered v2 fall; decide whether 67 falls is still many; v2 default decision.
+
 ## 2026-11-02 batch W-05b: smooth v2 rivers and waterfalls
 - DONE: #18 v2 rivers follow Hermite curves through the river points (no grid angles), width grows downstream (9-45 m), bed carved on the smoothed line (world-features e3ab4af).
 - DONE: #42 waterfalls where a segment's bed drops 4 m or more: bed step half way along the segment, curtain and spray from the landmark effect emitters. 98 falls (includes stacked cascades).

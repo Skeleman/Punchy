@@ -2,7 +2,7 @@
 
 Worktree `Punchy-world` (main PC), branch `world-features`. Backlog: `gh issue list -l lane:world`.
 Released: v0.11.0 = world b39522b + animal c810406.
-Pushed head: world-features e3ab4af (v2 smooth rivers + waterfalls, behind `-island v2`). Builds/Dev holds a build of it.
+Pushed head: world-features 646202c (W-06: v2 falls 98 -> 67, cave stream end counts, -place riverfall); before that e3ab4af (v2 smooth rivers + waterfalls, behind `-island v2`). Builds/Dev holds a build of it.
 No Punchy.exe of mine runs.
 
 ## W-05 / W-05b
