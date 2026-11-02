@@ -341,15 +341,74 @@ namespace Punchy.Terrain
             return result;
         }
 
-        /// <summary>A wide blur of the biome map (3×3 taps across the radius), for smooth elevation transitions.</summary>
+        /// <summary>
+        /// A wide blur of the biome map (3×3 taps across the radius), for smooth elevation transitions.
+        /// W-21: the taps can cover five or more biomes, and <see cref="BiomeWeights.Add"/> keeps only four, dropping
+        /// whichever came in weakest in tap order. A tall biome (mountains) switching in or out of the four made
+        /// metres-high vertical walls and pits (island v2, e.g. -2165,255). Every biome's full weight is summed
+        /// first; the four strongest keep their weight minus the fifth's, so a biome leaving the four fades to zero.
+        /// </summary>
         public static BiomeWeights SampleMapBlurred(ref BiomeMapBlob map, float2 xz, float radius)
         {
-            var result = default(BiomeWeights);
+            var ids = new FixedList128Bytes<int>();
+            var sums = new FixedList128Bytes<float>();
             for (int y = -1; y <= 1; y++)
             for (int x = -1; x <= 1; x++)
-                AddMapSample(ref map, xz + new float2(x, y) * radius, (2 - math.abs(x)) * (2 - math.abs(y)), ref result);
+                AddMapSample(ref map, xz + new float2(x, y) * radius, (2 - math.abs(x)) * (2 - math.abs(y)), ref ids, ref sums);
+
+            var result = default(BiomeWeights);
+            var used = 0;   // bit per list entry already taken
+            for (int k = 0; k < 4; k++)
+            {
+                var best = -1;
+                for (int i = 0; i < ids.Length; i++)
+                    if ((used & (1 << i)) == 0 && sums[i] > 0f && (best < 0 || sums[i] > sums[best]))
+                        best = i;
+                if (best < 0)
+                    break;
+                used |= 1 << best;
+                result.Ids[k] = ids[best];
+                result.Weights[k] = sums[best];
+            }
+            var fifth = 0f;
+            for (int i = 0; i < ids.Length; i++)
+                if ((used & (1 << i)) == 0)
+                    fifth = math.max(fifth, sums[i]);
+            if (fifth > 0f)
+                result.Weights = math.max(result.Weights - fifth, 0f);
             result.Normalize();
             return result;
+        }
+
+        static void AddMapSample(ref BiomeMapBlob map, float2 xz, float weight, ref FixedList128Bytes<int> ids, ref FixedList128Bytes<float> sums)
+        {
+            var max = map.Resolution - 1;
+            var uv = math.clamp((xz - map.Origin) / map.WorldSize * max, 0f, max);
+            var i0 = math.min((int2)math.floor(uv), max - 1);
+            var f = uv - i0;
+            var row = i0.y * map.Resolution + i0.x;
+            AddSum(map.Ids[row], weight * (1f - f.x) * (1f - f.y), ref ids, ref sums);
+            AddSum(map.Ids[row + 1], weight * f.x * (1f - f.y), ref ids, ref sums);
+            AddSum(map.Ids[row + map.Resolution], weight * (1f - f.x) * f.y, ref ids, ref sums);
+            AddSum(map.Ids[row + map.Resolution + 1], weight * f.x * f.y, ref ids, ref sums);
+        }
+
+        static void AddSum(int id, float weight, ref FixedList128Bytes<int> ids, ref FixedList128Bytes<float> sums)
+        {
+            if (weight <= 0f)
+                return;
+            for (int i = 0; i < ids.Length; i++)
+                if (ids[i] == id)
+                {
+                    sums[i] += weight;
+                    return;
+                }
+            // 36 contributions at most, so at most 31 distinct biomes fit the list; extra ones (never seen) are dropped.
+            if (ids.Length < ids.Capacity && ids.Length < 31)
+            {
+                ids.Add(id);
+                sums.Add(weight);
+            }
         }
 
         static void AddMapSample(ref BiomeMapBlob map, float2 xz, float weight, ref BiomeWeights result)
