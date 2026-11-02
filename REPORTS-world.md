@@ -2,6 +2,14 @@
 
 Newest first.
 
+## 2026-11-02 batch W-05: generator version 2 wired behind -island v2
+- DONE: #23 layout B (five realms) as generator version 2, selected by `-island v2`; v1 default unchanged (world-features b5c7f88, wip/island-v2 merged).
+- NOT DONE: #18 rivers still angular at bends (width 9-60 m done); #42 waterfalls not started (v2 rivers near sea level).
+- Checks: compile ok; editor play on SampleScene v1 = 101 landmarks, hash E128CB1D; v2 = 134 landmarks, hash 71F2AF0C (editor and player, bake 3.2 s); Builds/Dev succeeded, both launches quit on their own.
+- Shots: PunchyMilestones/world/w05/v2-map-topdown.png (rivers cyan, lakes blue), v2-river-bend.png (wide river with angular bends).
+- Learned: STATE.md gotchas.
+- NEXT: smooth river paths, then waterfalls on steep reaches.
+
 ## 2026-11-02 batch W-04b: W-04 built (Dev + DevB) and shot; most checks inconclusive, hash not obtained
 - DONE: W-04 code (f4c7239) compiles and builds clean (Builds/DevB, then Builds/Dev after Zach freed it; errors=0). No player exceptions in the log. Shot list ran to "done", 7 shots, 66.6 s.
 - NOT DONE: #32 roofs: Inn shot ended inside a wall (dark, no eave). The village shots show thatched eaves with a visible lip on the round huts, no gaps; the roof-edge close up still needs a framed shot (-camrel from a hut position).
