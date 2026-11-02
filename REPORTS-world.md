@@ -2,6 +2,15 @@
 
 Newest first.
 
+## 2026-11-02 batch W-11: v2 ponds, big blue moon, timber/fog looks
+- DONE: #19 v2 ponds come back: the core test uses the biome map's sharp weights on v2 (blurred weights never passed 0.4). v2 1 pond, 15 wet cells, min/median/p90 15/15/15, 0 single-cell; v1 unchanged 33 blobs 3/4/7 (world-features 959fd34)
+- DONE: #34 blue moon radius 0.13 -> 0.22 rad (about 6.5x v0.11.0), extra crater scale and rock octave so the face keeps detail (959fd34)
+- DONE: #15 hall timber close-up: dark posts and beams read clearly on the hall front
+- NOT DONE: #15 fog over a non-marsh river: the shot framed forest and a dirt track, no river or fog in view; needs a reframed spot
+- Checks: compile clean, no shader errors; 1 build to Builds/Dev, Succeeded 0 errors; v1 101 / E128CB1D, v2 127 / 831FF2EE; shot list 7 shots in 139 s, quit by itself, no Punchy.exe of mine left.
+- Shots: PunchyMilestones/world/w11/w11-moon-night.png (blue moon about a quarter of the frame wide over the treeline, white moon at its edge, face mottled, slightly soft), w11-moon-dusk.png (blue moon rising behind the eastern trees, clearly large and blue), w11-hall-timber.png (hall front, timber frame and banners at about 12 m)
+- NEXT: #15 fog shot at a non-marsh river picked with WorldProbe (H + river cell); more v2 swamp area if Zach accepts a v2 hash change.
+
 ## 2026-11-02 batch W-10: pond pruning, readable sand puffs, cobbles
 - DONE: #19 small ponds dropped by a baked PondMask (wet cells labelled on the 16 m grid, ponds under 3 cells removed). Blobs 219 -> 33, wet cells 361 -> 154, min/median/p90 1/1/3 -> 3/4/7, single-cell 165 -> 0 (world-features c5ddbe2)
 - DONE: #44 sand puffs warmer than the sand, more opaque, smaller, hanging 0.6-1.4 m; 126-132 SandPuffs in range at the Dunes spot, a few per screen (c5ddbe2)

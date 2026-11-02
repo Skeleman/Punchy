@@ -1,16 +1,12 @@
-# World lane: state (2026-11-02, after W-10)
+# World lane: state (2026-11-02, after W-11)
 
 Worktree `Punchy-world` (main PC), branch `world-features`. Backlog: `gh issue list -l lane:world`.
 Released: v0.11.0 = world b39522b + animal c810406.
-Pushed head: world-features c5ddbe2 (W-10). Builds/Dev holds a build of it. v1 101 / E128CB1D, v2 127 / 831FF2EE hold. Ponds 33 blobs, 154 wet cells, none under 3 cells.
+Pushed head: world-features 959fd34 (W-11). Builds/Dev holds a build of it. v1 101 / E128CB1D, v2 127 / 831FF2EE hold. v1 ponds 33 blobs, 154 wet cells, none under 3 cells.
 No Punchy.exe of mine runs.
 
 ## W-05 / W-05b
-- #23 done: `Terrain/Island/IslandV2.cs`. v1 stays default (101 landmarks, E128CB1D, rechecked in W-05b). `-island v2` (or env
-  PUNCHY_ISLAND=v2 in the editor) rebuilds the TerrainSource at launch; log lines `[island]` (now 129 landmarks, hash 62B8C643, bake 3.5 s) and rivers.
-- #18 done for v2: RiverSettings.Smooth (Hermite curves), width 9-45 m. #42 done for v2: RiverSettings.FallDrop = 4 m, bed step, 98 falls, drawn
-  by LandmarkEffectSystem. Both off for v1. Not done: springs on ridge crests; a close look at a 4-8 m fall (the one shot is the 32 m cliff).
-  Maps/shots: PunchyMilestones/world/w05b.
+- #23 v2 island: `Terrain/Island/IslandV2.cs`, `-island v2` / env PUNCHY_ISLAND=v2. #18/#42 smooth rivers + falls for v2 only. Shots PunchyMilestones/world/w05b.
 
 ## Gotchas
 - Play checks: open `SampleScene.unity` first (World.unity subscene holds the TerrainSource); a bare play has none.
@@ -40,6 +36,12 @@ No Punchy.exe of mine runs.
 - Probe: WorldProbe.PuffType, Paving(x,z), BigPonds(k). Spots: Dunes 1800,-1800 (H 10.7); plaza 115,-405 (H 25.7); swamp ponds round -2700,1450.
 - Editor: cam.Render misses ambient particles (Graphics.RenderPrimitives); use ScreenCapture in play to judge them.
 
+## W-11
+- #19 v2 had 0 ponds (not the mask): its swamp patches are small, so blurred shape weights never pass 0.4. Ponds() now tests the core on the
+  map's sharp weights when UsesBiomeMap. v2: 1 pond, 15 wet cells (-2282,574), min/median/p90 15/15/15, 0 single-cell. Only ~0.16 km2 of v2 swamp core; more ponds need generator changes (hash).
+- #34 blue moon radius 0.13 -> 0.22 rad (Sky.hlsl), 4 crater scales + finer rock octave. Night/dusk shots w11.
+- #15 hall timber shot reads (dark posts/beams). river-fog shot missed: camera at 259,55,880 framed forest and a dirt track, no river or fog visible.
+
 ## Open
-- #23 follow-ups: volcano markers, v2 default decision. Rivers: springs on high ground; shot of a small fall. #15 look checks (Z-30 posts, Z-10 fog). #13 Z-35 fall speed. #14 cave-mouth shards.
+- #23 follow-ups: volcano markers, v2 default decision. Rivers: springs on high ground; shot of a small fall. #15 fog-over-river shot (redo framing with WorldProbe H; non-marsh river). #13 Z-35 fall speed. #14 cave-mouth shards.
 - Design-note P3: #17, #18-#22. Roadmap #24.
