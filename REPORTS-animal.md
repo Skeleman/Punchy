@@ -852,3 +852,11 @@ different files.
 - #6 row 1 met: the leaping run's hip is drawn 30 deg back from both extremes (CreatureAnimator.LeapHip). Wolf upper leg from vertical, body frame, before -> after: front gathered -91 -> -61, front extended 93 -> 64, hind gathered 102 -> 72, hind extended -63 -> -33. Timing, spine flex, rotary gallop and bound unchanged.
 - #6 row 2 met: side-on 4 m retakes, viewed at 800 px. Gathered (10.7 m/s): feet tucked, no leg near horizontal. Extended (11.6 m/s): airborne, front legs on a forward-down diagonal, hinds back. The first extend shot fired at 6 m/s (part-blended) and was retaken with the same build.
 - NEXT: Zach's look at leapgather-800 and leapextend2-800.
+
+## M-01 (2026-11-02): both lanes merged into main, main 0cc3ed7 (one build)
+- Row 1: `merge/lanes-to-main` from origin/main 50da96e; `--no-ff` merges of animal-behaviours a077715 (0e99c30) and world-features 73709c8 (6cd3978). Conflicts, docs only: CLAUDE.md (main's "repo is public" commit vs the animal docs/agents split: kept the animal side, which already has the public note; build-release.md has the public-release line), docs/agents/rendering.md (kept both bullets, as rehearsed). Both stayed in their own line endings (CRLF, LF). No conflict markers.
+- Row 2: editor recompile on the branch, 0 errors (BatFolkBaking loaded).
+- Row 3: build Succeeded; v1 101 / E128CB1D, v2 127 / 831FF2EE, `[batfolk] caves 3, picked 1` on v2; 0 exceptions; both players quit on their own. Logs in PunchyMilestones/animal/m01/.
+- Row 4: PR #51 merged with a merge commit; main 0cc3ed7 contains both lane heads (merge-base --is-ancestor). Lane branches kept.
+- Row 5: worktree back on animal-behaviours, clean (apart from Assets/_Recovery), editor recompiled with 0 errors. Not done: deleting local `merge-test` (ac8031a); `git branch -D` was blocked by the permission classifier and `-d` refuses (its merge commit isn't on main).
+- NEXT: Zach or the supervisor deletes local merge-test (and the merged `merge/lanes-to-main` branches if wanted).
