@@ -728,3 +728,8 @@ b/weather-mapjob.
 - **NOT DONE:** nothing from the card. Bat folk not started (out of scope).
 - **Note:** first v2 player run lost its shots (shot dir missing); reran the player, no rebuild.
 - **Shots:** PunchyMilestones/world/w17 (v2-white-pool, v2-white-pool-wide, editor-white-pool).
+
+## W-18 (2026-11-02)
+- **DONE:** #35 bat folk steps 1-2. `BatFolkBaking` stage after caves, own seed stream and blob; picks 1 per 6 qualifying caves by scrambled mouth-cell hash; per-pool white flag replaces `-whitepools` (kept as debug override). Logs: v1 101 / E128CB1D, `[batfolk] caves 0, picked 0`; v2 127 / 831FF2EE, `[batfolk] caves 3, picked 1 ... cave 2 chamber 3001,3,-2135 r 10.1 pool 1`. Cave hash 9CB26E0C6AEB39BA unchanged. Build shots at 800 px: picked pool white, non-picked pool normal blue. world-features 73709c8 pushed; one build.
+- **NOT DONE:** nothing from the card. v1 gets no bat folk (no deep big chamber with a pool); rule choice open.
+- **Shots:** PunchyMilestones/world/w18 (picked-white-pool, unpicked-pool, editor-picked).
