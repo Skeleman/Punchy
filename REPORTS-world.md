@@ -811,3 +811,18 @@ b/weather-mapjob.
 - **Row 2 DONE**: before (editor) vs after (build), daylight, about 150 m out. Lowland patches are gone from the upper flanks. Pines on the crests are the Mountains biome's own layer.
 - **Checks:** v2 125 / AFA9CC63 -> 125 / D709D95C, caves D531293D622E785A -> 5D90D9CFC5326976 (editor). Lost: Grotto -1086.4,2981.1. New: CrystalGrotto -0.1,-406.2. Caves 37/37, settlements unchanged, bat folk unchanged. v1 not re-run (map-only code path). world-features afc068c pushed. 1 build.
 - **Shots:** PunchyMilestones/world/w26/w26-before-flank1.png, w26-before-flank2.png, w26-after-flank1.png, w26-after-flank2.png.
+
+## W-27 salt tower (2026-11-02, world-features fba3a7f)
+- DONE, row 1:
+  - v2 tower at 3720,-800, 73.4 m tall on base 7.0, in the largest salt-flat patch (0.4 km2, 280 m in from
+    its edge, relief 0.08 m).
+  - Landmark diff: +1 SaltTower, nothing else moved.
+- DONE, row 2: 245 basalt step stubs, 0.300 m rise each, round the column and through 2 tunnels to a flat
+  summit. Walker: max rise 0.339 m (step up 0.4), no drops, never blocked, top reached.
+- DONE, row 3: LOD0 7048 tris, LOD1 1660, LOD2 692.
+- DONE, row 4: shots in world/w27 (far, spiral, summit), viewed at 800 px. All three were taken in rain.
+  The far shot is off the flat because the patch is small.
+- Hashes:
+  - v2 126 / 053C63D5.
+  - v1 has salt flats: 102 / 51EA6463 (+SaltTower 3080,320 only).
+  - Caves not re-run.
