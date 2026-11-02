@@ -117,6 +117,55 @@ namespace Punchy.EditorTools
             return Log($"Visit {style}{(second ? " (second)" : "")}{(outside ? " outside" : "")}: cave #{cave} at {t.Position}");
         }
 
+        /// <summary>
+        /// Cave preview, step 1 (W-17, #35): cave interiors only render round the player (chunks stream, Underground and
+        /// the lantern follow the player and camera over a few frames), so a camera moved there alone shows nothing.
+        /// This puts the player on the cave floor under `pos`, stops the follow camera and parks the main camera at
+        /// `pos` looking at `target`; `whitePools` switches the -whitepools look. Let play mode run a few seconds,
+        /// then call PreviewShot.
+        /// </summary>
+        public static string PreviewAt(Vector3 pos, Vector3 target, bool whitePools = false)
+        {
+            if (!TryWorld(out var em, out _, out var source, out _) || Camera.main == null)
+                return Log("PreviewAt: enter play mode first.");
+            CaveSystem.SetWhitePools(whitePools);
+            using var player = em.CreateEntityQuery(typeof(Punchy.Player.PlayerTag), typeof(LocalTransform));
+            var e = player.GetSingletonEntity();
+            var t = em.GetComponentData<LocalTransform>(e);
+            t.Position = new float3(pos.x, source.FloorUnder(pos, out var inCave) + 0.05f, pos.z);
+            em.SetComponentData(e, t);
+            var cam = Camera.main;
+            foreach (var follow in cam.GetComponents<Punchy.CameraRig.ThirdPersonCamera>())
+                follow.enabled = false;
+            cam.transform.SetPositionAndRotation(pos, Quaternion.LookRotation(target - pos));
+            return Log($"PreviewAt: player at {t.Position} (in cave {inCave}), camera parked; wait a few seconds, then PreviewShot");
+        }
+
+        /// <summary>Cave preview, step 2: renders the parked main camera (16:9) to a PNG at `path`.</summary>
+        public static string PreviewShot(string path, int width = 1280)
+        {
+            var cam = Camera.main;
+            if (cam == null)
+                return Log("PreviewShot: no camera.");
+            var h = width * 9 / 16;
+            var rt = RenderTexture.GetTemporary(width, h, 24, RenderTextureFormat.ARGB32);
+            var old = cam.targetTexture;
+            cam.aspect = 16f / 9f;
+            cam.targetTexture = rt;
+            cam.Render();
+            cam.targetTexture = old;
+            var prev = RenderTexture.active;
+            RenderTexture.active = rt;
+            var tex = new Texture2D(width, h, TextureFormat.RGB24, false);
+            tex.ReadPixels(new Rect(0, 0, width, h), 0, 0);
+            tex.Apply();
+            RenderTexture.active = prev;
+            RenderTexture.ReleaseTemporary(rt);
+            System.IO.File.WriteAllBytes(path, tex.EncodeToPNG());
+            Object.DestroyImmediate(tex);
+            return Log($"PreviewShot: {path}; Underground {CaveSystem.Underground:F2}, SurfaceHidden {CaveSystem.SurfaceHidden:F2}");
+        }
+
         [MenuItem("Punchy/Caves/Hide Debug Readout")]
         public static string HideReadout()
         {

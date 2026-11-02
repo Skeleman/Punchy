@@ -418,9 +418,10 @@ namespace Punchy.Terrain
         /// the shader's opacity turns the pool into a hard-edged slab that reads as snow), so the rim still fades into the
         /// bed and it lies still, well under the thick-and-oily threshold (0.55); the whiteness comes from the colour and a
         /// self-glow, which also shows it where nobody carries a light. The glow's hue swirl only trades blue for green, which stays near white.
+        /// W-17: toned down (the pool read as a milky blob); the shader also darkens and thins the middle (_SoftRim).
         /// </summary>
-        static readonly float4 WhitePoolWater = new float4(0.92f, 0.95f, 0.97f, 0.24f);
-        const float WhitePoolGlow = 0.2f;
+        static readonly float4 WhitePoolWater = new float4(0.72f, 0.8f, 0.82f, 0.18f);
+        const float WhitePoolGlow = 0.12f;
         /// <summary>_SoftRim = 1 for white pool draws (the water shader fades them out towards the disc's rim).</summary>
         static MaterialPropertyBlock softRimProps;
         static MaterialPropertyBlock SoftRimProps
@@ -440,6 +441,13 @@ namespace Punchy.Terrain
         /// their own pools). Drawing only, so it changes nothing that is baked.
         /// </summary>
         public static bool WhitePools = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-whitepools") >= 0;
+        /// <summary>Switches the white pool look at runtime (editor previews): the pool meshes rebuild on the next draw.</summary>
+        public static void SetWhitePools(bool on)
+        {
+            WhitePools = on;
+            lavaPoolMesh = null;
+            waterPoolMesh = null;
+        }
         // Streams run shallow over dark rock: darker and greener than the pools, a little murkier.
         static readonly float4 CaveStreamWater = new float4(0.04f, 0.13f, 0.12f, 0.15f);
         /// <summary>One mesh per stream, built when the world's caves are first drawn (streams are few and fixed).</summary>

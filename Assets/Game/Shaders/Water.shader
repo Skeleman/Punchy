@@ -347,6 +347,9 @@ Shader "Punchy/Water"
                 // White pools (#35): 1 in the middle, easing to 0 at the disc's edge (depth there is 1 - r², so the outer
                 // third or so fades), so the shore shows through and no hard rim is drawn. 1 everywhere on other water.
                 half rim = lerp(1, smoothstep(0.0, 0.55, depth), _SoftRim);
+                // White pools' middle (W-17: it read as a milky blob): 0 at the shore, 1 at the centre. The body there
+                // darkens to a deep, dark water colour and the glow thins out, so only a pale sheen is left round it.
+                half whiteMiddle = _SoftRim * smoothstep(0.25, 1.0, depth);
                 // Very murky water is thick, like oil or sludge.
                 float viscous = smoothstep(0.55, 0.9, murk) * (1 - lava);
                 float distanceFade = saturate(1 - distance(input.positionWS, GetCameraPositionWS()) / 350);
@@ -437,6 +440,7 @@ Shader "Punchy/Water"
                 half3 shallowColor = lerp(_ShallowColor.rgb, input.look.rgb, saturate(murk * 1.5));
                 half3 deepColor = lerp(_DeepColor.rgb, input.look.rgb * 0.2, saturate(murk * 1.5));
                 half3 waterColor = lerp(deepColor, shallowColor, exp(-thickness * _Absorption * (1 + murk * 8)));
+                waterColor *= 1 - 0.7 * whiteMiddle;
                 // River streaks: lighter and darker bands drifting downstream.
                 waterColor *= lerp(1, 0.88 + 0.24 * streaks, flowAmount * (1 - murk));
                 half3 body = waterColor * (ambient + light.color * saturate(dot(n, light.direction)) * shadow * 0.6);
@@ -490,8 +494,11 @@ Shader "Punchy/Water"
                                * _Sparkle * distanceFade * (1 - murk) * (1 - lava);
                 color += light.color * glitter * 10;
                 // Toxic pools glow from within, pulsing slowly in patches.
-                color += input.look.rgb * glow * rim * rim * (1 - lava) * (0.7 + 0.3 * sin(t * 0.6 + PunchyValueNoise(p * 0.08) * 6.28)) * 1.5;
-                half alpha = saturate(1 - exp(-thickness * _Opacity * (1 + murk * 12)) + fresnel + glint + glitter + lanternGlint);
+                // (White pools: a band of pale glow just inside the soft rim, faint in the middle.)
+                color += input.look.rgb * glow * rim * rim * (1 - 0.8 * whiteMiddle) * (1 - lava) * (0.7 + 0.3 * sin(t * 0.6 + PunchyValueNoise(p * 0.08) * 6.28)) * 1.5;
+                // White pools stay see-through over their whole width, so the floor shows under the middle too.
+                half bodyAlpha = (1 - exp(-thickness * _Opacity * (1 + murk * 12))) * lerp(1, 0.55, _SoftRim);
+                half alpha = saturate(bodyAlpha + fresnel + glint + glitter + lanternGlint);
 
                 // Thick water: an oily rainbow film in the reflection, and pale scum drifting in slow rafts.
                 if (viscous > 0)

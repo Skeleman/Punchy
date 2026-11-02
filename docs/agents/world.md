@@ -41,7 +41,11 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   Rubble and plants are placed per cave in `Parallel.For` and joined in cave order, so the output is the same as
   a serial pass; keep any new per-cave pass that way (no shared RNG or lists across caves). `[bake] caves ms`
   logs each step. `-whitepools` draws every cave water pool as white pool water (`CaveSystem.WhitePoolWater`,
-  #35); murk above about 0.3 makes the pool a hard-edged opaque slab that reads as snow.
+  #35); murk above about 0.3 makes the pool a hard-edged opaque slab that reads as snow. White pools set `_SoftRim`:
+  the rim fades, the middle darkens and stays see-through (body alpha x0.55), and the glow is a band inside the rim.
+- **Cave previews in the editor:** a camera moved into a cave alone shows nothing (chunks stream, `Underground` and
+  the lantern follow the player over a few frames). In play mode call `CaveTools.PreviewAt(pos, target, whitePools)`,
+  wait a few seconds, then `CaveTools.PreviewShot(path)`.
 - **Plants, animals and particles are not baked:** editing their assets in Play mode applies live within about a
   second (the systems hash their config and rebuild).
 - **Ponds are pruned after baking:** `BuildPlaces` labels wet cells on a 16 m grid and bakes `PondMask`, which
