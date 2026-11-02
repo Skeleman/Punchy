@@ -1000,6 +1000,8 @@ namespace Punchy.Debugging
                 shotIndex = -1;
 #if UNITY_EDITOR
                 UnityEditor.EditorApplication.isPlaying = false;
+#else
+                Application.Quit(); // a player of ours must end by itself (it locks the exe)
 #endif
                 return;
             }
