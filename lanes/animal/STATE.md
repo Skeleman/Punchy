@@ -1,9 +1,11 @@
-# Animal lane: state (2026-11-02, after batch A-28)
+# Animal lane: state (2026-11-02, after batch M-02)
 
-Worktree `Punchy` (animal lane only). On `animal-behaviours` = origin 0b06bf3 (A-28 on top of c601c66, which
-merged main 0cc3ed7). Status clean apart from the old untracked `Assets/_Recovery/` (not ours). Editor on port
-7800, 0 errors. Player log has `[island] generator version 1 (baked); 101 landmarks, hash E128CB1D`.
-This branch still defaults to v1 with no flag (only `-island v2` switches); main/world's v2 default is not merged in.
+Worktree `Punchy` (animal lane only). On `animal-behaviours` = origin 0b06bf3 (A-28). Status clean apart from the
+old untracked `Assets/_Recovery/` (not ours). Editor on port 7800, 0 errors.
+M-02 merged both lanes into main: PR #52, main 0bd91cb contains animal-behaviours 0b06bf3 and world-features
+afc068c. animal-behaviours itself does not have the merge yet: it still defaults to v1 with no flag. Merging
+origin/main into it (fast to do, no conflicts expected) brings the v2 default, bat folk huts and v2 surfaces.
+Local `merge-test` deleted (both parents were in main).
 
 ## Folk talks (A-26 to A-28)
 - CreatureBrainSystem: ChatFree is `internal static` (FolkTalkSystem uses it too). It allows Wander, Idle before

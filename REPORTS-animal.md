@@ -915,3 +915,20 @@ DONE (4/4). animal-behaviours 0b06bf3 pushed.
 - Shots: PunchyMilestones animal/a28: build_talk_0_800.png (main), build_talk_1_800.png, editor_talk_800.png
   (full size in build/ and editor/).
 - NEXT: optional bubble height per body size; Zach's call on the 2-minute talk gaps (cooldown).
+
+## M-02 (2026-11-02): both lanes merged into main, main 0bd91cb (one build)
+DONE (all five rows).
+- Row 1: `merge/lanes-to-main` reset to origin/main 0cc3ed7 (the old local branch was already in main); `--no-ff`
+  merges of animal-behaviours 0b06bf3 (f8d1263) and world-features afc068c (d0e9204). No conflicts
+  (docs/agents/rendering.md auto-merged, still LF). No conflict markers.
+- Row 2: editor recompile on the branch, 0 errors (BatFolkMeshes in Assembly-CSharp).
+- Row 3: build Succeeded (Builds/Windows). v1 (`-island v1`) 101 / E128CB1D, `[batfolk] caves 0`; v2 (no flag)
+  125 / D709D95C, `[batfolk] caves 3, picked 1`. 0 exceptions; both players quit on their own. Logs and shots
+  in PunchyMilestones/animal/m02/.
+- Row 4: PR #52 merged with a merge commit; main 0bd91cb contains both lane heads (merge-base --is-ancestor).
+  Lane branches kept.
+- Row 5: worktree back on animal-behaviours, clean (apart from Assets/_Recovery), editor 0 errors. Local
+  merge-test deleted (both its parents are in main).
+- Note: the editor could not be closed before the branch switches (closing it was refused); the open scene was
+  clean, and a refresh plus recompile went through without dialogs.
+- NEXT: merge origin/main into animal-behaviours (and world-features) so the lanes carry the merge.
