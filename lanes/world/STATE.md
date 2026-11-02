@@ -1,52 +1,30 @@
-# World lane: state (2026-11-02, after W-21)
+# World lane STATE (after W-22, 2026-11-02)
 
-Worktree `Punchy-world` (main PC), branch `world-features`. Backlog: `gh issue list -l lane:world`.
-Released: v0.11.0 = world b39522b + animal c810406.
-Pushed head: world-features fb047dc (W-20; W-21 pushed nothing). Builds/Dev holds the W-20 build (= fb047dc code). Player logs: v1 101 / E128CB1D, v2 127 / 831FF2EE. v1 ponds 33 blobs, 154 wet cells, none under 3 cells.
-No Punchy.exe of mine runs.
+Pushed head: world-features 5016957 (W-22: d436650 biome-blend fix + 5016957 v2 default / falls). Builds/Dev holds the W-22 build (= 5016957).
+Player logs: no flag = v2 125 / AFA9CC63 (caves D531293D622E785A); `-island v1` = v1 101 / E128CB1D.
 
-## W-05 / W-05b
-- #23 v2 island: `Terrain/Island/IslandV2.cs`, `-island v2` / env PUNCHY_ISLAND=v2 (the editor runs v2). #18/#42 smooth rivers + falls for v2 only. Shots PunchyMilestones/world/w05b.
+## Island
+- #23 v2 island: `Terrain/Island/IslandV2.cs`. v2 is the DEFAULT since W-22; `-island v1` / PUNCHY_ISLAND=v1 for v1.
+  No netcode sync: host and client each read their own launch (a v0.11 peer defaults to v1 and would mismatch).
+- W-21 biome-blend fix applied (BiomeData.SampleMapBlurred: sum all ids, keep top 4 minus 5th). 127 -> 125 lost:
+  OakGrove 1757.3,2593.3 and Waterfall -1993.9,3009.8. Caves 37 -> 37, settlements 6 -> 6, bat folk unchanged
+  (cave 2 chamber 3001,3,-2135, huts 3).
+- #18/#42 smooth rivers + falls (v2 only). 71 waterfalls in v2.
 
-## Gotchas
-- Play checks: open `SampleScene.unity` first (World.unity subscene holds the TerrainSource); a bare play has none.
-- WorldProbe (untracked, Assets/Temp/Editor): eval `WorldProbe.LmList("")` gives count+hash; `RiverMap(path)` top-down; `Shot`, `GoTo`.
-- Camera height = H(x,z) + offset; take H from the probe, never guess.
-- Shot lists: `-camlook` is per line; repeat it on every line. `-meteors` forces a shower; `-weather Clear` for sky.
-- Shot lists: create the `-shotdir` folder first, or every shot fails ("Failed to store screen shot") and the run is wasted.
-- `-place prop:Daisy` finds nothing: ground-scatter flowers are not props.
-- Launch-wide flags (-nosandpuffs, -menu, -bluemoondays, -whitepools) mean one player per variant.
-- Assets/Resources, Assets/Temp (+ .meta) stay untracked on purpose.
-- Whole-world diagnostic passes (PondCount etc.) cost seconds each; log from the real pass's data, never re-sample.
-- Hashes without avalanche (math.hash of small ints) need a Scramble before comparing draws.
-
-## Caves and pools (W-13..W-17)
-- #15 `-weather` (ForceAt) forces a cell, skipping the biome weather list. #34 blue moon face *0.7, corona smoothstep from 1.0 r.
-- Blue moon frame: -goto -255,27 -time 23.5 -camlook -255,72,27,-341,121,12.
-- Cave bake runs per cave in Parallel.For (hash 9CB26E0C6AEB39BA). Settlements ~290 ms editor (hashes B4E4858C9FE1CF46 / 14650FB0739D0383, baked 2433C3F949E9CE3E).
-- v2 cave by bench stop: mouth -1665,2520, deepest -1703,41,2377. v2 white pool spot: cam 2998.6,-0.77,-2133.2 -> 3002.04,-3.69,-2135.88.
-- #35 white pools (W-17): colour 0.72/0.80/0.82, murk 0.18, glow 0.12; `_SoftRim` fades the rim, darkens the middle, body alpha x0.55, glow is a band inside the rim. Build shot reads as a pale translucent pool. Murk > ~0.3 = opaque slab (snow).
-- #35 bat folk: lanes/world/BATFOLK-PLAN.md. Steps 1-2 done (W-18): `Terrain/Caves/BatFolkBaking.cs`, own blob `TerrainSource.BatFolk` (sites + per-pool WhitePools), stage "batfolk" after caves. Qualify: chamber r >= 9 m, >= 3 nodes in, a water pool (own, else nearest in cave). 1 per 6, scrambled mouth cell. CaveSystem draws flagged pools with the white mesh; `-whitepools` = debug override (all pools).
-- Bat folk logs: v1 `caves 0, picked 0 (of 17; biggest deep chamber 13.8 m)`; v2 `caves 3, picked 1; cave 2 chamber 3001,3,-2135 r 10.1 pool 1`. Non-picked pool for shots: v2 cave 31 pool 16 (1989.5,4.41,-362.1), cam 1986.1,7.3,-359.4 (framing poor, pool reads blue).
-- Editor cave preview (W-17, tracked): play mode, `Punchy.EditorTools.CaveTools.PreviewAt(pos, target, whitePools)`, wait ~8 s, `CaveTools.HideReadout()`, `CaveTools.PreviewShot(path, 800)`. Underground and SurfaceHidden reach 1.00. Editor look is close to the build, a little brighter (lantern).
-- Probe: WorldProbe.Creatures(r), CaveGo(x,z), CaveRender(), CaveHash, CaveBench(n), TownBench(n) (play mode).
-
-- #35 W-19 step 3: `BatFolkSetBlob.Props` (Hut/Rack/Basket), `BatFolkMeshes.cs`, drawn in CaveSystem. v2 pick: huts 3 props 8.
-- W-20: hut stalks sized so pod bottoms hang 3-6 m above the floor; log `hut bottoms 3.9/4.6/4.7 m` (v2).
-  Build frame (3 huts + racks + white pool): -goto 2997,-2143 -camlook 2997,1,-2143,3003,-0.5,-2134. Shots PunchyMilestones/world/w20.
-- Builds via eval: pass `--timeout 600`, or the CLI's 30 s drop logs 2 pipeline-server errors ("Succeeded 2 errors").
-
-## W-21 biome-blend walls (v2, held, not pushed)
-- v2 -2165,255 walls: `BiomeData.SampleMapBlurred` keeps 4 biomes; `BiomeWeights.Add` swaps out the weakest slot in tap order, so where 5+ biomes blend a weight flips in or out across 2 m (43.3 -> 36.0 m). Pits from it drop under the F-22 lake rule (TerrainSource ~507, lake cut when > depth+2 deep) = the missing water.
-- Fix in Punchy-world/Temp/w21-biome-blend.patch (sum all ids, keep top 4, subtract 5th, normalize): walls gone (38.3 -> 37.2 over 10 m) but v2 landmarks 127/831FF2EE -> 125/AFA9CC63, cave 9CB26E0C6AEB39BA -> D531293D622E785A. Needs Zach's OK to change the v2 hash.
-- v2 -2422,-971 fall gap: unchanged by the patch; separate (river/fall code). Fall 0 lip -2450.5,21.4,-960.3 drop 4.6 width 47.8.
-- Original cave-creek spot not located (nearest cave to the walls is 410 m away).
-- Shots need the player moved first (WorldProbe.GoTo, wait ~15 s) or chunks are fog.
-
-## Load times (#23)
-- v2 player ready ~7.2 s. `[bake] stages ms` logs each stage; `[island] generator version N ...; N landmarks, hash X` logs on v1 and v2.
+## Falls (W-22)
+- RiverQuery.FallWater: upper surface runs to the lip (the pool's 50 m channel reached under it; 16 m cells).
+  Fall 0 (lip -2450.5,21.4,-960.3) profile: water 21.4 over ground 16-19 to the lip, then 16.9. Hashes unchanged.
+- LandmarkWaterfall.shader: surface fall speed 2 x fallLength/3/lifetime (fall 0: 1.15 -> 2.30 m/s); cave falls 1.62.
+- LandmarkEffectSystem.FallSounds: WaterfallRush loops at the 4 nearest drawn falls; volume lerp(0.45,1,t),
+  reach lerp(40,60,t), t = saturate((drop-2)/12); x (1 - smoothstep(0.6 reach, reach, d)); GameAudio log rolloff.
+  Log `[falls] sound sources N (of M falls drawn), max distance X m`.
 
 ## Open
-- #35 bat folk step 4 light (optional now: huts in lantern reach, build a bit darker than editor); step 5 residents to animal lane. v1 has no qualifying cave (deep big chambers have no pool): decide whether to loosen the pool rule or MinChamber for v1.
-- #23 follow-ups: volcano markers (need a spec), v2 default decision. Rivers: springs on high ground; shot of a small fall. #13 Z-35 fall speed. #14 cave-mouth shards.
-- Design-note P3: #17, #18-#22. Roadmap #24.
+- Hut/MudHut LOD1 roof shading (W-22 row 5) NOT fixed: LOD0/1/2 meshes checked in eval: normals point out/up,
+  no flipped triangles, colours/uv same. Flora.hlsl and FloraCull have no LOD-specific normal code. Needs an
+  editor shot at 30-55 m to see the actual artifact (maybe the LOD0/LOD1 crossfade band or shadows).
+- -2165,255 shot shows smooth hills, no walls; the lake itself was not in frame.
+
+## Tools
+- Untracked Assets/Temp/Editor/WorldProbe.cs: LmList, CaveBench, FallList, FallGo, Shot. Lists in Assets/Temp/lmlist-*.txt.
+- Shot recipes: lanes/world/TESTING.md. Shots: PunchyMilestones/world/w22.

@@ -762,3 +762,14 @@ b/weather-mapjob.
 - **Shots:** PunchyMilestones/world/w21: w21_wall_before.png (walls behind trees, top right), w21_wall_after.png (smooth slopes, patch applied), w21_fall_before.png / w21_fall_after.png (same gap in both).
 - **NEXT:** Zach decides: accept a new v2 landmark hash for the blend fix (apply the patch, recheck towns/caves), or keep the hash and live with the walls. Then a separate card for the -2422,-971 fall gap (river/fall surfaces around fall 0), and a fresh hunt for the cave-creek spot with a -goto from Zach.
 
+
+
+## W-22 (2026-11-02) world
+
+- Row 1 #23 DONE: v2 is the default. No flag logs `125 landmarks, hash AFA9CC63`; `-island v1` logs `101 landmarks, hash E128CB1D`. No island netcode sync (each side reads its own launch).
+- Card change DONE: W-21 biome-blend patch committed alone (d436650). v2 125 / AFA9CC63, caves D531293D622E785A as expected. Lost: OakGrove 1757.3,2593.3; Waterfall -1993.9,3009.8. Caves 37/37, settlements 6/6, bat folk unchanged.
+- Row 2 DONE: docs/agents/world.md, lanes/world/TESTING.md.
+- Row 3 #23 #18 DONE: fall 0 upper water now runs to the lip (RiverQuery.FallWater). Build shots w22-fall0-side/above: no land gap.
+- Row 4 #13 DONE: fall speed fallLength/(3 lifetime) -> 2x (fall 0: 1.15 -> 2.30 m/s). Sound log: `[falls] sound sources 1 (of 1 falls drawn), max distance 44 m`. Curve in STATE.
+- Row 5 NOT DONE: LOD1 hut roof meshes check out in numbers; ran out of call budget before an editor look.
+- Shots: PunchyMilestones/world/w22 (w22-fall0-side, w22-fall0-above, w22-walls-lake). 1 build. world-features 5016957.

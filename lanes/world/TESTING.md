@@ -26,3 +26,6 @@ Read `lanes/shared/checks.md` first. These are the world-specific tools and know
   (260.8, 3250.9). Open meadow about (-255, 27), ground 35.4.
 - Wastelands MagneticRock at (-1068, -3840).
 - The HUD covers the top-left of shots if `-nohud` is missing; frame targets right of centre or below.
+
+Island (W-22): no flag runs v2 (125 / AFA9CC63, caves D531293D622E785A); pass `-island v1` (or PUNCHY_ISLAND=v1) for
+v1 (101 / E128CB1D). The editor follows the same rule, so clear PUNCHY_ISLAND for v2 and set it to v1 for v1.
