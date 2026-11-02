@@ -2,6 +2,41 @@
 
 Newest first.
 
+## 2026-11-01: Z-51 voices and Z-50 gallop coded; all four P3 rows in one branch for the slot
+- **Combined branch for the compile slot: wip/animal-p3 6a52fd1** = animal-behaviours c810406 + wip/z53-chase
+  c0a9188 + wip/z52-stance f88e15e (human stances both ways, as Zach said) + wip/z51-voices c382728 +
+  wip/z50-gallop c0b26df. One conflict (CreatureData.cs: two additions side by side) was resolved by keeping both.
+  CRLF is kept in CreatureData.cs and CreatureSpecies.cs. Nothing is compiled yet.
+- **Z-51 (c382728):**
+  - New synth sounds Hiss, Yowl, Whine, Growl and DogHowl, appended to SoundId as 49-53. The wolf's Howl is now a
+    parameterised Howl with the same random draws, so it sounds the same.
+  - Cat: hisses as it bolts from something within 6 m, and yowls at night (a Calls entry, every 60-150 s).
+  - Dog: growls starting a hunt or backing off from a threat within 8 m, whines when its Greet ends, and howls
+    softly at night (a call, every 90-200 s, reach 100 m).
+  - Every call gets a ±6% per-play pitch jitter (pitch and speed together, one playback rate). A separate time
+    stretch would need resampled variants; I left it out.
+  - On a joined client the hiss and growl may not fire if Focus isn't replicated. They're cosmetic, so solo and
+    host carry them.
+- **Z-50 (c0b26df):**
+  - Each leg of a four-legged body gets a GallopPhase. Rotary: hind 0 / 0.1, fore 0.45 / 0.55. Bound: hinds 0,
+    fores 0.5. A new `GallopStyle` species field, where Auto bounds under 0.5 m.
+  - `CreatureBlob.LegPhase` blends the leg's phase toward it by sprint, the short way round. It's used in the
+    animator, motion (StepPhase and the pace-change shift), footprints, footsteps and the foot-drift check, so all of
+    them agree.
+  - Fleeing or hunting animals gallop from 0.85× RunSpeed (`Sprint(state, speed)`, full by 1.15×). Player bodies
+    are unchanged.
+  - The body rocks ±0.07 rad once a stride (±0.12 for a bound).
+  - Known limit: with stance at half the cycle there's no true all-feet-off suspension, and the existing sprint
+    lift stands in for it.
+- **Slot checks (the Z-52 and Z-53 checks are in the entries below):**
+  - **Z-50:** a side `-camlook` of `-body Horse`, `-body Wolf` and `-body Rabbit` at full sprint, in 0.1 s bursts.
+    Pass: the hind pair lands before the fore pair, the rabbit's pairs land together, and feet don't slide in a
+    6-frame burst. Then `-spawn Deer:3` startled: the deer gallop, and the footprint spacing matches the feet.
+    Run `-footdrift` if it's still in.
+  - **Z-51:** count `CallsPlayed` around a town for 2 minutes and listen to the new sounds. A cat startled by a
+    Startle lunge should hiss; a dog left after a Greet should whine; at night, a yowl and a dog howl.
+  - **All:** 0 error CS / Burst / shader errors, no "Mesh bounds" lines, no rise in the spin log.
+
 ## 2026-11-01: Z-52 race stances coded (wip/z52-stance db78556, code only, not compiled)
 - **DONE (code):** `CreatureSpecies.Regard` (species, -1..1, Rival) plus `RegardToAll`. FaunaDirector bakes each
   folk's regard and kinship into the blob by species index, and `CreatureBlob.StanceToward` hashes (individual,
