@@ -219,6 +219,57 @@ namespace Punchy.Fauna
             FolkTalkLabels.Show(Shown.Count > 0 || Bubbles.Count > 0);
         }
 
+        /// <summary>
+        /// Tests ("-chatmix", A-27): every 15 s, what the townsfolk within 80 m of the camera are doing (by Mode, how many
+        /// are leashed to a home, waiting out a talk's cooldown, and free to stop for one), and the talks of 4 s or more
+        /// that ended in those 15 s.
+        /// </summary>
+        public static bool ChatMix;
+        float nextMix = 15f;
+        int talksThisWindow;
+
+        void LogMix(float now, float3 at, NativeArray<CreatureState> states, NativeArray<CreatureBody> bodies)
+        {
+            nextMix = now + 15f;
+            var modes = new SortedDictionary<string, int>();
+            int folk = 0, leashed = 0, cooling = 0, free = 0;
+            int starters = 0, stale = 0;
+            var closest = float.MaxValue;
+            for (int i = 0; i < states.Length; i++)
+            {
+                var s = states[i];
+                ref var b = ref bodies[i].Blob.Value;
+                if (!b.Upright || !b.Hands || b.Haunts || b.Child || s.Mode == CreatureMode.Puppet || math.distancesq(s.Position, at) > 80f * 80f)
+                    continue;
+                folk++;
+                var key = s.Mode == CreatureMode.Work || s.Mode == CreatureMode.Sit ? $"{s.Mode}{s.Stage}" : s.Mode.ToString();
+                modes[key] = (modes.TryGetValue(key, out var n) ? n : 0) + 1;
+                if (s.Leash > 0f)
+                    leashed++;
+                if (s.ChatCool > 0f)
+                    cooling++;
+                if (CreatureBrainSystem.ChatFree(in s, ref b))
+                    free++;
+                if (s.ChatRole == 1)
+                    starters++;
+                if (s.ChatRole != 0 && !(s.Mode == CreatureMode.Idle && (s.Stage == CreatureAnimator.ChatTalk || s.Stage == CreatureAnimator.ChatListen)))
+                    stale++;
+                if (s.ChatCool <= 0f && s.ChatRole == 0 && CreatureBrainSystem.ChatFree(in s, ref b))
+                    for (int j = i + 1; j < states.Length; j++)
+                    {
+                        ref var ob = ref bodies[j].Blob.Value;
+                        if (!ob.Child && states[j].ChatCool <= 0f && states[j].ChatRole == 0 && CreatureBrainSystem.ChatFree(states[j], ref ob))
+                            closest = math.min(closest, math.distance(states[j].Position.xz, s.Position.xz));
+                    }
+            }
+            var mix = new System.Text.StringBuilder();
+            foreach (var pair in modes)
+                mix.Append($" {pair.Key}:{pair.Value}");
+            UnityEngine.Debug.Log($"FolkChat mix at {now:F0} s: {folk} grown folk within 80 m, leashed {leashed}, cooling {cooling}, " +
+                                  $"free {free}, starters {starters}, stale {stale}, closest free pair {(closest < 1e6f ? closest.ToString("F0") + " m" : "none")}, talks (>=4 s) in the last 15 s: {talksThisWindow}; modes{mix}");
+            talksThisWindow = 0;
+        }
+
         void WatchChats(float now, bool hasTerrain, in TerrainSource terrain)
         {
             Bubbles.Clear();
@@ -270,10 +321,14 @@ namespace Punchy.Fauna
                 var c = chats[e];
                 chats.Remove(e);
                 Chats++;
+                if (now - c.Start >= 4f)
+                    talksThisWindow++;
                 var town = hasTerrain ? HomeTown(new CreatureState { Position = c.At }, terrain) : null;
                 UnityEngine.Debug.Log($"FolkChat: {c.Names} at ({c.At.x:F0}, {c.At.z:F0}){(town != null ? " in " + town : "")} for {now - c.Start:F1} s" +
                                       $"{(c.Children > 0 ? $", {c.Children} child(ren) by them" : "")}");
             }
+            if (ChatMix && cam != null && now >= nextMix)
+                LogMix(now, (float3)cam.transform.position, states, bodies);
             states.Dispose();
             bodies.Dispose();
             entities.Dispose();

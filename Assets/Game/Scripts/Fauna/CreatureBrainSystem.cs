@@ -51,6 +51,24 @@ namespace Punchy.Fauna
         /// <summary>A-26 tests ("-chattest"): folk stop to talk far more often, from further apart, cooldowns short.</summary>
         public static readonly Unity.Burst.SharedStatic<int> ForceChat = Unity.Burst.SharedStatic<int>.GetOrCreate<ForceChatKey>();
         struct ForceChatKey { }
+
+        /// <summary>
+        /// One of the townsfolk who could stop for a talk (A-26, widened in A-27, when a settled town of a few folk, most
+        /// at their posts, had all but stopped talking): about the town, walking somewhere, standing idle (or fidgeting at
+        /// an idle action), on its way to its post or a seat, or at a post in town (a smith or a vendor breaks off for a
+        /// word, then goes back to it); not seated, fishing, on guard, reading a letter, or on a round of its own (miners,
+        /// travellers, messengers, raids).
+        /// </summary>
+        internal static bool ChatFree(in CreatureState s, ref CreatureBlob b) =>
+            b.Upright && b.Hands && !b.Haunts && s.Leash > 0f && s.Task != CreatureTask.Patrol && s.Task != CreatureTask.Watch &&
+            s.Held != HeldItem.Letter && s.Gone == false &&
+            (s.Mode == CreatureMode.Wander || s.Mode == CreatureMode.Idle && s.Stage < CreatureAnimator.MessageWait ||
+             s.Mode == CreatureMode.Work && WalksToPost(s.Task) && (s.Stage == 0 || s.Stage == 1 && s.Task != CreatureTask.Fish && s.Task != CreatureTask.Hermit) ||
+             s.Mode == CreatureMode.Sit && s.Stage == 0);
+
+        /// <summary>A worker whose walk to work is a plain walk to its post (it can stop on the way and walk on after).</summary>
+        static bool WalksToPost(CreatureTask task) =>
+            task != CreatureTask.Mine && task != CreatureTask.Travel && task != CreatureTask.Messenger && task != CreatureTask.Critter;
         const float CellSize = 16f;
         // (Where the brain's time goes, for the profiler: its searches for danger and company, its needs and idle
         // actions, its choices, its moving and its gait.)
@@ -3514,25 +3532,20 @@ namespace Punchy.Fauna
             /// <summary>At most this many pairs talk at once round a town; a talk lasts 4-10 s; then each waits this long before another.</summary>
             const int MaxChats = 3;
             const float ChatCoolMin = 90f, ChatCoolMax = 200f;
-
-            /// <summary>One of the townsfolk who could stop for a talk: about the town, walking somewhere or standing idle
-            /// (not at a post, on guard, reading a letter or busy with an idle action).</summary>
-            static bool ChatFree(in CreatureState s, ref CreatureBlob b) =>
-                b.Upright && b.Hands && !b.Haunts && s.Leash > 0f && s.Task != CreatureTask.Patrol && s.Task != CreatureTask.Watch &&
-                s.Held != HeldItem.Letter && s.Gone == false &&
-                (s.Mode == CreatureMode.Wander || s.Mode == CreatureMode.Idle && s.Stage < MessageWait && s.Action == IdleAction.None);
+            // (How far apart two grown folk can be for one to stop the other for a talk: they walk up to each other.)
+            const float ChatReach = 30f;
 
             static bool InChat(in CreatureState o) => o.Mode == CreatureMode.Idle && (o.Stage == ChatTalk || o.Stage == ChatListen);
 
             /// <summary>
             /// Now and then, one of the townsfolk free to talk: stops for someone who stopped for it (2); a grown one, every
-            /// 40 s or so with another free within 3 m, stops it for a talk (1), unless a few pairs round the town already
+            /// 40 s or so with another free within ChatReach, stops it for a talk (1: they walk up to each other), unless a few pairs round the town already
             /// are; a child, now and then, goes to stand by a talk under way (3).
             /// </summary>
             void StartChat(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
             {
                 var forced = ForceChat.Data != 0;
-                if (rng.NextFloat() < 0.3f && FindChat(self, in s, 0, 20f, out var asker))
+                if (rng.NextFloat() < 0.3f && FindChat(self, in s, 0, ChatReach, out var asker))
                 {
                     BeginChat(ref s, asker, ChatListen, 2);
                     return;
@@ -3545,17 +3558,24 @@ namespace Punchy.Fauna
                         BeginChat(ref s, adult, ChatListen, 3);
                     return;
                 }
-                if (rng.NextFloat() >= dt * (forced ? 1f : 1f / 40f) || !FindChat(self, in s, 1, forced ? 14f : 3f, out var other) ||
+                // (Up to ChatReach, as far as the other looks for one who stopped for it: once a town settles its few folk are
+                // spread over its posts and streets, and seldom pass within a few metres; A-27.)
+                if (rng.NextFloat() >= dt * (forced ? 1f : 1f / 40f) || !FindChat(self, in s, 1, ChatReach, out var other) ||
                     ChatsNear(math.all(s.Home == float2.zero) ? s.Position.xz : s.Home) >= MaxChats)
                     return;
                 BeginChat(ref s, other, ChatTalk, 1);
                 s.Timer = rng.NextFloat(4f, 10f);
             }
 
+            /// <summary>
+            /// Stops for a talk, keeping what it was doing in ChatWalk / ChatResume: 1 walking somewhere (ChatResume the
+            /// target), 2 on its way to or at its post (ChatResume.x the time left at work: Timer is the talk's while it lasts),
+            /// 3 on its way to a seat (it picks something new after), 0 standing about.
+            /// </summary>
             static void BeginChat(ref CreatureState s, Entity with, byte stage, byte role)
             {
-                s.ChatWalk = (byte)(s.Mode == CreatureMode.Wander ? 1 : 0);
-                s.ChatResume = s.Target;
+                s.ChatWalk = (byte)(s.Mode == CreatureMode.Wander ? 1 : s.Mode == CreatureMode.Work ? 2 : s.Mode == CreatureMode.Sit ? 3 : 0);
+                s.ChatResume = s.ChatWalk == 2 ? new float2(s.Timer, 0f) : s.Target;
                 SetMode(ref s, CreatureMode.Idle);
                 s.Stage = stage;
                 s.Partner = with;
@@ -3565,12 +3585,18 @@ namespace Punchy.Fauna
             /// <summary>After a talk, on to wherever it was going (or a pause where it stood), not to talk again for a while.</summary>
             static void EndChat(ref CreatureState s, ref CreatureBlob b, ref Random rng, float cool)
             {
-                var walking = s.ChatWalk == 1;
                 var to = s.ChatResume;
-                if (walking)
+                if (s.ChatWalk == 1)
                 {
                     SetMode(ref s, CreatureMode.Wander);
                     s.Target = to;
+                }
+                else if (s.ChatWalk == 2)
+                {
+                    // (On to its post, with the time at work it had left.)
+                    SetMode(ref s, CreatureMode.Work);
+                    s.Target = s.WorkSpot;
+                    s.Timer = math.max(to.x, 5f);
                 }
                 else
                     Pause(ref s, ref b, ref rng);
@@ -3588,8 +3614,9 @@ namespace Punchy.Fauna
                 found = Entity.Null;
                 var best = reach * reach;
                 var c = Cell(s.Position.xz);
-                for (int z = -1; z <= 1; z++)
-                for (int x = -1; x <= 1; x++)
+                var r = (int)math.ceil(reach / CellSize);
+                for (int z = -r; z <= r; z++)
+                for (int x = -r; x <= r; x++)
                 {
                     if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
                         continue;

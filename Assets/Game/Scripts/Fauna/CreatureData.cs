@@ -597,7 +597,8 @@ namespace Punchy.Fauna
         /// <summary>
         /// Two folk stopped to talk (CreatureBrainSystem.Chatting; local, host only, not sent): seconds before this one
         /// starts or joins another talk; its part in one (1 started it, 2 the one it stopped, 3 a child standing by);
-        /// where it was walking to before (ChatWalk 1), to carry on there after.
+        /// what it was doing before, to carry on after (ChatWalk 1 walking: ChatResume its target; 2 on its way to its
+        /// post: ChatResume.x its time left at work; 3 on its way to a seat; see BeginChat).
         /// </summary>
         public float ChatCool;
         public byte ChatRole, ChatWalk;

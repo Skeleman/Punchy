@@ -1246,6 +1246,9 @@ namespace Punchy.Debugging
             if (System.Array.IndexOf(args, "-chattest") >= 0)
                 Punchy.Fauna.CreatureBrainSystem.ForceChat.Data = 1;
             chatShot = System.Array.IndexOf(args, "-chatshot") >= 0;
+            // A-27: "-chatmix" (launch line) logs what the townsfolk round the camera are doing, and the talks, every 15 s
+            // (FolkTalkSystem.LogMix).
+            Punchy.Fauna.FolkTalkSystem.ChatMix = System.Array.IndexOf(LaunchArgs, "-chatmix") >= 0;
             remoteRollStep = 0;
             // A-09 (#40): "-nocolossus" hides the Dunes colossus, "-framelog" logs frame times, "-colossusshot 300" puts the
             // player and camera that far from it.
