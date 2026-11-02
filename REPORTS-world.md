@@ -2,6 +2,18 @@
 
 Newest first.
 
+## 2026-11-02 batch W-04b: W-04 built (Dev + DevB) and shot; most checks inconclusive, hash not obtained
+- DONE: W-04 code (f4c7239) compiles and builds clean (Builds/DevB, then Builds/Dev after Zach freed it; errors=0). No player exceptions in the log. Shot list ran to "done", 7 shots, 66.6 s.
+- NOT DONE: #32 roofs: Inn shot ended inside a wall (dark, no eave). The village shots show thatched eaves with a visible lip on the round huts, no gaps; the roof-edge close up still needs a framed shot (-camrel from a hut position).
+- NOT DONE: #30 flowers: the -place meadow line found no target, so the pair is two village frames in Storm, not one spot; pink flowers stand upright, no stretching seen, but not a valid 2-frame pair.
+- NOT DONE: #14 cave-mouth shards: `-place CaveEntrance` framed a forest, no cave mouth in view. Not verified.
+- NOT DONE: #19 swamp ponds: `-place ToxicGeyser` top-down shows meadow and no water. Landmark hash NOT obtained: the editor never got a TerrainSource (WorldProbe.LmList returns "none" after opening World.unity, entering play and Punchy.Net.GameBootstrap.PlaySolo()). The carve is applied after landmarks per its own comment, but E128CB1D is unconfirmed. Do not merge #19 until printed.
+- DONE: #45 stars: W-04 Sky.hlsl gate 0.06 -> 0.006 off-shower (about 0.6 -> 0.06 streaks per night minute, 10x rarer), shower nights unchanged (0.9).
+- Checks: build errors=0 twice; Builds/Dev first failed on a locked lib_burst_generated.dll, fixed once the stuck player was gone. My own run's shot list had no `quit` line, so that player (PID 6896) did not exit by itself; a Punchy.exe (PID 12296) is running now, not touched.
+- Shots: D:/Unity/PunchyMilestones/world/w04b/sheet.jpg (contact sheet of all 6; unreliable framing, see above)
+- Learned: shot lists need a final quit line; -place names that match nothing silently keep the previous view.
+- NEXT: re-shoot with explicit coordinates: pond top-down inside the PoisonSwamp biome (find via biome sampler), a cave mouth by -place cavestream or coordinates, a meadow pair at a fixed -goto, a hut roof via -camrel; and get the landmark hash from a player-side log line or a working editor World load (LmList).
+
 ## 2026-11-02 batch W-03: shooting stars rarer/thinner/fading, Dunes GPU measured, island v2 preview maps
 - DONE: #45 shooting stars about 4x rarer (about 2.5 -> 0.6 streaks per night minute), half as thick, and they fade
   out (tail draws in, light dies over the last third) (world-features 3dbd8df, 8d83102)

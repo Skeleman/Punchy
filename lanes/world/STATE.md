@@ -1,9 +1,14 @@
-# World lane: state (2026-11-02, after W-03)
+# World lane: state (2026-11-02, after W-04b)
 
 Worktree `Punchy-world` (main PC), branch `world-features`. Backlog: `gh issue list -l lane:world`.
 Released: v0.11.0 = world b39522b + animal c810406.
 Pushed head: 8d83102 (shooting stars rarer/thinner/fading, bench-runner merged a428b48). No new player build of it.
 Also pushed: `wip/island-v2` (IslandV2Preview.cs, editor-only, not merged). No Punchy.exe of mine runs.
+
+## W-04b (verification, mostly inconclusive)
+- world-features f4c7239 (W-04) builds clean to Builds/Dev. Unverified by shots: #32 roofs, #30 flowers, #14 cave shards,
+  #19 ponds. #19 landmark hash (E128CB1D) NOT printed: editor has no TerrainSource in play. Don't merge #19 yet.
+- #45 stars now 0.06/night minute (gate 0.006). Shots: PunchyMilestones/world/w04b. Shot lists must end with a quit.
 
 ## Done in W-03
 - #45 shooting stars: gate 0.25 -> 0.06 (about 2.5 -> 0.6 per night minute), width halved, fade-out 1.0-1.5 of life.
