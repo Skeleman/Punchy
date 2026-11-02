@@ -2,6 +2,22 @@
 
 Newest first.
 
+## 2026-11-02 batch A-01: P3 compiled and built; chases pass, the other three rows only partly checked
+- DONE: #6-#9 merge wip/animal-p3 onto v0.11 (clean, CRLF kept), compile clean, build 0 errors (wip/a01-p3 a1bc1ef)
+- DONE: #9 chases end in a catch and eating: 28 pounces, 9 landed, 7 ate, 1 slipped away, 19 missed, 18 tired
+- NOT DONE: #6 gait not verified: the -watch camera is 15-20 m away, too far to read the legs
+- NOT DONE: #7 Yowl (50) and Whine (51) fired; Hiss, Growl and DogHowl weren't triggered in the run
+- NOT DONE: #8 stance odds match the approved table (toward Elf: Dwarf Rival 100%, Human 48/32/20 neutral/wary/
+  annoyed, Goblin/Ogre/Hermit neutral); no folk lines logged in 3 towns, so live lines are unchecked
+- NOT DONE: #33 climbing, not started (budget)
+- Not merged into animal-behaviours: all four rows are in one merge and three aren't verified. Pushed wip/a01-p3.
+- Checks: compile clean; player build 0 errors / 3 warnings; one 102-shot run of 330 s, 0 exceptions;
+  -spincheck 0 for Wolf/Coyote/Dog/Cat, 2 Dormouse (#12); new -voicelog and -stancelog hooks
+- Shots: none for review (framing too far). Gallery: PunchyMilestones/animal/p3-a01/gallery/ (chase sheet, towns, night)
+- Learned: lanes/animal/STATE.md test notes (-shotdir on the launch line; per-line flags reset; eval quoting)
+- NEXT: on the same build: close -camlook side view of a sprinting coyote, dog beside cat, 3-4 min night, folk
+  lines from inside a town square; then merge wip/a01-p3 and push. Then #33.
+
 ## 2026-11-01: Z-51 voices and Z-50 gallop coded; all four P3 rows in one branch for the slot
 - **Combined branch for the compile slot: wip/animal-p3 6a52fd1** = animal-behaviours c810406 + wip/z53-chase
   c0a9188 + wip/z52-stance f88e15e (human stances both ways, as Zach said) + wip/z51-voices c382728 +

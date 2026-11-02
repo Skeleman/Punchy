@@ -1,22 +1,28 @@
-# Animal lane: state (2026-11-02)
+# Animal lane: state (2026-11-02, after batch A-01)
 
-Worktree `Punchy` (main PC; only the animal lane writes there), branch `animal-behaviours` c810406.
-Branch head 2026-11-02: 4cb6ba3 (v0.11.0 tree + docs split; both lanes start here).
-Backlog: `gh issue list -l lane:animal`. Released: v0.11.0 includes c810406 (Z-20 InteractRpc fix).
+Worktree `Punchy` (main PC; only the animal lane writes there). `animal-behaviours` = origin 4cb6ba3 (v0.11.0 +
+docs split), unchanged. The tree is checked out on `wip/a01-p3`.
 
-## In flight: P3 rows, one combined branch, nothing compiled yet
-`wip/animal-p3` 6a52fd1 = c810406 + the four rows below (one conflict in CreatureData.cs kept both sides; CRLF
-kept in CreatureData.cs and CreatureSpecies.cs). Design notes approved in DESIGN-animal-P3.md.
-- #9 Z-53 chases (c0a9188): prey can be eaten (Zach).
-- #8 Z-52 race stances (f88e15e): human stances both ways; Ogre confirmed; fish folk neutral; cave pygmies a
-  little wary of all.
-- #7 Z-51 voices (c382728): SoundId 49-53 appended (Hiss, Yowl, Whine, Growl, DogHowl); wolf Howl parameterised,
-  same sound. Cat hisses bolting within 6 m and yowls at night; dog growls, whines, howls.
-- #6 Z-50 gallop (c0b26df).
-**Next slot:** compile, build, one shot session covering all four, merge what passes.
+## In flight: P3 built, not merged
+`wip/a01-p3` a1bc1ef = 4cb6ba3 + merge of wip/animal-p3 6a52fd1 (61529a4, clean, CRLF kept) + test hooks
+(`-voicelog`, `-stancelog`, FaunaDirector.BlobAt). Compiles clean, player builds with 0 errors, 0 exceptions in a
+330 s shot-list run. Not on animal-behaviours yet because three rows aren't fully verified and all four sit in one merge.
+- #9 Z-53 chases: PASS on numbers (28 pounces, 9 landed, 7 ate, 1 slipped).
+- #8 Z-52 stances: odds table matches the approved one (toward Elf: Dwarf Rival, Human 32% wary / 20% annoyed,
+  Goblin/Ogre neutral). Live lines unchecked: no folk lines at all in 25 s at DwarfHold, ElfGrove or HumanVillage.
+- #7 Z-51 voices: Yowl and Whine seen; Hiss, Growl and DogHowl not triggered in this run.
+- #6 Z-50 gallop: not checked. The -watch camera is 15-20 m off; it needs a close -camlook side view.
+**Next slot:** a short second run on the same build (no code change needed unless lines are broken): close side
+view of a sprinting coyote/wolf; dog spawned next to a cat (hiss/growl); a 3-4 min night at timescale 4 (DogHowl);
+stand inside a town square for folk lines. Then merge wip/a01-p3 into animal-behaviours and push.
+
+## Test notes (move to TESTING.md when there's time)
+- A shot list needs `-shotdir` on the launch line too (ShotList waits on it before applying line 1).
+- Per-line flags (-huntlog, -spincheck) reset on every shot-list line: repeat them on each line.
+- `-voicelog` logs cat/dog voices and howls; `-stancelog` logs folk lines with stance plus the odds table.
+- In PowerShell, `unity command eval` loses double quotes: use the Bash tool for eval code with strings.
 
 ## Open, not started
-- #11 Z-21 long-stride run bends the foot too steeply (may already be fixed in v0.11.0: Zach to check in play).
-- #12 Z-07 leftover: songbird and dormouse spins while wandering (low priority).
-- #16 Z-20 follow-up: carrying a large animal (dogs mostly over the 0.65 m limit; wild tortoise squirms free).
-- #10 new species: fish folk and blind cave pygmies (needs design). Roadmap: #25 NPCs.
+- #33 climbing relative to the surface (A-01 row 5, not reached: budget).
+- #11 Z-21 long-stride foot bend (Zach to check in v0.11.0). #12 dormouse spins (2 seen in this run).
+- #16 carrying large animals. #10 new species: fish folk, blind cave pygmies (needs design).
