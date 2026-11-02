@@ -2,6 +2,11 @@
 
 Newest first.
 
+## 2026-11-01 — #5 text wheel pushed (wip/ui-wheel 0f05394)
+- Controller text entry for the menu's fields: a radial wheel. The stick points (the choice holds when it's let go), A enters, LB/RB or d-pad up/down switch letters/numbers, B deletes (cancels on an empty field), Y/Start done, View cancels, d-pad left/right moves the cursor. A field's allowed set limits the rings (IP: digits + dot only).
+- Plugs into MenuNav.TextEntry from wip/ui-menu. The menu is modal behind it. NetMenu's keyboard notices are removed; the IP field is capped at 15.
+- Compiles (dotnet check of UI/Settings/InputGlyphs). Not built yet. Slot check, same slot as #4: `-menu Multiplayer -forcepad xbox`, choose the Code field with A and the IP field, take shots of both wheels; enter, delete, ring switch and cancel with a real pad if there is one.
+
 ## 2026-11-01: UI-1 main menu (code only), zache-73
 
 - **DONE, waiting on a slot: UI-1.** `wip/ui-menu` 0796b07 (off world-features b39522b, pushed, not merged).
