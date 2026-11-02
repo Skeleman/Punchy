@@ -30,3 +30,4 @@ Read before changing any shader, material or render setting.
 - Blue moon (Sky.hlsl PunchyBlueMoonFace): radius 0.13 rad, one thin wandering crack, maria + craters at two scales;
   its disc/corona tint must stay strongly blue (b channel > 2). Pin with `-bluemoondays 0`, then `-time 21` puts it
   43 degrees up in the east, `-time 19` low in the east (compute with DayNightCycle.Evaluate).
+- Flora bark relief (the cave detail texture, albedo and normal bump) fades by distance, not by LOD: 18-45 m for plants, 60-140 m for built things (W-23). Faded by 45 m, hut roofs turned into plain cones whose facets showed at 30-55 m, which read as an LOD bug.
