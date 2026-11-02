@@ -35,6 +35,8 @@ namespace Punchy.Audio
         const float StepReach = 18f, HowlReach = 160f, WingReach = 25f, HiveReach = 18f, FarthestCall = 260f;
         /// <summary>The calls' budget: this many a second on average, up to CallBurst saved up; always heard within CloseCall m.</summary>
         const float CallBurst = 2f, CloseCall = 6f;
+        /// <summary>How far close calls may run the budget into debt (about 17 s of quiet further off at 0.6/s).</summary>
+        const float CallDebt = 10f;
         /// <summary>Calls a second on average (tests: "-callrate").</summary>
         public static float CallRate = 0.6f;
         float callBudget = CallBurst;
@@ -210,11 +212,11 @@ namespace Punchy.Audio
                                     continue;
                                 herdCalls[call.Sound] = (clock, s.Position);
                             }
-                            if (!Spend(d))
-                                continue;
                             // (A bird, owl, frog or insect call only where the biome has that sound: AmbientSounds.)
                             var group = AmbientSounds.Of(call.Sound);
                             if (group != AmbientGroup.None && (AmbientSounds.At(terrain, s.Position.xz) & group) == AmbientGroup.None)
+                                continue;
+                            if (!Spend(d))
                                 continue;
                             if (GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f), pitch * Jitter(), call.Volume, call.Reach))
                             {
@@ -240,8 +242,15 @@ namespace Punchy.Audio
         /// <summary>Whether a call this far off fits the budget (taking its share if so).</summary>
         bool Spend(float distance)
         {
-            if (!ThinCalls || distance < CloseCall)
+            if (!ThinCalls)
                 return true;
+            // A call right by the listener always plays, but still takes its share (the budget may go into debt, down to
+            // CallDebt), so the calls further off wait it out and the total keeps to CallRate (#43: ~47/min before).
+            if (distance < CloseCall)
+            {
+                callBudget = math.max(callBudget - 1f, -CallDebt);
+                return true;
+            }
             if (callBudget >= 1f)
             {
                 callBudget -= 1f;

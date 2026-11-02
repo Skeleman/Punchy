@@ -182,16 +182,72 @@ namespace Punchy.Debugging
             var side = math.normalizesafe(new float3(-along.z, 0f, along.x));
             if (math.dot(side, huntSideDir) < 0f)
                 side = -side;
-            huntSideDir = side;
             var target = h.Position + new float3(0f, 0.6f, 0f);
+            // (A-18: keep the side with a clear view. A shrub or tree between the camera and the hunter hid half the
+            // wolf in A-17, so if this side has plants in the way and the other has fewer, swap over.)
+            var blocked = SightBlockers(target, target + side * huntSide + new float3(0f, 0.9f, 0f));
+            var otherBlocked = blocked > 0 ? SightBlockers(target, target - side * huntSide + new float3(0f, 0.9f, 0f)) : 0;
+            if (blocked > 0 && otherBlocked < blocked)
+            {
+                side = -side;
+                (blocked, otherBlocked) = (otherBlocked, blocked);
+            }
+            huntSideDir = side;
             var from = target + side * huntSide + new float3(0f, 0.9f, 0f);
             PoseCamera(from, Quaternion.LookRotation((Vector3)(target - from)));
             var elapsed = Time.realtimeSinceStartup - shotStarted;
             if (!huntShotLogged && elapsed >= shotWait - 0.05f)
             {
                 huntShotLogged = true;
-                Debug.Log($"DebugControls: huntside: hunter speed {h.Speed:F1}, mode {h.Mode} stage {h.Stage}, camera {huntSide:F0} m side-on, {elapsed:F2} s into the line");
+                Debug.Log($"DebugControls: huntside: hunter speed {h.Speed:F1}, mode {h.Mode} stage {h.Stage}, camera {huntSide:F0} m side-on, " +
+                          $"{elapsed:F2} s into the line, plants in the way {blocked}");
             }
+        }
+
+        /// <summary>
+        /// Shrubs and trees (and rocks) standing between two points: placed plants in the shrub and tree layers taller than
+        /// half a metre whose footprint or crown comes within reach of the line on the ground (FloraPlacement.Place, the
+        /// same pure function FloraSystem draws from). -1 if the flora tables aren't up yet.
+        /// </summary>
+        int SightBlockers(float3 a, float3 b)
+        {
+            if (!EnsureLocations(out var land))
+                return -1;
+            using var q = queryWorld.EntityManager.CreateEntityQuery(typeof(Punchy.Flora.FloraLookup));
+            if (!q.TryGetSingleton<Punchy.Flora.FloraLookup>(out var lookup) || !lookup.Blob.IsCreated)
+                return -1;
+            ref var f = ref lookup.Blob.Value;
+            var count = 0;
+            var lo = math.min(a.xz, b.xz) - 4f;
+            var hi = math.max(a.xz, b.xz) + 4f;
+            for (int layer = 1; layer <= Punchy.Flora.FloraPlacement.TreeLayer; layer++)
+            {
+                var size = f.CellSizes[layer];
+                var c0 = (int2)math.floor(lo / size);
+                var c1 = (int2)math.floor(hi / size);
+                for (int y = c0.y; y <= c1.y; y++)
+                for (int x = c0.x; x <= c1.x; x++)
+                {
+                    var plant = Punchy.Flora.FloraPlacement.Place(ref f, land, new int2(x, y), layer);
+                    if (plant.Model < 0 || plant.Model >= f.Models.Length)
+                        continue;
+                    var shape = f.Models[plant.Model];
+                    if (shape.Height * plant.Scale < 0.5f)
+                        continue;
+                    // (Its distance from the line on the ground, the ends left out: something right behind the hunter
+                    // or the camera doesn't hide the body.)
+                    var ab = b.xz - a.xz;
+                    var t = math.saturate(math.dot(plant.Position.xz - a.xz, ab) / math.max(math.lengthsq(ab), 1e-4f));
+                    if (t < 0.08f || t > 0.95f)
+                        continue;
+                    // (A tree whose crown starts above the camera only gets in the way with its trunk.)
+                    var crown = shape.CrownBase * plant.Scale > 1.8f ? 0f : shape.CrownRadius;
+                    var reach = math.max(math.max(crown, shape.TrunkRadius), 0.6f) * plant.Scale + 0.3f;
+                    if (math.distance(plant.Position.xz, a.xz + ab * t) < reach)
+                        count++;
+                }
+            }
+            return count;
         }
 
         static bool remoteRoll;
