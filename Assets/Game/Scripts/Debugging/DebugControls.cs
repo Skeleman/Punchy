@@ -106,12 +106,18 @@ namespace Punchy.Debugging
         /// </summary>
         void ShotOnHunt()
         {
-            if (!shotOnHunt || huntShotTaken || shotIndex < 0 || shotStarted < 0f || queryWorld == null || !queryWorld.IsCreated)
+            if (!shotOnHunt || shotIndex < 0 || shotStarted < 0f || queryWorld == null || !queryWorld.IsCreated)
                 return;
+            if (huntShotTaken)
+            {
+                FollowHunter();
+                return;
+            }
             var em = queryWorld.EntityManager;
             using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
             var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
             var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var entities = q.ToEntityArray(Allocator.Temp);
             for (int i = 0; i < states.Length; i++)
             {
                 var h = states[i];
@@ -135,13 +141,57 @@ namespace Punchy.Debugging
                 var from = mid + side * (16f + best * 0.5f) + new float3(0f, 3.5f, 0f);
                 PoseCamera(from, Quaternion.LookRotation((Vector3)(mid + new float3(0f, 0.8f, 0f)) - (Vector3)from));
                 huntShotTaken = true;
-                shotWait = Time.realtimeSinceStartup - shotStarted + 0.3f;
+                shotWait = Time.realtimeSinceStartup - shotStarted + (huntSide > 0f ? huntDelay : 0.3f);
+                huntHunter = entities[i];
+                huntPrey = entities[prey];
+                huntSideDir = side;
+                huntShotLine = shotIndex;
+                if (huntSide > 0f)
+                    FollowHunter();
                 var director = FindAnyObjectByType<FaunaDirector>();
                 Debug.Log($"DebugControls: shotonhunt: {director?.SpeciesAt(bodies[i].Species)?.name} sprinting at {director?.SpeciesAt(bodies[prey].Species)?.name}, {best:F1} m apart, hunter speed {h.Speed:F1}, at ({h.Position.x:F0}, {h.Position.z:F0})");
                 break;
             }
             states.Dispose();
             bodies.Dispose();
+            entities.Dispose();
+        }
+
+        // "-huntside 7" with -shotonhunt (#6): instead of the wide two-animal view, the camera rides that many metres
+        // side-on of the hunter, and the shot is taken huntDelay seconds into the sprint (so the gallop has started).
+        static float huntSide;
+        const float huntDelay = 1f;
+        Entity huntHunter, huntPrey;
+        float3 huntSideDir;
+        int huntShotLine = -1;
+        bool huntShotLogged;
+
+        void FollowHunter()
+        {
+            if (huntSide <= 0f || shotIndex != huntShotLine || huntHunter == Entity.Null)
+                return;
+            var em = queryWorld.EntityManager;
+            if (!em.Exists(huntHunter) || !em.HasComponent<CreatureState>(huntHunter))
+                return;
+            var h = em.GetComponentData<CreatureState>(huntHunter);
+            // Side-on to the hunter's run: towards the prey while it's there, keeping the side picked at the start.
+            var along = em.Exists(huntPrey) && em.HasComponent<CreatureState>(huntPrey)
+                ? math.normalizesafe(em.GetComponentData<CreatureState>(huntPrey).Position - h.Position, new float3(0f, 0f, 1f))
+                : math.normalizesafe(math.cross(huntSideDir, new float3(0f, 1f, 0f)), new float3(0f, 0f, 1f));
+            along.y = 0f;
+            var side = math.normalizesafe(new float3(-along.z, 0f, along.x));
+            if (math.dot(side, huntSideDir) < 0f)
+                side = -side;
+            huntSideDir = side;
+            var target = h.Position + new float3(0f, 0.6f, 0f);
+            var from = target + side * huntSide + new float3(0f, 0.9f, 0f);
+            PoseCamera(from, Quaternion.LookRotation((Vector3)(target - from)));
+            var elapsed = Time.realtimeSinceStartup - shotStarted;
+            if (!huntShotLogged && elapsed >= shotWait - 0.05f)
+            {
+                huntShotLogged = true;
+                Debug.Log($"DebugControls: huntside: hunter speed {h.Speed:F1}, mode {h.Mode} stage {h.Stage}, camera {huntSide:F0} m side-on, {elapsed:F2} s into the line");
+            }
         }
 
         static bool remoteRoll;
@@ -927,6 +977,9 @@ namespace Punchy.Debugging
                 SetBody(args[bodyArg + 1]);
             // "-shotonhunt": one shot the moment a land hunter enters its sprint, camera framing hunter and prey (#9).
             shotOnHunt = System.Array.IndexOf(args, "-shotonhunt") >= 0;
+            var huntSideArg = System.Array.IndexOf(args, "-huntside");
+            huntSide = huntSideArg >= 0 && huntSideArg + 1 < args.Length && float.TryParse(args[huntSideArg + 1], System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var hs) ? hs : 0f;
             // "-remoteroll": a client frames, logs and shoots another player's somersault (#48).
             remoteRoll = System.Array.IndexOf(args, "-remoteroll") >= 0;
             remoteRollStep = 0;
@@ -2744,6 +2797,8 @@ namespace Punchy.Debugging
                 Camera.main.fieldOfView = wallFovWas;
             wallFovWas = 0f;
             huntShotTaken = false;
+            huntShotLogged = false;
+            huntHunter = Entity.Null;
             colossusShotDistance = 0f;
             mantrapShotMode = null;
             mimicShotMode = null;

@@ -62,9 +62,31 @@ namespace Punchy.Fauna
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Create()
         {
+            // Going solo after losing the host reloads the scene, which destroys this object: build it again then.
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
             if (FindAnyObjectByType<Mantrap>() != null)
                 return;
+            Placed = false;
             new GameObject("Mantraps").AddComponent<Mantrap>();
+        }
+
+        static void OnSceneLoaded(UnityEngine.SceneManagement.Scene scene, UnityEngine.SceneManagement.LoadSceneMode mode) => Create();
+
+        /// <summary>True when <see cref="source"/> belongs to the live default world (fetched again after a world swap).</summary>
+        bool CurrentSource()
+        {
+            var w = Unity.Entities.World.DefaultGameObjectInjectionWorld;
+            if (w != null && w.IsCreated && w == sourceWorld)
+                return true;
+            sourceWorld = null;
+            if (w == null || !w.IsCreated)
+                return false;
+            using var terrainQuery = w.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (!terrainQuery.TryGetSingleton(out source))
+                return false;
+            sourceWorld = w;
+            return true;
         }
 
         sealed class Plant
@@ -85,6 +107,8 @@ namespace Punchy.Fauna
         }
 
         TerrainSource source;
+        // The world the cached source came from. Its blobs are freed with that world (joining, or the host leaving).
+        World sourceWorld;
         bool havePlace;
         float nextTry;
         readonly List<Plant> plants = new List<Plant>();
@@ -125,6 +149,8 @@ namespace Punchy.Fauna
                 }
                 return;
             }
+            if (!CurrentSource())
+                return;
             var shown = !Hidden;
             foreach (var p in plants)
                 if (p.Root.gameObject.activeSelf != shown)
@@ -429,6 +455,7 @@ namespace Punchy.Fauna
             using var paletteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
             if (!terrainQuery.TryGetSingleton(out source) || paletteQuery.CalculateEntityCount() != 1)
                 return;
+            sourceWorld = w;
             var palette = em.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
             var which = new NativeArray<int>(palette.Biomes.Length, Allocator.TempJob);
             for (int b = 0; b < palette.Biomes.Length; b++)

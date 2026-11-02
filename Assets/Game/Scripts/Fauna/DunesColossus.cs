@@ -34,13 +34,22 @@ namespace Punchy.Fauna
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Create()
         {
+            // Going solo after losing the host reloads the scene, which destroys this object: build it again then.
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
             if (FindAnyObjectByType<DunesColossus>() != null)
                 return;
+            Placed = false;
             var go = new GameObject("DunesColossus");
             go.AddComponent<DunesColossus>();
         }
 
+        static void OnSceneLoaded(UnityEngine.SceneManagement.Scene scene, UnityEngine.SceneManagement.LoadSceneMode mode) => Create();
+
         TerrainSource source;
+        // The world the cached source came from. Its blobs are freed with that world (joining, or the host leaving),
+        // so the source is fetched again whenever the default world changes.
+        Unity.Entities.World sourceWorld;
         Transform root, head, arm;
         ParticleSystem storm;
         Mesh furrowMesh;
@@ -66,6 +75,8 @@ namespace Punchy.Fauna
                 }
                 return;
             }
+            if (!CurrentSource())
+                return;
             var shown = !Hidden;
             if (root.gameObject.activeSelf != shown)
             {
@@ -81,6 +92,22 @@ namespace Punchy.Fauna
             LogFrames();
         }
 
+        /// <summary>True when <see cref="source"/> belongs to the live default world (fetched again after a world swap).</summary>
+        bool CurrentSource()
+        {
+            var world = Unity.Entities.World.DefaultGameObjectInjectionWorld;
+            if (world != null && world.IsCreated && world == sourceWorld)
+                return true;
+            sourceWorld = null;
+            if (world == null || !world.IsCreated)
+                return false;
+            using var terrainQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (!terrainQuery.TryGetSingleton(out source))
+                return false;
+            sourceWorld = world;
+            return true;
+        }
+
         // ---------------------------------------------------------------- placing
 
         void TryPlace()
@@ -93,6 +120,7 @@ namespace Punchy.Fauna
             using var paletteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
             if (!terrainQuery.TryGetSingleton(out source) || paletteQuery.CalculateEntityCount() != 1)
                 return;
+            sourceWorld = world;
             var palette = em.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
             var dunes = -1;
             for (int b = 0; b < palette.Biomes.Length; b++)
