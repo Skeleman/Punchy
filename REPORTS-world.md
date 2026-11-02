@@ -2,6 +2,15 @@
 
 Newest first.
 
+## 2026-11-02 batch W-14: v2 loads in 7.9 s (was 15.8), cave render cost is not the world's
+- DONE: #23 load. Timed each bake stage; the pond grid (16 m sample of the whole world, ~2.8 s) ran 4 times per v2 bake (3 diagnostic counts + the mask). Now one pass whose labelling also gives the report, rows in parallel. Editor v2 stage ms before/after: rivers 228/238, landmarks 22/22, settlements 1006/1025, caves 1369/1375, anchors 155/158, ponds 8463 (3 passes)/167, island-report pond recount 2809/4; bake 11777 -> 3525 ms. Player log: `[bake] stages ms: rivers 187 landmarks 21 settlements 1019 caves 1380 anchors 154 pondmask 248`, baked in 3557 ms, `v2 ready at 7.9 s since start` (world-features d473bf1)
+- DONE: #23 cave render diagnosis (no fix: not world-owned). At the deepest chamber of the cave by each bench stop: v1 106 creatures / 2507 segments, v2 127 / 2815 (+20% / +12%). Both SurfaceHidden 1.00 (surface creatures hidden), 1 roost in 45 m (capacity v1 21, v2 28), 0 cave pools in 40 m (no cave fish). Within 60 m: v1 39 creatures, v2 4. So neither world data (roosts, pools, hidden test) nor creature count explains 2.2 -> 10.5 ms. For the animal lane: profile CreatureRenderSystem's own passes at the v2 stop (sky birds, critters, emotes, door scan, per-species loops over all 127 bodies); count is not the cause.
+- SKIPPED: volcano markers: #23 only names a "volcanic region", no marker spec.
+- Checks: compile clean; editor play v1 101 / E128CB1D, v2 127 / 831FF2EE; player log v2 127 / 831FF2EE; pond stats unchanged (7 ponds / 22 wet -> 1 / 15, dropped 7) before and after; one build Succeeded, errors 0; my player quit by itself (shot list done, 3 shots in 59.1 s), no Punchy.exe of mine running.
+- Shots: PunchyMilestones/world/w14 (not viewed). v2-cave-mouth: v2 bench stop looking at the cave mouth -1665,2520. v2-cave-chamber: camera in the deepest chamber (-1699,33,2368).
+- Learned: lanes/world/STATE.md (diagnostic passes over the whole world cost seconds; reuse the real pass's data)
+- NEXT: #23 v2 default decision; settlements (~1.0 s) and caves (~1.4 s) are now the biggest bake stages; #13 Z-35 fall speed, #14 cave-mouth shards.
+
 ## 2026-11-02 batch W-13: river fog finally shows (test flag), blue moon face crisp
 - DONE: #15 `-weather <name>` now forces a cell that ignores the biome's weather list (tests only; ] key and natural weather unchanged). MarshFog shot over both W-12 rivers (world-features fd25279)
 - DONE: #34 blue moon face brightness 1.6 -> 0.7 (it clipped and bloomed over itself) and the corona now starts at the disc edge (was 0.98 r); size 0.22 rad, tendrils and halo outside unchanged (fd25279)

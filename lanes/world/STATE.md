@@ -1,8 +1,8 @@
-# World lane: state (2026-11-02, after W-13)
+# World lane: state (2026-11-02, after W-14)
 
 Worktree `Punchy-world` (main PC), branch `world-features`. Backlog: `gh issue list -l lane:world`.
 Released: v0.11.0 = world b39522b + animal c810406.
-Pushed head: world-features fd25279 (W-13). Builds/Dev holds a build of it. v1 101 / E128CB1D, v2 127 / 831FF2EE hold. v1 ponds 33 blobs, 154 wet cells, none under 3 cells.
+Pushed head: world-features d473bf1 (W-14). Builds/Dev holds a build of it. v1 101 / E128CB1D, v2 127 / 831FF2EE hold. v1 ponds 33 blobs, 154 wet cells, none under 3 cells.
 No Punchy.exe of mine runs.
 
 ## W-05 / W-05b
@@ -16,6 +16,7 @@ No Punchy.exe of mine runs.
 - `-place prop:Daisy` finds nothing: ground-scatter flowers are not props.
 - Launch-wide flags (-nosandpuffs, -menu, -bluemoondays) mean one player per variant.
 - Assets/Resources, Assets/Temp (+ .meta) stay untracked on purpose.
+- Whole-world diagnostic passes (PondCount etc.) cost seconds each; log from the real pass's data, never re-sample.
 - Hashes without avalanche (math.hash of small ints) need a Scramble before comparing draws.
 
 ## W-07
@@ -36,24 +37,16 @@ No Punchy.exe of mine runs.
 - Probe: WorldProbe.PuffType, Paving(x,z), BigPonds(k). Spots: Dunes 1800,-1800 (H 10.7); plaza 115,-405 (H 25.7); swamp ponds round -2700,1450.
 - Editor: cam.Render misses ambient particles (Graphics.RenderPrimitives); use ScreenCapture in play to judge them.
 
-## W-11
-- #19 v2 had 0 ponds (not the mask): its swamp patches are small, so blurred shape weights never pass 0.4. Ponds() now tests the core on the
-  map's sharp weights when UsesBiomeMap. v2: 1 pond, 15 wet cells (-2282,574), min/median/p90 15/15/15, 0 single-cell. Only ~0.16 km2 of v2 swamp core; more ponds need generator changes (hash).
-- #34 blue moon radius 0.13 -> 0.22 rad (Sky.hlsl), 4 crater scales + finer rock octave. Night/dusk shots w11.
-- #15 hall timber shot reads (dark posts/beams). river-fog shot missed: camera at 259,55,880 framed forest and a dirt track, no river or fog visible.
-
-## W-12
-- #44 SandPuffs: DensityScale 0.06, GroundTint 1, Volume 1, 5-10 m. 126-132 -> ~30 in range. Wide view: patches faint on sand.
-- #34 blue moon: 5th crater scale + crisp rims; halo still softens the edge.
-- #15 NOT DONE: forced weather is masked by the biome's weather list (WeatherField BilinearAllowed). Grassland has no MarshFog;
-  Temperate (MarshFog 0.2) stayed clear. River spots: Grassland 305,-581 bank 197,-663 H 19.1; Temperate -1875,-1562 bank -1885,-1562 H 30.5.
-- Probe: WorldProbe.RiverSpots(ext, step, k, biome).
-
 ## W-13
 - #15 DONE: `-weather` (ForceAt) forces a cell with Forced=true, which skips the biome weather list (CPU Sample/Describe and MapJob). ] key unchanged. Shots w13 fog-grassland / fog-temperate.
 - #34 DONE: blue moon face *1.6 -> *0.7 (was clipping + blooming over itself), corona smoothstep from 1.0 r. Edge reads crisp.
 - Blue moon on day 0 (dir): 20:36 near zenith (0.95 up); 23:30 (-0.86,0.49,-0.15). Frame: -goto -255,27 -time 23.5 -camlook -255,72,27,-341,121,12 (y 37 is behind a tree).
 
+## W-14
+- #23 load: v2 player ready at 7.9 s (was 15.8). Pond grid ran 4x per bake (3 diagnostic counts); now 1 parallel pass. `[bake] stages ms` log line per stage. Biggest left: caves ~1.4 s, settlements ~1.0 s.
+- #23 cave render: v1 106 / v2 127 creatures at the chamber, both SurfaceHidden 1.00, 1 roost (cap 21 / 28), 0 pools. Not world-owned; handed to animal lane.
+- Probe: WorldProbe.Creatures(r), CaveGo(x,z) (deepest node of nearest cave), CaveRender(). v2 cave by bench stop: mouth -1665,2520, deepest -1703,41,2377.
+
 ## Open
-- #23 follow-ups: volcano markers, v2 default decision. Rivers: springs on high ground; shot of a small fall. #13 Z-35 fall speed. #14 cave-mouth shards.
+- #23 follow-ups: volcano markers (need a spec), v2 default decision. Rivers: springs on high ground; shot of a small fall. #13 Z-35 fall speed. #14 cave-mouth shards.
 - Design-note P3: #17, #18-#22. Roadmap #24.
