@@ -415,6 +415,8 @@ namespace Punchy.Debugging
                     PlaceByProp(propSource, args[i + 1].Substring(5));
                 else if (args[i] == "-place" && args[i + 1].StartsWith("cavestream", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var streamSource))
                     PlaceByCaveStream(streamSource, args[i + 1].Substring(10));
+                else if (args[i] == "-place" && args[i + 1].StartsWith("riverfall", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var fallSource))
+                    PlaceByRiverFall(fallSource, args[i + 1].Substring(9));
                 else if (args[i] == "-place" && string.Equals(args[i + 1], "meadow", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var meadowSource))
                     PlaceInMeadow(meadowSource);
                 else if (args[i] == "-place" && string.Equals(args[i + 1], "clearlake", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var lakeSource))
@@ -1153,6 +1155,48 @@ namespace Punchy.Debugging
             var eye = (Vector3)(back + new float3(0f, 2.5f, 0f));
             PoseCamera(eye, Quaternion.LookRotation((Vector3)last - eye));
             Debug.Log($"DebugControls: by cave stream end ({last.x:F1}, {last.y:F1}, {last.z:F1}), camera {eye.x:F1},{eye.y:F1},{eye.z:F1}");
+        }
+
+        /// <summary>
+        /// "-place riverfall[#n]" (island v2): below the nth nearest river waterfall of 4-8 m (the small ones), the camera 12 m
+        /// downstream at standing eye height looking at the middle of the fall. Logs the 8 nearest small falls.
+        /// </summary>
+        void PlaceByRiverFall(in TerrainSource source, string spec)
+        {
+            if (!source.Rivers.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var pick = 1;
+            if (spec.StartsWith("#"))
+                int.TryParse(spec.Substring(1), out pick);
+            ref var falls = ref source.Rivers.Value.Falls;
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(player);
+            var near = new List<(float distance, int fall)>();
+            for (int f = 0; f < falls.Length; f++)
+                if (falls[f].Drop < 8f)
+                    near.Add((math.distance(falls[f].Lip.xz, t.Position.xz), f));
+            if (near.Count == 0)
+            {
+                Debug.LogWarning("DebugControls: no small river falls (island v2 only)");
+                return;
+            }
+            near.Sort((p, q) => p.distance.CompareTo(q.distance));
+            for (int k = 0; k < math.min(8, near.Count); k++)
+            {
+                ref var f = ref falls[near[k].fall];
+                Debug.Log($"DebugControls: river fall {near[k].fall} drop {f.Drop:F1} width {f.Width:F1} lip ({f.Lip.x:F1}, {f.Lip.y:F1}, {f.Lip.z:F1})");
+            }
+            ref var chosen = ref falls[near[math.clamp(pick - 1, 0, near.Count - 1)].fall];
+            var outDir = math.normalizesafe(chosen.Out);
+            var foot = chosen.Lip.xz + outDir * 1.6f;
+            var stand = foot + outDir * 12f;
+            var ground = source.SampleHeight(stand);
+            t.Position = new float3(stand.x, ground + 0.05f, stand.y);
+            em.SetComponentData(player, t);
+            var eye = new Vector3(stand.x, ground + 1.7f, stand.y);
+            var target = new Vector3(chosen.Lip.x, chosen.Lip.y - chosen.Drop * 0.5f, chosen.Lip.z);
+            PoseCamera(eye, Quaternion.LookRotation(target - eye));
+            Debug.Log($"DebugControls: below river fall (drop {chosen.Drop:F1} m) lip ({chosen.Lip.x:F1}, {chosen.Lip.y:F1}, {chosen.Lip.z:F1}), camera {eye.x:F1},{eye.y:F1},{eye.z:F1}");
         }
 
         /// <summary>

@@ -219,7 +219,9 @@ namespace Punchy.Terrain
             withCaves.Caves = bare;
             PlacePools(withCaves, caves, nodes, kinds, segments, styles, extras.Pools);
             PlaceWaterfalls(withCaves, caves, styles, extras);
+            EndCounts[0] = EndCounts[1] = EndCounts[2] = 0;
             PlaceStreams(withCaves, caves, nodes, segments, styles, extras);
+            UnityEngine.Debug.Log($"[cave-streams] ends: pool {EndCounts[0]}, hole {EndCounts[1]}, left out {EndCounts[2]}; kept {extras.Streams.Count}");
             bare.Dispose();
             var withWater = BuildBlob(caves, nodes, kinds, segments, extras, Allocator.Persistent);
             withCaves.Caves = withWater;
@@ -247,6 +249,9 @@ namespace Punchy.Terrain
         /// mouth) down to the end chamber, ending in a pool (F-30) or a drop into a hole (Z-34). Points every 1.5 m along the passage floor; the surface follows the floor
         /// but never rises along the flow, so where the floor climbs the channel cuts deeper.
         /// </summary>
+        /// <summary>Stream ends this bake: [0] in a pool, [1] into a hole, [2] left out (logged for #3).</summary>
+        static readonly int[] EndCounts = new int[3];
+
         static void PlaceStreams(in TerrainSource source, List<CaveData> caves, List<CaveNode> nodes, List<CaveSegment> segments,
                                  List<CaveStyle> styles, Extras extras)
         {
@@ -308,6 +313,7 @@ namespace Punchy.Terrain
                         // crevice, or in a pool; failing both at its end, it ends further back where one holds, and with
                         // neither anywhere near the end it's left out.
                         var keep = StreamEnd(source, extras.StreamPoints, first, count, out var radius);
+                        EndCounts[keep < 4 ? 2 : radius > 0f ? 0 : 1]++;
                         if (keep < 4)
                         {
                             extras.StreamPoints.RemoveRange(first, count);

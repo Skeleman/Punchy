@@ -286,6 +286,22 @@ namespace Punchy.Terrain
             rows.Sort((a, b) => b.length.CompareTo(a.length));
             var sb = new System.Text.StringBuilder($"rivers: {sources} sources, {map.Falls.Length} waterfalls; longest:");
             for (int k = 0; k < math.min(6, rows.Count); k++) sb.Append($" | {rows[k].text}");
+            // Falls by drop, and how many sit within 60 m of another (chains of them count as one cluster).
+            int[] bucket = new int[4]; int near = 0, clusters = 0;
+            var root = new int[map.Falls.Length];
+            for (int a = 0; a < root.Length; a++) root[a] = a;
+            int Find(int x) { while (root[x] != x) x = root[x] = root[root[x]]; return x; }
+            for (int a = 0; a < map.Falls.Length; a++)
+            {
+                var d = map.Falls[a].Drop;
+                bucket[d < 6f ? 0 : d < 8f ? 1 : d < 12f ? 2 : 3]++;
+                bool close = false;
+                for (int c = 0; c < map.Falls.Length; c++)
+                    if (c != a && math.distance(map.Falls[a].Lip.xz, map.Falls[c].Lip.xz) < 60f) { close = true; root[Find(a)] = Find(c); }
+                if (close) near++;
+            }
+            for (int a = 0; a < root.Length; a++) if (Find(a) == a) clusters++;
+            sb.Append($" | falls by drop: 4-6 m {bucket[0]}, 6-8 m {bucket[1]}, 8-12 m {bucket[2]}, 12+ m {bucket[3]}; {near} within 60 m of another, {clusters} clusters");
             return sb.ToString();
         }
 

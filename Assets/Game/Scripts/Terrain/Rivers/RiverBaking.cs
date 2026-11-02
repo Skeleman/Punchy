@@ -152,6 +152,28 @@ namespace Punchy.Terrain
                         fallCells.Add(i);
                     }
                 }
+                if (fallCells.Count > 0)
+                {
+                    // #42: a step whose water surface drops under 3 m shows no curtain (the bed steps, the water doesn't), and a
+                    // thin fall (under 8 m) within 60 m of a bigger one reads as the same cascade: both go, leaving one fall.
+                    float Drop(int c) => water[c] - water[down[c]];
+                    float2 Centre(int c) => origin + (new float2(c % resolution, c / resolution) + 0.5f) * cellSize;
+                    var big = new System.Collections.Generic.List<int>(fallCells);
+                    big.RemoveAll(c => Drop(c) < 3f);
+                    big.Sort((a, c) => Drop(c).CompareTo(Drop(a)));
+                    var kept = new System.Collections.Generic.List<int>();
+                    foreach (var c in big)
+                    {
+                        var thin = Drop(c) < 8f;
+                        var merged = false;
+                        if (thin)
+                            foreach (var k in kept)
+                                if (math.distance(Centre(c), Centre(k)) < 60f) { merged = true; break; }
+                        if (!merged) kept.Add(c);
+                    }
+                    kept.Sort();
+                    fallCells = kept;
+                }
                 var fallArray = builder.Allocate(ref root.Falls, fallCells.Count);
                 for (int k = 0; k < fallCells.Count; k++)
                     fallArray[k] = new RiverFall { Drop = water[fallCells[k]] - water[down[fallCells[k]]], Width = fallCells[k] };
