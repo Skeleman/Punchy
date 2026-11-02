@@ -847,3 +847,8 @@ different files.
 - #23 confirmed on v2: at the v2 cave stop with 135-145 creatures, CreatureRenderSystem takes 7.1-7.3 ms with `-oldcull` and 0.32-0.35 ms with the Burst cull (cull 7.0 -> 0.2). Hashes hold: v2 127 / 831FF2EE, v1 101 / E128CB1D. 0 exceptions.
 - Worktree is back on animal-behaviours, clean (apart from the old untracked Assets/_Recovery).
 - NEXT: Zach can close #23; merge-test is ready for the real merge when the supervisor calls it.
+
+## A-25 (2026-11-02): leap poses eased, animal-behaviours a077715 (one build)
+- #6 row 1 met: the leaping run's hip is drawn 30 deg back from both extremes (CreatureAnimator.LeapHip). Wolf upper leg from vertical, body frame, before -> after: front gathered -91 -> -61, front extended 93 -> 64, hind gathered 102 -> 72, hind extended -63 -> -33. Timing, spine flex, rotary gallop and bound unchanged.
+- #6 row 2 met: side-on 4 m retakes, viewed at 800 px. Gathered (10.7 m/s): feet tucked, no leg near horizontal. Extended (11.6 m/s): airborne, front legs on a forward-down diagonal, hinds back. The first extend shot fired at 6 m/s (part-blended) and was retaken with the same build.
+- NEXT: Zach's look at leapgather-800 and leapextend2-800.

@@ -1,55 +1,47 @@
-# Animal lane: state (2026-11-02, after batch A-24)
+# Animal lane: state (2026-11-02, after batch A-25)
 
-Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 5557c9a (unchanged by A-24); status clean
-apart from the old untracked `Assets/_Recovery/` (from 10-30, not ours to delete).
-Local branch `merge-test` ac8031a = 5557c9a + origin/world-features fb6d7ee (NOT pushed). Builds/Windows is the
-merge-test build (has `-island v2`). Editor open on port 7800, back on animal-behaviours, 0 compile errors.
+Worktree `Punchy` (animal lane only). `animal-behaviours` = origin a077715 (A-25); status clean apart from the old
+untracked `Assets/_Recovery/` (from 10-30, not ours to delete).
+Local branch `merge-test` ac8031a = 5557c9a + origin/world-features fb6d7ee (NOT pushed; one commit behind
+animal-behaviours now). Builds/Windows is the A-25 build (animal-behaviours a077715, no `-island v2`).
+Editor open on port 7800, on animal-behaviours, 0 compile errors.
+
+## A-25 (artefacts PunchyMilestones/animal/a25/)
+- #6: leap hip eased 30 deg off both extremes (CreatureAnimator.LeapHip, LeapHipEase 0.52 rad). Wolf upper leg
+  from vertical, body frame: front gathered -91 -> -61, front extended 93 -> 64, hind gathered 102 -> 72,
+  hind extended -63 -> -33. Measured with Temp/a25_angles.cs (editor eval, builds the Wolf blob).
+- Shots leapgather-800 (10.7 m/s), leapextend2-800 (11.6 m/s, retake: the first fired at 6 m/s, part-blended).
 
 ## A-24 (artefacts PunchyMilestones/animal/a24/)
-- Merge rehearsal: one conflict, docs/agents/rendering.md (both sides added a bullet at the end; kept both).
-  Editor compiles merge-test with 0 errors. No scene/ProjectSettings/Packages changes in the merge.
-- #23 confirmed on v2: at the v2 cave stop (-1653,2380 then -incave: cave 10), with 135-145 creatures, CreatureRenderSystem takes 7.1-7.3 ms with
-  `-oldcull` (cull 7.0) and 0.32-0.35 ms with Burst (cull 0.2). Hashes: v2 127 / 831FF2EE (player log), v1
-  101 / E128CB1D (editor play mode on merge-test; the v1 player doesn't print a hash).
-- Editor v1 landmark hash: Temp/a24_hash.cs, eval in Play mode (Edit mode has no TerrainSource).
+- Merge rehearsal: one conflict, docs/agents/rendering.md (kept both bullets). No scene/ProjectSettings changes.
+- #23 confirmed on v2: CreatureRenderSystem 7.1-7.3 ms with `-oldcull`, 0.32-0.35 ms with Burst (135-145
+  creatures). Hashes: v2 127 / 831FF2EE, v1 101 / E128CB1D.
 
-## A-23 (artefacts PunchyMilestones/animal/a23/)
-- #6 met: `-huntside d` sits d m off the hunter's Yaw every frame (leapgather-800, leapextend2-800, side-on 4 m).
-- #7 met: `-huntpair` aims between hunter and prey (dogchase-800). Back-to-back -shotonhunt lines skip the
-  previous line's hunter until its sprint ends (staleHunter).
+## A-23
+- #6 `-huntside d` sits d m off the hunter's Yaw; #7 `-huntpair` aims between hunter and prey.
 
-## A-22 (artefacts PunchyMilestones/animal/a22/)
-- #23: cave cull now a Burst job: 0.03-0.04 ms (was 1.6-2.1 ms); system total 1.9 -> 0.33 ms (100 creatures).
-- Flags: `-renderpasslog` (ms per pass every 3 s), `-oldcull`. `-incave` goes on the line after `-goto`.
-
-## A-21
+## A-21/A-22
 - #6 GallopStyle.Leap: Wolf, Cat, Dog (Coyote as Wolf variant); Deer, Horse, Bison, Pronghorn, BlackBear Rotary;
-  small animals Bound (-gaitlog).
-- #16 met: walk-off rolled per attempt; settled village child never walks off (childcarry-800).
-- Flags: `-leapphase p` (freeze leap phase), `-hunter Species`, `-gaitlog`.
+  small animals Bound. Flags: `-leapphase p`, `-hunter Species`, `-gaitlog`, `-renderpasslog`, `-oldcull`.
+- #23: cave cull is a Burst job. #16 met: walk-off rolled per attempt.
 
 ## A-19/A-20
-- #50 met: CreaturePersonality from the replicated Individual (`-personalitylog Dog`).
-- #7: FaunaDirector.Lists matches Hunts by name (Resources copies broke reference match).
+- #50 CreaturePersonality from the replicated Individual. #7 FaunaDirector.Lists matches Hunts by name.
 - #16: weights in kg in all 113 species, CarryCapacity 40 kg.
 
 ## Unverified (merged anyway; Zach's check in the build)
 - #41 (A-10c, ae5b491): head glow fixed; host-to-client lunge not shown. Plant shove never landed in a test.
 
 ## Open
-- #12: numbers in (A-16); Zach's look. #33: sideways still 0 m/s on stick right.
-- #6, #7, #16, #43, #49: Zach's look. #23: v2 confirmed (A-24), Zach can close.
-- #10 new species (needs design).
-- Animals still flee a flyer high above (confirm with Zach before filing more).
+- #6: Zach's look at the eased leap (a25 shots). #12: Zach's look. #33: sideways still 0 m/s on stick right.
+- #7, #16, #43, #49: Zach's look. #23: v2 confirmed (A-24), Zach can close.
+- #10 new species (needs design). Animals still flee a flyer high above (confirm with Zach first).
 
 ## Test notes
-- Shot list needs `-shotdir` (the folder must exist, or shots are silently skipped); launch with `-quit` (add
-  `-autowalk` only for climb tests; it scares songbirds). `-spincheck` goes on the shot-list line.
-- `-spincheck` logs about every 30 s; songbird windows count all songbirds nearby: spawn 16 for 25 s+ windows.
-- `-shotonhunt` brings the line's own shot forward (file is <line>.png). `-huntside d` rides side-on 1 s into the
-  sprint; add `-huntpair` for two animals. `-weather` forces at the player's spot: put `-goto` on an earlier line.
-- Shot lists survive the client's scene reload: a second line runs on in the solo game (A-18 #49).
-- `-actiontest roll:A,B|fly:Body|fish:Trout`; `-setbody X`; `-place wall`; `-place clearlake`;
-  climb test `-autowalk -body Monkey -place tree:Oak`. Client roll check: see TESTING.md.
-- Editor: `unity recompile` (no --port); BuildPlayer via `unity command --port 7800 eval "$(cat Temp/a24_build.cs)"`
-  from Git Bash (PowerShell strips the quotes); times out at 30 s but finishes, ~2-3 min; wait for Temp/a24build.txt.
+- Shot list needs `-shotdir` (folder must exist); launch with `-quit`. `-spincheck` goes on the shot-list line.
+- `-shotonhunt` can fire before the sprint is up to speed: check `hunter speed` in the huntside log (want ~10+
+  m/s for a full leap blend) and retake if low.
+- `-weather` forces at the player's spot: put `-goto` on an earlier line.
+- `unity recompile` with no --port may hit the world editor when ours is busy; prefer an eval on --port 7800.
+- BuildPlayer via `unity command --port 7800 eval "$(cat Temp/a25_build.cs)"` from Git Bash; times out at 30 s
+  but finishes in ~2-3 min; wait for Temp/a25build.txt.

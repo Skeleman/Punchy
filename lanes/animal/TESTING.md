@@ -13,6 +13,8 @@ Read `lanes/shared/checks.md` first.
 - Since A-23 `-huntside d` sits d m off the hunter's own heading (Yaw) every frame; add `-huntpair` to aim at the
   middle of hunter and prey (steps back if they are far apart). Dog chase: `-hunter Dog -huntside 5 -huntpair`.
   Back-to-back -shotonhunt lines skip the last line's hunter until its sprint ends (A-23 extend shot caught it walking).
+  The shot can still fire at sprint start (A-25: 6 m/s, leap only part blended): read `hunter speed` in the huntside
+  line and retake under ~10 m/s. Leg angles without a build: Temp/a25_angles.cs (eval builds the Wolf blob).
 - Spin and drift probes: `-spincheck` (spin log lines; compare counts over 3 runs), `-footdrift`.
 
 ## Known spots
