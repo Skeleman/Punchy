@@ -72,6 +72,9 @@ namespace Punchy.Ambience
             fallBuffer?.Release();
             plumeBuffer = fallBuffer = null;
             lastNearby.Clear();
+            foreach (var handle in fallLoops.Values)
+                Punchy.Audio.GameAudio.StopLoop(handle);
+            fallLoops.Clear();
         }
 
         void Update()
@@ -96,6 +99,7 @@ namespace Punchy.Ambience
                 Gather(source, palette.Landmarks, cam.transform.position);
             }
             var eye = cam.transform.position;
+            FallSounds(eye);
             var flameRange = Punchy.Settings.GraphicsSettings.DetailRange(FlameRange);
             // Night-only fires catch as the light goes (the sky's night past a fifth) and die down at dawn.
             var lit = math.saturate((Shader.GetGlobalFloat(NightId) - 0.2f) / 0.3f);
@@ -106,6 +110,72 @@ namespace Punchy.Ambience
                     FireSystem.AddFlame(f.at, size, f.seed, f.palette);
             }
             Draw();
+        }
+
+        // ---- Waterfall sound (#13, W-22) ----
+        /// <summary>At most this many falls are heard at once (each loop holds one of GameAudio's 24 voices).</summary>
+        const int MaxFallSounds = 4;
+        readonly Dictionary<float3, int> fallLoops = new Dictionary<float3, int>();
+        readonly List<float3> fallGone = new List<float3>();
+        readonly List<(float3 at, float d, float volume, float reach)> fallHeard = new List<(float3, float, float, float)>();
+        string lastFallLog;
+
+        /// <summary>A fall's loudness and reach from its drop: 0.45 at 2 m up to 1.0 at 14 m and over; heard 40 m out, 60 m for 14 m+.</summary>
+        static void FallVoice(float drop, out float volume, out float reach)
+        {
+            var tall = math.saturate((drop - 2f) / 12f);
+            volume = math.lerp(0.45f, 1f, tall);
+            reach = math.lerp(40f, 60f, tall);
+        }
+
+        /// <summary>
+        /// A looping rush (SoundId.WaterfallRush) at the middle of each of the nearest falls (river, landmark and cave
+        /// falls: every curtain emitter in range), louder and carrying further for taller falls. GameAudio's logarithmic
+        /// rolloff holds full volume to a quarter of the reach; on top of it the volume fades smoothly to zero from 60% to
+        /// 100% of the reach, where the loop stops, so nothing cuts off with a click.
+        /// </summary>
+        void FallSounds(Vector3 eye)
+        {
+            fallHeard.Clear();
+            float3 ear = eye;
+            foreach (var f in falls)
+            {
+                var mid = f.Position + new float3(f.Out.x, 0f, f.Out.y) * f.Shape.x * 0.5f - new float3(0f, f.Drop * 0.5f, 0f);
+                FallVoice(f.Drop, out var volume, out var reach);
+                var d = math.distance(mid, ear);
+                if (d < reach)
+                    fallHeard.Add((mid, d, volume * (1f - math.smoothstep(reach * 0.6f, reach, d)), reach));
+            }
+            fallHeard.Sort((a, b) => a.d.CompareTo(b.d));
+            if (fallHeard.Count > MaxFallSounds)
+                fallHeard.RemoveRange(MaxFallSounds, fallHeard.Count - MaxFallSounds);
+            fallGone.Clear();
+            foreach (var key in fallLoops.Keys)
+            {
+                var keep = false;
+                foreach (var h in fallHeard) keep |= h.at.Equals(key);
+                if (!keep) fallGone.Add(key);
+            }
+            foreach (var key in fallGone)
+            {
+                Punchy.Audio.GameAudio.StopLoop(fallLoops[key]);
+                fallLoops.Remove(key);
+            }
+            var maxReach = 0f;
+            foreach (var h in fallHeard)
+            {
+                maxReach = math.max(maxReach, h.reach);
+                if (!fallLoops.TryGetValue(h.at, out var handle) || handle == 0)
+                    fallLoops[h.at] = Punchy.Audio.GameAudio.StartLoop(Punchy.Audio.SoundId.WaterfallRush, h.at, h.volume, h.reach, Punchy.Audio.SoundGroup.World);
+                else
+                    Punchy.Audio.GameAudio.MoveLoop(handle, h.at, h.volume);
+            }
+            var log = $"[falls] sound sources {fallHeard.Count} (of {falls.Count} falls drawn), max distance {maxReach:F0} m";
+            if (fallHeard.Count > 0 && log != lastFallLog)
+            {
+                lastFallLog = log;
+                Debug.Log(log);
+            }
         }
 
         bool TryGetWorld(out TerrainSource source, out BiomePalette palette)
