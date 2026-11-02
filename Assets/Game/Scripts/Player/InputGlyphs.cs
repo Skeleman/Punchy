@@ -11,6 +11,11 @@ namespace Punchy.Player
     /// if a binding changes), in the gamepad's own names where it says what it is (A/B/X/Y on an Xbox pad, Cross/
     /// Circle/Square/Triangle on a PlayStation one), generic otherwise. Switches only on real use (an idle gamepad
     /// still sends updates), and not back within a moment of switching, so prompts don't flicker.
+    /// Prompts can show buttons as icons (UI.Prompts): Token wraps a control's path, and Icon finds its picture for the
+    /// device in use in Resources/Prompts/&lt;kind&gt;/&lt;control&gt; (kind keyboard, mouse, xbox or playstation; the
+    /// control's path after the device, with '/' as '_': buttonSouth, dpad_up, escape), from Kenney's Input Prompts
+    /// (CC0). Anything without a picture is named instead. "-forcepad xbox|playstation" shows a pad's prompts without
+    /// one (for shots).
     /// </summary>
     public static class InputGlyphs
     {
@@ -30,6 +35,8 @@ namespace Punchy.Player
             if (updatedFrame == Time.frameCount)
                 return;
             updatedFrame = Time.frameCount;
+            if (forcedKind != null)
+                return;
             if (Time.unscaledTime - switchedAt < Hysteresis)
                 return;
             var pad = UnityEngine.InputSystem.Gamepad.current;
@@ -64,7 +71,7 @@ namespace Punchy.Player
         public static void Force(bool gamepad) { if (gamepad != Gamepad) Switch(gamepad); }
 
         /// <summary>The kind of gamepad, for naming its buttons: "xbox", "playstation", or "generic".</summary>
-        public static string PadKind => UnityEngine.InputSystem.Gamepad.current switch
+        public static string PadKind => forcedKind ?? UnityEngine.InputSystem.Gamepad.current switch
         {
             DualShockGamepad => "playstation",
             XInputController => "xbox",
@@ -76,7 +83,10 @@ namespace Punchy.Player
         /// The button bound to an action ("Player/Interact") on the device in use: "E", "Left Shift", "Y", "Triangle",
         /// "LS"... (the first binding for that device), or null when nothing on it is bound.
         /// </summary>
-        public static string Action(string name)
+        public static string Action(string name) => Path(ActionPath(name));
+
+        /// <summary>The path of the control bound to an action on the device in use ("&lt;Keyboard&gt;/e"), or null.</summary>
+        public static string ActionPath(string name)
         {
             var action = InputSystem.actions?.FindAction(name);
             if (action == null)
@@ -86,9 +96,76 @@ namespace Punchy.Player
             {
                 if (binding.isComposite || binding.isPartOfComposite || binding.groups == null || !binding.groups.Contains(group))
                     continue;
-                return Path(binding.effectivePath);
+                return binding.effectivePath;
             }
             return null;
+        }
+
+        /// <summary>A control in a prompt, drawn as its icon or name by UI.Prompts ("[[&lt;Gamepad&gt;/buttonNorth]]"); null for none.</summary>
+        public static string Token(string path) => string.IsNullOrEmpty(path) ? null : "[[" + path + "]]";
+
+        /// <summary>The button bound to an action, as a prompt token (see Token), or null when nothing on the device is bound.</summary>
+        public static string ActionToken(string name) => Token(ActionPath(name));
+
+        /// <summary>A prompt's text with its tokens as button names (for logs and plain labels).</summary>
+        public static string Plain(string prompt)
+        {
+            if (string.IsNullOrEmpty(prompt))
+                return prompt;
+            var at = prompt.IndexOf("[[", System.StringComparison.Ordinal);
+            while (at >= 0)
+            {
+                var close = prompt.IndexOf("]]", at + 2, System.StringComparison.Ordinal);
+                if (close < 0)
+                    break;
+                var path = prompt.Substring(at + 2, close - at - 2);
+                var name = Path(path) ?? path;
+                prompt = prompt.Substring(0, at) + name + prompt.Substring(close + 2);
+                at = prompt.IndexOf("[[", at + name.Length, System.StringComparison.Ordinal);
+            }
+            return prompt;
+        }
+
+        static readonly System.Collections.Generic.Dictionary<string, Texture2D> icons = new System.Collections.Generic.Dictionary<string, Texture2D>();
+
+        /// <summary>
+        /// A control's icon for the device in use (a keycap on the keyboard, the pad's own symbol), or null where the set
+        /// has none (and on a generic pad, whose buttons have no agreed symbols).
+        /// </summary>
+        public static Texture2D Icon(string path)
+        {
+            if (string.IsNullOrEmpty(path) || path[0] != '<')
+                return null;
+            var end = path.IndexOf('>');
+            if (end < 0 || end + 2 > path.Length)
+                return null;
+            var device = path.Substring(1, end - 1);
+            var kind = device == "Keyboard" ? "keyboard" : device == "Mouse" ? "mouse" : device == "Gamepad" ? PadKind : null;
+            if (kind == null || kind == "generic")
+                return null;
+            var name = "Prompts/" + kind + "/" + path.Substring(end + 2).Replace('/', '_');
+            if (!icons.TryGetValue(name, out var icon))
+            {
+                icon = Resources.Load<Texture2D>(name);
+                icons[name] = icon;
+            }
+            return icon;
+        }
+
+        /// <summary>"-forcepad xbox|playstation": the pad kind shown, as if that pad were in use (null: none forced).</summary>
+        static string forcedKind;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        static void ReadCommandLine()
+        {
+            forcedKind = null;
+            var args = Punchy.Debugging.DebugControls.LaunchArgs;
+            var at = System.Array.IndexOf(args, "-forcepad");
+            if (at < 0)
+                return;
+            forcedKind = at + 1 < args.Length && args[at + 1] == "playstation" ? "playstation" : "xbox";
+            Gamepad = true;
+            Version++;
         }
 
         /// <summary>
