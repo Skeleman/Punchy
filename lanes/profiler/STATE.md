@@ -32,7 +32,7 @@ Released: v0.11.0 = cand/v0.11 4eea658 (world b39522b + animal c810406).
 - #31 houses lit wrong: tier, GPU and quality level ruled out on the laptop. Waiting on the same town shot from
   the main PC (flags in the report). Laptop plays at 1280x720 windowed.
 - TraceSystem 0.05 -> 0.40 ms median at townwalk since Z-50 (c0b26df), reported on #6. Re-profile after a fix.
-- Archived this session: Bench-8d83102, Bench-b5e9715, Profile-b5e9715, Profile-4eea658.
+- Builds/ was wiped by mistake on 2026-11-02 and partly rebuilt; see FILES.md for what exists and what to rebuild.
 
 ## Likely next jobs
 - Item 6 done: v2 cave stop CreatureRenderSystem 10.5 ms main thread, v2 townwalk misses the town (BENCH-REPORTS).
