@@ -40,6 +40,10 @@ namespace Punchy.Fauna
         public BlobArray<int> Prey;
         /// <summary>Whether anything hunts it (so it needs to watch out for predators).</summary>
         public bool Hunted;
+        /// <summary>Folk only (empty for the rest): by FaunaDirector species index, its regard for a player in that body
+        /// (-1 cool .. 1 warm) and its kinship (FolkKin: 1 its own kind, 2 a rival). See StanceToward.</summary>
+        public BlobArray<float> Regard;
+        public BlobArray<byte> Kinship;
         public IdleActions Idles;
         public float Fidgets, Climbing;
         public bool SpinsWebs, Burrows, CaveDweller, Roosts, Friendly, CrossesWater, Haunts, LavaDweller, DrawnToLight, DrivenOff;
@@ -143,6 +147,29 @@ namespace Punchy.Fauna
         /// a moment in the air each stride). Only players' bodies go that fast.
         /// </summary>
         public float Sprint(float speed) => Upright || Gallops ? math.smoothstep(RunSpeed * 1.05f, RunSpeed * 1.6f, speed) : 0f;
+
+        /// <summary>
+        /// How one of these folk (this individual) takes a player in a body of this species (Z-52). Its own kind are kin,
+        /// a rival folk a rival. Otherwise a cool regard makes some wary (up to 80% at -1) and, from -0.3, some annoyed
+        /// (up to half); a warm one makes some warm. Each individual's stance toward a species is fixed (a hash), so
+        /// the host's brain and every machine's FolkTalkSystem agree with nothing sent.
+        /// </summary>
+        public FolkStance StanceToward(int species, uint individual)
+        {
+            if (species < 0 || species >= Regard.Length)
+                return FolkStance.Neutral;
+            if (Kinship[species] == FolkKin.Kin)
+                return FolkStance.Kin;
+            if (Kinship[species] == FolkKin.Rival)
+                return FolkStance.Rival;
+            var regard = Regard[species];
+            var roll = (math.hash(new uint2(individual, (uint)species * 2654435761u)) & 0xFFFFu) / 65536f;
+            if (regard > 0f)
+                return roll < regard ? FolkStance.Warm : FolkStance.Neutral;
+            var annoyed = regard <= -0.3f ? -regard * 0.5f : 0f;
+            var wary = -regard * 0.8f;
+            return roll < annoyed ? FolkStance.Annoyed : roll < annoyed + wary ? FolkStance.Wary : FolkStance.Neutral;
+        }
 
         /// <summary>A sprinting leg's sweep, longer than its run's by this share (a gallop's more).</summary>
         public float SprintStride => Gallops ? 0.6f : 0.35f;
@@ -343,6 +370,29 @@ namespace Punchy.Fauna
                              "who comes close (watches them, backs off, shoos them).")] Hermit,
         [UnityEngine.Tooltip("A traveller stopping the night at a roadside camp (its Camp anchor): sits round the fire in the " +
                              "evening, lies down on a bedroll for the night, and goes on its way in the morning.")] Camper
+    }
+
+    /// <summary>How one of the folk takes the player's body (CreatureBlob.StanceToward, Z-52).</summary>
+    public enum FolkStance : byte
+    {
+        /// <summary>As ever: answers emotes (unless shy), talks when passed.</summary>
+        Neutral,
+        /// <summary>One of its own: always answers, now and then waves first.</summary>
+        Kin,
+        /// <summary>A playful rival: answers any emote with a mock bow, teases.</summary>
+        Rival,
+        /// <summary>Keeps a few metres off, watching; doesn't answer emotes; says only wary lines.</summary>
+        Wary,
+        /// <summary>Turns away from an emote and walks off; says only curt lines.</summary>
+        Annoyed,
+        /// <summary>Warm toward the player's folk: always answers, now and then waves first.</summary>
+        Warm
+    }
+
+    /// <summary>CreatureBlob.Kinship values.</summary>
+    public static class FolkKin
+    {
+        public const byte Stranger = 0, Kin = 1, Rival = 2;
     }
 
     /// <summary>
@@ -595,7 +645,9 @@ namespace Punchy.Fauna
         /// </summary>
         /// <param name="prey">Indices of the species it hunts.</param>
         /// <param name="hunted">Whether any species hunts it.</param>
-        public static BlobAssetReference<CreatureBlob> Build(CreatureSpecies variant, IReadOnlyList<int> prey = null, bool hunted = false)
+        /// <param name="regard">Folk only: its regard for each species (by index), and its kinship (FolkKin).</param>
+        public static BlobAssetReference<CreatureBlob> Build(CreatureSpecies variant, IReadOnlyList<int> prey = null, bool hunted = false,
+                                                             IReadOnlyList<float> regard = null, IReadOnlyList<byte> kinship = null)
         {
             var species = variant.Body;
             // Expand slots: mirrored slots become left and right copies; children follow every copy of their parent.
@@ -704,6 +756,14 @@ namespace Punchy.Fauna
             var preyArray = builder.Allocate(ref root.Prey, prey?.Count ?? 0);
             for (int i = 0; i < preyArray.Length; i++)
                 preyArray[i] = prey[i];
+            var regards = regard != null && kinship != null && regard.Count == kinship.Count ? regard.Count : 0;
+            var regardArray = builder.Allocate(ref root.Regard, regards);
+            var kinArray = builder.Allocate(ref root.Kinship, regards);
+            for (int i = 0; i < regards; i++)
+            {
+                regardArray[i] = regard[i];
+                kinArray[i] = kinship[i];
+            }
 
             var partArray = builder.Allocate(ref root.Parts, parts.Count);
             var segArray = builder.Allocate(ref root.Segments, segmentCount);

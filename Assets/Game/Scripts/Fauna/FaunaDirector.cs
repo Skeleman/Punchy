@@ -389,7 +389,10 @@ namespace Punchy.Fauna
                     }
             }
             for (int i = 0; i < species.Count; i++)
-                blobs.Add(CreatureBlobBuilder.Build(species[i], preyLists[i], hunted[i]));
+            {
+                Regards(i, out var regard, out var kinship);
+                blobs.Add(CreatureBlobBuilder.Build(species[i], preyLists[i], hunted[i], regard, kinship));
+            }
 
             capsule = BuildCapsule(12, 6, 4);
             var em = queryWorld.EntityManager;
@@ -465,6 +468,39 @@ namespace Punchy.Fauna
             var blob = builder.CreateBlobAssetReference<CarryBlob>(Allocator.Persistent);
             builder.Dispose();
             return blob;
+        }
+
+        /// <summary>
+        /// Folk (upright species) only: how species i regards a player in each species' body (Z-52), from its Regard
+        /// list (a listed species covers its variants) or else RegardToAll, and its kinship: its own kind (the same
+        /// species it's based on) kin, a Rival entry a rival. Null for the rest.
+        /// </summary>
+        void Regards(int i, out float[] regard, out byte[] kinship)
+        {
+            regard = null;
+            kinship = null;
+            var folk = species[i].Body;
+            if (folk == null || !folk.Upright)
+                return;
+            regard = new float[species.Count];
+            kinship = new byte[species.Count];
+            for (int j = 0; j < species.Count; j++)
+            {
+                var other = species[j];
+                if (other.Body == folk)
+                {
+                    kinship[j] = FolkKin.Kin;
+                    continue;
+                }
+                regard[j] = folk.RegardToAll;
+                foreach (var r in folk.Regard)
+                    if (r != null && r.Species != null && (r.Species == other || r.Species == other.Body))
+                    {
+                        regard[j] = r.Value;
+                        kinship[j] = r.Rival ? FolkKin.Rival : FolkKin.Stranger;
+                        break;
+                    }
+            }
         }
 
         /// <summary>

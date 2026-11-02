@@ -84,6 +84,7 @@ namespace Punchy.Fauna
             // The player's own body (the puppet where the player stands), for {player}: only to folk of another kind (a
             // dwarf doesn't remark on a dwarf).
             string playerSpecies = null, playerKind = null;
+            var playerIndex = -1;
             var nearestPuppet = 1f;
             for (int i = 0; i < states.Length; i++)
                 if (states[i].Mode == CreatureMode.Puppet && math.distancesq(states[i].Position, player) < nearestPuppet)
@@ -92,6 +93,7 @@ namespace Punchy.Fauna
                     var body = director.SpeciesAt(bodies[i].Species);
                     playerSpecies = DialogueArchive.Spoken(body?.name);
                     playerKind = body?.Body.name;
+                    playerIndex = bodies[i].Species;
                     if (states[i].Action >= IdleAction.Wave && states[i].Action <= IdleAction.Dance)
                     {
                         emoted = states[i].Action;
@@ -138,6 +140,8 @@ namespace Punchy.Fauna
                     Trade = s.Task != CreatureTask.None ? s.Task.ToString() : null,
                     HomeTown = s.Task == CreatureTask.Travel || s.Task == CreatureTask.Camper ? null : HomeTown(s, terrain),
                     PlayerSpecies = playerKind != null && playerKind == species?.Body.name ? null : playerSpecies,
+                    // (The same stance the host's brain works out: a hash of who it is and the player's body.)
+                    Stance = Stance(b.Upright && b.Hands && !b.Haunts ? b.StanceToward(playerIndex, s.Individual) : FolkStance.Neutral),
                     Hour = hour
                 };
                 var text = archive.Pick(who, ref rng, answering ? emoted.ToString() : null);
@@ -160,6 +164,8 @@ namespace Punchy.Fauna
             FolkTalkLabels.Ensure();
             FolkTalkLabels.Show(Shown.Count > 0);
         }
+
+        static string Stance(FolkStance stance) => stance == FolkStance.Neutral ? null : stance.ToString();
 
         /// <summary>Townsfolk awake and about: upright, with hands, not a ghost or a player's body, not asleep, fleeing or at home.</summary>
         static bool CanTalk(in CreatureState s, ref CreatureBlob b) =>
