@@ -1,7 +1,14 @@
-# Animal lane: state (2026-11-02, after batch A-11)
+# Animal lane: state (2026-11-02, after batch A-12)
 
-Worktree `Punchy` (animal lane only). `animal-behaviours` = origin a07d0cb (A-11: ocotillo mimic arms-as-legs).
-Builds/Windows is the A-11 build (adds `-mimicshot rest|run`, used with `-spawn OcotilloMimic:1 -place tree:Ocotillo`). Editor open on port 7800; no Punchy.exe running.
+Worktree `Punchy` (animal lane only). `animal-behaviours` = origin 36f6dab (A-12).
+Builds/Windows is the A-12 build (`-mimicshot rest|run`, used with `-spawn OcotilloMimic:1 -place tree:Ocotillo`). Editor open on port 7800; no Punchy.exe running.
+
+## A-12 done (animal-behaviours 36f6dab, artefacts PunchyMilestones/animal/a12/)
+- #17: FleeDistance 2.0, RunSpeed 3.2: startle 4.6 m, run 10.13 m/s, fold 0.55 s. Rest camera 5 m, run camera 6 m back on the mimic. Ready for Zach's look.
+- #12: StartFlight picks the new spot within 90 deg of heading (no U-turns). Wander/flying 23.1 and 16.4 deg/s in two windows, 43.6 in a third (flee episode): noisy, not reliably under 20. Next: damp the takeoff turn, exclude flee.
+- #40: colossus (1780, -1973) is 968 m from the nearest settlement. Side-on shot col300.png, no HUD.
+- #46: NOT settled. Meadow (-255, 27) is not flat (gap 2.3-2.9 m). Needs a real flat (sand flat, lake shore).
+- #33: NOT done (budget). Needs `-place wall:<Species>` for a garden wall.
 
 ## A-11b done (#17, open for Zach's look; animal-behaviours 8a3349e, Builds/Windows is this build)
 - Mimic: 10 arms (5 mirrored pairs), splay 18-28 deg mean 23 (real recipe: 9-18 stems, 4-28 deg mean 16, 2.5-5 m). Mimic ~3 m.
@@ -25,16 +32,6 @@ Builds/Windows is the A-11 build (adds `-mimicshot rest|run`, used with `-spawn 
 - #9 `-shotonhunt`: wolf sprint at turkey, 14 m apart, shot saved (hunt0.png). Prey can be any species.
 - #46 ground row: code identical below 1.5 m gap; spawned herd sits on slopes (gap mean 0.2-6 m, up to 6 over 1.5 m), so weighted vs flat differ by terrain, not code. Fled sample 1: weighted 0,5,4 vs flat 3,0,0 (no pattern). Needs flat ground (a sand flat or lake shore) and one build to settle.
 - Artefacts: PunchyMilestones/animal/a09/ (player.log, list.txt, col300/col60 plus -800).
-
-## Done earlier (A-06b)
-- #12 (mostly): FlyTo flare eases turning off and drifts onto the spot. Songbird Wander 100-125 -> 25-31 deg/s;
-  flare stage 268-278 -> 18-25. `-noflaresettle` gives the old way from the same build.
-- `-spincheck` splits Wander into /ground /flying /flare /stage2+ and traces one songbird (40 lines, 0.5 s).
-- Wall test sideways phase moved to 1.5-3.5 s after `-place wall`.
-
-## A-07 done
-- #46 height fear x2.5 past 1.5 m (log inconclusive: counts all creatures; filter to deer). #43 Meadow 36-60 calls/min (was 96-132), Dunes 0, Glacier 0.
-- #33 flat boulder: topped out, OnWall False, sideways 0.9 m/s. Not yet on a garden wall.
 
 ## Open
 - #12: left over is Wander/flying 28-35 deg/s (was 30-34 before too) and /ground 31-46 (7-21 s only). Under 20

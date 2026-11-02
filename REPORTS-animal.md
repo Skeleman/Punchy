@@ -745,3 +745,10 @@ different files.
 - Startle 11.5 -> 5.2 m (FleeDistance 2.4); fold 0.55 s; run max 15.8 -> 8.99 m/s (RunSpeed 3); settle (Rest, curl 0 to 0.95) 4.97 s.
 - Shots in PunchyMilestones/animal/a11b: rest (mimic and real side by side, full height, camera far), run (mid-flee), settle.
 - NEXT: Zach's look; tune FleeDistance 2.0 / RunSpeed 3.2 if wanted; closer rest camera.
+
+## A-12 (2026-11-02): mimic, songbird turns, colossus, animal-behaviours 36f6dab (one build)
+- #17: FleeDistance 2.0, RunSpeed 3.2. Startle 4.6 m, run 10.13 m/s mid-run, fold 0.55 s. mimic-rest: two ocotillo (mimic and real) fill the frame from 5 m. mimic-run: mimic on its arm-legs mid-flee, framed on it alone.
+- #12: fliers pick new spots within 90 deg of heading. Wander/flying 23.1, 16.4, 43.6 deg/s over three windows: improved but noisy.
+- #40: colossus 968 m from the nearest settlement. col300: the giant seen side-on across dunes, no HUD.
+- #46: not settled, test spot was not flat (gap 2.3-2.9 m). #33: not done.
+- NEXT: flat spot for #46; damp takeoff turn for #12; `-place wall:<Species>` for #33.
