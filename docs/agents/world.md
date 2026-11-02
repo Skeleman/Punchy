@@ -38,6 +38,10 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   At entrances the terrain stores each vertex's distance to cave air (Morph.w) and its shader cuts the surface
   just inside the cave's edge, in every pass (near LODs only); `CaveSystem` builds the cave walls with surface
   nets in background jobs, sets `CaveSystem.Underground` (weather stops) and lights a lantern on the player.
+  Rubble and plants are placed per cave in `Parallel.For` and joined in cave order, so the output is the same as
+  a serial pass; keep any new per-cave pass that way (no shared RNG or lists across caves). `[bake] caves ms`
+  logs each step. `-whitepools` draws every cave water pool as white pool water (`CaveSystem.WhitePoolWater`,
+  #35); murk above about 0.3 makes the pool a hard-edged opaque slab that reads as snow.
 - **Plants, animals and particles are not baked:** editing their assets in Play mode applies live within about a
   second (the systems hash their config and rebuild).
 - **Ponds are pruned after baking:** `BuildPlaces` labels wet cells on a 16 m grid and bakes `PondMask`, which

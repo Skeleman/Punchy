@@ -413,6 +413,19 @@ namespace Punchy.Terrain
         static Mesh lavaPoolMesh, waterPoolMesh;
         /// <summary>Cave water's look in the water vertex layout: dark, clear and cold (rgb, murk).</summary>
         static readonly float4 CaveWater = new float4(0.1f, 0.28f, 0.3f, 0.1f);
+        /// <summary>
+        /// White pool water (bat folk caves, #35): milky and pale. Murk stays low (more than about 0.3 and
+        /// the shader's opacity turns the pool into a hard-edged slab that reads as snow), so the rim still fades into the
+        /// bed and it lies still, well under the thick-and-oily threshold (0.55); the whiteness comes from the colour and a
+        /// self-glow, which also shows it where nobody carries a light. The glow's hue swirl only trades blue for green, which stays near white.
+        /// </summary>
+        static readonly float4 WhitePoolWater = new float4(0.92f, 0.95f, 0.97f, 0.24f);
+        const float WhitePoolGlow = 0.28f;
+        /// <summary>
+        /// "-whitepools": every cave water pool is drawn as white pool water (a test flag until bat folk caves carry
+        /// their own pools). Drawing only, so it changes nothing that is baked.
+        /// </summary>
+        public static bool WhitePools = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-whitepools") >= 0;
         // Streams run shallow over dark rock: darker and greener than the pools, a little murkier.
         static readonly float4 CaveStreamWater = new float4(0.04f, 0.13f, 0.12f, 0.15f);
         /// <summary>One mesh per stream, built when the world's caves are first drawn (streams are few and fixed).</summary>
@@ -440,7 +453,7 @@ namespace Punchy.Terrain
                 if (lavaPoolMesh == null)
                 {
                     lavaPoolMesh = MakePoolMesh(new float4(1f, 0.33f, 0.05f, 0.2f), 1f);
-                    waterPoolMesh = MakePoolMesh(CaveWater, 0f);
+                    waterPoolMesh = WhitePools ? MakePoolMesh(WhitePoolWater, new float2(WhitePoolGlow, 0f)) : MakePoolMesh(CaveWater, 0f);
                 }
                 nearPools.Sort(PoolsByDistance);
                 foreach (var (_, i) in nearPools)
