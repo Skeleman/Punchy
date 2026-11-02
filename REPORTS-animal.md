@@ -2,6 +2,16 @@
 
 Newest first.
 
+## 2026-11-02 batch A-03: climb stick on the surface, per-biome ambient sounds, 3D fear distance; P3 merged
+- DONE: #33 trunk climbing reads the stick against the camera (forward up, back down, right along it); going down plays the gait cycle backwards (animal-behaviours c52d716, pushed, includes P3).
+- DONE: #43 per-biome sound sets (AmbientSounds, empty allowed): silent Glacier, SaltFlat, Ashlands, ElectricWastelands, GlassDesert, Ocean; no songbirds/woodpeckers (spawns or calls) in those plus Dunes, Sonoran, Mesa, Poison Swamp; call budget 1.5/s to 0.6/s.
+- DONE (extra): fear distance now 3D (playerDistance in the brain; the threat test already was).
+- NOT DONE: #33 wall climb and remote client untested (`-place ledge` found no ledge on seed 1337). #43 rate measured only as the budget constant, not as played calls. #6 gallop leg shot: coyote framed but resting, nothing to judge. #7 hiss/growl: still not heard (1 Bark in 90 s). #8 live folk lines: 2 lines (Dwarf Rival to Elf) with spawned folk.
+- Checks: compile clean, build ok, 0 exceptions, players exited on their own (no Punchy.exe of mine). Trunk (Monkey, Oak, 70 s autowalk): 4 holds, so up then down to the foot each 20 s cycle. Hover over 8 deer: fleeing within 40 m 1-2 of ~30 at 5 m, 0-5 of ~40 at 15 m, 0 of ~47 at 30 m (counts include any fleeing animal, no pre-change baseline). Hunts: 4 pounces landed or missed, 1 caught.
+- Shots: D:\Unity\PunchyMilestones\animal\a03\gal-2-s.png (coyote at rest in the meadow); full set in a03\gallery\.
+- Learned: docs/agents/fauna.md (climb stick, AmbientSounds). Test hooks: -lift h, -quit, PlayerInputSystem.TestCamera (climb test holds the camera on the wall).
+- NEXT: wall climb with Lizard at a hut or rock (`-place prop:` or goto a rock); real calls-per-minute count before/after #43; hiss/growl and gallop need a scripted hook (shoot when a hunter's Speed > 0.9 x RunSpeed; Dog vs Cat spawned 4 m apart); file the lift-flee baseline.
+
 ## 2026-11-02 batch A-02: second check run on the P3 build; voices mostly confirmed, gallop and folk lines still not seen, no merge
 - DONE: #7 voices heard in the log: Yowl (cat), Whine, Bark, DogHowl (night at timescale 4, 210 s run)
 - NOT DONE: #7 Hiss (49) and Growl (52) not triggered in 80 s of 3 dogs beside 3 cats
