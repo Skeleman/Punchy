@@ -17,3 +17,8 @@
 - A player left running locks `Builds/.../Punchy.exe`, and the next build fails (W-02 and A-03 were both blocked this way).
   Agents are not allowed to kill processes. Make the last shot-list line quit the player, or launch it so it exits
   when the list ends, and check `tasklist` shows no Punchy.exe of yours before you report.
+
+## Player launch gotchas (W-04)
+- Never pass `-nographics` to Punchy.exe: compute buffers break and the shot list never finishes, so it never quits.
+- From Git Bash, pass player paths with forward slashes (`D:/PunchyScratch/...`); backslashes get eaten.
+- If Builds/Dev is locked by a player that won't exit, build to Builds/DevB instead and say so in the report. Don't kill it.
