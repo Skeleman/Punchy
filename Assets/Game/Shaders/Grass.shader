@@ -22,6 +22,7 @@ Shader "Punchy/Grass Blades"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
+            #include "Glow.hlsl"
             #include "GroundDetail.hlsl"
 
             StructuredBuffer<Blade> _Blades;
@@ -62,7 +63,8 @@ Shader "Punchy/Grass Blades"
                 half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
                 half wrap = saturate(dot(n, light.direction) * 0.6 + 0.4);
                 half through = pow(saturate(dot(-v, light.direction)), 4) * t * 0.6;   // sunlight through the blade
-                half3 color = albedo * (light.color * shadow * (wrap + through) + SampleSH(n));
+                // Glowing plants and molten pools nearby light the grass round them too.
+                half3 color = albedo * (light.color * shadow * (wrap + through) + SampleSH(n) + PunchyGlowLight(input.positionWS, n));
 
                 color = PunchyAtmosphere(color, input.positionWS);
                 return half4(color, 1);
@@ -95,6 +97,57 @@ Shader "Punchy/Grass Blades"
             }
 
             half Frag(float4 positionCS : SV_POSITION) : SV_Target { return positionCS.z; }
+            ENDHLSL
+        }
+
+        // Depth and normals for the depth-normals prepass (SSAO). With depth priming the opaque pass only draws what
+        // this prepass drew, so without it the grass would vanish.
+        Pass
+        {
+            Name "DepthNormals"
+            Tags { "LightMode" = "DepthNormals" }
+            ZWrite On
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl"
+            #include "GroundDetail.hlsl"
+
+            StructuredBuffer<Blade> _Blades;
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                half3 normalWS : TEXCOORD0;
+            };
+
+            Varyings Vert(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
+            {
+                float3 positionWS, normal;
+                float t;
+                BuildBladeVertex(_Blades[instance], instance, vertex, positionWS, normal, t);
+                Varyings o;
+                o.positionCS = TransformWorldToHClip(positionWS);
+                o.normalWS = normal;
+                return o;
+            }
+
+            void Frag(Varyings input, bool front : SV_IsFrontFace, out half4 outNormalWS : SV_Target0
+            #ifdef _WRITE_RENDERING_LAYERS
+                , out uint outRenderingLayers : SV_Target1
+            #endif
+            )
+            {
+                half3 n = NormalizeNormalPerPixel(input.normalWS);
+                outNormalWS = half4(front ? n : -n, 0);
+            #ifdef _WRITE_RENDERING_LAYERS
+                outRenderingLayers = EncodeMeshRenderingLayer();
+            #endif
+            }
             ENDHLSL
         }
     }

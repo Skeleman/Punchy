@@ -17,8 +17,15 @@ namespace Punchy.Terrain
     public enum LandmarkEffectKind : byte
     {
         [Tooltip("Rising puffs: steam, smoke, geyser spouts, spray, sparkles.")] Plume,
-        [Tooltip("A curtain of falling water from Offset (the lip) out and down towards -X.")] Waterfall
+        [Tooltip("A curtain of falling water from Offset (the lip) out and down towards -X.")] Waterfall,
+        [Tooltip("Flames (FireSystem) at Offset: Particles tongues of fire Size high, spread over Width, in the Flame " +
+                 "palette. Drawn within 150 m. Pair it with a FirePit (or brazier) prop and an ember plume.")] Flame,
+        [Tooltip("Bubbles rising and popping on a pool's surface at Offset (hot springs, geysers, mud pits, lava): Particles " +
+                 "bubbles of about Size across, over Width, each swelling and bursting into a spreading ring in Lifetime s.")] Bubbles
     }
+
+    /// <summary>Flame colours (FireSystem's palettes).</summary>
+    public enum FlamePalette : byte { Wood, Blue, Green, Violet }
 
     /// <summary>A pool of still water in a landmark (oasis, spring, crater lake).</summary>
     [Serializable]
@@ -54,6 +61,9 @@ namespace Punchy.Terrain
         public float Angle;
         [Tooltip("Placed ones keep everything else (plants, scattered props) this many metres away.")]
         [Min(0f)] public float Clearance = 4f;
+        [Tooltip("Placed ones (Count) stand on ground worn darker and bare this many metres round, reaching a little " +
+                 "further out in front, where people stand (market stalls). 0 = none.")]
+        [Min(0f)] public float Trodden;
     }
 
     /// <summary>A procedural effect drawn at a landmark by LandmarkEffectSystem.</summary>
@@ -81,6 +91,10 @@ namespace Punchy.Terrain
         [Min(0f)] public float Period;
         [Tooltip("Share of each period the eruption lasts.")]
         [Range(0.02f, 1f)] public float Duty = 0.25f;
+        [Tooltip("Flame: the fire's colours (wood fire, or the blue, green and violet of strange fires).")]
+        public FlamePalette Flame;
+        [Tooltip("Flame: lit only from dusk to dawn (a camp's fire), dying down and catching again with the light.")]
+        public bool NightOnly;
     }
 
     [Serializable]
@@ -185,10 +199,47 @@ namespace Punchy.Terrain
         [Min(1f)] public float CaveRadius = 2.4f;
         [Tooltip("Radius of the chamber at the end, in metres.")]
         [Min(1f)] public float ChamberRadius = 6f;
+        [Tooltip("More chambers along the main passage, each a little smaller than the end one.")]
+        [Range(0, 6)] public int CaveChambers;
+        [Tooltip("Side passages leading off the main one (and off each other, in big networks), each to a small chamber.")]
+        [Range(0, 12)] public int CaveBranches;
+        [Tooltip("Length of a side passage, in metres.")]
+        [Min(5f)] public float BranchLength = 30f;
+        [Tooltip("Shafts rising from chambers to the surface: sinkholes that let daylight in (and let the careless fall in).")]
+        [Range(0, 4)] public int CaveShafts;
+        [Tooltip("Styles this cave can take; it takes one listed for the biome it opens in (see CaveStyle.Biomes).")]
+        public List<CaveStyle> CaveStyles = new List<CaveStyle>();
+
+        [Header("Settlement")]
+        [Tooltip("Lays the landmark out as a town: streets, plots and what stands on them (see SettlementLayout).")]
+        public SettlementLayout Settlement;
+
+        [Header("Companions")]
+        [Tooltip("Landmarks placed beside this one where the ground allows (a mining village by its mine): the first in " +
+                 "the list that the biome there lists and that finds a spot within Companion Range.")]
+        public List<LandmarkType> Companions = new List<LandmarkType>();
+        [Min(20f)] public float CompanionRange = 150f;
+        [Tooltip("Only ever placed as another landmark's companion, never on its own (biomes still list it, which says " +
+                 "where it may go).")]
+        public bool OnlyAsCompanion;
 
         [Header("Residents")]
         [Tooltip("Animals that live here; they appear when the player comes near.")]
         public List<LandmarkResident> Residents = new List<LandmarkResident>();
+
+        [Tooltip("Anchors it exports for people living rough (AnchorBaking.AddWildAnchors): none, a roadside campsite's " +
+                 "or a hermit's.")]
+        public WildAnchors Anchors;
+    }
+
+    /// <summary>Which set of anchors a wild landmark exports (see AnchorBaking.AddWildAnchors).</summary>
+    public enum WildAnchors : byte
+    {
+        None,
+        [Tooltip("A Camp at the fire (its centrepiece) facing the landmark's way, a Hearth, two Beds beyond the fire and " +
+                 "a Sit per seat.")] Campsite,
+        [Tooltip("Home in the hut (a placed prop facing the centre) and its Door, a Work spot at the woodpile, the Garden, " +
+                 "a Hearth at the fire in the middle and a Sit per seat.")] Hermit
     }
 
     /// <summary>A landmark type appearing in a biome, and how often.</summary>
@@ -198,6 +249,17 @@ namespace Punchy.Terrain
         public LandmarkType Type;
         [Tooltip("Landmarks per km² where the ground suits it.")]
         [Min(0f)] public float Density = 0.3f;
+        [Tooltip("Settlements only: at least this many in each realm whose biomes list it (where the land allows).")]
+        [Range(1, 3)] public int PerRealm = 1;
+    }
+
+    /// <summary>A landmark type that stands beside the roads (RoadsideBaking), and how often.</summary>
+    [Serializable]
+    public class RoadsideLandmark
+    {
+        public LandmarkType Type;
+        [Tooltip("Chance per kilometre of road (spots that are too steep, wet or crowded are skipped).")]
+        [Min(0f)] public float PerKm = 0.3f;
     }
 
     /// <summary>A landmark placed by hand.</summary>

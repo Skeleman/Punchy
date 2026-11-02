@@ -1,0 +1,104 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b92d8651f7a54b46b75fb6e4f0c3de3, type: 3}
+  m_Name: Limestone
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.CaveStyle
+  Biomes:
+  - {fileID: 11400000, guid: 277e2018d3d2abb46be2568301b07cab, type: 2}
+  - {fileID: 11400000, guid: b1b97ac8fbc6672418cc6308ad36b33b, type: 2}
+  Width: 1
+  Height: 1
+  Roughness: 1
+  Grain: 1
+  Jaggedness: 1.05
+  Blockiness: 0.3
+  Ribs: 0
+  RibSpacing: 1.6
+  Angularity: 0
+  FacetSize: 2.5
+  Straightness: 0
+  Frame: {fileID: 0}
+  FrameSpacing: 4
+  Torch: {fileID: 0}
+  TorchSpacing: 10
+  FloorFlatness: 0.85
+  FloorSteps: 0.5
+  Burrows: 1
+  SpeleothemDensity: 6
+  SpeleothemLength: 0.45
+  SpeleothemThickness: 0.6
+  Hanging: 0.6
+  Columns: 0.4
+  Drips: 0.6
+  Rubble: 12
+  RubbleSize: 0.6
+  Moss: 0.4
+  MossColor: {r: 0.22, g: 0.32, b: 0.12, a: 1}
+  Flora:
+  - Species: {fileID: 11400000, guid: bd276f49a3ba0da489507a483dad61ab, type: 2}
+    Density: 12
+    Light: 1
+    Hanging: 0
+    MaxCover: 5
+  - Species: {fileID: 11400000, guid: f0bc63d3dde59f142948a597920d6c11, type: 2}
+    Density: 6
+    Light: 0
+    Hanging: 0
+    MaxCover: 5
+  - Species: {fileID: 11400000, guid: a9cbbae6f97c066488f4202fc7884908, type: 2}
+    Density: 3
+    Light: 2
+    Hanging: 0
+    MaxCover: 5
+  - Species: {fileID: 11400000, guid: 42b8e81c8452c27458a4ce054bee8f23, type: 2}
+    Density: 7
+    Light: 0
+    Hanging: 1
+    MaxCover: 8
+  - Species: {fileID: 11400000, guid: 6cb925e2af94dd0488d2c0dee02aa655, type: 2}
+    Density: 0.8
+    Light: 2
+    Hanging: 0
+    MaxCover: 1.5
+  - Species: {fileID: 11400000, guid: b2075efb2c5607c418e7d3efac7828a2, type: 2}
+    Density: 6
+    Light: 0
+    Hanging: 0
+    MaxCover: 5
+  PoolChance: 0.5
+  LavaPools: 0
+  PoolSize: 0.32
+  StreamChance: 0.6
+  WaterfallChance: 0.6
+  RockColor: {r: 0.62, g: 0.58, b: 0.52, a: 1}
+  DarkColor: {r: 0.3, g: 0.28, b: 0.25, a: 1}
+  Strata: 0.25
+  StrataFrequency: 0.37
+  Gloss: 0.25
+  Metallic: 0
+  Facets: 0
+  Translucency: 0
+  FloorColor: {r: 0.47, g: 0.42, b: 0.35, a: 1}
+  FloorDark: {r: 0.27, g: 0.24, b: 0.2, a: 1}
+  FloorGrit: 0.5
+  FloorGloss: 0.15
+  Detail: 0.3
+  DetailScale: 1.2
+  Sheen: 0
+  GlowColor: {r: 0.4, g: 0.8, b: 1, a: 1}
+  Glow: 0
+  GlowCover: 0.08
+  Cracks: 0
+  GlowScale: 1
+  GlowEverywhere: 0
+  CrackDarkness: 0
+  CrackBreakup: 0

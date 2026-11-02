@@ -14,6 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
   VariantOf: {fileID: 0}
   VariantScale: 1
+  VariantHead: 1
+  VariantThickness: 1
+  VariantLegs: 1
   BodyLength: 0.38
   BodyRadius: 0.1
   BodyTaper: 0.9
@@ -33,6 +36,8 @@ MonoBehaviour:
     AccentGlow: 0
     Weight: 1
   Size: {x: 0.9, y: 1.1}
+  Weight: 8
+  HairColors: []
   Parts:
   - Limb: {fileID: 11400000, guid: 2c2c89c13d2d68c4cb4c8822c3681830, type: 2}
     Parent: -1
@@ -43,6 +48,7 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 1.5
     Thickness: 1.1
+    StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 8126b24d28dddfa479b8f90a422c24b0, type: 2}
     Parent: -1
     Socket: {x: 0.6, y: -0.2, z: 0.75}
@@ -52,6 +58,7 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 2.5
     Thickness: 1.1
+    StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 638d929797ab7c94ea24e6ed0d7c877b, type: 2}
     Parent: -1
     Socket: {x: 0, y: 0.5, z: 0.95}
@@ -61,6 +68,7 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 1
     Thickness: 1
+    StyleGroup: 0
   - Limb: {fileID: 11400000, guid: eaac76a5096f0c2488d1477e6eac192e, type: 2}
     Parent: 2
     Socket: {x: 0, y: 0, z: 0}
@@ -70,6 +78,7 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 0.85
     Thickness: 1
+    StyleGroup: 0
   - Limb: {fileID: 11400000, guid: a27dc3024e78b864da32345a2d4090a5, type: 2}
     Parent: 3
     Socket: {x: 0.07, y: 0.02, z: -0.08}
@@ -79,6 +88,7 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 0.7
     Thickness: 1
+    StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 8db8692701365314db1a0b5e9ab1cbd1, type: 2}
     Parent: 3
     Socket: {x: 0.035, y: 0.025, z: -0.035}
@@ -88,6 +98,7 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 1
     Thickness: 1
+    StyleGroup: 0
   - Limb: {fileID: 11400000, guid: 8d51aa229c1545949a7f2be69d1443bb, type: 2}
     Parent: -1
     Socket: {x: 0, y: 0.3, z: -1}
@@ -97,23 +108,68 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 1.1
     Thickness: 0.8
+    StyleGroup: 0
   WalkSpeed: 1
   RunSpeed: 6
   Bob: {x: 0.015, y: 0.05}
   BobsPerCycle: {x: 2, y: 1}
   RunRock: 10
+  Upright: 0
   LeglessStride: {x: 0.6, y: 0.9}
   WanderRadius: 20
   IdleTime: {x: 1.5, y: 6}
   FleeDistance: 10
   TurnRate: 200
+  SeenFrom: 0
   GroupSize: {x: 2, y: 5}
   NearWater: 0
+  Habitat: 0
+  SwimDepth: 0.6
+  Leaps: 0
   Active: 0
   Grazing: 0.3
   Thirst: 0.3
   Playfulness: 0.6
+  Child: 0
   Laziness: 0.3
   Hunts: []
   Hunger: 0.3
   ChaseTime: 10
+  Idles: 2150
+  Fidgets: 0.7
+  Climbing: 0.6
+  SpinsWebs: 0
+  WebSize: 0.6
+  Burrows: 0
+  CaveDweller: 0
+  Crawls: 0
+  ColdBlooded: 0
+  Role: 0
+  Hooves: 0
+  ClimbsAs: 0
+  EmoteReaction: 2
+  Voice: 0
+  CaveAffinity: 0
+  Roosts: 0
+  Friendly: 0
+  LavaDweller: 0
+  Haunts: 0
+  CrossesWater: 0
+  Nests: 0
+  DrawnToLight: 0
+  DrivenOff: 0
+  GuardKit: 0
+  GuardArmour: {r: 0.55, g: 0.57, b: 0.6, a: 1}
+  GuardSash: {r: 0.62, g: 0.12, b: 0.1, a: 1}
+  Rooted: 0
+  Disguised: 0
+  FlightHeight: {x: 8, y: 18}
+  FlySpeed: 7
+  PlayerFlySpeed: 0
+  FlapRate: 6
+  Glide: 0
+  Perching: 0.6
+  Soars: 0
+  Breaches: 0
+  RaidsHives: 0
+  Calls: []

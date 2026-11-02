@@ -114,8 +114,16 @@ namespace Punchy.Terrain
 
         /// <summary>Natural landmarks (oases, geysers, waterfalls…): baked after rivers, applied on top of them.</summary>
         public BlobAssetReference<LandmarkSetBlob> Landmarks;
+        /// <summary>Settlements' streets and plots (baked after landmarks): levelled and paved on top of them.</summary>
+        public BlobAssetReference<SettlementSetBlob> Settlements;
         /// <summary>Caves (baked after landmarks): air pockets cut out of the rock under the surface.</summary>
         public BlobAssetReference<CaveSetBlob> Caves;
+        /// <summary>
+        /// Anchors (baked last): points places export for creatures, such as roosts, nests and burrows. Look them up
+        /// with <see cref="Punchy.Terrain.Anchors"/>. A world with no caves or settlements has none: check IsCreated
+        /// before taking <c>ref Anchors.Value</c>.
+        /// </summary>
+        public BlobAssetReference<AnchorSetBlob> Anchors;
 
         bool HasBiomes => Biomes.IsCreated && Biomes.Value.Biomes.Length > 0;
         bool UsesBiomeMap => BiomeKind == BiomeSourceKind.Map && BiomeMap.IsCreated;
@@ -242,15 +250,21 @@ namespace Punchy.Terrain
         {
             // A loaded heightmap already contains carved channels and landmark shapes.
             if (UsesHeightmap)
-                return Heightmap.Value.Sample(xz);
+                return Settle(xz, Heightmap.Value.Sample(xz));
             SampleBiomes(xz, out _, out var shape);
             var h = ShapeHeight(xz, shape);
             if (Rivers.IsCreated)
                 h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz), RiverSettings, h);
             if (Landmarks.IsCreated)
                 h = LandmarkSampling.Shape(ref Landmarks.Value, xz, h);
-            return h;
+            return Settle(xz, h);
         }
+
+        /// <summary>
+        /// Settlements' streets and plot pads levelled into the ground. Applied last, and levelling towards a fixed
+        /// height, so applying it again (to a heightmap exported with it) changes nothing.
+        /// </summary>
+        float Settle(float2 xz, float h) => Settlements.IsCreated ? SettlementSampling.Height(ref Settlements.Value, xz, h) : h;
 
         /// <summary>Height plus biome, river and water information, computed together.</summary>
         public GroundSample SampleGround(float2 xz)
@@ -282,9 +296,13 @@ namespace Punchy.Terrain
                     g.Height = RiverSampling.Carve(river, RiverSettings, g.Height);
                 g.River = RiverSampling.ChannelMask(river);
                 var edge = river.Width * 0.5f + RiverSampling.SurfaceMargin;
+                // The river's own surface here and how much it claims this point (for its outlet from a lake, below).
+                var riverLevel = float.MinValue;
+                var riverClaim = 0f;
                 if (river.Found && river.Distance < edge)
                 {
                     var surfaceLevel = RiverSampling.WaterSurface(river);
+                    riverLevel = surfaceLevel;
                     if (surfaceLevel > water)
                     {
                         water = surfaceLevel;
@@ -292,19 +310,51 @@ namespace Punchy.Terrain
                         g.Rapids = math.smoothstep(0.015f, 0.08f, river.Gradient);
                     }
                     var fade = 1f - math.smoothstep(edge - RiverSampling.SurfaceMargin * 0.5f, edge, river.Distance);
+                    riverClaim = fade;
                     ruleDepth = math.max(ruleDepth, math.lerp(farAbove, surfaceLevel - g.Height, fade));
                 }
 
-                var lake = RiverSampling.Lake(ref Rivers.Value, xz, out var lakeSurface);
+                var lake = RiverSampling.Lake(ref Rivers.Value, xz, out var lakeSurface, out var lakeDepth);
+                // Ground lying deeper under the lake's surface than the lake itself is deep isn't lake bed or shore: a
+                // river's gorge has cut through the lake's rim there, and a flat sheet of lake over it would hang in the
+                // air (F-22; a few dozen such points on the island).
+                if (lakeSurface - g.Height > lakeDepth + 2f)
+                    lake = 0f;
                 if (lake > 0f)
                 {
-                    if (lakeSurface > water)
+                    // Where a river leaves a lake lower than the lake's surface (its outlet), the river's surface rises
+                    // to the lake's across the lake's edge, as rapids, instead of stepping up along the edge of the
+                    // lake's cells.
+                    var level = lakeSurface;
+                    if (riverClaim > 0f && riverLevel < lakeSurface && lake < 1f)
                     {
-                        water = lakeSurface;
+                        var ramp = math.lerp(riverLevel, lakeSurface, math.smoothstep(0f, 1f, lake));
+                        level = math.lerp(lakeSurface, ramp, riverClaim);
+                    }
+                    if (level > water)
+                    {
+                        var outlet = level < lakeSurface - 0.01f;
+                        water = level;
+                        flow = outlet ? flow : float2.zero;
+                        g.Rapids = outlet ? math.max(g.Rapids, math.saturate((lakeSurface - riverLevel) * 0.6f) * riverClaim) : 0f;
+                    }
+                    ruleDepth = math.max(ruleDepth, math.lerp(farAbove, level - g.Height, math.smoothstep(0f, 0.4f, lake)));
+                }
+                // A bay or beach pocket lying below a lake's surface that the lake's coarse cells miss: lake too, if
+                // the ground between it and the lake is under that surface (so the water connects). Not in a river's
+                // own channel (an outlet keeps its ramp above).
+                if (lake < 1f && riverClaim <= 0f)
+                {
+                    var shore = RiverSampling.ShoreLevel(ref Rivers.Value, xz);
+                    if (shore > g.Height + 0.05f && shore > water
+                        && RiverSampling.NearestLakeAbove(ref Rivers.Value, xz, g.Height + 0.05f, out var lakeCentre, out var bayLevel)
+                        && bayLevel > water && bayLevel - g.Height <= BayDepthLimit(lakeCentre) && ConnectsBelow(xz, lakeCentre, bayLevel))
+                    {
+                        water = bayLevel;
                         flow = float2.zero;
                         g.Rapids = 0f;
+                        ruleDepth = math.max(ruleDepth, bayLevel - g.Height);
                     }
-                    ruleDepth = math.max(ruleDepth, math.lerp(farAbove, lakeSurface - g.Height, math.smoothstep(0f, 0.4f, lake)));
                 }
                 // A river flowing through a lake is just lake there.
                 g.River *= 1f - math.saturate(lake * 2f);
@@ -327,6 +377,8 @@ namespace Punchy.Terrain
                     ruleDepth = math.max(ruleDepth, math.lerp(farAbove, pool - g.Height, claim));
                 }
             }
+            // Settlements keep clear of water, so their levelling doesn't change the water rules above.
+            g.Height = Settle(xz, g.Height);
 
             g.WaterSurface = water;
             g.Flow = flow;
@@ -339,12 +391,61 @@ namespace Punchy.Terrain
         /// <summary>Signed distance to cave air at a point: negative inside a cave, large away from every cave.</summary>
         public float CaveDistance(float3 p) => Caves.IsCreated ? CaveSampling.Distance(ref Caves.Value, p, out _) : 1e9f;
 
+        /// <summary>
+        /// How much lava (0..1) a point is in: a cave's lava pool, or surface water whose look is lava (volcano craters,
+        /// lava biomes). Nothing stops anyone walking or swimming into it; this is for whatever reacts to it (a future
+        /// health system, effects).
+        /// </summary>
+        public float LavaAt(float3 p)
+        {
+            if (Caves.IsCreated && CaveSampling.OverLava(ref Caves.Value, p))
+                return 1f;
+            var ground = SampleGround(p.xz);
+            if (!ground.HasWater || p.y > ground.WaterSurface + 0.1f)
+                return 0f;
+            WaterLook(p.xz, ground.Biomes, out var glow);
+            return glow.y;
+        }
+
         /// <summary>Whether the ground surface here is cut away by a cave entrance.</summary>
-        public bool IsCaveHole(float2 xz)
+        public bool IsCaveHole(float2 xz) => MouthCut(xz, SampleHeight(xz)) < 0f;
+
+        /// <summary>
+        /// Whether the cave walls keep rock just under the ground surface here (positive, at most 0.25) or a mouth opens
+        /// (negative): the same field CaveSystem builds the walls from (surface air and cave air merged smoothly over
+        /// CaveSampling.MouthBlend, so a roof thinner than about half a metre opens), sampled 35 cm into the ground. The terrain is
+        /// cut where this is negative, so its edge and the walls' rim agree; the walls carry a skin of the surface for a
+        /// couple of metres round (CaveSystem.WallReach), under the terrain, so the terrain's per-vertex cut never shows a
+        /// gap. 100 away from caves.
+        /// </summary>
+        public float MouthCut(float2 xz, float h) => MouthCut(xz, h, out _);
+
+        /// <summary>MouthCut, and the cave field's own distance at the point it samples (100 away from caves).</summary>
+        public float MouthCut(float2 xz, float h, out float cave)
+        {
+            cave = 100f;
+            if (!Caves.IsCreated || !CaveSampling.NearColumn(ref Caves.Value, xz))
+                return 100f;
+            // Into the ground along its normal, as the walls' field measures depth across the slope: mouths open in cliff
+            // faces, where straight down is somewhere else entirely.
+            var normal = SampleNormal(xz, 0.5f);
+            cave = CaveDistance(new float3(xz.x, h, xz.y) - normal * MouthCutDepth);
+            return math.min(CaveSampling.SmoothMin(MouthCutDepth - 0.1f, cave, CaveSampling.MouthBlend), 100f);
+        }
+
+        /// <summary>How far into the ground MouthCut samples the cave field.</summary>
+        public const float MouthCutDepth = 0.35f;
+
+        /// <summary>
+        /// How far the ground surface at a spot (height h) is from cave air: negative where the terrain is cut away
+        /// for a cave entrance, either because the surface is in the cave or because cave air lies just under it (a
+        /// lip too thin to keep). 100 away from caves. (The terrain is cut by MouthCut, which follows the cave walls exactly.)
+        /// </summary>
+        public float CaveClearance(float2 xz, float h)
         {
             if (!Caves.IsCreated || !CaveSampling.NearColumn(ref Caves.Value, xz))
-                return false;
-            return CaveDistance(new float3(xz.x, SampleHeight(xz) + 0.05f, xz.y)) < 0f;
+                return 100f;
+            return math.min(math.min(CaveDistance(new float3(xz.x, h + 0.05f, xz.y)), CaveDistance(new float3(xz.x, h - 0.6f, xz.y))), 100f);
         }
 
         /// <summary>
@@ -354,19 +455,46 @@ namespace Punchy.Terrain
         public bool IsRock(float3 p, float margin = 0f) =>
             p.y < SampleHeight(p.xz) - margin && CaveDistance(p) > -margin;
 
+        /// <summary>A bridge deck under a point that's on or just below it (see SettlementSampling.Deck).</summary>
+        public bool Deck(float3 p, out float deck)
+        {
+            deck = 0f;
+            return Settlements.IsCreated && SettlementSampling.Deck(ref Settlements.Value, p, out deck);
+        }
+
+        /// <summary>How deep a bay beside the lake at <paramref name="lakeCentre"/> may be: no deeper than the lake itself
+        /// (plus 2 m), so a valley below a breached rim isn't filled to the lake's level (F-22).</summary>
+        float BayDepthLimit(float2 lakeCentre)
+        {
+            RiverSampling.Lake(ref Rivers.Value, lakeCentre, out _, out var depth);
+            return depth + 2f;
+        }
+
+        /// <summary>Whether the ground on the way from a to b (sampled at a quarter, half and three quarters) is all below a level.</summary>
+        bool ConnectsBelow(float2 a, float2 b, float level)
+        {
+            for (int k = 1; k <= 3; k++)
+                if (SampleHeight(math.lerp(a, b, k * 0.25f)) >= level)
+                    return false;
+            return true;
+        }
+
         /// <summary>
-        /// What's underfoot at a point. In a cave, or where the surface is cut away by an entrance, it's the cave
+        /// What's underfoot at a point. On a bridge it's the deck. In a cave, or where the surface is cut away by an entrance, it's the cave
         /// floor below the point (inCave true); otherwise it's the ground surface.
         /// </summary>
         public float FloorUnder(float3 p, out bool inCave)
         {
             inCave = false;
+            if (Deck(p, out var deck))
+                return math.max(deck, SampleHeight(p.xz));
             var surface = SampleHeight(p.xz);
             if (!Caves.IsCreated || !CaveSampling.NearColumn(ref Caves.Value, p.xz))
                 return surface;
             // Look down from a little above the feet, but never from above the surface.
             var y = math.min(p.y + 0.6f, surface + 0.05f);
-            if (CaveDistance(new float3(p.x, y, p.z)) >= 0f)
+            var d = CaveDistance(new float3(p.x, y, p.z));
+            if (d >= 0f)
             {
                 // Underground but not in a cave: stay put (movement keeps us out of the walls).
                 if (p.y < surface - 1.5f)
@@ -377,17 +505,72 @@ namespace Punchy.Terrain
                 return surface;
             }
             inCave = true;
-            var step = 0.25f;
-            for (int i = 0; i < 160 && CaveDistance(new float3(p.x, y - step, p.z)) < 0f; i++)
-                y -= step;
-            // Refine to the floor between y - step (rock) and y (air).
-            float lo = y - step, hi = y;
-            for (int i = 0; i < 6; i++)
+            // March down through the air by part of the distance to the nearest rock (at least 25 cm), so a deep shaft
+            // takes a few dozen steps rather than running out of them partway down. Below a passage's axis the field
+            // can overstate the distance down to the floor by up to 1.8 times, so the step is 0.4 of it: never past a
+            // thin floor into a passage beneath.
+            var start = y;
+            var found = false;
+            float lo = y - 0.25f, hi = y;
+            for (int i = 0; i < 200; i++)
+            {
+                var next = y - math.max(0.25f, -d * 0.4f);
+                var dn = CaveDistance(new float3(p.x, next, p.z));
+                lo = next;
+                hi = y;
+                if (dn >= 0f)
+                {
+                    found = true;
+                    break;
+                }
+                y = next;
+                d = dn;
+            }
+            // No floor within reach: stay where we started rather than standing in mid-air.
+            if (!found)
+                return start;
+            // Refine to the floor between lo (rock) and hi (air); the bracket is a step or so, so 7 halvings give
+            // under a centimetre.
+            for (int i = 0; i < 7; i++)
             {
                 var mid = (lo + hi) * 0.5f;
                 if (CaveDistance(new float3(p.x, mid, p.z)) < 0f) hi = mid; else lo = mid;
             }
             return hi;
+        }
+
+        /// <summary>
+        /// The cave ceiling straight above a point in cave air (sphere-traced up to rock); the point's own height if
+        /// it isn't in cave air.
+        /// </summary>
+        public float CeilingOver(float3 p)
+        {
+            // Up by part of the distance to rock (as FloorUnder marches down): angular or ribbed walls make the
+            // field rise faster than the true distance, and a longer step would end up inside the ceiling. Then
+            // halve the last step to find the ceiling to a few centimetres.
+            var y = p.y;
+            float air = y, rock = y;
+            var found = false;
+            for (int i = 0; i < 200; i++)
+            {
+                var d = CaveDistance(new float3(p.x, y, p.z));
+                if (d >= 0f)
+                {
+                    rock = y;
+                    found = true;
+                    break;
+                }
+                air = y;
+                y += math.max(0.1f, -d * 0.4f);
+            }
+            if (!found)
+                return y;
+            for (int i = 0; i < 6; i++)
+            {
+                var mid = (air + rock) * 0.5f;
+                if (CaveDistance(new float3(p.x, mid, p.z)) < 0f) air = mid; else rock = mid;
+            }
+            return air;
         }
 
         public float3 SampleNormal(float2 xz, float eps)
@@ -430,12 +613,16 @@ namespace Punchy.Terrain
             }
             if (Landmarks.IsCreated)
                 LandmarkSampling.Ground(ref Landmarks.Value, xz, context.EdgeNoise, context.ColorNoise, ref result);
+            if (Settlements.IsCreated)
+                SettlementSampling.Ground(ref Settlements.Value, xz, context.EdgeNoise, context.ColorNoise, ref result);
+            if (Landmarks.IsCreated)
+                LandmarkSampling.TroddenGround(ref Landmarks.Value, xz, context.EdgeNoise, ref result);
             return result;
         }
 
         public bool Equals(TerrainSource o) =>
             World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
-            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Caves == o.Caves;
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && Anchors == o.Anchors;
     }
 }

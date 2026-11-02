@@ -16,9 +16,17 @@ namespace Punchy.Ambience
     public class LandmarkEffectSystem : MonoBehaviour
     {
         public Material PlumeMaterial;
+        [Tooltip("Material (Punchy/Flame) for the flames FireSystem collects each frame: torches, campfires.")]
+        public Material FlameMaterial;
         public Material WaterfallMaterial;
         [Tooltip("Effects of landmarks within this distance of the camera are drawn.")]
         public float Range = 700f;
+        /// <summary>Cave waterfalls are drawn within this distance (small, and underground).</summary>
+        const float CaveRange = 120f;
+        /// <summary>Flame effects are lit within this distance (they're small; FireSystem draws them each frame).</summary>
+        const float FlameRange = 150f;
+        /// <summary>How far a cave's waterfall carries out from its notch as it falls (m).</summary>
+        const float FallReach = 0.9f;
 
         /// <summary>One effect. Must match LandmarkEffects.hlsl.</summary>
         [StructLayout(LayoutKind.Sequential)]
@@ -31,13 +39,16 @@ namespace Punchy.Ambience
             public float4 Timing;   // period, duty, opacity, particles
             public float2 Out;      // waterfall: horizontal direction the water travels
             public float Drop;      // waterfall: height of the fall
-            public float Pad;
+            public float UnderRock; // 1 for a cave's waterfall (lit as underground)
         }
 
         const int WaterfallColumns = 12, WaterfallRows = 20;
 
         readonly List<Emitter> plumes = new List<Emitter>();
         readonly List<Emitter> falls = new List<Emitter>();
+        /// <summary>Nearby landmarks' flames (position, size; seed, palette), handed to FireSystem every frame.</summary>
+        readonly List<(Vector3 at, float size, int seed, int palette, bool night)> fires = new List<(Vector3, float, int, int, bool)>();
+        static readonly int NightId = Shader.PropertyToID("_PunchyNight");
         readonly List<int> nearby = new List<int>(), lastNearby = new List<int>();
         GraphicsBuffer plumeBuffer, fallBuffer;
         MaterialPropertyBlock plumeProps, fallProps;
@@ -62,6 +73,8 @@ namespace Punchy.Ambience
 
         void Update()
         {
+            // Flames lit this frame by anyone (torches, campfires): drawn whatever else happens here.
+            FireSystem.Draw(FlameMaterial);
             var cam = Camera.main;
             if (cam == null || PlumeMaterial == null || WaterfallMaterial == null || !TryGetWorld(out var source, out var palette))
                 return;
@@ -78,6 +91,16 @@ namespace Punchy.Ambience
             {
                 nextCheck = Time.unscaledTime + 0.5f;
                 Gather(source, palette.Landmarks, cam.transform.position);
+            }
+            var eye = cam.transform.position;
+            var flameRange = Punchy.Settings.GraphicsSettings.DetailRange(FlameRange);
+            // Night-only fires catch as the light goes (the sky's night past a fifth) and die down at dawn.
+            var lit = math.saturate((Shader.GetGlobalFloat(NightId) - 0.2f) / 0.3f);
+            foreach (var f in fires)
+            {
+                var size = f.night ? f.size * lit : f.size;
+                if (size > 0.02f && (f.at - eye).sqrMagnitude < flameRange * flameRange)
+                    FireSystem.AddFlame(f.at, size, f.seed, f.palette);
             }
             Draw();
         }
@@ -110,8 +133,16 @@ namespace Punchy.Ambience
             {
                 ref var inst = ref set.Instances[i];
                 var type = inst.Type < types.Length ? types[inst.Type] : null;
-                if (type != null && type.Effects.Count > 0 && math.distance(inst.Position, cam) < Range + set.Types[inst.Type].Radius * inst.Scale)
+                if (type != null && type.Effects.Count > 0 && math.distance(inst.Position, cam) < Punchy.Settings.GraphicsSettings.ViewRange(Range) + set.Types[inst.Type].Radius * inst.Scale)
                     nearby.Add(i);
+            }
+            // Cave waterfalls near the camera (they're small and underground: within CaveRange), as -(index + 1).
+            if (source.Caves.IsCreated)
+            {
+                ref var caveFalls = ref source.Caves.Value.Waterfalls;
+                for (int k = 0; k < caveFalls.Length; k++)
+                    if (math.distance(caveFalls[k].Lip.xz, cam) < Punchy.Settings.GraphicsSettings.DetailRange(CaveRange))
+                        nearby.Add(-(k + 1));
             }
             if (nearby.Count == lastNearby.Count && nearby.TrueForAll(lastNearby.Contains))
                 return;
@@ -120,10 +151,61 @@ namespace Punchy.Ambience
 
             plumes.Clear();
             falls.Clear();
+            fires.Clear();
             maxParticles = 1;
             float3 min = float.MaxValue, max = float.MinValue;
             foreach (var i in nearby)
             {
+                if (i < 0)
+                {
+                    // A cave's waterfall: a small curtain from its notch in the wall into its pool, churning white
+                    // water and a foam patch where it lands, and mist over them, lit as under rock.
+                    var fall = source.Caves.Value.Waterfalls[-i - 1];
+                    var curtain = new Emitter
+                    {
+                        Position = fall.Lip,
+                        Seed = math.frac(-i * 0.618f),
+                        Color = new float4(0.3f, 0.43f, 0.47f, 0f),
+                        Shape = new float4(FallReach, fall.Width, 0.6f, 2f),
+                        Timing = new float4(0f, 0.25f, 0.75f, 20f),
+                        Out = fall.Out,
+                        Drop = fall.Drop,
+                        UnderRock = 1f
+                    };
+                    falls.Add(curtain);
+                    var landing = fall.Lip + new float3(fall.Out.x, 0f, fall.Out.y) * FallReach - new float3(0f, fall.Drop, 0f);
+                    plumes.Add(new Emitter
+                    {
+                        Position = landing,
+                        Seed = math.frac(-i * 0.511f),
+                        Color = new float4(0.95f, 0.97f, 1f, 0f),
+                        Shape = new float4(0.6f, fall.Width * 0.6f, 0.3f, 0.8f),
+                        Timing = new float4(0f, 0.25f, 0.75f, 24f),
+                        UnderRock = 1f
+                    });
+                    plumes.Add(new Emitter
+                    {
+                        Position = landing + new float3(0f, 0.05f, 0f),
+                        Seed = math.frac(-i * 0.733f),
+                        Color = new float4(0.9f, 0.95f, 1f, 0f),
+                        Shape = new float4(0.12f, fall.Width * 1.1f, 0.45f, 1.8f),
+                        Timing = new float4(0f, 0.25f, 0.55f, 24f),
+                        UnderRock = 1f
+                    });
+                    plumes.Add(new Emitter
+                    {
+                        Position = landing,
+                        Seed = math.frac(-i * 0.377f),
+                        Color = new float4(0.92f, 0.93f, 0.95f, 0f),
+                        Shape = new float4(1.8f, fall.Width * 1.2f, 0.9f, 2.5f),
+                        Timing = new float4(0f, 0.25f, 0.16f, 20f),
+                        UnderRock = 1f
+                    });
+                    maxParticles = math.max(maxParticles, 24);
+                    min = math.min(min, landing - 3f);
+                    max = math.max(max, fall.Lip + 3f);
+                    continue;
+                }
                 ref var inst = ref set.Instances[i];
                 var radius = set.Types[inst.Type].Radius * inst.Scale;
                 var e = 0;
@@ -141,22 +223,63 @@ namespace Punchy.Ambience
                         Shape = new float4(effect.Height * inst.Scale, effect.Width * inst.Scale, effect.Size * inst.Scale, effect.Lifetime),
                         Timing = new float4(effect.Period, effect.Duty, effect.Opacity, effect.Particles)
                     };
+                    if (effect.Kind == LandmarkEffectKind.Flame)
+                    {
+                        // One fire: a tall tongue in the middle and the rest clustered close round it, overlapping,
+                        // shorter towards the edge.
+                        var tongues = math.max(1, effect.Particles);
+                        var reach = effect.Width * inst.Scale * 0.25f;
+                        for (int k = 0; k < tongues; k++)
+                        {
+                            var a = k * 2.39996f + emitter.Seed * 6.28f;
+                            var spread = k == 0 ? 0f : reach * math.sqrt(k / (float)tongues);
+                            var p = new float3(at.x + math.cos(a) * spread, y + 0.05f, at.y + math.sin(a) * spread);
+                            var size = effect.Size * inst.Scale * (k == 0 ? 1.3f : 1f - 0.3f * spread / math.max(reach, 0.01f));
+                            fires.Add((p, size, (int)(math.abs(inst.Seed) * 31 + e * 7 + k), (int)effect.Flame, effect.NightOnly));
+                        }
+                        e++;
+                        continue;
+                    }
                     float top;
                     if (effect.Kind == LandmarkEffectKind.Waterfall)
                     {
-                        // From the lip, out (towards -X) and down to whatever lies below: pool or ground.
+                        // From the lip, out (towards -X) and down to whatever lies below: pool or ground. The lip is
+                        // where the ground first reaches the cliff's top, going in (+X) from the offset, since a rough
+                        // rim can dip where the offset lands and the water then started low down the face (F-48).
                         var outDir = -inst.Facing;
-                        var landing = at + outDir * effect.Height * inst.Scale;
+                        var lipHeight = ground.Height;
+                        var rim = lipHeight;
+                        for (var d = 0.5f; d <= 10f; d += 0.5f)
+                            rim = math.max(rim, source.SampleHeight(at + inst.Facing * d));
+                        for (var d = 0f; d <= 10f && lipHeight < rim - 0.5f; d += 0.5f)
+                        {
+                            lipHeight = source.SampleHeight(at + inst.Facing * d);
+                            emitter.Position.xz = at + inst.Facing * d;
+                        }
+                        var landing = emitter.Position.xz + outDir * effect.Height * inst.Scale;
                         var below = source.SampleGround(landing);
                         var bottom = below.HasWater ? math.max(below.Height, below.WaterSurface) : below.Height;
-                        emitter.Position.y = ground.Height + 0.2f;
+                        emitter.Position.y = lipHeight + 0.2f;
                         emitter.Out = outDir;
                         emitter.Drop = math.max(emitter.Position.y - bottom, 1f);
                         falls.Add(emitter);
                         top = emitter.Position.y;
+                        // White water breaking over the lip (Z-35; the landing's spray is the type's own plume).
+                        plumes.Add(new Emitter
+                        {
+                            Position = emitter.Position + new float3(outDir.x, -0.3f, outDir.y) * 0.8f,
+                            Seed = math.frac(math.abs(inst.Seed) * 0.53f + e * 0.29f),
+                            Color = new float4(0.94f, 0.96f, 1f, 0f),
+                            Shape = new float4(1.2f * inst.Scale, effect.Width * inst.Scale, 1.1f * inst.Scale, 1.4f),
+                            Timing = new float4(0f, 0.25f, 0.35f, 24f)
+                        });
+                        maxParticles = math.max(maxParticles, 24);
                     }
                     else
                     {
+                        // Bubbles ride the plume's draw, flagged by a negative lifetime (LandmarkEffects.hlsl).
+                        if (effect.Kind == LandmarkEffectKind.Bubbles)
+                            emitter.Shape.w = -math.max(effect.Lifetime, 0.1f);
                         plumes.Add(emitter);
                         maxParticles = math.max(maxParticles, effect.Particles);
                         top = y + effect.Height * inst.Scale;

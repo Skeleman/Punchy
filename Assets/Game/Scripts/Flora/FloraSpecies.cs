@@ -55,14 +55,72 @@ namespace Punchy.Flora
         [Tooltip("Lily pads floating in a loose cluster (Foliage), some with cupped flowers in the accent colour. " +
                  "Height is a pad's size; Spread the cluster's; Branches = pads.")] LilyPad,
         [Tooltip("A clump of tall, thin, arching blades (Foliage to Foliage Variation); Accent Amount of them carry a " +
-                 "slim cattail head in the accent colour. Branches = blades.")] Reeds
+                 "slim cattail head in the accent colour. Branches = blades.")] Reeds,
+        [Tooltip("Roots hanging down from a cave ceiling (the plant's origin is the ceiling): tapered, wandering " +
+                 "strands with a few side roots, in Bark. Height is the longest; Spread how widely they hang; " +
+                 "Branches = strands.")] Roots,
+        [Tooltip("A leader's hall: a long timber hall on a stone plinth under a steep gabled roof with crossed ridge beams, " +
+                 "a wide door, lit windows (first accent) and banners (second accent). Height is to the ridge; Spread its length.")] Hall,
+        [Tooltip("A shrine: a stepped stone platform under a small roof on four posts, round an altar whose stone glows in " +
+                 "the accent colour. Height is to the roof's tip; Spread its width.")] Shrine,
+        [Tooltip("A garden: a low wattle fence with a gap at the front, round rows of vegetables (Foliage) and a few flowers " +
+                 "(accents). Height is the fence; Spread the garden's width relative to it.")] Garden,
+        [Tooltip("A big folk's lodge: low and wide, hides (Foliage) draped over a frame of crossed poles (Bark) down to the " +
+                 "ground, with tusks (first accent) flanking a hide-flap door and skulls on the ridge. Height is to the ridge; " +
+                 "Spread its length.")] Lodge,
+        [Tooltip("A signpost: a post with two or three arm boards pointing different ways (Bark, boards in Foliage) and a little " +
+                 "cap. Height is the post.")] Signpost,
+        [Tooltip("One 6.6 m span of a plank bridge (Bark), deck top at the origin, piles down into the water and a rail each " +
+                 "side. Height is the rail; Spread the deck's width (m).")] Bridge,
+        [Tooltip("One 3 m length of palisade: a row of sharpened logs (Bark) sunk into the ground with binding rails behind. " +
+                 "Height is the logs'.")] Palisade,
+        [Tooltip("A clutch of eggs in a shallow nest (cave floors: what spiders, lizards and salamanders guard). Height is " +
+                 "an egg's length, Branches the number of eggs, Spread how loosely they lie; Foliage colours the eggs, " +
+                 "Bark the nest of grit or silk.")] Eggs,
+        [Tooltip("A mine's timber frame: two posts and a lintel across a passage, a metre either side of its middle and a " +
+                 "metre high, scaled to fit (Bark; Thickness the timbers' radius per metre).")] MineFrame,
+        [Tooltip("A torch on a wall bracket, leaning out a little: Height is the stick, Bark the stick, Foliage the " +
+                 "charred head. Cave styles light a flame on it (FireSystem).")] Torch,
+        [Tooltip("A plank bench on two stone feet, its seat 0.45 m up and 1.8 m long (Bark the planks, Foliage the " +
+                 "stone). A sitter faces +Z. Towns' Sit anchors expect these sizes at scale 1.")] Bench,
+        [Tooltip("A log lying on its side to sit on, 0.4 m high and 1.8 m long (Bark), with cut ends. A sitter faces +Z.")] Log,
+        [Tooltip("A sawn stump to sit on, 0.42 m high (Bark, with a pale cut top).")] Stump,
+        [Tooltip("A fire pit: a ring of stones (Bark; Height the ring's radius, Branches how many) round an ash bed with " +
+                 "charred logs (Foliage) leaning together and glowing embers (first accent; set Glowing Accents so they " +
+                 "light the ground). The flames themselves are the landmark's Flame effect.")] FirePit,
+        [Tooltip("A broadleaf tree (as BroadleafTree) with a wild bees' comb hanging from its trunk under the crown, at " +
+                 "HiveHeight of the trunk (first accent the comb's colour). Use one variant so the comb's height is " +
+                 "known; Bee Tree landmarks put a Hive anchor round it.")] HiveTree,
+        [Tooltip("A glacier ice arch: a jagged bow of ice from two feet (Height its height, Spread its span over height, " +
+                 "Thickness the legs' radius over height), in Foliage; Finish Glass draws it as clear ice. Walk under it.")] IceArch,
+        [Tooltip("A fulgurite (lightning-fused sand): a knobbly glass tube twisting up out of a sand-crusted mound, forking " +
+                 "Branches times, crusted with sand along its length (Height its height, Thickness the tube's radius over " +
+                 "height; the tube in Foliage, so Finish Glass makes it glass; the crust in Bark).")] Fulgurite,
+        [Tooltip("An arcing spire (electric wastelands): Branches prongs of dark glinting stone (Bark) rising from a cracked " +
+                 "base, with electric arcs (the first accent, or blue-white) crackling between their tips. Height its height, " +
+                 "Spread how far apart the prongs stand, Thickness their radius over height.")] ArcSpire,
+        [Tooltip("Floating debris (magnetic anomaly): Branches lumps of rock (Bark) hovering round a cracked mound, slowly " +
+                 "orbiting it and bobbing. Height the highest a piece floats, Spread the ring's radius over height. Not solid.")] Debris,
+        [Tooltip("A ruined stone house: roofless walls (Bark) crumbled to uneven heights, one of them almost gone, a doorway " +
+                 "gap facing +Z, rubble (Branches = stones) round the foot and moss (the first accent, Accent Amount of the " +
+                 "broken tops). Height is the tallest wall left; Spread the width relative to it.")] Ruin,
+        [Tooltip("A bedroll laid out on the ground (camps): a blanket (Foliage, the top one towards Foliage Variation) " +
+                 "with a rolled pillow (Bark) at the head, -Z; the feet at +Z. Height is its length, Spread its width " +
+                 "over length. Camps put a Bed anchor on each.")] Bedroll,
+        [Tooltip("One 3 m length of rail fence along its X (roads past fields): a post at its start and two rails on to the " +
+                 "next one's, sagging a little (Bark; Foliage the post caps). Height is the fence; laid end to end.")] RailFence,
+        [Tooltip("An enormous rock floating over a scorched mound, turning slowly, with smaller shards round it and arcs " +
+                 "crackling between them (Bark the rock, Foliage the arcs). Its shape by variant: a tall shard, a flat slab or " +
+                 "a cluster. Height is the rock's size; it floats about that high again. Not solid.")] FloatingRock
     }
 
     public enum FoliageFinish : byte
     {
         [Tooltip("Ordinary leaves.")] Matte,
         [Tooltip("Polished metal: sharp highlights and glittering glints.")] Metallic,
-        [Tooltip("Shines by itself, gently pulsing; visible at night.")] Glowing
+        [Tooltip("Shines by itself, gently pulsing; visible at night.")] Glowing,
+        [Tooltip("Glassy crystal: a dark clear body with a faint glow inside, a bright rim where it turns away, sharp " +
+                 "highlights and a shift of hue at the edges as if light bent through it. Opaque (drawn solid).")] Glass
     }
 
     public enum FlowerHead : byte
@@ -127,6 +185,39 @@ namespace Punchy.Flora
         public FoliageFinish Finish = FoliageFinish.Matte;
         [Tooltip("Flowers, berries and fruit glow by themselves.")]
         public bool GlowingAccents;
+        [Tooltip("How much the glowing parts shimmer (± share of their brightness, slowly, out of step plant to plant). " +
+                 "0 = a steady glow (crystals).")]
+        [Range(0f, 1f)] public float GlowPulse = 0.12f;
+        [Tooltip("Bark (trunk, branches, stems) cracked with glowing seams that pulse slowly, like embers under char " +
+                 "(Ember Forest) or veins of light (weird biomes). Shader only: no extra geometry.")]
+        public bool GlowingSeams;
+        [Tooltip("Trees (BroadleafTree, HiveTree): the share of variants with bracket fungus shelves stepping up the trunk, " +
+                 "in the first accent colour (glowing with Glowing Accents).")]
+        [Range(0f, 1f)] public float Brackets;
+        [Tooltip("Trees: the share of variants with strands hanging from their limbs: vines and lianas (green), moss beards " +
+                 "(grey-green, short) or webs of roots, in Hanging Color, swaying in the wind.")]
+        [Range(0f, 1f)] public float Hanging;
+        public Color HangingColor = new Color(0.25f, 0.4f, 0.2f);
+        [Tooltip("Length of the hanging strands (m, at scale 1).")]
+        public Vector2 HangingLength = new Vector2(1f, 3f);
+        [Tooltip("Trees: hanging strands as wispy beards (a few fine threads each, no leaves: lichen, old man's beard) " +
+                 "rather than leafy vines.")]
+        public bool HangingWisps;
+        [Tooltip("Trees: the share of variants with a few cocoons hanging from their limbs on threads, now and then twitching.")]
+        [Range(0f, 1f)] public float Cocoons;
+        [Tooltip("Trees: the share of variants with a face in the bark: hollow eyes that glow faintly and blink, and a mouth.")]
+        [Range(0f, 1f)] public float BarkFace;
+        [Tooltip("Bark veined with cool light that flows slowly up the trunk (weird biomes), instead of ember seams.")]
+        public bool GlowingVeins;
+        [Tooltip("Rock: banded strata by height, the same bands and colours as terrain surfaces with Strata (mesa cliffs), " +
+                 "so rock props line up with the canyon walls round them; with the built things' weathering too.")]
+        public bool RockStrata;
+        [Tooltip("Mushrooms: caps that breathe, slowly swelling and settling.")]
+        public bool Breathes;
+        [Tooltip("Benches: one carved stone slab for a seat instead of two planks (the elves' benches).")]
+        public bool StoneSeat;
+        [Tooltip("Rocks: keep their own colour wherever they lie (ice), instead of taking the biome's rock on dry ground.")]
+        public bool KeepOwnColour;
 
         [Header("Placement")]
         [Tooltip("Steepest ground it grows on, in degrees.")]

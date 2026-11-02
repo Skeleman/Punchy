@@ -98,6 +98,11 @@ namespace Punchy.Terrain
         public BlobArray<int2> Nearest;
         /// <summary>Depth of the lake covering this cell (metres); 0 = no lake. Only hollows big and deep enough count.</summary>
         public BlobArray<float> LakeDepth;
+        /// <summary>
+        /// The highest lake level within two cells of each cell (float.MinValue if none). Ground below it there may be
+        /// a bay or beach pocket of that lake that the cell grid misses (TerrainSource fills it if it connects).
+        /// </summary>
+        public BlobArray<float> ShoreLevel;
 
         public float2 Point(int index) => JitteredPoint(index, Resolution, Origin, CellSize, Meander, Seed);
 
@@ -125,6 +130,43 @@ namespace Punchy.Terrain
 
     public static class RiverSampling
     {
+        /// <summary>The highest lake level near a point (RiverMapBlob.ShoreLevel of its cell).</summary>
+        public static float ShoreLevel(ref RiverMapBlob map, float2 xz)
+        {
+            var c = math.clamp((int2)math.floor((xz - map.Origin) / map.CellSize), 0, map.Resolution - 1);
+            return map.ShoreLevel[c.y * map.Resolution + c.x];
+        }
+
+        /// <summary>
+        /// The nearest lake cell within two cells whose surface is above <paramref name="above"/>: its centre and level.
+        /// </summary>
+        public static bool NearestLakeAbove(ref RiverMapBlob map, float2 xz, float above, out float2 centre, out float level)
+        {
+            var c = (int2)math.floor((xz - map.Origin) / map.CellSize);
+            centre = default;
+            level = float.MinValue;
+            var best = float.MaxValue;
+            for (int dz = -2; dz <= 2; dz++)
+            for (int dx = -2; dx <= 2; dx++)
+            {
+                var n = c + new int2(dx, dz);
+                if (math.any(n < 0) || math.any(n >= map.Resolution))
+                    continue;
+                var i = n.y * map.Resolution + n.x;
+                if (map.LakeDepth[i] <= 0f || map.LakeLevel[i] <= above)
+                    continue;
+                var at = map.Origin + ((float2)n + 0.5f) * map.CellSize;
+                var d = math.distancesq(at, xz);
+                if (d < best)
+                {
+                    best = d;
+                    centre = at;
+                    level = map.LakeLevel[i];
+                }
+            }
+            return best < float.MaxValue;
+        }
+
         /// <summary>River water surfaces extend this far (metres) past the channel edge, under the banks.</summary>
         public const float SurfaceMargin = 8f;
 
@@ -217,9 +259,10 @@ namespace Punchy.Terrain
         /// <summary>
         /// Lakes are the dips the drainage simulation filled; their surface is the fill level.
         /// Returns 0..1 lake coverage (bilinear across cells) and the lake surface height, which is defined
-        /// anywhere within a cell of the lake so the surface reaches past the shoreline.
+        /// anywhere within a cell of the lake so the surface reaches past the shoreline; and the deepest of those
+        /// lake cells (so callers can tell a shore from ground that falls away beyond the lake, below its outlet).
         /// </summary>
-        public static float Lake(ref RiverMapBlob map, float2 xz, out float surface)
+        public static float Lake(ref RiverMapBlob map, float2 xz, out float surface, out float depth)
         {
             var uv = (xz - map.Origin) / map.CellSize - 0.5f;
             var i0 = math.clamp((int2)math.floor(uv), 0, map.Resolution - 2);
@@ -229,9 +272,11 @@ namespace Punchy.Terrain
             var idx = new int4(i, i + 1, i + map.Resolution, i + map.Resolution + 1);
 
             float coverage = 0f, level = 0f, levelWeight = 0f;
+            depth = 0f;
             for (int k = 0; k < 4; k++)
             {
                 var isLake = map.LakeDepth[idx[k]] > 0.3f ? 1f : 0f;
+                depth = math.max(depth, map.LakeDepth[idx[k]] * isLake);
                 coverage += w[k] * isLake;
                 level += w[k] * isLake * map.LakeLevel[idx[k]];
                 levelWeight += w[k] * isLake;

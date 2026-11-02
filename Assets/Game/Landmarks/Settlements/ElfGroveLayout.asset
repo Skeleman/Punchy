@@ -1,0 +1,56 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0f8776ddfd0ddd4aa44c098914f8b77, type: 3}
+  m_Name: ElfGroveLayout
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.SettlementLayout
+  Pattern: 2
+  Culture: 4
+  FolkScale: 1.1
+  PlotSize: {x: 9.6, y: 9.6}
+  PlotGap: 5
+  Setback: 1
+  StreetWidth: 3
+  LaneWidth: 2.2
+  SquareSize: 20
+  Lanes: 3
+  Shrines: 1
+  Landscaping: 0.3
+  Palisade: 0
+  MaxRelief: 2.5
+  StreetSurface: {fileID: 11400000, guid: ecea3f6b2f4ee2b43a871edb5ff556dd, type: 2}
+  BuildingScale: 1.09
+  WaterFeature: {fileID: 11400000, guid: 7c9534dc8b6f9f44caa5189be1a27130, type: 2}
+  RoadWidth: 2.6
+  Signpost: {fileID: 11400000, guid: 4b43cc542a9e3e446a95fb86645732a1, type: 2}
+  Bridge: {fileID: 11400000, guid: 6fd3b583e4717e64ea5a0270c7ea34e4, type: 2}
+  PalisadeWall: {fileID: 0}
+  Buildings:
+  - Role: 0
+    Species: {fileID: 11400000, guid: 9489889349a8ee841828b661e601628b, type: 2}
+    Weight: 1
+    Count: 1
+  - Role: 3
+    Species: {fileID: 11400000, guid: 962d1dfd7cc5f4e41b652ae09fa3183b, type: 2}
+    Weight: 1
+    Count: 0
+  - Role: 1
+    Species: {fileID: 11400000, guid: c994377f12dcc9c41beeaceae888ce57, type: 2}
+    Weight: 1
+    Count: 1
+  - Role: 2
+    Species: {fileID: 11400000, guid: 3f72149bcfbb9624baa908d42fe5278e, type: 2}
+    Weight: 1
+    Count: 1
+  - Role: 3
+    Species: {fileID: 11400000, guid: ad584df5993190d4895211b957b4d9ff, type: 2}
+    Weight: 1
+    Count: 1

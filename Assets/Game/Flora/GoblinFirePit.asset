@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be30a536c49003f42bba655b0fd41247, type: 3}
+  m_Name: GoblinFirePit
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
+  Form: 45
+  Layer: 1
+  Height: {x: 0.55, y: 0.75}
+  Spread: 0.9
+  TrunkFraction: 0.35
+  Thickness: 0.035
+  Fullness: 0.7
+  Branches: {x: 8, y: 11}
+  Flexibility: 0
+  FlowerHead: 0
+  Bark: {r: 0.36, g: 0.38, b: 0.32, a: 1}
+  Foliage: {r: 0.16, g: 0.12, b: 0.09, a: 1}
+  FoliageVariation: {r: 0.22, g: 0.16, b: 0.11, a: 1}
+  Accents:
+  - {r: 0.45, g: 1, b: 0.3, a: 1}
+  AccentAmount: 0.15
+  ColorVariation: 0.15
+  Finish: 0
+  GlowingAccents: 1
+  GlowPulse: 0.3
+  MaxSlope: 32
+  Elevation: {x: 0.5, y: 10000}
+  GrassAffinity: 0.5
+  ToleratesSnow: 0
+  PatchSize: 60
+  PatchCoverage: 1
+  NearWater: 1
+  OnlyNearWater: 0
+  Aquatic: 0
+  WaterDepth: {x: 0.1, y: 1.5}
+  Floats: 0
+  MinRapids: 0
+  Solid: 1
+  SizeRange: {x: 0.95, y: 1.05}
+  Variants: 3
+  Seed: 74

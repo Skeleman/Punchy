@@ -55,3 +55,30 @@ MonoBehaviour:
     Count: {x: 1, y: 3}
   - Species: {fileID: 11400000, guid: f5504acf0b2a49d499d7d40c46594f25, type: 2}
     Count: {x: 0, y: 1}
+  - Species: {fileID: 11400000, guid: 8c1d9ca02541a3244baf69032c8cc21d, type: 2}
+    Count: {x: 1, y: 3}
+    Leash: 0
+    HomeRing: 0
+    HomeAngle: 0
+    Task: 0
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}
+  - Species: {fileID: 11400000, guid: 73b85c54c6d8fa9438f9a447d2f1c400, type: 2}
+    Count: {x: 0, y: 1}
+    Leash: 0
+    HomeRing: 0
+    HomeAngle: 0
+    Task: 0
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}
+  - Species: {fileID: 11400000, guid: ae8dd38794c2302458a86c687be4be7d, type: 2}
+    Count: {x: 1, y: 3}
+    Leash: 0
+    HomeRing: 0
+    HomeAngle: 0
+    Task: 0
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}

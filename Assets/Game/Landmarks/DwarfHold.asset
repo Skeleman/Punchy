@@ -12,9 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a5407ac3b5877da49af18e077398168c, type: 3}
   m_Name: DwarfHold
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.LandmarkType
-  Radius: 40
+  Radius: 70
   Scale: {x: 0.95, y: 1.1}
-  MaxRelief: 18
+  MaxRelief: 28
   MinRelief: 0
   Elevation: {x: 3, y: 10000}
   Shape: 0
@@ -28,20 +28,12 @@ MonoBehaviour:
   WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
   WaterMurk: 0.3
   WaterGlow: 0
+  WaterLava: 0
   Ground: {fileID: 11400000, guid: 1753ba8fc7f960b43a8b3d37e34c11a4, type: 2}
-  GroundRadius: 0.75
+  GroundRadius: 0.3
   ClearRadius: 0.9
   Props:
-  - Species: {fileID: 11400000, guid: 0f3f75139a798b8428c4a8d150f31958, type: 2}
-    Density: 0.45
-    Ring: {x: 0.42, y: 0.82}
-    Scale: {x: 0.9, y: 1.15}
-    Centrepiece: 0
-    FaceCentre: 1
-    Count: 0
-    Angle: 0
-    Clearance: 4
-  - Species: {fileID: 11400000, guid: e5c4e5f0e16a4f4449f5ad77eb7555cb, type: 2}
+  - Species: {fileID: 11400000, guid: 9af11c0131d567240978da97417e54c2, type: 2}
     Density: 5
     Ring: {x: 0, y: 1}
     Scale: {x: 0.9, y: 0.9}
@@ -77,12 +69,21 @@ MonoBehaviour:
     Count: 1
     Angle: 200
     Clearance: 7
+  - Species: {fileID: 11400000, guid: e4d4c4689e1f8e943aae290fcd828078, type: 2}
+    Density: 1
+    Ring: {x: 0.065714285, y: 0.065714285}
+    Scale: {x: 0.82, y: 0.82}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 4
+    Angle: 45
+    Clearance: 1.2
   Effects:
   - Kind: 0
     Offset: {x: 0, y: 0}
-    Height: 3.2
-    Width: 0.96000004
-    Size: 0.07
+    Height: 2.2
+    Width: 0.8
+    Size: 0.025
     Particles: 30
     Lifetime: 1.5
     Color: {r: 1, g: 0.5, b: 0.15, a: 1}
@@ -90,6 +91,7 @@ MonoBehaviour:
     Glow: 5
     Period: 0
     Duty: 0.25
+    Flame: 0
   - Kind: 0
     Offset: {x: 0, y: 0}
     Height: 14
@@ -102,6 +104,7 @@ MonoBehaviour:
     Glow: 0
     Period: 0
     Duty: 0.25
+    Flame: 0
   - Kind: 0
     Offset: {x: 0.6, y: 0.1}
     Height: 9
@@ -114,6 +117,7 @@ MonoBehaviour:
     Glow: 0
     Period: 0
     Duty: 0.25
+    Flame: 0
   - Kind: 0
     Offset: {x: -0.5, y: 0.4}
     Height: 9
@@ -126,6 +130,7 @@ MonoBehaviour:
     Glow: 0
     Period: 0
     Duty: 0.25
+    Flame: 0
   - Kind: 0
     Offset: {x: -0.2, y: -0.6}
     Height: 9
@@ -138,6 +143,7 @@ MonoBehaviour:
     Glow: 0
     Period: 0
     Duty: 0.25
+    Flame: 0
   - Kind: 0
     Offset: {x: -0.6295941, y: -0.22915351}
     Height: 10
@@ -150,11 +156,12 @@ MonoBehaviour:
     Glow: 0
     Period: 0
     Duty: 0.25
+    Flame: 0
   - Kind: 0
     Offset: {x: -0.5638156, y: -0.2052121}
     Height: 1.5
     Width: 0.5
-    Size: 0.06
+    Size: 0.025
     Particles: 20
     Lifetime: 1.2
     Color: {r: 1, g: 0.5, b: 0.15, a: 1}
@@ -162,11 +169,34 @@ MonoBehaviour:
     Glow: 5
     Period: 0
     Duty: 0.25
+    Flame: 0
+  - Kind: 2
+    Offset: {x: 0, y: 0}
+    Height: 6
+    Width: 0.6
+    Size: 0.75
+    Particles: 5
+    Lifetime: 1
+    Color: {r: 1, g: 1, b: 1, a: 1}
+    Opacity: 1
+    Glow: 0
+    Period: 0
+    Duty: 0.25
+    Flame: 0
   Cave: 0
   CaveLength: 40
   CaveDepth: 8
   CaveRadius: 2.4
   ChamberRadius: 6
+  CaveChambers: 0
+  CaveBranches: 0
+  BranchLength: 30
+  CaveShafts: 0
+  CaveStyles: []
+  Settlement: {fileID: 11400000, guid: 3e638c2b6f101ab4f846cff51034f28b, type: 2}
+  Companions: []
+  CompanionRange: 150
+  OnlyAsCompanion: 0
   Residents:
   - Species: {fileID: 11400000, guid: 92efcd8c205109b498ebcc61830248fd, type: 2}
     Count: {x: 6, y: 9}

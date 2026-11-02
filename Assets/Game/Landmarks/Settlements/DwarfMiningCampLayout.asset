@@ -1,0 +1,52 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0f8776ddfd0ddd4aa44c098914f8b77, type: 3}
+  m_Name: DwarfMiningCampLayout
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.SettlementLayout
+  Pattern: 1
+  Culture: 2
+  FolkScale: 0.85
+  PlotSize: {x: 10.8, y: 10.8}
+  PlotGap: 1.5
+  Setback: 1
+  StreetWidth: 4
+  LaneWidth: 3
+  SquareSize: 14
+  Lanes: 3
+  Shrines: 1
+  Landscaping: 0.05
+  Palisade: 0
+  MaxRelief: 3
+  StreetSurface: {fileID: 11400000, guid: a8cd07def73bbae4b8a8c600df5cfb32, type: 2}
+  BuildingScale: 0.82
+  WaterFeature: {fileID: 11400000, guid: a752e0633a80fdb429b3d19b14c0488f, type: 2}
+  RoadWidth: 3.4
+  Signpost: {fileID: 11400000, guid: 4b43cc542a9e3e446a95fb86645732a1, type: 2}
+  Bridge: {fileID: 11400000, guid: 6fd3b583e4717e64ea5a0270c7ea34e4, type: 2}
+  PalisadeWall: {fileID: 0}
+  Buildings:
+  - Role: 0
+    Species: {fileID: 11400000, guid: 0f3f75139a798b8428c4a8d150f31958, type: 2}
+    Weight: 1
+    Count: 1
+  - Role: 1
+    Species: {fileID: 11400000, guid: e75164f2430d28f4f8ad7994d2b5be2a, type: 2}
+    Weight: 1
+    Count: 1
+  - Role: 2
+    Species: {fileID: 11400000, guid: 71d1f02f3ce27f84b85a1556a6c4cca5, type: 2}
+    Weight: 1
+    Count: 1
+  - Role: 3
+    Species: {fileID: 11400000, guid: 962d1dfd7cc5f4e41b652ae09fa3183b, type: 2}
+    Weight: 1
+    Count: 0

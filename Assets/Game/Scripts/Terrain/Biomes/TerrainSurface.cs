@@ -25,6 +25,8 @@ namespace Punchy.Terrain
         [Range(0f, 1f)] public float GrassDensity;
         [Tooltip("How densely small stones are scattered here (drawn by the ground detail system).")]
         [Range(0f, 1f)] public float Pebbles;
+        [Tooltip("Rock strata: bands of lighter and darker rock by height (mesa cliffs, canyon walls). 0 = none.")]
+        [Range(0f, 1f)] public float Strata;
         [Tooltip("Depth of deformable snow here (read by the snow-trail system).")]
         [Range(0f, 1f)] public float SnowDepth;
     }

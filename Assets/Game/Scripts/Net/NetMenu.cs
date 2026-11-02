@@ -32,7 +32,8 @@ namespace Punchy.Net
         void Start()
         {
             // "-joincode ABC123" on the command line joins that online game straight away; "-hostonline" hosts one.
-            var args = System.Environment.GetCommandLineArgs();
+            // (In the editor, also from the test flags in Temp/PlayArgs.txt.)
+            var args = Punchy.Debugging.DebugControls.LaunchArgs;
             for (int i = 0; i < args.Length; i++)
             {
                 if (args[i] == "-joincode" && i + 1 < args.Length && RelaySessions.JoinCode == null && !joinedFromCommandLine)
@@ -50,6 +51,12 @@ namespace Punchy.Net
 
         // Survives the scene reload a join does, so it only happens once.
         static bool joinedFromCommandLine;
+
+#if UNITY_EDITOR
+        // Play mode may start without a domain reload: each run joins afresh.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => joinedFromCommandLine = false;
+#endif
 
         /// <summary>A note shown on screen for a few seconds (the host left, and so on).</summary>
         static string notice;
@@ -74,7 +81,7 @@ namespace Punchy.Net
             {
                 // Alone: no networking, the animals live in this one world.
                 Debug.Log($"Net status (solo) {System.DateTime.Now:HH:mm:ss.ff}: worlds [{string.Join(", ", WorldNames())}], " +
-                          $"animals {Count<Punchy.Fauna.CreatureBody>(client)}, {1f / Time.smoothDeltaTime:F0} fps, {Whereabouts(client)}");
+                          $"animals {Count<Punchy.Fauna.CreatureBody>(client)} ({Behaviours(client)}), {1f / Time.smoothDeltaTime:F0} fps, {Whereabouts(client)}");
                 return;
             }
             if (cycle == null)
@@ -83,7 +90,43 @@ namespace Punchy.Net
             var role = NetWorlds.Server != null ? "host" : "joined";
             Debug.Log($"Net status ({role}) {System.DateTime.Now:HH:mm:ss.ff}: in game {Count<NetworkStreamInGame>(client) > 0}, players {Count<NetPlayer>(client)}, " +
                       $"animals {Count<Punchy.Net.CreatureReplica>(client)} ({AnimalsWithBodies(client, out var nearest)} with bodies, nearest {nearest:F0} m), " +
-                      $"time {time}, shared clock {Shader.GetGlobalFloat("_PunchyClock"):F2} s, {1f / Time.smoothDeltaTime:F0} fps, {Whereabouts(client)}");
+                      $"time {time}, shared clock {Shader.GetGlobalFloat("_PunchyClock"):F2} s, {1f / Time.smoothDeltaTime:F0} fps, {Whereabouts(client)}, {Behaviours(client)}");
+        }
+
+        /// <summary>How many animals (as this machine sees them) are flying, perched, climbing, in a web or fidgeting.</summary>
+        static string Behaviours(World world)
+        {
+            var em = world.EntityManager;
+            using var query = em.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Fauna.CreatureState>(), ComponentType.ReadOnly<Punchy.Fauna.CreatureBody>());
+            var states = query.ToComponentDataArray<Punchy.Fauna.CreatureState>(Unity.Collections.Allocator.Temp);
+            using var terrain = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            var hasTerrain = terrain.TryGetSingleton<TerrainSource>(out var source);
+            float SampleGround(World _, float2 xz) => hasTerrain ? source.SampleHeight(xz) : 0f;
+            float hunger = 0f, thirst = 0f, tired = 0f, lonely = 0f;
+            int flying = 0, high = 0, climbing = 0, webs = 0, acting = 0, sitting = 0, diving = 0, hunting = 0, burrows = 0, below = 0, roosting = 0, hanging = 0, inCaves = 0;
+            foreach (var c in states)
+            {
+                hunger += c.Hunger; thirst += c.Thirst; tired += c.Tired; lonely += c.Lonely;
+                if (c.Fly > 0.5f) flying++;
+                if (c.Mode == Punchy.Fauna.CreatureMode.Climb) climbing++;
+                if (c.Mode == Punchy.Fauna.CreatureMode.Web && c.Stage >= 2 && c.Stage <= 4) webs++;
+                if (c.Mode == Punchy.Fauna.CreatureMode.Hunt && c.Fly > 0.5f && c.Vertical < -0.5f) diving++;
+                if (c.Mode == Punchy.Fauna.CreatureMode.Hunt) hunting++;
+                if (c.AnchorSize > 0f && c.Mode != Punchy.Fauna.CreatureMode.Web && c.Mode != Punchy.Fauna.CreatureMode.Climb &&
+                    c.Mode != Punchy.Fauna.CreatureMode.Roost && c.Fly < 0.5f) burrows++;
+                if (c.Mode == Punchy.Fauna.CreatureMode.Burrow && c.Stage == 2) below++;
+                if (c.Mode == Punchy.Fauna.CreatureMode.Roost) roosting++;
+                if (c.Mode == Punchy.Fauna.CreatureMode.Roost && c.Stage == 200) hanging++;
+                if (c.Position.y < SampleGround(world, c.Position.xz) - 1.5f && c.Mode != Punchy.Fauna.CreatureMode.Burrow) inCaves++;
+                if (c.Action != Punchy.Fauna.IdleAction.None) acting++;
+                if (c.Sit > 0.5f) sitting++;
+                if (c.Fly < 0.5f && c.Mode != Punchy.Fauna.CreatureMode.Web && c.Position.y > 1.2f + SampleGround(world, c.Position.xz)) high++;
+            }
+            states.Dispose();
+            return $"flying {flying}, up a tree {high}, climbing {climbing}, in webs {webs}, hunting {hunting}, diving {diving}, " +
+                   $"caught {Punchy.Fauna.FaunaDirector.Caught}, idle actions {acting}, sitting {sitting}, burrows {burrows} ({below} down), roosting {roosting} ({hanging} hanging), in caves {inCaves}, " +
+                   $"needs (mean) hunger {hunger / math.max(states.Length, 1):F2} thirst {thirst / math.max(states.Length, 1):F2} " +
+                   $"tired {tired / math.max(states.Length, 1):F2} lonely {lonely / math.max(states.Length, 1):F2}";
         }
 
         static System.Collections.Generic.IEnumerable<string> WorldNames()
@@ -279,6 +322,8 @@ namespace Punchy.Net
             if (!players.TryGetSingletonEntity<PlayerTag>(out var player) || !terrain.TryGetSingleton<TerrainSource>(out var source))
                 return;
             var target = GameBootstrap.CarriedPosition.xz;
+            // (On the floor under the spot, not the ground overhead: someone in a cave stays in it.)
+            var level = GameBootstrap.CarriedPosition.y;
             if (placement == GameBootstrap.Placement.NearHost)
             {
                 // The host's NetPlayer is the first one that isn't ours and has a real position.
@@ -296,6 +341,12 @@ namespace Punchy.Net
                     if (!mine && math.lengthsq(p) > 1e-6f)
                     {
                         target = p.xz + new float2(2.5f, 1.5f);
+                        level = p.y;
+                        // Beside them if that's open floor too; in a cave the spot beside them may be rock.
+                        source.FloorUnder(new float3(p.x, p.y + 0.5f, p.z), out var hostInCave);
+                        source.FloorUnder(new float3(target.x, p.y + 0.5f, target.y), out var besideInCave);
+                        if (hostInCave && !besideInCave)
+                            target = p.xz;
                         found = true;
                         break;
                     }
@@ -305,7 +356,7 @@ namespace Punchy.Net
                     return;
             }
             var t = em.GetComponentData<LocalTransform>(player);
-            t.Position = new float3(target.x, source.SampleHeight(target) + 0.2f, target.y);
+            t.Position = new float3(target.x, source.FloorUnder(new float3(target.x, level + 0.5f, target.y), out _) + 0.2f, target.y);
             em.SetComponentData(player, t);
             Debug.Log($"NetMenu: placed the player ({placement}) at ({t.Position.x:F0}, {t.Position.y:F0}, {t.Position.z:F0})");
             GameBootstrap.PendingPlacement = GameBootstrap.Placement.None;
@@ -367,11 +418,7 @@ namespace Punchy.Net
             noticeUntil = Time.unscaledTime + seconds;
         }
 
-        static int Count<T>(World world) where T : unmanaged, IComponentData
-        {
-            using var query = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<T>());
-            return query.CalculateEntityCount();
-        }
+        static int Count<T>(World world) where T : unmanaged, IComponentData => CachedQueries.Get<T>(world).CalculateEntityCount();
 
         static string LanAddress()
         {
