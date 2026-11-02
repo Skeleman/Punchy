@@ -900,13 +900,16 @@ namespace Punchy.Terrain
         /// How far a biome's ponds dig below the ground at xz (metres, 0 between ponds): contours of warped noise, so the
         /// pools are small, irregular and join where two contours meet, instead of round.
         /// </summary>
+        // W-08: weight of the broad octave (W-07 had 0.65, which left many 1-cell specks).
+        const float PondLow = 0.88f, PondScale = 0.2f;   // scale < 1 makes each pool larger (cover is set by the threshold, so fewer pools)
+
         public static float Pond(ref BiomeBlobData b, float2 xz)
         {
             if (b.PondDepth <= 0f)
                 return 0f;
-            var p = xz * b.PondFrequency + b.NoiseOffset * 0.37f;
+            var p = xz * (b.PondFrequency * PondScale) + b.NoiseOffset * 0.37f;
             p += new float2(noise.snoise(p * 0.6f + 11.1f), noise.snoise(p * 0.6f - 7.3f)) * 0.7f;
-            var n = noise.snoise(p) * 0.65f + noise.snoise(p * 2.1f + 5.5f) * 0.35f;   // about -0.8 .. 0.8
+            var n = noise.snoise(p) * PondLow + noise.snoise(p * 2.1f + 5.5f) * (1f - PondLow);   // W-08: mostly the broad octave, so no specks; about -0.9 .. 0.9
             var edge = math.lerp(0.55f, -0.35f, b.PondCover / 0.8f);
             return math.smoothstep(edge, edge + 0.3f, n) * b.PondDepth;
         }

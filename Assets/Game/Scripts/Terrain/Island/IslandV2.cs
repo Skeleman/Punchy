@@ -182,6 +182,7 @@ namespace Punchy.Terrain
             float cx0 = PX * 0.5f + LakeShiftM / WorldSizeM * PX + (H01(seed, 8, 8) - 0.5f) * 40f, cy0 = PX * 0.5f + (H01(seed, 9, 9) - 0.5f) * 40f;
             float lakeR = lakeRadius * PX;
             int ridgeCells = 0, lakeCells = 0, landCells = 0;
+            var lineHeights = new List<float>();
             for (int y = 0; y < N; y++)
                 for (int x = 0; x < N; x++)
                 {
@@ -200,20 +201,23 @@ namespace Punchy.Terrain
 
                     // Border ridge: 1 on the line, falling off over a few widths; passes are gaps where slow noise drops low.
                     float gap = (d2 - d1) / (PX * ridgeWidth);
-                    float pass = Mathf.SmoothStep(0.25f, 0.55f, Fbm(seed + 91, px / 110f, py / 110f, 2));
+                    float pass = Mathf.Lerp(0.3f, 1f, Smooth(Mathf.Clamp01((Fbm(seed + 91, px / 110f, py / 110f, 2) - 0.3f) / 0.25f)));   // W-08: full ridge most places, low saddles (0.3) where the slow noise is low
                     float amt = Mathf.Clamp01(1.4f - gap * 0.7f) * (gap < 2f ? 1f : 0f) * pass;
                     float h = 0f;
                     if (amt > 0.01f)
                     {
                         var kind = KindOf(f, fam[rb]);
                         float peak = kind == Ridge.Volcano ? 170f : kind == Ridge.Mesas ? 70f : 110f;
-                        h += peak * Smooth(amt) * Mathf.Clamp01(coast / 0.12f);
+                        // W-08 (#20): a chain, not a wall: peaks and saddles along the line from a ridged noise (1 at crests, 0 in saddles).
+                        float ridged = 1f - Mathf.Abs(2f * Fbm(seed + 97, px / 55f, py / 55f, 3) - 1f);
+                        h += peak * (0.5f + 0.5f * ridged * ridged) * Smooth(amt) * Mathf.Clamp01(coast / 0.12f);
                         if (amt > 0.45f)
                         {
                             id = kind == Ridge.Volcano ? Named("Ashlands", id) : kind == Ridge.Mesas ? Named("MesaCanyonlands", id) : Named("Mountains", id);
                             ridgeCells++;
                         }
                     }
+                    if (gap < 0.35f && coast > 0.12f) lineHeights.Add(h);   // along the border line, passes included
                     // Lake bowl.
                     float rl = Mathf.Sqrt((px - cx0) * (px - cx0) + (py - cy0) * (py - cy0)) * (0.85f + 0.3f * Fbm(seed + 53, px / 120f, py / 120f));
                     float bowl = 1f - Smooth(Mathf.Clamp01(rl / (lakeR * 1.8f)));
@@ -242,6 +246,7 @@ namespace Punchy.Terrain
             sb.Append($"generator version {Version}, layout B seed {seed}; realms:");
             for (int i = 0; i < realms; i++) sb.Append($" {fam[i]}({sites[i].x:F2},{sites[i].y:F2})");
             sb.Append($"; forbidden borders {bestBad}; land {landCells} cells, ridge {ridgeCells}, lake {lakeCells} (cell {WorldSizeM / N:F0} m)");
+            if (lineHeights.Count > 0) { lineHeights.Sort(); sb.Append($"; border line cells {lineHeights.Count}, ridge height min {lineHeights[0]:F0} p10 {lineHeights[lineHeights.Count / 10]:F0} median {lineHeights[lineHeights.Count / 2]:F0} max {lineHeights[lineHeights.Count - 1]:F0} m"); }
             if (missing.Count > 0) sb.Append("; biomes not in palette: " + string.Join(",", missing));
             return new Result { Map = mapBlob, Island = islandBlob, Report = sb.ToString() };
         }

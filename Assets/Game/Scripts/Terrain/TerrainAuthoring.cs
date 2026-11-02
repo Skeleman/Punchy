@@ -143,6 +143,7 @@ namespace Punchy.Terrain
                 source.Caves = CaveBaking.Build(source, palette, landmarkTypes, allocator);
             source.Anchors = AnchorBaking.Build(source, landmarkTypes, allocator);
             source.PondsOn = true;
+            { var n = source.PondCount(16f, out var wet, out var sizes); UnityEngine.Debug.Log($"[ponds] {n} separate, {wet} wet cells of 16 m; {sizes}"); }
         }
 
         class Baker : Baker<TerrainAuthoring>

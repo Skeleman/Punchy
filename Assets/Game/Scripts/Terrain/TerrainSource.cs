@@ -256,15 +256,20 @@ namespace Punchy.Terrain
             for (int i = 0; i < 4; i++)
             {
                 var w = shape.Weights[i];
-                if (w > 0f)
-                    dig += w * BiomeSampling.Pond(ref set.Biomes[shape.Ids[i]], xz);
+                if (w > 0.4f)   // W-08: only in a biome's core; at region borders the blend left lone specks
+                    dig += math.smoothstep(0.4f, 0.75f, w) * BiomeSampling.Pond(ref set.Biomes[shape.Ids[i]], xz);
             }
             return h - dig;
         }
 
         /// <summary>Counts separate biome ponds (cells digging 0.3 m or more, 4-connected) on a grid of the given step; for logs.</summary>
-        public int PondCount(float step, out int wetCells)
+        public int PondCount(float step, out int wetCells) => PondCount(step, out wetCells, out _);
+
+        /// <summary>As above, also describing the size spread (cells per pond) for logs.</summary>
+        public int PondCount(float step, out int wetCells, out string sizes)
         {
+            sizes = "";
+            var sizeList = new System.Collections.Generic.List<int>();
             wetCells = 0;
             if (!PondsOn || !HasBiomes) return 0;
             int n = (int)(World.WorldSize / step), found = 0;
@@ -284,14 +289,22 @@ namespace Punchy.Terrain
             {
                 if (!wet[i]) continue;
                 found++; wet[i] = false; stack.Push(i);
+                int size = 0;
                 while (stack.Count > 0)
                 {
-                    var c = stack.Pop(); int cx = c % n, cz = c / n;
+                    var c = stack.Pop(); int cx = c % n, cz = c / n; size++;
                     if (cx > 0 && wet[c - 1]) { wet[c - 1] = false; stack.Push(c - 1); }
                     if (cx < n - 1 && wet[c + 1]) { wet[c + 1] = false; stack.Push(c + 1); }
                     if (cz > 0 && wet[c - n]) { wet[c - n] = false; stack.Push(c - n); }
                     if (cz < n - 1 && wet[c + n]) { wet[c + n] = false; stack.Push(c + n); }
                 }
+                sizeList.Add(size);
+            }
+            if (sizeList.Count > 0)
+            {
+                sizeList.Sort();
+                int singles = 0; foreach (var z in sizeList) if (z == 1) singles++;
+                sizes = $"cells per pond min {sizeList[0]} median {sizeList[sizeList.Count / 2]} p90 {sizeList[sizeList.Count * 9 / 10]} max {sizeList[sizeList.Count - 1]}, single-cell {singles}";
             }
             return found;
         }
