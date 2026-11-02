@@ -36,18 +36,15 @@ Builds/Windows is the A-22 build. Editor open on port 7800; no Punchy.exe of our
   same values for all 10 dogs (`-personalitylog Dog`).
 - #7 NOT met: dogs at aggression 0.6 and up hunt Rabbit and the hares, but no dog saw a live hare in the 40 s meadow
   run ("prey none", even though 8 Rabbits were spawned), so no chase and no Growl. Find out where the spawned
-  rabbits go.
 - #16 partly met: weights in kg in all 113 species, CarryCapacity 40 kg. Dog 36.4 kg was held; adult Human 65.2 kg
   was too heavy. HumanChild 23.6 kg passed the weight check, but the spawned (wild) child fled, so no pick-up.
 
 ## Unverified (merged anyway; Zach's check in the build)
 - #41 (A-10c, ae5b491): head glow fixed; host-to-client lunge not shown. Plant shove never landed in a test.
-- #8 Z-52: live folk lines seen only twice.
 
 ## Open
 - #12: numbers in (A-16); Zach's look. #33: sideways still 0 m/s on stick right.
 - #6 (leaping run, side-on gather shot), #7, #16, #43, #49: Zach's look. #23: confirm on v2.
-- Dormouse Climb 11-70 deg/s, probably round a trunk; secondary.
 - #10 new species (needs design).
 - Animals still flee a flyer high above (confirm with Zach before filing more).
 
