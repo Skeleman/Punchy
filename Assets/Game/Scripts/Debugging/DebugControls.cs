@@ -148,6 +148,8 @@ namespace Punchy.Debugging
         /// <summary>Per creature: its heading last frame, how far it has turned since standing still, for how long, and
         /// when it was last logged.</summary>
         readonly System.Collections.Generic.Dictionary<Entity, float4> spins = new System.Collections.Generic.Dictionary<Entity, float4>();
+        readonly System.Collections.Generic.Dictionary<int, float2> turnSum = new System.Collections.Generic.Dictionary<int, float2>();
+        float turnLogAt;
         readonly System.Collections.Generic.Dictionary<Entity, float> spinLogged = new System.Collections.Generic.Dictionary<Entity, float>();
 
         /// <summary>
@@ -173,6 +175,13 @@ namespace Punchy.Debugging
                     w = new float4(c.Yaw, 0f, 0f, 0f);
                 var step = math.abs(math.atan2(math.sin(c.Yaw - w.x), math.cos(c.Yaw - w.x)));
                 w.x = c.Yaw;
+                // (Heading change per second of the songbirds' and dormice's wandering, for the Z-12 before/after.)
+                if (c.Mode == CreatureMode.Wander && bodies[i].Species >= 0)
+                {
+                    var key = bodies[i].Species;
+                    turnSum.TryGetValue(key, out var acc);
+                    turnSum[key] = new float2(acc.x + math.degrees(step), acc.y + dt);
+                }
                 if (c.Speed < 0.3f)
                 {
                     w.y += step;
@@ -194,6 +203,21 @@ namespace Punchy.Debugging
                     w.y = w.z = 0f;
                 }
                 spins[e] = w;
+            }
+            if (now >= turnLogAt)
+            {
+                if (turnLogAt > 0f)
+                {
+                    var director = FindAnyObjectByType<FaunaDirector>();
+                    foreach (var kv in turnSum)
+                    {
+                        var species = director != null ? director.SpeciesAt(kv.Key)?.name : kv.Key.ToString();
+                        if (species == "Songbird" || species == "Dormouse")
+                            Debug.Log($"DebugControls: heading change: {species} wandering {kv.Value.x / math.max(kv.Value.y, 1e-3f):F1} deg/s over {kv.Value.y:F0} creature-seconds");
+                    }
+                }
+                turnSum.Clear();
+                turnLogAt = now + 30f;
             }
             if (spins.Count > 4000)
                 spins.Clear();
@@ -1734,7 +1758,8 @@ namespace Punchy.Debugging
         static bool climbHolding;
         /// <summary>"-place wall": a wall climber's test (up, along, down), and the last time it logged.</summary>
         static bool wallRequest, climbWall;
-        float wallLogAt;
+        float wallLogAt, wallLastAt;
+        float3 wallLast;
 
         void ClimbTest()
         {
@@ -1779,7 +1804,12 @@ namespace Punchy.Debugging
                 {
                     wallLogAt = Time.time + 1f;
                     var stick = sideways ? "right" : toward ? "up" : "down";
-                    Debug.Log($"DebugControls: wall test: stick {stick}, OnWall {wm.OnWall}, grounded {wm.Grounded}, player at ({V(player.Position.x)}, {V(player.Position.y)}, {V(player.Position.z)})");
+                    // (Rates since the last line: up and along the wall, m/s.)
+                    var step = player.Position - wallLast;
+                    var dtLog = math.max(Time.time - wallLastAt, 0.01f);
+                    wallLast = player.Position;
+                    wallLastAt = Time.time;
+                    Debug.Log($"DebugControls: wall test: stick {stick}, OnWall {wm.OnWall}, grounded {wm.Grounded}, player at ({V(player.Position.x)}, {V(player.Position.y)}, {V(player.Position.z)}), vertical {V(step.y / dtLog)} m/s, along {V(math.length(step.xz) / dtLog)} m/s");
                 }
             }
             if (toward && climbJumps && distance > 0.5f && distance < 2f && Time.time >= climbNextJump)

@@ -475,6 +475,13 @@ namespace Punchy.Fauna
                     // folded beyond 150°, however much swing, sprint or pose is added up.
                     if (b.Upright && part.Role == LimbRole.Arm && j == 1)
                         a.x = math.clamp(a.x, -2.6f, 0f);
+                    // An upright body's ankle only bends so far either way from standing (toes down to push off, up in the swing),
+                    // however long the stride, run and pose add up: past that the foot folds against the shin.
+                    if (b.Upright && part.Role == LimbRole.Leg && part.SegmentCount >= 3 && j == part.SegmentCount - 1 && s.Sit + s.Lie < 0.3f)
+                    {
+                        var stand = b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle].x;
+                        a.x = stand + math.clamp(a.x - stand, -AnkleBend, AnkleBend);
+                    }
                     if (seg < segHidden.Length)
                         segHidden[seg] = hidden;
                     if (fold > 0f)
@@ -637,6 +644,9 @@ namespace Punchy.Fauna
             !b.Hands && !b.Haunts && s.Mode != CreatureMode.Puppet && (math.hash(new uint2(s.Individual, 0x601Du)) >> 8) % GoldenOdds == 0u;   // (the hash's low bits follow the individual's, always odd)
 
         public const uint GoldenOdds = 400;
+
+        /// <summary>The most an upright body's ankle bends from standing, either way (radians: 38°).</summary>
+        const float AnkleBend = 0.66f;
 
         /// <summary>How far into an idle action it is, as a weight: eases in, holds, eases out.</summary>
         static float ActionEnvelope(float t) => math.smoothstep(0f, 0.12f, t) * (1f - math.smoothstep(0.85f, 1f, t));
