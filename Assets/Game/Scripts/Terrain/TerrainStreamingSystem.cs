@@ -46,10 +46,26 @@ namespace Punchy.Terrain
         static readonly int TerrainFocusId = Shader.PropertyToID("_TerrainFocus");
         /// <summary>Vertices per batch (a full-detail chunk is about 4,500).</summary>
         const int VertexBudget = 14000;
-        /// <summary>Frames a batch may run before the main thread waits for it.</summary>
-        const int MaxBuildFrames = 4;
+        /// <summary>Frames a batch may run before the main thread waits for it: only a backstop. A chunk at a cave mouth
+        /// meshes for about 40 ms on one worker (every vertex samples the mouth cut five times), and waiting for it
+        /// after a few frames was a 100 ms frame on the walk in; the next batch just starts a little later.</summary>
+        const int MaxBuildFrames = 60;
+        /// <summary>Above this focus speed (m/s: gliding, riding) batches are a quarter the size (still at least one
+        /// chunk), so a stream of chunks coming into range is meshed a little every frame instead of in bursts that
+        /// crowd out everything else, and chunks ahead of the way it's heading come first.</summary>
+        const float FastSpeed = 10f;
+        float focusSpeed;
+        /// <summary>The focus's smoothed horizontal heading (unit length, or zero when still).</summary>
+        float2 focusHeading;
+        float2 lastFocus = new float2(float.MaxValue);
+        double lastFocusTime;
 
         readonly Dictionary<int2, LoadedChunk> loaded = new Dictionary<int2, LoadedChunk>();
+        /// <summary>Whether far chunks are hidden for a camera deep in a cave (see HideFarChunks).</summary>
+        bool surfaceHidden;
+        /// <summary>Chunks within this distance of the camera keep drawing while the surface is hidden (the ground over a
+        /// cave's own roof, which a shallow cave's walls meet).</summary>
+        const float HiddenKeep = 60f;
         readonly Stack<(Mesh mesh, BatchMeshID id)> meshPool = new Stack<(Mesh, BatchMeshID)>();
         readonly List<int2> scratchCoords = new List<int2>();
         readonly List<BuildItem> wanted = new List<BuildItem>();
@@ -60,6 +76,10 @@ namespace Punchy.Terrain
         readonly List<BuildItem> building = new List<BuildItem>();
         JobHandle buildHandle;
         int buildFrames;
+
+        /// <summary>True while a batch of chunks is meshing in the background, so other background work (the weather
+        /// maps) can hold off rather than crowd it out.</summary>
+        public static bool Meshing { get; private set; }
         Mesh.MeshDataArray buildData;
         NativeArray<ChunkBuildRequest> buildRequests;
         NativeArray<float2> buildRanges, buildWaterRanges;
@@ -117,17 +137,52 @@ namespace Punchy.Terrain
                 FinishBuild(config);
             }
 
+            config = ApplyViewDistance(config);
+
+            // Deep in a cave (CaveSystem.SurfaceHidden) the surface is out of sight: chunks beyond the camera's own
+            // neighbourhood stop drawing, and nothing new streams in until the surface comes back into view.
+            var hidden = CaveSystem.SurfaceHidden >= 0.99f;
+            if (hidden != surfaceHidden)
+                HideFarChunks(hidden);
+            if (hidden)
+                return;
+
             var focus = focusQuery.TryGetSingleton<LocalTransform>(out var focusTransform)
                 ? focusTransform.Position.xz
                 : float2.zero;
             // The terrain shader geomorphs vertices by their distance from this same point.
             Shader.SetGlobalVector(TerrainFocusId, new Vector4(focus.x, focus.y, 0f, 0f));
 
+            // The focus's speed since the last batch started (batches can be frames apart), smoothed over about half a
+            // second (a teleport reads as briefly fast).
+            var now = SystemAPI.Time.ElapsedTime;
+            var dt = math.max((float)(now - lastFocusTime), 1e-4f);
+            var step = lastFocus.x == float.MaxValue ? float2.zero : focus - lastFocus;
+            var moved = math.length(step);
+            lastFocus = focus;
+            lastFocusTime = now;
+            focusSpeed = math.lerp(focusSpeed, moved / dt, 1f - math.exp(-dt * 2f));
+            if (moved > 1e-3f && moved < 200f)
+                focusHeading = math.normalizesafe(math.lerp(focusHeading, step / moved, 1f - math.exp(-dt * 3f)));
+            var fast = focusSpeed > FastSpeed;
+            var budget = fast ? VertexBudget / 4 : VertexBudget;
+
             UnloadDistantChunks(config, focus);
             CollectWantedChunks(config, focus);
             if (wanted.Count == 0)
                 return;
 
+            // Fast: chunks ahead count as up to 40% nearer and those behind up to 40% farther, so small batches go
+            // where the view is heading first.
+            if (fast && math.lengthsq(focusHeading) > 0.5f)
+                for (int i = 0; i < wanted.Count; i++)
+                {
+                    var w = wanted[i];
+                    var centre = ((float2)w.Coord + 0.5f) * config.ChunkSize;
+                    var ahead = math.dot(math.normalizesafe(centre - focus), focusHeading);
+                    w.Distance *= 1f - 0.4f * ahead;
+                    wanted[i] = w;
+                }
             wanted.Sort((a, b) => a.Distance.CompareTo(b.Distance));
             var count = 0;
             var vertices = 0;
@@ -135,11 +190,52 @@ namespace Punchy.Terrain
             {
                 var quads = config.QuadsForLod(wanted[count].Lod);
                 vertices += BuildChunkMeshJob.VertexCount(quads);
-                if (count > 0 && vertices > VertexBudget)
+                if (count > 0 && vertices > budget)
                     break;
                 count++;
             }
             StartBuild(config, source, count);
+        }
+
+        /// <summary>The graphics settings' View distance (GraphicsSettings.View) last applied, and one waiting to be.</summary>
+        float appliedView = 1f, pendingView = 1f;
+        double pendingViewSince;
+
+        /// <summary>
+        /// The config with its view radius and LOD distances at the graphics settings' View distance. A new setting
+        /// applies once it has held still for a moment (a slider being dragged would otherwise restart the rebuild every
+        /// frame), and then every loaded chunk is rebuilt at its new LOD and morph range, nearest first, keeping its
+        /// mesh until then (no holes). Only what's drawn changes: everything else samples TerrainSource.
+        /// </summary>
+        TerrainConfig ApplyViewDistance(TerrainConfig config)
+        {
+            var view = Punchy.Settings.GraphicsSettings.View;
+            var now = SystemAPI.Time.ElapsedTime;
+            if (view != pendingView)
+            {
+                pendingView = view;
+                pendingViewSince = now;
+            }
+            if (pendingView != appliedView && now - pendingViewSince > 0.3)
+            {
+                appliedView = pendingView;
+                scratchCoords.Clear();
+                scratchCoords.AddRange(loaded.Keys);
+                foreach (var coord in scratchCoords)
+                {
+                    var chunk = loaded[coord];
+                    chunk.Lod = -1;
+                    loaded[coord] = chunk;
+                }
+            }
+            config.Lod0Distance *= appliedView;
+            config.ViewRadiusChunks = math.max(2, (int)math.round(config.ViewRadiusChunks * appliedView));
+            // The camera reaches past the farthest chunk (only ever pushed out: at View 1 its own far plane already does).
+            var cam = Camera.main;
+            var reach = (config.ViewRadiusChunks + 1.5f) * config.ChunkSize;
+            if (cam != null && cam.farClipPlane < reach)
+                cam.farClipPlane = reach;
+            return config;
         }
 
         void HandleSettingsChanges(in TerrainConfig config, in TerrainSource source)
@@ -264,6 +360,7 @@ namespace Punchy.Terrain
             };
             buildHandle = IJobParallelForExtensions.Schedule(job, count, 1);
             buildFrames = 0;
+            Meshing = true;
             JobHandle.ScheduleBatchedJobs();
         }
 
@@ -273,6 +370,7 @@ namespace Punchy.Terrain
         void FinishBuild(in TerrainConfig config)
         {
             buildHandle.Complete();
+            Meshing = false;
             var count = building.Count;
 
             // Rebuilt chunks reuse their own meshes; new chunks take them from the pool.
@@ -339,6 +437,7 @@ namespace Punchy.Terrain
             if (building.Count == 0)
                 return;
             buildHandle.Complete();
+            Meshing = false;
             buildData.Dispose();
             DisposeBuild();
         }
@@ -371,6 +470,42 @@ namespace Punchy.Terrain
             var mesh = new Mesh { name = "TerrainChunk" };
             mesh.MarkDynamic();
             return (mesh, graphics.RegisterMesh(mesh));
+        }
+
+        /// <summary>
+        /// Hides (or shows again) the chunks farther than HiddenKeep from the camera, for a camera deep in a cave
+        /// (DisableRendering on their entities).
+        /// </summary>
+        void HideFarChunks(bool hide)
+        {
+            surfaceHidden = hide;
+            var cam = Camera.main;
+            var eye = cam != null ? ((float3)cam.transform.position).xz : float2.zero;
+            var chunkSize = SystemAPI.GetSingleton<TerrainConfig>().ChunkSize;
+            // Gathered first and changed in two batches: one structural change per chunk was a hitch on the way in.
+            var toHide = new NativeList<Entity>(Allocator.Temp);
+            var toShow = new NativeList<Entity>(Allocator.Temp);
+            void Sort(Entity e, bool far)
+            {
+                if (e == Entity.Null)
+                    return;
+                var off = EntityManager.HasComponent<DisableRendering>(e);
+                if (hide && far && !off)
+                    toHide.Add(e);
+                else if ((!hide || !far) && off)
+                    toShow.Add(e);
+            }
+            foreach (var kv in loaded)
+            {
+                var centre = ((float2)kv.Key + 0.5f) * chunkSize;
+                var far = math.distance(centre, eye) > HiddenKeep + chunkSize * 0.71f;
+                Sort(kv.Value.Entity, far);
+                Sort(kv.Value.WaterEntity, far);
+            }
+            EntityManager.AddComponent<DisableRendering>(toHide.AsArray());
+            EntityManager.RemoveComponent<DisableRendering>(toShow.AsArray());
+            toHide.Dispose();
+            toShow.Dispose();
         }
 
         Entity CreateRenderEntity(int2 coord, float2 origin, in RenderMeshDescription desc, BatchMaterialID material, BatchMeshID mesh, string name)

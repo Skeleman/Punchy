@@ -26,13 +26,17 @@ Material:
     m_Ints: []
     m_Floats:
     - _Absorption: 0.18
+    - _DetailScale: 0.6
+    - _DetailStrength: 0.65
     - _FlowSpeed: 1.6
     - _FoamDistance: 0.8
     - _Opacity: 0.45
+    - _ScreenReflection: 1
     - _Smoothness: 0.95
-    - _WaveScale: 0.15
-    - _WaveSpeed: 0.8
-    - _WaveStrength: 0.35
+    - _Sparkle: 0.6
+    - _WaveScale: 0.45
+    - _WaveSpeed: 0.5
+    - _WaveStrength: 0.22
     m_Colors:
     - _DeepColor: {r: 0.01, g: 0.06999998, b: 0.14999998, a: 1}
     - _FoamColor: {r: 0.9, g: 0.95, b: 1, a: 1}

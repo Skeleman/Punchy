@@ -100,6 +100,7 @@ namespace Punchy.Terrain
                     MaxDistance = settings.MaxCarveDistance + cellSize * 1.5f,
                     Down = down, Width = width, Nearest = nearest
                 }.Schedule(bedDownhill).Complete();
+                LowerBreachedLakes(resolution, elevation, bed, water, lakes, lakeLevel);
 
                 var builder = new BlobBuilder(Allocator.Temp);
                 ref var root = ref builder.ConstructRoot<RiverMapBlob>();
@@ -115,8 +116,84 @@ namespace Punchy.Terrain
                 Copy(ref builder, ref root.Width, width);
                 Copy(ref builder, ref root.Nearest, nearest);
                 Copy(ref builder, ref root.LakeDepth, lakes);
+                // Each cell's highest lake level within two cells (for bays the cell grid misses).
+                var shore = builder.Allocate(ref root.ShoreLevel, count);
+                for (int i = 0; i < count; i++)
+                {
+                    int x = i % resolution, z = i / resolution;
+                    var best = float.MinValue;
+                    for (int dz = math.max(z - 2, 0); dz <= math.min(z + 2, resolution - 1); dz++)
+                    for (int dx = math.max(x - 2, 0); dx <= math.min(x + 2, resolution - 1); dx++)
+                    {
+                        var n = dz * resolution + dx;
+                        if (lakes[n] > 0f)
+                            best = math.max(best, lakeLevel[n]);
+                    }
+                    shore[i] = best;
+                }
+                // Main upstream neighbour (the widest feeder) of each river cell, for the curve tangents.
+                var up = builder.Allocate(ref root.Up, count);
+                for (int i = 0; i < count; i++) up[i] = -1;
+                for (int i = 0; i < count; i++)
+                {
+                    var d = down[i];
+                    if (width[i] <= 0f || d < 0) continue;
+                    if (up[d] < 0 || width[i] > width[up[d]]) up[d] = i;
+                }
+                // Waterfalls: segments whose bed steps down by FallDrop or more (placed on the finished blob below).
+                var fallCells = new System.Collections.Generic.List<int>();
+                if (settings.FallDrop > 0f)
+                {
+                    for (int i = 0; i < count; i++)
+                    {
+                        var d = down[i];
+                        if (width[i] <= 0f || d < 0 || width[d] <= 0f || lakes[i] > 0f || lakes[d] > 0f) continue;
+                        if (bed[i] - bed[d] < settings.FallDrop || bed[i] <= source.World.SeaLevel + 1f) continue;
+                        fallCells.Add(i);
+                    }
+                }
+                if (fallCells.Count > 0)
+                {
+                    // #42: a step whose water surface drops under 3 m shows no curtain (the bed steps, the water doesn't), and a
+                    // thin fall (under 8 m) within 60 m of a bigger one reads as the same cascade: both go, leaving one fall.
+                    float Drop(int c) => water[c] - water[down[c]];
+                    float2 Centre(int c) => origin + (new float2(c % resolution, c / resolution) + 0.5f) * cellSize;
+                    var big = new System.Collections.Generic.List<int>(fallCells);
+                    big.RemoveAll(c => Drop(c) < 3f);
+                    big.Sort((a, c) => Drop(c).CompareTo(Drop(a)));
+                    var kept = new System.Collections.Generic.List<int>();
+                    foreach (var c in big)
+                    {
+                        var thin = Drop(c) < 8f;
+                        var merged = false;
+                        if (thin)
+                            foreach (var k in kept)
+                                if (math.distance(Centre(c), Centre(k)) < 60f) { merged = true; break; }
+                        if (!merged) kept.Add(c);
+                    }
+                    kept.Sort();
+                    fallCells = kept;
+                }
+                var fallArray = builder.Allocate(ref root.Falls, fallCells.Count);
+                for (int k = 0; k < fallCells.Count; k++)
+                    fallArray[k] = new RiverFall { Drop = water[fallCells[k]] - water[down[fallCells[k]]], Width = fallCells[k] };
                 var blob = builder.CreateBlobAssetReference<RiverMapBlob>(allocator);
                 builder.Dispose();
+                if (fallCells.Count > 0)
+                {
+                    // Lips need the finished blob (the curve reads Up, Down and the points). Width holds the cell until here.
+                    ref var done = ref blob.Value;
+                    for (int k = 0; k < done.Falls.Length; k++)
+                    {
+                        var cell = (int)done.Falls[k].Width;
+                        var mid = RiverSampling.CurveMid(ref done, cell, out var fallFlow);
+                        done.Falls[k] = new RiverFall
+                        {
+                            Lip = new float3(mid.x, water[cell], mid.y), Out = fallFlow, Drop = done.Falls[k].Drop,
+                            Width = math.max(done.Width[cell], 3f)
+                        };
+                    }
+                }
                 return blob;
             }
             finally
@@ -134,6 +211,81 @@ namespace Punchy.Terrain
                 floor.Dispose();
                 nearest.Dispose();
             }
+        }
+
+        /// <summary>
+        /// A lake whose rim a river has cut through below its surface (a gorge alongside it, not its own outlet, which is cut
+        /// only to its level) can't hold that surface: it's lowered to half a metre above the breach, and cells left
+        /// shallower than the lakes' minimum stop being lake. Without this the lake's flat surface stood over the cut
+        /// as walls of water round dry pits (F-22, kind-possum's glacier lake at 1118, 1553).
+        /// </summary>
+        static void LowerBreachedLakes(int resolution, NativeArray<float> elevation, NativeArray<float> bed, NativeArray<float> water,
+                                       NativeArray<float> lakes, NativeArray<float> lakeLevel)
+        {
+            var count = lakes.Length;
+            var seen = new NativeArray<bool>(count, Allocator.Temp);
+            var stack = new NativeList<int>(256, Allocator.Temp);
+            var cells = new NativeList<int>(256, Allocator.Temp);
+            for (int start = 0; start < count; start++)
+            {
+                if (seen[start] || lakes[start] <= 0f)
+                    continue;
+                // One lake: the lake cells joined to this one.
+                cells.Clear();
+                stack.Clear();
+                stack.Add(start);
+                seen[start] = true;
+                var level = lakeLevel[start];
+                var breach = float.MaxValue;
+                while (stack.Length > 0)
+                {
+                    var c = stack[stack.Length - 1];
+                    stack.RemoveAt(stack.Length - 1);
+                    cells.Add(c);
+                    int x = c % resolution, z = c / resolution;
+                    for (int dz = -1; dz <= 1; dz++)
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        int nx = x + dx, nz = z + dz;
+                        if ((dx == 0 && dz == 0) || nx < 0 || nz < 0 || nx >= resolution || nz >= resolution)
+                            continue;
+                        var n = nz * resolution + nx;
+                        if (lakes[n] > 0f)
+                        {
+                            if (!seen[n])
+                            {
+                                seen[n] = true;
+                                stack.Add(n);
+                            }
+                        }
+                        else
+                            breach = math.min(breach, bed[n]);
+                    }
+                }
+                if (breach >= level - 2f)
+                    continue;
+                var lowered = breach + 0.5f;
+                foreach (var c in cells)
+                {
+                    var depth = lowered - elevation[c];
+                    if (depth > 0.3f)
+                    {
+                        lakes[c] = depth;
+                        lakeLevel[c] = lowered;
+                        bed[c] = lowered;
+                        water[c] = lowered;
+                    }
+                    else
+                    {
+                        lakes[c] = 0f;
+                        bed[c] = math.min(bed[c], elevation[c]);
+                        water[c] = math.min(water[c], bed[c]);
+                    }
+                }
+            }
+            seen.Dispose();
+            stack.Dispose();
+            cells.Dispose();
         }
 
         static void Copy<T>(ref BlobBuilder builder, ref BlobArray<T> target, NativeArray<T> source) where T : unmanaged
@@ -412,13 +564,24 @@ namespace Punchy.Terrain
                 var cellArea = CellSize * CellSize / 1e6f; // km²
                 var source = math.max(Settings.SourceCatchment, 1e-3f);
                 var range = math.log(math.max(Settings.FullCatchment / source, 1.0001f));
+                // Springs on high ground (SourceHeight): a river cell below that height counts only if a river cell drains into it.
+                var fed = new NativeArray<bool>(flow.Length, Allocator.Temp);
+                if (Settings.SourceHeight > 0f)
+                    for (int k = Order.Length - 1; k >= 0; k--)
+                    {
+                        var c = Order[k];
+                        var on = Elevation[c] >= SeaLevel && flow[c] * cellArea >= source && (fed[c] || Elevation[c] - SeaLevel >= Settings.SourceHeight);
+                        if (on && Down[c] >= 0) fed[Down[c]] = true;
+                        fed[c] = on;
+                    }
                 for (int i = 0; i < flow.Length; i++)
                 {
                     var catchment = flow[i] * cellArea;
-                    Width[i] = Elevation[i] >= SeaLevel && catchment >= source
+                    Width[i] = Elevation[i] >= SeaLevel && catchment >= source && (Settings.SourceHeight <= 0f || fed[i])
                         ? math.lerp(Settings.MinWidth, Settings.MaxWidth, math.saturate(math.log(catchment / source) / range))
                         : 0f;
                 }
+                fed.Dispose();
                 flow.Dispose();
             }
         }

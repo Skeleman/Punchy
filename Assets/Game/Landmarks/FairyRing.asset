@@ -15,6 +15,7 @@ MonoBehaviour:
   Radius: 20
   Scale: {x: 0.85, y: 1.15}
   MaxRelief: 8
+  MinRelief: 0
   Elevation: {x: 3, y: 10000}
   Shape: 0
   Height: 0
@@ -27,6 +28,7 @@ MonoBehaviour:
   WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
   WaterMurk: 0.3
   WaterGlow: 0
+  WaterLava: 0
   Ground: {fileID: 11400000, guid: dbf574d429d0988438ce7ac6a796029b, type: 2}
   GroundRadius: 0.6
   ClearRadius: 0.8
@@ -36,6 +38,19 @@ MonoBehaviour:
     Ring: {x: 0.55, y: 0.68}
     Scale: {x: 1, y: 1}
     Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
+  - Species: {fileID: 11400000, guid: c7f7060e91c17884c8302311df6194d4, type: 2}
+    Density: 5
+    Ring: {x: 0.6, y: 0.6}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 1
+    Angle: 40
+    Clearance: 3
   Effects:
   - Kind: 0
     Offset: {x: 0, y: 0}
@@ -49,4 +64,19 @@ MonoBehaviour:
     Glow: 3
     Period: 0
     Duty: 0.25
+    Flame: 0
+  Cave: 0
+  CaveLength: 40
+  CaveDepth: 8
+  CaveRadius: 2.4
+  ChamberRadius: 6
+  CaveChambers: 0
+  CaveBranches: 0
+  BranchLength: 30
+  CaveShafts: 0
+  CaveStyles: []
+  Settlement: {fileID: 0}
+  Companions: []
+  CompanionRange: 150
+  OnlyAsCompanion: 0
   Residents: []

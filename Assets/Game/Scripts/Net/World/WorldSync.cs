@@ -19,6 +19,8 @@ namespace Punchy.Net
         [GhostField(Quantization = 100)] public float PressureTime;
         [GhostField(Quantization = 10)] public float2 PressureOffset;
         [GhostField(Quantization = 100000)] public float2 CloudOffset;
+        /// <summary>Whole days since the start: with the time of day it sets both moons' phases.</summary>
+        [GhostField] public int Day;
     }
 
     /// <summary>One of the host's weather cells (WeatherField.CellState).</summary>
@@ -142,6 +144,7 @@ namespace Punchy.Net
             carried = new WorldState
             {
                 TimeOfDay = Cycle != null ? Cycle.TimeOfDay : 12f,
+                Day = Cycle != null ? Cycle.Day : 0,
                 DayType = Weather.DayTypeIndex,
                 WindAngle = Weather.WindAngle,
                 PressureTime = Weather.Field.PressureTime,
@@ -158,7 +161,10 @@ namespace Punchy.Net
             if (Weather == null || !Weather.Field.Ready)
                 return false;
             if (Cycle != null)
+            {
                 Cycle.TimeOfDay = carried.TimeOfDay;
+                Cycle.Day = carried.Day;
+            }
             if (Weather.DayTypeIndex != carried.DayType)
                 Weather.SetDayType(carried.DayType, false);
             Weather.WindAngle = carried.WindAngle;
@@ -181,10 +187,10 @@ namespace Punchy.Net
             if (client == null || !client.IsCreated || !client.IsClient())
                 return Time.time;
             var em = client.EntityManager;
-            using var time = em.CreateEntityQuery(ComponentType.ReadOnly<NetworkTime>());
+            var time = CachedQueries.Get<NetworkTime>(em.World);
             if (!time.TryGetSingleton<NetworkTime>(out var t) || !t.ServerTick.IsValid)
                 return Time.time;
-            using var rate = em.CreateEntityQuery(ComponentType.ReadOnly<ClientServerTickRate>());
+            var rate = CachedQueries.Get<ClientServerTickRate>(em.World);
             var hz = rate.TryGetSingleton<ClientServerTickRate>(out var r) && r.SimulationTickRate > 0 ? r.SimulationTickRate : 60;
             return (float)((t.ServerTick.TickIndexForValidTick + (double)t.ServerTickFraction) / hz);
         }
@@ -196,7 +202,7 @@ namespace Punchy.Net
             var em = server.EntityManager;
             if (stateGhost != Entity.Null && em.Exists(stateGhost))
                 return;
-            using var spawner = em.CreateEntityQuery(ComponentType.ReadOnly<WorldStateSpawner>());
+            var spawner = CachedQueries.Get<WorldStateSpawner>(em.World);
             if (!spawner.TryGetSingleton<WorldStateSpawner>(out var s))
                 return;
             stateGhost = em.Instantiate(s.Prefab);
@@ -212,6 +218,7 @@ namespace Punchy.Net
             em.SetComponentData(stateGhost, new WorldState
             {
                 TimeOfDay = Cycle != null ? Cycle.TimeOfDay : 12f,
+                Day = Cycle != null ? Cycle.Day : 0,
                 DayType = Weather.DayTypeIndex,
                 WindAngle = Weather.WindAngle,
                 PressureTime = field.Ready ? field.PressureTime : 0f,
@@ -245,7 +252,7 @@ namespace Punchy.Net
         void CheckJoiners()
         {
             var em = server.EntityManager;
-            using var query = em.CreateEntityQuery(ComponentType.ReadOnly<WorldCheckRpc>(), ComponentType.ReadOnly<ReceiveRpcCommandRequest>());
+            var query = CachedQueries.Get<WorldCheckRpc, ReceiveRpcCommandRequest>(em.World);
             if (query.IsEmpty)
                 return;
             var ours = Signature(server);
@@ -271,7 +278,7 @@ namespace Punchy.Net
         void SendWorldCheck()
         {
             var em = client.EntityManager;
-            using var connections = em.CreateEntityQuery(ComponentType.ReadOnly<NetworkId>(), ComponentType.ReadOnly<NetworkStreamInGame>());
+            var connections = CachedQueries.Get<NetworkId, NetworkStreamInGame>(em.World);
             var list = connections.ToEntityArray(Allocator.Temp);
             foreach (var connection in list)
             {
@@ -292,7 +299,7 @@ namespace Punchy.Net
         void ReceiveLightning(bool apply)
         {
             var em = client.EntityManager;
-            using var query = em.CreateEntityQuery(ComponentType.ReadOnly<LightningRpc>(), ComponentType.ReadOnly<ReceiveRpcCommandRequest>());
+            var query = CachedQueries.Get<LightningRpc, ReceiveRpcCommandRequest>(em.World);
             if (query.IsEmpty)
                 return;
             var strikes = query.ToEntityArray(Allocator.Temp);
@@ -309,12 +316,15 @@ namespace Punchy.Net
         void ApplyHostState()
         {
             var em = client.EntityManager;
-            using var query = em.CreateEntityQuery(ComponentType.ReadOnly<WorldState>(), ComponentType.ReadOnly<WeatherCellState>());
+            var query = CachedQueries.Get<WorldState, WeatherCellState>(em.World);
             if (!query.TryGetSingletonEntity<WorldState>(out var ghost))
                 return;
             var state = em.GetComponentData<WorldState>(ghost);
             if (Cycle != null)
+            {
                 Cycle.TimeOfDay = state.TimeOfDay;
+                Cycle.Day = state.Day;
+            }
             if (Weather == null)
                 return;
             if (Weather.DayTypeIndex != state.DayType)
@@ -346,8 +356,8 @@ namespace Punchy.Net
         uint Signature(World world)
         {
             var em = world.EntityManager;
-            using var terrain = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
-            using var palettes = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
+            var terrain = CachedQueries.Get<TerrainSource>(em.World);
+            var palettes = CachedQueries.Get<BiomePalette>(em.World);
             if (!terrain.TryGetSingleton<TerrainSource>(out var source) || palettes.CalculateEntityCount() != 1)
                 return 0;
             var palette = em.GetComponentObject<BiomePalette>(palettes.GetSingletonEntity());
@@ -378,6 +388,12 @@ namespace Punchy.Net
                     foreach (var r in l.Residents)
                         if (r.Species != null) species.Add(r.Species.name);
             }
+            // (The settlements' animals and hunters too: FaunaDirector's table is exactly these names, sorted, so this
+            // fixes every creature index the network sends.)
+            var domestics = Resources.Load<Punchy.Fauna.DomesticTable>("Domestics");
+            if (domestics != null)
+                foreach (var d in domestics.Entries)
+                    if (d.Species != null) species.Add(d.Species.name);
             foreach (var s in species)
                 Add(s);
             if (Avatars != null)

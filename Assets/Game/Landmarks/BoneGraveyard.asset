@@ -15,6 +15,7 @@ MonoBehaviour:
   Radius: 50
   Scale: {x: 0.85, y: 1.15}
   MaxRelief: 14
+  MinRelief: 0
   Elevation: {x: 3, y: 10000}
   Shape: 0
   Height: 0
@@ -27,6 +28,7 @@ MonoBehaviour:
   WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
   WaterMurk: 0.3
   WaterGlow: 0
+  WaterLava: 0
   Ground: {fileID: 0}
   GroundRadius: 0.6
   ClearRadius: 0.6
@@ -36,12 +38,68 @@ MonoBehaviour:
     Ring: {x: 0, y: 0.8}
     Scale: {x: 1, y: 1}
     Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
   - Species: {fileID: 11400000, guid: 90e4d6538ba5cd247827ce6479ed4075, type: 2}
     Density: 2
     Ring: {x: 0, y: 1}
     Scale: {x: 1, y: 1}
     Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 4
   Effects: []
+  Cave: 0
+  CaveLength: 40
+  CaveDepth: 8
+  CaveRadius: 2.4
+  ChamberRadius: 6
+  CaveChambers: 0
+  CaveBranches: 0
+  BranchLength: 30
+  CaveShafts: 0
+  CaveStyles: []
+  Settlement: {fileID: 0}
+  Companions: []
+  CompanionRange: 150
+  OnlyAsCompanion: 0
   Residents:
   - Species: {fileID: 11400000, guid: 7373782e991263741bf9d3a93f8aafe5, type: 2}
     Count: {x: 2, y: 3}
+    Leash: 0
+    HomeRing: 0
+    HomeAngle: 0
+    Task: 0
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}
+  - Species: {fileID: 11400000, guid: 1650f8f0313063e479486e5422e125cd, type: 2}
+    Count: {x: 2, y: 4}
+    Leash: 0
+    HomeRing: 0
+    HomeAngle: 0
+    Task: 0
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}
+  - Species: {fileID: 11400000, guid: 80b22cefd58b7fa4da98e78b0e226569, type: 2}
+    Count: {x: 1, y: 2}
+    Leash: 0
+    HomeRing: 0
+    HomeAngle: 0
+    Task: 0
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}
+  - Species: {fileID: 11400000, guid: a29db4620189e834bae99d1f89d9d807, type: 2}
+    Count: {x: 2, y: 3}
+    Leash: 0
+    HomeRing: 0
+    HomeAngle: 0
+    Task: 0
+    FaceRing: 0
+    FaceAngle: 0
+    Size: {x: 0, y: 0}

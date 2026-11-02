@@ -29,7 +29,19 @@ namespace Punchy.Net
         [GhostField(Quantization = 1000)] public float Scale;
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Speed;
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Look;
+        /// <summary>The head's look up or down (a glance at something above or below).</summary>
+        [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float LookPitch;
         [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Lie, HeadDown, Bow, Curl, Air;
+        [GhostField(Quantization = 100, Smoothing = SmoothingAction.Interpolate)] public float Sit, Vertical, Fly;
+        /// <summary>Not smoothed: it jumps back to 0 when a new action starts.</summary>
+        [GhostField(Quantization = 100)] public float ActionTime;
+        [GhostField] public byte Action;
+        /// <summary>Its lair, if it has one (a burrow's mouth, a web's centre) and how big: drawn on every machine.</summary>
+        [GhostField(Quantization = 100)] public float3 Anchor;
+        [GhostField(Quantization = 100)] public float AnchorSize;
+        /// <summary>Who is petting or carrying it (Interactions.HolderId; 0 = nobody).</summary>
+        [GhostField] public int Holder;
+        [GhostField] public byte Held;
     }
 
     /// <summary>Client: this creature is a server ghost that FaunaDirector has given a body (CreatureState/CreatureBody).</summary>
@@ -41,7 +53,10 @@ namespace Punchy.Net
         public Entity Prefab;
     }
 
-    /// <summary>Server: publishes each simulated creature's state on its ghost.</summary>
+    /// <summary>
+    /// Server: publishes each simulated creature's state on its ghost. A job after the brain's (not a loop here,
+    /// which would make the main thread wait for the brain to finish).
+    /// </summary>
     [BurstCompile]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -51,14 +66,19 @@ namespace Punchy.Net
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            foreach (var (s, body, net, transform) in SystemAPI.Query<RefRO<CreatureState>, RefRO<CreatureBody>, RefRW<CreatureNet>, RefRW<LocalTransform>>())
+            state.Dependency = new WriteJob().ScheduleParallel(state.Dependency);
+        }
+
+        [BurstCompile]
+        partial struct WriteJob : IJobEntity
+        {
+            void Execute(in CreatureState s, in CreatureBody body, ref CreatureNet n, ref LocalTransform transform)
             {
-                var c = s.ValueRO;
-                transform.ValueRW.Position = c.Position;
-                transform.ValueRW.Rotation = quaternion.RotateY(c.Yaw);
-                ref var n = ref net.ValueRW;
-                n.Species = body.ValueRO.Species;
-                n.Coat = (byte)body.ValueRO.Coat;
+                var c = s;
+                transform.Position = c.Position;
+                transform.Rotation = quaternion.RotateY(c.Yaw);
+                n.Species = body.Species;
+                n.Coat = (byte)body.Coat;
                 n.Individual = c.Individual;
                 n.Scale = c.Scale;
                 n.Mode = (byte)c.Mode;
@@ -66,11 +86,21 @@ namespace Punchy.Net
                 n.Stage = c.Stage;
                 n.Speed = c.Speed;
                 n.Look = c.Look;
+                n.LookPitch = c.LookPitch;
                 n.Lie = c.Lie;
                 n.HeadDown = c.HeadDown;
                 n.Bow = c.Bow;
                 n.Curl = c.Curl;
                 n.Air = c.Air;
+                n.Sit = c.Sit;
+                n.Vertical = c.Vertical;
+                n.Fly = c.Fly;
+                n.Action = (byte)c.Action;
+                n.ActionTime = c.ActionTime;
+                n.Anchor = c.Anchor;
+                n.AnchorSize = c.AnchorSize;
+                n.Holder = c.Holder;
+                n.Held = (byte)c.Held;
             }
         }
     }
@@ -87,6 +117,8 @@ namespace Punchy.Net
     {
         /// <summary>A bit beyond FaunaDirector's despawn distance, so nothing a player could see is ever held back.</summary>
         public const float Radius = 200f;
+        /// <summary>Critters (FaunaDirector's critter tier) are sent only to players within this of them.</summary>
+        public const float CritterRadius = 60f;
 
         [BurstCompile]
         public void OnCreate(ref SystemState state)
@@ -109,10 +141,13 @@ namespace Punchy.Net
                     players[owner.ValueRO.NetworkId] = transform.ValueRO.Position;
             if (players.Count == 0)
                 return;
-            var radiusSq = Radius * Radius;
-            foreach (var (ghost, transform) in SystemAPI.Query<RefRO<GhostInstance>, RefRO<LocalTransform>>().WithAll<CreatureNet>())
+            foreach (var (ghost, transform, body, net) in SystemAPI.Query<RefRO<GhostInstance>, RefRO<LocalTransform>, RefRO<CreatureBody>, RefRO<CreatureNet>>())
             {
                 var xz = transform.ValueRO.Position.xz;
+                // (Huge animals seen from far off are sent from that far; critters, the small life round a player, only
+                // to players near them.)
+                var radius = net.ValueRO.Task == (byte)CreatureTask.Critter ? CritterRadius : math.max(Radius, body.ValueRO.Blob.Value.SeenFrom + 20f);
+                var radiusSq = radius * radius;
                 foreach (var player in players)
                     if (math.distancesq(player.Value.xz, xz) > radiusSq)
                         set.TryAdd(new RelevantGhostForConnection(player.Key, ghost.ValueRO.ghostId), 1);
@@ -127,25 +162,35 @@ namespace Punchy.Net
     [BurstCompile]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [UpdateAfter(typeof(Punchy.Player.PlayerMovementSystem))]   // (a carried animal goes where the player is now)
     public partial struct CreatureReplicaSystem : ISystem
     {
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             var dt = math.max(math.min(SystemAPI.Time.DeltaTime, 0.1f), 1e-4f);
-            foreach (var (s, body, net, transform) in SystemAPI.Query<RefRW<CreatureState>, RefRO<CreatureBody>, RefRO<CreatureNet>, RefRO<LocalTransform>>()
-                         .WithAll<CreatureReplica>())
+            state.Dependency = new ReplicaJob { Dt = dt }.ScheduleParallel(state.Dependency);
+
+            // (One being carried is placed in its carrier's arms as it's drawn: HeldPoseSystem.)
+        }
+
+        [BurstCompile]
+        [WithAll(typeof(CreatureReplica))]
+        partial struct ReplicaJob : IJobEntity
+        {
+            public float Dt;
+
+            void Execute(ref CreatureState c, in CreatureBody body, in CreatureNet n, in LocalTransform transform)
             {
-                ref var c = ref s.ValueRW;
-                ref var b = ref body.ValueRO.Blob.Value;
-                var n = net.ValueRO;
-                var forward = math.mul(transform.ValueRO.Rotation, new float3(0f, 0f, 1f));
+                var dt = Dt;
+                ref var b = ref body.Blob.Value;
+                var forward = math.mul(transform.Rotation, new float3(0f, 0f, 1f));
                 var yaw = math.atan2(forward.x, forward.z);
                 var turn = yaw - c.Yaw;
                 turn -= 2f * math.PI * math.floor((turn + math.PI) / (2f * math.PI));
                 c.YawRate = turn / dt;
                 c.Yaw = yaw;
-                c.Position = transform.ValueRO.Position;
+                c.Position = transform.Position;
                 c.Clock += dt;
                 c.Scale = n.Scale > 0f ? n.Scale : 1f;
                 c.Mode = (CreatureMode)n.Mode;
@@ -153,15 +198,23 @@ namespace Punchy.Net
                 c.Stage = n.Stage;
                 c.Speed = n.Speed;
                 c.Look = n.Look;
+                c.LookPitch = n.LookPitch;
                 c.Lie = n.Lie;
                 c.HeadDown = n.HeadDown;
                 c.Bow = n.Bow;
                 c.Curl = n.Curl;
                 c.Air = n.Air;
-                var run = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), c.Speed / c.Scale);
-                var stride = math.lerp(b.WalkStride, b.RunStride, run) * c.Scale;
-                c.Phase = math.frac(c.Phase + c.Speed * dt / stride);
-                c.Sway += (-c.YawRate * 0.35f - c.Sway) * math.min(1f, dt * 4f);
+                c.Sit = n.Sit;
+                c.Vertical = n.Vertical;
+                c.Fly = n.Fly;
+                c.Action = (IdleAction)n.Action;
+                c.ActionTime = n.ActionTime;
+                c.Anchor = n.Anchor;
+                c.AnchorSize = n.AnchorSize;
+                c.Holder = n.Holder;
+                c.Held = (HeldItem)n.Held;
+                CreatureMotion.AdvancePhase(ref c, ref b, dt);
+                CreatureMotion.EaseGait(ref c, ref b, dt);
             }
         }
     }

@@ -26,6 +26,35 @@ namespace Punchy.Ambience
         public float Radius = 70f;
         [Tooltip("Upper limit on critters of each kind per 100 m² (densities above this are clipped).")]
         public float MaxDensity = 8f;
+        [Tooltip("Scales every biome's Butterflies density: a few round you in a meadow, not a cloud.")]
+        public float ButterflyScale = 0.1f;
+
+        /// <summary>
+        /// Butterfly hotspots: landmark types (by asset name) multiply the butterflies inside them, strongest at the
+        /// centre, fading to none extra at the edge. Villages are slightly below the meadow around them.
+        /// </summary>
+        static readonly Dictionary<string, float> LandmarkButterflies = new Dictionary<string, float>
+        {
+            ["FairyRing"] = 14f, ["Oasis"] = 10f, ["AncientTree"] = 10f, ["DesertSpring"] = 8f, ["ElfGrove"] = 6f,
+            ["OakGrove"] = 4f, ["StoneCircle"] = 3f, ["Waterfall"] = 3f, ["HotSprings"] = 2f,
+            ["HumanVillage"] = 0.6f, ["DwarfHold"] = 0.5f,
+        };
+
+        /// <summary>
+        /// Firefly hotspots, as for butterflies: landmark types (by asset name) multiply the fireflies inside them; and
+        /// whether theirs come in every colour (the great tree's: gold, green, cyan, blue, violet, rose) rather than the
+        /// usual yellow-green.
+        /// </summary>
+        static readonly Dictionary<string, (float more, bool colours)> LandmarkFireflies = new Dictionary<string, (float, bool)>
+        {
+            ["AncientTree"] = (12f, true), ["FairyRing"] = (4f, false), ["Oasis"] = (3f, false),
+        };
+
+        /// <summary>Biomes (by asset name) with more butterflies than their density alone gives: the mystic glades.</summary>
+        static readonly Dictionary<string, float> BiomeButterflies = new Dictionary<string, float>
+        {
+            ["SparklingForest"] = 4f,
+        };
 
         const int FireflyVertices = 6;
         const int ButterflyVertices = 12;
@@ -33,7 +62,7 @@ namespace Punchy.Ambience
         [StructLayout(LayoutKind.Sequential)]
         public struct Critter
         {
-            public float3 Position;   // home, on the ground
+            public float3 Position;   // home: on the ground, or a layer or two up round a great tree
             public float Random;
             public float4 Color;
         }
@@ -59,6 +88,8 @@ namespace Punchy.Ambience
         TerrainSource lastSource;
         bool hasSource;
         NativeArray<float2> densities;   // fireflies, butterflies per biome id
+        NativeArray<float> landmarkButterflies;   // butterfly multiplier per landmark type
+        NativeArray<float2> landmarkFireflies;    // firefly multiplier, and every colour or not, per landmark type
 
         static readonly int CrittersBufferId = Shader.PropertyToID("_CritterBuffer");
         static readonly int CrittersId = Shader.PropertyToID("_PunchyCritters");
@@ -71,6 +102,8 @@ namespace Punchy.Ambience
                 t.Dispose();
             tiles.Clear();
             if (densities.IsCreated) densities.Dispose();
+            if (landmarkButterflies.IsCreated) landmarkButterflies.Dispose();
+            if (landmarkFireflies.IsCreated) landmarkFireflies.Dispose();
             hasSource = false;
         }
 
@@ -85,13 +118,23 @@ namespace Punchy.Ambience
                 densities = new NativeArray<float2>(palette.Biomes.Length, Allocator.Persistent);
                 for (int i = 0; i < palette.Biomes.Length; i++)
                     if (palette.Biomes[i] != null)
-                        densities[i] = new float2(palette.Biomes[i].Fireflies, palette.Biomes[i].Butterflies);
+                        densities[i] = new float2(palette.Biomes[i].Fireflies, palette.Biomes[i].Butterflies * ButterflyScale *
+                            (BiomeButterflies.TryGetValue(palette.Biomes[i].name, out var bm) ? bm : 1f));
+                var types = palette.Landmarks;
+                landmarkButterflies = new NativeArray<float>(types?.Length ?? 0, Allocator.Persistent);
+                for (int i = 0; i < landmarkButterflies.Length; i++)
+                    landmarkButterflies[i] = types[i] != null && LandmarkButterflies.TryGetValue(types[i].name, out var lm) ? lm : 1f;
+                landmarkFireflies = new NativeArray<float2>(types?.Length ?? 0, Allocator.Persistent);
+                for (int i = 0; i < landmarkFireflies.Length; i++)
+                    landmarkFireflies[i] = types[i] != null && LandmarkFireflies.TryGetValue(types[i].name, out var lf)
+                        ? new float2(lf.more, lf.colours ? 1f : 0f) : new float2(1f, 0f);
                 lastSource = source;
                 hasSource = true;
             }
 
             var amounts = Shader.GetGlobalVector(CrittersId);
-            if (amounts.x <= 0f && amounts.y <= 0f)
+            // (Deep in a cave the surface is out of sight: no tiles streamed or drawn; CaveSystem.SurfaceHidden.)
+            if (amounts.x <= 0f && amounts.y <= 0f || CaveSystem.SurfaceHidden >= 0.99f)
                 return;
             var camXZ = new float2(cam.transform.position.x, cam.transform.position.z);
             Stream(source, camXZ);
@@ -123,7 +166,7 @@ namespace Punchy.Ambience
         {
             scratch.Clear();
             foreach (var kv in tiles)
-                if (math.distance(TileCentre(kv.Key), camXZ) > Radius + TileSize * 1.5f)
+                if (math.distance(TileCentre(kv.Key), camXZ) > Punchy.Settings.GraphicsSettings.DetailRange(Radius) + TileSize * 1.5f)
                     scratch.Add(kv.Key);
             foreach (var key in scratch)
             {
@@ -132,14 +175,15 @@ namespace Punchy.Ambience
             }
 
             scratch.Clear();
-            var r = (int)math.ceil(Radius / TileSize) + 1;
+            var radius = Punchy.Settings.GraphicsSettings.DetailRange(Radius);
+            var r = (int)math.ceil(radius / TileSize) + 1;
             var centre = (int2)math.floor(camXZ / TileSize);
             for (int z = -r; z <= r; z++)
             for (int x = -r; x <= r; x++)
             {
                 var c = centre + new int2(x, z);
                 var min = (float2)c * TileSize;
-                if (!tiles.ContainsKey(c) && math.distance(math.clamp(camXZ, min, min + TileSize), camXZ) < Radius)
+                if (!tiles.ContainsKey(c) && math.distance(math.clamp(camXZ, min, min + TileSize), camXZ) < radius)
                     scratch.Add(c);
             }
             if (scratch.Count == 0)
@@ -157,6 +201,8 @@ namespace Punchy.Ambience
             {
                 Source = source,
                 Densities = densities,
+                LandmarkButterflies = landmarkButterflies,
+                LandmarkFireflies = landmarkFireflies,
                 Tiles = coords,
                 TileSize = TileSize,
                 PerTile = perTile,
@@ -235,6 +281,9 @@ namespace Punchy.Ambience
         {
             public TerrainSource Source;
             [ReadOnly] public NativeArray<float2> Densities;
+            [ReadOnly] public NativeArray<float> LandmarkButterflies;
+            /// <summary>Per landmark type: x the fireflies' multiplier inside it, y 1 if they come in every colour.</summary>
+            [ReadOnly] public NativeArray<float2> LandmarkFireflies;
             [ReadOnly] public NativeArray<int2> Tiles;
             public float TileSize;
             public int PerTile;
@@ -257,6 +306,23 @@ namespace Punchy.Ambience
                 for (int b = 0; b < 4; b++)
                     if (biomes.Weights[b] > 0f && biomes.Ids[b] < Densities.Length)
                         density += (butterfly ? Densities[biomes.Ids[b]].y : Densities[biomes.Ids[b]].x) * biomes.Weights[b];
+                if (butterfly && Source.Landmarks.IsCreated && LandmarkSampling.Find(ref Source.Landmarks.Value, xz, out var hit) &&
+                    hit.Type < LandmarkButterflies.Length)
+                {
+                    // A hotspot needs a floor too, or a fairy ring in a bare biome would stay bare.
+                    var m = LandmarkButterflies[hit.Type];
+                    var inside = math.smoothstep(1f, 0.3f, hit.Distance);
+                    density = m > 1f ? math.lerp(density, math.max(density, 0.15f) * m, inside) : density * math.lerp(1f, m, inside);
+                }
+                var colours = false;
+                if (!butterfly && Source.Landmarks.IsCreated && LandmarkSampling.Find(ref Source.Landmarks.Value, xz, out var near) &&
+                    near.Type < LandmarkFireflies.Length && LandmarkFireflies[near.Type].x != 1f)
+                {
+                    var m = LandmarkFireflies[near.Type];
+                    var inside = math.smoothstep(1f, 0.3f, near.Distance);
+                    density = math.lerp(density, math.max(density, 0.15f) * m.x, inside);
+                    colours = m.y > 0.5f && rng.NextFloat() < inside;
+                }
                 if (keep >= density / MaxDensity)
                     return;
                 var ground = Source.SampleGround(xz);
@@ -273,12 +339,25 @@ namespace Punchy.Ambience
                           : pick == 3 ? new float3(0.25f, 0.45f, 0.95f)    // blue
                           : new float3(0.75f, 0.3f, 0.45f);                // pinkish
                 }
+                else if (colours)
+                {
+                    var pick = rng.NextInt(6);
+                    color = pick == 0 ? new float3(1f, 0.8f, 0.25f)        // gold
+                          : pick == 1 ? new float3(0.55f, 1f, 0.35f)       // green
+                          : pick == 2 ? new float3(0.3f, 0.95f, 1f)        // cyan
+                          : pick == 3 ? new float3(0.35f, 0.5f, 1f)        // blue
+                          : pick == 4 ? new float3(0.75f, 0.4f, 1f)        // violet
+                          : new float3(1f, 0.45f, 0.7f);                   // rose
+                }
                 else
                     color = math.lerp(new float3(0.75f, 1f, 0.25f), new float3(1f, 0.85f, 0.3f), rng.NextFloat());
 
+                // The great tree's fireflies fill its height as well as its feet: two in three hover higher, a layer
+                // or two up round the crown (Z-37); the shader still drifts each one round its own spot.
+                var lift = colours ? rng.NextInt(3) * 4f : 0f;
                 Output[i] = new Critter
                 {
-                    Position = new float3(xz.x, math.max(ground.Height, ground.HasWater ? ground.WaterSurface : ground.Height), xz.y),
+                    Position = new float3(xz.x, math.max(ground.Height, ground.HasWater ? ground.WaterSurface : ground.Height) + lift, xz.y),
                     Random = rng.NextFloat(),
                     Color = new float4(color, 1f)
                 };

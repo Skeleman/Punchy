@@ -14,7 +14,7 @@ namespace Punchy.Net
     /// travels as its index here, so every machine must have the same list in the same order (append, never reorder).
     /// For each remote NetPlayer this spawns a creature puppet of their species, coat and individual, which
     /// PlayerAvatarSystem drives from the interpolated ghost; it also tells the network which body the local player
-    /// has (FaunaDirector's Player Species), and F2's panel can switch it.
+    /// has (FaunaDirector's Player Species), and the menu's Multiplayer tab can switch it.
     /// </summary>
     public class NetAvatars : MonoBehaviour
     {
@@ -55,10 +55,11 @@ namespace Punchy.Net
                 individual = (uint)System.Guid.NewGuid().GetHashCode() | 1u;
                 PlayerPrefs.SetInt("Punchy.PlayerIndividual", (int)individual);
             }
-            if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-newlook") >= 0)
+            // (In the editor the test flags also come from Temp/PlayArgs.txt.)
+            var args = Punchy.Debugging.DebugControls.LaunchArgs;
+            if (System.Array.IndexOf(args, "-newlook") >= 0)
                 individual = (uint)System.Guid.NewGuid().GetHashCode() | 1u;
             // "-body Wolf" on the command line picks the starting body (handy for testing with builds).
-            var args = System.Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length - 1; i++)
                 if (args[i] == "-body")
                     SetLocalSpecies(PlayableSpecies.FindIndex(s => s != null && s.name == args[i + 1]));
@@ -177,7 +178,7 @@ namespace Punchy.Net
             em.SetComponentData(e, new CreatureState
             {
                 Position = position,
-                Scale = 1f,
+                Scale = (b.Size.x + b.Size.y) * 0.5f,   // (the species' middle size, as on its owner's screen)
                 Mode = CreatureMode.Puppet,
                 Seed = look.Individual | 1u,
                 Individual = look.Individual

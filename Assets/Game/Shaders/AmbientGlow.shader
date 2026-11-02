@@ -34,7 +34,7 @@ Shader "Punchy/Ambient Glow"
                 Varyings o;
                 o.positionCS = TransformWorldToHClip(p.positionWS);
                 o.uv = p.uv;
-                o.glow = _ParticleColor.rgb * p.visibility * p.twinkle;
+                o.glow = p.tint * p.visibility * p.twinkle;
                 return o;
             }
 

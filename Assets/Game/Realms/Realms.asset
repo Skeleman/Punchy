@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9edb41871c3d38f4582f6e73d16d5ff8, type: 3}
+  m_Name: Realms
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.RealmSet
+  Realms:
+  - {fileID: 11400000, guid: 44633a9fb3b64c543a9d33ab444cd39f, type: 2}
+  - {fileID: 11400000, guid: 6ff9bda04b4e659488495f8aca83234d, type: 2}
+  - {fileID: 11400000, guid: 714cc3d04dae20d438824b6b59a0ce59, type: 2}
+  - {fileID: 11400000, guid: 284f0600bd755c5449abcbcef07ca568, type: 2}
+  - {fileID: 11400000, guid: 37c68555ff71a6a4caddde61731ec9c2, type: 2}
+  - {fileID: 11400000, guid: dba891218c8365b43a0e000a4f48bb9d, type: 2}
+  RegionScale: 3
+  Buffer: {fileID: 11400000, guid: 44633a9fb3b64c543a9d33ab444cd39f, type: 2}

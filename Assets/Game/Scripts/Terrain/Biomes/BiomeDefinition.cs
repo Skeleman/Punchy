@@ -11,6 +11,27 @@ namespace Punchy.Terrain
         [Tooltip("Parallel wind-shaped crests with a gentle windward side and a steep lee face.")] Dunes
     }
 
+    /// <summary>Which settlements a biome takes (with its <see cref="FolkCulture"/> list).</summary>
+    public enum Habitability : byte
+    {
+        [Tooltip("No settlements (a glacier top, a poison swamp).")] None,
+        [Tooltip("Only camps (palisaded goblin and ogre camps), not towns.")] CampsOnly,
+        [Tooltip("Any settlement of an allowed folk.")] Any
+    }
+
+    /// <summary>The folk a settlement belongs to (SettlementLayout.Culture); biomes list which may settle there.</summary>
+    [Flags]
+    public enum FolkCulture
+    {
+        Human = 1,
+        Dwarf = 2,
+        Elf = 4,
+        Goblin = 8,
+        Ogre = 16,
+        SnowFolk = 32,
+        FishFolk = 64
+    }
+
     /// <summary>
     /// A region type (temperate, desert, tundra, ocean…). Sets the ground's elevation and shape inside its
     /// region, how much rain it feeds to rivers, and which surfaces cover it: a base surface plus rule-driven layers.
@@ -44,6 +65,13 @@ namespace Punchy.Terrain
         [Tooltip("Typical horizontal size of hills / spacing of ridges or dunes, in metres.")]
         [Min(1f)] public float FeatureSize = 400f;
         [Range(1, 8)] public int Octaves = 5;
+        [Tooltip("Ponds dug into the lowlands (a swamp's pools): how far below the ground they go, in metres. 0 = none. " +
+                 "Applied after rivers and landmarks are placed, so it never moves them.")]
+        [Min(0f)] public float PondDepth = 0f;
+        [Tooltip("Typical size of a pond and of the ground between ponds, in metres.")]
+        [Min(2f)] public float PondSize = 14f;
+        [Tooltip("Share of the biome's ground the ponds take, 0..1.")]
+        [Range(0f, 0.8f)] public float PondCover = 0.3f;
         [Tooltip("Above 1 flattens lowlands and sharpens peaks; below 1 rounds them off.")]
         [Range(0.3f, 4f)] public float Sharpness = 1.5f;
         [Tooltip("Quantise heights into steps for mesas and terraces. 0 = off.")]
@@ -90,6 +118,11 @@ namespace Punchy.Terrain
         public List<Punchy.Flora.BiomeFlora> Flora = new List<Punchy.Flora.BiomeFlora>();
 
         [Header("Landmarks")]
+        [Tooltip("Who may settle here. A settlement only goes where the biome under its centre allows its folk " +
+                 "(hermit spots and other landmarks ignore this).")]
+        public Habitability Habitability = Habitability.Any;
+        [Tooltip("The folk whose settlements may be built here.")]
+        public FolkCulture Cultures = (FolkCulture)~0;
         [Tooltip("Natural landmarks that appear here (oases, rock formations, dens…). Baked into the terrain.")]
         public List<BiomeLandmark> Landmarks = new List<BiomeLandmark>();
 

@@ -14,6 +14,15 @@ namespace Punchy.CameraRig
     public class ThirdPersonCamera : MonoBehaviour
     {
         public float Distance = 8f;
+
+        /// <summary>Testing: when set, the camera circles this point (an animal being watched) instead of the player.</summary>
+        public static Vector3? WatchTarget;
+        /// <summary>Testing: the pitch to watch from (low, looking up, for an animal up a tree).</summary>
+        public static float WatchPitch = 15f;
+        /// <summary>Testing: how far from the watched animal (close for small ones).</summary>
+        public static float WatchDistance = 3.5f;
+        /// <summary>Testing: how fast the camera circles the watched point (degrees a second; 0 holds it still).</summary>
+        public static float WatchSpin = 12f;
         public float MinDistance = 3f;
         public float MaxDistance = 30f;
         public float TargetHeight = 1.6f;
@@ -27,6 +36,8 @@ namespace Punchy.CameraRig
 
         float yaw;
         float pitch = 20f;
+        /// <summary>In a cave: how far out the camera is now (it comes in at once for rock, out again slowly).</summary>
+        float caveArm = 8f;
 
         /// <summary>Points the camera: yaw is the compass direction it looks towards, in degrees.</summary>
         public void SetView(float newYaw, float newPitch)
@@ -37,6 +48,7 @@ namespace Punchy.CameraRig
         EntityManager entityManager;
         EntityQuery playerQuery;
         EntityQuery terrainQuery;
+        EntityQuery supportQuery;
         // The world the queries belong to; joining or hosting replaces the worlds, so they are rebuilt then.
         World queryWorld;
         bool menuWasOpen;
@@ -52,6 +64,13 @@ namespace Punchy.CameraRig
             HandleCursor();
             if (!TryGetPlayerPosition(out var playerPosition))
                 return;
+            if (WatchTarget.HasValue)
+            {
+                playerPosition = WatchTarget.Value - Vector3.up * TargetHeight;
+                yaw += Time.deltaTime * WatchSpin;
+                pitch = Mathf.MoveTowards(pitch, WatchPitch, Time.deltaTime * 30f);
+                Distance = Mathf.MoveTowards(Distance, WatchDistance, Time.deltaTime * 4f);
+            }
 
             if (Cursor.lockState == CursorLockMode.Locked)
             {
@@ -62,7 +81,8 @@ namespace Punchy.CameraRig
                 pitch = Mathf.Clamp(pitch - look.y, MinPitch, MaxPitch);
 
                 if (Mouse.current != null)
-                    Distance = Mathf.Clamp(Distance - Mouse.current.scroll.ReadValue().y * ZoomSensitivity * Distance, MinDistance, MaxDistance);
+                    Distance = Mathf.Clamp(Distance - Mouse.current.scroll.ReadValue().y * ZoomSensitivity * Distance,
+                                           WatchTarget.HasValue ? Mathf.Min(MinDistance, WatchDistance) : MinDistance, MaxDistance);
             }
 
             var target = playerPosition + Vector3.up * TargetHeight;
@@ -72,25 +92,29 @@ namespace Punchy.CameraRig
             // Don't let the camera dip under hills or water; if it has to rise, keep looking at the player.
             if (terrainQuery.TryGetSingleton<TerrainSource>(out var terrain))
             {
-                // In a cave, pull the camera in rather than through the rock.
+                // In a cave, the camera looks wherever the player turns it (up at the ceiling, down a shaft), on a
+                // spring arm: it comes in along its line to just short of any rock in the way, at once, and eases
+                // back out when the way clears (so bumpy walls don't pump it in and out).
                 var head = new Unity.Mathematics.float3(target.x, target.y, target.z);
                 if (terrain.CaveDistance(head) < 0f)
                 {
-                    // Passages are low: trail behind at about head height rather than looking down from above.
-                    rotation = Quaternion.Euler(Mathf.Clamp(pitch, -5f, 12f), yaw, 0f);
-                    position = target - rotation * Vector3.forward * Distance;
                     var back = position - target;
                     var length = back.magnitude;
+                    var clear = length;
                     for (var t = 0.25f; t <= length; t += 0.25f)
                     {
                         var p = target + back * (t / length);
                         if (terrain.IsRock(new Unity.Mathematics.float3(p.x, p.y, p.z), 0.35f))
                         {
-                            position = target + back * (Mathf.Max(t - 0.45f, 0.3f) / length);
+                            clear = Mathf.Max(t - 0.45f, 0.3f);
                             break;
                         }
                     }
+                    caveArm = clear < caveArm ? clear : Mathf.MoveTowards(caveArm, clear, Time.deltaTime * 3f);
+                    position = target + back * (Mathf.Min(caveArm, length) / Mathf.Max(length, 1e-4f));
                 }
+                else
+                    caveArm = Distance;
                 if (terrain.CaveDistance(new Unity.Mathematics.float3(position.x, position.y, position.z)) < 0f)
                 {
                     transform.SetPositionAndRotation(position, rotation);
@@ -98,6 +122,16 @@ namespace Punchy.CameraRig
                 }
                 var ground = terrain.SampleGround(new Unity.Mathematics.float2(position.x, position.z));
                 var minY = Mathf.Max(ground.Height, ground.HasWater ? ground.WaterSurface : float.MinValue) + GroundClearance;
+                // Roofs, rocks and rims (PropSupport): stay above one the camera has sunk into, not ones overhead.
+                if (!supportQuery.IsEmpty)
+                {
+                    var holder = supportQuery.GetSingletonEntity();
+                    var em = World.DefaultGameObjectInjectionWorld.EntityManager;
+                    var grids = em.GetComponentData<Punchy.Flora.SupportGrids>(holder);
+                    if (grids.Set.IsCreated && Punchy.Flora.PropSupport.Sample(ref grids.Set.Value, em.GetBuffer<Punchy.Flora.FloraSupport>(holder, true),
+                            new Unity.Mathematics.float3(position.x, position.y, position.z), 0.2f, 0.5f, out var top))
+                        minY = Mathf.Max(minY, top.Height + GroundClearance);
+                }
                 if (position.y < minY)
                 {
                     position.y = minY;
@@ -120,6 +154,7 @@ namespace Punchy.CameraRig
                 entityManager = world.EntityManager;
                 playerQuery = entityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
                 terrainQuery = entityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+                supportQuery = entityManager.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Flora.SupportGrids>(), ComponentType.ReadOnly<Punchy.Flora.FloraSupport>());
                 queryWorld = world;
             }
 
@@ -133,8 +168,8 @@ namespace Punchy.CameraRig
 
         void HandleCursor()
         {
-            // The multiplayer panel (F2) needs the mouse; take it back once the panel closes.
-            if (Punchy.Net.NetMenu.IsOpen)
+            // The main menu (Esc or Start) needs the mouse; take it back once it closes.
+            if (Punchy.UI.Overlay.AnyOpen)
             {
                 if (Cursor.lockState == CursorLockMode.Locked)
                     SetCursorCaptured(false);
@@ -146,9 +181,9 @@ namespace Punchy.CameraRig
                 menuWasOpen = false;
                 SetCursorCaptured(true);
             }
-            if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
-                SetCursorCaptured(false);
-            else if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+            // (Esc opens the menu, which frees the cursor above. A click takes it back after something else freed it,
+            // such as switching windows.)
+            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
                 SetCursorCaptured(true);
         }
 

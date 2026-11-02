@@ -25,8 +25,12 @@ namespace Punchy.Weather
         [Tooltip("The first preset is the fair-weather background between cells.")]
         public List<WeatherPreset> Presets = new List<WeatherPreset>();
         public Light Sun;
+        LightShadows baseSunShadows = LightShadows.Soft;
+        bool sunShadowsOff;
         [Tooltip("Shader for rain, snow, hail and dust particles. Referenced here so builds include it.")]
         public Shader PrecipitationShader;
+        [Tooltip("Shader that marches the rain and dust haze into a small table once a frame (HazeLut). Referenced here so builds include it.")]
+        public Shader HazeLutShader;
         [Tooltip("Optional. Without it the sky stays at fixed daytime colours.")]
         public DayNightCycle Cycle;
 
@@ -62,6 +66,8 @@ namespace Punchy.Weather
 
         static readonly int SunDirectionId = Shader.PropertyToID("_PunchySunDirection");
         static readonly int MoonDirectionId = Shader.PropertyToID("_PunchyMoonDirection");
+        static readonly int MoonPhaseId = Shader.PropertyToID("_PunchyMoonPhase");
+        static readonly int BlueMoonId = Shader.PropertyToID("_PunchyBlueMoon");
         static readonly int SunColorId = Shader.PropertyToID("_PunchySunColor");
         static readonly int ZenithId = Shader.PropertyToID("_PunchySkyZenith");
         static readonly int HorizonId = Shader.PropertyToID("_PunchySkyHorizon");
@@ -82,6 +88,12 @@ namespace Punchy.Weather
         static readonly int DustColorId = Shader.PropertyToID("_PunchyDustColor");
         static readonly int GlowId = Shader.PropertyToID("_Glow");
         static readonly int HazeDensityId = Shader.PropertyToID("_PunchyHazeDensity");
+        static readonly int HazeLutId = Shader.PropertyToID("_PunchyHazeLut");
+        static readonly int HazeOriginId = Shader.PropertyToID("_PunchyHazeOrigin");
+        static readonly int HazeLutSizeId = Shader.PropertyToID("_HazeLutSize");
+
+        // Haze table size: directions round the horizon × distances (rows must match PUNCHY_HAZE_ROWS in Sky.hlsl).
+        const int HazeLutWidth = 1024, HazeLutHeight = 32;
 
         /// <summary>Final sky colours for this frame, after time of day and the weather overhead.</summary>
         struct Sky
@@ -103,6 +115,8 @@ namespace Punchy.Weather
         Vector3 strikeDirection, strikePosition;
         Texture2D fallbackWeather, fallbackWetness, fallbackCloud;
         Texture3D cloudNoise;
+        RenderTexture hazeLut;
+        Material hazeLutMaterial;
         EntityQuery playerQuery, terrainQuery, configQuery, paletteQuery;
         World queryWorld;
 
@@ -143,6 +157,13 @@ namespace Punchy.Weather
         {
             if (cloudNoise != null)
                 DestroyImmediate(cloudNoise);
+            if (hazeLut != null)
+            {
+                hazeLut.Release();
+                DestroyImmediate(hazeLut);
+            }
+            if (hazeLutMaterial != null)
+                DestroyImmediate(hazeLutMaterial);
         }
 
         void Start()
@@ -152,6 +173,7 @@ namespace Punchy.Weather
             if (Sun == null)
                 Sun = RenderSettings.sun;
             baseSunIntensity = Sun != null ? Sun.intensity : 1f;
+            baseSunShadows = Sun != null ? Sun.shadows : LightShadows.Soft;
             rain = CreateParticles("Rain", ParticleSystemRenderMode.Stretch, 15000, 1.4f, 0.025f, new Color(0.85f, 0.9f, 1f, 0.4f), new Vector3(60f, 1f, 60f), 1f);
             snow = CreateParticles("Snow", ParticleSystemRenderMode.Billboard, 25000, 9f, 0.07f, new Color(1f, 1f, 1f, 0.9f), new Vector3(50f, 1f, 50f), 0f);
             var snowNoise = snow.noise;
@@ -169,6 +191,7 @@ namespace Punchy.Weather
             lightning.intensity = 0f;
             lightning.shadows = LightShadows.None;
 
+            ApplyWeatherSeed();
             SetDayType(PickDayType(), false);
         }
 
@@ -190,6 +213,7 @@ namespace Punchy.Weather
                 Local = WeatherValues.From(Presets[0]);
                 PublishFallbackMaps(Local);
                 ApplyShaderGlobals(Local, ComputeSky(Local), 1f / 1500f);
+                RenderHazeLut(cam);
                 return;
             }
 
@@ -228,13 +252,15 @@ namespace Punchy.Weather
 
             var drawDistance = 1500f;
             if (EnsureQueries() && configQuery.TryGetSingleton<TerrainConfig>(out var config))
-                drawDistance = config.ViewRadiusChunks * config.ChunkSize;
+                // At the graphics settings' View distance, as TerrainStreamingSystem streams it.
+                drawDistance = math.max(2, math.round(config.ViewRadiusChunks * Punchy.Settings.GraphicsSettings.View)) * config.ChunkSize;
             // Exponential-squared haze reaching ~98% at the edge of the streamed terrain, so it's never visible.
             var hazeDensity = 1.98f / drawDistance;
 
             var sky = ComputeSky(Local);
             UpdateLightning(dt, cam);
             ApplyShaderGlobals(Local, sky, hazeDensity);
+            RenderHazeLut(cam);
             ApplyLighting(Local, sky, hazeDensity);
             var snowiness = math.max(Local.AlwaysSnow, 1f - field.RainFraction(cameraXZ));
             // Nothing falls in a cave.
@@ -300,10 +326,44 @@ namespace Punchy.Weather
 
         public void NextDayType() => SetDayType(dayType + 1, true);
 
+        /// <summary>
+        /// Test flag "-weather Storm" (DebugControls, also per shot-list line): the cells round a point cleared and a
+        /// cell of that preset forced over it, as the ] key does ("-weather Clear" only clears). The forced cell ignores
+        /// the biome's weather list, so a test can show e.g. MarshFog over any river (tests only; W-13, #15).
+        /// </summary>
+        public bool ForceAt(string presetName, Vector2 xz)
+        {
+            var index = Presets.FindIndex(p => p != null && string.Equals(p.name, presetName, System.StringComparison.OrdinalIgnoreCase));
+            if (!field.Ready || index < 0)
+            {
+                Debug.LogWarning($"Weather: can't force '{presetName}' (ready {field.Ready})");
+                return false;
+            }
+            field.Clear(xz, 2000f);
+            if (index > 0)
+                field.ForceCell(index, xz, 1500f, ignoreBiome: true);
+            Debug.Log($"Weather: forced {Presets[index].name} at {xz.x:F0},{xz.y:F0}");
+            return true;
+        }
+
+        /// <summary>
+        /// Test flag -weatherseed n: seeds UnityEngine.Random so a launch starts with the same day type and weather
+        /// cells every time (the weather is otherwise random per session, which swings fps a lot in perf tests).
+        /// </summary>
+        static void ApplyWeatherSeed()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+                if (args[i] == "-weatherseed" && int.TryParse(args[i + 1], out var seed))
+                    Random.InitState(seed);
+        }
+
         void TryInitializeField()
         {
             if (!EnsureQueries() || !terrainQuery.TryGetSingleton<TerrainSource>(out var source) || !TryGetPalette(out var palette))
                 return;
+            // Reseed here too: other code draws from Random between startup and the field being ready.
+            ApplyWeatherSeed();
             field.Initialize(source, palette.Biomes, Presets, SnowLine, WeatherAreaSize);
             SetDayType(dayType, true);
         }
@@ -346,6 +406,41 @@ namespace Punchy.Weather
             };
         }
 
+        /// <summary>
+        /// Marches the rain and dust haze around the camera into the haze table (HazeLut.shader) that every surface
+        /// shader reads, instead of each pixel marching it. Needs this frame's weather maps and sky globals set.
+        /// </summary>
+        void RenderHazeLut(Camera cam)
+        {
+            if (HazeLutShader == null)
+            {
+                // Without the table surfaces show no weather haze (black reads as none), rather than going black.
+                Shader.SetGlobalTexture(HazeLutId, Texture2D.blackTexture);
+                return;
+            }
+            if (hazeLutMaterial == null)
+                hazeLutMaterial = new Material(HazeLutShader) { hideFlags = HideFlags.HideAndDontSave };
+            if (hazeLut == null || !hazeLut.IsCreated())
+            {
+                if (hazeLut != null)
+                    DestroyImmediate(hazeLut);
+                hazeLut = new RenderTexture(HazeLutWidth, HazeLutHeight, 0, RenderTextureFormat.ARGBHalf)
+                {
+                    name = "HazeLut",
+                    hideFlags = HideFlags.HideAndDontSave,
+                    wrapModeU = TextureWrapMode.Repeat,   // round the horizon
+                    wrapModeV = TextureWrapMode.Clamp,
+                    filterMode = FilterMode.Bilinear
+                };
+                hazeLut.Create();
+            }
+            var origin = cam != null ? cam.transform.position : Vector3.zero;
+            Shader.SetGlobalVector(HazeOriginId, origin);
+            hazeLutMaterial.SetVector(HazeLutSizeId, new Vector2(HazeLutWidth, HazeLutHeight));
+            Graphics.Blit(null, hazeLut, hazeLutMaterial);
+            Shader.SetGlobalTexture(HazeLutId, hazeLut);
+        }
+
         void ApplyShaderGlobals(in WeatherValues s, in Sky sky, float hazeDensity)
         {
             var sun = Sun != null ? Sun : RenderSettings.sun;
@@ -355,6 +450,11 @@ namespace Punchy.Weather
 
             Shader.SetGlobalVector(SunDirectionId, sunDirection);
             Shader.SetGlobalVector(MoonDirectionId, moonDirection);
+            // Phase and lit share for the big moon's disc, and where the blue moon is (Sky.hlsl); a full big moon and
+            // no blue moon without a cycle.
+            Shader.SetGlobalVector(MoonPhaseId, Cycle != null ? new Vector4(Cycle.MoonPhase, Cycle.MoonLit, 0f, 0f)
+                                                              : new Vector4(0.5f, 1f, 0f, 0f));
+            Shader.SetGlobalVector(BlueMoonId, Cycle != null ? (Vector4)Cycle.BlueMoonDirection : new Vector4(0f, -1f, 0f, 0f));
             Shader.SetGlobalColor(SunColorId, discColor * (1f - 0.8f * s.Dust));
             Shader.SetGlobalColor(ZenithId, sky.Zenith);
             Shader.SetGlobalColor(HorizonId, sky.Horizon);
@@ -383,7 +483,11 @@ namespace Punchy.Weather
             // light where the clouds actually are). Moonlight keeps nights from going pitch black.
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
             var ambientScale = math.lerp(0.9f, 1.15f, s.Overcast) * (1f - 0.35f * s.Darkness);
-            var moonFloor = new Color(0.025f, 0.03f, 0.05f) * (Cycle != null ? Cycle.Night : 0f);
+            // The floor follows the big moon's phase too (darker round a new moon), with a faint blue from the blue
+            // moon when it's up and lit.
+            var moonFloor = Cycle != null
+                ? (new Color(0.025f, 0.03f, 0.05f) * Mathf.Lerp(0.45f, 1f, Cycle.MoonLit) + Cycle.BlueMoonLight * Cycle.BlueMoonGlow) * Cycle.Night
+                : Color.black;
             RenderSettings.ambientSkyColor = sky.Zenith * ambientScale + moonFloor;
             RenderSettings.ambientEquatorColor = sky.Horizon * (ambientScale * 0.85f) + moonFloor;
             RenderSettings.ambientGroundColor = sky.Ground * (ambientScale * 0.6f) + moonFloor * 0.5f;
@@ -398,6 +502,16 @@ namespace Punchy.Weather
                 }
                 Sun.intensity = baseSunIntensity * strength * (1f - 0.7f * s.Dust);
                 Sun.shadowStrength = math.lerp(0.25f, 1f, 1f - s.Coverage * 0.6f) * (1f - 0.6f * s.Dust);
+                // Deep in a cave no sunlight reaches anything, so skip the sun's shadow pass (several ms of shadow
+                // draws for nothing); with a margin either way, so it doesn't flicker at a cave's mouth.
+                var underground = Punchy.Terrain.CaveSystem.Underground;
+                if (underground > 0.95f)
+                    sunShadowsOff = true;
+                else if (underground < 0.8f)
+                    sunShadowsOff = false;
+                var shadows = sunShadowsOff ? LightShadows.None : baseSunShadows;
+                if (Sun.shadows != shadows)
+                    Sun.shadows = shadows;
             }
         }
 

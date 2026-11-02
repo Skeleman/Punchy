@@ -40,6 +40,71 @@ Shader "Punchy/Terrain Surface"
             #include "TerrainSurface.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
+            #include "Glow.hlsl"
+            // x how much the ground under grass takes the blades' colour, y the grass radius (GroundDetailSystem).
+            float4 _PunchyGrassTint;
+            // The shared fine detail CaveSystem makes (rg a normal, b a height): grain on rock faces up close.
+            TEXTURE2D(_PunchyCaveDetail);
+            SAMPLER(sampler_PunchyCaveDetail);
+            float _PunchyCaveDetailReady;
+            // Worms under the sand and snow (the animal session's CreatureBurrowSystem): x, y its age (0..1 over its
+            // life), z, w the radius (m) of the worm that made it: positive a bump (the mound over a worm's head, or one
+            // it left in its trail), negative a crater where one broke out of the ground or dived back in.
+            float4 _PunchyBurrowers[32];
+            int _PunchyBurrowerCount;
+            // How far out the marks are drawn (GraphicsSettings: DetailRange(BurrowRange), the feeder's range too).
+            float _PunchyBurrowRange;
+            // Where the marks are, coarsely (CreatureBurrowSystem's MarkMask): a cell 1 where some mark reaches into it,
+            // and (x, z of the map's corner, cells per metre, cells across).
+            TEXTURE2D(_PunchyBurrowMask);
+            float4 _PunchyBurrowMaskAt;
+
+            // Whether any worm's mark reaches p (its cell in the mask): elsewhere, most of the ground, the loop is skipped.
+            bool NearBurrowMark(float2 p)
+            {
+                int2 c = (int2)floor((p - _PunchyBurrowMaskAt.xy) * _PunchyBurrowMaskAt.z);
+                return all(c >= 0) && all(c < (int)_PunchyBurrowMaskAt.w) && LOAD_TEXTURE2D(_PunchyBurrowMask, c).r > 0;
+            }
+
+            // Worms' marks on the ground at p: the mound over a burrowing worm's head and the trail of bumps it leaves
+            // behind, each staying where it was raised and sinking away as it ages; where one breaks out or dives back
+            // in, a crater with a raised rim, fading. Shading only (the returned tilt for the normal, and how much darker
+            // the disturbed ground is): the ground itself doesn't move.
+            float2 BurrowMarks(float2 p, out half darken)
+            {
+                float2 tilt = 0;
+                darken = 0;
+                for (int k = 0; k < _PunchyBurrowerCount; k++)
+                {
+                    float4 b = _PunchyBurrowers[k];
+                    float radius = abs(b.w);
+                    float2 rel = p - b.xz;
+                    [branch] if (radius > 0 && dot(rel, rel) < radius * radius * 9)
+                    {
+                        if (b.w > 0)
+                        {
+                            // A bump: a soft hump (its slope tilts the normal outwards), sinking away late in its life.
+                            float fade = saturate(1 - b.y * b.y);
+                            float spread = radius * radius;
+                            float bump = exp(-dot(rel, rel) / spread) * fade;
+                            tilt += rel / spread * bump * radius * 1.6;
+                            darken = max(darken, bump * 0.25);
+                        }
+                        else
+                        {
+                            // A crater: a pit and a raised rim round it, fading as it ages. The rim's outer slope faces
+                            // out and its inner slope (the pit's wall) in, as a bump's normals do.
+                            float fade = saturate(1 - b.y);
+                            float r = length(rel);
+                            float rimAt = radius * 1.6, rimWidth = radius * 0.5;
+                            float rim = exp(-(r - rimAt) * (r - rimAt) / (rimWidth * rimWidth));
+                            tilt += rel / max(r, 1e-3) * rim * (r - rimAt) / rimWidth * 2.0 * fade;
+                            darken = max(darken, ((1 - smoothstep(radius * 0.6, rimAt, r)) * 0.6 + rim * 0.2) * fade);
+                        }
+                    }
+                }
+                return tilt;
+            }
 
             struct Varyings
             {
@@ -52,6 +117,8 @@ Shader "Punchy/Terrain Surface"
                 half   fogFactor  : TEXCOORD5;
                 half   bump       : TEXCOORD6;
                 float  cave       : TEXCOORD7;
+                half   strata     : TEXCOORD8;
+                half   paving     : TEXCOORD9;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -59,6 +126,31 @@ Shader "Punchy/Terrain Surface"
             float MicroHeight(float2 p)
             {
                 return PunchyValueNoise(p / 0.7) * 0.6 + PunchyValueNoise(p / 0.21 + 17.3) * 0.4;
+            }
+
+            // Cobbles (W-09, larger in W-10 so they read at 5-15 m): staggered rows of rounded stones about 0.55 m
+            // wide with mortar gaps. Returns the stone's shade in x, the mortar share in y and the dome tilt in zw.
+            float4 Cobbles(float2 p)
+            {
+                float row = floor(p.y / 0.5);
+                float2 q = float2(p.x / 0.6 + (frac(row * 0.5) > 0.25 ? 0.5 : 0.0) + row * 0.37, p.y / 0.5);
+                float2 cell = floor(q);
+                uint h = (uint)(int)cell.x * 73856093u ^ (uint)(int)cell.y * 19349663u;
+                h = (h ^ (h >> 13)) * 1274126177u; h ^= h >> 16;
+                float shade = (h & 255u) / 255.0 - 0.5;
+                float2 f = frac(q) - 0.5;
+                float edge = 0.5 - max(abs(f.x) * 0.9, abs(f.y));
+                float mortar = 1 - smoothstep(0.04, 0.12, edge);
+                return float4(shade, mortar, -f.x * 0.9, -f.y);
+            }
+
+            // -0.5..0.5 per cell of p (an integer hash: far from the origin a sin hash breaks up).
+            half Grain(float2 p)
+            {
+                uint2 cell = (uint2)(int2)floor(p);
+                uint h = cell.x * 73856093u ^ cell.y * 19349663u;
+                h = (h ^ (h >> 13)) * 1274126177u;
+                return (h >> 22) / 1023.0 - 0.5;
             }
 
             float3 MicroDetail(float2 p)   // xy = slope (dh/dx, dh/dz), z = height
@@ -84,6 +176,8 @@ Shader "Punchy/Terrain Surface"
                 o.fogFactor = ComputeFogFactor(pos.positionCS.z);
                 o.bump = input.morph.z;
                 o.cave = input.morph.w;
+                o.strata = input.strata.x;
+                o.paving = input.strata.y;
                 return o;
             }
 
@@ -95,6 +189,14 @@ Shader "Punchy/Terrain Surface"
                 float distance = length(input.positionWS - GetCameraPositionWS());
                 half3 normalWS = NormalizeNormalPerPixel(input.normalWS);
                 float2 p = input.positionWS.xz;
+                half burrowDarken = 0;
+                // (Worms' marks only out to _PunchyBurrowRange, as far as the feeder sends them, and only in the mask's
+                // cells a mark reaches into: the rest of the terrain skips the loop.)
+                [branch] if (_PunchyBurrowerCount > 0 && distance < _PunchyBurrowRange && NearBurrowMark(p))
+                {
+                    float2 burrowTilt = BurrowMarks(p, burrowDarken);
+                    normalWS = normalize(normalWS + half3(burrowTilt.x, 0, burrowTilt.y));
+                }
 
                 // Fine relief up close (fades out before it could shimmer), skipped on skirts.
                 half detailFade = (1 - smoothstep(25, 70, distance)) * input.bump * (input.extra.w <= 0.01);
@@ -104,14 +206,43 @@ Shader "Punchy/Terrain Surface"
                 // darkens and gets a soft sheen. Grass and snow don't glaze. Far away the sheen fades, since at
                 // that distance it would only read as a bright smear.
                 half wet = PunchyWetnessAt(p).r * (1 - saturate(input.extra.z * 2));
+                // Shores: ground just above the water stays wet, a dark band with an uneven upper edge. The mesh
+                // stores it as a negative skirt drop (surface vertices leave that channel 0; skirts are positive).
+                half shore = 0;
+                [branch] if (input.extra.w < -0.001)
+                    shore = smoothstep(0.2, 0.75, saturate(-input.extra.w) + (PunchyValueNoise(p * 0.8) - 0.5) * 0.35)
+                          * (1 - saturate(input.extra.z * 2));
                 half flatness = smoothstep(0.96, 0.995, normalWS.y);
                 half puddleNoise = PunchyValueNoise(p / 2.3) * 0.65 + PunchyValueNoise(p / 0.9 + 5.1) * 0.35;
-                half puddle = smoothstep(0.62, 0.7, puddleNoise + wet * 0.35 - 0.25) * flatness * step(0.3, wet)
+                half puddle = smoothstep(0.62, 0.7, puddleNoise + wet * 0.35 - 0.25) * flatness * smoothstep(0.2, 0.5, wet)
                             * (1 - input.extra.y);
-                half sheen = wet * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
+                half sheen = max(wet, shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
 
                 half relief = detailFade * 0.45 * (1 - puddle);
                 normalWS = normalize(normalWS - half3(micro.x, 0, micro.y) * relief);
+                half cobbleFade = smoothstep(0.25, 0.6, input.paving) * (1 - smoothstep(30, 80, distance));
+                float4 cb = float4(0, 0, 0, 0);
+                [branch] if (cobbleFade > 0.001)
+                {
+                    cb = Cobbles(p);
+                    normalWS = normalize(normalWS + half3(cb.z, 0, cb.w) * 0.8 * (1 - cb.y) * cobbleFade * (1 - puddle));
+                }
+                // Rock faces (steep ground) up close: the caves' shared grain and fine relief, read three ways, so cliffs
+                // carry the same detail as cave walls.
+                half rockShade = 1;
+                half steep = (1 - smoothstep(0.55, 0.8, normalWS.y)) * (1 - smoothstep(40, 90, distance)) * (input.extra.w <= 0.01);
+                if (steep > 0.01 && _PunchyCaveDetailReady > 0)
+                {
+                    float3 q = input.positionWS * 0.6;
+                    float3 tw = pow(abs(normalWS), 4);
+                    tw /= tw.x + tw.y + tw.z;
+                    half4 rd = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.zy) * tw.x
+                             + SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.xz) * tw.y
+                             + SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.xy) * tw.z;
+                    half2 rb = (rd.rg - 0.5) * 0.8 * steep;
+                    normalWS = normalize(normalWS + float3(0, rb.x, rb.y) * tw.x + float3(rb.x, 0, rb.y) * tw.y + float3(rb.x, rb.y, 0) * tw.z);
+                    rockShade = 1 + (rd.b - 0.5) * 0.6 * steep;
+                }
 
                 InputData inputData = (InputData)0;
                 inputData.positionWS = input.positionWS;
@@ -119,15 +250,50 @@ Shader "Punchy/Terrain Surface"
                 inputData.normalWS = normalWS;
                 inputData.viewDirectionWS = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 // Skirts take their shadowing from the surface edge they hang from.
-                inputData.shadowCoord = TransformWorldToShadowCoord(input.positionWS + float3(0, input.extra.w, 0));
+                inputData.shadowCoord = TransformWorldToShadowCoord(input.positionWS + float3(0, max(input.extra.w, 0), 0));
                 inputData.fogCoord = InitializeInputDataFog(float4(input.positionWS, 1.0), input.fogFactor);
                 inputData.bakedGI = SampleSH(inputData.normalWS);
+                // Glowing plants and molten pools nearby light the ground round them.
+                inputData.bakedGI += PunchyGlowLight(input.positionWS, inputData.normalWS);
                 inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
                 inputData.shadowMask = half4(1, 1, 1, 1);
 
                 SurfaceData surface = (SurfaceData)0;
                 half3 albedo = input.surface.rgb * (1 + (micro.z - 0.5) * 0.5 * detailFade);   // grain in the colour too
+                // Up close, bare ground (sand, dirt, gravel) is grainy: single grains a shade lighter or darker, at two sizes
+                // (about 3 and 7 cm, hashed by cell so they hold still), gone before they could shimmer, and not under grass.
+                if (detailFade > 0.001)
+                {
+                    half grain = Grain(p * 37) * 0.6 + Grain(float2(p.x * 0.866 - p.y * 0.5, p.x * 0.5 + p.y * 0.866) * 15 + 11.3) * 0.4;   // turned: no grid
+                    albedo *= 1 + grain * 0.5 * (1 - smoothstep(6, 22, distance)) * (1 - input.extra.y) * detailFade;
+                }
+                // Paved ground (settlement streets and squares): cobbles up close, fading to plain stone grey before
+                // the gaps could shimmer; the stones' domes catch the light.
+                [branch] if (cobbleFade > 0.001)
+                {
+                    // W-10: stones paler and greyer than the ground, each its own shade; dark grout between them.
+                    half grey = dot(albedo, half3(0.3, 0.5, 0.2));
+                    half3 stone = lerp(albedo, grey.xxx, 0.45) * (1.25 + cb.x * 0.8);
+                    albedo = lerp(albedo, lerp(stone, albedo * 0.3, cb.y), cobbleFade);
+                }
+                // Rock strata (mesa cliffs, canyon walls): bands of darker red and paler cream rock by height, a thick
+                // set and a thin one, wandering a little along the cliff. Broad enough to read from far off.
+                [branch] if (input.strata > 0.01)
+                {
+                    float y = input.positionWS.y + (PunchyValueNoise(p * 0.02) - 0.5) * 6 + (PunchyValueNoise(p * 0.11) - 0.5) * 1.2;
+                    half band = PunchyValueNoise(float2(y / 4.5, 7.1)) * 0.7 + PunchyValueNoise(float2(y / 1.1, 3.3)) * 0.3;
+                    albedo *= lerp(1, lerp(half3(0.55, 0.45, 0.42), half3(1.45, 1.3, 1.08), smoothstep(0.3, 0.7, band)), input.strata);
+                    // The rock grain's vertical streaks would drown the bands: mostly the bands, then.
+                    rockShade = lerp(rockShade, 1, input.strata * 0.7);
+                }
+                albedo *= rockShade;
+                albedo *= 1 - burrowDarken;
+                // Under the grass blades (near the camera, where they're drawn) the ground takes their colour, so the
+                // gaps between blades read as more grass rather than bare soil (GroundDetailSystem.GroundTint).
+                half underGrass = input.extra.y * _PunchyGrassTint.x * (1 - smoothstep(_PunchyGrassTint.y * 0.7, _PunchyGrassTint.y, distance));
+                albedo = lerp(albedo, albedo * half3(1.05, 1.16, 0.85), underGrass * 0.8);
                 albedo *= lerp(1, 0.72, wet);
+                albedo *= lerp(1, 0.55, shore * (1 - 0.4 * input.extra.y));
                 surface.albedo = lerp(albedo, albedo * 0.6, puddle);
                 surface.smoothness = lerp(lerp(input.surface.a, max(input.surface.a, 0.45), sheen), 0.92, puddle);
                 surface.metallic = input.extra.x;
@@ -148,7 +314,7 @@ Shader "Punchy/Terrain Surface"
                 }
 
                 // Cloud shadows: dim the share of the light that comes straight from the sun.
-                half cloudShadow = PunchyCloudShadow(input.positionWS + float3(0, input.extra.w, 0));
+                half cloudShadow = PunchyCloudShadow(input.positionWS + float3(0, max(input.extra.w, 0), 0));
                 if (cloudShadow > 0)
                 {
                     Light mainLight = GetMainLight(inputData.shadowCoord);
@@ -200,7 +366,7 @@ Shader "Punchy/Terrain Surface"
                 o.cave = input.morph.w;
 
                 // Collapse skirts onto their top edge so they cast no shadow.
-                float3 positionWS = TransformObjectToWorld(TerrainPositionOS(input) + float3(0, input.extra.w, 0));
+                float3 positionWS = TransformObjectToWorld(TerrainPositionOS(input) + float3(0, max(input.extra.w, 0), 0));
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
             #if _CASTING_PUNCTUAL_LIGHT_SHADOW
                 float3 lightDirectionWS = normalize(_LightPosition - positionWS);

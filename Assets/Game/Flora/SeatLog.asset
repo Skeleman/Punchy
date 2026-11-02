@@ -1,0 +1,49 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be30a536c49003f42bba655b0fd41247, type: 3}
+  m_Name: SeatLog
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
+  Form: 43
+  Layer: 1
+  Height: {x: 1, y: 1}
+  Spread: 0.9
+  TrunkFraction: 0.35
+  Thickness: 0.065
+  Fullness: 0.6
+  Branches: {x: 5, y: 14}
+  Flexibility: 0.4
+  FlowerHead: 0
+  Bark: {r: 0.33, g: 0.24, b: 0.16, a: 1}
+  Foliage: {r: 0.33, g: 0.24, b: 0.16, a: 1}
+  FoliageVariation: {r: 0.33, g: 0.24, b: 0.16, a: 1}
+  Accents: []
+  AccentAmount: 0.3
+  ColorVariation: 0.12
+  Finish: 0
+  GlowingAccents: 0
+  GlowPulse: 0.12
+  MaxSlope: 30
+  Elevation: {x: 0.5, y: 10000}
+  GrassAffinity: 0
+  ToleratesSnow: 1
+  PatchSize: 45
+  PatchCoverage: 0.55
+  NearWater: 2
+  OnlyNearWater: 0
+  Aquatic: 0
+  WaterDepth: {x: 0.1, y: 1.5}
+  Floats: 0
+  MinRapids: 0
+  Solid: 1
+  SizeRange: {x: 1, y: 1}
+  Variants: 3
+  Seed: 24

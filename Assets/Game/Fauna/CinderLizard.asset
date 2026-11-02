@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
   m_Name: CinderLizard
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
+  ColdBlooded: 1
   VariantOf: {fileID: 11400000, guid: 827df96a7ef1b8f4e94b89d7945bfa81, type: 2}
   VariantScale: 1.1
   BodyLength: 0.8
@@ -23,12 +24,15 @@ MonoBehaviour:
   AccentGlow: 0.8
   Coats: []
   Size: {x: 0.9, y: 1.1}
+  Weight: 0.15
+  HairColors: []
   Parts: []
   WalkSpeed: 1.4
   RunSpeed: 6
   Bob: {x: 0.02, y: 0.06}
   BobsPerCycle: {x: 2, y: 2}
   RunRock: 0
+  Upright: 0
   LeglessStride: {x: 0.6, y: 0.9}
   WanderRadius: 25
   IdleTime: {x: 2, y: 8}
@@ -36,6 +40,9 @@ MonoBehaviour:
   TurnRate: 140
   GroupSize: {x: 1, y: 1}
   NearWater: 0
+  Habitat: 0
+  SwimDepth: 0.6
+  Leaps: 0
   Active: 0
   Grazing: 0.2
   Thirst: 0
@@ -44,3 +51,13 @@ MonoBehaviour:
   Hunts: []
   Hunger: 0.3
   ChaseTime: 10
+  Idles: 3072
+  Fidgets: 0.6
+  Climbing: 0
+  SpinsWebs: 0
+  WebSize: 0.6
+  FlightHeight: {x: 8, y: 18}
+  FlySpeed: 7
+  FlapRate: 6
+  Glide: 0
+  Perching: 0.6

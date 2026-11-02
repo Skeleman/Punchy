@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
   m_Name: SwampSerpent
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
+  ColdBlooded: 1
   VariantOf: {fileID: 0}
   VariantScale: 1
   BodyLength: 0.234
@@ -33,6 +34,7 @@ MonoBehaviour:
     AccentGlow: 0.45
     Weight: 1
   Size: {x: 0.9, y: 1.1}
+  Weight: 30
   Parts:
   - Limb: {fileID: 11400000, guid: 0b0d268b6767d0947ade03e60eb9e58a, type: 2}
     Parent: -1

@@ -13,6 +13,18 @@ namespace Punchy.Terrain
         /// The palette every biome id refers to: land biomes in list order (empty slots skipped), then the ocean.
         /// Used by the blob, biome map images and anything else that turns ids back into biomes.
         /// </summary>
+        /// <summary>A stable hash of a biome's name (FNV-1a): see BiomeBlobData.NameHash.</summary>
+        public static uint NameHash(BiomeDefinition biome)
+        {
+            var h = 2166136261u;
+            foreach (var ch in biome.name)
+            {
+                h ^= ch;
+                h *= 16777619u;
+            }
+            return h;
+        }
+
         public static List<BiomeDefinition> Palette(IEnumerable<BiomeDefinition> landBiomes, BiomeDefinition ocean)
         {
             var result = new List<BiomeDefinition>();
@@ -60,14 +72,20 @@ namespace Punchy.Terrain
             {
                 var b = palette[i];
                 var wind = math.radians(b.WindDirection);
-                var offsetHash = math.hash(new uint2(seed, (uint)i * 2654435761u));
+                // Keyed on the name, not the palette index, so adding a biome doesn't move the others' relief.
+                var nameHash = NameHash(b);
+                var offsetHash = math.hash(new uint2(seed, nameHash * 2654435761u));
                 biomeArray[i] = new BiomeBlobData
                 {
                     Frequency = b.Frequency,
+                    NameHash = nameHash,
                     BaseElevation = b.BaseElevation,
                     Shape = b.Shape,
                     Relief = b.Relief,
                     FeatureFrequency = 1f / math.max(b.FeatureSize, 1f),
+                    PondDepth = b.PondDepth,
+                    PondFrequency = 1f / math.max(b.PondSize, 2f),
+                    PondCover = b.PondCover,
                     Octaves = math.clamp(b.Octaves, 1, 8),
                     Sharpness = b.Sharpness,
                     TerraceSteps = b.TerraceSteps,
@@ -136,6 +154,8 @@ namespace Punchy.Terrain
                     Grass = s.GrassDensity,
                     Bump = s.Bumpiness,
                     Pebbles = s.Pebbles,
+                    Strata = s.Strata,
+                    Paving = s.Paving,
                     Snow = s.SnowDepth
                 },
                 ColorVariation = s.ColorVariation

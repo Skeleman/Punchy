@@ -1,0 +1,89 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b92d8651f7a54b46b75fb6e4f0c3de3, type: 3}
+  m_Name: Sandstone
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.CaveStyle
+  Biomes:
+  - {fileID: 11400000, guid: 3c3b1f5dd38bdb84f949fc2b75db975a, type: 2}
+  - {fileID: 11400000, guid: 85ee83dd85b5ba542b880bbcf85da039, type: 2}
+  - {fileID: 11400000, guid: fa4ebbcc3834f4c47afc7a79abe40ad7, type: 2}
+  Width: 1.25
+  Height: 0.7
+  Roughness: 0.7
+  Grain: 0.6
+  Jaggedness: 0.75
+  Blockiness: 0.7
+  Ribs: 0
+  RibSpacing: 1.6
+  Angularity: 0
+  FacetSize: 2.5
+  Straightness: 0
+  Frame: {fileID: 0}
+  FrameSpacing: 4
+  Torch: {fileID: 0}
+  TorchSpacing: 10
+  FloorFlatness: 0.95
+  FloorSteps: 0.9
+  Burrows: 1
+  SpeleothemDensity: 2
+  SpeleothemLength: 0.35
+  SpeleothemThickness: 0.9
+  Hanging: 0.3
+  Columns: 0.45
+  Drips: 0.25
+  Rubble: 10
+  RubbleSize: 0.7
+  Moss: 0
+  MossColor: {r: 0.22, g: 0.32, b: 0.12, a: 1}
+  Flora:
+  - Species: {fileID: 11400000, guid: bd276f49a3ba0da489507a483dad61ab, type: 2}
+    Density: 4.5
+    Light: 1
+    Hanging: 0
+    MaxCover: 5
+  - Species: {fileID: 11400000, guid: 6cb925e2af94dd0488d2c0dee02aa655, type: 2}
+    Density: 0.8
+    Light: 2
+    Hanging: 0
+    MaxCover: 1.5
+  - Species: {fileID: 11400000, guid: b2075efb2c5607c418e7d3efac7828a2, type: 2}
+    Density: 6
+    Light: 0
+    Hanging: 0
+    MaxCover: 5
+  PoolChance: 0
+  LavaPools: 0
+  PoolSize: 0.32
+  StreamChance: 0.3
+  RockColor: {r: 0.82, g: 0.55, b: 0.35, a: 1}
+  DarkColor: {r: 0.55, g: 0.3, b: 0.18, a: 1}
+  Strata: 0.8
+  StrataFrequency: 0.9
+  Gloss: 0
+  Metallic: 0
+  Facets: 0
+  Translucency: 0
+  FloorColor: {r: 0.88, g: 0.72, b: 0.52, a: 1}
+  FloorDark: {r: 0.68, g: 0.5, b: 0.34, a: 1}
+  FloorGrit: 0.2
+  FloorGloss: 0
+  Detail: 0.25
+  DetailScale: 0.8
+  Sheen: 0
+  GlowColor: {r: 0.4, g: 0.8, b: 1, a: 1}
+  Glow: 0
+  GlowCover: 0.08
+  Cracks: 0
+  GlowScale: 1
+  GlowEverywhere: 0
+  CrackDarkness: 0
+  CrackBreakup: 0

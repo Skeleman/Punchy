@@ -31,6 +31,8 @@ namespace Punchy.Ambience
         {
             public float3 Position;   // home, on the ground (or water)
             public float Random;
+            public float3 Ground;     // ground colour under it (types with GroundTint), else white
+            public float Pad;
         }
 
         class Tile
@@ -64,6 +66,7 @@ namespace Punchy.Ambience
         static readonly int SizeId = Shader.PropertyToID("_ParticleSize");
         static readonly int MotionId = Shader.PropertyToID("_ParticleMotion");
         static readonly int ShapeId = Shader.PropertyToID("_ParticleShape");
+        static readonly int GroundTintId = Shader.PropertyToID("_ParticleGroundTint");
 
         void OnDisable() => Teardown();
 
@@ -115,12 +118,16 @@ namespace Punchy.Ambience
             return palette != null && palette.Biomes != null;
         }
 
+        // Bench flag: the same build without the dunes' sand puffs, to measure what they cost.
+        static readonly bool NoSand = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-nosandpuffs") >= 0;
+        static bool Skipped(AmbientParticleType t) => NoSand && t.name == "SandPuffs";
+
         void Build(BiomePalette palette, in TerrainSource source)
         {
             foreach (var biome in palette.Biomes)
                 if (biome != null)
                     foreach (var p in biome.Particles)
-                        if (p.Type != null && !types.Contains(p.Type))
+                        if (p.Type != null && !Skipped(p.Type) && !types.Contains(p.Type))
                             types.Add(p.Type);
             biomeCount = palette.Biomes.Length;
             densities = new NativeArray<float>(math.max(1, biomeCount * types.Count), Allocator.Persistent);
@@ -135,13 +142,13 @@ namespace Punchy.Ambience
                     var t = p.Type != null ? types.IndexOf(p.Type) : -1;
                     if (t < 0)
                         continue;
-                    var d = math.min(p.Density, MaxDensity);
+                    var d = math.min(p.Density * p.Type.DensityScale, MaxDensity);
                     densities[b * types.Count + t] += d;
                     maxDensity[t] = math.max(maxDensity[t], densities[b * types.Count + t]);
                 }
             }
             foreach (var t in types)
-                radius = math.max(radius, t.Range);
+                radius = math.max(radius, Punchy.Settings.GraphicsSettings.DetailRange(t.Range));
             lastSource = source;
             built = true;
         }
@@ -196,13 +203,23 @@ namespace Punchy.Ambience
             for (int t = 0; t < types.Count; t++)
                 for (int k = 0; k < slotsPerType[t]; k++)
                     slotType[slotStart[t] + k] = t;
+            // Density the slots stand for (slots are rounded up, so a sparse type keeps its rate below one per tile),
+            // and which types want the ground colour.
+            var slotDensity = new NativeArray<float>(types.Count, Allocator.TempJob);
+            var groundTint = new NativeArray<byte>(types.Count, Allocator.TempJob);
+            for (int t = 0; t < types.Count; t++)
+            {
+                slotDensity[t] = slotsPerType[t] * 100f / (TileSize * TileSize);
+                groundTint[t] = (byte)(types[t].GroundTint > 0f ? 1 : 0);
+            }
             var output = new NativeArray<Particle>(count * perTile, Allocator.TempJob);
             var keep = new NativeArray<byte>(count * perTile, Allocator.TempJob);
             new PlaceJob
             {
                 Source = source,
                 Densities = densities,
-                MaxDensity = maxDensity,
+                SlotDensity = slotDensity,
+                GroundTint = groundTint,
                 SlotType = slotType,
                 TypeCount = types.Count,
                 BiomeCount = biomeCount,
@@ -246,6 +263,8 @@ namespace Punchy.Ambience
             }
             coords.Dispose();
             slotType.Dispose();
+            slotDensity.Dispose();
+            groundTint.Dispose();
             output.Dispose();
             keep.Dispose();
         }
@@ -261,13 +280,14 @@ namespace Punchy.Ambience
                 var material = type.Style == AmbientParticleStyle.Glow ? GlowMaterial : MistMaterial;
                 foreach (var tile in tiles.Values)
                 {
-                    if (tile.Counts[t] == 0 || math.distance(new float2(tile.Bounds.center.x, tile.Bounds.center.z), camXZ) > type.Range + TileSize)
+                    if (tile.Counts[t] == 0 || math.distance(new float2(tile.Bounds.center.x, tile.Bounds.center.z), camXZ) > Punchy.Settings.GraphicsSettings.DetailRange(type.Range) + TileSize)
                         continue;
                     var props = tile.Props[t];
                     props.SetVector(ColorId, type.Color);
                     props.SetVector(SizeId, new Vector4(type.Size.x, type.Size.y, type.Height.x, type.Height.y));
                     props.SetVector(MotionId, new Vector4(type.Wander, type.Rise, type.WindDrift, type.Travel));
-                    props.SetVector(ShapeId, new Vector4(type.Twinkle, amount, type.Range, 0f));
+                    props.SetVector(ShapeId, new Vector4(type.Twinkle, amount, Punchy.Settings.GraphicsSettings.DetailRange(type.Range), type.Volume));
+                    props.SetFloat(GroundTintId, type.GroundTint);
                     var rp = new RenderParams(material)
                     {
                         worldBounds = tile.Bounds,
@@ -299,7 +319,8 @@ namespace Punchy.Ambience
         {
             public TerrainSource Source;
             [ReadOnly] public NativeArray<float> Densities;
-            [ReadOnly] public NativeArray<float> MaxDensity;
+            [ReadOnly] public NativeArray<float> SlotDensity;
+            [ReadOnly] public NativeArray<byte> GroundTint;
             [ReadOnly] public NativeArray<int> SlotType;
             public int TypeCount, BiomeCount;
             [ReadOnly] public NativeArray<int2> Tiles;
@@ -316,7 +337,7 @@ namespace Punchy.Ambience
                 var type = SlotType[slot];
                 var rng = new Unity.Mathematics.Random(math.hash(new int3(tile, slot * 31 + 7)) | 1u);
                 var xz = ((float2)tile + rng.NextFloat2()) * TileSize;
-                var roll = rng.NextFloat() * MaxDensity[type];
+                var roll = rng.NextFloat() * SlotDensity[type];
 
                 Source.SampleBiomes(xz, out var biomes, out _);
                 var density = 0f;
@@ -327,7 +348,10 @@ namespace Punchy.Ambience
                     return;
                 var ground = Source.SampleGround(xz);
                 var y = ground.HasWater ? math.max(ground.Height, ground.WaterSurface) : ground.Height;
-                Output[i] = new Particle { Position = new float3(xz.x, y, xz.y), Random = rng.NextFloat() };
+                var colour = new float3(1f);
+                if (GroundTint[type] != 0)
+                    colour = Source.SampleSurface(xz, ground, Source.SampleNormal(xz, 1f)).Albedo;
+                Output[i] = new Particle { Position = new float3(xz.x, y, xz.y), Random = rng.NextFloat(), Ground = colour };
                 Keep[i] = 1;
             }
         }

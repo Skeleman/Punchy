@@ -22,6 +22,10 @@ namespace Punchy.Terrain
         public float Snow;
         public float Bump;
         public float Pebbles;
+        /// <summary>Rock strata amount (TerrainSurface.Strata).</summary>
+        public float Strata;
+        /// <summary>Cobble paving amount (TerrainSurface.Paving).</summary>
+        public float Paving;
 
         public static SurfaceProps Lerp(in SurfaceProps a, in SurfaceProps b, float t) => new SurfaceProps
         {
@@ -32,7 +36,9 @@ namespace Punchy.Terrain
             Grass = math.lerp(a.Grass, b.Grass, t),
             Snow = math.lerp(a.Snow, b.Snow, t),
             Bump = math.lerp(a.Bump, b.Bump, t),
-            Pebbles = math.lerp(a.Pebbles, b.Pebbles, t)
+            Pebbles = math.lerp(a.Pebbles, b.Pebbles, t),
+            Strata = math.lerp(a.Strata, b.Strata, t),
+            Paving = math.lerp(a.Paving, b.Paving, t)
         };
 
         public void AddScaled(in SurfaceProps s, float w)
@@ -45,6 +51,8 @@ namespace Punchy.Terrain
             Snow += s.Snow * w;
             Bump += s.Bump * w;
             Pebbles += s.Pebbles * w;
+            Strata += s.Strata * w;
+            Paving += s.Paving * w;
         }
     }
 
@@ -77,10 +85,16 @@ namespace Punchy.Terrain
     public struct BiomeBlobData
     {
         public float Frequency;
+        /// <summary>
+        /// A stable hash of the biome's name (BiomeBaking.NameHash): its region rolls and noise offsets come from it,
+        /// not from its place in the palette, so adding a biome doesn't reshuffle the others.
+        /// </summary>
+        public uint NameHash;
         public float BaseElevation;
         public TerrainShapeKind Shape;
         public float Relief;
         public float FeatureFrequency;
+        public float PondDepth, PondFrequency, PondCover;
         public int Octaves;
         public float Sharpness;
         public int TerraceSteps;
@@ -118,6 +132,8 @@ namespace Punchy.Terrain
     {
         public int2 Min, Size;
         public BlobArray<byte> Ids;
+        /// <summary>Each cell's realm (index in the RealmSet), or <see cref="BiomeSampling.NoRealm"/> without realms.</summary>
+        public BlobArray<byte> Realms;
     }
 
     /// <summary>Biome index per pixel, covering a square region of the world.</summary>
@@ -410,24 +426,405 @@ namespace Punchy.Terrain
             return CellBiome(cell, s, ref set);
         }
 
-        /// <summary>Precomputes the biome of every cell that can reach within <paramref name="extent"/> of the origin.</summary>
-        public static BlobAssetReference<BiomeCellTableBlob> BuildCellTable(in BiomeNoiseSettings s, ref BiomeSetBlob set, float extent, Allocator allocator)
+        /// <summary>A cell table entry for cells outside every realm (realms off).</summary>
+        public const byte NoRealm = 255;
+
+        /// <summary>
+        /// Precomputes the biome of every cell that can reach within <paramref name="extent"/> of the origin.
+        /// With <paramref name="realms"/>, each cell also gets a realm (see <see cref="CellRealms"/>); a cell keeps its
+        /// biome if that's in its realm, and otherwise picks again among the realm's biomes. <paramref name="isLand"/>
+        /// says which cells count when realms are shared out (all of them if null).
+        /// </summary>
+        public static BlobAssetReference<BiomeCellTableBlob> BuildCellTable(in BiomeNoiseSettings s, ref BiomeSetBlob set, float extent, Allocator allocator,
+                                                                            RealmPlan realms = null, System.Func<float2, bool> isLand = null)
         {
             var reach = (extent + math.abs(s.WarpStrength)) / math.max(s.CellSize, 1f);
             var min = (int2)math.floor(-reach) - 2;
             var size = (int2)math.ceil(reach * 2f) + 5;
+            var baseIds = new int[size.x * size.y];
+            for (int i = 0; i < baseIds.Length; i++)
+                baseIds[i] = CellBiome(min + new int2(i % size.x, i / size.x), s, ref set);
+            var realmOf = realms != null && set.LandCount > 1 ? CellRealms(s, ref set, realms, min, size, baseIds, isLand) : null;
+
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<BiomeCellTableBlob>();
             root.Min = min;
             root.Size = size;
             var ids = builder.Allocate(ref root.Ids, size.x * size.y);
-            for (int y = 0; y < size.y; y++)
-            for (int x = 0; x < size.x; x++)
-                ids[y * size.x + x] = (byte)CellBiome(min + new int2(x, y), s, ref set);
+            var realmIds = builder.Allocate(ref root.Realms, size.x * size.y);
+            for (int i = 0; i < baseIds.Length; i++)
+            {
+                if (realmOf == null)
+                {
+                    ids[i] = (byte)baseIds[i];
+                    realmIds[i] = NoRealm;
+                    continue;
+                }
+                var realm = realmOf[i];
+                ids[i] = (byte)(System.Array.IndexOf(realms.Members[realm], baseIds[i]) >= 0
+                    ? baseIds[i]
+                    : RealmCellBiome(min + new int2(i % size.x, i / size.x), s, ref set, realms, realm));
+                realmIds[i] = (byte)realm;
+            }
             var blob = builder.CreateBlobAssetReference<BiomeCellTableBlob>(allocator);
             builder.Dispose();
             return blob;
         }
+
+        /// <summary>The realm of the biome region nearest xz (from the cell table), or <see cref="NoRealm"/>.</summary>
+        public static int RealmAt(in BiomeNoiseSettings s, BlobAssetReference<BiomeCellTableBlob> table, float2 xz)
+        {
+            if (!table.IsCreated || table.Value.Realms.Length == 0)
+                return NoRealm;
+            var local = NearestCell(s, Warp(s, xz)) - table.Value.Min;
+            if (math.any(local < 0) || math.any(local >= table.Value.Size))
+                return NoRealm;
+            return table.Value.Realms[local.y * table.Value.Size.x + local.x];
+        }
+
+        /// <summary>Realm regions: warped Voronoi cells <see cref="RealmPlan.Scale"/> biome regions wide, on their own seed.</summary>
+        static BiomeNoiseSettings RegionSettings(in BiomeNoiseSettings s, RealmPlan realms)
+        {
+            var r = s;
+            r.CellSize = s.CellSize * realms.Scale;
+            r.WarpStrength = s.WarpStrength * realms.Scale;
+            r.Seed = s.Seed * 131u + 7u;
+            return r;
+        }
+
+        /// <summary>
+        /// Each biome cell's realm. The cells are grouped into realm regions, and each region's land cells vote with
+        /// the realms their own biomes belong to, so realms go where their biomes already are (volcanoes keep their
+        /// ashlands, glaciers their tundra). The rarest realm picks first, taking the region where its biomes are most
+        /// common, so every realm with biomes on the island gets a region; the rest go to the best-voted realm still
+        /// under its target share (frequency).
+        /// Last, along any border between two realms that mustn't touch, one side's cells become the buffer realm.
+        /// </summary>
+        static int[] CellRealms(in BiomeNoiseSettings s, ref BiomeSetBlob set, RealmPlan realms, int2 min, int2 size, int[] baseIds,
+                                System.Func<float2, bool> isLand)
+        {
+            var count = realms.Frequency.Length;
+            var rs = RegionSettings(s, realms);
+            var regionCells = new int2[baseIds.Length];
+            int2 lo = int.MaxValue, hi = int.MinValue;
+            for (int i = 0; i < baseIds.Length; i++)
+            {
+                var cell = min + new int2(i % size.x, i / size.x);
+                regionCells[i] = NearestCell(rs, Warp(rs, (cell + CellJitter(cell, s.Seed)) * s.CellSize));
+                lo = math.min(lo, regionCells[i]);
+                hi = math.max(hi, regionCells[i]);
+            }
+            var regionSize = hi - lo + 1;
+            var regionCount = regionSize.x * regionSize.y;
+            var regionOf = new int[baseIds.Length];
+            var votes = new float[regionCount * count];
+            var land = new int[regionCount];
+            var cellLand = new bool[baseIds.Length];
+            for (int i = 0; i < baseIds.Length; i++)
+            {
+                var local = regionCells[i] - lo;
+                var g = regionOf[i] = local.y * regionSize.x + local.x;
+                var cell = min + new int2(i % size.x, i / size.x);
+                if (isLand != null && !isLand((cell + CellJitter(cell, s.Seed)) * s.CellSize))
+                    continue;
+                cellLand[i] = true;
+                land[g]++;
+                // Each realm's vote here is how well its best-suited biome suits the cell's climate (weight ×
+                // suitability), not whether the cell's own pick is one of its biomes: so adding a biome to a realm only
+                // adds votes where it suits better than the realm's others, and the realm map stays put.
+                var climate = Climate(s, (cell + CellJitter(cell, s.Seed)) * s.CellSize);
+                for (int r = 0; r < count; r++)
+                {
+                    var best = 0f;
+                    for (int m = 0; m < realms.Members[r].Length; m++)
+                        best = math.max(best, realms.Weights[r][m] * Suitability(ref set.Biomes[realms.Members[r][m]], climate, s.ClimateInfluence));
+                    votes[g * count + r] += best;
+                }
+            }
+
+            var regionRealm = new int[regionCount];
+            for (int g = 0; g < regionCount; g++)
+                regionRealm[g] = -1;
+            // Rarest realm first: each takes the free land region with the largest share of its biomes.
+            var totals = new float[count];
+            for (int g = 0; g < regionCount; g++)
+                for (int r = 0; r < count; r++)
+                    totals[r] += votes[g * count + r];
+            var order = new int[count];
+            for (int r = 0; r < count; r++)
+                order[r] = r;
+            System.Array.Sort(order, (a, b) => totals[a] != totals[b] ? totals[a].CompareTo(totals[b]) : a.CompareTo(b));
+            foreach (var r in order)
+            {
+                if (totals[r] <= 0f || realms.Frequency[r] <= 0f)
+                    continue;
+                var best = -1;
+                var bestShare = 0f;
+                for (int g = 0; g < regionCount; g++)
+                {
+                    if (regionRealm[g] >= 0 || land[g] == 0)
+                        continue;
+                    var share = votes[g * count + r] / land[g];
+                    if (share > bestShare)
+                    {
+                        bestShare = share;
+                        best = g;
+                    }
+                }
+                if (best >= 0)
+                    regionRealm[best] = r;
+            }
+            // The rest, clearest first (largest share of one realm's biomes): each goes to the best-voted realm still
+            // under its target share of the land (its frequency over all realms' with biomes here), or failing that
+            // to its top vote. So frequency sets how much of the island a realm gets, not just who wins a tie.
+            var claimed = new float[count];
+            float totalLand = 0f, totalFrequency = 0f;
+            for (int g = 0; g < regionCount; g++)
+            {
+                totalLand += land[g];
+                if (regionRealm[g] >= 0)
+                    claimed[regionRealm[g]] += land[g];
+            }
+            for (int r = 0; r < count; r++)
+                if (totals[r] > 0f)
+                    totalFrequency += realms.Frequency[r];
+            var clarity = new float[regionCount];
+            var rest = new System.Collections.Generic.List<int>();
+            for (int g = 0; g < regionCount; g++)
+            {
+                if (regionRealm[g] >= 0 || land[g] == 0)
+                    continue;
+                for (int r = 0; r < count; r++)
+                    clarity[g] = math.max(clarity[g], votes[g * count + r] / land[g]);
+                rest.Add(g);
+            }
+            rest.Sort((a, b) => clarity[a] != clarity[b] ? clarity[b].CompareTo(clarity[a]) : a.CompareTo(b));
+            foreach (var g in rest)
+            {
+                int best = -1, top = -1;
+                float bestVotes = 0f, topVotes = 0f;
+                for (int r = 0; r < count; r++)
+                {
+                    var v = votes[g * count + r];
+                    if (v <= 0f || realms.Frequency[r] <= 0f)
+                        continue;
+                    if (v > topVotes)
+                    {
+                        topVotes = v;
+                        top = r;
+                    }
+                    var room = realms.Frequency[r] / math.max(totalFrequency, 1e-6f) * totalLand - claimed[r];
+                    if (room >= land[g] * 0.5f && v > bestVotes)
+                    {
+                        bestVotes = v;
+                        best = r;
+                    }
+                }
+                regionRealm[g] = best >= 0 ? best : top;
+                if (regionRealm[g] >= 0)
+                    claimed[regionRealm[g]] += land[g];
+            }
+            for (int g = 0; g < regionCount; g++)
+            {
+                if (regionRealm[g] >= 0)
+                    continue;
+                // Sea regions: their top vote.
+                var bestScore = 0f;
+                for (int r = 0; r < count; r++)
+                {
+                    var score = votes[g * count + r] * realms.Frequency[r];
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        regionRealm[g] = r;
+                    }
+                }
+                if (regionRealm[g] < 0)
+                {
+                    // No land cells with a listed biome: the realm whose biomes best suit its climate.
+                    var cell = lo + new int2(g % regionSize.x, g / regionSize.x);
+                    regionRealm[g] = NearestRealm(ref set, realms, Climate(s, (cell + CellJitter(cell, rs.Seed)) * rs.CellSize));
+                }
+            }
+
+            var grouped = new int[baseIds.Length];
+            for (int i = 0; i < grouped.Length; i++)
+                grouped[i] = regionRealm[regionOf[i]];
+            // A lone cell (no neighbour in its realm: a region's edge cutting across the biome grid) joins the realm
+            // most common around it.
+            var realm = (int[])grouped.Clone();
+            var around = new int[count];
+            for (int i = 0; i < realm.Length; i++)
+            {
+                int x = i % size.x, y = i / size.x;
+                System.Array.Clear(around, 0, count);
+                for (int n = 0; n < 9; n++)
+                {
+                    int nx = x + n % 3 - 1, ny = y + n / 3 - 1;
+                    if (n != 4 && nx >= 0 && ny >= 0 && nx < size.x && ny < size.y)
+                        around[grouped[ny * size.x + nx]]++;
+                }
+                if (around[grouped[i]] > 0)
+                    continue;
+                for (int r = 0; r < count; r++)
+                    if (around[r] > around[realm[i]])
+                        realm[i] = r;
+            }
+            Balance(realms, size, realm, cellLand, totalFrequency);
+            if (realms.Buffer < 0)
+                return realm;
+            // Buffer strips: where two realms that mustn't touch meet, the bigger realm's cells become the buffer (so a
+            // small realm isn't eaten away; ties: the later-listed one).
+            var cells = new int[count];
+            foreach (var r in realm)
+                cells[r]++;
+            var result = (int[])realm.Clone();
+            for (int i = 0; i < realm.Length; i++)
+            {
+                int x = i % size.x, y = i / size.x;
+                for (int n = 0; n < 9; n++)
+                {
+                    int nx = x + n % 3 - 1, ny = y + n / 3 - 1;
+                    if (nx < 0 || ny < 0 || nx >= size.x || ny >= size.y)
+                        continue;
+                    var other = realm[ny * size.x + nx];
+                    if (realms.Avoid[realm[i], other] && (cells[realm[i]] > cells[other] || cells[realm[i]] == cells[other] && realm[i] > other))
+                    {
+                        result[i] = realms.Buffer;
+                        break;
+                    }
+                }
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Evens realms out towards their target shares of the land (frequency over the total), a cell at a time,
+        /// since a whole region is too coarse a step: the realm furthest under its target takes a land cell of a
+        /// realm over its target, on their border (the one with most of the growing realm around it), never next to
+        /// a realm it mustn't touch. Stops when no realm under target can grow.
+        /// </summary>
+        static void Balance(RealmPlan realms, int2 size, int[] realm, bool[] cellLand, float totalFrequency)
+        {
+            var count = realms.Frequency.Length;
+            var have = new int[count];
+            var landCells = 0;
+            for (int i = 0; i < realm.Length; i++)
+            {
+                if (!cellLand[i])
+                    continue;
+                have[realm[i]]++;
+                landCells++;
+            }
+            var target = new float[count];
+            for (int r = 0; r < count; r++)
+                target[r] = have[r] > 0 ? realms.Frequency[r] / math.max(totalFrequency, 1e-6f) * landCells : 0f;
+            var stuck = new bool[count];
+            for (int step = 0; step < landCells; step++)
+            {
+                // The realm furthest under its target that can still grow.
+                var grow = -1;
+                for (int r = 0; r < count; r++)
+                    if (!stuck[r] && target[r] - have[r] >= 1f && (grow < 0 || target[r] - have[r] > target[grow] - have[grow]))
+                        grow = r;
+                if (grow < 0)
+                    return;
+                var best = -1;
+                var bestAround = 1;
+                for (int i = 0; i < realm.Length; i++)
+                {
+                    var from = realm[i];
+                    if (!cellLand[i] || from == grow || have[from] - target[from] < 1f)
+                        continue;
+                    int x = i % size.x, y = i / size.x, around = 0;
+                    var forbidden = false;
+                    for (int n = 0; n < 9 && !forbidden; n++)
+                    {
+                        int nx = x + n % 3 - 1, ny = y + n / 3 - 1;
+                        if (n == 4 || nx < 0 || ny < 0 || nx >= size.x || ny >= size.y)
+                            continue;
+                        var other = realm[ny * size.x + nx];
+                        forbidden = realms.Avoid[grow, other];
+                        if (other == grow)
+                            around++;
+                    }
+                    // At least two of the growing realm beside it, so it grows as a front, not in fingers.
+                    if (!forbidden && around > bestAround)
+                    {
+                        bestAround = around;
+                        best = i;
+                    }
+                }
+                if (best < 0)
+                {
+                    stuck[grow] = true;
+                    continue;
+                }
+                have[realm[best]]--;
+                realm[best] = grow;
+                have[grow]++;
+            }
+        }
+
+        /// <summary>A region's biome within its realm: random, weighted by the realm's weights × frequency × climate.</summary>
+        static int RealmCellBiome(int2 cell, in BiomeNoiseSettings s, ref BiomeSetBlob set, RealmPlan realms, int realm)
+        {
+            var members = realms.Members[realm];
+            if (members.Length == 0)
+                return CellBiome(cell, s, ref set);
+            var climate = Climate(s, (cell + CellJitter(cell, s.Seed)) * s.CellSize);
+            // The realm's biomes race for the cell (RaceTime), the same draws as the island-wide pick.
+            var winner = -1;
+            var first = float.MaxValue;
+            for (int m = 0; m < members.Length; m++)
+            {
+                var weight = realms.Weights[realm][m] * Suitability(ref set.Biomes[members[m]], climate, s.ClimateInfluence);
+                var t = weight > 1e-20f ? RaceTime(cell, s.Seed, set.Biomes[members[m]].NameHash, weight) : float.MaxValue;
+                if (t < first)
+                {
+                    first = t;
+                    winner = members[m];
+                }
+            }
+            if (winner >= 0)
+                return winner;
+            // No biome of the realm suits this climate: the nearest fit.
+            var best = members[0];
+            var bestMisfit = float.MaxValue;
+            foreach (var m in members)
+            {
+                var misfit = ClimateMisfit(ref set.Biomes[m], climate);
+                if (misfit < bestMisfit)
+                {
+                    bestMisfit = misfit;
+                    best = m;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>The realm with the biome nearest to fitting a climate (for a climate no realm covers).</summary>
+        static int NearestRealm(ref BiomeSetBlob set, RealmPlan realms, float4 climate)
+        {
+            var best = 0;
+            var bestMisfit = float.MaxValue;
+            for (int r = 0; r < realms.Members.Length; r++)
+            {
+                if (realms.Frequency[r] <= 0f)
+                    continue;
+                foreach (var m in realms.Members[r])
+                {
+                    var misfit = ClimateMisfit(ref set.Biomes[m], climate);
+                    if (misfit < bestMisfit)
+                    {
+                        bestMisfit = misfit;
+                        best = r;
+                    }
+                }
+            }
+            return best;
+        }
+
 
         /// <summary>A region's biome: random, weighted by each biome's frequency and how well it suits the climate.</summary>
         static int CellBiome(int2 cell, in BiomeNoiseSettings s, ref BiomeSetBlob set)
@@ -456,19 +853,82 @@ namespace Punchy.Terrain
                 return best;
             }
 
-            var h = math.hash(new int3(cell, (int)(s.Seed * 7919u + 17u)));
-            var pick = (h / (float)uint.MaxValue) * total;
+            var pick = 0;
+            var first = float.MaxValue;
             for (int i = 0; i < set.LandCount; i++)
             {
-                pick -= Suitability(ref set.Biomes[i], climate, s.ClimateInfluence);
-                if (pick <= 0f)
-                    return i;
+                var t = RaceTime(cell, s.Seed, set.Biomes[i].NameHash, Suitability(ref set.Biomes[i], climate, s.ClimateInfluence));
+                if (t < first)
+                {
+                    first = t;
+                    pick = i;
+                }
             }
-            return set.LandCount - 1;
+            return pick;
+        }
+
+        /// <summary>
+        /// A biome's time in a cell's race for it: each candidate draws -ln(u) / weight, u from a hash of the cell and
+        /// the biome's name, and the earliest wins. That picks each in proportion to its weight, as a weighted pick
+        /// over a list would, but a biome's draw doesn't depend on the others or their order, so adding a biome only
+        /// takes the cells it wins. Never for a weight of 0.
+        /// </summary>
+        static float RaceTime(int2 cell, uint seed, uint nameHash, float weight)
+        {
+            if (weight <= 0f)
+                return float.MaxValue;
+            var h = Scramble(math.hash(new uint4((uint)cell.x, (uint)cell.y, seed * 7919u + 17u, nameHash)));
+            var u = ((h >> 8) + 0.5f) / 16777216f;
+            return -math.log(u) / weight;
+        }
+
+        /// <summary>
+        /// A full avalanche (the murmur3 finaliser) over a hash. math.hash of a vector is a weighted sum with no final
+        /// mix, so two draws that differ only in one input (a biome's or landmark type's name) differ by a constant
+        /// and one of them always wins; scrambled, they're independent.
+        /// </summary>
+        public static uint Scramble(uint h)
+        {
+            h ^= h >> 16;
+            h *= 0x85EBCA6Bu;
+            h ^= h >> 13;
+            h *= 0xC2B2AE35u;
+            h ^= h >> 16;
+            return h;
         }
 
         static float Suitability(ref BiomeBlobData b, float4 climate, float influence) =>
             b.Frequency * math.lerp(1f, ClimateFit(ref b, climate), influence);
+
+        /// <summary>
+        /// How far a biome's ponds dig below the ground at xz (metres, 0 between ponds): contours of warped noise, so the
+        /// pools are small, irregular and join where two contours meet, instead of round.
+        /// </summary>
+        // W-08: weight of the broad octave (W-07 had 0.65, which left many 1-cell specks).
+        const float PondLow = 0.88f, PondScale = 0.2f;   // scale < 1 makes each pool larger (cover is set by the threshold, so fewer pools)
+
+        // W-09: a point is only dug if the pond field is above the contour this far around it too, so a blob narrower than
+        // about twice PondErode (under 3 cells of 16 m) never forms. The contour is lowered a little to give the width back.
+        const float PondErode = 17f, PondEdgeShift = 0.17f;
+
+        static float PondField(ref BiomeBlobData b, float2 xz)
+        {
+            var p = xz * (b.PondFrequency * PondScale) + b.NoiseOffset * 0.37f;
+            p += new float2(noise.snoise(p * 0.6f + 11.1f), noise.snoise(p * 0.6f - 7.3f)) * 0.7f;
+            return noise.snoise(p) * PondLow + noise.snoise(p * 2.1f + 5.5f) * (1f - PondLow);   // W-08: mostly the broad octave, so no specks; about -0.9 .. 0.9
+        }
+
+        public static float Pond(ref BiomeBlobData b, float2 xz)
+        {
+            if (b.PondDepth <= 0f)
+                return 0f;
+            var n = PondField(ref b, xz);
+            var edge = math.lerp(0.55f, -0.35f, b.PondCover / 0.8f) - PondEdgeShift;
+            if (n < edge) return 0f;   // cheap exit: most points are far from any pond
+            n = math.min(n, math.min(math.min(PondField(ref b, xz + new float2(PondErode, 0f)), PondField(ref b, xz - new float2(PondErode, 0f))),
+                                     math.min(PondField(ref b, xz + new float2(0f, PondErode)), PondField(ref b, xz - new float2(0f, PondErode)))));
+            return math.smoothstep(edge, edge + 0.3f, n) * b.PondDepth;
+        }
 
         /// <summary>Height of one biome's relief above its base elevation, at xz (metres).</summary>
         public static float Relief(ref BiomeBlobData b, float2 xz)

@@ -30,10 +30,16 @@ namespace Punchy.Net
         /// <summary>False until the owner has a player to report (so the ghost doesn't flash at the origin).</summary>
         public bool Valid;
         public bool Grounded;
+        /// <summary>Climbing a trunk or wall (the body upright against it).</summary>
+        public bool Climbing;
+        /// <summary>Climbing onto a ledge: the rim's height over the body, as a byte (RimFromByte); 0 when not.</summary>
+        public byte Rim;
         /// <summary>Index into the playable species table (NetAvatars), or -1 for no body (the capsule shows).</summary>
         public int Species;
         public uint Individual;
         public int Coat;
+        /// <summary>The pose the owner's body is in (an IdleAction: Pet, Carry, Throw, an emote, or None).</summary>
+        public byte Pose;
     }
 
     /// <summary>What other players need to draw this one's body: replicated from the owner via the server.</summary>
@@ -43,6 +49,12 @@ namespace Punchy.Net
         [GhostField] public uint Individual;
         [GhostField] public int Coat;
         [GhostField] public bool Grounded;
+        /// <summary>Climbing a trunk or wall: others pose its body upright against it.</summary>
+        [GhostField] public bool Climbing;
+        /// <summary>Climbing onto a ledge: where its rim is, over the body (NetPlayerCommand.Rim), for its hands.</summary>
+        [GhostField] public byte Rim;
+        /// <summary>Petting, carrying or an emote (an IdleAction), so the others see it.</summary>
+        [GhostField] public byte Pose;
     }
 
     /// <summary>Client singleton: the local player's species in the playable table (set by NetAvatars).</summary>
@@ -58,6 +70,21 @@ namespace Punchy.Net
     }
 
     public struct GoInGameRequest : IRpcCommand { }
+
+    /// <summary>
+    /// Client to server: an interaction with an animal (an InteractAct, numbered so the server acts on it once), the
+    /// animal's ghost id, and where the player stood and faced when making it. An RPC rather than a NetPlayerCommand
+    /// field: the server samples input only at its own current tick, so a request riding on the command waits until
+    /// the server's tick reaches the client's (seconds, on a host that has fallen behind) and can surface in the same
+    /// step as the next one. An RPC is reliable and is acted on the frame it arrives.
+    /// </summary>
+    public struct InteractRpc : IRpcCommand
+    {
+        public byte Act, Serial;
+        public int Target;
+        public float3 Position;
+        public float Yaw;
+    }
 
     /// <summary>
     /// Client: once connected, go in game (start the snapshot and command streams) and ask for a player. Waits for the
@@ -128,22 +155,37 @@ namespace Punchy.Net
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     public partial struct NetPlayerSendSystem : ISystem
     {
+        /// <summary>The last interaction sent to the server (InteractionRequest.Serial), so each goes once.</summary>
+        int sentSerial;
+
+        /// <summary>A ledge's rim over the body, -1 to 3 m, in a byte (1..255; 0 means no ledge), and back.</summary>
+        public static byte RimToByte(float over) => (byte)math.clamp((int)math.round((over + 1f) * 63.5f) + 1, 1, 255);
+        public static float RimFromByte(byte b) => (b - 1) / 63.5f - 1f;
+
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetPlayer>();
+            sentSerial = -1;
         }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             var command = new NetPlayerCommand { Species = -1 };
+            var mantling = false;
+            var rolling = false;
             foreach (var (t, motion) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<PlayerMotion>>().WithAll<PlayerTag>())
             {
+                mantling = motion.ValueRO.Mantle > 0f;
+                rolling = motion.ValueRO.Roll > 0f;
                 var forward = math.mul(t.ValueRO.Rotation, new float3(0f, 0f, 1f));
                 command.Position = t.ValueRO.Position;
                 command.Yaw = math.atan2(forward.x, forward.z);
                 command.Grounded = motion.ValueRO.Grounded;
+                command.Climbing = motion.ValueRO.OnTrunk || motion.ValueRO.OnWall;
+                if (mantling)
+                    command.Rim = RimToByte(motion.ValueRO.MantleTo.y - t.ValueRO.Position.y);
                 command.Valid = true;
             }
             // How our body looks, so the others draw the same individual.
@@ -154,6 +196,24 @@ namespace Punchy.Net
                     command.Individual = avatar.ValueRO.Individual;
                     command.Coat = body.ValueRO.Coat;
                 }
+            // What we're doing with an animal, if anything: a new request goes to the server as an RPC (once); the
+            // pose rides on the command.
+            if (SystemAPI.TryGetSingleton<InteractionRequest>(out var interaction))
+            {
+                if (interaction.Act != InteractAct.None && interaction.Serial != sentSerial && command.Valid)
+                {
+                    sentSerial = interaction.Serial;
+                    var rpc = state.EntityManager.CreateEntity();
+                    state.EntityManager.AddComponentData(rpc, new InteractRpc
+                    {
+                        Act = (byte)interaction.Act, Serial = interaction.Serial, Target = interaction.TargetGhost,
+                        Position = command.Position, Yaw = command.Yaw,
+                    });
+                    state.EntityManager.AddComponent<SendRpcCommandRequest>(rpc);
+                }
+                // (Climbing onto a ledge shows as the climbing pose.)
+                command.Pose = mantling ? (byte)Punchy.Fauna.IdleAction.Mantle : rolling ? (byte)Punchy.Fauna.IdleAction.Roll : (byte)interaction.Pose;
+            }
             foreach (var input in SystemAPI.Query<RefRW<NetPlayerCommand>>().WithAll<NetPlayer, GhostOwnerIsLocal>())
                 input.ValueRW = command;
         }
@@ -175,7 +235,7 @@ namespace Punchy.Net
                     continue;
                 transform.ValueRW.Position = c.Position;
                 transform.ValueRW.Rotation = quaternion.RotateY(c.Yaw);
-                look.ValueRW = new NetPlayerLook { Species = c.Species, Individual = c.Individual, Coat = c.Coat, Grounded = c.Grounded };
+                look.ValueRW = new NetPlayerLook { Species = c.Species, Individual = c.Individual, Coat = c.Coat, Grounded = c.Grounded, Climbing = c.Climbing, Rim = c.Rim, Pose = c.Pose };
             }
         }
     }

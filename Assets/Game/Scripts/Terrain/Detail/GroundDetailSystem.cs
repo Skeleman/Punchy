@@ -28,6 +28,17 @@ namespace Punchy.Terrain
         public float PebbleRadius = 45f;
         [Tooltip("Blades per square metre on full-density grass, up close.")]
         public float GrassPerSquareMetre = 28f;
+        [Tooltip("Multiplies grass density (for comparing densities; -grassdensity <x> on the command line overrides it).")]
+        [Min(0.1f)] public float GrassDensityScale = 1f;
+        [Tooltip("Within this distance every blade is kept; beyond it grass thins (fewer, wider blades) to the radius.")]
+        [Min(1f)] public float FullDensityRadius = 20f;
+
+        // At the graphics settings' Detail distance (GraphicsSettings: the fields above are the ranges at Detail 1).
+        float GrassRange => Punchy.Settings.GraphicsSettings.DetailRange(GrassRadius);
+        float PebbleRange => Punchy.Settings.GraphicsSettings.DetailRange(PebbleRadius);
+        float FullDensityRange => Punchy.Settings.GraphicsSettings.DetailRange(FullDensityRadius);
+        [Tooltip("How much the ground under grass takes the blades' colour near the camera, so gaps between blades don't read as bare soil.")]
+        [Range(0f, 1f)] public float GroundTint = 1f;
         [Tooltip("Stones per square metre on full-density pebbly ground.")]
         public float PebblesPerSquareMetre = 3f;
         public int MaxTileBuildsPerFrame = 8;
@@ -84,13 +95,33 @@ namespace Punchy.Terrain
         static readonly int PebblesId = Shader.PropertyToID("_Pebbles");
         static readonly int CountId = Shader.PropertyToID("_InstanceCount");
         static readonly int RadiusId = Shader.PropertyToID("_DetailRadius");
+        static readonly int FullId = Shader.PropertyToID("_DetailFull");
+        static readonly int GrassTintId = Shader.PropertyToID("_PunchyGrassTint");
         static readonly int PlayerId = Shader.PropertyToID("_PunchyPlayerPos");
         static readonly int OthersId = Shader.PropertyToID("_PunchyOthersPos");
         readonly Vector4[] othersPos = new Vector4[4];
         EntityQuery othersQuery;
 
         int GridSamples => (int)TileSize + 1;
-        int MaxGrass => (int)(TileSize * TileSize * GrassPerSquareMetre);
+        int MaxGrass => (int)(TileSize * TileSize * GrassPerSquareMetre * DensityScale);
+
+        /// <summary>The density scale in use: the command line's -grassdensity if given, else the field.</summary>
+        float DensityScale
+        {
+            get
+            {
+                if (commandLineDensity < 0f)
+                {
+                    commandLineDensity = 0f;
+                    var args = System.Environment.GetCommandLineArgs();
+                    for (int i = 0; i < args.Length - 1; i++)
+                        if (args[i] == "-grassdensity" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d))
+                            commandLineDensity = math.max(d, 0.1f);
+                }
+                return commandLineDensity > 0f ? commandLineDensity : GrassDensityScale;
+            }
+        }
+        float commandLineDensity = -1f;
         int MaxPebbles => (int)(TileSize * TileSize * PebblesPerSquareMetre);
 
         void OnDisable()
@@ -114,12 +145,15 @@ namespace Punchy.Terrain
                 hasSource = true;
             }
 
+            Shader.SetGlobalFloat(FullId, FullDensityRange);
+            Shader.SetGlobalVector(GrassTintId, new Vector4(GroundTint, GrassRange, 0f, 0f));
+
             if (playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 Shader.SetGlobalVector(PlayerId, new Vector4(player.Position.x, player.Position.y, player.Position.z, 0f));
             SetOthers(cam.transform.position);
 
             var camXZ = new float2(cam.transform.position.x, cam.transform.position.z);
-            var radius = math.max(GrassRadius, PebbleRadius);
+            var radius = math.max(GrassRange, PebbleRange);
             UnloadFarTiles(camXZ, radius + TileSize * 1.5f);
             BuildMissingTiles(source, camXZ, radius);
             Draw(cam, camXZ);
@@ -140,7 +174,7 @@ namespace Punchy.Terrain
                     if (em.HasComponent<Unity.NetCode.GhostOwnerIsLocal>(e) && em.IsComponentEnabled<Unity.NetCode.GhostOwnerIsLocal>(e))
                         continue;
                     var p = em.GetComponentData<LocalTransform>(e).Position;
-                    if (math.lengthsq(p) < 1e-6f || math.distance(p, camera) > GrassRadius)
+                    if (math.lengthsq(p) < 1e-6f || math.distance(p, camera) > GrassRange)
                         continue;
                     if (used < othersPos.Length)
                         othersPos[used++] = new Vector4(p.x, p.y, p.z, 1f);
@@ -251,12 +285,12 @@ namespace Punchy.Terrain
                 if (!GeometryUtility.TestPlanesAABB(frustum, tile.Bounds))
                     continue;
                 var nearest = math.distance(camXZ, math.clamp(camXZ, (float2)kv.Key * TileSize, ((float2)kv.Key + 1f) * TileSize));
-                DrawSet(tile.Grass, tile.GrassCount, tile.GrassProps, GrassMaterial, GrassVertices, nearest, GrassRadius, tile.Bounds);
-                DrawSet(tile.Pebbles, tile.PebbleCount, tile.PebbleProps, PebbleMaterial, PebbleVertices, nearest, PebbleRadius, tile.Bounds);
+                DrawSet(tile.Grass, tile.GrassCount, tile.GrassProps, GrassMaterial, GrassVertices, nearest, GrassRange, tile.Bounds);
+                DrawSet(tile.Pebbles, tile.PebbleCount, tile.PebbleProps, PebbleMaterial, PebbleVertices, nearest, PebbleRange, tile.Bounds);
             }
         }
 
-        static void DrawSet(GraphicsBuffer buffer, int count, MaterialPropertyBlock props, Material material, int vertices,
+        void DrawSet(GraphicsBuffer buffer, int count, MaterialPropertyBlock props, Material material, int vertices,
                             float nearest, float radius, Bounds bounds)
         {
             if (buffer == null || nearest > radius)
@@ -277,7 +311,7 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Fraction of instances kept at a distance (must match DetailThinning in GroundDetail.hlsl).</summary>
-        static float Thinning(float distance, float radius) => math.lerp(1f, 0.12f, math.smoothstep(12f, radius, distance));
+        float Thinning(float distance, float radius) => math.lerp(1f, 0.12f, math.smoothstep(FullDensityRange, radius, distance));
 
         bool TryGetSource(out TerrainSource source)
         {
@@ -306,6 +340,7 @@ namespace Punchy.Terrain
             public float3 Albedo;
             public float Slope;      // normal.y
             public float Water;      // water surface height, or a large negative number
+            public float Bare;       // 1 over a cave entrance or at its edge
         }
 
         [BurstCompile]
@@ -325,8 +360,8 @@ namespace Punchy.Terrain
                 var ground = Source.SampleGround(xz);
                 var normal = Source.SampleNormal(xz, 1f);
                 var surface = Source.SampleSurface(xz, ground, normal);
-                // Nothing grows over a cave entrance.
-                var bare = Source.IsCaveHole(xz);
+                // Nothing grows over a cave entrance, nor right at its edge (a blade there would hang over the opening).
+                var bare = Source.MouthCut(xz, ground.Height) < 0.15f;
                 Points[i] = new GroundPoint
                 {
                     Height = ground.Height,
@@ -335,7 +370,8 @@ namespace Punchy.Terrain
                     Snow = surface.Snow,
                     Albedo = surface.Albedo,
                     Slope = normal.y,
-                    Water = ground.HasWater ? ground.WaterSurface : -1e6f
+                    Water = ground.HasWater ? ground.WaterSurface : -1e6f,
+                    Bare = bare ? 1f : 0f
                 };
 
             }
@@ -435,6 +471,13 @@ namespace Punchy.Terrain
                 r.Albedo = p0.Albedo * w0 + p1.Albedo * w1 + p2.Albedo * w2;
                 r.Slope = p0.Slope * w0 + p1.Slope * w1 + p2.Slope * w2;
                 r.Water = math.max(math.max(p0.Water, p1.Water), p2.Water);
+                // Next to a cave entrance, nothing: blending would carry grass and pebbles in over the opening (G-25).
+                r.Bare = math.max(math.max(p0.Bare, p1.Bare), p2.Bare);
+                if (r.Bare > 0f)
+                {
+                    r.Grass = 0f;
+                    r.Pebbles = 0f;
+                }
                 return r;
             }
         }

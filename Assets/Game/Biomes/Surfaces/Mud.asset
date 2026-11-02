@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Mud
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.TerrainSurface
   Albedo: {r: 0.26, g: 0.2, b: 0.15, a: 1}
-  Smoothness: 0.6
+  Smoothness: 0.35
   Metallic: 0
   Emission: {r: 0, g: 0, b: 0, a: 1}
   ColorVariation: 0.1
