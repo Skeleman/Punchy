@@ -64,6 +64,9 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   a new pond rule goes through the mask, not more erosion or threshold tuning.
   With a biome map (island v2) the core test uses the map's sharp weights: the blurred shape weights never pass
   0.4 in its small swamp patches, which left v2 with no ponds at all.
+  Ponds above sea level are stepped pools (W-24, `TerrainSource.Terrace`): the bed snaps to 0.6 m height bands,
+  each band a level pool behind a low bank, so hillside swamps hold water instead of dry pits. The 16 m pond
+  grid labels on the pre-terrace dig (`PondDig`), or the banks split every pond and the mask drops them.
 - Roads (W-16): the A* routes run in parallel on a managed copy of the cost grid with a precomputed wander array; Emit and bridge sampling run in parallel and are added serially in pair order, so output is identical. The `[bake] stages` line splits settlements into towns/roads/roadside/blob. Settlements went from about 970 ms to about 290 ms (editor bench, hash unchanged).
 
 ## Island version and waterfalls (W-22)

@@ -970,22 +970,24 @@ namespace Punchy.Terrain
         // about twice PondErode (under 3 cells of 16 m) never forms. The contour is lowered a little to give the width back.
         const float PondErode = 17f, PondEdgeShift = 0.17f;
 
-        static float PondField(ref BiomeBlobData b, float2 xz)
+        static float PondField(ref BiomeBlobData b, float2 xz, float density = 1f)
         {
-            var p = xz * (b.PondFrequency * PondScale) + b.NoiseOffset * 0.37f;
+            var p = xz * (b.PondFrequency * PondScale * density) + b.NoiseOffset * 0.37f;
             p += new float2(noise.snoise(p * 0.6f + 11.1f), noise.snoise(p * 0.6f - 7.3f)) * 0.7f;
             return noise.snoise(p) * PondLow + noise.snoise(p * 2.1f + 5.5f) * (1f - PondLow);   // W-08: mostly the broad octave, so no specks; about -0.9 .. 0.9
         }
 
-        public static float Pond(ref BiomeBlobData b, float2 xz)
+        /// <param name="density">W-24: scales the pond noise's frequency (more, smaller pools); 1 = the biome's own.</param>
+        /// <param name="coverAdd">W-24: added to the biome's PondCover.</param>
+        public static float Pond(ref BiomeBlobData b, float2 xz, float density = 1f, float coverAdd = 0f)
         {
             if (b.PondDepth <= 0f)
                 return 0f;
-            var n = PondField(ref b, xz);
-            var edge = math.lerp(0.55f, -0.35f, b.PondCover / 0.8f) - PondEdgeShift;
+            var n = PondField(ref b, xz, density);
+            var edge = math.lerp(0.55f, -0.35f, math.min(b.PondCover + coverAdd, 0.8f) / 0.8f) - PondEdgeShift;
             if (n < edge) return 0f;   // cheap exit: most points are far from any pond
-            n = math.min(n, math.min(math.min(PondField(ref b, xz + new float2(PondErode, 0f)), PondField(ref b, xz - new float2(PondErode, 0f))),
-                                     math.min(PondField(ref b, xz + new float2(0f, PondErode)), PondField(ref b, xz - new float2(0f, PondErode)))));
+            n = math.min(n, math.min(math.min(PondField(ref b, xz + new float2(PondErode, 0f), density), PondField(ref b, xz - new float2(PondErode, 0f), density)),
+                                     math.min(PondField(ref b, xz + new float2(0f, PondErode), density), PondField(ref b, xz - new float2(0f, PondErode), density))));
             return math.smoothstep(edge, edge + 0.3f, n) * b.PondDepth;
         }
 

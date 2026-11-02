@@ -257,10 +257,37 @@ namespace Punchy.Terrain
         /// Biome ponds (a swamp's pools) dug into the ground. Only once the landmarks exist: rivers, landmarks and
         /// settlements are placed on the ground without them, so the ponds never move any of those.
         /// </summary>
-        float Ponds(float2 xz, in BiomeWeights shape, float h)
+        float Ponds(float2 xz, in BiomeWeights shape, float h) => Ponds(xz, shape, h, out _);
+
+        /// <summary>
+        /// As above; level is a terrace pool's own water surface (float.MinValue when none). W-24 (#23): a pond whose
+        /// bed stays above sea level held no water, so ponds on a hillside swamp were dry pits. Those ponds are now
+        /// stepped pools instead: the ground (plus a little noise, so the steps wander) is cut into bands
+        /// <see cref="TerraceStep"/> high, each band's pool is flat at the band's foot, held by a low bank on its
+        /// downhill side and a cut face up to the next band's bank. Flat ground gets one level pool. Ponds that reach
+        /// below sea level (lowland swamps) are unchanged.
+        /// </summary>
+        float Ponds(float2 xz, in BiomeWeights shape, float h, out float level)
         {
-            if (!PondsOn || !HasBiomes)
+            level = float.MinValue;
+            var dig = PondDig(xz, shape, out var cover);
+            if (dig <= 0f)
                 return h;
+            if (h - dig < World.SeaLevel || cover <= 0f)
+                return h - dig;
+            return Terrace(xz, h, cover, out level);
+        }
+
+        /// <summary>
+        /// How far the biome ponds dig below the ground here before any terracing (masked, kept off streets and plots),
+        /// and cover, 0..1, how far inside a pond this is. The pond grid labels ponds by this, so a stepped pool's banks
+        /// don't split it into specks.
+        /// </summary>
+        float PondDig(float2 xz, in BiomeWeights shape, out float cover)
+        {
+            cover = 0f;
+            if (!PondsOn || !HasBiomes)
+                return 0f;
             ref var set = ref Biomes.Value;
             // W-11: a biome map (island v2) has small swamp patches whose blurred shape weights never pass 0.4, so
             // it had no ponds at all; there the core test uses the map's sharp weights. Cell-based worlds (v1) are unchanged.
@@ -269,13 +296,60 @@ namespace Punchy.Terrain
             for (int i = 0; i < 4; i++)
             {
                 var w = core.Weights[i];
-                if (w > 0.4f)   // W-08: only in a biome's core; at region borders the blend left lone specks
-                    dig += math.smoothstep(0.4f, 0.75f, w) * BiomeSampling.Pond(ref set.Biomes[core.Ids[i]], xz);
+                if (w <= 0.4f)   // W-08: only in a biome's core; at region borders the blend left lone specks
+                    continue;
+                ref var biome = ref set.Biomes[core.Ids[i]];
+                // W-24: v2's swamp is a hillside of stepped pools, so it gets more of them (v1 unchanged).
+                var d = math.smoothstep(0.4f, 0.75f, w) * (UsesBiomeMap ? BiomeSampling.Pond(ref biome, xz, V2PondDensity, V2PondCover) : BiomeSampling.Pond(ref biome, xz));
+                dig += d;
+                if (biome.PondDepth > 0f)
+                    cover += d / biome.PondDepth;
             }
-            if (dig > 0f && PondMask.IsCreated)
-                dig *= PondMask.Value.Sample(xz);
-            return h - dig;
+            if (dig <= 0f)
+                return 0f;
+            if (PondMask.IsCreated)
+            {
+                var mask = PondMask.Value.Sample(xz);
+                dig *= mask;
+                cover *= mask;
+            }
+            // W-24: no pool on a street or plot (Settle levels them afterwards, which left half-pools at their edges).
+            if (Settlements.IsCreated)
+            {
+                var keep = SettlementSampling.Keep(ref Settlements.Value, xz);
+                dig *= keep;
+                cover *= keep;
+            }
+            return dig;
         }
+
+        /// <summary>W-24: the ground of a stepped pool at xz (h the natural ground, cover as from PondDig) and its water level.</summary>
+        float Terrace(float2 xz, float h, float cover, out float level)
+        {
+            level = float.MinValue;
+            // Bands follow the ground's contours; the wobble only moves the band edges, never a level. Bands follow the ground's contours; the wobble only moves the band edges, never a level.
+            var q = (h + noise.snoise(xz * 0.025f + 31.7f) * TerraceStep * 0.35f) / TerraceStep;
+            var k = math.floor(q);
+            var f = q - k;
+            var water = k * TerraceStep;
+            var bank = water + TerraceBank;
+            var upper = water + TerraceStep + TerraceBank;   // the next band's bank
+            var band = math.lerp(bank, water - TerraceDepth, math.smoothstep(0f, 0.22f, f));
+            band = math.lerp(band, upper, math.smoothstep(0.8f, 1f, f));
+            // Out towards the pond's edge the band blends back into the natural ground, which is above the water there
+            // (the wobble can put it a little below): a rim at bank height first, so the pool ends against it, not in mid air.
+            var rim = math.lerp(h, math.max(h, bank), math.smoothstep(0f, 0.3f, cover));
+            var inside = math.smoothstep(0.3f, 0.65f, math.saturate(cover));
+            var g = math.lerp(rim, band, inside);
+            if (inside > 0f && g < water - 0.02f)
+                level = water;
+            return g;
+        }
+
+        /// <summary>W-24: height between stepped pools (m), how far a bank stands above its pool, and the pools' depth.</summary>
+        public const float TerraceStep = 0.6f, TerraceBank = 0.15f, TerraceDepth = 0.45f;
+        /// <summary>W-24: island v2's pond noise frequency scale and extra cover (biome map worlds only).</summary>
+        public const float V2PondDensity = 1.2f, V2PondCover = 0.3f;
 
         /// <summary>Counts separate biome ponds (cells digging 0.3 m or more, 4-connected) on a grid of the given step; for logs.</summary>
         public int PondCount(float step, out int wetCells) => PondCount(step, out wetCells, out _);
@@ -319,8 +393,7 @@ namespace Punchy.Terrain
                 {
                     var xz = new float2(x + 0.5f, z + 0.5f) * step - half;
                     self.SampleBiomes(xz, out _, out var shape);
-                    var h = self.ShapeHeight(xz, shape);
-                    wet[z * size + x] = h - self.Ponds(xz, shape, h) >= 0.3f;
+                    wet[z * size + x] = self.PondDig(xz, shape, out _) >= 0.3f;   // W-24: before terracing (banks would split a stepped pool)
                 }
             });
             n = size;
@@ -565,8 +638,20 @@ namespace Punchy.Terrain
             }
             // Biome ponds (a swamp's pools): water was decided above from the ground without them, so a pond is wet only
             // where it digs below the water level the biome already has (sea level in the lowlands).
-            var dug = Ponds(xz, shape, g.Height);
-            if (dug < g.Height)
+            var dug = Ponds(xz, shape, g.Height, out var terrace);
+            if (terrace > float.MinValue)
+            {
+                // W-24: a stepped pool holds its own level.
+                if (terrace > water)
+                {
+                    water = terrace;
+                    flow = float2.zero;
+                    g.Rapids = 0f;
+                }
+                ruleDepth = math.max(ruleDepth, water - dug);
+                g.Height = dug;
+            }
+            else if (dug < g.Height)
             {
                 if (dug < World.SeaLevel && water < World.SeaLevel)
                 {
@@ -576,6 +661,8 @@ namespace Punchy.Terrain
                 ruleDepth = math.max(ruleDepth, math.max(water, World.SeaLevel) - dug);
                 g.Height = dug;
             }
+            else if (dug > g.Height)
+                g.Height = dug;   // a stepped pool's bank, a little above the ground
             // Settlements keep clear of water, so their levelling doesn't change the water rules above.
             g.Height = Settle(xz, g.Height);
 
