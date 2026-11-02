@@ -84,6 +84,79 @@ namespace Punchy.Debugging
             FootDrift();
             SpinCheck();
             HuntLog();
+            ShotOnHunt();
+            ColossusShot();
+        }
+
+        // ---------------------------------------------------------------- A-09 shots
+
+        static bool shotOnHunt;
+        bool huntShotTaken;
+        static float colossusShotDistance;
+
+        /// <summary>
+        /// "-shotonhunt" on a shot-list line: the moment a land hunter's chase turns to a run, the camera is put 16 m to the
+        /// side of the hunter and its nearest prey and the line's shot is brought forward to 0.3 s later (#9). The line's -wait
+        /// is the longest it waits for a hunt.
+        /// </summary>
+        void ShotOnHunt()
+        {
+            if (!shotOnHunt || huntShotTaken || shotIndex < 0 || shotStarted < 0f || queryWorld == null || !queryWorld.IsCreated)
+                return;
+            var em = queryWorld.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            for (int i = 0; i < states.Length; i++)
+            {
+                var h = states[i];
+                if (h.Mode != CreatureMode.Hunt || h.Stage != 1 || bodies[i].Blob.Value.Habitat == Habitat.Flies)
+                    continue;
+                var prey = -1;
+                var best = 60f;
+                for (int j = 0; j < states.Length; j++)
+                {
+                    if (j == i || bodies[j].Species == bodies[i].Species)
+                        continue;
+                    var d = math.distance(states[j].Position, h.Position);
+                    if (d < best) { best = d; prey = j; }
+                }
+                if (prey < 0)
+                    continue;
+                var p = states[prey].Position;
+                var mid = (h.Position + p) * 0.5f;
+                var along = math.normalizesafe(p - h.Position, new float3(0f, 0f, 1f));
+                var side = math.normalizesafe(new float3(-along.z, 0f, along.x));
+                var from = mid + side * (16f + best * 0.5f) + new float3(0f, 3.5f, 0f);
+                PoseCamera(from, Quaternion.LookRotation((Vector3)(mid + new float3(0f, 0.8f, 0f)) - (Vector3)from));
+                huntShotTaken = true;
+                shotWait = Time.realtimeSinceStartup - shotStarted + 0.3f;
+                var director = FindAnyObjectByType<FaunaDirector>();
+                Debug.Log($"DebugControls: shotonhunt: {director?.SpeciesAt(bodies[i].Species)?.name} sprinting at {director?.SpeciesAt(bodies[prey].Species)?.name}, {best:F1} m apart, hunter speed {h.Speed:F1}, at ({h.Position.x:F0}, {h.Position.z:F0})");
+                break;
+            }
+            states.Dispose();
+            bodies.Dispose();
+        }
+
+        /// <summary>"-colossusshot 300": the player and camera that far from the Dunes colossus (south-west of it), looking at its chest.</summary>
+        void ColossusShot()
+        {
+            if (colossusShotDistance <= 0f || !DunesColossus.Placed || !EnsureLocations(out var ground) ||
+                !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var d = colossusShotDistance;
+            colossusShotDistance = 0f;
+            var at = DunesColossus.Position;
+            var stand = at.xz + math.normalize(new float2(-0.6f, -0.8f)) * d;
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(player);
+            t.Position = new float3(stand.x, ground.SampleHeight(stand) + 0.1f, stand.y);
+            em.SetComponentData(player, t);
+            var eye = new Vector3(stand.x, ground.SampleHeight(stand) + (d > 150f ? 25f : 4f), stand.y);
+            var target = new Vector3(at.x, at.y + (d > 150f ? 33f : 38f), at.z);
+            PoseCamera(eye, Quaternion.LookRotation(target - eye));
+            Debug.Log($"DebugControls: colossus shot from {d:F0} m: camera ({eye.x:F0}, {eye.y:F0}, {eye.z:F0}) looking at ({target.x:F0}, {target.y:F0}, {target.z:F0})");
         }
 
         // ---------------------------------------------------------------- hunt log
@@ -484,6 +557,14 @@ namespace Punchy.Debugging
             var bodyArg = System.Array.IndexOf(args, "-setbody");
             if (bodyArg >= 0 && bodyArg + 1 < args.Length)
                 SetBody(args[bodyArg + 1]);
+            // "-shotonhunt": one shot the moment a land hunter enters its sprint, camera framing hunter and prey (#9).
+            shotOnHunt = System.Array.IndexOf(args, "-shotonhunt") >= 0;
+            // A-09 (#40): "-nocolossus" hides the Dunes colossus, "-framelog" logs frame times, "-colossusshot 300" puts the
+            // player and camera that far from it.
+            DunesColossus.Hidden = System.Array.IndexOf(args, "-nocolossus") >= 0;
+            DunesColossus.FrameLog = System.Array.IndexOf(args, "-framelog") >= 0;
+            var colArg = System.Array.IndexOf(args, "-colossusshot");
+            colossusShotDistance = colArg >= 0 && colArg + 1 < args.Length && float.TryParse(args[colArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var cd) ? cd : 0f;
             // "-huntlog": log land hunters' chases (Z-53).
             huntLog = System.Array.IndexOf(args, "-huntlog") >= 0;
             // "-lift 15": the player held that high over the ground (see Lift), per shot line.
@@ -1226,7 +1307,8 @@ namespace Punchy.Debugging
             var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
             var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
             var director = FindAnyObjectByType<FaunaDirector>();
-            int near = 0, fleeing = 0;
+            int near = 0, fleeing = 0, over = 0;
+            float gapSum = 0f, gapMax = 0f, distSum = 0f;
             for (int i = 0; i < states.Length; i++)
             {
                 var s = states[i];
@@ -1234,12 +1316,18 @@ namespace Punchy.Debugging
                 if (director == null || director.SpeciesAt(bodies[i].Species)?.name != "Deer" || math.distance(s.Position.xz, t.Position.xz) >= 40f)
                     continue;
                 near++;
+                // (A1-09: the height gap to the deer, to see whether slopes put any past the 1.5 m where the weighting starts.)
+                var gap = math.abs(s.Position.y - t.Position.y);
+                gapSum += gap;
+                gapMax = math.max(gapMax, gap);
+                if (gap > 1.5f) over++;
+                distSum += math.distance(s.Position.xz, t.Position.xz);
                 if (s.Mode == CreatureMode.Flee)
                     fleeing++;
             }
             states.Dispose();
             bodies.Dispose();
-            Debug.Log($"DebugControls: lift {liftHeight:F1} m flat {Punchy.Fauna.CreatureBrainSystem.HeightFearOff.Data}: {fleeing} of {near} deer within 40 m fleeing (sample {++liftSample})");
+            Debug.Log($"DebugControls: lift {liftHeight:F1} m flat {Punchy.Fauna.CreatureBrainSystem.HeightFearOff.Data}: {fleeing} of {near} deer within 40 m fleeing (sample {++liftSample}); height gap mean {gapSum / math.max(near, 1):F2} max {gapMax:F2} m, {over} over 1.5 m, mean distance {distSum / math.max(near, 1):F1} m");
         }
 
         static float[] ParseFloats(string text)
@@ -2089,6 +2177,8 @@ namespace Punchy.Debugging
                 foreach (var b in Camera.main.GetComponents<MonoBehaviour>())
                     b.enabled = true;
             cameraPosed = false;
+            huntShotTaken = false;
+            colossusShotDistance = 0f;
             if (posed != Entity.Null && queryWorld != null && queryWorld.IsCreated && queryWorld.EntityManager.Exists(posed))
                 queryWorld.EntityManager.DestroyEntity(posed);
             posed = Entity.Null;
