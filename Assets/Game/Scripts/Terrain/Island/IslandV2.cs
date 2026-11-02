@@ -319,17 +319,49 @@ namespace Punchy.Terrain
         protected override void OnCreate()
         {
             query = GetEntityQuery(ComponentType.ReadWrite<TerrainSource>(), ComponentType.ReadOnly<BiomePalette>());
-            done = !IslandV2.Requested();
-            if (!done) RequireForUpdate(query);
+            v2 = IslandV2.Requested();
+            RequireForUpdate(query);
+        }
+
+        bool v2;
+
+        /// <summary>
+        /// The landmark count and fingerprint hash: each instance as "type x z scale", sorted, FNV-1a. Logged for both
+        /// versions so every player run can show the seeds held (W-16: version 1 used to log nothing).
+        /// </summary>
+        static string LandmarkHash(ref TerrainSource source, BiomePalette palette)
+        {
+            if (!source.Landmarks.IsCreated)
+                return "no landmarks";
+            ref var set = ref source.Landmarks.Value;
+            var lines = new List<string>();
+            for (int i = 0; i < set.Instances.Length; i++)
+            {
+                var l = set.Instances[i];
+                var t = l.Type < palette.Landmarks.Length && palette.Landmarks[l.Type] != null ? palette.Landmarks[l.Type].name : l.Type.ToString();
+                lines.Add($"{t} {l.Position.x:F1} {l.Position.y:F1} {l.Scale:F3}");
+            }
+            lines.Sort(StringComparer.Ordinal);
+            uint h = 2166136261u;
+            foreach (var line in lines) foreach (var ch in line) h = (h ^ ch) * 16777619u;
+            return $"{lines.Count} landmarks, hash {h:X8}";
         }
 
         protected override void OnUpdate()
         {
             if (done) return;
-            done = true;
             var entity = query.GetSingletonEntity();
             var source = EntityManager.GetComponentData<TerrainSource>(entity);
             var palette = EntityManager.GetComponentObject<BiomePalette>(entity);
+            if (!v2)
+            {
+                // Version 1 keeps its baked terrain: just report the landmarks once they've loaded.
+                if (!source.Landmarks.IsCreated || palette.Landmarks == null) return;
+                done = true;
+                Debug.Log($"[island] generator version 1 (baked); {LandmarkHash(ref source, palette)}");
+                return;
+            }
+            done = true;
             if (palette.Biomes == null || palette.Biomes.Length == 0 || !source.Biomes.IsCreated) return;
 
             var watch = System.Diagnostics.Stopwatch.StartNew();
@@ -348,22 +380,7 @@ namespace Punchy.Terrain
             EntityManager.SetComponentData(entity, source);
             long placesMs = watch.ElapsedMilliseconds - genMs;
 
-            string hashText = "no landmarks";
-            if (source.Landmarks.IsCreated)
-            {
-                ref var set = ref source.Landmarks.Value;
-                var lines = new List<string>();
-                for (int i = 0; i < set.Instances.Length; i++)
-                {
-                    var l = set.Instances[i];
-                    var t = l.Type < palette.Landmarks.Length && palette.Landmarks[l.Type] != null ? palette.Landmarks[l.Type].name : l.Type.ToString();
-                    lines.Add($"{t} {l.Position.x:F1} {l.Position.y:F1} {l.Scale:F3}");
-                }
-                lines.Sort(StringComparer.Ordinal);
-                uint h = 2166136261u;
-                foreach (var line in lines) foreach (var ch in line) h = (h ^ ch) * 16777619u;
-                hashText = $"{lines.Count} landmarks, hash {h:X8}";
-            }
+            string hashText = LandmarkHash(ref source, palette);
             Debug.Log($"[island] {gen.Report}; baked in {watch.ElapsedMilliseconds} ms (generate {genMs}, places {placesMs}); {hashText}");
             var report = System.Diagnostics.Stopwatch.StartNew();
             // (Ponds: the "[ponds]" line from BuildPlaces; W-14 dropped the second count here, ~2.8 s.)

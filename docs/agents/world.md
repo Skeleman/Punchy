@@ -49,3 +49,4 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   a new pond rule goes through the mask, not more erosion or threshold tuning.
   With a biome map (island v2) the core test uses the map's sharp weights: the blurred shape weights never pass
   0.4 in its small swamp patches, which left v2 with no ponds at all.
+- Roads (W-16): the A* routes run in parallel on a managed copy of the cost grid with a precomputed wander array; Emit and bridge sampling run in parallel and are added serially in pair order, so output is identical. The `[bake] stages` line splits settlements into towns/roads/roadside/blob. Settlements went from about 970 ms to about 290 ms (editor bench, hash unchanged).

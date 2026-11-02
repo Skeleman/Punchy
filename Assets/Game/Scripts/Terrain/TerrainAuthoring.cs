@@ -147,6 +147,7 @@ namespace Punchy.Terrain
                 }
             }
             Stage("settlements");
+            stages.Append(' ').Append(SettlementBaking.LastTiming);
             if (source.Landmarks.IsCreated)
                 source.Caves = CaveBaking.Build(source, palette, landmarkTypes, allocator);
             Stage("caves");

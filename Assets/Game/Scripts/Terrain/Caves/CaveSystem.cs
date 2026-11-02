@@ -420,7 +420,21 @@ namespace Punchy.Terrain
         /// self-glow, which also shows it where nobody carries a light. The glow's hue swirl only trades blue for green, which stays near white.
         /// </summary>
         static readonly float4 WhitePoolWater = new float4(0.92f, 0.95f, 0.97f, 0.24f);
-        const float WhitePoolGlow = 0.28f;
+        const float WhitePoolGlow = 0.2f;
+        /// <summary>_SoftRim = 1 for white pool draws (the water shader fades them out towards the disc's rim).</summary>
+        static MaterialPropertyBlock softRimProps;
+        static MaterialPropertyBlock SoftRimProps
+        {
+            get
+            {
+                if (softRimProps == null)
+                {
+                    softRimProps = new MaterialPropertyBlock();
+                    softRimProps.SetFloat("_SoftRim", 1f);
+                }
+                return softRimProps;
+            }
+        }
         /// <summary>
         /// "-whitepools": every cave water pool is drawn as white pool water (a test flag until bat folk caves carry
         /// their own pools). Drawing only, so it changes nothing that is baked.
@@ -467,6 +481,9 @@ namespace Punchy.Terrain
                             shadowCastingMode = ShadowCastingMode.Off,
                             receiveShadows = false
                         };
+                        // White pools fade out towards their rim (W-16: the edge read as a hard glowing disc).
+                        if (WhitePools && pool.Lava <= 0.5f)
+                            rp.matProps = SoftRimProps;
                         var mesh = pool.Lava > 0.5f ? lavaPoolMesh : waterPoolMesh;
                         Graphics.RenderMesh(rp, mesh, 0, Matrix4x4.TRS(pool.Centre, Quaternion.identity, new Vector3(pool.Radius, 1f, pool.Radius)));
                     }
