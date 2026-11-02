@@ -2,6 +2,21 @@
 
 Newest first.
 
+## 2026-11-02 batch W-02b: W-02 built and seen, moon animation added, pushed (3728ef9)
+- DONE: #34 blue moon: rocky blue sphere with wavy rim tendrils; plus Zach's follow-up: tendrils drift slowly and a
+  faint slow shimmer crosses the face. 2 frames 20 s apart show different tendrils (world-features 3728ef9, pushed)
+- DONE: #44 dunes: sand puffs haze the cave mouth; `-nosandpuffs` is crisp (ec53f8a, pushed)
+- DONE: #30 flowers stay upright and keep their length in Storm; Oak calm/Storm unchanged, no stretching
+- DONE: #4 `-menu Graphics` works when launched alone (tabs, tiers, sliders, pad glyphs); earlier miss was a combined launch
+- DONE: shot-list players now Application.Quit when the list ends (fe2dda9); no Punchy.exe of mine left
+- NOT DONE: dunes GPU ms: -benchroute is not on world-features (b/bench-runner unmerged). Resources/ not committed
+  (Unity test-runner json, no code reads it). Shooting stars #45 skipped: build already running.
+- Checks: 2 builds ok, no compile errors; 4 shot lists. Daisy is ground scatter, not in `-place prop:`; used meadow
+  (-255,27) camlook at ground level instead. First moon shot needed `-bluemoondays 0`.
+- Shots: PunchyMilestones/world/W-02/ moon_after.png, flowers_calm.png / flowers_storm.png, dunes_puffs.png / dunes_nopuffs.png (also moon_t0/t20, oak, menu_graphics)
+- Learned: STATE.md updated.
+- NEXT: #45 shooting stars; merge b/bench-runner for GPU numbers; #15 look checks.
+
 ## 2026-11-02 batch W-02: code for moon/dunes/flowers written and compiled, NOT built or seen (blocked on a leftover player)
 - DONE: landmark hash on a96a1dc: 101 landmarks, hash E128CB1D, same as the G-37 baseline, so the z34 CaveBaking change moved no landmark
 - DONE (code only, local commit ec53f8a on world-features, not pushed): #34 per Zach's new direction: near #0000FF, lit sphere (terminator, dark limb), rock mottling, mixed-size soft craters, crack removed, round corona replaced by faint wavy rim tendrils
