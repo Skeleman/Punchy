@@ -733,3 +733,21 @@ b/weather-mapjob.
 - **DONE:** #35 bat folk steps 1-2. `BatFolkBaking` stage after caves, own seed stream and blob; picks 1 per 6 qualifying caves by scrambled mouth-cell hash; per-pool white flag replaces `-whitepools` (kept as debug override). Logs: v1 101 / E128CB1D, `[batfolk] caves 0, picked 0`; v2 127 / 831FF2EE, `[batfolk] caves 3, picked 1 ... cave 2 chamber 3001,3,-2135 r 10.1 pool 1`. Cave hash 9CB26E0C6AEB39BA unchanged. Build shots at 800 px: picked pool white, non-picked pool normal blue. world-features 73709c8 pushed; one build.
 - **NOT DONE:** nothing from the card. v1 gets no bat folk (no deep big chamber with a pool); rule choice open.
 - **Shots:** PunchyMilestones/world/w18 (picked-white-pool, unpicked-pool, editor-picked).
+
+## W-19 (2026-11-02) - #35 bat folk huts and props
+- DONE: task 1. NOT DONE: task 2 (the huts don't read in the build shot).
+- world-features 4ef8516: `BatFolkSetBlob.Props`, per-site RNG on the bat folk stream, clear of pools and path segments; `BatFolkMeshes.cs`; CaveSystem draws them.
+- v2 log: `cave 2 chamber 3001,3,-2135 r 10.1 pool 1 huts 3 props 8`. v1: `caves 0, picked 0` (rule unchanged).
+- Hashes: v1 101 / E128CB1D, v2 127 / 831FF2EE, cave 9CB26E0C6AEB39BA (all unchanged).
+- Shots: PunchyMilestones/world/w19/w19-chamber-800.png, w19-chamber-up-800.png. The racks (pale hides), baskets and white pool read, and nothing floats.
+  The huts hang 8-14 m up, past the lantern, and show only as dark ovals at the top edge.
+- NEXT: step 4 light on the huts (or a lower hang or ledge huts), then retake the shot looking up.
+
+## W-20 (2026-11-02)
+- **DONE:** #35 huts hang lower: each stalk is sized so the pod bottom sits 3-6 m above the floor (stalk checked for air along its length; bat folk stage only). v2 log `huts 3 props 8 hut bottoms 3.9/4.6/4.7 m` (was 8-14 m up). Build shot at 800 px: three pale pods with their seam bands, racks, baskets and the white pool in one frame; huts read as huts. world-features fb047dc pushed; one build (= fb047dc code).
+- **DONE:** the W-19 "2 errors" were the editor's pipeline server failing to answer the `unity command eval` request after the CLI's 30 s timeout dropped the connection mid-build (BasePipelineServer: "connection forcibly closed" + "Cannot be changed after headers are sent"). Harmless to the player. Build eval with `--timeout 600`: `Succeeded 0 errors`. Noted in docs/agents/editor-and-assets.md.
+- **DONE:** one report log: W-19 moved here, lanes/world/REPORTS-world.md deleted.
+- **Checks:** v1 101 / E128CB1D, v2 127 / 831FF2EE (player logs); cave hash 9CB26E0C6AEB39BA (editor CaveBench, baked = fresh). v1 `[batfolk] caves 0, picked 0`. Compile clean; no Punchy.exe of mine left running. Frame judged in the CaveTools editor preview before the build.
+- **Shots:** PunchyMilestones/world/w20/w20-batfolk-chamber.png (build, 800 px: huts, racks, white pool), preview3.png (editor preview of the same frame, brighter lantern), w20-v1-spawn.png (v1 check run).
+- **Learned:** docs/agents/world.md (hut hang rule), docs/agents/editor-and-assets.md (build eval timeout).
+- **NEXT:** #35 step 4 light is now optional (huts sit in lantern reach; the build is a little darker than the editor); step 5 residents to the animal lane; v1 rule (pool or MinChamber) still waits for Zach.
