@@ -1,11 +1,11 @@
 namespace Punchy.UI
 {
     /// <summary>
-    /// Whether any on-screen panel is open (F2 multiplayer, F5 graphics): the camera leaves the mouse free so its
-    /// controls can be clicked, and the player's movement and interaction keys wait.
+    /// Whether the main menu is open (Esc or Start; its Multiplayer and Graphics tabs): the camera leaves the mouse free
+    /// so its controls can be clicked, and the player's movement and interaction keys wait.
     /// </summary>
     public static class Overlay
     {
-        public static bool AnyOpen => Punchy.Net.NetMenu.IsOpen || Punchy.Settings.GraphicsSettings.PanelOpen;
+        public static bool AnyOpen => MainMenu.Open;
     }
 }

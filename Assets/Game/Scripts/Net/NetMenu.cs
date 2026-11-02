@@ -12,22 +12,22 @@ using UnityEngine;
 namespace Punchy.Net
 {
     /// <summary>
-    /// F2: a small multiplayer panel. Shows whether this machine is hosting (and the LAN address friends join), who
-    /// is connected, and lets you join another host by IP or go back to hosting.
+    /// The main menu's Multiplayer tab (Esc or Start). Shows whether this machine is hosting (and the LAN address
+    /// friends join), who is connected, and lets you join another host by IP or go back to hosting.
     /// </summary>
     public class NetMenu : MonoBehaviour
     {
-        public KeyCode Toggle = KeyCode.F2;
         public NetAvatars Avatars;
 
-        bool open;
-
-        /// <summary>The panel is showing: the camera leaves the mouse free so its buttons can be clicked.</summary>
-        public static bool IsOpen { get; private set; }
         string address = "192.168.1.";
         string code = "";
         string lanAddress;
         GUIStyle box;
+
+        // (A join reloads the scene and makes a new NetMenu: the tab goes with the old one and comes back with the new.)
+        void OnEnable() => Punchy.UI.MainMenu.AddTab("Multiplayer", 10, DrawTab);
+
+        void OnDisable() => Punchy.UI.MainMenu.RemoveTab("Multiplayer");
 
         void Start()
         {
@@ -184,9 +184,6 @@ namespace Punchy.Net
             LogStatus();
             PlaceLocalPlayer();
             WatchForHostLeaving();
-            if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.f2Key.wasPressedThisFrame)
-                open = !open;
-            IsOpen = open;
         }
 
         void OnGUI()
@@ -196,9 +193,11 @@ namespace Punchy.Net
                 box ??= new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 13, padding = new RectOffset(10, 10, 8, 8) };
                 GUI.Box(new Rect(Screen.width * 0.5f - 200, 60, 400, 30), notice, box);
             }
-            if (!open)
-                return;
-            box ??= new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 13, padding = new RectOffset(10, 10, 8, 8) };
+        }
+
+        /// <summary>The tab itself, drawn by the main menu (MenuNav: every control reachable on a controller).</summary>
+        void DrawTab(Punchy.UI.MenuNav nav)
+        {
             lanAddress ??= LanAddress();
 
             var solo = GameBootstrap.Solo;
@@ -207,13 +206,12 @@ namespace Punchy.Net
             var players = server != null ? Count<NetworkId>(server) : -1;
             var connected = client != null && Count<NetworkId>(client) > 0;
 
-            GUILayout.BeginArea(new Rect(Screen.width - 330, 10, 320, 360), box);
-            GUILayout.Label("<b>Multiplayer</b>  (F2)", new GUIStyle(GUI.skin.label) { richText = true });
+            GUILayout.Label("<b>Multiplayer</b>", new GUIStyle(GUI.skin.label) { richText = true });
             if (solo)
             {
                 GUILayout.Label("Playing alone (no networking). Host to let others join, or join someone.",
                     new GUIStyle(GUI.skin.label) { wordWrap = true });
-                if (GUILayout.Button("Host on my network"))
+                if (nav.Button("Host on my network"))
                 {
                     RelaySessions.Forget();
                     GameBootstrap.Host();
@@ -224,7 +222,7 @@ namespace Punchy.Net
                 GUILayout.Label($"Hosting online — {players} player(s) connected");
                 GUILayout.BeginHorizontal();
                 GUILayout.Label($"<b>Code: {RelaySessions.JoinCode}</b>", new GUIStyle(GUI.skin.label) { richText = true, fontSize = 16 });
-                if (GUILayout.Button("Copy", GUILayout.Width(60)))
+                if (nav.Button("Copy", GUILayout.Width(60)))
                     GUIUtility.systemCopyBuffer = RelaySessions.JoinCode;
                 GUILayout.EndHorizontal();
             }
@@ -241,13 +239,14 @@ namespace Punchy.Net
             }
 
             GUILayout.Space(6);
-            GUILayout.Label("Join a host by IP (the address its F2 panel shows):");
+            GUILayout.Label("Join a host by IP (the address its Multiplayer tab shows):");
             GUILayout.BeginHorizontal();
-            address = GUILayout.TextField(address, GUILayout.Width(200));
-            if (GUILayout.Button("Join"))
+            address = nav.TextField(address, 0, "0123456789.", GUILayout.Width(200));
+            var addressNotice = nav.NeedsKeyboardNotice;
+            if (nav.Button("Join"))
             {
                 if (address.Trim() == lanAddress)
-                    Notify("That's this PC's own address. Type the address shown on the host's F2 panel.", 6f);
+                    Notify("That's this PC's own address. Type the address shown on the host's Multiplayer tab.", 6f);
                 else if (!NetworkEndpoint.TryParse(address.Trim(), GameBootstrap.Port, out var endpoint))
                     Notify($"\"{address.Trim()}\" isn't an IP address (it looks like 192.168.1.20).", 6f);
                 else
@@ -257,7 +256,9 @@ namespace Punchy.Net
                 }
             }
             GUILayout.EndHorizontal();
-            if (!solo && GUILayout.Button(server != null ? "Stop hosting (play alone)" : "Leave (play alone)"))
+            if (addressNotice)
+                GUILayout.Label("Typing an address needs a keyboard for now.");
+            if (!solo && nav.Button(server != null ? "Stop hosting (play alone)" : "Leave (play alone)"))
             {
                 RelaySessions.Forget();
                 GameBootstrap.PlaySolo();
@@ -266,14 +267,17 @@ namespace Punchy.Net
             // Online, through Unity Relay: friends anywhere join with a code.
             GUILayout.Space(6);
             GUI.enabled = !RelaySessions.Busy;
-            if (RelaySessions.JoinCode == null && GUILayout.Button("Host online (get a join code)"))
+            if (RelaySessions.JoinCode == null && nav.Button("Host online (get a join code)"))
                 RelaySessions.Host();
             GUILayout.BeginHorizontal();
             GUILayout.Label("Code:", GUILayout.Width(40));
-            code = GUILayout.TextField(code, 8, GUILayout.Width(100));
-            if (GUILayout.Button("Join online"))
+            code = nav.TextField(code, 8, null, GUILayout.Width(100));
+            var codeNotice = nav.NeedsKeyboardNotice;
+            if (nav.Button("Join online"))
                 RelaySessions.Join(code);
             GUILayout.EndHorizontal();
+            if (codeNotice)
+                GUILayout.Label("Typing a code needs a keyboard for now.");
             GUI.enabled = true;
             if (RelaySessions.Status != null)
                 GUILayout.Label(RelaySessions.Status, new GUIStyle(GUI.skin.label) { wordWrap = true });
@@ -285,14 +289,13 @@ namespace Punchy.Net
                 var index = Avatars.LocalIndex;
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("Body:", GUILayout.Width(40));
-                if (GUILayout.Button("<", GUILayout.Width(24)))
+                if (nav.Button("<", GUILayout.Width(24)))
                     Avatars.SetLocalSpecies((index - 1 + Avatars.PlayableSpecies.Count) % Avatars.PlayableSpecies.Count);
                 GUILayout.Label(index >= 0 ? Avatars.PlayableSpecies[index].name : "(custom)", GUILayout.Width(150));
-                if (GUILayout.Button(">", GUILayout.Width(24)))
+                if (nav.Button(">", GUILayout.Width(24)))
                     Avatars.SetLocalSpecies((index + 1) % Avatars.PlayableSpecies.Count);
                 GUILayout.EndHorizontal();
             }
-            GUILayout.EndArea();
         }
 
         /// <summary>
@@ -387,7 +390,7 @@ namespace Punchy.Net
                 GameBootstrap.JoiningSince = -1f;
             if (!wasInGame && GameBootstrap.JoiningSince >= 0f && Time.unscaledTime - GameBootstrap.JoiningSince > JoinTimeout)
             {
-                Notify($"Couldn't reach {GameBootstrap.JoiningTo}. Check the address: the host's F2 panel shows it.", 8f);
+                Notify($"Couldn't reach {GameBootstrap.JoiningTo}. Check the address: the host's Multiplayer tab shows it.", 8f);
                 GameBootstrap.JoiningSince = -1f;
                 RelaySessions.Forget();
                 GameBootstrap.PlaySolo();

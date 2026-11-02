@@ -181,8 +181,8 @@ Input System. Windows is the only build target so far.
 - Built on Netcode for Entities. The plan, ownership and log are in `MULTIPLAYER.md`, shared with a second Claude
   instance; read it after every pull.
 - **Playing alone there is no networking:** one local world (`GameBootstrap.Solo`), as before multiplayer.
-  - Hosting or joining (F2, or the flags below) disposes it and creates the netcode worlds, ServerWorld and/or
-    ClientWorld. `GameBootstrap.PlaySolo()` goes back.
+  - Hosting or joining (the Esc/Start menu's Multiplayer tab, or the flags below) disposes it and creates the
+    netcode worlds, ServerWorld and/or ClientWorld. `GameBootstrap.PlaySolo()` goes back.
   - A lost host, a join that never connects, or a failed Relay join all drop back to solo where you stand.
   - `World.DefaultGameObjectInjectionWorld` is the local world or the **client** world, so MonoBehaviours always
     see the local player's view. Server-side code finds its world through `NetWorlds.Server`, which is the local
@@ -210,7 +210,7 @@ Input System. Windows is the only build target so far.
   - Default is solo. `-host` hosts on LAN (UDP 7979) from the start, and so does Multiplayer Play Mode's Client
     play type for virtual players.
   - `-join <ip>` joins over LAN; `-hostonline` / `-joincode <CODE>` go through Unity Relay.
-  - F2 opens the panel for all of these and the body picker.
+  - Esc (or Start on a pad) opens the main menu; its Multiplayer tab does all of these and has the body picker.
   - Test flags: `-body <Name>`, `-autowalk`, `-newlook`, `-time <h>`, `-place <name>`. A timestamped "Net status"
     line is logged every 10 s.
 - Netcode needs **Run In Background** (set in Player Settings, and for play mode in the editor), or a tabbed-out
@@ -219,7 +219,7 @@ Input System. Windows is the only build target so far.
   them.
 - Reimporting an asset or recompiling in play mode rebakes the subscene and resets the game. Test with builds:
   File → Build Profiles → Windows → Build to `Builds/Windows/Punchy.exe` (or a throwaway `BuildPipeline.BuildPlayer`
-  script run through `unity command script run`; none is kept in the repo), then run `Builds/Windows/Punchy.exe -join 127.0.0.1` against a `-host` build or an editor that is hosting (F2).
+  script run through `unity command script run`; none is kept in the repo), then run `Builds/Windows/Punchy.exe -join 127.0.0.1` against a `-host` build or an editor that is hosting (Multiplayer tab).
 
 ### Keeping new features multiplayer-ready
 

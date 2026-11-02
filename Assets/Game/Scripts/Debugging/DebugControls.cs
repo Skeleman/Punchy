@@ -24,6 +24,7 @@ namespace Punchy.Debugging
     ///  Y            advance the clock two hours;  T  toggle fast time (DayNightCycle);
     ///  ] / [        force the next weather over the player / clear it (WeatherSystem);
     ///  F1           show / hide this readout (and the interaction prompt with it: the whole HUD).
+    /// The player-facing panels (multiplayer, graphics, quit) are in the main menu on Esc or Start (UI.MainMenu).
     /// </summary>
     public class DebugControls : MonoBehaviour
     {
@@ -44,7 +45,9 @@ namespace Punchy.Debugging
         int current = -1;
         EntityQuery playerQuery, terrainQuery, paletteQuery;
         World queryWorld;
-        GUIStyle style;
+        GUIStyle style, hintStyle;
+        /// <summary>The control hints, under the readout: prompt text with button tokens (UI.Prompts draws their icons).</summary>
+        string hints;
         string readout;
         Vector2 readoutSize;
         float nextReadout;
@@ -1859,6 +1862,18 @@ namespace Punchy.Debugging
                 readoutSize = style.CalcSize(new GUIContent(readout));
             }
             GUI.Box(new Rect(10, 10, readoutSize.x + 12, readoutSize.y + 8), readout, style);
+            if (!string.IsNullOrEmpty(hints))
+            {
+                if (hintStyle == null)
+                {
+                    hintStyle = new GUIStyle(GUI.skin.label) { fontSize = 13, richText = true };
+                    hintStyle.normal.textColor = new Color(0.73f, 0.73f, 0.73f);
+                }
+                var size = Punchy.UI.Prompts.Measure(hints, hintStyle);
+                var at = new Rect(10, 10 + readoutSize.y + 12, size.x + 12, size.y + 6);
+                GUI.Box(at, GUIContent.none, style);
+                Punchy.UI.Prompts.Draw(new Rect(at.x + 6, at.y + 3, size.x, size.y), hints, hintStyle);
+            }
         }
 
         /// <summary>The player's controls, each by its button on the device in use (unbound ones left out).</summary>
@@ -1870,7 +1885,7 @@ namespace Punchy.Debugging
                 if (!string.IsNullOrEmpty(button))
                     hints.Add($"{button} {what}");
             }
-            static string A(string action) => Punchy.Player.InputGlyphs.Action("Player/" + action);
+            static string A(string action) => Punchy.Player.InputGlyphs.ActionToken("Player/" + action);
             if (flying)
             {
                 Add(A("Jump"), "(hold) climb");
@@ -1930,9 +1945,10 @@ namespace Punchy.Debugging
             }
             var pace = flying ? "flying" : Punchy.Player.PlayerInputSystem.Sprinting ? "sprint" : Punchy.Player.PlayerInputSystem.Walking ? "walk" : "jog";
             lines.Add($"pace: <b>{pace}</b>   input: {(Punchy.Player.InputGlyphs.Gamepad ? Punchy.Player.InputGlyphs.PadKind + " gamepad" : "keyboard & mouse")}");
-            lines.Add("<color=#bbbbbb>" + ControlHints(flies, flying) + "</color>");
+            // (The control hints draw under the readout, so their buttons can be icons.)
+            hints = ControlHints(flies, flying) + " · " + Punchy.Player.InputGlyphs.Token(Punchy.Player.InputGlyphs.Gamepad ? "<Gamepad>/start" : "<Keyboard>/escape") + " menu";
             if (!Punchy.Player.InputGlyphs.Gamepad)
-                lines.Add("<color=#bbbbbb>N/Shift+N place · B day type · Y +2 h · T fast time · ] force weather · [ clear · F3 copy position · F5 graphics / quit · F1 hide</color>");
+                lines.Add("<color=#bbbbbb>N/Shift+N place · B day type · Y +2 h · T fast time · ] force weather · [ clear · F3 copy position · F1 hide</color>");
 
             return string.Join("\n", lines);
         }

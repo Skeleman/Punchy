@@ -11,7 +11,7 @@ namespace Punchy.Net
 {
     /// <summary>
     /// Creates the game's worlds. Playing alone (the default) there's just one local world with no networking, as
-    /// before multiplayer, so solo play pays nothing for it. Hosting (F2, or <c>-host</c>) swaps in a server world
+    /// before multiplayer, so solo play pays nothing for it. Hosting (the menu's Multiplayer tab, or <c>-host</c>) swaps in a server world
     /// (authoritative simulation, listening on <see cref="Port"/>) plus a client world (the local player's view, input
     /// and everything drawn) connected to it in-process; <c>-join &lt;ip&gt;</c> creates only a client that joins
     /// that host (and Multiplayer Play Mode's virtual players join the editor's host the same way).
@@ -29,7 +29,7 @@ namespace Punchy.Net
         public static Placement PendingPlacement;
         public static Unity.Mathematics.float3 CarriedPosition;
 
-        /// <summary>The host we're joining (for the F2 panel), and since when; negative once in game or not joining.</summary>
+        /// <summary>The host we're joining (for the Multiplayer tab), and since when; negative once in game or not joining.</summary>
         public static string JoiningTo;
         public static float JoiningSince = -1f;
 

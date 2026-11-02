@@ -15,7 +15,7 @@ namespace Punchy.Settings
     /// critters, flames, worm marks, creature details), Shadows the sun's shadow distance. Systems read their range as
     /// <see cref="ViewRange"/> or <see cref="DetailRange"/> of their own default where they use it. Only what's drawn
     /// changes, never what the game simulates, collides with or sends: players with different settings see the same
-    /// world and can join each other. Kept per machine (PlayerPrefs) and changed in the F5 panel.
+    /// world and can join each other. Kept per machine (PlayerPrefs) and changed in the main menu's Graphics tab.
     /// "-gfx Low|Medium|High|Ultra" and "-gfxset view=1.3,detail=0.8,shadows=1" set them for that run only (benches),
     /// and are never saved.
     /// </summary>
@@ -31,8 +31,6 @@ namespace Punchy.Settings
         public static int Version { get; private set; }
         /// <summary>Set from the command line for this run (not saved).</summary>
         public static bool FromCommandLine { get; private set; }
-        /// <summary>The F5 panel is showing (see Punchy.UI.Overlay).</summary>
-        public static bool PanelOpen { get; private set; }
 
         /// <summary>A far range (terrain, trees, landmark effects) at the current View setting.</summary>
         public static float ViewRange(float baseline) => baseline * View;
@@ -68,7 +66,6 @@ namespace Punchy.Settings
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Init()
         {
-            PanelOpen = false;
             FromCommandLine = false;
             View = Clamp(PlayerPrefs.GetFloat(ViewKey, 1f));
             Detail = Clamp(PlayerPrefs.GetFloat(DetailKey, 1f));
@@ -87,11 +84,7 @@ namespace Punchy.Settings
             Apply();
             Debug.Log("Graphics: " + Describe() + (FromCommandLine ? " (from the command line)" : ""));
 
-            // (Something to watch F5 and draw the panel, kept across the scene reload a join does.)
-            var watcher = new GameObject("GraphicsSettings");
-            Object.DontDestroyOnLoad(watcher);
-            watcher.hideFlags = HideFlags.HideInHierarchy;
-            watcher.AddComponent<Panel>();
+            Punchy.UI.MainMenu.AddTab("Graphics", 20, DrawTab);
         }
 
         /// <summary>"-gfx Ultra" and "-gfxset view=1.3,detail=0.8,shadows=1" (applied over the saved settings).</summary>
@@ -179,94 +172,43 @@ namespace Punchy.Settings
             pipeline.shadowCascadeCount = baseCascades;
         }
 
-        /// <summary>The F5 panel: the presets, the three sliders and Reset, applied as they move, and Quit (Z-01).</summary>
-        class Panel : MonoBehaviour
+        /// <summary>
+        /// The main menu's Graphics tab: the presets, the three sliders and Reset, applied as they move, and the frame
+        /// cap (also on the Options button). Quit is in the menu's foot, for every tab.
+        /// </summary>
+        static void DrawTab(Punchy.UI.MenuNav nav)
         {
-            GUIStyle box, title;
-            /// <summary>Quit was pressed once: the panel asks before closing the game.</summary>
-            bool confirmQuit;
+            title ??= new GUIStyle(GUI.skin.label) { richText = true };
+            GUILayout.Label($"<b>Graphics</b>   {Preset}", title);
+            GUILayout.BeginHorizontal();
+            for (int i = 0; i < Presets.Length; i++)
+                if (nav.Toggle(Preset == (GraphicsPreset)i, ((GraphicsPreset)i).ToString(), GUI.skin.button))
+                    Set((GraphicsPreset)i);
+            GUILayout.EndHorizontal();
+            GUILayout.Space(6);
+            // (Only when a slider was moved: a value from the command line, off the sliders' steps, stays as it is
+            // and unsaved until someone changes it here.)
+            GUI.changed = false;
+            var view = Slider(nav, "View distance", View);
+            var detail = Slider(nav, "Detail distance", Detail);
+            var shadows = Slider(nav, "Shadows", Shadows);
+            if (GUI.changed)
+                Set(view, detail, shadows);
+            GUILayout.Space(6);
+            if (nav.Button("Reset (Medium)"))
+                Set(GraphicsPreset.Medium);
+            GUILayout.Space(6);
+            if (nav.Button($"Frame cap: {FrameRateCap.Describe(FrameRateCap.Current)}"))
+                FrameRateCap.Next();
+        }
 
-            void Update()
-            {
-                var keyboard = Keyboard.current;
-                if (keyboard != null && keyboard.f5Key.wasPressedThisFrame)
-                {
-                    PanelOpen = !PanelOpen;
-                    confirmQuit = false;
-                    if (!PanelOpen)
-                        PlayerPrefs.Save();
-                }
-            }
+        static GUIStyle title;
 
-            void OnGUI()
-            {
-                if (!PanelOpen)
-                    return;
-                box ??= new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 13, padding = new RectOffset(10, 10, 8, 8) };
-                title ??= new GUIStyle(GUI.skin.label) { richText = true };
-                GUILayout.BeginArea(new Rect(Screen.width * 0.5f - 170, 60, 340, 290), box);
-                GUILayout.Label($"<b>Graphics</b>  (F5)   {Preset}", title);
-                GUILayout.BeginHorizontal();
-                for (int i = 0; i < Presets.Length; i++)
-                    if (GUILayout.Toggle(Preset == (GraphicsPreset)i, ((GraphicsPreset)i).ToString(), GUI.skin.button))
-                        Set((GraphicsPreset)i);
-                GUILayout.EndHorizontal();
-                GUILayout.Space(6);
-                // (Only when a slider was moved: a value from the command line, off the sliders' steps, stays as it is
-                // and unsaved until someone changes it here.)
-                GUI.changed = false;
-                var view = Slider("View distance", View);
-                var detail = Slider("Detail distance", Detail);
-                var shadows = Slider("Shadows", Shadows);
-                if (GUI.changed)
-                    Set(view, detail, shadows);
-                GUILayout.Space(6);
-                GUILayout.BeginHorizontal();
-                if (GUILayout.Button("Reset (Medium)"))
-                    Set(GraphicsPreset.Medium);
-                if (GUILayout.Button("Close"))
-                {
-                    PanelOpen = false;
-                    PlayerPrefs.Save();
-                }
-                GUILayout.EndHorizontal();
-                GUILayout.Space(10);
-                if (!confirmQuit)
-                {
-                    if (GUILayout.Button("Quit game"))
-                        confirmQuit = true;
-                }
-                else
-                {
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label("Quit the game?");
-                    if (GUILayout.Button("Quit"))
-                    {
-                        PlayerPrefs.Save();
-                        Quit();
-                    }
-                    if (GUILayout.Button("Cancel"))
-                        confirmQuit = false;
-                    GUILayout.EndHorizontal();
-                }
-                GUILayout.EndArea();
-            }
-
-            static void Quit()
-            {
-#if UNITY_EDITOR
-                UnityEditor.EditorApplication.isPlaying = false;
-#else
-                Application.Quit();
-#endif
-            }
-
-            static float Slider(string label, float value)
-            {
-                GUILayout.Label($"{label}: {value.ToString("0.00", CultureInfo.InvariantCulture)}x");
-                // (In steps of 0.05, so a preset's values can be found again by hand.)
-                return Mathf.Round(GUILayout.HorizontalSlider(value, Min, Max) * 20f) / 20f;
-            }
+        static float Slider(Punchy.UI.MenuNav nav, string label, float value)
+        {
+            GUILayout.Label($"{label}: {value.ToString("0.00", CultureInfo.InvariantCulture)}x");
+            // (In steps of 0.05, so a preset's values can be found again by hand.)
+            return Mathf.Round(nav.Slider(value, Min, Max, 0.05f) * 20f) / 20f;
         }
     }
 }

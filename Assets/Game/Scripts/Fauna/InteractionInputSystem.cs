@@ -23,7 +23,7 @@ namespace Punchy.Fauna
     [UpdateAfter(typeof(PlayerInputSystem))]
     public partial class InteractionInputSystem : SystemBase
     {
-        /// <summary>What the player can do right now ("E  pet the cat"), or null.</summary>
+        /// <summary>What the player can do right now ("[[&lt;Keyboard&gt;/e]]  pet the cat": InputGlyphs.Plain names the button), or null.</summary>
         public static string Prompt;
 
         InputAction interact, attack, move, jump;
@@ -133,7 +133,8 @@ namespace Punchy.Fauna
             if (promptKey != lastPromptKey)
             {
                 lastPromptKey = promptKey;
-                var key = InputGlyphs.Action("Player/Interact") ?? "Interact";
+                // (A token, drawn as the button's icon where there's one: see UI.Prompts.)
+                var key = InputGlyphs.ActionToken("Player/Interact") ?? "Interact";
                 if (held != Entity.Null)
                     lastPrompt = $"{key}  put down";
                 else if (target != Entity.Null)
@@ -339,8 +340,7 @@ namespace Punchy.Fauna
                 shadow.normal.textColor = new Color(0f, 0f, 0f, 0.7f);
             }
             var rect = new Rect(0f, Screen.height * 0.8f, Screen.width, Screen.height * 0.06f);
-            GUI.Label(new Rect(rect.x + 2f, rect.y + 2f, rect.width, rect.height), text, shadow);
-            GUI.Label(rect, text, style);
+            Punchy.UI.Prompts.Draw(rect, text, style, true, shadow);
         }
     }
 }
