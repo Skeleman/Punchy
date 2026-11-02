@@ -1,8 +1,8 @@
-# World lane: state (2026-11-02, after W-08)
+# World lane: state (2026-11-02, after W-09)
 
 Worktree `Punchy-world` (main PC), branch `world-features`. Backlog: `gh issue list -l lane:world`.
 Released: v0.11.0 = world b39522b + animal c810406.
-Pushed head: world-features 149bc0a (W-08). Builds/Dev holds a build of it. v1 101 / E128CB1D holds (rechecked after final pond code). Ponds: 1287 blobs, 3850 wet cells, 658 single-cell (W-07: 2614 / 4329).
+Pushed head: world-features 0e19871 (W-09). Builds/Dev holds a build of it. v1 101 / E128CB1D holds. Ponds now 219 blobs, 361 wet cells, 165 single-cell.
 No Punchy.exe of mine runs.
 
 ## W-05 / W-05b
@@ -11,20 +11,6 @@ No Punchy.exe of mine runs.
 - #18 done for v2: RiverSettings.Smooth (Hermite curves), width 9-45 m. #42 done for v2: RiverSettings.FallDrop = 4 m, bed step, 98 falls, drawn
   by LandmarkEffectSystem. Both off for v1. Not done: springs on ridge crests; a close look at a 4-8 m fall (the one shot is the 32 m cliff).
   Maps/shots: PunchyMilestones/world/w05b.
-
-## W-04b (verification, mostly inconclusive)
-- world-features f4c7239 (W-04) builds clean to Builds/Dev. Unverified by shots: #32 roofs, #30 flowers, #14 cave shards,
-  #19 ponds. #19 landmark hash (E128CB1D) NOT printed: editor has no TerrainSource in play. Don't merge #19 yet.
-- #45 stars now 0.06/night minute (gate 0.006). Shots: PunchyMilestones/world/w04b. Shot lists must end with a quit.
-
-## Done in W-03
-- #45 shooting stars: gate 0.25 -> 0.06 (about 2.5 -> 0.6 per night minute), width halved, fade-out 1.0-1.5 of life.
-- #44 Dunes GPU 4.1 ms with puffs, 3.1 ms without (one run each). Bench: Tools/bench (bench.sh, BenchmarkRoute).
-  Bench build copies BenchmarkRoute + BProfileTools into Assets, builds, removes them; flags
-  `-benchroute -benchstops here -place X -benchgpupasses -fpscap 0`.
-- #23 island v2 spike: maps in PunchyMilestones/world/island-v2. Realms (warped Voronoi), typed border ridges with
-  passes, central lake bowl, rivers by priority-flood + steepest descent. Run:
-  `Unity -batchmode -projectPath Punchy-world -executeMethod Punchy.EditorTools.IslandV2Preview.Render -out <dir>`.
 
 ## Gotchas
 - Play checks: open `SampleScene.unity` first (World.unity subscene holds the TerrainSource); a bare play has none.
@@ -46,6 +32,12 @@ No Punchy.exe of mine runs.
 - #44: SandPuffs already existed (W-02); alpha 0.3 -> 0.4. 1 quad (6 verts) per puff, ~1.5 per 100 m2, est ~380 in range (not measured). Dunes shot shows haze, no distinct puffs.
 - #20 v2: ridged chains with passes + height variation. Ridge cells 1408 -> 9760; border-line ridge height min 13, p10 20, median 81, max 170 m. v2 127 landmarks, hash 831FF2EE. 4600 m top-down shot renders blank sky: needs the IslandV2Preview map instead.
 - #30: flowers calm/storm pair taken at the same spot (not viewed).
+
+## W-09
+- #19: ponds need the field above the edge at +-17 m on both axes (BiomeData.PondErode, PondEdgeShift 0.17). 1287 -> 219 blobs, 3850 -> 361 wet cells, min 1 / median 1 / p90 3 / max 19. Single-cell 165 of 219 (75%): worse ratio, not solved at the 16 m grid.
+- #20: v2 top-down map via WorldProbe.V2Map (untracked): realms and ridge bands read clearly. PunchyMilestones/world/w09.
+- #44: puffs alpha 0.6, size 4-9, height 0-0.4, drift 3.5, Dunes puff density 1.5 -> 0.5. 1229 particles in range at the Dunes spot (all types).
+- #39: terrain vertex Strata.y = paving; Cobbles 1, Flagstones 0.8; shader Cobbles() fades out 30-80 m. In the town shot the effect is faint (flat brown ground, no visible stones).
 
 ## Open
 - #23 follow-ups: volcano markers, v2 default decision. Rivers: springs on high ground; shot of a small fall. #15 look checks (Z-30 posts, Z-10 fog). #13 Z-35 fall speed. #14 cave-mouth shards.

@@ -663,3 +663,7 @@ b/weather-mapjob.
 ## W-08 (2026-11-02)
 - **DONE:** #19 ponds fewer and larger (2614 -> 1287 blobs, 4329 -> 3850 wet cells; single-cell 658 of 1287 remain). #44 puffs alpha 0.4 (system existed). #20 v2 ridge chains (ridge height min 13 / median 81 / max 170 m; 127 landmarks, 831FF2EE). #30 flower pair shot. world-features 149bc0a pushed; v1 101 / E128CB1D holds.
 - **NOT DONE:** single-cell ponds not fully removed; v2 top-down map blank (4600 m camera); 3 builds used, not 1 (pond design failed stats; first ridge edit misused Mathf.SmoothStep).
+
+## W-09 (2026-11-02)
+- **DONE:** #19 ponds 1287 -> 219 blobs (3850 -> 361 wet cells, p90 7 -> 3). #20 v2 top-down ridge map. #44 puffs readable (alpha 0.6, density cut). #39 paving channel plus cobble shader on Cobbles/Flagstones. world-features 0e19871 pushed; v1 101 / E128CB1D holds; one build.
+- **NOT DONE:** single-cell ponds still 165 of 219; cobble stones not visible in the town shot (look needs tuning); v2 hash not rechecked.
