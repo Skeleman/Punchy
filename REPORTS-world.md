@@ -2,6 +2,16 @@
 
 Newest first.
 
+## W-62 (2026-11-03): sea folk settlement (#37), partial
+Commit f7c7c35 (world-features). Shots: D:/PunchyMilestones/W-62 (w62_shore_day, w62_from_pier, w62_under_1/2, w62_walk_end; not viewed).
+1. Lake: 154 lakes; largest is 73.6 ha (2876 cells), level 26.7, 25.2 m deep, middle -1472,-202 (1481 m from land centre). Choice: biggest connected lake >= 8 m deep, lowest cell breaks ties.
+2. Village (SeaFolkVillage) at -1480,-24 on the bed at 13.6 (13.1 m down): 6 shell domes, 3 spires (26-32 m, they break the surface), reefs. Landing (SeaFolkLanding) at -1446,4 on the bank (ground 27.0), 44 m away, with a 28 m pier toward the village. Landmark diff: 134 kept exactly (same lines), 2 new only. Editor 136 / 4E61F1CF, player 136 / B5EFF8C8. No ground or water stamping (Flatten 0), so ground/lake surface do not move; caves and rivers bake before this code (not re-hashed). v1 not run (sea types not in v1 lists).
+3. Details as data: kelp gardens, shell mosaics, bubble vents, trade goods, coral arches, glowing anemones, seeded per prop. Shore and pier shots taken.
+4. Underwater: 2 camera shots placed under the surface (-camlook); not viewed, so whether the water renders from below is unchecked.
+5. Walk test FAIL: player walked from -1440,9 to the pier start (-1445.6, 27.4, 4.3) and stuck there 27.7 m short of the end for 16 s, 0.4 m over the floor. Probably the pier ramp or first pile blocks the step.
+6. Build 1x Succeeded, 0 errors (Builds/Dev). Player quit by itself.
+Left: fix the pier start so the player can walk on (ramp/collider), rerun the walk; look at the shots; docs note in world.md.
+
 ## W-61b (2026-11-03): waypoint walk, igloo porches (#38), bat cave walk (#35)
 
 Commit 22affdd on world-features. Shots: D:/PunchyMilestones/W-61b (8: cave walk start/end, igloo 1/3/5 start/end).
