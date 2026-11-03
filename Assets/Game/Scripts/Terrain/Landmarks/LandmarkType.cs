@@ -238,6 +238,25 @@ namespace Punchy.Terrain
         [Tooltip("Anchors it exports for people living rough (AnchorBaking.AddWildAnchors): none, a roadside campsite's " +
                  "or a hermit's.")]
         public WildAnchors Anchors;
+
+        [Header("Biome looks")]
+        [Tooltip("W-57: where the biome under its centre is listed in one of these, the landmark takes that look instead " +
+                 "(another landmark type with the same footprint: a stone hermitage in the ashlands, a great mushroom in a " +
+                 "fungal forest). Swapped after placement, so a look never moves, adds or drops a landmark.")]
+        public List<BiomeLook> BiomeLooks = new List<BiomeLook>();
+        [Tooltip("W-57: what a hermit living here works at by the woodpile (the tool in hand).")]
+        public HermitWork Work;
+    }
+
+    /// <summary>What a hermit works at by the woodpile (carried to the brain in the Work anchor's Variety).</summary>
+    public enum HermitWork : byte { Chop, Sweep, Shovel, Hammer }
+
+    /// <summary>W-57: the look a landmark takes in some biomes (LandmarkType.BiomeLooks).</summary>
+    [Serializable]
+    public class BiomeLook
+    {
+        public List<BiomeDefinition> Biomes = new List<BiomeDefinition>();
+        public LandmarkType Look;
     }
 
     /// <summary>Which set of anchors a wild landmark exports (see AnchorBaking.AddWildAnchors).</summary>

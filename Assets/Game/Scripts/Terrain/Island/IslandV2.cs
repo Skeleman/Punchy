@@ -396,6 +396,7 @@ namespace Punchy.Terrain
             source.RiverSettings = IslandV2.Rivers(source.RiverSettings);
             source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Archipelago = default; source.Anchors = default; source.PondMask = default;
             var types = new List<LandmarkType>(palette.Landmarks);
+            LandmarkBaking.AddLooks(types);
             TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent);
             // W-29: the grand falls go in after every place, so no landmark, cave or settlement sees them.
             source.GrandFalls = GrandFalls.Build(source, Allocator.Persistent);

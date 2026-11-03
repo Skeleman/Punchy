@@ -1004,7 +1004,7 @@ namespace Punchy.Fauna
         /// </summary>
         static float3 SwingBody(ref CreaturePart part, in CreatureState s, int joint)
         {
-            var job = s.Task == CreatureTask.Hermit ? (s.Stage == 2 ? CreatureTask.Tend : CreatureTask.Chop) : s.Task;
+            var job = s.Task == CreatureTask.Hermit ? (s.Stage == 2 || s.Stage == 3 ? CreatureTask.Tend : s.Stage == 5 ? CreatureTask.Hammer : CreatureTask.Chop) : s.Task;
             if (s.Task == CreatureTask.Tend)
                 return TendBody(ref part, in s, joint);
             if (job != CreatureTask.Chop && job != CreatureTask.Hammer && !(job == CreatureTask.Mine && s.Stage == MinerAtFace))
@@ -1079,7 +1079,7 @@ namespace Punchy.Fauna
             var right = part.Side > 0f;
             var t = s.Clock + (s.Individual % 100) * 0.13f;
             // (A hermit's chores take a woodcutter's or a tender's pose: its stage says which.)
-            var job = s.Task == CreatureTask.Hermit ? (s.Stage == 2 ? CreatureTask.Tend : CreatureTask.Chop) : s.Task;
+            var job = s.Task == CreatureTask.Hermit ? (s.Stage == 2 || s.Stage == 3 ? CreatureTask.Tend : s.Stage == 5 ? CreatureTask.Hammer : CreatureTask.Chop) : s.Task;
             switch (job)
             {
                 case CreatureTask.Hammer:

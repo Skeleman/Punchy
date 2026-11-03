@@ -83,6 +83,7 @@ namespace Punchy.Terrain
             foreach (var r in Roadside)
                 if (r.Type != null && !types.Contains(r.Type))
                     types.Add(r.Type);
+            LandmarkBaking.AddLooks(types);
             return types;
         }
 
@@ -153,6 +154,7 @@ namespace Punchy.Terrain
                 if (roadside.Count > 0)
                 {
                     var before = source.Landmarks;
+                    LandmarkBaking.ApplyLooks(source, palette, landmarkTypes, roadside);
                     source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, roadside, allocator);
                     before.Dispose();
                 }
