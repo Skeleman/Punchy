@@ -1391,3 +1391,10 @@ FaunaDirector.cs, DebugControls.cs. All stay LF. No TerrainSource, player collis
   - Same-build runs in stats-off\ and stats-on\. The logs are Temp/a44_soff.log and a44_on.log in the animal tree.
 - Next: find what the remaining hidden ticks are (log the position and solid type of the worst one), tighten CountSolids versus Solid, and decide whether the deep-rock cases are real or a false count from the CaveDistance overstate. Calls ~85, builds 1.
 
+
+## A-44b (2026-11-03): animal-behaviours 8cd0ce4
+- Deep sinks were a false count: RockDistance used CaveDistance under any hillside (a nose a few cm under a slope counted ~20 m; 1e9 with no cave). Fixed: depth = nearer of (surface gap x normal.y) or CaveDistanceBound. Nose and middle tested at the ground there; stop at 5 cm in; buildings/props now solid for wild animals (FloraPlacement.Blocked).
+- Player run (8 x 60 s, caves 1-5, crowd at cave 2, village, landmark): hidden >0.15 m 0 ticks (was 6,909), max sink 0.03 m, floating >0.2 m 0 (was 258), top-10 case lists empty. Contacts logged 0/min (worth a look).
+- Editor sim: building and tower: 0 sink for Dormouse, Deer and GrizzlyBear. Cave wall: Dormouse 0.05 m, Deer 0.13 m, GrizzlyBear 0.30 m (6/300 ticks while pressing into a goal inside the rock).
+- Cost: Burst job, one thread: about 0.4 ms per frame at 50 near (1.3-1.7 ms in 3 of 8 minutes).
+- Hash 126 / 053C63D5. Shots: D:\PunchyMilestones\animal\a44b\cave1-{deer,bear,dormouse}-wall.png (deer viewed: whole body shows on the slope, but it isn't clearly turned at a wall).
