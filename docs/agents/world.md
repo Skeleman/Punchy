@@ -87,6 +87,9 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
 - Above a fall's lip the lower pool's wide channel reaches back under the upper river (river cells are 16 m, channels
   up to ~50 m), so the lowest-carve rule picked the lower water and land showed between the surfaces.
   RiverQuery.FallWater keeps the upper surface up to the lip.
+- A lake that LowerBreachedLakes drops leaves cells shaped for the old surface. RiverBaking.ReshapeLoweredLakes
+  (W-35b) reruns the bed shaping on the cells whose base level dropped, so their water never stands above the ground
+  or rises along the flow. It changes river and cave hashes on both islands, but not landmarks.
 - Surface falls run their length in half the effect's lifetime (LandmarkWaterfall.shader); cave falls keep 1.62.
   LandmarkEffectSystem.FallSounds plays WaterfallRush loops at the 4 nearest falls, logged as `[falls] sound sources`.
 - Icebergs (`Terrain/Icebergs`) are scenery from their own stream (seed ^ 0x1CEB3A65): they never touch landmarks or the cave hash. The beach strip on land has the "Ocean" biome as its dominant biome, so a sea-touches-biome test must cross it (IcebergBaking treats it as neutral shore for 320 m). Berg collision rides on `TerrainSource.TowerWall`/`Deck`.

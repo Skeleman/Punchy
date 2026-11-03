@@ -100,7 +100,11 @@ namespace Punchy.Terrain
                     MaxDistance = settings.MaxCarveDistance + cellSize * 1.5f,
                     Down = down, Width = width, Nearest = nearest
                 }.Schedule(bedDownhill).Complete();
+                var lakesBefore = new NativeArray<float>(lakes, Allocator.Temp);
                 LowerBreachedLakes(resolution, elevation, bed, water, lakes, lakeLevel);
+                ReshapeLoweredLakes(source, settings, cellSize * 0.0005f, resolution, origin, cellSize, seed, elevation,
+                                    down, order, lakesBefore, lakes, lakeLevel, floor, width, bed, water);
+                lakesBefore.Dispose();
 
                 var builder = new BlobBuilder(Allocator.Temp);
                 ref var root = ref builder.ConstructRoot<RiverMapBlob>();
@@ -286,6 +290,88 @@ namespace Punchy.Terrain
             seen.Dispose();
             stack.Dispose();
             cells.Dispose();
+        }
+
+        /// <summary>
+        /// W-35b: after LowerBreachedLakes, the rivers that ran into a lowered lake still had beds and water shaped for the
+        /// old surface, and the cells the lake left behind kept their raw ground as bed (rivers there ran uphill, with
+        /// water standing metres above the ground and stepping down). This reruns the bed shaping of BedDownhillJob, but
+        /// only on the cells whose base level dropped or that stopped being lake: their base level is now the lowered
+        /// lake, old lake cells get a channel bed like any river cell, beds are cut downhill and gorges spread, and the
+        /// water is set again so it never rises along the flow. Every other cell keeps its bed and water exactly.
+        /// </summary>
+        static void ReshapeLoweredLakes(in TerrainSource source, in RiverSettings settings, float minimumDrop, int resolution,
+                                        float2 origin, float cellSize, uint seed, NativeArray<float> elevation,
+                                        NativeArray<int> down, NativeList<int> order, NativeArray<float> lakesBefore,
+                                        NativeArray<float> lakes, NativeArray<float> lakeLevel, NativeArray<float> floor,
+                                        NativeArray<float> width, NativeArray<float> bed, NativeArray<float> water)
+        {
+            var count = lakes.Length;
+            var newFloor = new NativeArray<float>(count, Allocator.Temp);
+            var touched = new NativeArray<bool>(count, Allocator.Temp);
+            var any = false;
+            // Base levels again, downstream first (as BaseLevelJob, without making new ponds).
+            for (int k = 0; k < order.Length; k++)
+            {
+                var c = order[k];
+                var d = down[c];
+                newFloor[c] = lakes[c] > 0f ? lakeLevel[c] : d >= 0 ? newFloor[d] : floor[c];
+                var wasLake = lakesBefore[c] > 0f && lakes[c] <= 0f;
+                touched[c] = wasLake || newFloor[c] < floor[c] - 0.01f;
+                any |= touched[c];
+                // A cell the lake left: its bed is the lowest ground across its channel, as BedStartJob sets it.
+                if (wasLake && width[c] > 0f)
+                {
+                    var centre = RiverMapBlob.JitteredPoint(c, resolution, origin, cellSize, settings.Meander, seed);
+                    var radius = math.max(width[c] * 0.5f + 3f, cellSize * 0.6f);
+                    var lowest = source.BaseHeight(centre);
+                    for (int j = 0; j < 8; j++)
+                    {
+                        math.sincos(j * math.PI / 4f, out var s, out var co);
+                        lowest = math.min(lowest, source.BaseHeight(centre + new float2(co, s) * radius));
+                        lowest = math.min(lowest, source.BaseHeight(centre + new float2(co, s) * radius * 0.5f));
+                    }
+                    bed[c] = math.min(lowest, elevation[c]);
+                }
+            }
+            if (any)
+            {
+                // 1. Upstream first: no touched cell may sit higher than what drains into it (down to its base level).
+                for (int k = order.Length - 1; k >= 0; k--)
+                {
+                    var c = order[k];
+                    var d = down[c];
+                    if (d < 0 || !touched[d] || lakes[d] > 0f)
+                        continue;
+                    bed[d] = math.min(bed[d], math.max(bed[c] - minimumDrop, newFloor[d]));
+                }
+                // 2. Downstream first: drops steeper than MaxGradient are spread back upstream as a gorge.
+                for (int k = 0; k < order.Length; k++)
+                {
+                    var c = order[k];
+                    var d = down[c];
+                    if (d < 0 || !touched[c] || width[c] <= 0f || lakes[c] > 0f)
+                        continue;
+                    var length = math.distance(RiverMapBlob.JitteredPoint(c, resolution, origin, cellSize, settings.Meander, seed),
+                                               RiverMapBlob.JitteredPoint(d, resolution, origin, cellSize, settings.Meander, seed));
+                    bed[c] = math.min(bed[c], bed[d] + settings.MaxGradient * length);
+                }
+                // 3. Water below the banks, never lower than the water it flows into.
+                for (int k = 0; k < order.Length; k++)
+                {
+                    var c = order[k];
+                    if (!touched[c])
+                        continue;
+                    water[c] = lakes[c] > 0f ? lakeLevel[c]
+                        : bed[c] < source.World.SeaLevel ? source.World.SeaLevel
+                        : bed[c] - RiverSampling.Depth(width[c], settings) * 0.25f;
+                    var d = down[c];
+                    if (d >= 0 && width[c] > 0f)
+                        water[c] = math.max(water[c], water[d]);
+                }
+            }
+            newFloor.Dispose();
+            touched.Dispose();
         }
 
         static void Copy<T>(ref BlobBuilder builder, ref BlobArray<T> target, NativeArray<T> source) where T : unmanaged
