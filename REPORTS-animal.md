@@ -1090,3 +1090,22 @@ DONE (all five rows).
   reshoot), all quit on their own. Calls ~23 this relaunch.
 - Shots: PunchyMilestones/animal/a35 (raw + 800).
 - NEXT: A-36 warp keys. Follow-up for the supervisor: push-out drives players back down steep cave slopes (seg 245).
+
+## A-36 warp hotkeys (2026-11-02), animal lane
+
+| Row | Status | Notes |
+|---|---|---|
+| 1 F5-F8 warp keys | DONE | F5 biome, F6 settlement, F7 cave, F8 landmark, Shift back; F5-F8 free (F4 taken by input actions, logged). Nearest first, then cycle. Lands on dry ground like N/-goto. |
+| 2 3 s readout + help | DONE | Top-centre banner "F7 cave: Cave #36 (Mountains) 1/37 (-1479, 2106)"; help line row "warp: F5 biome · F6 settlement · F7 cave · F8 landmark (Shift+key back)". |
+| 3 Shots | DONE | `-warp biome|town|cave|landmark N` flag; five v2 shots + v1 town; viewed at 800 px. |
+
+Checks
+- Log key map + counts: v2 biomes 35, settlements 6, caves 37, landmarks 126; v1 biomes 45, settlements 12, caves 17, landmarks 102.
+- Hashes unchanged: v2 126 / 053C63D5, v1 102 / 51EA6463. Build Succeeded 0 errors. 0 exceptions; players quit on their own.
+- Rule 11: no network fields; moves the local player only. No world-lane files edited (reads TerrainSource blobs).
+- Gap: SettlementData has no name, so towns are named by landmark type + index.
+- Framing: biome 1 (Mountains, on a steep slope) has the follow camera inside the hill; v2 town 3 (DwarfMiningCamp) is under canopy. Readout reads in all.
+
+Shots: PunchyMilestones/animal/a36/800: a36-warp-biome, a36-warp-town, a36-warp-cave, a36-warp-landmark, a36-help, a36v1-warp-town (best: cave and v1 town).
+
+Commit: animal-behaviours f82be16.
