@@ -2,6 +2,17 @@
 
 Newest first.
 
+## 2026-11-02 batch A-42: skunk flee gas, goblin arms halfway in, lying legs fold above ground; gas not visible in the shots yet
+- DONE: skunk puffs green gas on each flee start plus a 2.5 s wind trail, 10 s cooldown, one pooled system, no network fields (animal-behaviours 237d226)
+- DONE: goblin arms pulled about halfway to neutral (HumanArm direction 180 -> 155 on Goblin.asset): shoulder back-angle idle 58.7 -> 33.7 deg, walk mean 54.1 -> 29.2 deg (range 27.2..81.0 -> 2.6..56.1). Human unchanged (8.7 / 8.9).
+- DONE: lying quadrupeds fold each leg about its hip until it clears the ground plane under it (CreatureAnimator; `-oldlie` = old pose). Probe, all 4-legged land species, Rest + Sleep, flat / 20 deg ahead / 20 deg side: legs more than 0.05 m under ground 297 -> 9. Flat: Deer +0.033, Dog +0.012, Skunk +0.007, Horse +0.012, Camel +0.015 m (before Deer -0.84, Horse -1.19, Camel -1.25, Dog -0.47, Skunk -0.19).
+- NOT DONE: 9 cases on the 20 deg side slope still -0.050..-0.075 m (tortoise/turtle Rest+Sleep, Horse, Jackrabbit, SandHare, MountainLion): the uphill hip socket sits inside the flank, the leg chain is clear. Fix idea: raise the lying body by cross-slope x half width.
+- NOT DONE: gas is logged (2 puffs in 2 scripted scares, peak 48 particles, 0.005 ms/frame avg, 2.2 ms max on the first-emit frame) but no green cloud shows in skunk-flee / skunk-2s (on snow). Needs one editor look: particle size/alpha or PuffMaterial tint. Lie after-shots lost framing (camera did not stay on the respawned specimen), so 1e is not shown well.
+- Checks: compile clean; 1 build (66 s, 0 errors); player log hash v2 126 / 053C63D5; no exceptions grepped; line endings kept (CRLF on CreatureAnimator/Data/Species).
+- Shots: PunchyMilestones/animal/a42/P-gob-idle.png (goblin idle before|after, small difference at this distance); P-gob-walk.png (walk before|after); P-skunk.png (flee moment | 2 s later, no visible gas)
+- Over budget: about 110 calls (ceiling 85), 1 build. Why: probe iterations on the fold, an editor frame-pick run whose shots never saved (shot dir missing, -pose reset per line) and the summary/restart.
+- NEXT: make the gas visible (bigger/denser puffs, check material tint), reframe lie shots (one specimen per run, `-pose X:lie` repeated per line), side-slope hip lift.
+
 ## 2026-11-02 batch A-20: built dogs see hares and growl; calm child carry still fails in the build
 - DONE: #7 dogs in a built player now hunt hares: species prey matched by name, not object (Resources copies broke it) (animal-behaviours e2eda9a)
 - NOT DONE: #7 side-on chase shot with the hare in frame: -huntside 6 caught a Wolf; the dog shot has no hare

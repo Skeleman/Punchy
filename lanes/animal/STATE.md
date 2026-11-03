@@ -1,23 +1,16 @@
-# Animal lane: state (2026-11-02, A-41 done)
+# Animal lane: state (2026-11-02, A-42 done)
 
-Worktree `Punchy` (animal lane only). On `animal-behaviours`: e3b8521 (A-41, pushed, built) on b2b6a70 (A-40) on e75918e (A-39). Lane hashes (A-40 build): v2 126 / 053C63D5 (A-41 touches no world code).
+Worktree `Punchy` (animal lane only). On `animal-behaviours`: 237d226 (A-42, pushed, built) on e3b8521 (A-41) on b2b6a70 (A-40) on e75918e (A-39). Lane hashes (A-40 build): v2 126 / 053C63D5 (A-41 touches no world code).
 Untracked `Assets/_Recovery/` is old and not ours. `Temp/PlayArgs.txt` holds an old a29b line (editor Play mode
 reads it as extra flags); swap it out only for an editor shot run and put it back (restored after A-41).
 Editor: ports are swapped (7800 reaches Punchy-world). Target the animal editor by --pid (26472 on 2026-11-02;
 the Unity.exe whose -projectpath is the Punchy tree). Check `Application.dataPath` first.
 
-## A-41 humanoid run pose (in e3b8521)
-- Run pose = limb keys (Assets/Game/Fauna/Limbs/HumanArm, HumanLeg) through CreatureAnimator (animal lane).
-  HumanArm: Human Elf Dwarf Ogre Hermit Goblin Ghost. HumanLeg: all but Goblin (GoblinLeg) and Ghost.
-- Elbow: run keys 85/95 deg; CreatureAnimator holds upright elbows at the keys when running (arm swing trait and
-  sprint pump no longer scale it). Before: run 42-112 by trait, sprint 149 (clamp). After: 85-95 everywhere.
-- HumanLeg RunPush hip 48 -> 32, RunReach -54 -> -60. Hip extension run 48 -> 32, sprint 65 -> 43; run stride
-  2.648 -> 2.423 m (cadence follows from MeasureGait, no slide). GoblinLeg untouched (15 deg).
-- Probe: Temp/a41_angles.cs (eval; tag in Temp/a41_tag.txt before/after) -> Temp/a41_angles.txt.
-- BLOCKED: Zach's Punchy.exe (Builds/Windows, PID 34888, from 20:47) ran the whole batch (waited 20:59-21:31).
-  No before shot, no build, no after shots in the player yet.
-
-- A-41 finished: shots in PunchyMilestones/animal/a41, build hash 126/053C63D5 unchanged.
+## A-42 (in 237d226, built)
+- SkunkGas.cs: FleeGas species puff on flee start; logs `SkunkGas:` lines. Gas not visible in player shots yet.
+- Goblin HumanArm direction 155. Lying leg fold in CreatureAnimator (OldLie SharedStatic, `-oldlie`).
+- Remainder: 9 side-slope (20 deg) hip cases -0.05..-0.075 m. Probe: Temp/a42_probe.cs (tag Temp/a42_tag.txt).
+- `-pose` is reset per shot-list line and waits 5 s (settle) after each line: repeat `-pose X:how` on every line.
 
 ## Warp keys (A-36)
 - F5 biome, F6 settlement, F7 cave, F8 landmark; Shift back. `-place Start` returns to the spawn.

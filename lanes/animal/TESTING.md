@@ -42,3 +42,4 @@ Read `lanes/shared/checks.md` first.
   0.5 m up the barn face. A camera beside or inside the building dithers the face away (PlayerReveal).
 - `-shotonhunt` ends its line at the first sprint, so later logs on that line (`-personalitylog`) never print: put `-personalitylog Dog -watch Dog:Hunt` on its own line. Growl lines start with `CreatureAudio:`, not `DebugControls:`. `-huntside` takes the first land hunter to sprint (it may be a wolf).
 - `-warp X N` counts from the player's position (nearest first), so a warp line after a -goto picks different targets. To match earlier warp shots, put the warp lines right after the load line.
+- A-42: `-pose X:lie` (lying, legs folded), `-pose X:scare` (stands 3 s then flees +z), `-oldlie` (old lying legs, per line). Pose waits 5 s after each line and is cleared per line, so repeat it.
