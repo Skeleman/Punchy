@@ -2,6 +2,18 @@
 
 Newest first.
 
+## 2026-11-02: queue item 10 recheck on main 41a9259 (W-27b, PR #53): v2-default host + join PASS; -island v1 PASS
+Bench-41a9259, host + local client, no `-island` flag, then `-island v1` on both. 0 exceptions, IndexOutOfRange or
+NullReference in all 4 logs. No dialogs.
+- **v2 (no flag):** both log generator version 2, layout B seed 8121, **126 landmarks, hash 053C63D5** (as the queue
+  expects). The host bakes **once** ("ready at 10.3 s"; was twice in c9f067f), client ready at 11.3 s. Host "in game
+  True, players 2", client "players 2", for the whole run. The only disconnect is ClosedByRemote after the client's
+  last status line, i.e. the client quitting.
+- **v1:** both 102 / 51EA6463, players 2 on both, same clean quit.
+- The c9f067f FAIL (host's own client timed out during the second bake) is fixed by W-27b.
+- Shots: results q10-default/q10-v1 (host 1, client 2 each; host and joiner stand on the same spawn point).
+Cost: about 12 calls, about $2 (estimate; usage_log lags).
+
 ## 2026-11-02: queue item 10, host + client on world-features a19bc79 (W-22, v2 default): FAIL, the host loses its own player during the v2 launch bake; v1 PASS
 Bench-a19bc79, `-host` plus a local `-join 127.0.0.1`, 75 s, then both quit. Pairs: no `-island` flag (twice) and
 `-island v1` on both. 0 exceptions, 0 NullReference, 0 IndexOutOfRange in all 6 logs. No dialogs.
