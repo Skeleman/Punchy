@@ -19,7 +19,7 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #46 | Animals flee a flying player: count height | A-46 |
 | #8 | NPC reactions to the player's race | backlog |
 | #20 | Mountain ranges dividing biome regions | backlog |
-| #35 #39 #40 | Bat folk, roads, colossi (roadmap) | backlog; #39 cobblestones (W-34) land with M-04 |
+| #35 #39 #40 | Bat folk, roads, colossi (roadmap) | #40 more colossi in W-58 (Zach priority); #35 backlog; #39 cobblestones (W-34) land with M-04 |
 
 ## Open -> card
 | Issue | Title | Card |
@@ -31,6 +31,6 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #69 #70 #71 #72 | Zach playtest: hermit shelters, wasteland rock collision, great mushroom, biome campgrounds | W-57 (after W-56) |
 | #31 | Laptop: houses lit wrong | Needs the laptop |
 | #21 #22 | Plant fidelity, underwater camera (design) | backlog |
-| #24 | Dungeons: caves and ruins | W-56 starts it (modular ruin kit, sunken temple) |
+| #24 | Dungeons: caves and ruins | W-56 starts the kit; W-58 extends it to cities and ruins (Zach priority) |
 | #10 #25-#27 #36-#38 | Roadmap | backlog |
 | #28 | Linux build | on hold |
