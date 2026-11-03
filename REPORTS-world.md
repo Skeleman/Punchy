@@ -2,6 +2,15 @@
 
 Newest first.
 
+## W-58 (2026-11-03), world-features 0c85421 (WIP)
+- DONE #24 kit: StructureKit (pieces Wall, Floor, Roof, Door, Window, Trim, Rail, Stair, Rubble, Moss; trims per culture), FloraForm KitBuilding/KitRuin. Temple(seed) unchanged (CAB1F447 / 777 21F1AD29). Kit house seed 42: 203 parts, fp B65B386D; ruin 107 parts.
+- DONE #24 city: ElfGrove is the biggest (r 96, -2511,-1518, 28 plots). ElfGroveLayout gets KitBuilding = KitHouse (Elf trims, 24 variants, seeded per building). Plots unchanged. Shots: city_street_elfgrove, city_overview_elfgrove.
+- DONE #24 ruins: Ruin species now builds kit ruins (form KitRuin, 12 variants) at all 4 ruin landmarks (2119.3,3131.6; -2226.2,2325.5; -1899.7,2164.6; 1420.4,2159.8). Shot: ruin_kit_1420_2160.
+- DONE #40: StoneColossi.cs: kneeling titan with snow (816,144,1312, yaw 79, Tundra/Glacier/Mountains) and half-buried head with moss (-1071,19,-779, yaw 346, Grassland/Temperate). Own rng salts, no landmark data: fingerprint 127/0AAACD45 -> 127/0AAACD45 (unchanged). Shots: colossus_kneeling_titan, colossus_halfburied_head.
+- NOT DONE #70: the sim found 0 MagneticDebris/MagneticDrift instances loaded near ElectricWastelands spots (-600,-1400; 700,-2400; -1000,-4000), even with the camera moved there. Probe is ready (W58Probe.Mounds); the next try should find where flora tiles stream from.
+- Build 1x (Succeeded, 0 errors). Ground all C0C906EE310FA91F, caves C49E8E3036C741FC (unchanged). v2 127 landmarks, raw player hash A5ED303A (= 0AAACD45, unchanged). Rivers: code untouched; my probe hash (A77D2ED7B919296E) uses another formula from A5B3DE5D53257332, so it can't be compared. v1 was not run.
+- Shots: D:/PunchyMilestones/W-58 (not viewed). Left: #70 sim, v1 check, look at the kit shots (kit assets were first seen in the player).
+
 ## W-57b (2026-11-03), world-features f6b77f1
 - DONE (code, no sim) #70: MagneticDebris pieces below 2.2 m now lie fallen on the mound and block via stepped colliders (cut off below the 0.4 m step-up); the scorched mound blocks. Pieces higher up keep orbiting and stay non-solid. MagneticDrift: the mound under the rock blocks; the rock always floats 5 m+ up, so it stays non-solid. Form text updated. NOT DONE: the editor sim at 5 slabs (ran out of budget).
 - DONE #69: FloraForm.HazardShelter + ShelterStyle (AshDome / SnowLeanTo / ShardDome); 3 species; all 7 layouts list them with OnlyIn (Ashlands+Volcano / Tundra+Glacier / ElectricWastelands+GlassDesert). They take the house plot nearest the centre with no rng draws. On v2, 2 settlements sit in Tundra (OgreCamp -2073.8,1266.1; DwarfHold -2337.8,1994.6); none in ash or waste. Shots: shelter_tundra_dwarfhold, shelter_tundra_ogrecamp.
