@@ -92,6 +92,10 @@ namespace Punchy.Terrain
             var turtles = TurtleVillageBaking.LoadType();
             if (turtles != null && !types.Contains(turtles))
                 types.Add(turtles);
+            // #37: the sea folk village and its landing after those.
+            foreach (var sea in new[] { SeaFolkBaking.LoadVillage(), SeaFolkBaking.LoadLanding() })
+                if (sea != null && !types.Contains(sea))
+                    types.Add(sea);
             return types;
         }
 
@@ -204,6 +208,14 @@ namespace Punchy.Terrain
                 {
                     var before = source.Landmarks;
                     source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, peaks, allocator);
+                    before.Dispose();
+                }
+                // #37: the sea folk settlement in the largest deep lake and its landing, after the turtles.
+                var lake = SeaFolkBaking.Place(source, landmarkTypes);
+                if (lake.Count > 0)
+                {
+                    var before = source.Landmarks;
+                    source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, lake, allocator);
                     before.Dispose();
                 }
             }

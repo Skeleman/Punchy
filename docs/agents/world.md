@@ -161,3 +161,31 @@ front (the door side), y = 0 is the ground, metres.
   rails), and boathouses as `House` on a `Platform`. Give them their own species with `KitCulture` set, and a
   settlement layout whose plots name those species. Keep new random draws after the existing ones in `House`, or
   every existing kit building changes.
+
+## Sea folk (W-62, W-62b, issue #37)
+
+`Terrain/Settlements/SeaFolkBaking.cs` puts one underwater settlement in the island's biggest deep lake (island v2
+only). It is two landmarks, placed after every other place on their own new spots, so nothing placed earlier moves;
+neither stamps the ground or the water.
+
+- **Lake pick.** Connected lake cells on the river map (`LakeDepth > 0.3`, 4-neighbour). The biggest lake that is at
+  least `MinDepth` (8 m, surface to deepest bed) deep wins; the lowest cell index breaks ties, so the pick is fixed
+  for a seed. No lake that deep: no sea folk (logged as `[sea folk] none: ...`).
+- **Village (`Resources/SeaFolkVillage`).** Its middle is the lake cell nearest the lake's centroid that is 9-16 m
+  deep, clear of every landmark, with its whole ring (8 points at 0.85 x radius) more than 3 m under water and a
+  bank for the landing. Its props (StructureKit, `FolkCulture.SeaFolk` trim) are 6 shell domes on the bed, 3 spiral
+  spires tall enough to break the surface (so the village reads from the shore), reefs and lake-bed details (kelp,
+  shell mosaics, bubble vents, sunken trade goods, coral arches, glowing anemones), all as data in the landmark's
+  layout. Seed 8121: village at -1480,-24, bed 13.1 m down.
+- **Landing (`Resources/SeaFolkLanding`).** On the nearest bank, a `StructureKit.Pier` (species `SeaFolkPier`,
+  `FaceLandmark` 1) runs out towards the village, seated on the bank's ground. Like the fishing docks (W-59c), its
+  land end is a ramp that starts 0.4 m in the ground; on a pier it is 8 m long (about 10 degrees), because a long
+  model gets coarse support-grid cells (~0.8 m) and a dock's 4.6 m ramp rose 0.5 m per cell, a step the player
+  could not climb (W-62b). A solid bed sits 0.17 m under the planks: the planks' thin gaps caught three grid cell
+  centres, which read as holes and dropped a walker to the lake bed. Fishing docks got the same bed (W-62c, #36).
+- **Clear pier end (W-62c).** A spire (`FloraRules.PierClear`) is not placed within 6.5 m x scale of any pier's far
+  end (`PierReach`, the pier species' length), so the village reads from the deck. Placement rule only: no landmark
+  moves. Probe gotcha: the support grid exists only for loaded tiles, so walk-sim a dock from its own village (a
+  walk far from the player reports `support -` everywhere and "drops" to the bed).
+- **Underwater view.** The camera and water have no underwater mode yet (#22): from below the surface you see the
+  sky, no fog, tint or surface from beneath, so shots of the village look like dry land.

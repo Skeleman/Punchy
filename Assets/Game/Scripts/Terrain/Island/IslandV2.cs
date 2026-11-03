@@ -413,6 +413,14 @@ namespace Punchy.Terrain
                 if (palette.Landmarks.Length == types.Count - 1)
                     palette.Landmarks = types.ToArray();
             }
+            // #37: and the sea folk village and landing after those, the same way.
+            foreach (var sea in new[] { SeaFolkBaking.LoadVillage(), SeaFolkBaking.LoadLanding() })
+                if (sea != null && !types.Contains(sea))
+                {
+                    types.Add(sea);
+                    if (palette.Landmarks.Length == types.Count - 1)
+                        palette.Landmarks = types.ToArray();
+                }
             TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent, villages: true);
             // W-29: the grand falls go in after every place, so no landmark, cave or settlement sees them.
             source.GrandFalls = GrandFalls.Build(source, Allocator.Persistent);

@@ -33,7 +33,9 @@ namespace Punchy.Terrain
         /// <summary>The tall turtle folk of the mountaintops (#38): igloo settlements on the highest peaks.</summary>
         TurtleFolk = 128,
         /// <summary>The bat folk of the deep caves (#35): houses hung from cave walls and ceilings, no lights at all.</summary>
-        BatFolk = 256
+        BatFolk = 256,
+        /// <summary>The sea folk of the central lake (#37): shell domes on the lake bed, spires and a pier above it.</summary>
+        SeaFolk = 512
     }
 
     /// <summary>
