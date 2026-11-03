@@ -32,7 +32,7 @@ namespace Punchy.Flora
         public int OwnColour;
         /// <summary>1 for built things (FloraGenerator.Founded): their bases take a band of the ground's colour.</summary>
         public int Dirt;
-        /// <summary>1 for hive trees: placed in a landmark, they face its way, so their comb is on a known side.</summary>
+        /// <summary>1 for hive trees and docks: placed in a landmark, they face its way (comb on a known side, docks out to sea).</summary>
         public int FaceLandmark;
         /// <summary>
         /// How far its footprint reaches at scale 1 (m): the trunk for trees, about half its spread otherwise. Settlement
@@ -216,7 +216,8 @@ namespace Punchy.Flora
                     Tilt = s.Form == FloraForm.Boulder ? 0.85f : 0f,
                     OwnColour = s.KeepOwnColour ? 1 : 0,
                     Dirt = FloraGenerator.Founded(s.Form) ? 1 : 0,
-                    FaceLandmark = s.Form == FloraForm.HiveTree ? 1 : 0,
+                    // Docks (#36) face the landmark's way too: a fishing village faces open water, so they run out to sea.
+                    FaceLandmark = s.Form == FloraForm.HiveTree || s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Dock ? 1 : 0,
                     Footprint = Footprint(s),
                     Span = s.Form == FloraForm.IceArch ? (s.Height.x + s.Height.y) * 0.5f * math.max(s.Spread, 0.5f) * 0.5f : 0f
                 };

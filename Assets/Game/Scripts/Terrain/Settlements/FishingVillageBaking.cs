@@ -18,6 +18,8 @@ namespace Punchy.Terrain
         const float Apart = 350f;
         /// <summary>How far inland of the waterline the middle sits: the docks' ring (0.6 radius) lands on the shore.</summary>
         const float Inland = 24f;
+        /// <summary>The longest dock (m, StructureKit.Dock at the biggest species size): its far end must be over water.</summary>
+        const float DockReach = 19f;
 
         public static string LastLog = "";
 
@@ -153,6 +155,18 @@ namespace Punchy.Terrain
                 var h = source.SampleHeight(spot);
                 if (h < sea + 0.5f || math.abs(h - mid) > 6f || InRiver(source, spot))
                     return false;
+            }
+            // Every dock runs out along the facing (FloraRule.FaceLandmark): its far end must stand in water, not on a flat beach.
+            foreach (var prop in type.Props)
+            {
+                if (prop.Species == null || prop.Species.KitShape != KitShape.Dock)
+                    continue;
+                for (int k = 0; k < math.max(1, prop.Count); k++)
+                {
+                    var spot = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / math.max(1, prop.Count)), type.Radius);
+                    if (source.SampleHeight(spot + dir * DockReach) > sea - 0.6f)
+                        return false;
+                }
             }
             return true;
         }
