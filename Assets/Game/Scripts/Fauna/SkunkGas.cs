@@ -17,8 +17,8 @@ namespace Punchy.Fauna
     {
         const float Cooldown = 10f, TrailTime = 2.5f, CheckEvery = 0.1f, FindEvery = 2f, Range = 90f;
         const int BurstCount = 60;
-        // (A strong yellow-green, nearly opaque at the core: the soft puff shader fades the edges and lights it dimly.)
-        static readonly Color Gas = new Color(0.78f, 0.92f, 0.2f, 1f);
+        // (A yellow-green, nearly opaque at the core; the gas material draws it unlit, so not too bright.)
+        static readonly Color Gas = new Color(0.62f, 0.78f, 0.18f, 0.9f);
 
         struct Trail { public Entity Creature; public float Start, Owed; }
 
@@ -26,6 +26,7 @@ namespace Punchy.Fauna
         EntityQuery bodies;
         ParticleSystem gas;
         Punchy.Ambience.AmbienceSystem ambience;
+        Material gasMaterial;
         readonly List<Entity> gassers = new List<Entity>();
         readonly Dictionary<Entity, CreatureMode> lastMode = new Dictionary<Entity, CreatureMode>();
         readonly Dictionary<Entity, float> lastPuff = new Dictionary<Entity, float>();
@@ -178,12 +179,21 @@ namespace Punchy.Fauna
             }
         }
 
-        /// <summary>The pooled system, on the ambience's soft puff material: swelling, slowing, fading puffs.</summary>
+        /// <summary>The pooled system: swelling, slowing, fading puffs. On its own unlit gas material (Resources/SkunkGas,
+        /// Punchy/Gas Puff, A-43): the ambience's soft puff material dims puffs and fades them near the ground, and the
+        /// cloud didn't show in builds. The ambience's puff material only if that one is missing.</summary>
         bool CreateGas()
         {
-            if (ambience == null)
-                ambience = FindAnyObjectByType<Punchy.Ambience.AmbienceSystem>();
-            if (ambience == null || ambience.PuffMaterial == null)
+            if (gasMaterial == null)
+                gasMaterial = Resources.Load<Material>("SkunkGas");
+            if (gasMaterial == null)
+            {
+                if (ambience == null)
+                    ambience = FindAnyObjectByType<Punchy.Ambience.AmbienceSystem>();
+                if (ambience != null)
+                    gasMaterial = ambience.PuffMaterial;
+            }
+            if (gasMaterial == null)
                 return false;
             var go = new GameObject("SkunkGasPuffs");
             go.SetActive(false);
@@ -217,7 +227,7 @@ namespace Punchy.Fauna
             spin.enabled = true;
             spin.z = new ParticleSystem.MinMaxCurve(-0.5f, 0.5f);
             var renderer = go.GetComponent<ParticleSystemRenderer>();
-            renderer.sharedMaterial = ambience.PuffMaterial;
+            renderer.sharedMaterial = gasMaterial;
             renderer.renderMode = ParticleSystemRenderMode.Billboard;
             renderer.sortMode = ParticleSystemSortMode.Distance;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;

@@ -196,6 +196,11 @@ namespace Punchy.Fauna
         {
             var before = s.GaitSpeed;
             var rate = Acceleration(ref b) * dt;
+            // (A leaping run, A-43: crossing the sprint band at a full run's acceleration swapped the run's legs for the
+            // leap's poses in a tenth of a second. Through the top of the range its legs change pace more gently: about
+            // a third of a second into the leap, a little quicker back out of it.)
+            if (b.LeapingRun && !b.Upright && math.max(before, s.Speed) > b.RunSpeed * 0.8f * math.max(s.Scale, 0.01f))
+                rate *= s.Speed > before ? 0.3f : 0.55f;
             s.GaitSpeed = before + math.clamp(s.Speed - before, -rate, rate);
             // (A wanderer's pace wavers by a hair from frame to frame, steering: too little to move a foot, and most
             // frames end here.)

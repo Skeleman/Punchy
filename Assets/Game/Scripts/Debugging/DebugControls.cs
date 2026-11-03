@@ -1483,7 +1483,7 @@ namespace Punchy.Debugging
                     if (parts.Length >= 3 && float.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var gy))
                         t.Position.y = ground.FloorUnder(new float3(gx, gy + 1f, gz), out _) + 0.05f;
                     em.SetComponentData(goer, t);
-                    Debug.Log($"DebugControls: to {gx:F0},{gz:F0}");
+                    Debug.Log($"DebugControls: to {gx:F0},{t.Position.y:F1},{gz:F0}");
                 }
             }
             // "-goflat" (A-13 #46): to the nearest dry spot whose ground height spread over a 30 m circle is under 0.5 m
@@ -3883,20 +3883,33 @@ namespace Punchy.Debugging
                 }
             }
 
-            // Landmarks: every one, seen from just outside (the low side of a cliff), as N does.
+            // Landmarks: every one, seen from just outside (the low side of a cliff), as N does. Not the caves and
+            // grottoes (a landmark type with a Cave): F7 already goes to those (A-43, the owner's call).
             if (hasLandmarks)
             {
                 ref var set = ref source.Landmarks.Value;
+                var caveKinds = new SortedDictionary<string, int>();
                 for (int i = 0; i < set.Instances.Length; i++)
                 {
                     ref var inst = ref set.Instances[i];
                     if (inst.Type >= palette.Landmarks.Length || palette.Landmarks[inst.Type] == null)
                         continue;
+                    if (palette.Landmarks[inst.Type].Cave)
+                    {
+                        caveKinds.TryGetValue(palette.Landmarks[inst.Type].name, out var seen);
+                        caveKinds[palette.Landmarks[inst.Type].name] = seen + 1;
+                        continue;
+                    }
                     var radius = set.Types[inst.Type].Radius * inst.Scale;
                     var away = set.Types[inst.Type].Shape == LandmarkShape.Cliff ? -inst.Facing : math.normalizesafe(inst.Position, new float2(1f, 0f));
                     var at = Dry(source, inst.Position + away * radius * 1.1f, inst.Position);
                     warpTargets[3].Add(new Location { Name = palette.Landmarks[inst.Type].name, Position = at, Yaw = Yaw(inst.Position - at) });
                 }
+                var dropped = 0;
+                foreach (var kind in caveKinds.Values)
+                    dropped += kind;
+                Debug.Log($"DebugControls: F8 landmarks {warpTargets[3].Count + dropped} before, {warpTargets[3].Count} after leaving out caves: " +
+                          string.Join(", ", System.Linq.Enumerable.Select(caveKinds, k => $"{k.Key} {k.Value}")));
             }
 
             Debug.Log($"DebugControls: warp keys F5 {WarpNames[0]}, F6 {WarpNames[1]}, F7 {WarpNames[2]}, F8 {WarpNames[3]} (Shift back; F4 is taken by the input actions); targets: biomes {warpTargets[0].Count}, settlements {warpTargets[1].Count}, caves {warpTargets[2].Count}, landmarks {warpTargets[3].Count}");
@@ -3920,7 +3933,9 @@ namespace Punchy.Debugging
         {
             if (playerQuery.TryGetSingleton<LocalTransform>(out var player))
             {
-                GUIUtility.systemCopyBuffer = $"-goto {player.Position.x:F0},{player.Position.z:F0}";
+                // (With the height, A-43: in a cave the spot is under the ground surface, and -goto x,y,z goes back
+                // to the floor there.)
+                GUIUtility.systemCopyBuffer = $"-goto {player.Position.x:F0},{player.Position.y:F1},{player.Position.z:F0}";
                 copiedUntil = Time.unscaledTime + 2f;
                 readout = null;
             }
@@ -3990,6 +4005,8 @@ namespace Punchy.Debugging
             return string.Join(" · ", hints);
         }
 
+        bool readoutUnderground;
+
         string BuildReadout()
         {
             var lines = new List<string>();
@@ -4003,8 +4020,15 @@ namespace Punchy.Debugging
                 // Where exactly (for reporting a spot: F3 copies it; "-goto x,z" comes back to it).
                 var forward = math.mul(player.Rotation, new float3(0f, 0f, 1f));
                 var heading = (math.degrees(math.atan2(forward.x, forward.z)) + 360f) % 360f;
+                source.FloorUnder(player.Position + new float3(0f, 0.5f, 0f), out var underground);
                 lines.Add($"x <b>{player.Position.x:F0}</b>   y <b>{player.Position.y:F0}</b>   z <b>{player.Position.z:F0}</b>   facing {heading:F0}°" +
-                          (copiedUntil > Time.unscaledTime ? "   <color=#9f9>copied</color>" : ""));
+                          (underground ? "   <b>in cave</b>" : "") + (copiedUntil > Time.unscaledTime ? "   <color=#9f9>copied</color>" : ""));
+                // (Logged whenever it goes into or out of a cave, so a test run shows what the readout said there.)
+                if (underground != readoutUnderground)
+                {
+                    readoutUnderground = underground;
+                    Debug.Log($"DebugControls: readout {lines[lines.Count - 1].Replace("<b>", "").Replace("</b>", "")}");
+                }
                 if (Weather != null && Weather.Field.Ready)
                     lines.Add($"day: <b>{Weather.DayTypeName}</b>   weather here: {Weather.Field.Describe(new Vector2(xz.x, xz.y))}");
             }

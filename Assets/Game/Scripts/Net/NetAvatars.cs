@@ -183,7 +183,7 @@ namespace Punchy.Net
                 Seed = look.Individual | 1u,
                 Individual = look.Individual
             });
-            em.SetComponentData(e, new RemoteAvatar { Ghost = ghost });
+            em.SetComponentData(e, new RemoteAvatar { Ghost = ghost, Species = Fauna != null ? Fauna.SpeciesIndex(PlayableSpecies[look.Species]) : -1 });
             return e;
         }
     }

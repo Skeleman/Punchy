@@ -48,18 +48,27 @@ namespace Punchy.Fauna
 
         /// <summary>
         /// How gathered a leaping run (CreatureBlob.LeapingRun: dogs, cats, wolves) is at a point of its stride: 1 with all
-        /// four feet under the body, 0 stretched out in the leap. Held gathered, a snap out into the leap, held in the
-        /// air, then eased back in (#6, the owner's spec).
+        /// four feet under the body, 0 stretched out in the leap. Held gathered, eased out into the leap, held in the
+        /// air, then eased back in (#6, the owner's spec). A-43: the owner found the move between the two key poses
+        /// almost immediate (it took 0.08 of a stride, under a frame at 30 fps); each ease now takes about a third of
+        /// the stride (smootherstep, flat at both ends), and the holds are shorter to make room.
         /// </summary>
         public static float LeapGather(float p)
         {
             if (LeapFreeze.Data > 0f)
                 p = LeapFreeze.Data - 1f;
             p = math.frac(p);
-            if (p < 0.3f) return 1f;
-            if (p < 0.38f) return 1f - math.smoothstep(0.3f, 0.38f, p);
-            if (p < 0.68f) return 0f;
-            return math.smoothstep(0.68f, 1f, p);
+            if (p < 0.16f) return 1f;
+            if (p < 0.46f) return 1f - Smootherstep(0.16f, 0.46f, p);
+            if (p < 0.6f) return 0f;
+            return Smootherstep(0.6f, 1f, p);
+        }
+
+        /// <summary>A smoothstep whose rate also eases in and out (no kink where a hold meets an ease).</summary>
+        static float Smootherstep(float a, float b, float x)
+        {
+            var t = math.saturate((x - a) / (b - a));
+            return t * t * t * (t * (t * 6f - 15f) + 10f);
         }
 
         /// <summary>How much less a leaping run's hip swings at either extreme than the pushed run key gives (A-25, #6:
