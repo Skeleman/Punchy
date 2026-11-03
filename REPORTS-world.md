@@ -2,6 +2,14 @@
 
 Newest first.
 
+## W-65d (2026-11-03) world-features 7aaeb67 (WIP: stopped at the call ceiling, no build)
+
+- Row 1 (#38) slope igloos: PASS in the editor. PorchSeat now tries 6 headings (including facing downhill) and sinks up to 3.5 m. Editor sim: 5/5 stop at the door, including 344.7,50.0 / 343.5,67.8 / 360.0,74.4. No player walk yet.
+- Row 2 (#36) wharf foot: NOT FIXED / NOT VERIFIED. Profile at -3285: the bank drops 0.73 m at lz -3.25, then the treads rise 0.45 -> 1.25 over ground at about 0.5. The editor line sim (with props loaded) reaches the shore end on all 4 wharves, so it does not reproduce the player stop at -3285.9. Changed to 10 treads over 6 m (was 7 over 5.2) as a best guess. Needs a player walk. Next suspects: the player standing on the bank under the low treads (PlayerMovementSystem line 337 support pick), or swim mode at the shoreline (line 77).
+- Row 3 stone rows: code done (6 variants 4-14 m, about 1.1 m pitch, fitted bank to bank). The world count (W65dProbe.Count) was still running in the editor at the ceiling, so there is no count yet.
+- Row 4: no build, no shots, no hashes. StructureKit tread change: check the landmark hash.
+- Note: Driftwood.asset has the same corrupted Variants line (`\001 5`) that SteppingStone.asset had. Left alone.
+
 ## W-65c (2026-11-03) world-features 601405c
 
 - Row 1 (#38) PARTLY: the door block mesh is gone; a collider-only circle behind the door stops walkers. The tunnel roof, walls, crown and arch are 0.6 m higher, with a lintel over the door. Editor sim (head 1.8, colliders counted): 2/5 stop at the door. Igloo 5 (361.9,45.7) stops 4.06 m from the middle, door 3.47: FIXED. 3 still stop at the mouth because of the slope, not the roof: 344.7,50.0 and 343.5,67.8 have ground 1.8 m below the floor at the mouth (a 1.8 m step up onto the snow path), and 360.0,74.4 has ground 2.2-4.4 m above the floor (tunnel buried). The fix is PorchSeat seating, which moves flora; not done.
