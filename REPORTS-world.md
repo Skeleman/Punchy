@@ -862,3 +862,25 @@ b/weather-mapjob.
 - **Checks:** hashes unchanged: v2 126 / 053C63D5, caves 5D90D9CFC5326976; v1 102 / 51EA6463, caves 47C703C0E17F77CB.
 - Open: a small gap at the chamber's tunnel joint. W-27 tower steps may not hold the player (Floor ignores the tower floor).
 - 1 build. No Punchy.exe left running.
+
+## W-29 grand falls (2026-11-02), world-features d9ce83c
+- Row 1 DONE: survey (v2, central lake at 25.3 m).
+
+  | Option | Site | Total drop | Tiers | Length | Moves or flattens |
+  |---|---|---|---|---|---|
+  | A: mountain into the lake | (316,905) at 166 m to the NW shore near (530,1400) | ~140 m (steepest 76 m over 96 m) | 1 main + 4 small | ~550 m | Nothing: no village, cave, road or river on the path; Tors (448,1360) dodged |
+  | B: lake over a rim | SE rim, e.g. (757,1265), down to the sea | <= 25 m (lake to sea) | 1-2 | 600-1000 m | Lake level falls if cut; cannot reach 60 m |
+
+  Recommendation: A.
+- Row 2 DONE: `Terrain/Rivers/GrandFalls.cs`, a v2 overlay baked after every place.
+  - Tiers: 5.0, MAIN 72.5, 10.3, 5.5, 5.5 m, each with a plunge pool (main pool r 20). 548 m long, 140.8 m in all.
+  - The water surface is continuous (a staircase along the path).
+  - Flow 1.2-4.0 m/s on reaches, 0.6 m/s in pools.
+  - Sound: 3-4 sources, heard up to 180 m.
+  - Main drop: 3 curtains and 2 big mist plumes.
+- Row 3 DONE: [whole](PunchyMilestones/world/w29/w29-whole.png), [main drop from the pool](PunchyMilestones/world/w29/w29-pool.png), [from the lip](PunchyMilestones/world/w29/w29-lip.png), [lower cascades](PunchyMilestones/world/w29/w29-cascades.png).
+  - Noon, Clear weather. Reads as one connected system.
+- **Checks:** hashes unchanged: v2 126 / 053C63D5, caves 5D90D9CFC5326976. v1 is untouched by code (not run).
+- Open: a slanted water-mesh sheet beside the main curtain; snowy levees on the plateau; plain gorge walls.
+  W-28 leftovers (berg tunnel gap, tower steps) not done.
+- 1 build. No Punchy.exe left running.
