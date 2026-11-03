@@ -33,12 +33,18 @@ namespace Punchy.Terrain
             foreach (var biome in palette)
                 if (biome != null)
                     foreach (var l in biome.Landmarks)
-                        if (l.Type != null && !types.Contains(l.Type))
+                        if (l.Type != null && !l.Type.OnePerIsland && !types.Contains(l.Type))
                             types.Add(l.Type);
             if (placed != null)
                 foreach (var p in placed)
                     if (p.Type != null && !types.Contains(p.Type))
                         types.Add(p.Type);
+            // One-per-island types (W-27) go last, so every other type keeps its index.
+            foreach (var biome in palette)
+                if (biome != null)
+                    foreach (var l in biome.Landmarks)
+                        if (l.Type != null && l.Type.OnePerIsland && !types.Contains(l.Type))
+                            types.Add(l.Type);
             return types;
         }
 
@@ -415,7 +421,7 @@ namespace Punchy.Terrain
                     byName.Add(t);
                 byName.Sort((a, b) => typeHashes[a].CompareTo(typeHashes[b]));
                 foreach (var t in byName)
-                    if (entryTypes.Contains(t) && !types[t].OnlyAsCompanion && !instances.Exists(inst => inst.Type == t) && Place(t, 1) == 0)
+                    if (entryTypes.Contains(t) && !types[t].OnlyAsCompanion && !types[t].OnePerIsland && !instances.Exists(inst => inst.Type == t) && Place(t, 1) == 0)
                         PlaceFiner(t);
 
                 // A type that found no free spot on the candidate grid (its only suitable one taken by a bigger
@@ -593,7 +599,8 @@ namespace Punchy.Terrain
                     HasGround = type.Ground != null ? 1 : 0,
                     Ground = type.Ground != null ? BiomeBaking.SurfaceData(type.Ground) : default,
                     GroundRadius = math.max(type.GroundRadius, 0.05f),
-                    ClearRadius = type.ClearRadius
+                    ClearRadius = type.ClearRadius,
+                    TowerHeight = type.OnePerIsland ? type.TowerHeight : 0f
                 };
             }
             var poolArray = builder.Allocate(ref root.Pools, pools.Count);

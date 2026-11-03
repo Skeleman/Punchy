@@ -23,6 +23,9 @@ MonoBehaviour:
   Relief: 1.5
   FeatureSize: 600
   Octaves: 2
+  PondDepth: 0
+  PondSize: 14
+  PondCover: 0.3
   Sharpness: 1
   TerraceSteps: 0
   WindDirection: 60
@@ -85,8 +88,13 @@ MonoBehaviour:
     PerRealm: 1
   - Type: {fileID: 11400000, guid: 12967ba815ceb784586093b841f61935, type: 2}
     Density: 1.5
+    PerRealm: 1
   - Type: {fileID: 11400000, guid: 835336737195be64a8d3c46d1ef30a96, type: 2}
     Density: 0.3
+    PerRealm: 1
+  - Type: {fileID: 11400000, guid: d1578acfa627cb240b764018adba03b8, type: 2}
+    Density: 0
+    PerRealm: 1
   Fauna:
   - Species: {fileID: 11400000, guid: aae4bba4d0ab0dd4099229ff27ce813a, type: 2}
     Density: 0.4

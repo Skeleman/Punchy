@@ -164,6 +164,12 @@ namespace Punchy.Terrain
         [Tooltip("Bumps added over the footprint (m).")]
         [Min(0f)] public float Roughness;
 
+        [Header("Tower")]
+        [Tooltip("Placed exactly once per island, after everything else (roads included), in the largest patch of the biome that lists it (with density 0), so no other landmark moves (SaltTowerBaking, W-27).")]
+        public bool OnePerIsland;
+        [Tooltip("A climbable basalt tower this tall (m, +-10% per island), with a spiral of steps round it (SaltTowerShape). 0: none.")]
+        [Min(0f)] public float TowerHeight;
+
         [Header("Water")]
         public List<LandmarkPool> Pools = new List<LandmarkPool>();
         [Tooltip("Pools have their own look instead of the biome's water.")]

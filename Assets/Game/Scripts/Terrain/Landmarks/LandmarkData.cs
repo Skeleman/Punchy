@@ -20,6 +20,8 @@ namespace Punchy.Terrain
         public SurfaceBlobData Ground;
         public float GroundRadius;
         public float ClearRadius;
+        /// <summary>A climbable tower's height (SaltTowerShape), or 0.</summary>
+        public float TowerHeight;
     }
 
     public struct LandmarkPoolData
