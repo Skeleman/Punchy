@@ -92,6 +92,26 @@ namespace Punchy.Fauna
             var entities = query.ToEntityArray(Allocator.Temp);
             var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
             var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            // Every in-range creature's ground (cave-mouth test, water under it) is looked up in one Burst job up front:
+            // done one by one in managed code it was the costliest game system near busy caves (#81, about 4 ms a frame).
+            // (-oldtrace keeps the old managed lookups, to measure against.)
+            var n = entities.Length;
+            var need = new NativeArray<byte>(n, Allocator.TempJob);
+            var positions = new NativeArray<float3>(n, Allocator.TempJob);
+            var noSurface = new NativeArray<bool>(n, Allocator.TempJob);
+            var grounds = new NativeArray<GroundSample>(n, Allocator.TempJob);
+            for (int i = 0; i < n; i++)
+            {
+                var s = states[i];
+                ref var b = ref bodies[i].Blob.Value;
+                var range = math.max(Range, b.SeenFrom);
+                positions[i] = s.Position;
+                if (math.distancesq(s.Position, camPos) <= range * range)
+                    need[i] = (byte)(b.Breaches || b.Tunnels || b.CrossesWater ? 2 : 1);
+            }
+            if (!OldTrace)
+                Unity.Jobs.IJobParallelForExtensions.Run(new GroundJob
+                    { Terrain = terrain, Positions = positions, Need = need, NoSurface = noSurface, Grounds = grounds }, n);
             for (int i = 0; i < entities.Length; i++)
             {
                 var s = states[i];
@@ -103,23 +123,55 @@ namespace Punchy.Fauna
                     steps.Remove(entities[i]);
                     continue;
                 }
+                if (OldTrace && need[i] == 2)
+                    grounds[i] = terrain.SampleGround(s.Position.xz);
                 if (b.Breaches || b.Tunnels)
                 {
-                    Splash(entities[i], s, ref b, terrain, now);
+                    Splash(entities[i], s, ref b, terrain, grounds[i], now);
                     continue;
                 }
                 // Nothing is printed over a cave mouth or from underground: the marks sit on the terrain's surface, which is cut
                 // away there (#14, prints hanging in the air).
-                if (NoSurface(terrain, s.Position))
+                if (OldTrace ? NoSurface(terrain, s.Position) : noSurface[i])
                     continue;
                 Feather(entities[i], s, ref b, terrain, now);
                 Stone(entities[i], s, terrain, now);
-                if (!Wake(entities[i], s, ref b, terrain, now))
+                if (!Wake(s, ref b, grounds[i]))
                     Footprint(entities[i], s, ref b, terrain, now);
             }
             entities.Dispose();
             states.Dispose();
             bodies.Dispose();
+            need.Dispose();
+            positions.Dispose();
+            noSurface.Dispose();
+            grounds.Dispose();
+        }
+
+        /// <summary>A/B switch for #81: -oldtrace on the command line keeps the per-creature managed ground lookups.</summary>
+        static readonly bool OldTrace = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-oldtrace") >= 0;
+
+        /// <summary>
+        /// Each in-range creature's ground, in Burst: whether the surface is there to mark (NoSurface) and, for the
+        /// bodies that need it (breachers, burrowers, waders), the ground sample with its water.
+        /// </summary>
+        [Unity.Burst.BurstCompile]
+        struct GroundJob : Unity.Jobs.IJobParallelFor
+        {
+            [ReadOnly] public TerrainSource Terrain;
+            [ReadOnly] public NativeArray<float3> Positions;
+            [ReadOnly] public NativeArray<byte> Need;
+            [WriteOnly] public NativeArray<bool> NoSurface;
+            [WriteOnly] public NativeArray<GroundSample> Grounds;
+
+            public void Execute(int i)
+            {
+                if (Need[i] == 0)
+                    return;
+                NoSurface[i] = TraceSystem.NoSurface(Terrain, Positions[i]);
+                if (Need[i] == 2)
+                    Grounds[i] = Terrain.SampleGround(Positions[i].xz);
+            }
         }
 
         bool hasTops;
@@ -270,11 +322,10 @@ namespace Punchy.Fauna
         /// Whether a land animal is swimming (in water deeper than half its standing height): it leaves no footprints
         /// then. Its wake is the water's own now (Water.shader's V and rings, fed by CreatureWakeSystem).
         /// </summary>
-        bool Wake(Entity e, in CreatureState s, ref CreatureBlob b, in TerrainSource terrain, float now)
+        static bool Wake(in CreatureState s, ref CreatureBlob b, in GroundSample g)
         {
             if (!b.CrossesWater)
                 return false;
-            var g = terrain.SampleGround(s.Position.xz);
             return g.HasWater && s.Position.y <= g.WaterSurface - b.StandHeight * s.Scale * 0.5f;
         }
 
@@ -284,9 +335,8 @@ namespace Punchy.Fauna
         /// spreading out across the surface and fading, and a few soft puffs of mist rising off it, all sized to the
         /// serpent and over in a few seconds. (Thrown once; each frame just works out where everything is by now.)
         /// </summary>
-        void Splash(Entity e, in CreatureState s, ref CreatureBlob b, in TerrainSource terrain, float now)
+        void Splash(Entity e, in CreatureState s, ref CreatureBlob b, in TerrainSource terrain, in GroundSample g, float now)
         {
-            var g = terrain.SampleGround(s.Position.xz);
             // (A worm breaks the ground, not water: its spray is sand, or snow.)
             var surfaceY = b.Tunnels ? g.Height : g.WaterSurface;
             var isUnder = (b.Tunnels || g.HasWater) && s.Position.y < surfaceY;

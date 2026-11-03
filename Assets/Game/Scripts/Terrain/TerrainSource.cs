@@ -1111,6 +1111,37 @@ namespace Punchy.Terrain
             return result;
         }
 
+        /// <summary>
+        /// The snow the biomes lay at a point on flat ground, before any landmark's or settlement's ground paint (#82):
+        /// a square or street repaints the ground without its snow, but the tents and stalls standing on it should still
+        /// take snow on top in a snowy biome. Used only where props are placed, never on the per-vertex hot path.
+        /// </summary>
+        public float SampleBiomeSnow(float2 xz)
+        {
+            if (!HasBiomes)
+                return 0f;
+            var ground = SampleGround(xz);
+            var context = new GroundContext
+            {
+                Position = xz,
+                Height = ground.Height - World.SeaLevel,
+                Slope = 0f,
+                WaterDepth = ground.WaterDepth,
+                River = ground.River,
+                EdgeNoise = noise.snoise(xz * 0.045f) * 0.7f + noise.snoise(xz * 0.17f) * 0.3f,
+                ColorNoise = noise.snoise(xz * 0.021f + 113.5f) * 0.6f + noise.snoise(xz * 0.11f - 57.1f) * 0.4f
+            };
+            var result = default(SurfaceProps);
+            ref var set = ref Biomes.Value;
+            for (int i = 0; i < 4; i++)
+            {
+                var w = ground.Biomes.Weights[i];
+                if (w > 0f)
+                    result.AddScaled(BiomeSampling.EvaluateBiome(ref set, ground.Biomes.Ids[i], context), w);
+            }
+            return result.Snow;
+        }
+
         public bool Equals(TerrainSource o) =>
             World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&

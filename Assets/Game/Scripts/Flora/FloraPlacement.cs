@@ -1290,6 +1290,7 @@ namespace Punchy.Flora
                             Scale = bridge || plot.Role == PlotRole.Fence ? 1f : rng.NextFloat(0.95f, 1.05f) * towns.Layouts[towns.Settlements[plot.Settlement].Layout].BuildingScale,
                             Model = buildingRule.FirstModel + rng.NextInt(buildingRule.Variants),
                             Random = rng.NextFloat(),
+                            Snow = bridge || footprint ? 0f : source.SampleBiomeSnow(plot.Centre),   // #82: built plots too
                             Ground = bridge || footprint ? 0u : DirtColor(source, buildingRule, plot.Centre, math.cmax(plot.Half), 0.9f)
                         };
                     }
@@ -1361,6 +1362,7 @@ namespace Punchy.Flora
                                     Scale = placedScale,
                                     Model = placedModel,
                                     Random = rng.NextFloat(),
+                                    Snow = footprint ? 0f : source.SampleBiomeSnow(spot),   // #82: stalls on a snowy square
                                     Ground = footprint ? 0u : GroundFor(source, placedRule, spot, 1f, 0.25f)
                                 };
                             }
@@ -1397,6 +1399,7 @@ namespace Punchy.Flora
                                 Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
                                 Model = centreRule.FirstModel + rng.NextInt(centreRule.Variants),
                                 Random = rng.NextFloat(),
+                                Snow = footprint ? 0f : source.SampleBiomeSnow(centre),   // #82: the camp's big tent
                                 Ground = footprint ? 0u : GroundFor(source, centreRule, centre, 2f, 0.5f)
                             };
                         }
