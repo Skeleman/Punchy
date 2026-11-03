@@ -6,7 +6,13 @@ namespace Punchy.Terrain
     /// <summary>What a structure-kit part is, so builders and later systems (docks, ladders, residents) can tell them apart.</summary>
     public enum KitPiece : byte
     {
-        Wall, Floor, Roof, Stair, Column, Arch, Platform, Balcony, Rail, Window, Door, Trim, Rubble, Moss, Beam, Chimney
+        Wall, Floor, Roof, Stair, Column, Arch, Platform, Balcony, Rail, Window, Door, Trim, Rubble, Moss, Beam, Chimney,
+        /// <summary>
+        /// W-64 (#24): a moss sheet draped over a broken wall top, drawn as one thin ragged sheet (FloraMeshBuilder.MossSheet),
+        /// not a box. Centre: the middle of the wall's top; Size: x along the wall, y how far it hangs down each face, z the
+        /// wall's thickness it wraps over.
+        /// </summary>
+        MossCap
     }
 
     /// <summary>Which of a culture's trim-set colours a part is drawn in.</summary>
@@ -426,13 +432,18 @@ namespace Punchy.Terrain
             var rng = new System.Random((int)(Scramble(seed ^ 0x1600u) & 0x7FFFFFFF));
             float R() => (float)rng.NextDouble();
             var radius = diameter * 0.5f;
-            var squash = 0.82f + R() * 0.2f;                 // how tall the dome stands against its radius
-            Dome(parts, Vector3.zero, radius, squash, true, rng);
-
-            // The tunnel porch at +Z: two block walls, a vaulted roof of three slabs, and the door at its inner end.
+            // W-64 (#38): a taller dome (0.95-1.15 of its radius, was 0.82-1.02) on a bigger species (10.5-12 m, was 6-8.5),
+            // so the tall door sits inside the dome wall with snow blocks round it and over it, not a door bigger than its igloo.
+            var squash = 0.95f + R() * 0.2f;                 // how tall the dome stands against its radius
             const float doorW = 1.7f, doorH = 3.4f;
-            var tunnel = 2.2f + R() * 0.8f;
-            var z0 = radius * 0.78f;                         // where the porch meets the dome
+            Dome(parts, Vector3.zero, radius, squash, true, rng, doorW * 0.5f + 0.7f, doorH + 0.15f);
+
+            // The tunnel porch at +Z: two block walls, a vaulted roof of three slabs, and the door at its inner end. The
+            // door stands where the dome's inner face is 1 m above the door's head; the tunnel runs out from there through
+            // the gap in the blocks to 1-1.8 m past the dome's foot.
+            var lintel = Mathf.Clamp01((doorH + 1f) / (radius * squash));
+            var z0 = Mathf.Max(radius * Mathf.Sqrt(1f - lintel * lintel) - 0.5f, 1.5f);   // where the door stands
+            var tunnel = radius - z0 + 1f + R() * 0.8f;
             var zMid = z0 + tunnel * 0.5f;
             foreach (var side in new[] { -1f, 1f })
                 Add(parts, KitPiece.Wall, KitMaterial.Ice, new Vector3(side * (doorW * 0.5f + 0.35f), doorH * 0.5f, zMid), new Vector3(0.7f, doorH, tunnel), 0f, false);
@@ -475,8 +486,9 @@ namespace Punchy.Terrain
             // A smaller side dome (a store or a sleeping room), a snow drift on the windward side, a vent cap on top.
             if (R() < 0.45f)
             {
+                // W-64: tucked round the back (was out to the side, 1.55 radii off), so neighbours on the 15 m ring keep apart.
                 var side = R() < 0.5f ? -1f : 1f;
-                Dome(parts, new Vector3(side * radius * 1.05f, 0f, -radius * 0.25f), radius * 0.5f, 0.8f, false, rng);
+                Dome(parts, new Vector3(side * radius * 0.62f, 0f, -radius * 0.72f), radius * 0.42f, 0.8f, false, rng);
             }
             var drift = R() * 360f;
             if (Mathf.Abs(Mathf.DeltaAngle(drift, 0f)) > 50f)
@@ -485,7 +497,12 @@ namespace Punchy.Terrain
             for (int k = 0, n = 1 + rng.Next(2); k < n; k++)
             {
                 var side = k == 0 ? (rng.Next(2) == 0 ? -1f : 1f) : -1f;
-                Alpine(parts, PickAlpine(rng), new Vector3(side * (doorW + 1.8f + R()), 0f, z0 + tunnel * (0.3f + 0.6f * R())), R() * 360f, rng);
+                var dx = side * (doorW + 1.8f + R());
+                var dz = z0 + tunnel * (0.3f + 0.6f * R());
+                var clear = radius + 0.7f;                   // W-64: out on the snow beside the porch, never inside the dome
+                if (dx * dx + dz * dz < clear * clear)
+                    dz = Mathf.Sqrt(clear * clear - dx * dx);
+                Alpine(parts, PickAlpine(rng), new Vector3(dx, 0f, dz), R() * 360f, rng);
             }
             return parts;
         }
@@ -713,7 +730,12 @@ namespace Punchy.Terrain
         }
 
         /// <summary>A dome of snow blocks in rings (each ring a little smaller and leaning in), with a gap at +Z for the porch.</summary>
-        static void Dome(List<KitPart> parts, Vector3 at, float radius, float squash, bool door, System.Random rng)
+        /// <remarks>
+        /// With <paramref name="doorHalf"/> &gt; 0 (an igloo's tunnel, W-64) the door gap is cut to the tunnel instead: every
+        /// front block within doorHalf of the axis whose foot is under <paramref name="doorTop"/>, any ring. Without it, the
+        /// old cut (the bottom three rings, 18-22 degrees each side; sea folk domes).
+        /// </remarks>
+        static void Dome(List<KitPart> parts, Vector3 at, float radius, float squash, bool door, System.Random rng, float doorHalf = 0f, float doorTop = 0f)
         {
             var rings = Mathf.Clamp(Mathf.RoundToInt(radius / 0.75f), 3, 7);
             for (int r = 0; r < rings; r++)
@@ -728,9 +750,15 @@ namespace Punchy.Terrain
                 for (int k = 0; k < blocks; k++)
                 {
                     var a = (k + offset) * 360f / blocks;
-                    if (door && r < 3 && Mathf.Abs(Mathf.DeltaAngle(a, 0f)) < 18f + r * 2f)
-                        continue;
                     var len = 2f * Mathf.PI * ringR / blocks + 0.06f;
+                    if (door && doorHalf > 0f)
+                    {
+                        var ar = a * Mathf.Deg2Rad;
+                        if (Mathf.Cos(ar) > 0f && Mathf.Abs(ringR * Mathf.Sin(ar)) - len * 0.5f < doorHalf && y - tall * 0.5f < doorTop)
+                            continue;
+                    }
+                    else if (door && r < 3 && Mathf.Abs(Mathf.DeltaAngle(a, 0f)) < 18f + r * 2f)
+                        continue;
                     var centre = at + Turn(a, new Vector3(0f, y, ringR - 0.25f));
                     Add(parts, KitPiece.Wall, KitMaterial.Ice, centre, new Vector3(len, tall, 0.5f), a, door && r == 0, -phi * 0.9f);
                 }
@@ -888,7 +916,11 @@ namespace Punchy.Terrain
                     }
                     // Moss on a broken top; ivy down some walls.
                     if (ruined && R() < 0.55f)
-                        Add(parts, KitPiece.Moss, KitMaterial.Moss, Turn(yaw, new Vector3(x, standing + 0.04f, out_)), new Vector3(bw * Range(0.6f, 1f), 0.09f, Thick + 0.08f), yaw, false);
+                    {
+                        // W-64 (#24): a draped sheet, not a 9 cm pad. Same draw as before; how far it hangs follows the stub.
+                        var mossLen = bw * Range(0.6f, 1f);
+                        Add(parts, KitPiece.MossCap, KitMaterial.Moss, Turn(yaw, new Vector3(x, standing, out_)), new Vector3(mossLen, Mathf.Min(0.55f, standing * 0.35f), Thick), yaw, false);
+                    }
                     if (ruined && R() < 0.25f)
                     {
                         // Ivy: a few thin trailing strands of different lengths hugging the face, not one flat panel.

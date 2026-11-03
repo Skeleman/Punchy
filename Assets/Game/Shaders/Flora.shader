@@ -115,6 +115,7 @@ Shader "Punchy/Flora"
                 // (FloraMeshBuilder.Wood: the vertex colour's alpha on wood, 0.25 X, 0.5 Y, 0.75 Z).
                 float3 grainPos : TEXCOORD7;
                 nointerpolation half grainAxis : TEXCOORD8;
+                float4 moss : TEXCOORD9;   // FloraMossData: cover (2: not moss), point in the plant's frame
             };
 
             Varyings Vert(FloraAttributes input)
@@ -132,6 +133,7 @@ Shader "Punchy/Flora"
                 o.extra = float4(input.data.y, v.fade, v.plant.snow, v.plant.random);
                 o.grainPos = input.positionOS;
                 o.grainAxis = input.color.a;
+                o.moss = FloraMossData(input);
                 // Keyed on the pane (each has a slightly different colour) and the building.
                 float3 key = round(input.color.rgb * 255);
                 o.windowHour = frac(sin(dot(key, float3(0.917, 0.473, 0.131)) * 10 + v.plant.random * 61.7) * 43758.5453);
@@ -141,6 +143,7 @@ Shader "Punchy/Flora"
             half4 Frag(Varyings input) : SV_Target
             {
                 FloraDither(input.positionCS, input.extra.y, input.positionWS);
+                FloraMossClip(input.moss);
                 int part = (int)round(input.extra.x);
                 // A rock tint (ground alpha at its top value) or a built thing's dirt band (any other non-zero alpha).
                 bool rockTint = input.ground.a > 0.995;
@@ -212,6 +215,14 @@ Shader "Punchy/Flora"
                     half leafNoise = PunchyValueNoise(q.xz + q.y * 0.7) * 0.6 + PunchyValueNoise(q.zy * 2.3 + 5.1) * 0.4;
                     half leafNear = 1 - smoothstep(40, 90, distance(input.positionWS, GetCameraPositionWS()));
                     albedo *= lerp(1, lerp(half3(0.62, 0.66, 0.7), half3(1.25, 1.22, 1.0), leafNoise), leafNear * 0.85);
+                }
+                // Moss (W-64): darker, greener clumps and yellower tips, and darker still in the thin cover near the rim.
+                if (part == 13)
+                {
+                    half clump = FloraMossClump(input.moss.yzw);
+                    half fine = FloraMossNoise(input.moss.yzw * 80);
+                    albedo *= lerp(half3(0.42, 0.56, 0.36), half3(1.0, 0.98, 0.62), clump) * (0.8 + 0.4 * fine);
+                    albedo *= lerp(0.75, 1, saturate(input.moss.x * 2));
                 }
                 // Windows: dark glass by day (their colour is the light they give at night, below).
                 half3 windowLight = albedo;
@@ -440,6 +451,7 @@ Shader "Punchy/Flora"
             {
                 float4 positionCS : SV_POSITION;
                 float fade : TEXCOORD0;
+                float4 moss : TEXCOORD1;
             };
 
             Varyings Vert(FloraAttributes input)
@@ -453,6 +465,7 @@ Shader "Punchy/Flora"
                 Varyings o;
                 o.positionCS = ApplyShadowClamping(TransformWorldToHClip(ApplyShadowBias(v.positionWS, v.normalWS, lightDirectionWS)));
                 o.fade = v.fade;
+                o.moss = FloraMossData(input);
                 return o;
             }
 
@@ -461,6 +474,7 @@ Shader "Punchy/Flora"
                 // Shadows don't crossfade (dithered shadows show as dotted patches on the ground): a plant changing
                 // LOD keeps casting with its outgoing level until the change is complete.
                 clip(input.fade >= 0 && input.fade < 1 ? -1 : 1);
+                FloraMossClip(input.moss);
                 return 0;
             }
             ENDHLSL
@@ -485,6 +499,7 @@ Shader "Punchy/Flora"
                 float4 positionCS : SV_POSITION;
                 float fade : TEXCOORD0;
                 float3 positionWS : TEXCOORD1;
+                float4 moss : TEXCOORD2;
             };
 
             Varyings Vert(FloraAttributes input)
@@ -494,12 +509,14 @@ Shader "Punchy/Flora"
                 o.positionCS = TransformWorldToHClip(v.positionWS);
                 o.fade = v.fade;
                 o.positionWS = v.positionWS;
+                o.moss = FloraMossData(input);
                 return o;
             }
 
             half Frag(Varyings input) : SV_Target
             {
                 FloraDither(input.positionCS, input.fade, input.positionWS);
+                FloraMossClip(input.moss);
                 return input.positionCS.z;
             }
             ENDHLSL
@@ -527,6 +544,7 @@ Shader "Punchy/Flora"
                 float fade : TEXCOORD0;
                 float3 positionWS : TEXCOORD1;
                 half3 normalWS : TEXCOORD2;
+                float4 moss : TEXCOORD3;
             };
 
             Varyings Vert(FloraAttributes input)
@@ -537,6 +555,7 @@ Shader "Punchy/Flora"
                 o.fade = v.fade;
                 o.positionWS = v.positionWS;
                 o.normalWS = v.normalWS;
+                o.moss = FloraMossData(input);
                 return o;
             }
 
@@ -547,6 +566,7 @@ Shader "Punchy/Flora"
             )
             {
                 FloraDither(input.positionCS, input.fade, input.positionWS);
+                FloraMossClip(input.moss);
                 // Leaves are double-sided: the back face's normal points the other way.
                 half3 n = NormalizeNormalPerPixel(input.normalWS);
                 outNormalWS = half4(front ? n : -n, 0);

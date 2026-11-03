@@ -3056,13 +3056,19 @@ namespace Punchy.Flora
             {
                 var p = parts[i];
                 var small = p.Piece == Punchy.Terrain.KitPiece.Trim || p.Piece == Punchy.Terrain.KitPiece.Rail ||
-                            p.Piece == Punchy.Terrain.KitPiece.Rubble || p.Piece == Punchy.Terrain.KitPiece.Moss ||
+                            p.Piece == Punchy.Terrain.KitPiece.Rubble || p.Piece == Punchy.Terrain.KitPiece.Moss || p.Piece == Punchy.Terrain.KitPiece.MossCap ||
                             (p.Piece == Punchy.Terrain.KitPiece.Window && p.Material != Punchy.Terrain.KitMaterial.Opening);
                 if (small && g.Lod >= 2)
                     continue;
                 var c = Punchy.Terrain.StructureKit.Colour(trim, p.Material);
                 var jitter = ((i * 2654435761u) >> 24) / 255f;                 // a little per-stone variety, the same at every LOD
                 c = Color.Lerp(c * 0.94f, c * 1.08f, jitter);
+                if (p.Piece == Punchy.Terrain.KitPiece.MossCap)
+                {
+                    // W-64 (#24): one ragged, see-through sheet draped over the stone (was a 9 cm box that read as a pad).
+                    b.MossSheet(p.Centre, p.Size, p.Rotation, c, (uint)i * 2654435761u ^ seed);
+                    continue;
+                }
                 b.Box(p.Centre, p.Size, p.Rotation, c, p.Material == Punchy.Terrain.KitMaterial.Moss ? FloraPart.Foliage :
                                                        p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Rune ? FloraPart.Window : FloraPart.Bark);
                 var high = p.Centre.y + p.Size.y * 0.5f;
@@ -3092,7 +3098,15 @@ namespace Punchy.Flora
                     perch = new Vector3(p.Centre.x, high, p.Centre.z);
             }
             if (!ruined && house)   // the inside: one fat cylinder so nothing walks through the middle of the house
-                g.Colliders.Add(new Vector4(0f, 0f, Mathf.Min(width, depth) * 0.45f, eaves));
+            {
+                var inner = Mathf.Min(width, depth) * 0.45f;
+                // W-64 (#38): an igloo's door stands well inside the dome now; the cylinder stops 0.4 m short of it.
+                if (shape == Punchy.Terrain.KitShape.Igloo)
+                    foreach (var p in parts)
+                        if (p.Piece == Punchy.Terrain.KitPiece.Door)
+                            inner = Mathf.Min(inner, p.Centre.z - 0.4f);
+                g.Colliders.Add(new Vector4(0f, 0f, inner, eaves));
+            }
             if (perch.y > 1f)
                 g.Perches.Add(perch);
             b.Recolor(first, (p, c) => p.y < 0.5f ? c * 0.82f : c);   // darker footing

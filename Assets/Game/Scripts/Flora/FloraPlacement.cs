@@ -242,8 +242,8 @@ namespace Punchy.Flora
                     House = s.Form == FloraForm.KitBuilding && (s.KitShape == Punchy.Terrain.KitShape.House || s.KitShape == Punchy.Terrain.KitShape.StiltHouse) ? 1 : 0,
                     PierReach = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? s.Height.y : 0f,
                     PierClear = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Spire ? 1 : 0,
-                    // StructureKit.Igloo: the mouth is 0.78 of the radius plus the tunnel (2.2-3 m) plus the 0.8 m path out.
-                    Porch = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Igloo ? (s.Height.x + s.Height.y) * 0.5f * s.Spread * 0.39f + 3.4f : 0f,
+                    // StructureKit.Igloo (W-64): the tunnel ends 1-1.8 m past the dome's foot (the radius), plus the 0.8 m path out.
+                    Porch = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Igloo ? (s.Height.x + s.Height.y) * 0.5f * s.Spread * 0.5f + 2.2f : 0f,
                     Footprint = Footprint(s),
                     Span = s.Form == FloraForm.IceArch ? (s.Height.x + s.Height.y) * 0.5f * math.max(s.Spread, 0.5f) * 0.5f :
                            // W-63: a log across a narrows reaches half its shortest length each way from the middle.

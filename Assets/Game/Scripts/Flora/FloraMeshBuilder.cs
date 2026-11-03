@@ -30,7 +30,10 @@ namespace Punchy.Flora
         /// <summary>An electric arc: bright, crackling in bursts and jumping about (Flora.hlsl, Flora.shader).</summary>
         Arc = 11,
         /// <summary>A door leaf that swings about its hinge (FloraMeshBuilder.Hinge, Flora.hlsl, FloraDoors).</summary>
-        Door = 12
+        Door = 12,
+        /// <summary>A thin moss sheet (W-64, #24): the colour's alpha is how far from the sheet's ragged edge a vertex is;
+        /// Flora.hlsl cuts holes and a torn rim out of it with noise (FloraMossClip), in every pass.</summary>
+        Moss = 13
     }
 
     /// <summary>
@@ -358,6 +361,72 @@ namespace Punchy.Flora
                 Triangle(first, first + 1, first + 2);
                 Triangle(first, first + 2, first + 3);
             }
+        }
+
+        /// <summary>
+        /// A moss sheet draped over a wall top (W-64, #24): one layer of triangles 1.5 cm off the stone, over the top and
+        /// down both faces, each column hanging its own length (ragged tongues). <paramref name="size"/>: x along the wall,
+        /// y the longest hang, z the wall's thickness. Vertex alpha is the cover (1 in the middle, 0 at the rim) that
+        /// Flora.hlsl tears the edge and holes from; the colour varies a little vertex to vertex (greener, yellower, darker).
+        /// </summary>
+        public void MossSheet(Vector3 centre, Vector3 size, Quaternion rotation, Color color, uint seed)
+        {
+            const float lift = 0.015f;
+            var columns = Mathf.Clamp(Mathf.RoundToInt(size.x / 0.12f), 4, 24);
+            var halfT = size.z * 0.5f + lift;
+            // Rows down the path: front face (bottom to top), the top's two edges and middle, back face (top to bottom).
+            float[] path = { -1f, -0.66f, -0.33f, -0.08f, 0f, 0.08f, 0.33f, 0.66f, 1f };
+            float Hash(uint k)
+            {
+                k ^= seed; k *= 0x9E3779B1u; k ^= k >> 15; k *= 0x85EBCA77u; k ^= k >> 13;
+                return (k & 0xFFFF) / 65535f;
+            }
+            var first = positions.Count;
+            for (int c = 0; c <= columns; c++)
+            {
+                var u = (float)c / columns;
+                var x = (u - 0.5f) * size.x;
+                var edgeU = 1f - Mathf.Abs(u * 2f - 1f);
+                var hangF = size.y * Mathf.Lerp(0.35f, 1f, Hash((uint)c * 2u));    // this column's hang down the front
+                var hangB = size.y * Mathf.Lerp(0.35f, 1f, Hash((uint)c * 2u + 1u));
+                for (int r = 0; r < path.Length; r++)
+                {
+                    var t = path[r];
+                    Vector3 p, n;
+                    float along;                                   // 0 at the top's middle, 1 at this column's hem
+                    if (t <= -0.08f || t >= 0.08f)
+                    {
+                        var side = t < 0f ? 1f : -1f;              // front (+z) first
+                        var f = (Mathf.Abs(t) - 0.08f) / 0.92f;    // 0 at the top edge, 1 at the hem
+                        var hang = t < 0f ? hangF : hangB;
+                        var edge = Mathf.Abs(t) <= 0.081f;
+                        p = new Vector3(x, edge ? lift * 0.7f : -hang * f, side * halfT);
+                        n = edge ? new Vector3(0f, 0.7f, side * 0.7f) : new Vector3(0f, 0f, side);
+                        along = 0.35f + 0.65f * f;
+                    }
+                    else
+                    {
+                        p = new Vector3(x, lift, 0f);
+                        n = Vector3.up;
+                        along = 0f;
+                    }
+                    // A little lumpiness off the stone, never into it.
+                    p += n * (Hash((uint)(c * 31 + r) + 7777u) * 0.012f);
+                    var cover = Mathf.Clamp01(Mathf.Min(edgeU * 3f, (1f - along) * 2.2f));
+                    var shade = Hash((uint)(c * 17 + r * 5) + 333u);
+                    var tint = Color.Lerp(color * 0.78f, Color.Lerp(color, new Color(0.62f, 0.62f, 0.25f), 0.3f) * 1.1f, shade);
+                    tint.a = cover;
+                    Vertex(centre + rotation * p, rotation * n.normalized, tint, FloraPart.Moss, 1f, 0f);
+                }
+            }
+            var rows = path.Length;
+            for (int c = 0; c < columns; c++)
+                for (int r = 0; r < rows - 1; r++)
+                {
+                    var a = first + c * rows + r;
+                    Triangle(a, a + rows, a + rows + 1);
+                    Triangle(a, a + rows + 1, a + 1);
+                }
         }
 
         /// <summary>A box spanning from one point to another (a beam, a rail, a sloping roof slab).</summary>
