@@ -230,5 +230,80 @@ namespace Punchy.Fauna
             var perMetre = StepPhase(ref b, s, s.Scale);
             s.Phase = math.frac(s.Phase + math.min(shift / planted * perMetre, 0.25f));
         }
+
+        // ------------------------------------------------------------ solids (A-44)
+
+        /// <summary>Tests ("-solidsoff"): creatures walk through cave rock and towers and stand on the raw heightmap at cave
+        /// mouths, as before A-44, for before numbers and shots from the same build.</summary>
+        public static readonly Unity.Burst.SharedStatic<int> SolidsOff = Unity.Burst.SharedStatic<int>.GetOrCreate<SolidsOffKey>();
+        struct SolidsOffKey { }
+        /// <summary>Tests ("-solidstats"): the brain counts what <see cref="Stats"/> holds for creatures near a player.</summary>
+        public static readonly Unity.Burst.SharedStatic<int> StatsOn = Unity.Burst.SharedStatic<int>.GetOrCreate<StatsOnKey>();
+        struct StatsOnKey { }
+        public static readonly Unity.Burst.SharedStatic<SolidStats> Stats = Unity.Burst.SharedStatic<SolidStats>.GetOrCreate<SolidStatsKey>();
+        struct SolidStatsKey { }
+
+        /// <summary>Counters for "-solidstats" (DebugControls logs and clears them): creature-ticks near a player, moves cut
+        /// by a solid, ticks stopped against one, ticks with the body more than 0.15 m into one, the deepest sink (mm),
+        /// ticks floating over 0.2 m above the carved ground at a cave mouth, and solid queries made.</summary>
+        public struct SolidStats
+        {
+            public int Samples, Contacts, Stuck, Hidden, MaxSinkMm, Floating, Queries;
+        }
+
+        /// <summary>Only creatures this close to a player (m, across the ground) test solids: further off nobody sees them.</summary>
+        public const float SolidReach = 48f;
+
+        /// <summary>
+        /// The ground a land animal stands on: the carved floor where a cave entrance cuts the surface away (FloorUnder, the
+        /// query the player's floor uses there), else the surface. Away from caves this is SampleHeight alone.
+        /// </summary>
+        public static float Ground(in TerrainSource terrain, float2 xz, float y)
+        {
+            var surface = terrain.SampleHeight(xz);
+            if (!terrain.Caves.IsCreated || !CaveSampling.NearColumn(ref terrain.Caves.Value, xz) || terrain.MouthCut(xz, surface) >= 0f)
+                return surface;
+            return terrain.FloorUnder(new float3(xz.x, math.max(y, surface - 2f), xz.y), out _);
+        }
+
+        /// <summary>
+        /// Whether a land animal's body at xz (feet at feetY, facing forward) would be in a solid the player is kept out of:
+        /// a salt tower or iceberg (TowerWall, tested at its nose, tail and both flanks) or cave rock round an entrance
+        /// (PlayerMovementSystem.SolidDistance at body height, at its middle and nose), or would step off the lip of a cave
+        /// entrance into a drop deeper than its legs. Sink: how far the body is into the rock (m, 0 when clear or when
+        /// only a tower or the lip stops it).
+        /// </summary>
+        public static bool Solid(in TerrainSource terrain, float2 xz, float2 forward, float feetY, float radius, float halfLength,
+                                 float height, out float sink)
+        {
+            sink = 0f;
+            var side = new float2(-forward.y, forward.x);
+            var nose = xz + forward * (halfLength + radius * 0.5f);
+            var stepUp = math.max(0.3f, height * 0.35f);
+            var hit = false;
+            if (terrain.TowerWall(new float3(nose.x, feetY, nose.y), stepUp, height) ||
+                terrain.TowerWall(new float3(xz.x + side.x * radius, feetY, xz.y + side.y * radius), stepUp, height) ||
+                terrain.TowerWall(new float3(xz.x - side.x * radius, feetY, xz.y - side.y * radius), stepUp, height) ||
+                terrain.TowerWall(new float3(xz.x - forward.x * halfLength, feetY, xz.y - forward.y * halfLength), stepUp, height))
+                hit = true;
+            if (!terrain.Caves.IsCreated || !CaveSampling.NearColumn(ref terrain.Caves.Value, xz))
+                return hit;
+            var centreY = feetY + math.max(height * 0.6f, radius);
+            var mid = RockDistance(terrain, new float3(xz.x, centreY, xz.y));
+            var front = RockDistance(terrain, new float3(nose.x, centreY, nose.y));
+            sink = math.max(0f, radius - math.min(mid, front));
+            if (math.min(mid, front) < radius * 0.75f)
+                hit = true;
+            // (The lip of an entrance: a shallow scoop is walked into, a pit isn't stepped off.)
+            var surface = terrain.SampleHeight(nose);
+            if (terrain.MouthCut(nose, surface) < 0f && Ground(terrain, nose, feetY) < feetY - math.max(0.5f, height))
+                hit = true;
+            return hit;
+        }
+
+        /// <summary>Distance from a point to cave rock (negative inside it), as PlayerMovementSystem.SolidDistance has it
+        /// under the surface; above the surface open air (an ordinary hillside is the ground's business, not a wall).</summary>
+        static float RockDistance(in TerrainSource terrain, float3 p) =>
+            p.y < terrain.SampleHeight(p.xz) ? -terrain.CaveDistance(p) : 100f;
     }
 }

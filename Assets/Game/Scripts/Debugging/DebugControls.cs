@@ -54,6 +54,64 @@ namespace Punchy.Debugging
         Vector2 readoutSize;
         float nextReadout;
 
+        float solidStatsSince = -1f;
+        int solidStatsFrames;
+
+        /// <summary>
+        /// "-solidstats" (A-44): every 60 s, the wild animals near the player that minute: creature-ticks sampled, wall
+        /// contacts (steps turned or stopped by a solid), ticks boxed in, ticks with a body over 0.15 m in a solid, the
+        /// deepest sink, ticks floating over carved ground, solid queries per frame; and what those queries cost, timed
+        /// here on the main thread unburst for the animals within reach, scaled to 50 (an upper bound: the brain runs
+        /// them Burst-compiled, spread over the workers).
+        /// </summary>
+        void SolidStatsLog()
+        {
+            if (CreatureMotion.StatsOn.Data == 0 || queryWorld == null || !queryWorld.IsCreated)
+                return;
+            solidStatsFrames++;
+            if (solidStatsSince < 0f)
+                solidStatsSince = Time.unscaledTime;
+            var span = Time.unscaledTime - solidStatsSince;
+            if (span < 60f || !terrainQuery.TryGetSingleton<TerrainSource>(out var terrain))
+                return;
+            var stats = CreatureMotion.Stats.Data;
+            CreatureMotion.Stats.Data = default;
+            var frames = solidStatsFrames;
+            solidStatsFrames = 0;
+            solidStatsSince = Time.unscaledTime;
+            var em = queryWorld.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var eye = Camera.main != null ? (float3)Camera.main.transform.position : float3.zero;
+            int near = 0;
+            var queriesPerTick = frames > 0 && stats.Samples > 0 ? (float)stats.Queries / stats.Samples : 2f;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            for (int i = 0; i < states.Length; i++)
+            {
+                var s = states[i];
+                ref var b = ref bodies[i].Blob.Value;
+                if (s.Gone || b.Upright || b.Haunts || b.Habitat != Habitat.Land && b.Habitat != Habitat.Flies ||
+                    math.distancesq(eye.xz, s.Position.xz) > CreatureMotion.SolidReach * CreatureMotion.SolidReach)
+                    continue;
+                near++;
+                var radius = math.max(math.max(b.FrontRadius, b.RearRadius) * s.Scale, 0.1f);
+                var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                for (int k = 0; k < math.max(1, (int)math.round(queriesPerTick)); k++)
+                    CreatureMotion.Solid(terrain, s.Position.xz + forward * 0.1f * k, forward, s.Position.y, radius, b.BodyLength * 0.5f * s.Scale,
+                                         math.max((b.StandHeight + b.FrontRadius) * s.Scale, radius * 2f), out _);
+                CreatureMotion.Ground(terrain, s.Position.xz, s.Position.y);
+            }
+            var ms = (float)watch.Elapsed.TotalMilliseconds;
+            var minutes = span / 60f;
+            Debug.Log($"CreatureSolids: {(CreatureMotion.SolidsOff.Data != 0 ? "OFF (before)" : "on")}, {span:F0} s, {frames} frames, " +
+                      $"{stats.Samples} creature-ticks near, contacts {stats.Contacts / minutes:F1}/min, stuck {stats.Stuck} ticks " +
+                      $"({stats.Stuck * span / math.max(1, frames):F1} s), hidden >0.15 m {stats.Hidden} ticks, max sink {stats.MaxSinkMm / 1000f:F2} m, " +
+                      $"floating >0.2 m {stats.Floating} ticks, queries {(float)stats.Queries / math.max(1, frames):F1}/frame " +
+                      $"({queriesPerTick:F2} per creature-tick); cost now {near} near: {ms:F3} ms unburst, " +
+                      $"{(near > 0 ? ms * 50f / near : 0f):F3} ms per frame at 50");
+        }
+
         void Update()
         {
             ApplyLaunchOptions();
@@ -66,6 +124,7 @@ namespace Punchy.Debugging
             Pose();
             Interact();
             ShotList();
+            SolidStatsLog();
             Lift();
             CallLog();
             var keyboard = Keyboard.current;
@@ -1342,6 +1401,10 @@ namespace Punchy.Debugging
             Punchy.Player.PlayerMovementSystem.NoPushOut.Data = System.Array.IndexOf(args, "-nopushout") >= 0;
             // "-oldlie" (A-42): lying four-legged bodies' legs left where they fall, for before shots from the same build.
             CreatureAnimator.OldLie.Data = System.Array.IndexOf(args, "-oldlie") >= 0 ? 1 : 0;
+            // "-solidsoff" (A-44): wild animals ignore cave walls, towers and carved ground as before, for before numbers
+            // from the same build. "-solidstats": log their contacts, sink and floating every 60 s (SolidStatsLog).
+            CreatureMotion.SolidsOff.Data = System.Array.IndexOf(args, "-solidsoff") >= 0 ? 1 : 0;
+            CreatureMotion.StatsOn.Data = System.Array.IndexOf(args, "-solidstats") >= 0 ? 1 : 0;
             // "-redstar": one red-orange shooting star held mid-flight high in the east, for shots (W-42).
             if (System.Array.IndexOf(args, "-redstar") >= 0)
                 Shader.SetGlobalFloat("_PunchySkyTest", 2f);
