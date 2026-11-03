@@ -2,6 +2,16 @@
 
 Newest first.
 
+## W-65c (2026-11-03) world-features 601405c
+
+- Row 1 (#38) PARTLY: the door block mesh is gone; a collider-only circle behind the door stops walkers. The tunnel roof, walls, crown and arch are 0.6 m higher, with a lintel over the door. Editor sim (head 1.8, colliders counted): 2/5 stop at the door. Igloo 5 (361.9,45.7) stops 4.06 m from the middle, door 3.47: FIXED. 3 still stop at the mouth because of the slope, not the roof: 344.7,50.0 and 343.5,67.8 have ground 1.8 m below the floor at the mouth (a 1.8 m step up onto the snow path), and 360.0,74.4 has ground 2.2-4.4 m above the floor (tunnel buried). The fix is PorchSeat seating, which moves flora; not done.
+- Row 2 (#36) DONE: ring houses keep off a box round the whole wharf (x -14.5..7.5, along -4.6..23.5). Overlaps with deck cells: 0 across 4 villages (12 ring houses within 45 m).
+- Row 3 NOT DONE: no SteppingStone row was loaded near -3098,3118 or -2940,3220. Narrows that fit a 12 m bank-to-bank row may not exist. 0 positions found.
+- Row 4: one build Succeeded, 0 errors. Shot lines with -walk now wait for the walk to end (ARRIVED / STOPPED after 2 s still / FAIL on timeout). Wharf shore -> stilt door: FAIL, STOPPED at -3285.9,0.4,-1644.0 (wharf foot, 13.9 m to go). Igloo 5 door: PASS, STOPPED at 359.6,264.2,48.2 (3.4 m from the middle, at the door). Stone row walk: not run (no row). The player quit by itself.
+- Row 5 hashes: editor v2 136 / 4E61F1CF (raw B5EFF8C8), player 136 / B5EFF8C8, caves C49E8E3036C741FC, ground C0C906EE310FA91F, rivers A77D2ED7B919296E: all unchanged. v1 103 / F628AE5F was not measured (no probe at hand).
+- Shots (not viewed): D:/PunchyMilestones/W-65c (w65c_wharf_door_walk_end, w65c_igloo5_door_walk_end, w65c_igloo5_tunnel_inside, w65c_river_cattails at -3156,3112, w65c_river_driftwood at -3139,3118.3).
+- Left: PorchSeat for the 3 slope igloos; the wharf foot step (the walker is blocked at the wharf base); find or relax stone-row placement; measure v1.
+
 ## W-65b (2026-11-03) world-features 563796f
 
 - Row 1 (#36) DONE: wharf variant now follows the village (rank + scrambled offset). Editor sim: 4 distinct layouts (house sets differ, v2 has 2 houses), doors 3/3, 3/3, 2/2, 3/3 = 11/11 reached.
