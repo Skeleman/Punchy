@@ -1295,3 +1295,15 @@ Both logs: v2 ready, 126 landmarks, hash 053C63D5. e3b8521 pushed. Row 4 DONE: p
 PunchyMilestones/animal/a41/a41-run-pair-800.png (left before: forearm folded, trailing leg stretched far back; right
 after: elbow near a right angle, back leg shorter); full-size before-run-*.png / after-run-*.png beside it.
 Row 3: walk and animals not re-shot; the after runner reads a little crouched at mid-stance.
+
+## M-04 (2026-11-02): STOPPED after row 1, C# conflict
+- Row 1: `git fetch`; `merge/lanes-to-main-4` (local only) from origin/main 41a9259. `--no-ff` merge of
+  origin/animal-behaviours e3b8521 went clean (6a74ec9). `--no-ff` merge of origin/world-features f137084 had one
+  conflict: Assets/Game/Scripts/Debugging/DebugControls.cs, one hunk in the launch-flag parsing (~line 1338). Animal
+  side adds the `-nopushout` line (`PlayerMovementSystem.NoPushOut.Data = ...`); world side adds the W-42 `-redstar` block
+  (`_PunchySkyTest` = 2). They look independent (keeping both should work), but the card counts C# conflicts as
+  non-trivial, so I did not resolve it.
+- World merge aborted; local branch left at 6a74ec9 (animal merge only, not pushed). Worktree back on
+  animal-behaviours e3b8521, clean (apart from Assets/_Recovery). Rows 2-5 not run: no build, no PR, main unchanged.
+- Calls ~13, builds 0.
+- NEXT: Zach/supervisor decides whether keeping both lines in DebugControls.cs is approved; then rerun M-04.
