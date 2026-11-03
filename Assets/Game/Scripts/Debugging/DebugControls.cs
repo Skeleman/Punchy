@@ -1090,6 +1090,9 @@ namespace Punchy.Debugging
         /// <summary>"-walk": where the player is walking to on this shot line (A-34), and when its next probe line is due.</summary>
         static float3? walkTarget;
         static float walkLogNext;
+        /// <summary>"-walk x,z;x,z;...": the legs still to walk after walkTarget, in order (W-61b; dev/test only).</summary>
+        static readonly System.Collections.Generic.List<float3> walkPath = new();
+        static int walkLeg;
         /// <summary>"-untilwork": the most seconds a shot waits past -wait for the watched folk to work, and since when it has.</summary>
         static float untilWork;
         static float workSince = -1f;
@@ -1168,6 +1171,7 @@ namespace Punchy.Debugging
             watchFrom = null;
             watchFromAt = null;
             walkTarget = null;
+            walkPath.Clear();
             untilWork = 0f;
             pendingSpawns.Clear();
             poseRequest = null;
@@ -1370,9 +1374,10 @@ namespace Punchy.Debugging
                     watchFrom = new float2(from[0], from[1]);
                 // "-walk x,y,z" (A-34): the player walks toward that point from where -goto put it (as if the stick were
                 // pushed), so the cave push-out acts on its steps; the shot lands mid-walk at -wait.
-                if (args[i] == "-walk" && ParseFloats(args[i + 1]) is float[] walk && walk.Length >= 3)
+                // W-61b: "-walk x,z;x,z;x,z" (or x,y,z points) walks the waypoints in order, one leg at a time.
+                if (args[i] == "-walk" && ParseWalkPath(args[i + 1]) is float3 firstLeg)
                 {
-                    walkTarget = new float3(walk[0], walk[1], walk[2]);
+                    walkTarget = firstLeg;
                     walkLogNext = 0f;
                     Punchy.Player.PlayerMovementSystem.PushedTotal.Data = 0f;
                 }
@@ -1663,6 +1668,33 @@ namespace Punchy.Debugging
             pendingSpawns.Clear();
         }
 
+        /// <summary>
+        /// Parses "-walk": one point "x,y,z" (the old form) or "x,z", or waypoints split by ';'. Fills walkPath with
+        /// the legs after the first and returns the first, or null if any point does not parse.
+        /// </summary>
+        static float3? ParseWalkPath(string text)
+        {
+            walkPath.Clear();
+            walkLeg = 0;
+            foreach (var part in text.Split(';'))
+            {
+                if (part.Length == 0)
+                    continue;
+                var p = ParseFloats(part);
+                if (p == null || p.Length < 2)
+                {
+                    walkPath.Clear();
+                    return null;
+                }
+                walkPath.Add(p.Length >= 3 ? new float3(p[0], p[1], p[2]) : new float3(p[0], 0f, p[1]));
+            }
+            if (walkPath.Count == 0)
+                return null;
+            var first = walkPath[0];
+            walkPath.RemoveAt(0);
+            return first;
+        }
+
         /// <summary>"-walk": steers the player at the line's walk target, and logs probe lines on the way.</summary>
         void WalkTo()
         {
@@ -1670,6 +1702,16 @@ namespace Punchy.Debugging
                 return;
             var to = walkTarget.Value.xz - walker.Position.xz;
             var distance = math.length(to);
+            // Waypoints: within 0.6 m of a leg's end, log it and head for the next one (the last stops at 0.3 m as before).
+            if (distance <= 0.6f && walkPath.Count > 0)
+            {
+                walkLeg++;
+                Debug.Log($"DebugControls: walk leg {walkLeg} reached at ({V(walker.Position.x)}, {V(walker.Position.y)}, {V(walker.Position.z)}), {walkPath.Count} to go");
+                walkTarget = walkPath[0];
+                walkPath.RemoveAt(0);
+                to = walkTarget.Value.xz - walker.Position.xz;
+                distance = math.length(to);
+            }
             PlayerInputSystem.TestMove = distance > 0.3f ? to / distance : float2.zero;
             // Probe lines every quarter second: where it is, its clearance over the floor, and how far the push-out has moved it.
             if (Time.unscaledTime >= walkLogNext && EnsureLocations(out var walkGround))
@@ -3505,6 +3547,7 @@ namespace Punchy.Debugging
             PlayerInputSystem.TestPitch = null;
             PlayerInputSystem.TestCamera = null;
             walkTarget = null;
+            walkPath.Clear();
             untilWork = 0f;
             workSince = -1f;
             swimSpot = null;

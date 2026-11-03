@@ -38,6 +38,12 @@ namespace Punchy.Flora
         /// <summary>1 for fishing villages' shore clutter (#36, W-59d): kept off the walk lane up each of the village's docks.</summary>
         public int ShoreKit;
         /// <summary>
+        /// W-61b (#38): for igloos, how far out the porch mouth is (0 for everything else). On a settlement's slope an
+        /// igloo set at its centre's ground had its porch floor up to 1 m over a dip at the mouth, or buried in a knoll;
+        /// PorchSeat turns it a little off the centre and seats it so the floor meets the ground at the mouth.
+        /// </summary>
+        public float Porch;
+        /// <summary>
         /// How far its footprint reaches at scale 1 (m): the trunk for trees, about half its spread otherwise. Settlement
         /// plots (buildings, fences, palisades, pens) win over anything whose footprint would overlap them (OnBuiltPlot).
         /// </summary>
@@ -222,6 +228,8 @@ namespace Punchy.Flora
                     // Docks (#36) face the landmark's way too: a fishing village faces open water, so they run out to sea.
                     FaceLandmark = s.Form == FloraForm.HiveTree ? 1 : s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Dock ? 2 : 0,
                     ShoreKit = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Shore ? 1 : 0,
+                    // StructureKit.Igloo: the mouth is 0.78 of the radius plus the tunnel (2.2-3 m) plus the 0.8 m path out.
+                    Porch = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Igloo ? (s.Height.x + s.Height.y) * 0.5f * s.Spread * 0.39f + 3.4f : 0f,
                     Footprint = Footprint(s),
                     Span = s.Form == FloraForm.IceArch ? (s.Height.x + s.Height.y) * 0.5f * math.max(s.Spread, 0.5f) * 0.5f : 0f
                 };
@@ -478,6 +486,34 @@ namespace Punchy.Flora
 
         /// <summary>The yaw that turns a model's front (+Z) to face a direction (yaw maps +Z to (-sin, cos)).</summary>
         static float FacingYaw(float2 facing) => math.atan2(-facing.x, facing.y);
+
+        /// <summary>
+        /// W-61b (#38): an igloo facing its settlement's centre, turned up to 60 degrees either way to the heading whose
+        /// porch mouth (<paramref name="porch"/> m out) is nearest its centre's height (straight on wins near-ties), then
+        /// lowered (up to 1.4 m, the dome sinking into the slope) or raised (up to 0.5 m, within its foundation skirt) so
+        /// the porch floor meets the ground at the mouth, not a ledge over a dip. No random draws, so nothing else moves.
+        /// </summary>
+        static void PorchSeat(in TerrainSource source, float2 spot, float porch, ref float yaw, ref float y)
+        {
+            var best = yaw;
+            var bestCost = float.MaxValue;
+            var mouthY = y;
+            for (int k = 0; k < 5; k++)
+            {
+                var turn = math.radians(30f) * (k == 0 ? 0 : k == 1 ? 1 : k == 2 ? -1 : k == 3 ? 2 : -2);
+                var a = yaw + turn;
+                var ground = source.SampleHeight(spot + new float2(-math.sin(a), math.cos(a)) * porch);
+                var cost = math.abs(ground - y) + 0.25f * math.abs(turn);
+                if (cost < bestCost)
+                {
+                    bestCost = cost;
+                    best = a;
+                    mouthY = ground;
+                }
+            }
+            yaw = best;
+            y = math.clamp(mouthY, y - 1.4f, y + 0.5f);
+        }
 
         /// <summary>
         /// Where a dock (#36, W-59c) starts: its ring spot slid along the village's facing (up to 14 m either way) to
@@ -1072,6 +1108,8 @@ namespace Punchy.Flora
                                 if (placedRule.FaceLandmark != 0)
                                     placedYaw = FacingYaw(set.Instances[landmark.Instance].Facing);
                                 var at = new float3(spot.x, footprint ? 0f : source.SampleHeight(spot), spot.y);
+                                if (placedRule.Porch > 0f && !footprint)
+                                    PorchSeat(source, spot, placedRule.Porch, ref placedYaw, ref at.y);
                                 if (placedRule.FaceLandmark == 2 && !footprint)
                                     at = DockShore(source, spot, set.Instances[landmark.Instance].Facing);
                                 return new FloraSystem.FloraInstance

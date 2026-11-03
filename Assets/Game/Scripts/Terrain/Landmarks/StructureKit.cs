@@ -429,15 +429,8 @@ namespace Punchy.Terrain
                 Add(parts, KitPiece.Arch, KitMaterial.Trim, new Vector3(0f, doorH + 0.1f, z0 + tunnel + 0.04f), new Vector3(doorW + 1.2f, 0.32f, 0.2f), 0f, false);
             // A path of packed snow out through the porch (walked on, not solid).
             Add(parts, KitPiece.Floor, KitMaterial.Ice, new Vector3(0f, 0.05f, z0 + tunnel * 0.5f + 0.4f), new Vector3(doorW + 0.3f, 0.1f, tunnel + 0.8f), 0f, false);
-            // W-61 (#38): packed-snow steps down out of the porch mouth, 0.25 m each to 1.5 m below the floor. On a
-            // slope falling away from the mouth they bridge the ledge (0.6-1.0 m at two W-60 igloos); on level ground
-            // they sit below the surface and don't show. No random draws, so the rest of the igloo is unchanged.
-            for (int k = 0; k < 6; k++)
-            {
-                var top = -0.25f * (k + 1);
-                Add(parts, KitPiece.Stair, KitMaterial.Ice, new Vector3(0f, (top - 1.8f) * 0.5f, z0 + tunnel + 0.8f + 0.2f + k * 0.4f),
-                    new Vector3(doorW + 0.3f, top + 1.8f, 0.42f), 0f, false);
-            }
+            // (W-61's buried steps out of the mouth are gone: being under y = 0, the foundation skirt sank them 1.6 m
+            // out of reach. W-61b seats the igloo instead: FloraPlacement.PorchSeat.)
 
             // Ice panes round the dome and a faint rune band low on the wall: the inner glow showing through.
             for (int k = 0, panes = 2 + rng.Next(3); k < panes; k++)
