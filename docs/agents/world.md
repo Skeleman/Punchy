@@ -98,3 +98,22 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
 - W-28b: bergs vary by a seeded shape class (IcebergData.Shape, Scale, Tilt, peaks, notch, ledge, overhang) drawn and stood on from the same IcebergShape functions; their colour comes from a runtime palette strip indexed by mesh u. TerrainSource.Deck also returns a salt tower step floor, because the player only uses FloorUnder in a cave.
 - River pits (W-36, `RiverBaking.FillRiverPits`): a river bed below the bed it drains into backs its water up to that dam while its carve digs the banks down to the low bed, so the water stands above the banks (open ends). The pass raises such beds under their water, downstream first; lake and sea backwater are left alone. River `Gradient` (rapids foam) is the smaller of the bed and water drop, and lake-outlet foam scales with how far the surface really ramps, or flat backed-up water shows a white strip.
 - `DunesColossus.MeshBuilder` (also used by `Mantrap`) takes `Tri(a, c, b)`: Ellipsoid/Dome/Limb were written with inward winding, so the corners are swapped in `Tri` (W-48). Unity front faces are clockwise seen from outside; check a new shape with cross(b-a, c-a) pointing out.
+
+## Ruins (W-56, issue #24)
+
+- Ruins are built from the ruin kit (`Landmarks/RuinKit.cs`): set pieces (entrance, chamber, sanctum, hall, stair,
+  corner, dead end) described as data in their own frame (a along the entry, b to the left, y up from the entry floor):
+  rooms (UV box, floor, ceiling, slope, kind 0 closed / 1 open to the sky), solid boxes, sand drifts, wall torches and
+  exit sockets. A seeded builder (`RuinKit.Temple(seed)`) joins pieces socket to socket, tries side branches only
+  where they clear every room, and the result is baked into the landmark blob (`RuinRooms`, `RuinBoxes`, ...), so host
+  and client build the same ruin from the seed (`RuinKit.Fingerprint` checks it).
+- The kit is meant to grow into cities, fishing villages and new races' settlements: keep pieces as data (a new biome
+  or culture adds a piece factory and a plan, not new collision or drawing code). `SunkenTempleShape` answers floor,
+  air, wall and cut from the blob only, and `SunkenTempleSystem` draws the same data, so collision matches the art.
+- Open rooms cut the ground surface like a cave mouth (`TerrainSource.TempleCut`, `IsCaveHole`); closed rooms are air
+  under the ground (`TempleAir`, `IsRock`). The swell over the temple is part of the heightmap, so the ground hash
+  changes near temples only.
+- Gotcha: rooms stack in plan (the lower corridors and the second stair run under the pillared hall), so anything
+  that asks "which room is this point in" must pick by height too (highest floor within step reach of the feet),
+  never the first room whose UV box contains it. W-56's walk probe did that and read a false 7.5 m sink; it also
+  walked straight lines between door centres through a pillar row, which looked like a collision block.
