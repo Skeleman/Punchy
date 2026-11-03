@@ -85,3 +85,7 @@ MonoBehaviour:
     FaceRing: 0
     FaceAngle: 0
     Size: {x: 0, y: 0}
+  BiomeLooks:
+  - Biomes:
+    - {fileID: 11400000, guid: b8464ff24e973e14bbdaf441e0f45b14, type: 2}
+    Look: {fileID: 11400000, guid: 78da17fa051b48c0a7cf1d2c1ee53c03, type: 2}

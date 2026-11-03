@@ -59,6 +59,9 @@ namespace Punchy.Terrain
         [Min(0f)] public float Weight = 1f;
         [Tooltip("How many plots take this role (roles other than House and Landscaping; the Seat is always one).")]
         [Min(0)] public int Count = 1;
+        [Tooltip("If set, this building is never picked by weight: a settlement whose centre lies in one of these " +
+                 "biomes puts it on one House plot instead (a hazard shelter, #69). Empty = an ordinary building.")]
+        public List<BiomeDefinition> OnlyIn = new List<BiomeDefinition>();
     }
 
     /// <summary>
@@ -121,6 +124,10 @@ namespace Punchy.Terrain
         [Tooltip("One 3 m length of rail fence, run along some roads for a stretch just outside the settlement (fields), " +
                  "with gaps at forks and signposts. None if empty.")]
         public Punchy.Flora.FloraSpecies RoadFence;
+        [Tooltip("If set, the island's biggest settlement (when it has this layout) builds its house, seat, inn, smithy, " +
+                 "store and workshop plots from this structure-kit species instead (#24), each its own variant. " +
+                 "Plots and placement are unchanged.")]
+        public Punchy.Flora.FloraSpecies KitBuilding;
         public List<SettlementBuilding> Buildings = new List<SettlementBuilding>();
     }
 }

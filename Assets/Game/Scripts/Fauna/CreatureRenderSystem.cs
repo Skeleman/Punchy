@@ -1077,21 +1077,29 @@ namespace Punchy.Fauna
                     var bucketAt = state.Position + forward * 0.6f * scale + up * (0.25f + 0.2f * Unity.Mathematics.math.sin(state.Clock * 0.4f)) * scale;
                     Output[at + k++] = Piece(bucketAt, up, forward, 0.2f * scale, 0.08f * scale, 0.095f * scale, 1f, new Unity.Mathematics.float4(0.42f, 0.3f, 0.18f, 0f), faded, SegmentMaterial.Wood);
                 }
-                else if (atWork && hand >= 0 && (state.Task == CreatureTask.Hammer || state.Task == CreatureTask.Chop || state.Task == CreatureTask.Hermit && state.Stage == 1))
+                else if (atWork && hand >= 0 && (state.Task == CreatureTask.Hammer || state.Task == CreatureTask.Chop || state.Task == CreatureTask.Hermit && state.Stage != 2))
                 {
                     var h = Output[offset + hand];
                     var along = Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
                     var grip = h.Position + along * h.Length * 0.6f;
                     // (The haft out of the fist, crossing the hand's line: down from the grip and on beyond it.)
                     var side = Unity.Mathematics.math.normalize(Unity.Mathematics.math.cross(along, right) + along * 0.2f);
-                    var axe = state.Task == CreatureTask.Chop || state.Task == CreatureTask.Hermit;
+                    // (W-57: a hermit's tool is the landmark's Work, in Stage: 1 axe, 3 broom, 4 shovel, 5 hammer.)
+                    var hermitStage = state.Task == CreatureTask.Hermit ? state.Stage : 0;
+                    var broom = hermitStage == 3;
+                    var spade = hermitStage == 4;
+                    var axe = state.Task == CreatureTask.Chop || hermitStage == 1;
                     // (A farmer's is a hoe: a longer haft, a flat blade set across it.)
-                    var hoe = state.Task == CreatureTask.Chop && job == FolkJob.Farmer;
-                    var haft = (hoe ? 1.1f : axe ? 0.75f : 0.32f) * scale;
+                    var hoe = state.Task == CreatureTask.Chop && job == FolkJob.Farmer || broom || spade;
+                    var haft = (broom ? 1.25f : spade ? 1f : hoe ? 1.1f : axe ? 0.75f : 0.32f) * scale;
                     var butt = grip - side * haft * (hoe ? 0.35f : 0.15f);
                     Output[at + k++] = Piece(butt, side, along, haft, 0.016f * scale, 0.02f * scale, 1f, wood, faded, SegmentMaterial.Wood);
                     var top = butt + side * haft;
-                    Output[at + k++] = hoe
+                    Output[at + k++] = broom
+                        ? Piece(top - side * 0.02f * scale, along, side, 0.3f * scale, 0.05f * scale, 0.14f * scale, 0.7f, new Unity.Mathematics.float4(0.76f, 0.62f, 0.33f, 0f), faded, SegmentMaterial.Wood)
+                        : spade
+                        ? Piece(top, side, along, 0.26f * scale, 0.12f * scale, 0.02f * scale, 0.8f, iron, faded, SegmentMaterial.Metal)
+                        : hoe
                         ? Piece(top - side * 0.02f * scale, along, side, 0.16f * scale, 0.06f * scale, 0.07f * scale, 0.1f, iron, faded, SegmentMaterial.Metal)
                         : axe
                         ? Piece(top - side * 0.12f * scale, along, side, 0.14f * scale, 0.05f * scale, 0.08f * scale, 0.12f, iron, faded, SegmentMaterial.Metal)

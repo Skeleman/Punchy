@@ -210,7 +210,9 @@ namespace Punchy.Ambience
             for (int t = 0; t < types.Count; t++)
             {
                 slotDensity[t] = slotsPerType[t] * 100f / (TileSize * TileSize);
-                groundTint[t] = (byte)(types[t].GroundTint > 0f ? 1 : 0);
+                // Bit 1: tinted by the ground. Bit 2 (W-59d, #36): a mist puff, never spawned over the open sea (the coast's
+                // biome blend reaches out over the water, and marsh fog wisps floated over the sea off the fishing villages).
+                groundTint[t] = (byte)((types[t].GroundTint > 0f ? 1 : 0) | (types[t].Style == AmbientParticleStyle.Mist ? 2 : 0));
             }
             var output = new NativeArray<Particle>(count * perTile, Allocator.TempJob);
             var keep = new NativeArray<byte>(count * perTile, Allocator.TempJob);
@@ -320,6 +322,7 @@ namespace Punchy.Ambience
             public TerrainSource Source;
             [ReadOnly] public NativeArray<float> Densities;
             [ReadOnly] public NativeArray<float> SlotDensity;
+            /// <summary>Per type: bit 1 tinted by the ground, bit 2 a mist puff (kept off the open sea).</summary>
             [ReadOnly] public NativeArray<byte> GroundTint;
             [ReadOnly] public NativeArray<int> SlotType;
             public int TypeCount, BiomeCount;
@@ -347,9 +350,12 @@ namespace Punchy.Ambience
                 if (roll >= density)
                     return;
                 var ground = Source.SampleGround(xz);
+                var sea = Source.World.SeaLevel;
+                if ((GroundTint[type] & 2) != 0 && ground.HasWater && ground.Height < sea - 0.5f && math.abs(ground.WaterSurface - sea) < 0.05f)
+                    return;
                 var y = ground.HasWater ? math.max(ground.Height, ground.WaterSurface) : ground.Height;
                 var colour = new float3(1f);
-                if (GroundTint[type] != 0)
+                if ((GroundTint[type] & 1) != 0)
                     colour = Source.SampleSurface(xz, ground, Source.SampleNormal(xz, 1f)).Albedo;
                 Output[i] = new Particle { Position = new float3(xz.x, y, xz.y), Random = rng.NextFloat(), Ground = colour };
                 Keep[i] = 1;

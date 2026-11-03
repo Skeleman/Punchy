@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Punchy.Terrain;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Burst;
 using Unity.Mathematics;
 using UnityEngine;
 using Random = Unity.Mathematics.Random;
@@ -31,8 +32,17 @@ namespace Punchy.Flora
         public int OwnColour;
         /// <summary>1 for built things (FloraGenerator.Founded): their bases take a band of the ground's colour.</summary>
         public int Dirt;
-        /// <summary>1 for hive trees: placed in a landmark, they face its way, so their comb is on a known side.</summary>
+        /// <summary>1 for hive trees, 2 for docks: placed in a landmark, they face its way (comb on a known side, docks out to
+        /// sea). A dock also slides along that way to the waterline (DockShore), so its land end starts on the bank.</summary>
         public int FaceLandmark;
+        /// <summary>1 for fishing villages' shore clutter (#36, W-59d): kept off the walk lane up each of the village's docks.</summary>
+        public int ShoreKit;
+        /// <summary>
+        /// W-61b (#38): for igloos, how far out the porch mouth is (0 for everything else). On a settlement's slope an
+        /// igloo set at its centre's ground had its porch floor up to 1 m over a dip at the mouth, or buried in a knoll;
+        /// PorchSeat turns it a little off the centre and seats it so the floor meets the ground at the mouth.
+        /// </summary>
+        public float Porch;
         /// <summary>
         /// How far its footprint reaches at scale 1 (m): the trunk for trees, about half its spread otherwise. Settlement
         /// plots (buildings, fences, palisades, pens) win over anything whose footprint would overlap them (OnBuiltPlot).
@@ -96,6 +106,8 @@ namespace Punchy.Flora
         public BlobArray<int2> PropRanges;
         /// <summary>Per settlement building (SettlementBaking.Buildings order): species index and its layer (-1 none).</summary>
         public BlobArray<int2> SettlementSpecies;
+        /// <summary>Per settlement layout (Layouts order): its Kit Building species and layer, or -1 (#24).</summary>
+        public BlobArray<int2> LayoutKit;
         /// <summary>
         /// Per species: the light a glowing plant gives its surroundings (rgb, linear) and how far it reaches (w, m);
         /// all zero for plants that don't glow. See <see cref="FloraPlacement.GlowLight"/>.
@@ -171,6 +183,10 @@ namespace Punchy.Flora
             foreach (var b in buildings)
                 if (b.Species != null)
                     found.Add(b.Species);
+            var layouts = SettlementBaking.Layouts(landmarks);
+            foreach (var l in layouts)
+                if (l.KitBuilding != null)
+                    found.Add(l.KitBuilding);
             species.Clear();
             species.AddRange(found);
             species.Sort((a, b) => a.Layer != b.Layer ? a.Layer.CompareTo(b.Layer) : string.CompareOrdinal(a.name, b.name));
@@ -209,7 +225,11 @@ namespace Punchy.Flora
                     Tilt = s.Form == FloraForm.Boulder ? 0.85f : 0f,
                     OwnColour = s.KeepOwnColour ? 1 : 0,
                     Dirt = FloraGenerator.Founded(s.Form) ? 1 : 0,
-                    FaceLandmark = s.Form == FloraForm.HiveTree ? 1 : 0,
+                    // Docks (#36) face the landmark's way too: a fishing village faces open water, so they run out to sea.
+                    FaceLandmark = s.Form == FloraForm.HiveTree ? 1 : s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Dock ? 2 : 0,
+                    ShoreKit = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Shore ? 1 : 0,
+                    // StructureKit.Igloo: the mouth is 0.78 of the radius plus the tunnel (2.2-3 m) plus the 0.8 m path out.
+                    Porch = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Igloo ? (s.Height.x + s.Height.y) * 0.5f * s.Spread * 0.39f + 3.4f : 0f,
                     Footprint = Footprint(s),
                     Span = s.Form == FloraForm.IceArch ? (s.Height.x + s.Height.y) * 0.5f * math.max(s.Spread, 0.5f) * 0.5f : 0f
                 };
@@ -317,6 +337,11 @@ namespace Punchy.Flora
                 settlementSpecies[i] = buildings[i].Species != null
                     ? new int2(species.IndexOf(buildings[i].Species), (int)buildings[i].Species.Layer)
                     : new int2(-1, -1);
+            var layoutKit = builder.Allocate(ref root.LayoutKit, layouts.Count);
+            for (int i = 0; i < layouts.Count; i++)
+                layoutKit[i] = layouts[i].KitBuilding != null
+                    ? new int2(species.IndexOf(layouts[i].KitBuilding), (int)layouts[i].KitBuilding.Layer)
+                    : new int2(-1, -1);
 
             var blob = builder.CreateBlobAssetReference<FloraBlob>(Allocator.Persistent);
             builder.Dispose();
@@ -382,6 +407,31 @@ namespace Punchy.Flora
         /// Buildings and fences win: whatever else would stand in them isn't placed (scattered plants and rocks, a
         /// neighbouring landmark's props, road clutter), rather than the fence giving way.
         /// </summary>
+        /// <summary>
+        /// What stands on a plot: its layout building's species and layer, except that the island's biggest settlement
+        /// (largest radius, lowest index on a tie) builds its house, seat, inn, smithy, store and workshop plots from its
+        /// layout's Kit Building (#24), each a variant drawn as before. Plots, roles and placement draws are unchanged.
+        /// </summary>
+        public static int2 PlotSpecies(ref FloraBlob f, ref SettlementSetBlob towns, in SettlementPlot plot)
+        {
+            var species = f.SettlementSpecies[plot.Building];
+            if (f.LayoutKit.Length == 0 || species.x < 0 || plot.Settlement < 0 || plot.Settlement >= towns.Settlements.Length)
+                return species;
+            if (plot.Role != PlotRole.House && plot.Role != PlotRole.Seat && plot.Role != PlotRole.Inn &&
+                plot.Role != PlotRole.Smithy && plot.Role != PlotRole.Store && plot.Role != PlotRole.Workshop)
+                return species;
+            ref var town = ref towns.Settlements[plot.Settlement];
+            if (town.Layout < 0 || town.Layout >= f.LayoutKit.Length || f.LayoutKit[town.Layout].x < 0)
+                return species;
+            for (int i = 0; i < towns.Settlements.Length; i++)
+            {
+                var r = towns.Settlements[i].Radius;
+                if (r > town.Radius || (r == town.Radius && i < plot.Settlement))
+                    return species;
+            }
+            return f.LayoutKit[town.Layout];
+        }
+
         static bool OnBuiltPlot(ref FloraBlob f, in TerrainSource source, float2 xz, float radius)
         {
             if (!source.Settlements.IsCreated || f.SettlementSpecies.Length == 0)
@@ -438,6 +488,106 @@ namespace Punchy.Flora
         static float FacingYaw(float2 facing) => math.atan2(-facing.x, facing.y);
 
         /// <summary>
+        /// W-61b (#38): an igloo facing its settlement's centre, turned up to 60 degrees either way to the heading whose
+        /// porch mouth (<paramref name="porch"/> m out) is nearest its centre's height (straight on wins near-ties), then
+        /// lowered (up to 1.4 m, the dome sinking into the slope) or raised (up to 0.5 m, within its foundation skirt) so
+        /// the porch floor meets the ground at the mouth, not a ledge over a dip. No random draws, so nothing else moves.
+        /// </summary>
+        static void PorchSeat(in TerrainSource source, float2 spot, float porch, ref float yaw, ref float y)
+        {
+            var best = yaw;
+            var bestCost = float.MaxValue;
+            var mouthY = y;
+            for (int k = 0; k < 5; k++)
+            {
+                var turn = math.radians(30f) * (k == 0 ? 0 : k == 1 ? 1 : k == 2 ? -1 : k == 3 ? 2 : -2);
+                var a = yaw + turn;
+                var ground = source.SampleHeight(spot + new float2(-math.sin(a), math.cos(a)) * porch);
+                var cost = math.abs(ground - y) + 0.25f * math.abs(turn);
+                if (cost < bestCost)
+                {
+                    bestCost = cost;
+                    best = a;
+                    mouthY = ground;
+                }
+            }
+            yaw = best;
+            y = math.clamp(mouthY, y - 1.4f, y + 0.5f);
+        }
+
+        /// <summary>
+        /// Where a dock (#36, W-59c) starts: its ring spot slid along the village's facing (up to 14 m either way) to
+        /// just above the waterline, so the land end and its short stair stand on the bank and the deck (0.8 m up) rides
+        /// clear of the sea; never below the sea itself. (W-59b's docks started anywhere from 1.7 m under water to 2.5 m
+        /// up the bank, and the player snagged at the land end.)
+        /// </summary>
+        static float3 DockShore(in TerrainSource source, float2 spot, float2 facing)
+        {
+            var sea = source.World.SeaLevel;
+            const float above = 0.25f;
+            var dir = math.normalizesafe(facing, new float2(1f, 0f));
+            var best = spot;
+            if (source.SampleHeight(spot) > sea + above)
+            {
+                // On the bank: walk out to the last dry step before the water.
+                for (var d = 0.5f; d <= 14f; d += 0.5f)
+                {
+                    if (source.SampleHeight(spot + dir * d) <= sea + above)
+                        break;
+                    best = spot + dir * d;
+                }
+            }
+            else
+            {
+                // In the water: walk back up to the first dry step.
+                for (var d = 0.5f; d <= 14f; d += 0.5f)
+                {
+                    best = spot - dir * d;
+                    if (source.SampleHeight(best) > sea + above)
+                        break;
+                }
+            }
+            return new float3(best.x, math.max(source.SampleHeight(best), sea + 0.1f), best.y);
+        }
+
+        /// <summary>
+        /// How far <paramref name="xz"/> is from the walk lane of the nearest dock of this landmark (#36, W-59d): the
+        /// line from the foot of its plank ramp (4.6 m inland of the dock's base) out along the facing to its far end.
+        /// Shore clutter (a boat pulled up, a net frame) and the biome's plants stay off it, so the lane up the ramp and
+        /// down the deck is clear. float.MaxValue when the landmark has no docks.
+        /// </summary>
+        static float DockLaneDistance(ref FloraBlob f, in TerrainSource source, in LandmarkHit landmark, float2 xz)
+        {
+            ref var set = ref source.Landmarks.Value;
+            var instance = set.Instances[landmark.Instance];
+            var dir = math.normalizesafe(instance.Facing, new float2(1f, 0f));
+            var best = float.MaxValue;
+            for (int l = 0; l < 3; l++)
+            {
+                var placed = f.PropRanges[landmark.Type * 3 + l];
+                for (int e = placed.x; e < placed.x + placed.y; e++)
+                {
+                    var prop = f.Props[e];
+                    if (f.Rules[prop.Species].FaceLandmark != 2)
+                        continue;
+                    for (int k = 0; k < prop.Count; k++)
+                    {
+                        var spot = LandmarkSampling.ToWorld(instance, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
+                        var start = DockShore(source, spot, instance.Facing).xz;
+                        var along = math.clamp(math.dot(xz - start, dir), -DockRampRun, DockMaxLength);
+                        best = math.min(best, math.distance(xz, start + dir * along));
+                    }
+                }
+            }
+            return best;
+        }
+
+        /// <summary>The dock's plank ramp run (StructureKit.Dock) and a length past its longest deck, for the walk lane.</summary>
+        const float DockRampRun = 4.6f, DockMaxLength = 20f;
+        /// <summary>How far a shore cluster (StructureKit.Shore, spread 2.5) reaches from its spot, plus half the lane (m).</summary>
+        const float ShoreReach = 5.6f;
+
+        /// <summary>
         /// The floor a plot's building stands at: the average ground over its footprint (the middle and four points
         /// towards its corners), raised to the ground at its door if that's higher so the door is never buried. Its
         /// foundation skirt (FloraGenerator.FoundationDepth) reaches down past the lower ground.
@@ -461,7 +611,8 @@ namespace Punchy.Flora
             FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tent or FloraForm.Tower or FloraForm.Stall or FloraForm.Inn or
             FloraForm.Smithy or FloraForm.Forum or FloraForm.Fountain or FloraForm.Woodpile or FloraForm.Well or
             FloraForm.Hall or FloraForm.Shrine or FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade or
-            FloraForm.Bench or FloraForm.Log or FloraForm.Stump or FloraForm.FirePit or FloraForm.Ruin or FloraForm.RailFence => true,
+            FloraForm.Bench or FloraForm.Log or FloraForm.Stump or FloraForm.FirePit or FloraForm.Ruin or FloraForm.RailFence or
+            FloraForm.HazardShelter or FloraForm.KitBuilding or FloraForm.KitRuin => true,
             _ => false
         };
 
@@ -470,7 +621,7 @@ namespace Punchy.Flora
         {
             FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tower or FloraForm.Inn or FloraForm.Smithy or FloraForm.Well or
             FloraForm.Hall or FloraForm.Shrine or FloraForm.Garden or FloraForm.Pen or FloraForm.Signpost or FloraForm.Palisade or
-            FloraForm.Ruin or FloraForm.RailFence => true,
+            FloraForm.Ruin or FloraForm.RailFence or FloraForm.HazardShelter or FloraForm.KitBuilding or FloraForm.KitRuin => true,
             _ => false
         };
 
@@ -529,7 +680,7 @@ namespace Punchy.Flora
                         if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length ||
                             math.any(near < plot.Min - radius) || math.any(near > plot.Max + radius))
                             continue;
-                        var building = f.SettlementSpecies[plot.Building];
+                        var building = PlotSpecies(ref f, ref towns, plot);
                         if (building.x < 0 || f.Models[f.Rules[building.x].FirstModel].ObstacleCount == 0)
                             continue;
                         var cell = (int2)math.floor(plot.Centre / f.CellSizes[building.y]);
@@ -583,7 +734,7 @@ namespace Punchy.Flora
                         if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length ||
                             math.any(near < plot.Min - radius) || math.any(near > plot.Max + radius))
                             continue;
-                        var building = f.SettlementSpecies[plot.Building];
+                        var building = PlotSpecies(ref f, ref towns, plot);
                         if (building.x < 0 || f.Models[f.Rules[building.x].FirstModel].PerchCount == 0)
                             continue;
                         var cell = (int2)math.floor(plot.Centre / f.CellSizes[building.y]);
@@ -627,7 +778,7 @@ namespace Punchy.Flora
             ref var plot = ref source.Settlements.Value.Plots[plotIndex];
             if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length)
                 return 0;
-            var building = f.SettlementSpecies[plot.Building];
+            var building = PlotSpecies(ref f, ref source.Settlements.Value, plot);
             if (building.x < 0 || building.y < 0 || f.Models[f.Rules[building.x].FirstModel].ChimneyCount == 0)
                 return 0;
             var plant = Place(ref f, source, (int2)math.floor(plot.Centre / f.CellSizes[building.y]), building.y);
@@ -719,7 +870,7 @@ namespace Punchy.Flora
                         if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length ||
                             math.any(xz < plot.Min - radius) || math.any(xz > plot.Max + radius))
                             continue;
-                        var building = f.SettlementSpecies[plot.Building];
+                        var building = PlotSpecies(ref f, ref towns, plot);
                         if (building.x < 0 || f.Models[f.Rules[building.x].FirstModel].ObstacleCount == 0)
                             continue;
                         var cell = (int2)math.floor(plot.Centre / f.CellSizes[building.y]);
@@ -857,12 +1008,21 @@ namespace Punchy.Flora
         /// exactly as without), leaving out its floor height and ground colour, which sample the ground round it and cost
         /// most of the call (Blocked asks on every step of every animal in town). Other plants are placed in full.
         /// </summary>
+        /// <summary>Up to two circles (x, z, radius, on) where no flora is placed: the stone colossi (#40), set at runtime.</summary>
+        public static readonly SharedStatic<float4x2> KeepOut = SharedStatic<float4x2>.GetOrCreate<KeepOutKey>();
+        class KeepOutKey { }
+
         public static FloraSystem.FloraInstance Place(ref FloraBlob f, in TerrainSource source, int2 cell, int layer, bool footprint = false)
         {
             var none = new FloraSystem.FloraInstance { Model = -1 };
             var cellSize = f.CellSizes[layer];
             var rng = new Random(math.hash(new int3(cell, layer * 7919 + 13)) | 1u);
             var xz = ((float2)cell + rng.NextFloat2()) * cellSize;
+            // Nothing grows through a stone colossus (#40): each one keeps a clear circle round it.
+            var keepOut = KeepOut.Data;
+            if ((keepOut.c0.w > 0f && math.distancesq(xz, keepOut.c0.xy) < keepOut.c0.z * keepOut.c0.z) ||
+                (keepOut.c1.w > 0f && math.distancesq(xz, keepOut.c1.xy) < keepOut.c1.z * keepOut.c1.z))
+                return none;
             var roll = rng.NextFloat();
             var area = cellSize * cellSize / 100f;
             // Room for 31 (a four-biome border plus a landmark's props; a fuller list would silently drop species).
@@ -885,7 +1045,7 @@ namespace Punchy.Flora
                         ref var plot = ref towns.Plots[towns.PlotItems[k]];
                         if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length)
                             continue;
-                        var building = f.SettlementSpecies[plot.Building];
+                        var building = PlotSpecies(ref f, ref towns, plot);
                         if (building.x < 0 || building.y != layer || math.any((int2)math.floor(plot.Centre / cellSize) != cell))
                             continue;
                         var buildingRule = f.Rules[building.x];
@@ -939,13 +1099,22 @@ namespace Punchy.Flora
                                 if (OnBuiltPlot(ref f, source, spot, placedRule.Footprint * prop.Scale.y) ||
                                     OnRoad(source, spot, placedRule.Footprint * prop.Scale.y))
                                     return none;
+                                // W-59d: a shore cluster reaches about 5 m (2.5 m spread plus half a pulled-up boat):
+                                // none within that of a dock's walk lane, so nothing stands on the ramp or deck.
+                                if (placedRule.ShoreKit != 0 && DockLaneDistance(ref f, source, landmark, spot) < ShoreReach * prop.Scale.y)
+                                    return none;
                                 var toCentre = set.Instances[landmark.Instance].Position - spot;
                                 var placedYaw = prop.FaceCentre != 0 ? math.atan2(-toCentre.x, toCentre.y) : rng.NextFloat(math.PI * 2f);
                                 if (placedRule.FaceLandmark != 0)
                                     placedYaw = FacingYaw(set.Instances[landmark.Instance].Facing);
+                                var at = new float3(spot.x, footprint ? 0f : source.SampleHeight(spot), spot.y);
+                                if (placedRule.Porch > 0f && !footprint)
+                                    PorchSeat(source, spot, placedRule.Porch, ref placedYaw, ref at.y);
+                                if (placedRule.FaceLandmark == 2 && !footprint)
+                                    at = DockShore(source, spot, set.Instances[landmark.Instance].Facing);
                                 return new FloraSystem.FloraInstance
                                 {
-                                    Position = new float3(spot.x, footprint ? 0f : source.SampleHeight(spot), spot.y),
+                                    Position = at,
                                     Yaw = placedYaw,
                                     Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
                                     Model = placedRule.FirstModel + rng.NextInt(placedRule.Variants),
@@ -958,6 +1127,9 @@ namespace Punchy.Flora
                     }
                 }
                 if (blocked)
+                    return none;
+                // W-59d: the biome's plants (bushes, rocks) stay off the docks' walk lanes too.
+                if (DockLaneDistance(ref f, source, landmark, xz) < 2f)
                     return none;
                 var propRange = f.PropRanges[landmark.Type * 3 + layer];
                 for (int e = propRange.x; e < propRange.x + propRange.y; e++)

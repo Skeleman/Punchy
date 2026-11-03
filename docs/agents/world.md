@@ -48,6 +48,7 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   #35); murk above about 0.3 makes the pool a hard-edged opaque slab that reads as snow. White pools set `_SoftRim`:
   the rim fades, the middle darkens and stays see-through (body alpha x0.55), and the glow is a band inside the rim.
 - **Bat folk (#35, W-18):** `BatFolkBaking` runs after CaveBaking, reads the caves only and writes its own blob
+- **Bat folk kit (#35, W-61):** wall/ceiling houses are kit `StructureKit.House` in `FolkCulture.BatFolk` trim, rebuilt in `BatFolkMeshes` from a hash of the spot (no extra blob data; Lamp/Rune parts skipped, never add lights). Details come from the weighted `BatFolkBaking.Details` table, jittered per site. Pools of bat sites use `CaveSystem.WhitePoolWater`.
   (`TerrainSource.BatFolk`), so landmark and cave hashes never see it. A cave qualifies with a chamber >= 9 m
   at least 3 nodes in and a water pool (the chamber's own, else the nearest in the cave); up to 1 in 6 (min 1) is
   picked by a scrambled mouth-cell hash on its own seed stream. Its `WhitePools` (per cave pool) draws those
@@ -98,3 +99,65 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
 - W-28b: bergs vary by a seeded shape class (IcebergData.Shape, Scale, Tilt, peaks, notch, ledge, overhang) drawn and stood on from the same IcebergShape functions; their colour comes from a runtime palette strip indexed by mesh u. TerrainSource.Deck also returns a salt tower step floor, because the player only uses FloorUnder in a cave.
 - River pits (W-36, `RiverBaking.FillRiverPits`): a river bed below the bed it drains into backs its water up to that dam while its carve digs the banks down to the low bed, so the water stands above the banks (open ends). The pass raises such beds under their water, downstream first; lake and sea backwater are left alone. River `Gradient` (rapids foam) is the smaller of the bed and water drop, and lake-outlet foam scales with how far the surface really ramps, or flat backed-up water shows a white strip.
 - `DunesColossus.MeshBuilder` (also used by `Mantrap`) takes `Tri(a, c, b)`: Ellipsoid/Dome/Limb were written with inward winding, so the corners are swapped in `Tri` (W-48). Unity front faces are clockwise seen from outside; check a new shape with cross(b-a, c-a) pointing out.
+
+## Ruins (W-56, issue #24)
+
+- Ruins are built from the ruin kit (`Landmarks/RuinKit.cs`): set pieces (entrance, chamber, sanctum, hall, stair,
+  corner, dead end) described as data in their own frame (a along the entry, b to the left, y up from the entry floor):
+  rooms (UV box, floor, ceiling, slope, kind 0 closed / 1 open to the sky), solid boxes, sand drifts, wall torches and
+  exit sockets. A seeded builder (`RuinKit.Temple(seed)`) joins pieces socket to socket, tries side branches only
+  where they clear every room, and the result is baked into the landmark blob (`RuinRooms`, `RuinBoxes`, ...), so host
+  and client build the same ruin from the seed (`RuinKit.Fingerprint` checks it).
+- The kit is meant to grow into cities, fishing villages and new races' settlements: keep pieces as data (a new biome
+  or culture adds a piece factory and a plan, not new collision or drawing code). `SunkenTempleShape` answers floor,
+  air, wall and cut from the blob only, and `SunkenTempleSystem` draws the same data, so collision matches the art.
+- Open rooms cut the ground surface like a cave mouth (`TerrainSource.TempleCut`, `IsCaveHole`); closed rooms are air
+  under the ground (`TempleAir`, `IsRock`). The swell over the temple is part of the heightmap, so the ground hash
+  changes near temples only.
+- Gotcha: rooms stack in plan (the lower corridors and the second stair run under the pillared hall), so anything
+  that asks "which room is this point in" must pick by height too (highest floor within step reach of the feet),
+  never the first room whose UV box contains it. W-56's walk probe did that and read a false 7.5 m sink; it also
+  walked straight lines between door centres through a pillar row, which looked like a collision block.
+
+## StructureKit (W-58, W-58b, issue #24)
+
+`Terrain/Landmarks/StructureKit.cs` builds whole buildings out of boxes, from a seed and a culture trim, so new
+building kinds are code plus a species asset, not hand-made meshes. Everything is in building space: +Z is the
+front (the door side), y = 0 is the ground, metres.
+
+- **Parts.** `House`, `Gate`, `Platform`, `Stair`, `Balcony` and `Tower` append `KitPart`s (`Piece`, `Material`,
+  `Centre`, `Size`, `Rotation`, `Solid`) to a list. `KitPiece` says what a box is (Wall, Floor, Roof, Stair, Column,
+  Arch, Platform, Balcony, Rail, Window, Door, Trim, Rubble, Moss, Beam, Chimney); `KitMaterial` picks its colour
+  from the trim (Wall, Trim, Roof, Wood, Opening, Moss, Stone). Walls are `StructureKit.Thick` (0.4 m) thick; only
+  ground-storey wall bays are `Solid`.
+- **Culture trims.** `StructureKit.For(FolkCulture)` returns a `CultureTrim`: colours, roof shape (`KitRoof` Gable,
+  Tiered, Flat, Steep), storey height, bay width, pitch, and the details: quoins, crenels, shutters, and the chances
+  of a tower, balcony and outside stair. Dwarf: flat roof, crenels. Elf: tiered roof, 3.4 m storeys, 2.2 m bays,
+  balcony 0.7, stair 0.3. Goblin, Ogre, SnowFolk: steep roof, shutters. Human (the default): gable roof, quoins,
+  shutters. A new people is one more case in `For`.
+- **House.** `House(seed, trim, width, depth, storeys, decay)` lays bays round four walls (door bay in the middle of
+  the front, windows by chance, more at the front), string courses, quoins, the roof, then a balcony and an outside
+  stair by chance. `decay > 0` makes a ruin: walls broken down to a slope, rubble, moss caps, ivy strands, empty
+  window holes, a few fallen rafters, no roof or door. `Fingerprint(parts)` hashes a part list for regressions
+  (seed 42, Human, 8 x 7 m, 2 storeys: 203 parts).
+- **Stair and Platform.** `Stair(parts, at, yaw, rise, width)` makes 0.3 m treads of at most 0.28 m rise (not
+  solid, so the support grid makes them walkable) with a landing on top. `Platform(parts, at, yaw, width, length,
+  deckHeight, rails)` is a deck on posts with optional rails: the piece for jetties and docks.
+- **From parts to a model.** `FloraForm.KitBuilding` and `FloraForm.KitRuin` call `FloraGenerator.KitStructure`,
+  which turns each part into a box (Moss as foliage, the rest as bark; trims and moss drop at LOD2), and adds
+  colliders: intact buildings get one circle per solid part up to the eaves (wall circles set back so their outer
+  edge is the wall's outer face, W-58b) plus one fat cylinder inside; ruins get a circle per standing ground-storey
+  piece. Kit forms are Founded, so they get a support grid of walkable tops (door steps, stair treads, landings).
+  Species fields: `Height` x `Spread` is the width, `KitCulture` the trim; ruins take their wall colour from `Bark`
+  and moss from `Accent`.
+- **How a layout uses it.** Settlement plots name species. `FloraPlacement.PlotSpecies()` swaps the biggest
+  settlement's house, seat, inn, smithy, store and workshop plots to the `KitHouse` species (FloraForm.KitBuilding),
+  which stands on the plot centre facing `SettlementPlot.Facing`; `FloraGenerator.DoorFront` gives the door step
+  distance. Ruin landmarks use a species with `FloraForm.KitRuin`.
+- **Walk test (W-58b).** Intact doors are closed (no interiors yet): the player walks up to all 5 tested ElfGrove
+  doors and stops on the step. 7 of 24 KitHouse variants have an outside stair; all climb to the 3.4 m landing.
+- **For fishing villages (W-59).** Add a coastal trim (a new `FolkCulture` case or a variant of Human), build huts
+  with `House` (1 storey, small bays), docks and jetties with `Platform` (deckHeight above the water level,
+  rails), and boathouses as `House` on a `Platform`. Give them their own species with `KitCulture` set, and a
+  settlement layout whose plots name those species. Keep new random draws after the existing ones in `House`, or
+  every existing kit building changes.

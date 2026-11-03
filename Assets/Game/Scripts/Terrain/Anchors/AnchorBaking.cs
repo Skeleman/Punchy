@@ -331,7 +331,7 @@ namespace Punchy.Terrain
                             Add(AnchorKind.Door, spot + toCentre * (front * scale + 0.6f), 0f, toCentre, 0.6f, 1);
                         }
                         else if (species.Form == Punchy.Flora.FloraForm.Woodpile)
-                            Add(AnchorKind.Work, spot + toCentre * (size * species.Spread * 0.5f + 1.2f), 0f, -toCentre, 0.8f, 1);
+                            Add(AnchorKind.Work, spot + toCentre * (size * species.Spread * 0.5f + 1.2f), 0f, -toCentre, 0.8f, 1, (byte)type.Work);
                         else if (species.Form == Punchy.Flora.FloraForm.Garden)
                             Add(AnchorKind.Garden, spot, 0f, toCentre, size * species.Spread * 0.5f, 1);
                     }
