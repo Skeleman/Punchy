@@ -51,6 +51,19 @@ namespace Punchy.Fauna
         /// <summary>A-26 tests ("-chattest"): folk stop to talk far more often, from further apart, cooldowns short.</summary>
         public static readonly Unity.Burst.SharedStatic<int> ForceChat = Unity.Burst.SharedStatic<int>.GetOrCreate<ForceChatKey>();
         struct ForceChatKey { }
+        /// <summary>#57 A/B switch ("-oldsearch"): predator, alarm and asked-to-chat searches every frame, as before the stagger.</summary>
+        public static readonly Unity.Burst.SharedStatic<int> SearchEveryFrame = Unity.Burst.SharedStatic<int>.GetOrCreate<SearchEveryFrameKey>();
+        struct SearchEveryFrameKey { }
+        /// <summary>
+        /// #57 counters for -perflog (Interlocked from the brain's workers): [0] predator searches, [1] alarm searches,
+        /// [2] asked-to-chat searches, [3] flee started by a predator, [4] flee started by an alarm.
+        /// </summary>
+        public static readonly Unity.Burst.SharedStatic<SearchCounts> Searches = Unity.Burst.SharedStatic<SearchCounts>.GetOrCreate<SearchCountsKey>();
+        struct SearchCountsKey { }
+        public struct SearchCounts { public long Predator, Alarm, Chat, PredatorFlee, AlarmFlee; }
+        /// <summary>#57: each creature looks for predators, alarms and someone asking it to chat once per this (s), phased
+        /// by its Individual on the shared clock (the same on every machine); fleeing ones still look every frame.</summary>
+        const float SearchPeriod = 0.2f;
 
         /// <summary>
         /// One of the townsfolk who could stop for a talk (A-26, widened in A-27, when a settled town of a few folk, most
@@ -173,6 +186,8 @@ namespace Punchy.Fauna
                 PlayerSpeeds = playerSpeeds,
                 Carry = SystemAPI.TryGetSingleton<CarryTable>(out var carryTable) ? carryTable : default,
                 Dt = math.min(SystemAPI.Time.DeltaTime, 0.1f),
+                Now = (float)SystemAPI.Time.ElapsedTime,
+                Step = SystemAPI.Time.DeltaTime,
                 Night = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Night : 0f,
                 Hour = SystemAPI.TryGetSingleton<FaunaClock>(out var hourClock) ? hourClock.Hour : 12f,
                 Entities = entities,
@@ -226,7 +241,18 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<float> PlayerSpeeds;
             public CarryTable Carry;
             public float Dt, Night, Hour;
+            /// <summary>The shared clock and this frame's raw step, for staggered searches (#57).</summary>
+            public float Now, Step;
             [ReadOnly] public NativeArray<Entity> Entities;
+
+            /// <summary>Whether this creature's staggered searches run this frame: its slot of SearchPeriod came round.</summary>
+            bool SearchDue(in CreatureState s)
+            {
+                if (SearchEveryFrame.Data != 0)
+                    return true;
+                var phase = math.frac(math.hash(new uint2(s.Individual, 0x9E3779B9u)) * (1f / 4294967296f)) * SearchPeriod;
+                return math.floor((Now + phase) / SearchPeriod) != math.floor((Now - Step + phase) / SearchPeriod);
+            }
             [ReadOnly] public NativeArray<CreatureState> States;
             [ReadOnly] public NativeArray<CreatureBody> Bodies;
             [ReadOnly] public NativeHashMap<Entity, int> Lookup;
@@ -365,10 +391,14 @@ namespace Punchy.Fauna
                     threatened = true;
                     threat = hunter;
                 }
-                if (!threatened && !aloft && b.Hunted && FindPredator(self, ref s, body.Species, alert, out var predator))
+                // (#57: staggered to once per SearchPeriod, phased per creature; one already fleeing keeps looking every frame.)
+                var searchDue = SearchDue(in s);
+                if (!threatened && !aloft && b.Hunted && (searchDue || s.Mode == CreatureMode.Flee) && FindPredator(self, ref s, body.Species, alert, out var predator))
                 {
                     threatened = true;
                     threat = predator;
+                    if (s.Mode != CreatureMode.Flee)
+                        System.Threading.Interlocked.Increment(ref Searches.Data.PredatorFlee);
                 }
                 // A wolf, a bear or the like in a town: a guard running at it (or a night guard's torch close by) sends it
                 // off out of the place.
@@ -388,10 +418,11 @@ namespace Punchy.Fauna
                     }
                 }
                 // One bolts, they all bolt: a herd (or a flock) runs when any of it close by does, from the same thing.
-                if (!threatened && !aloft && b.FleeDistance > 0f && s.Mode != CreatureMode.Flee && FindAlarm(self, ref s, body.Species, out var alarm))
+                if (!threatened && !aloft && b.FleeDistance > 0f && s.Mode != CreatureMode.Flee && searchDue && FindAlarm(self, ref s, body.Species, out var alarm))
                 {
                     threatened = true;
                     threat = alarm;
+                    System.Threading.Interlocked.Increment(ref Searches.Data.AlarmFlee);
                 }
                 // Birds of a feather: when one takes off, the others near it go along to the same place.
                 if (!threatened && flier && (s.Mode == CreatureMode.Idle || s.Mode == CreatureMode.Graze || s.Mode == CreatureMode.Rest) &&
@@ -3575,7 +3606,9 @@ namespace Punchy.Fauna
             void StartChat(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
             {
                 var forced = ForceChat.Data != 0;
-                if (rng.NextFloat() < 0.3f && FindChat(self, in s, 0, ChatReach, out var asker))
+                // (#57: the roll is still drawn every frame, so the rest of its random draws don't shift.)
+                var askRoll = rng.NextFloat() < 0.3f;
+                if ((SearchEveryFrame.Data != 0 ? askRoll : SearchDue(in s)) && FindChat(self, in s, 0, ChatReach, out var asker))
                 {
                     BeginChat(ref s, asker, ChatListen, 2);
                     return;
@@ -3641,6 +3674,8 @@ namespace Punchy.Fauna
             /// </summary>
             bool FindChat(Entity self, in CreatureState s, int kind, float reach, out Entity found)
             {
+                if (kind == 0)
+                    System.Threading.Interlocked.Increment(ref Searches.Data.Chat);
                 found = Entity.Null;
                 var best = reach * reach;
                 var c = Cell(s.Position.xz);
@@ -5716,6 +5751,7 @@ namespace Punchy.Fauna
             bool FindPredator(Entity self, ref CreatureState s, int species, float alert, out float2 at)
             {
                 using var profiled = PredatorMarker.Auto();
+                System.Threading.Interlocked.Increment(ref Searches.Data.Predator);
                 at = default;
                 var best = float.MaxValue;
                 var c = Cell(s.Position.xz);
@@ -5752,6 +5788,7 @@ namespace Punchy.Fauna
             bool FindAlarm(Entity self, ref CreatureState s, int species, out float2 from)
             {
                 using var profiled = AlarmMarker.Auto();
+                System.Threading.Interlocked.Increment(ref Searches.Data.Alarm);
                 from = default;
                 var c = Cell(s.Position.xz);
                 for (int z = -1; z <= 1; z++)
@@ -6276,9 +6313,13 @@ namespace Punchy.Fauna
                         var angle = s.Yaw + side * k * 0.45f;
                         var way = new float2(math.sin(angle), math.cos(angle));
                         var slide = s.Position.xz + way * step;
-                        if (!SolidAt(s, ref b, slide, way, out _))
+                        // (A-45: tested facing the way it will face too, only part turned towards the slide: a bear's nose
+                        // is 1.3 m ahead, and swung back towards the wall it went 0.30 m into the rock.)
+                        var turned = WrapAngle(s.Yaw + WrapAngle(angle - s.Yaw) * 0.3f);
+                        if (!SolidAt(s, ref b, slide, way, out _) &&
+                            !SolidAt(s, ref b, slide, new float2(math.sin(turned), math.cos(turned)), out _))
                         {
-                            s.Yaw = WrapAngle(s.Yaw + WrapAngle(angle - s.Yaw) * 0.3f);
+                            s.Yaw = turned;
                             return slide;
                         }
                     }

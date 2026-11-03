@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Punchy.Fauna;
 using Punchy.Terrain;
 using Unity.Collections;
@@ -134,9 +134,7 @@ namespace Punchy.Audio
         void Creatures(float3 ear, TerrainSource terrain)
         {
             var clock = (float)SystemAPI.Time.ElapsedTime;
-            var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
-            var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
-            var entities = query.ToEntityArray(Allocator.Temp);
+            CreatureSnapshotSystem.Get(World, query, out var states, out var bodies, out var entities);
             var seen = new HashSet<Entity>();
             for (int i = 0; i < states.Length; i++)
             {
@@ -239,9 +237,7 @@ namespace Punchy.Audio
                     stale.Add(e);
             foreach (var e in stale)
                 last.Remove(e);
-            states.Dispose();
-            bodies.Dispose();
-            entities.Dispose();
+            CreatureSnapshotSystem.Release(World, states, bodies, entities);
         }
 
         /// <summary>Whether a call this far off fits the budget (taking its share if so).</summary>
@@ -293,9 +289,7 @@ namespace Punchy.Audio
         /// </summary>
         void Moods(float3 ear)
         {
-            var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
-            var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
-            var entities = query.ToEntityArray(Allocator.Temp);
+            CreatureSnapshotSystem.Get(World, query, out var states, out var bodies, out var entities);
             var now = (float)SystemAPI.Time.ElapsedTime;
             var dt = SystemAPI.Time.DeltaTime;
             var purring = new HashSet<Entity>();
@@ -369,9 +363,7 @@ namespace Punchy.Audio
             }
             if (moodVoice.Count > 512)
                 moodVoice.Clear();
-            states.Dispose();
-            bodies.Dispose();
-            entities.Dispose();
+            CreatureSnapshotSystem.Release(World, states, bodies, entities);
         }
 
         void Step(in CreatureState s, ref CreatureBlob b, float side, TerrainSource terrain)

@@ -1614,6 +1614,12 @@ namespace Punchy.Debugging
             CaveSystem.NoRoomCull = ThirdPersonCamera.OldProbe = System.Array.IndexOf(args, "-oldcave") >= 0;
             CaveSystem.NoWalls = System.Array.IndexOf(args, "-nocavewalls") >= 0;
             perfLog = System.Array.IndexOf(args, "-perflog") >= 0;
+            // A-45 A/B toggles: "-oldsearch" (#57, every brain search every frame), "-oldsnapshot" (#56, each reader copies
+            // the creatures itself), "-oldtrace" (#55, the ground sampled for every creature in trace range).
+            Punchy.Fauna.CreatureBrainSystem.SearchEveryFrame.Data = System.Array.IndexOf(args, "-oldsearch") >= 0 ? 1 : 0;
+            Punchy.Fauna.CreatureSnapshotSystem.Off = System.Array.IndexOf(args, "-oldsnapshot") >= 0;
+            Punchy.Fauna.TraceSystem.OldOrder = System.Array.IndexOf(args, "-oldtrace") >= 0;
+            Punchy.Fauna.TraceSystem.Stats = perfLog;
             CaveSystem.CountStats = ThirdPersonCamera.ProbeStats = perfLog;
             // "-goflat" (A-13 #46): to the nearest dry spot whose ground height spread over a 30 m circle is under 0.5 m
             // (found once, by rings round the start; the spot and its measured spread are logged).
@@ -2311,6 +2317,12 @@ namespace Punchy.Debugging
         double perfFrame, perfMax, perfMain, perfRender, perfGpu, perfDraws, perfTris;
         long perfLoaded, perfSubmitted, perfInView, perfShadows, perfCaveTris;
         long perfProbeCalls0 = -1, perfProbeTicks0;
+        // (A-45 baselines: trace frames/ticks/surface checks, snapshot copies/ticks, brain searches and flees.)
+        struct long2 { public long X, Y; public long2(long x, long y) { X = x; Y = y; } }
+        struct long3 { public long X, Y, Z; public long3(long x, long y, long z) { X = x; Y = y; Z = z; } }
+        long3 perfTrace0;
+        long2 perfCopies0;
+        Punchy.Fauna.CreatureBrainSystem.SearchCounts perfSearch0;
         readonly FrameTiming[] perfTiming = new FrameTiming[1];
 
         void SamplePerf()
@@ -2319,6 +2331,9 @@ namespace Punchy.Debugging
             {
                 perfProbeCalls0 = ThirdPersonCamera.ProbeCalls;
                 perfProbeTicks0 = ThirdPersonCamera.ProbeTicks;
+                perfTrace0 = new long3(Punchy.Fauna.TraceSystem.Frames, Punchy.Fauna.TraceSystem.Ticks, Punchy.Fauna.TraceSystem.NoSurfaceCalls);
+                perfCopies0 = new long2(Punchy.Fauna.CreatureSnapshotSystem.Copies, Punchy.Fauna.CreatureSnapshotSystem.CopyTicks);
+                perfSearch0 = Punchy.Fauna.CreatureBrainSystem.Searches.Data;
             }
             var dt = Time.unscaledDeltaTime * 1000.0;
             perfFrames++;
@@ -2389,6 +2404,18 @@ namespace Punchy.Debugging
                       $"{perfCaveTris / c / 1000} k cave tris in view; lights {lights} ({shadowLights} shadowed), particles {systems} systems / {particles}; " +
                       $"camera probe {(double)probeCalls / n:F2}/frame, {probeMs / n * 1000:F0} us/frame; IsRock {benchUs:F2} us/call (Burst); " +
                       $"underground {CaveSystem.Underground:F2}, hidden {CaveSystem.SurfaceHidden:F2}, player ({at.x:F1}, {at.y:F1}, {at.z:F1})");
+            // A-45 (#55-#57): traces, shared creature snapshot, staggered brain searches.
+            var freq = (double)System.Diagnostics.Stopwatch.Frequency;
+            var traceFrames = System.Math.Max(Punchy.Fauna.TraceSystem.Frames - perfTrace0.X, 1);
+            var se = Punchy.Fauna.CreatureBrainSystem.Searches.Data;
+            Debug.Log($"DebugControls: perf2 '{name}' {perfFrames} frames, creatures {World.DefaultGameObjectInjectionWorld?.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>()).CalculateEntityCount() ?? 0}; " +
+                      $"trace {(Punchy.Fauna.TraceSystem.Ticks - perfTrace0.Y) * 1000.0 / freq / traceFrames:F3} ms/frame, " +
+                      $"{(double)(Punchy.Fauna.TraceSystem.NoSurfaceCalls - perfTrace0.Z) / traceFrames:F1} surface checks/frame; " +
+                      $"snapshot copies {(double)(Punchy.Fauna.CreatureSnapshotSystem.Copies - perfCopies0.X) / n:F1}/frame, " +
+                      $"{(Punchy.Fauna.CreatureSnapshotSystem.CopyTicks - perfCopies0.Y) * 1000.0 / freq / n:F3} ms/frame; " +
+                      $"searches/frame predator {(double)(se.Predator - perfSearch0.Predator) / n:F1}, alarm {(double)(se.Alarm - perfSearch0.Alarm) / n:F1}, " +
+                      $"chat {(double)(se.Chat - perfSearch0.Chat) / n:F1}; flees predator {se.PredatorFlee - perfSearch0.PredatorFlee}, " +
+                      $"alarm {se.AlarmFlee - perfSearch0.AlarmFlee}; totals flee {se.PredatorFlee}/{se.AlarmFlee}");
             perfFrames = perfTimed = perfChunkFrames = 0;
             perfFrame = perfMax = perfMain = perfRender = perfGpu = perfDraws = perfTris = 0;
             perfLoaded = perfSubmitted = perfInView = perfShadows = perfCaveTris = 0;

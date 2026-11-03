@@ -1,4 +1,4 @@
-using Punchy.Terrain;
+﻿using Punchy.Terrain;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -83,15 +83,14 @@ namespace Punchy.Fauna
             var cam = Camera.main;
             if (cam == null)
                 return;
+            var start = Stats ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
             var now = (float)SystemAPI.Time.ElapsedTime;
             float3 camPos = cam.transform.position;
             // (Props' walkable tops, so prints land on a roof or a rock someone's walking over, not under it.)
             hasTops = SystemAPI.TryGetSingleton(out grids) && grids.Set.IsCreated &&
                       SystemAPI.TryGetSingletonBuffer(out tops, true);
-            var entities = query.ToEntityArray(Allocator.Temp);
-            var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
-            var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            CreatureSnapshotSystem.Get(World, query, out var states, out var bodies, out var entities);
             for (int i = 0; i < entities.Length; i++)
             {
                 var s = states[i];
@@ -108,19 +107,38 @@ namespace Punchy.Fauna
                     Splash(entities[i], s, ref b, terrain, now);
                     continue;
                 }
+                // (#55: the cheap checks first, from the creature's own state: a feather dropping, a stone let go, a foot
+                // coming down this frame. Most frames none is, and the ground isn't sampled at all.)
+                var feather = FeatherDue(entities[i], s, ref b);
+                var stone = StoneDue(entities[i], s);
+                var step = StepDue(entities[i], s, ref b, out var lastPhase);
+                if (!OldOrder && !feather && !stone && !step)
+                    continue;
                 // Nothing is printed over a cave mouth or from underground: the marks sit on the terrain's surface, which is cut
                 // away there (#14, prints hanging in the air).
+                NoSurfaceCalls++;
                 if (NoSurface(terrain, s.Position))
                     continue;
-                Feather(entities[i], s, ref b, terrain, now);
-                Stone(entities[i], s, terrain, now);
-                if (!Wake(entities[i], s, ref b, terrain, now))
-                    Footprint(entities[i], s, ref b, terrain, now);
+                if (feather)
+                    Feather(entities[i], s, ref b, terrain, now);
+                if (stone)
+                    Stone(entities[i], s, terrain, now);
+                if ((step || OldOrder) && !Wake(entities[i], s, ref b, terrain, now) && step)
+                    Footprint(s, ref b, terrain, now, lastPhase);
             }
-            entities.Dispose();
-            states.Dispose();
-            bodies.Dispose();
+            if (Stats)
+            {
+                Frames++;
+                Ticks += System.Diagnostics.Stopwatch.GetTimestamp() - start;
+            }
+            CreatureSnapshotSystem.Release(World, states, bodies, entities);
         }
+
+        /// <summary>#55 A/B switch ("-oldtrace"): the ground is sampled for every creature in range, as before.</summary>
+        public static bool OldOrder;
+        /// <summary>For -perflog: frames timed, main-thread ticks spent and surface checks made.</summary>
+        public static bool Stats;
+        public static long Frames, Ticks, NoSurfaceCalls;
 
         bool hasTops;
         Punchy.Flora.SupportGrids grids;
@@ -159,27 +177,23 @@ namespace Punchy.Fauna
             Count = math.min(Count + 1, Capacity);
         }
 
-        /// <summary>
-        /// A print where each foot comes down (the moment its leg's cycle turns from swing to stance), at that foot as
-        /// the animator poses it, where the ground takes one. Legless bodies (snakes) leave none.
-        /// </summary>
-        void Footprint(Entity e, in CreatureState s, ref CreatureBlob b, in TerrainSource terrain, float now)
+        /// <summary>Whether a foot came down since last frame (its leg's cycle turned from swing to stance); keeps the gait
+        /// phase for next frame. <paramref name="lastPhase"/> is last frame's phase.</summary>
+        bool StepDue(Entity e, in CreatureState s, ref CreatureBlob b, out float lastPhase)
         {
+            lastPhase = 0f;
             if (b.Habitat == Habitat.Swims || b.Habitat == Habitat.Floats || s.Fly > 0.5f || s.Lie > 0.5f || s.Speed < 0.05f)
             {
                 steps.Remove(e);
-                return;
+                return false;
             }
             // (The body's gait phase last frame, to see which feet came down since.)
-            if (!steps.TryGetValue(e, out var last) || last.w < 0f)
-            {
-                steps[e] = new float4(s.Position, s.Phase);
-                return;
-            }
+            var known = steps.TryGetValue(e, out var last) && last.w >= 0f;
             steps[e] = new float4(s.Position, s.Phase);
-            // Only when a foot came down this frame is the ground looked at (most frames none does).
-            var touchdown = false;
-            for (int i = 0; i < b.Parts.Length && !touchdown; i++)
+            if (!known)
+                return false;
+            lastPhase = last.w;
+            for (int i = 0; i < b.Parts.Length; i++)
             {
                 ref var leg = ref b.Parts[i];
                 if (leg.Role != LimbRole.Leg || leg.Parent >= 0 || leg.SegmentCount == 0)
@@ -187,10 +201,19 @@ namespace Punchy.Fauna
                 var legPhase = b.LegPhase(ref leg, b.Sprint(s, s.GaitSpeed));
                 var before = math.frac(last.w + legPhase);
                 var after = math.frac(s.Phase + legPhase);
-                touchdown = after < before && before - after >= 0.5f;
+                if (after < before && before - after >= 0.5f)
+                    return true;
             }
-            if (!touchdown)
-                return;
+            return false;
+        }
+
+        /// <summary>
+        /// A print where each foot comes down (the moment its leg's cycle turns from swing to stance), at that foot as
+        /// the animator poses it, where the ground takes one. Legless bodies (snakes) leave none.
+        /// </summary>
+        void Footprint(in CreatureState s, ref CreatureBlob b, in TerrainSource terrain, float now, float lastPhase)
+        {
+            var last = new float4(0f, 0f, 0f, lastPhase);
             if (s.Position.y - Underfoot(terrain, s.Position, out _) > 0.3f)
                 return;   // up a tree, on a branch, in a cave above the surface, mid-jump
             var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
@@ -399,19 +422,22 @@ namespace Punchy.Fauna
 
         /// <summary>
         /// A child's stone, thrown: the moment its throw lets go (worked out on every machine from the replicated throw),
-        /// a stone flies from about the child's hand, up and out ahead, and drops back to the ground.
+        /// a stone flies from about the child's hand, up and out ahead, and drops back to the ground. StoneDue says when.
         /// </summary>
-        void Stone(Entity e, in CreatureState s, in TerrainSource terrain, float now)
+        bool StoneDue(Entity e, in CreatureState s)
         {
             if (s.Held != HeldItem.Stone || s.Action != IdleAction.Throw)
             {
                 throws.Remove(e);
-                return;
+                return false;
             }
             throws.TryGetValue(e, out var was);
             throws[e] = s.ActionTime;
-            if (was > CreatureRenderSystem.ThrowRelease || s.ActionTime < CreatureRenderSystem.ThrowRelease)
-                return;
+            return was <= CreatureRenderSystem.ThrowRelease && s.ActionTime >= CreatureRenderSystem.ThrowRelease;
+        }
+
+        void Stone(Entity e, in CreatureState s, in TerrainSource terrain, float now)
+        {
             var scale = math.max(s.Scale, 0.3f);
             var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
             var from = s.Position + new float3(0f, 0.85f * scale, 0f) + forward * 0.3f * scale;
@@ -435,15 +461,18 @@ namespace Punchy.Fauna
         }
 
         /// <summary>A feather drifts to the ground when a bird finishes preening or shaking.</summary>
-        void Feather(Entity e, in CreatureState s, ref CreatureBlob b, in TerrainSource terrain, float now)
+        bool FeatherDue(Entity e, in CreatureState s, ref CreatureBlob b)
         {
             if (b.Habitat != Habitat.Flies)
-                return;
+                return false;
             var action = (byte)s.Action;
             actions.TryGetValue(e, out var was);
             actions[e] = action;
-            if (was == action || (was != (byte)IdleAction.Preen && was != (byte)IdleAction.Shake))
-                return;
+            return was != action && (was == (byte)IdleAction.Preen || was == (byte)IdleAction.Shake);
+        }
+
+        void Feather(Entity e, in CreatureState s, ref CreatureBlob b, in TerrainSource terrain, float now)
+        {
             // Where it falls: under the bird, a little to one side; tinted like the bird's coat (its first segment).
             var seed = math.hash(new float2(now, e.Index));
             var rng = new Unity.Mathematics.Random(seed | 1u);
