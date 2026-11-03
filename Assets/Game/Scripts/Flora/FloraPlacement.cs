@@ -96,6 +96,8 @@ namespace Punchy.Flora
         public BlobArray<int2> PropRanges;
         /// <summary>Per settlement building (SettlementBaking.Buildings order): species index and its layer (-1 none).</summary>
         public BlobArray<int2> SettlementSpecies;
+        /// <summary>Per settlement layout (Layouts order): its Kit Building species and layer, or -1 (#24).</summary>
+        public BlobArray<int2> LayoutKit;
         /// <summary>
         /// Per species: the light a glowing plant gives its surroundings (rgb, linear) and how far it reaches (w, m);
         /// all zero for plants that don't glow. See <see cref="FloraPlacement.GlowLight"/>.
@@ -171,6 +173,10 @@ namespace Punchy.Flora
             foreach (var b in buildings)
                 if (b.Species != null)
                     found.Add(b.Species);
+            var layouts = SettlementBaking.Layouts(landmarks);
+            foreach (var l in layouts)
+                if (l.KitBuilding != null)
+                    found.Add(l.KitBuilding);
             species.Clear();
             species.AddRange(found);
             species.Sort((a, b) => a.Layer != b.Layer ? a.Layer.CompareTo(b.Layer) : string.CompareOrdinal(a.name, b.name));
@@ -317,6 +323,11 @@ namespace Punchy.Flora
                 settlementSpecies[i] = buildings[i].Species != null
                     ? new int2(species.IndexOf(buildings[i].Species), (int)buildings[i].Species.Layer)
                     : new int2(-1, -1);
+            var layoutKit = builder.Allocate(ref root.LayoutKit, layouts.Count);
+            for (int i = 0; i < layouts.Count; i++)
+                layoutKit[i] = layouts[i].KitBuilding != null
+                    ? new int2(species.IndexOf(layouts[i].KitBuilding), (int)layouts[i].KitBuilding.Layer)
+                    : new int2(-1, -1);
 
             var blob = builder.CreateBlobAssetReference<FloraBlob>(Allocator.Persistent);
             builder.Dispose();
@@ -382,6 +393,31 @@ namespace Punchy.Flora
         /// Buildings and fences win: whatever else would stand in them isn't placed (scattered plants and rocks, a
         /// neighbouring landmark's props, road clutter), rather than the fence giving way.
         /// </summary>
+        /// <summary>
+        /// What stands on a plot: its layout building's species and layer, except that the island's biggest settlement
+        /// (largest radius, lowest index on a tie) builds its house, seat, inn, smithy, store and workshop plots from its
+        /// layout's Kit Building (#24), each a variant drawn as before. Plots, roles and placement draws are unchanged.
+        /// </summary>
+        public static int2 PlotSpecies(ref FloraBlob f, ref SettlementSetBlob towns, in SettlementPlot plot)
+        {
+            var species = f.SettlementSpecies[plot.Building];
+            if (f.LayoutKit.Length == 0 || species.x < 0 || plot.Settlement < 0 || plot.Settlement >= towns.Settlements.Length)
+                return species;
+            if (plot.Role != PlotRole.House && plot.Role != PlotRole.Seat && plot.Role != PlotRole.Inn &&
+                plot.Role != PlotRole.Smithy && plot.Role != PlotRole.Store && plot.Role != PlotRole.Workshop)
+                return species;
+            ref var town = ref towns.Settlements[plot.Settlement];
+            if (town.Layout < 0 || town.Layout >= f.LayoutKit.Length || f.LayoutKit[town.Layout].x < 0)
+                return species;
+            for (int i = 0; i < towns.Settlements.Length; i++)
+            {
+                var r = towns.Settlements[i].Radius;
+                if (r > town.Radius || (r == town.Radius && i < plot.Settlement))
+                    return species;
+            }
+            return f.LayoutKit[town.Layout];
+        }
+
         static bool OnBuiltPlot(ref FloraBlob f, in TerrainSource source, float2 xz, float radius)
         {
             if (!source.Settlements.IsCreated || f.SettlementSpecies.Length == 0)
@@ -462,7 +498,7 @@ namespace Punchy.Flora
             FloraForm.Smithy or FloraForm.Forum or FloraForm.Fountain or FloraForm.Woodpile or FloraForm.Well or
             FloraForm.Hall or FloraForm.Shrine or FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade or
             FloraForm.Bench or FloraForm.Log or FloraForm.Stump or FloraForm.FirePit or FloraForm.Ruin or FloraForm.RailFence or
-            FloraForm.HazardShelter => true,
+            FloraForm.HazardShelter or FloraForm.KitBuilding or FloraForm.KitRuin => true,
             _ => false
         };
 
@@ -471,7 +507,7 @@ namespace Punchy.Flora
         {
             FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tower or FloraForm.Inn or FloraForm.Smithy or FloraForm.Well or
             FloraForm.Hall or FloraForm.Shrine or FloraForm.Garden or FloraForm.Pen or FloraForm.Signpost or FloraForm.Palisade or
-            FloraForm.Ruin or FloraForm.RailFence or FloraForm.HazardShelter => true,
+            FloraForm.Ruin or FloraForm.RailFence or FloraForm.HazardShelter or FloraForm.KitBuilding or FloraForm.KitRuin => true,
             _ => false
         };
 
@@ -530,7 +566,7 @@ namespace Punchy.Flora
                         if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length ||
                             math.any(near < plot.Min - radius) || math.any(near > plot.Max + radius))
                             continue;
-                        var building = f.SettlementSpecies[plot.Building];
+                        var building = PlotSpecies(ref f, ref towns, plot);
                         if (building.x < 0 || f.Models[f.Rules[building.x].FirstModel].ObstacleCount == 0)
                             continue;
                         var cell = (int2)math.floor(plot.Centre / f.CellSizes[building.y]);
@@ -584,7 +620,7 @@ namespace Punchy.Flora
                         if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length ||
                             math.any(near < plot.Min - radius) || math.any(near > plot.Max + radius))
                             continue;
-                        var building = f.SettlementSpecies[plot.Building];
+                        var building = PlotSpecies(ref f, ref towns, plot);
                         if (building.x < 0 || f.Models[f.Rules[building.x].FirstModel].PerchCount == 0)
                             continue;
                         var cell = (int2)math.floor(plot.Centre / f.CellSizes[building.y]);
@@ -628,7 +664,7 @@ namespace Punchy.Flora
             ref var plot = ref source.Settlements.Value.Plots[plotIndex];
             if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length)
                 return 0;
-            var building = f.SettlementSpecies[plot.Building];
+            var building = PlotSpecies(ref f, ref source.Settlements.Value, plot);
             if (building.x < 0 || building.y < 0 || f.Models[f.Rules[building.x].FirstModel].ChimneyCount == 0)
                 return 0;
             var plant = Place(ref f, source, (int2)math.floor(plot.Centre / f.CellSizes[building.y]), building.y);
@@ -720,7 +756,7 @@ namespace Punchy.Flora
                         if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length ||
                             math.any(xz < plot.Min - radius) || math.any(xz > plot.Max + radius))
                             continue;
-                        var building = f.SettlementSpecies[plot.Building];
+                        var building = PlotSpecies(ref f, ref towns, plot);
                         if (building.x < 0 || f.Models[f.Rules[building.x].FirstModel].ObstacleCount == 0)
                             continue;
                         var cell = (int2)math.floor(plot.Centre / f.CellSizes[building.y]);
@@ -886,7 +922,7 @@ namespace Punchy.Flora
                         ref var plot = ref towns.Plots[towns.PlotItems[k]];
                         if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length)
                             continue;
-                        var building = f.SettlementSpecies[plot.Building];
+                        var building = PlotSpecies(ref f, ref towns, plot);
                         if (building.x < 0 || building.y != layer || math.any((int2)math.floor(plot.Centre / cellSize) != cell))
                             continue;
                         var buildingRule = f.Rules[building.x];

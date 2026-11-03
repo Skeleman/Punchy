@@ -139,6 +139,8 @@ namespace Punchy.Flora
                     case FloraForm.RailFence: RailFence(g); break;
                     case FloraForm.FloatingRock: FloatingRock(g); break;
                     case FloraForm.HazardShelter: HazardShelter(g); break;
+                    case FloraForm.KitBuilding: KitStructure(g, false); break;
+                    case FloraForm.KitRuin: KitStructure(g, true); break;
                     case FloraForm.Tent: Tent(g); break;
                     case FloraForm.Tower: Tower(g); break;
                     case FloraForm.Pen: Pen(g); break;
@@ -1335,7 +1337,7 @@ namespace Punchy.Flora
             FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tent or FloraForm.Tower or FloraForm.Stall or FloraForm.Inn or
             FloraForm.Smithy or FloraForm.Forum or FloraForm.Fountain or FloraForm.Well or FloraForm.Hall or FloraForm.Shrine or
             FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade or FloraForm.Pen or FloraForm.Garden or
-            FloraForm.Signpost or FloraForm.Bench or FloraForm.Stump or FloraForm.Ruin or FloraForm.RailFence or FloraForm.HazardShelter => true,
+            FloraForm.Signpost or FloraForm.Bench or FloraForm.Stump or FloraForm.Ruin or FloraForm.RailFence or FloraForm.HazardShelter or FloraForm.KitBuilding or FloraForm.KitRuin => true,
             _ => false
         };
 
@@ -2781,6 +2783,7 @@ namespace Punchy.Flora
                 FloraForm.Tower => half * 1.38f + 0.05f,
                 FloraForm.Inn => half * 0.8f + 0.02f,
                 FloraForm.Hall => half * 0.55f + 0.04f,
+                FloraForm.KitBuilding => half * 0.93f + 0.3f,
                 _ => -1f
             };
         }
@@ -2934,6 +2937,74 @@ namespace Punchy.Flora
             b.Box(P(0f, 0f, 0.035f), new Vector3(bar * 0.6f, height, 0.04f), facing, frame, FloraPart.Bark);
             // The sill sticks out past the frame and runs back into the wall with it.
             b.Box(P(0f, -height * 0.5f - bar * 1.4f, (front + 0.08f - back) * 0.5f), new Vector3(width + bar * 3f, bar * 0.8f, front + 0.08f + back), facing, frame, FloraPart.Bark);
+        }
+
+        /// <summary>
+        /// A structure-kit building (FloraForm.KitBuilding) or its ruin (FloraForm.KitRuin), #24: StructureKit lays out
+        /// the parts from a seed drawn per variant, in the species' Kit Culture trim set (a ruin takes its stone from Bark
+        /// and its moss from Accent). Far LODs drop the small trim. Intact buildings collide round their walls up to the
+        /// eaves; ruins per standing ground-storey bay, like Ruin. Perches on the highest tops.
+        /// </summary>
+        static void KitStructure(Grower g, bool ruined)
+        {
+            var s = g.S;
+            var b = g.B;
+            var width = g.Range(s.Height) * s.Spread;
+            var depth = width * g.Range(0.8f, 1.05f);
+            var seed = (uint)(g.R() * 16777215f) ^ ((uint)g.Variant << 24) ^ (uint)s.Seed * 0x9E3779B9u;
+            var roll = g.R();
+            var storeys = ruined ? (roll < 0.5f ? 1 : 2) : roll < 0.3f ? 1 : roll < 0.8f ? 2 : 3;
+            var trim = Punchy.Terrain.StructureKit.For(s.KitCulture);
+            if (ruined)
+            {
+                trim.Wall = g.Bark;
+                trim.Trim = g.Bark * 0.82f;
+                if (g.HasAccent)
+                    trim.Moss = g.Accent;
+            }
+            var parts = Punchy.Terrain.StructureKit.House(seed, trim, width, depth, storeys, ruined ? g.Range(0.45f, 0.9f) : 0f);
+
+            var first = b.VertexCount;
+            var top = 0f;
+            var perch = Vector3.zero;
+            var eaves = storeys * trim.Storey;
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var p = parts[i];
+                var small = p.Piece == Punchy.Terrain.KitPiece.Trim || p.Piece == Punchy.Terrain.KitPiece.Rail ||
+                            p.Piece == Punchy.Terrain.KitPiece.Rubble || p.Piece == Punchy.Terrain.KitPiece.Moss ||
+                            (p.Piece == Punchy.Terrain.KitPiece.Window && p.Material != Punchy.Terrain.KitMaterial.Opening);
+                if (small && g.Lod >= 2)
+                    continue;
+                var c = Punchy.Terrain.StructureKit.Colour(trim, p.Material);
+                var jitter = ((i * 2654435761u) >> 24) / 255f;                 // a little per-stone variety, the same at every LOD
+                c = Color.Lerp(c * 0.94f, c * 1.08f, jitter);
+                b.Box(p.Centre, p.Size, p.Rotation, c, p.Material == Punchy.Terrain.KitMaterial.Moss ? FloraPart.Foliage : FloraPart.Bark);
+                var high = p.Centre.y + p.Size.y * 0.5f;
+                top = Mathf.Max(top, high);
+                if (p.Solid)
+                {
+                    var r = Mathf.Max(p.Size.x, p.Size.z) * 0.55f;
+                    if (ruined)
+                    {
+                        if (high > 0.7f)
+                            g.Colliders.Add(new Vector4(p.Centre.x, p.Centre.z, r, high));
+                    }
+                    else
+                        g.Colliders.Add(new Vector4(p.Centre.x, p.Centre.z, r, Mathf.Max(high, p.Piece == Punchy.Terrain.KitPiece.Wall && p.Size.x * p.Size.z > 4f ? high : eaves)));
+                }
+                if ((p.Piece == Punchy.Terrain.KitPiece.Wall || p.Piece == Punchy.Terrain.KitPiece.Roof) && high > perch.y)
+                    perch = new Vector3(p.Centre.x, high, p.Centre.z);
+            }
+            if (!ruined)   // the inside: one fat cylinder so nothing walks through the middle of the house
+                g.Colliders.Add(new Vector4(0f, 0f, Mathf.Min(width, depth) * 0.45f, eaves));
+            if (perch.y > 1f)
+                g.Perches.Add(perch);
+            b.Recolor(first, (p, c) => p.y < 0.5f ? c * 0.82f : c);   // darker footing
+            b.Occlude(first, (p, n) => GroundOcclusion(p, Mathf.Min(top, 4f) * 0.5f));
+            g.Height = top;
+            g.Width = Mathf.Max(width, depth) * 1.4f;
+            g.TrunkRadius = Mathf.Max(width, depth) * 0.55f;
         }
 
         static void StoneHouse(Grower g)

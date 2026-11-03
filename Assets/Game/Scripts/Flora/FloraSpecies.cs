@@ -127,7 +127,12 @@ namespace Punchy.Flora
                  "crawl tunnel (ash fall), a lean-to banked with snow (blizzards), or a low dome bristling with glass " +
                  "shards that take the lightning (electric storms). Bark the stone or poles, Foliage the roof or shards, " +
                  "Foliage Variation the ash or snow heaped on it; Branches the shard count. Height its height, Spread its " +
-                 "width over height. Door (or open side) faces +Z.")] HazardShelter
+                 "width over height. Door (or open side) faces +Z.")] HazardShelter,
+        [Tooltip("A building from the structure kit (#24): storeys of walls in bays with doors and windows, string courses, " +
+                 "a roof in the Kit Culture's style, sometimes a balcony, outside stair or corner tower. Each variant is its " +
+                 "own building. Height (times Spread) is the footprint's width; storeys come from the kit.")] KitBuilding,
+        [Tooltip("A structure-kit building fallen to ruin (#24): walls broken down from one corner, roof gone but a few " +
+                 "rafters, floors showing, rubble, moss and ivy. Bark is the stone, Accent the moss.")] KitRuin
     }
 
     public enum FoliageFinish : byte
@@ -263,12 +268,14 @@ namespace Punchy.Flora
         public bool Solid = true;
         [Tooltip("W-57b, Hazard Shelter only: which hazard it is built against.")]
         public ShelterStyle ShelterStyle;
+        [Tooltip("Kit Building / Kit Ruin: whose trim set (colours, roof style, storey height) the kit builds in.")]
+        public Punchy.Terrain.FolkCulture KitCulture = Punchy.Terrain.FolkCulture.Human;
         [Tooltip("Random size of each placed plant, on top of its variant's own size.")]
         public Vector2 SizeRange = new Vector2(0.85f, 1.15f);
 
         [Header("Variety")]
         [Tooltip("Number of distinct procedurally grown shapes.")]
-        [Range(1, 8)] public int Variants = 4;
+        [Range(1, 32)] public int Variants = 4;
         [Tooltip("Changes every generated shape of this species.")]
         public int Seed = 1;
     }

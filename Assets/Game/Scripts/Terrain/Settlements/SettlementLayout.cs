@@ -124,6 +124,10 @@ namespace Punchy.Terrain
         [Tooltip("One 3 m length of rail fence, run along some roads for a stretch just outside the settlement (fields), " +
                  "with gaps at forks and signposts. None if empty.")]
         public Punchy.Flora.FloraSpecies RoadFence;
+        [Tooltip("If set, the island's biggest settlement (when it has this layout) builds its house, seat, inn, smithy, " +
+                 "store and workshop plots from this structure-kit species instead (#24), each its own variant. " +
+                 "Plots and placement are unchanged.")]
+        public Punchy.Flora.FloraSpecies KitBuilding;
         public List<SettlementBuilding> Buildings = new List<SettlementBuilding>();
     }
 }
