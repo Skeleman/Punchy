@@ -2,6 +2,23 @@
 
 Newest first.
 
+## W-62b (2026-11-03): sea folk pier walk, shot check, docs (#37)
+Commit 5c2ce10 (world-features). Shots: D:/PunchyMilestones/W-62b (w62b_ramp, w62b_from_pier, w62b_walk_end; I looked at from_pier only).
+1. Pier snag fixed. There were two causes. (a) The 4.6 m ramp climbed 0.5 m per support-grid cell (a long pier has about 0.8 m cells), which left a 0.53 m wall at the deck's land end. That is the W-62 stuck point. (b) Thin plank gaps landed on 3 grid cell centres (z 4.2, 15.0, 25.9), which read as holes and dropped a walker to the lake bed. Fix in StructureKit.Pier: the ramp is now 8 m (about 10 deg), and a solid bed sits 0.17 m under the planks. No RNG draws changed. Editor sim at step-up 0.4: PASS on 3 lanes (centre, +0.6, -0.6), from 8 m up the bank to the far end (about 36 m), ending with feet at 27.99 (deck 27.99). The walk lane was already clear.
+2. W-62 shots at 480 px:
+   - shore_day: OK (pier, spires, village readable). There is a fog/spray patch at the right edge.
+   - from_pier: the camera sat inside a spire. Retaken (now the pier deck, the arch and a spire at the far end).
+   - under_1 and under_2: there is no underwater look at all. You see a dry-looking bed, the sky and full daylight, with no water surface from below, no fog and no tint. There are no black frames.
+   - walk_end: the player is stuck at the pier start. Fixed and retaken.
+   Gap note (#22): the water and camera have no underwater mode. Below the surface the lake is not drawn from beneath, and there is no depth fog or colour, so the village looks like it stands on land under a grey sky. This needs a camera/water feature (an underwater volume or post effect and a back-face water surface). That is rendering and camera work, outside world code. I made no world change for it.
+3. Build 1x: Succeeded, 0 errors. Player walk from -1440,9 to the pier base, then to the pier end: PASS. Leg 1 reached at (-1445.6, 27.8, 4.3). The player ended 0.3 m from the end at (-1466.8, 28.0, -13.2), on the deck, pushed out 0.0 m. The player quit by itself.
+4. Sea folk section added to docs/agents/world.md: lake pick rule, village, landing (ramp and under-deck), and the underwater gap.
+5. Hashes:
+   - v2: player 136 / B5EFF8C8, editor 136 / 4E61F1CF (unchanged).
+   - Ground: C0C906EE310FA91F (unchanged).
+   - Caves, rivers and v1: not re-hashed. This change only touches the pier prop mesh, which bakes after them.
+Left: a spire stands at the pier's far end and blocks the view to the village from the deck. The underwater view needs #22. Docks use the same plank Platform and could drop a walker on a long dock (not seen yet).
+
 ## W-62 (2026-11-03): sea folk settlement (#37), partial
 Commit f7c7c35 (world-features). Shots: D:/PunchyMilestones/W-62 (w62_shore_day, w62_from_pier, w62_under_1/2, w62_walk_end; not viewed).
 1. Lake: 154 lakes; largest is 73.6 ha (2876 cells), level 26.7, 25.2 m deep, middle -1472,-202 (1481 m from land centre). Choice: biggest connected lake >= 8 m deep, lowest cell breaks ties.
