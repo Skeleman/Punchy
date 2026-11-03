@@ -3564,6 +3564,102 @@ namespace Punchy.Debugging
         static readonly Key[] WarpKeys = { Key.F5, Key.F6, Key.F7, Key.F8 };
         /// <summary>After a warp the follow camera comes in to at most this (m).</summary>
         const float WarpCameraDistance = 5f;
+        /// <summary>The warp camera's pitch: low, under canopy rather than looking down through it.</summary>
+        const float WarpPitch = 8f;
+
+        /// <summary>
+        /// A-38: the camera's yaw after a warp, kept out of tree crowns. Trees aren't in TerrainSource, so the plants
+        /// round the player are read from the flora tables (FloraPlacement.Place, the pure function FloraSystem draws
+        /// from; read only). From the landing's own heading, it turns in 30 degree steps either way and takes the first
+        /// side whose line from the head out to the lens stays clear of crowns and trunks for the whole arm; if none
+        /// does, the side with the longest clear stretch, the arm shortened to it. Returns the heading unchanged if
+        /// the flora tables aren't up yet.
+        /// </summary>
+        float ClearWarpView(in TerrainSource land, float3 head, float yaw, float pitch, ref float arm)
+        {
+            using var q = queryWorld.EntityManager.CreateEntityQuery(typeof(Punchy.Flora.FloraLookup));
+            if (!q.TryGetSingleton<Punchy.Flora.FloraLookup>(out var lookup) || !lookup.Blob.IsCreated)
+                return yaw;
+            ref var f = ref lookup.Blob.Value;
+            var bestYaw = yaw;
+            var bestClear = -1f;
+            for (int i = 0; i < 12; i++)
+            {
+                // 0, +30, -30, +60, -60 ... 180.
+                var turn = (i + 1) / 2 * 30f * (i % 2 == 0 ? -1f : 1f);
+                var y = yaw + turn;
+                var rotation = Quaternion.Euler(pitch, y, 0f);
+                // Where the lens ends up: lifted over the ground as ThirdPersonCamera lifts it (on a slope that rises
+                // behind the player that is well above the 8 degree line, among the crowns), so that line is tested.
+                var lens = head - (float3)(rotation * Vector3.forward) * arm;
+                var ground = land.SampleGround(lens.xz);
+                lens.y = math.max(lens.y, math.max(ground.Height, ground.HasWater ? ground.WaterSurface : float.MinValue) + 0.5f);
+                var length = math.distance(head, lens);
+                // (As a share of the arm: the lens comes in along its lifted line.)
+                var clear = ClearArm(ref f, land, head, (lens - head) / math.max(length, 1e-4f), length) / math.max(length, 1e-4f);
+                if (clear >= 0.999f)
+                {
+                    Debug.Log($"DebugControls: warp camera clear of crowns, turned {turn:F0} deg, arm {arm:F1} m, lens {lens.y - head.y:F1} m over the head");
+                    return y;
+                }
+                if (clear > bestClear + 0.05f)
+                {
+                    bestClear = clear;
+                    bestYaw = y;
+                }
+            }
+            arm = Mathf.Max(bestClear * arm - 0.3f, 1.5f);
+            Debug.Log($"DebugControls: warp camera, no side clear of crowns; turned {Mathf.DeltaAngle(yaw, bestYaw):F0} deg, arm {arm:F1} m");
+            return bestYaw;
+        }
+
+        /// <summary>How far out from the head along <paramref name="dir"/> (unit) the lens can go, up to
+        /// <paramref name="length"/>, before it meets a crown or a trunk, in 0.25 m steps. The margin widens to
+        /// <c>LensMargin</c> over the last 1.5 m: right at the lens, leaves just off the line still fill the frame.</summary>
+        static float ClearArm(ref Punchy.Flora.FloraBlob f, in TerrainSource land, float3 head, float3 dir, float length)
+        {
+            const float LineMargin = 0.5f, LensMargin = 1.2f;
+            var end = head + dir * length;
+            var lo = math.min(head.xz, end.xz) - 9f;
+            var hi = math.max(head.xz, end.xz) + 9f;
+            var t = length;
+            for (int layer = 1; layer <= Punchy.Flora.FloraPlacement.TreeLayer; layer++)
+            {
+                var size = f.CellSizes[layer];
+                var c0 = (int2)math.floor(lo / size);
+                var c1 = (int2)math.floor(hi / size);
+                for (int cy = c0.y; cy <= c1.y; cy++)
+                for (int cx = c0.x; cx <= c1.x; cx++)
+                {
+                    var plant = Punchy.Flora.FloraPlacement.Place(ref f, land, new int2(cx, cy), layer);
+                    if (plant.Model < 0 || plant.Model >= f.Models.Length)
+                        continue;
+                    var shape = f.Models[plant.Model];
+                    var s = plant.Scale;
+                    var top = plant.Position.y + shape.Height * s;
+                    if (shape.Height * s < 1f)
+                        continue;
+                    var crownBase = plant.Position.y + shape.CrownBase * s;
+                    // Walk the line from the head out, stopping at the first point inside this plant.
+                    for (var d = 0.5f; d <= t; d += 0.25f)
+                    {
+                        var margin = d > length - 1.5f ? LensMargin : LineMargin;
+                        var crown = shape.CrownRadius * s + margin;
+                        var trunk = math.max(shape.TrunkRadius * s, 0.3f) + margin;
+                        var p = head + dir * d;
+                        var r = math.distance(p.xz, plant.Position.xz);
+                        var inCrown = shape.CrownRadius > 0f && r < crown && p.y > crownBase - margin && p.y < top + margin;
+                        var inTrunk = shape.TrunkRadius > 0f && r < trunk && p.y < top;
+                        if (inCrown || inTrunk)
+                        {
+                            t = d - 0.25f;
+                            break;
+                        }
+                    }
+                }
+            }
+            return t;
+        }
         static readonly string[] WarpNames = { "biome", "settlement", "cave", "landmark" };
         readonly List<Location>[] warpTargets = { new List<Location>(), new List<Location>(), new List<Location>(), new List<Location>() };
         readonly int[] warpIndex = { -1, -1, -1, -1 };
@@ -3621,8 +3717,11 @@ namespace Punchy.Debugging
             // the camera in further (ThirdPersonCamera).
             if (cam != null)
             {
-                cam.Distance = Mathf.Min(cam.Distance, WarpCameraDistance);
-                cam.SetView(target.Yaw, 8f);
+                var head = transform.Position + new float3(0f, cam.TargetHeight, 0f);
+                var arm = Mathf.Min(cam.Distance, WarpCameraDistance);
+                var yaw = ClearWarpView(source, head, target.Yaw, WarpPitch, ref arm);
+                cam.Distance = arm;
+                cam.SetView(yaw, WarpPitch);
             }
             warpBanner = $"F{5 + category} {WarpNames[category]}: <b>{target.Name}</b>  {warpIndex[category] + 1}/{list.Count}  ({target.Position.x:F0}, {target.Position.y:F0})";
             warpBannerUntil = Time.unscaledTime + 3f;
