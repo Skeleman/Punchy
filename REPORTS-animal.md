@@ -1220,3 +1220,41 @@ Commit e75918e on animal-behaviours (PlayerMovementSystem.cs only). 1 build, ~70
   No network fields. KeepOutOfTower untouched. CRLF kept.
 NEXT: sink while climbing near a wall (diag -1 0.19, seg 245 up 0.14); retake the sideways shot with a side frame
 found in the editor first.
+
+## A-40 (2026-11-02): climbing sink near a wall + side-on shot
+
+Commit b2b6a70 on animal-behaviours (PlayerMovementSystem.cs only). 1 build, ~60 calls.
+- Row 1, DONE. While climbing, a chest or head over 0.10 m into rock is pushed sideways across the climb (at most
+  2x radius). With no sideways way out and no rise in the floor ahead, the body holds; otherwise it takes the largest
+  part of the step that stays out. A push back down the climb from a clear spot holds instead: without that, diag -1
+  shivered 0.15 m in a three-frame cycle at the corner (travel 24 m in 3 s). Sim (Temp/a40_sim.cs, editor Play mode,
+  real PushOutOfSolids), A-39 -> A-40:
+
+| Walk | Progress m | Pushed m | Sink mid/head | Slide drop/downhill | Travel |
+|---|---|---|---|---|---|
+| side -1 | 3.46 -> 3.46 | 16.26 -> 16.26 | 0.03 -> 0.03 | 0/0 -> 0/0 | 6.36 -> 6.36 |
+| side 1 | 1.58 -> 1.58 | 14.45 -> 14.45 | 0.03 -> 0.03 | 0/0 -> 0/0 | 1.78 -> 1.78 |
+| diag -1 | 3.80 -> 0.76 | 1.50 -> 19.85 | 0.19 -> **0.10** | 0/0 -> 0/0 | 6.96 -> 2.07 |
+| diag 1 | 1.79 -> 1.79 | 19.77 -> 19.77 | 0.06 -> 0.06 | 0/0 -> 0/0 | 2.34 -> 2.34 |
+
+| Walk | Progress m | Pushed m | Sink mid/head | Max air | Slide drop/downhill | Travel |
+|---|---|---|---|---|---|---|
+| seg 245 up | 2.25 -> 2.25 | 0.46 -> 0.79 | 0.14 -> **0.10** | 0 | 0/0 | 4.31 |
+| seg 245 up, size 0.45 | 2.26 -> 2.25 | 0.81 -> 1.41 | 0.10 -> 0.08 | 0 | 0/0 | 4.41 |
+| seg 245 down | 2.27 -> 2.27 | 0.20 -> 0.20 | 0 -> 0 | 1.22 | 2.08/2.27 | 3.35 |
+| flat seg 0 | 3.80 -> 3.80 | 0.03 -> 0.03 | 0 -> 0 | 0 | 0.14/0 | 4.01 |
+| ledge seg 245 | 4.27 -> 4.27 | 0.20 -> 0.20 | 0 -> 0 | 1.38 | 4.66/4.27 | 6.64 |
+| ledge seg 32 | 3.85 -> 3.85 | 0.53 -> 0.53 | 0 -> 0 | 3.01 | 2.02/3.13 | 5.88 |
+
+  Trade-off: diag -1 now stops at the corner (0.76 m) instead of riding 0.19 m into it along the wall. Tried and
+  dropped: holding at every deep step (seg 245 stops at 0.94-0.99 m), stepping up onto the floor ahead, sliding
+  along the wall, pushing along the normal (all stop the climb or don't help).
+- Row 2, DONE. Side frame found in the editor first (Temp/PlayArgs.txt shot list, body visible), then the after shot
+  in the build, viewed at 800 px: body side-on at the wall
+  (PunchyMilestones/animal/a40/a40-side-wall-800.png). Frame: `-camlook -1446.2,85.8,237.7,-1446.6,84.4,240.2`.
+- CaveDistanceBound (W-33): would not change this fix. The sink comes from where the body is allowed to step, not
+  from SDF error, and at ~5x cost it is too dear for 3 spheres x 4 iterations per frame. It could be useful in the
+  sim to check that the 0.10 m numbers are not under-read by the estimate.
+- Checks: player log v2 126 landmarks, hash 053C63D5; 0 exceptions; run quit on its own. No network fields.
+  KeepOutOfTower untouched. CRLF kept.
+NEXT: none required. If diag -1 feels sticky at the corner in play, try a wall slide that keeps the 0.10 m limit.
