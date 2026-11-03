@@ -1,46 +1,44 @@
-# Animal lane: state (2026-11-02, after batch A-30)
+# Animal lane: state (2026-11-02, after batch A-31)
 
-Worktree `Punchy` (animal lane only). On `animal-behaviours` = origin f50f7a0 (A-30: bd26880 push-out + camera,
-f50f7a0 test flags), on top of de2e8e0 (A-29b). Untracked `Assets/_Recovery/` is old and not ours. The editor is on
-port 7800 and may still be in Play mode from the A-30 probe.
+Worktree `Punchy` (animal lane only). On `animal-behaviours` = origin 6d12e17 (A-31), on top of f50f7a0 (A-30).
+Untracked `Assets/_Recovery/` is old and not ours. Editor on port 7800.
 
-## Cave collision (A-30)
-- PlayerMovementSystem.PushOutOfSolids runs when in or near a cave. Three body spheres (knee, middle, head) take
-  the body's size: r = clamp(0.35*size, 0.1, 1). Up to 4 push passes, capped at r a frame; the body re-floors
-  after each pass when grounded. A floor steeper than SteepFloor (0.64) slides you back downhill. A head pushed
-  further into the ceiling than last frame undoes the move. Open ground, gaits and swimming are untouched (gated
-  on inCave/caveHere).
-- SolidDistance is the hook for landmarks: math.min another signed distance (the tower, the W-32 temple) into it.
-  KeepOutOfTower is unchanged.
-- Probe (v2, walks along and +-35 deg into walls, sizes 0.45/1/1.6), max penetration, old -> new:
-  seg 246 (65 deg) size 1 0.456 -> 0.035, size 1.6 0.600 -> 0.039; seg 9 0.344 -> 0; chamber 0.139 -> 0.
-  Left over: seg 87 (55 deg) brief spikes up to 0.20 (6 of ~624 frames); size 0.45 wedges at about 0.05 on top
-  of seg 246.
-- Causes: the radius did not scale with size; the ground probe was one point; one wall test at floor+1 m and no
-  ceiling test; steps only blocked over 0.6 m, so steep slopes stayed climbable.
+## Crossing fishers (A-31)
+- Fauna/RoadCrossings.cs: read-only over the settlement bake. A bridge is a run of consecutive Bridge plots
+  (under 14 m apart, same facing). A ford is a 1-60 m gap between consecutive road streets with water at least
+  0.05 deep (roads skip water stretches). Crossings within 25 m merge.
+- Bank spot: walk along the road to dry ground (up to 70 m), then try 4-10 m to either side, -4..6 m back: dry,
+  outside towns (+5 m), flat (0.8 m over 2 m), water at least 0.2 deep within 5 m (gives Face).
+- Roll: Scramble(hash of the centre to the metre) % 3 == 0, so it is seed-derived and the same on every machine.
+  Refresh() rebuilds when the settlement key changes; Version counts the rebuilds.
+- FaunaDirector.SpawnCrossingFishers: by day (5.5-19.5 h) with a player within 120 m. Job Fisher, task Fish, on
+  the spot facing the water. Home is the nearest village if its edge is within 250 m, else lone (Leash 8); at
+  night a lone fisher walks off up the road. Race comes from the nearest settlement's free-folk residents, else
+  Folk. Existing creature/ghost path, no new network fields.
+- Counts: v1 has 5 bridges, 0 fords, 5 spots, 3 fishers (all lone). v2 has 3 bridges, 0 fords, 3 spots and
+  0 rolled, so v2 has no fisher.
+- `-place crossing` parks the camera on the first bridge with a fisher.
 
-## Camera (A-30)
-- ThirdPersonCamera.CaveArm sphere-traces SolidDistance at half-steps (lens 0.3, margin 0.05) out from the head.
-  It pulls in at once and eases back out at 3 m/s. The pivot drops under low ceilings. When pulled in the near
-  plane goes to 0.1, or 0.05 inside 1.2 m. Over 10368 probe views, view-in-rock went 589 -> 12 and lens-in-rock
-  239 -> 25.
-- Avatar fade when very close is not done: no hook in the body renderer yet.
+## Talk bubble (A-31)
+- FolkTalkSystem caches a bubble line only once it is non-null. RoleLine falls back to a plain archive line for
+  jobless talkers. The log shows role lines, but no shot has caught the bubble yet (see NEXT).
 
-## For the world lane (card)
-- TerrainSource.CaveDistance can overstate the distance by up to 1.8x below a passage's axis. That is why the
-  camera traces at half-steps and the push-out needs several passes. Ask for a true lower bound (Lipschitz-1).
+## Cave collision and camera (A-30)
+- PlayerMovementSystem.PushOutOfSolids: knee/middle/head spheres scaled to size, 4 passes, steep floor slide,
+  ceiling undo, gated on caves. SolidDistance is the landmark hook.
+- ThirdPersonCamera.CaveArm: sphere trace, ease out, pivot drop, near plane 0.1 / 0.05.
+- Left: seg 87 (55 deg) spikes up to 0.20 m; size 0.45 wedges at about 0.05 on seg 246 (65 deg).
+- World card (open): TerrainSource.CaveDistance overstates the distance by up to 1.8x below a passage's axis.
 
-## Open
-- Slope shots (A-30) did not frame the body: `-camlook` landed on dark rock. Retake them with `-view`.
-- Talk bubble shows "..." in a29-talk-healer-line.png; not looked at.
-- v1 hash not run for A-30 (generation untouched). v2 build 125 / D709D95C.
-- Bubble on the tall elder (A-28) still optional; two-minute talk gaps need Zach's OK to change.
+## Test flags
+- Shot lists: -place (crossing, ...), -goto x,y,z, -view yaw,pitch, -nopushout, -time, -weather, -nohud,
+  -chatshot, -wait, -shot. The player takes -island v1.
+- Hashes: v2 125 / D709D95C, v1 101 / E128CB1D (both checked in A-31).
 
-## Testing recipe
-- Editor evals: use the Bash tool with `unity command --port 7800 eval "$(cat Temp/x.cs)"` (PowerShell mangles
-  quotes). No `using` lines: fully qualify names. Enter Play with EditorApplication.EnterPlaymode(); "Default
-  World" holds the v2 caves. The probe is Temp/a30_probe2.cs and writes Temp/a30_probe.txt.
-- New shot flags: `-goto x,y,z` (stand on the cave floor there), `-view yaw,pitch`, `-nopushout` (old behaviour,
-  for before shots). The player needs `-shotdir` or the list never advances.
-- Build shots: shotlist lines like `-place HumanVillage -time 10 -weather Clear -watch Human:Smith -wait 20`;
-  `-quit` ends after the list.
+## NEXT
+- A bubble shot: the chatshot frames talkers but the bubble did not show. Check whether -nohud hides the bubble
+  or the shot comes before the line.
+- Slope before/after: framing now shows the body, but the slope reads poorly. Pull the view back and up.
+- seg 87 spikes and the small-body wedge (A-30 row 6, not reached).
+- Fords: 0 found on either island. Check whether the bake ever leaves a water gap, or whether roads always bridge.
+- Avatar fade when the camera is very close; job work poses and props.

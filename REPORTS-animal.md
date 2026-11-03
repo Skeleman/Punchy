@@ -982,3 +982,22 @@ DONE (all four rows). animal-behaviours de2e8e0, on top of the origin/main merge
   a30-cam-ceiling.png, a30-slope-before.png and a30-slope-after.png (unusable); full size in raw/.
 - NEXT: retake the slope shots with `-goto` + `-view`; seg 87 spikes and the small-body wedge; avatar fade; the
   talk-bubble "..." (A-29); v1 hash check.
+## A-31 (2026-11-02): crossing fishers, talk bubble, slope shots
+- Row 1 DONE: RoadCrossings reads bridges and fords from the settlement bake, with a bank spot for each. v1: 5
+  crossings (5 bridges, 0 fords), all 5 with a spot; samples 233.5,-641.1 / 590.5,-1312.0 / -1022.2,1233.2 /
+  370.4,3328.2 / 1454.6,2953.8. v2: 3 (3 bridges, 0 fords), all with a spot: -1672.8,2264.9 / -2544.3,884.6 /
+  -2993.5,-1448.9. Terrain, anchors and road baking untouched.
+- Row 2 DONE: a seeded 1 in 3 roll from the position. v1 gives 3 fishers (583,-1315; -1024,1223; 1449,2953), all
+  lone; v2 rolled 0. The editor run and the player run gave the same lists. Job Fisher, task Fish, village home
+  if one is within 250 m, else lone and leaves at night; race from the nearest settlement.
+- Row 3 DONE on v1: a31-v1-fisher-bridge.png (fisher on the bank with a rod, bridge, road and river in frame).
+  v2 has no fisher (none rolled).
+- Row 4 PARTIAL: the fix is in (cache only non-null lines; plain-line fallback for jobless talkers). The build log
+  shows `FolkLine: Baker (Human, Grumpy): "Flour on everything. Always."`, but neither talk shot shows a bubble.
+- Row 5 PARTIAL: the slope shots were retaken with -goto/-view (before with -nopushout), with the body in frame
+  but the slope hard to read. v1 logs 101 / E128CB1D; v2 logs 125 / D709D95C.
+- Row 6 NOT DONE: out of calls; in NEXT.
+- One build, succeeded; the player quit on its own both runs. Commit 6d12e17 on animal-behaviours, pushed.
+- Shots: PunchyMilestones animal/a31: a31-v1-fisher-bridge.png, a31-talk-line.png, a31-talk-line2.png,
+  a31-slope-before.png, a31-slope-after.png (a31-fisher-bridge*.png are v2 and have no fisher); full size in raw/.
+- NEXT: bubble shot (-nohud or timing?), wider slope framing, seg 87 spikes and the small-body wedge, why no fords.
