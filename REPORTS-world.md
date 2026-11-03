@@ -1285,3 +1285,11 @@ NEXT:
 - A reframed hall roof shot.
 
 Budget: about 90 calls (over the 85 ceiling) and 1 build.
+
+## W-43b (2026-11-03), partial
+
+- Commit: TerrainSurface.shader (puddles: sky reflection, fresnel, dark tint, rain rings; broken shoreline band). 0 shader errors in the editor; NOT yet in a player build.
+- Row 2: the seeded width/slope/edge wobble in the river carve changed v2 landmarks 4D245E12 -> 54FFBC1C (caves C49E8E30 -> 94E6B820), so it was reverted and is not committed. Rivers stayed A5B3DE5D53257332 and v1 was unchanged. Needs a landmark-safe version (wobble applied after landmark placement).
+- Row 3: floating water is 35 under the old rule and 5 under the cascade rule (a drop of 5 m or more counts as a fall; 30 cascades). That count was measured with the reverted carve.
+- Row 1: no chimney smoke exists in the code, so 0 of N chimneys smoke. NOT DONE.
+- Not done: build (the CLI dropped and the build never ran), after shots, rows 4 to 6 shots, row 5 temple walk. The before shots in D:/PunchyMilestones/W-43b are badly framed.
