@@ -1,54 +1,45 @@
-# Animal lane: state (2026-11-02, after batch M-03)
+# Animal lane: state (2026-11-02, A-35 paused for Zach's demo)
 
-Worktree `Punchy` (animal lane only). On `animal-behaviours` = origin a5c8e9e (A-34), on top of ab3c458 (A-33).
-main 41a9259 (M-03, PR #53) has animal a5c8e9e and world fd91300 (not W-34 0bdc707). Merged build: v2 126 /
-053C63D5, v1 102 / 51EA6463.
+Worktree `Punchy` (animal lane only). On `animal-behaviours` = origin 4c03cde (A-35 gesture) on bf170f2 (merge of
+main 41a9259, clean, `--no-ff`). PlayerMovementSystem keeps KeepOutOfTower and PushOutOfSolids. Lane hashes are now
+the merged ones: v2 126 / 053C63D5, v1 102 / 51EA6463 (not yet re-read from a player log since the merge).
 Untracked `Assets/_Recovery/` is old and not ours. Editor on port 7800.
+Builds/Windows/Punchy.exe was built from 4c03cde (A-35, Succeeded) but NOT run: paused before the shot run.
 
-## Shot flags added (A-34)
-- `-walk x,y,z`: steers the player (PlayerInputSystem.TestMove) toward the point's xz until within 0.3 m. Logs every
-  0.25 s: position, metres to go, height over the floor, cave biome, and PlayerMovementSystem.PushedTotal (metres
-  the cave push-out has moved the player since the -walk line). Use with -goto start and -wait N; shot is mid-walk.
-- `-untilwork S`: holds the shot until the watched creature has been in CreatureMode.Work for 1 s (max S seconds).
-- `-watch *:Job`: any species. If the species is wrong, one warning names who holds the job. The readout says
-  "no height" when TargetHeight is 0 (folk at work), plus species and FolkJobs.Of.
+## A-35 left to do (relaunch)
+- Run `Temp/a35_shots.txt` (in the Punchy tree) once with `-quit`, shots to PunchyMilestones/animal/a35/raw, resize
+  to 800 px, view the pairs, read the -walk log lines (pushed m, height over floor) and the two hashes.
+- `-watchfrom 1.6,2.5` for the merchant front-on is a guess at the sign: if it shows the back, flip to -2.5.
 
-## -watch Ogre:Merchant (A-34)
-- Not a camera bug: OgreCamp's merchants are Goblins (log: "that job is held by: Goblin Goblin"). "119 m below"
-  was TargetHeight 0 at work. `-watch *:Merchant` frames the goblin merchant at the stall.
-- Ogre baker shot came at Work stage 0 (walking to post); ogre gatekeeper at Work stage 1 with spear.
+## Slope pair candidate (A-35 probe, editor play mode)
+- Probe: Temp/a35_probe.cs. Every cave segment over 25 deg, 2.5 m walks uphill (and +-0.6 off axis), floor sampled
+  every 0.25 m; kept walks of 40-65 deg with no drop over 0.5 m; simulated with and without PushOutOfSolids.
+- Picked seg 245: -goto -1448.0,83.2,238.7 (floor 82.38) -walk -1448.4,86.2,241.1. Floor rise every 0.25 m:
+  .27 .18 .15 .21 .58 .59 .31 .36 .54 .38 (3.57 m in 2.5 m, 55 deg; never drops). Behind the start it falls
+  2.4 m in 3 m.
+- Sim: no push-out walks up (0.3 m to go) with the body 0.26 m into the slope; push-out slides it back down
+  (SteepFloor, 4.4 m from the end, pushed 12.1 m, never airborne). So the pair should differ by ~4 m of position.
+- Camera: passage is tight (only ~10 clear spots). -camrel 2.10,3.41,-0.44,-0.20,2.91,1.20 (side, 2 m back down
+  the slope, 0.7 m clear of rock on all sight lines).
+- Gotcha: right after entering play mode the Default World briefly has a 278-segment cave set (not v2's 541);
+  wait for it before probing or coordinates won't match the player.
 
-## Slope push-out pair (A-34): still no visible difference
-- seg 87: -goto -3993.8,54.4,812.7 floors at y 47.4 (7 m below the given point); walking to -3989.4,44.3,807.3
-  the player walks off a drop and falls (3-6 m over the floor), so it is airborne, not pressing a slope.
-- Before (-nopushout): pushed 0 m. After: pushed 0.9 m in the first 0.25 s, 1.6 m in all, then nothing.
-- The 1.0 s mid-walk shots lost the player off frame; the 0.5 s pair shows the player hanging beside the wall
-  in both, a little lower and nearer in "after". Not an obvious clipping difference.
+## Merchant gesture (A-35, built, not seen)
+- CreatureAnimator Gesture: one hand at a time raised ~1.9 rad for ~40% of a 3.8 s cycle (was 1.2 rad, ~0.4 s),
+  forearm beckoning at 8 rad/s. OgreCamp's merchant is a goblin: `-watch *:Merchant`.
 
-## Job work poses and props (A-33)
+## Job work poses and props (A-33/34)
 - CreatureAnimator Tend switches on FolkJobs.Of(s): Knead, TendBody, Haul, LookAbout + spear for guards.
-- CreatureRenderSystem GearParts 8 (0-1 tool, 2 apron, 3-4 hat, 5-7 extras). All derived from job/task;
-  a client sees the task-implied job. Rule 11 holds.
-- Seen: baker, healer, gatekeeper, well keeper, dwarf guard/smith; A-34 added human woodcutter swing (axe over
-  head, a34-woodcutter-a) and human smith hammering with sparks (a34-smith-side).
+- CreatureRenderSystem GearParts 8. All derived from job/task; a client sees the task-implied job. Rule 11 holds.
 
-## Crossing fishers (A-31/32)
-- Fauna/RoadCrossings.cs; roll Scramble(centre) % 3 == 0. v2 fallback at -2544.3,884.6. `-place crossing`.
+## Shot flags (A-34)
+- `-walk x,y,z` (logs position, to go, height over floor, biome, PushedTotal every 0.25 s), `-untilwork S`,
+  `-watch *:Job`. Plus -place, -goto, -view, -camrel, -watchfrom h,d, -nopushout, -time, -weather, -nohud,
+  -chatshot, -wait, -shot. Launch: -shotlist, -shotdir, -quit, -island v1.
 
 ## Cave collision and camera (A-30/32)
 - PushOutOfSolids runs only in caves, only on a moving player's step, gated by NoPushOut.
-  ThirdPersonCamera.CaveArm sphere-traces. Bodies fade when the camera is within ~0.6 m.
-
-## Test flags
-- Shot lists: -place, -goto, -view, -camrel, -watch Species:Job (or *:Job), -watchfrom h,d, -nopushout, -walk,
-  -untilwork, -time, -weather, -nohud, -chatshot, -wait, -shot. Launch: -shotlist, -shotdir, -quit, -island v1.
-- Hashes: v2 125 / D709D95C (A-34 player log); v1 101 / E128CB1D (A-31; debug/movement-probe change since).
 
 ## NEXT
-- Merge origin/main (41a9259) into animal-behaviours.
-- Slope pair: seg 87 is a drop, not a slope. Pick a walk with a continuous floor (probe floor height along the
-  line first), keep -walk short (2-3 m), and frame wide with -camrel so the body stays in shot.
-- Merchant gesture: the goblin merchant is framed but the gesture does not read; shoot closer, front-on, with
-  -untilwork.
-- Ogre baker settled at work (-untilwork 20).
+- Finish A-35 rows 2-3 with the existing build (no rebuild needed unless the gesture still doesn't read).
 - Close-camera fade before shot; fords (0 found).

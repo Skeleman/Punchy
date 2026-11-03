@@ -1067,3 +1067,13 @@ DONE (all five rows).
 - Row 5: worktree back on animal-behaviours a5c8e9e, clean (apart from Assets/_Recovery), editor 0 errors. Local
   merge/lanes-to-main-3 deleted (in main; remote branch kept).
 - NEXT: merge origin/main into animal-behaviours so the lane carries the merge; W-34 goes in with the next merge.
+
+## A-35 (2026-11-02): PAUSED for Zach's demo after the build
+- Row 1 DONE: origin/main 41a9259 merged `--no-ff` into animal-behaviours (bf170f2), clean, no conflicts; KeepOutOfTower
+  kept; editor recompile 0 errors. Pushed. Hashes after the merge not re-read (player not run).
+- Row 2 NOT DONE (prepared): editor probe found a continuous 55 deg cave slope (seg 245, 2.5 m, no drop, steps <= 0.59 m).
+  Sim: without push-out the body walks up 0.26 m into rock; with it, it slides back (pushed 12.1 m, ends 4.4 m short).
+  Shot list Temp/a35_shots.txt ready; not shot.
+- Row 3 NOT DONE (code in): merchant gesture made bigger and held longer (4c03cde, pushed); shots not taken.
+- Build: 1 (Succeeded, Builds/Windows, from 4c03cde). Player runs: 0. Calls ~37.
+- NEXT: run Temp/a35_shots.txt once with -quit, view pairs, read -walk logs and hashes.
