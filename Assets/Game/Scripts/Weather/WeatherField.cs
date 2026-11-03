@@ -284,7 +284,8 @@ namespace Punchy.Weather
                 var support = PressureSupport(presets[c.Preset].CloudCoverage, Lowness(c.Position, pressureOffset, pressureTime, Bias));
                 c.Age += dt * (support < 0.15f && c.Age > c.Grow ? 4f : 1f);
                 var speed = 3f + 9f * presets[c.Preset].Wind;
-                c.Position += (windDirection * speed + c.Drift) * dt;
+                if (!c.Forced)   // a "-weather" test cell stays over its point (W-43)
+                    c.Position += (windDirection * speed + c.Drift) * dt;
                 var outside = Mathf.Abs(c.Position.x) > mapSize * 0.55f || Mathf.Abs(c.Position.y) > mapSize * 0.55f;
                 if (c.Finished || outside)
                     cells.RemoveAt(i);
@@ -443,6 +444,19 @@ namespace Punchy.Weather
             Spawn(preset, position, 0f, 4f);
             cells[cells.Count - 1].Radius = radius;
             cells[cells.Count - 1].Forced = ignoreBiome;
+            if (ignoreBiome)
+                cells[cells.Count - 1].Hold = 1e7f;   // the test flag's cell lasts the run (W-43)
+        }
+
+        /// <summary>Starts fading every cell within the radius except forced ones (a held "-weather", W-43).</summary>
+        public void ClearUnforced(Vector2 position, float radius)
+        {
+            foreach (var c in cells)
+                if (!c.Forced && Vector2.Distance(c.Position, position) < radius + c.Radius && c.Age < c.Grow + c.Hold)
+                {
+                    c.Hold = Mathf.Max(0f, c.Age - c.Grow);
+                    c.Fade = 6f;
+                }
         }
 
         /// <summary>Starts fading every cell within the radius.</summary>

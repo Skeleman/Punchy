@@ -176,14 +176,21 @@ FloraVertex FloraTransform(FloraAttributes input)
         bool taut = input.data.y < 10;
         float free = saturate(abs(input.data.y - 10) / 0.4);
         float3 at = plant.position + p;
-        float2 gustUV = at.xz * 0.011 - _PunchyWindDirection * _PunchyClock * (0.025 + 0.06 * _PunchyWind);
+        // W-43: one gust per banner (read at its root, so the cloth can't tear between vertices), scrolled at a fixed
+        // rate and heading. The grass's scroll (clock x wind x direction) jumps by whole noise cells whenever the wind's
+        // strength or heading drifts, because the clock is hours in; a banner showed each jump as a snap.
+        float2 gustUV = plant.position.xz * 0.011 - float2(0.8, 0.6) * _PunchyClock * 0.055;
         half gustNoise = SAMPLE_TEXTURE2D_LOD(_PunchyCaveDetail, sampler_PunchyCaveDetail, gustUV, 0).b;
         half gust = lerp(0.5, smoothstep(0.3, 0.75, gustNoise), _PunchyCaveDetailReady);
         float strength = (0.08 + 0.92 * _PunchyWind) * (0.3 + 0.9 * gust);
         // Banners roll slowly, a big wave about every three seconds in a breeze, never a buzz (Z-33: they shook far
-        // too fast).
-        float t = _PunchyClock * (taut ? 0.6 + 0.8 * _PunchyWind : 0.9 + 2.0 * strength) + plant.random * 6.28;
-        float along = (input.positionOS.x + input.positionOS.z) * 1.3;
+        // too fast). The rate is fixed: wind and gusts change only how far it moves. W-43: the rate rode on the gust,
+        // so the phase (clock x rate, the clock hours in) leapt by radians whenever a gust or the wind changed, and
+        // each vertex read its own gust, so the cloth tore and flapped erratically.
+        float t = _PunchyClock * (taut ? 1.0 : 1.9) + plant.random * 6.28;
+        // Its own phase per piece along the building (the hall's two banners stand 4.4 m apart: x 1.3 put them 5.7
+        // radians apart, nearly in step; x 0.9 puts them ~4 apart).
+        float along = (input.positionOS.x + input.positionOS.z) * 0.9;
         float wave = sin(t - free * 4.2 + along);
         // The quicker flutter at the free edge only up close: far off it's a shimmer the eye reads as noise (Z-33).
         float flutterNear = 1 - smoothstep(30, 80, distance(plant.position, GetCameraPositionWS()));

@@ -174,7 +174,8 @@ namespace Punchy.Flora
                     {
                         // Clear ice arches stand like rock; a fountain's water (drawn as metal) is for wading.
                         var fountain = species.Form == FloraForm.Fountain;
-                        model.Support = builder.SupportGrid(
+                        // (A tent has none: its steep hides gave the climb logic a ledge all round it, W-43.)
+                        model.Support = species.Form == FloraForm.Tent ? null : builder.SupportGrid(
                             part => part == FloraPart.Bark || part == FloraPart.Cactus || part == FloraPart.Comb || part == FloraPart.Metal && !fountain ||
                                     part == FloraPart.Glass && species.Form == FloraForm.IceArch,
                             part => fountain && part == FloraPart.Metal);
@@ -2695,6 +2696,17 @@ namespace Punchy.Flora
             foreach (var side in new[] { -1f, 1f })
                 b.Box(new Vector3(side * (inner + cheek * 0.5f), (top - 0.1f) * 0.5f, mid), new Vector3(cheek, top + 0.1f, length), Quaternion.identity, wall, FloraPart.Bark);
             b.Box(new Vector3(0f, top + 0.1f, mid), new Vector3((inner + cheek) * 2f, 0.2f, length), Quaternion.identity, g.Bark * 0.6f, FloraPart.Bark);
+            // Solid (W-43: the foyer had no collision): a row of cylinders as wide as the porch from the wall to its
+            // front, and one at each front corner, as tall as its little roof. The door is shut, so nothing is lost.
+            var span = inner + cheek;
+            var count = Mathf.Clamp(Mathf.CeilToInt(length / (span * 1.2f)), 1, 3);
+            for (int k = 0; k < count; k++)
+            {
+                var z = count == 1 ? Mathf.Max(backZ, front - span * 0.95f) : Mathf.Lerp(backZ, Mathf.Max(backZ, front - span * 0.95f), k / (count - 1f));
+                g.Colliders.Add(new Vector4(0f, z, span, top + 0.35f));
+            }
+            foreach (var side in new[] { -1f, 1f })
+                g.Colliders.Add(new Vector4(side * (inner + cheek * 0.5f), front - 0.2f, 0.22f, top + 0.35f));
             if (g.Lod < 2)
             {
                 // A small roof, sloping out over the porch.
@@ -2809,6 +2821,7 @@ namespace Punchy.Flora
             b.Tube(new List<Vector3> { chimney + Vector3.up * (wall * 0.8f), chimney + Vector3.up * (height + 0.5f) },
                    new List<float> { 0.32f, 0.3f }, 4, g.Bark * 0.85f, FloraPart.Bark);
             RotateAround(b, stack, chimney, square);
+            ChimneyTop(g, chimney + Vector3.up * (height + 0.5f), 0.3f * 0.7071f, g.Bark * 0.85f);
             g.Perches.Add(Vector3.up * height);
             g.Perches.Add(chimney + Vector3.up * (height + 0.5f));
 
@@ -3024,13 +3037,15 @@ namespace Punchy.Flora
                     var sag = Mathf.Sin(t * Mathf.PI) * radius * 0.06f;
                     var p0 = Vector3.Lerp(a, apex, t);
                     var p1 = Vector3.Lerp(c, apex, t);
-                    var inward = -((p0 + p1) * 0.5f - Vector3.up * ((p0.y + p1.y) * 0.5f)).normalized;
+                    // Each edge sags towards the axis under the apex, not along its own panel's middle (W-43): a pole's
+                    // edge is shared by two panels, so both put it in the same place and no slit opens at the corner.
+                    Vector3 Inward(Vector3 p) => -new Vector3(p.x - apex.x, 0f, p.z - apex.z).normalized;
                     var ao = Mathf.Lerp(0.7f, 1f, t);
                     var cut = open && t < 0.55f;
                     var n = Vector3.Cross(p1 - p0, apex - p0).normalized;
                     if (Vector3.Dot(n, (p0 + p1) * 0.5f - Vector3.up * p0.y) < 0f) n = -n;
-                    b.Vertex(p0 + inward * sag, n, cut ? new Color(0.02f, 0.017f, 0.015f) : colour, FloraPart.Bark, cut ? 0.2f : ao);
-                    b.Vertex(p1 + inward * sag, n, cut ? new Color(0.02f, 0.017f, 0.015f) : colour, FloraPart.Bark, cut ? 0.2f : ao);
+                    b.Vertex(p0 + Inward(p0) * sag, n, cut ? new Color(0.02f, 0.017f, 0.015f) : colour, FloraPart.Bark, cut ? 0.2f : ao);
+                    b.Vertex(p1 + Inward(p1) * sag, n, cut ? new Color(0.02f, 0.017f, 0.015f) : colour, FloraPart.Bark, cut ? 0.2f : ao);
                 }
                 for (int r = 0; r < rows; r++)
                 {
@@ -3041,6 +3056,49 @@ namespace Punchy.Flora
             }
             b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.3f));
             DoorMat(g, radius, radius * 0.7f);
+
+            // Collision follows the slope (W-43): stepped rings, each as wide as the hide half a metre below its top, so
+            // a body stops where the slope meets it about the chest, not with its head through the hide (a small goblin
+            // tent too). (With none, the whole tent was one fat trunk cylinder; its hides' support grid gave the climb
+            // logic a "ledge" all round it, so it is left out of the support grid: FloraGenerator.Grow.)
+            foreach (var top in new[] { 1.1f, 2f, 3f })
+                if (top < apex.y - 0.5f)
+                    g.Colliders.Add(new Vector4(apex.x * top / apex.y, apex.z * top / apex.y, radius * 0.95f * (1f - (top - 0.5f) / apex.y), top));
+        }
+
+        /// <summary>
+        /// Where a gabled roof slab's eave edge starts (its centre line's height, <paramref name="overhang"/> past the
+        /// wall) so that its underside meets the wall top at <paramref name="front"/> (4 cm into it), rising to
+        /// <paramref name="ridgeY"/> over the middle (W-43: a fixed drop left the slab floating up to half a metre above the
+        /// wall on a steep roof).
+        /// </summary>
+        static float EaveStart(float wallTop, float front, float overhang, float ridgeY, float thickness)
+        {
+            var slope = (ridgeY - wallTop) / front;
+            var atWall = wallTop;
+            for (int k = 0; k < 4; k++)
+            {
+                atWall = wallTop - 0.04f + thickness * 0.5f * Mathf.Sqrt(1f + slope * slope);
+                slope = (ridgeY - atWall) / front;
+            }
+            return atWall - slope * overhang;
+        }
+
+        /// <summary>
+        /// A chimney's top (W-43), on a square stack of half width <paramref name="half"/> ending at
+        /// <paramref name="top"/>: a collar a little proud of the stack, a chamfer sloping in like the roofs' bevels,
+        /// and a dark square set down inside it for the flue. Draws no random numbers, so nothing after it changes.
+        /// </summary>
+        static void ChimneyTop(Grower g, Vector3 top, float half, Color stone)
+        {
+            if (g.Lod == 2)
+                return;
+            var b = g.B;
+            b.Box(top + Vector3.down * 0.09f, new Vector3(half * 2f + 0.12f, 0.18f, half * 2f + 0.12f), Quaternion.identity, stone * 0.95f, FloraPart.Bark);
+            var chamfer = b.VertexCount;
+            b.Tube(new List<Vector3> { top, top + Vector3.up * 0.1f }, new List<float> { (half + 0.06f) * 1.414f, half * 0.6f * 1.414f }, 4, stone * 0.9f, FloraPart.Bark);
+            RotateAround(b, chamfer, top, Quaternion.Euler(0f, 45f, 0f));
+            b.Box(top + Vector3.up * 0.03f, new Vector3(half * 1.2f, 0.06f, half * 1.2f), Quaternion.identity, new Color(0.025f, 0.02f, 0.018f), FloraPart.Bark, 0.2f);
         }
 
         static void Tower(Grower g)
@@ -3260,7 +3318,7 @@ namespace Punchy.Flora
             var roof = g.FoliageColor();
             var ridge = height;
             foreach (var z in new[] { -1f, 1f })
-                b.Beam(new Vector3(0f, wall - 0.25f, z * (front + 0.6f)), new Vector3(0f, ridge + 0.1f, 0f), half * 2f + 0.8f, 0.18f, roof, FloraPart.Bark);
+                b.Beam(new Vector3(0f, EaveStart(wall, front, 0.6f, ridge + 0.1f, 0.18f), z * (front + 0.6f)), new Vector3(0f, ridge + 0.1f, 0f), half * 2f + 0.8f, 0.18f, roof, FloraPart.Bark);
             // A rounded ridge tile along the top, so the slabs meet in a soft bevel, not a hard point (Z-41).
             b.Tube(new List<Vector3> { new Vector3(-half - 0.4f, ridge + 0.13f, 0f), new Vector3(half + 0.4f, ridge + 0.13f, 0f) },
                    new List<float> { 0.15f, 0.15f }, g.Sides(6, 4, 3), roof * 0.92f, FloraPart.Bark, cap: true);
@@ -3272,6 +3330,7 @@ namespace Punchy.Flora
                 b.Triangle(v0, v1, v2);
             }
             b.Box(new Vector3(half * 0.6f, height * 0.85f, -front * 0.35f), new Vector3(0.6f, height * 0.5f, 0.6f), Quaternion.identity, Stone(g), FloraPart.Bark);
+            ChimneyTop(g, new Vector3(half * 0.6f, height * 1.1f, -front * 0.35f), 0.3f, Stone(g));
             g.Perches.Add(new Vector3(-half - 0.2f, ridge + 0.29f, 0f));
             g.Perches.Add(new Vector3(half + 0.2f, ridge + 0.29f, 0f));
             g.Perches.Add(new Vector3(half * 0.6f, height * 1.1f, -front * 0.35f));
@@ -3340,7 +3399,7 @@ namespace Punchy.Flora
             var roof = g.FoliageColor();
             var ridge = height;
             foreach (var z in new[] { -1f, 1f })
-                b.Beam(new Vector3(0f, wall - 0.35f, z * (front + 0.9f)), new Vector3(0f, ridge + 0.1f, 0f), half * 2f + 1.2f, 0.22f, roof, FloraPart.Bark);
+                b.Beam(new Vector3(0f, EaveStart(wall, front, 0.9f, ridge + 0.1f, 0.22f), z * (front + 0.9f)), new Vector3(0f, ridge + 0.1f, 0f), half * 2f + 1.2f, 0.22f, roof, FloraPart.Bark);
             // A rounded ridge tile along the top (Z-41: a soft bevel, not a hard point).
             b.Tube(new List<Vector3> { new Vector3(-half - 0.6f, ridge + 0.14f, 0f), new Vector3(half + 0.6f, ridge + 0.14f, 0f) },
                    new List<float> { 0.18f, 0.18f }, g.Sides(6, 4, 3), roof * 0.92f, FloraPart.Bark, cap: true);
@@ -3767,6 +3826,7 @@ namespace Punchy.Flora
                        glowing ? AccentAt(g, 0) : g.Bark * 0.25f, glowing ? FloraPart.Glow : FloraPart.Bark);
             }
             b.Box(new Vector3(0f, (1.1f + height + 0.8f) * 0.5f, -depth * 0.7f), new Vector3(0.7f, height + 0.8f - 1.1f, 0.6f), Quaternion.identity, Stone(g) * 0.85f, FloraPart.Bark);
+            ChimneyTop(g, new Vector3(0f, height + 0.8f, -depth * 0.7f), 0.3f, Stone(g) * 0.85f);
             g.Perches.Add(Vector3.up * height);
             g.Perches.Add(new Vector3(0f, height + 0.8f, -depth * 0.7f));
             // The anvil on its block.
