@@ -2,6 +2,14 @@
 
 Newest first.
 
+## W-62c (2026-11-03) world-features 49d33c9
+- #37 pier end: spires keep 6.5 m from any pier's far end (placement rule). Spire that stood 3.8 m off the end is gone; nearest is now 24.2 m. Shot w62c_pier_end.
+- #36 docks: all 8 docks (4 villages) get the pier's solid bed under the planks. Editor sim, step-up 0.4, each walked from its own village, 3 lanes: all 8 reach the end on the deck (feet = deck - 0.2). Side-lane snags: crab pots at d 9.1 on 2 docks (-0.5 lane, walk around). Left over: dock -3296.5,-1656.1 meets a 1.3-1.65 m wall at its ramp foot on all 3 lanes (ground sits under the ramp start).
+- Gotcha: the support grid exists only near the player; walking far docks gives `support -` and fake drops, so the first "all docks drop" reading was probably wrong. The bed is a cheap guard anyway.
+- Player (1 build): pier walk reached -1467.1,-13.5 (0.2 m to go), y 28.0 on the deck: PASS. Longest dock (19.9 m, -2927.4,-1412.5) reached 0.3 m from the end, y 2.1 (deck 2.31): PASS.
+- Hashes: v2 136 / editor 4E61F1CF / player B5EFF8C8; v1 103 / F628AE5F; caves C49E8E3036C741FC; ground C0C906EE310FA91F; rivers A77D2ED7B919296E. All unchanged.
+- Shots: D:/PunchyMilestones/W-62c (w62c_pier_end, w62c_pier_walk_end, w62c_dock_walk_end).
+
 ## W-62b (2026-11-03): sea folk pier walk, shot check, docs (#37)
 Commit 5c2ce10 (world-features). Shots: D:/PunchyMilestones/W-62b (w62b_ramp, w62b_from_pier, w62b_walk_end; I looked at from_pier only).
 1. Pier snag fixed. There were two causes. (a) The 4.6 m ramp climbed 0.5 m per support-grid cell (a long pier has about 0.8 m cells), which left a 0.53 m wall at the deck's land end. That is the W-62 stuck point. (b) Thin plank gaps landed on 3 grid cell centres (z 4.2, 15.0, 25.9), which read as holes and dropped a walker to the lake bed. Fix in StructureKit.Pier: the ramp is now 8 m (about 10 deg), and a solid bed sits 0.17 m under the planks. No RNG draws changed. Editor sim at step-up 0.4: PASS on 3 lanes (centre, +0.6, -0.6), from 8 m up the bank to the far end (about 36 m), ending with feet at 27.99 (deck 27.99). The walk lane was already clear.
