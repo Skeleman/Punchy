@@ -2,6 +2,18 @@
 
 Newest first.
 
+## W-65g (2026-11-03) world-features 6a436b5 (build at 83bbb2d)
+
+- Refresh first: left play mode, AssetDatabase.Refresh, no compile errors.
+- Row 1 hashes (editor, at 83bbb2d): v2 136 / 4E61F1CF (raw B5EFF8C8), v1 103 / F628AE5F raw (19885131 by base name), caves C49E8E3036C741FC, ground C0C906EE310FA91F, rivers A77D2ED7B919296E. All unchanged. After the dedup, v2 is still 136 / 4E61F1CF.
+- Row 2 (#36) build: one build, Succeeded, 0 errors. The player quit by itself (exit 0).
+  - Wharf -3285 shore -> stilt door: FAIL. The walk says ARRIVED at -3272.0,-1.3,-1647.6 (0.3 m to go), but the shot shows the player wading in the water UNDER the wharf deck, between the piles. The walker gets past the solid treads and walks below the deck instead of up onto it.
+  - Stone row -2982.6,3178.8 across: FAIL. STOPPED at -2983.8,42.8,3181.0, 9.0 m to go (water 43.77): it drops into the river at the row end again, as in W-65e. The 0.85 m pitch did not fix it.
+  - Day shot: the row of about 10 mossy stones spans the river bank to bank and looks right.
+- Row 3 dedup (editor only, not in the build): the W-65f patch works once the code is compiled; the W-65f 0 count was the stale compile. Added a check: a spot is kept only when it is also the narrowest in its own 25 m window. Rows within 60 m, before -> after: v1 -1893,-1613: 3 -> 2 (the 2 left are 1.3 m apart, different yaw: not yet one); v1 -1927,-680: 2 -> 1; v1 -1841,615: 1 -> 1; v2 -2982.6,3178.8: 4 rows (3 coincide at -2964.0,3193.4, one at -2994.2,3170.7). All > 0, so committed. The walked row moved: the old -2982.6,3178.8 spot has no row now, so the next walk needs new coordinates.
+- Shots (only viewed at 560 px): D:/PunchyMilestones/W-65g (w65g_wharf_door_walk_end, w65g_stones_walk_end, w65g_stone_row_day), with the shot list and player.log beside them.
+- Left: the wharf walker goes under the deck; the walker falls in at the row end; v1 -1889,-1609 still has 2 rows (the window is a 1-D line along each cell's own flow, so it needs a 2-D check); there is no build of the dedup yet.
+
 ## W-65f (2026-11-03): wharf shore treads + stepping stones, WIP at the call ceiling
 
 - Commit 83bbb2d on world-features (pushed). No build, no player walks, no shots, no hashes: the call ceiling came first.
