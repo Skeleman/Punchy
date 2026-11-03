@@ -1,38 +1,51 @@
 # World lane state
 
-Updated 2026-11-02 after W-29. Branch world-features @ d9ce83c (pushed). One build (Builds/Dev).
+Updated 2026-11-02 after W-28b. Branch world-features @ fd91300 (pushed). One build (Builds/Dev).
 
-## Done in W-29 (grand falls, v2 only)
-- Survey: option A (mountain stream into the central lake) beats B (lake spilling out).
-  - The lake sits at 25.3 m (depth 11 m), so B can drop at most ~25 m to the sea (best rim SE, near (757,1265)).
-  - A: from (316,905) at 166 m to the north-west shore, ~140 m total. Nothing on the path (no village, cave, road
-    or river). The Tors (448,1360) are dodged by bending the lower river east.
-- `Terrain/Rivers/GrandFalls.cs`: a blob on TerrainSource, baked in IslandV2 after BuildPlaces and shared by Shared.ApplyTo.
-  - The path is a polyline. Its water is a staircase (a fall = two nodes 1.5 m apart, 3 m for the main drop), so the surface never breaks.
-  - Ground: channel bed, banks raised or a gorge cut (bank width 8 m + 0.4 x height made up), round plunge pools past each foot.
-  - Hooked into SampleHeight and SampleGround after landmarks and before ponds and Settle. Water, flow and rapids come from it.
-- Result: 548 m long, 166.0 -> 25.3 m (140.8 m), 5 tiers:
-  - 5.0 m at (322,920); MAIN 72.5 m at (334,954), lip 147.5, pool r 20.
-  - Then 10.3 m at (383,1081), 5.5 m at (405,1141), 5.5 m at (441,1221).
-  - Flow 1.2-4.0 m/s on reaches (steepest 49.5%), 0.6 m/s in pools.
-- Effects (LandmarkEffectSystem.GrandTier): curtains (3 side by side at the main drop), lip white water, pool foam,
-  and two big mist plumes at the main drop. Seen from the full view range.
-- Sound: FallVoice reach now 60 m at 14 m drops, rising to 180 m at 70 m+ (volume 1). Player log: 3-4 sources, max 180 m.
+## Done in W-28b (less uniform icebergs)
+- Each berg gets a seeded shape class from its own stream:
+  - Big: tabular, dry dock (two peaks), dome, tilted, pinnacle, capsized.
+  - Chunks and floes: tabular, tilted, pinnacle, dome.
+- Also per berg: a stretched footprint (up to 1.8:1, or 2:1 small), random yaw and a tilted top, an off-centre peak or
+  crown, uneven facets, a notch (55% big, 30% small), an undercut (half the slab-like big bergs) and a waterline ledge
+  (40% big). The ledge sits at 0.18 m, so it is swum onto.
+- No two neighbours alike: a class is skipped if the nearest placed berg has it, and a second pass fixes a later
+  neighbour where the new class still fits its room. v2: 1 of 100 bergs still shares a class with its nearest.
+- Collision (TerrainSource.Deck/TowerWall via IcebergShape.Height) and the meshes sample the same shape functions.
+- Colour: a 64x1 palette strip set on a copy of IcebergIce. White snow tops, bluer or greyer faces per berg (Tint),
+  jitter per face, deeper blue underwater, and a dark blue streak on 35% of big bergs.
+- The cave berg stays a slab so the chamber keeps its roof: stretched 1.05-1.3, tilt 0.04, no notch or ledge.
+- Cave joint: a double-sided frame at the chamber wall, from the tube's arch out to a 5.4 x 4.3 m arch, closes the gap.
+- Tower steps: TerrainSource.Deck now also returns SaltTowerShape.Floor. PlayerMovementSystem was not changed.
+
+## Checks
+- Shapes, v2: big 6 [tabular 3 (incl. cave), dry dock 2, dome 1], small 94 [tabular 26, tilted 27, dome 21, pinnacle 20].
+- Cost:
+
+  | Island | Before | After |
+  |---|---|---|
+  | v2 | 5 draws, 6232 tris | 5 draws, 6712 tris |
+  | v2 cave | 1026 tris, 1 draw | 1058 tris, 1 draw |
+  | v1 | 3 draws, 2140 tris | 3 draws, 1420 tris |
+
+  v2 counts: big 6, chunks 64, floes 30. They were 6 / 56 / 38: the berg counts moved, which the card allows.
+- Cave walk: 958 steps, 0 blocked, reached the chamber and came back.
+- Tower walk: the editor called the player's own Floor through reflection. Tower (3720,-800), 245 steps, 2196
+  sub-steps, 0 blocked, from floor 7.64 to the top step at 80.42. Before the fix the ground there read 6.99.
 
 ## Open
-- The water mesh draws a slanted sheet across the main drop beside the curtains (wider than the curtains).
-- Raised banks on the upper plateau look like snow levees. The gorge walls are smooth and untextured-looking.
-- One reach chute is 49.5% steep (rapids, no fall). The site is fixed coordinates for seed 8121.
-- Not run on v1 (v1 never builds the falls: TerrainAuthoring is untouched).
-- W-28 leftovers, not done: the gap at the ice-cave tunnel joint (v2 berg -4332,1739), and the W-27 tower steps
-  (Floor ignores FloorUnder's tower floor unless inCave or Deck is set).
+- The cave berg, which the W-28 shots centre on, is still a near-round slab. Most of the change is in the other
+  bergs and in the colour. A taller dry-dock cave berg (top at least 13 m over the chamber) is possible.
+- No shot shows the other big bergs close up (pinnacle, dry dock and dome views were not in the card's list).
+- v1 shape counts were not logged (the static log stayed from v2). Only v1's mesh stats and hashes were read.
+- From W-29: a slanted water sheet beside the main falls curtain, snowy levees and plain gorge walls.
 
-## Hashes (unchanged in W-29)
+## Hashes (unchanged in W-28b)
 - v2 126 / 053C63D5, caves 5D90D9CFC5326976.
 - v1 102 / 51EA6463, caves 47C703C0E17F77CB.
 
 ## Notes
-- Shots: PunchyMilestones/world/w29 (800 px), raw shots in w29/raw.
-- Scratch: Punchy-world/Temp/w29_*. Player log w29_player.log. Survey: Temp/w29_survey.txt, w29_q.txt.
-- The world editor logs to Punchy-world/Temp/editor-w04.log. Run `unity command eval "$(cat Temp/x.cs)"` from bash.
-- The player quits by itself after a -shotlist (-quit added too).
+- Shots: PunchyMilestones/world/w28b (800 px), raw shots in w28b/raw.
+- Scratch: Punchy-world/Temp/w28b_*. Tower walk: Temp/w28b_tower.cs. Hashes and logs: Temp/w28b_hash.cs.
+- Editor console errors: Temp/w28b_errs.cs (LogEntries via reflection).
+- Shots: run `Builds/Dev/Punchy.exe -shotlist <file> -shotdir <dir> -logFile <file>`. A `-quit` line ends the list.

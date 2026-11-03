@@ -884,3 +884,23 @@ b/weather-mapjob.
 - Open: a slanted water-mesh sheet beside the main curtain; snowy levees on the plateau; plain gorge walls.
   W-28 leftovers (berg tunnel gap, tower steps) not done.
 - 1 build. No Punchy.exe left running.
+
+## W-28b (2026-11-02): less uniform icebergs
+- Row 1 DONE: seeded shape classes, plus stretch, tilt, off-centre peaks, notches, undercuts and waterline ledges on some.
+  - Big: tabular, dry dock, dome, tilted, pinnacle, capsized. Chunks and floes get four of these in a cheaper form.
+  - Neighbours: v2 has 1 of 100 bergs whose nearest neighbour shares its class.
+  - v2 classes: big [tabular 3 (incl. cave), dry dock 2, dome 1]; small [tabular 26, tilted 27, dome 21, pinnacle 20].
+  - Cost: v2 went from 5 draws / 6232 tris to 5 / 6712, cave 1026 -> 1058 tris. v1 went from 3 / 2140 to 3 / 1420.
+    Still batched per region.
+- Row 2 DONE: a palette strip gives snow tops, bluer or greyer faces per berg and per face, and a dark blue streak on some. Visible in the shots.
+- Row 3 DONE: by day, same cameras as W-28.
+  - [coast-wide](PunchyMilestones/world/w28b/w28b-coast-wide.png), [coast](PunchyMilestones/world/w28b/w28b-coast.png), [berg](PunchyMilestones/world/w28b/w28b-berg.png)
+  - [chamber](PunchyMilestones/world/w28b/w28b-chamber.png), [joint from the tunnel](PunchyMilestones/world/w28b/w28b-joint.png)
+- Extra (a) DONE: a frame at the chamber wall closes the tunnel-joint gap (chamber and joint shots).
+- Extra (b) DONE: TerrainSource.Deck includes the salt tower step floor. The player's Floor, called through
+  reflection, walks all 245 steps to 80.42 m with 0 blocks. No PlayerMovementSystem change.
+- **Checks:** hashes unchanged for v2 (126 / 053C63D5, caves 5D90D9CFC5326976) and v1 (102 / 51EA6463, caves 47C703C0E17F77CB).
+  Cave walk 958 steps, 0 blocked.
+- Open: the W-28 views centre on the cave berg, which stays a slab for its chamber, so the before/after there is
+  mostly colour and facets. Next could be a dry-dock cave berg and a close shot of the other bergs.
+- 1 build. No Punchy.exe left running from Builds/Dev.
