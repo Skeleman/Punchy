@@ -20,6 +20,8 @@ namespace Punchy.Debugging
     /// Development helpers for looking at the world under different conditions, with a small on-screen readout:
     ///  N / Shift+N  jump to the next / previous preset location (one deep in each biome, a summit, a lake shore,
     ///               a river, a beach, and one of each landmark type; found automatically from the terrain);
+    ///  F5-F8        warp to the next biome region / settlement / cave entrance / landmark on the island, nearest
+    ///               first (Shift goes back; see Warp);
     ///  B            next day type (sunny, partly cloudy, changeable, overcast, stormy), replacing today's weather;
     ///  Y            advance the clock two hours;  T  toggle fast time (DayNightCycle);
     ///  ] / [        force the next weather over the player / clear it (WeatherSystem);
@@ -81,6 +83,9 @@ namespace Punchy.Debugging
                 Cycle.TimeOfDay = Mathf.Repeat(Cycle.TimeOfDay + 2f, 24f);
             if (keyboard.nKey.wasPressedThisFrame)
                 Jump(keyboard.shiftKey.isPressed ? -1 : 1);
+            for (int c = 0; c < WarpKeys.Length; c++)
+                if (keyboard[WarpKeys[c]].wasPressedThisFrame)
+                    Warp(c, keyboard.shiftKey.isPressed ? -1 : 1);
         }
 
         void LateUpdate()
@@ -1475,6 +1480,17 @@ namespace Punchy.Debugging
             if (at >= 0 && at + 1 < args.Length && System.Enum.TryParse<AnchorKind>(args[at + 1], true, out var kind) &&
                 EnsureLocations(out var terrain))
                 GoToAnchor(terrain, kind);
+            // "-warp town 2" (biome, town, cave or landmark; the number defaults to 1): the warp key's Nth target counted
+            // from the nearest, as if the key were pressed that many times from here (A-36).
+            var warpArg = System.Array.IndexOf(args, "-warp");
+            if (warpArg >= 0 && warpArg + 1 < args.Length && WarpCategory(args[warpArg + 1]) is int warpCat && warpCat >= 0)
+            {
+                var nth = warpArg + 2 < args.Length && int.TryParse(args[warpArg + 2], out var wn) ? math.max(1, wn) : 1;
+                warpIndex[warpCat] = -1;
+                Warp(warpCat, 1);
+                for (int k = 1; k < nth; k++)
+                    Warp(warpCat, 1);
+            }
             // "-weather Storm" (any WeatherPreset; Clear clears): that weather forced over the player, where it ends up.
             var weatherArg = System.Array.IndexOf(args, "-weather");
             if (weatherArg >= 0 && weatherArg + 1 < args.Length && playerQuery.TryGetSingleton<LocalTransform>(out var under) &&
@@ -3333,7 +3349,11 @@ namespace Punchy.Debugging
                 locations.Clear();
             }
             if (locations.Count == 0)
-                FindLocations(source, queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity()));
+            {
+                var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
+                FindLocations(source, palette);
+                FindWarpTargets(source, palette);
+            }
             return locations.Count > 0;
         }
 
@@ -3537,6 +3557,201 @@ namespace Punchy.Debugging
 
         static float Yaw(float2 towards) => math.degrees(math.atan2(towards.x, towards.y));
 
+        // ---------------------------------------------------------------- warp keys (A-36)
+
+        // F5-F8 were free (F1 HUD, F3 copy position here; F4 is bound in the input actions). Local player only:
+        // nothing goes on the network, and the world data is only read.
+        static readonly Key[] WarpKeys = { Key.F5, Key.F6, Key.F7, Key.F8 };
+        static readonly string[] WarpNames = { "biome", "settlement", "cave", "landmark" };
+        readonly List<Location>[] warpTargets = { new List<Location>(), new List<Location>(), new List<Location>(), new List<Location>() };
+        readonly int[] warpIndex = { -1, -1, -1, -1 };
+        readonly float2[] warpLast = new float2[4];
+        string warpBanner;
+        float warpBannerUntil;
+        GUIStyle warpStyle;
+
+        /// <summary>"biome", "town"/"settlement"/"city", "cave" or "landmark" to its warp category, else -1.</summary>
+        static int WarpCategory(string word) => word?.ToLowerInvariant() switch
+        {
+            "biome" => 0,
+            "town" or "settlement" or "city" => 1,
+            "cave" => 2,
+            "landmark" => 3,
+            _ => -1,
+        };
+
+        /// <summary>
+        /// F5-F8: the next (step 1) or previous (-1) point of interest of a category. The first press (or the first
+        /// after wandering 300 m from the last warp) orders the list by distance from the player, nearest first.
+        /// Lands like N and -goto: on the ground, never in water (stand points are walked to dry land).
+        /// </summary>
+        void Warp(int category, int step)
+        {
+            if (!EnsureLocations(out var source))
+                return;
+            var list = warpTargets[category];
+            if (list.Count == 0)
+            {
+                warpBanner = $"F{5 + category} {WarpNames[category]}: none on this island";
+                warpBannerUntil = Time.unscaledTime + 3f;
+                return;
+            }
+            var em = queryWorld.EntityManager;
+            var player = playerQuery.GetSingletonEntity();
+            var transform = em.GetComponentData<LocalTransform>(player);
+            var here = transform.Position.xz;
+            if (warpIndex[category] < 0 || math.distance(here, warpLast[category]) > 300f)
+            {
+                list.Sort((a, b) => math.distancesq(a.Position, here).CompareTo(math.distancesq(b.Position, here)));
+                warpIndex[category] = step > 0 ? 0 : list.Count - 1;
+            }
+            else
+                warpIndex[category] = ((warpIndex[category] + step) % list.Count + list.Count) % list.Count;
+            var target = list[warpIndex[category]];
+            warpLast[category] = target.Position;
+
+            transform.Position = new float3(target.Position.x, source.SampleHeight(target.Position) + 0.1f, target.Position.y);
+            transform.Rotation = quaternion.RotateY(math.radians(target.Yaw));
+            em.SetComponentData(player, transform);
+            em.SetComponentData(player, new PlayerMotion { Grounded = true });
+            var cam = FindAnyObjectByType<ThirdPersonCamera>();
+            if (cam != null)
+                cam.SetView(target.Yaw, 12f);
+            warpBanner = $"F{5 + category} {WarpNames[category]}: <b>{target.Name}</b>  {warpIndex[category] + 1}/{list.Count}  ({target.Position.x:F0}, {target.Position.y:F0})";
+            warpBannerUntil = Time.unscaledTime + 3f;
+            Debug.Log($"DebugControls: warp {WarpNames[category]} {warpIndex[category] + 1}/{list.Count} {target.Name} at {target.Position.x:F0},{target.Position.y:F0}");
+        }
+
+        /// <summary>
+        /// The warp lists, from the baked world data (read only): one spot per biome region (a connected patch of the
+        /// 150 m survey), each settlement, each cave entrance and each landmark.
+        /// </summary>
+        void FindWarpTargets(in TerrainSource source, BiomePalette palette)
+        {
+            foreach (var list in warpTargets)
+                list.Clear();
+            for (int c = 0; c < 4; c++)
+                warpIndex[c] = -1;
+
+            // Biome regions: flood-fill the survey grid, keep patches of 4+ cells, stand at each one's deepest cell.
+            var half = source.World.WorldSize * 0.5f;
+            const float step = 150f;
+            var n = (int)(half * 2f / step) + 1;
+            var biomeGrid = new NativeArray<int>(n * n, Allocator.TempJob);
+            var heightGrid = new NativeArray<float>(n * n, Allocator.TempJob);
+            new SurveyJob { Source = source, Origin = -half, Step = step, Size = n, Biome = biomeGrid, Height = heightGrid }
+                .Schedule(n * n, 64).Complete();
+            var region = new int[n * n];
+            var stack = new Stack<int>();
+            var cells = new List<int>();
+            var oceanIndex = source.Biomes.Value.OceanIndex;
+            for (int start = 0; start < n * n; start++)
+            {
+                var b = biomeGrid[start];
+                if (b < 0 || b == oceanIndex || region[start] != 0)
+                    continue;
+                cells.Clear();
+                region[start] = 1;
+                stack.Push(start);
+                while (stack.Count > 0)
+                {
+                    var i = stack.Pop();
+                    cells.Add(i);
+                    int x = i % n, z = i / n;
+                    if (x > 0 && region[i - 1] == 0 && biomeGrid[i - 1] == b) { region[i - 1] = 1; stack.Push(i - 1); }
+                    if (x < n - 1 && region[i + 1] == 0 && biomeGrid[i + 1] == b) { region[i + 1] = 1; stack.Push(i + 1); }
+                    if (z > 0 && region[i - n] == 0 && biomeGrid[i - n] == b) { region[i - n] = 1; stack.Push(i - n); }
+                    if (z < n - 1 && region[i + n] == 0 && biomeGrid[i + n] == b) { region[i + n] = 1; stack.Push(i + n); }
+                }
+                if (cells.Count < 4)
+                    continue;
+                // The deepest cell: the most rings of the same biome around it.
+                int best = cells[0], bestScore = -1;
+                foreach (var i in cells)
+                {
+                    int x = i % n, z = i / n, score = 0;
+                    for (int r = 1; r <= 8; r++, score++)
+                    {
+                        bool Same(int dx, int dz) => x + dx >= 0 && z + dz >= 0 && x + dx < n && z + dz < n && biomeGrid[(z + dz) * n + x + dx] == b;
+                        if (!Same(r, 0) || !Same(-r, 0) || !Same(0, r) || !Same(0, -r))
+                            break;
+                    }
+                    if (score > bestScore) { bestScore = score; best = i; }
+                }
+                var p = new float2(-half + best % n * step, -half + best / n * step);
+                warpTargets[0].Add(new Location { Name = $"{palette.Biomes[b].name} ({cells.Count * 2.25f:F0} ha)", Position = p, Yaw = Yaw(-p) });
+            }
+            biomeGrid.Dispose();
+            heightGrid.Dispose();
+
+            // Settlements: on the main road just outside, facing the middle.
+            var hasLandmarks = source.Landmarks.IsCreated && palette.Landmarks != null;
+            if (source.Settlements.IsCreated)
+            {
+                ref var towns = ref source.Settlements.Value;
+                for (int s = 0; s < towns.Settlements.Length; s++)
+                {
+                    ref var town = ref towns.Settlements[s];
+                    var name = "Settlement";
+                    if (hasLandmarks && town.Landmark >= 0 && town.Landmark < source.Landmarks.Value.Instances.Length)
+                    {
+                        var t = source.Landmarks.Value.Instances[town.Landmark].Type;
+                        if (t < palette.Landmarks.Length && palette.Landmarks[t] != null)
+                            name = palette.Landmarks[t].name;
+                    }
+                    var road = math.lengthsq(town.Road) > 0.01f ? town.Road : math.normalizesafe(town.Centre, new float2(1f, 0f));
+                    var at = Dry(source, town.Centre + road * math.max(town.Radius, town.Palisade) * 1.05f, town.Centre);
+                    warpTargets[1].Add(new Location { Name = $"{name} #{s + 1}", Position = at, Yaw = Yaw(town.Centre - at) });
+                }
+            }
+
+            // Cave entrances: a few metres out from the mouth (away from the first tunnel node), facing in.
+            if (source.Caves.IsCreated)
+            {
+                ref var caves = ref source.Caves.Value;
+                for (int c = 0; c < caves.Caves.Length; c++)
+                {
+                    ref var cave = ref caves.Caves[c];
+                    var mouth = cave.Mouth.xz;
+                    var outward = cave.NodeCount >= 2
+                        ? math.normalizesafe(mouth - caves.Nodes[cave.FirstNode + 1].Position.xz, new float2(1f, 0f))
+                        : math.normalizesafe(mouth, new float2(1f, 0f));
+                    var at = Dry(source, mouth + outward * 6f, mouth);
+                    source.SampleBiomes(mouth, out var biomes, out _);
+                    var biome = biomes.Dominant();
+                    var where = biome >= 0 && biome < palette.Biomes.Length ? palette.Biomes[biome].name : "cave";
+                    warpTargets[2].Add(new Location { Name = $"Cave #{c + 1} ({where})", Position = at, Yaw = Yaw(mouth - at) });
+                }
+            }
+
+            // Landmarks: every one, seen from just outside (the low side of a cliff), as N does.
+            if (hasLandmarks)
+            {
+                ref var set = ref source.Landmarks.Value;
+                for (int i = 0; i < set.Instances.Length; i++)
+                {
+                    ref var inst = ref set.Instances[i];
+                    if (inst.Type >= palette.Landmarks.Length || palette.Landmarks[inst.Type] == null)
+                        continue;
+                    var radius = set.Types[inst.Type].Radius * inst.Scale;
+                    var away = set.Types[inst.Type].Shape == LandmarkShape.Cliff ? -inst.Facing : math.normalizesafe(inst.Position, new float2(1f, 0f));
+                    var at = Dry(source, inst.Position + away * radius * 1.1f, inst.Position);
+                    warpTargets[3].Add(new Location { Name = palette.Landmarks[inst.Type].name, Position = at, Yaw = Yaw(inst.Position - at) });
+                }
+            }
+
+            Debug.Log($"DebugControls: warp keys F5 {WarpNames[0]}, F6 {WarpNames[1]}, F7 {WarpNames[2]}, F8 {WarpNames[3]} (Shift back; F4 is taken by the input actions); targets: biomes {warpTargets[0].Count}, settlements {warpTargets[1].Count}, caves {warpTargets[2].Count}, landmarks {warpTargets[3].Count}");
+        }
+
+        /// <summary>A stand point on dry land: if it is in water, walk back toward the thing it looks at until dry.</summary>
+        static float2 Dry(in TerrainSource source, float2 p, float2 towards)
+        {
+            var dir = math.normalizesafe(towards - p, new float2(1f, 0f));
+            for (int k = 0; k < 40 && source.SampleGround(p).WaterDepth > -0.3f; k++)
+                p += dir * 4f;
+            return source.SampleGround(p).WaterDepth > -0.3f ? WalkToDryLand(source, p) : p;
+        }
+
         // ---------------------------------------------------------------- readout
 
         float copiedUntil;
@@ -3554,7 +3769,16 @@ namespace Punchy.Debugging
 
         void OnGUI()
         {
-            if (!ShowReadout || !Application.isPlaying)
+            if (!Application.isPlaying)
+                return;
+            // The warp banner (F5-F8) shows for a few seconds, top centre, even with the readout hidden.
+            if (warpBanner != null && Time.unscaledTime < warpBannerUntil)
+            {
+                warpStyle ??= new GUIStyle(GUI.skin.box) { alignment = TextAnchor.MiddleCenter, fontSize = 18, richText = true };
+                var size = warpStyle.CalcSize(new GUIContent(warpBanner));
+                GUI.Box(new Rect((Screen.width - size.x) * 0.5f - 10, 12, size.x + 20, size.y + 10), warpBanner, warpStyle);
+            }
+            if (!ShowReadout)
                 return;
             style ??= new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 13, richText = true };
 
@@ -3652,7 +3876,10 @@ namespace Punchy.Debugging
             // (The control hints draw under the readout, so their buttons can be icons.)
             hints = ControlHints(flies, flying) + " · " + Punchy.Player.InputGlyphs.Token(Punchy.Player.InputGlyphs.Gamepad ? "<Gamepad>/start" : "<Keyboard>/escape") + " menu";
             if (!Punchy.Player.InputGlyphs.Gamepad)
+            {
                 lines.Add("<color=#bbbbbb>N/Shift+N place · B day type · Y +2 h · T fast time · ] force weather · [ clear · F3 copy position · F1 hide</color>");
+                lines.Add("<color=#bbbbbb>warp: F5 biome · F6 settlement · F7 cave · F8 landmark (Shift+key back)</color>");
+            }
 
             return string.Join("\n", lines);
         }
