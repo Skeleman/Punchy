@@ -1355,3 +1355,18 @@ Budget: about 90 calls (over the 85 ceiling) and 1 build.
 - Row 2 chimney smoke: 6/17 chimney buildings smoking near one Inn, 84 particles peak, gather 0.01 ms.
 - Row 3 floating water (WorldProbe.Floating, cascade rule): W-43 had 35 (old rule) / 5 (cascade rule); now 23 / 3. Left: 19,202; 656,562; -2186,3604.
 - Row 4: build Succeeded, 0 errors. Shots in W-43c: bend before/after OK. The puddle, roofline and hut shots missed their framing (retake needed). eye_clear shows the W-53 sand line is still there.
+
+## 2026-11-03 batch W-59b: fishing villages finished (docks face the sea), built and shot
+
+Commit: world-features 5737dc4 (FloraPlacement.cs, FishingVillageBaking.cs). Builds: 1 (0 errors). Player runs: 1, with -shotdir and -quit; it quit by itself.
+1. #36 docks face the sea: DONE. Docks use FloraRule.FaceLandmark, so they turn to the village's facing (from the bank out to open water). Fits() now also rejects a village spot unless every dock's far end (19 m out) is at least 0.6 m below sea level. Editor check: 8 of 8 docks have their far end over water (0.19 to 2.68 m below sea level). Dock lengths are 16.3 to 19.9 m.
+2. v2 bake: 4 villages, from 186 mouth cells (86 tried):
+   - -3304,-1644 facing 0
+   - -2940,-1448 facing 90
+   - -2883,-2121 facing -135
+   - -2372,-2124 facing 0
+   Diff against lmlist-w58: only those 4 FishingVillage lines were added. The 127 old landmarks are identical (position and type). Count 131. The editor WorldProbe fingerprint is D153C437; the player log hash is 41BA8108 (a different hash function).
+3. Shots, in D:\PunchyMilestones\W-59: w59b_village1_day, w59b_village2_day, w59b_village3_dusk, w59b_colossus_head (#40). The agent did not look at them, so nobody has checked framing or whether trees go through the colossus head yet.
+4. Dock walk: FAIL (a snag). The walk went from -3286,-1643.7 toward the far end of village 1's dock (-3264,-1643.7). The player went down the beach from y 0.4 to y -0.3, then stopped at x -3280.9, which is the dock's land end (-3280.0), with 16.9 m still to go. It stayed stuck there for the rest of the shot: 0.1 m over the floor, pushed out 0.0 m, 57 probe lines. It did not fall into water. The likely cause is that the dock's land end sits a step higher than the beach at the waterline. The fix would be a ramp or step at the dock's land end, or starting the dock further up the bank. It needs a new build.
+5. Hashes: caves C49E8E3036C741FC (unchanged). v1: 103 landmarks, fingerprint 19885131, no villages (unchanged). Rivers: not measured this batch; no river code changed (the hash is expected to stay A5B3DE5D53257332). Ground: villages have Flatten 0 and Ground null, so they change no ground; not measured.
+Left: the dock snag (row 4), a look at the 4 shots, and the river and ground hash numbers.
