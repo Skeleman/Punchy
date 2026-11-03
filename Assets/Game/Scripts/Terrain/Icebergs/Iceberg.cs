@@ -17,6 +17,15 @@ namespace Punchy.Terrain
         public float Reach;
         public uint Seed;
         public int Sides, Kind;
+        /// <summary>W-28b: the shape class (IcebergShape.Tabular ...), the footprint's stretch along its own x and z, and how the top
+        /// rises per metre across it (as a fraction of Height per Radius).</summary>
+        public int Shape;
+        public float2 Scale, Tilt;
+        /// <summary>Peak or crown centres in the berg's own frame (in units of Radius): two for a dry dock, one for a pinnacle or dome.</summary>
+        public float2 PeakA, PeakB;
+        /// <summary>A bite out of the rim (its angle in the berg's own frame and depth 0..1), a waterline ledge (width m, 0 none, and
+        /// its facing), an undercut below the rim (m, looks only), the ice's tint (0..1) and a blue streak's angle (below -5 for none).</summary>
+        public float Notch, NotchDepth, Ledge, LedgeDir, Overhang, Tint, Streak;
     }
 
     /// <summary>
@@ -40,9 +49,12 @@ namespace Punchy.Terrain
     }
 
     /// <summary>
-    /// The analytic shape every berg is drawn and stood on with: a flat top inside a jittered polygon, sides falling at
-    /// Slope (steep, except a gentle ramp on big bergs to climb out of the water), and for the cave berg a tunnel and a
-    /// domed chamber cut inside. TerrainSource.Deck stands bodies on it and TerrainSource.TowerWall keeps them out of it.
+    /// The analytic shape every berg is drawn and stood on with. In the berg's own frame (turned by Rotation, stretched by
+    /// Scale) the top fills a jittered polygon (with a notch on some) and is shaped by the berg's class: a flat or tilted
+    /// slab, a dry dock's two peaks over a saddle, a pinnacle's off-centre peak, or a weathered or capsized dome. The
+    /// sides fall from the rim at Slope (steep, except a gentle ramp on big bergs to climb out of the water), some with a
+    /// low ledge at the waterline. The cave berg has a tunnel and a domed chamber cut inside. TerrainSource.Deck stands
+    /// bodies on it and TerrainSource.TowerWall keeps them out of it.
     /// </summary>
     public static class IcebergShape
     {
@@ -50,21 +62,86 @@ namespace Punchy.Terrain
         public const float SteepSlope = 2.6f, ChunkSlope = 1.4f, RampSlope = 0.5f, RampHalfAngle = 0.45f;
         /// <summary>Anything this little above the sea is swum onto, never a wall.</summary>
         public const float WaterlineLip = 0.2f;
+        /// <summary>A waterline ledge's height above the sea (under WaterlineLip, so it's swum onto).</summary>
+        public const float LedgeHeight = 0.18f;
+        /// <summary>Shape classes (W-28b). Chunks and floes use Tabular, Tilted, Pinnacle and Dome.</summary>
+        public const int Tabular = 0, DryDock = 1, Dome = 2, Tilted = 3, Pinnacle = 4, Capsized = 5, ShapeCount = 6;
 
         public static float Hash01(uint seed, int k) => (BiomeSampling.Scramble(seed ^ (uint)(k * 0x9E3779B9u)) & 0xFFFFFF) / 16777216f;
 
         static float Wrap(float a) => a - 2f * math.PI * math.floor((a + math.PI) / (2f * math.PI));
 
-        /// <summary>The top's radius in a world direction (radians).</summary>
-        public static float TopRadius(in IcebergData b, float angle)
+        /// <summary>A world point in the berg's own frame: turned back by Rotation and divided by Scale.</summary>
+        public static float2 Local(in IcebergData b, float2 xz)
         {
-            var a = (Wrap(angle - b.Rotation) + math.PI) / (2f * math.PI) * b.Sides;
+            var v = xz - b.Centre;
+            math.sincos(-b.Rotation, out var s, out var c);
+            return new float2(v.x * c - v.y * s, v.x * s + v.y * c) / b.Scale;
+        }
+
+        /// <summary>A point in the berg's own frame back to the world.</summary>
+        public static float2 World(in IcebergData b, float2 q)
+        {
+            var u = q * b.Scale;
+            math.sincos(b.Rotation, out var s, out var c);
+            return b.Centre + new float2(u.x * c - u.y * s, u.x * s + u.y * c);
+        }
+
+        /// <summary>The top's radius (in the berg's own frame) at an angle in that frame: uneven corners, and a notch on some.</summary>
+        public static float TopRadius(in IcebergData b, float localAngle)
+        {
+            var a = (Wrap(localAngle) + math.PI) / (2f * math.PI) * b.Sides;
             var k = (int)math.floor(a);
             var t = a - k;
-            var f0 = 0.82f + 0.33f * Hash01(b.Seed, k % b.Sides);
-            var f1 = 0.82f + 0.33f * Hash01(b.Seed, (k + 1) % b.Sides);
-            return b.Radius * math.lerp(f0, f1, t);
+            // The cave berg keeps its corners near its radius so the tunnel stays inside; the rest are rougher.
+            float lo = b.Kind == 2 ? 0.82f : 0.66f, span = b.Kind == 2 ? 0.33f : 0.52f;
+            var f0 = lo + span * Hash01(b.Seed, k % b.Sides);
+            var f1 = lo + span * Hash01(b.Seed, (k + 1) % b.Sides);
+            var f = math.lerp(f0, f1, t);
+            if (b.NotchDepth > 0f)
+                f *= 1f - b.NotchDepth * math.smoothstep(0.38f, 0.1f, math.abs(Wrap(localAngle - b.Notch)));
+            return b.Radius * f;
         }
+
+        static float Peak(float2 q, float2 c, float w) => math.exp(-math.lengthsq(q - c) / (w * w));
+
+        /// <summary>The top's height above the sea at a point inside the rim (in the berg's own frame).</summary>
+        public static float TopHeight(in IcebergData b, float2 q)
+        {
+            float R = b.Radius, h = b.Height, y;
+            switch (b.Shape)
+            {
+                case DryDock:
+                    y = h * (0.4f + 0.6f * math.max(Peak(q, b.PeakA * R, 0.42f * R), 0.78f * Peak(q, b.PeakB * R, 0.36f * R)));
+                    break;
+                case Pinnacle:
+                    y = h * (0.3f + 0.7f * Peak(q, b.PeakA * R, 0.5f * R));
+                    break;
+                case Dome:
+                case Capsized:
+                    y = h * (1f - (b.Shape == Dome ? 0.5f : 0.68f) * math.min(math.lengthsq(q - b.PeakA * R) / (R * R), 1.5f));
+                    break;
+                default:
+                    y = h;
+                    break;
+            }
+            return math.max(math.min(0.3f, h * 0.7f), y * (1f + math.dot(b.Tilt, q) / R));
+        }
+
+        /// <summary>Along a world direction from the centre: how far the rim is (m), its height, and the side's slope there.</summary>
+        public static void Rim(in IcebergData b, float worldAngle, out float dist, out float height, out float slope)
+        {
+            var q = Local(b, b.Centre + new float2(math.cos(worldAngle), math.sin(worldAngle)));
+            var qd = math.normalize(q);
+            var top = TopRadius(b, math.atan2(q.y, q.x));
+            dist = top / math.length(q);
+            height = TopHeight(b, qd * top);
+            slope = Slope(b, worldAngle);
+        }
+
+        /// <summary>The waterline ledge's width (m) at an angle in the berg's own frame.</summary>
+        public static float LedgeWidth(in IcebergData b, float localAngle) =>
+            b.Ledge * math.smoothstep(-0.1f, 0.45f, math.cos(localAngle - b.LedgeDir));
 
         public static float Slope(in IcebergData b, float angle)
         {
@@ -77,16 +154,26 @@ namespace Punchy.Terrain
         /// <summary>The berg's surface height above the sea at a point (negative beyond its waterline), and whether it's a steep side there.</summary>
         public static float Height(in IcebergData b, float2 xz, out bool steep)
         {
-            var v = xz - b.Centre;
-            var angle = math.atan2(v.y, v.x);
-            var r = math.length(v);
-            var top = TopRadius(b, angle);
+            var q = Local(b, xz);
+            var r = math.length(q);
+            var la = math.atan2(q.y, q.x);
+            var top = TopRadius(b, la);
             steep = false;
             if (r <= top)
-                return b.Height;
-            var s = Slope(b, angle);
+                return TopHeight(b, q);
+            // Past the rim, down the same ray from the centre: world metres per unit of the berg's own frame on it.
+            var v = xz - b.Centre;
+            var beyond = (r - top) * math.length(v) / r;
+            var rim = TopHeight(b, q * (top / r));
+            var s = Slope(b, math.atan2(v.y, v.x));
             steep = s > 1.2f;
-            return b.Height - (r - top) * s;
+            var h = rim - beyond * s;
+            if (b.Ledge > 0f && h < LedgeHeight && beyond - rim / s < LedgeWidth(b, la))
+            {
+                steep = false;
+                return LedgeHeight;
+            }
+            return h;
         }
 
         /// <summary>Whether a point is inside the cave berg's tunnel or chamber footprint, with the floor and roof there.</summary>
@@ -285,6 +372,9 @@ namespace Punchy.Terrain
             // Inside the world's coast band, where the terrain and sea are drawn.
             var limit = source.World.WorldSize * 0.5f + source.World.CoastWidth * 0.5f - 60f;
             var bergs = new List<IcebergData>();
+            // Each berg's radius x height before its shape class reshapes it: the cave berg is picked on this, as in W-28.
+            var baseSizes = new List<float>();
+            var bases = new List<IcebergData>();
             var coastCells = new HashSet<int>();
             // Big tabular bergs first (further out, 150 m apart), then chunks and floes nearer shore, clear of the big ones.
             for (int pass = 0; pass < 2; pass++)
@@ -321,18 +411,44 @@ namespace Punchy.Terrain
                     b.Rotation = U(7) * 2f * math.PI;
                     b.Ramp = U(8) * 2f * math.PI;
                     b.Seed = h;
-                    b.Reach = b.Radius * 1.15f + b.Height / (b.Kind == 0 ? IcebergShape.ChunkSlope : IcebergShape.RampSlope) + 1f;
+                    var baseSize = b.Radius * b.Height;
+                    var plain = b;
+                    Vary(ref b, NeighbourShape(bergs, b));
+                    b.Reach = Reach(b);
                     if (NearSettlement(p, b.Reach) || !Clear(bergs, b))
                         continue;
                     bergs.Add(b);
+                    bases.Add(plain);
+                    baseSizes.Add(baseSize);
                     coastCells.Add((int)math.floor(p.x / 1024f) * 100000 + (int)math.floor(p.y / 1024f));
+                }
+
+            // No two neighbours alike: a berg whose nearest neighbour (placed after it) took its class moves on to another
+            // class that fits in the room it was given.
+            for (int pass = 0; pass < 2; pass++)
+                for (int i = 0; i < bergs.Count; i++)
+                {
+                    if (!Nearest(bergs, i, out var j) || bergs[j].Shape != bergs[i].Shape)
+                        continue;
+                    var shapes = bergs[i].Kind >= 1 ? BigShapes : SmallShapes;
+                    var at = System.Array.IndexOf(shapes, bergs[i].Shape);
+                    for (int step = 1; step < shapes.Length; step++)
+                    {
+                        var c = bases[i];
+                        Vary(ref c, shapes[(at + step) % shapes.Length]);
+                        c.Reach = Reach(c);
+                        if (c.Shape == bergs[j].Shape || c.Reach > bergs[i].Reach)
+                            continue;
+                        bergs[i] = c;
+                        break;
+                    }
                 }
 
             // The cave berg: the biggest big berg, made at least big enough for its chamber, its entrance facing the cold shore.
             int cave = -1;
             var bestSize = 0f;
             for (int i = 0; i < bergs.Count; i++)
-                if (bergs[i].Kind == 1 && bergs[i].Radius * bergs[i].Height > bestSize) { bestSize = bergs[i].Radius * bergs[i].Height; cave = i; }
+                if (bergs[i].Kind == 1 && baseSizes[i] > bestSize) { bestSize = baseSizes[i]; cave = i; }
             var tunnel = new List<float3>();
             float3 chamber = default;
             float chamberRadius = 0f, chamberHeight = 0f;
@@ -340,13 +456,20 @@ namespace Punchy.Terrain
             {
                 var b = bergs[cave];
                 b.Kind = 2;
+                // As in W-28 (its class's height change undone), then kept a near-flat slab, never narrower than its radius,
+                // with no notch or ledge, so the tunnel and chamber stay inside the ice.
+                b.Height = math.max(baseSizes[cave] / b.Radius, 13f);
                 b.Radius = math.max(b.Radius, 18f);
-                b.Height = math.max(b.Height, 13f);
                 b.Draft = math.max(b.Draft, 20f);
+                b.Shape = IcebergShape.Tabular;
+                b.Scale = new float2(math.lerp(1.05f, 1.3f, IcebergShape.Hash01(b.Seed, 40)), 1f);
+                b.Tilt = math.normalizesafe(b.Tilt) * 0.04f;
+                b.NotchDepth = 0f;
+                b.Ledge = 0f;
                 var shore = ShoreDirection(dCold, open, size, b.Centre);
                 var entrance = math.atan2(shore.y, shore.x);
                 b.Ramp = entrance + 2.2f;
-                b.Reach = b.Radius * 1.15f + b.Height / IcebergShape.RampSlope + 1f;
+                b.Reach = Reach(b);
                 bergs[cave] = b;
                 Cave(b, source.World.SeaLevel, entrance, tunnel, out chamber, out chamberRadius, out chamberHeight);
             }
@@ -387,14 +510,117 @@ namespace Punchy.Terrain
             var blob = builder.CreateBlobAssetReference<IcebergSetBlob>(allocator);
             builder.Dispose();
 
-            int big = 0, chunks = 0, floes = 0;
-            foreach (var b in bergs)
-                if (b.Kind >= 1) big++;
-                else if (b.Height <= 0.5f) floes++;
-                else chunks++;
+            int big = 0, chunks = 0, floes = 0, sameNeighbours = 0;
+            var bigShapes = new int[IcebergShape.ShapeCount];
+            var smallShapes = new int[IcebergShape.ShapeCount];
+            for (int i = 0; i < bergs.Count; i++)
+            {
+                var b = bergs[i];
+                if (b.Kind >= 1) { big++; bigShapes[b.Shape]++; }
+                else { smallShapes[b.Shape]++; if (b.Height <= 0.5f) floes++; else chunks++; }
+                if (Nearest(bergs, i, out var j) && bergs[j].Shape == b.Shape) sameNeighbours++;
+            }
+            string Counts(int[] c)
+            {
+                var parts = new List<string>();
+                for (int s = 0; s < c.Length; s++) if (c[s] > 0) parts.Add($"{ShapeNames[s]} {c[s]}");
+                return string.Join(", ", parts);
+            }
+            ShapeLog = $"[icebergs] shapes: big [{Counts(bigShapes)}], small [{Counts(smallShapes)}]; nearest neighbour of the same class: {sameNeighbours} of {bergs.Count}";
             var caveText = cave >= 0 ? $"cave berg #{cave} at ({bergs[cave].Centre.x:F0}, {bergs[cave].Centre.y:F0}) r {bergs[cave].Radius:F1} h {bergs[cave].Height:F1}, chamber ({chamber.x:F0}, {chamber.y:F1}, {chamber.z:F0})" : "no cave berg";
             LastLog = $"[icebergs] cold biomes [{string.Join(",", coldNames)}]: big {big}, chunks {chunks}, floes {floes} in {coastCells.Count} coast km-cells [{string.Join(" ", CellNames(coastCells))}]; {caveText}; {watch.ElapsedMilliseconds} ms";
             return blob;
+        }
+
+        public static string ShapeLog = "";
+        static readonly string[] ShapeNames = { "tabular", "dry dock", "dome", "tilted", "pinnacle", "capsized" };
+        static readonly int[] BigShapes = { IcebergShape.Tabular, IcebergShape.DryDock, IcebergShape.Dome, IcebergShape.Tilted, IcebergShape.Pinnacle, IcebergShape.Capsized };
+        static readonly float[] BigWeights = { 0.26f, 0.2f, 0.15f, 0.16f, 0.13f, 0.1f };
+        static readonly int[] SmallShapes = { IcebergShape.Tabular, IcebergShape.Tilted, IcebergShape.Pinnacle, IcebergShape.Dome };
+        static readonly float[] SmallWeights = { 0.32f, 0.24f, 0.2f, 0.24f };
+
+        /// <summary>The nearest other berg of the same size group (big or small), if any.</summary>
+        static bool Nearest(List<IcebergData> bergs, int i, out int nearest)
+        {
+            nearest = -1;
+            var best = float.MaxValue;
+            for (int k = 0; k < bergs.Count; k++)
+                if (k != i && (bergs[k].Kind >= 1) == (bergs[i].Kind >= 1) && math.distancesq(bergs[k].Centre, bergs[i].Centre) is var d && d < best) { best = d; nearest = k; }
+            return nearest >= 0;
+        }
+
+        /// <summary>A seeded shape class for a new berg, moved on to the next class if its nearest placed neighbour already has it.</summary>
+        static int NeighbourShape(List<IcebergData> bergs, in IcebergData b)
+        {
+            var big = b.Kind >= 1;
+            var shapes = big ? BigShapes : SmallShapes;
+            var weights = big ? BigWeights : SmallWeights;
+            var u = IcebergShape.Hash01(b.Seed, 20);
+            var pick = shapes.Length - 1;
+            for (int s = 0; s < shapes.Length; s++)
+            {
+                if (u < weights[s]) { pick = s; break; }
+                u -= weights[s];
+            }
+            var best = float.MaxValue;
+            var near = -1;
+            for (int k = 0; k < bergs.Count; k++)
+                if ((bergs[k].Kind >= 1) == big && math.distancesq(bergs[k].Centre, b.Centre) is var d && d < best) { best = d; near = k; }
+            if (near >= 0 && bergs[near].Shape == shapes[pick])
+                pick = (pick + 1) % shapes.Length;
+            return shapes[pick];
+        }
+
+        /// <summary>W-28b: everything that makes one berg unlike the next, from its own seed (draws 21 on, after placement's).</summary>
+        static void Vary(ref IcebergData b, int shape)
+        {
+            var seed = b.Seed;
+            float U(int k) => IcebergShape.Hash01(seed, k);
+            float2 Polar(float a, float r) => new float2(math.cos(a), math.sin(a)) * r;
+            var big = b.Kind >= 1;
+            b.Shape = shape;
+            var stretch = math.lerp(1f, big ? 1.8f : 2f, U(21));
+            b.Scale = new float2(math.sqrt(stretch), 1f / math.sqrt(stretch)) * math.lerp(0.9f, 1.1f, U(22));
+            var tilt = shape switch
+            {
+                IcebergShape.Tilted => math.lerp(0.28f, 0.45f, U(24)),
+                IcebergShape.Capsized => math.lerp(0.15f, 0.3f, U(24)),
+                IcebergShape.Tabular => math.lerp(0.03f, big ? 0.12f : 0.2f, U(24)),
+                IcebergShape.Dome => math.lerp(0.05f, 0.18f, U(24)),
+                _ => math.lerp(0f, 0.1f, U(24))
+            };
+            b.Tilt = Polar(U(23) * 2f * math.PI, tilt);
+            var pa = U(25) * 2f * math.PI;
+            var crown = shape == IcebergShape.Dome || shape == IcebergShape.Capsized;
+            b.PeakA = Polar(pa, crown ? math.lerp(0.1f, 0.35f, U(26)) : math.lerp(0.15f, 0.45f, U(26)));
+            b.PeakB = Polar(pa + math.PI + (U(27) - 0.5f) * 1.4f, math.lerp(0.3f, 0.55f, U(28)));
+            b.Height *= shape switch
+            {
+                IcebergShape.Pinnacle => big ? 1.45f : 1.6f,
+                IcebergShape.DryDock => 1.25f,
+                IcebergShape.Capsized => 0.6f,
+                IcebergShape.Tilted or IcebergShape.Dome => 0.9f,
+                _ => 1f
+            };
+            b.NotchDepth = U(29) < (big ? 0.55f : 0.3f) ? math.lerp(0.2f, 0.45f, U(30)) : 0f;
+            b.Notch = U(31) * 2f * math.PI;
+            b.Ledge = big && U(32) < 0.4f ? math.lerp(1.5f, 4f, U(33)) : 0f;
+            b.LedgeDir = U(34) * 2f * math.PI;
+            b.Overhang = big && (shape == IcebergShape.Tabular || shape == IcebergShape.Tilted || shape == IcebergShape.DryDock) && U(35) < 0.5f ? math.lerp(0.6f, 1.6f, U(36)) : 0f;
+            b.Tint = U(37);
+            b.Streak = big && U(38) < 0.35f ? U(39) * 2f * math.PI - math.PI : -10f;
+        }
+
+        /// <summary>How far from the centre any part of a berg reaches (m): the widest rim plus its side down to the sea and its ledge.</summary>
+        static float Reach(in IcebergData b)
+        {
+            var reach = 0f;
+            for (int k = 0; k < 48; k++)
+            {
+                IcebergShape.Rim(b, k * 2f * math.PI / 48f, out var dist, out var height, out var slope);
+                reach = math.max(reach, dist + height / slope);
+            }
+            return reach * 1.04f + b.Ledge + 1.5f;
         }
 
         static IEnumerable<string> CellNames(HashSet<int> cells)
@@ -423,8 +649,8 @@ namespace Punchy.Terrain
         {
             float2 Dir(float a) => new float2(math.cos(a), math.sin(a));
             var minTop = b.Radius * 0.82f;
-            var rTop = IcebergShape.TopRadius(b, entrance);
-            var rBase = rTop + b.Height / IcebergShape.Slope(b, entrance);
+            IcebergShape.Rim(b, entrance, out var rTop, out var rimHeight, out var slope);
+            var rBase = rTop + rimHeight / slope;
             radius = 6f;
             height = 6.5f;
             var centre = b.Centre + Dir(entrance + math.PI) * b.Radius * 0.2f;

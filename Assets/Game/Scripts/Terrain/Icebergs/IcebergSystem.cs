@@ -26,6 +26,7 @@ namespace Punchy.Terrain
         GameObject caveLight;
         Vector3 caveOrigin;
         Material ice, caveIce;
+        Texture2D palette;
         bool warned;
 
         protected override void OnCreate() => RequireForUpdate<TerrainSource>();
@@ -42,15 +43,20 @@ namespace Punchy.Terrain
             }
             if (ice == null || caveIce == null)
             {
-                ice = Resources.Load<Material>("IcebergIce");
+                var loaded = Resources.Load<Material>("IcebergIce");
                 caveIce = Resources.Load<Material>("IcebergCave");
-                if (ice == null || caveIce == null)
+                if (loaded == null || caveIce == null)
                 {
                     if (!warned)
                         Debug.LogWarning("[icebergs] IcebergIce or IcebergCave material missing from Resources");
                     warned = true;
                     return;
                 }
+                // A copy that reads its colour from the palette strip (the asset stays untouched).
+                palette = MakePalette();
+                ice = new Material(loaded) { name = "Iceberg ice (palette)" };
+                ice.SetTexture("_BaseMap", palette);
+                ice.SetColor("_BaseColor", Color.white);
             }
             foreach (var (mesh, origin) in regions)
             {
@@ -66,7 +72,12 @@ namespace Punchy.Terrain
             }
         }
 
-        protected override void OnDestroy() => Clear();
+        protected override void OnDestroy()
+        {
+            Clear();
+            if (ice != null) Object.Destroy(ice);
+            if (palette != null) Object.Destroy(palette);
+        }
 
         void Clear()
         {
@@ -81,21 +92,59 @@ namespace Punchy.Terrain
             caveLight = null;
         }
 
-        /// <summary>Flat-shaded triangles: three fresh vertices each, wound so their face points along a hint.</summary>
+        /// <summary>
+        /// W-28b: the ice's colours along a 64x1 strip the meshes index with u: snow (0), pale and deeper blue faces (0.3 to
+        /// 0.55), grey weathered ice (0.75) and a dark blue streak (1). Built in code so the palette lives with the mesh logic.
+        /// </summary>
+        static Texture2D MakePalette()
+        {
+            var stops = new (float u, Color c)[] { (0f, new Color(0.97f, 0.98f, 1f)), (0.3f, new Color(0.82f, 0.91f, 0.98f)), (0.55f, new Color(0.68f, 0.83f, 0.95f)), (0.75f, new Color(0.72f, 0.78f, 0.84f)), (0.88f, new Color(0.6f, 0.76f, 0.92f)), (1f, new Color(0.36f, 0.6f, 0.88f)) };
+            var tex = new Texture2D(64, 1, TextureFormat.RGBA32, false) { name = "Iceberg palette", wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            for (int x = 0; x < 64; x++)
+            {
+                var u = x / 63f;
+                int s = 1;
+                while (s < stops.Length - 1 && stops[s].u < u) s++;
+                tex.SetPixel(x, 0, Color.Lerp(stops[s - 1].c, stops[s].c, Mathf.InverseLerp(stops[s - 1].u, stops[s].u, u)));
+            }
+            tex.Apply(false, true);
+            return tex;
+        }
+
+        /// <summary>Flat-shaded triangles: three fresh vertices each, wound so their face points along a hint, coloured per face.</summary>
         class Builder
         {
             public readonly List<Vector3> Verts = new List<Vector3>();
+            public readonly List<Vector2> Uvs = new List<Vector2>();
             public readonly List<int> Tris = new List<int>();
             public float3 Origin;
+            /// <summary>The current berg's face colour on the palette, its seed for per-face jitter and its streak's angle.</summary>
+            public float SideU = 0.4f, Streak = -10f;
+            public uint Seed;
 
             public void Tri(float3 a, float3 b, float3 c, float3 hint)
             {
-                if (math.dot(math.cross(b - a, c - a), hint) < 0f)
+                var n = math.cross(b - a, c - a);
+                if (math.dot(n, hint) < 0f)
+                {
                     (b, c) = (c, b);
+                    n = -n;
+                }
+                n = math.normalizesafe(n);
+                // Snow on faces that look up, the berg's own blue or grey on the sides (a little different per face),
+                // a deeper blue under the water and on its streak.
+                var jitter = IcebergShape.Hash01(Seed, 5000 + Tris.Count / 3) - 0.5f;
+                var below = (a.y + b.y + c.y) / 3f - Origin.y < -0.3f;
+                float u;
+                if (n.y > 0.6f && !below) u = 0.02f + 0.12f * (jitter + 0.5f);
+                else if (below) u = 0.6f + 0.1f * jitter;
+                else if (Streak > -5f && math.abs(Wrap(math.atan2(n.z, n.x) - Streak)) < 0.3f) u = 0.97f;
+                else u = SideU + 0.16f * jitter;
                 foreach (var p in new[] { a, b, c })
                 {
                     Tris.Add(Verts.Count);
                     Verts.Add(p - Origin);
+                    Uvs.Add(new Vector2(u, 0.5f));
                 }
             }
 
@@ -109,6 +158,7 @@ namespace Punchy.Terrain
             {
                 var mesh = new Mesh { name = name, indexFormat = IndexFormat.UInt32 };
                 mesh.SetVertices(Verts);
+                mesh.SetUVs(0, Uvs);
                 mesh.SetTriangles(Tris, 0);
                 mesh.RecalculateNormals();
                 mesh.RecalculateBounds();
@@ -128,6 +178,9 @@ namespace Punchy.Terrain
                 var key = (int2)math.floor(berg.Centre / Region);
                 if (!builders.TryGetValue(key, out var b))
                     builders[key] = b = new Builder { Origin = new float3(key.x * Region, sea, key.y * Region) };
+                b.Seed = berg.Seed;
+                b.SideU = 0.26f + 0.5f * berg.Tint;
+                b.Streak = berg.Streak;
                 Berg(b, ref set, berg, sea);
             }
             int tris = 0;
@@ -160,64 +213,119 @@ namespace Punchy.Terrain
 
         static float Wrap(float a) => a - 2f * math.PI * math.floor((a + math.PI) / (2f * math.PI));
 
-        /// <summary>One berg as polar rings: the flat top, the sides down to the waterline, an underwater bulge and a keel.</summary>
+        /// <summary>
+        /// One berg (W-28b) sampled from the same IcebergShape it's stood on: uneven directions in its own stretched frame, a
+        /// top that's a fan for slabs or rings around the peak or crown for the rest, the sides down the slope (undercut
+        /// on some, a waterline ledge on some), an underwater bulge and a keel.
+        /// </summary>
         static void Berg(Builder b, ref IcebergSetBlob set, in IcebergData berg, float sea)
         {
             var isCave = berg.Kind == 2;
-            var m = isCave ? 56 : berg.Kind == 1 ? berg.Sides * 2 : berg.Sides;
-            // Heights (above the sea) of the side rings: the cave berg gets close rings low down so its mouth is a neat cut.
-            var levels = new List<float> { berg.Height };
-            if (isCave)
-            {
-                foreach (var y in new[] { berg.Height * 0.6f, 6f, 3.2f, 2.2f, 1.1f })
-                    if (y < berg.Height - 0.5f) levels.Add(y);
-            }
-            else if (berg.Kind == 1)
-                levels.Add(berg.Height * 0.5f);
-            levels.Add(0f);
+            var big = berg.Kind >= 1;
+            var m = isCave ? 56 : big ? berg.Sides * 2 : berg.Sides;
+            var slab = isCave || berg.Shape == IcebergShape.Tabular || berg.Shape == IcebergShape.Tilted;
+            // Where the top's rings gather: the centre for a slab, else the peak or crown (in the berg's own frame).
+            var apex = slab ? float2.zero : berg.PeakA * berg.Radius;
+            var topFractions = slab || !big ? new float[0] : new[] { 0.35f, 0.65f, 0.88f };
+            var ledge = big && !isCave && berg.Ledge > 0f;
+            // Side rings per direction: the rim, the side's fractions of the rim height, then the waterline (or the ledge).
+            var sideFractions = isCave ? null : big ? new[] { 1f, 0.75f, 0.4f } : new[] { 1f };
+            var caveLevels = new[] { 0.6f, 6f, 3.2f, 2.2f, 1.1f, 0f };
+            var sides = isCave ? 1 + caveLevels.Length : sideFractions.Length + (ledge ? 3 : 1);
+            var rings = sides + 2;
             var entrance = 0f;
-            var holeTop = 3.2f;
+            const float holeTop = 3.2f;
             if (isCave)
             {
                 var mouth = set.Tunnel[0].xz - berg.Centre;
                 entrance = math.atan2(mouth.y, mouth.x);
             }
-            var rings = levels.Count + 2;
             var pts = new float3[m, rings];
+            var topPts = new float3[m, topFractions.Length];
+            var worldAngle = new float[m];
             var rWlMean = 0f;
+            float3 At(float2 xz, float y) => new float3(xz.x, sea + y, xz.y);
             for (int j = 0; j < m; j++)
             {
-                var a = berg.Rotation - math.PI + j * 2f * math.PI / m;
-                var dir = new float2(math.cos(a), math.sin(a));
-                var top = IcebergShape.TopRadius(berg, a);
-                var s = IcebergShape.Slope(berg, a);
-                for (int k = 0; k < levels.Count; k++)
+                // Uneven facets: each direction wanders up to 0.2 of a step (the cave berg keeps even ones for its mouth).
+                var la = -math.PI + (j + (isCave ? 0f : 0.4f * (IcebergShape.Hash01(berg.Seed, 900 + j) - 0.5f))) * 2f * math.PI / m;
+                var qd = new float2(math.cos(la), math.sin(la));
+                var top = IcebergShape.TopRadius(berg, la);
+                var rimQ = qd * top;
+                var rimXZ = IcebergShape.World(berg, rimQ);
+                var rimH = IcebergShape.TopHeight(berg, rimQ);
+                var off = rimXZ - berg.Centre;
+                var dist = math.length(off);
+                var dir = off / dist;
+                worldAngle[j] = math.atan2(dir.y, dir.x);
+                var s = IcebergShape.Slope(berg, worldAngle[j]);
+                var centreXZ = berg.Centre;
+                var seed = berg.Seed;
+                float2 Out(float d) => centreXZ + dir * d;
+                float Jitter(int k) => 1f + 0.07f * (IcebergShape.Hash01(seed, 1000 + j * 13 + k) - 0.5f);
+                for (int t = 0; t < topFractions.Length; t++)
                 {
-                    var r = top + (berg.Height - levels[k]) / s;
-                    // Facets: below the rim each side vertex leans in or out a little (looks only; the shape stands you on the plain slope).
-                    if (k > 0 && berg.Kind > 0)
-                        r *= 1f + 0.07f * (IcebergShape.Hash01(berg.Seed, 1000 + j * 13 + k) - 0.5f);
-                    pts[j, k] = new float3(berg.Centre.x + dir.x * r, sea + levels[k], berg.Centre.y + dir.y * r);
+                    var q = math.lerp(apex, rimQ, topFractions[t]);
+                    var y = IcebergShape.TopHeight(berg, q) + berg.Height * 0.05f * (IcebergShape.Hash01(berg.Seed, 1400 + j * 7 + t) - 0.5f);
+                    topPts[j, t] = At(IcebergShape.World(berg, q), y);
                 }
-                var wl = top + berg.Height / s;
+                var wl = dist + rimH / s;
+                pts[j, 0] = At(rimXZ, rimH);
+                if (isCave)
+                {
+                    for (int k = 0; k < caveLevels.Length; k++)
+                    {
+                        var y = k == 0 ? rimH * caveLevels[0] : caveLevels[k];
+                        pts[j, k + 1] = At(Out((dist + (rimH - y) / s) * Jitter(k + 1)), y);
+                    }
+                }
+                else
+                {
+                    for (int k = 1; k < sideFractions.Length; k++)
+                    {
+                        var y = rimH * sideFractions[k];
+                        var d = dist + (rimH - y) / s;
+                        // An undercut under the rim on some: the upper side pulled in (looks only).
+                        if (k == 1) d -= berg.Overhang * 1.3f;
+                        pts[j, k] = At(Out(d * Jitter(k)), y);
+                    }
+                    var k0 = sideFractions.Length;
+                    if (ledge)
+                    {
+                        var w = IcebergShape.LedgeWidth(berg, la);
+                        pts[j, k0] = At(Out(dist + (rimH - IcebergShape.LedgeHeight) / s), IcebergShape.LedgeHeight);
+                        pts[j, k0 + 1] = At(Out(wl + w), IcebergShape.LedgeHeight);
+                        wl += w + 0.25f;
+                        pts[j, k0 + 2] = At(Out(wl), 0f);
+                    }
+                    else
+                        pts[j, k0] = At(Out(wl * (big ? Jitter(k0) : 1f)), 0f);
+                }
                 rWlMean += wl / m;
-                var bulge = wl * 1.1f + (berg.Kind == 0 ? 0.3f : 1f);
-                pts[j, levels.Count] = new float3(berg.Centre.x + dir.x * bulge, sea - 0.3f * berg.Draft, berg.Centre.y + dir.y * bulge);
-                pts[j, levels.Count + 1] = new float3(berg.Centre.x + dir.x * wl * 0.55f, sea - 0.85f * berg.Draft, berg.Centre.y + dir.y * wl * 0.55f);
+                var bulge = wl * 1.1f + (big ? 1f : 0.3f);
+                pts[j, sides] = At(Out(bulge), -0.3f * berg.Draft);
+                pts[j, sides + 1] = At(Out(wl * 0.55f), -0.85f * berg.Draft);
             }
-            var topCentre = new float3(berg.Centre.x, sea + berg.Height, berg.Centre.y);
+            var apexPoint = At(IcebergShape.World(berg, apex), IcebergShape.TopHeight(berg, apex));
             var keel = new float3(berg.Centre.x, sea - berg.Draft, berg.Centre.y);
             var inside = new float3(berg.Centre.x, sea - 0.3f * berg.Draft, berg.Centre.y);
+            var up = new float3(0, 1, 0);
             var holeHalf = isCave ? math.atan2(1.5f, rWlMean) + math.PI / m : 0f;
             for (int j = 0; j < m; j++)
             {
                 var n = (j + 1) % m;
-                b.Tri(topCentre, pts[j, 0], pts[n, 0], new float3(0, 1, 0));
+                // The top: from the apex out through its rings to the rim.
+                var last = topFractions.Length;
+                float3 TopRing(int t, int i) => t < last ? topPts[i, t] : pts[i, 0];
+                b.Tri(apexPoint, TopRing(0, j), TopRing(0, n), up);
+                for (int t = 0; t < last; t++)
+                    b.Quad(TopRing(t, j), TopRing(t, n), TopRing(t + 1, n), TopRing(t + 1, j), up);
                 for (int k = 0; k + 1 < rings; k++)
                 {
-                    if (isCave && k + 1 < levels.Count && levels[k] <= holeTop + 0.01f)
+                    if (isCave && k + 1 < sides && k >= 3)
                     {
-                        var mid = berg.Rotation - math.PI + (j + 0.5f) * 2f * math.PI / m;
+                        // Leave the mouth open: no side quads below the hole's top (levels 3.2 and down) facing the tunnel.
+                        var mid = worldAngle[j] + 0.5f * Wrap(worldAngle[n] - worldAngle[j]);
                         if (math.abs(Wrap(mid - entrance)) < holeHalf)
                             continue;
                     }
@@ -302,6 +410,36 @@ namespace Punchy.Terrain
                     b.Quad(P(a0, r), P(a1, r), P(a1, r + 1), P(a0, r + 1), eye - c);
                 }
                 b.Tri(centre, P(a0, 0), P(a1, 0), new float3(0, 1, 0));
+            }
+
+            // W-28b: the dome's hole is cut in whole facets, so it's wider and taller than the tube; a frame just outside
+            // the wall, from the tube's arch out to a bigger arch, closes the gap where the berg's outside showed through.
+            var prev = set.Tunnel[nodes - 2];
+            var end = set.Tunnel[nodes - 1];
+            var radial = math.normalizesafe(end.xz - centre.xz);
+            var dPrev = math.distance(prev.xz, centre.xz);
+            var dEnd = math.distance(end.xz, centre.xz);
+            var frameD = rc + 0.35f;
+            var ft = math.saturate((dPrev - frameD) / math.max(0.01f, dPrev - dEnd));
+            var frameFloor = math.lerp(prev.y, end.y, ft);
+            var frameCentre = centre.xz + radial * frameD;
+            var across = new float2(-radial.y, radial.x);
+            var tubeSide = rings[nodes - 1, profile.Length - 1].xz - rings[nodes - 1, 0].xz;
+            if (math.dot(across, tubeSide) < 0f)
+                across = -across;
+            var inner = new float3[profile.Length];
+            var outer = new float3[profile.Length];
+            for (int k = 0; k < profile.Length; k++)
+            {
+                inner[k] = math.lerp(rings[nodes - 2, k], rings[nodes - 1, k], ft);
+                var xz = frameCentre + across * profile[k].x * 2.7f;
+                outer[k] = new float3(xz.x, frameFloor - 0.4f + profile[k].y * 4.3f, xz.y);
+            }
+            var frameHint = new float3(radial.x, 0f, radial.y);
+            for (int k = 0; k + 1 < profile.Length; k++)
+            {
+                b.Quad(inner[k], inner[k + 1], outer[k + 1], outer[k], frameHint);
+                b.Quad(inner[k], inner[k + 1], outer[k + 1], outer[k], -frameHint);
             }
         }
     }

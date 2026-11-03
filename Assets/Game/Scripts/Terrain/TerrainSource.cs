@@ -867,6 +867,13 @@ namespace Punchy.Terrain
                 deck = ice;
                 onDeck = true;
             }
+            // W-28b: a salt tower's steps stand bodies too, so the player (whose floor only takes FloorUnder's answer in a
+            // cave, else this deck) can walk up them.
+            if (Tower(p.xz, out var tower, out var towerHeight) && SaltTowerShape.Floor(SaltTowerShape.Layout(tower, towerHeight), p, out var step) && (!onDeck || step > deck))
+            {
+                deck = step;
+                onDeck = true;
+            }
             return onDeck;
         }
 
