@@ -2,6 +2,17 @@
 
 Newest first.
 
+## W-65e (2026-11-03) world-features adabd0b
+
+- Row 1 hashes (measured before the build): editor v2 136 / 4E61F1CF (raw B5EFF8C8), player 136 / B5EFF8C8, v1 103 / F628AE5F raw (19885131 by base name), caves C49E8E3036C741FC, ground C0C906EE310FA91F, rivers A77D2ED7B919296E. All unchanged, so nothing reverted.
+- Row 2 stone rows: v2 35 rows (whole world, extent 4200, the W-65d count finished, 1179 s); v1 79 rows (extent 2000, 232 s). v2 positions: -3259.3,1511.5 (9.1 m), -3232.0,1495.0 (8.8 m), -2982.6,3178.8 (8.7 m, yaw -60). v1: -1937.7,-693.5 (4.2 m), -1895.1,-1614.2 (8.6 m), -1841.1,614.7 (9.2 m). Problem: rows stack. At v2 -3232,1495 four rows sit within 3 m of each other (cell is 2 m, so neighbouring cells all place a row in the same narrows); same on v1 -1895/-1891. Needs one row per narrows (not fixed, out of scope). Driftwood.asset Variants line fixed (`\001 5` -> `Variants: 5`), commit adabd0b.
+- Row 3 build: one build, Succeeded, 0 errors (58 s). The player quit by itself.
+  - Igloo 344.7,50.0 (door 3.75 m from the middle): PASS. Walk from 349.5,63.0 STOPPED at 347.0,271.7,52.9, 3.7 m from the middle (at the door). Feet 1.0 m above the igloo origin.
+  - Wharf -3285 shore -> stilt door: FAIL, same spot as W-65c. STOPPED at -3285.9,0.4,-1644.0 (13.9 m to go). Ground there 0.42 (local z -0.9). The shot shows the player standing in the water UNDER the deck between the posts, so the walker goes under the shore treads instead of up them. Best cause: the first tread sits more than 0.4 m above the bank (ground about 0.5 after the 0.73 m drop at local z -3.25), so the player's support pick (PlayerMovementSystem, not edited) keeps the ground and walks under it until a post stops it. Fix idea on our side: start the treads on the bank above the drop, or put a solid block under the shore end so nothing can walk under it.
+  - Stone row v2 -2982.6,3178.8: FAIL. Walk across (yaw -60, from -2985.9,3184.4 to -2979.4,3173.2) STOPPED at -2983.6,42.6,3180.7, 8.7 m to go (2.2 m before the row centre, on the row line). Water 43.77, feet 42.6: the player was at 43.8 just short of the row end, then dropped into the river where the end stone should be and waded until stuck; it never stood on a stone. Cause not found within budget (suspects: the row has no working support grid, or its end stone is off the walked line).
+- Shots (not viewed full size): D:/PunchyMilestones/W-65e (w65e_wharf_door_walk_end, w65e_igloo344_door_walk_end, w65e_stones_walk_end), shot list and player.log beside them.
+- Left: wharf foot (walker goes under the treads); stone rows: one per narrows, and walkable; nobody has looked at the igloo shot full size.
+
 ## W-65d (2026-11-03) world-features 7aaeb67 (WIP: stopped at the call ceiling, no build)
 
 - Row 1 (#38) slope igloos: PASS in the editor. PorchSeat now tries 6 headings (including facing downhill) and sinks up to 3.5 m. Editor sim: 5/5 stop at the door, including 344.7,50.0 / 343.5,67.8 / 360.0,74.4. No player walk yet.
