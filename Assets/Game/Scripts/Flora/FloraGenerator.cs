@@ -3592,11 +3592,15 @@ namespace Punchy.Flora
             }
         }
 
+        /// <summary>Rail length of a bridge span, post to post: RoadBaking's span spacing, so joints share a post.</summary>
+        const float RailRun = 6.4f;
+
         /// <summary>
         /// One 6.6 m span of a plank bridge along its +Z, deck top at the origin: planks across two stringers, two pairs
         /// of piles down into the water, and a rail each side. It's long so that spans 6.4 m apart each get their own cell
-        /// in the tree layer, which is drawn to the horizon. Spans are laid end to end across a river, so each draws the
-        /// rail posts at its start only. No colliders: the deck is walked on through SettlementSampling.Deck.
+        /// in the tree layer, which is drawn to the horizon. Spans are laid end to end across a river; each draws a post
+        /// at both ends of each rail (W-34; before, only at its start, so the far end's rails hung in the air). No
+        /// colliders: the deck is walked on through SettlementSampling.Deck.
         /// </summary>
         static void Bridge(Grower g)
         {
@@ -3626,10 +3630,15 @@ namespace Punchy.Flora
                 foreach (var z in new[] { -length * 0.25f, length * 0.25f })
                     b.Tube(new List<Vector3> { new Vector3(x * (half - 0.25f), -5f, z), new Vector3(x * (half - 0.25f), -0.2f, z) },
                            new List<float> { 0.16f, 0.14f }, g.Sides(6, 4, 3), wood * 0.6f, FloraPart.Bark);
-                b.Box(new Vector3(x * (half - 0.05f), rail * 0.5f, -length * 0.5f), new Vector3(0.14f, rail + 0.2f, 0.14f), Quaternion.identity, wood * 0.85f, FloraPart.Bark);
-                b.Box(new Vector3(x * (half - 0.05f), rail, 0f), new Vector3(0.1f, 0.1f, length), Quaternion.identity, wood * 0.95f, FloraPart.Bark);
+                // W-34: a post at both ends of each side, at +-3.2 m (half the 6.4 m span spacing), so neighbouring
+                // spans share a post at each joint and the last span's rails end on one too. The rails run post to
+                // post. Posts reach 0.6 m below the deck (down its side), so a neighbour's post still covers a rail
+                // set a little lower, and nothing hangs in the air.
+                foreach (var z in new[] { -RailRun * 0.5f, RailRun * 0.5f })
+                    b.Box(new Vector3(x * (half - 0.05f), rail * 0.5f - 0.25f, z), new Vector3(0.14f, rail + 0.7f, 0.14f), Quaternion.identity, wood * 0.85f, FloraPart.Bark);
+                b.Box(new Vector3(x * (half - 0.05f), rail, 0f), new Vector3(0.1f, 0.1f, RailRun), Quaternion.identity, wood * 0.95f, FloraPart.Bark);
                 if (g.Lod == 0)
-                    b.Box(new Vector3(x * (half - 0.05f), rail * 0.5f, 0f), new Vector3(0.06f, 0.07f, length), Quaternion.identity, wood * 0.8f, FloraPart.Bark);
+                    b.Box(new Vector3(x * (half - 0.05f), rail * 0.5f, 0f), new Vector3(0.06f, 0.07f, RailRun), Quaternion.identity, wood * 0.8f, FloraPart.Bark);
             }
             b.Wood = false;
         }
