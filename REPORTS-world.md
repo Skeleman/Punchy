@@ -1013,3 +1013,92 @@ b/weather-mapjob.
 - Weak spots: the pink at 0 deg comes from the violet twilight zenith blending down into the band. Next pass: a warmer zenith near 0 deg on the sun's side.
 - Checks: compile, shaders and build clean (errors=0). CRLF kept on TerrainSource.cs; the other files are LF. No Punchy.exe left running.
 - Builds: 2. The first was done before the cloud-glow request arrived, and the second shipped it.
+
+## W-35b (2026-11-02): riverbeds after a lowered lake, plus X1 and X2
+
+world-features f770492. Status: rows 1, 2 and 5 DONE. Rows 3 and 4 are DONE with exceptions. X1 and X2 are DONE.
+
+**Fix.** `RiverBaking.ReshapeLoweredLakes` runs after LowerBreachedLakes. It recomputes each cell's base level downstream-first, using the lowered lake surface. It then touches only the cells whose base level dropped or that stopped being lake. In those cells:
+- A cell the lake left behind gets a BedStart channel bed.
+- The three BedDownhill passes run again: cut downhill to the new base level, spread gorges, and set the water so it never rises along the flow.
+
+Every other cell keeps its bed and water exactly.
+
+**Hashes.** Landmarks did not move: the WorldProbe lists before and after are identical on both islands, and the player logs agree.
+
+| Island | Landmarks | Caves | Rivers | Ground |
+|---|---|---|---|---|
+| v2 | 126 / 053C63D5, same | 5D90D9CFC5326976 -> ACA9CC9155621A44 | FD0045F0A0810452 -> 6A1BC5BDCDE399BE | 4E0B705A4BDE0ECD -> 79A65F834D760FC8 |
+| v1 | 102 / 51EA6463, same | 47C703C0E17F77CB, same | 164DF6A9926DE097 -> B867BA86DC27D8D0 | 3EE84EED3A33770B -> 2AC3143B4715222E |
+
+- v1 also has breached lakes, so its rivers changed too.
+- Falls on v2 went from 75 to 70.
+
+**1. River through -632,1325 (water/ground, m).**
+- Before: -556,1362=59.92/57.57, -589,1337=61.91/59.17, -606,1324=56.71/54.36, -725,1191=61.88/59.47, -758,1165=58.25/55.78. The water rose by up to 1.46 m along the flow.
+- After: -556,1362=58.08/56.33, -572,1349=57.11/55.36, -589,1337=56.31/54.56, -606,1324=56.05/54.29. From -622,1311 to -808,1112 the water is 55.89, level with the lake. The largest rise along the flow is now 0.00 m.
+- "Water above ground" on this line is the channel depth, about 2.4 m at both times. The 6.49 m maximum is the deep channel at the lake mouth, -808,1112.
+
+**2. Steps over 0.3 m with no slope.**
+
+| Island | Before | After |
+|---|---|---|
+| v2 | 456 in 219 cells (unexplained 68, gorge 20, cascade 65, shore 64, confluence 2) | 235 in 116 cells (unexplained 44, gorge rapids 19, cascade 45, lake/sea shore 8) |
+| v1 | 68 in 41 cells (gorge 18, shore 5, unexplained 15, confluence 3) | 59 in 33 cells (gorge rapids 16, confluence 3, shore 1, unexplained 13) |
+
+The reasons for each remaining step cell:
+- cascade: within 40 m of a fall lip.
+- shore: next to a lake or the sea.
+- gorge rapids: the bed drops more than 1.5 m to the next cell.
+- confluence: rivers join at different levels.
+
+Unexplained cells (cell, worst step), v2: (-905,-1483) 0.71 m, (-846,-1437) 0.84 m, (-865,-1261) 0.98 m, (-862,-1209) 0.44 m, (-2569,-1099) 0.36 m, (-591,-1082) 0.80 m, (-2527,-1065) 0.32 m, (-2399,-888) 0.48 m, (-423,-884) 1.77 m, (-2407,-855) 0.40 m, (-2390,-842) 0.30 m, (-2374,-829) 0.36 m, (-2365,-822) 0.48 m, (-2363,-555) 1.33 m, (-2346,-542) 1.34 m, (-2337,-483) 0.91 m, (-2344,-477) 0.33 m, (-1721,424) 0.90 m, (-1633,417) 0.40 m, (-1768,476) 0.46 m, (-758,507) 0.32 m, (-1976,525) 0.50 m, (694,700) 0.83 m, (702,706) 0.59 m, (-2417,846) 0.60 m, (317,1439) 0.97 m, (-1158,1681) 0.60 m, (-467,2270) 0.64 m, (-2441,2332) 0.45 m, (-2556,2493) 1.14 m, (-309,2585) 1.42 m, (2486,2670) 0.48 m, (-1274,2677) 0.56 m, (-2447,2794) 0.35 m, (-2260,2855) 0.41 m, (-2185,2914) 0.55 m, (-2109,2987) 0.37 m, (-1591,3045) 0.45 m, (-1574,3058) 0.63 m, (-3089,3145) 0.79 m, (-2070,3169) 0.46 m, (-2966,3192) 0.93 m, (-1705,3247) 1.32 m, (-2140,3469) 0.54 m.
+
+v1: (-2056,537) 0.66 m, (2476,941) 0.84 m, (2460,955) 0.87 m, (2445,968) 0.87 m, (2455,963) 0.87 m, (2429,981) 0.87 m, (2440,987) 0.87 m, (2413,995) 0.87 m, (2424,1000) 0.87 m, (2764,1082) 0.62 m, (-201,1784) 0.56 m, (-77,1831) 0.98 m, (676,2139) 1.58 m.
+
+The full list is in the world tree at Temp/w35b_steps.txt.
+
+**3. Grove at -756,1192 (r 50 m).**
+
+| | Wet points | Deep river points | Dry-channel points | Trees | Trees in water |
+|---|---|---|---|---|---|
+| Before | 1675 | 0 | 5 | 72 | 0 |
+| After | 1417 | 0 | 31 | 92 | 0 |
+
+- The water wall is gone: the river is now at lake level, with sandy banks.
+- The 31 dry points are all at the channel edge (river weight 0.5-0.93). Their ground stands 0.2-0.55 m above the water, at 56.1-56.4 m against 55.89 m, so they are bank. None of them is carved channel bottom; the measured bank height there is 0.
+- The old count of 5 was low only because the water stood above the banks.
+- This is over the card's limit of 5, so the supervisor should decide.
+
+**4. Open ends.**
+- The new edge rule walks 8 directions out to width/2+12 m from each wet river point. A cell is an open end when the water stops and the ground there, and 2 m further on, is more than 0.3 m below the water. The rule caught -879,1001 before the fix. The old rule and the flow rule each found 0 on v2.
+
+| Island | Before | After |
+|---|---|---|
+| v2 | 298 (161 at falls, 137 not) | 239 (133 at falls, 106 not) |
+| v1 | 18 | 3 |
+
+- -879,1001 is fixed: its channel now runs at the lake level, 55.89 m.
+- The 106 v2 ends that are not at falls are mostly away from lowered lakes, in the -2400..-2100 x band and in the north-west. This fix does not reach them; it would need a general end fix.
+
+**5. Shots** (PunchyMilestones/world/w35b, viewed at 800 px). Day, clear weather, the W-35 views. The aerials are now about 40 m above the ground.
+- The step and grove aerials show a flat river at lake level with sand banks: no walls and no floating sheets.
+- The end aerial shows the channel meeting the lake with banks on both sides.
+- In the walk shots for the step, grove and ford, trees fill most of the frame at the old eye positions. The river shows only at the edge.
+- The grove aerial shows a white foam strip across the river near the far lake. It is probably a fall kept at a lake outlet, and I did not check it.
+
+**X1.** No code change. Glacier view, Overcast (cloud coverage 0.9), with -nohud: x1-1 at sun +5 deg and x1-2 at sun 0 deg.
+- The forced Overcast still gave only a few clouds in this view, not a full sky.
+- At +5 deg the clouds glow warm gold. At 0 deg the glow is dimmer, rose-grey, under a mauve sky.
+- A next pass would need a denser cloud preset, or a weather force that sets the coverage itself.
+
+**X2.** Both players were given -shotdir, and both runs reached -quit.
+- v1: `-island v1`, shot w35b/v1/x2-v1-check.png. The log shows 102 landmarks, hash 51EA6463.
+- v2: the log shows 126 landmarks, hash 053C63D5.
+
+**Checks.**
+- Compile was clean, and the build succeeded with 0 errors.
+- RiverBaking.cs and docs/agents/world.md are LF, as before.
+- No Punchy.exe was running before the build or afterwards.
+
+**Builds:** 1.
