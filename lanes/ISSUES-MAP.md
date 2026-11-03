@@ -1,6 +1,6 @@
 # Open GitHub issues -> cards (supervisor keeps this current)
 
-Rule: every card row that works on an issue names it in the Issue column. The agent comments on the issue with the result and the report link, and never closes it. The supervisor closes an issue only after the work is merged into main and Zach has OKed it. Before writing any card, check this map, lanes/ISSUES-AUDIT.md and `gh issue list`.
+Rule: every card row that works on an issue names it in the Issue column. Agents never comment on or close issues; they name them in the report. The supervisor comments the result and report link on the issue after review. The supervisor closes an issue only after the work is merged into main and Zach has OKed it. Before writing any card, check this map, lanes/ISSUES-AUDIT.md and `gh issue list`.
 
 Updated 2026-11-03. The supervisor re-checks `gh issue list` and BENCH-REPORTS whenever the profiler shows activity, and on every wake.
 
