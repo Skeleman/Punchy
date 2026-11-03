@@ -661,6 +661,41 @@ namespace Punchy.Flora
         }
 
         /// <summary>
+        /// W-65c (#36): how far <paramref name="xz"/> is from the whole deck of the nearest wharf of this landmark: its
+        /// main lane, the T or L across its end and the side branches (StructureKit.Wharf builds them within about 14 m
+        /// on its -X side, 7 m on its +X side, out to the lane's length plus the end walk). A box in the wharf's frame,
+        /// 0 inside it. float.MaxValue when the landmark has no wharf.
+        /// </summary>
+        static float WharfDistance(ref FloraBlob f, in TerrainSource source, in LandmarkHit landmark, float2 xz)
+        {
+            ref var set = ref source.Landmarks.Value;
+            var instance = set.Instances[landmark.Instance];
+            var dir = math.normalizesafe(instance.Facing, new float2(1f, 0f));
+            var side = new float2(dir.y, -dir.x);   // the wharf's local +X (FacingYaw turns local +Z onto the facing)
+            float2 lo = new float2(-14.5f, -DockRampRun), hi = new float2(7.5f, DockMaxLength + 3.5f);
+            var best = float.MaxValue;
+            for (int l = 0; l < 3; l++)
+            {
+                var placed = f.PropRanges[landmark.Type * 3 + l];
+                for (int e = placed.x; e < placed.x + placed.y; e++)
+                {
+                    var prop = f.Props[e];
+                    if (f.Rules[prop.Species].FaceLandmark != 2 || f.Rules[prop.Species].PerVillage == 0)
+                        continue;
+                    for (int k = 0; k < prop.Count; k++)
+                    {
+                        var spot = LandmarkSampling.ToWorld(instance, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
+                        var d = xz - DockShore(source, spot, instance.Facing).xz;
+                        var local = new float2(math.dot(d, side), math.dot(d, dir));
+                        var outside = math.max(math.max(lo - local, local - hi), 0f);
+                        best = math.min(best, math.length(outside));
+                    }
+                }
+            }
+            return best;
+        }
+
+        /// <summary>
         /// W-65b (#36): which variant a per-village prop (a wharf) takes at landmark <paramref name="instance"/>: the
         /// village's rank among the landmarks of its type, plus a scrambled offset from the type. Ranks differ, so up to
         /// <paramref name="variants"/> villages all get different layouts (the cell's own draw gave v0 and v2 the same one).
@@ -1238,7 +1273,8 @@ namespace Punchy.Flora
                                     return none;
                                 // W-63 (#36): nor a house. A stilt house at -3294.1,-1653.6 stood across a dock's deck and
                                 // the walker met a 0.9-1.6 m wall there (no draws moved: the cell just stays empty).
-                                if (placedRule.House != 0 && DockLaneDistance(ref f, source, landmark, spot) < placedRule.Footprint * prop.Scale.y + 1.5f)
+                                // W-65c: and off every branch of a wharf, not just its main lane.
+                                if (placedRule.House != 0 && math.min(DockLaneDistance(ref f, source, landmark, spot), WharfDistance(ref f, source, landmark, spot)) < placedRule.Footprint * prop.Scale.y + 1.5f)
                                     return none;
                                 // W-62c: no spire near a landing pier's far end (no draws moved: the cell just stays empty).
                                 if (placedRule.PierClear != 0 && PierEndDistance(ref f, source, spot) < PierEndClear * prop.Scale.y)

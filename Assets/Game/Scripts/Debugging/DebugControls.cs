@@ -1092,6 +1092,11 @@ namespace Punchy.Debugging
         static float walkLogNext;
         /// <summary>"-walk x,z;x,z;...": the legs still to walk after walkTarget, in order (W-61b; dev/test only).</summary>
         static readonly System.Collections.Generic.List<float3> walkPath = new();
+        /// <summary>W-65c: how the current walk ended ("ARRIVED", "STOPPED"), null while it goes on.</summary>
+        static string walkEnd;
+        static float2 walkStillAt;
+        static float walkStillSince;
+        static int walkMoves;
         static int walkLeg;
         /// <summary>"-untilwork": the most seconds a shot waits past -wait for the watched folk to work, and since when it has.</summary>
         static float untilWork;
@@ -1378,6 +1383,10 @@ namespace Punchy.Debugging
                 if (args[i] == "-walk" && ParseWalkPath(args[i + 1]) is float3 firstLeg)
                 {
                     walkTarget = firstLeg;
+                    walkEnd = null;
+                    walkStillAt = float.MaxValue;
+                    walkStillSince = Time.unscaledTime;
+                    walkMoves = 0;
                     walkLogNext = 0f;
                     Punchy.Player.PlayerMovementSystem.PushedTotal.Data = 0f;
                 }
@@ -1713,6 +1722,23 @@ namespace Punchy.Debugging
                 distance = math.length(to);
             }
             PlayerInputSystem.TestMove = distance > 0.3f ? to / distance : float2.zero;
+            // W-65c: the walk's end, for the shot list (a shot after a walk waits for it): arrived on the last leg, or
+            // stood still for 2 s (blocked: a door, a wall).
+            if (walkEnd == null)
+            {
+                if (walkPath.Count == 0 && distance <= 0.35f)
+                    walkEnd = "ARRIVED";
+                else if (math.distance(walker.Position.xz, walkStillAt) > 0.05f)
+                {
+                    walkStillAt = walker.Position.xz;
+                    walkStillSince = Time.unscaledTime;
+                    walkMoves++;
+                }
+                else if (walkMoves > 5 && Time.unscaledTime - walkStillSince > 2f)   // (not while the world first loads)
+                    walkEnd = "STOPPED";
+                if (walkEnd != null)
+                    Debug.Log($"DebugControls: walk {walkEnd} at ({V(walker.Position.x)}, {V(walker.Position.y)}, {V(walker.Position.z)}), {V(distance)} m to go, {walkPath.Count} legs left");
+            }
             // Probe lines every quarter second: where it is, its clearance over the floor, and how far the push-out has moved it.
             if (Time.unscaledTime >= walkLogNext && EnsureLocations(out var walkGround))
             {
@@ -2193,6 +2219,16 @@ namespace Punchy.Debugging
             // Underground, also until the caves round the camera are built (up to 10 s more).
             if (!settled && Time.realtimeSinceStartup - shotStarted < shotWait + 10f)
                 return;
+            // W-65c: a line that walks shoots only once the walk has ended (arrived or blocked), or after
+            // "-walktimeout" s (default 60), logged as a FAIL.
+            if (Arg("-walk") != null && walkEnd == null)
+            {
+                var limit = float.TryParse(Arg("-walktimeout"), System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var wt) ? wt : 60f;
+                if (Time.realtimeSinceStartup - shotStarted < shotWait + limit)
+                    return;
+                Debug.Log($"DebugControls: walk FAIL timeout after {limit:F0} s, shot '{Arg("-shot")}' taken anyway");
+            }
             Shot((Arg("-shot") ?? $"shot-{shotIndex}") + ".png");
             var at = playerQuery.TryGetSingleton<LocalTransform>(out var shooter) ? shooter.Position : float3.zero;
             Debug.Log($"DebugControls: shot {shotIndex + 1}/{shotLines.Count} '{Arg("-shot")}' after {Time.realtimeSinceStartup - shotStarted:F1} s" +

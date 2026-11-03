@@ -3159,6 +3159,12 @@ namespace Punchy.Flora
                         if (p.Piece == Punchy.Terrain.KitPiece.Door)
                             inner = Mathf.Min(inner, p.Centre.z - 0.4f);
                 g.Colliders.Add(new Vector4(0f, 0f, inner, eaves));
+                // W-65c (#38): a collider-only circle behind the igloo's door (no mesh, so nothing shows through), its
+                // front 0.1 m before the door slab: walkers stop at the door line, not inside it.
+                if (shape == Punchy.Terrain.KitShape.Igloo)
+                    foreach (var p in parts)
+                        if (p.Piece == Punchy.Terrain.KitPiece.Door)
+                            g.Colliders.Add(new Vector4(p.Centre.x, p.Centre.z + 0.2f - 0.95f, 0.95f, p.Size.y));
             }
             foreach (var h in wharfHouses)  // W-65: one inside cylinder per house on the wharf, up to its eaves
                 g.Colliders.Add(new Vector4(h.x, h.y, Mathf.Min(h.z, h.w) * 0.45f, 1.0f + trim.Storey));

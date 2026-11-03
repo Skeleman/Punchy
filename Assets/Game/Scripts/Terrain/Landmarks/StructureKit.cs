@@ -686,11 +686,16 @@ namespace Punchy.Terrain
             var z0 = Mathf.Max(radius * Mathf.Sqrt(1f - lintel * lintel) - 0.5f, 1.5f);   // where the door stands
             var tunnel = radius - z0 + 1f + R() * 0.8f;
             var zMid = z0 + tunnel * 0.5f;
+            // W-65c (#38): the tunnel roof sits `lift` above the door, so a 1.8 m walker clears it even where the seated
+            // igloo's slope leaves the tunnel floor above the dome's (walls, crown and arch rise with it; a lintel of
+            // snow fills the gap over the door).
+            const float lift = 0.6f;
             foreach (var side in new[] { -1f, 1f })
-                Add(parts, KitPiece.Wall, KitMaterial.Ice, new Vector3(side * (doorW * 0.5f + 0.35f), doorH * 0.5f, zMid), new Vector3(0.7f, doorH, tunnel), 0f, false);
-            Add(parts, KitPiece.Roof, KitMaterial.Ice, new Vector3(0f, doorH + 0.3f, zMid), new Vector3(doorW + 0.5f, 0.6f, tunnel), 0f, false);
+                Add(parts, KitPiece.Wall, KitMaterial.Ice, new Vector3(side * (doorW * 0.5f + 0.35f), (doorH + lift) * 0.5f, zMid), new Vector3(0.7f, doorH + lift, tunnel), 0f, false);
+            Add(parts, KitPiece.Roof, KitMaterial.Ice, new Vector3(0f, doorH + lift + 0.3f, zMid), new Vector3(doorW + 0.5f, 0.6f, tunnel), 0f, false);
             foreach (var side in new[] { -1f, 1f })
-                Add(parts, KitPiece.Roof, KitMaterial.Ice, new Vector3(side * (doorW * 0.5f + 0.25f), doorH + 0.05f, zMid), new Vector3(0.9f, 0.6f, tunnel + 0.02f), 0f, false, 0f, side * -35f);
+                Add(parts, KitPiece.Roof, KitMaterial.Ice, new Vector3(side * (doorW * 0.5f + 0.25f), doorH + lift + 0.05f, zMid), new Vector3(0.9f, 0.6f, tunnel + 0.02f), 0f, false, 0f, side * -35f);
+            Add(parts, KitPiece.Wall, KitMaterial.Ice, new Vector3(0f, doorH + lift * 0.5f, z0 + 0.1f), new Vector3(doorW + 0.4f, lift + 0.05f, 0.3f), 0f, false);
             Add(parts, KitPiece.Door, KitMaterial.Wood, new Vector3(0f, doorH * 0.5f, z0 + 0.1f), new Vector3(doorW, doorH, 0.14f), 0f, false);
             Add(parts, KitPiece.Trim, KitMaterial.Rune, new Vector3(0f, doorH * 0.62f, z0 + 0.19f), new Vector3(0.16f, 0.5f, 0.04f), 0f, false);
             if (R() < 0.55f)
@@ -700,11 +705,11 @@ namespace Punchy.Terrain
                 {
                     var a = -60f + k * 120f / (ribs - 1);
                     var dir = Quaternion.Euler(0f, 0f, a) * Vector3.up;
-                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, doorH + 0.15f, z0 + tunnel + 0.05f) + dir * 0.55f, new Vector3(0.14f, 1.1f, 0.12f), 0f, false, 0f, a);
+                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, doorH + lift + 0.15f, z0 + tunnel + 0.05f) + dir * 0.55f, new Vector3(0.14f, 1.1f, 0.12f), 0f, false, 0f, a);
                 }
             }
             else
-                Add(parts, KitPiece.Arch, KitMaterial.Trim, new Vector3(0f, doorH + 0.1f, z0 + tunnel + 0.04f), new Vector3(doorW + 1.2f, 0.32f, 0.2f), 0f, false);
+                Add(parts, KitPiece.Arch, KitMaterial.Trim, new Vector3(0f, doorH + lift + 0.1f, z0 + tunnel + 0.04f), new Vector3(doorW + 1.2f, 0.32f, 0.2f), 0f, false);
             // A path of packed snow out through the porch (walked on, not solid).
             Add(parts, KitPiece.Floor, KitMaterial.Ice, new Vector3(0f, 0.05f, z0 + tunnel * 0.5f + 0.4f), new Vector3(doorW + 0.3f, 0.1f, tunnel + 0.8f), 0f, false);
             // (W-61's buried steps out of the mouth are gone: being under y = 0, the foundation skirt sank them 1.6 m
@@ -745,10 +750,8 @@ namespace Punchy.Terrain
                     dz = Mathf.Sqrt(clear * clear - dx * dx);
                 Alpine(parts, PickAlpine(rng), new Vector3(dx, 0f, dz), R() * 360f, rng);
             }
-            // W-65b (#38): a 1 m block of snow behind the door, its front inside the door slab, so the support grid has a
-            // wall there (the 0.14 m door alone fell between its samples and 3 of 5 walks went past the door line). Hidden
-            // by the closed door and the dome; last, so no draw or earlier part's colour moves.
-            Add(parts, KitPiece.Wall, KitMaterial.Wall, new Vector3(0f, doorH * 0.5f, z0 - 0.4f), new Vector3(doorW + 0.5f, doorH, 1f), 0f, false);
+            // (W-65b's snow block behind the door is gone: it showed through the door. W-65c stops walkers with a
+            // collider-only circle behind the door instead: FloraGenerator, the igloo's inside cylinders.)
             return parts;
         }
 
