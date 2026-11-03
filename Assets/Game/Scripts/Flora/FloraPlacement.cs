@@ -252,7 +252,8 @@ namespace Punchy.Flora
                            // W-63: a log across a narrows reaches half its shortest length each way from the middle.
                            s.Form == FloraForm.Driftwood && s.RiverSpot == RiverSpot.LogNarrows ? s.Height.x * 0.5f :
                            // W-65b: a stepping-stone row reaches half its length each way.
-                           s.Form == FloraForm.Boulder && s.RiverSpot == RiverSpot.Narrows ? FloraGenerator.StoneRowLength * 0.5f : 0f
+                           // (W-65d: the longest; FloraPlacement fits each row's variant to its narrows.)
+                           s.Form == FloraForm.Boulder && s.RiverSpot == RiverSpot.Narrows ? FloraGenerator.StoneRowLength(FloraGenerator.StoneRowVariants - 1) * 0.5f : 0f
                 };
                 for (int v = 0; v < s.Variants; v++)
                 {
@@ -511,31 +512,40 @@ namespace Punchy.Flora
         /// <summary>
         /// W-61b (#38): an igloo facing its settlement's centre, turned up to 30 degrees either way (W-65b; was 60) to the heading whose
         /// porch mouth (<paramref name="porch"/> m out) is nearest its centre's height (straight on wins near-ties), then
-        /// lowered (up to 1.4 m, the dome sinking into the slope) or raised (up to 0.5 m, within its foundation skirt) so
+        /// lowered (up to 3.5 m since W-65d, was 1.4; the dome sinking into the slope) or raised (up to 0.5 m, within its foundation skirt) so
         /// the porch floor meets the ground at the mouth, not a ledge over a dip. No random draws, so nothing else moves.
         /// </summary>
         static void PorchSeat(in TerrainSource source, float2 spot, float porch, ref float yaw, ref float y)
         {
             var best = yaw;
             var bestCost = float.MaxValue;
-            var mouthY = y;
+            var bestY = y;
             // W-65b (#38): up to 30 degrees now (was 60): a mouth turned 60 degrees faced a neighbour, and the walk
             // between two mouths ran into a dome.
-            for (int k = 0; k < 3; k++)
+            // W-65d (#38): on a steep slope no turn within 30 degrees seats the mouth (three igloos kept a 1.8 m step up
+            // onto the path, or a tunnel buried 2-4 m), so the igloo may now sink up to 3.5 m into the slope, and as a
+            // last resort it turns its back on the centre (150-210 degrees: a mouth facing out never faces a neighbour)
+            // to face downhill. A heading is judged by what the walker meets: the step from the ground up onto the
+            // path at the mouth (at most 0.3) and the ground in the tunnel under a 1.8 m head (roof 4 m over the floor).
+            for (int k = 0; k < 6; k++)
             {
-                var turn = math.radians(30f) * (k == 0 ? 0 : k == 1 ? 1 : -1);
+                var turn = math.radians(k < 3 ? 30f * (k == 0 ? 0 : k == 1 ? 1 : -1) : 180f + 30f * (k - 4));
                 var a = yaw + turn;
-                var ground = source.SampleHeight(spot + new float2(-math.sin(a), math.cos(a)) * porch);
-                var cost = math.abs(ground - y) + 0.25f * math.abs(turn);
+                var fwd = new float2(-math.sin(a), math.cos(a));
+                var mouth = source.SampleHeight(spot + fwd * porch);
+                var tunnel = math.max(source.SampleHeight(spot + fwd * (porch - 1.5f)), source.SampleHeight(spot + fwd * (porch - 3f)));
+                var seat = math.clamp(mouth, y - 3.5f, y + 0.5f);
+                var miss = math.max(0f, seat - 0.3f - mouth) + math.max(0f, math.max(mouth, tunnel) - seat - 2f);
+                var cost = miss * 10f + (k < 3 ? 0.25f * math.abs(turn) : 3f) + 0.05f * math.abs(seat - y);
                 if (cost < bestCost)
                 {
                     bestCost = cost;
                     best = a;
-                    mouthY = ground;
+                    bestY = seat;
                 }
             }
             yaw = best;
-            y = math.clamp(mouthY, y - 1.4f, y + 0.5f);
+            y = bestY;
         }
 
         /// <summary>
@@ -1520,17 +1530,37 @@ namespace Punchy.Flora
                 // the bank; the model's origin sits on the water surface, so every top is 4-12 cm above the water.
                 var flow = math.normalizesafe(ground.Flow, new float2(0f, 1f));
                 yaw = math.atan2(flow.x, -flow.y) + rng.NextFloat(-0.15f, 0.15f);
-                var reach = new float2(math.cos(yaw), math.sin(yaw)) * rule.Span * scale;
+                // W-65d: the row fits the narrows it is in (a fixed 12 m row found no narrows on either island): walk
+                // out each way to the first bank (or water under 0.3 m), take the variant whose length (4-14 m, every 2 m,
+                // FloraGenerator.StoneRowLength) just spans it and centre the row between the two banks.
+                if (!ground.HasWater)
+                    return none;
+                var water = ground.WaterSurface;
+                var across = new float2(math.cos(yaw), math.sin(yaw));
+                float outA = -1f, outB = -1f;
+                for (var d = 0.25f; d <= 7.5f && (outA < 0f || outB < 0f); d += 0.25f)
+                {
+                    if (outA < 0f && source.SampleHeight(xz + across * d) > water - 0.3f)
+                        outA = d;
+                    if (outB < 0f && source.SampleHeight(xz - across * d) > water - 0.3f)
+                        outB = d;
+                }
+                var variant = FloraGenerator.StoneRowVariant((outA + outB) / scale);
+                if (outA < 0f || outB < 0f || variant < 0 || variant >= rule.Variants)
+                    return none;
+                xz += across * (outA - outB) * 0.5f;
+                var reach = across * FloraGenerator.StoneRowLength(variant) * 0.5f * scale;
                 var endA = source.SampleGround(xz + reach);
                 var endB = source.SampleGround(xz - reach);
-                if (!ground.HasWater || !NearBank(endA, ground.WaterSurface) || !NearBank(endB, ground.WaterSurface))
+                if (!NearBank(endA, water) || !NearBank(endB, water))
                     return none;
+                rng.NextInt(rule.Variants);   // the draw the fixed row's variant took, so the rest of the cell stays put
                 return new FloraSystem.FloraInstance
                 {
-                    Position = new float3(xz.x, ground.WaterSurface, xz.y),
+                    Position = new float3(xz.x, water, xz.y),
                     Yaw = yaw,
                     Scale = scale,
-                    Model = rule.FirstModel + rng.NextInt(rule.Variants),
+                    Model = rule.FirstModel + variant,
                     Random = rng.NextFloat(),
                     Ground = GroundFor(source, rule, xz, 1f, 0.25f)
                 };

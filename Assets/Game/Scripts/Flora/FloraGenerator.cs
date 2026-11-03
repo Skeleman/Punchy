@@ -2208,8 +2208,17 @@ namespace Punchy.Flora
             Moss(g, first);
         }
 
-        /// <summary>How long a row of stepping stones is, end stone to end stone (FloraPlacement seats both ends on dry bank).</summary>
-        public const float StoneRowLength = 12f;
+        /// <summary>
+        /// How long a row of stepping stones is, end stone to end stone, by its variant (W-65d: 4, 6, ... 14 m, so
+        /// FloraPlacement can fit a row to the narrows it crosses and seat both ends on the bank; was always 12 m).
+        /// </summary>
+        public static float StoneRowLength(int variant) => 4f + 2f * variant;
+        /// <summary>How many row lengths there are (the SteppingStone species needs this many variants).</summary>
+        public const int StoneRowVariants = 6;
+        /// <summary>The shortest row variant reaching across <paramref name="width"/> m of water (bank to bank), or -1
+        /// when the water is narrower than 3 m or wider than the longest row.</summary>
+        public static int StoneRowVariant(float width) =>
+            width < 3f || width > StoneRowLength(StoneRowVariants - 1) ? -1 : Mathf.Max(0, Mathf.CeilToInt((width - 4f) / 2f));
 
         /// <summary>
         /// W-65b: stepping stones as one row across a shallow narrows (a single stone per draw left 10 m gaps, W-63).
@@ -2222,11 +2231,13 @@ namespace Punchy.Flora
             var b = g.B;
             var first = b.VertexCount;
             var detail = g.Sides(3, 2, 1);
-            var n = 11 + g.Variant % 2;
-            var pitch = StoneRowLength / (n - 1);
+            // W-65d: the length by variant, stones about 1.1 m apart.
+            var length = StoneRowLength(g.Variant % StoneRowVariants);
+            var n = Mathf.RoundToInt(length / 1.1f) + 1;
+            var pitch = length / (n - 1);
             for (int k = 0; k < n; k++)
             {
-                var x = -StoneRowLength * 0.5f + k * pitch + (k == 0 || k == n - 1 ? 0f : g.Range(-0.06f, 0.06f));
+                var x = -length * 0.5f + k * pitch + (k == 0 || k == n - 1 ? 0f : g.Range(-0.06f, 0.06f));
                 var radii = new Vector3(g.Range(0.42f, 0.5f), 0.48f, g.Range(0.4f, 0.5f));
                 var top = g.Range(0.04f, 0.12f);
                 var at = new Vector3(x, top - radii.y, g.Range(-0.15f, 0.15f));
@@ -2234,7 +2245,7 @@ namespace Punchy.Flora
                 b.Blob(at, radii, turn, detail, 0.1f, g.R() * 100f, Color.Lerp(g.Bark, g.Bark * 0.8f, g.R()), FloraPart.Bark, 1f, g.Range(0.35f, 0.6f), 0.55f);
             }
             g.Height = 0.2f;
-            g.Width = StoneRowLength + 1f;
+            g.Width = length + 1f;
             g.TrunkRadius = 0f;
             b.Occlude(first, (p, n2) => Mathf.Lerp(0.7f, 1f, Mathf.Clamp01(n2.y + 0.6f)));
             Moss(g, first);

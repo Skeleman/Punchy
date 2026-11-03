@@ -386,11 +386,13 @@ namespace Punchy.Terrain
                     foreach (var side in new[] { -1f, 1f })
                         Add(parts, KitPiece.Column, KitMaterial.Wood, c + Turn(yaw, new Vector3(side * W * 0.45f, deck - 3.2f, -len * 0.5f + k * len / (piles - 1))), new Vector3(0.26f, 6f, 0.26f), yaw, false);
             }
-            const float rampDrop = 0.4f, rampRun = 5.2f;
+            const float rampDrop = 0.4f, rampRun = 6f;
             var rise = deck + rampDrop;
             // Shore steps rather than a pitched ramp: flat treads 0.2 m apart read as solid support on a low bank too
             // (a pitched ramp's support sampled in steps over 0.4 m where the bank fell away beside it).
-            const int treads = 7;
+            // W-65d: 10 treads (0.14 m each) over 6 m, so a walker still on the bank beside the low treads meets each
+            // next tread well within the 0.4 m step-up (with 7 the gap to the bank outgrew it near the deck end).
+            const int treads = 10;
             for (int k = 0; k < treads; k++)
             {
                 var top = deck - rise * (k + 1) / treads;
