@@ -989,3 +989,27 @@ b/weather-mapjob.
   - Since then everything goes by --pid 30120. My editor is checked clean: not playing, not compiling, no errors, scene not dirty.
 - Calls: about 60. Builds: 1.
 - NEXT: optional colour tuning pass (deeper band, less fog tint); W-35 still waits on Zach.
+## W-33 (cave distance bound + sky tuning), 2026-11-02: DONE with notes, world-features 287497c
+- Row 1 DONE with a change of approach. `CaveDistance` itself is unchanged, because baking, meshing and fauna use its value, so changing it would change the hashes. The new query is `TerrainSource.CaveDistanceBound` (`CaveSampling.LowerBound`). It takes CaveDistance and divides it by the steeper of two slopes: a per-cave `SlopeLimit` (from the wall noise settings) and 1.2 x the local slope (4 taps). The sign is exact.
+  - Probe: 10k points (6176 in air, 3824 in rock) in caves 3, 16 and 7. Truth comes from a 161-direction march plus bisection.
+  - Old field: max overstatement x9.26, worst 0.82 m over; 3695 points over by more than 2%; mean bound/true 0.90.
+  - LowerBound: 5 points over by more than 2%, max 4.6 cm over (x4.5 at a point 1.3 cm from rock); mean bound/true 0.49. The 5 outliers sit on stepped wall blocks and ledges (floor()-quantised noise).
+  - Cost per call (editor, managed, single thread): 11.1 us before, 55.6 us after (5 field samples). Cheap under Burst for a few queries a frame; don't use it for per-vertex work.
+- Row 2 DONE: docs/agents/world.md says CaveDistance overstates by 2-9x and that CaveDistanceBound is the lower bound to use for push-out. It also says to retune SlopeLimit if WallNoise changes.
+- X1 DONE (sky): 0 deg 1.00,.40,.17 -> 1.00,.32,.10; +5 deg 1.00,.55,.24 -> 1.00,.46,.16. From -3 deg up, the band on the sun's side reaches higher (zenith blend exponent .45 -> up to .85). Land haze takes half the warm tint (lerp toward luminance, x0.5).
+- X1b DONE (Zach: more cloud glow). Glow values, old -> new:
+  - Strength: twilight colour x0.9 -> x0.9 x 2.2, with saturation x1.35.
+  - Range: same envelope as the sky (fading out by +12) -> its own envelope, full to +9 and gone at +13.
+  - Weather mute: 80% (cloud warmth also -60% x weather) -> 50% (-40% x weather).
+  - High cloud reach: 6.5 deg -> 9 deg below the horizon.
+  - New silver-gold lining: thin cloud edges facing the sun, pow(cos, 10) x 4. Far clouds and cirrus take the stronger light too.
+- X2 PARTLY: player log v2 = 126 landmarks, hash 053C63D5 (unchanged). Editor (bakes v1) caves 47C703C0E17F77CB (unchanged). My v1 player run defaulted to v2 because I left out `-island v1`. That run also had no `-shotdir`, so it never reached -quit. I closed its window myself; it was not killed. Not re-measured: the v1 landmark hash and the v2 cave hash. No generation code changed (only new methods and Sky.hlsl).
+- Shots: PunchyMilestones/world/w33: w33-1-midday, w33-2-sun+5, w33-3-sun0, w33-4-sun-4 and w33-5-sun0-overcast (.png), plus shots.txt. Same Glacier view and times as W-31. Viewed at 640 px.
+  - Midday is unchanged.
+  - +5 deg: gold-orange round the sun, and a lit cloud with a bright gold rim.
+  - 0 deg: the band is more orange and the land haze less pink. The upper sky is still pink-violet.
+  - -4 deg: violet blue hour.
+  - The weather drew few clouds at the moment of these shots, so the glow change is only partly visible. A cloudier comparison is still needed.
+- Weak spots: the pink at 0 deg comes from the violet twilight zenith blending down into the band. Next pass: a warmer zenith near 0 deg on the sun's side.
+- Checks: compile, shaders and build clean (errors=0). CRLF kept on TerrainSource.cs; the other files are LF. No Punchy.exe left running.
+- Builds: 2. The first was done before the cloud-glow request arrived, and the second shipped it.
