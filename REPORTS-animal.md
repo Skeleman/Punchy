@@ -1339,3 +1339,32 @@ Commit 89270af on animal-behaviours (pushed). ONE build to Builds/Windows. Hash 
    A-42 before frames: D:/PunchyMilestones/animal/a42/.
 Notes: -255,27 is now a mountain; framing needs `-watch` + `-watchfrom`. No exceptions in player logs.
 Overrun: ~58 calls vs 35, 1 build: the first build run lost framing on a mountain, and gas visibility took editor probes.
+
+## A-43 (2026-11-02): leap blending, remote emote sounds, cave readout, F8, skunk gas material
+Commit 3ba679b on animal-behaviours (pushed) on 89270af. ONE build to Builds/Windows (Succeeded). Hash v2 126 / 053C63D5
+unchanged (F8 log counts 126 landmarks).
+1. Leap blending: DONE. LeapGather eases with smootherstep over phase-scaled spans (no 0.08-phase snap); EaseGait
+   slows the gait change near the sprint band for leaping runs (the legs swapped in ~0.1 s; top speed now ~0.3 s later;
+   a player's dog body is not eased by this). Probe Temp/a43_leap.cs (Wolf hunt run), max joint change per frame,
+   before -> after: 30 fps into 125.6 -> 77.4, stride 125.6 -> 81.1, out 72.8 -> 46.4 deg; 144 fps into 59.6 -> 20.6,
+   stride 55.9 -> 19.9, out 27.3 -> 20.0 deg. (What remains at 30 fps is mostly the gallop stride itself.)
+2. Emote sounds in multiplayer: DONE. Cause: remote bodies spawn with CreatureBody.Species -1, so no calls list.
+   RemoteAvatar now carries the local species index (local only, no new network field). Host+client test (both Dog):
+   each of Wave/Bow/Cheer/Dance logs once on the other machine, from another player's body at the emoter's position
+   (host sees client at (2.5,163.6,1.5), client sees host at (0,163,0)). Logs Temp/a43_host.log, Temp/a43_client.log.
+2b. Cave readout: DONE. Client after `-goto -3989,37,807`: `DebugControls: readout x -3989   y 37   z 807   facing 0°   in cave`
+   (logged on entering/leaving a cave; y kept, no fall-through). F3 copies `-goto x,y,z`.
+2c. F8: DONE. `F8 landmarks 126 before, 89 after leaving out caves: CaveEntrance 11, CaveNetwork 1, CrystalGrotto 4,
+   FungalGrotto 3, Grotto 17, MineEntrance 1`. F7 and the landmark list unchanged.
+2d. Skunk gas: DONE. New shader Punchy/Gas Puff (unlit, no depth fade, floor at 70% of its colour) and
+   Resources/SkunkGas.mat; Puffs.mat and Soft Particle untouched. Build shot (Ashlands, dark flat ground, side-on,
+   mid-flee): green cloud visible beside and behind the skunk (viewed 800 px), though not dense.
+3. Shots (D:/PunchyMilestones/animal/a43/): before_strip_800.png / after_strip_800.png first (before/ and after/ hold
+   leap-0..5 at frozen phases 0.2, 0.3, 0.34, 0.4, 0.7, 0.85, side-on in Ashlands); skunk-gas-0_800.png,
+   skunk-gas-1_800.png, cave-f3_800.png; mp/ holds the two-client frames.
+Notes: frames were picked by phase (-leapphase) in the before build, not in the editor; `-pose` respawns per line, so a
+timed strip of one run is not possible, and frozen phases show key poses rather than the in-between blending (the
+probe numbers carry that). `-pose ... scare` sets speed directly, so the eased take-off doesn't show in shots.
+Untracked Assets/_Recovery left alone. A first build attempt returned Unknown (a compile error of mine, name clash);
+fixed, then the one build. Calls ~78, builds 1.
+
