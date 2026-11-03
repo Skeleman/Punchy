@@ -152,6 +152,17 @@ namespace Punchy.Terrain
                         Roof = KitRoof.Flat, Storey = 3.6f, Bay = 2.4f, Pitch = 0f, Quoins = false, Crenels = false, Shutters = false,
                         TowerChance = 0f, BalconyChance = 0f, StairChance = 0f
                     };
+                case FolkCulture.BatFolk:
+                    // The bat folk's trim (#35): guano-white daub walls, dark leather-brown trim and shutters (kept shut:
+                    // they hate light), steep hide roofs, low 2.2 m storeys and narrow bays; no towers, balconies or
+                    // stairs (they fly up). Their houses hang from cave walls and ceilings (BatFolkBaking).
+                    return new CultureTrim
+                    {
+                        Wall = new Color(0.86f, 0.84f, 0.78f), Trim = new Color(0.26f, 0.19f, 0.14f), RoofColour = new Color(0.34f, 0.27f, 0.22f),
+                        Wood = new Color(0.30f, 0.22f, 0.15f), Opening = new Color(0.05f, 0.04f, 0.04f), Moss = new Color(0.40f, 0.42f, 0.34f),
+                        Roof = KitRoof.Steep, Storey = 2.2f, Bay = 1.6f, Pitch = 56f, Quoins = false, Crenels = false, Shutters = true,
+                        TowerChance = 0f, BalconyChance = 0f, StairChance = 0f
+                    };
                 default:
                     return new CultureTrim
                     {
@@ -418,6 +429,15 @@ namespace Punchy.Terrain
                 Add(parts, KitPiece.Arch, KitMaterial.Trim, new Vector3(0f, doorH + 0.1f, z0 + tunnel + 0.04f), new Vector3(doorW + 1.2f, 0.32f, 0.2f), 0f, false);
             // A path of packed snow out through the porch (walked on, not solid).
             Add(parts, KitPiece.Floor, KitMaterial.Ice, new Vector3(0f, 0.05f, z0 + tunnel * 0.5f + 0.4f), new Vector3(doorW + 0.3f, 0.1f, tunnel + 0.8f), 0f, false);
+            // W-61 (#38): packed-snow steps down out of the porch mouth, 0.25 m each to 1.5 m below the floor. On a
+            // slope falling away from the mouth they bridge the ledge (0.6-1.0 m at two W-60 igloos); on level ground
+            // they sit below the surface and don't show. No random draws, so the rest of the igloo is unchanged.
+            for (int k = 0; k < 6; k++)
+            {
+                var top = -0.25f * (k + 1);
+                Add(parts, KitPiece.Stair, KitMaterial.Ice, new Vector3(0f, (top - 1.8f) * 0.5f, z0 + tunnel + 0.8f + 0.2f + k * 0.4f),
+                    new Vector3(doorW + 0.3f, top + 1.8f, 0.42f), 0f, false);
+            }
 
             // Ice panes round the dome and a faint rune band low on the wall: the inner glow showing through.
             for (int k = 0, panes = 2 + rng.Next(3); k < panes; k++)

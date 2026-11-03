@@ -31,7 +31,9 @@ namespace Punchy.Terrain
         SnowFolk = 32,
         FishFolk = 64,
         /// <summary>The tall turtle folk of the mountaintops (#38): igloo settlements on the highest peaks.</summary>
-        TurtleFolk = 128
+        TurtleFolk = 128,
+        /// <summary>The bat folk of the deep caves (#35): houses hung from cave walls and ceilings, no lights at all.</summary>
+        BatFolk = 256
     }
 
     /// <summary>

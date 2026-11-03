@@ -29,6 +29,21 @@ namespace Punchy.Terrain
         Rack,
         /// <summary>A squat woven basket on the floor.</summary>
         Basket,
+        // W-61: kit houses (StructureKit.House, BatFolk trim; each rebuilt from a hash of its Position) and details.
+        /// <summary>A kit house on a roost deck against the wall. Position: the house's floor centre; Size: x width, y depth, z height above the cave floor.</summary>
+        WallHouse,
+        /// <summary>A kit house hung from the ceiling on four cords. Position: the house's floor centre; Size: x width, y depth, z cord length.</summary>
+        CeilingHouse,
+        /// <summary>A roost frame hung from the ceiling: two cords and bars to hang from. Position: the anchor; Size: x width, y frame height, z cord length.</summary>
+        RoostFrame,
+        /// <summary>A heap of guano-white stones on the floor. Size: x radius, y height.</summary>
+        GuanoStone,
+        /// <summary>Echo chimes hung from the ceiling: a ring of tubes of different lengths. Position: the anchor; Size: x ring radius, y longest tube, z cord length.</summary>
+        EchoChime,
+        /// <summary>A woven sling hammock between two posts on the floor. Size: x length, y post height.</summary>
+        Hammock,
+        /// <summary>A peg post on the floor with goggles hung on its pegs. Size: x pegs (1-3), y height.</summary>
+        GogglePeg,
     }
 
     /// <summary>One placed bat folk thing (BATFOLK-PLAN step 3).</summary>
@@ -123,9 +138,15 @@ namespace Punchy.Terrain
                 var rank = BiomeSampling.Scramble(stream ^ BiomeSampling.Scramble((uint)cell.x * 0x85EBCA6Bu ^ (uint)cell.y * 0xC2B2AE35u));
                 qualifying.Add((c, bestNode, bestPool, rank));
             }
-            var picks = qualifying.Count == 0 ? 0 : math.max(1, qualifying.Count / PerCaves);
+            // W-61: the settlements take the largest caves (biggest settlement chamber first, the scrambled mouth hash
+            // breaking ties), up to MaxSites, so the bat folk live where there is room to hang houses.
+            var picks = math.min(qualifying.Count, MaxSites);
             var chosen = new List<(int cave, int node, int pool, uint rank)>(qualifying);
-            chosen.Sort((a, b) => a.rank != b.rank ? a.rank.CompareTo(b.rank) : a.cave.CompareTo(b.cave));
+            var radii = new Dictionary<int, float>();
+            foreach (var q in chosen)
+                radii[q.cave] = set.Nodes[q.node].Radius * set.Caves[q.cave].Profile.x;
+            chosen.Sort((a, b) => radii[a.cave] != radii[b.cave] ? radii[b.cave].CompareTo(radii[a.cave])
+                : a.rank != b.rank ? a.rank.CompareTo(b.rank) : a.cave.CompareTo(b.cave));
             chosen.RemoveRange(picks, chosen.Count - picks);
             chosen.Sort((a, b) => a.cave.CompareTo(b.cave));
 
@@ -147,7 +168,9 @@ namespace Punchy.Terrain
                     Radius = set.Nodes[n].Radius * set.Caves[c].Profile.x, Pool = p
                 };
                 white[p] = 1;
+                var first = props.Count;
                 PlaceProps(source, ref set, sites[i], i, stream, props);
+                PlaceKit(source, ref set, sites[i], i, stream, props, first);
             }
             var propArray = builder.Allocate(ref root.Props, props.Count);
             for (int i = 0; i < props.Count; i++)
@@ -303,17 +326,240 @@ namespace Punchy.Terrain
         /// <summary>Whether a new thing of this kind would crowd one already placed in the site (huts against huts, props against props).</summary>
         static bool Crowded(List<BatFolkProp> props, int first, float2 xz, float reach, BatFolkPropKind kind)
         {
-            var hut = kind == BatFolkPropKind.Hut;
+            var high = High(kind);
             for (int i = first; i < props.Count; i++)
             {
                 var p = props[i];
-                if ((p.Kind == BatFolkPropKind.Hut) != hut)
+                if (High(p.Kind) != high)
                     continue;
-                var other = p.Kind == BatFolkPropKind.Rack ? p.Size.x * 0.5f + 0.15f : p.Size.x;
-                if (math.distance(p.Position.xz, xz) < reach + other + (hut ? 0.9f : 0.7f))
+                if (math.distance(p.Position.xz, xz) < reach + Reach(p) + (high ? 0.9f : 0.7f))
                     return true;
             }
             return false;
+        }
+
+        /// <summary>Things up off the floor (hung or on the wall) only crowd each other; floor things likewise.</summary>
+        static bool High(BatFolkPropKind k) => k == BatFolkPropKind.Hut || k == BatFolkPropKind.WallHouse ||
+                                               k == BatFolkPropKind.CeilingHouse || k == BatFolkPropKind.RoostFrame || k == BatFolkPropKind.EchoChime;
+
+        /// <summary>How far a placed thing reaches out from its Position in plan (m).</summary>
+        static float Reach(in BatFolkProp p) => p.Kind switch
+        {
+            BatFolkPropKind.Rack => p.Size.x * 0.5f + 0.15f,
+            BatFolkPropKind.WallHouse or BatFolkPropKind.CeilingHouse => 0.5f * math.max(p.Size.x, p.Size.y) + 0.6f,
+            BatFolkPropKind.RoostFrame or BatFolkPropKind.Hammock => p.Size.x * 0.5f + 0.1f,
+            BatFolkPropKind.EchoChime => p.Size.x + 0.2f,
+            BatFolkPropKind.GogglePeg => 0.45f,
+            _ => p.Size.x
+        };
+
+        // ------------------------------------------------------------------------------------ W-61 kit houses, details
+
+        public const int MaxSites = 3, MinWallHouses = 2, MaxWallHouses = 4, MinCeilingHouses = 1, MaxCeilingHouses = 2,
+            MinDetails = 6, MaxDetails = 12;
+        /// <summary>A kit house's bounding height (one 2.2 m storey and the steep hide roof), for the air checks.</summary>
+        public const float HouseHeight = 4.6f;
+
+        /// <summary>
+        /// Which small things a bat folk settlement has and how often (data: add a kind here, a case in PlaceDetail and
+        /// in BatFolkMeshes). Each settlement scales every weight by its own draw, so one is full of chimes and
+        /// hammocks and the next of roost frames and guano heaps.
+        /// </summary>
+        public static readonly (BatFolkPropKind Kind, float Weight)[] Details =
+        {
+            (BatFolkPropKind.RoostFrame, 1f), (BatFolkPropKind.GuanoStone, 1.4f), (BatFolkPropKind.EchoChime, 0.8f),
+            (BatFolkPropKind.Hammock, 0.9f), (BatFolkPropKind.GogglePeg, 0.7f),
+        };
+
+        /// <summary>
+        /// W-61 (#35): kit houses and details, after the huts and floor props and from the site's second RNG, so the
+        /// W-19 huts and props come out the same. 2-4 houses stand on roost decks against the chamber wall, 2.4-7 m up
+        /// (walked under, never in the way); 1-2 hang from the ceiling on cords; then 6-12 details picked by the
+        /// settlement's own weights. Every house's box is checked to be in cave air. No light sources of any kind.
+        /// </summary>
+        static void PlaceKit(in TerrainSource source, ref CaveSetBlob set, in BatFolkSite site, int siteIndex, uint stream,
+            List<BatFolkProp> props, int first)
+        {
+            var rng = new Random(BiomeSampling.Scramble(stream ^ BiomeSampling.Scramble(site.Key * 0x2C1B3C6Du ^ 0x61u)) | 1u);
+            ref var cave = ref set.Caves[site.Cave];
+            var floorC = source.FloorUnder(site.Centre + new float3(0f, 1f, 0f), out _);
+
+            // Wall houses: march out from the chamber's middle to the wall, back the house onto it, facing in.
+            var want = rng.NextInt(MinWallHouses, MaxWallHouses + 1);
+            for (int attempt = 0, n = 0; attempt < 160 && n < want; attempt++)
+            {
+                var angle = rng.NextFloat(math.PI * 2f);
+                var width = rng.NextFloat(2.4f, 3.4f);
+                var depth = rng.NextFloat(2f, 2.8f);
+                var y = floorC + rng.NextFloat(2.6f, 4.5f);
+                var dir = new float2(math.cos(angle), math.sin(angle));
+                var hit = -1f;
+                for (var d = 1f; d < site.Radius * 2.5f; d += 0.25f)
+                    if (source.CaveDistance(new float3(site.Centre.x + dir.x * d, y + 1.2f, site.Centre.z + dir.y * d)) > -0.3f)
+                    {
+                        hit = d;
+                        break;
+                    }
+                if (hit < depth + 2f)
+                    continue;
+                var w = new float3(site.Centre.x + dir.x * hit, y + 1.2f, site.Centre.z + dir.y * hit);
+                // The wall's outward normal in plan: the distance field grows into the rock.
+                var g = new float2(source.CaveDistance(w + new float3(0.3f, 0f, 0f)) - source.CaveDistance(w - new float3(0.3f, 0f, 0f)),
+                    source.CaveDistance(w + new float3(0f, 0f, 0.3f)) - source.CaveDistance(w - new float3(0f, 0f, 0.3f)));
+                var outward = math.normalizesafe(g, dir);
+                if (math.dot(outward, dir) < 0.3f)
+                    outward = dir;
+                var centre = w.xz - outward * (depth * 0.5f + 0.5f);
+                var floor = source.FloorUnder(new float3(centre.x, y, centre.y), out var inCave);
+                if (!inCave || y - floor < 2.4f || y - floor > 7f)
+                    continue;
+                var yaw = math.atan2(-outward.x, -outward.y);   // the front (+Z) faces into the chamber
+                var origin = new float3(centre.x, y, centre.y);
+                if (!BoxInAir(source, origin, yaw, width + 0.3f, HouseHeight, depth + 0.3f) ||
+                    Crowded(props, first, centre, 0.5f * math.max(width, depth) + 0.6f, BatFolkPropKind.WallHouse))
+                    continue;
+                props.Add(new BatFolkProp { Position = origin, Size = new float3(width, depth, y - floor), Yaw = yaw, Kind = BatFolkPropKind.WallHouse, Site = siteIndex });
+                n++;
+            }
+
+            // Ceiling houses: a house hung on four cords, its floor at least 3 m over the cave floor.
+            want = rng.NextInt(MinCeilingHouses, MaxCeilingHouses + 1);
+            for (int attempt = 0, n = 0; attempt < 120 && n < want; attempt++)
+            {
+                var angle = rng.NextFloat(math.PI * 2f);
+                var dist = site.Radius * math.sqrt(rng.NextFloat(0.02f, 0.5f));
+                var width = rng.NextFloat(2.2f, 3f);
+                var depth = rng.NextFloat(1.8f, 2.4f);
+                var cord = rng.NextFloat(0.6f, 2f);
+                var yaw = rng.NextFloat(math.PI * 2f);
+                var xz = site.Centre.xz + new float2(math.cos(angle), math.sin(angle)) * dist;
+                var start = new float3(xz.x, site.Centre.y, xz.y);
+                if (source.CaveDistance(start) > -0.5f)
+                    continue;
+                var ceiling = Ceiling(source, start);
+                var floor = source.FloorUnder(start, out var inCave);
+                // A tall chamber gets a longer cord (the house never hangs more than 7 m up).
+                cord = math.clamp(math.max(cord, ceiling - floor - 7f - HouseHeight), 0.6f, 6f);
+                var bottom = ceiling - cord - HouseHeight;
+                if (!inCave || bottom - floor < 3f || bottom - floor > 7.5f)
+                    continue;
+                var origin = new float3(xz.x, bottom, xz.y);
+                // The house's box, and each cord's line up to the ceiling (a domed ceiling comes down at the corners).
+                if (!BoxInAir(source, origin, yaw, width + 0.6f, HouseHeight + 0.3f, depth + 0.6f) || !CordsInAir(source, origin, yaw, width + 0.7f, depth + 0.7f, HouseHeight, ceiling - 0.3f) ||
+                    Crowded(props, first, xz, 0.5f * math.max(width, depth) + 0.6f, BatFolkPropKind.CeilingHouse))
+                    continue;
+                props.Add(new BatFolkProp { Position = origin, Size = new float3(width, depth, cord), Yaw = yaw, Kind = BatFolkPropKind.CeilingHouse, Site = siteIndex });
+                n++;
+            }
+
+            // Details: this settlement's weights, then 6-12 picks.
+            var weights = new float[Details.Length];
+            var total = 0f;
+            for (int i = 0; i < Details.Length; i++)
+                total += weights[i] = Details[i].Weight * rng.NextFloat(0.3f, 1.7f);
+            want = rng.NextInt(MinDetails, MaxDetails + 1);
+            for (int attempt = 0, n = 0; attempt < 240 && n < want; attempt++)
+            {
+                var pick = rng.NextFloat(total);
+                var kind = Details[Details.Length - 1].Kind;
+                for (int i = 0; i < Details.Length; i++)
+                    if ((pick -= weights[i]) < 0f)
+                    {
+                        kind = Details[i].Kind;
+                        break;
+                    }
+                if (PlaceDetail(source, ref set, cave, site, siteIndex, kind, ref rng, props, first))
+                    n++;
+            }
+        }
+
+        /// <summary>One detail of this kind somewhere in the chamber (hung from the ceiling or on flat floor), or false.</summary>
+        static bool PlaceDetail(in TerrainSource source, ref CaveSetBlob set, in CaveData cave, in BatFolkSite site, int siteIndex,
+            BatFolkPropKind kind, ref Random rng, List<BatFolkProp> props, int first)
+        {
+            var angle = rng.NextFloat(math.PI * 2f);
+            var yaw = rng.NextFloat(math.PI * 2f);
+            if (kind == BatFolkPropKind.RoostFrame || kind == BatFolkPropKind.EchoChime)
+            {
+                var size = kind == BatFolkPropKind.RoostFrame
+                    ? new float3(rng.NextFloat(1.2f, 2f), rng.NextFloat(0.9f, 1.5f), 0f)
+                    : new float3(rng.NextFloat(0.25f, 0.45f), rng.NextFloat(0.6f, 1.1f), 0f);
+                var lift = rng.NextFloat(2.8f, 5f);
+                var xz = site.Centre.xz + new float2(math.cos(angle), math.sin(angle)) * site.Radius * math.sqrt(rng.NextFloat(0.03f, 0.7f));
+                var start = new float3(xz.x, site.Centre.y, xz.y);
+                var reach = kind == BatFolkPropKind.RoostFrame ? size.x * 0.5f + 0.1f : size.x + 0.2f;
+                if (source.CaveDistance(start) > -0.5f || NearPool(ref set, cave, xz, reach + 0.3f))
+                    return false;
+                var ceiling = Ceiling(source, start);
+                var floor = source.FloorUnder(start, out var inCave);
+                var stalk = math.max(ceiling - floor - lift - size.y, 0.3f);
+                if (!inCave || ceiling - floor < size.y + stalk + 2.5f)
+                    return false;
+                // The cord needs only a thin column of air; the frame or ring at its end needs its full reach.
+                for (float y = ceiling - 0.4f; y > ceiling - stalk - size.y; y -= 0.5f)
+                    if (source.CaveDistance(new float3(xz.x, y, xz.y)) > (y > ceiling - stalk + 0.3f ? -0.15f : -(reach + 0.05f)))
+                        return false;
+                if (Crowded(props, first, xz, reach, kind))
+                    return false;
+                size.z = stalk;
+                props.Add(new BatFolkProp { Position = new float3(xz.x, ceiling, xz.y), Size = size, Yaw = yaw, Kind = kind, Site = siteIndex });
+                return true;
+            }
+            {
+                var size = kind switch
+                {
+                    BatFolkPropKind.GuanoStone => new float3(rng.NextFloat(0.4f, 0.9f), rng.NextFloat(0.2f, 0.45f), 0f),
+                    BatFolkPropKind.Hammock => new float3(rng.NextFloat(2f, 2.6f), rng.NextFloat(1.3f, 1.6f), 0f),
+                    _ => new float3(1 + rng.NextInt(3), rng.NextFloat(1.4f, 1.8f), 0f)
+                };
+                var reach = kind == BatFolkPropKind.Hammock ? size.x * 0.5f + 0.1f : kind == BatFolkPropKind.GogglePeg ? 0.45f : size.x;
+                var xz = site.Centre.xz + new float2(math.cos(angle), math.sin(angle)) * site.Radius * rng.NextFloat(0.25f, 0.9f);
+                if (NearPool(ref set, cave, xz, reach + 0.8f) || OnPath(ref set, site.Chamber, xz, reach + 1.2f))
+                    return false;
+                var floor = source.FloorUnder(new float3(xz.x, site.Centre.y + 1f, xz.y), out var inCave);
+                if (!inCave || source.CaveDistance(new float3(xz.x, floor + 0.3f, xz.y)) > -0.2f)
+                    return false;
+                for (int k = 0; k < 4; k++)
+                {
+                    var o = new float2(math.cos(yaw + k * math.PI * 0.5f), math.sin(yaw + k * math.PI * 0.5f)) * reach;
+                    var f = source.FloorUnder(new float3(xz.x + o.x, floor + 1f, xz.y + o.y), out var inside);
+                    if (!inside || math.abs(f - floor) > 0.45f || source.CaveDistance(new float3(xz.x + o.x, f + size.y * 0.6f, xz.y + o.y)) > -0.15f)
+                        return false;
+                }
+                if (source.CaveDistance(new float3(xz.x, floor + size.y + 0.5f, xz.y)) > -0.4f || Crowded(props, first, xz, reach, kind))
+                    return false;
+                props.Add(new BatFolkProp { Position = new float3(xz.x, floor - 0.08f, xz.y), Size = size, Yaw = yaw, Kind = kind, Site = siteIndex });
+                return true;
+            }
+        }
+
+        /// <summary>Whether the four corner cords of a hung house, from its roof line up to <paramref name="top"/>, are in air.</summary>
+        static bool CordsInAir(in TerrainSource source, float3 origin, float yaw, float width, float depth, float from, float top)
+        {
+            var turn = quaternion.RotateY(yaw);
+            for (int c = 0; c < 4; c++)
+            {
+                var corner = math.mul(turn, new float3(((c & 1) - 0.5f) * width, 0f, ((c >> 1) - 0.5f) * depth));
+                for (var y = origin.y + from; y < top; y += 0.4f)
+                    if (source.CaveDistance(new float3(origin.x + corner.x, y, origin.z + corner.z)) > -0.05f)
+                        return false;
+            }
+            return true;
+        }
+
+        /// <summary>Whether a box (building space: +Z turned by <paramref name="yaw"/>, y up from <paramref name="origin"/>) is all in cave air, on a 4x4x4 grid.</summary>
+        static bool BoxInAir(in TerrainSource source, float3 origin, float yaw, float width, float height, float depth)
+        {
+            var turn = quaternion.RotateY(yaw);
+            for (int i = 0; i < 4; i++)
+                for (int j = 0; j < 4; j++)
+                    for (int k = 0; k < 4; k++)
+                    {
+                        var local = new float3((i / 3f - 0.5f) * width, j / 3f * height, (k / 3f - 0.5f) * depth);
+                        if (source.CaveDistance(origin + math.mul(turn, local)) > -0.1f)
+                            return false;
+                    }
+            return true;
         }
 
         /// <summary>
@@ -345,20 +591,22 @@ namespace Punchy.Terrain
             for (int i = 0; i < b.Sites.Length; i++)
             {
                 ref var s = ref b.Sites[i];
-                int huts = 0, props = 0;
+                int huts = 0, props = 0, houses = 0, details = 0;
                 // Each hut's pod bottom above the floor under it (m), so its height can be checked from the log.
                 var heights = new StringBuilder();
                 for (int k = 0; k < b.Props.Length; k++)
                     if (b.Props[k].Site == i)
                     {
                         ref var p = ref b.Props[k];
+                        if (p.Kind == BatFolkPropKind.WallHouse || p.Kind == BatFolkPropKind.CeilingHouse) { houses++; continue; }
+                        if (p.Kind >= BatFolkPropKind.RoostFrame) { details++; continue; }
                         if (p.Kind != BatFolkPropKind.Hut) { props++; continue; }
                         huts++;
                         var bottom = p.Position.y - p.Size.z - p.Size.y;
                         var floor = source.FloorUnder(new float3(p.Position.x, bottom - 0.1f, p.Position.z), out _);
                         heights.Append(heights.Length == 0 ? "" : "/").Append((bottom - floor).ToString("F1"));
                     }
-                sb.Append($"; cave {s.Cave} chamber {s.Centre.x:F0},{s.Centre.y:F0},{s.Centre.z:F0} r {s.Radius:F1} pool {s.Pool} huts {huts} props {props} hut bottoms {heights} m");
+                sb.Append($"; cave {s.Cave} chamber {s.Centre.x:F0},{s.Centre.y:F0},{s.Centre.z:F0} r {s.Radius:F1} pool {s.Pool} huts {huts} props {props} houses {houses} details {details} hut bottoms {heights} m");
             }
             return sb.ToString();
         }
