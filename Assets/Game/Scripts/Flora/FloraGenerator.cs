@@ -2222,7 +2222,7 @@ namespace Punchy.Flora
 
         /// <summary>
         /// W-65b: stepping stones as one row across a shallow narrows (a single stone per draw left 10 m gaps, W-63).
-        /// 11 or 12 flat stones along X, 1.1-1.3 m apart, tops 4-12 cm over the origin (FloraPlacement seats the origin
+        /// flat stones along X, about 0.85 m apart (W-65f), tops 4-12 cm over the origin (FloraPlacement seats the origin
         /// on the water surface) and reaching 0.9 m down to the bed. No colliders: they are stood on, through the
         /// support grid, not bumped into.
         /// </summary>
@@ -2231,9 +2231,11 @@ namespace Punchy.Flora
             var b = g.B;
             var first = b.VertexCount;
             var detail = g.Sides(3, 2, 1);
-            // W-65d: the length by variant, stones about 1.1 m apart.
+            // W-65d: the length by variant. W-65f: stones about 0.85 m apart (were 1.1): a stone's standable top (the part
+            // under 57 degrees) is only about 0.36 m round its middle, so 1.1 m left 0.4 m holes in the support grid that
+            // the player dropped through into the river; at 0.85 m the holes are narrower than the feet's sample spread.
             var length = StoneRowLength(g.Variant % StoneRowVariants);
-            var n = Mathf.RoundToInt(length / 1.1f) + 1;
+            var n = Mathf.RoundToInt(length / 0.85f) + 1;
             var pitch = length / (n - 1);
             for (int k = 0; k < n; k++)
             {

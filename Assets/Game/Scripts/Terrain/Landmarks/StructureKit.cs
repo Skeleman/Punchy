@@ -392,12 +392,15 @@ namespace Punchy.Terrain
             // (a pitched ramp's support sampled in steps over 0.4 m where the bank fell away beside it).
             // W-65d: 10 treads (0.14 m each) over 6 m, so a walker still on the bank beside the low treads meets each
             // next tread well within the 0.4 m step-up (with 7 the gap to the bank outgrew it near the deck end).
+            // W-65f (#36): each tread is solid (a collider up to its top), so a walker on the low bank beside or below the
+            // shore end is stopped by any tread more than a step up and only gets onto the steps where one is within a
+            // step; it can no longer walk in under the higher treads (the player stopped under them at -3285.9,-1644.0).
             const int treads = 10;
             for (int k = 0; k < treads; k++)
             {
                 var top = deck - rise * (k + 1) / treads;
                 var run = rampRun / treads;
-                Add(parts, KitPiece.Platform, KitMaterial.Wood, new Vector3(0f, (top - 0.6f) * 0.5f, -run * (k + 0.5f)), new Vector3(W * 0.8f, top + 0.6f, run + 0.02f), 0f, false);
+                Add(parts, KitPiece.Platform, KitMaterial.Wood, new Vector3(0f, (top - 0.6f) * 0.5f, -run * (k + 0.5f)), new Vector3(W * 0.8f, top + 0.6f, run + 0.02f), 0f, true);
                 Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3(0f, top + 0.02f, -run * k - 0.04f), new Vector3(W * 0.82f, 0.05f, 0.08f), 0f, false);
             }
 
