@@ -40,6 +40,8 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
   `lift × sin`. Gaits come from slot phases (walk 0/¼/½/¾, trot = diagonal pairs, hop = pairs together).
 - Stride and standing height are measured from the key poses, so feet don't slide; change poses rather than
   speeds to fix sliding.
+- Upright runners hold the elbow at the HumanArm run keys (85-95°): the per-folk arm swing and the sprint pump scale
+  the shoulder only (A-41; scaled, the elbow folded shut at a sprint). Hip extension at a run is the RunPush key.
 - Body sockets are in body units: x and y across the radius, z from −1 (rump) to 1 (chest). Child sockets are
   metres from the **end** of the parent's last segment, in that segment's frame.
 

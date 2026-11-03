@@ -445,6 +445,10 @@ namespace Punchy.Fauna
                         var idle = b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle];
                         a = idle + (a - idle) * amplitude;
                     }
+                    // Running, an upright body holds its elbow near a right angle (the run keys' 85-95°), whatever its
+                    // arm swing or sprint pump: scaled up, the bend folded the forearm onto the upper arm (A-41).
+                    if (b.Upright && part.Role == LimbRole.Arm && j == 1 && run > 0f)
+                        a.x = math.lerp(a.x, b.Angles(seg, jointPhase, gaitMove, run).x, run);
                     // Carrying something in both arms: they hold it, rather than swinging with the stride.
                     if (part.Role == LimbRole.Arm && s.Action == IdleAction.Carry)
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], act);
