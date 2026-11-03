@@ -1545,3 +1545,18 @@ Left: village3_dusk framing; the intermittent sim snag; DunesColossus editor/pla
 4. Hashes: v2 136 landmarks, editor 4E61F1CF, player B5EFF8C8; caves C49E8E3036C741FC; ground C0C906EE310FA91F; rivers A77D2ED7B919296E. All match. No landmark changes. v1 was not run (tool budget).
 Shots: D:\PunchyMilestones\W-64\w64_turtle_village, igloo_door_a, igloo_door_b, igloo_walk_start, igloo_walk_end, ruin0_close, ruin0_medium, ruin1_close, ruin1_medium (plus stray shot-0, shot-10).
 Left: the igloo inner block lets 3/5 walks pass the door line (the door is still reached); v1 hash check.
+
+## W-66 (2026-11-03) world-features 29fefb1 + follow-up (#81 #82)
+- Editor: no editor was running, so I opened the world-tree editor. Refresh ran and there were 0 compile errors (collab-proxy is gone).
+- #81 cave at 530,958: the editor marker profile (1019 frames) put Fauna TraceSystem at 4.0 ms/frame, the top game cost. CreatureRender came next at 1.0 ms and InteractionInput at 0.8 ms. Fix: every in-range creature's ground lookup (NoSurface, plus water for waders, breachers and burrowers) now runs in one Burst job instead of managed calls per creature. Behaviour is the same. `-oldtrace` on a shot line brings back the old path. The file is in the Fauna folder.
+  - Player, same spot and heading (-view 0,10, -time 12): old 18.69 ms (max 22.2). New 16.67 / 16.67 ms (max 16.8), which is the vsync cap, so the real gain is bigger than this shows. The build has no frame timing stats, so there is no CPU/GPU split.
+- #82: settlement plot buildings, landmark placed props (stalls) and the landmark centre prop (big tent) were all created with Snow 0. Each now takes the biome snow at its spot from the new TerrainSource.SampleBiomeSnow, which is read-only and changes no terrain.
+  - NOT PROVEN: both v2 stall camps are on snowless ground. In the w66_ogre_camp shot the tents and stall are bare, as expected. In the editor, all v1 camps sample 0 snow. The Zach playtest camp spot is still unknown, so I have no framed snowy-town shot.
+  - Steep tent hides may still take little snow, because of the shader's n.y smoothstep.
+- Build: 1 build, Succeeded with 0 errors (1:20). The player quit by itself, and tasklist shows no Punchy.exe running.
+- Hashes: v1 103 / F628AE5F raw, unchanged. Player v2 136 landmarks, from the warp-target count. The editor was in v1, so I did not re-hash v2 there. I did not re-hash caves, ground or rivers. No landmark, cave or terrain code changed: SampleBiomeSnow only reads.
+- Shots: D:/PunchyMilestones/W-66 (w66_cave_new_a, w66_cave_old, w66_cave_new_b, w66_goblin_camp, w66_ogre_camp, player.log).
+- Left over:
+  - #82 needs a snowy camp spot, or Zach's playtest coordinates, for the proof shot.
+  - Re-hash v2, caves, ground and rivers in the editor.
+  - I went over the tool budget (about 70 calls).
