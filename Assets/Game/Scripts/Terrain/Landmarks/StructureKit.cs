@@ -204,7 +204,7 @@ namespace Punchy.Terrain
 
         /// <summary>
         /// A dock (#36) from its land end (the origin) out along +Z: a Platform deck on piles that run on down into the
-        /// water, a short stair up from the shore, a lantern post at the far end, and what the folk leave on it (crab
+        /// water, a plank ramp up from the shore, a lantern post at the far end, and what the folk leave on it (crab
         /// pots, a coil of net) with a boat moored alongside, all from the seed.
         /// </summary>
         public static List<KitPart> Dock(uint seed, CultureTrim t, float length, float width, float deck)
@@ -215,8 +215,17 @@ namespace Punchy.Terrain
             for (int k = 0, piles = Mathf.Max(2, Mathf.RoundToInt(length / 2.2f) + 1); k < piles; k++)
                 foreach (var side in new[] { -1f, 1f })
                     Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(side * width * 0.45f, -1.8f, k * length / (piles - 1)), new Vector3(0.26f, 3.6f, 0.26f), 0f, false);
-            var steps = Mathf.Max(2, Mathf.CeilToInt(deck / 0.28f));
-            Stair(parts, new Vector3(0f, 0f, 0.3f - steps * 0.15f - 0.5f), 0f, deck, width * 0.8f);
+            // A plank ramp up from the bank to the deck (W-59c: the old short stair's treads fell between the support
+            // grid's samples, so the player met a 0.5 to 1.6 m wall at the land end). It starts 0.4 m into the ground,
+            // about 15 degrees, so it is walked up like a slope; cleats across it for the look.
+            const float rampDrop = 0.4f, rampRun = 4.6f;
+            var rise = deck + rampDrop;
+            var pitch = -Mathf.Atan2(rise, rampRun) * Mathf.Rad2Deg;
+            var slope = Mathf.Sqrt(rise * rise + rampRun * rampRun);
+            var down = Quaternion.Euler(pitch, 0f, 0f) * Vector3.up * 0.08f;
+            Add(parts, KitPiece.Platform, KitMaterial.Wood, new Vector3(0f, (deck - rampDrop) * 0.5f, -rampRun * 0.5f) - down, new Vector3(width * 0.8f, 0.16f, slope), 0f, false, pitch);
+            for (int k = 1; k < 5; k++)
+                Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3(0f, deck - rise * k / 5f + 0.02f, -rampRun * k / 5f), new Vector3(width * 0.78f, 0.05f, 0.08f), 0f, false);
             Detail(parts, CoastDetail.Lantern, new Vector3(width * 0.35f, deck, length - 0.4f), 0f, rng, t);
             if (rng.NextDouble() < 0.6)
                 Detail(parts, CoastDetail.CrabPots, new Vector3(-width * 0.2f, deck, length * (0.4f + 0.4f * (float)rng.NextDouble())), (float)rng.NextDouble() * 360f, rng, t);

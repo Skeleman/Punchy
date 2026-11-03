@@ -32,7 +32,8 @@ namespace Punchy.Flora
         public int OwnColour;
         /// <summary>1 for built things (FloraGenerator.Founded): their bases take a band of the ground's colour.</summary>
         public int Dirt;
-        /// <summary>1 for hive trees and docks: placed in a landmark, they face its way (comb on a known side, docks out to sea).</summary>
+        /// <summary>1 for hive trees, 2 for docks: placed in a landmark, they face its way (comb on a known side, docks out to
+        /// sea). A dock also slides along that way to the waterline (DockShore), so its land end starts on the bank.</summary>
         public int FaceLandmark;
         /// <summary>
         /// How far its footprint reaches at scale 1 (m): the trunk for trees, about half its spread otherwise. Settlement
@@ -217,7 +218,7 @@ namespace Punchy.Flora
                     OwnColour = s.KeepOwnColour ? 1 : 0,
                     Dirt = FloraGenerator.Founded(s.Form) ? 1 : 0,
                     // Docks (#36) face the landmark's way too: a fishing village faces open water, so they run out to sea.
-                    FaceLandmark = s.Form == FloraForm.HiveTree || s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Dock ? 1 : 0,
+                    FaceLandmark = s.Form == FloraForm.HiveTree ? 1 : s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Dock ? 2 : 0,
                     Footprint = Footprint(s),
                     Span = s.Form == FloraForm.IceArch ? (s.Height.x + s.Height.y) * 0.5f * math.max(s.Spread, 0.5f) * 0.5f : 0f
                 };
@@ -474,6 +475,41 @@ namespace Punchy.Flora
 
         /// <summary>The yaw that turns a model's front (+Z) to face a direction (yaw maps +Z to (-sin, cos)).</summary>
         static float FacingYaw(float2 facing) => math.atan2(-facing.x, facing.y);
+
+        /// <summary>
+        /// Where a dock (#36, W-59c) starts: its ring spot slid along the village's facing (up to 14 m either way) to
+        /// just above the waterline, so the land end and its short stair stand on the bank and the deck (0.8 m up) rides
+        /// clear of the sea; never below the sea itself. (W-59b's docks started anywhere from 1.7 m under water to 2.5 m
+        /// up the bank, and the player snagged at the land end.)
+        /// </summary>
+        static float3 DockShore(in TerrainSource source, float2 spot, float2 facing)
+        {
+            var sea = source.World.SeaLevel;
+            const float above = 0.25f;
+            var dir = math.normalizesafe(facing, new float2(1f, 0f));
+            var best = spot;
+            if (source.SampleHeight(spot) > sea + above)
+            {
+                // On the bank: walk out to the last dry step before the water.
+                for (var d = 0.5f; d <= 14f; d += 0.5f)
+                {
+                    if (source.SampleHeight(spot + dir * d) <= sea + above)
+                        break;
+                    best = spot + dir * d;
+                }
+            }
+            else
+            {
+                // In the water: walk back up to the first dry step.
+                for (var d = 0.5f; d <= 14f; d += 0.5f)
+                {
+                    best = spot - dir * d;
+                    if (source.SampleHeight(best) > sea + above)
+                        break;
+                }
+            }
+            return new float3(best.x, math.max(source.SampleHeight(best), sea + 0.1f), best.y);
+        }
 
         /// <summary>
         /// The floor a plot's building stands at: the average ground over its footprint (the middle and four points
@@ -991,9 +1027,12 @@ namespace Punchy.Flora
                                 var placedYaw = prop.FaceCentre != 0 ? math.atan2(-toCentre.x, toCentre.y) : rng.NextFloat(math.PI * 2f);
                                 if (placedRule.FaceLandmark != 0)
                                     placedYaw = FacingYaw(set.Instances[landmark.Instance].Facing);
+                                var at = new float3(spot.x, footprint ? 0f : source.SampleHeight(spot), spot.y);
+                                if (placedRule.FaceLandmark == 2 && !footprint)
+                                    at = DockShore(source, spot, set.Instances[landmark.Instance].Facing);
                                 return new FloraSystem.FloraInstance
                                 {
-                                    Position = new float3(spot.x, footprint ? 0f : source.SampleHeight(spot), spot.y),
+                                    Position = at,
                                     Yaw = placedYaw,
                                     Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
                                     Model = placedRule.FirstModel + rng.NextInt(placedRule.Variants),
