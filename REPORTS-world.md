@@ -2,6 +2,14 @@
 
 Newest first.
 
+## W-57b (2026-11-03), world-features f6b77f1
+- DONE (code, no sim) #70: MagneticDebris pieces below 2.2 m now lie fallen on the mound and block via stepped colliders (cut off below the 0.4 m step-up); the scorched mound blocks. Pieces higher up keep orbiting and stay non-solid. MagneticDrift: the mound under the rock blocks; the rock always floats 5 m+ up, so it stays non-solid. Form text updated. NOT DONE: the editor sim at 5 slabs (ran out of budget).
+- DONE #69: FloraForm.HazardShelter + ShelterStyle (AshDome / SnowLeanTo / ShardDome); 3 species; all 7 layouts list them with OnlyIn (Ashlands+Volcano / Tundra+Glacier / ElectricWastelands+GlassDesert). They take the house plot nearest the centre with no rng draws. On v2, 2 settlements sit in Tundra (OgreCamp -2073.8,1266.1; DwarfHold -2337.8,1994.6); none in ash or waste. Shots: shelter_tundra_dwarfhold, shelter_tundra_ogrecamp.
+- #69/#72: v2 has only 1 hermit (HermitHutAsh 140,-545) and 2 campsite biomes (SparklingForest -3357.7,-256.9; FungalForest -3202.9,-1411.3). No second harsh hermit or third campsite biome on v2. v1 was not searched. Shots: hermit_ash_140_-545, campsite_sparkling, campsite_fungal.
+- DONE #71: greatmushroom_day.
+- Build 1x (Succeeded, 0 errors). Ground C0C906EE310FA91F (unchanged). v2 landmarks 127 / 0AAACD45 (editor). v1 103 landmarks; the player log hash is F628AE5F (raw log hash, not yet mapped to the 19885131 form). Rivers and caves were not hashed: they are baked before settlements and this change doesn't touch them.
+- Shots: D:/PunchyMilestones/W-57 (not viewed). Left: the #70 sim; check the shelter shots.
+
 ## 2026-11-03 batch W-57: biome looks for hermits, campsites, great mushroom; cave stress test (#69-#72)
 
 - New: `LandmarkType.BiomeLooks` (a list of biome lists -> look landmark type) + `Work` (Chop/Sweep/Shovel/Hammer). Looks are swapped by the dominant biome at the centre after placement, so count and positions never move. The Work anchor carries Work to the hermit's brain; the tool is axe/broom/spade/hammer. Commit 2ec329c (world-features).
