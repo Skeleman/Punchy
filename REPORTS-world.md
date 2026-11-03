@@ -2,6 +2,16 @@
 
 Newest first.
 
+## 2026-11-03 batch W-57: biome looks for hermits, campsites, great mushroom; cave stress test (#69-#72)
+
+- New: `LandmarkType.BiomeLooks` (a list of biome lists -> look landmark type) + `Work` (Chop/Sweep/Shovel/Hammer). Looks are swapped by the dominant biome at the centre after placement, so count and positions never move. The Work anchor carries Work to the hermit's brain; the tool is axe/broom/spade/hammer. Commit 2ec329c (world-features).
+- PARTIAL #69: shelter / ground / work per biome: Ashlands+Volcano stone house, basalt fire pit, ash sand, cinder rocks, obsidian stump, sweeps ash | Tundra+Glacier+Mountains mud hut, tundra ground, ice slab, shovels | ElectricWastelands+GlassDesert stone house, basalt, obsidian, hammers (armouring) | Dunes+Sonoran+SaltFlat mud hut, sand, cinder rocks, bogwood, sweeps | elsewhere the old hut, chops. The island has only ONE hermit (140,-545, now HermitHutAsh), so no second harsh-biome hermit exists without new placement (a hash change). Atypical shelter for harsh-biome settlements: NOT done. No shots (no build).
+- NOT DONE #70: the electric wasteland flora with no collision are MagneticDebris (Debris form, orbiting pieces) and MagneticDrift (FloatingRock form, flat-slab variant). Both are `Solid: 0` by design ("Not solid" in the form tooltip). No fix and no sim yet: either give the low pieces colliders or make them read as decals.
+- DONE (no shot) #71: GreatMushroom (the AncientTree stamp and ground; giant glow cap x2.6-3, pale caps, puffballs; no residents) replaces AncientTree in FungalForest. Landmarks v2 127, positions unchanged; base-mapped fingerprint 4D245E12 -> 0AAACD45 (the only diff is AncientTree -> GreatMushroom at -1798.5,-1970.2); raw A5ED303A. v1 (103 / 19885131) not checked.
+- PARTIAL #72: CampsiteAsh / Snow / Fungal / Dune looks (fire, ground, a tent or giant puffball in place of the 2nd bedroll). The island has only 2 isolated campsites: -3202.9,-1411.3 is now Fungal; -3357.7,-256.9 stays plain (temperate). So 3 biomes can't be shown on this seed. No shots.
+- DONE row 5: 11 cave jumps 2 s apart (editor play mode): frame 16.6-16.7 ms every jump; cave chunks 8-39 (per cave, not growing); dying 0; moving lights 0; creatures 18-103 (per spot); mono 1684-1738 MB, alloc 2608-2631 MB (flat, no trend). Nothing grows. Cave hash C49E8E3036C741FC (unchanged).
+- Not checked: ground hash (C0C906EE310FA91F), rivers. Left: #70, second hermit + settlement shelter (#69), a 3rd campsite biome (#72), build + shots for all rows.
+
 ## 2026-11-03 batch W-56b: temple v2 finished on the ruin kit (#24)
 
 - DONE #1: the "block" was the probe, not the temple. It walked straight lines between door centres, which ran through the pillared hall's pillar row (u 6.2-7.3, v -3.9..-5.1, hall floor y 8; not the entrance). The probe now walks the room chain square-on to each doorway (along the room's centre line, across, through). Walk in and out: 1312 moves each, blocked 0, max rise 0.32 / 0.27 m, sanctum reached (trunk rooms 45/45; the 2 branch dead-end rooms are not walked). Same seed builds the same layout (CAB1F447 twice; seed 777 gives 21F1AD29). No game code changed.
