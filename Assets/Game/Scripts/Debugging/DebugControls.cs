@@ -1100,6 +1100,7 @@ namespace Punchy.Debugging
         /// beating its wings if flying).</summary>
         static string poseRequest;
         Entity posed;
+        float posedAt;   // when the -pose specimen appeared (for "scare")
         float2? swimSpot;
         /// <summary>"-interact Cat:carry" (or ":pet"): walks up to the nearest one, pets it or picks it up, and puts it
         /// down again a while later, as if the keys were pressed (alone, hosting or joined).</summary>
@@ -1339,6 +1340,8 @@ namespace Punchy.Debugging
             if (System.Array.IndexOf(args, "-meteors") >= 0)
                 Shader.SetGlobalFloat("_PunchySkyTest", 1f);
             Punchy.Player.PlayerMovementSystem.NoPushOut.Data = System.Array.IndexOf(args, "-nopushout") >= 0;
+            // "-oldlie" (A-42): lying four-legged bodies' legs left where they fall, for before shots from the same build.
+            CreatureAnimator.OldLie.Data = System.Array.IndexOf(args, "-oldlie") >= 0 ? 1 : 0;
             // "-redstar": one red-orange shooting star held mid-flight high in the east, for shots (W-42).
             if (System.Array.IndexOf(args, "-redstar") >= 0)
                 Shader.SetGlobalFloat("_PunchySkyTest", 2f);
@@ -1832,6 +1835,14 @@ namespace Punchy.Debugging
             var glide = how == "glide";
             if (glide)
                 how = "fly";
+            // A-42: "lie": lying down (Rest), its legs folded; "-oldlie" on the same line leaves them as they fell before
+            // A-42. A later -pose line naming another species swaps the specimen.
+            var lie = how == "lie";
+            if (posed != Entity.Null && em.Exists(posed) && em.GetComponentData<CreatureBody>(posed).Species != director.SpeciesIndex(parts[0]))
+            {
+                em.DestroyEntity(posed);
+                posed = Entity.Null;
+            }
             if (posed == Entity.Null || !em.Exists(posed))
             {
                 var index = director.SpeciesIndex(parts[0]);
@@ -1843,6 +1854,7 @@ namespace Punchy.Debugging
                 }
                 var spot = player.Position.xz + new float2(2f, 0f);
                 posed = director.Spawn(index, new float3(spot.x, source.SampleHeight(spot), spot.y), 0f);
+                posedAt = Time.time;
                 em.AddComponent<PosedForTest>(posed);
                 Debug.Log($"DebugControls: posing {parts[0]} ({how})");
             }
@@ -1852,12 +1864,26 @@ namespace Punchy.Debugging
             var xz = player.Position.xz + new float2(2f, 0f);
             var ground = source.SampleHeight(xz);
             var size = b.BodyLength * c.Scale;
-            c.Mode = how == "hang" ? CreatureMode.Roost : CreatureMode.Idle;
+            c.Mode = how == "hang" ? CreatureMode.Roost : lie ? CreatureMode.Rest : CreatureMode.Idle;
+            if (lie)
+                c.Lie = 1f;
+            // "scare" (A-42): stands 3 s, then turns and runs off straight ahead (+z), as if frightened: the flee state
+            // change a skunk's gas starts from. The camera follows it.
+            var scared = how == "scare" ? math.max(Time.time - posedAt - 3f, 0f) : 0f;
+            if (scared > 0f)
+            {
+                c.Mode = CreatureMode.Flee;
+                c.Speed = b.RunSpeed * c.Scale;
+                c.GaitSpeed = c.Speed;
+                CreatureMotion.AdvancePhase(ref c, ref b, dt);
+                xz += new float2(0f, scared * c.Speed);
+                ground = source.SampleHeight(xz);
+            }
             c.Stage = (byte)(how == "hang" ? 200 : 0);
             c.Fly = how == "fly" ? 1f : 0f;
             c.Vertical = how == "hang" ? -1f : 0f;
-            c.Speed = how == "fly" ? b.FlySpeed * 0.6f : 0f;
-            var onGround = how == "rest" || how == "nest" && b.Nests == NestSite.Ground;
+            c.Speed = how == "fly" ? b.FlySpeed * 0.6f : scared > 0f ? c.Speed : 0f;
+            var onGround = how == "rest" || lie || how == "scare" || how == "nest" && b.Nests == NestSite.Ground;
             c.Position = new float3(xz.x, ground + (onGround ? 0f : math.max(1.2f, size * 4f)), xz.y);
             // Sitting in its nest (made where it is, the size FindNest gives one).
             if (how == "nest")

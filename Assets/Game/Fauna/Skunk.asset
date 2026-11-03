@@ -106,6 +106,7 @@ MonoBehaviour:
   WanderRadius: 15
   IdleTime: {x: 2, y: 7}
   FleeDistance: 4
+  FleeGas: 1
   TurnRate: 150
   GroupSize: {x: 1, y: 1}
   NearWater: 0
