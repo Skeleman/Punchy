@@ -109,7 +109,8 @@ namespace Punchy.Fauna
                 Positions[kind] = new float3(spot.x, ground, spot.y);
                 // Keep flora out of a circle round it and re-place the streamed tiles, so no tree grows through it (#40).
                 var keep = FloraPlacement.KeepOut.Data;
-                keep[kind] = new float4(spot.x, spot.y, kind == 0 ? 34f : 26f, 1f);
+                // The head's circle is wide enough (W-59d) to leave a clear sight line from about 40 m away.
+                keep[kind] = new float4(spot.x, spot.y, kind == 0 ? 34f : 42f, 1f);
                 FloraPlacement.KeepOut.Data = keep;
                 FloraSystem.Replant = true;
                 roots[kind] = kind == 0 ? BuildTitan(Positions[kind], yaw) : BuildHead(Positions[kind], yaw);
