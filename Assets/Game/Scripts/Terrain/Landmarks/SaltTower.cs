@@ -235,9 +235,11 @@ namespace Punchy.Terrain
         {
             var result = new List<LandmarkInstance>();
             LastLog = "";
-            for (int t = 0; t < types.Count; t++)
-                if (types[t] != null && types[t].OnePerIsland && TryPlace(source, palette, types, t, result, out var inst))
-                    result.Add(inst);
+            // W-32: towers first, exactly as before; the temple then takes its own spot clear of them.
+            for (int pass = 0; pass < 2; pass++)
+                for (int t = 0; t < types.Count; t++)
+                    if (types[t] != null && types[t].OnePerIsland && types[t].Temple == (pass == 1) && TryPlace(source, palette, types, t, result, out var inst))
+                        result.Add(inst);
             return result;
         }
 
@@ -296,7 +298,7 @@ namespace Punchy.Terrain
             }
             if (bestSize == 0)
             {
-                LastLog = $"[landmarks] {type.name}: no patch of its biome";
+                LastLog += (LastLog.Length > 0 ? "\n" : "") + $"[landmarks] {type.name}: no patch of its biome";
                 UnityEngine.Debug.Log(LastLog);
                 return false;
             }
@@ -365,13 +367,13 @@ namespace Punchy.Terrain
             }
             if (chosen < 0)
             {
-                LastLog = $"[landmarks] {type.name}: no clear spot in its largest patch ({bestSize} cells)";
+                LastLog += (LastLog.Length > 0 ? "\n" : "") + $"[landmarks] {type.name}: no clear spot in its largest patch ({bestSize} cells)";
                 UnityEngine.Debug.Log(LastLog);
                 return false;
             }
 
             var at = new float2(chosen % size, chosen / size) * Cell - Extent;
-            var key = math.hash(new uint3(math.asuint(at.x), math.asuint(at.y), 0x7A3Bu)) | 1u;
+            var key = math.hash(new uint3(math.asuint(at.x), math.asuint(at.y), type.Temple ? 0x5E7Au : 0x7A3Bu)) | 1u;
             var spin = BiomeSampling.Scramble(key);
             var facing = (spin & 0xFFFF) * (2f * math.PI / 65536f);
             inst = new LandmarkInstance
@@ -380,16 +382,34 @@ namespace Punchy.Terrain
                 Facing = new float2(math.cos(facing), math.sin(facing)),
                 Scale = 1f,
                 Type = t,
-                BaseHeight = chosenBase,
+                BaseHeight = type.Temple ? TempleBase(source, at, new float2(math.cos(facing), math.sin(facing))) : chosenBase,
                 Seed = (BiomeSampling.Scramble(spin) >> 8) * (1f / 16777216f),
                 Key = key
             };
+            if (type.Temple)
+            {
+                LastLog += (LastLog.Length > 0 ? "\n" : "") + $"[landmarks] {type.name} at {at.x:F1},{at.y:F1}: facing {math.degrees(facing):F0} deg, base {inst.BaseHeight:F1} " +
+                           $"(spot top {chosenBase:F1}), relief {chosenRelief:F2} m, patch {bestSize} cells, {depth[chosen] * Cell:F0} m in from its edge";
+                UnityEngine.Debug.Log(LastLog);
+                return true;
+            }
             var layout = SaltTowerShape.Layout(inst, type.TowerHeight);
-            LastLog = $"[landmarks] {type.name} at {at.x:F1},{at.y:F1}: height {layout.Height:F1} m above base {chosenBase:F1}, " +
+            LastLog += (LastLog.Length > 0 ? "\n" : "") + $"[landmarks] {type.name} at {at.x:F1},{at.y:F1}: height {layout.Height:F1} m above base {chosenBase:F1}, " +
                       $"relief {chosenRelief:F2} m, {layout.Steps} steps of {layout.Rise:F3} m, patch {bestSize} cells " +
                       $"({bestSize * Cell * Cell / 1e6f:F1} km2), {depth[chosen] * Cell:F0} m in from its edge";
             UnityEngine.Debug.Log(LastLog);
             return true;
+        }
+
+        /// <summary>W-32: the sunken temple's base, just above the highest ground under its rooms, so no room has ground in it.</summary>
+        static float TempleBase(in TerrainSource source, float2 at, float2 f)
+        {
+            var r = new float2(-f.y, f.x);
+            var top = float.MinValue;
+            for (float u = -30f; u <= 30f; u += 4f)
+                for (float v = -12f; v <= 12f; v += 4f)
+                    top = math.max(top, source.SampleHeight(at + u * f + v * r));
+            return top + 0.3f;
         }
 
         static IEnumerable<int> Neighbours(int c, int size)

@@ -22,6 +22,8 @@ namespace Punchy.Terrain
         public float ClearRadius;
         /// <summary>A climbable tower's height (SaltTowerShape), or 0.</summary>
         public float TowerHeight;
+        /// <summary>W-32: 1 for the one-per-island sunken temple (SunkenTempleShape).</summary>
+        public byte Temple;
     }
 
     public struct LandmarkPoolData

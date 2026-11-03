@@ -1483,6 +1483,18 @@ namespace Punchy.Debugging
                     Debug.Log($"DebugControls: to {gx:F0},{gz:F0}");
                 }
             }
+            // "-gocave -1669,2494" (x,z): onto the floor at the cave node nearest that spot in plan, at any depth.
+            // "-gocave #2": the second-largest cave (by summed chamber volume), at its biggest node.
+            var goCave = System.Array.IndexOf(args, "-gocave");
+            if (goCave >= 0 && goCave + 1 < args.Length && EnsureLocations(out var goCaveSource) && goCaveSource.Caves.IsCreated &&
+                playerQuery.TryGetSingletonEntity<LocalTransform>(out var caver))
+                GoToCave(goCaveSource, caver, args[goCave + 1]);
+            // Testing toggles, per shot line: "-oldcave" (every cave chunk drawn, managed camera probe, as before W-48),
+            // "-nocavewalls" (no cave walls drawn, to price them), "-perflog" (frame costs over the last 3 s of the wait).
+            CaveSystem.NoRoomCull = ThirdPersonCamera.OldProbe = System.Array.IndexOf(args, "-oldcave") >= 0;
+            CaveSystem.NoWalls = System.Array.IndexOf(args, "-nocavewalls") >= 0;
+            perfLog = System.Array.IndexOf(args, "-perflog") >= 0;
+            CaveSystem.CountStats = ThirdPersonCamera.ProbeStats = perfLog;
             // "-goflat" (A-13 #46): to the nearest dry spot whose ground height spread over a 30 m circle is under 0.5 m
             // (found once, by rings round the start; the spot and its measured spread are logged).
             if (System.Array.IndexOf(args, "-goflat") >= 0 && EnsureLocations(out var flatSource) && playerQuery.TryGetSingletonEntity<LocalTransform>(out var flatGoer))
@@ -2118,6 +2130,10 @@ namespace Punchy.Debugging
                     System.Globalization.CultureInfo.InvariantCulture, out var placedWait) ? placedWait : 2f;
                 return;
             }
+            var caves = CaveSystem.Underground > 0.5f ? FindAnyObjectByType<CaveSystem>() : null;
+            var settled = caves == null || caves.Settled;
+            if (perfLog && Time.realtimeSinceStartup - shotStarted >= shotWait - 3f && (settled || Time.realtimeSinceStartup - shotStarted >= shotWait))
+                SamplePerf();
             if (Time.realtimeSinceStartup - shotStarted < shotWait)
                 return;
             // "-untilwork": not yet, while the watched folk isn't working (or only just started).
@@ -2133,14 +2149,195 @@ namespace Punchy.Debugging
                     return;
             }
             // Underground, also until the caves round the camera are built (up to 10 s more).
-            var caves = CaveSystem.Underground > 0.5f ? FindAnyObjectByType<CaveSystem>() : null;
-            if (caves != null && !caves.Settled && Time.realtimeSinceStartup - shotStarted < shotWait + 10f)
+            if (!settled && Time.realtimeSinceStartup - shotStarted < shotWait + 10f)
                 return;
             Shot((Arg("-shot") ?? $"shot-{shotIndex}") + ".png");
+            var at = playerQuery.TryGetSingleton<LocalTransform>(out var shooter) ? shooter.Position : float3.zero;
             Debug.Log($"DebugControls: shot {shotIndex + 1}/{shotLines.Count} '{Arg("-shot")}' after {Time.realtimeSinceStartup - shotStarted:F1} s" +
-                      (drawCalls.Valid ? $", {drawCalls.LastValue} draw calls, {batches.LastValue} batches, {tris.LastValue / 1000} k tris" : ""));
+                      (drawCalls.Valid ? $", {drawCalls.LastValue} draw calls, {batches.LastValue} batches, {tris.LastValue / 1000} k tris" : "") +
+                      $", player at ({at.x:F1}, {at.y:F1}, {at.z:F1})");
+            if (perfLog)
+                LogPerf(Arg("-shot"), at);
             shotIndex++;
             shotStarted = -1f;
+        }
+
+        // "-perflog" sums over the last 3 s of a shot line's wait.
+        bool perfLog;
+        int perfFrames, perfTimed, perfChunkFrames;
+        double perfFrame, perfMax, perfMain, perfRender, perfGpu, perfDraws, perfTris;
+        long perfLoaded, perfSubmitted, perfInView, perfShadows, perfCaveTris;
+        long perfProbeCalls0 = -1, perfProbeTicks0;
+        readonly FrameTiming[] perfTiming = new FrameTiming[1];
+
+        void SamplePerf()
+        {
+            if (perfProbeCalls0 < 0)
+            {
+                perfProbeCalls0 = ThirdPersonCamera.ProbeCalls;
+                perfProbeTicks0 = ThirdPersonCamera.ProbeTicks;
+            }
+            var dt = Time.unscaledDeltaTime * 1000.0;
+            perfFrames++;
+            perfFrame += dt;
+            perfMax = System.Math.Max(perfMax, dt);
+            FrameTimingManager.CaptureFrameTimings();
+            if (FrameTimingManager.GetLatestTimings(1, perfTiming) > 0)
+            {
+                perfTimed++;
+                perfMain += perfTiming[0].cpuMainThreadFrameTime;
+                perfRender += perfTiming[0].cpuRenderThreadFrameTime;
+                perfGpu += perfTiming[0].gpuFrameTime;
+            }
+            if (drawCalls.Valid)
+            {
+                perfDraws += drawCalls.LastValue;
+                perfTris += tris.LastValue;
+            }
+            perfChunkFrames++;
+            perfLoaded += CaveSystem.StatLoaded;
+            perfSubmitted += CaveSystem.StatSubmitted;
+            perfInView += CaveSystem.StatInView;
+            perfShadows += CaveSystem.StatShadows;
+            perfCaveTris += CaveSystem.StatTriangles;
+        }
+
+        /// <summary>One "perf" line per -perflog shot: frame, thread and GPU ms, cave chunks, lights, particles, probes.</summary>
+        void LogPerf(string name, float3 at)
+        {
+            var n = System.Math.Max(perfFrames, 1);
+            var t = System.Math.Max(perfTimed, 1);
+            var c = System.Math.Max(perfChunkFrames, 1);
+            var lights = 0;
+            var shadowLights = 0;
+            foreach (var l in FindObjectsByType<Light>(FindObjectsSortMode.None))
+                if (l.isActiveAndEnabled && l.intensity > 0f)
+                {
+                    lights++;
+                    if (l.shadows != LightShadows.None)
+                        shadowLights++;
+                }
+            var systems = 0;
+            var particles = 0;
+            foreach (var p in FindObjectsByType<ParticleSystem>(FindObjectsSortMode.None))
+                if (p.isPlaying)
+                {
+                    systems++;
+                    particles += p.particleCount;
+                }
+            var probeCalls = ThirdPersonCamera.ProbeCalls - perfProbeCalls0;
+            var probeMs = (ThirdPersonCamera.ProbeTicks - perfProbeTicks0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            // The solid query's own price here: 2000 IsRock (SolidDistance under it) round the player, in Burst.
+            var benchUs = 0.0;
+            if (EnsureLocations(out var benchSource))
+            {
+                var sink = new NativeArray<int>(1, Allocator.TempJob);
+                var bench = new SolidBench { Terrain = benchSource, Centre = at + new float3(0f, 1f, 0f), Count = 2000, Hits = sink };
+                bench.Run();
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                bench.Run();
+                benchUs = watch.Elapsed.TotalMilliseconds * 1000.0 / 2000.0;
+                sink.Dispose();
+            }
+            Debug.Log($"DebugControls: perf '{name}' {perfFrames} frames, frame {perfFrame / n:F2} ms (max {perfMax:F1}), " +
+                      (perfTimed > 0 ? $"cpu main {perfMain / t:F2}, render {perfRender / t:F2}, gpu {perfGpu / t:F2} ms" : "no frame timing") +
+                      (drawCalls.Valid ? $", {perfDraws / n:F0} draw calls, {perfTris / n / 1000:F0} k tris" : "") +
+                      $"; cave chunks loaded {perfLoaded / c}, submitted {perfSubmitted / c}, in view {perfInView / c}, casting {perfShadows / c}, " +
+                      $"{perfCaveTris / c / 1000} k cave tris in view; lights {lights} ({shadowLights} shadowed), particles {systems} systems / {particles}; " +
+                      $"camera probe {(double)probeCalls / n:F2}/frame, {probeMs / n * 1000:F0} us/frame; IsRock {benchUs:F2} us/call (Burst); " +
+                      $"underground {CaveSystem.Underground:F2}, hidden {CaveSystem.SurfaceHidden:F2}, player ({at.x:F1}, {at.y:F1}, {at.z:F1})");
+            perfFrames = perfTimed = perfChunkFrames = 0;
+            perfFrame = perfMax = perfMain = perfRender = perfGpu = perfDraws = perfTris = 0;
+            perfLoaded = perfSubmitted = perfInView = perfShadows = perfCaveTris = 0;
+            perfProbeCalls0 = -1;
+        }
+
+        [Unity.Burst.BurstCompile]
+        struct SolidBench : Unity.Jobs.IJob
+        {
+            public TerrainSource Terrain;
+            public float3 Centre;
+            public int Count;
+            public NativeArray<int> Hits;
+
+            public void Execute()
+            {
+                var rng = new Unity.Mathematics.Random(12345u);
+                var hits = 0;
+                for (int i = 0; i < Count; i++)
+                    if (Terrain.IsRock(Centre + rng.NextFloat3(-6f, 6f), 0.35f))
+                        hits++;
+                Hits[0] = hits;
+            }
+        }
+
+        /// <summary>"-gocave": onto a cave floor by plan position or by size rank; logs which cave and its depth.</summary>
+        void GoToCave(in TerrainSource source, Entity player, string arg)
+        {
+            ref var set = ref source.Caves.Value;
+            var count = set.Caves.Length;
+            var size = new float[count];
+            for (int c = 0; c < count; c++)
+            {
+                var cv = set.Caves[c];
+                for (int k = cv.FirstNode; k < cv.FirstNode + cv.NodeCount; k++)
+                    size[c] += set.Nodes[k].Radius * set.Nodes[k].Radius * set.Nodes[k].Radius;
+            }
+            var order = new int[count];
+            for (int c = 0; c < count; c++)
+                order[c] = c;
+            System.Array.Sort(order, (a, b) => size[b].CompareTo(size[a]));
+            int cave = -1, node = -1;
+            if (arg.StartsWith("#") && int.TryParse(arg.Substring(1), out var rank) && rank >= 1 && rank <= count)
+            {
+                cave = order[rank - 1];
+                var cv = set.Caves[cave];
+                for (int k = cv.FirstNode; k < cv.FirstNode + cv.NodeCount; k++)
+                    if (node < 0 || set.Nodes[k].Radius > set.Nodes[node].Radius)
+                        node = k;
+            }
+            else
+            {
+                var parts = arg.Split(',');
+                if (parts.Length < 2 ||
+                    !float.TryParse(parts[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x) ||
+                    !float.TryParse(parts[^1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var z))
+                    return;
+                var best = float.MaxValue;
+                for (int c = 0; c < count; c++)
+                {
+                    var cv = set.Caves[c];
+                    for (int k = cv.FirstNode; k < cv.FirstNode + cv.NodeCount; k++)
+                    {
+                        var d = math.distancesq(set.Nodes[k].Position.xz, new float2(x, z));
+                        if (d < best)
+                        {
+                            best = d;
+                            cave = c;
+                            node = k;
+                        }
+                    }
+                }
+            }
+            if (node < 0)
+                return;
+            var pos = set.Nodes[node].Position;
+            var floor = source.FloorUnder(pos + new float3(0f, 0.5f, 0f), out var inCave);
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(player);
+            t.Position = new float3(pos.x, floor + 0.05f, pos.z);
+            em.SetComponentData(player, t);
+            var top = new System.Text.StringBuilder();
+            for (int i = 0; i < math.min(3, count); i++)
+            {
+                var cv = set.Caves[order[i]];
+                top.Append($" #{i + 1} cave {order[i]} ({cv.NodeCount} nodes, size {size[order[i]]:F0}, mouth {cv.Mouth.x:F0},{cv.Mouth.y:F0},{cv.Mouth.z:F0})");
+            }
+            var rankOf = System.Array.IndexOf(order, cave) + 1;
+            var box = set.Caves[cave].Max - set.Caves[cave].Min;
+            Debug.Log($"DebugControls: gocave {arg}: cave {cave} (size rank {rankOf} of {count}, {set.Caves[cave].NodeCount} nodes, " +
+                      $"box {box.x:F0}x{box.y:F0}x{box.z:F0} m), node {node} radius {set.Nodes[node].Radius:F1} at ({pos.x:F1}, {pos.y:F1}, {pos.z:F1}), " +
+                      $"floor y {floor:F1} (in cave {inCave}), surface y {source.SampleHeight(pos.xz):F1}; largest:{top}");
         }
 
         /// <summary>

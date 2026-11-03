@@ -106,7 +106,13 @@ namespace Punchy.CameraRig
                         target.y -= 0.15f;
                     var back = position - target;
                     var length = back.magnitude;
+                    var probeStart = ProbeStats ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
                     var clear = CaveArm(terrain, target, back / Mathf.Max(length, 1e-4f), length);
+                    if (ProbeStats)
+                    {
+                        ProbeCalls++;
+                        ProbeTicks += System.Diagnostics.Stopwatch.GetTimestamp() - probeStart;
+                    }
                     caveArm = clear < caveArm ? clear : Mathf.MoveTowards(caveArm, clear, Time.deltaTime * 3f);
                     position = target + back * (Mathf.Min(caveArm, length) / Mathf.Max(length, 1e-4f));
                     if (caveArm < length - 0.01f)
@@ -161,6 +167,12 @@ namespace Punchy.CameraRig
 
             transform.SetPositionAndRotation(position, rotation);
         }
+
+        /// <summary>Testing (-oldcave): kept for the flag; the cave arm is now always the sphere trace (CaveArm).</summary>
+        public static bool OldProbe;
+        /// <summary>Testing (-perflog): time the cave arm probe.</summary>
+        public static bool ProbeStats;
+        public static long ProbeCalls, ProbeTicks;
 
         /// <summary>Within this of cave air (m) the camera casts for rock; the lens's radius and the gap it keeps from a hit.</summary>
         const float CaveNear = 6f, LensRadius = 0.3f, LensMargin = 0.05f;

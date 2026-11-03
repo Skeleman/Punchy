@@ -115,8 +115,13 @@ namespace Punchy.Terrain
         public BlobArray<int> Up;
         /// <summary>Waterfalls (only when RiverSettings.FallDrop &gt; 0): where a segment's bed steps down.</summary>
         public BlobArray<RiverFall> Falls;
+        /// <summary>
+        /// W-37: where each cell's segment starts (RiverBaking.PathPointsJob): the jittered centre, smoothed along wide
+        /// rivers on island v2 so their bends lengthen with width. Empty in a blob baked before W-37.
+        /// </summary>
+        public BlobArray<float2> Points;
 
-        public float2 Point(int index) => JitteredPoint(index, Resolution, Origin, CellSize, Meander, Seed);
+        public float2 Point(int index) => Points.Length > 0 ? Points[index] : JitteredPoint(index, Resolution, Origin, CellSize, Meander, Seed);
 
         /// <summary>Where a cell's river segment starts: its centre, nudged by a per-cell random offset so rivers meander.</summary>
         public static float2 JitteredPoint(int index, int resolution, float2 origin, float cellSize, float meander, uint seed)

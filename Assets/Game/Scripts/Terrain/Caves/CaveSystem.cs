@@ -83,6 +83,9 @@ namespace Punchy.Terrain
             public bool CastsShadows;
             /// <summary>Wholly under the ground and well away from every mouth: nothing outside a cave can see it.</summary>
             public bool Buried;
+            /// <summary>Which caves' walls reach it, as bits (cave index mod 64; a shared bit only ever draws more).</summary>
+            public ulong Caves;
+            public int Triangles;
 
             public void Dispose()
             {
@@ -263,6 +266,7 @@ namespace Punchy.Terrain
                 c.Dispose();
             dying.Clear();
             columns.Clear();
+            chunkCaves.Clear();
             DisposeIndex();
             indexed = false;
             ReleaseLandmarkPools();
@@ -1274,7 +1278,7 @@ namespace Punchy.Terrain
             UploadStyles();
             Stream(source, camPos);
             // Outside every cave's air, buried chunks can't be seen.
-            Draw(source.CaveDistance(camPos) >= 0f);
+            Draw(source, camPos, cam);
             DrawPools(source, camPos);
             DrawBatFolk(source, camPos);
             DrawPlants(source, camPos);
@@ -1362,7 +1366,7 @@ namespace Punchy.Terrain
                 chunkVoxel = Voxel;
                 chunkCells = math.max(4, (int)math.round(ChunkMetres / chunkVoxel));
                 chunkSize = chunkCells * chunkVoxel;
-                indexSeen = new NativeHashSet<int3>(1024, Allocator.Persistent);
+                indexSeen = new NativeHashMap<int3, ulong>(1024, Allocator.Persistent);
                 indexKeys = new NativeList<int3>(1024, Allocator.Persistent);
                 indexJob = new IndexJob
                 {
@@ -1379,6 +1383,7 @@ namespace Punchy.Terrain
                 if (!columns.TryGetValue(key.xz, out var ys))
                     columns[key.xz] = ys = new List<int>();
                 ys.Add(key.y);
+                chunkCaves[key] = indexSeen[key];
             }
             DisposeIndex();
             indexed = true;
@@ -1397,8 +1402,10 @@ namespace Punchy.Terrain
 
         bool indexed, indexing;
         JobHandle indexJob;
-        NativeHashSet<int3> indexSeen;
+        NativeHashMap<int3, ulong> indexSeen;
         NativeList<int3> indexKeys;
+        /// <summary>Each indexed chunk's cave bits (Built.Caves).</summary>
+        readonly Dictionary<int3, ulong> chunkCaves = new Dictionary<int3, ulong>();
 
         /// <summary>
         /// The chunks each segment's walls can reach (IndexChunks). Each segment's box here is only as wide as its walls
@@ -1410,7 +1417,7 @@ namespace Punchy.Terrain
         {
             public TerrainSource Source;
             public float ChunkSize, ChunkVoxel;
-            public NativeHashSet<int3> Seen;
+            public NativeHashMap<int3, ulong> Seen;
             public NativeList<int3> Keys;
 
             public void Execute()
@@ -1434,8 +1441,14 @@ namespace Punchy.Terrain
                     for (int x = c0.x; x <= c1.x; x++)
                     {
                         var key = new int3(x, y, z);
-                        if (Seen.Add(key))
+                        var bit = 1ul << (seg.Cave & 63);
+                        if (Seen.TryGetValue(key, out var bits))
+                            Seen[key] = bits | bit;
+                        else
+                        {
+                            Seen.Add(key, bit);
                             Keys.Add(key);
+                        }
                     }
                 }
             }
@@ -1547,6 +1560,8 @@ namespace Punchy.Terrain
                     // Drawn only: let the CPU copy go.
                     mesh.UploadMeshData(true);
                     b.Mesh = mesh;
+                    b.Triangles = b.Indices.Length / 3;
+                    b.Caves = chunkCaves.TryGetValue(kv.Key, out var caveBits) ? caveBits : ~0ul;
                     // A chunk whose top is a few metres under the lowest ground above it can't shade anything the sun
                     // reaches, so it stays out of the shadow cascades (the column heights are already sampled) -
                     // unless it's near a mouth, where daylight comes in sideways under the hill.
@@ -1863,12 +1878,77 @@ namespace Punchy.Terrain
             }
         }
 
-        void Draw(bool outside)
+        /// <summary>Testing (-oldcave): draw every loaded chunk as before the room cull.</summary>
+        public static bool NoRoomCull;
+        /// <summary>Testing (-nocavewalls): draw no cave walls at all, to price them.</summary>
+        public static bool NoWalls;
+        /// <summary>Testing (-perflog): count chunks each frame (the frustum test only runs when set).</summary>
+        public static bool CountStats;
+        public static int StatLoaded, StatSubmitted, StatInView, StatShadows, StatTriangles;
+        Plane[] statPlanes = new Plane[6];
+
+        /// <summary>
+        /// Draws the loaded chunks. Deep in a cave, out of sight of every mouth (SurfaceHidden), only chunks that
+        /// belong to the caves around the camera are drawn: rock hides every other cave, and with only a frustum
+        /// cull they were all drawn (a 400 m load radius holds many caves). Shapes are unchanged.
+        /// </summary>
+        void Draw(TerrainSource source, float3 camPos, Camera cam)
         {
+            var outside = source.CaveDistance(camPos) >= 0f;
+            // The caves around the camera: those whose air box holds it, then any whose box touches one of those.
+            var rooms = ~0ul;
+            if (!outside && !NoRoomCull && SurfaceHidden >= 0.99f)
+            {
+                ref var set = ref source.Caves.Value;
+                rooms = 0ul;
+                var near = new List<int>();
+                for (int c = 0; c < set.Caves.Length; c++)
+                {
+                    var cv = set.Caves[c];
+                    if (math.all(camPos >= cv.Min - 4f) && math.all(camPos <= cv.Max + 4f))
+                        near.Add(c);
+                }
+                var count = near.Count;
+                for (int c = 0; c < set.Caves.Length; c++)
+                {
+                    var cv = set.Caves[c];
+                    for (int i = 0; i < count; i++)
+                    {
+                        var n = set.Caves[near[i]];
+                        if (math.all(cv.Min <= n.Max + 4f) && math.all(cv.Max >= n.Min - 4f))
+                        {
+                            rooms |= 1ul << (c & 63);
+                            break;
+                        }
+                    }
+                }
+                if (count == 0)
+                    rooms = ~0ul;
+            }
+            if (CountStats)
+            {
+                StatLoaded = StatSubmitted = StatInView = StatShadows = StatTriangles = 0;
+                GeometryUtility.CalculateFrustumPlanes(cam, statPlanes);
+            }
             foreach (var b in chunks.Values)
             {
-                if (b.Mesh == null || outside && b.Buried)
+                if (b.Mesh == null)
                     continue;
+                if (CountStats)
+                    StatLoaded++;
+                if (NoWalls || outside && b.Buried || (b.Caves & rooms) == 0ul)
+                    continue;
+                if (CountStats)
+                {
+                    StatSubmitted++;
+                    if (GeometryUtility.TestPlanesAABB(statPlanes, b.Mesh.bounds))
+                    {
+                        StatInView++;
+                        StatTriangles += b.Triangles;
+                        if (b.CastsShadows)
+                            StatShadows++;
+                    }
+                }
                 var rp = new RenderParams(Material)
                 {
                     worldBounds = b.Mesh.bounds,

@@ -234,7 +234,9 @@ namespace Punchy.Weather
 
             if (!Remote)
                 windAngle += (Mathf.PerlinNoise(Time.time * 0.01f, 3.7f) - 0.5f) * 2f * WindVeer / 60f * dt;
-            field.Step(dt, WindDirection, Remote ? 0f : SpawnAttemptsPerMinute, MaxCells, SoakSeconds, DrySeconds);
+            field.Step(dt, WindDirection, Remote || heldWeather >= 0 ? 0f : SpawnAttemptsPerMinute, MaxCells, SoakSeconds, DrySeconds);
+            if (heldWeather >= 0)
+                field.ClearUnforced(heldAt, 2500f);   // a reseed (new day type) brings fresh cells: fade them again
             Local = field.Ready ? field.Sample(cameraXZ) : WeatherValues.From(Presets[0]);
 
             if (field.Ready)
@@ -343,9 +345,17 @@ namespace Punchy.Weather
             field.Clear(xz, 2000f);
             if (index > 0)
                 field.ForceCell(index, xz, 1500f, ignoreBiome: true);
-            Debug.Log($"Weather: forced {Presets[index].name} at {xz.x:F0},{xz.y:F0}");
+            // Held for the rest of the run (W-43: "-weather Clear" drifted to rain in shot runs): no new cells spawn and
+            // any that a reseed brings are cleared again (Update), and the forced cell neither drifts nor ends (WeatherField).
+            heldWeather = index;
+            heldAt = xz;
+            Debug.Log($"Weather: forced {Presets[index].name} at {xz.x:F0},{xz.y:F0} (held)");
             return true;
         }
+
+        /// <summary>The preset "-weather" holds for the run (-1: none), and where.</summary>
+        int heldWeather = -1;
+        Vector2 heldAt;
 
         /// <summary>
         /// Test flag -weatherseed n: seeds UnityEngine.Random so a launch starts with the same day type and weather

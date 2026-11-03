@@ -130,8 +130,18 @@ namespace Punchy.Terrain
             void Stage(string name) { stages.Append($" {name} {watch.ElapsedMilliseconds}"); watch.Restart(); }
             source.PondsOn = false;
             source.PondMask = default;
+            // W-53 (W-37, option b): wide rivers on island v2 meander in bends that scale with width, but every place
+            // (landmarks, settlements, the salt tower) is chosen against the jittered rivers they were always placed
+            // by, so no landmark moves. Two river maps are baked; the jittered one is dropped once places are set.
+            var drawnRivers = default(BlobAssetReference<RiverMapBlob>);
             if (source.RiverSettings.Enabled && palette.Count > 0)
-                source.Rivers = RiverBaking.Build(source, source.RiverSettings, allocator);
+            {
+                // Both bakes see the ground without rivers (a source with a river map samples its carve).
+                var bare = source;
+                if (source.RiverSettings.Smooth)
+                    drawnRivers = RiverBaking.Build(bare, source.RiverSettings, allocator);
+                source.Rivers = RiverBaking.Build(bare, source.RiverSettings, allocator, meander: false);
+            }
             Stage("rivers");
             if (palette.Count > 0)
                 source.Landmarks = LandmarkBaking.Build(source, palette, landmarkTypes, placed, allocator);
@@ -156,6 +166,11 @@ namespace Punchy.Terrain
                     source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, singles, allocator);
                     before.Dispose();
                 }
+            }
+            if (drawnRivers.IsCreated)
+            {
+                source.Rivers.Dispose();
+                source.Rivers = drawnRivers;
             }
             Stage("settlements");
             stages.Append(' ').Append(SettlementBaking.LastTiming);
