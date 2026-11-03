@@ -613,6 +613,15 @@ namespace Punchy.Terrain
             var instanceArray = builder.Allocate(ref root.Instances, instances.Count);
             for (int i = 0; i < instances.Count; i++)
                 instanceArray[i] = instances[i];
+            // W-56: the sunken temple's ruin, laid out by the ruin kit from its landmark's key (seed-derived).
+            RuinKit.Layout ruin = null;
+            foreach (var temple in instances)
+                if (types[temple.Type].OnePerIsland && types[temple.Type].Temple)
+                {
+                    ruin = RuinKit.Temple(RuinKit.Scramble(temple.Key));
+                    break;
+                }
+            RuinKit.Fill(ref builder, ref root, ruin);
 
             // Grid over all footprints.
             float2 min = float.MaxValue, max = float.MinValue;

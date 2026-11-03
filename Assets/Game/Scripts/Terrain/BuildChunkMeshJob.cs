@@ -133,6 +133,9 @@ namespace Punchy.Terrain
                 // Cut where the cave walls' field opens (see TerrainSource.MouthCut): the walls carry a skin of the
                 // surface round the opening, under the terrain.
                 var cave = cutHoles ? MouthCut(world, h, step) : 100f;
+                // W-56: the sunken temple's entrance cut, widened a step so no terrain hangs over it (its coping covers the edge).
+                if (request.Lod <= 1 && Source.Landmarks.IsCreated)
+                    cave = math.min(cave, Source.TempleCut(world) - step);
                 vertex.Morph = new float4(request.MorphRange, surface.Bump, cave);
                 verts[z * v + x] = vertex;
                 // Landmark pools are left out of the sheet: CaveSystem draws each as a smooth disc (a small pool spans

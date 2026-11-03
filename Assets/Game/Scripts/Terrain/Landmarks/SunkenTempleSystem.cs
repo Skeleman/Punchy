@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Punchy.Ambience;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
@@ -9,25 +10,29 @@ using Object = UnityEngine.Object;
 namespace Punchy.Terrain
 {
     /// <summary>
-    /// Draws the sunken temple (W-32) from SunkenTempleShape, so what's drawn is what's walked on: the sand mound with
-    /// the trench and light shafts cut into it, the portico, ziggurat tiers and column stumps poking out (three LODs),
-    /// and, only while the camera is in or near the temple, the interior: every room's floor, walls (with openings
-    /// where rooms meet), ceiling (with shaft holes), sand drifts, pillars, fallen columns, altar, statue and eight
-    /// sconces, each with a small point light. While the interior is hidden, dark plugs close the door and the shaft
-    /// bottoms so nobody sees through the mound. Built once per island when the landmark blob changes; seed-derived,
-    /// so solo, host and client all draw the same temple.
+    /// Draws the sunken temple (W-32, rebuilt from the ruin kit in W-56) from SunkenTempleShape and the blob's ruin
+    /// arrays, so what's drawn is what's walked on. The sand swell is ground now (TerrainSource), so the exterior is
+    /// only the entrance cut (its stepped floor, the walls down to the door and a kerb of coping stones hiding the
+    /// cut terrain edge) and the boxes that stand in the sand (portico, entrance pillars and lintel, ziggurat tiers,
+    /// column stumps), in three LODs. Only while the camera is in or near the temple, the interior: every closed
+    /// room's floor, walls (with openings where rooms meet), ceiling, sand drifts, pillars, fallen columns, altar,
+    /// statue and the wall torches, which burn with FireSystem flames and light the rooms through CaveSystem's pooled
+    /// moving lights (no Light components). While the interior is hidden, dark plugs close the door. Built once per
+    /// island when the landmark blob changes; seed-derived, so solo, host and client all draw the same temple.
     /// </summary>
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
     public partial class SunkenTempleSystem : SystemBase
     {
         const float Lod0Distance = 120f, Lod1Distance = 1200f;
+        static readonly Vector4 TorchLight = new Vector4(1.7f, 0.95f, 0.4f, 9f);
 
         /// <summary>The last build's triangle counts: exterior LOD0-2, then the interior.</summary>
         public static int[] LodTris = new int[4];
 
-        /// <summary>Whether the interior was drawn last frame (for tests and reports).</summary>
+        /// <summary>Whether the interior was drawn last frame, and how many torches burned (for tests and reports).</summary>
         public static bool InteriorShown;
+        public static int TorchesLit;
 
         BlobAssetReference<LandmarkSetBlob> builtFrom;
         Mesh[] lods;
@@ -36,7 +41,7 @@ namespace Punchy.Terrain
         Bounds bounds;
         SunkenTempleLayout layout;
         Material stone, sand, innerStone, innerSand, glow;
-        Light[] lights;
+        float3[] torches;
         bool warned;
 
         protected override void OnCreate() => RequireForUpdate<TerrainSource>();
@@ -51,6 +56,7 @@ namespace Punchy.Terrain
                 builtFrom = source.Landmarks;
                 Build(source);
             }
+            TorchesLit = 0;
             if (lods == null || !Materials())
                 return;
             var cam = Camera.main;
@@ -70,10 +76,27 @@ namespace Punchy.Terrain
                 Draw(interior, 0, innerStone, ShadowCastingMode.Off);
                 Draw(interior, 1, innerSand, ShadowCastingMode.Off);
                 Draw(interior, 2, glow, ShadowCastingMode.Off);
+                Torches();
             }
             else if (lod == 0)
                 Draw(plug, 0, innerStone, ShadowCastingMode.Off);
-            Lights(inside);
+        }
+
+        /// <summary>The wall torches: a wood flame each (FireSystem) and a flickering pooled light (CaveSystem.MovingLights).</summary>
+        void Torches()
+        {
+            if (torches == null)
+                return;
+            var t = (float)SystemAPI.Time.ElapsedTime;
+            for (int k = 0; k < torches.Length; k++)
+            {
+                var p = (Vector3)torches[k];
+                FireSystem.AddFlame(p, 0.3f, 0x7E00 + k, FireSystem.Wood);
+                var flicker = 0.85f + 0.1f * math.sin(t * 9.1f + k * 2.3f) + 0.05f * math.sin(t * 23.7f + k * 5.1f);
+                var c = TorchLight;
+                CaveSystem.MovingLights.Add((0x7E0000 + k, p + Vector3.up * 0.25f, new Vector4(c.x * flicker, c.y * flicker, c.z * flicker, c.w)));
+            }
+            TorchesLit = torches.Length;
         }
 
         void Draw(Mesh mesh, int submesh, Material m, ShadowCastingMode shadows)
@@ -82,7 +105,7 @@ namespace Punchy.Terrain
             Graphics.RenderMesh(rp, mesh, submesh, matrix);
         }
 
-        /// <summary>Tinted copies of the salt tower's material (no Shader.Find), and the emissive sconce glow.</summary>
+        /// <summary>Tinted copies of the salt tower's material (no Shader.Find), and the emissive torch glow.</summary>
         bool Materials()
         {
             if (stone != null)
@@ -113,34 +136,6 @@ namespace Punchy.Terrain
             return m;
         }
 
-        void Lights(bool on)
-        {
-            if (lights == null)
-            {
-                if (!on)
-                    return;
-                lights = new Light[SunkenTempleShape.Sconces];
-                for (int k = 0; k < lights.Length; k++)
-                {
-                    var t = SunkenTempleShape.SconceTable;
-                    var j = k * 5;
-                    var at = new float3(t[j] + 0.7f * t[j + 3], t[j + 1] + 0.3f, t[j + 2] + 0.7f * t[j + 4]);
-                    var go = new GameObject($"SunkenTemple sconce {k}");
-                    go.transform.position = SunkenTempleShape.World(layout, at);
-                    var light = go.AddComponent<Light>();
-                    light.type = LightType.Point;
-                    light.range = 9f;
-                    light.intensity = 2.5f;
-                    light.color = new Color(1f, 0.66f, 0.35f);
-                    light.shadows = LightShadows.None;
-                    lights[k] = light;
-                }
-            }
-            foreach (var l in lights)
-                if (l != null && l.enabled != on)
-                    l.enabled = on;
-        }
-
         protected override void OnDestroy() => Clear();
 
         void Clear()
@@ -151,19 +146,17 @@ namespace Punchy.Terrain
                         Object.Destroy(m);
             if (interior != null) Object.Destroy(interior);
             if (plug != null) Object.Destroy(plug);
-            if (lights != null)
-                foreach (var l in lights)
-                    if (l != null)
-                        Object.Destroy(l.gameObject);
             lods = null;
             interior = plug = null;
-            lights = null;
+            torches = null;
         }
 
         void Build(in TerrainSource source)
         {
             Clear();
             ref var set = ref source.Landmarks.Value;
+            if (set.RuinRooms.Length == 0)
+                return;
             for (int i = 0; i < set.Instances.Length; i++)
             {
                 var inst = set.Instances[i];
@@ -179,230 +172,294 @@ namespace Punchy.Terrain
                 var hi = new Vector3(float.MinValue, l.Base + 19f, float.MinValue);
                 for (int c = 0; c < 4; c++)
                 {
-                    var w = SunkenTempleShape.World(l, new float3((c & 1) == 0 ? SunkenTempleShape.MinU : SunkenTempleShape.MaxU, 0f, (c & 2) == 0 ? -SunkenTempleShape.MaxV : SunkenTempleShape.MaxV));
+                    var w = SunkenTempleShape.World(l, new float3((c & 1) == 0 ? SunkenTempleShape.RuinU0 : SunkenTempleShape.RuinU1, 0f, (c & 2) == 0 ? -SunkenTempleShape.RuinV : SunkenTempleShape.RuinV));
                     lo.x = math.min(lo.x, w.x); lo.z = math.min(lo.z, w.z);
                     hi.x = math.max(hi.x, w.x); hi.z = math.max(hi.z, w.z);
                 }
                 bounds = new Bounds((lo + hi) * 0.5f, hi - lo);
 
+                var ruin = new Ruin(ref set, source, l);
                 lods = new Mesh[3];
                 for (int lod = 0; lod < 3; lod++)
                 {
                     var b = new Builder(2);
-                    Exterior(b, lod);
+                    ruin.Exterior(b, lod, inst.Key);
                     lods[lod] = b.ToMesh($"SunkenTemple LOD{lod}");
                     LodTris[lod] = b.Tris;
                 }
                 var ib = new Builder(3);
-                Interior(ib);
+                ruin.Interior(ib);
                 interior = ib.ToMesh("SunkenTemple interior");
                 LodTris[3] = ib.Tris;
                 var pb = new Builder(1);
-                Plugs(pb);
-                plug = pb.ToMesh("SunkenTemple plugs");
-                Debug.Log($"[landmarks] SunkenTemple meshes LOD0 {LodTris[0]} tris, LOD1 {LodTris[1]}, LOD2 {LodTris[2]}, interior {LodTris[3]}, {SunkenTempleShape.Sconces} sconce lights");
+                ruin.Plugs(pb);
+                plug = pb.ToMesh("SunkenTemple plug");
+                torches = new float3[ruin.Sconces.Length];
+                for (int k = 0; k < torches.Length; k++)
+                {
+                    var s = ruin.Sconces[k];
+                    torches[k] = SunkenTempleShape.World(l, s.At + new float3(s.N.x, 0f, s.N.y) * 0.32f + new float3(0f, 0.42f, 0f));
+                }
+                Debug.Log($"[landmarks] sunken temple: {ruin.Rooms.Length} rooms, {ruin.Boxes.Length} boxes, {torches.Length} torches; tris LOD0-2 {LodTris[0]}/{LodTris[1]}/{LodTris[2]}, interior {LodTris[3]}");
                 return;
             }
         }
 
-        static List<float> Steps(float a, float b, float step, List<float> extra = null)
+        /// <summary>The ruin arrays copied out of the blob, and the meshes built from them (mesh frame u, y, v).</summary>
+        class Ruin
         {
-            var s = new List<float>();
-            var n = math.max(1, (int)math.ceil((b - a) / step));
-            for (int i = 0; i <= n; i++)
-                s.Add(math.lerp(a, b, i / (float)n));
-            if (extra != null)
-                foreach (var e in extra)
-                    if (e > a && e < b)
-                        s.Add(e);
-            s.Sort();
-            for (int i = s.Count - 1; i > 0; i--)
-                if (s[i] - s[i - 1] < 0.05f)
-                    s.RemoveAt(s[i] == b ? i - 1 : i);
-            return s;
-        }
+            public readonly RuinRoom[] Rooms;
+            public readonly RuinBox[] Boxes;
+            public readonly RuinDrift[] Drifts;
+            public readonly RuinSconce[] Sconces;
+            readonly TerrainSource source;
+            readonly SunkenTempleLayout layout;
 
-        /// <summary>The mound (with the trench and shafts cut out at LOD0), its skirt, the trench and the outside ruins.</summary>
-        static void Exterior(Builder b, int lod)
-        {
-            float step = lod == 0 ? 2f : lod == 1 ? 4f : 8f;
-            List<float> eu = null, ev = null;
-            if (lod == 0)
+            public Ruin(ref LandmarkSetBlob set, in TerrainSource source, SunkenTempleLayout layout)
             {
-                eu = new List<float>();
-                ev = new List<float>();
-                for (int i = 0; i < SunkenTempleShape.FirstShaft + SunkenTempleShape.Shafts; i++)
-                {
-                    if (i != SunkenTempleShape.Trench && i < SunkenTempleShape.FirstShaft)
-                        continue;
-                    var r = SunkenTempleShape.GetRoom(i);
-                    eu.Add(r.U0); eu.Add(r.U1); ev.Add(r.V0); ev.Add(r.V1);
-                }
+                Rooms = set.RuinRooms.ToArray();
+                Boxes = set.RuinBoxes.ToArray();
+                Drifts = set.RuinDrifts.ToArray();
+                Sconces = set.RuinSconces.ToArray();
+                this.source = source;
+                this.layout = layout;
             }
-            var us = Steps(SunkenTempleShape.MinU, SunkenTempleShape.MaxU, step, eu);
-            var vs = Steps(-SunkenTempleShape.MaxV, SunkenTempleShape.MaxV, step, ev);
-            b.HeightGrid(1, us, vs, SunkenTempleShape.MoundTop,
-                lod == 0 ? (u, v) => SunkenTempleShape.InCut(u, v) : (Func<float, float, bool>)null);
 
-            // Skirt down from the mound's edge (at Bottom there) so no gap shows on slopes.
-            float y0 = SunkenTempleShape.Bottom - 10f, y1 = SunkenTempleShape.Bottom;
-            float u0 = SunkenTempleShape.MinU, u1 = SunkenTempleShape.MaxU, v0 = -SunkenTempleShape.MaxV, v1 = SunkenTempleShape.MaxV;
-            b.Panel(1, 0, u0, v0, v1, y0, y1, Vector3.left);
-            b.Panel(1, 0, u1, v0, v1, y0, y1, Vector3.right);
-            b.Panel(1, 1, v0, u0, u1, y0, y1, Vector3.back);
-            b.Panel(1, 1, v1, u0, u1, y0, y1, Vector3.forward);
+            /// <summary>The ground's height in the temple frame at (u, v).</summary>
+            float Ground(float u, float v) => source.SampleHeight(SunkenTempleShape.World(layout, new float3(u, 0f, v)).xz) - layout.Base;
 
-            if (lod == 0)
+            float Sand(int room, float u, float v)
             {
-                // Trench: sand floor, side walls up to the mound's top, the end wall round the door.
-                var t = SunkenTempleShape.GetRoom(SunkenTempleShape.Trench);
-                var tu = Steps(t.U0, t.U1, 0.42f);
-                b.HeightGrid(1, tu, Steps(t.V0, t.V1, 0.4f), (u, v) => t.FloorAt(u) + SunkenTempleShape.Sand(SunkenTempleShape.Trench, u, v), null);
-                for (int s = 0; s < 2; s++)
+                var s = 0f;
+                foreach (var d in Drifts)
                 {
-                    var v = s == 0 ? t.V0 : t.V1;
-                    var n = s == 0 ? Vector3.forward : Vector3.back;
-                    for (int i = 0; i + 1 < tu.Count; i++)
+                    if (d.Room != room)
+                        continue;
+                    float du = (u - d.Ellipse.x) / d.Ellipse.z, dv = (v - d.Ellipse.y) / d.Ellipse.w;
+                    s += d.Height * math.smoothstep(0f, 1f, 1f - du * du - dv * dv);
+                }
+                return s;
+            }
+
+            /// <summary>The room (other than 'self') containing a point, or -1.</summary>
+            int RoomAt(float u, float v, int self)
+            {
+                for (int i = 0; i < Rooms.Length; i++)
+                    if (i != self && Rooms[i].Contains(u, v))
+                        return i;
+                return -1;
+            }
+
+            /// <summary>
+            /// Walks room i's four edges in pieces split at every other room's edge (and every half metre, so a wall can
+            /// follow the ground), calling back with the edge (0 -u, 1 +u, 2 -v, 3 +v), the piece's ends and the
+            /// room just outside it (or -1).
+            /// </summary>
+            void Edges(int i, Action<int, float, float, int> piece)
+            {
+                var r = Rooms[i];
+                for (int e = 0; e < 4; e++)
+                {
+                    bool alongU = e >= 2;
+                    float s0 = alongU ? r.U0 : r.V0, s1 = alongU ? r.U1 : r.V1;
+                    var cuts = new List<float> { s0, s1 };
+                    for (float s = math.ceil(s0 * 2f) * 0.5f; s < s1; s += 0.5f)
+                        cuts.Add(s);
+                    foreach (var o in Rooms)
                     {
-                        float a = tu[i], c = tu[i + 1];
-                        b.Quad(0, new Vector3(a, t.FloorAt(a) + SunkenTempleShape.Sand(0, a, v), v), new Vector3(c, t.FloorAt(c) + SunkenTempleShape.Sand(0, c, v), v),
-                            new Vector3(c, SunkenTempleShape.MoundTop(c, v), v), new Vector3(a, SunkenTempleShape.MoundTop(a, v), v), n);
+                        cuts.Add(alongU ? o.U0 : o.V0);
+                        cuts.Add(alongU ? o.U1 : o.V1);
+                    }
+                    cuts.Sort();
+                    var c = e == 0 ? r.U0 - 0.05f : e == 1 ? r.U1 + 0.05f : e == 2 ? r.V0 - 0.05f : r.V1 + 0.05f;
+                    for (int k = 0; k + 1 < cuts.Count; k++)
+                    {
+                        float a = math.max(cuts[k], s0), b = math.min(cuts[k + 1], s1);
+                        if (b - a < 1e-3f)
+                            continue;
+                        var m = 0.5f * (a + b);
+                        piece(e, a, b, alongU ? RoomAt(m, c, i) : RoomAt(c, m, i));
                     }
                 }
-                var door = SunkenTempleShape.GetRoom(1);
-                b.Panel(0, 0, t.U1, t.V0, t.V1, t.Floor, SunkenTempleShape.Top, Vector3.left,
-                    new List<float4> { new float4(door.V0, door.V1, door.Floor, door.Ceil) });
-                // Shaft walls from the room ceiling up through the mound.
-                for (int i = SunkenTempleShape.FirstShaft; i < SunkenTempleShape.FirstShaft + SunkenTempleShape.Shafts; i++)
+            }
+
+            /// <summary>A wall on room i's edge e over s0..s1, y0..y1, facing into the room.</summary>
+            void Wall(Builder b, int sm, int i, int e, float s0, float s1, float y0, float y1)
+            {
+                if (y1 - y0 < 1e-3f)
+                    return;
+                var r = Rooms[i];
+                switch (e)
                 {
-                    var r = SunkenTempleShape.GetRoom(i);
-                    var top = SunkenTempleShape.MoundTop(0.5f * (r.U0 + r.U1), 0.5f * (r.V0 + r.V1));
-                    b.Panel(0, 0, r.U0, r.V0, r.V1, r.Floor, top, Vector3.right);
-                    b.Panel(0, 0, r.U1, r.V0, r.V1, r.Floor, top, Vector3.left);
-                    b.Panel(0, 1, r.V0, r.U0, r.U1, r.Floor, top, Vector3.forward);
-                    b.Panel(0, 1, r.V1, r.U0, r.U1, r.Floor, top, Vector3.back);
+                    case 0: b.Panel(sm, 0, r.U0, s0, s1, y0, y1, Vector3.right); break;
+                    case 1: b.Panel(sm, 0, r.U1, s0, s1, y0, y1, Vector3.left); break;
+                    case 2: b.Panel(sm, 1, r.V0, s0, s1, y0, y1, Vector3.forward); break;
+                    default: b.Panel(sm, 1, r.V1, s0, s1, y0, y1, Vector3.back); break;
                 }
             }
-            for (int k = 0; k < SunkenTempleShape.Boxes; k++)
-            {
-                SunkenTempleShape.Box(k, out var uv, out var y, out var draw, out var outside);
-                if (!outside || lod == 2 && draw != 0)
-                    continue;
-                b.Solid(0, uv, y, draw, lod == 0 ? 8 : 6);
-            }
-        }
 
-        /// <summary>Every room's floor, walls with openings, ceiling with shaft holes and drifts, the inside boxes and the sconces.</summary>
-        static void Interior(Builder b)
-        {
-            for (int i = 0; i < SunkenTempleShape.Rooms; i++)
+            float FloorOn(RuinRoom r, int e, float s0, float s1) => e >= 2 ? r.FloorAt(0.5f * (s0 + s1)) : r.FloorAt(e == 0 ? r.U0 : r.U1);
+
+            static readonly List<float> Pair = new List<float>(2);
+
+            /// <summary>A room's floor (with its drifts) as a smooth grid every half metre.</summary>
+            void FloorGrid(Builder b, int sm, int i, float lift)
             {
-                var r = SunkenTempleShape.GetRoom(i);
-                if (r.Kind != 0)
-                    continue;
-                b.Panel(0, 2, r.Floor, r.U0, r.U1, r.V0, r.V1, Vector3.up);
-                var holes = new List<float4>();
-                for (int j = SunkenTempleShape.FirstShaft; j < SunkenTempleShape.FirstShaft + SunkenTempleShape.Shafts; j++)
+                var r = Rooms[i];
+                List<float> us = Steps(r.U0, r.U1), vs = Steps(r.V0, r.V1);
+                b.HeightGrid(sm, us, vs, (u, v) => r.FloorAt(u) + Sand(i, u, v) + lift, null);
+            }
+
+            static List<float> Steps(float a, float b)
+            {
+                var n = math.max(1, (int)math.ceil((b - a) / 0.5f));
+                var list = new List<float>(n + 1);
+                for (int k = 0; k <= n; k++)
+                    list.Add(math.lerp(a, b, k / (float)n));
+                return list;
+            }
+
+            /// <summary>The entrance cut (LOD0 only: floor, walls up to the ground, coping) and the boxes standing outside.</summary>
+            public void Exterior(Builder b, int lod, uint key)
+            {
+                var sides = lod == 0 ? 12 : lod == 1 ? 8 : 6;
+                foreach (var box in Boxes)
+                    if (box.Outside != 0)
+                        b.Solid(0, box.UV, box.Y, box.Draw, sides);
+                if (lod == 2)
+                    return;
+                var rng = new Unity.Mathematics.Random(RuinKit.Scramble(key ^ 0xC0B1u) | 1u);
+                for (int i = 0; i < Rooms.Length; i++)
                 {
-                    var s = SunkenTempleShape.GetRoom(j);
-                    if (math.abs(s.Floor - r.Ceil) < 1e-3f && s.U0 >= r.U0 && s.U1 <= r.U1 && s.V0 >= r.V0 && s.V1 <= r.V1)
-                        holes.Add(new float4(s.U0, s.U1, s.V0, s.V1));
+                    var r = Rooms[i];
+                    if (r.Kind != 1)
+                        continue;
+                    FloorGrid(b, 1, i, 0f);
+                    Edges(i, (e, s0, s1, n) =>
+                    {
+                        float f = FloorOn(r, e, s0, s1), m = 0.5f * (s0 + s1);
+                        float gu = e == 0 ? r.U0 - 0.3f : e == 1 ? r.U1 + 0.3f : m, gv = e == 2 ? r.V0 - 0.3f : e == 3 ? r.V1 + 0.3f : m;
+                        var top = Ground(gu, gv) + 0.05f;
+                        if (n < 0)
+                        {
+                            Wall(b, 0, i, e, s0, s1, f, top);
+                            // Coping: a kerb of stone blocks on the rim, a little uneven, hiding the terrain's cut edge.
+                            if (lod == 0)
+                            {
+                                float lift = rng.NextFloat(-0.06f, 0.1f), back = rng.NextFloat(1.1f, 1.5f), inset = rng.NextFloat(0.05f, 0.18f);
+                                float y0 = top - 0.5f, y1 = top + 0.05f + lift;
+                                var uv = e == 0 ? new float4(r.U0 - back, r.U0 + inset, s0 + 0.03f, s1 - 0.03f)
+                                    : e == 1 ? new float4(r.U1 - inset, r.U1 + back, s0 + 0.03f, s1 - 0.03f)
+                                    : e == 2 ? new float4(s0 + 0.03f, s1 - 0.03f, r.V0 - back, r.V0 + inset)
+                                    : new float4(s0 + 0.03f, s1 - 0.03f, r.V1 - inset, r.V1 + back);
+                                b.Solid(0, uv, new float2(y0, y1), 0, 4);
+                            }
+                            return;
+                        }
+                        var o = Rooms[n];
+                        var of = FloorOn(o, e ^ 1, s0, s1);
+                        if (of > f)
+                            Wall(b, 0, i, e, s0, s1, f, of);  // a riser up to the next step
+                        if (o.Kind == 0)
+                            Wall(b, 0, i, e, s0, s1, math.max(f, o.Ceil), top);  // above the door, up to the ground
+                    });
                 }
-                b.Panel(0, 2, r.Ceil, r.U0, r.U1, r.V0, r.V1, Vector3.down, holes);
-                Wall(b, i, r, 0, r.U0, Vector3.right);
-                Wall(b, i, r, 0, r.U1, Vector3.left);
-                Wall(b, i, r, 1, r.V0, Vector3.forward);
-                Wall(b, i, r, 1, r.V1, Vector3.back);
             }
-            for (int k = 0; k < SunkenTempleShape.Drifts; k++)
+
+            /// <summary>Every closed room: floor, walls (open where rooms meet), ceiling, drifts; inside boxes; torch brackets.</summary>
+            public void Interior(Builder b)
             {
-                SunkenTempleShape.Drift(k, out var e, out _, out var room);
-                var r = SunkenTempleShape.GetRoom(room);
-                if (r.Kind != 0)
-                    continue;
-                float a0 = math.max(r.U0, e.x - e.z), a1 = math.min(r.U1, e.x + e.z), c0 = math.max(r.V0, e.y - e.w), c1 = math.min(r.V1, e.y + e.w);
-                b.HeightGrid(1, Steps(a0, a1, 0.4f), Steps(c0, c1, 0.4f),
-                    (u, v) => r.FloorAt(u) + SunkenTempleShape.Sand(room, u, v) + 0.02f,
-                    (u, v) => SunkenTempleShape.Sand(room, u, v) < 0.01f);
+                for (int i = 0; i < Rooms.Length; i++)
+                {
+                    var r = Rooms[i];
+                    if (r.Kind != 0)
+                        continue;
+                    b.Panel(0, 2, r.Floor, r.U0, r.U1, r.V0, r.V1, Vector3.up);
+                    b.Panel(0, 2, r.Ceil, r.U0, r.U1, r.V0, r.V1, Vector3.down);
+                    Edges(i, (e, s0, s1, n) =>
+                    {
+                        if (n < 0)
+                        {
+                            Wall(b, 0, i, e, s0, s1, r.Floor, r.Ceil);
+                            return;
+                        }
+                        var o = Rooms[n];
+                        var of = FloorOn(o, e ^ 1, s0, s1);
+                        if (of > r.Floor)
+                            Wall(b, 0, i, e, s0, s1, r.Floor, math.min(of, r.Ceil));
+                        if (o.Ceil < r.Ceil)
+                            Wall(b, 0, i, e, s0, s1, math.max(o.Ceil, r.Floor), r.Ceil);
+                    });
+                }
+                foreach (var d in Drifts)
+                {
+                    var r = Rooms[d.Room];
+                    if (r.Kind != 0)
+                        continue;
+                    float u0 = math.max(d.Ellipse.x - d.Ellipse.z, r.U0), u1 = math.min(d.Ellipse.x + d.Ellipse.z, r.U1);
+                    float v0 = math.max(d.Ellipse.y - d.Ellipse.w, r.V0), v1 = math.min(d.Ellipse.y + d.Ellipse.w, r.V1);
+                    var room = d.Room;
+                    b.HeightGrid(1, Steps(u0, u1), Steps(v0, v1), (u, v) => r.FloorAt(u) + Sand(room, u, v) + 0.01f,
+                        (u, v) => Sand(room, u, v) < 0.02f);
+                }
+                foreach (var box in Boxes)
+                    if (box.Outside == 0)
+                        b.Solid(0, box.UV, box.Y, box.Draw, 12);
+                foreach (var s in Sconces)
+                {
+                    // An iron bracket on the wall, a torch stick in it and the glowing head (the flame burns above it).
+                    float3 n = new float3(s.N.x, 0f, s.N.y), side = new float3(-s.N.y, 0f, s.N.x), at = s.At + n * 0.02f;
+                    Cube(b, 0, at + n * 0.08f, side * 0.12f + n * 0.08f + new float3(0f, 0.18f, 0f));
+                    Cube(b, 0, at + n * 0.3f + new float3(0f, 0.15f, 0f), side * 0.04f + n * 0.04f + new float3(0f, 0.25f, 0f));
+                    Cube(b, 2, at + n * 0.32f + new float3(0f, 0.42f, 0f), side * 0.07f + n * 0.07f + new float3(0f, 0.06f, 0f));
+                }
             }
-            for (int k = 0; k < SunkenTempleShape.Boxes; k++)
+
+            /// <summary>An axis-aligned box from its centre and half size (vectors along u/v either way round).</summary>
+            static void Cube(Builder b, int sm, float3 c, float3 half)
             {
-                SunkenTempleShape.Box(k, out var uv, out var y, out var draw, out var outside);
-                if (!outside)
-                    b.Solid(0, uv, y, draw, 8);
+                half = math.abs(half);
+                b.Solid(sm, new float4(c.x - half.x, c.x + half.x, c.z - half.z, c.z + half.z), new float2(c.y - half.y, c.y + half.y), 0, 4);
             }
-            var t = SunkenTempleShape.SconceTable;
-            for (int k = 0; k < SunkenTempleShape.Sconces; k++)
+
+            /// <summary>Dark faces across the openings where closed rooms meet open ones, drawn while the interior is hidden.</summary>
+            public void Plugs(Builder b)
             {
-                var j = k * 5;
-                var w = new float3(t[j], t[j + 1], t[j + 2]);
-                var n = new float3(t[j + 3], 0f, t[j + 4]);
-                var side = new float3(-n.z, 0f, n.x);
-                // Bracket: 0.22 deep, 0.3 wide; the glowing bowl sits on it.
-                var a = w + side * 0.15f + new float3(0f, -0.2f, 0f);
-                var c = w - side * 0.15f + n * 0.22f + new float3(0f, 0.15f, 0f);
-                b.Solid(0, new float4(math.min(a.x, c.x), math.max(a.x, c.x), math.min(a.z, c.z), math.max(a.z, c.z)), new float2(a.y, c.y), 0, 8);
-                var g = w + n * 0.16f + new float3(0f, 0.25f, 0f);
-                b.Solid(2, new float4(g.x - 0.09f, g.x + 0.09f, g.z - 0.09f, g.z + 0.09f), new float2(g.y - 0.09f, g.y + 0.09f), 0, 8);
+                for (int i = 0; i < Rooms.Length; i++)
+                {
+                    var r = Rooms[i];
+                    if (r.Kind != 0)
+                        continue;
+                    Edges(i, (e, s0, s1, n) =>
+                    {
+                        if (n < 0 || Rooms[n].Kind != 1)
+                            return;
+                        var y0 = math.max(r.Floor, FloorOn(Rooms[n], e ^ 1, s0, s1));
+                        // Facing out of the closed room, towards the open one.
+                        switch (e)
+                        {
+                            case 0: b.Panel(0, 0, r.U0, s0, s1, y0, r.Ceil, Vector3.left); break;
+                            case 1: b.Panel(0, 0, r.U1, s0, s1, y0, r.Ceil, Vector3.right); break;
+                            case 2: b.Panel(0, 1, r.V0, s0, s1, y0, r.Ceil, Vector3.back); break;
+                            default: b.Panel(0, 1, r.V1, s0, s1, y0, r.Ceil, Vector3.forward); break;
+                        }
+                    });
+                }
             }
         }
 
-        /// <summary>Room i's wall on axis (0: constant u, 1: constant v) at c, open wherever another room meets it.</summary>
-        static void Wall(Builder b, int i, in SunkenTempleShape.Room r, int axis, float c, Vector3 normal)
-        {
-            float s0 = axis == 0 ? r.V0 : r.U0, s1 = axis == 0 ? r.V1 : r.U1;
-            var holes = new List<float4>();
-            for (int j = 0; j < SunkenTempleShape.Rooms; j++)
-            {
-                var o = SunkenTempleShape.GetRoom(j);
-                if (j == i || o.Kind == 2)
-                    continue;
-                float face0 = axis == 0 ? o.U0 : o.V0, face1 = axis == 0 ? o.U1 : o.V1;
-                if (math.abs(face0 - c) > 1e-3f && math.abs(face1 - c) > 1e-3f)
-                    continue;
-                float o0 = math.max(s0, axis == 0 ? o.V0 : o.U0), o1 = math.min(s1, axis == 0 ? o.V1 : o.U1);
-                float f = math.max(r.Floor, o.FloorAt(math.abs(face0 - c) <= 1e-3f ? o.U0 : o.U1)), top = math.min(r.Ceil, o.Ceil);
-                if (o1 - o0 > 0.01f && top > f)
-                    holes.Add(new float4(o0, o1, f, top));
-            }
-            b.Panel(0, axis, c, s0, s1, r.Floor, r.Ceil, normal, holes);
-        }
-
-        /// <summary>Dark plugs shown while the interior is hidden: across the door and at each shaft's bottom.</summary>
-        static void Plugs(Builder b)
-        {
-            var door = SunkenTempleShape.GetRoom(1);
-            b.Panel(0, 0, -18.3f, door.V0, door.V1, door.Floor, door.Ceil, Vector3.left);
-            for (int i = SunkenTempleShape.FirstShaft; i < SunkenTempleShape.FirstShaft + SunkenTempleShape.Shafts; i++)
-            {
-                var r = SunkenTempleShape.GetRoom(i);
-                b.Panel(0, 2, r.Floor + 0.05f, r.U0, r.U1, r.V0, r.V1, Vector3.up);
-            }
-        }
-
-        /// <summary>Collects faces into one mesh with several submeshes. Positions are in the temple frame (u, y, v).</summary>
+        /// <summary>Collects vertices and per-submesh triangles; faces are wound to match the normal given.</summary>
         class Builder
         {
-            readonly List<Vector3> v = new List<Vector3>();
-            readonly List<Vector3> n = new List<Vector3>();
+            readonly List<Vector3> v = new List<Vector3>(), n = new List<Vector3>();
             readonly List<int>[] sub;
+            public int Tris;
 
             public Builder(int submeshes)
             {
                 sub = new List<int>[submeshes];
                 for (int i = 0; i < submeshes; i++)
                     sub[i] = new List<int>();
-            }
-
-            public int Tris
-            {
-                get
-                {
-                    var t = 0;
-                    foreach (var s in sub)
-                        t += s.Count / 3;
-                    return t;
-                }
             }
 
             int Vert(Vector3 p, Vector3 normal)
@@ -412,15 +469,16 @@ namespace Punchy.Terrain
                 return v.Count - 1;
             }
 
-            /// <summary>A triangle of existing vertices, wound so its front faces the way 'want' points.</summary>
-            void Index(int s, int a, int b, int c, Vector3 want)
+            void Index(int s, int a, int b, int c, Vector3 normal)
             {
-                if (Vector3.Dot(Vector3.Cross(v[b] - v[a], v[c] - v[a]), want) < 0f)
+                var face = Vector3.Cross(v[b] - v[a], v[c] - v[a]);
+                if (Vector3.Dot(face, normal) < 0f)
                     (b, c) = (c, b);
                 sub[s].Add(a); sub[s].Add(b); sub[s].Add(c);
+                Tris++;
             }
 
-            public void Quad(int s, Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector3 normal)
+            void Quad(int s, Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector3 normal)
             {
                 int ia = Vert(a, normal), ib = Vert(b, normal), ic = Vert(c, normal), id = Vert(d, normal);
                 Index(s, ia, ib, ic, normal);
@@ -493,7 +551,7 @@ namespace Punchy.Terrain
             static Vector3 Ax(int axis, float along, float p, float q) =>
                 axis == 0 ? new Vector3(along, p, q) : axis == 1 ? new Vector3(p, along, q) : new Vector3(p, q, along);
 
-            /// <summary>A solid from the shape's box table: a box (draw 0) or a drum fitted inside it along u, y or v.</summary>
+            /// <summary>A solid from the ruin's boxes: a box (draw 0) or a drum fitted inside it along u, y or v.</summary>
             public void Solid(int s, float4 uv, float2 y, int draw, int sides)
             {
                 if (draw == 0)

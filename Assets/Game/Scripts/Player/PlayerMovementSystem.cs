@@ -1107,6 +1107,9 @@ namespace Punchy.Player
         public static float SolidDistance(in TerrainSource terrain, float3 p)
         {
             var open = p.y - terrain.SampleHeight(p.xz);
+            // W-56: a sunken temple room is air under the ground; its walls are TowerWall's (SunkenTempleShape.Wall).
+            if (terrain.TempleAir(p))
+                return math.max(open, 0.5f);
             if (open > 0f)
                 return math.max(open, -terrain.CaveDistance(p));
             return -terrain.CaveDistance(p);

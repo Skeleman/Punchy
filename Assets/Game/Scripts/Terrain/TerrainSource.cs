@@ -804,7 +804,18 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Whether the ground surface here is cut away by a cave entrance.</summary>
-        public bool IsCaveHole(float2 xz) => MouthCut(xz, SampleHeight(xz)) < 0f;
+        public bool IsCaveHole(float2 xz) => MouthCut(xz, SampleHeight(xz)) < 0f || TempleCut(xz) < 0f;
+
+        /// <summary>
+        /// W-56: signed distance (m) to the sunken temple's entrance cut (its open ruin rooms), negative inside: the
+        /// ground surface is cut away there like a cave mouth. 100 away from any temple.
+        /// </summary>
+        public float TempleCut(float2 xz) =>
+            Temple(xz, out var temple) ? SunkenTempleShape.Cut(ref Landmarks.Value, temple, xz) : 100f;
+
+        /// <summary>W-56: whether a point is in the air of one of the sunken temple's rooms (under the ground, but not rock).</summary>
+        public bool TempleAir(float3 p) =>
+            Temple(p.xz, out var temple) && SunkenTempleShape.Air(ref Landmarks.Value, SunkenTempleShape.Local(temple, p));
 
         /// <summary>
         /// Whether the cave walls keep rock just under the ground surface here (positive, at most 0.25) or a mouth opens
@@ -849,7 +860,7 @@ namespace Punchy.Terrain
         /// walking player) test this to keep out of the walls.
         /// </summary>
         public bool IsRock(float3 p, float margin = 0f) =>
-            p.y < SampleHeight(p.xz) - margin && CaveDistance(p) > -margin;
+            p.y < SampleHeight(p.xz) - margin && CaveDistance(p) > -margin && !TempleAir(p);
 
         /// <summary>The climbable tower (W-27, SaltTowerShape) whose steps reach a point, if any, and its height.</summary>
         public bool Tower(float2 xz, out LandmarkInstance tower, out float height)
@@ -897,7 +908,7 @@ namespace Punchy.Terrain
         /// <summary>Whether the tower's body or a step too high to step onto stands where a body at p would be (W-27).</summary>
         public bool TowerWall(float3 p, float stepUp, float head) =>
             Tower(p.xz, out var tower, out var height) && SaltTowerShape.Wall(SaltTowerShape.Layout(tower, height), p, stepUp, head)
-            || Temple(p.xz, out var temple) && SunkenTempleShape.Wall(temple, p, stepUp, head)
+            || Temple(p.xz, out var temple) && SunkenTempleShape.Wall(ref Landmarks.Value, temple, p, stepUp, head, SampleHeight(p.xz) - temple.Base)
             || Icebergs.IsCreated && IcebergShape.Wall(ref Icebergs.Value, World.SeaLevel, p, stepUp, head);
 
         /// <summary>A bridge deck under a point that's on or just below it (see SettlementSampling.Deck).</summary>
@@ -918,8 +929,10 @@ namespace Punchy.Terrain
                 deck = step;
                 onDeck = true;
             }
-            // W-32: the sunken temple's floors, drifts and mound stand bodies the same way.
-            if (Temple(p.xz, out var temple) && SunkenTempleShape.Floor(temple, p, out var templeFloor) && (!onDeck || templeFloor > deck))
+            // W-32: the sunken temple's box tops stand bodies the same way (W-56: only above the ground; its rooms are
+            // under the ground, where FloorUnder answers).
+            if (Temple(p.xz, out var temple) && SunkenTempleShape.Floor(ref Landmarks.Value, temple, p, out var templeFloor) &&
+                templeFloor > SampleHeight(p.xz) - 0.05f && (!onDeck || templeFloor > deck))
             {
                 deck = templeFloor;
                 onDeck = true;
@@ -951,8 +964,17 @@ namespace Punchy.Terrain
         public float FloorUnder(float3 p, out bool inCave)
         {
             inCave = false;
-            if (Temple(p.xz, out var temple) && SunkenTempleShape.Floor(temple, p, out var templeFloor))
-                return math.max(templeFloor, SampleHeight(p.xz));
+            // W-56: in the temple's rooms (under the ground, or in the entrance cut) the floor is the room's, like a cave.
+            if (Temple(p.xz, out var temple) && SunkenTempleShape.Floor(ref Landmarks.Value, temple, p, out var templeFloor))
+            {
+                var ground = SampleHeight(p.xz);
+                if (p.y < ground - 0.3f || SunkenTempleShape.Cut(ref Landmarks.Value, temple, p.xz) < 0f)
+                {
+                    inCave = true;
+                    return templeFloor;
+                }
+                return math.max(templeFloor, ground);
+            }
             if (Tower(p.xz, out var tower, out var towerHeight) && SaltTowerShape.Floor(SaltTowerShape.Layout(tower, towerHeight), p, out var step))
                 return math.max(step, SampleHeight(p.xz));
             if (Deck(p, out var deck))
