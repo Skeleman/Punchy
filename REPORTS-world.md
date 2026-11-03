@@ -2,6 +2,15 @@
 
 Newest first.
 
+## W-61b (2026-11-03): waypoint walk, igloo porches (#38), bat cave walk (#35)
+
+Commit 22affdd on world-features. Shots: D:/PunchyMilestones/W-61b (8: cave walk start/end, igloo 1/3/5 start/end).
+1. Waypoint walk: `-walk x,z;x,z;...` (or x,y,z) walks the points in order; one point works as before. Player cave walk took 10 legs, every leg reached, log line per leg.
+2. #38 cause: igloos sat at their centre's ground height on slopes, so the porch floor hung up to 1.0 m over a dip at the mouth (or was dug 4-5 m into a knoll); the W-61 steps lay below y=0, so the foundation skirt sank them 1.6 m (support tops -1.85 to -3.1), out of reach. The W-61 sim also took its mouth from the step-grown bounds (~2.6 m too far out), so its PASS was wrong. Fix: FloraPlacement.PorchSeat turns the igloo up to 60 deg toward the lowest mouth ground and seats it at that height (clamped -1.4/+0.5 m, no random draws); steps removed (W-60 parts back). Editor sim settlement 1: 5/5 PASS (6.1, 6.2, 2.9, 2.3, 6.8 m past the mouth).
+3. Build 1x Succeeded, 0 errors. Player cave walk mouth -> bat settlement 1 -> white pool rim: PASS, ended 0.2 m from the rim (2999.8,-2.9,-2134.0), 62 m, pushed out 0.3 m in all. Igloo porch walks (the 3 that failed in W-61), from 6 m outside the mouth: igloo 1 PASS (8.7 m walked, ~2.7 m past the mouth, stopped 3.5 m from centre), igloo 3 PASS (8.8 m, ~2.8 m in, 3.0 m from centre, at the door), igloo 5 PASS (9.1 m, ~3.1 m in, 3.8 m from centre). End shots not viewed by me.
+4. Hashes, all unchanged: v2 player 134 / 69CD531E, editor 134 / 829DF295; v1 player 103 / F628AE5F raw; caves C49E8E3036C741FC; ground C0C906EE310FA91F (outside-temple 7E891ED5DFB2C564); rivers A77D2ED7B919296E.
+Left: igloo walkers stop 3-3.8 m short of the centre (door/inner floor); fine for the porch test, check the end shots.
+
 ## W-61 (2026-11-03): bat folk kit settlements, white pools (#35), igloo porch (#38, partial)
 
 Commit 3cf1725 on world-features. Shots: D:/PunchyMilestones/W-61 (6 named + stray shot-6.png).
