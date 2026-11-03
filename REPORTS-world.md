@@ -949,3 +949,43 @@ b/weather-mapjob.
   - At (-879,1001) there is no water (ground 64.33). The open-end counter found 0 on v2, so it misses this case and needs a better rule.
 - Row 5 partly done: 8 before shots in PunchyMilestones/world/w35, taken with the existing W-30 build. There are no after shots, and the aerial views are blocked by trees.
 - Calls: about 80. Builds: 0 (no code change to ship).
+
+## W-31 (sunrise and sunset), 2026-11-02: DONE, world-features f064b41
+- Row 1 DONE (Sky.hlsl). It is driven by sun elevation e = asin(sunDir.y). The warm band sits on the sun's side of the horizon and turns cool violet on the far side and overhead. There is a glow around the sun. Stars, moons and shooting stars are untouched. Land haze uses the same horizon colour.
+- Row 2 DONE (Sky.hlsl). Volumetric clouds, far clouds and cirrus take the twilight light toward the sun and go grey-violet away from it. High clouds keep the light below 0 deg: low clouds (800 m) go dark by -0.8 deg; clouds at 7300 m are still at 38% at -4 deg. Muting: `_PunchyTwilightDull` = saturate(Overcast + 0.4 Darkness) cuts the twilight by up to 80%, and cloud warmth falls by a further 60% x weather.
+- Elevation table (clear sky, Dull 0). "Twilight" is how much of the effect applies; "light" is the brightness factor on the warm colour.
+
+| e (deg) | warm colour (sun side) | twilight | light | far side / overhead | cloud toward sun | cloud away | high cloud (7300 m) |
+|---|---|---|---|---|---|---|---|
+| +12 | gold 1.00,.76,.46 | 0.00 | 1.00 | normal day | normal day | normal | normal |
+| +5 | orange 1.00,.55,.24 | 0.96 | 1.00 | zenith x .95,.72,1.05 + violet | gold-orange | grey-violet .62,.55,.90 x lum | same as low |
+| 0 | red-orange 1.00,.40,.17 | 1.00 | 0.97 | violet-blue | orange-red | grey-violet | same as low |
+| -4 | pink-red .96,.38,.46 | 0.90 | 0.48 | violet, stars start | dark (low clouds unlit) | grey-violet | pink rim, 38% |
+| -8 | violet .42,.26,.55 | 0.00 | 0.10 | night | night (moonlight fades in) | night | unlit |
+
+- Row 3 DONE (lent: DayNightCycle.Evaluate, sun branch only; path and timing unchanged). Below about 15 deg (sunDir.y < 0.26) the sun colour is lerped toward x(1,.8,.6) and its strength x0.75 at the horizon. WeatherSystem lerps the equator ambient toward the twilight colour (x0.5). Fog already follows RenderSettings.fogColor and the sky haze.
+  - +5 deg: before colour 1.00,.67,.45 at strength .69; after 1.00,.57,.32 at strength .56.
+  - 0 deg: before colour 1.00,.46,.22 at .038; after 1.00,.37,.13 at .029.
+  - Above 15 deg: unchanged.
+  - Animal lane: the edit is 4 lines in the `SunDirection.y > -0.02` branch, marked W-31.
+- Row 4 DONE: 1 build. Shot list: Glacier spot looking west, PartlyCloudy, -time 12 / 17.59 / 18.0 / 18.33, a sunrise at 6.24 looking east, and an extra 0 deg Overcast shot. Ends with -quit. Viewed at 800 px.
+  - Midday is unchanged.
+  - +5: peach-pink sky, sun disc, warm cloud edges.
+  - 0: orange-pink band on the sun's side, pink clouds.
+  - -4: violet blue hour; a high cloud keeps a pink rim.
+  - Sunrise: gold under grey cloud.
+  - Overcast: muted to grey-pink.
+- Shots: PunchyMilestones/world/w31/w31-1-midday, w31-2-sun+5, w31-3-sun0, w31-4-sun-4, w31-5-sunrise-east, w31-6-sun0-overcast (.png), plus shots.txt.
+- Weak spots:
+  - At +5 and 0 the sky reads more pink-peach than deep orange-red.
+  - Land fog takes the warm tint strongly, so distant hills go pink. A tuning pass could deepen the band and halve the fog tint.
+- Checks:
+  - Compile and shaders clean (0 errors). Build succeeded.
+  - Hashes not re-measured: no generation code was touched (only Sky.hlsl, WeatherSystem lighting and the DayNightCycle light colour), so v2 126 / 053C63D5 and v1 102 / 51EA6463 are expected unchanged.
+  - CRLF kept on WeatherSystem.cs.
+- Incident:
+  - Early on I used port 7801 thinking it was my editor. It is the D:/Unity/Punchy editor today (the ports were swapped).
+  - On it I ran AssetDatabase.Refresh, set DayNightCycle TimeOfDay 17.59 and Paused on, and tried to enter play mode twice (it did not start). I set the values back (9, unpaused); the scene is not dirty.
+  - Since then everything goes by --pid 30120. My editor is checked clean: not playing, not compiling, no errors, scene not dirty.
+- Calls: about 60. Builds: 1.
+- NEXT: optional colour tuning pass (deeper band, less fog tint); W-35 still waits on Zach.
