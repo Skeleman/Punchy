@@ -366,10 +366,23 @@ namespace Punchy.Terrain
                 done = true;
                 Debug.Log($"[island] generator version 1 (baked); {LandmarkHash(ref source, palette)}");
                 Debug.Log(BatFolkBaking.Report(source));
+                Debug.Log(IcebergBaking.Report(source));
                 return;
             }
             done = true;
             if (palette.Biomes == null || palette.Biomes.Length == 0 || !source.Biomes.IsCreated) return;
+
+            // #23 (W-27b): one bake per process. A host has a server and a client world (and hosting from solo
+            // replaces the solo world with both), each with its own TerrainSource; baking in each blocked the main
+            // thread ~4 s per world, and the host's own connection timed out. Later worlds take the first bake's
+            // blobs (Persistent, never disposed, read-only once baked).
+            if (Shared.Ready)
+            {
+                Shared.ApplyTo(ref source);
+                EntityManager.SetComponentData(entity, source);
+                Debug.Log($"[island] v2 shared with {World.Name} from this process's bake (no rebake); {LandmarkHash(ref source, palette)}");
+                return;
+            }
 
             var watch = System.Diagnostics.Stopwatch.StartNew();
             var biomes = new List<BiomeDefinition>(palette.Biomes);
@@ -381,10 +394,14 @@ namespace Punchy.Terrain
             source.Island = gen.Island;
             source.BiomeCells = default;
             source.RiverSettings = IslandV2.Rivers(source.RiverSettings);
-            source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Anchors = default; source.PondMask = default;
+            source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Anchors = default; source.PondMask = default;
             var types = new List<LandmarkType>(palette.Landmarks);
             TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent);
+            // W-29: the grand falls go in after every place, so no landmark, cave or settlement sees them.
+            source.GrandFalls = GrandFalls.Build(source, Allocator.Persistent);
+            Debug.Log(GrandFalls.LastLog);
             EntityManager.SetComponentData(entity, source);
+            Shared.Keep(source);
             long placesMs = watch.ElapsedMilliseconds - genMs;
 
             string hashText = LandmarkHash(ref source, palette);
@@ -392,7 +409,42 @@ namespace Punchy.Terrain
             var report = System.Diagnostics.Stopwatch.StartNew();
             // (Ponds: the "[ponds]" line from BuildPlaces; W-14 dropped the second count here, ~2.8 s.)
             if (source.Rivers.IsCreated) Debug.Log("[island] " + RiverReport(ref source.Rivers.Value));
-            Debug.Log($"[island] reports {report.ElapsedMilliseconds} ms; v2 ready at {UnityEngine.Time.realtimeSinceStartup:F1} s since start");
+            Debug.Log($"[island] reports {report.ElapsedMilliseconds} ms; v2 ready at {UnityEngine.Time.realtimeSinceStartup:F1} s since start ({World.Name})");
+        }
+
+        /// <summary>
+        /// The version 2 bake's output, kept for every later world in this process (see <see cref="OnUpdate"/>). Only
+        /// the fields this system writes are kept: the rest of TerrainSource (biome table, noise settings) comes
+        /// from each world's own subscene and may be unloaded with it.
+        /// </summary>
+        static class Shared
+        {
+            public static bool Ready;
+            static TerrainSource baked;
+
+            [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+            static void Reset() { Ready = false; baked = default; }
+
+            public static void Keep(in TerrainSource source) { baked = source; Ready = true; }
+
+            public static void ApplyTo(ref TerrainSource source)
+            {
+                source.BiomeKind = baked.BiomeKind;
+                source.BiomeMap = baked.BiomeMap;
+                source.Island = baked.Island;
+                source.BiomeCells = baked.BiomeCells;
+                source.RiverSettings = baked.RiverSettings;
+                source.Rivers = baked.Rivers;
+                source.Landmarks = baked.Landmarks;
+                source.Settlements = baked.Settlements;
+                source.Caves = baked.Caves;
+                source.BatFolk = baked.BatFolk;
+                source.Icebergs = baked.Icebergs;
+                source.GrandFalls = baked.GrandFalls;
+                source.Anchors = baked.Anchors;
+                source.PondsOn = baked.PondsOn;
+                source.PondMask = baked.PondMask;
+            }
         }
     }
 }
