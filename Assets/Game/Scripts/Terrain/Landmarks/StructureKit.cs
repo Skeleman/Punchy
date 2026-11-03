@@ -227,8 +227,10 @@ namespace Punchy.Terrain
             for (int k = 1; k < 5; k++)
                 Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3(0f, deck - rise * k / 5f + 0.02f, -rampRun * k / 5f), new Vector3(width * 0.78f, 0.05f, 0.08f), 0f, false);
             Detail(parts, CoastDetail.Lantern, new Vector3(width * 0.35f, deck, length - 0.4f), 0f, rng, t);
+            // W-59d: the crab pots stand along the deck's left edge, their row turned along the dock and the buoy on the
+            // outside, so a walk lane down the middle stays clear (they used to sit across the centre line). Same draws.
             if (rng.NextDouble() < 0.6)
-                Detail(parts, CoastDetail.CrabPots, new Vector3(-width * 0.2f, deck, length * (0.4f + 0.4f * (float)rng.NextDouble())), (float)rng.NextDouble() * 360f, rng, t);
+                Detail(parts, CoastDetail.CrabPots, new Vector3(-width * 0.5f + 0.42f, deck, length * (0.4f + 0.4f * (float)rng.NextDouble())), 270f + ((float)rng.NextDouble() - 0.5f) * 8f, rng, t);
             if (rng.NextDouble() < 0.75)   // moored alongside, riding at the water
                 Detail(parts, CoastDetail.Boat, new Vector3((rng.Next(2) == 0 ? -1f : 1f) * (width * 0.5f + 1.1f), -0.6f, length * (0.45f + 0.35f * (float)rng.NextDouble())), 0f, rng, t);
             return parts;

@@ -78,6 +78,11 @@ namespace Punchy.Fauna
             using var paletteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
             if (!terrainQuery.TryGetSingleton(out TerrainSource source) || paletteQuery.CalculateEntityCount() != 1 || !source.Settlements.IsCreated)
                 return;
+            // #40 (W-59d): on island v2, wait for the launch bake. The editor's subscene holds a v1 bake (settlements
+            // and all) for a few frames before IslandV2System swaps the v2 island in, and placing against that put the
+            // editor's colossi on other spots (the head 26 m under the v2 ground). The player only ever saw v2.
+            if (IslandV2.Requested() && !source.Island.IsCreated)
+                return;
             var palette = em.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
 
             var half = source.World.WorldSize * 0.5f;

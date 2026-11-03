@@ -35,6 +35,8 @@ namespace Punchy.Flora
         /// <summary>1 for hive trees, 2 for docks: placed in a landmark, they face its way (comb on a known side, docks out to
         /// sea). A dock also slides along that way to the waterline (DockShore), so its land end starts on the bank.</summary>
         public int FaceLandmark;
+        /// <summary>1 for fishing villages' shore clutter (#36, W-59d): kept off the walk lane up each of the village's docks.</summary>
+        public int ShoreKit;
         /// <summary>
         /// How far its footprint reaches at scale 1 (m): the trunk for trees, about half its spread otherwise. Settlement
         /// plots (buildings, fences, palisades, pens) win over anything whose footprint would overlap them (OnBuiltPlot).
@@ -219,6 +221,7 @@ namespace Punchy.Flora
                     Dirt = FloraGenerator.Founded(s.Form) ? 1 : 0,
                     // Docks (#36) face the landmark's way too: a fishing village faces open water, so they run out to sea.
                     FaceLandmark = s.Form == FloraForm.HiveTree ? 1 : s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Dock ? 2 : 0,
+                    ShoreKit = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Shore ? 1 : 0,
                     Footprint = Footprint(s),
                     Span = s.Form == FloraForm.IceArch ? (s.Height.x + s.Height.y) * 0.5f * math.max(s.Spread, 0.5f) * 0.5f : 0f
                 };
@@ -510,6 +513,43 @@ namespace Punchy.Flora
             }
             return new float3(best.x, math.max(source.SampleHeight(best), sea + 0.1f), best.y);
         }
+
+        /// <summary>
+        /// How far <paramref name="xz"/> is from the walk lane of the nearest dock of this landmark (#36, W-59d): the
+        /// line from the foot of its plank ramp (4.6 m inland of the dock's base) out along the facing to its far end.
+        /// Shore clutter (a boat pulled up, a net frame) and the biome's plants stay off it, so the lane up the ramp and
+        /// down the deck is clear. float.MaxValue when the landmark has no docks.
+        /// </summary>
+        static float DockLaneDistance(ref FloraBlob f, in TerrainSource source, in LandmarkHit landmark, float2 xz)
+        {
+            ref var set = ref source.Landmarks.Value;
+            var instance = set.Instances[landmark.Instance];
+            var dir = math.normalizesafe(instance.Facing, new float2(1f, 0f));
+            var best = float.MaxValue;
+            for (int l = 0; l < 3; l++)
+            {
+                var placed = f.PropRanges[landmark.Type * 3 + l];
+                for (int e = placed.x; e < placed.x + placed.y; e++)
+                {
+                    var prop = f.Props[e];
+                    if (f.Rules[prop.Species].FaceLandmark != 2)
+                        continue;
+                    for (int k = 0; k < prop.Count; k++)
+                    {
+                        var spot = LandmarkSampling.ToWorld(instance, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
+                        var start = DockShore(source, spot, instance.Facing).xz;
+                        var along = math.clamp(math.dot(xz - start, dir), -DockRampRun, DockMaxLength);
+                        best = math.min(best, math.distance(xz, start + dir * along));
+                    }
+                }
+            }
+            return best;
+        }
+
+        /// <summary>The dock's plank ramp run (StructureKit.Dock) and a length past its longest deck, for the walk lane.</summary>
+        const float DockRampRun = 4.6f, DockMaxLength = 20f;
+        /// <summary>How far a shore cluster (StructureKit.Shore, spread 2.5) reaches from its spot, plus half the lane (m).</summary>
+        const float ShoreReach = 5.6f;
 
         /// <summary>
         /// The floor a plot's building stands at: the average ground over its footprint (the middle and four points
@@ -1023,6 +1063,10 @@ namespace Punchy.Flora
                                 if (OnBuiltPlot(ref f, source, spot, placedRule.Footprint * prop.Scale.y) ||
                                     OnRoad(source, spot, placedRule.Footprint * prop.Scale.y))
                                     return none;
+                                // W-59d: a shore cluster reaches about 5 m (2.5 m spread plus half a pulled-up boat):
+                                // none within that of a dock's walk lane, so nothing stands on the ramp or deck.
+                                if (placedRule.ShoreKit != 0 && DockLaneDistance(ref f, source, landmark, spot) < ShoreReach * prop.Scale.y)
+                                    return none;
                                 var toCentre = set.Instances[landmark.Instance].Position - spot;
                                 var placedYaw = prop.FaceCentre != 0 ? math.atan2(-toCentre.x, toCentre.y) : rng.NextFloat(math.PI * 2f);
                                 if (placedRule.FaceLandmark != 0)
@@ -1045,6 +1089,9 @@ namespace Punchy.Flora
                     }
                 }
                 if (blocked)
+                    return none;
+                // W-59d: the biome's plants (bushes, rocks) stay off the docks' walk lanes too.
+                if (DockLaneDistance(ref f, source, landmark, xz) < 2f)
                     return none;
                 var propRange = f.PropRanges[landmark.Type * 3 + layer];
                 for (int e = propRange.x; e < propRange.x + propRange.y; e++)
