@@ -1,35 +1,31 @@
 # Open GitHub issues -> cards (supervisor keeps this current)
 
-Rule: every card row that works on an issue names it in the Issue column. The agent comments on the issue with the result and report link, and never closes it. The supervisor closes it only after the work is merged into main and Zach has OKed it. Before writing any card, check this map and add any matching open issues to the card.
+Rule: every card row that works on an issue names it in the Issue column. The agent comments on the issue with the result and the report link, and never closes it. The supervisor closes an issue only after the work is merged into main and Zach has OKed it. Before writing any card, check this map, lanes/ISSUES-AUDIT.md and `gh issue list`.
 
-Updated 2026-11-02.
+Updated 2026-11-02, after the audit (lanes/ISSUES-AUDIT.md).
 
-## Already in a card
+## Resolved, waiting for Zach's OK to close (fix in main 41a9259)
+#3 #7 #9 #15 #16 #17 #18 #19 #23 #29 #30 #32 #34 #41 #42 #43 #47 #48 #49 #50
+- #13: OKed by Zach; close after M-04 is merged.
+- #11: follow-up A-41 lands in main with M-04.
+- #45: W-42 lands with M-04; the reshoot is in W-48.
+
+## Partly done -> card
 | Issue | Title | Card |
 |---|---|---|
-| #3 | Cave streams end in a pool or drop | W-47 row 2c |
-| #13 | Waterfall fall speed | Done, Zach OKed; close after M-04 is merged |
-| #14 | Cave mouths: grey shards | W-46 (new row) |
-| #18 | Natural river curves and width changes | W-53 |
-| #32 | Roof edges bevelled | W-45 (new row) |
-| #34 | Blue moon much larger | W-51 (new row) |
-| #45 | Shooting stars rarer and thinner | W-42 done (rarer); thinner checked in W-48 reshoot; close after merge + Zach OK |
-| #54 | Camera cave arm trace in managed code | A-45 |
-
-## Next cards (P2)
-| Issue | Title | Planned card |
-|---|---|---|
-| #55, #56, #57 | Creature perf: snapshot, staggered searches, footfall ground sampling | A-45 (animal perf) |
-| #11 | Long-stride run bends the foot too steeply | A-45 (check after A-41) |
 | #12 | Songbirds and dormice spin while wandering | A-46 |
+| #14 | Cave mouths: grey shards | W-46 row 2c |
 | #46 | Animals flee a flying player: count height | A-46 |
-| #47 | Fish body sprint keeps depth, faster | A-46 |
-| #48 | Right face button: dodge/roll, descend | A-46 |
-| #43 | Ambient animal sounds fewer, per biome | A-46 |
-| #49 | Client NRE in TerrainSource.HasBiomes when host quits | W-54 |
-| #30 | Flowers swivel and stretch | W-54 |
-| #15 | World look checks owed | W-54 |
-| #31 | Laptop: houses lit wrong | Needs the laptop; ask Zach when it's on |
+| #8 | NPC reactions to the player's race | backlog |
+| #20 | Mountain ranges dividing biome regions | backlog |
+| #35 #39 #40 | Bat folk, roads, colossi (roadmap) | backlog; #39 cobblestones (W-34) land with M-04 |
 
-## Backlog (P3 / needs-design / roadmap): slot when lanes are free
-#7, #8, #9, #10, #16, #17, #19, #20, #21, #22, #42, #50, #58-#64 (code health), roadmap #23-#27, #35-#41. #28 Linux is on hold. #29 is the handover record.
+## Open -> card
+| Issue | Title | Card |
+|---|---|---|
+| #54 #55 #56 #57 | Creature/camera perf | A-45 (animal perf) |
+| #58-#64 | ECS code-health review | A-45/A-47 after perf |
+| #31 | Laptop: houses lit wrong | Needs the laptop |
+| #21 #22 | Plant fidelity, underwater camera (design) | backlog |
+| #10 #24-#27 #36-#38 | Roadmap | backlog |
+| #28 | Linux build | on hold |
