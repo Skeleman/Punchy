@@ -1229,3 +1229,59 @@ Budget: about 60 calls and 1 build.
 - Row 3: steps (W-37 rule) 138 -> 121. Open ends not at falls 92 -> 102 (worse). Floating 28 -> 33 (worse). v1 before: steps 131, open ends 3, floating 0.
 - Row 4: before shots only, in PunchyMilestones/world/w37/before (zach_spot, widest, mid). No build and no after shots, since nothing was committed.
 - NEXT, needs a decision: (a) accept the 4 landmark changes, or (b) keep river points at the jittered value wherever landmark placement reads them. The open-ends and floating regressions need one tuning pass either way.
+
+## W-43 village polish: PARTLY DONE (world 882af99, local)
+
+Hashes, v2: unchanged. Landmarks 127 / 4D245E12, caves C49E8E3036C741FC, rivers A5B3DE5D53257332, ground F8F938002B0CBE46. v1 landmarks 103 / 19885131 are unchanged too. The build succeeded with 0 errors in 1:05, using `--timeout 900` instead of the card's 600.
+
+- **Row 1, banners.** There were three causes:
+  - The phase rate rode on the per-vertex gust.
+  - The gust UV scroll (clock x wind x direction) jumped whole noise cells as the wind drifted.
+  - The two banners were nearly in phase.
+
+  The phase now runs at a fixed rate with a random offset, and each banner reads one gust at a fixed scroll. Tip jump per frame over 10 s, from an analytic replica:
+
+  | fps | old | new |
+  |---|---|---|
+  | 30 | 0.652 m | 0.028 m |
+  | 144 | 0.708 m | 0.007 m |
+
+- **Row 2, roof gap.** Measured as the roof underside minus the wall top. Roofs now start at the wall top (EaveStart).
+
+  | Hut | old | new |
+  |---|---|---|
+  | Hall | 0.70-0.73 m | -0.04 m (embedded) |
+  | StoneHall | 0.72-0.75 m | -0.04 m |
+  | Inn | 0.13-0.14 m | -0.04 m |
+  | StoneHouse, Hut, Tower | 0 (solid RoofTube) | 0 |
+
+- **Row 3, tent seams.** The panels now share one sag point.
+
+  | Tent | old | new |
+  |---|---|---|
+  | Chief | 0.255 m | 0 |
+  | Ogre | 0.268 m | 0 |
+  | Goblin | 0.140 m | 0 |
+
+- **Row 4, tent collision.** Tents have no support grid, so the player cannot ledge-grab or mantle onto them. Sink is 0 from N/S/E/W.
+  - Stand-off from centre: Chief 2.48 m, Ogre 2.90 m, Goblin 1.27 m (was 0.98 m, too deep; the rings now follow the hide 0.5 m below each top).
+  - Off-axis approaches slide around the tent. PlayerMovementSystem is unchanged.
+- **Row 5, chimneys.** ChimneyTop added to StoneHouse, Inn and Smithy. Smoke plumes and their cost were NOT measured.
+- **Row 5b, elven foyers.** Sink 0. Front approaches stop at 4.79 m (ElfSpire, foyer front 4.39) and 4.98 m (ElfTower, front 4.58). Side approaches are held off.
+- **Row 5c, weather hold.** Played with `-weather Clear` and checked at t = 0, 57 and 172 s: coverage 0.04, precipitation 0, overcast 0, wind 0.20. It holds.
+- **Rows 5d, 5f: NOT DONE.** The floating-water measure, the temple walk and the sanctum shot were all out of budget.
+- **Shots**, in PunchyMilestones/W-43, with *_800.jpg copies:
+  - hall_before / hall_after
+  - tent_before / tent_after
+  - inn_chimney_after
+  - eye_after (3585,-42)
+  - The hall pair frames the wall base; I could not see a difference at 800 px.
+
+NEXT:
+- Smoke count, particle peak and frame cost (row 5).
+- Row 5d.
+- Row 5f.
+- A roofline shot with smoke.
+- A reframed hall roof shot.
+
+Budget: about 90 calls (over the 85 ceiling) and 1 build.

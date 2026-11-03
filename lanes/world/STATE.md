@@ -1,43 +1,50 @@
-# World lane state (after W-32, 2026-11-02)
+# World lane state (after W-43, 2026-11-02)
 
-Branch world-features, head 1320e8f (W-48, W-52, W-53, W-32 local, not pushed). Worktree D:/Unity/Punchy-world.
+Branch world-features, head 882af99 (W-48, W-52, W-53, W-32, W-43 local, not pushed). Worktree D:/Unity/Punchy-world.
 
-## Hashes (editor play mode, Temp/w37_measure.cs, tag w53e)
+## Hashes (editor play mode, Temp/w43_hash.cs; set PUNCHY_ISLAND=v2 in the editor first)
 
 | | v2 | v1 |
 |---|---|---|
-| landmarks | 127 / 4D245E12 (W-32 temple added) | 103 / 19885131 |
+| landmarks | 127 / 4D245E12 | 103 / 19885131 |
 | caves | C49E8E3036C741FC | 47C703C0E17F77CB |
 | rivers | A5B3DE5D53257332 | 2508BF538DA96D7E |
 | ground | F8F938002B0CBE46 | A32E650C44A45E06 |
 
-Landmarks are unchanged since W-36. W-53 moved v2 rivers, ground and caves (meanders); the old W-48 values were
-caves ACA9CC9155621A44, rivers 70B01EF403A78FF5, ground A87024EE3525ADC0.
+Unchanged by W-43 (v1 caves, rivers and ground were not re-measured after W-53).
 
-## W-48 / W-52 / W-53
+## W-43 (882af99)
 
-- W-48 cave perf: camera arm probe is Burst; deep in a cave only the camera's cave chunks draw (SurfaceHidden >= 0.99).
-  Still unexplained: ~33 ms frames for ~70 s after load. Shot switches `-perflog`, `-gocave x,z|#n`, `-oldcave`,
-  `-nocavewalls`.
-- W-52: still water's mesh reaches over shallow beaches (mesh only, no height change).
-- W-53 (ef41bf2): W-37 river meanders merged, scaled by river width; landmarks are placed on the jittered river map
-  (list unchanged); the v2 34.51 m dam is cut as a canyon instead of filled; wet sand reaches round, not square.
-- ArcSpire prongs collide as stacked slices; shooting stars 1/20 (`-redstar`); Colossus/Mantrap winding fixed.
+- Banner cloth: fixed phase rate; one gust per banner at a fixed scroll (wind drift no longer jumps it).
+- Hall/Inn roofs start at the wall top (EaveStart). Tent panels share one sag point, so the seams are closed.
+- Tent collider rings follow the hide. Tents have no support grid, so no climbing.
+- Porch colliders. ChimneyTop on StoneHouse, Inn and Smithy.
+- `-weather X` holds (heldWeather in WeatherSystem/WeatherField).
+- Open: smoke count, particle peak and cost; 5d floating water; 5f temple walk and sanctum shot; roofline shot.
 
-## W-32
+## Earlier (W-48 / W-52 / W-53 / W-32)
 
-- SunkenTemple (1320e8f): one per island with dunes, v2 3520,360 and v1 1320,-2720, placed in a second pass after towers
-  (salt 0x5E7A). 8 rooms on 3 levels with analytic collision (SunkenTempleShape) through Deck/TowerWall/FloorUnder.
-  The interior draws at LOD0 only with the camera inside. Design note: docs/agents/interiors.md.
-  Measure: Temp/w32_temple.cs (log, tris, walk test, shot coordinates).
+- W-48 cave perf: Burst camera arm probe; deep in a cave only the camera's cave chunks draw.
+  - Still unexplained: frames of about 33 ms for about 70 s after load.
+  - Switches: `-perflog`, `-gocave`, `-oldcave`, `-nocavewalls`.
+- W-52: still water's mesh reaches over shallow beaches.
+- W-53: river meanders scale with river width.
+  - The v2 34.51 m dam is cut as a canyon.
+  - Landmarks are placed on the jittered river map.
+- W-32: SunkenTemple, one per island.
+  - Positions: v2 3520,360; v1 1320,-2720.
+  - Analytic collision through SunkenTempleShape.
+  - Design notes: docs/agents/interiors.md.
 
 ## Open ideas (not scheduled)
 
-- Lake backwater over low banks: lake surface reaching up a river past where its banks are lower than the lake.
-- Unexplained v2 water steps (listed in the W-36 report; not recounted after W-53).
+- Lake backwater over low banks.
+- Unexplained v2 water steps (not recounted after W-53).
 
 ## Tools
 
-- Temp/w37_measure.cs: hashes (landmarks/caves when Temp/w37_full.txt exists), steps, open ends. Tag in
-  Temp/w37_tag.txt. Island from PUNCHY_ISLAND in the editor env.
+- Temp/w43_measure.cs: roof gaps, tent seams, walk sims for tents and foyers, banner replica.
+- Temp/w43_hash.cs: hashes.
+- Temp/w37_measure.cs: steps and open ends.
 - Untracked Assets/Temp/Editor/WorldProbe.cs (leave alone): LmList, CaveBench, Shot, TowerWalk.
+- The editor env defaults to PUNCHY_ISLAND=v1. PlayArgs.txt does not pick the island.
