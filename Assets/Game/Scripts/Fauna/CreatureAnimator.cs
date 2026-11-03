@@ -158,6 +158,16 @@ namespace Punchy.Fauna
             // Posture: lying lowers the body onto its belly; a bow or a lowered head tips the chest down.
             var lying = math.min(b.StandHeight, b.FrontRadius * b.BodyFlatten * 0.9f);
             var height = math.lerp(b.StandHeight, lying, s.Lie) * scale;
+            // (Lying across a slope the uphill hip would sit inside the flank, under the ground: raise the body by the
+            // side slope times half its width. Nothing changes on flat ground.)
+            if (!b.Upright && !aquatic && s.Lie > 0f)
+            {
+                var right = new float2(forward.z, -forward.x);
+                var halfWidth = math.max(b.FrontRadius, b.RearRadius) * scale;
+                var side = math.abs(GroundAt(terrain, s.Position.xz + right * halfWidth, s.Position.y)
+                                    - GroundAt(terrain, s.Position.xz - right * halfWidth, s.Position.y)) / (2f * halfWidth);
+                height += side * halfWidth * s.Lie * (1f - airborne);
+            }
             var lowered = b.StandHeight * scale - height;
             pitch += s.Bow * 0.3f + s.HeadDown * 0.1f * (1f - s.Lie);
             // (A lowered head, drinking or grazing, or a play bow tips the chest down about the hips: the rump stays where

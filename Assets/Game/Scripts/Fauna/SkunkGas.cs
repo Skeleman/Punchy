@@ -16,8 +16,9 @@ namespace Punchy.Fauna
     public class SkunkGas : MonoBehaviour
     {
         const float Cooldown = 10f, TrailTime = 2.5f, CheckEvery = 0.1f, FindEvery = 2f, Range = 90f;
-        const int BurstCount = 26;
-        static readonly Color Gas = new Color(0.56f, 0.76f, 0.3f, 0.5f);
+        const int BurstCount = 60;
+        // (A strong yellow-green, nearly opaque at the core: the soft puff shader fades the edges and lights it dimly.)
+        static readonly Color Gas = new Color(0.78f, 0.92f, 0.2f, 1f);
 
         struct Trail { public Entity Creature; public float Start, Owed; }
 
@@ -119,7 +120,7 @@ namespace Punchy.Fauna
                     continue;
                 }
                 var thin = 1f - age / TrailTime;
-                t.Owed += Time.deltaTime * 28f * thin * thin;
+                t.Owed += Time.deltaTime * 50f * thin * thin;
                 var n = (int)t.Owed;
                 t.Owed -= n;
                 trails[i] = t;
@@ -154,7 +155,7 @@ namespace Punchy.Fauna
             if (gas == null && !CreateGas())
                 return;
             ref var b = ref em.GetComponentData<CreatureBody>(e).Blob.Value;
-            var size = math.max(s.Scale, 0.3f);
+            var size = math.max(s.Scale, 0.6f);
             var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
             var rear = s.Position + new float3(0f, (b.StandHeight + b.RearRadius * b.BodyFlatten) * size, 0f) - forward * b.BodyLength * 0.55f * size;
             var wind = float3.zero;
@@ -166,11 +167,12 @@ namespace Punchy.Fauna
                 var spread = (float3)UnityEngine.Random.insideUnitSphere;
                 gas.Emit(new ParticleSystem.EmitParams
                 {
-                    position = rear + spread * 0.06f * size,
-                    velocity = -forward * UnityEngine.Random.Range(0.4f, 1.3f) * strength + spread * 0.35f + new float3(0f, 0.15f, 0f) + wind,
-                    startSize = UnityEngine.Random.Range(0.14f, 0.26f) * size * strength,
-                    startLifetime = UnityEngine.Random.Range(1.6f, 2.6f),
-                    startColor = new Color(Gas.r, Gas.g, Gas.b, Gas.a * strength),
+                    // (A little above the rump, so the soft edge where a puff meets the ground doesn't eat the cloud.)
+                    position = rear + spread * 0.06f * size + new float3(0f, 0.12f * size, 0f),
+                    velocity = -forward * UnityEngine.Random.Range(0.3f, 0.9f) * strength + spread * 0.3f + new float3(0f, 0.15f, 0f) + wind,
+                    startSize = UnityEngine.Random.Range(0.35f, 0.6f) * size * strength,
+                    startLifetime = UnityEngine.Random.Range(2.2f, 3.4f),
+                    startColor = new Color(Gas.r, Gas.g, Gas.b, Gas.a * math.sqrt(strength)),
                     applyShapeToPosition = false
                 }, 1);
             }
@@ -191,7 +193,7 @@ namespace Punchy.Fauna
             main.playOnAwake = false;
             main.loop = true;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
-            main.maxParticles = 300;
+            main.maxParticles = 500;
             main.startSpeed = 0f;
             main.gravityModifier = -0.01f;
             var emission = gas.emission;
@@ -200,7 +202,7 @@ namespace Punchy.Fauna
             shape.enabled = false;
             var grow = gas.sizeOverLifetime;
             grow.enabled = true;
-            grow.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 4.5f)));
+            grow.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 3.5f)));
             var drag = gas.limitVelocityOverLifetime;
             drag.enabled = true;
             drag.drag = 1.4f;
@@ -209,7 +211,7 @@ namespace Punchy.Fauna
             color.enabled = true;
             var fade = new Gradient();
             fade.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
-                         new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.1f), new GradientAlphaKey(0f, 1f) });
+                         new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.06f), new GradientAlphaKey(0.85f, 0.55f), new GradientAlphaKey(0f, 1f) });
             color.color = fade;
             var spin = gas.rotationOverLifetime;
             spin.enabled = true;
