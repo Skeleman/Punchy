@@ -252,6 +252,7 @@ namespace Punchy.Fauna
                     SpawnResidents(source);
                     SpawnCaveDwellers(source);
                     SpawnWildFolk(source);
+                    SpawnCrossingFishers(source);
                 }
             }
             using (CrittersMarker.Auto())
@@ -968,6 +969,137 @@ namespace Punchy.Fauna
                 }
             }
             near.Dispose();
+        }
+
+        /// <summary>The fisher standing at each road crossing (by its index in RoadCrossings.List), and those gone home tonight.</summary>
+        readonly Dictionary<int, Entity> crossingFishers = new Dictionary<int, Entity>();
+        readonly HashSet<int> crossingLeft = new HashSet<int>();
+        int crossingsVersion;
+
+        /// <summary>
+        /// A-31: where a road crosses a river, a seeded one in three has a fisher on the bank (RoadCrossings), spawned by
+        /// day while a player is within 120 m. Its folk are the nearest settlement's; if that village is within 250 m it
+        /// goes home there at night (its leash reaches the doors), else it's a lone fisher who packs up at dusk and walks
+        /// off along the road, and isn't back till the next day. Nothing is drawn from the rng but the body's own.
+        /// </summary>
+        void SpawnCrossingFishers(in TerrainSource source)
+        {
+            if (simWorld == null || !source.Settlements.IsCreated)
+                return;
+            RoadCrossings.Refresh(source);
+            if (RoadCrossings.Version != crossingsVersion)
+            {
+                crossingsVersion = RoadCrossings.Version;
+                crossingFishers.Clear();
+                crossingLeft.Clear();
+                LogCrossings(source);
+            }
+            var em = simWorld.EntityManager;
+            var hour = Cycle != null ? Cycle.TimeOfDay : 12f;
+            var day = hour >= 5.5f && hour < 19.5f;
+            if (day)
+                crossingLeft.Clear();
+            ref var set = ref source.Settlements.Value;
+            var list = RoadCrossings.List;
+            for (int i = 0; i < list.Count; i++)
+            {
+                var c = list[i];
+                if (!c.Fisher || !c.HasSpot)
+                    continue;
+                if (crossingFishers.TryGetValue(i, out var e) && em.Exists(e))
+                {
+                    // Dusk: a lone fisher leaves along the road (a destination, not a wander) and the despawn takes it.
+                    var s = em.GetComponentData<CreatureState>(e);
+                    if (!day && s.Task == CreatureTask.Fish && s.Leash < 10f)
+                    {
+                        s.Task = CreatureTask.None;
+                        s.Mode = CreatureMode.Idle;
+                        s.Home = c.Bank + c.Outward * 60f;
+                        s.Leash = 6f;
+                        em.SetComponentData(e, s);
+                        crossingFishers.Remove(i);
+                        crossingLeft.Add(i);
+                    }
+                    continue;
+                }
+                if (!day || crossingLeft.Contains(i) || NearestPlayer(c.Spot) > 120f || settledCount >= MaxSettled)
+                    continue;
+                var village = NearestSettlement(ref set, c.Spot, out var gap);
+                var index = village >= 0 ? CrossingFolk(set.Settlements[village].Type) : -1;
+                if (index < 0)
+                    index = RoleIndex(DirectorRole.Folk);
+                if (index < 0)
+                    return;
+                var yaw = math.atan2(c.Face.x, c.Face.y);
+                e = Spawn(index, new float3(c.Spot.x, source.SampleHeight(c.Spot), c.Spot.y), yaw);
+                var st = em.GetComponentData<CreatureState>(e);
+                st.Task = CreatureTask.Fish;
+                st.Job = (byte)FolkJob.Fisher;
+                st.WorkSpot = c.Spot;
+                st.WorkFace = c.Spot + c.Face * 4f;
+                st.Mode = CreatureMode.Work;
+                st.Timer = 200f;
+                st.Home = c.Spot;
+                // (A village fisher's leash reaches its village's doors, for home at night; a lone one stays put.)
+                st.Leash = village >= 0 && gap < 250f ? math.distance(c.Spot, set.Settlements[village].Centre) + 10f : 8f;
+                em.SetComponentData(e, st);
+                crossingFishers[i] = e;
+                settledCount++;
+            }
+        }
+
+        static int NearestSettlement(ref SettlementSetBlob set, float2 at, out float gap)
+        {
+            var best = -1;
+            gap = float.MaxValue;
+            for (int i = 0; i < set.Settlements.Length; i++)
+            {
+                var d = math.distance(set.Settlements[i].Centre, at) - set.Settlements[i].Radius;
+                if (d < gap)
+                {
+                    gap = d;
+                    best = i;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>The first free grown folk species of a landmark type (its race), or -1.</summary>
+        int CrossingFolk(int type)
+        {
+            if (type < 0 || type >= landmarks.Length || landmarks[type] == null)
+                return -1;
+            foreach (var r in landmarks[type].Residents)
+                if (FreeFolk(r) && SpeciesIndex(r.Species) >= 0)
+                    return SpeciesIndex(r.Species);
+            return -1;
+        }
+
+        /// <summary>The crossing list once per island: counts and five samples (the same every run: seed-derived).</summary>
+        void LogCrossings(in TerrainSource source)
+        {
+            var list = RoadCrossings.List;
+            int bridges = 0, spots = 0, fishers = 0, lone = 0, rolled = 0;
+            ref var set = ref source.Settlements.Value;
+            var sb = new System.Text.StringBuilder();
+            foreach (var c in list)
+            {
+                bridges += c.Bridge ? 1 : 0;
+                spots += c.HasSpot ? 1 : 0;
+                rolled += c.Fisher ? 1 : 0;
+                if (c.Fisher && c.HasSpot)
+                {
+                    fishers++;
+                    NearestSettlement(ref set, c.Spot, out var gap);
+                    lone += gap >= 250f ? 1 : 0;
+                    sb.Append($" ({c.Spot.x:F0},{c.Spot.y:F0}{(c.Bridge ? " bridge" : " ford")})");
+                }
+            }
+            var samples = new System.Text.StringBuilder();
+            for (int i = 0; i < list.Count && i < 5; i++)
+                samples.Append($" [{list[i].Centre.x:F1},{list[i].Centre.y:F1} {(list[i].Bridge ? "bridge" : "ford")} spot {(list[i].HasSpot ? $"{list[i].Spot.x:F1},{list[i].Spot.y:F1}" : "none")}]");
+            Debug.Log($"Crossings: {list.Count} ({bridges} bridges, {list.Count - bridges} fords), {spots} with a bank spot, " +
+                      $"fishers {fishers} ({lone} lone; {rolled} rolled); samples{samples}; fishers at{sb}");
         }
 
         void SpawnResidents(in TerrainSource source)

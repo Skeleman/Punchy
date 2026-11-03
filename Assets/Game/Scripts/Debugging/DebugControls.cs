@@ -1358,6 +1358,8 @@ namespace Punchy.Debugging
                     PlaceByRiverFall(fallSource, args[i + 1].Substring(9));
                 else if (args[i] == "-place" && string.Equals(args[i + 1], "meadow", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var meadowSource))
                     PlaceInMeadow(meadowSource);
+                else if (args[i] == "-place" && string.Equals(args[i + 1], "crossing", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var crossingSource))
+                    PlaceByCrossing(crossingSource);
                 else if (args[i] == "-place" && string.Equals(args[i + 1], "clearlake", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var lakeSource))
                     PlaceByClearLake(lakeSource);
                 else if (args[i] == "-place" && (string.Equals(args[i + 1], "ledge", System.StringComparison.OrdinalIgnoreCase) || args[i + 1].StartsWith("wall", System.StringComparison.OrdinalIgnoreCase)))
@@ -2501,6 +2503,40 @@ namespace Punchy.Debugging
                     }
                 }
             return null;
+        }
+
+        /// <summary>
+        /// "-place crossing" (A-31): beside the first bridge whose seeded roll gave it a fisher (else any with one), the
+        /// camera about 9 m off up the bank, looking past the fisher to the bridge and the river.
+        /// </summary>
+        void PlaceByCrossing(in TerrainSource source)
+        {
+            if (!playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            RoadCrossings.Refresh(source);
+            var pick = RoadCrossings.List.FindIndex(c => c.Fisher && c.HasSpot && c.Bridge);
+            if (pick < 0)
+                pick = RoadCrossings.List.FindIndex(c => c.Fisher && c.HasSpot);
+            if (pick < 0)
+            {
+                Debug.LogWarning("DebugControls: no crossing with a fisher");
+                return;
+            }
+            var x = RoadCrossings.List[pick];
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(player);
+            // (The player on the road a little back from the bank, out of the frame behind the camera.)
+            var park = x.Bank + x.Outward * 14f;
+            t.Position = new float3(park.x, source.SampleHeight(park) + 0.05f, park.y);
+            em.SetComponentData(player, t);
+            var away = math.normalizesafe(x.Spot - x.Centre, x.Outward);
+            var eyeXZ = x.Spot + away * 8f + new float2(-away.y, away.x) * 3f;
+            var spotY = source.SampleHeight(x.Spot);
+            var eye = new Vector3(eyeXZ.x, math.max(source.SampleHeight(eyeXZ), spotY) + 3f, eyeXZ.y);
+            var lookXZ = math.lerp(x.Spot, x.Centre, 0.35f);
+            var look = new Vector3(lookXZ.x, spotY + 0.8f, lookXZ.y);
+            PoseCamera(eye, Quaternion.LookRotation(look - eye));
+            Debug.Log($"DebugControls: at crossing {pick} ({x.Centre.x:F1}, {x.Centre.y:F1}, {(x.Bridge ? "bridge" : "ford")}), fisher spot ({x.Spot.x:F1}, {x.Spot.y:F1})");
         }
 
         void PlaceInMeadow(in TerrainSource source)

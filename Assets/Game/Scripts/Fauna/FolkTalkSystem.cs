@@ -293,7 +293,8 @@ namespace Punchy.Fauna
             Bubbles.Clear();
             BubbleLines.Clear();
             stillTalking.Clear();
-            if (director == null && UnityEngine.Time.frameCount % 60 == 0)
+            // (Looked for at once, not every 60 frames: a talk begun before it was found kept "..." for good; A-31.)
+            if (director == null)
                 director = Object.FindAnyObjectByType<FaunaDirector>();
             var cam = Camera.main;
             var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
@@ -313,8 +314,12 @@ namespace Punchy.Fauna
                     stillTalking.Add(entities[i]);
                     if (!chatLines.TryGetValue(entities[i], out var said))
                     {
-                        said = RoleLine(s, bodies[i].Species) ?? "...";
-                        chatLines[entities[i]] = said;
+                        // (Only a real line is kept: "..." is shown while none can be picked yet and tried again next frame.)
+                        said = RoleLine(s, bodies[i].Species);
+                        if (said != null)
+                            chatLines[entities[i]] = said;
+                        else
+                            said = "...";
                     }
                     BubbleLines.Add(said);
                 }
@@ -403,18 +408,24 @@ namespace Punchy.Fauna
         {
             var job = FolkJobs.Of(s);
             var archive = DialogueArchive.Current;
-            if (job == FolkJob.None || archive == null || director == null)
+            if (archive == null || director == null)
                 return null;
             var species = director.SpeciesAt(speciesIndex);
             var who = new DialogueArchive.Speaker
             {
                 Species = species?.name,
                 BodySpecies = species?.Body.name,
-                Job = FolkJobs.Name(job),
+                Job = job == FolkJob.None ? null : FolkJobs.Name(job),
                 Mood = FolkJobs.Mood(s.Individual).ToString(),
                 Hour = hourNow
             };
-            var text = archive.PickRole(who, ref lineRng);
+            // (A job's own pool first; a jobless talker, or a job with no line, says an ordinary line, not "...".)
+            var text = who.Job != null ? archive.PickRole(who, ref lineRng) : null;
+            if (text == null)
+            {
+                who.Job = null;
+                text = archive.Pick(who, ref lineRng);
+            }
             if (text != null && (linesLogged < 40 || ChatMix))
             {
                 linesLogged++;
