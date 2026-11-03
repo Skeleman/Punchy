@@ -588,11 +588,16 @@ namespace Punchy.Terrain
             var parts = new List<KitPart>();
             var rng = new System.Random((int)(Scramble(seed ^ 0x913Eu) & 0x7FFFFFFF));
             Platform(parts, new Vector3(0f, 0f, length * 0.5f), 0f, width, length, deck, true);
+            // W-62b: a solid bed right under the planks. The planks have thin gaps, and on a pier this long the support
+            // grid's cell centres fell in three of them, so a walker dropped through the deck to the lake bed.
+            Add(parts, KitPiece.Platform, KitMaterial.Wood, new Vector3(0f, deck - 0.17f, length * 0.5f), new Vector3(width * 0.94f, 0.1f, length), 0f, false);
             for (int k = 0, n = Mathf.Max(2, Mathf.RoundToInt(length / 3f) + 1); k < n; k++)
                 foreach (var side in new[] { -1f, 1f })
                     Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(side * width * 0.45f, -piles * 0.5f, k * length / (n - 1)), new Vector3(0.3f, piles, 0.3f), 0f, false);
             // The ramp from the bank, as on a fishing dock (W-59c): starts 0.4 m in the ground, walked up like a slope.
-            const float rampDrop = 0.4f, rampRun = 4.6f;
+            // W-62b: longer than a dock's (8 m, about 10 degrees). A pier is long, so its support grid's cells are
+            // about 0.8 m, and a 4.6 m ramp rose 0.5 m a cell: the player met a step at the deck's land end.
+            const float rampDrop = 0.4f, rampRun = 8f;
             var rise = deck + rampDrop;
             var pitch = -Mathf.Atan2(rise, rampRun) * Mathf.Rad2Deg;
             var slope = Mathf.Sqrt(rise * rise + rampRun * rampRun);
