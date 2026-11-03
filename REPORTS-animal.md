@@ -1437,3 +1437,24 @@ FaunaDirector.cs, DebugControls.cs. All stay LF. No TerrainSource, player collis
     CreatureSolids: on, 60 s, 3600 frames, 39769 creature-ticks near, contacts 0.0/min, stuck 0 ticks (0.0 s), hidden >0.15 m 0 ticks, max sink 0.00 m, floating >0.2 m 0 ticks, queries 17.9/frame (1.62 per creature-tick); cost now 44 near: 0.032 ms Burst one thread, 0.037 ms per frame at 50
     CreatureSolids cases: sinks; floating
     CreatureSolids: on, 60 s, 3600 frames, 34223 creature-ticks near, contacts 0.0/min, stuck 0 ticks (0.0 s), hidden >0.15 m 0 ticks, max sink 0.00 m, floating >0.2 m 0 ticks, queries 19.5/frame (2.05 per creature-tick); cost now 42 near: 0.035 ms Burst one thread, 0.041 ms per frame at 50
+
+## A-46 (animal-behaviours 3142018, on A-45 3abc2c4; PR #73 open)
+
+- **Cave walls:** met. Max sink in m, old / A-45 / A-46, from the editor sim (v1 world):
+  - c0: bear 0.44 / 0.53 / 0.05; dormouse 0.14 / 0.05 / 0.04.
+  - c1: bear 0.00 / 0.00 / 0.00; dormouse 0.07 / 0.00 / 0.00.
+  - c2: bear 0.69 / 0.10 / 0.04; dormouse 0.08 / 0.04 / 0.04.
+  - Dormouse stuck is 0 everywhere. KeepOutOfSolids now turns on the spot to a clear facing before it pushes.
+- **#12:** the wander turning-circle cap (A/B `-oldwander`) is in.
+  - Wander changes nothing: the sim gives songbird 22 and dormouse 9 deg/s, old and new alike, with 0 full circles, and the in-game wander is 0 deg/s.
+  - The spins come from **Play mode**: songbird 124-148 deg/s, two 272 deg/1 s spins logged; marmot and goat too.
+  - Not fixed. Play mode is the next card.
+- **#46:** inconclusive. Ground and hover 30 m both gave 0 of 5-11 deer fleeing, mean 23-28 m. The deer were outside flee range at (277,-761). Needs a closer spot.
+- **#57:** the flee-oldsearch and flee-newsearch 5-min lines were still running at the budget ceiling. The counts will be in a46/player.log ("flees this line"). Unreported.
+- **#68:** done in code, but the tab doesn't show in editor play. Needs follow-up.
+  - Built: CharacterTab.cs adds class -> species -> colour, remembers the last pick per class, and reads classes from species data (Upright, Habitat, Crawls). NetAvatars.LocalCoat feeds NetPlayerLook.Coat. NetMenu's Body row is gone.
+  - Problem: in editor play the menu showed only Graphics, and `-pickclass` did nothing. The cause isn't known (tab registration or scene timing?).
+  - Not shown yet: solo/host/client and the bird -> fish two-click count.
+- **Hashes:** v1 103 / 19885131, unchanged. No landmark code was touched.
+- **Build:** one build, made before the `-menu`/`-pickclass` shot-line flags.
+- **Shots:** PunchyMilestones/animal/a46 (a46-load, spin-old/new, lift-ground/30m, player.log) and a46/editor (the Character shots show no tab).
