@@ -2,6 +2,16 @@
 
 Newest first.
 
+## W-59 (2026-11-03): fishing villages, colossus keep-out (WIP, stopped at the call ceiling)
+Commit 9b67f36 on world-features (pushed). It compiles in the editor, but it has not been built or shot yet.
+- Row 1 (#36): code done. New FishingVillage landmark type (Resources) and FishingVillageBaking. Villages are placed on v2 only, after the caves, at the widest river mouths, on a dry bank next to the mouth. Up to 4 villages, at least 350 m apart, clear of every landmark. The type is appended last, so other type indexes don't move, and v1 gets no villages. The spot list is not printed yet: it goes to the log as "[villages] ..." at bake time.
+- Row 2 (#36): StructureKit has the FishFolk coastal trim, StiltHouse, Dock (Platform deck, piles, end lantern, crab pots, moored boat) and Shore details (boat, net frame, fish rack, crab pots, driftwood, lantern), seeded per prop. Species: FishStiltHouse, FishDock, FishShore. No shots yet.
+- Row 3: walk test not done.
+- Row 4 (#40): code done. FloraPlacement.KeepOut (SharedStatic) clears 34 m round the titan and 26 m round the head. StoneColossi sets it, and FloraSystem.Replant re-places the streamed tiles once. No head shot yet.
+- Row 5: no build, no hash checks yet. Risk: v2 landmark count/fingerprint will grow by the villages. Check that rivers, caves and the existing landmarks are unchanged.
+- Known gap: FloraSpecies has no FaceLandmark field, so docks get the prop yaw (random), not the seaward facing. Docks may point inland until a facing option is added.
+- Next: ONE build, the shot list (2 day + 1 dusk village, head), the hash checks and the dock walk.
+
 ## W-58b (2026-11-03): kit polish, walk test, docs, mound sim
 - Row 1 before/after: titan and head shots showed no colossus (camera at the editor-probe spots, not where the player places them) -> retaken at the player spots, both colossi in frame. Ruin: flat green squares on walls (one ivy box per bay) -> thin trailing strands; dark glass panels in ruin windows -> real holes; rafters floating at random tilt -> rest on the floor. Intact houses: wall collider circles bulged ~1.2 m past the wall over the door step and outside stair -> set back to the wall face. Left: trees grow through the half-buried head (no flora keep-out round colossi).
 - Row 2 (ElfGrove, player -walk): 5 houses (-2529.8,-1576.0; -2500.5,-1576.6; -2458.3,-1548.5; -2468.7,-1525.8; -2451.3,-1510.8) - all reached the front door and stopped 3.0/4.7/3.3/4.7/3.2 m from the centre, two up on the step (+0.5 m); no snag before the door, no fall-through. Doors are closed (no interiors), so "through" = up to the door. Stair (editor sim, player rules, step 0.4): 7 of 24 KitHouse variants have one, all 7 climb to the 3.4 m landing, no snag, no fall.
