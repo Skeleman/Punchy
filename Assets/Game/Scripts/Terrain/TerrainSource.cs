@@ -678,7 +678,9 @@ namespace Punchy.Terrain
                         var outlet = level < lakeSurface - 0.01f;
                         water = level;
                         flow = outlet ? flow : float2.zero;
-                        g.Rapids = outlet ? math.max(g.Rapids, math.saturate((lakeSurface - riverLevel) * 0.6f) * riverClaim) : 0f;
+                        // Foam only as far as the surface really ramps down here (W-36: scaling it by the whole drop to
+                        // the river painted a white strip across flat lake water near outlets).
+                        g.Rapids = outlet ? math.max(g.Rapids, math.saturate((lakeSurface - level) * 1.5f) * riverClaim) : 0f;
                     }
                     ruleDepth = math.max(ruleDepth, math.lerp(farAbove, level - g.Height, math.smoothstep(0f, 0.4f, lake)));
                 }

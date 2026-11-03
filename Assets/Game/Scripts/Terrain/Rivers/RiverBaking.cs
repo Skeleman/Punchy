@@ -105,6 +105,7 @@ namespace Punchy.Terrain
                 ReshapeLoweredLakes(source, settings, cellSize * 0.0005f, resolution, origin, cellSize, seed, elevation,
                                     down, order, lakesBefore, lakes, lakeLevel, floor, width, bed, water);
                 lakesBefore.Dispose();
+                FillRiverPits(settings, source.World.SeaLevel, down, order, lakes, width, bed, water);
 
                 var builder = new BlobBuilder(Allocator.Temp);
                 ref var root = ref builder.ConstructRoot<RiverMapBlob>();
@@ -372,6 +373,29 @@ namespace Punchy.Terrain
             }
             newFloor.Dispose();
             touched.Dispose();
+        }
+
+        /// <summary>
+        /// W-36: a river cell whose bed lies below the bed of the river cell it drains into is a pit: its water backs up
+        /// to the dam downstream, metres above its own channel, while its carve still digs the ground down to its low bed
+        /// across the whole width. The water then stood above the dug-out banks with open ends along the sides (65 of
+        /// the 106 open ends on v2). This raises such a bed to sit under its backed-up water like any river bed, so the
+        /// river is flat to the dam instead of a sunken channel. Downstream first, so a filled cell can be the dam of the
+        /// one above it. Rivers backed up by a lake or the sea are left alone, and water levels do not change.
+        /// </summary>
+        static void FillRiverPits(in RiverSettings settings, float seaLevel, NativeArray<int> down, NativeList<int> order,
+                                  NativeArray<float> lakes, NativeArray<float> width, NativeArray<float> bed, NativeArray<float> water)
+        {
+            for (int k = 0; k < order.Length; k++)
+            {
+                var c = order[k];
+                var d = down[c];
+                if (d < 0 || width[c] <= 0f || lakes[c] > 0f || lakes[d] > 0f || bed[d] <= bed[c] || water[c] < seaLevel + 0.5f)
+                    continue;
+                var under = RiverSampling.Depth(width[c], settings) * 0.25f;
+                if (water[c] > bed[c] - under + 0.05f)
+                    bed[c] = water[c] + under;
+            }
         }
 
         static void Copy<T>(ref BlobBuilder builder, ref BlobArray<T> target, NativeArray<T> source) where T : unmanaged
