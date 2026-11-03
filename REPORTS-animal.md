@@ -1142,3 +1142,43 @@ Shots (PunchyMilestones/animal/a37/800):
 - From run 1: a37-warp-biome (SparklingForest, player clear under canopy) and a37-warp-town (OgreCamp).
 
 NEXT: warp camera vs tree crowns (flora along the camera line, or skip targets under canopy).
+
+## A-38 warp camera vs trees + climb regression (2026-11-02), animal lane
+
+| # | Row | Result |
+|---|---|---|
+| 1 | Warp camera vs trees | DONE: no leaves in the DwarfMiningCamp retake; the camera turned 120 deg |
+| 2 | Climb rule regression | DONE (log below): no tunnelling; found a slide-and-jitter against the slope wall |
+| 3 | Shots | DONE: the town 3 retake, plus F5-F8 from the spawn; all viewed at 800 px |
+
+Row 1 (DebugControls.ClearWarpView): after a warp, the camera tries the landing heading, then 30 deg steps either way.
+It takes the first side whose head->lens line misses tree crowns and trunks. Plants come from FloraPlacement.Place
+(read only; FloraGenerator not touched). The first build tested the plain 8 deg line, and town 3 still had leaves:
+on the uphill side, ThirdPersonCamera lifts the lens over the ground and into the crowns. The fix build tests the
+lifted lens line, with a 1.2 m margin near the lens.
+
+Row 2 (sim in the editor's Play mode, real PushOutOfSolids, 4 m/s; sink = maxPen at mid/head):
+- Seg 245 slope, sideways into the wall: sink 0.03 and 0.01 m with push-out (0.15 and 4.75 m without). Pushed
+  18.5 and 13.5 m in 3 s: the body jitters and ends ~1.4 m down, at the slope's foot.
+- Slope, diagonally up into the wall: sink 0.14 and 0.07 m (0.31 and 0.34 m without). Pushed 1.2 and 20.8 m.
+- Ledge, from the top of seg 245 downhill and past its foot: sink 0.00, pushed 0.20 m, fall 1.38 m.
+- Ledge, cave seg 32 (a 1.06 m drop): sink 0.00, pushed 0.53 m, fall 3.0 m.
+- Off the A-37 target: one diagonal sink is 0.14 m (over 0.10). The wall jitter and the downhill slide are new
+  findings, not fixed (out of scope).
+
+Checks:
+- Compile clean. 2 builds Succeeded: the card's build, plus 1 fix build under the soft budget.
+- v2 126 / 053C63D5 in the player log. v1 not run (no world code touched).
+- 0 exceptions. Both runs quit on their own. The only other Punchy.exe was the world lane's Builds/Dev player.
+- No new network fields; the KeepOutOfTower line stays.
+- Line endings: DebugControls is lf, kept lf.
+- Commit 90e9211, pushed to animal-behaviours.
+- Editor: all calls went to the animal editor by --pid. Nothing was sent to Punchy-world.
+
+Shots (PunchyMilestones/animal/a38/800; full size in raw/):
+- a38-warp-town3-retake (DwarfMiningCamp: no leaves, player in view)
+- a38-warp-biome (Mountains), a38-warp-town (OgreCamp), a38-warp-cave (Cave #34), a38-warp-landmark (CrystalGrotto)
+- a38-load
+
+NEXT: on the seg 245 slope, walking sideways into the wall jitters and slides the body down (the wall push has a
+downhill part).
