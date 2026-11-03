@@ -2,6 +2,51 @@
 
 Newest first.
 
+## 2026-11-02: ECS review of main 41a9259 (Zach's request; read-only): core sound, cost is managed main-thread work and one fat component; issues #54, #55
+128 scripts, about 60k lines. No edits.
+
+**Done well:** CreatureBrainSystem is a Burst ISystem with one parallel IJobEntity; neighbours come from a per-frame
+grid (20 grid queries; only 3 full scans, all rare: message receiver, ChatsNear, RoostUsers). Creatures draw as
+instanced capsules from one GraphicsBuffer (2 draws); the cave cull is Burst (A-22). Terrain, flora and cave meshing
+pick results up frames later; spawns are queued and batched.
+
+**ECS problems, most valuable first**
+1. `CreatureState` is one ~300-byte component holding motion, posture, mind, needs, chat, task, lair, held item and
+   anchor. Every reader copies all of it and the brain writes all of it. Suggest splitting by reader: motion
+   (Position, Yaw, Speed, Phase), pose (Lie, Sit, Fly...), mind (Mode, Stage, timers, needs), social/job fields.
+2. 10+ main-thread readers each copy every creature's state, body and entity arrays per frame: audio (2), breath,
+   burrow, wake, trace, folk talk (2), director (3), mantrap, ambience, render. The first copy in the presentation
+   group also completes the brain job. Suggest one snapshot per frame (arrays plus the brain's grid) as a singleton
+   shared by all readers; it also covers item 9's FolkTalk double copy.
+3. Many "systems" are MonoBehaviours driving entities (FaunaDirector, CaveSystem, FloraSystem, WeatherSystem,
+   AmbienceSystem, Mantrap, ThirdPersonCamera). Their order against ECS systems is implicit and they can't chain
+   job dependencies. Not urgent.
+4. Managed TerrainSource sampling on the main thread (about 16 us each in the player): FaunaDirector 17 call sites,
+   TraceSystem 9, AmbientLife 7, CreatureRenderSystem 6, Mantrap 5, AmbienceSystem 5.
+
+**First wins**
+- **#54** `ThirdPersonCamera.CaveArm`: up to 160 managed SolidDistance steps a frame (5 cm minimum step in tight
+  chambers). Very likely the v2 cave's +1.9 ms (item 8: 1.1 to 3.0 ms). Burst `.Run()` as A-22 did; likely enough to
+  bring the v2 cave under 1.3x.
+- **#55** TraceSystem: `NoSurface` (2 managed samples) for every creature in range every frame, before checking for a
+  footfall. Probably the 0.91 to 1.19 ms of item 9 and the growth on #6.
+- Brain: FindPredator/FindAlarm run every frame per hunted animal, StartChat's search at 30% per frame (item 9).
+  Staggering them to about 0.2 s by entity loses nothing visible.
+- Brain LOD: every loaded creature runs the full brain every frame. Beyond about 80 m, decide every 2-4 frames and
+  only ease motion in between.
+
+**Behaviours**
+- Sound core: needs (Hunger, Thirst, Tired, Lonely) rise with time, activities ease them, and a weighted roll by
+  species taste picks the next activity when the timer runs out.
+- Strain: `Decide` has a growing chain of early-return special cases before the roll (hermit, camper, rooted,
+  disguised, hunt task, raid, play ring, hearth) and fixed overrides (6, 8, 10, 14) that beat the weights. Their
+  order is unwritten behaviour. A (condition, weight) table per activity would keep it tunable.
+- CreatureBrainSystem.cs is one 6,277-line job with 22 modes and 13 tasks, and every mode's fields sit in the shared
+  component. Partial files by area (town folk, wild, fliers/swimmers, cave life) cost nothing at runtime and ease
+  lane collisions.
+- The needs are invisible to the player (Lonely only weights play).
+Cost: about 30 calls, about $5 (estimate; usage_log lags).
+
 ## 2026-11-02: queue item 10 recheck on main 41a9259 (W-27b, PR #53): v2-default host + join PASS; -island v1 PASS
 Bench-41a9259, host + local client, no `-island` flag, then `-island v1` on both. 0 exceptions, IndexOutOfRange or
 NullReference in all 4 logs. No dialogs.
