@@ -2986,12 +2986,25 @@ namespace Punchy.Flora
                 case Punchy.Terrain.KitShape.Alpine:    // #38: mountaintop details, walked round
                     parts = Punchy.Terrain.StructureKit.AlpineCluster(seed, trim, 2.5f);
                     break;
+                case Punchy.Terrain.KitShape.ShellDome: // #37: sea folk on the lake bed
+                    storeys = 1;
+                    parts = Punchy.Terrain.StructureKit.ShellDome(seed, trim, width);
+                    break;
+                case Punchy.Terrain.KitShape.Spire:     // #37: Height is the spire's full height, tall enough to break the lake surface
+                    parts = Punchy.Terrain.StructureKit.Spire(seed, trim, width);
+                    break;
+                case Punchy.Terrain.KitShape.Pier:      // #37: Height is the deck's length; piles reach 30 m down to a deep bed
+                    parts = Punchy.Terrain.StructureKit.Pier(seed, trim, width, 2.8f, 1.0f, 30f);
+                    break;
+                case Punchy.Terrain.KitShape.Reef:      // #37: lake-bed details
+                    parts = Punchy.Terrain.StructureKit.Reef(seed, trim, 3f);
+                    break;
                 default:
                     parts = Punchy.Terrain.StructureKit.House(seed, trim, width, depth, storeys, ruined ? g.Range(0.45f, 0.9f) : 0f);
                     break;
             }
             var house = shape == Punchy.Terrain.KitShape.House || shape == Punchy.Terrain.KitShape.StiltHouse ||
-                        shape == Punchy.Terrain.KitShape.Igloo;
+                        shape == Punchy.Terrain.KitShape.Igloo || shape == Punchy.Terrain.KitShape.ShellDome;
 
             var first = b.VertexCount;
             var top = 0f;
