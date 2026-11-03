@@ -141,6 +141,22 @@ namespace Punchy.CameraRig
                     position.y = minY;
                     rotation = Quaternion.LookRotation(target - position);
                 }
+                // Out in the open, a hill between the player and the camera (a steep slope, A-37): the camera comes in
+                // along its line to just before the ground, so the view isn't from inside the hill. Not near caves,
+                // where the ground height says nothing about the tunnel the player is in.
+                if (terrain.CaveDistance(head) >= CaveNear)
+                {
+                    var arm = position - target;
+                    var armLength = arm.magnitude;
+                    for (var i = 1; i <= SightSamples; i++)
+                    {
+                        var p = target + arm * ((float)i / SightSamples);
+                        if (p.y >= terrain.SampleHeight(new Unity.Mathematics.float2(p.x, p.z)) + GroundClearance * 0.5f)
+                            continue;
+                        position = target + arm * Mathf.Max((i - 1f) / SightSamples, Mathf.Min(1f, MinSightArm / Mathf.Max(armLength, 1e-4f)));
+                        break;
+                    }
+                }
             }
 
             transform.SetPositionAndRotation(position, rotation);
@@ -150,6 +166,9 @@ namespace Punchy.CameraRig
         const float CaveNear = 6f, LensRadius = 0.3f, LensMargin = 0.05f;
         /// <summary>Closer in than this (m), the near plane comes in so the rock right at the lens isn't cut open.</summary>
         const float CloseArm = 1.2f;
+        /// <summary>Out in the open: ground checks along the camera's line to the player, and the closest it comes in (m).</summary>
+        const int SightSamples = 16;
+        const float MinSightArm = 1.5f;
 
         static Unity.Mathematics.float3 ToFloat3(Vector3 v) => new Unity.Mathematics.float3(v.x, v.y, v.z);
 

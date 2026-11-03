@@ -3562,6 +3562,8 @@ namespace Punchy.Debugging
         // F5-F8 were free (F1 HUD, F3 copy position here; F4 is bound in the input actions). Local player only:
         // nothing goes on the network, and the world data is only read.
         static readonly Key[] WarpKeys = { Key.F5, Key.F6, Key.F7, Key.F8 };
+        /// <summary>After a warp the follow camera comes in to at most this (m).</summary>
+        const float WarpCameraDistance = 5f;
         static readonly string[] WarpNames = { "biome", "settlement", "cave", "landmark" };
         readonly List<Location>[] warpTargets = { new List<Location>(), new List<Location>(), new List<Location>(), new List<Location>() };
         readonly int[] warpIndex = { -1, -1, -1, -1 };
@@ -3615,8 +3617,13 @@ namespace Punchy.Debugging
             em.SetComponentData(player, transform);
             em.SetComponentData(player, new PlayerMotion { Grounded = true });
             var cam = FindAnyObjectByType<ThirdPersonCamera>();
+            // Close in and low (A-37): under tree canopy rather than looking down through it; a hill in the way pulls
+            // the camera in further (ThirdPersonCamera).
             if (cam != null)
-                cam.SetView(target.Yaw, 12f);
+            {
+                cam.Distance = Mathf.Min(cam.Distance, WarpCameraDistance);
+                cam.SetView(target.Yaw, 8f);
+            }
             warpBanner = $"F{5 + category} {WarpNames[category]}: <b>{target.Name}</b>  {warpIndex[category] + 1}/{list.Count}  ({target.Position.x:F0}, {target.Position.y:F0})";
             warpBannerUntil = Time.unscaledTime + 3f;
             Debug.Log($"DebugControls: warp {WarpNames[category]} {warpIndex[category] + 1}/{list.Count} {target.Name} at {target.Position.x:F0},{target.Position.y:F0}");
