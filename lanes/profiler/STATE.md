@@ -29,8 +29,8 @@ Released: v0.11.0 = cand/v0.11 4eea658 (world b39522b + animal c810406).
 - Wakes: re-check with a camera over open water. Item 15 cave-chunk: a per-chunk timing log would settle it.
 - 2026-11-02 queue items 1-5 done (BENCH-REPORTS): world 8d83102 and animal b5e9715 smokes pass; Dunes puffs
   +0.9 ms GPU, night sky +0.35; remote roll seen (#48).
-- #31 houses lit wrong: tier, GPU and quality level ruled out on the laptop. Waiting on the same town shot from
-  the main PC (flags in the report). Laptop plays at 1280x720 windowed.
+- #31 houses lit wrong: Zach (2026-11-03) says it was found and fixed on the main PC. Profiler stands down; a
+  laptop town shot on current main confirms it if asked (flags in the 574167c report). Laptop plays at 1280x720.
 - TraceSystem 0.05 -> 0.40 ms median at townwalk since Z-50 (c0b26df), reported on #6. Re-profile after a fix.
 - Builds/ was wiped by mistake on 2026-11-02 and partly rebuilt; see FILES.md for what exists and what to rebuild.
 
