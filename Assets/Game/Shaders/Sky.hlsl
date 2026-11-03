@@ -201,12 +201,80 @@ float PunchyPhase(float cosTheta, float g)
     return (1 - g2) / pow(max(1 + g2 - 2 * g * cosTheta, 1e-4), 1.5);   // Henyey–Greenstein × 4π (1 = isotropic)
 }
 
+// ------------------------------------------------------------------------------------------------ twilight
+// Sunrise and sunset (W-31), all keyed by the sun's elevation in degrees: a warm band low on the sun's side of the
+// sky, violet on the far side and overhead, a bright glow round the sun, warm-lit clouds, then blue hour. Weather
+// mutes it through _PunchyTwilightDull (0 clear … 1 overcast/storm; unset reads as clear).
+half _PunchyTwilightDull;
+
+float PunchySunElevation() { return degrees(asin(clamp(_PunchySunDirection.y, -1.0, 1.0))); }
+
+// The warm colour of the low sun: gold at +12°, orange at +5°, red-orange at 0°, pink-red at -4°, violet by -8°.
+half3 PunchyTwilightColor(float e)
+{
+    half3 c = lerp(half3(0.42, 0.26, 0.55), half3(0.96, 0.38, 0.46), saturate((e + 8) / 4));
+    c = lerp(c, half3(1.00, 0.40, 0.17), saturate((e + 4) / 4));
+    c = lerp(c, half3(1.00, 0.55, 0.24), saturate(e / 5));
+    return lerp(c, half3(1.00, 0.76, 0.46), saturate((e - 5) / 7));
+}
+
+// How much twilight shows: none above +12° or below -8°, full from about -3° to +4°, less under cloud.
+half PunchyTwilightAmount(float e)
+{
+    return smoothstep(-8, -3, e) * (1 - smoothstep(4, 12, e)) * (1 - 0.8 * _PunchyTwilightDull);
+}
+
+// How bright the twilight light is: full while the sun is up, dimming to a glow as it sinks towards -8°.
+half PunchyTwilightLight(float e) { return lerp(0.1, 1, smoothstep(-8, 1, e)); }
+
+// 0 looking away from the sun … 1 looking towards it, round the horizon.
+half PunchySunSide(float3 dir)
+{
+    float2 s = _PunchySunDirection.xz, d = dir.xz;
+    return saturate(dot(d, s) * rsqrt(max(dot(d, d) * dot(s, s), 1e-8)) * 0.5 + 0.5);
+}
+
+// The horizon colour in direction `dir` with twilight: warm on the sun's side, grey-violet on the far side. Also
+// the haze colour, so land and sea fade into the same band.
+half3 PunchyTwilightHorizon(float3 dir)
+{
+    float e = PunchySunElevation();
+    half amount = PunchyTwilightAmount(e);
+    if (amount <= 0)
+        return _PunchySkyHorizon;
+    half toward = PunchySunSide(dir);
+    toward *= toward;
+    half lum = dot(_PunchySkyHorizon, half3(0.3, 0.5, 0.2));
+    half3 warm = PunchyTwilightColor(e) * PunchyTwilightLight(e) * 1.05;
+    half3 cool = half3(0.62, 0.55, 0.9) * lum;
+    return lerp(_PunchySkyHorizon, lerp(cool, warm, toward), amount * lerp(0.65, 1, toward));
+}
+
+// The zenith with twilight: a deeper blue with a touch of purple.
+half3 PunchyTwilightZenith()
+{
+    half amount = PunchyTwilightAmount(PunchySunElevation());
+    return lerp(_PunchySkyZenith, _PunchySkyZenith * half3(0.95, 0.72, 1.05) + half3(0.03, 0.0, 0.05), amount);
+}
+
+// Twilight light on a cloud at height y: warm, and after sunset only the high clouds still catch it (low ones lose
+// it at once, the highest about 6° later).
+half3 PunchyTwilightCloudLight(float e, float y)
+{
+    half reach = lerp(0.8, 6.5, saturate((y - 800) / 6500));
+    half caught = e >= 0 ? 1 : saturate(1 + e / reach);
+    return PunchyTwilightColor(e) * PunchyTwilightLight(e) * caught;
+}
+
 void PunchyCloudLight(out float3 direction, out half3 color)
 {
-    // The sun by day, the moon by night.
-    bool sunUp = _PunchySunDirection.y > -0.05;
+    // The sun by day, the moon by night; through twilight (down to -8°) the sun still lights the high clouds.
+    bool sunUp = _PunchySunDirection.y > -0.14;
     direction = sunUp ? _PunchySunDirection : _PunchyMoonDirection;
     color = sunUp ? _PunchySunColor : half3(0.16, 0.19, 0.27) * _PunchyNight;
+    // Moonlight takes over gradually through blue hour, so the switch at -8° doesn't pop.
+    if (sunUp)
+        color += half3(0.16, 0.19, 0.27) * _PunchyNight * (1 - smoothstep(-0.14, -0.05, _PunchySunDirection.y));
 }
 
 #define PUNCHY_FAR_START 15000.0
@@ -233,8 +301,14 @@ half3 PunchyFarClouds(half3 background, float3 dir)
     half daylight = saturate(dot(_PunchySkyHorizon, half3(0.3, 0.5, 0.2)) * 1.6);
     half3 color = lerp(half3(0.92, 0.93, 0.96), half3(0.3, 0.31, 0.34), _PunchyClimate.y) * daylight
                 + _PunchySunColor * pow(saturate(dot(dir, _PunchySunDirection)), 6) * 0.3;
+    // Twilight: warm on the sun's side, grey-violet away from it.
+    float e = PunchySunElevation();
+    half twilight = PunchyTwilightAmount(e);
+    half3 lum = dot(color, half3(0.3, 0.5, 0.2));
+    color = lerp(color, lerp(lum * half3(0.8, 0.72, 1.05), PunchyTwilightCloudLight(e, height) * 0.9, PunchySunSide(dir)),
+                 twilight * (1 - 0.6 * _PunchyClimate.y));
     // Very distant: mostly horizon haze.
-    color = lerp(color, _PunchySkyHorizon, saturate(distance / 60000));
+    color = lerp(color, PunchyTwilightHorizon(dir), saturate(distance / 60000));
     return lerp(background, color, cover);
 }
 
@@ -265,6 +339,10 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
     PunchyCloudLight(lightDir, lightColor);
     float cosTheta = dot(dir, lightDir);
     float phase = max(lerp(PunchyPhase(cosTheta, -0.2), PunchyPhase(cosTheta, 0.65), 0.5), 0.35);
+    // Twilight: the low sun's warm light (strength by height, below), and cool grey-violet skylight on shaded sides.
+    float sunElevation = PunchySunElevation();
+    half twilight = PunchyTwilightAmount(sunElevation);
+    half3 cloudHorizon = PunchyTwilightHorizon(dir);
 
     float transmit = 1;
     half3 scatter = 0;
@@ -296,11 +374,15 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
             float beer = exp(-opticalDepth * PUNCHY_CLOUD_SIGMA);
             float powder = 1 - exp(-density * 6);   // edges facing the light stay a touch darker
             // Sunlight is far brighter than skylight: sunlit tops glare white, shaded bellies go grey.
-            half3 direct = lightColor * beer * phase * (0.55 + 0.45 * powder) * 3.2;
+            half3 light = lightColor;
+            [branch] if (twilight > 0)
+                light = lerp(light, PunchyTwilightCloudLight(sunElevation, p.y) * 0.9 * (1 - 0.6 * weather.g), twilight);
+            half3 direct = light * beer * phase * (0.55 + 0.45 * powder) * 3.2;
 
             float height = saturate((p.y - shape.x) / max(shape.y, 1));
             half3 ambient = lerp(_PunchySkyHorizon * 0.32, _PunchySkyZenith * 0.75 + _PunchySkyHorizon * 0.25, height)
                           * (1 - 0.6 * weather.g);
+            ambient = lerp(ambient, dot(ambient, half3(0.3, 0.5, 0.2)) * half3(0.85, 0.75, 1.1), twilight * 0.6);
             half3 flash = half3(0.75, 0.82, 1.0) * _PunchyLightningPos.w * 2.5
                         * exp(-distance(p, _PunchyLightningPos.xyz) / 1200);
 
@@ -321,7 +403,7 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
     // Distant clouds fade into the horizon haze, and right at the horizon (where rays skim through kilometres of
     // cloud layer and alias) they thin out entirely.
     if (firstHit > 0)
-        scatter = lerp(scatter, _PunchySkyHorizon * (1 - transmit), 1 - exp(-firstHit / 14000));
+        scatter = lerp(scatter, cloudHorizon * (1 - transmit), 1 - exp(-firstHit / 14000));
     float horizonFade = smoothstep(0.003, 0.05, dir.y);
     transmit = lerp(1, transmit, horizonFade);
     scatter *= horizonFade;
@@ -590,13 +672,19 @@ half3 PunchySkyColor(float3 dir, bool withDiscs, bool approximateClouds)
 {
     dir = normalize(dir);
     float h = dir.y;
-    half3 sky = lerp(_PunchySkyHorizon, _PunchySkyZenith, pow(saturate(h), 0.45));
-    sky = h < 0 ? lerp(_PunchySkyHorizon, _PunchySkyGround, saturate(-h * 3)) : sky;
+    // Twilight (W-31): the horizon warms on the sun's side and the zenith deepens; both are the clear colours otherwise.
+    half3 horizon = PunchyTwilightHorizon(dir);
+    half3 sky = lerp(horizon, PunchyTwilightZenith(), pow(saturate(h), 0.45));
+    sky = h < 0 ? lerp(horizon, _PunchySkyGround, saturate(-h * 3)) : sky;
 
     float sunDot = saturate(dot(dir, _PunchySunDirection));
     float moonDot = saturate(dot(dir, _PunchyMoonDirection));
     float clearness = 1 - _PunchyClouds.x * 0.7;
     sky += _PunchySunColor * pow(sunDot, 12) * 0.25 * clearness;
+    // The low sun's wide glow, lingering a little after it sets.
+    float sunElevation = PunchySunElevation();
+    sky += PunchyTwilightColor(sunElevation) * PunchyTwilightLight(sunElevation) * PunchyTwilightAmount(sunElevation)
+         * (pow(sunDot, 6) * 0.45 + pow(sunDot, 40) * 0.6) * clearness;
 
     if (h > 0)
     {
@@ -626,6 +714,12 @@ half3 PunchySkyColor(float3 dir, bool withDiscs, bool approximateClouds)
 
         half daylight = saturate(dot(_PunchySkyHorizon, half3(0.3, 0.5, 0.2)) * 1.6);
         half3 cirrusColor = (half3(1, 1, 1) * daylight + _PunchySunColor * pow(sunDot, 4) * 0.5) * 0.95;
+        // High ice cloud catches the sun longest: pink-gold well after sunset, violet away from the sun.
+        half cirrusTwilight = PunchyTwilightAmount(sunElevation);
+        half sunSide = PunchySunSide(dir);
+        cirrusColor = lerp(cirrusColor, lerp(dot(cirrusColor, half3(0.3, 0.5, 0.2)) * half3(0.8, 0.72, 1.05),
+                                             PunchyTwilightCloudLight(sunElevation, PUNCHY_CIRRUS_HEIGHT) * 1.1, sunSide * sunSide),
+                           cirrusTwilight);
         sky = lerp(sky, cirrusColor, PunchyCirrus(dir));
 
         if (approximateClouds)
@@ -641,7 +735,7 @@ half3 PunchySkyColor(float3 dir, bool withDiscs, bool approximateClouds)
     sky += half3(0.5, 0.55, 0.7) * lightningGlow * 0.3;
 
     // Haze: the horizon band is exactly the fog colour.
-    return lerp(sky, _PunchySkyHorizon, exp(-max(h, 0) * 10) * 0.85);
+    return lerp(sky, horizon, exp(-max(h, 0) * 10) * 0.85);
 }
 
 // ------------------------------------------------------------------------------------------------ atmosphere
@@ -749,7 +843,7 @@ half3 PunchyAtmosphere(half3 color, float3 positionWS)
     // left distant land brighter than the sky behind it whenever rain or cloud darkened the sky.
     float3 flat = normalize(float3(dir.x, 0.02, dir.z));
     float clearness = 1 - _PunchyClouds.x * 0.7;
-    half3 horizon = _PunchySkyHorizon + _PunchySunColor * pow(saturate(dot(flat, _PunchySunDirection)), 12) * 0.25 * clearness;
+    half3 horizon = PunchyTwilightHorizon(flat) + _PunchySunColor * pow(saturate(dot(flat, _PunchySunDirection)), 12) * 0.25 * clearness;
     horizon = PunchyHazeFromLut(horizon, flat.xz, PUNCHY_HAZE_RANGE);
     return lerp(color, horizon, haze);
 }
