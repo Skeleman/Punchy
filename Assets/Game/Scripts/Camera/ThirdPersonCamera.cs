@@ -95,38 +95,19 @@ namespace Punchy.CameraRig
                 // In a cave, the camera looks wherever the player turns it (up at the ceiling, down a shaft), on a
                 // spring arm: it comes in along its line to just short of any rock in the way, at once, and eases
                 // back out when the way clears (so bumpy walls don't pump it in and out).
+                // (A-30: a sphere cast through the rock's distance field from the head out, so it never steps over a thin
+                // wall or a ceiling, from the cave's mouth in as well as deep inside; very close, the near plane comes in.)
                 var head = new Unity.Mathematics.float3(target.x, target.y, target.z);
-                if (terrain.CaveDistance(head) < 0f)
+                var near = -1f;
+                if (terrain.CaveDistance(head) < CaveNear)
                 {
+                    // The head under a low ceiling: the pivot drops until it's in the air.
+                    for (var i = 0; i < 8 && PlayerMovementSystem.SolidDistance(terrain, ToFloat3(target)) < 0.15f && target.y > playerPosition.y + 0.4f; i++)
+                        target.y -= 0.15f;
                     var back = position - target;
                     var length = back.magnitude;
                     var probeStart = ProbeStats ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
-                    var clear = length;
-                    if (OldProbe)
-                    {
-                        for (var t = 0.25f; t <= length; t += 0.25f)
-                        {
-                            var p = target + back * (t / length);
-                            if (terrain.IsRock(new Unity.Mathematics.float3(p.x, p.y, p.z), 0.35f))
-                            {
-                                clear = Mathf.Max(t - 0.45f, 0.3f);
-                                break;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // The same steps in Burst: managed TerrainSource calls cost ~16 us each, and this was up to
-                        // 30+ of them a frame.
-                        var result = new Unity.Collections.NativeArray<float>(1, Unity.Collections.Allocator.TempJob);
-                        Unity.Jobs.IJobExtensions.Run(new ArmProbe
-                        {
-                            Terrain = terrain, Target = head, Back = new Unity.Mathematics.float3(back.x, back.y, back.z),
-                            Length = length, Clear = result
-                        });
-                        clear = result[0];
-                        result.Dispose();
-                    }
+                    var clear = CaveArm(terrain, target, back / Mathf.Max(length, 1e-4f), length);
                     if (ProbeStats)
                     {
                         ProbeCalls++;
@@ -134,9 +115,16 @@ namespace Punchy.CameraRig
                     }
                     caveArm = clear < caveArm ? clear : Mathf.MoveTowards(caveArm, clear, Time.deltaTime * 3f);
                     position = target + back * (Mathf.Min(caveArm, length) / Mathf.Max(length, 1e-4f));
+                    if (caveArm < length - 0.01f)
+                    {
+                        rotation = Quaternion.LookRotation(target - position);
+                        // Pulled in against rock: the near plane's corners stay inside the lens's sphere.
+                        near = caveArm < CloseArm ? 0.05f : 0.1f;
+                    }
                 }
                 else
                     caveArm = Distance;
+                SetNearPlane(near);
                 if (terrain.CaveDistance(new Unity.Mathematics.float3(position.x, position.y, position.z)) < 0f)
                 {
                     transform.SetPositionAndRotation(position, rotation);
@@ -159,40 +147,80 @@ namespace Punchy.CameraRig
                     position.y = minY;
                     rotation = Quaternion.LookRotation(target - position);
                 }
+                // Out in the open, a hill between the player and the camera (a steep slope, A-37): the camera comes in
+                // along its line to just before the ground, so the view isn't from inside the hill. Not near caves,
+                // where the ground height says nothing about the tunnel the player is in.
+                if (terrain.CaveDistance(head) >= CaveNear)
+                {
+                    var arm = position - target;
+                    var armLength = arm.magnitude;
+                    for (var i = 1; i <= SightSamples; i++)
+                    {
+                        var p = target + arm * ((float)i / SightSamples);
+                        if (p.y >= terrain.SampleHeight(new Unity.Mathematics.float2(p.x, p.z)) + GroundClearance * 0.5f)
+                            continue;
+                        position = target + arm * Mathf.Max((i - 1f) / SightSamples, Mathf.Min(1f, MinSightArm / Mathf.Max(armLength, 1e-4f)));
+                        break;
+                    }
+                }
             }
 
             transform.SetPositionAndRotation(position, rotation);
         }
 
-        /// <summary>Testing (-oldcave): probe the cave arm with managed calls, as before.</summary>
+        /// <summary>Testing (-oldcave): kept for the flag; the cave arm is now always the sphere trace (CaveArm).</summary>
         public static bool OldProbe;
         /// <summary>Testing (-perflog): time the cave arm probe.</summary>
         public static bool ProbeStats;
         public static long ProbeCalls, ProbeTicks;
 
-        /// <summary>The cave spring arm's rock test: steps out along the arm, returns how far is clear.</summary>
-        [Unity.Burst.BurstCompile]
-        struct ArmProbe : Unity.Jobs.IJob
-        {
-            public TerrainSource Terrain;
-            public Unity.Mathematics.float3 Target, Back;
-            public float Length;
-            public Unity.Collections.NativeArray<float> Clear;
+        /// <summary>Within this of cave air (m) the camera casts for rock; the lens's radius and the gap it keeps from a hit.</summary>
+        const float CaveNear = 6f, LensRadius = 0.3f, LensMargin = 0.05f;
+        /// <summary>Closer in than this (m), the near plane comes in so the rock right at the lens isn't cut open.</summary>
+        const float CloseArm = 1.2f;
+        /// <summary>Out in the open: ground checks along the camera's line to the player, and the closest it comes in (m).</summary>
+        const int SightSamples = 16;
+        const float MinSightArm = 1.5f;
 
-            public void Execute()
+        static Unity.Mathematics.float3 ToFloat3(Vector3 v) => new Unity.Mathematics.float3(v.x, v.y, v.z);
+
+        /// <summary>
+        /// How far out from <paramref name="from"/> along <paramref name="dir"/> (unit) the lens can go, up to
+        /// <paramref name="length"/>, before it touches solid (PlayerMovementSystem.SolidDistance): sphere-traced at half
+        /// the distance each step (the cave field can overstate it), never less than 5 cm, so no wall is stepped over.
+        /// Starting right against rock, the lens shrinks to fit, so a pivot by a wall still looks away from it.
+        /// </summary>
+        public static float CaveArm(in TerrainSource terrain, Vector3 from, Vector3 dir, float length)
+        {
+            var lens = Mathf.Clamp(PlayerMovementSystem.SolidDistance(terrain, ToFloat3(from)) * 0.9f, 0.05f, LensRadius);
+            var t = 0f;
+            for (var i = 0; i < 160; i++)
             {
-                var clear = Length;
-                for (var t = 0.25f; t <= Length; t += 0.25f)
-                {
-                    if (Terrain.IsRock(Target + Back * (t / Length), 0.35f))
-                    {
-                        clear = Unity.Mathematics.math.max(t - 0.45f, 0.3f);
-                        break;
-                    }
-                }
-                Clear[0] = clear;
+                var d = PlayerMovementSystem.SolidDistance(terrain, ToFloat3(from + dir * t));
+                if (d < lens)
+                    return Mathf.Max(t - LensMargin, 0.2f);
+                if (t >= length)
+                    return length;
+                t = Mathf.Min(t + Mathf.Max((d - lens) * 0.5f, 0.05f), length);
             }
+            return t;
         }
+
+        void SetNearPlane(float near)
+        {
+            if (cam == null)
+                cam = GetComponent<Camera>();
+            if (cam != null && defaultNear < 0f)
+                defaultNear = cam.nearClipPlane;
+            if (near < 0f)
+                near = defaultNear;
+            if (cam != null && !Mathf.Approximately(cam.nearClipPlane, near))
+                cam.nearClipPlane = near;
+        }
+
+        Camera cam;
+        /// <summary>The near plane the camera came with, put back once the lens is clear again.</summary>
+        float defaultNear = -1f;
 
         bool TryGetPlayerPosition(out Vector3 position)
         {

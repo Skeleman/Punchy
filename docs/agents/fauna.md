@@ -40,6 +40,8 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
   `lift × sin`. Gaits come from slot phases (walk 0/¼/½/¾, trot = diagonal pairs, hop = pairs together).
 - Stride and standing height are measured from the key poses, so feet don't slide; change poses rather than
   speeds to fix sliding.
+- Upright runners hold the elbow at the HumanArm run keys (85-95°): the per-folk arm swing and the sprint pump scale
+  the shoulder only (A-41; scaled, the elbow folded shut at a sprint). Hip extension at a run is the RunPush key.
 - Body sockets are in body units: x and y across the radius, z from −1 (rump) to 1 (chest). Child sockets are
   metres from the **end** of the parent's last segment, in that segment's frame.
 
@@ -69,3 +71,8 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
 - **Weight** (#16): each species has `Weight` in kg at mid Size (scales with size cubed; variants with 0 use base x VariantScale^3). A carrier lifts up to `Interactions.CarryCapacity` (40 kg, stand-in for a Strength stat), so children can be carried; heavier loads squirm free sooner.
 - **Match species by name, not by object** (A-20, #7): in a built player a Resources species (the Domestics Dog) points at Resources copies of its prey, which are different objects from the palette's. `FaunaDirector.Lists` compares names; a reference `Contains` left every built dog with no prey.
 - **Folk talks** (A-26): two townsfolk stop, face each other and take turns talking (Idle stages `ChatTalk` 70 / `ChatListen` 71, so clients see gestures and the bubble from the Stage byte; Partner and `ChatRole` are host-only, local `CreatureState` fields). Per-folk cooldown 90-200 s, at most 3 talks within 60 m of a home. `FolkChat:` log line per talk (host/solo). `-chattest` forces them (15-30 s cooldown); `-chatshot` on a shot line frames the nearest talking pair 4 m side-on. A fully synced version would need the partner sent.
+- Cave collision (A-30): PlayerMovementSystem.PushOutOfSolids pushes knee/middle/head spheres (radius 0.35 x body size)
+  out of SolidDistance and slides bodies back off cave floors steeper than ~50°. A landmark with a solid body joins
+  by adding its distance to SolidDistance with math.min. CaveDistance can overstate up to 1.8x, so trace at half steps.
+- A-32: the head-undo in PushOutOfSolids only counts rock overhead (surface normal y < -0.3); counting any rock
+  wedged small bodies on steep floors. `-nohud` hides talk bubbles unless `-chatshot` sets FolkTalkLabels.BubblesWithoutHud.
