@@ -40,6 +40,11 @@ namespace Punchy.Flora
         /// </summary>
         public readonly List<Vector4> Colliders = new List<Vector4>();
         /// <summary>
+        /// Where each collider starts above the base, by index (missing = 0, the ground). Lets a leaning shape (an
+        /// ArcSpire's prongs) be a stack of short slices that follow its tilt instead of one fat upright cylinder.
+        /// </summary>
+        public readonly List<float> ColliderBase = new List<float>();
+        /// <summary>
         /// Basins of open water it holds (a fountain's): centre (x, y, z) and radius (w), before the plant's own rotation
         /// and scale. FloraSystem draws them with the terrain's own water (Z-12).
         /// </summary>
@@ -177,6 +182,7 @@ namespace Punchy.Flora
                     builder.Bounds(out model.CentreY, out model.Radius);
                     model.TrunkRadius = g.TrunkRadius;
                     model.Colliders.AddRange(g.Colliders);
+                    model.ColliderBase.AddRange(g.ColliderBase);
                     model.Perches.AddRange(g.Perches);
                     model.Pools.AddRange(g.Pools);
                     model.DoorHeight = g.DoorHeight;
@@ -258,6 +264,7 @@ namespace Punchy.Flora
             /// <summary>A tree's limbs (Broadleaf), each a path from the trunk outwards, for things that hang from them.</summary>
             public List<List<Vector3>> Limbs;
             public readonly List<Vector4> Colliders = new List<Vector4>();
+            public readonly List<float> ColliderBase = new List<float>();
             public readonly List<Vector3> Perches = new List<Vector3>();
             public readonly List<Vector4> Pools = new List<Vector4>();
 
@@ -2268,6 +2275,10 @@ namespace Punchy.Flora
         /// leaning out of a cracked base, with jagged electric arcs (FloraPart.Arc) between neighbouring tips that crackle
         /// in bursts and jump about, all in the shaders.
         /// </summary>
+        /// <summary>ArcSpire prong collision (W-42): prongs shorter than this stay walk-through; slices are this tall
+        /// and stop at this height above the base (the player's body never reaches higher).</summary>
+        const float MinShardCollider = 2f, ShardSlice = 0.5f, ShardColliderTop = 4.5f;
+
         static void ArcSpire(Grower g)
         {
             var s = g.S;
@@ -2297,8 +2308,42 @@ namespace Punchy.Flora
                 b.Tube(new List<Vector3> { foot + Vector3.down * 0.3f, Vector3.Lerp(foot, tip, 0.45f) + lean * 0.2f, Vector3.Lerp(foot, tip, 0.8f), tip },
                        new List<float> { r, r * 0.75f, r * 0.4f, r * 0.05f }, g.Sides(6, 5, 4), Color.Lerp(g.Bark, g.Bark * 1.3f, g.R()), FloraPart.Metal);
                 tips.Add(tip);
+                // Collision that leans with the prong (W-42): short upright slices stacked up its axis, each centred on
+                // the axis at the slice's middle, as wide as the tube there plus half the axis's drift across the
+                // slice, so no part of the tilted tube pokes out of them. Only up to ShardColliderTop: the player's
+                // body never reaches higher. Prongs under MinShardCollider stay walk-through.
+                if (tall < MinShardCollider)
+                    continue;
+                var axis = new[] { foot + Vector3.down * 0.3f, Vector3.Lerp(foot, tip, 0.45f) + lean * 0.2f, Vector3.Lerp(foot, tip, 0.8f), tip };
+                var radii = new[] { r, r * 0.75f, r * 0.4f, r * 0.05f };
+                var top = Mathf.Min(ShardColliderTop, tip.y);
+                for (var y0 = 0f; y0 < top - 0.05f; y0 += ShardSlice)
+                {
+                    var y1 = Mathf.Min(y0 + ShardSlice, top);
+                    Vector3 lo = AxisAt(axis, y0, out var rLo), hi = AxisAt(axis, y1, out _), mid = AxisAt(axis, (y0 + y1) * 0.5f, out _);
+                    var drift = Mathf.Max(Vector2.Distance(new Vector2(lo.x, lo.z), new Vector2(mid.x, mid.z)),
+                                          Vector2.Distance(new Vector2(hi.x, hi.z), new Vector2(mid.x, mid.z)));
+                    g.Colliders.Add(new Vector4(mid.x, mid.z, rLo + drift, y1));
+                    g.ColliderBase.Add(y0);
+                }
+
+                // The tube's axis point and radius at height y (its four rings, linearly between).
+                Vector3 AxisAt(Vector3[] pts, float y, out float radius)
+                {
+                    for (int i = 0; i < pts.Length - 1; i++)
+                        if (y <= pts[i + 1].y || i == pts.Length - 2)
+                        {
+                            var t = Mathf.Clamp01((y - pts[i].y) / Mathf.Max(1e-4f, pts[i + 1].y - pts[i].y));
+                            radius = Mathf.Lerp(radii[i], radii[i + 1], t);
+                            return Vector3.Lerp(pts[i], pts[i + 1], t);
+                        }
+                    radius = radii[0];
+                    return pts[0];
+                }
             }
-            g.Colliders.Add(new Vector4(0f, 0f, baseRadius * 0.6f, height));
+            // The cracked base mound: a low core, so the player can't slip in between the prongs' feet.
+            g.Colliders.Add(new Vector4(0f, 0f, baseRadius * 0.6f, baseRadius * 0.5f));
+            g.ColliderBase.Add(0f);
             if (g.Lod == 2)
                 return;
             var arc = g.HasAccent ? AccentAt(g, 0) : new Color(0.65f, 0.85f, 1f);
@@ -3592,11 +3637,15 @@ namespace Punchy.Flora
             }
         }
 
+        /// <summary>Rail length of a bridge span, post to post: RoadBaking's span spacing, so joints share a post.</summary>
+        const float RailRun = 6.4f;
+
         /// <summary>
         /// One 6.6 m span of a plank bridge along its +Z, deck top at the origin: planks across two stringers, two pairs
         /// of piles down into the water, and a rail each side. It's long so that spans 6.4 m apart each get their own cell
-        /// in the tree layer, which is drawn to the horizon. Spans are laid end to end across a river, so each draws the
-        /// rail posts at its start only. No colliders: the deck is walked on through SettlementSampling.Deck.
+        /// in the tree layer, which is drawn to the horizon. Spans are laid end to end across a river; each draws a post
+        /// at both ends of each rail (W-34; before, only at its start, so the far end's rails hung in the air). No
+        /// colliders: the deck is walked on through SettlementSampling.Deck.
         /// </summary>
         static void Bridge(Grower g)
         {
@@ -3626,10 +3675,15 @@ namespace Punchy.Flora
                 foreach (var z in new[] { -length * 0.25f, length * 0.25f })
                     b.Tube(new List<Vector3> { new Vector3(x * (half - 0.25f), -5f, z), new Vector3(x * (half - 0.25f), -0.2f, z) },
                            new List<float> { 0.16f, 0.14f }, g.Sides(6, 4, 3), wood * 0.6f, FloraPart.Bark);
-                b.Box(new Vector3(x * (half - 0.05f), rail * 0.5f, -length * 0.5f), new Vector3(0.14f, rail + 0.2f, 0.14f), Quaternion.identity, wood * 0.85f, FloraPart.Bark);
-                b.Box(new Vector3(x * (half - 0.05f), rail, 0f), new Vector3(0.1f, 0.1f, length), Quaternion.identity, wood * 0.95f, FloraPart.Bark);
+                // W-34: a post at both ends of each side, at +-3.2 m (half the 6.4 m span spacing), so neighbouring
+                // spans share a post at each joint and the last span's rails end on one too. The rails run post to
+                // post. Posts reach 0.6 m below the deck (down its side), so a neighbour's post still covers a rail
+                // set a little lower, and nothing hangs in the air.
+                foreach (var z in new[] { -RailRun * 0.5f, RailRun * 0.5f })
+                    b.Box(new Vector3(x * (half - 0.05f), rail * 0.5f - 0.25f, z), new Vector3(0.14f, rail + 0.7f, 0.14f), Quaternion.identity, wood * 0.85f, FloraPart.Bark);
+                b.Box(new Vector3(x * (half - 0.05f), rail, 0f), new Vector3(0.1f, 0.1f, RailRun), Quaternion.identity, wood * 0.95f, FloraPart.Bark);
                 if (g.Lod == 0)
-                    b.Box(new Vector3(x * (half - 0.05f), rail * 0.5f, 0f), new Vector3(0.06f, 0.07f, length), Quaternion.identity, wood * 0.8f, FloraPart.Bark);
+                    b.Box(new Vector3(x * (half - 0.05f), rail * 0.5f, 0f), new Vector3(0.06f, 0.07f, RailRun), Quaternion.identity, wood * 0.8f, FloraPart.Bark);
             }
             b.Wood = false;
         }
