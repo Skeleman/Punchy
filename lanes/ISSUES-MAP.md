@@ -6,9 +6,9 @@ Updated 2026-11-02, after the audit (lanes/ISSUES-AUDIT.md).
 
 ## Resolved, waiting for Zach's OK to close (fix in main 41a9259)
 #3 #7 #9 #15 #16 #17 #18 #19 #23 #29 #30 #32 #34 #41 #42 #43 #47 #48 #49 #50
-- #13: OKed by Zach; close after M-04 is merged.
-- #11: follow-up A-41 lands in main with M-04.
-- #45: W-42 lands with M-04; the reshoot is in W-48.
+- #13: closed after M-04 (PR #65, main 5e98141).
+- #11: A-41 follow-up now in main (5e98141); waiting for Zach's OK.
+- #45: W-42 now in main; the reshoot is in W-48, then Zach's OK.
 
 ## Partly done -> card
 | Issue | Title | Card |
