@@ -1,6 +1,6 @@
-# World lane state (after W-42, 2026-11-02)
+# World lane state (after W-48, 2026-11-02)
 
-Branch world-features, head f137084 (pushed). W-37 river patch parked on w37-wip (not merged). Worktree D:/Unity/Punchy-world.
+Branch world-features, head 6abc0d8 (not pushed). W-37 river patch parked on w37-wip (not merged). Worktree D:/Unity/Punchy-world.
 
 ## Hashes (editor play mode, Temp/w36_measure.cs)
 
@@ -14,10 +14,15 @@ Branch world-features, head f137084 (pushed). W-37 river patch parked on w37-wip
 
 Player v2 log (Builds/Dev, W-36 build): 126 landmarks, hash 053C63D5.
 
-## W-42
+## W-42 / W-48
 
-- ArcSpire prongs collide as stacked slices (FloraModel.ColliderBase), within 14 m only. Shooting stars 1/20, 1 in 6
-  red-orange; `-redstar` holds one for shots. Shots 3 and 5 still owed (W-42 shots failed).
+- ArcSpire prongs collide as stacked slices (FloraModel.ColliderBase), within 14 m. Shooting stars 1/20, 1 in 6 red-orange;
+  `-redstar` holds one. W-42 reshoots done in W-48.
+- W-48 cave perf: v2 largest caves 9 (-1664,73,2525 mouth; under -1669,2494 at y 49), 20, 1. Camera arm probe is Burst
+  (was 0.7-2.3 ms/frame managed); deep in a cave only chunks of the camera's cave(s) draw (gate SurfaceHidden >= 0.99).
+  Unexplained: ~33 ms frames (cpu main) for ~70 s after load, surface and cave alike; cave 9 cpu main 13 ms vs 4-7 in others.
+- Colossus/Mantrap MeshBuilder winding fixed (Tri swaps corners).
+- Shot-list switches: `-perflog`, `-gocave x,z|#n`, `-oldcave`, `-nocavewalls`; frame timing needs enableFrameTimingStats in the build.
 
 ## Rivers now
 
