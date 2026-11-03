@@ -128,20 +128,75 @@ Shader "Punchy/Terrain Surface"
                 return PunchyValueNoise(p / 0.7) * 0.6 + PunchyValueNoise(p / 0.21 + 17.3) * 0.4;
             }
 
-            // Cobbles (W-09, larger in W-10 so they read at 5-15 m): staggered rows of rounded stones about 0.55 m
-            // wide with mortar gaps. Returns the stone's shade in x, the mortar share in y and the dome tilt in zw.
-            float4 Cobbles(float2 p)
+            // Cobbles (W-34; rows of rounded boxes in W-09/W-10): rugged field stones, no grid. A jittered Voronoi on a
+            // 0.42 m lattice with a size weight per stone (multiplicatively weighted, so the borders bow and stones
+            // run from about 0.25 to 0.6 m), its input warped at two scales so the outlines wander. Each stone is a
+            // dome that rises over 6-16 cm from its edge, with its own height, a lean and a lumpy top; between them,
+            // gaps of varying width.
+            uint CobbleHash(int2 c)
             {
-                float row = floor(p.y / 0.5);
-                float2 q = float2(p.x / 0.6 + (frac(row * 0.5) > 0.25 ? 0.5 : 0.0) + row * 0.37, p.y / 0.5);
+                uint h = (uint)c.x * 73856093u ^ (uint)c.y * 19349663u;
+                h = (h ^ (h >> 13)) * 1274126177u;
+                return h ^ (h >> 16);
+            }
+
+            // Height of the paving at p in metres (0 in the gaps, up to about 4 cm on a stone); id = the stone's hash,
+            // edge = distance into the stone (m, about; <= 0 in the gap).
+            float CobbleHeight(float2 p, out uint id, out float edge)
+            {
+                float2 pw = p + (float2(PunchyValueNoise(p * 2.3), PunchyValueNoise(p * 2.3 + 7.7)) - 0.5) * 0.14
+                              + (float2(PunchyValueNoise(p * 7.1 + 3.1), PunchyValueNoise(p * 7.1 + 9.4)) - 0.5) * 0.045;
+                float2 q = pw / 0.42;
                 float2 cell = floor(q);
-                uint h = (uint)(int)cell.x * 73856093u ^ (uint)(int)cell.y * 19349663u;
-                h = (h ^ (h >> 13)) * 1274126177u; h ^= h >> 16;
-                float shade = (h & 255u) / 255.0 - 0.5;
-                float2 f = frac(q) - 0.5;
-                float edge = 0.5 - max(abs(f.x) * 0.9, abs(f.y));
-                float mortar = 1 - smoothstep(0.04, 0.12, edge);
-                return float4(shade, mortar, -f.x * 0.9, -f.y);
+                float2 f = q - cell;
+                float d1 = 1e9, w1 = 1;
+                float2 o1 = 0;
+                float ds[9];
+                id = 0;
+                [unroll] for (int y = -1; y <= 1; y++)
+                [unroll] for (int x = -1; x <= 1; x++)
+                {
+                    uint h = CobbleHash((int2)cell + int2(x, y));
+                    float2 jit = float2(h & 1023u, (h >> 10) & 1023u) / 1023.0;
+                    float w = 0.62 + ((h >> 20) & 255u) / 255.0 * 0.76;
+                    float2 o = float2(x, y) + 0.15 + jit * 0.7 - f;
+                    float d = length(o) / w;
+                    ds[(y + 1) * 3 + x + 1] = d;
+                    if (d < d1) { d1 = d; w1 = w; id = h; o1 = o; }
+                }
+                // Distance to the border as a smooth minimum over every neighbour (not just the second nearest), so
+                // where two borders meet the corner is rounded off: pebbles, not tiles.
+                float sum = 0;
+                [unroll] for (int k = 0; k < 9; k++)
+                    sum += ds[k] > d1 ? exp(-(ds[k] - d1) / 0.09) : 0;
+                float border = -0.09 * log(max(sum, 1e-6));
+                // Gap half-width 1.5-4 cm, wandering along the joints.
+                float gap = 0.015 + PunchyValueNoise(p * 3.7 + 1.3) * 0.025;
+                edge = border * 0.42 * 0.5 * w1 - gap;
+                float rnd = ((id >> 8) & 255u) / 255.0;
+                float dome = saturate(edge / (0.07 + rnd * 0.1));
+                dome = sqrt(dome * (2 - dome));   // a rounded shoulder (a quarter circle) up from the gap
+                float lean = dot(o1, float2(((id >> 3) & 15u) / 15.0 - 0.5, ((id >> 13) & 15u) / 15.0 - 0.5)) * 0.35;
+                float lumps = (PunchyValueNoise(p * 9.0 + rnd * 31) - 0.5) * 0.35 + (PunchyValueNoise(p * 23.0) - 0.5) * 0.12;
+                return 0.05 * dome * (0.6 + ((id >> 16) & 15u) / 15.0 * 0.6 + lean + lumps);
+            }
+
+            // The paving at p: x = the stone's shade (-0.5..0.5), y = gap share (1 = gap), zw = slope (dh/dx, dh/dz).
+            // hue: a warm/cool tint per stone (-0.5..0.5); dome: 0 at a stone's rim to 1 on top (dark rims).
+            float4 Cobbles(float2 p, out half hue, out half dome)
+            {
+                uint id; float edge;
+                const float e = 0.015;
+                float h = CobbleHeight(p, id, edge);
+                uint idx, idz; float ex, ez;
+                float hx = CobbleHeight(p + float2(e, 0), idx, ex);
+                float hz = CobbleHeight(p + float2(0, e), idz, ez);
+                uint tone = CobbleHash(int2((int)id, 91));   // (id's low bits also set the jitter)
+                hue = (tone & 255u) / 255.0 - 0.5;
+                dome = saturate(h / 0.03);
+                float shade = ((tone >> 8) & 255u) / 255.0 - 0.5;
+                float mortar = 1 - smoothstep(-0.004, 0.006, edge);
+                return float4(shade, mortar, (hx - h) / e, (hz - h) / e);
             }
 
             // -0.5..0.5 per cell of p (an integer hash: far from the origin a sin hash breaks up).
@@ -222,10 +277,11 @@ Shader "Punchy/Terrain Surface"
                 normalWS = normalize(normalWS - half3(micro.x, 0, micro.y) * relief);
                 half cobbleFade = smoothstep(0.25, 0.6, input.paving) * (1 - smoothstep(30, 80, distance));
                 float4 cb = float4(0, 0, 0, 0);
+                half cbHue = 0, cbDome = 1;
                 [branch] if (cobbleFade > 0.001)
                 {
-                    cb = Cobbles(p);
-                    normalWS = normalize(normalWS + half3(cb.z, 0, cb.w) * 0.8 * (1 - cb.y) * cobbleFade * (1 - puddle));
+                    cb = Cobbles(p, cbHue, cbDome);
+                    normalWS = normalize(normalWS - half3(cb.z, 0, cb.w) * cobbleFade * (1 - puddle * 0.7));
                 }
                 // Rock faces (steep ground) up close: the caves' shared grain and fine relief, read three ways, so cliffs
                 // carry the same detail as cave walls.
@@ -271,10 +327,16 @@ Shader "Punchy/Terrain Surface"
                 // the gaps could shimmer; the stones' domes catch the light.
                 [branch] if (cobbleFade > 0.001)
                 {
-                    // W-10: stones paler and greyer than the ground, each its own shade; dark grout between them.
+                    // W-34: stones paler and greyer than the ground, each its own shade and a little warmer or cooler,
+                    // darker at the rim where they turn down into the gap, with broad patches of wear so the paving
+                    // isn't one even tone from 30 m. The gaps hold dark earth with tufts of moss and grass.
                     half grey = dot(albedo, half3(0.3, 0.5, 0.2));
-                    half3 stone = lerp(albedo, grey.xxx, 0.45) * (1.25 + cb.x * 0.8);
-                    albedo = lerp(albedo, lerp(stone, albedo * 0.3, cb.y), cobbleFade);
+                    half patch = PunchyValueNoise(p * 0.21 + 4.7) - 0.5;
+                    half3 stone = lerp(albedo, grey.xxx, 0.45) * (1.2 + cb.x * 0.55 + patch * 0.25)
+                                * half3(1 + cbHue * 0.16, 1 + cbHue * 0.03, 1 - cbHue * 0.16) * lerp(0.6, 1, cbDome);
+                    half tuft = smoothstep(0.5, 0.72, PunchyValueNoise(p * 2.6 + 12.1) * 0.7 + PunchyValueNoise(p * 9.3) * 0.3);
+                    half3 gap = lerp(albedo * half3(0.34, 0.29, 0.22), half3(0.10, 0.16, 0.05), tuft);
+                    albedo = lerp(albedo, lerp(stone, gap, cb.y), cobbleFade);
                 }
                 // Rock strata (mesa cliffs, canyon walls): bands of darker red and paler cream rock by height, a thick
                 // set and a thin one, wandering a little along the cliff. Broad enough to read from far off.

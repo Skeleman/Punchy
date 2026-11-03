@@ -394,12 +394,15 @@ namespace Punchy.Terrain
             source.Island = gen.Island;
             source.BiomeCells = default;
             source.RiverSettings = IslandV2.Rivers(source.RiverSettings);
-            source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Anchors = default; source.PondMask = default;
+            source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Archipelago = default; source.Anchors = default; source.PondMask = default;
             var types = new List<LandmarkType>(palette.Landmarks);
             TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent);
             // W-29: the grand falls go in after every place, so no landmark, cave or settlement sees them.
             source.GrandFalls = GrandFalls.Build(source, Allocator.Persistent);
             Debug.Log(GrandFalls.LastLog);
+            // W-30: the archipelago too, off the dune coast; it only raises sea floor.
+            source.Archipelago = Archipelago.Build(source, biomes.FindIndex(b => b != null && b.name == "Dunes"), Allocator.Persistent);
+            Debug.Log(Archipelago.LastLog);
             EntityManager.SetComponentData(entity, source);
             Shared.Keep(source);
             long placesMs = watch.ElapsedMilliseconds - genMs;
@@ -441,6 +444,7 @@ namespace Punchy.Terrain
                 source.BatFolk = baked.BatFolk;
                 source.Icebergs = baked.Icebergs;
                 source.GrandFalls = baked.GrandFalls;
+                source.Archipelago = baked.Archipelago;
                 source.Anchors = baked.Anchors;
                 source.PondsOn = baked.PondsOn;
                 source.PondMask = baked.PondMask;

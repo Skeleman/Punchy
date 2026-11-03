@@ -35,6 +35,10 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   `CaveDistance`, `IsCaveHole` (surface cut away at an entrance), `IsRock` and `FloorUnder(float3)` (the cave
   floor under a point, or the surface). Anything that can go underground must use `FloorUnder` with a 3D
   position instead of `SampleHeight` (player movement, the player's body in `CreatureAnimator`, the camera).
+  `CaveDistance` has an exact sign but its size can overstate the distance to rock 2-9x (squashed floors,
+  ledges, wall noise); carving and placement hash on it, so it never changes. For push-out, sphere casts or step
+  sizes use `CaveDistanceBound` (`CaveSampling.LowerBound`): a lower bound (W-33 probe: 5 of ~10k points over,
+  by at most 5 cm, all at stepped wall blocks), about 5x the cost. Retune `SlopeLimit` if `WallNoise` changes.
   At entrances the terrain stores each vertex's distance to cave air (Morph.w) and its shader cuts the surface
   just inside the cave's edge, in every pass (near LODs only); `CaveSystem` builds the cave walls with surface
   nets in background jobs, sets `CaveSystem.Underground` (weather stops) and lights a lantern on the player.
@@ -83,8 +87,13 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
 - Above a fall's lip the lower pool's wide channel reaches back under the upper river (river cells are 16 m, channels
   up to ~50 m), so the lowest-carve rule picked the lower water and land showed between the surfaces.
   RiverQuery.FallWater keeps the upper surface up to the lip.
+- A lake that LowerBreachedLakes drops leaves cells shaped for the old surface. RiverBaking.ReshapeLoweredLakes
+  (W-35b) reruns the bed shaping on the cells whose base level dropped, so their water never stands above the ground
+  or rises along the flow. It changes river and cave hashes on both islands, but not landmarks.
 - Surface falls run their length in half the effect's lifetime (LandmarkWaterfall.shader); cave falls keep 1.62.
   LandmarkEffectSystem.FallSounds plays WaterfallRush loops at the 4 nearest falls, logged as `[falls] sound sources`.
 - Icebergs (`Terrain/Icebergs`) are scenery from their own stream (seed ^ 0x1CEB3A65): they never touch landmarks or the cave hash. The beach strip on land has the "Ocean" biome as its dominant biome, so a sea-touches-biome test must cross it (IcebergBaking treats it as neutral shore for 320 m). Berg collision rides on `TerrainSource.TowerWall`/`Deck`.
 - Grand falls (W-29, `Rivers/GrandFalls.cs`, v2 only): an overlay baked after every place, so hashes hold. Its water is a staircase along a polyline (a fall = two nodes 1.5-3 m apart), so the surface is continuous; pools apply only past their foot so they never cut the lip. The site is fixed coordinates for seed 8121: a new seed needs a new survey.
+- Archipelago (W-30, `Island/Archipelago.cs`, v2 only): an overlay like the grand falls, baked after places, so landmarks, caves and settlements never see it. It only raises sea floor (applied first in SampleHeight/SampleGround) and turns its islets' surface to Dunes. The site comes from a ray survey of the dune coast, so it follows the seed. `-archipelago off|on` swaps it in a running shot list. The per-shot draw-call/tris recorders are not valid in a non-development player: read UnityStats in editor play mode instead.
 - W-28b: bergs vary by a seeded shape class (IcebergData.Shape, Scale, Tilt, peaks, notch, ledge, overhang) drawn and stood on from the same IcebergShape functions; their colour comes from a runtime palette strip indexed by mesh u. TerrainSource.Deck also returns a salt tower step floor, because the player only uses FloorUnder in a cave.
+- River pits (W-36, `RiverBaking.FillRiverPits`): a river bed below the bed it drains into backs its water up to that dam while its carve digs the banks down to the low bed, so the water stands above the banks (open ends). The pass raises such beds under their water, downstream first; lake and sea backwater are left alone. River `Gradient` (rapids foam) is the smaller of the bed and water drop, and lake-outlet foam scales with how far the surface really ramps, or flat backed-up water shows a white strip.

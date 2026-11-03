@@ -57,6 +57,9 @@ namespace Punchy.Flora
         public float ShadowMargin = 30f;
         [Tooltip("Solid plants within this distance of the player are given to player movement as obstacles.")]
         public float CollisionRange = 24f;
+        /// <summary>Plants whose collision is stacked slices (FloraModel.ColliderBase) only count within this distance:
+        /// more than the CollisionRange/4 the player moves between rebuilds plus a shard's reach from its base.</summary>
+        const float ShardCollisionRange = 14f;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct FloraInstance
@@ -1104,16 +1107,22 @@ namespace Punchy.Flora
                             });
                             continue;
                         }
+                        // Stacked slices (leaning shards) cost several obstacles each: only near the player. The
+                        // buffer is rebuilt every CollisionRange/4 moved, so this still covers everything in reach.
+                        if (model.ColliderBase.Count > 0 && math.distance(inst.Position.xz, centre) > ShardCollisionRange)
+                            continue;
                         // Shaped plants (rocks): their cylinders, turned and scaled as the plant is drawn.
                         float c = math.cos(inst.Yaw), sn = math.sin(inst.Yaw);
-                        foreach (var col in model.Colliders)
+                        for (int ci = 0; ci < model.Colliders.Count; ci++)
                         {
+                            var col = model.Colliders[ci];
+                            var y0 = ci < model.ColliderBase.Count ? model.ColliderBase[ci] : 0f;
                             var offset = new float2(col.x * c - col.y * sn, col.x * sn + col.y * c) * inst.Scale;
                             buffer.Add(new FloraObstacle
                             {
-                                Position = inst.Position + new float3(offset.x, 0f, offset.y),
+                                Position = inst.Position + new float3(offset.x, y0 * inst.Scale, offset.y),
                                 Radius = col.z * inst.Scale,
-                                Height = col.w * inst.Scale
+                                Height = (col.w - y0) * inst.Scale
                             });
                         }
                     }

@@ -73,6 +73,7 @@ namespace Punchy.Weather
         static readonly int HorizonId = Shader.PropertyToID("_PunchySkyHorizon");
         static readonly int GroundId = Shader.PropertyToID("_PunchySkyGround");
         static readonly int CloudsId = Shader.PropertyToID("_PunchyClouds");
+        static readonly int TwilightDullId = Shader.PropertyToID("_PunchyTwilightDull");
         static readonly int CloudOffsetId = Shader.PropertyToID("_PunchyCloudOffset");
         static readonly int NightId = Shader.PropertyToID("_PunchyNight");
         static readonly int LightningId = Shader.PropertyToID("_PunchyLightning");
@@ -462,12 +463,34 @@ namespace Punchy.Weather
             Shader.SetGlobalColor(DustColorId, DustColor());
             Shader.SetGlobalFloat(HazeDensityId, hazeDensity);
             Shader.SetGlobalVector(CloudsId, new Vector4(s.Coverage, 0f, 1f, 0f));
+            Shader.SetGlobalFloat(TwilightDullId, TwilightDull(s));
             Shader.SetGlobalVector(CloudOffsetId, cloudOffset);
             Shader.SetGlobalFloat(NightId, Cycle != null ? Cycle.Night : 0f);
             Shader.SetGlobalVector(LightningId, new Vector4(strikeDirection.x, strikeDirection.y, strikeDirection.z, FlashBrightness() * strikeBrightness));
             Shader.SetGlobalVector(LightningPosId, new Vector4(strikePosition.x, strikePosition.y, strikePosition.z, FlashBrightness()));
             Shader.SetGlobalFloat(WindId, s.Wind);
             Shader.SetGlobalVector(WindDirectionId, WindDirection);
+        }
+
+        /// <summary>How much the weather mutes sunrise and sunset colours: 0 clear … 1 overcast or storm.</summary>
+        static float TwilightDull(in WeatherValues s) => math.saturate(s.Overcast + 0.4f * s.Darkness);
+
+        /// <summary>Twilight strength by the sun's height (matches PunchyTwilightAmount in Sky.hlsl): none above +12°
+        /// or below -8°, full from about -3° to +4°.</summary>
+        static float TwilightAmount(float sunY)
+        {
+            var e = Mathf.Asin(Mathf.Clamp(sunY, -1f, 1f)) * Mathf.Rad2Deg;
+            return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-8f, -3f, e)) * (1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(4f, 12f, e)));
+        }
+
+        /// <summary>The low sun's warm colour by its height (matches PunchyTwilightColor in Sky.hlsl).</summary>
+        static Color TwilightColor(float sunY)
+        {
+            var e = Mathf.Asin(Mathf.Clamp(sunY, -1f, 1f)) * Mathf.Rad2Deg;
+            var c = Color.Lerp(new Color(0.42f, 0.26f, 0.55f), new Color(0.96f, 0.38f, 0.46f), Mathf.Clamp01((e + 8f) / 4f));
+            c = Color.Lerp(c, new Color(1f, 0.40f, 0.17f), Mathf.Clamp01((e + 4f) / 4f));
+            c = Color.Lerp(c, new Color(1f, 0.55f, 0.24f), Mathf.Clamp01(e / 5f));
+            return Color.Lerp(c, new Color(1f, 0.76f, 0.46f), Mathf.Clamp01((e - 5f) / 7f));
         }
 
         void ApplyLighting(in WeatherValues s, in Sky sky, float hazeDensity)
@@ -489,7 +512,14 @@ namespace Punchy.Weather
                 ? (new Color(0.025f, 0.03f, 0.05f) * Mathf.Lerp(0.45f, 1f, Cycle.MoonLit) + Cycle.BlueMoonLight * Cycle.BlueMoonGlow) * Cycle.Night
                 : Color.black;
             RenderSettings.ambientSkyColor = sky.Zenith * ambientScale + moonFloor;
-            RenderSettings.ambientEquatorColor = sky.Horizon * (ambientScale * 0.85f) + moonFloor;
+            // At sunrise and sunset the side light warms with the sky's twilight band (Sky.hlsl), so the land matches it.
+            var equator = sky.Horizon;
+            if (Cycle != null)
+            {
+                var twilight = TwilightAmount(Cycle.SunDirection.y) * (1f - 0.8f * TwilightDull(s));
+                equator = Color.Lerp(equator, TwilightColor(Cycle.SunDirection.y) * (sky.Horizon.grayscale * 1.1f), twilight * 0.5f);
+            }
+            RenderSettings.ambientEquatorColor = equator * (ambientScale * 0.85f) + moonFloor;
             RenderSettings.ambientGroundColor = sky.Ground * (ambientScale * 0.6f) + moonFloor * 0.5f;
 
             if (Sun != null && baseSunIntensity >= 0f)

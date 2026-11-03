@@ -372,8 +372,8 @@ namespace Punchy.Player
                         m.VerticalVelocity = 0f;
                     }
                 }
-                // In a cave: pushed back out of the rock round the body (walls, a ceiling, slopes steeper than about 50°,
-                // which slide it back down rather than letting it sink in), A-30.
+                // In a cave: pushed back out of the rock round the body (walls, a ceiling, slopes rising steeper than about
+                // 60° over a stride, which slide it back down rather than letting it sink in), A-30, A-37.
                 if ((inCave || caveHere) && !NoPushOut.Data)
                 {
                     var pushed = PushOutOfSolids(terrain, from, position, m.Grounded, settings.Radius, size, dt);
@@ -843,7 +843,8 @@ namespace Punchy.Player
         }
 
         /// <summary>How far above the feet (m, for a body of size 1) the body's lowest sphere starts, past its radius: the
-        /// legs below it follow the floor, and a slope steeper than about 50° reaches the sphere and pushes the body back.</summary>
+        /// legs below it follow the floor. Standing, the knee sphere is pushed only off walls and overhangs, not the floor
+        /// (A-37); falling or jumping it is pushed off any rock.</summary>
         public const float BodyKnee = 0.2f;
         /// <summary>Tests ("-nopushout" on a shot line): the cave push-out off, for a before shot of the old collision.</summary>
         public static readonly SharedStatic<bool> NoPushOut = SharedStatic<bool>.GetOrCreate<PlayerMovementSystem, NoPushOutKey>();
@@ -851,8 +852,30 @@ namespace Punchy.Player
         /// <summary>Tests (-walk probe): metres the cave push-out has moved the player in all, so a run can say how much it acted.</summary>
         public static readonly SharedStatic<float> PushedTotal = SharedStatic<float>.GetOrCreate<PlayerMovementSystem, PushedTotalKey>();
         struct PushedTotalKey { }
-        /// <summary>A cave floor whose normal's up part is under this (50°) can't be walked up: the body slides back.</summary>
-        public const float SteepFloor = 0.64f;
+        /// <summary>A cave floor rising more than this per metre (60°) over <see cref="SlopeSpan"/> the way the body walks can't
+        /// be walked up: the body slides back. Real cave slopes run to about 57° over that span (seg 245 on v2, A-37).</summary>
+        public const float SteepRise = 1.73f;
+        /// <summary>The stretch of floor (m, centred on the feet) a cave slope's steepness is judged over: about a stride
+        /// either side, so one lump or ledge in it doesn't count as the slope.</summary>
+        public const float SlopeSpan = 2f;
+
+        /// <summary>The cave floor <paramref name="distance"/> m from the feet along <paramref name="direction"/>, followed in
+        /// four steps, each looked for from just above the last floor (so it climbs a slope rather than looking from inside
+        /// the rock above it). <paramref name="inCave"/> is false if it leaves the cave.</summary>
+        static float FloorAlong(in TerrainSource terrain, float3 position, float2 direction, float distance, out bool inCave)
+        {
+            var y = position.y;
+            inCave = true;
+            for (int i = 1; i <= 4; i++)
+            {
+                var xz = position.xz + direction * (distance * i * 0.25f);
+                var floor = terrain.FloorUnder(new float3(xz.x, y + 1.2f, xz.y), out inCave);
+                if (!inCave)
+                    return y;
+                y = floor;
+            }
+            return y;
+        }
 
         /// <summary>
         /// The body as three spheres (knee, middle, head) of the body's radius scaled by its size, each pushed out of any
@@ -866,17 +889,31 @@ namespace Punchy.Player
             var low = r + BodyKnee * size;
             var high = math.max(low, 1.6f * size - r);
             var start = position.xz;
+            // (Walking up a slope it can climb: the way up, else zero.)
+            var climbing = float2.zero;
+            // (Standing on a slope it can walk: the way down it, else zero.)
+            var downhill = float2.zero;
             if (grounded)
             {
-                // A floor steeper than SteepFloor: no further up it, and sliding back down (as off a steep prop top).
-                var foot = new float3(position.x, position.y + 0.1f, position.z);
-                var slope = SolidNormal(terrain, foot, SolidDistance(terrain, foot));
-                var downhill = math.normalizesafe(slope.xz);
-                if (slope.y < SteepFloor && slope.y > 0.05f && math.lengthsq(downhill) > 0f)
+                downhill = DownhillOnWalkableSlope(terrain, from);
+                // A floor rising steeper than SteepRise the way it walks: no further up it, and sliding back down (as off a
+                // steep prop top). A-37: judged by the floor's rise over SlopeSpan, not the rock's normal at the feet: a real
+                // cave slope is lumpy (seg 245 averages 51 deg, but its normal reads 32-79 deg from one step to the next), and
+                // every steep reading undid the step and slid the body back 3 m/s, so it never got up.
+                var step = position.xz - from.xz;
+                var stepLength = math.length(step);
+                if (stepLength > 1e-4f)
                 {
-                    var step = position.xz - from.xz;
-                    position.xz -= downhill * math.min(math.dot(step, downhill), 0f);
-                    position.xz += downhill * SlideSpeed * dt;
+                    var way = step / stepLength;
+                    var ahead = FloorAlong(terrain, position, way, SlopeSpan * 0.5f, out var aheadInCave);
+                    var behind = FloorAlong(terrain, position, -way, SlopeSpan * 0.5f, out var behindInCave);
+                    // (It slides back only if the floor is as steep that way where it stood at from; else it has just reached
+                    // a wall's foot and only stops. Sliding back there too, a walk along or up seg 245 into its wall stepped
+                    // in and slid back on alternate frames, a 0.05 m jitter, A-39.)
+                    if (aheadInCave && behindInCave && ahead - behind > SteepRise * SlopeSpan)
+                        position.xz = SteepThere(terrain, from, way) ? from.xz - way * SlideSpeed * dt : from.xz;
+                    else if (aheadInCave && behindInCave && ahead > behind + 0.1f * SlopeSpan)
+                        climbing = way;
                 }
                 position = StandOnCaveFloor(terrain, position);
             }
@@ -891,10 +928,33 @@ namespace Punchy.Player
                         continue;
                     // Sideways by as much as clears the sphere: a sloping face gives only its sideways part per metre.
                     var n = SolidNormal(terrain, c, d);
+                    // (Standing, the knee's rock facing up at all is the floor or a slope under the legs: FloorUnder and the
+                    // SteepRise test have it. Pushed off it, a body on a 55 deg cave slope was shoved downhill each pass, A-37.)
+                    if (grounded && k == 0 && n.y > 0.1f)
+                        continue;
                     var side = math.length(n.xz);
                     if (side < 1e-3f)
                         continue;
-                    position.xz += n.xz / side * ((r - d) / math.max(side, 0.4f));
+                    var push = n.xz / side * ((r - d) / math.max(side, 0.4f));
+                    // (Standing on a walkable slope, rock pushes along the slope or up it, never down. Climbing, a steeper lump
+                    // brushes the chest, and a push back down meant it never got past (seg 245, A-37; walls ahead stop it in
+                    // Clear). Beside a wall, its downhill part, pass after pass against the next step into the wall, slid a
+                    // body 1.4 m down seg 245 (A-39). A-37 dropped the part back along the walk instead, which on a diagonal
+                    // walk also dropped the wall's sideways push (0.14 m sink). The part left is stretched to clear the
+                    // sphere along the wall's normal, up to twice the depth.)
+                    var down = math.dot(push, downhill);
+                    if (down > 0f)
+                    {
+                        var depth = math.length(push);
+                        var wall = push / depth;
+                        push -= downhill * down;
+                        var along = math.dot(push, wall);
+                        if (along > 1e-4f)
+                            push *= math.min(depth / along, 2f);
+                    }
+                    if (math.lengthsq(push) < 1e-8f)
+                        continue;
+                    position.xz += push;
                     moved = true;
                 }
                 if (!moved)
@@ -911,6 +971,68 @@ namespace Punchy.Player
                 if (grounded)
                     position = StandOnCaveFloor(terrain, position);
             }
+            // (On a walkable slope with the wall's downhill part dropped, a wall facing partly downhill can't always be
+            // cleared along the slope: a chest or head still deeper in than at from, and over 0.08 m in, keeps the body
+            // where it was, as a wall ahead does. Without this a sideways walk sank 0.31 m into seg 245's wall, A-39.
+            // Not while climbing: a lump brushing the chest is pushed past, A-37; holding it there stops seg 245's climb.)
+            if (math.lengthsq(downhill) > 0f && math.lengthsq(climbing) == 0f && BodyDepth(terrain, position, r, low, high) > math.max(0.08f, BodyDepth(terrain, from, r, low, high) + 0.005f))
+                position = from;
+            // (Climbing, a chest or head over 0.10 m in and deeper than at from is pushed sideways across the climb, never
+            // back down it, at most twice the radius. If that finds no way out and the floor ahead doesn't rise (a wall,
+            // not a step), the body stays at from; otherwise it takes the largest part of the step that stays out. A-40:
+            // diag -1 sank 0.19 m and seg 245 up 0.14 m; holding at every such step stopped seg 245's climb at 0.99 m.)
+            else if (math.lengthsq(climbing) > 0f)
+            {
+                var deep = BodyDepth(terrain, position, r, low, high);
+                var fromDepth = BodyDepth(terrain, from, r, low, high);
+                if (deep > 0.10f && deep > fromDepth + 0.005f)
+                {
+                    var best = position;
+                    var bestDepth = deep;
+                    var across = new float2(climbing.y, -climbing.x);
+                    var p = position;
+                    for (int i = 0; i < 4; i++)
+                    {
+                        var depth = BodyDepth(terrain, p, r, low, high);
+                        if (depth <= 0.08f)
+                            break;
+                        var s = math.dot(DeepNormal(terrain, p, r, low, high), across);
+                        if (math.abs(s) < 0.2f)
+                            break;
+                        p.xz += across * (math.sign(s) * (depth - 0.07f) / math.abs(s));
+                        p = StandOnCaveFloor(terrain, p);
+                    }
+                    var sideways = false;
+                    if (math.distance(p.xz, position.xz) <= 2f * r && BodyDepth(terrain, p, r, low, high) < bestDepth)
+                    {
+                        best = p;
+                        bestDepth = BodyDepth(terrain, p, r, low, high);
+                        sideways = true;
+                    }
+                    var aheadXZ = position.xz + math.normalizesafe(climbing) * 0.3f;
+                    var ahead = terrain.FloorUnder(new float3(aheadXZ.x, position.y + 0.6f, aheadXZ.y), out _);
+                    if (bestDepth > 0.10f && !sideways && ahead - position.y < 0.05f)
+                        best = from;
+                    else if (bestDepth > 0.10f)
+                    {
+                        for (float f = 0.5f; f > 0.1f; f *= 0.5f)
+                        {
+                            var q = StandOnCaveFloor(terrain, math.lerp(from, best, f));
+                            var qDepth = BodyDepth(terrain, q, r, low, high);
+                            if (qDepth <= 0.10f || qDepth <= fromDepth + 0.005f)
+                            {
+                                best = q;
+                                break;
+                            }
+                        }
+                    }
+                    position = best;
+                }
+                // (A push back down the climb from a spot that was clear holds the body instead: on diag -1 the corner
+                // pushed it back and the next step walked it in again, a 0.15 m three-frame shiver.)
+                if (math.dot(position.xz - from.xz, climbing) < -0.01f && fromDepth <= 0.10f)
+                    position = from;
+            }
             // (Only rock overhead counts (its normal points down): a steep floor beside the head is the slope the body is
             // sliding down, and undoing that step wedged a small body on a 65 deg slope for good (A-32).)
             var headAt = position + new float3(0f, high, 0f);
@@ -919,6 +1041,52 @@ namespace Punchy.Player
                 SolidNormal(terrain, headAt, headNow).y < -0.3f)
                 position = from;
             return position;
+        }
+
+        /// <summary>
+        /// The way down the cave floor under the body (unit length), judged like the SteepRise test by the floor's rise
+        /// over SlopeSpan along x and z; zero on flat floor (under 0.1 rise per metre), on a slope too steep to walk, or
+        /// where either span leaves the cave.
+        /// </summary>
+        static float2 DownhillOnWalkableSlope(in TerrainSource terrain, float3 position)
+        {
+            var h = SlopeSpan * 0.5f;
+            var east = FloorAlong(terrain, position, new float2(1f, 0f), h, out var i0);
+            var west = FloorAlong(terrain, position, new float2(-1f, 0f), h, out var i1);
+            var north = FloorAlong(terrain, position, new float2(0f, 1f), h, out var i2);
+            var south = FloorAlong(terrain, position, new float2(0f, -1f), h, out var i3);
+            if (!(i0 && i1 && i2 && i3))
+                return float2.zero;
+            var rise = new float2(east - west, north - south) / SlopeSpan;
+            var steep = math.length(rise);
+            return steep < 0.1f || steep > SteepRise ? float2.zero : -rise / steep;
+        }
+
+        /// <summary>Whether the cave floor rises steeper than SteepRise over SlopeSpan along <paramref name="way"/>.</summary>
+        static bool SteepThere(in TerrainSource terrain, float3 position, float2 way)
+        {
+            var ahead = FloorAlong(terrain, position, way, SlopeSpan * 0.5f, out var aheadInCave);
+            var behind = FloorAlong(terrain, position, -way, SlopeSpan * 0.5f, out var behindInCave);
+            return aheadInCave && behindInCave && ahead - behind > SteepRise * SlopeSpan;
+        }
+
+        /// <summary>How far the chest or head sphere (whichever is deeper) is in solid; zero when both are clear.</summary>
+        static float BodyDepth(in TerrainSource terrain, float3 position, float r, float low, float high)
+        {
+            var chest = SolidDistance(terrain, position + new float3(0f, math.lerp(low, high, 0.5f), 0f));
+            var head = SolidDistance(terrain, position + new float3(0f, high, 0f));
+            return math.max(0f, r - math.min(chest, head));
+        }
+
+        /// <summary>The way out (sideways, unit length) of whichever of the chest and head spheres is deeper in solid.</summary>
+        static float2 DeepNormal(in TerrainSource terrain, float3 position, float r, float low, float high)
+        {
+            var chestAt = position + new float3(0f, math.lerp(low, high, 0.5f), 0f);
+            var headAt = position + new float3(0f, high, 0f);
+            var chest = SolidDistance(terrain, chestAt);
+            var head = SolidDistance(terrain, headAt);
+            var n = chest < head ? SolidNormal(terrain, chestAt, chest) : SolidNormal(terrain, headAt, head);
+            return math.normalizesafe(n.xz);
         }
 
         static float3 StandOnCaveFloor(in TerrainSource terrain, float3 position)

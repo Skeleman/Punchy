@@ -163,8 +163,11 @@ namespace Punchy.Weather
             if (SunDirection.y > -0.02f)
             {
                 LightDirection = SunDirection;
-                LightColor = SunColor.Evaluate(key);
-                LightStrength = sunStrength;
+                // W-31: below about 15° the sunlight warms and dims further towards the horizon (sunrise and sunset).
+                var low = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 0.26f, SunDirection.y));
+                var sunLight = SunColor.Evaluate(key);
+                LightColor = Color.Lerp(sunLight, sunLight * new Color(1f, 0.8f, 0.6f), low);
+                LightStrength = sunStrength * Mathf.Lerp(1f, 0.75f, low);
             }
             else
             {

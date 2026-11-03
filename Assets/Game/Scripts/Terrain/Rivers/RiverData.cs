@@ -147,7 +147,7 @@ namespace Punchy.Terrain
         public float Water;      // water surface of the river that carved the ground lowest here
         public float FallWater;  // upper surface of a waterfall whose channel covers this point above its lip (else MinValue)
         public float2 Flow;      // downstream direction at the closest point
-        public float Gradient;   // drop per metre of the riverbed at the closest point
+        public float Gradient;   // drop per metre of the riverbed at the closest point (no more than its water's drop)
     }
 
     public static class RiverSampling
@@ -304,7 +304,9 @@ namespace Punchy.Terrain
                 q.Level = level;
                 q.Width = width;
                 q.Flow = flow;
-                q.Gradient = (map.Bed[start] - endLevel) / math.max(math.length(ab), 1e-3f);
+                // The water's fall too (W-36): where it backs up flat to a lake or a dam over a steep bed, no rapids.
+                var waterEnd = down >= 0 ? map.WaterLevel[down] : map.WaterLevel[start];
+                q.Gradient = math.min(map.Bed[start] - endLevel, map.WaterLevel[start] - waterEnd) / math.max(math.length(ab), 1e-3f);
             }
         }
 

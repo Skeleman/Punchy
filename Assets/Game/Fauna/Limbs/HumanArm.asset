@@ -61,12 +61,12 @@ MonoBehaviour:
   RunReach:
     Joints:
     - {x: -40, y: 0, z: 0}
-    - {x: -80, y: 0, z: 0}
+    - {x: -95, y: 0, z: 0}
     - {x: 0, y: 0, z: 0}
   RunPush:
     Joints:
     - {x: 40, y: 0, z: 0}
-    - {x: -70, y: 0, z: 0}
+    - {x: -85, y: 0, z: 0}
     - {x: 0, y: 0, z: 0}
   RunLift:
     Joints: []

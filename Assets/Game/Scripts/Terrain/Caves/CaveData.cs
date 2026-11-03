@@ -413,6 +413,36 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
+        /// A lower bound on the true distance to the cave surface at a point (W-33): the same sign as Distance, and never
+        /// more than the real gap from air to rock or from rock to air, so pushing out of rock or stepping a sphere-cast by
+        /// it never overshoots. Distance is a field, not a true distance: the flatter underside, the floor's ledges and
+        /// the wall noise (ribs, creases, facets) make it read up to 2-4x the real gap. This divides it by the steeper of
+        /// the field's slope here and the cave's SlopeLimit. Five field samples. Distance itself must stay as it is:
+        /// carving, meshing and placement depend on its exact values (and the cave and landmark hashes with them).
+        /// </summary>
+        public static float LowerBound(ref CaveSetBlob set, float3 p)
+        {
+            var d = Distance(ref set, p, out var cave);
+            if (cave < 0 || math.abs(d) > 1e8f)
+                return d;
+            // The slope from four samples on a tetrahedron round the point.
+            const float h = 0.04f;
+            float3 a = new float3(1f, -1f, -1f), b = new float3(-1f, -1f, 1f), c = new float3(-1f, 1f, -1f), e = new float3(1f, 1f, 1f);
+            var slope = a * Distance(ref set, p + a * h, out _) + b * Distance(ref set, p + b * h, out _) +
+                        c * Distance(ref set, p + c * h, out _) + e * Distance(ref set, p + e * h, out _);
+            var steep = math.length(slope) / (4f * h);
+            return d / math.max(SlopeLimit(set.Caves[cave]), steep * 1.2f);
+        }
+
+        /// <summary>
+        /// How steeply a cave's field can climb near its walls compared with true distance, from its wall noise: ridges
+        /// and creases, collapse blocks (which also step), facets and ribs. Fitted with a margin to a probe of every
+        /// cave (W-33), not derived: retune it with that probe if WallNoise changes.
+        /// </summary>
+        public static float SlopeLimit(in CaveData c) =>
+            1f + 0.55f * c.Rock.x + 0.35f * c.Wall.x + c.Rock.w * c.Rock.x + 2f * c.Facet.x + 2f * c.Wall.z;
+
+        /// <summary>
         /// Only near the air do speleothems matter: they turn air into rock, and the few carved ones (waterfall notches,
         /// within a metre of the wall) rock into air.
         /// </summary>
