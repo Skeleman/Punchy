@@ -1102,3 +1102,41 @@ The full list is in the world tree at Temp/w35b_steps.txt.
 - No Punchy.exe was running before the build or afterwards.
 
 **Builds:** 1.
+
+## W-36 (world, 2026-11-02)
+
+Commit world-features 4d22a44 (pushed): `RiverBaking.FillRiverPits`, rapids gradient from the water drop, lake-outlet foam from the real ramp, docs/agents/world.md gotcha.
+
+| # | Row | Result |
+|---|---|---|
+| 1 | Open river ends | DONE (partly fixed, rest classified). v2 not at falls 106 -> 92 (x -2400..-2100: 26 -> 12; north-west 18 -> 18). Before: backwater 65, cut by another carve 40, low ground 1. The 65 were mostly river pits: beds below the bed downstream (e.g. -2343,-437 bed 20.07 under a 35.39 dam, water 34.51), the carve dug the banks down to 20-25 m. Filled; 17 ends fixed, 3 new at -1988..-1955,-231..-205. v1: 3 -> 3. |
+| 2 | Unexplained steps | DONE (classified). v2 116 -> 117 cells; unexplained 36 -> 7 (44 by the W-35b rule = 36 + side by side 7 + hidden fall 1). New reasons: rapid (bed drop > 1 m over two cells) 30, two rivers side by side 7. v1 unexplained 13 -> 0 (rapid 4, side by side 9, gorge 16, confluence 3). |
+| 3 | Grove foam strip | DONE: a fault, not a waterfall. Rapids foam came from the bed gradient on water backed up flat to the lake (water 55.9 over -802..-813,1123..1136, rapids 1.0). Fixed; rapids 0 on that line; shot w36-5. |
+| 4 | Shots | DONE, all viewed at 800 px: banks hold the water at both band ends, no white strip by the grove lake. |
+
+Hashes old -> new. v2: landmarks 126/053C63D5 (same), caves ACA9CC9155621A44 (same), rivers 6A1BC5BDCDE399BE -> 70B01EF403A78FF5, ground 79A65F834D760FC8 -> A87024EE3525ADC0, falls 70 (same). v1: landmarks 102/51EA6463 (same), caves 47C703C0E17F77CB (same), rivers B867BA86DC27D8D0 -> 2508BF538DA96D7E, ground 2AC3143B4715222E -> A32E650C44A45E06.
+
+Checks: WorldProbe landmark list on both islands is unchanged (count + hash). The player v2 log shows 126 landmarks, hash 053C63D5. One build succeeded with 0 errors. One shot list ran -shotdir and quit with exit 0. No Punchy.exe was running before the build or the run.
+
+Remaining v2 open ends (not at falls), by reason:
+- Cut by another carve (38): a neighbouring segment's carve lowered the bank at a rapid or junction. -872,-1241 -2677,-1158 -2477,-1012 -2399,-888 -414,-891 -2374,-829 -2346,-542 61,184 -1118,346 -775,494 658,810 149,1241 -437,1331 -846,1574 -968,1794 -974,1814 -419,2244 -2548,2499 1606,2626 2542,2664 -2318,2796 -2334,2808 -2260,2855 -1575,3032 -1591,3045 -1574,3058 -2056,3131 -1239,3186 -2069,3209 -1286,3212 -1254,3213 -2085,3222 -2061,3418 -2044,3431 -2161,3580 631,3762 -1595,3789 805,3862
+- Low ground beside (32): the river is held at its dam level (34.51 m) and the land beside it is lower. -2260,-358 -2243,-345 -2226,-332 -2162,-331 -2088,-323 -2072,-310 -2055,-297 -2038,-284 -2022,-257 -2005,-244 -1988,-231 -1972,-218 -1955,-205 244,1378 664,1409 947,2267 963,2280 980,2293 997,2306 1013,2334 1030,2346 1047,2359 1130,2438 1131,2478 1148,2491 1164,2504 1181,2517 1191,2550 1266,2609 1354,2617 1371,2630 1388,2643
+- Backwater (22): a lake (28.49 m) or the sea backs up over banks lower than its surface. -1164,222 699,1058 648,1436 675,1482 692,1495 708,1508 701,1540 685,1567 678,1573 663,1585 391,1674 392,1700 411,2195 420,2202 395,2222 379,2234 1063,2372 1080,2385 -2196,3715 (sea) -708,4014 -691,4027 -707,4040
+
+Remaining v1 open ends: 2424,1000 (cut by another carve), 1547,3277 (cut by another carve), -2315,1571 (backwater).
+
+Unexplained v2 steps, with the worst jump: -2407,-855 0.40; -2365,-822 0.48; -2346,-542 1.34; -2344,-477 0.33; -2441,2332 0.45; -2185,2914 0.55; -2070,3169 0.46.
+
+Shots are in PunchyMilestones/world/w36:
+- w36-1-band-end-a-air: -2343,-437, fixed.
+- w36-2-band-end-b-air: -2153,-324, fixed.
+- w36-3-northwest-end-air: -2056,3131. Still open (cut by another carve). No north-west end was fixed, but the banks look closed from 40 m.
+- w36-4-grove-air.
+- w36-5-grove-lake-air.
+
+NEXT:
+- Decide whether to cut the 34.51 m dam rather than fill it. That would clear the 13 low-ground ends at -2260..-1955, but it carves a canyon about 15 m deep and 500 m long.
+- Clamp lake backwater to the river's banks.
+- Look at junction bank carving, which accounts for 38 ends.
+
+Budget: about 60 calls and 1 build.
