@@ -1140,3 +1140,18 @@ NEXT:
 - Look at junction bank carving, which accounts for 38 ends.
 
 Budget: about 60 calls and 1 build.
+
+## W-37 river meander scales with width: NOT DONE (stopped, landmarks would move)
+
+- Fix written, not committed: new Burst `RiverBaking.PathPointsJob` (v2 only). A wide river's segment points are a Gaussian average of the jittered points along its main channel, with sigma = min((w-12)*1.5, 72) m. They are stored in `RiverMapBlob.Points`. Narrow streams (w <= 12) and v1 are unchanged. The patch sits uncommitted in the world tree.
+- Landmark diff, v2: 126 -> 128 (hash 053C63D5 -> 8835D39A). CrystalGrotto at -0,-406 dropped. Added: LoneInn -2857,-1463; OakGrove 1749,2448; Waterfall -1994,3010. The other 125 keep their positions. Stopped before committing, per the hash rule. v1 after was not measured.
+- v2 before -> after (W-37 measure):
+  - rivers 70B01EF403A78FF5 -> 707C64C3E62EB1FD
+  - ground A87024EE3525ADC0 -> 26D0900E19772F07
+  - caves ACA9CC9155621A44 -> AF3F57E122D19AE8
+  - falls 70 -> 68
+- Row 1, wide reaches (w ~48), wavelength 1.4-1.9x w -> 5.2-10.9x w; max curvature 0.33-0.35 -> 0.02-0.18. Zach's reach (-1195,-2014, w 26): wavelength 2.0x -> 6.4x w, curvature 0.359 -> 0.072, min radius 3 -> 14 m. Narrow reach 194,1340 is identical.
+- Row 2, bulbous on v2: 744 -> 171 (balloon 131 -> 20, pinch 81 -> 4, radius < width 532 -> 147). v1 before: 263.
+- Row 3: steps (W-37 rule) 138 -> 121. Open ends not at falls 92 -> 102 (worse). Floating 28 -> 33 (worse). v1 before: steps 131, open ends 3, floating 0.
+- Row 4: before shots only, in PunchyMilestones/world/w37/before (zach_spot, widest, mid). No build and no after shots, since nothing was committed.
+- NEXT, needs a decision: (a) accept the 4 landmark changes, or (b) keep river points at the jittered value wherever landmark placement reads them. The open-ends and floating regressions need one tuning pass either way.
