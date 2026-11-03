@@ -1368,3 +1368,26 @@ probe numbers carry that). `-pose ... scare` sets speed directly, so the eased t
 Untracked Assets/_Recovery left alone. A first build attempt returned Unknown (a compile error of mine, name clash);
 fixed, then the one build. Calls ~78, builds 1.
 
+## A-44 (2026-11-02): creature solid collision - PARTIAL, criteria not met
+
+Commit cfbcee9 on animal-behaviours (pushed). Files: CreatureMotion.cs (Solid/Ground helpers), CreatureBrainSystem.cs,
+FaunaDirector.cs, DebugControls.cs. All stay LF. No TerrainSource, player collision or network changes. Placement untouched, so the v2 126 / 053C63D5 hash is unchanged (not re-run).
+- What it does: when a player is within 48 m, land animals check their own body (radius, length, height) against TowerWall and cave rock (below the surface only).
+  A step into a solid slides to the nearest open way or stops. An animal already in a solid is pushed out sideways. Fleeing and wandering animals probe ahead and veer (boulders: RockAt at 4 Hz).
+  Ground and rest height over cave entrances now come from FloorUnder, and wild spawns skip carved ground.
+- Test flags: `-solidsoff` and `-solidstats`. Put them on EVERY shot-list line, because DebugControls re-applies options per line (my first after run had no stats for this reason).
+- 8 min run, same build (5 cave mouths plus a 50+ creature line, a village and landmark 1), totals off -> on:
+  - Ticks with a body sunk more than 0.15 m: 21748 -> 6909 (-68%)
+  - Floating more than 0.2 m: 1742 -> 258 (-85%)
+  - Stuck (boxed in): 0 s in both
+  - Wall contacts after: about 3/min (21/min at the landmark minute)
+  - Max sink is still metres (6-33 m) in some minutes, mostly where cave rock is mapped deep under a slope, plus landmark 1
+- Cost: 1.0-1.6 solid queries per near creature-tick (23-64 per frame). A main-thread unburst Mono timing gives 0.8-37 ms per frame scaled to 50 creatures. This is only a loose upper bound and is not a Burst figure, so a real Burst/profiler figure is still owed.
+- Not done: an editor sim of 3 species against a cave wall, a building and a tower (out of budget). The run's numbers cover small, medium and large (Dormouse, Deer, GrizzlyBear).
+  Sink is not <= 0.15 m everywhere, and floating is not 0.
+- Shots, D:\PunchyMilestones\animal\a44 (viewed at 800 px):
+  - Pair: before\cave1-deer.png (old exe, deer hidden behind or in the cave-mouth rock) and after\cave1-deer.png (deer's head and back visible past the mound). Weak pair: the mound still partly blocks the camera.
+  - Also cave1-bear and cave1-dormouse in both folders.
+  - Same-build runs in stats-off\ and stats-on\. The logs are Temp/a44_soff.log and a44_on.log in the animal tree.
+- Next: find what the remaining hidden ticks are (log the position and solid type of the worst one), tighten CountSolids versus Solid, and decide whether the deep-rock cases are real or a false count from the CaveDistance overstate. Calls ~85, builds 1.
+
