@@ -35,6 +35,10 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   `CaveDistance`, `IsCaveHole` (surface cut away at an entrance), `IsRock` and `FloorUnder(float3)` (the cave
   floor under a point, or the surface). Anything that can go underground must use `FloorUnder` with a 3D
   position instead of `SampleHeight` (player movement, the player's body in `CreatureAnimator`, the camera).
+  `CaveDistance` has an exact sign but its size can overstate the distance to rock 2-9x (squashed floors,
+  ledges, wall noise); carving and placement hash on it, so it never changes. For push-out, sphere casts or step
+  sizes use `CaveDistanceBound` (`CaveSampling.LowerBound`): a lower bound (W-33 probe: 5 of ~10k points over,
+  by at most 5 cm, all at stepped wall blocks), about 5x the cost. Retune `SlopeLimit` if `WallNoise` changes.
   At entrances the terrain stores each vertex's distance to cave air (Morph.w) and its shader cuts the surface
   just inside the cave's edge, in every pass (near LODs only); `CaveSystem` builds the cave walls with surface
   nets in background jobs, sets `CaveSystem.Underground` (weather stops) and lights a lantern on the player.

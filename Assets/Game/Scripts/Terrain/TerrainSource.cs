@@ -770,8 +770,18 @@ namespace Punchy.Terrain
 
         // ---------------------------------------------------------------- caves
 
-        /// <summary>Signed distance to cave air at a point: negative inside a cave, large away from every cave.</summary>
+        /// <summary>
+        /// Signed distance field to cave air at a point: negative inside a cave, large away from every cave. Its sign is
+        /// exact but its size can overstate the real gap (up to 2-4x near ribs and creases); carving and placement use
+        /// it as it is. To push out of rock or step a cast by distance, use CaveDistanceBound.
+        /// </summary>
         public float CaveDistance(float3 p) => Caves.IsCreated ? CaveSampling.Distance(ref Caves.Value, p, out _) : 1e9f;
+
+        /// <summary>
+        /// Like CaveDistance (same sign), but never more than the true distance to the cave surface, so stepping by it
+        /// never overshoots a wall, floor or ceiling (W-33). About five times the cost of CaveDistance.
+        /// </summary>
+        public float CaveDistanceBound(float3 p) => Caves.IsCreated ? CaveSampling.LowerBound(ref Caves.Value, p) : 1e9f;
 
         /// <summary>
         /// How much lava (0..1) a point is in: a cave's lava pool, or surface water whose look is lava (volcano craters,
