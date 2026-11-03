@@ -60,6 +60,7 @@ namespace Punchy.Debugging
             ClimbTest();
             ActionTest();
             Watch();
+            WalkTo();
             Pose();
             Interact();
             ShotList();
@@ -1070,6 +1071,8 @@ namespace Punchy.Debugging
         static bool launchOptionsApplied;
         /// <summary>"-watch Squirrel": the camera follows the nearest animal of that species (for testing behaviours).</summary>
         static string watchSpecies;
+        /// <summary>The -watch target the "no such creature" warning was last given for, so it is said once, not every frame.</summary>
+        static string watchWarned;
         static float? watchPitchOverride;
         /// <summary>
         /// "-watchfrom 12,25" (with -watch): the camera stands still instead, 25 m off and 12 m above the ground, turning
@@ -1079,6 +1082,12 @@ namespace Punchy.Debugging
         /// </summary>
         static float2? watchFrom;
         static Vector3? watchFromAt;
+        /// <summary>"-walk": where the player is walking to on this shot line (A-34), and when its next probe line is due.</summary>
+        static float3? walkTarget;
+        static float walkLogNext;
+        /// <summary>"-untilwork": the most seconds a shot waits past -wait for the watched folk to work, and since when it has.</summary>
+        static float untilWork;
+        static float workSince = -1f;
         /// <summary>"-spawn Osprey" (or "Trout:6"): a few of a species put near the player once the world is up (testing).</summary>
         static readonly List<string> pendingSpawns = new List<string>();
         /// <summary>"-pose Bat" (or "Bat:fly", "Bat:glide", "Bat:rest", "Bat:hang", "Crow:nest", and a camera pitch: "Bat:glide:70"):
@@ -1153,6 +1162,8 @@ namespace Punchy.Debugging
             watchPitchOverride = null;
             watchFrom = null;
             watchFromAt = null;
+            walkTarget = null;
+            untilWork = 0f;
             pendingSpawns.Clear();
             poseRequest = null;
             interactRequest = null;
@@ -1246,6 +1257,7 @@ namespace Punchy.Debugging
             if (System.Array.IndexOf(args, "-chattest") >= 0)
                 Punchy.Fauna.CreatureBrainSystem.ForceChat.Data = 1;
             chatShot = System.Array.IndexOf(args, "-chatshot") >= 0;
+            FolkTalkLabels.BubblesWithoutHud = chatShot;
             // A-27: "-chatmix" (launch line) logs what the townsfolk round the camera are doing, and the talks, every 15 s
             // (FolkTalkSystem.LogMix).
             Punchy.Fauna.FolkTalkSystem.ChatMix = System.Array.IndexOf(LaunchArgs, "-chatmix") >= 0;
@@ -1298,6 +1310,7 @@ namespace Punchy.Debugging
             // "-meteors": every night a meteor shower (Sky.hlsl's test switch), for checking shooting stars against clouds (Z-09).
             if (System.Array.IndexOf(args, "-meteors") >= 0)
                 Shader.SetGlobalFloat("_PunchySkyTest", 1f);
+            Punchy.Player.PlayerMovementSystem.NoPushOut.Data = System.Array.IndexOf(args, "-nopushout") >= 0;
             if (System.Array.IndexOf(args, "-nohud") >= 0)
             {
                 ShowReadout = false;
@@ -1316,11 +1329,26 @@ namespace Punchy.Debugging
                     if (rig != null)
                         rig.SetView(rig.transform.eulerAngles.y, viewPitch);
                 }
+                // "-view yaw,pitch": the player's own camera turned that way (A-30: aimed at a cave wall).
+                if (args[i] == "-view" && ParseFloats(args[i + 1]) is float[] view && view.Length >= 2 && FindAnyObjectByType<ThirdPersonCamera>() is ThirdPersonCamera viewRig)
+                    viewRig.SetView(view[0], view[1]);
                 // "-watchpitch 45": watch from above (to see over leaves), rather than low or level.
                 if (args[i] == "-watchpitch" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var watchPitch))
                     watchPitchOverride = watchPitch;
                 if (args[i] == "-watchfrom" && ParseFloats(args[i + 1]) is float[] from && from.Length >= 2)
                     watchFrom = new float2(from[0], from[1]);
+                // "-walk x,y,z" (A-34): the player walks toward that point from where -goto put it (as if the stick were
+                // pushed), so the cave push-out acts on its steps; the shot lands mid-walk at -wait.
+                if (args[i] == "-walk" && ParseFloats(args[i + 1]) is float[] walk && walk.Length >= 3)
+                {
+                    walkTarget = new float3(walk[0], walk[1], walk[2]);
+                    walkLogNext = 0f;
+                    Punchy.Player.PlayerMovementSystem.PushedTotal.Data = 0f;
+                }
+                // "-untilwork 60" (A-34): after -wait, hold the shot up to that many seconds more until the watched folk
+                // has been at its work (Mode Work) for a second, so a smith on a break is caught hammering.
+                if (args[i] == "-untilwork" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var untilWorkFor))
+                    untilWork = untilWorkFor;
                 // "-timescale 4": everything runs four times as fast (a dusk, a burrow cycle, a roost in seconds).
                 if (args[i] == "-timescale" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var scale))
                     Time.timeScale = Mathf.Clamp(scale, 0.1f, 20f);
@@ -1354,6 +1382,8 @@ namespace Punchy.Debugging
                     PlaceByRiverFall(fallSource, args[i + 1].Substring(9));
                 else if (args[i] == "-place" && string.Equals(args[i + 1], "meadow", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var meadowSource))
                     PlaceInMeadow(meadowSource);
+                else if (args[i] == "-place" && string.Equals(args[i + 1], "crossing", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var crossingSource))
+                    PlaceByCrossing(crossingSource);
                 else if (args[i] == "-place" && string.Equals(args[i + 1], "clearlake", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var lakeSource))
                     PlaceByClearLake(lakeSource);
                 else if (args[i] == "-place" && (string.Equals(args[i + 1], "ledge", System.StringComparison.OrdinalIgnoreCase) || args[i + 1].StartsWith("wall", System.StringComparison.OrdinalIgnoreCase)))
@@ -1415,6 +1445,9 @@ namespace Punchy.Debugging
                     var em = queryWorld.EntityManager;
                     var t = em.GetComponentData<LocalTransform>(goer);
                     t.Position = new float3(gx, ground.SampleHeight(new float2(gx, gz)) + 0.1f, gz);
+                    // "-goto x,y,z": onto the floor under that point (in a cave), not the ground surface.
+                    if (parts.Length >= 3 && float.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var gy))
+                        t.Position.y = ground.FloorUnder(new float3(gx, gy + 1f, gz), out _) + 0.05f;
                     em.SetComponentData(goer, t);
                     Debug.Log($"DebugControls: to {gx:F0},{gz:F0}");
                 }
@@ -1576,9 +1609,29 @@ namespace Punchy.Debugging
             pendingSpawns.Clear();
         }
 
+        /// <summary>"-walk": steers the player at the line's walk target, and logs probe lines on the way.</summary>
+        void WalkTo()
+        {
+            if (!walkTarget.HasValue || queryWorld == null || !queryWorld.IsCreated || !playerQuery.TryGetSingleton<LocalTransform>(out var walker))
+                return;
+            var to = walkTarget.Value.xz - walker.Position.xz;
+            var distance = math.length(to);
+            PlayerInputSystem.TestMove = distance > 0.3f ? to / distance : float2.zero;
+            // Probe lines every quarter second: where it is, its clearance over the floor, and how far the push-out has moved it.
+            if (Time.unscaledTime >= walkLogNext && EnsureLocations(out var walkGround))
+            {
+                walkLogNext = Time.unscaledTime + 0.25f;
+                var floor = walkGround.FloorUnder(walker.Position + new float3(0f, 0.5f, 0f), out var walkInCave);
+                Debug.Log($"DebugControls: walk at ({V(walker.Position.x)}, {V(walker.Position.y)}, {V(walker.Position.z)}), {V(distance)} m to go, " +
+                          $"{V(walker.Position.y - floor)} m over the floor (in cave {walkInCave}), pushed out {V(Punchy.Player.PlayerMovementSystem.PushedTotal.Data)} m in all" +
+                          (Punchy.Player.PlayerMovementSystem.NoPushOut.Data ? " (push-out off)" : ""));
+            }
+        }
+
         /// <summary>
         /// Points the camera at the watched species: the nearest one doing something worth seeing (climbing, flying,
-        /// in a web, an idle action), else the nearest; re-picked every few seconds.
+        /// in a web, an idle action), else the nearest; re-picked every few seconds. A-34: "*" for any species
+        /// ("*:Merchant": OgreCamp's merchants are goblins, so "Ogre:Merchant" found none).
         /// </summary>
         void Watch()
         {
@@ -1594,9 +1647,13 @@ namespace Punchy.Debugging
                 watchDirector = FindAnyObjectByType<FaunaDirector>();
             // "Human:Hunt": only those with that task.
             var watchParts = watchSpecies.Split(':');
-            var index = watchDirector != null ? watchDirector.SpeciesIndex(watchParts[0]) : -1;
+            var anySpecies = watchParts[0] == "*";
+            var index = anySpecies ? int.MaxValue : watchDirector != null ? watchDirector.SpeciesIndex(watchParts[0]) : -1;
             var watchTask = CreatureTask.None;
             var hasTask = watchParts.Length > 1 && System.Enum.TryParse(watchParts[1], true, out watchTask);
+            // ("Human:Baker": only those with that job, A-29.)
+            var watchJob = FolkJob.None;
+            var hasJob = !hasTask && watchParts.Length > 1 && System.Enum.TryParse(watchParts[1], true, out watchJob);
             if (index < 0 || !playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return;
             if (Time.unscaledTime >= nextWatchPick || !em.Exists(watched))
@@ -1605,13 +1662,20 @@ namespace Punchy.Debugging
                 var entities = creatureQuery.ToEntityArray(Unity.Collections.Allocator.Temp);
                 var best = float.MaxValue;
                 watched = Entity.Null;
+                var wrongSpecies = "";
                 foreach (var e in entities)
                 {
-                    if (em.GetComponentData<CreatureBody>(e).Species != index)
-                        continue;
+                    var species = em.GetComponentData<CreatureBody>(e).Species;
                     var c = em.GetComponentData<CreatureState>(e);
-                    if (hasTask && c.Task != watchTask)
+                    if (hasTask && c.Task != watchTask || hasJob && FolkJobs.Of(c) != watchJob)
                         continue;
+                    if (!anySpecies && species != index)
+                    {
+                        // (Kept to say who does hold that job, if the asked species has none.)
+                        if ((hasTask || hasJob) && wrongSpecies.Length < 80)
+                            wrongSpecies += $" {watchDirector.SpeciesAt(species)?.name}";
+                        continue;
+                    }
                     var g = terrainQuery.GetSingleton<TerrainSource>().SampleGround(c.Position.xz);
                     var swimming = g.HasWater && c.Position.y < g.WaterSurface - 0.2f;
                     var busy = swimming || c.Mode == CreatureMode.Flee && c.Speed > 2f || c.Mode == CreatureMode.Climb || c.Mode == CreatureMode.Web || c.Fly > 0.5f ||
@@ -1624,6 +1688,11 @@ namespace Punchy.Debugging
                     }
                 }
                 entities.Dispose();
+                if (watched == Entity.Null && wrongSpecies.Length > 0 && watchWarned != watchSpecies)
+                {
+                    watchWarned = watchSpecies;
+                    Debug.LogWarning($"DebugControls: no {watchSpecies}; that job is held by:{wrongSpecies} (try -watch *:{watchParts[1]})");
+                }
                 if (watchAirFrames > 0)
                     Debug.Log($"DebugControls: steepest flight over {watchAirFrames} airborne frames: {math.degrees(math.atan(watchSteepest)):F0}°");
                 watchSteepest = 0f;
@@ -1635,7 +1704,9 @@ namespace Punchy.Debugging
                     Debug.Log($"DebugControls: watching {watchSpecies} ({c.Mode}, stage {c.Stage}, action {c.Action}, fly {c.Fly:F1}, " +
                               $"height above ground {c.Position.y - terrainQuery.GetSingleton<TerrainSource>().SampleHeight(c.Position.xz):F1} m, " +
                               $"player {math.distance(c.Position.xz, player.Position.xz):F0} m away, home {math.distance(c.Position.xz, c.Home):F0} m (leash {c.Leash:F0}), " +
-                              $"target {math.distance(c.Position.xz, c.Target):F2} m across, {c.TargetHeight - c.Position.y:F2} m up, speed {c.Speed:F2}, " +
+                              // (A folk at work keeps TargetHeight 0, which read as "119 m down" in A-33: not a bad position.)
+                              $"target {math.distance(c.Position.xz, c.Target):F2} m across, {(c.TargetHeight != 0f ? $"{c.TargetHeight - c.Position.y:F2} m up" : "no height")}, speed {c.Speed:F2}, " +
+                              $"{watchDirector.SpeciesAt(em.GetComponentData<CreatureBody>(watched).Species)?.name} job {FolkJobs.Of(c)}, " +
                               $"yaw {math.degrees(c.Yaw):F0} deg turning {math.degrees(c.YawRate):F0} deg/s, " +
                               $"anchor {math.distance(c.Position, c.Anchor):F2} m (size {c.AnchorSize:F2}))");
                 }
@@ -2007,6 +2078,18 @@ namespace Punchy.Debugging
             }
             if (Time.realtimeSinceStartup - shotStarted < shotWait)
                 return;
+            // "-untilwork": not yet, while the watched folk isn't working (or only just started).
+            if (untilWork > 0f && Time.realtimeSinceStartup - shotStarted < shotWait + untilWork)
+            {
+                var working = watched != Entity.Null && queryWorld != null && queryWorld.IsCreated && queryWorld.EntityManager.Exists(watched) &&
+                              queryWorld.EntityManager.GetComponentData<CreatureState>(watched).Mode == CreatureMode.Work;
+                if (!working)
+                    workSince = -1f;
+                else if (workSince < 0f)
+                    workSince = Time.realtimeSinceStartup;
+                if (!working || Time.realtimeSinceStartup - workSince < 1f)
+                    return;
+            }
             // Underground, also until the caves round the camera are built (up to 10 s more).
             var caves = CaveSystem.Underground > 0.5f ? FindAnyObjectByType<CaveSystem>() : null;
             if (caves != null && !caves.Settled && Time.realtimeSinceStartup - shotStarted < shotWait + 10f)
@@ -2491,6 +2574,40 @@ namespace Punchy.Debugging
                     }
                 }
             return null;
+        }
+
+        /// <summary>
+        /// "-place crossing" (A-31): beside the first bridge whose seeded roll gave it a fisher (else any with one), the
+        /// camera about 9 m off up the bank, looking past the fisher to the bridge and the river.
+        /// </summary>
+        void PlaceByCrossing(in TerrainSource source)
+        {
+            if (!playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            RoadCrossings.Refresh(source);
+            var pick = RoadCrossings.List.FindIndex(c => c.Fisher && c.HasSpot && c.Bridge);
+            if (pick < 0)
+                pick = RoadCrossings.List.FindIndex(c => c.Fisher && c.HasSpot);
+            if (pick < 0)
+            {
+                Debug.LogWarning("DebugControls: no crossing with a fisher");
+                return;
+            }
+            var x = RoadCrossings.List[pick];
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(player);
+            // (The player on the road a little back from the bank, out of the frame behind the camera.)
+            var park = x.Bank + x.Outward * 14f;
+            t.Position = new float3(park.x, source.SampleHeight(park) + 0.05f, park.y);
+            em.SetComponentData(player, t);
+            var away = math.normalizesafe(x.Spot - x.Centre, x.Outward);
+            var eyeXZ = x.Spot + away * 8f + new float2(-away.y, away.x) * 3f;
+            var spotY = source.SampleHeight(x.Spot);
+            var eye = new Vector3(eyeXZ.x, math.max(source.SampleHeight(eyeXZ), spotY) + 3f, eyeXZ.y);
+            var lookXZ = math.lerp(x.Spot, x.Centre, 0.35f);
+            var look = new Vector3(lookXZ.x, spotY + 0.8f, lookXZ.y);
+            PoseCamera(eye, Quaternion.LookRotation(look - eye));
+            Debug.Log($"DebugControls: at crossing {pick} ({x.Centre.x:F1}, {x.Centre.y:F1}, {(x.Bridge ? "bridge" : "ford")}), fisher spot ({x.Spot.x:F1}, {x.Spot.y:F1})");
         }
 
         void PlaceInMeadow(in TerrainSource source)
@@ -3147,6 +3264,9 @@ namespace Punchy.Debugging
             PlayerInputSystem.TestClimb = false;
             PlayerInputSystem.TestPitch = null;
             PlayerInputSystem.TestCamera = null;
+            walkTarget = null;
+            untilWork = 0f;
+            workSince = -1f;
             swimSpot = null;
             poseRequest = null;
             watchSpecies = null;
@@ -3184,6 +3304,8 @@ namespace Punchy.Debugging
                 cam.SetView(location.Yaw, 12f);
         }
 
+        float3 locationsKey;
+
         bool EnsureLocations(out TerrainSource source)
         {
             source = default;
@@ -3201,6 +3323,15 @@ namespace Punchy.Debugging
             }
             if (!terrainQuery.TryGetSingleton(out source) || playerQuery.CalculateEntityCount() != 1 || paletteQuery.CalculateEntityCount() != 1)
                 return false;
+            // (The baked v1 island comes first and v2 replaces it: find the spots again when the landmarks change, A-29b.)
+            var landmarkKey = float3.zero;
+            if (source.Landmarks.IsCreated && source.Landmarks.Value.Instances.Length > 0)
+                landmarkKey = new float3(source.Landmarks.Value.Instances.Length, source.Landmarks.Value.Instances[0].Position);
+            if (math.any(landmarkKey != locationsKey))
+            {
+                locationsKey = landmarkKey;
+                locations.Clear();
+            }
             if (locations.Count == 0)
                 FindLocations(source, queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity()));
             return locations.Count > 0;

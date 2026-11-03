@@ -146,6 +146,17 @@ namespace Punchy.Terrain
                     before.Dispose();
                 }
             }
+            // W-27: one-per-island landmarks (the salt tower) go last of all, once roads and settlements are known.
+            if (source.Landmarks.IsCreated)
+            {
+                var singles = SaltTowerBaking.Place(source, palette, landmarkTypes);
+                if (singles.Count > 0)
+                {
+                    var before = source.Landmarks;
+                    source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, singles, allocator);
+                    before.Dispose();
+                }
+            }
             Stage("settlements");
             stages.Append(' ').Append(SettlementBaking.LastTiming);
             if (source.Landmarks.IsCreated)
@@ -163,6 +174,10 @@ namespace Punchy.Terrain
             source.PondMask = source.BuildPondMask(allocator, out var dropped, out var pondReport);
             Stage("pondmask");
             UnityEngine.Debug.Log($"[ponds] {pondReport}. Dropped {dropped} cells.");
+            // W-28: icebergs last, on their own stream, so nothing above (or any hash) sees them.
+            source.Icebergs = IcebergBaking.Build(source, palette, allocator);
+            UnityEngine.Debug.Log(IcebergBaking.LastLog);
+            Stage("icebergs");
             UnityEngine.Debug.Log(stages.ToString());
         }
 
@@ -254,6 +269,7 @@ namespace Punchy.Terrain
                 if (source.Settlements.IsCreated) AddBlobAsset(ref source.Settlements, out _);
                 if (source.Caves.IsCreated) AddBlobAsset(ref source.Caves, out _);
                 if (source.BatFolk.IsCreated) AddBlobAsset(ref source.BatFolk, out _);
+                if (source.Icebergs.IsCreated) AddBlobAsset(ref source.Icebergs, out _);
                 if (source.Anchors.IsCreated) AddBlobAsset(ref source.Anchors, out _);
                 if (source.PondMask.IsCreated) AddBlobAsset(ref source.PondMask, out _);
                 AddComponent(entity, source);

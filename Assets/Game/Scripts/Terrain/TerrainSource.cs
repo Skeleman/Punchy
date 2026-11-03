@@ -128,6 +128,10 @@ namespace Punchy.Terrain
         public BlobAssetReference<AnchorSetBlob> Anchors;
         /// <summary>Bat folk settlements (#35, baked after caves, read by nothing else): their chambers and which cave pools are white.</summary>
         public BlobAssetReference<BatFolkSetBlob> BatFolk;
+        /// <summary>Icebergs off the cold coasts (W-28, baked last, scenery with its own seed stream) and the one berg's ice cave.</summary>
+        public BlobAssetReference<IcebergSetBlob> Icebergs;
+        /// <summary>The grand falls (W-29, v2 only, baked after every place): a stepped mountain stream into the central lake.</summary>
+        public BlobAssetReference<GrandFallsBlob> GrandFalls;
         /// <summary>Set when every place is baked: biome ponds are dug only after that, so they never move a landmark, road, cave or anchor.</summary>
         public bool PondsOn;
         /// <summary>
@@ -584,6 +588,8 @@ namespace Punchy.Terrain
                 h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz), RiverSettings, h);
             if (Landmarks.IsCreated)
                 h = LandmarkSampling.Shape(ref Landmarks.Value, xz, h);
+            if (GrandFalls.IsCreated)
+                h = Punchy.Terrain.GrandFalls.Shape(ref GrandFalls.Value, xz, h, out _, out _, out _, out _);
             return Settle(xz, Ponds(xz, shape, h));
         }
 
@@ -704,6 +710,19 @@ namespace Punchy.Terrain
                     ruleDepth = math.max(ruleDepth, math.lerp(farAbove, pool - g.Height, claim));
                 }
             }
+            // The grand falls' channel, gorge and pools, with their own stepped water (W-29).
+            if (GrandFalls.IsCreated && !UsesHeightmap)
+            {
+                g.Height = Punchy.Terrain.GrandFalls.Shape(ref GrandFalls.Value, xz, g.Height, out var fallWater, out var fallFlow, out var fallRapids, out var fallMask);
+                g.River = math.max(g.River, fallMask);
+                if (fallWater > GroundSample.NoWater * 0.5f && fallWater >= water - 0.01f)
+                {
+                    water = fallWater;
+                    flow = fallFlow;
+                    g.Rapids = fallRapids;
+                    ruleDepth = math.max(ruleDepth, fallWater - g.Height);
+                }
+            }
             // Biome ponds (a swamp's pools): water was decided above from the ground without them, so a pond is wet only
             // where it digs below the water level the biome already has (sea level in the lowlands).
             var dug = Ponds(xz, shape, g.Height, out var terrace);
@@ -809,11 +828,53 @@ namespace Punchy.Terrain
         public bool IsRock(float3 p, float margin = 0f) =>
             p.y < SampleHeight(p.xz) - margin && CaveDistance(p) > -margin;
 
+        /// <summary>The climbable tower (W-27, SaltTowerShape) whose steps reach a point, if any, and its height.</summary>
+        public bool Tower(float2 xz, out LandmarkInstance tower, out float height)
+        {
+            tower = default;
+            height = 0f;
+            if (!Landmarks.IsCreated)
+                return false;
+            ref var set = ref Landmarks.Value;
+            var range = LandmarkSampling.CellRange(ref set, xz);
+            for (int k = range.x; k < range.x + range.y; k++)
+            {
+                var inst = set.Instances[set.Items[k]];
+                var h = set.Types[inst.Type].TowerHeight;
+                if (h > 0f && math.distancesq(inst.Position, xz) < SaltTowerShape.Reach * SaltTowerShape.Reach)
+                {
+                    tower = inst;
+                    height = h;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>Whether the tower's body or a step too high to step onto stands where a body at p would be (W-27).</summary>
+        public bool TowerWall(float3 p, float stepUp, float head) =>
+            Tower(p.xz, out var tower, out var height) && SaltTowerShape.Wall(SaltTowerShape.Layout(tower, height), p, stepUp, head)
+            || Icebergs.IsCreated && IcebergShape.Wall(ref Icebergs.Value, World.SeaLevel, p, stepUp, head);
+
         /// <summary>A bridge deck under a point that's on or just below it (see SettlementSampling.Deck).</summary>
         public bool Deck(float3 p, out float deck)
         {
             deck = 0f;
-            return Settlements.IsCreated && SettlementSampling.Deck(ref Settlements.Value, p, out deck);
+            var onDeck = Settlements.IsCreated && SettlementSampling.Deck(ref Settlements.Value, p, out deck);
+            // W-28: an iceberg's top, sides or ice cave floor stands bodies the same way.
+            if (Icebergs.IsCreated && IcebergShape.Deck(ref Icebergs.Value, World.SeaLevel, p, out var ice) && (!onDeck || ice > deck))
+            {
+                deck = ice;
+                onDeck = true;
+            }
+            // W-28b: a salt tower's steps stand bodies too, so the player (whose floor only takes FloorUnder's answer in a
+            // cave, else this deck) can walk up them.
+            if (Tower(p.xz, out var tower, out var towerHeight) && SaltTowerShape.Floor(SaltTowerShape.Layout(tower, towerHeight), p, out var step) && (!onDeck || step > deck))
+            {
+                deck = step;
+                onDeck = true;
+            }
+            return onDeck;
         }
 
         /// <summary>How deep a bay beside the lake at <paramref name="lakeCentre"/> may be: no deeper than the lake itself
@@ -840,6 +901,8 @@ namespace Punchy.Terrain
         public float FloorUnder(float3 p, out bool inCave)
         {
             inCave = false;
+            if (Tower(p.xz, out var tower, out var towerHeight) && SaltTowerShape.Floor(SaltTowerShape.Layout(tower, towerHeight), p, out var step))
+                return math.max(step, SampleHeight(p.xz));
             if (Deck(p, out var deck))
                 return math.max(deck, SampleHeight(p.xz));
             var surface = SampleHeight(p.xz);
@@ -977,6 +1040,6 @@ namespace Punchy.Terrain
         public bool Equals(TerrainSource o) =>
             World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
-            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Anchors == o.Anchors && PondMask == o.PondMask;
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Anchors == o.Anchors && PondMask == o.PondMask;
     }
 }

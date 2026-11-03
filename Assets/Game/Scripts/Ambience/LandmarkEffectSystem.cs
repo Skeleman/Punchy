@@ -29,7 +29,7 @@ namespace Punchy.Ambience
         const float FallReach = 0.9f;
         /// <summary>River waterfalls: how far the water carries out as it falls (m), the distance they are drawn from, and the index offset.</summary>
         const float RiverFallReach = 1.6f, RiverFallRange = 350f;
-        const int RiverFallBase = 1000000;
+        const int RiverFallBase = 1000000, GrandFallBase = 2000000;
 
         /// <summary>One effect. Must match LandmarkEffects.hlsl.</summary>
         [StructLayout(LayoutKind.Sequential)]
@@ -120,12 +120,15 @@ namespace Punchy.Ambience
         readonly List<(float3 at, float d, float volume, float reach)> fallHeard = new List<(float3, float, float, float)>();
         string lastFallLog;
 
-        /// <summary>A fall's loudness and reach from its drop: 0.45 at 2 m up to 1.0 at 14 m and over; heard 40 m out, 60 m for 14 m+.</summary>
+        /// <summary>
+        /// A fall's loudness and reach from its drop: 0.45 at 2 m up to 1.0 at 14 m and over; heard 40 m out, 60 m at 14 m,
+        /// then (W-29, the grand falls) on out to 180 m for a 70 m drop and over.
+        /// </summary>
         static void FallVoice(float drop, out float volume, out float reach)
         {
             var tall = math.saturate((drop - 2f) / 12f);
             volume = math.lerp(0.45f, 1f, tall);
-            reach = math.lerp(40f, 60f, tall);
+            reach = math.lerp(40f, 60f, tall) + 120f * math.saturate((drop - 14f) / 56f);
         }
 
         /// <summary>
@@ -197,6 +200,67 @@ namespace Punchy.Ambience
             return palette != null;
         }
 
+        /// <summary>
+        /// One grand falls tier (W-29): river-fall curtains across its width (three side by side for the main drop, which
+        /// also throws a wider, longer arc), white water at the lip, and churn, foam and mist over its plunge pool; the main
+        /// drop's mist rises high and wide.
+        /// </summary>
+        void GrandTier(ref GrandFallTier t, float seed, ref float3 min, ref float3 max)
+        {
+            var main = t.Drop > 30f;
+            var reach = main ? 3f + t.Drop * 0.06f : RiverFallReach + t.Drop * 0.05f;
+            var out3 = new float3(t.Out.x, 0f, t.Out.y);
+            var side = new float3(-t.Out.y, 0f, t.Out.x);
+            int curtains = main ? 3 : 1;
+            for (int c = 0; c < curtains; c++)
+            {
+                var offset = curtains == 1 ? 0f : (c - 1) * t.Width * 0.3f;
+                falls.Add(new Emitter
+                {
+                    Position = t.Lip + side * offset,
+                    Seed = math.frac(seed + c * 0.37f),
+                    Color = new float4(0.6f, 0.72f, 0.76f, 0f),
+                    Shape = new float4(reach, t.Width * (main ? 0.4f : 0.85f), main ? 2.4f : 1.3f, main ? 3.4f : 1.9f),
+                    Timing = new float4(0f, 0.25f, 0.85f, 24f),
+                    Out = t.Out,
+                    Drop = t.Drop
+                });
+            }
+            var foot = t.Lip + out3 * reach - new float3(0f, t.Drop, 0f);
+            plumes.Add(new Emitter
+            {
+                Position = foot, Seed = math.frac(seed + 0.31f), Color = new float4(0.95f, 0.97f, 1f, 0f),
+                Shape = new float4(main ? 6f : 2.5f, t.Width * (main ? 1.4f : 0.9f), main ? 2.2f : 1f, main ? 2.2f : 1.4f), Timing = new float4(0f, 0.25f, 0.6f, 24f)
+            });
+            plumes.Add(new Emitter
+            {
+                Position = new float3(t.Pool.x, t.Pool.y + 0.1f, t.Pool.z), Seed = math.frac(seed + 0.62f), Color = new float4(0.92f, 0.94f, 0.96f, 0f),
+                Shape = new float4(0.3f, t.PoolRadius * 1.3f, main ? 2f : 1.2f, 2.4f), Timing = new float4(0f, 0.25f, 0.6f, 24f)
+            });
+            plumes.Add(new Emitter
+            {
+                Position = t.Lip + out3 * 0.8f - new float3(0f, 0.3f, 0f), Seed = math.frac(seed + 0.9f), Color = new float4(0.94f, 0.96f, 1f, 0f),
+                Shape = new float4(1.2f, t.Width * 0.8f, 1.1f, 1.4f), Timing = new float4(0f, 0.25f, 0.4f, 24f)
+            });
+            if (main)
+            {
+                // Mist: two big soft plumes rising from the pool, the higher one drifting up the face.
+                plumes.Add(new Emitter
+                {
+                    Position = foot + out3 * 4f, Seed = math.frac(seed + 0.13f), Color = new float4(0.93f, 0.95f, 0.98f, 0f),
+                    Shape = new float4(t.Drop * 0.35f, t.PoolRadius * 1.6f, 6f, 5f), Timing = new float4(0f, 0.25f, 0.35f, 24f)
+                });
+                plumes.Add(new Emitter
+                {
+                    Position = foot + out3 * 10f, Seed = math.frac(seed + 0.47f), Color = new float4(0.93f, 0.95f, 0.98f, 0f),
+                    Shape = new float4(t.Drop * 0.6f, t.PoolRadius * 2.2f, 9f, 7f), Timing = new float4(0f, 0.25f, 0.22f, 24f)
+                });
+            }
+            maxParticles = math.max(maxParticles, 24);
+            min = math.min(min, foot - t.PoolRadius - 6f);
+            max = math.max(max, t.Lip + t.PoolRadius + 6f);
+        }
+
         void Gather(in TerrainSource source, LandmarkType[] types, Vector3 camera)
         {
             ref var set = ref source.Landmarks.Value;
@@ -225,6 +289,14 @@ namespace Punchy.Ambience
                     if (math.distance(riverFalls[k].Lip.xz, cam) < Punchy.Settings.GraphicsSettings.DetailRange(RiverFallRange))
                         nearby.Add(-(RiverFallBase + k));
             }
+            // The grand falls' tiers (W-29) are big: seen from the whole view range, as -(GrandFallBase + index).
+            if (source.GrandFalls.IsCreated)
+            {
+                ref var tiers = ref source.GrandFalls.Value.Tiers;
+                for (int k = 0; k < tiers.Length; k++)
+                    if (math.distance(tiers[k].Lip.xz, cam) < Punchy.Settings.GraphicsSettings.ViewRange(Range))
+                        nearby.Add(-(GrandFallBase + k));
+            }
             if (nearby.Count == lastNearby.Count && nearby.TrueForAll(lastNearby.Contains))
                 return;
             lastNearby.Clear();
@@ -237,6 +309,11 @@ namespace Punchy.Ambience
             float3 min = float.MaxValue, max = float.MinValue;
             foreach (var i in nearby)
             {
+                if (i <= -GrandFallBase)
+                {
+                    GrandTier(ref source.GrandFalls.Value.Tiers[-i - GrandFallBase], math.frac(-i * 0.618f), ref min, ref max);
+                    continue;
+                }
                 if (i <= -RiverFallBase)
                 {
                     // A river waterfall: a curtain over the step in the bed, white water at the lip and spray and foam at the foot.

@@ -1001,6 +1001,8 @@ namespace Punchy.Fauna
         static float3 SwingBody(ref CreaturePart part, in CreatureState s, int joint)
         {
             var job = s.Task == CreatureTask.Hermit ? (s.Stage == 2 ? CreatureTask.Tend : CreatureTask.Chop) : s.Task;
+            if (s.Task == CreatureTask.Tend)
+                return TendBody(ref part, in s, joint);
             if (job != CreatureTask.Chop && job != CreatureTask.Hammer && !(job == CreatureTask.Mine && s.Stage == MinerAtFace))
                 return float3.zero;
             var lift = SwingLift(in s, job, out var strike);
@@ -1013,10 +1015,55 @@ namespace Punchy.Fauna
             return float3.zero;
         }
 
+        /// <summary>A baker's kneading: 0 to 1 as a hand presses into the dough, the two hands half a beat apart.</summary>
+        static float Knead(float t, bool right) => 0.5f + 0.5f * math.sin(t * 3.2f + (right ? 0f : math.PI));
+
+        /// <summary>A well keeper hauling the rope: 1 as a hand reaches up for a fresh grip, 0 as it pulls down.</summary>
+        static float Haul(float t, bool right) => math.smoothstep(-0.6f, 0.6f, math.sin(t * 1.7f + (right ? 0f : math.PI)));
+
+        /// <summary>
+        /// The rest of a tender's body by its job (A-33): a baker leans over its table, bobbing into each push; a healer
+        /// is bent right over its bowl, head down; a well keeper leans back against the rope's weight.
+        /// </summary>
+        static float3 TendBody(ref CreaturePart part, in CreatureState s, int joint)
+        {
+            var torso = part.Role == LimbRole.Feature && part.Parent < 0 && joint == 0;
+            var head = part.Role == LimbRole.Head && joint == 0;
+            if (!torso && !head)
+                return float3.zero;
+            var t = s.Clock + (s.Individual % 100) * 0.13f;
+            switch (FolkJobs.Of(in s))
+            {
+                case FolkJob.Baker:
+                    return new float3(torso ? 0.28f + 0.08f * (Knead(t, true) + Knead(t, false) - 1f) : 0.3f, 0f, 0f);
+                case FolkJob.Healer:
+                    return new float3(torso ? 0.55f : 0.35f, 0f, 0f);
+                case FolkJob.WellKeeper:
+                    return new float3(torso ? -0.12f - 0.05f * Haul(t, true) : -0.15f, 0f, 0f);
+                default:
+                    return float3.zero;
+            }
+        }
+
+        /// <summary>A gatekeeper at work at its post, or a guard standing still on its rounds.</summary>
+        static bool OnWatch(in CreatureState s) =>
+            s.Task == CreatureTask.Watch && s.Mode == CreatureMode.Work && s.Stage != 0 ||
+            s.Task == CreatureTask.Patrol && s.Mode == CreatureMode.Patrol && s.GaitSpeed < 0.3f;
+
+        /// <summary>A slow look about: the head turns one way, holds, sweeps back and holds the other way.</summary>
+        static float3 LookAbout(in CreatureState s)
+        {
+            var t = s.Clock + (s.Individual % 100) * 0.37f;
+            return new float3(0f, 0f, -0.75f *math.clamp(1.5f * math.sin(t * 0.32f), -1f, 1f));
+        }
+
         static float3 TaskPose(ref CreaturePart part, in CreatureState s, int joint)
         {
             if (part.Role == LimbRole.Arm && joint <= 1 && s.Mode == CreatureMode.Hunt && s.Task == CreatureTask.Hunt)
                 return HuntPose(part.Side > 0f, s.Stage, joint);
+            // (A gatekeeper at its post, or a guard stopped on its rounds, slowly looks about: A-33.)
+            if (part.Role == LimbRole.Head && joint == 0 && OnWatch(in s))
+                return LookAbout(in s);
             if (s.Mode != CreatureMode.Work || s.Stage == 0 || s.Task == CreatureTask.None)
                 return float3.zero;
             // (Swinging an axe, a hammer or a pick, the whole body goes into it: SwingBody.)
@@ -1051,9 +1098,31 @@ namespace Punchy.Fauna
                     return new float3(joint == 0 ? -0.45f - 1.2f * raise : -0.9f + 0.4f * raise, 0f, 0f);
                 }
                 case CreatureTask.Tend:
-                    return new float3(joint == 0 ? -0.65f + 0.22f * math.sin(t * 1.5f + (right ? 0f : 1.4f)) : -0.55f, 0f, 0f);
+                    switch (FolkJobs.Of(in s))
+                    {
+                        case FolkJob.Baker:
+                        {
+                            // Kneading: both hands pushing down and forward into the dough, one after the other.
+                            var push = Knead(t, right);
+                            return new float3(joint == 0 ? -0.75f - 0.3f * push : -0.75f + 0.45f * push, 0f, 0f);
+                        }
+                        case FolkJob.Healer:
+                            // Bent over, both hands low in front holding the bowl, stirring a little.
+                            return new float3(joint == 0 ? -0.5f + 0.06f * math.sin(t * 1.3f + (right ? 0f : 0.8f)) : -1f, 0f, 0f);
+                        case FolkJob.WellKeeper:
+                        {
+                            // Hauling the rope hand over hand: each hand reaches up and pulls down in turn.
+                            var reach = Haul(t, right);
+                            return new float3(joint == 0 ? -0.9f - 1.3f * reach : -0.5f + 0.25f * reach, 0f, 0f);
+                        }
+                        default:
+                            return new float3(joint == 0 ? -0.65f + 0.22f * math.sin(t * 1.5f + (right ? 0f : 1.4f)) : -0.55f, 0f, 0f);
+                    }
                 case CreatureTask.Watch:
-                    return new float3(joint == 0 ? 0.35f : -0.75f, 0f, 0f);   // hands clasped behind the back
+                    // The right hand holds its spear upright at its side (CreatureRenderSystem's Gear); the left is behind the back.
+                    if (right && s.Held == HeldItem.None)
+                        return new float3(joint == 0 ? -0.25f : -1.25f, 0f, 0f);
+                    return new float3(joint == 0 ? 0.35f : -0.75f, 0f, 0f);
                 case CreatureTask.Fish:
                 {
                     // Both hands on the rod held out over the water; casting, the right swings it up over the shoulder

@@ -32,6 +32,8 @@ namespace Punchy.Fauna
             /// <summary>Only from folk taking the player this way (FolkStance names, as written: Kin, Rival, Wary, Annoyed,
             /// Warm): the wary and annoyed say only these, the others these half the time; or null (anyone else).</summary>
             public string[] Stances;
+            /// <summary>Only from folk of one of these tempers (FolkMood names: Cheerful, Plain, Grumpy), or null for any (A-29).</summary>
+            public string[] Moods;
             /// <summary>Kept for later (dialogue options): the raw object, so new keys need no format change.</summary>
             public JObject Raw;
         }
@@ -48,6 +50,8 @@ namespace Punchy.Fauna
             public string Species, BodySpecies, Trade, HomeTown, PlayerSpecies;
             /// <summary>How the speaker takes the player's body (a FolkStance name), or null for Neutral.</summary>
             public string Stance;
+            /// <summary>Its job (a FolkJob name, "Baker") and temper (a FolkMood name), or null (A-29).</summary>
+            public string Job, Mood;
             public float Hour;
         }
 
@@ -134,6 +138,7 @@ namespace Punchy.Fauna
                                     Trades = o["trade"] != null ? Strings(o["trade"]) : null,
                                     Emotes = o["emote"] != null ? Strings(o["emote"]) : null,
                                     Stances = o["stance"] != null ? Strings(o["stance"]) : null,
+                                    Moods = o["mood"] != null ? Strings(o["mood"]) : null,
                                     Weight = o["weight"] != null ? (float)o["weight"] : 1f,
                                     Raw = o
                                 });
@@ -181,7 +186,60 @@ namespace Punchy.Fauna
                 var answer = Pick(who, ref rng, emote, true, false);
                 return answer ?? Pick(who, ref rng, null, false, false);
             }
+            // A folk with a job talks shop most of the time (A-29).
+            if (who.Job != null && rng.NextFloat() < RoleShare)
+            {
+                var role = PickRole(who, ref rng);
+                if (role != null)
+                    return role;
+            }
             return Pick(who, ref rng, null, false, false);
+        }
+
+        const float RoleShare = 0.7f;
+
+        /// <summary>
+        /// A line from the speaker's job pool (lines whose "trade" names its job, from every culture in its chain), slots
+        /// filled, or null if its job has none. Flavoured: its own culture's lines for the job and lines for its temper
+        /// ("mood") come up three times as often as Any's plain ones. Used for folk-to-folk talk too (A-29).
+        /// </summary>
+        public string PickRole(Speaker who, ref Unity.Mathematics.Random rng)
+        {
+            if (who.Job == null)
+                return null;
+            var candidates = new List<Line>();
+            var weights = new List<float>();
+            Cultures.TryGetValue(Any, out var any);
+            foreach (var c in Chain(who))
+                foreach (var line in c.Lines)
+                    if (line.Trades != null && Array.IndexOf(line.Trades, who.Job) >= 0 && line.Stances == null && line.Emotes == null && Fits(line, who))
+                    {
+                        candidates.Add(line);
+                        weights.Add(Mathf.Max(line.Weight, 0f) * (c != any ? 3f : 1f) * (line.Moods != null ? 3f : 1f));
+                    }
+            for (int tries = 0; tries < 6 && candidates.Count > 0; tries++)
+            {
+                var total = 0f;
+                foreach (var w in weights)
+                    total += w;
+                var at = rng.NextFloat(total);
+                var k = candidates.Count - 1;
+                for (int i = 0; i < candidates.Count; i++)
+                {
+                    at -= weights[i];
+                    if (at < 0f)
+                    {
+                        k = i;
+                        break;
+                    }
+                }
+                var text = Fill(candidates[k].Text, who, ref rng, 0);
+                if (text != null)
+                    return text;
+                candidates.RemoveAt(k);
+                weights.RemoveAt(k);
+            }
+            return null;
         }
 
         string Pick(Speaker who, ref Unity.Mathematics.Random rng, string emote, bool answering, bool stanced)
@@ -237,7 +295,10 @@ namespace Punchy.Fauna
 
         static bool Fits(Line line, Speaker who)
         {
-            if (line.Trades != null && line.Trades.Length > 0 && Array.IndexOf(line.Trades, who.Trade) < 0)
+            if (line.Trades != null && line.Trades.Length > 0 && Array.IndexOf(line.Trades, who.Trade) < 0 &&
+                (who.Job == null || Array.IndexOf(line.Trades, who.Job) < 0))
+                return false;
+            if (line.Moods != null && line.Moods.Length > 0 && Array.IndexOf(line.Moods, who.Mood) < 0)
                 return false;
             if (string.IsNullOrEmpty(line.When))
                 return true;
@@ -289,7 +350,14 @@ namespace Punchy.Fauna
             var key = slot;
             switch (slot.ToLowerInvariant())
             {
-                case "trade": key = who.Trade != null ? "trade." + who.Trade : null; break;
+                case "trade":
+                    // (Its job's word first, "trade.Baker", then its task's, then the job's own name.)
+                    if (who.Job != null)
+                        foreach (var c in Chain(who))
+                            if (c.Words.TryGetValue("trade." + who.Job, out var jobWords) && jobWords.Length > 0)
+                                return Fill(jobWords[rng.NextInt(jobWords.Length)], who, ref rng, depth + 1);
+                    key = who.Trade != null ? "trade." + who.Trade : null;
+                    break;
                 case "time_of_day": key = "time." + TimeOfDay(who.Hour); break;
             }
             if (key != null)
@@ -298,6 +366,7 @@ namespace Punchy.Fauna
                         return Fill(options[rng.NextInt(options.Length)], who, ref rng, depth + 1);
             switch (slot.ToLowerInvariant())
             {
+                case "trade": return who.Job != null ? Spoken(who.Job) : null;
                 case "home_town": return who.HomeTown;
                 case "species": return Spoken(who.BodySpecies ?? who.Species);
                 case "player": return who.PlayerSpecies;

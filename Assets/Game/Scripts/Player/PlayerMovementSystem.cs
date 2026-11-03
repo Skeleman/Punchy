@@ -226,6 +226,8 @@ namespace Punchy.Player
                 var wallHead = body.ClimbsWalls ? WallClimbHead : 1.7f * size;
                 if (tops)
                     position.xz = KeepOutOfPropWalls(ref grids.Set.Value, props, from, position.xz, stepUp, wallHead, out blocked);
+                // The salt tower's body and its steps from below (W-27): slid along the same way.
+                position.xz = KeepOutOfTower(terrain, from, position.xz, stepUp, 1.7f * size, ref blocked);
                 // (#33 probe, -place wall only: every term of the wall latch below, and what stopped the move first.)
                 if (WallProbe.Data == 1 && body.ClimbsWalls)
                 {
@@ -328,7 +330,7 @@ namespace Punchy.Player
                     m.Grounded = false;
                 }
 
-                Floor(terrain, position, settings.SwimDepth, out var ground, out _);
+                Floor(terrain, position, settings.SwimDepth, out var ground, out var caveHere);
                 // Standing on a prop's top, if it's higher than the ground there; slid off it where it's steep.
                 var wasOnProp = m.OnProp;
                 m.OnProp = false;
@@ -369,6 +371,14 @@ namespace Punchy.Player
                         position.y = ground;
                         m.VerticalVelocity = 0f;
                     }
+                }
+                // In a cave: pushed back out of the rock round the body (walls, a ceiling, slopes steeper than about 50°,
+                // which slide it back down rather than letting it sink in), A-30.
+                if ((inCave || caveHere) && !NoPushOut.Data)
+                {
+                    var pushed = PushOutOfSolids(terrain, from, position, m.Grounded, settings.Radius, size, dt);
+                    PushedTotal.Data += math.distance(pushed, position);
+                    position = pushed;
                 }
 
                 t.Position = position;
@@ -785,6 +795,17 @@ namespace Punchy.Player
             return !PropSupport.Wall(ref set, props, new float3(slideZ.x, from.y, slideZ.y), stepUp, head, out _) ? slideZ : from.xz;
         }
 
+        /// <summary>A move into the salt tower's body or a step too high to step onto: cut back to its clear X or Z part, or cancelled.</summary>
+        static float2 KeepOutOfTower(in TerrainSource terrain, float3 from, float2 to, float stepUp, float head, ref bool blocked)
+        {
+            if (!terrain.TowerWall(new float3(to.x, from.y, to.y), stepUp, head))
+                return to;
+            blocked = true;
+            if (!terrain.TowerWall(new float3(to.x, from.y, from.z), stepUp, head))
+                return new float2(to.x, from.z);
+            return !terrain.TowerWall(new float3(from.x, from.y, to.y), stepUp, head) ? new float2(from.x, to.y) : from.xz;
+        }
+
         /// <summary>
         /// Pushes the player out of any trunk or cactus they walked into, so they slide around it (not a building's walls
         /// when they're up on its roof: anything topping out below a step up from the feet is passed over).
@@ -819,6 +840,118 @@ namespace Punchy.Player
                 return slideX;
             var slideZ = new float2(from.x, to.y);
             return Clear(terrain, from, slideZ, radius) ? slideZ : from.xz;
+        }
+
+        /// <summary>How far above the feet (m, for a body of size 1) the body's lowest sphere starts, past its radius: the
+        /// legs below it follow the floor, and a slope steeper than about 50° reaches the sphere and pushes the body back.</summary>
+        public const float BodyKnee = 0.2f;
+        /// <summary>Tests ("-nopushout" on a shot line): the cave push-out off, for a before shot of the old collision.</summary>
+        public static readonly SharedStatic<bool> NoPushOut = SharedStatic<bool>.GetOrCreate<PlayerMovementSystem, NoPushOutKey>();
+        struct NoPushOutKey { }
+        /// <summary>Tests (-walk probe): metres the cave push-out has moved the player in all, so a run can say how much it acted.</summary>
+        public static readonly SharedStatic<float> PushedTotal = SharedStatic<float>.GetOrCreate<PlayerMovementSystem, PushedTotalKey>();
+        struct PushedTotalKey { }
+        /// <summary>A cave floor whose normal's up part is under this (50°) can't be walked up: the body slides back.</summary>
+        public const float SteepFloor = 0.64f;
+
+        /// <summary>
+        /// The body as three spheres (knee, middle, head) of the body's radius scaled by its size, each pushed out of any
+        /// solid it is in along the solid's normal (sideways only: the floor is FloorUnder's job), a few passes. A head
+        /// pushed further into a ceiling than it was at <paramref name="from"/> keeps the body where it was (no walking
+        /// in under rock too low). Grounded bodies are stood back on the floor where they end up.
+        /// </summary>
+        public static float3 PushOutOfSolids(in TerrainSource terrain, float3 from, float3 position, bool grounded, float radius, float size, float dt)
+        {
+            var r = math.clamp(radius * size, 0.1f, 1f);
+            var low = r + BodyKnee * size;
+            var high = math.max(low, 1.6f * size - r);
+            var start = position.xz;
+            if (grounded)
+            {
+                // A floor steeper than SteepFloor: no further up it, and sliding back down (as off a steep prop top).
+                var foot = new float3(position.x, position.y + 0.1f, position.z);
+                var slope = SolidNormal(terrain, foot, SolidDistance(terrain, foot));
+                var downhill = math.normalizesafe(slope.xz);
+                if (slope.y < SteepFloor && slope.y > 0.05f && math.lengthsq(downhill) > 0f)
+                {
+                    var step = position.xz - from.xz;
+                    position.xz -= downhill * math.min(math.dot(step, downhill), 0f);
+                    position.xz += downhill * SlideSpeed * dt;
+                }
+                position = StandOnCaveFloor(terrain, position);
+            }
+            for (int pass = 0; pass < 4; pass++)
+            {
+                var moved = false;
+                for (int k = 0; k < 3; k++)
+                {
+                    var c = position + new float3(0f, math.lerp(low, high, k * 0.5f), 0f);
+                    var d = SolidDistance(terrain, c);
+                    if (d >= r)
+                        continue;
+                    // Sideways by as much as clears the sphere: a sloping face gives only its sideways part per metre.
+                    var n = SolidNormal(terrain, c, d);
+                    var side = math.length(n.xz);
+                    if (side < 1e-3f)
+                        continue;
+                    position.xz += n.xz / side * ((r - d) / math.max(side, 0.4f));
+                    moved = true;
+                }
+                if (!moved)
+                    break;
+                if (grounded)
+                    position = StandOnCaveFloor(terrain, position);
+            }
+            // (Never more than twice the body's radius in a frame: a push-out is a correction, not a teleport. A-32: one
+            // radius left a body that starts or lands embedded (a 55 deg slope) up to 0.2 m in for a frame or two.)
+            var shift = position.xz - start;
+            if (math.lengthsq(shift) > 4f * r * r)
+            {
+                position.xz = start + math.normalize(shift) * (2f * r);
+                if (grounded)
+                    position = StandOnCaveFloor(terrain, position);
+            }
+            // (Only rock overhead counts (its normal points down): a steep floor beside the head is the slope the body is
+            // sliding down, and undoing that step wedged a small body on a 65 deg slope for good (A-32).)
+            var headAt = position + new float3(0f, high, 0f);
+            var headNow = SolidDistance(terrain, headAt);
+            if (headNow < r - 0.05f && headNow < SolidDistance(terrain, from + new float3(0f, high, 0f)) - 0.01f &&
+                SolidNormal(terrain, headAt, headNow).y < -0.3f)
+                position = from;
+            return position;
+        }
+
+        static float3 StandOnCaveFloor(in TerrainSource terrain, float3 position)
+        {
+            var floor = terrain.FloorUnder(position + new float3(0f, 0.3f, 0f), out var inCave);
+            if (inCave && math.abs(floor - position.y) < 0.6f)
+                position.y = floor;
+            return position;
+        }
+
+        /// <summary>
+        /// Distance from a point to solid (negative inside it), what PushOutOfSolids keeps the body out of and the camera
+        /// keeps its lens out of. Cave rock for now; above the ground surface it is open air, whatever the cave field
+        /// says (an entrance). A landmark with a solid body of its own (the salt tower, a temple) joins in here with
+        /// math.min of its own distance, and gets the push-out and the camera for free; the push-out runs where
+        /// FloorUnder says the body is in a cave, so such a landmark also widens that test at the call in OnUpdate.
+        /// </summary>
+        public static float SolidDistance(in TerrainSource terrain, float3 p)
+        {
+            var open = p.y - terrain.SampleHeight(p.xz);
+            if (open > 0f)
+                return math.max(open, -terrain.CaveDistance(p));
+            return -terrain.CaveDistance(p);
+        }
+
+        /// <summary>The way out of the solid at a point (unit length): SolidDistance's gradient, forward differences.</summary>
+        public static float3 SolidNormal(in TerrainSource terrain, float3 p, float d)
+        {
+            const float e = 0.05f;
+            var g = new float3(SolidDistance(terrain, p + new float3(e, 0f, 0f)) - d,
+                               SolidDistance(terrain, p + new float3(0f, e, 0f)) - d,
+                               SolidDistance(terrain, p + new float3(0f, 0f, e)) - d);
+            return math.normalizesafe(g, new float3(0f, 1f, 0f));
         }
 
         static bool Clear(in TerrainSource terrain, float3 from, float2 xz, float radius)
