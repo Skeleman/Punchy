@@ -150,7 +150,7 @@ namespace Punchy.Terrain
             Stage("landmarks");
             if (source.Landmarks.IsCreated)
             {
-                source.Settlements = SettlementBaking.Build(source, landmarkTypes, roadsideTypes, out var roadside, allocator);
+                source.Settlements = SettlementBaking.Build(source, landmarkTypes, roadsideTypes, out var roadside, allocator, palette);
                 if (roadside.Count > 0)
                 {
                     var before = source.Landmarks;

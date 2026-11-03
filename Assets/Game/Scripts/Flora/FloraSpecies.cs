@@ -3,6 +3,14 @@ using UnityEngine;
 
 namespace Punchy.Flora
 {
+    /// <summary>W-57b: what a Hazard Shelter is built against (#69).</summary>
+    public enum ShelterStyle : byte
+    {
+        [Tooltip("Ash fall: a half-buried stone dome, a crawl tunnel to its door, ash heaped on its back.")] AshDome,
+        [Tooltip("Blizzards: a pole lean-to open to +Z, its back and sides banked with snow.")] SnowLeanTo,
+        [Tooltip("Electric storms: a low stone dome with glass shards set round it, pointing up to take the strikes.")] ShardDome
+    }
+
     /// <summary>The kind of plant a species is grown as. Each form has its own procedural generator.</summary>
     public enum FloraForm : byte
     {
@@ -100,7 +108,9 @@ namespace Punchy.Flora
                  "base, with electric arcs (the first accent, or blue-white) crackling between their tips. Height its height, " +
                  "Spread how far apart the prongs stand, Thickness their radius over height.")] ArcSpire,
         [Tooltip("Floating debris (magnetic anomaly): Branches lumps of rock (Bark) hovering round a cracked mound, slowly " +
-                 "orbiting it and bobbing. Height the highest a piece floats, Spread the ring's radius over height. Not solid.")] Debris,
+                 "orbiting it and bobbing. Height the highest a piece floats, Spread the ring's radius over height. Pieces that " +
+                 "would hang below head height lie fallen on the ground instead; with Solid, they and the mound block the " +
+                 "player (the floating pieces never do).")] Debris,
         [Tooltip("A ruined stone house: roofless walls (Bark) crumbled to uneven heights, one of them almost gone, a doorway " +
                  "gap facing +Z, rubble (Branches = stones) round the foot and moss (the first accent, Accent Amount of the " +
                  "broken tops). Height is the tallest wall left; Spread the width relative to it.")] Ruin,
@@ -111,7 +121,13 @@ namespace Punchy.Flora
                  "next one's, sagging a little (Bark; Foliage the post caps). Height is the fence; laid end to end.")] RailFence,
         [Tooltip("An enormous rock floating over a scorched mound, turning slowly, with smaller shards round it and arcs " +
                  "crackling between them (Bark the rock, Foliage the arcs). Its shape by variant: a tall shard, a flat slab or " +
-                 "a cluster. Height is the rock's size; it floats about that high again. Not solid.")] FloatingRock
+                 "a cluster. Height is the rock's size; it floats about that high again (always above head height). With " +
+                 "Solid, the mound beneath blocks the player; the rock and shards never do.")] FloatingRock,
+        [Tooltip("W-57b: a shelter built against a harsh biome's hazard (Shelter Style): a half-buried stone dome with a " +
+                 "crawl tunnel (ash fall), a lean-to banked with snow (blizzards), or a low dome bristling with glass " +
+                 "shards that take the lightning (electric storms). Bark the stone or poles, Foliage the roof or shards, " +
+                 "Foliage Variation the ash or snow heaped on it; Branches the shard count. Height its height, Spread its " +
+                 "width over height. Door (or open side) faces +Z.")] HazardShelter
     }
 
     public enum FoliageFinish : byte
@@ -245,6 +261,8 @@ namespace Punchy.Flora
         [Range(0f, 1f)] public float MinRapids;
         [Tooltip("Blocks the player (trees, big cacti).")]
         public bool Solid = true;
+        [Tooltip("W-57b, Hazard Shelter only: which hazard it is built against.")]
+        public ShelterStyle ShelterStyle;
         [Tooltip("Random size of each placed plant, on top of its variant's own size.")]
         public Vector2 SizeRange = new Vector2(0.85f, 1.15f);
 

@@ -59,6 +59,9 @@ namespace Punchy.Terrain
         [Min(0f)] public float Weight = 1f;
         [Tooltip("How many plots take this role (roles other than House and Landscaping; the Seat is always one).")]
         [Min(0)] public int Count = 1;
+        [Tooltip("If set, this building is never picked by weight: a settlement whose centre lies in one of these " +
+                 "biomes puts it on one House plot instead (a hazard shelter, #69). Empty = an ordinary building.")]
+        public List<BiomeDefinition> OnlyIn = new List<BiomeDefinition>();
     }
 
     /// <summary>

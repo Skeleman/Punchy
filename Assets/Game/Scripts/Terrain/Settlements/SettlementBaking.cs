@@ -60,7 +60,8 @@ namespace Punchy.Terrain
         /// </summary>
         public static BlobAssetReference<SettlementSetBlob> Build(in TerrainSource source, IReadOnlyList<LandmarkType> types,
                                                                    IReadOnlyList<RoadsideLandmark> roadside,
-                                                                   out List<LandmarkInstance> roadsideLandmarks, Allocator allocator)
+                                                                   out List<LandmarkInstance> roadsideLandmarks, Allocator allocator,
+                                                                   IReadOnlyList<BiomeDefinition> palette = null)
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             roadsideLandmarks = new List<LandmarkInstance>();
@@ -86,7 +87,7 @@ namespace Punchy.Terrain
                 if (type == null || type.Settlement == null)
                     continue;
                 var index = layouts.IndexOf(type.Settlement);
-                new Planner(source, type, type.Settlement, inst, i, settlements.Count, firstBuilding[index], streets, plots)
+                new Planner(source, type, type.Settlement, inst, i, settlements.Count, firstBuilding[index], streets, plots, palette)
                     .Lay(index, settlements);
             }
             var lap = watch.ElapsedMilliseconds;
@@ -113,6 +114,8 @@ namespace Punchy.Terrain
             readonly int landmark, settlement, firstBuilding;
             readonly List<SettlementStreet> streets;
             readonly List<SettlementPlot> plots;
+            /// <summary>The biome palette, for the hazard shelters (SettlementBuilding.OnlyIn); null = none.</summary>
+            readonly IReadOnlyList<BiomeDefinition> palette;
             readonly List<float3> reserved;   // placed props: xz and clearance
             /// <summary>Each street's line as laid (stopping short at water), for the plots along it.</summary>
             readonly List<(List<float2> line, float width)> lines = new List<(List<float2>, float)>();
@@ -121,8 +124,10 @@ namespace Punchy.Terrain
             Random rng;
 
             public Planner(in TerrainSource source, LandmarkType type, SettlementLayout layout, in LandmarkInstance inst, int landmark,
-                int settlement, int firstBuilding, List<SettlementStreet> streets, List<SettlementPlot> plots)
+                int settlement, int firstBuilding, List<SettlementStreet> streets, List<SettlementPlot> plots,
+                IReadOnlyList<BiomeDefinition> palette = null)
             {
+                this.palette = palette;
                 this.source = source;
                 this.type = type;
                 this.layout = layout;
@@ -623,6 +628,41 @@ namespace Punchy.Terrain
                     plot.Building = PickBuilding(plot.Role);
                     plots[p] = plot;
                 }
+                PlaceShelters();
+            }
+
+            /// <summary>
+            /// A settlement in a harsh biome swaps its house plots nearest the centre for the shelters made for that biome's
+            /// hazard (SettlementBuilding.OnlyIn, #69). No rng is drawn, so nothing else in the layout moves.
+            /// </summary>
+            void PlaceShelters()
+            {
+                if (palette == null)
+                    return;
+                var biomes = source.SampleGround(inst.Position).Biomes;
+                var best = 0;
+                for (int k = 1; k < 4; k++)
+                    if (biomes.Weights[k] > biomes.Weights[best])
+                        best = k;
+                var id = (int)biomes.Ids[best];
+                if (id < 0 || id >= palette.Count || palette[id] == null)
+                    return;
+                var houses = new List<int>();
+                for (int p = firstPlot; p < plots.Count; p++)
+                    if (plots[p].Role == PlotRole.House)
+                        houses.Add(p);
+                var centre = inst.Position;
+                houses.Sort((a, b) => math.distance(plots[a].Centre, centre).CompareTo(math.distance(plots[b].Centre, centre)));
+                var next = 0;
+                for (int i = 0; i < layout.Buildings.Count && next < houses.Count; i++)
+                {
+                    var b = layout.Buildings[i];
+                    if (b.Species == null || b.OnlyIn == null || !b.OnlyIn.Contains(palette[id]))
+                        continue;
+                    var plot = plots[houses[next]];
+                    plot.Building = firstBuilding + i;
+                    plots[houses[next++]] = plot;
+                }
             }
 
             void Take(List<int> order, int at, PlotRole role)
@@ -648,7 +688,7 @@ namespace Punchy.Terrain
                     return layout.WaterFeature != null ? firstBuilding + layout.Buildings.Count : -1;
                 var total = 0f;
                 foreach (var b in layout.Buildings)
-                    if (b.Role == role && b.Species != null)
+                    if (b.Role == role && b.Species != null && (b.OnlyIn == null || b.OnlyIn.Count == 0))
                         total += b.Weight;
                 if (total <= 0f)
                     return -1;
@@ -656,7 +696,7 @@ namespace Punchy.Terrain
                 for (int i = 0; i < layout.Buildings.Count; i++)
                 {
                     var b = layout.Buildings[i];
-                    if (b.Role != role || b.Species == null)
+                    if (b.Role != role || b.Species == null || (b.OnlyIn != null && b.OnlyIn.Count > 0))
                         continue;
                     roll -= b.Weight;
                     if (roll <= 0f)

@@ -54,3 +54,24 @@ MonoBehaviour:
     Species: {fileID: 11400000, guid: ad584df5993190d4895211b957b4d9ff, type: 2}
     Weight: 1
     Count: 1
+  - Role: 0
+    Species: {fileID: 11400000, guid: 5cfeb73565fa41548128d6c8b61360ea, type: 2}
+    Weight: 1
+    Count: 1
+    OnlyIn:
+    - {fileID: 11400000, guid: 46ea94191e2f71c4a8446135874892e0, type: 2}
+    - {fileID: 11400000, guid: 3abd880b4b52a0d45ac7f2b3a687cee8, type: 2}
+  - Role: 0
+    Species: {fileID: 11400000, guid: 7bd541eff2524194bff262da183b7df9, type: 2}
+    Weight: 1
+    Count: 1
+    OnlyIn:
+    - {fileID: 11400000, guid: efa1fb2872ceb1d45b6ee561e78c8774, type: 2}
+    - {fileID: 11400000, guid: 20ddf4d9933283446b410b041eced8ef, type: 2}
+  - Role: 0
+    Species: {fileID: 11400000, guid: b113a8c4f8cb4c96baace94f5352d62c, type: 2}
+    Weight: 1
+    Count: 1
+    OnlyIn:
+    - {fileID: 11400000, guid: 141565d02b6f28c4b9331e5d77a83fac, type: 2}
+    - {fileID: 11400000, guid: 2643950432d89264cafbe718d23c0c4e, type: 2}
