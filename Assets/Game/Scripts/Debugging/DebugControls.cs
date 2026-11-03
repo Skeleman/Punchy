@@ -45,7 +45,7 @@ namespace Punchy.Debugging
         /// <summary>Landmarks' middles (for -place, not in the N list).</summary>
         readonly List<Location> centres = new List<Location>();
         int current = -1;
-        EntityQuery playerQuery, terrainQuery, paletteQuery;
+        EntityQuery playerQuery, terrainQuery, paletteQuery, floraQuery;
         World queryWorld;
         GUIStyle style, hintStyle;
         /// <summary>The control hints, under the readout: prompt text with button tokens (UI.Prompts draws their icons).</summary>
@@ -84,9 +84,9 @@ namespace Punchy.Debugging
             var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
             var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
             var eye = Camera.main != null ? (float3)Camera.main.transform.position : float3.zero;
-            int near = 0;
             var queriesPerTick = frames > 0 && stats.Samples > 0 ? (float)stats.Queries / stats.Samples : 2f;
-            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var bodyList = new NativeList<float4>(64, Allocator.TempJob);
+            var shapeList = new NativeList<float4>(64, Allocator.TempJob);
             for (int i = 0; i < states.Length; i++)
             {
                 var s = states[i];
@@ -94,22 +94,76 @@ namespace Punchy.Debugging
                 if (s.Gone || b.Upright || b.Haunts || b.Habitat != Habitat.Land && b.Habitat != Habitat.Flies ||
                     math.distancesq(eye.xz, s.Position.xz) > CreatureMotion.SolidReach * CreatureMotion.SolidReach)
                     continue;
-                near++;
                 var radius = math.max(math.max(b.FrontRadius, b.RearRadius) * s.Scale, 0.1f);
-                var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
-                for (int k = 0; k < math.max(1, (int)math.round(queriesPerTick)); k++)
-                    CreatureMotion.Solid(terrain, s.Position.xz + forward * 0.1f * k, forward, s.Position.y, radius, b.BodyLength * 0.5f * s.Scale,
-                                         math.max((b.StandHeight + b.FrontRadius) * s.Scale, radius * 2f), out _);
-                CreatureMotion.Ground(terrain, s.Position.xz, s.Position.y);
+                bodyList.Add(new float4(s.Position, s.Yaw));
+                shapeList.Add(new float4(radius, b.BodyLength * 0.5f * s.Scale, math.max((b.StandHeight + b.FrontRadius) * s.Scale, radius * 2f), 0f));
             }
-            var ms = (float)watch.Elapsed.TotalMilliseconds;
+            var near = bodyList.Length;
+            // (A-44b: the queries a frame's moves make, timed as the brain runs them, Burst-compiled, but on one thread.)
+            var hasFlora = floraQuery.TryGetSingleton<FloraLookup>(out var flora) && flora.Blob.IsCreated;
+            var job = new SolidCostJob
+            {
+                Terrain = terrain, Flora = hasFlora ? flora.Blob : default, HasFlora = hasFlora,
+                Bodies = bodyList.AsArray(), Shapes = shapeList.AsArray(), PerTick = math.max(1, (int)math.round(queriesPerTick)),
+            };
+            job.Run(); // (warm: the first run compiles)
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            for (int r = 0; r < 10; r++)
+                job.Run();
+            var ms = (float)watch.Elapsed.TotalMilliseconds / 10f;
+            bodyList.Dispose();
+            shapeList.Dispose();
             var minutes = span / 60f;
+            var cases = CreatureMotion.Cases.Data;
+            CreatureMotion.Cases.Data = default;
+            var sinks = new System.Text.StringBuilder();
+            var floats = new System.Text.StringBuilder();
+            for (int i = 0; i < 10; i++)
+            {
+                var c = cases.Sink(i);
+                if (c.z > 0f)
+                    sinks.Append($" [{(CreatureMotion.SolidKind)(int)c.w} {c.z:F2} m at {c.x:F0},{c.y:F0}]");
+                var f = cases.Float(i);
+                if (f.z > 0f)
+                    floats.Append($" [{(CreatureMode)((int)f.w % 100)}{(f.w >= 100f ? " moving" : "")} {f.z:F2} m at {f.x:F0},{f.y:F0}]");
+            }
+            Debug.Log($"CreatureSolids cases: sinks{sinks}; floating{floats}");
             Debug.Log($"CreatureSolids: {(CreatureMotion.SolidsOff.Data != 0 ? "OFF (before)" : "on")}, {span:F0} s, {frames} frames, " +
                       $"{stats.Samples} creature-ticks near, contacts {stats.Contacts / minutes:F1}/min, stuck {stats.Stuck} ticks " +
                       $"({stats.Stuck * span / math.max(1, frames):F1} s), hidden >0.15 m {stats.Hidden} ticks, max sink {stats.MaxSinkMm / 1000f:F2} m, " +
                       $"floating >0.2 m {stats.Floating} ticks, queries {(float)stats.Queries / math.max(1, frames):F1}/frame " +
-                      $"({queriesPerTick:F2} per creature-tick); cost now {near} near: {ms:F3} ms unburst, " +
+                      $"({queriesPerTick:F2} per creature-tick); cost now {near} near: {ms:F3} ms Burst one thread, " +
                       $"{(near > 0 ? ms * 50f / near : 0f):F3} ms per frame at 50");
+        }
+
+        /// <summary>"-solidstats" cost (A-44b): each animal's solid queries for one frame (its moves' SolidAt, buildings
+        /// included, and its ground), Burst-compiled as in the brain.</summary>
+        [Unity.Burst.BurstCompile]
+        struct SolidCostJob : Unity.Jobs.IJob
+        {
+            public TerrainSource Terrain;
+            public BlobAssetReference<FloraBlob> Flora;
+            public bool HasFlora;
+            [ReadOnly] public NativeArray<float4> Bodies, Shapes;
+            public int PerTick;
+
+            public void Execute()
+            {
+                for (int i = 0; i < Bodies.Length; i++)
+                {
+                    var p = Bodies[i];
+                    var shape = Shapes[i];
+                    var forward = new float2(math.sin(p.w), math.cos(p.w));
+                    for (int k = 0; k < PerTick; k++)
+                    {
+                        var xz = p.xz + forward * 0.1f * k;
+                        CreatureMotion.Solid(Terrain, xz, forward, p.y, shape.x, shape.y, shape.z, out _);
+                        if (HasFlora && !FloraPlacement.Blocked(ref Flora.Value, Terrain, xz, shape.x))
+                            FloraPlacement.Blocked(ref Flora.Value, Terrain, xz + forward * shape.y, shape.x * 0.6f);
+                    }
+                    CreatureMotion.Ground(Terrain, p.xz, p.y);
+                }
+            }
         }
 
         void Update()
@@ -3450,6 +3504,7 @@ namespace Punchy.Debugging
                 playerQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
                 terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
                 paletteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
+                floraQuery = em.CreateEntityQuery(ComponentType.ReadOnly<FloraLookup>());
                 queryWorld = world;
                 locations.Clear();
             }

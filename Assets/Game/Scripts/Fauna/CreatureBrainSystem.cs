@@ -239,12 +239,13 @@ namespace Punchy.Fauna
                 Think(self, ref s, in body);
                 // A-44: one lying or standing still over a cave entrance (it rested there before the ground under it was
                 // known to be carved) settles onto the carved ground; up a tree or on a perch it is above the surface.
-                if (!s.Gone && nearSolids && s.Speed < 0.01f && s.Fly < 0.5f && s.Mode != CreatureMode.Held && !body.Blob.Value.CaveDweller &&
+                // (A-44b: at once, and moving too: easing down, or only when still, left 258 floating ticks a minute.)
+                if (!s.Gone && nearSolids && s.Fly < 0.5f && s.Mode != CreatureMode.Held && !body.Blob.Value.CaveDweller &&
                     !underRock && s.Position.y < Terrain.SampleHeight(s.Position.xz) + 0.3f)
                 {
                     var ground = CreatureMotion.Ground(Terrain, s.Position.xz, s.Position.y);
-                    if (s.Position.y - ground > 0.2f)
-                        s.Position.y = math.max(ground, s.Position.y - Dt * 6f);
+                    if (s.Position.y - ground > 0.1f)
+                        s.Position.y = ground;
                 }
                 if (!s.Gone && CreatureMotion.StatsOn.Data != 0)
                     CountSolids(s, ref body.Blob.Value);
@@ -6197,13 +6198,50 @@ namespace Punchy.Fauna
             static float BodyRadius(in CreatureState s, ref CreatureBlob b) => math.max(math.max(b.FrontRadius, b.RearRadius) * s.Scale, 0.1f);
 
             /// <summary>Whether its body would be in a solid at xz facing forward (CreatureMotion.Solid with its own size).</summary>
-            bool SolidAt(in CreatureState s, ref CreatureBlob b, float2 xz, float2 forward, out float sink)
+            bool SolidAt(in CreatureState s, ref CreatureBlob b, float2 xz, float2 forward, out float sink) =>
+                SolidAt(s, ref b, xz, forward, out sink, out _);
+
+            /// <summary>SolidAt, and what was in the way. A-44b: settlement buildings and landmark props too
+            /// (FloraPlacement.Blocked, as workers and worms test them), which wild animals walked into before.</summary>
+            bool SolidAt(in CreatureState s, ref CreatureBlob b, float2 xz, float2 forward, out float sink, out CreatureMotion.SolidKind kind)
             {
                 if (CreatureMotion.StatsOn.Data != 0)
                     System.Threading.Interlocked.Increment(ref CreatureMotion.Stats.Data.Queries);
                 var radius = BodyRadius(s, ref b);
-                return CreatureMotion.Solid(Terrain, xz, forward, s.Position.y, radius, b.BodyLength * 0.5f * s.Scale,
-                                            math.max((b.StandHeight + b.FrontRadius) * s.Scale, radius * 2f), out sink);
+                var halfLength = b.BodyLength * 0.5f * s.Scale;
+                var hit = CreatureMotion.Solid(Terrain, xz, forward, s.Position.y, radius, halfLength,
+                                               math.max((b.StandHeight + b.FrontRadius) * s.Scale, radius * 2f), out sink, out kind);
+                if (!HasFlora)
+                    return hit;
+                var built = BuildingSink(xz, forward, radius, halfLength, out var walled);
+                if (walled && !hit)
+                    kind = CreatureMotion.SolidKind.Building;
+                if (built > sink)
+                {
+                    sink = built;
+                    kind = CreatureMotion.SolidKind.Building;
+                }
+                return hit || walled;
+            }
+
+            /// <summary>
+            /// How far its body (a circle of its radius at xz) is into a building or prop, in steps (Blocked only answers
+            /// yes or no): 0 clear, 0.1 touching, 0.16 or more when over 0.15 m in, most of its radius when mostly in.
+            /// Walled: that, or its nose touching one, stops a step.
+            /// </summary>
+            float BuildingSink(float2 xz, float2 forward, float radius, float halfLength, out bool walled)
+            {
+                walled = false;
+                if (FloraPlacement.Blocked(ref Flora.Value, Terrain, xz, radius))
+                {
+                    walled = true;
+                    if (!FloraPlacement.Blocked(ref Flora.Value, Terrain, xz, math.max(radius - 0.15f, 0.02f)))
+                        return 0.1f;
+                    return FloraPlacement.Blocked(ref Flora.Value, Terrain, xz, radius * 0.3f) ? math.max(radius * 0.8f, 0.3f)
+                                                                                             : math.max(radius * 0.5f, 0.16f);
+                }
+                walled = FloraPlacement.Blocked(ref Flora.Value, Terrain, xz + forward * halfLength, radius * 0.6f);
+                return 0f;
             }
 
             /// <summary>
@@ -6265,18 +6303,24 @@ namespace Punchy.Fauna
                 ref var stats = ref CreatureMotion.Stats.Data;
                 System.Threading.Interlocked.Increment(ref stats.Samples);
                 var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
-                CreatureMotion.Solid(Terrain, s.Position.xz, forward, s.Position.y, BodyRadius(s, ref b), b.BodyLength * 0.5f * s.Scale,
-                                     math.max((b.StandHeight + b.FrontRadius) * s.Scale, BodyRadius(s, ref b) * 2f), out var sink);
+                SolidAt(s, ref b, s.Position.xz, forward, out var sink, out var kind);
+                System.Threading.Interlocked.Decrement(ref stats.Queries); // (a count, not a move: Queries are the moves' cost)
                 if (sink > 0.15f)
+                {
                     System.Threading.Interlocked.Increment(ref stats.Hidden);
+                    CreatureMotion.Cases.Data.KeepSink(new float4(s.Position.xz, sink, (float)kind));
+                }
                 var mm = (int)(sink * 1000f);
                 for (int was = stats.MaxSinkMm; mm > was; was = stats.MaxSinkMm)
                     if (System.Threading.Interlocked.CompareExchange(ref stats.MaxSinkMm, mm, was) == was)
                         break;
                 // (Standing over an entrance: well above the floor there. Up a tree or on a perch it is meant to be.)
-                if (s.Position.y < Terrain.SampleHeight(s.Position.xz) + 0.3f &&
-                    s.Position.y - CreatureMotion.Ground(Terrain, s.Position.xz, s.Position.y) > 0.2f)
+                var gap = s.Position.y - CreatureMotion.Ground(Terrain, s.Position.xz, s.Position.y);
+                if (s.Position.y < Terrain.SampleHeight(s.Position.xz) + 0.3f && gap > 0.2f)
+                {
                     System.Threading.Interlocked.Increment(ref stats.Floating);
+                    CreatureMotion.Cases.Data.KeepFloat(new float4(s.Position.xz, gap, (float)s.Mode + (s.Speed > 0.01f ? 100f : 0f)));
+                }
             }
 
             bool UnderRock(in CreatureState s, ref CreatureBlob b)

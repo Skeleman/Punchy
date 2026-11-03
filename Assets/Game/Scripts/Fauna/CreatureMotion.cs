@@ -274,9 +274,15 @@ namespace Punchy.Fauna
         /// only a tower or the lip stops it).
         /// </summary>
         public static bool Solid(in TerrainSource terrain, float2 xz, float2 forward, float feetY, float radius, float halfLength,
-                                 float height, out float sink)
+                                 float height, out float sink) =>
+            Solid(terrain, xz, forward, feetY, radius, halfLength, height, out sink, out _);
+
+        /// <summary>Solid, and what was in the way.</summary>
+        public static bool Solid(in TerrainSource terrain, float2 xz, float2 forward, float feetY, float radius, float halfLength,
+                                 float height, out float sink, out SolidKind kind)
         {
             sink = 0f;
+            kind = SolidKind.None;
             var side = new float2(-forward.y, forward.x);
             var nose = xz + forward * (halfLength + radius * 0.5f);
             var stepUp = math.max(0.3f, height * 0.35f);
@@ -286,24 +292,108 @@ namespace Punchy.Fauna
                 terrain.TowerWall(new float3(xz.x - side.x * radius, feetY, xz.y - side.y * radius), stepUp, height) ||
                 terrain.TowerWall(new float3(xz.x - forward.x * halfLength, feetY, xz.y - forward.y * halfLength), stepUp, height))
                 hit = true;
+            if (hit)
+                kind = SolidKind.Tower;
             if (!terrain.Caves.IsCreated || !CaveSampling.NearColumn(ref terrain.Caves.Value, xz))
                 return hit;
-            var centreY = feetY + math.max(height * 0.6f, radius);
-            var mid = RockDistance(terrain, new float3(xz.x, centreY, xz.y));
-            var front = RockDistance(terrain, new float3(nose.x, centreY, nose.y));
-            sink = math.max(0f, radius - math.min(mid, front));
-            if (math.min(mid, front) < radius * 0.75f)
+            var lift = math.max(height * 0.6f, radius);
+            // (A-44b: its nose rides up a slope with the body, so it is tested at the ground's height there; tested level
+            // with its middle, a nose over rising ground was "in rock" by however far that rock was from cave air.)
+            // (And its middle where its feet will be: a step tested at the feet it has now went in under the overhang
+            // where an entrance's carved floor drops.)
+            var noseGround = Ground(terrain, nose, feetY);
+            var midFeet = Ground(terrain, xz, feetY);
+            var mid = RockDistance(terrain, new float3(xz.x, midFeet + lift, xz.y));
+            var front = RockDistance(terrain, new float3(nose.x, math.max(midFeet, noseGround) + lift, nose.y));
+            var rockSink = math.max(0f, radius - math.min(mid, front));
+            // (A-44b: stopped 5 cm in, not a quarter of its radius: turning at the wall swings its nose further in, and a
+            // bear let 15 cm in before it stopped ended 0.34 m in.)
+            if (math.min(mid, front) < radius - 0.05f)
+            {
                 hit = true;
+                kind = SolidKind.Rock;
+            }
+            if (rockSink > sink)
+                sink = rockSink;
             // (The lip of an entrance: a shallow scoop is walked into, a pit isn't stepped off.)
             var surface = terrain.SampleHeight(nose);
-            if (terrain.MouthCut(nose, surface) < 0f && Ground(terrain, nose, feetY) < feetY - math.max(0.5f, height))
+            if (!hit && terrain.MouthCut(nose, surface) < 0f && noseGround < feetY - math.max(0.5f, height))
+            {
                 hit = true;
+                kind = SolidKind.Lip;
+            }
             return hit;
         }
 
-        /// <summary>Distance from a point to cave rock (negative inside it), as PlayerMovementSystem.SolidDistance has it
-        /// under the surface; above the surface open air (an ordinary hillside is the ground's business, not a wall).</summary>
-        static float RockDistance(in TerrainSource terrain, float3 p) =>
-            p.y < terrain.SampleHeight(p.xz) ? -terrain.CaveDistance(p) : 100f;
+        /// <summary>
+        /// How far a point is out of cave rock (negative inside it), as PlayerMovementSystem.SolidDistance has it under the
+        /// surface; above the surface open air (an ordinary hillside is the ground's business, not a wall). Inside, the
+        /// depth is the nearer way out: to cave air (CaveDistanceBound, as CaveDistance overstates it 2-4 times) or up to
+        /// the open air over the ground (A-44b: a point just under a slope 20 m from any cave counted 20 m deep).
+        /// </summary>
+        static float RockDistance(in TerrainSource terrain, float3 p)
+        {
+            var gap = terrain.SampleHeight(p.xz) - p.y;
+            if (gap <= 0f)
+                return 100f;
+            var cave = terrain.CaveDistance(p);
+            if (cave <= 0f)
+                return -cave;
+            var up = gap * terrain.SampleNormal(p.xz, 0.5f).y;
+            return -math.min(up, cave < up ? terrain.CaveDistanceBound(p) : up);
+        }
+
+        /// <summary>What Solid found in the way (for "-solidstats" case logs).</summary>
+        public enum SolidKind { None, Tower, Rock, Lip, Building }
+
+        /// <summary>"-solidstats" (A-44b): the ten deepest sinks and ten floating cases near a player this minute, as
+        /// (x, z, sink or height above the ground, kind or mode). Written racily from the brain's workers: a log, no more.</summary>
+        public struct SolidCases
+        {
+            public float4 S0, S1, S2, S3, S4, S5, S6, S7, S8, S9;
+            public float4 F0, F1, F2, F3, F4, F5, F6, F7, F8, F9;
+
+            public float4 Sink(int i) => Get(i);
+            public float4 Float(int i) => Get(10 + i);
+
+            float4 Get(int i)
+            {
+                switch (i)
+                {
+                    case 0: return S0; case 1: return S1; case 2: return S2; case 3: return S3; case 4: return S4;
+                    case 5: return S5; case 6: return S6; case 7: return S7; case 8: return S8; case 9: return S9;
+                    case 10: return F0; case 11: return F1; case 12: return F2; case 13: return F3; case 14: return F4;
+                    case 15: return F5; case 16: return F6; case 17: return F7; case 18: return F8; default: return F9;
+                }
+            }
+
+            void Set(int i, float4 c)
+            {
+                switch (i)
+                {
+                    case 0: S0 = c; break; case 1: S1 = c; break; case 2: S2 = c; break; case 3: S3 = c; break; case 4: S4 = c; break;
+                    case 5: S5 = c; break; case 6: S6 = c; break; case 7: S7 = c; break; case 8: S8 = c; break; case 9: S9 = c; break;
+                    case 10: F0 = c; break; case 11: F1 = c; break; case 12: F2 = c; break; case 13: F3 = c; break; case 14: F4 = c; break;
+                    case 15: F5 = c; break; case 16: F6 = c; break; case 17: F7 = c; break; case 18: F8 = c; break; default: F9 = c; break;
+                }
+            }
+
+            /// <summary>Keeps a case if it is deeper (z) than the shallowest of the ten kept.</summary>
+            public void KeepSink(float4 c) => Keep(0, c);
+            public void KeepFloat(float4 c) => Keep(10, c);
+
+            void Keep(int from, float4 c)
+            {
+                var low = from;
+                for (int i = from + 1; i < from + 10; i++)
+                    if (Get(i).z < Get(low).z)
+                        low = i;
+                if (c.z > Get(low).z)
+                    Set(low, c);
+            }
+        }
+
+        public static readonly Unity.Burst.SharedStatic<SolidCases> Cases = Unity.Burst.SharedStatic<SolidCases>.GetOrCreate<SolidCasesKey>();
+        struct SolidCasesKey { }
     }
 }
