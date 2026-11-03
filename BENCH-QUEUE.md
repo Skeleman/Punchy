@@ -39,3 +39,12 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
    per-frame allocations, main-thread work, anything that grows with creature count. Findings go in BENCH-REPORTS.
 10. W-22 has landed (world-features 5016957, "v2 default"): host + client with no `-island` flag. Both must log
    126 / 053C63D5 on world-features after W-27 (main 0bd91cb: 125 / D709D95C); then `-island v1` on both gives 102 / 51EA6463 (main: 101 / E128CB1D). No join errors.
+
+## Added 2026-11-03. main = 762c16a (world lane merged, PR #66; animal lane not merged yet)
+11. Slow caves on the laptop (Zach: "worth looking into the slow caves on the laptop"). Build main 762c16a to
+    Builds/Bench. Bench cave and caveapproach, `-island v2` and v1, cap 60, ABBA vs v0.11.0. One profile per
+    island at the cave stop. Name the top 5 main-thread and GPU costs inside a cave with ms each. Earlier leads:
+    camera LateUpdate +1.8 ms on v2 (main now uses the sphere-trace CaveArm; `-perflog` prints probe calls/ms),
+    CreatureRenderSystem 10.5 ms main thread at the v2 cave stop (item 6), and per-chunk cave timing (item 15).
+    Say which lane owns each cost (world: caves/camera/cave cull; animal: creatures). No edits. Pass target:
+    cave 1% low within 1.3x of open ground on the same build.
