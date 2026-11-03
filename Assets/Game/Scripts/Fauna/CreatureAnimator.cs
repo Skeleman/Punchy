@@ -445,6 +445,10 @@ namespace Punchy.Fauna
                         var idle = b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle];
                         a = idle + (a - idle) * amplitude;
                     }
+                    // Running, an upright body holds its elbow near a right angle (the run keys' 85-95°), whatever its
+                    // arm swing or sprint pump: scaled up, the bend folded the forearm onto the upper arm (A-41).
+                    if (b.Upright && part.Role == LimbRole.Arm && j == 1 && run > 0f)
+                        a.x = math.lerp(a.x, b.Angles(seg, jointPhase, gaitMove, run).x, run);
                     // Carrying something in both arms: they hold it, rather than swinging with the stride.
                     if (part.Role == LimbRole.Arm && s.Action == IdleAction.Carry)
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], act);
@@ -1092,10 +1096,12 @@ namespace Punchy.Fauna
                 }
                 case CreatureTask.Gesture:
                 {
-                    // Hands resting on the counter; every so often one rises to beckon or point.
-                    var p = math.frac(t * 0.21f + (right ? 0f : 0.5f));
-                    var raise = math.smoothstep(0f, 0.06f, p) * (1f - math.smoothstep(0.14f, 0.24f, p));
-                    return new float3(joint == 0 ? -0.45f - 1.2f * raise : -0.9f + 0.4f * raise, 0f, 0f);
+                    // Hands resting on the counter; one at a time rises high, held up and beckoning (the forearm
+                    // flapping in at the elbow) for over a second. (A-35: a smaller, shorter raise never read.)
+                    var p = math.frac(t * 0.26f + (right ? 0f : 0.5f));
+                    var raise = math.smoothstep(0f, 0.06f, p) * (1f - math.smoothstep(0.36f, 0.44f, p));
+                    var beckon = 0.5f + 0.5f * math.sin(t * 8f);
+                    return new float3(joint == 0 ? -0.45f - 1.9f * raise : -0.9f + raise * (0.1f - 0.9f * beckon), 0f, 0f);
                 }
                 case CreatureTask.Tend:
                     switch (FolkJobs.Of(in s))
