@@ -1323,3 +1323,19 @@ DONE (all five rows). The first pass stopped after row 1 on a C# conflict; the s
   deleted (remote kept). No release, no tag, no issues closed.
 - Calls ~45, builds 1.
 - NEXT: merge origin/main into animal-behaviours so the lane carries the merge.
+
+## A-42b (2026-11-02): skunk gas, lying on side slopes
+Commit 89270af on animal-behaviours (pushed). ONE build to Builds/Windows. Hash v2 126 / 053C63D5 unchanged.
+1. Skunk gas: PARTIAL. SkunkGas.cs: colour (0.78,0.92,0.2,1), 60-puff burst, trail 50/s, start size 0.35-0.6,
+   life 2.2-3.4 s, emitted 0.12 m above the rump, alpha holds to mid-life. Editor close-up (viewed) shows a faint
+   green haze on Puffs.mat; the default particle material shows clear green blobs, so the soft shader (dim light,
+   0.3 m depth fade, no properties) is what eats it. Build: puffs fire (peak 102 particles, ~0.01 ms avg,
+   2.7 ms max) but no cloud is visible in the skunk shots (small skunk on snow). Next: its own puff material.
+2. Side slopes: DONE. Probe a42b: below -0.05 m 9 -> 0 (worst ramp-side now about -0.02, tortoise/turtle);
+   flat lines identical to A-42.
+3. Shots: DONE for deer/dog (viewed 800 px), skunk shot taken but shows no cloud.
+   D:/PunchyMilestones/animal/a42b/: start-deer-before/after, start-dog-before/after (after dog is a different
+   individual), sheet-start.png, start-skunk-cloud.png, gas-pair-800.png and skunk-gas-editor.png (editor).
+   A-42 before frames: D:/PunchyMilestones/animal/a42/.
+Notes: -255,27 is now a mountain; framing needs `-watch` + `-watchfrom`. No exceptions in player logs.
+Overrun: ~58 calls vs 35, 1 build: the first build run lost framing on a mountain, and gas visibility took editor probes.
