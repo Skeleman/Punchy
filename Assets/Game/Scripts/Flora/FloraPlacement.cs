@@ -46,6 +46,8 @@ namespace Punchy.Flora
         /// <summary>W-62c (#37): 1 for sea folk spires: none stands within PierEndClear of a landing pier's far end, so the
         /// village reads from the deck (a spire stood 3.8 m off the end and filled the view).</summary>
         public int PierClear;
+        /// <summary>W-65b (#36): 1 for a fishing village's wharf: its variant follows the village, so no two villages share a layout.</summary>
+        public int PerVillage;
         /// <summary>
         /// W-61b (#38): for igloos, how far out the porch mouth is (0 for everything else). On a settlement's slope an
         /// igloo set at its centre's ground had its porch floor up to 1 m over a dip at the mouth, or buried in a knoll;
@@ -242,12 +244,15 @@ namespace Punchy.Flora
                     House = s.Form == FloraForm.KitBuilding && (s.KitShape == Punchy.Terrain.KitShape.House || s.KitShape == Punchy.Terrain.KitShape.StiltHouse) ? 1 : 0,
                     PierReach = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? s.Height.y : 0f,
                     PierClear = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Spire ? 1 : 0,
+                    PerVillage = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Wharf ? 1 : 0,
                     // StructureKit.Igloo (W-64): the tunnel ends 1-1.8 m past the dome's foot (the radius), plus the 0.8 m path out.
                     Porch = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Igloo ? (s.Height.x + s.Height.y) * 0.5f * s.Spread * 0.5f + 2.2f : 0f,
                     Footprint = Footprint(s),
                     Span = s.Form == FloraForm.IceArch ? (s.Height.x + s.Height.y) * 0.5f * math.max(s.Spread, 0.5f) * 0.5f :
                            // W-63: a log across a narrows reaches half its shortest length each way from the middle.
-                           s.Form == FloraForm.Driftwood && s.RiverSpot == RiverSpot.LogNarrows ? s.Height.x * 0.5f : 0f
+                           s.Form == FloraForm.Driftwood && s.RiverSpot == RiverSpot.LogNarrows ? s.Height.x * 0.5f :
+                           // W-65b: a stepping-stone row reaches half its length each way.
+                           s.Form == FloraForm.Boulder && s.RiverSpot == RiverSpot.Narrows ? FloraGenerator.StoneRowLength * 0.5f : 0f
                 };
                 for (int v = 0; v < s.Variants; v++)
                 {
@@ -504,7 +509,7 @@ namespace Punchy.Flora
         static float FacingYaw(float2 facing) => math.atan2(-facing.x, facing.y);
 
         /// <summary>
-        /// W-61b (#38): an igloo facing its settlement's centre, turned up to 60 degrees either way to the heading whose
+        /// W-61b (#38): an igloo facing its settlement's centre, turned up to 30 degrees either way (W-65b; was 60) to the heading whose
         /// porch mouth (<paramref name="porch"/> m out) is nearest its centre's height (straight on wins near-ties), then
         /// lowered (up to 1.4 m, the dome sinking into the slope) or raised (up to 0.5 m, within its foundation skirt) so
         /// the porch floor meets the ground at the mouth, not a ledge over a dip. No random draws, so nothing else moves.
@@ -514,9 +519,11 @@ namespace Punchy.Flora
             var best = yaw;
             var bestCost = float.MaxValue;
             var mouthY = y;
-            for (int k = 0; k < 5; k++)
+            // W-65b (#38): up to 30 degrees now (was 60): a mouth turned 60 degrees faced a neighbour, and the walk
+            // between two mouths ran into a dome.
+            for (int k = 0; k < 3; k++)
             {
-                var turn = math.radians(30f) * (k == 0 ? 0 : k == 1 ? 1 : k == 2 ? -1 : k == 3 ? 2 : -2);
+                var turn = math.radians(30f) * (k == 0 ? 0 : k == 1 ? 1 : -1);
                 var a = yaw + turn;
                 var ground = source.SampleHeight(spot + new float2(-math.sin(a), math.cos(a)) * porch);
                 var cost = math.abs(ground - y) + 0.25f * math.abs(turn);
@@ -618,6 +625,9 @@ namespace Punchy.Flora
         /// <summary>W-63: dry ground (no water over it).</summary>
         static bool Dry(in GroundSample g) => !g.HasWater || g.Height > g.WaterSurface + 0.05f;
 
+        /// <summary>W-65b: an end stone's spot is dry bank no more than 0.8 m above the water, or water under 0.3 m deep.</summary>
+        static bool NearBank(in GroundSample g, float surface) => g.Height > surface - 0.3f && g.Height < surface + 0.8f;
+
         /// <summary>
         /// How far <paramref name="xz"/> is from the walk lane of the nearest dock of this landmark (#36, W-59d): the
         /// line from the foot of its plank ramp (4.6 m inland of the dock's base) out along the facing to its far end.
@@ -648,6 +658,22 @@ namespace Punchy.Flora
                 }
             }
             return best;
+        }
+
+        /// <summary>
+        /// W-65b (#36): which variant a per-village prop (a wharf) takes at landmark <paramref name="instance"/>: the
+        /// village's rank among the landmarks of its type, plus a scrambled offset from the type. Ranks differ, so up to
+        /// <paramref name="variants"/> villages all get different layouts (the cell's own draw gave v0 and v2 the same one).
+        /// </summary>
+        static int VillageVariant(ref LandmarkSetBlob set, int instance, int variants)
+        {
+            var type = set.Instances[instance].Type;
+            var rank = 0;
+            for (int i = 0; i < instance; i++)
+                if (set.Instances[i].Type == type)
+                    rank++;
+            var offset = (int)(BiomeSampling.Scramble((uint)type * 0x9E3779B9u ^ 0x3A4F0B1Du) % (uint)math.max(1, variants));
+            return (rank + offset) % math.max(1, variants);
         }
 
         /// <summary>
@@ -1226,12 +1252,16 @@ namespace Punchy.Flora
                                     PorchSeat(source, spot, placedRule.Porch, ref placedYaw, ref at.y);
                                 if (placedRule.FaceLandmark == 2 && !footprint)
                                     at = DockShore(source, spot, set.Instances[landmark.Instance].Facing);
+                                var placedScale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y));
+                                var placedModel = placedRule.FirstModel + rng.NextInt(placedRule.Variants);
+                                if (placedRule.PerVillage != 0)
+                                    placedModel = placedRule.FirstModel + VillageVariant(ref set, landmark.Instance, placedRule.Variants);
                                 return new FloraSystem.FloraInstance
                                 {
                                     Position = at,
                                     Yaw = placedYaw,
-                                    Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
-                                    Model = placedRule.FirstModel + rng.NextInt(placedRule.Variants),
+                                    Scale = placedScale,
+                                    Model = placedModel,
                                     Random = rng.NextFloat(),
                                     Ground = footprint ? 0u : GroundFor(source, placedRule, spot, 1f, 0.25f)
                                 };
@@ -1441,6 +1471,27 @@ namespace Punchy.Flora
                 return new FloraSystem.FloraInstance
                 {
                     Position = new float3(xz.x, math.min(endA.Height, endB.Height) - 0.12f, xz.y),
+                    Yaw = yaw,
+                    Scale = scale,
+                    Model = rule.FirstModel + rng.NextInt(rule.Variants),
+                    Random = rng.NextFloat(),
+                    Ground = GroundFor(source, rule, xz, 1f, 0.25f)
+                };
+            }
+            if (rule.RiverSpot == (int)RiverSpot.Narrows && rule.Span > 0f)
+            {
+                // W-65b: a stepping-stone row crosses the river (its X across the flow), both end stones on or just off
+                // the bank; the model's origin sits on the water surface, so every top is 4-12 cm above the water.
+                var flow = math.normalizesafe(ground.Flow, new float2(0f, 1f));
+                yaw = math.atan2(flow.x, -flow.y) + rng.NextFloat(-0.15f, 0.15f);
+                var reach = new float2(math.cos(yaw), math.sin(yaw)) * rule.Span * scale;
+                var endA = source.SampleGround(xz + reach);
+                var endB = source.SampleGround(xz - reach);
+                if (!ground.HasWater || !NearBank(endA, ground.WaterSurface) || !NearBank(endB, ground.WaterSurface))
+                    return none;
+                return new FloraSystem.FloraInstance
+                {
+                    Position = new float3(xz.x, ground.WaterSurface, xz.y),
                     Yaw = yaw,
                     Scale = scale,
                     Model = rule.FirstModel + rng.NextInt(rule.Variants),

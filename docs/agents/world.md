@@ -190,3 +190,25 @@ neither stamps the ground or the water.
   walk far from the player reports `support -` everywhere and "drops" to the bed).
 - **Underwater view.** The camera and water have no underwater mode yet (#22): from below the surface you see the
   sky, no fog, tint or surface from beneath, so shots of the village look like dry land.
+
+## Fishing villages, igloos and river dressing (W-60 to W-65b)
+
+- **Wharf network:** `StructureKit.Wharf` builds a main walkway out from the shore with side branches and stilt houses on
+  them. A FishWharf has 6 variants; the variant follows the village (`FloraPlacement.VillageVariant`: rank among
+  wharves plus a scrambled offset), so no two villages share a layout (W-65b, #36). `DockLaneDistance` keeps other
+  props off the main lane only, not the branches.
+- **Stilt houses:** stand on the branches, doors face the deck. The W-65 editor walk (BFS on a 0.3 m grid, step-up 0.4,
+  head 1.7) reaches every door.
+- **Igloo scale:** domes are bigger since W-64; the porch tunnel ends 1-1.8 m past the dome foot plus a 0.8 m path.
+  `PorchSeat` turns an igloo at most 30 degrees (was 60) to seat its mouth, so mouth-to-mouth paths stay clear of
+  domes. A hidden 1 m snow block sits behind the door slab so the support grid has a wall there (a 0.14 m slab falls
+  between grid samples).
+- **Moss sheet:** kit moss is a textured sheet on the Foliage part; it is not solid (only Bark/Metal parts go into the
+  support grid).
+- **River dressing:** cattails on banks, driftwood on gravel bars (along the flow), fallen logs across LogNarrows (both
+  ends on dry bank), and stepping stones as one row model across a Narrows (W-65b: 11-12 stones over 12 m, tops 4-12 cm
+  over the water surface, both end stones on or just off the bank).
+- **Gotcha, near-player support grid:** prop support grids (what you stand on and walk into) exist only near the
+  player, and the player's cylinder colliders come from `model.Colliders`, not the grid. Editor sims that use
+  `PropSupport` only see props whose grid is loaded: move the player next to the subject first, and expect a sim and
+  a player walk to differ when a prop has cylinders but a thin grid.

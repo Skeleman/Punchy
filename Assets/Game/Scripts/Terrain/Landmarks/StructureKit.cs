@@ -745,6 +745,10 @@ namespace Punchy.Terrain
                     dz = Mathf.Sqrt(clear * clear - dx * dx);
                 Alpine(parts, PickAlpine(rng), new Vector3(dx, 0f, dz), R() * 360f, rng);
             }
+            // W-65b (#38): a 1 m block of snow behind the door, its front inside the door slab, so the support grid has a
+            // wall there (the 0.14 m door alone fell between its samples and 3 of 5 walks went past the door line). Hidden
+            // by the closed door and the dome; last, so no draw or earlier part's colour moves.
+            Add(parts, KitPiece.Wall, KitMaterial.Wall, new Vector3(0f, doorH * 0.5f, z0 - 0.4f), new Vector3(doorW + 0.5f, doorH, 1f), 0f, false);
             return parts;
         }
 
