@@ -47,7 +47,9 @@ namespace Punchy.Terrain
         /// <summary>A sea folk's landing pier (#37): runs from the bank out over deep water on long piles.</summary>
         Pier,
         /// <summary>A cluster of lake-bed details (#37): kelp, shell mosaics, bubble vents, sunken goods, coral arches, anemones.</summary>
-        Reef
+        Reef,
+        /// <summary>A fishing village's wharf (W-65): a small network of walkways from the bank with houses on stilts over the water.</summary>
+        Wharf
     }
 
     /// <summary>The small things a sea folk settlement leaves on the lake bed (#37), picked by weight from SeaDetails.</summary>
@@ -302,6 +304,245 @@ namespace Punchy.Terrain
                 Detail(parts, CoastDetail.CrabPots, new Vector3(-width * 0.5f + 0.42f, deck, length * (0.4f + 0.4f * (float)rng.NextDouble())), 270f + ((float)rng.NextDouble() - 0.5f) * 8f, rng, t);
             if (rng.NextDouble() < 0.75)   // moored alongside, riding at the water
                 Detail(parts, CoastDetail.Boat, new Vector3((rng.Next(2) == 0 ? -1f : 1f) * (width * 0.5f + 1.1f), -0.6f, length * (0.45f + 0.35f * (float)rng.NextDouble())), 0f, rng, t);
+            return parts;
+        }
+
+        /// <summary>
+        /// A fishing village's wharf (W-65, #36): a small network of plank walkways from its land end (the origin) out
+        /// along +Z, with two to four houses standing over the water on it. One main walkway with a plank ramp up from
+        /// the bank, then one to three branches across it (a T or an L at the far end, maybe a cross part way out). Each
+        /// house's door faces a branch that runs tight along its front, parallel to it, with no rail between; rails run
+        /// only along open-water edges. Lanterns at the joins, skiffs tied alongside, a ladder down to the water, nets
+        /// drying over a rail, crab pots, all from the seed. Every walkway has a solid bed under its planks (W-62c) and
+        /// piles down into the water. <paramref name="houses"/> gets each house as (centre x, centre z, width, depth),
+        /// its door on the side towards the walkway it faces (FloraGenerator sets its colliders from these).
+        /// </summary>
+        public static List<KitPart> Wharf(uint seed, CultureTrim t, float deck, List<Vector4> houses)
+        {
+            const float W = 2.4f, half = W * 0.5f;
+            var parts = new List<KitPart>();
+            var rng = new System.Random((int)(Scramble(seed ^ 0x3A4Fu) & 0x7FFFFFFF));
+            float R() => (float)rng.NextDouble();
+            var length = 16f + R() * 6f;
+            // Walkways as rectangles (x0, z0, x1, z1). The +X side stays short: a fishing village's second dock stands
+            // some 12 m off that way.
+            var walks = new List<Vector4> { new Vector4(-half, 0f, half, length + half) };
+            var endT = R() < 0.55f;
+            walks.Add(endT ? new Vector4(-(7f + R() * 5f), length - half, 5f + R() * 2f, length + half)
+                           : new Vector4(-(11f + R() * 3f), length - half, half, length + half));
+            var branches = 1 + rng.Next(3);
+            var mid = 8f + R() * (length - 16f);
+            if (branches >= 2)
+                walks.Add(new Vector4(-(7f + R() * 6f), mid - half, half, mid + half));
+            if (branches >= 3)
+                walks.Add(new Vector4(-half, mid - half, 5f + R() * 2f, mid + half));
+
+            // Houses: tried along each branch, seaward then shoreward, front wall 0.2 m behind the walkway edge.
+            houses.Clear();
+            var want = 2 + rng.Next(3);
+            var homes = new List<(Vector4 box, float yaw)>();
+            bool Overlaps(Vector4 a, Vector4 b, float gap) => a.x < b.z + gap && b.x < a.z + gap && a.y < b.w + gap && b.y < a.w + gap;
+            for (int pass = 0; pass < 2 && homes.Count < want; pass++)
+                for (int bi = 1; bi < walks.Count && homes.Count < want; bi++)
+                    foreach (var seaward in new[] { true, false })
+                    {
+                        var br = walks[bi];
+                        var w = pass == 0 ? 4.6f + R() * 1.2f : 4.4f;
+                        var d = pass == 0 ? 4.2f + R() * 1.0f : 4.2f;
+                        var zb = (br.y + br.w) * 0.5f;
+                        var cz = seaward ? zb + half + 0.2f + d * 0.5f : zb - half - 0.2f - d * 0.5f;
+                        if (!seaward && cz - d * 0.5f < 4f)
+                            continue;   // keep shoreward houses out over the water
+                        var span = br.z - br.x - w;
+                        if (span < 0f)
+                            continue;
+                        for (int k = 0; k < 6 && homes.Count < want; k++)
+                        {
+                            var cx = br.x + w * 0.5f + span * (k == 0 ? R() : k / 5f);
+                            var box = new Vector4(cx - w * 0.5f, cz - d * 0.5f, cx + w * 0.5f, cz + d * 0.5f);
+                            var clear = true;
+                            foreach (var wk in walks)
+                                clear &= !Overlaps(box, wk, 0.1f);
+                            foreach (var h in homes)
+                                clear &= !Overlaps(box, h.box, 0.8f);
+                            if (!clear)
+                                continue;
+                            homes.Add((box, seaward ? 180f : 0f));
+                            houses.Add(new Vector4(cx, cz, w, d));
+                            break;
+                        }
+                    }
+
+            // Decks: planks, a solid bed under them, piles down into the water.
+            foreach (var wk in walks)
+            {
+                var alongZ = wk.w - wk.y > wk.z - wk.x;
+                var c = new Vector3((wk.x + wk.z) * 0.5f, 0f, (wk.y + wk.w) * 0.5f);
+                var len = alongZ ? wk.w - wk.y : wk.z - wk.x;
+                var yaw = alongZ ? 0f : 90f;
+                Platform(parts, c, yaw, W, len, deck, false);
+                Add(parts, KitPiece.Platform, KitMaterial.Wood, c + Vector3.up * (deck - 0.17f), new Vector3(W * 0.94f, 0.1f, len), yaw, false);
+                for (int k = 0, piles = Mathf.Max(2, Mathf.RoundToInt(len / 2.4f) + 1); k < piles; k++)
+                    foreach (var side in new[] { -1f, 1f })
+                        Add(parts, KitPiece.Column, KitMaterial.Wood, c + Turn(yaw, new Vector3(side * W * 0.45f, deck - 3.2f, -len * 0.5f + k * len / (piles - 1))), new Vector3(0.26f, 6f, 0.26f), yaw, false);
+            }
+            const float rampDrop = 0.4f, rampRun = 5.2f;
+            var rise = deck + rampDrop;
+            // Shore steps rather than a pitched ramp: flat treads 0.2 m apart read as solid support on a low bank too
+            // (a pitched ramp's support sampled in steps over 0.4 m where the bank fell away beside it).
+            const int treads = 7;
+            for (int k = 0; k < treads; k++)
+            {
+                var top = deck - rise * (k + 1) / treads;
+                var run = rampRun / treads;
+                Add(parts, KitPiece.Platform, KitMaterial.Wood, new Vector3(0f, (top - 0.6f) * 0.5f, -run * (k + 0.5f)), new Vector3(W * 0.8f, top + 0.6f, run + 0.02f), 0f, false);
+                Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3(0f, top + 0.02f, -run * k - 0.04f), new Vector3(W * 0.82f, 0.05f, 0.08f), 0f, false);
+            }
+
+            // The houses: one storey of House turned to face its walkway, on a plank floor and piles.
+            for (int i = 0; i < homes.Count; i++)
+            {
+                var (box, yaw) = homes[i];
+                var h = houses[i];
+                var at = new Vector3(h.x, deck, h.y);
+                var turn = Quaternion.Euler(0f, yaw, 0f);
+                foreach (var p in House(Scramble(seed + 977u * (uint)(i + 1)), t, h.z, h.w, 1, 0f))
+                {
+                    var q = p;
+                    q.Centre = at + turn * p.Centre;
+                    q.Rotation = turn * p.Rotation;
+                    parts.Add(q);
+                }
+                Platform(parts, new Vector3(h.x, 0f, h.y), yaw, h.z + 0.6f, h.w + 0.4f, deck, false);
+                foreach (var sx in new[] { -1f, 1f })
+                    foreach (var sz in new[] { -1f, 1f })
+                        Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(h.x + sx * h.z * 0.45f, deck - 3.3f, h.y + sz * h.w * 0.45f), new Vector3(0.3f, 6f, 0.3f), 0f, false);
+                // A lamp by the door, lit at dusk.
+                var side = rng.Next(2) == 0 ? -1f : 1f;
+                Add(parts, KitPiece.Window, KitMaterial.Lamp, at + turn * new Vector3(side * 1.25f, 2f, h.w * 0.5f + 0.18f), new Vector3(0.24f, 0.32f, 0.24f), yaw, false);
+            }
+
+            // Rails: walked in 0.5 m steps round every walkway edge; a step gets rail unless it opens onto another
+            // walkway (a join), a house front, the ramp or the ladder gap.
+            var ladder = -1;
+            var runs = new List<(Vector3 a, Vector3 b, float yaw)>();
+            foreach (var wk in walks)
+            {
+                var edges = new[]
+                {
+                    (new Vector2(wk.x, wk.y), new Vector2(wk.z, wk.y), new Vector2(0f, -1f)),
+                    (new Vector2(wk.x, wk.w), new Vector2(wk.z, wk.w), new Vector2(0f, 1f)),
+                    (new Vector2(wk.x, wk.y), new Vector2(wk.x, wk.w), new Vector2(-1f, 0f)),
+                    (new Vector2(wk.z, wk.y), new Vector2(wk.z, wk.w), new Vector2(1f, 0f)),
+                };
+                foreach (var (e0, e1, n) in edges)
+                {
+                    var steps = Mathf.Max(1, Mathf.RoundToInt((e1 - e0).magnitude / 0.5f));
+                    var start = -1;
+                    for (int k = 0; k <= steps; k++)
+                    {
+                        var open = k == steps;
+                        if (!open)
+                        {
+                            var p = Vector2.Lerp(e0, e1, (k + 0.5f) / steps) + n * 0.1f;
+                            if (p.y < 0.05f)
+                                open = true;    // the land end: the ramp comes up here
+                            foreach (var o in walks)
+                                open |= p.x > o.x && p.x < o.z && p.y > o.y && p.y < o.w;
+                            foreach (var hm in homes)
+                                open |= p.x > hm.box.x - 0.5f && p.x < hm.box.z + 0.5f && p.y > hm.box.y - 0.5f && p.y < hm.box.w + 0.5f;
+                        }
+                        if (!open && start < 0)
+                            start = k;
+                        if (open && start >= 0)
+                        {
+                            var a = Vector2.Lerp(e0, e1, (float)start / steps) - n * 0.12f;
+                            var b = Vector2.Lerp(e0, e1, (float)k / steps) - n * 0.12f;
+                            runs.Add((new Vector3(a.x, 0f, a.y), new Vector3(b.x, 0f, b.y), n.y != 0f ? 90f : 0f));
+                            start = -1;
+                        }
+                    }
+                }
+            }
+            // The ladder takes the middle of the longest seaward-facing run, so it goes down to deep water.
+            for (int i = 0; i < runs.Count; i++)
+                if ((runs[i].b - runs[i].a).magnitude > 3f && (ladder < 0 || runs[i].a.z > runs[ladder].a.z))
+                    ladder = i;
+            for (int i = 0; i < runs.Count; i++)
+            {
+                var (a, b, yaw) = runs[i];
+                var pieces = new List<(Vector3, Vector3)>();
+                if (i == ladder)
+                {
+                    var m = (a + b) * 0.5f;
+                    var dir = (b - a).normalized;
+                    pieces.Add((a, m - dir * 0.5f));
+                    pieces.Add((m + dir * 0.5f, b));
+                    // The far edge faces +Z; a side edge faces away from the main walkway.
+                    Vector3 outward;
+                    if (Mathf.Abs(dir.x) > 0.5f)
+                        outward = new Vector3(0f, 0f, m.z >= length ? 1f : -1f);
+                    else
+                        outward = new Vector3(Mathf.Sign(m.x == 0f ? 1f : m.x), 0f, 0f);
+                    var foot = m + outward * 0.2f;
+                    foreach (var s in new[] { -0.3f, 0.3f })
+                        Add(parts, KitPiece.Trim, KitMaterial.Wood, foot + dir * s + Vector3.up * (deck - 0.9f), new Vector3(0.08f, deck + 2.6f, 0.08f), 0f, false);
+                    for (var y = deck - 0.25f; y > -1.6f; y -= 0.35f)
+                        Add(parts, KitPiece.Trim, KitMaterial.Wood, foot + Vector3.up * y, Mathf.Abs(dir.x) > 0.5f ? new Vector3(0.6f, 0.05f, 0.05f) : new Vector3(0.05f, 0.05f, 0.6f), 0f, false);
+                }
+                else
+                    pieces.Add((a, b));
+                foreach (var (p0, p1) in pieces)
+                {
+                    var len = (p1 - p0).magnitude;
+                    if (len < 0.3f)
+                        continue;
+                    var c = (p0 + p1) * 0.5f;
+                    for (int k = 0, posts = Mathf.Max(2, Mathf.RoundToInt(len / 2f) + 1); k < posts; k++)
+                        Add(parts, KitPiece.Rail, KitMaterial.Wood, Vector3.Lerp(p0, p1, (float)k / (posts - 1)) + Vector3.up * (deck + 0.5f), new Vector3(0.12f, 1f, 0.12f), yaw, false);
+                    Add(parts, KitPiece.Rail, KitMaterial.Wood, c + Vector3.up * (deck + 0.95f), new Vector3(0.1f, 0.1f, len), yaw, false);
+                    // Now and then a net hung over the rail to dry.
+                    if (len > 2.5f && R() < 0.35f)
+                        Add(parts, KitPiece.Trim, KitMaterial.Net, c + Vector3.up * (deck + 0.62f), new Vector3(0.04f, 0.7f, Mathf.Min(len - 0.6f, 1.4f + R() * 1.4f)), yaw, false, 0f, (R() - 0.5f) * 8f);
+                }
+            }
+
+            // Lantern posts at each join with the main walkway, on the corner away from the houses.
+            for (int bi = 1; bi < walks.Count; bi++)
+            {
+                var br = walks[bi];
+                var zb = (br.y + br.w) * 0.5f;
+                var sx = br.x < -half - 0.1f ? -1f : 1f;
+                var corner = new Vector3(sx * (half + 0.3f), deck, bi == 1 ? zb + half - 0.3f : zb - half + 0.3f);
+                Detail(parts, CoastDetail.Lantern, corner, sx < 0f ? 180f : 0f, rng, t);
+                // and one at the branch's far tip
+                var tip = new Vector3(sx < 0f ? br.x + 0.3f : br.z - 0.3f, deck, zb + (R() < 0.5f ? -1f : 1f) * (half - 0.3f));
+                if (R() < 0.6f)
+                    Detail(parts, CoastDetail.Lantern, tip, sx < 0f ? 0f : 180f, rng, t);
+            }
+
+            // Skiffs tied alongside the branches' open edges, riding at the water, a bollard on the deck by each.
+            for (int bi = 1, tied = 0; bi < walks.Count && tied < 2; bi++)
+            {
+                if (R() < 0.3f)
+                    continue;
+                var br = walks[bi];
+                var zb = (br.y + br.w) * 0.5f;
+                var sz = R() < 0.5f ? -1f : 1f;
+                var x = Mathf.Lerp(br.x + 2f, br.z - 2f, R());
+                var boat = new Vector3(x, -0.6f, zb + sz * (half + 1.1f));
+                var free = Mathf.Abs(x) > half + 1.6f;
+                foreach (var hm in homes)
+                    free &= !(boat.x > hm.box.x - 2f && boat.x < hm.box.z + 2f && boat.z > hm.box.y - 1.5f && boat.z < hm.box.w + 1.5f);
+                if (!free || boat.z < 3f)
+                    continue;
+                Detail(parts, CoastDetail.Boat, boat, 90f, rng, t);
+                Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3(x, deck + 0.2f, zb + sz * (half - 0.25f)), new Vector3(0.22f, 0.4f, 0.22f), 0f, false);
+                tied++;
+            }
+            // Crab pots stacked at the far end of the main walkway's left edge, clear of the walk lane.
+            if (R() < 0.7f)
+                Detail(parts, CoastDetail.CrabPots, new Vector3(-half + 0.42f, deck, 2f + R() * Mathf.Max(0.5f, (branches >= 2 ? mid : length) - half - 4.5f)), 270f, rng, t);
             return parts;
         }
 

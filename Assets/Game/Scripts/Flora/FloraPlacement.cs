@@ -237,7 +237,7 @@ namespace Punchy.Flora
                     Dirt = FloraGenerator.Founded(s.Form) ? 1 : 0,
                     // Docks (#36) face the landmark's way too: a fishing village faces open water, so they run out to sea.
                     // A sea folk pier (#37) faces its landing's way too, but sits on its bank as placed: DockShore seats on the sea.
-                    FaceLandmark = s.Form == FloraForm.HiveTree || s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? 1 : s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Dock ? 2 : 0,
+                    FaceLandmark = s.Form == FloraForm.HiveTree || s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? 1 : s.Form == FloraForm.KitBuilding && (s.KitShape == Punchy.Terrain.KitShape.Dock || s.KitShape == Punchy.Terrain.KitShape.Wharf) ? 2 : 0,
                     ShoreKit = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Shore ? 1 : 0,
                     House = s.Form == FloraForm.KitBuilding && (s.KitShape == Punchy.Terrain.KitShape.House || s.KitShape == Punchy.Terrain.KitShape.StiltHouse) ? 1 : 0,
                     PierReach = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? s.Height.y : 0f,

@@ -3007,6 +3007,7 @@ namespace Punchy.Flora
             // #36: fishing villages' shapes. Their draws come after the house's own, so every existing kit building is the same.
             var shape = ruined ? Punchy.Terrain.KitShape.House : s.KitShape;
             var lift = 0f;
+            var wharfHouses = new System.Collections.Generic.List<Vector4>();
             System.Collections.Generic.List<Punchy.Terrain.KitPart> parts;
             switch (shape)
             {
@@ -3040,6 +3041,10 @@ namespace Punchy.Flora
                     break;
                 case Punchy.Terrain.KitShape.Reef:      // #37: lake-bed details
                     parts = Punchy.Terrain.StructureKit.Reef(seed, trim, 3f);
+                    break;
+                case Punchy.Terrain.KitShape.Wharf:     // W-65: walkways and houses over the water, laid out by the seed
+                    storeys = 1;
+                    parts = Punchy.Terrain.StructureKit.Wharf(seed, trim, 1.0f, wharfHouses);
                     break;
                 default:
                     parts = Punchy.Terrain.StructureKit.House(seed, trim, width, depth, storeys, ruined ? g.Range(0.45f, 0.9f) : 0f);
@@ -3086,7 +3091,18 @@ namespace Punchy.Flora
                         // A wall's circle is set back so its outer edge sits on the wall's outer face: centred on the wall
                         // it bulged ~1.2 m out over the door step and any outside stair (W-58b walk test).
                         var at = new Vector2(p.Centre.x, p.Centre.z);
-                        if (p.Piece == Punchy.Terrain.KitPiece.Wall)
+                        if (p.Piece == Punchy.Terrain.KitPiece.Wall && wharfHouses.Count > 0)
+                        {
+                            // W-65: a wharf's houses stand off the origin; set each wall back from its own house's centre.
+                            var home = wharfHouses[0];
+                            foreach (var h in wharfHouses)
+                                if ((new Vector2(h.x, h.y) - at).sqrMagnitude < (new Vector2(home.x, home.y) - at).sqrMagnitude)
+                                    home = h;
+                            var local = at - new Vector2(home.x, home.y);
+                            var outward = Mathf.Abs(local.x) / home.z > Mathf.Abs(local.y) / home.w ? new Vector2(Mathf.Sign(local.x), 0f) : new Vector2(0f, Mathf.Sign(local.y));
+                            at -= outward * Mathf.Max(0f, r - Punchy.Terrain.StructureKit.Thick * 0.5f);
+                        }
+                        else if (p.Piece == Punchy.Terrain.KitPiece.Wall)
                         {
                             var outward = Mathf.Abs(at.x) / width > Mathf.Abs(at.y) / depth ? new Vector2(Mathf.Sign(at.x), 0f) : new Vector2(0f, Mathf.Sign(at.y));
                             at -= outward * Mathf.Max(0f, r - Punchy.Terrain.StructureKit.Thick * 0.5f);
@@ -3107,12 +3123,14 @@ namespace Punchy.Flora
                             inner = Mathf.Min(inner, p.Centre.z - 0.4f);
                 g.Colliders.Add(new Vector4(0f, 0f, inner, eaves));
             }
+            foreach (var h in wharfHouses)  // W-65: one inside cylinder per house on the wharf, up to its eaves
+                g.Colliders.Add(new Vector4(h.x, h.y, Mathf.Min(h.z, h.w) * 0.45f, 1.0f + trim.Storey));
             if (perch.y > 1f)
                 g.Perches.Add(perch);
             b.Recolor(first, (p, c) => p.y < 0.5f ? c * 0.82f : c);   // darker footing
             b.Occlude(first, (p, n) => GroundOcclusion(p, Mathf.Min(top, 4f) * 0.5f));
             g.Height = top;
-            g.Width = Mathf.Max(width, depth) * 1.4f;
+            g.Width = shape == Punchy.Terrain.KitShape.Wharf ? 30f : Mathf.Max(width, depth) * 1.4f;
             // (A dock or a shore cluster is walked on and round, not a trunk to bump into.)
             g.TrunkRadius = house ? Mathf.Max(width, depth) * 0.55f : 0f;
         }
