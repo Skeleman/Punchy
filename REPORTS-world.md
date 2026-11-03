@@ -2,6 +2,18 @@
 
 Newest first.
 
+## W-65b (2026-11-03) world-features 563796f
+
+- Row 1 (#36) DONE: wharf variant now follows the village (rank + scrambled offset). Editor sim: 4 distinct layouts (house sets differ, v2 has 2 houses), doors 3/3, 3/3, 2/2, 3/3 = 11/11 reached.
+- Row 2 (#38) PARTLY: hidden 1 m snow block behind the door; PorchSeat max turn 60 -> 30 deg. Editor sim: 4/5 stop before the door (3 at the tunnel mouth, head 1.7 vs roof ~1.65), 1/5 (igloo 361.9,45.7) walks to the middle in the sim; the player walk at that igloo stops 3.4 m from the middle (inside the tunnel, at the door). Paths 3/3 PASS. Shot igloo_door_walk_b shows the hidden block visible as a translucent ice box in the tunnel: needs a fix (non-rendering material or set it deeper).
+- Row 3 NOT VERIFIED: stepping stones on a Narrows are now one row model (11-12 stones over 12 m, tops 4-12 cm over water, ends on/near bank). Player walk at the old W-63 crossing (-3098,3118 -> -3119,3140) crossed, but the shot shows no row there; a placed row's location was not found within budget.
+- Row 4: one build Succeeded, errors 0; 9-shot list, quit by itself (115 s). Wharf walk shot stopped on the shore after 10 s (shot fired at the first -wait, walk too short) - not a pass. Cattails/driftwood shots taken at W-63 spots, framing not re-checked (driftwood view blocked by leaves).
+- Row 5 DONE: docs/agents/world.md section added, committed.
+- Hashes (editor): v2 136 / 4E61F1CF, caves C49E8E3036C741FC unchanged. Not measured: player landmark hash, v1, ground, rivers (no terrain/river code touched).
+- Shots: D:/PunchyMilestones/W-65b (w65b_wharf_door_walk_end, w65b_igloo_door_walk_a/b, w65b_stones_walk_end, w65b_river_cattails, w65b_river_driftwood, w65b_stones). No Punchy.exe of mine running.
+- Left: hide the igloo door block; find a placed stone row and walk it; re-shoot wharf walk with a longer wait; reframe river shots.
+
+
 ## W-65 (2026-11-03) world-features c39bc42 (#36)
 
 - Row 1, layout per village (FishWharf, prop 0 of FishingVillage; local z = seaward): v0 -3285,-1644: main to z 24, joins at z 22 (T), 16, mid-left branch; 3 houses. v1 -2940,-1427: main to z 21, L at z 19 (x -14..1), mid branch z ~5 (x -8..9); 3 houses. v2 -2898,-2136: same seed layout as v0 (3 houses). v3 -2350,-2124: main to z 24, T at z 16 (x -8..5), short tip z 23; 2 houses. Solid bed under all decks; one shore end per village, now flat treads (pitched ramp's support stepped > 0.4 m on v1's low bank).
