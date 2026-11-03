@@ -6,7 +6,7 @@ Updated 2026-11-03. The supervisor re-checks `gh issue list` and BENCH-REPORTS w
 
 ## Closed 2026-11-02 with Zach's OK
 #3 #7 #9 #13 #15 #16 #17 #18 #19 #23 #29 #30 #32 #34 #41 #42 #43 #47 #48 #49 #50
-Closed 2026-11-03 with Zach's OK: #11 #45
+Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 
 ## Resolved, waiting for Zach's OK
 (none)
@@ -24,8 +24,8 @@ Closed 2026-11-03 with Zach's OK: #11 #45
 ## Open -> card
 | Issue | Title | Card |
 |---|---|---|
-| #54 | Camera cave arm sphere-trace managed (v2 cave +1.9 ms) | A-45 first. W-48 had a Burst probe (6abc0d8, ArmProbe IJob); PR #66 kept main's managed CaveArm, so reuse that pattern. Ties to BENCH-QUEUE item 11 |
-| #55 #56 #57 | Creature perf | A-45 (animal perf) |
+
+| #57 | Creature perf | A-45 (animal perf) |
 | #58-#64 | ECS code-health review | A-45/A-47 after perf |
 | #68 | Character selection tab: class -> species -> colour | A-46 (animal lane owns the player's body) |
 | #69 #70 #71 #72 | Zach playtest: hermit shelters, wasteland rock collision, great mushroom, biome campgrounds | W-57 (after W-56) |
