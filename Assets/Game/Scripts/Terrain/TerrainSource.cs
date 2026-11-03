@@ -872,9 +872,30 @@ namespace Punchy.Terrain
             return false;
         }
 
+        /// <summary>The sunken temple (W-32, SunkenTempleShape) whose mound or rooms reach a point, if any.</summary>
+        public bool Temple(float2 xz, out SunkenTempleLayout temple)
+        {
+            temple = default;
+            if (!Landmarks.IsCreated)
+                return false;
+            ref var set = ref Landmarks.Value;
+            var range = LandmarkSampling.CellRange(ref set, xz);
+            for (int k = range.x; k < range.x + range.y; k++)
+            {
+                var inst = set.Instances[set.Items[k]];
+                if (set.Types[inst.Type].Temple != 0 && math.distancesq(inst.Position, xz) < SunkenTempleShape.Reach * SunkenTempleShape.Reach)
+                {
+                    temple = SunkenTempleShape.Layout(inst);
+                    return true;
+                }
+            }
+            return false;
+        }
+
         /// <summary>Whether the tower's body or a step too high to step onto stands where a body at p would be (W-27).</summary>
         public bool TowerWall(float3 p, float stepUp, float head) =>
             Tower(p.xz, out var tower, out var height) && SaltTowerShape.Wall(SaltTowerShape.Layout(tower, height), p, stepUp, head)
+            || Temple(p.xz, out var temple) && SunkenTempleShape.Wall(temple, p, stepUp, head)
             || Icebergs.IsCreated && IcebergShape.Wall(ref Icebergs.Value, World.SeaLevel, p, stepUp, head);
 
         /// <summary>A bridge deck under a point that's on or just below it (see SettlementSampling.Deck).</summary>
@@ -893,6 +914,12 @@ namespace Punchy.Terrain
             if (Tower(p.xz, out var tower, out var towerHeight) && SaltTowerShape.Floor(SaltTowerShape.Layout(tower, towerHeight), p, out var step) && (!onDeck || step > deck))
             {
                 deck = step;
+                onDeck = true;
+            }
+            // W-32: the sunken temple's floors, drifts and mound stand bodies the same way.
+            if (Temple(p.xz, out var temple) && SunkenTempleShape.Floor(temple, p, out var templeFloor) && (!onDeck || templeFloor > deck))
+            {
+                deck = templeFloor;
                 onDeck = true;
             }
             return onDeck;
@@ -922,6 +949,8 @@ namespace Punchy.Terrain
         public float FloorUnder(float3 p, out bool inCave)
         {
             inCave = false;
+            if (Temple(p.xz, out var temple) && SunkenTempleShape.Floor(temple, p, out var templeFloor))
+                return math.max(templeFloor, SampleHeight(p.xz));
             if (Tower(p.xz, out var tower, out var towerHeight) && SaltTowerShape.Floor(SaltTowerShape.Layout(tower, towerHeight), p, out var step))
                 return math.max(step, SampleHeight(p.xz));
             if (Deck(p, out var deck))

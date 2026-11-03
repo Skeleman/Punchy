@@ -169,6 +169,8 @@ namespace Punchy.Terrain
         public bool OnePerIsland;
         [Tooltip("A climbable basalt tower this tall (m, +-10% per island), with a spiral of steps round it (SaltTowerShape). 0: none.")]
         [Min(0f)] public float TowerHeight;
+        [Tooltip("W-32: a one-per-island sunken temple (SunkenTempleShape) instead of a tower")]
+        public bool Temple;
 
         [Header("Water")]
         public List<LandmarkPool> Pools = new List<LandmarkPool>();
