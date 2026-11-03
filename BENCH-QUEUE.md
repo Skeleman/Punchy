@@ -46,5 +46,8 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
     island at the cave stop. Name the top 5 main-thread and GPU costs inside a cave with ms each. Earlier leads:
     camera LateUpdate +1.8 ms on v2 (main now uses the sphere-trace CaveArm; `-perflog` prints probe calls/ms),
     CreatureRenderSystem 10.5 ms main thread at the v2 cave stop (item 6), and per-chunk cave timing (item 15).
-    Say which lane owns each cost (world: caves/camera/cave cull; animal: creatures). No edits. Pass target:
-    cave 1% low within 1.3x of open ground on the same build.
+    Say which lane owns each cost (world: caves/camera/cave cull; animal: creatures). No edits. Pass target
+    (Zach 2026-11-03: "I would expect that caves run faster than open ground. They have much more limited scope."):
+    cave fps and 1% low BETTER than open ground on the same build. So also list what still runs or draws inside a
+    cave that the player can't see or reach: surface terrain chunks, grass/flora, sky/weather, water, far creatures,
+    shadow cascades, settlements. Give the ms each would save if culled underground.
