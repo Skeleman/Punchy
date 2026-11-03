@@ -130,6 +130,8 @@ namespace Punchy.Terrain
         public BlobAssetReference<BatFolkSetBlob> BatFolk;
         /// <summary>Icebergs off the cold coasts (W-28, baked last, scenery with its own seed stream) and the one berg's ice cave.</summary>
         public BlobAssetReference<IcebergSetBlob> Icebergs;
+        /// <summary>The grand falls (W-29, v2 only, baked after every place): a stepped mountain stream into the central lake.</summary>
+        public BlobAssetReference<GrandFallsBlob> GrandFalls;
         /// <summary>Set when every place is baked: biome ponds are dug only after that, so they never move a landmark, road, cave or anchor.</summary>
         public bool PondsOn;
         /// <summary>
@@ -586,6 +588,8 @@ namespace Punchy.Terrain
                 h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz), RiverSettings, h);
             if (Landmarks.IsCreated)
                 h = LandmarkSampling.Shape(ref Landmarks.Value, xz, h);
+            if (GrandFalls.IsCreated)
+                h = Punchy.Terrain.GrandFalls.Shape(ref GrandFalls.Value, xz, h, out _, out _, out _, out _);
             return Settle(xz, Ponds(xz, shape, h));
         }
 
@@ -704,6 +708,19 @@ namespace Punchy.Terrain
                         g.Rapids = 0f;
                     }
                     ruleDepth = math.max(ruleDepth, math.lerp(farAbove, pool - g.Height, claim));
+                }
+            }
+            // The grand falls' channel, gorge and pools, with their own stepped water (W-29).
+            if (GrandFalls.IsCreated && !UsesHeightmap)
+            {
+                g.Height = Punchy.Terrain.GrandFalls.Shape(ref GrandFalls.Value, xz, g.Height, out var fallWater, out var fallFlow, out var fallRapids, out var fallMask);
+                g.River = math.max(g.River, fallMask);
+                if (fallWater > GroundSample.NoWater * 0.5f && fallWater >= water - 0.01f)
+                {
+                    water = fallWater;
+                    flow = fallFlow;
+                    g.Rapids = fallRapids;
+                    ruleDepth = math.max(ruleDepth, fallWater - g.Height);
                 }
             }
             // Biome ponds (a swamp's pools): water was decided above from the ground without them, so a pond is wet only
@@ -1016,6 +1033,6 @@ namespace Punchy.Terrain
         public bool Equals(TerrainSource o) =>
             World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
-            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && Anchors == o.Anchors && PondMask == o.PondMask;
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Anchors == o.Anchors && PondMask == o.PondMask;
     }
 }
