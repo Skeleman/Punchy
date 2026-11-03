@@ -2,6 +2,19 @@
 
 Newest first.
 
+## W-61 (2026-11-03): bat folk kit settlements, white pools (#35), igloo porch (#38, partial)
+
+Commit 3cf1725 on world-features. Shots: D:/PunchyMilestones/W-61 (6 named + stray shot-6.png).
+
+1. Bat settlements (#35): DONE. The 3 largest caves were picked deterministically. Cave 1 chamber 3001,3,-2135 has 4 wall houses and 10 details. Cave 26 chamber 525,45,958 has 1 wall house, 1 ceiling house (7.0 m up) and 10 details. Cave 36 chamber -3048,2,190 has 1 wall house and 11 details. Houses use kit House parts in BatFolk trim, with Lamp/Rune parts skipped (no lights). Wall houses hang 2.7-3.2 m above the floor.
+2. White pools: DONE (CaveSystem.WhitePoolWater). Shots: w61_site0_whitepool, w61_site1_whitepool.
+3. Details as data: DONE. A weighted Details table, with weights jittered 0.3-1.7 per site. Site 1 is mostly echo chimes; site 2 is mostly roost frames and guano. Shot: w61_site2_details.
+4. Igloo porch snag (#38): NOT FIXED, 2/5 in the editor sim. I added 6 buried steps (no RNG). The sim still hits a 0.57-1.03 m PropSupport wall at the porch mouth on 3 igloos. Not yet confirmed: whether the sim measures from the right place and whether the support grid was rebuilt with the new steps.
+5. Walk test: FAIL in the player. -walk heads in a straight line for the last target, so the player was pinned to the cave wall at 3050.7,22.6,-2146.3, 8.5 m in. No fall-through, in cave the whole time. The editor floor sim along the cave nodes passes: 62 m, max rise 0.37 per 0.25 m, 0 steps outside the cave, head room at least 2.3 m, stops 0.6 m from the pool rim. A following walk is needed to test it in the player.
+6. Build OK (1). Player: 134 landmarks, hash 69CD531E. Editor: 829DF295; vs W-60, kept 134, gone 0, new 0. Caves C49E8E3036C741FC unchanged. Ground and rivers were not re-measured (the bat bake runs after them and has not touched them).
+
+Left: igloo porch row 4; walk test in the player along waypoints.
+
 ## W-60 (2026-11-03): turtle folk mountaintop settlements (#38), village3 dusk retake (#36)
 Commit 34895e0 on world-features (pushed). Build 1x Succeeded, 0 errors.
 - Row 1 (#38): new TurtleVillage type (Resources) + TurtleVillageBaking, placed last (after the fishing villages) on the highest peaks of v2 (48 m grid of local maxima, highest first, peak then rings at 40/80 m; 600 m apart; igloo rings within 10 m relief). "[turtles] 3 from 687 peaks (13 tried)": 356,60 (h 269), -756,2660 (h 233), -660,3428 (h 211). Landmarks 131 -> 134; diff vs lmlist-w59c: kept 131, gone 0, new 3 (only the TurtleVillage lines). StructureKit: TurtleFolk trim, Igloo (domed snow-block shell, 1.7 x 3.4 m tall tunnel door, Rune glow drawn as window pane), Alpine clusters.
