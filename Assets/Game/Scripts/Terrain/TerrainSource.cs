@@ -132,6 +132,8 @@ namespace Punchy.Terrain
         public BlobAssetReference<IcebergSetBlob> Icebergs;
         /// <summary>The grand falls (W-29, v2 only, baked after every place): a stepped mountain stream into the central lake.</summary>
         public BlobAssetReference<GrandFallsBlob> GrandFalls;
+        /// <summary>The archipelago off the dune coast (W-30, v2 only, baked after every place): islets raised out of the sea floor.</summary>
+        public BlobAssetReference<ArchipelagoBlob> Archipelago;
         /// <summary>Set when every place is baked: biome ponds are dug only after that, so they never move a landmark, road, cave or anchor.</summary>
         public bool PondsOn;
         /// <summary>
@@ -178,6 +180,8 @@ namespace Punchy.Terrain
                 surface = BiomeSampling.SampleMap(ref BiomeMap.Value, xz);
                 shape = BiomeSampling.SampleMapBlurred(ref BiomeMap.Value, xz, BiomeNoise.ShapeBlendDistance * 0.5f);
                 surface = HighlandSurface(xz, surface, shape);
+                if (Archipelago.IsCreated)
+                    surface = Punchy.Terrain.Archipelago.Surface(ref Archipelago.Value, xz, surface);
                 return;
             }
 
@@ -584,6 +588,8 @@ namespace Punchy.Terrain
             }
             SampleBiomes(xz, out _, out var shape);
             var h = ShapeHeight(xz, shape);
+            if (Archipelago.IsCreated)
+                h = Punchy.Terrain.Archipelago.Shape(ref Archipelago.Value, xz, h);
             if (Rivers.IsCreated)
                 h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz), RiverSettings, h);
             if (Landmarks.IsCreated)
@@ -608,6 +614,9 @@ namespace Punchy.Terrain
                 Biomes = surface,
                 Height = UsesHeightmap ? Heightmap.Value.Sample(xz) : ShapeHeight(xz, shape)
             };
+            // The archipelago's islets (W-30) first, so the sea and every rule below see them as ground.
+            if (Archipelago.IsCreated && !UsesHeightmap)
+                g.Height = Punchy.Terrain.Archipelago.Shape(ref Archipelago.Value, xz, g.Height);
 
             // Each water body only claims the area around it, so inland ground far from water has no surface at
             // all (rather than an invisible sea far below), and water meshes don't grow stray sheets.
@@ -1040,6 +1049,6 @@ namespace Punchy.Terrain
         public bool Equals(TerrainSource o) =>
             World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
-            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Anchors == o.Anchors && PondMask == o.PondMask;
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Anchors == o.Anchors && PondMask == o.PondMask;
     }
 }

@@ -1191,9 +1191,32 @@ namespace Punchy.Debugging
         /// <summary>How long that settling takes: the world's first build, or (a later shot) the nearby chunks after a move.</summary>
         float settle = 5f;
 
+        // W-30: render counters, logged with each shot of a shot list.
+        static Unity.Profiling.ProfilerRecorder drawCalls, batches, tris;
+        static BlobAssetReference<ArchipelagoBlob> archipelagoKept;
+
         void ApplyOptions(string[] args)
         {
             optionsAt = Time.timeSinceLevelLoad;
+            if (!drawCalls.Valid)
+            {
+                drawCalls = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Draw Calls Count");
+                batches = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Batches Count");
+                tris = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Triangles Count");
+            }
+            // W-30: "-archipelago off|on" takes the archipelago out of the terrain or puts it back (before/after numbers from one build).
+            var archArg = System.Array.IndexOf(args, "-archipelago");
+            if (archArg >= 0 && archArg + 1 < args.Length)
+            {
+                EnsureLocations(out _);
+                if (queryWorld != null && queryWorld.IsCreated && terrainQuery.TryGetSingleton<TerrainSource>(out var archSource))
+                {
+                    if (archSource.Archipelago.IsCreated)
+                        archipelagoKept = archSource.Archipelago;
+                    archSource.Archipelago = args[archArg + 1] == "off" ? default : archipelagoKept;
+                    queryWorld.EntityManager.SetComponentData(terrainQuery.GetSingletonEntity(), archSource);
+                }
+            }
             // "-incave": on the floor of the nearest cave's deepest chamber (after any -place).
             var inCave = System.Array.IndexOf(args, "-incave") >= 0;
             footDrift = System.Array.IndexOf(args, "-footdrift") >= 0;
@@ -2012,7 +2035,8 @@ namespace Punchy.Debugging
             if (caves != null && !caves.Settled && Time.realtimeSinceStartup - shotStarted < shotWait + 10f)
                 return;
             Shot((Arg("-shot") ?? $"shot-{shotIndex}") + ".png");
-            Debug.Log($"DebugControls: shot {shotIndex + 1}/{shotLines.Count} '{Arg("-shot")}' after {Time.realtimeSinceStartup - shotStarted:F1} s");
+            Debug.Log($"DebugControls: shot {shotIndex + 1}/{shotLines.Count} '{Arg("-shot")}' after {Time.realtimeSinceStartup - shotStarted:F1} s" +
+                      (drawCalls.Valid ? $", {drawCalls.LastValue} draw calls, {batches.LastValue} batches, {tris.LastValue / 1000} k tris" : ""));
             shotIndex++;
             shotStarted = -1f;
         }
