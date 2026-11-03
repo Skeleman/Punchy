@@ -1507,6 +1507,8 @@ namespace Punchy.Debugging
             // "-nocavewalls" (no cave walls drawn, to price them), "-perflog" (frame costs over the last 3 s of the wait).
             CaveSystem.NoRoomCull = ThirdPersonCamera.OldProbe = System.Array.IndexOf(args, "-oldcave") >= 0;
             CaveSystem.NoWalls = System.Array.IndexOf(args, "-nocavewalls") >= 0;
+            // "-oldtrace" (#81): TraceSystem's managed per-creature ground lookups, as before W-66.
+            Punchy.Fauna.TraceSystem.OldTrace = System.Array.IndexOf(args, "-oldtrace") >= 0;
             perfLog = System.Array.IndexOf(args, "-perflog") >= 0;
             CaveSystem.CountStats = ThirdPersonCamera.ProbeStats = perfLog;
             // "-goflat" (A-13 #46): to the nearest dry spot whose ground height spread over a 30 m circle is under 0.5 m

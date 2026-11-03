@@ -148,8 +148,8 @@ namespace Punchy.Fauna
             grounds.Dispose();
         }
 
-        /// <summary>A/B switch for #81: -oldtrace on the command line keeps the per-creature managed ground lookups.</summary>
-        static readonly bool OldTrace = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-oldtrace") >= 0;
+        /// <summary>A/B switch for #81: "-oldtrace" on a shot line (DebugControls) keeps the per-creature managed ground lookups.</summary>
+        public static bool OldTrace;
 
         /// <summary>
         /// Each in-range creature's ground, in Burst: whether the surface is there to mark (NoSurface) and, for the
