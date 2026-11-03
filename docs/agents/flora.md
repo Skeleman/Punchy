@@ -11,3 +11,6 @@ Read before changing plant species, rocks, props or flora forms.
 - Flora with **Aquatic** grows only where the water depth is within `WaterDepth`. **Floats** puts it on the
   surface (the LilyPad form); otherwise it rises from the bed (Reeds). Floating plants avoid currents.
   `MinRapids` limits a species to white water (RiverRock).
+- Player collision with flora is upright cylinders pushed out on xz only (PlayerMovementSystem). A leaning shape
+  (ArcSpire prongs) is a stack of short slices, `FloraModel.ColliderBase` giving each slice's start height; those
+  plants only count within `ShardCollisionRange` (14 m) of the player.

@@ -1321,6 +1321,9 @@ namespace Punchy.Debugging
             // "-meteors": every night a meteor shower (Sky.hlsl's test switch), for checking shooting stars against clouds (Z-09).
             if (System.Array.IndexOf(args, "-meteors") >= 0)
                 Shader.SetGlobalFloat("_PunchySkyTest", 1f);
+            // "-redstar": one red-orange shooting star held mid-flight high in the east, for shots (W-42).
+            if (System.Array.IndexOf(args, "-redstar") >= 0)
+                Shader.SetGlobalFloat("_PunchySkyTest", 2f);
             if (System.Array.IndexOf(args, "-nohud") >= 0)
             {
                 ShowReadout = false;

@@ -476,11 +476,26 @@ half PunchyCirrus(float3 dir)
 float PunchyHash1(float x) { return frac(sin(x * 12.9898) * 43758.5453); }
 
 // Shooting stars: the night is cut into 6 s slots on the shared clock, and in a slot a streak may cross the sky (about
-// one slot in 170, about 0.06 a night minute; on a meteor shower night up to four in nearly every slot). Where it starts, which way it falls,
-// how long and how fast all come from a hash of its slot, so every player sees the same ones. The shower comes once a
-// lunar cycle, a couple of nights after the full moon (the moon's phase is shared too).
+// one slot in 3300, about 0.003 a night minute, W-42 cut it to 1/20; on a meteor shower night up to four a slot, each at
+// 0.045, about 1.8 a minute). About one in six burns warm red-orange. Where it starts, which way it falls, how long, how
+// fast and its colour all come from a hash of its slot, so every player sees the same ones. The shower comes once a
+// lunar cycle, a couple of nights after the full moon (the moon's phase is shared too). _PunchySkyTest 1 makes every
+// night a shower (-meteors); 2 (-redstar) holds one red-orange streak mid-flight high in the east, for shots.
 half3 PunchyShootingStars(float3 dir)
 {
+    if (_PunchySkyTest > 1.5)
+    {
+        float3 fa = normalize(float3(1, 0.75, 0.15));
+        float3 fr = normalize(cross(float3(0, 1, 0), fa));
+        float3 fu = cross(fa, fr);
+        float2 fw = normalize(float2(0.5, -0.8));
+        float3 fv = dir - fa * dot(dir, fa);
+        float2 fq = float2(dot(fv, fr), dot(fv, fu));
+        float fAlong = dot(fq, fw);
+        float fAcross = abs(fq.x * fw.y - fq.y * fw.x);
+        half fTrail = saturate(1 - (0.15 - fAlong) / 0.1) * step(fAlong, 0.15) * step(0.05, fAlong);
+        return half3(1.0, 0.42, 0.15) * fTrail * fTrail * (1 - smoothstep(0.0005, 0.0015, fAcross)) * step(0.85, dot(dir, fa)) * 6;
+    }
     half shower = max(1 - smoothstep(0.04, 0.06, abs(_PunchyMoonPhase.x - 0.62)), _PunchySkyTest);
     const float slotLength = 6;
     float slot = floor(_PunchyClock / slotLength);
@@ -492,7 +507,7 @@ half3 PunchyShootingStars(float3 dir)
         if (k >= count)
             break;
         float s = fmod(slot, 4096) * 7.13 + k * 31.7;
-        if (PunchyHash1(s) > (shower > 0.5 ? 0.9 : 0.006))
+        if (PunchyHash1(s) > (shower > 0.5 ? 0.045 : 0.0003))
             continue;
         float start = PunchyHash1(s + 1.1) * (slotLength - 2.0);
         float life = lerp(0.5, 1.1, PunchyHash1(s + 2.3));
@@ -518,7 +533,8 @@ half3 PunchyShootingStars(float3 dir)
         float tail = max(len * 0.35 * (1 - smoothstep(1, 1.5, t)), 0.001);
         half trail = saturate(1 - (head - along) / tail) * step(along, head) * step(head - tail, along);
         half streak = 1 - smoothstep(0.0005, 0.0015, across);
-        sum += half3(1.0, 0.95, 0.85) * trail * trail * streak * smoothstep(0, 0.12, t) * (1 - smoothstep(0.55, 1.5, t)) * 5;
+        half3 tint = PunchyHash1(s + 8.3) < 1.0 / 6.0 ? half3(1.0, 0.42, 0.15) : half3(1.0, 0.95, 0.85);
+        sum += tint * trail * trail * streak * smoothstep(0, 0.12, t) * (1 - smoothstep(0.55, 1.5, t)) * 5;
     }
     return sum;
 }
