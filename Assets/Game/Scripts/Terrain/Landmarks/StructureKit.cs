@@ -272,6 +272,9 @@ namespace Punchy.Terrain
             var parts = new List<KitPart>();
             var rng = new System.Random((int)(Scramble(seed ^ 0xD0C4u) & 0x7FFFFFFF));
             Platform(parts, new Vector3(0f, 0f, length * 0.5f), 0f, width, length, deck, true);
+            // W-62c: the same solid bed under the planks as the sea folk pier (W-62b), so no support grid cell centre
+            // can fall in a plank gap and drop a walker to the sea bed.
+            Add(parts, KitPiece.Platform, KitMaterial.Wood, new Vector3(0f, deck - 0.17f, length * 0.5f), new Vector3(width * 0.94f, 0.1f, length), 0f, false);
             for (int k = 0, piles = Mathf.Max(2, Mathf.RoundToInt(length / 2.2f) + 1); k < piles; k++)
                 foreach (var side in new[] { -1f, 1f })
                     Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(side * width * 0.45f, -1.8f, k * length / (piles - 1)), new Vector3(0.26f, 3.6f, 0.26f), 0f, false);

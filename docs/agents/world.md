@@ -182,7 +182,10 @@ neither stamps the ground or the water.
   land end is a ramp that starts 0.4 m in the ground; on a pier it is 8 m long (about 10 degrees), because a long
   model gets coarse support-grid cells (~0.8 m) and a dock's 4.6 m ramp rose 0.5 m per cell, a step the player
   could not climb (W-62b). A solid bed sits 0.17 m under the planks: the planks' thin gaps caught three grid cell
-  centres, which read as holes and dropped a walker to the lake bed. Docks share the plank `Platform`; if a long
-  dock ever drops a walker, it is the same cause.
+  centres, which read as holes and dropped a walker to the lake bed. Fishing docks got the same bed (W-62c, #36).
+- **Clear pier end (W-62c).** A spire (`FloraRules.PierClear`) is not placed within 6.5 m x scale of any pier's far
+  end (`PierReach`, the pier species' length), so the village reads from the deck. Placement rule only: no landmark
+  moves. Probe gotcha: the support grid exists only for loaded tiles, so walk-sim a dock from its own village (a
+  walk far from the player reports `support -` everywhere and "drops" to the bed).
 - **Underwater view.** The camera and water have no underwater mode yet (#22): from below the surface you see the
   sky, no fog, tint or surface from beneath, so shots of the village look like dry land.

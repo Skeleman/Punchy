@@ -37,6 +37,11 @@ namespace Punchy.Flora
         public int FaceLandmark;
         /// <summary>1 for fishing villages' shore clutter (#36, W-59d): kept off the walk lane up each of the village's docks.</summary>
         public int ShoreKit;
+        /// <summary>W-62c (#37): for a landing pier, its deck length (m, the species' Height); 0 for everything else.</summary>
+        public float PierReach;
+        /// <summary>W-62c (#37): 1 for sea folk spires: none stands within PierEndClear of a landing pier's far end, so the
+        /// village reads from the deck (a spire stood 3.8 m off the end and filled the view).</summary>
+        public int PierClear;
         /// <summary>
         /// W-61b (#38): for igloos, how far out the porch mouth is (0 for everything else). On a settlement's slope an
         /// igloo set at its centre's ground had its porch floor up to 1 m over a dip at the mouth, or buried in a knoll;
@@ -229,6 +234,8 @@ namespace Punchy.Flora
                     // A sea folk pier (#37) faces its landing's way too, but sits on its bank as placed: DockShore seats on the sea.
                     FaceLandmark = s.Form == FloraForm.HiveTree || s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? 1 : s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Dock ? 2 : 0,
                     ShoreKit = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Shore ? 1 : 0,
+                    PierReach = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? s.Height.y : 0f,
+                    PierClear = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Spire ? 1 : 0,
                     // StructureKit.Igloo: the mouth is 0.78 of the radius plus the tunnel (2.2-3 m) plus the 0.8 m path out.
                     Porch = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Igloo ? (s.Height.x + s.Height.y) * 0.5f * s.Spread * 0.39f + 3.4f : 0f,
                     Footprint = Footprint(s),
@@ -582,6 +589,45 @@ namespace Punchy.Flora
             }
             return best;
         }
+
+        /// <summary>
+        /// W-62c (#37): how far <paramref name="xz"/> is from the far end of the nearest landing pier on the island (a
+        /// placed prop with a PierReach, standing at its spot and running PierReach along its landmark's facing).
+        /// float.MaxValue when there is none. Only spires ask, so the scan over the landmarks is rare.
+        /// </summary>
+        static float PierEndDistance(ref FloraBlob f, in TerrainSource source, float2 xz)
+        {
+            ref var set = ref source.Landmarks.Value;
+            var best = float.MaxValue;
+            for (int i = 0; i < set.Instances.Length; i++)
+            {
+                var instance = set.Instances[i];
+                if (instance.Type >= f.LandmarkTypeCount)
+                    continue;
+                var radius = set.Types[instance.Type].Radius * instance.Scale;
+                var dir = math.normalizesafe(instance.Facing, new float2(1f, 0f));
+                for (int l = 0; l < 3; l++)
+                {
+                    var placed = f.PropRanges[instance.Type * 3 + l];
+                    for (int e = placed.x; e < placed.x + placed.y; e++)
+                    {
+                        var prop = f.Props[e];
+                        var reach = f.Rules[prop.Species].PierReach;
+                        if (reach <= 0f)
+                            continue;
+                        for (int k = 0; k < prop.Count; k++)
+                        {
+                            var spot = LandmarkSampling.ToWorld(instance, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), radius);
+                            best = math.min(best, math.distance(xz, spot + dir * reach));
+                        }
+                    }
+                }
+            }
+            return best;
+        }
+
+        /// <summary>W-62c: how far a spire stays from a landing pier's far end (m, at scale 1).</summary>
+        const float PierEndClear = 6.5f;
 
         /// <summary>The dock's plank ramp run (StructureKit.Dock) and a length past its longest deck, for the walk lane.</summary>
         const float DockRampRun = 4.6f, DockMaxLength = 20f;
@@ -1103,6 +1149,9 @@ namespace Punchy.Flora
                                 // W-59d: a shore cluster reaches about 5 m (2.5 m spread plus half a pulled-up boat):
                                 // none within that of a dock's walk lane, so nothing stands on the ramp or deck.
                                 if (placedRule.ShoreKit != 0 && DockLaneDistance(ref f, source, landmark, spot) < ShoreReach * prop.Scale.y)
+                                    return none;
+                                // W-62c: no spire near a landing pier's far end (no draws moved: the cell just stays empty).
+                                if (placedRule.PierClear != 0 && PierEndDistance(ref f, source, spot) < PierEndClear * prop.Scale.y)
                                     return none;
                                 var toCentre = set.Instances[landmark.Instance].Position - spot;
                                 var placedYaw = prop.FaceCentre != 0 ? math.atan2(-toCentre.x, toCentre.y) : rng.NextFloat(math.PI * 2f);
