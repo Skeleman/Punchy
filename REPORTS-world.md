@@ -1468,3 +1468,11 @@ Commits on world-features: b30a28b, 8feecb0. One build (Succeeded, 0 errors), on
 6. Hashes, all match: v2 131 landmarks, editor D153C437, player 41BA8108; caves C49E8E3036C741FC; ground C0C906EE310FA91F; rivers A77D2ED7B919296E. v1 was not run.
 Shots: D:\PunchyMilestones\W-59d\w59d_village3_dusk, colossus_head, dock1_start, dock1_end, dock3_start, dock3_end (plus a stray shot-0).
 Left: village3_dusk framing; the intermittent sim snag; DunesColossus editor/player mismatch (animal lane); v1 hash check.
+
+## W-64 (2026-11-03) world-features cb2dc77
+1. #38 igloo doors: DONE. Domes are bigger (height 10.5-12), so the 1.7 x 3.4 door sits inside the dome wall with dome all round it. Dome tops are 5.5-6.5 m against the 3.4 m door. Porches re-seated. Editor sim (village 0, step-up 0.4, start 3 m out): 5/5 reach the door. 2 stop at the door wall 3.8 m in; 3 walk past the door line because the inner block doesn't catch them (leftover, see below). Overlap check: all pairs clear. Neighbours are 17.8 m apart against a combined reach of 15.0-16.2 m. One mouth-to-mouth path is blocked by a dome (343.3,57.7 -> 349.9,71.1).
+2. #24 ruin moss: DONE. The moss pad is replaced by one draped sheet (MossCap / FloraPart.Moss 13). It runs up the face, over the top and down the back, with ragged hanging tongues. It's an alpha-cutout clip with noise in all 4 Flora passes, so shadows and depth match. Tint is clumped yellow-green and darker near the torn edge. No new lights; ruin shapes unchanged.
+3. Build: Succeeded, 0 errors. Player shots retaken. Igloo walk PASS: ends 0.5 m from the door target (367.7,265.7,60.5), pushed out 0.0 m. Every Punchy.exe has quit.
+4. Hashes: v2 136 landmarks, editor 4E61F1CF, player B5EFF8C8; caves C49E8E3036C741FC; ground C0C906EE310FA91F; rivers A77D2ED7B919296E. All match. No landmark changes. v1 was not run (tool budget).
+Shots: D:\PunchyMilestones\W-64\w64_turtle_village, igloo_door_a, igloo_door_b, igloo_walk_start, igloo_walk_end, ruin0_close, ruin0_medium, ruin1_close, ruin1_medium (plus stray shot-0, shot-10).
+Left: the igloo inner block lets 3/5 walks pass the door line (the door is still reached); v1 hash check.
