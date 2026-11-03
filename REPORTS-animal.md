@@ -1182,3 +1182,41 @@ Shots (PunchyMilestones/animal/a38/800; full size in raw/):
 
 NEXT: on the seg 245 slope, walking sideways into the wall jitters and slides the body down (the wall push has a
 downhill part).
+
+## A-39 (2026-11-02): slope + wall push-out
+
+Commit e75918e on animal-behaviours (PlayerMovementSystem.cs only). 1 build, ~70 calls.
+- Row 1, PARTLY DONE. On a walkable slope the downhill part of a wall push is dropped, and a non-climbing body more
+  than 0.08 m into the wall is held at its last position. The steep slide-back now applies only where the start
+  position is steep, which fixed the side-1 jitter. Sim (Temp/a39_sim.cs, editor Play mode, real PushOutOfSolids),
+  before -> after:
+
+| Walk | Progress m | Pushed m | Sink mid/head | Slide drop/downhill | Travel |
+|---|---|---|---|---|---|
+| side -1 | 0.63 -> 3.46 | 18.51 -> 16.26 | 0.03 -> 0.03 | 0.73/1.16 -> 0/0 | 6.36 |
+| side 1 | 1.53 -> 1.58 | 13.52 -> 14.45 | 0.01 -> 0.03 | 1.10/0.71 -> 0/0 | 1.78 (frames 100-101 hold still) |
+| diag -1 | 3.85 -> 3.80 | 1.22 -> 1.50 | 0.14 -> **0.19** | 0/0 -> 0/0 | 6.96 |
+| diag 1 | 1.51 -> 1.79 | 20.81 -> 19.77 | 0.07 -> 0.06 | 0/0 -> 0/0 | 2.34 |
+
+  "Pushed" stays high because each walk step into the wall is cancelled (~0.067 m/frame); travel is the real path.
+  Side -1 now climbs along a rising floor (the run without push-out ends at the same place). Diag sink is not met:
+  diag -1 is 0.19, while climbing. Holding the body while climbing past 0.10 m got diag -1 to 0.08 but stopped
+  seg 245 up at 0.86 m, so it was reverted.
+- Row 2, DONE except for one sink regression:
+
+| Walk | Progress m | Pushed m | Sink mid/head | Max air | Slide drop/downhill |
+|---|---|---|---|---|---|
+| seg 245 up | 2.26 -> 2.25 | 0.48 -> 0.46 | 0.10 -> **0.14** | 0 | 0/0 |
+| seg 245 up, size 0.45 | 2.26 -> 2.26 | 0.24 -> 0.81 | 0.07 -> 0.10 | 0 | 0/0 |
+| seg 245 down | 2.27 -> 2.27 | 0.20 -> 0.20 | 0 -> 0 | 1.22 | 2.08/2.27 |
+| flat seg 0 | 3.80 -> 3.80 | 0.03 -> 0.03 | 0 -> 0 | 0 | 0.14/0 |
+| ledge seg 245 | 4.27 -> 4.27 | 0.20 -> 0.20 | 0 -> 0 | 1.38 | 4.66/4.27 |
+| ledge seg 32 | 3.85 -> 3.85 | 0.53 -> 0.53 | 0 -> 0 | 3.01 | 2.02/3.13 |
+
+- Row 3, NOT DONE as asked. The before/after pair is taken and viewed at 800 px
+  (PunchyMilestones/animal/a39/a39-side-wall-{before,after}-800.png), but the A-38 slope `-camrel` frame faces rock
+  on the sideways walk, so no body is visible in either shot. A retake can only give an after shot.
+- Checks: player log v2 126 landmarks, hash 053C63D5; 0 exceptions; both runs quit on their own; no Punchy.exe left.
+  No network fields. KeepOutOfTower untouched. CRLF kept.
+NEXT: sink while climbing near a wall (diag -1 0.19, seg 245 up 0.14); retake the sideways shot with a side frame
+found in the editor first.
