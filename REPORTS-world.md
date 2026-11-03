@@ -2,6 +2,14 @@
 
 Newest first.
 
+## W-65 (2026-11-03) world-features c39bc42 (#36)
+
+- Row 1, layout per village (FishWharf, prop 0 of FishingVillage; local z = seaward): v0 -3285,-1644: main to z 24, joins at z 22 (T), 16, mid-left branch; 3 houses. v1 -2940,-1427: main to z 21, L at z 19 (x -14..1), mid branch z ~5 (x -8..9); 3 houses. v2 -2898,-2136: same seed layout as v0 (3 houses). v3 -2350,-2124: main to z 24, T at z 16 (x -8..5), short tip z 23; 2 houses. Solid bed under all decks; one shore end per village, now flat treads (pitched ramp's support stepped > 0.4 m on v1's low bank).
+- Row 2: editor BFS walk (step-up 0.4, walls to head 1.7) shore -> every stilt door: v0 3/3, v1 3/3, v2 3/3, v3 2/2 = 11/11. No rail on door-side walkway edges; rails on open-water edges only.
+- Row 3: build Succeeded, 0 errors. Player walk at v1: shore -> main walkway -> L branch -> house door: legs 1-3 reached, ended on the deck (y 1.3) 0.2 m from the door target: PASS. Shots (not viewed by me): D:\PunchyMilestones\W-65\w65_day_from_water.png, w65_walk_house_front.png, w65_dusk.png. Exe quit (-quit).
+- Row 4 hashes: v2 136, editor 4E61F1CF, player B5EFF8C8; v1 103 / F628AE5F raw; caves C49E8E3036C741FC; ground C0C906EE310FA91F. Rivers by the w37 measure A5B3DE5D53257332 (same as every earlier w37-measure v2 run; the A77D2ED7B919296E form's probe not found; no river code touched). All unchanged.
+- Left: v0 and v2 share one layout (one wharf model per species); per-instance variants would need more models. Shots unreviewed.
+
 ## W-63 (2026-11-03) world-features 875f785
 - #36 ramp foot: DockShore walks back up to 30 m to find the real bank, and kit houses stay off a dock's lane (a stilt house stood across that deck). The dock is now based at -3299.0,-1656.1. Editor sim, step-up 0.4, 3 lanes: it PASSES on all 3 (end feet 1.09, deck 1.29). All 8 docks pass on the centre and +0.5 lanes. The old crab-pot snag at d 9.1 is still on the -0.5 lane of 2 docks.
 - River dressing as flora data (RiverSpot on FloraSpecies, 13 biome lists): RiverCattail (inner bends, green biomes), Driftwood (gravel bars), SteppingStone (shallow narrows), FallenLog (narrow creeks, density 1). Loaded counts near -2940,3220: cattail 13, driftwood 24, stones 14, logs 13 (logs were at density 3; not re-counted at 1). Near 60,180: cattail 2, driftwood 1, stones 0, logs 5. Near village 0: cattail 10, driftwood 16. Shallow narrows are rare (2 creek spots with width <= 11 island-wide).
