@@ -2,8 +2,10 @@
 
 Newest first.
 
-## 2026-11-02: ECS review of main 41a9259 (Zach's request; read-only): core sound, cost is managed main-thread work and one fat component; issues #54, #55
+## 2026-11-02: ECS review of main 41a9259 (Zach's request; read-only): core sound, cost is managed main-thread work and one fat component; issues #54-#64
 128 scripts, about 60k lines. No edits.
+Issues: #54 camera, #55 TraceSystem, #56 shared snapshot, #57 staggered searches, #58 split CreatureState, #59 brain
+LOD, #60 Decide table, #61 brain partial files, #62 MonoBehaviour order, #63 managed sampling audit, #64 visible needs.
 
 **Done well:** CreatureBrainSystem is a Burst ISystem with one parallel IJobEntity; neighbours come from a per-frame
 grid (20 grid queries; only 3 full scans, all rare: message receiver, ChatsNear, RoostUsers). Creatures draw as
