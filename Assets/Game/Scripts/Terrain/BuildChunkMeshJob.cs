@@ -107,6 +107,7 @@ namespace Punchy.Terrain
             var rapids = new NativeArray<float>(v * v, Allocator.Temp);
             var looks = new NativeArray<float4>(v * v, Allocator.Temp);   // water colour + murk, glow in a separate array
             var glows = new NativeArray<float2>(v * v, Allocator.Temp);
+            var pooled = new NativeArray<bool>(v * v, Allocator.Temp);
             // Cave entrances: each vertex carries its distance to cave air, and the terrain shader cuts away the
             // surface just inside the cave's edge (per pixel, so the opening follows the cave, not the grid).
             var cutHoles = request.Lod <= 1 && Source.Caves.IsCreated;
@@ -142,6 +143,7 @@ namespace Punchy.Terrain
                     var pool = LandmarkSampling.PoolWater(ref Source.Landmarks.Value, world, out var claim);
                     if (claim > 0f && pool >= ground.WaterSurface - 0.001f)
                         sheet = GroundSample.NoWater;
+                    pooled[z * v + x] = claim > 0f;
                 }
                 water[z * v + x] = new float4(sheet, ground.Flow, h);
                 rapids[z * v + x] = ground.Rapids;
@@ -149,6 +151,9 @@ namespace Punchy.Terrain
 
                 glows[z * v + x] = glow;
             }
+
+            ExtendStillWater(verts, water, pooled, q, step, request.Origin);
+            pooled.Dispose();
 
             if (request.CanMorph)
                 WriteMorphOffsets(verts, q);
@@ -233,6 +238,129 @@ namespace Punchy.Terrain
         }
 
         static float H(NativeArray<TerrainVertex> verts, int v, int x, int z) => verts[z * v + x].Position.y;
+
+        /// <summary>How far (metres) still water reaches out over dry vertices below its level, and wets the shore.</summary>
+        const float StillReach = 8f;
+        /// <summary>Extended still water never gets deeper than this over its vertex (a real basin is claimed already).</summary>
+        const float StillReachDepth = 1.5f;
+
+        /// <summary>
+        /// Shallow beaches: the ground's water claim (SampleGround) is decided per coarse cell, so on a beach that dips
+        /// only centimetres below a lake or the sea the claim stops along cell lines, leaving dry vertices under the
+        /// water level (holes and straight cuts in the sheet) and a wet-sand band cut into rectangles. Here, still
+        /// water (no flow: lakes, sea) reaches up to StillReach out from its edge: a dry vertex takes the level when the
+        /// ground all the way to the water lies below it (so it never floats over sand or spills past a ridge), and
+        /// ground above the level near still water gets the wet band. Mesh only: the ground and its hashes are unchanged.
+        /// Each vertex is decided from world samples (an apron round the chunk), so chunks and LODs agree on borders.
+        /// </summary>
+        void ExtendStillWater(NativeArray<TerrainVertex> verts, NativeArray<float4> water, NativeArray<bool> pooled,
+                              int q, float step, float2 origin)
+        {
+            int v = q + 1;
+            float maxStill = float.MinValue;
+            for (int i = 0; i < v * v; i++)
+                if (water[i].x > GroundSample.NoWater * 0.5f && math.lengthsq(water[i].yz) < 1e-6f)
+                    maxStill = math.max(maxStill, water[i].x);
+            if (maxStill == float.MinValue)
+                return;
+
+            int a = math.max(1, (int)math.ceil(StillReach / step));
+            int w = v + 2 * a;
+            // x: still-water level (NoWater where dry, flowing or a landmark pool), y: ground (+inf blocks a pool).
+            var apron = new NativeArray<float2>(w * w, Allocator.Temp);
+            for (int z = 0; z < w; z++)
+            for (int x = 0; x < w; x++)
+            {
+                int lx = x - a, lz = z - a;
+                float4 s;
+                bool pool;
+                if (lx >= 0 && lz >= 0 && lx < v && lz < v)
+                {
+                    s = water[lz * v + lx];
+                    pool = pooled[lz * v + lx];
+                }
+                else
+                {
+                    var at = origin + new float2(lx, lz) * step;
+                    s = WaterAt(at);
+                    pool = false;
+                    if (Source.Landmarks.IsCreated)
+                    {
+                        LandmarkSampling.PoolWater(ref Source.Landmarks.Value, at, out var claim);
+                        pool = claim > 0f;
+                    }
+                }
+                var still = s.x > GroundSample.NoWater * 0.5f && math.lengthsq(s.yz) < 1e-6f;
+                apron[z * w + x] = pool ? new float2(GroundSample.NoWater, float.MaxValue)
+                                        : new float2(still ? s.x : GroundSample.NoWater, s.w);
+                if (still)
+                    maxStill = math.max(maxStill, s.x);
+            }
+
+            for (int z = 0; z < v; z++)
+            for (int x = 0; x < v; x++)
+            {
+                var i = z * v + x;
+                var h = water[i].w;
+                var own = water[i].x > GroundSample.NoWater * 0.5f;
+                if (pooled[i] || h > maxStill + 1.4f || own && water[i].x > h)
+                    continue;
+
+                float sheet = GroundSample.NoWater, near = GroundSample.NoWater, nearDist = float.MaxValue;
+                for (int d = 0; d < 8; d++)
+                {
+                    var dir = d switch { 0 => new int2(1, 0), 1 => new int2(-1, 0), 2 => new int2(0, 1), 3 => new int2(0, -1),
+                                         4 => new int2(1, 1), 5 => new int2(-1, 1), 6 => new int2(1, -1), _ => new int2(-1, -1) };
+                    var len = d < 4 ? step : step * 1.41421356f;
+                    var pathTop = float.MinValue;
+                    for (int k = 1; k <= a; k++)
+                    {
+                        var c = apron[(z + a + dir.y * k) * w + x + a + dir.x * k];
+                        if (c.x > GroundSample.NoWater * 0.5f)
+                        {
+                            if (!own && c.x > h + 0.005f && c.x - h < StillReachDepth && c.x > pathTop)
+                                sheet = math.max(sheet, c.x);
+                            if (k * len < nearDist)
+                            {
+                                nearDist = k * len;
+                                near = c.x;
+                            }
+                            break;
+                        }
+                        pathTop = math.max(pathTop, c.y);
+                        if (c.y == float.MaxValue)
+                            break;
+                    }
+                }
+
+                // Under extended water the sheet would hang in a cave's air where a passage runs just below.
+                if (sheet > GroundSample.NoWater * 0.5f && Source.Caves.IsCreated)
+                {
+                    var at = origin + new float2(x, z) * step;
+                    if (CaveSampling.NearColumn(ref Source.Caves.Value, at) && Source.CaveDistance(new float3(at.x, sheet, at.y)) < 0.5f)
+                        sheet = GroundSample.NoWater;
+                }
+                if (sheet > GroundSample.NoWater * 0.5f)
+                {
+                    var s = water[i];
+                    s.x = sheet;
+                    s.yz = 0f;
+                    water[i] = s;
+                    near = sheet;
+                    nearDist = 0f;
+                }
+
+                // Wet band from the nearest still water, fading out with distance so it never ends on a cell line.
+                if (near > GroundSample.NoWater * 0.5f)
+                {
+                    var wet = (1f - math.smoothstep(0.1f, 1.4f, h - near)) * (1f - math.smoothstep(StillReach * 0.5f, StillReach, nearDist));
+                    var vertex = verts[i];
+                    vertex.Extra.w = (half)math.min((float)vertex.Extra.w, -wet);
+                    verts[i] = vertex;
+                }
+            }
+            apron.Dispose();
+        }
 
         /// <summary>Builds the water sheet; returns its (min, max) height, or (1, 0) when the chunk is dry.</summary>
         float2 BuildWater(Mesh.MeshData mesh, NativeArray<float4> water, NativeArray<float> rapids,
