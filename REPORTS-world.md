@@ -2,6 +2,38 @@
 
 Newest first.
 
+## 2026-11-02 batch W-32: sunken temple in the dunes (enterable, 8 rooms on 3 levels) + interiors design note
+
+World commit 1320e8f on world-features (local, not pushed; it sits on W-48/52/53).
+
+- **Placement:** one SunkenTemple per island with dunes. v2 is at 3520.0,360.0 (facing 159 deg, base 10.9, relief 0.12 m, patch 1138 cells, 320 m in from the edge). v1 is at 1320.0,-2720.0 (base 7.3).
+  - It is placed in a second pass after the towers, with its own salt 0x5E7A.
+  - The diff shows additions only. With the SunkenTemple line removed, each new list hashes to the old value.
+- **Hashes, old → new:**
+  - landmarks v2 126 / 053C63D5 → 127 / 4D245E12
+  - landmarks v1 102 / 51EA6463 → 103 / 19885131
+  - v2 rivers A5B3DE5D53257332, ground F8F938002B0CBE46, caves C49E8E3036C741FC: unchanged
+  - v1 rivers 2508BF538DA96D7E, ground A32E650C44A45E06, caves 47C703C0E17F77CB: unchanged since W-48
+- **Shape:** a half-buried sand mound with a stepped ziggurat top, a broken portico, column stumps and a trench ramp down to the door, with drifts in it.
+  - Rooms: entry hall (fallen drums), pillared hall (8 columns), corridor and stair 1 down to a sand-filled chamber (level 2), then corridor 2 and stair 2 down to the sanctum (level 3) with an altar and a statue.
+  - Light comes from 5 roof shafts and 8 sconces (point lights on only while the interior shows).
+- **Collision:** analytic, in SunkenTempleShape Solid/Floor/Wall, through TerrainSource Deck, TowerWall and FloorUnder (the SaltTower approach).
+  - Walk test: 2110 steps of 0.1 m from the entrance to the sanctum and back, max rise 0.31 m, max drop 0.31 m. It reached the sanctum floor (local 0.5) and got back out.
+  - v2's first run had 9 blocked steps at u -25, where the edge of a ramp drift stood taller than the 0.4 m step-up. I moved that drift off the path and lowered it.
+  - After the fix, v1 had 0 blocked. I did not re-walk v2.
+- **Tris:** LOD0 6560 (<120 m), LOD1 1248 (<1.2 km), LOD2 356. The interior is 2736 tris and draws only at LOD0 while the camera is inside the temple's box. From outside, a plug mesh closes the door and shafts. The interior was hidden in all outside probes.
+- **Doc:** docs/agents/interiors.md (design only). Recommended first step: pull the temple tables into a shared RoomSet, then make one village hut enterable with its rule 9 door.
+- **Shots** (Dev build, `-time 11 -weather Clear -nohud`, viewed at 800 px): D:/PunchyMilestones/W-32/temple_120m.png, temple_ramp.png, temple_hall.png, temple_sanctum.png.
+  - 120 m: the mound reads, but as a smooth dome with small ruins on top.
+  - Ramp: the trench, columns and pediment read well.
+  - Hall: pillars, a sconce glow and a shaft opening show. It is dim and untextured.
+  - Sanctum: the altar and a sconce show, but a column/statue sits close in the foreground and blocks much of the view.
+- **Not done / follow-ups:**
+  - The interiors use the plain tinted basalt material, with no sandstone texture.
+  - The sanctum shot framing should be redone.
+  - Animals and the camera arm don't know about the temple.
+  - The sand chamber is drifts on a floor, not flooded.
+
 ## 2026-11-02 batch W-53: W-37 meanders in with landmarks fixed (option b); v2 dam cut to a canyon; round wet-sand reach
 - DONE: #0 Temp/w37_measure.cs repaired. At 3268e84: v2 landmarks 126 / 053C63D5, caves ACA9CC9155621A44, rivers 70B01EF403A78FF5, ground A87024EE3525ADC0, falls 70, open ends 92 not at falls, floating 28; v1 102 / 51EA6463 (unchanged since W-48).
 - DONE: #1 w37-wip patch on world-features (ef41bf2). TerrainAuthoring.BuildPlaces bakes two river maps from the same bare ground: the jittered map (`RiverBaking.Build(..., meander: false)`) for landmarks, settlements and the salt tower, then swaps in the meandered map before caves. v2 landmarks 126 / 053C63D5 and v1 102 / 51EA6463 unchanged (editor and player). v2 rivers 70B01EF403A78FF5 -> A5B3DE5D53257332, ground A87024EE3525ADC0 -> F8F938002B0CBE46, caves ACA9CC9155621A44 -> C49E8E3036C741FC (count 37 unchanged; cave shapes follow the carved ground), falls 70 -> 66. v1 rivers/ground/caves unchanged (meanders are v2-only). The double bake costs ~0.9 s in the editor rivers stage (player stages: rivers 299 ms).
