@@ -2,6 +2,16 @@
 
 Newest first.
 
+## W-60 (2026-11-03): turtle folk mountaintop settlements (#38), village3 dusk retake (#36)
+Commit 34895e0 on world-features (pushed). Build 1x Succeeded, 0 errors.
+- Row 1 (#38): new TurtleVillage type (Resources) + TurtleVillageBaking, placed last (after the fishing villages) on the highest peaks of v2 (48 m grid of local maxima, highest first, peak then rings at 40/80 m; 600 m apart; igloo rings within 10 m relief). "[turtles] 3 from 687 peaks (13 tried)": 356,60 (h 269), -756,2660 (h 233), -660,3428 (h 211). Landmarks 131 -> 134; diff vs lmlist-w59c: kept 131, gone 0, new 3 (only the TurtleVillage lines). StructureKit: TurtleFolk trim, Igloo (domed snow-block shell, 1.7 x 3.4 m tall tunnel door, Rune glow drawn as window pane), Alpine clusters.
+- Row 2 (#38): details are data, seeded per prop (Alpine: prayer flags, snow-buried pots, rune stones, cairns, ice lanterns, sleds; igloo dome rings, side huts, door frames vary). Shots: w60_turtle1_day, w60_turtle2_day, w60_turtle3_night (rune glow), w60_igloo_close_day/night.
+- Row 3 (#38) player -walk, 3 igloo doors: A (343.5,67.8) stopped 2.9 m from centre, B (-744.2,2651.2) 3.6 m, C (-771.4,2660.5) 3.3 m - all walked up the tunnel to the door, pushed out 0.0 m, no snag/fall. Doors are closed (no interiors), so "in" = to the door. Path at settlement 2: 3 legs (-749,2655 -> -758,2653 -> -765,2660 -> -759,2669, rises up to 6 m) all reached within 0.3 m. Editor sim: settlement 1 had 2 of 5 igloos short at the porch mouth (0.6-1.0 m ledge on the slope) - not walked in the player; watch.
+- Row 4 (#36): w60_village3_dusk retaken from over the river channel (-2960,9,-2131) looking east at the village and docks.
+- Row 5 hashes: v2 player 134 / 69CD531E (was 131 / 41BA8108; change = the 3 new lines only), editor 134 / 829DF295. v1 player 103 / F628AE5F (raw form, same as W-57/58 = 19885131 editor form, unchanged). Caves C49E8E3036C741FC (unchanged). Ground all C0C906EE310FA91F (unchanged, even under the settlements: Flatten 0). Rivers not re-hashed (baked before this code, untouched).
+- Shots: D:/PunchyMilestones/W-60 (17: the above + doorA/B/C start/end, path_start/a/b/c; shot-0 is the warm-up). All Punchy.exe runs quit.
+- Left: the 2 porch-mouth snags at settlement 1 (sim only); igloo interiors and turtle folk NPCs out of scope.
+
 ## W-59 (2026-11-03): fishing villages, colossus keep-out (WIP, stopped at the call ceiling)
 Commit 9b67f36 on world-features (pushed). It compiles in the editor, but it has not been built or shot yet.
 - Row 1 (#36): code done. New FishingVillage landmark type (Resources) and FishingVillageBaking. Villages are placed on v2 only, after the caves, at the widest river mouths, on a dry bank next to the mouth. Up to 4 villages, at least 350 m apart, clear of every landmark. The type is appended last, so other type indexes don't move, and v1 gets no villages. The spot list is not printed yet: it goes to the log as "[villages] ..." at bake time.
