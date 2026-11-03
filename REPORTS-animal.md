@@ -1469,3 +1469,15 @@ Hashes: v2 127 / 4D245E12 unchanged (build log). v1 103 / 19885131 not rechecked
 - #12 Play spin: the runner (Play stage 1) re-aimed freely every frame, spinning at 200-300 deg/s when stuck. Its aim now turns at most 100 deg/s. Build, 120 s each: Marmot Play 87-96 deg/s old -> 57-69 new; Songbird barely played (new: one 7 s window at 111 deg/s); Dormouse never played (sleeps/climbs). Spins: 1 old (Monkey, Play stage 1), 0 new. Editor run: Marmot 99-103 -> 59-61, Songbird -> 35-68, spins 2 old -> 0 new.
 - #46 flying height: build run had deer at 26-29 m (surface -spawn lands 6-45 m out), so added "-spawnradius". Editor, same -goflat spot, deer at 9-15 m: ground 0 of 10 fleeing, 30 m up 0 of 20 fleeing. Deer don't flee a standing player at that range even on the ground, so height can't be judged this way; needs a moving player or a different threat.
 Left: #57 more runs; #46 test with a moving player; client-connected tab shot (host quit before client's shots); v1 hash check.
+
+## A-47 (2026-11-03): stopped early, editor stuck, WIP pushed
+
+- **Blocker:** the animal editor stopped working partway through. It hit a Burst error ("Unable to create a SharedStatic for this key") because the SearchCounts struct grew. After that it flipped between ready and unreachable. Recompile and eval requests timed out (504), and no new compile started. The SharedStatic key is now renamed (SearchCountsKey2), but the editor probably needs a restart before that takes. I did not kill anything.
+- **Code pushed, not compiled or run since the key rename:**
+  - animal-behaviours 7f128aa:
+    - #59 brain LOD: creatures with no player within 60 m think every 3rd frame, staggered. Between thinks they coast on the ground, and they catch up the skipped time on their next think. `-nobrainlod` turns it off. The perf2 log shows brain ms, thinks per frame and LOD skips (marker Brain.Tick).
+    - #68 client NRE fix: DebugControls rebuilds its queries when the client's world is replaced.
+    - New test flags: `-liftpass v`, `-fixeddt` (logs flee counts and summed positions 60 s in) and a PlayerFlee counter.
+  - animal-a47-split e6fb97a (side branch, not on animal-behaviours yet): #61 mechanical split into 7 files, the largest 1,223 lines. Not compiled.
+- **No numbers yet.** Rows 1, 2, 3 and 5 were not run. Row 4 has no before/after comparison. The hash check was not run. No build was made.
+- **Next (A-47b), after an editor restart:** recompile, then run Temp/a47_e1.txt in the editor. It covers the #57 3x300 s runs, the #46 ground vs 30 m pass, the #61 fixed-step lines and the #59 busy spot with LOD on and off. Then merge the split branch, rerun the #61 lines, check the hashes, and do one build plus the net run with a longer host list.
