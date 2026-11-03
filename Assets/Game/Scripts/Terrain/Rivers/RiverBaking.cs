@@ -21,7 +21,8 @@ namespace Punchy.Terrain
     /// </summary>
     public static class RiverBaking
     {
-        public static BlobAssetReference<RiverMapBlob> Build(in TerrainSource source, in RiverSettings settings, Allocator allocator)
+        public static BlobAssetReference<RiverMapBlob> Build(in TerrainSource source, in RiverSettings settings, Allocator allocator,
+                                                             bool meander = true)
         {
             // Cover the landmass plus a margin of sea so every river reaches the coast.
             var cellSize = math.max(settings.CellSize, 4f);
@@ -42,6 +43,7 @@ namespace Punchy.Terrain
             var lakeLevel = new NativeArray<float>(count, Allocator.TempJob);
             var floor = new NativeArray<float>(count, Allocator.TempJob);
             var nearest = new NativeArray<int2>(count, Allocator.TempJob);
+            var points = new NativeArray<float2>(count, Allocator.TempJob);
             var seed = source.World.Seed;
 
             try
@@ -64,6 +66,13 @@ namespace Punchy.Terrain
                     Elevation = elevation, Rain = rain, Down = down, Order = order, Width = width
                 }.Schedule(flood);
 
+                // W-37: segment points need the widths, and every later step reads them.
+                new PathPointsJob
+                {
+                    Resolution = resolution, Origin = origin, CellSize = cellSize, Meander = settings.Meander, Seed = seed,
+                    Smooth = settings.Smooth && meander, Down = down, Width = width, Points = points
+                }.Schedule(flow).Complete();
+
                 var lake = new LakeJob
                 {
                     Resolution = resolution, SeaLevel = source.World.SeaLevel,
@@ -82,7 +91,7 @@ namespace Punchy.Terrain
                 var bedStart = new BedStartJob
                 {
                     Source = source, Resolution = resolution, Origin = origin, CellSize = cellSize,
-                    Meander = settings.Meander, Seed = seed,
+                    Meander = settings.Meander, Seed = seed, Points = points,
                     Elevation = elevation, LakeLevel = lakeLevel, Width = width, LakeDepth = lakes, Bed = bed
                 }.Schedule(count, 256, floors);
 
@@ -91,21 +100,23 @@ namespace Punchy.Terrain
                     Settings = settings, MinimumDrop = cellSize * 0.0005f, SeaLevel = source.World.SeaLevel,
                     Resolution = resolution, Origin = origin, CellSize = cellSize, Seed = seed,
                     Down = down, Order = order, LakeDepth = lakes, LakeLevel = lakeLevel, Floor = floor,
-                    Width = width, Bed = bed, WaterLevel = water
+                    Width = width, Bed = bed, WaterLevel = water, Points = points
                 }.Schedule(bedStart);
 
                 new NearestSegmentsJob
                 {
                     Resolution = resolution, Origin = origin, CellSize = cellSize, Meander = settings.Meander, Seed = seed,
                     MaxDistance = settings.MaxCarveDistance + cellSize * 1.5f,
-                    Down = down, Width = width, Nearest = nearest
+                    Down = down, Width = width, Nearest = nearest, Points = points
                 }.Schedule(bedDownhill).Complete();
                 var lakesBefore = new NativeArray<float>(lakes, Allocator.Temp);
                 LowerBreachedLakes(resolution, elevation, bed, water, lakes, lakeLevel);
                 ReshapeLoweredLakes(source, settings, cellSize * 0.0005f, resolution, origin, cellSize, seed, elevation,
-                                    down, order, lakesBefore, lakes, lakeLevel, floor, width, bed, water);
+                                    points, down, order, lakesBefore, lakes, lakeLevel, floor, width, bed, water);
                 lakesBefore.Dispose();
                 FillRiverPits(settings, source.World.SeaLevel, down, order, lakes, width, bed, water);
+                if (settings.Smooth && meander)
+                    CutDams(source, source.World.SeaLevel, points, down, lakes, lakeLevel, width, bed, water);
 
                 var builder = new BlobBuilder(Allocator.Temp);
                 ref var root = ref builder.ConstructRoot<RiverMapBlob>();
@@ -121,6 +132,7 @@ namespace Punchy.Terrain
                 Copy(ref builder, ref root.Width, width);
                 Copy(ref builder, ref root.Nearest, nearest);
                 Copy(ref builder, ref root.LakeDepth, lakes);
+                Copy(ref builder, ref root.Points, points);
                 // Each cell's highest lake level within two cells (for bays the cell grid misses).
                 var shore = builder.Allocate(ref root.ShoreLevel, count);
                 for (int i = 0; i < count; i++)
@@ -215,6 +227,7 @@ namespace Punchy.Terrain
                 lakeLevel.Dispose();
                 floor.Dispose();
                 nearest.Dispose();
+                points.Dispose();
             }
         }
 
@@ -303,7 +316,7 @@ namespace Punchy.Terrain
         /// </summary>
         static void ReshapeLoweredLakes(in TerrainSource source, in RiverSettings settings, float minimumDrop, int resolution,
                                         float2 origin, float cellSize, uint seed, NativeArray<float> elevation,
-                                        NativeArray<int> down, NativeList<int> order, NativeArray<float> lakesBefore,
+                                        NativeArray<float2> points, NativeArray<int> down, NativeList<int> order, NativeArray<float> lakesBefore,
                                         NativeArray<float> lakes, NativeArray<float> lakeLevel, NativeArray<float> floor,
                                         NativeArray<float> width, NativeArray<float> bed, NativeArray<float> water)
         {
@@ -323,7 +336,7 @@ namespace Punchy.Terrain
                 // A cell the lake left: its bed is the lowest ground across its channel, as BedStartJob sets it.
                 if (wasLake && width[c] > 0f)
                 {
-                    var centre = RiverMapBlob.JitteredPoint(c, resolution, origin, cellSize, settings.Meander, seed);
+                    var centre = points[c];
                     var radius = math.max(width[c] * 0.5f + 3f, cellSize * 0.6f);
                     var lowest = source.BaseHeight(centre);
                     for (int j = 0; j < 8; j++)
@@ -353,8 +366,7 @@ namespace Punchy.Terrain
                     var d = down[c];
                     if (d < 0 || !touched[c] || width[c] <= 0f || lakes[c] > 0f)
                         continue;
-                    var length = math.distance(RiverMapBlob.JitteredPoint(c, resolution, origin, cellSize, settings.Meander, seed),
-                                               RiverMapBlob.JitteredPoint(d, resolution, origin, cellSize, settings.Meander, seed));
+                    var length = math.distance(points[c], points[d]);
                     bed[c] = math.min(bed[c], bed[d] + settings.MaxGradient * length);
                 }
                 // 3. Water below the banks, never lower than the water it flows into.
@@ -373,6 +385,67 @@ namespace Punchy.Terrain
             }
             newFloor.Dispose();
             touched.Dispose();
+        }
+
+        /// <summary>
+        /// W-53: a river held up by a dam downstream stands above lower land beside it (the 34.51 m dam on v2 near
+        /// -2343,-437 left 13 open ends). Instead of filling the low land, the river cuts down through the dam: a cell
+        /// whose water stands more than 0.3 m over the lowest ground beside its banks is lowered to that ground, and so is
+        /// every cell downstream of it until the river is already that low. Beds drop with the water, so the channel keeps
+        /// its depth and the carve's BankSlope walls make the canyon (walkable banks). A cut is skipped when a lake or the
+        /// sea downstream stands higher (backwater, which a cut can't drain), deeper than MaxCut, or longer than MaxLength.
+        /// Only on the drawn (meandered) river map, so placement never sees it.
+        /// </summary>
+        static void CutDams(in TerrainSource source, float seaLevel, NativeArray<float2> points, NativeArray<int> down,
+                            NativeArray<float> lakes, NativeArray<float> lakeLevel, NativeArray<float> width,
+                            NativeArray<float> bed, NativeArray<float> water)
+        {
+            const float Margin = 0.3f, MaxCut = 16f, MaxLength = 900f;
+            var count = down.Length;
+            var target = new NativeArray<float>(count, Allocator.Temp);
+            for (int i = 0; i < count; i++) target[i] = float.MaxValue;
+            for (int c = 0; c < count; c++)
+            {
+                if (width[c] <= 0f || lakes[c] > 0f)
+                    continue;
+                // The lowest ground just outside the banks, where the open-end rule looks.
+                var low = float.MaxValue;
+                for (int k = 0; k < 8; k++)
+                {
+                    math.sincos(k * math.PI / 4f, out var sn, out var cs);
+                    var dir = new float2(cs, sn);
+                    for (float r = width[c] * 0.5f + 4f; r <= width[c] * 0.5f + 12f; r += 4f)
+                        low = math.min(low, source.BaseHeight(points[c] + dir * r));
+                }
+                var level = low - Margin;
+                if (water[c] <= level + 0.01f)
+                    continue;
+                // Walk down until the river is already this low; give up at backwater or past the limits.
+                var ok = false;
+                var along = 0f;
+                for (int d = down[c], prev = c, steps = 0; steps < 400; prev = d, d = down[d], steps++)
+                {
+                    if (d < 0) { ok = seaLevel <= level; break; }
+                    if (lakes[d] > 0f) { ok = lakeLevel[d] <= level; break; }
+                    if (width[d] <= 0f) break;
+                    along += math.distance(points[prev], points[d]);
+                    if (water[d] <= level) { ok = true; break; }
+                    if (water[d] - level > MaxCut || along > MaxLength) break;
+                }
+                if (!ok || water[c] - level > MaxCut)
+                    continue;
+                target[c] = math.min(target[c], level);
+                for (int d = down[c]; d >= 0 && lakes[d] <= 0f && width[d] > 0f && water[d] > level; d = down[d])
+                    target[d] = math.min(target[d], level);
+            }
+            for (int i = 0; i < count; i++)
+            {
+                if (target[i] >= water[i])
+                    continue;
+                bed[i] -= water[i] - target[i];
+                water[i] = target[i];
+            }
+            target.Dispose();
         }
 
         /// <summary>
@@ -489,6 +562,7 @@ namespace Punchy.Terrain
             [ReadOnly] public NativeArray<float> Width;
             [ReadOnly] public NativeArray<float> LakeDepth;
             [WriteOnly] public NativeArray<float> Bed;
+            [ReadOnly] public NativeArray<float2> Points;
 
             public void Execute(int i)
             {
@@ -503,7 +577,7 @@ namespace Punchy.Terrain
                     return;
                 }
 
-                var centre = RiverMapBlob.JitteredPoint(i, Resolution, Origin, CellSize, Meander, Seed);
+                var centre = Points[i];
                 var radius = math.max(Width[i] * 0.5f + 3f, CellSize * 0.6f);
                 var lowest = Source.BaseHeight(centre);
                 for (int k = 0; k < 8; k++)
@@ -543,6 +617,7 @@ namespace Punchy.Terrain
             [ReadOnly] public NativeArray<float> Width;
             public NativeArray<float> Bed;
             public NativeArray<float> WaterLevel;
+            [ReadOnly] public NativeArray<float2> Points;
 
             public void Execute()
             {
@@ -579,7 +654,7 @@ namespace Punchy.Terrain
                 }
             }
 
-            float2 Point(int index) => RiverMapBlob.JitteredPoint(index, Resolution, Origin, CellSize, Settings.Meander, Seed);
+            float2 Point(int index) => Points[index];
         }
 
         [BurstCompile]
@@ -708,6 +783,7 @@ namespace Punchy.Terrain
             [ReadOnly] public NativeArray<int> Down;
             [ReadOnly] public NativeArray<float> Width;
             public NativeArray<int2> Nearest;
+            [ReadOnly] public NativeArray<float2> Points;
 
             public void Execute()
             {
@@ -758,7 +834,80 @@ namespace Punchy.Terrain
                 distances.Dispose();
             }
 
-            float2 Point(int index) => RiverMapBlob.JitteredPoint(index, Resolution, Origin, CellSize, Meander, Seed);
+            float2 Point(int index) => Points[index];
+        }
+
+        /// <summary>
+        /// W-37: where each cell's river segment starts. Every cell gets its jittered centre (RiverMapBlob.JitteredPoint);
+        /// with Smooth (island v2) a wide river's point is then a Gaussian average of the jittered points along its main
+        /// channel (widest feeder up, Down down), over a span growing with width. Cell-scale jitter gave every river the
+        /// same ~3-cell wiggle, which on a 40-60 m channel made tight loops whose banks ballooned; averaged, wide rivers
+        /// sweep in bends many widths long. Narrow streams (up to NarrowWidth) keep their jitter exactly. A point stays
+        /// within one cell of its cell's centre so the carve and the segment index still find it.
+        /// </summary>
+        [BurstCompile]
+        struct PathPointsJob : IJob
+        {
+            const float NarrowWidth = 12f, SigmaPerWidth = 1.5f, MaxSigma = 72f;
+            public int Resolution;
+            public float2 Origin;
+            public float CellSize;
+            public float Meander;
+            public uint Seed;
+            public bool Smooth;
+            [ReadOnly] public NativeArray<int> Down;
+            [ReadOnly] public NativeArray<float> Width;
+            public NativeArray<float2> Points;
+
+            public void Execute()
+            {
+                var count = Points.Length;
+                for (int i = 0; i < count; i++)
+                    Points[i] = RiverMapBlob.JitteredPoint(i, Resolution, Origin, CellSize, Meander, Seed);
+                if (!Smooth)
+                    return;
+                var up = new NativeArray<int>(count, Allocator.Temp);
+                for (int i = 0; i < count; i++) up[i] = -1;
+                for (int i = 0; i < count; i++)
+                {
+                    var d = Down[i];
+                    if (Width[i] <= 0f || d < 0) continue;
+                    if (up[d] < 0 || Width[i] > Width[up[d]]) up[d] = i;
+                }
+                var jittered = new NativeArray<float2>(Points, Allocator.Temp);
+                for (int i = 0; i < count; i++)
+                {
+                    var sigma = math.min((Width[i] - NarrowWidth) * SigmaPerWidth, MaxSigma);
+                    if (sigma <= 0f)
+                        continue;
+                    var limit = sigma * 2.5f;
+                    var sum = jittered[i];
+                    var total = 1f;
+                    // Down the channel, then up its main feeders, weighting each point by its distance along the path.
+                    for (int pass = 0; pass < 2; pass++)
+                    {
+                        var c = i;
+                        var along = 0f;
+                        for (int steps = 0; steps < 64; steps++)
+                        {
+                            var n = pass == 0 ? Down[c] : up[c];
+                            if (n < 0 || Width[n] <= 0f) break;
+                            along += math.distance(jittered[c], jittered[n]);
+                            if (along > limit) break;
+                            var w = math.exp(-0.5f * along * along / (sigma * sigma));
+                            sum += jittered[n] * w;
+                            total += w;
+                            c = n;
+                        }
+                    }
+                    var centre = Origin + ((float2)new int2(i % Resolution, i / Resolution) + 0.5f) * CellSize;
+                    var offset = sum / total - centre;
+                    var length = math.length(offset);
+                    Points[i] = centre + (length > CellSize ? offset * (CellSize / length) : offset);
+                }
+                jittered.Dispose();
+                up.Dispose();
+            }
         }
 
         /// <summary>Finds the hollows the flood filled, and keeps the ones big and deep enough to be lakes.</summary>

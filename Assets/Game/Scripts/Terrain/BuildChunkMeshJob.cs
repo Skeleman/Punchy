@@ -311,7 +311,6 @@ namespace Punchy.Terrain
                 {
                     var dir = d switch { 0 => new int2(1, 0), 1 => new int2(-1, 0), 2 => new int2(0, 1), 3 => new int2(0, -1),
                                          4 => new int2(1, 1), 5 => new int2(-1, 1), 6 => new int2(1, -1), _ => new int2(-1, -1) };
-                    var len = d < 4 ? step : step * 1.41421356f;
                     var pathTop = float.MinValue;
                     for (int k = 1; k <= a; k++)
                     {
@@ -320,16 +319,31 @@ namespace Punchy.Terrain
                         {
                             if (!own && c.x > h + 0.005f && c.x - h < StillReachDepth && c.x > pathTop)
                                 sheet = math.max(sheet, c.x);
-                            if (k * len < nearDist)
-                            {
-                                nearDist = k * len;
-                                near = c.x;
-                            }
                             break;
                         }
                         pathTop = math.max(pathTop, c.y);
                         if (c.y == float.MaxValue)
                             break;
+                    }
+                }
+
+                // W-53: the nearest still water by true distance (square rings outward, stopping once a ring can't
+                // beat the best), so the band's reach is round instead of the 8-ray octagon with straight diagonals.
+                for (int k = 1; k <= a && k * step < nearDist; k++)
+                for (int dz = -k; dz <= k; dz++)
+                {
+                    var stride = dz == -k || dz == k ? 1 : 2 * k;
+                    for (int dx = -k; dx <= k; dx += stride)
+                    {
+                        var c = apron[(z + a + dz) * w + x + a + dx];
+                        if (c.x <= GroundSample.NoWater * 0.5f)
+                            continue;
+                        var dist = math.sqrt(dx * dx + dz * dz) * step;
+                        if (dist < nearDist)
+                        {
+                            nearDist = dist;
+                            near = c.x;
+                        }
                     }
                 }
 
