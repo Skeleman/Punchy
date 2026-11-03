@@ -1296,14 +1296,19 @@ PunchyMilestones/animal/a41/a41-run-pair-800.png (left before: forearm folded, t
 after: elbow near a right angle, back leg shorter); full-size before-run-*.png / after-run-*.png beside it.
 Row 3: walk and animals not re-shot; the after runner reads a little crouched at mid-stance.
 
-## M-04 (2026-11-02): STOPPED after row 1, C# conflict
-- Row 1: `git fetch`; `merge/lanes-to-main-4` (local only) from origin/main 41a9259. `--no-ff` merge of
-  origin/animal-behaviours e3b8521 went clean (6a74ec9). `--no-ff` merge of origin/world-features f137084 had one
-  conflict: Assets/Game/Scripts/Debugging/DebugControls.cs, one hunk in the launch-flag parsing (~line 1338). Animal
-  side adds the `-nopushout` line (`PlayerMovementSystem.NoPushOut.Data = ...`); world side adds the W-42 `-redstar` block
-  (`_PunchySkyTest` = 2). They look independent (keeping both should work), but the card counts C# conflicts as
-  non-trivial, so I did not resolve it.
-- World merge aborted; local branch left at 6a74ec9 (animal merge only, not pushed). Worktree back on
-  animal-behaviours e3b8521, clean (apart from Assets/_Recovery). Rows 2-5 not run: no build, no PR, main unchanged.
-- Calls ~13, builds 0.
-- NEXT: Zach/supervisor decides whether keeping both lines in DebugControls.cs is approved; then rerun M-04.
+## M-04 (2026-11-02): both lanes merged into main, main 5e98141 (one build)
+DONE (all five rows). The first pass stopped after row 1 on a C# conflict; the supervisor approved keeping both sides.
+- Row 1: `merge/lanes-to-main-4` from origin/main 41a9259. `--no-ff` merge of animal-behaviours e3b8521 clean (6a74ec9).
+  `--no-ff` merge of world-features f137084 (33b1f20, head unchanged after a re-fetch): one conflict in
+  Assets/Game/Scripts/Debugging/DebugControls.cs (launch flags). Kept both, in order -meteors, `-nopushout` line,
+  W-42 `-redstar` block, -nohud. The file is LF on main and both lanes (not CRLF), so it stays LF (i/lf w/lf).
+  No conflict markers left.
+- Row 2: editor 26472 (dataPath D:/Unity/Punchy/Assets), recompile 0 errors; Archipelago (world) loaded.
+- Row 3: no Punchy.exe running. Build Succeeded, 0 errors (Builds/Windows, 2m10s). v2 126 / 053C63D5, batfolk caves 3
+  picked 1, fishers 1; v1 102 / 51EA6463, caves 0, fishers 3. Match world STATE. 0 exceptions; both quit on their own.
+  Logs in PunchyMilestones/animal/m04/.
+- Row 4: PR #65 merged with a merge commit; main 5e98141 contains e3b8521 and f137084. Lane branches kept.
+- Row 5: back on animal-behaviours e3b8521, clean (apart from Assets/_Recovery), editor 0 errors. Local merge branch
+  deleted (remote kept). No release, no tag, no issues closed.
+- Calls ~45, builds 1.
+- NEXT: merge origin/main into animal-behaviours so the lane carries the merge.
