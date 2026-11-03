@@ -17,3 +17,5 @@ Read before adding jobs, per-frame work or anything that samples the terrain.
 - Burst's `Debug.Log` formats only G/D/X (no `F1`).
 - `math.hash(uintN)` has no avalanche: scramble it before comparing per-name random draws.
 - A per-creature managed `TerrainSource.SampleHeight` on the main thread costs ~16 us each in the Mono player (2.1 ms for 130 creatures in `CreatureRenderSystem`'s cave cull); run such loops as a Burst job (`.Run()` is fine).
+- The same goes for `ThirdPersonCamera`'s cave spring arm (up to 30+ `IsRock` calls a frame: 0.7-2.3 ms managed, 0.02-0.07 ms as a Burst job). A struct job outside `using Unity.Jobs;` needs `Unity.Jobs.IJobExtensions.Run(job)`: `job.Run()` binds to `IJobEntityExtensions` and fails.
+- `-perflog` on a shot-list line logs frame/CPU/GPU ms, cave chunks submitted/in view, probe and `IsRock` cost (frame timing needs `PlayerSettings.enableFrameTimingStats` in that build). `-oldcave` turns the cave room cull and the Burst arm off for A/B runs; `-gocave x,z` / `-gocave #n` drops the player on a cave floor.

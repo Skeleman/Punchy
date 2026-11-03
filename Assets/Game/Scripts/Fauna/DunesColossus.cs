@@ -489,8 +489,11 @@ namespace Punchy.Fauna
             readonly List<Vector3> normals = new List<Vector3>();
             readonly List<Color> colors = new List<Color>();
 
-            void Tri(Vector3 a, Vector3 b, Vector3 c, Color color)
+            void Tri(Vector3 a, Vector3 c, Vector3 b, Color color)
             {
+                // (W-48: Ellipsoid, Dome and Limb list their corners anticlockwise seen from outside, which in Unity faces
+                // inwards: every part was inside out, normals and all. The corners swap here, so the faces and the normal
+                // taken from them point out, and Dome's "inside" now really is the inside.)
                 // Not Vector3.normalized: it returns zero below 1e-5, and the mantrap's 4 mm tooth tips fall under that; a zero
                 // normal turns NaN in the shader and bloom spreads it into a white blob (A-10c, #41).
                 var n = (Vector3)math.normalizesafe(math.cross((float3)(b - a), (float3)(c - a)), new float3(0f, 1f, 0f));

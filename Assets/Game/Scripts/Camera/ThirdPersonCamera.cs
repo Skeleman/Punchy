@@ -100,15 +100,37 @@ namespace Punchy.CameraRig
                 {
                     var back = position - target;
                     var length = back.magnitude;
+                    var probeStart = ProbeStats ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
                     var clear = length;
-                    for (var t = 0.25f; t <= length; t += 0.25f)
+                    if (OldProbe)
                     {
-                        var p = target + back * (t / length);
-                        if (terrain.IsRock(new Unity.Mathematics.float3(p.x, p.y, p.z), 0.35f))
+                        for (var t = 0.25f; t <= length; t += 0.25f)
                         {
-                            clear = Mathf.Max(t - 0.45f, 0.3f);
-                            break;
+                            var p = target + back * (t / length);
+                            if (terrain.IsRock(new Unity.Mathematics.float3(p.x, p.y, p.z), 0.35f))
+                            {
+                                clear = Mathf.Max(t - 0.45f, 0.3f);
+                                break;
+                            }
                         }
+                    }
+                    else
+                    {
+                        // The same steps in Burst: managed TerrainSource calls cost ~16 us each, and this was up to
+                        // 30+ of them a frame.
+                        var result = new Unity.Collections.NativeArray<float>(1, Unity.Collections.Allocator.TempJob);
+                        Unity.Jobs.IJobExtensions.Run(new ArmProbe
+                        {
+                            Terrain = terrain, Target = head, Back = new Unity.Mathematics.float3(back.x, back.y, back.z),
+                            Length = length, Clear = result
+                        });
+                        clear = result[0];
+                        result.Dispose();
+                    }
+                    if (ProbeStats)
+                    {
+                        ProbeCalls++;
+                        ProbeTicks += System.Diagnostics.Stopwatch.GetTimestamp() - probeStart;
                     }
                     caveArm = clear < caveArm ? clear : Mathf.MoveTowards(caveArm, clear, Time.deltaTime * 3f);
                     position = target + back * (Mathf.Min(caveArm, length) / Mathf.Max(length, 1e-4f));
@@ -140,6 +162,36 @@ namespace Punchy.CameraRig
             }
 
             transform.SetPositionAndRotation(position, rotation);
+        }
+
+        /// <summary>Testing (-oldcave): probe the cave arm with managed calls, as before.</summary>
+        public static bool OldProbe;
+        /// <summary>Testing (-perflog): time the cave arm probe.</summary>
+        public static bool ProbeStats;
+        public static long ProbeCalls, ProbeTicks;
+
+        /// <summary>The cave spring arm's rock test: steps out along the arm, returns how far is clear.</summary>
+        [Unity.Burst.BurstCompile]
+        struct ArmProbe : Unity.Jobs.IJob
+        {
+            public TerrainSource Terrain;
+            public Unity.Mathematics.float3 Target, Back;
+            public float Length;
+            public Unity.Collections.NativeArray<float> Clear;
+
+            public void Execute()
+            {
+                var clear = Length;
+                for (var t = 0.25f; t <= Length; t += 0.25f)
+                {
+                    if (Terrain.IsRock(Target + Back * (t / Length), 0.35f))
+                    {
+                        clear = Unity.Mathematics.math.max(t - 0.45f, 0.3f);
+                        break;
+                    }
+                }
+                Clear[0] = clear;
+            }
         }
 
         bool TryGetPlayerPosition(out Vector3 position)
