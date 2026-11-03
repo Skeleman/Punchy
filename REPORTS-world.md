@@ -934,3 +934,18 @@ b/weather-mapjob.
 - Shots: PunchyMilestones/world/w30/w30-beach.png, w30-aerial.png, w30-coast-off.png, w30-coast-on.png.
 - Notes: islet flora is denser than "a few palms" (palm groves). The commit subject picked up a BOM (cosmetic, pushed, left as is).
 - NEXT: W-35.
+
+## W-35 river water steps (NOT DONE)
+
+- Row 1 NOT DONE. Cause: LowerBreachedLakes lowers a breached lake to breach + 0.5 m (here 68.3 -> 55.89), but rivers that backed up into it keep the old level, and the old lake cells get bed = cell elevation with water = bed. Before the fix, the water along the site-1 river (from x -560 to -680) was 59.68, 60.27, 61.91, 56.81, 57.17, then lake 55.89. The ground under it is about 57.1-57.4, so the 61.91 water stands 4.8 m above the ground and then steps down 5 m.
+  - Try A: refill the water after the lowering using the bake's max rule. Steps fell from 456 to 228 island-wide, but at site 1 the water became a flat 66.95 over ground at 57, a 10 m wall.
+  - Try B: min upstream first, then max. Site 1 became 59.10, 58.40, 58.40, 56.12, 56.12, 55.89, which is monotonic, but the grove's dry channel points went from 5 to 473 and open ends from 0 to 7.
+  - The hashes held both times. Both tries were reverted; a patch is kept untracked in the world tree.
+  - Proposed: rerun bed shaping on the old lake cells. This is bed carving, so it needs approval and a hash check.
+- Row 2 NOT DONE. v2 before: 1531 river cells, 456 steps over 0.3 m with no slope, in 219 cells. v1 was not measured.
+- Row 3 NOT DONE. In the grove at (-756,1192), within 50 m: 1675 wet points, 5 points with a dry channel. The walking-height shot shows a floating water wall beside the grove trees, the same stale-level cause as row 1.
+- Row 4 NOT DONE.
+  - (-1196,953) is the lake's shallow edge (water 55.89 over ground 55.91), not a river and not a ford.
+  - At (-879,1001) there is no water (ground 64.33). The open-end counter found 0 on v2, so it misses this case and needs a better rule.
+- Row 5 partly done: 8 before shots in PunchyMilestones/world/w35, taken with the existing W-30 build. There are no after shots, and the aerial views are blocked by trees.
+- Calls: about 80. Builds: 0 (no code change to ship).
