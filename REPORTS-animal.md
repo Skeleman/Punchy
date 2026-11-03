@@ -1001,3 +1001,19 @@ DONE (all four rows). animal-behaviours de2e8e0, on top of the origin/main merge
 - Shots: PunchyMilestones animal/a31: a31-v1-fisher-bridge.png, a31-talk-line.png, a31-talk-line2.png,
   a31-slope-before.png, a31-slope-after.png (a31-fisher-bridge*.png are v2 and have no fisher); full size in raw/.
 - NEXT: bubble shot (-nohud or timing?), wider slope framing, seg 87 spikes and the small-body wedge, why no fords.
+
+## A-32 (2026-11-02)
+- Row 1 DONE: fallback fisher at the best-scored crossing when an island rolls none. v2 log: `fishers 1 (1 lone;
+  0 rolled) ... fishers at (-2542,891 bridge best score)`; v1 unchanged (3 rolled, probe). Shot a32-fisher-bridge.png.
+- Row 2 DONE: -nohud hid bubbles (InteractionPrompt.Hidden). -chatshot now keeps them. a32-talk-line.png shows
+  "Lovely ring to the anvil today." (Smith, Human), viewed at 800 px.
+- Row 3 NOT DONE: pulled-back pairs (a32-slope-before/after, -wide) taken, but the A-31 spot is a cave pool, and
+  before and after look the same. NEXT gives mid-slope spots.
+- Row 4 DONE (probe): seg 246 size 0.45 maxPen 0.051 -> 0.087 at frame 0 only, mean 0.025 -> 0.001, >5cm 312 -> 3,
+  progress 0.23 -> 0.74. seg 87 size 1 0.202 -> 0.094; all remaining spikes are at frames 0-2 (start in rock).
+  Camera viewInRock 12 -> 13, lensInRock 25 unchanged.
+- Row 5 DONE (shot only): bodies fade within ~0.6 m of the camera; a32-close-cam.png from inside the head shows a
+  clear view. No before shot.
+- Hashes: v2 125 / D709D95C (player log). v1 not re-run in the player (no landmark code touched).
+- One build, succeeded; the player quit on its own. Commit cbdf5d1 on animal-behaviours, pushed.
+- Shots: PunchyMilestones animal/a32 (800 px), full size in raw/.

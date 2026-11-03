@@ -1,6 +1,6 @@
-# Animal lane: state (2026-11-02, after batch A-31)
+# Animal lane: state (2026-11-02, after batch A-32)
 
-Worktree `Punchy` (animal lane only). On `animal-behaviours` = origin 6d12e17 (A-31), on top of f50f7a0 (A-30).
+Worktree `Punchy` (animal lane only). On `animal-behaviours` = origin cbdf5d1 (A-32), on top of 6d12e17 (A-31).
 Untracked `Assets/_Recovery/` is old and not ours. Editor on port 7800.
 
 ## Crossing fishers (A-31)
@@ -15,19 +15,22 @@ Untracked `Assets/_Recovery/` is old and not ours. Editor on port 7800.
   the spot facing the water. Home is the nearest village if its edge is within 250 m, else lone (Leash 8); at
   night a lone fisher walks off up the road. Race comes from the nearest settlement's free-folk residents, else
   Folk. Existing creature/ghost path, no new network fields.
-- Counts: v1 has 5 bridges, 0 fords, 5 spots, 3 fishers (all lone). v2 has 3 bridges, 0 fords, 3 spots and
-  0 rolled, so v2 has no fisher.
+- Fallback (A-32): if an island rolls no fisher, the spot crossing with the lowest Roll gets one (Fallback=true;
+  log says "best score"). v1: 3 rolled, no fallback. v2: 0 rolled, fallback at -2544.3,884.6.
 - `-place crossing` parks the camera on the first bridge with a fisher.
 
 ## Talk bubble (A-31)
-- FolkTalkSystem caches a bubble line only once it is non-null. RoleLine falls back to a plain archive line for
-  jobless talkers. The log shows role lines, but no shot has caught the bubble yet (see NEXT).
+- FolkTalkSystem caches a bubble line only once it is non-null. RoleLine falls back to a plain archive line.
+- Why A-31 showed none: -nohud sets InteractionPrompt.Hidden, which hid bubbles too. -chatshot now sets
+  FolkTalkLabels.BubblesWithoutHud (bubbles draw, name labels stay hidden). a32-talk-line.png shows a role line.
 
 ## Cave collision and camera (A-30)
 - PlayerMovementSystem.PushOutOfSolids: knee/middle/head spheres scaled to size, 4 passes, steep floor slide,
-  ceiling undo, gated on caves. SolidDistance is the landmark hook.
+  ceiling undo, gated on caves. SolidDistance is the landmark hook. A-32: shift cap 2r per frame; the ceiling
+  undo needs rock overhead (SolidNormal y < -0.3), which unwedged size 0.45 on seg 246 (progress 0.23 -> 0.74).
 - ThirdPersonCamera.CaveArm: sphere trace, ease out, pivot drop, near plane 0.1 / 0.05.
-- Left: seg 87 (55 deg) spikes up to 0.20 m; size 0.45 wedges at about 0.05 on seg 246 (65 deg).
+- Probe after A-32: seg 87 and 246 penetration over 5 cm only in frames 0-2 (probe starts in rock); none after.
+- CreatureRenderSystem: bodies fade when the camera is within ~0.6 m (fully by 0.35 m). a32-close-cam.png.
 - World card (open): TerrainSource.CaveDistance overstates the distance by up to 1.8x below a passage's axis.
 
 ## Test flags
@@ -36,9 +39,9 @@ Untracked `Assets/_Recovery/` is old and not ours. Editor on port 7800.
 - Hashes: v2 125 / D709D95C, v1 101 / E128CB1D (both checked in A-31).
 
 ## NEXT
-- A bubble shot: the chatshot frames talkers but the bubble did not show. Check whether -nohud hides the bubble
-  or the shot comes before the line.
-- Slope before/after: framing now shows the body, but the slope reads poorly. Pull the view back and up.
-- seg 87 spikes and the small-body wedge (A-30 row 6, not reached).
-- Fords: 0 found on either island. Check whether the bake ever leaves a water gap, or whether roads always bridge.
-- Avatar fade when the camera is very close; job work poses and props.
+- Slope before/after: -goto 3044.1,17.1,-2141.2 is a cave pool, not the slope; both pairs look the same. Use a
+  mid-slope spot: seg 9 (3047.5,22.1,-2142.1 -> 3040.7,12.2,-2140.4) or seg 87 (-3993.8,54.4,812.7 ->
+  -3989.4,44.3,807.3), standing on the floor halfway, side-on -camrel.
+- Close-camera fade: no before shot; a probe or a side-by-side with the fade off would prove it.
+- Fords: 0 found on either island. Check whether roads always bridge.
+- Job work poses and props.
