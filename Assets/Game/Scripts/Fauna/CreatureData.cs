@@ -603,6 +603,9 @@ namespace Punchy.Fauna
         /// </summary>
         public float ChatCool;
         public byte ChatRole, ChatWalk;
+        /// <summary>Brain LOD (#59, host-only): time since a far creature last thought, and how far it coasted meanwhile.</summary>
+        public float LodDebt;
+        public float2 LodCoast;
         /// <summary>A folk's job when the host handed it one (FolkJob; 0 = the one its Task implies). Local, not a ghost field (A-29).</summary>
         public byte Job;
         public float2 ChatResume;

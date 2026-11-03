@@ -64,9 +64,17 @@ namespace Punchy.Fauna
         /// #57 counters for -perflog (Interlocked from the brain's workers): [0] predator searches, [1] alarm searches,
         /// [2] asked-to-chat searches, [3] flee started by a predator, [4] flee started by an alarm.
         /// </summary>
-        public static readonly Unity.Burst.SharedStatic<SearchCounts> Searches = Unity.Burst.SharedStatic<SearchCounts>.GetOrCreate<SearchCountsKey>();
-        struct SearchCountsKey { }
-        public struct SearchCounts { public long Predator, Alarm, Chat, PredatorFlee, AlarmFlee; }
+        public static readonly Unity.Burst.SharedStatic<SearchCounts> Searches = Unity.Burst.SharedStatic<SearchCounts>.GetOrCreate<SearchCountsKey2>();
+        // (Key renamed when the struct grew in A-47: a SharedStatic keeps its first size until the editor restarts.)
+        struct SearchCountsKey2 { }
+        public struct SearchCounts { public long Predator, Alarm, Chat, PredatorFlee, AlarmFlee, PlayerFlee, Thinks, LodSkips; }
+        /// <summary>#59 A/B switch ("-nobrainlod"): every creature thinks every frame, however far from a player.</summary>
+        public static readonly Unity.Burst.SharedStatic<int> BrainLodOff = Unity.Burst.SharedStatic<int>.GetOrCreate<BrainLodOffKey>();
+        struct BrainLodOffKey { }
+        /// <summary>#59 brain LOD: beyond this (m) from every player a creature thinks once every BrainLodFrames frames,
+        /// phased by its Individual so the load stays even; in between a walker on open ground only coasts on.</summary>
+        const float BrainLodRange = 60f;
+        const uint BrainLodFrames = 3;
         /// <summary>#57: each creature looks for predators, alarms and someone asking it to chat once per this (s), phased
         /// by its Individual on the shared clock (the same on every machine); fleeing ones still look every frame.</summary>
         const float SearchPeriod = 0.2f;
@@ -101,9 +109,13 @@ namespace Punchy.Fauna
         static readonly Unity.Profiling.ProfilerMarker DecideMarker = new Unity.Profiling.ProfilerMarker("Brain.Decide");
         static readonly Unity.Profiling.ProfilerMarker AdvanceMarker = new Unity.Profiling.ProfilerMarker("Brain.Advance");
         static readonly Unity.Profiling.ProfilerMarker EaseMarker = new Unity.Profiling.ProfilerMarker("Brain.EaseGait");
+        /// <summary>The whole of one creature's tick (#59: DebugControls' -perflog sums it per frame as "brain ms").</summary>
+        public static readonly Unity.Profiling.ProfilerMarker TickMarker = new Unity.Profiling.ProfilerMarker("Brain.Tick");
         EntityQuery creatures;
         /// <summary>Where each player was last frame (by Holder id), for how fast they're going.</summary>
         NativeHashMap<int, float3> lastPlayerPositions;
+        /// <summary>Frames run, for the brain LOD's turns (#59).</summary>
+        uint frame;
 
         [BurstCompile]
         public void OnCreate(ref SystemState state)
@@ -194,6 +206,7 @@ namespace Punchy.Fauna
                 Dt = math.min(SystemAPI.Time.DeltaTime, 0.1f),
                 Now = (float)SystemAPI.Time.ElapsedTime,
                 Step = SystemAPI.Time.DeltaTime,
+                Frame = ++frame,
                 Night = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Night : 0f,
                 Hour = SystemAPI.TryGetSingleton<FaunaClock>(out var hourClock) ? hourClock.Hour : 12f,
                 Entities = entities,
@@ -249,6 +262,8 @@ namespace Punchy.Fauna
             public float Dt, Night, Hour;
             /// <summary>The shared clock and this frame's raw step, for staggered searches (#57).</summary>
             public float Now, Step;
+            /// <summary>This frame's number, for whose turn it is to think far off (#59).</summary>
+            public uint Frame;
             [ReadOnly] public NativeArray<Entity> Entities;
 
             /// <summary>Whether this creature's staggered searches run this frame: its slot of SearchPeriod came round.</summary>
@@ -268,7 +283,42 @@ namespace Punchy.Fauna
 
             void Execute(Entity self, ref CreatureState s, in CreatureBody body)
             {
+                using var ticked = TickMarker.Auto();
+                // #59 brain LOD: far from every player it thinks only on its turn, for the time since its last think; on
+                // the frames between, a walker on open ground coasts along its heading (taken back before it next thinks,
+                // so the think moves it the whole way) and anything else holds still.
+                var frameDt = Dt;
+                var frameStep = Step;
+                var far = BrainLodOff.Data == 0 && !s.Gone && s.Mode != CreatureMode.Held && s.Mode != CreatureMode.Puppet;
+                for (int p = 0; p < Players.Length && far; p++)
+                    far = math.distancesq(Players[p].xz, s.Position.xz) > BrainLodRange * BrainLodRange;
+                var thinks = !far || (Frame + math.hash(new uint2(s.Individual, 0x59u))) % BrainLodFrames == 0;
+                if (!thinks)
+                {
+                    s.LodDebt += frameStep;
+                    if (body.Blob.Value.Habitat == Habitat.Land && s.Speed > 0f && s.Fly < 0.01f &&
+                        math.abs(s.Position.y - Terrain.SampleHeight(s.Position.xz)) < 0.3f)
+                    {
+                        var coast = new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * s.Speed * frameDt;
+                        s.LodCoast += coast;
+                        s.Position.xz += coast;
+                        s.Position.y = CreatureMotion.Ground(Terrain, s.Position.xz, s.Position.y);
+                    }
+                    System.Threading.Interlocked.Increment(ref Searches.Data.LodSkips);
+                    return;
+                }
+                if (s.LodDebt > 0f)
+                {
+                    s.Position.xz -= s.LodCoast;
+                    Step = frameStep + s.LodDebt;
+                    Dt = math.min(Step, 0.3f);
+                    s.LodDebt = 0f;
+                    s.LodCoast = float2.zero;
+                }
+                System.Threading.Interlocked.Increment(ref Searches.Data.Thinks);
                 Think(self, ref s, in body);
+                Dt = frameDt;
+                Step = frameStep;
                 // A-44: one lying or standing still over a cave entrance (it rested there before the ground under it was
                 // known to be carved) settles onto the carved ground; up a tree or on a perch it is above the surface.
                 // (A-44b: at once, and moving too: easing down, or only when still, left 258 floating ticks a minute.)
@@ -391,6 +441,8 @@ namespace Punchy.Fauna
                                 emote == IdleAction.Cheer || emote == IdleAction.Dance ? 1.8f : emote == IdleAction.Wave ? 1.25f : 1f;
                 var threatened = !aloft && !ownKind && b.FleeDistance > 0f && threatDistance < b.FleeDistance * s.Scale * alert * nerve * tame * commotion;
                 var threat = player.xz;
+                if (threatened && s.Mode != CreatureMode.Flee)
+                    System.Threading.Interlocked.Increment(ref Searches.Data.PlayerFlee);
                 // A hunter after it: heard creeping close, or seen drawing back to throw (and the throw itself).
                 if (!threatened && !aloft && b.FleeDistance > 0f && FindHunter(self, ref s, alert, out var hunter))
                 {
