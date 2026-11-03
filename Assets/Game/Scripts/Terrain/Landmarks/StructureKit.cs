@@ -16,7 +16,11 @@ namespace Punchy.Terrain
         /// <summary>A lantern's glass: drawn as a window pane, so it lights up at dusk (fishing villages, #36).</summary>
         Lamp,
         /// <summary>Net and rope: a pale cord colour.</summary>
-        Net
+        Net,
+        /// <summary>A turtle folk rune or ice pane (#38): a pale blue-green glow, drawn as a window pane so it lights at dusk.</summary>
+        Rune,
+        /// <summary>Packed snow and ice blocks: the turtle folk's igloo shell, a little bluer than the wall colour.</summary>
+        Ice
     }
 
     /// <summary>
@@ -25,7 +29,17 @@ namespace Punchy.Terrain
     /// </summary>
     public enum KitShape : byte
     {
-        House, StiltHouse, Dock, Shore
+        House, StiltHouse, Dock, Shore,
+        /// <summary>A turtle folk's domed igloo (#38) with a tall tunnel door.</summary>
+        Igloo,
+        /// <summary>A cluster of mountaintop details (#38): prayer-flag lines, snow-buried pots, rune stones, cairns.</summary>
+        Alpine
+    }
+
+    /// <summary>The small things a turtle folk settlement leaves about its mountaintop (#38), picked by weight from AlpineDetails.</summary>
+    public enum AlpineDetail : byte
+    {
+        PrayerFlags, SnowPot, RuneStone, Cairn, IceLantern, Sled
     }
 
     /// <summary>The small things a fishing village leaves about (#36), picked by weight from CoastDetails.</summary>
@@ -128,6 +142,16 @@ namespace Punchy.Terrain
                         Roof = KitRoof.Steep, Storey = 2.6f, Bay = 2.0f, Pitch = 46f, Quoins = false, Crenels = false, Shutters = true,
                         TowerChance = 0f, BalconyChance = 0f, StairChance = 0f
                     };
+                case FolkCulture.TurtleFolk:
+                    // The turtle folk's trim (#38): snow-white block walls, glacier-blue trim, a pale shell-green for
+                    // wood and doors, tall 3.6 m storeys for a tall race; their igloos are domes (KitShape.Igloo).
+                    return new CultureTrim
+                    {
+                        Wall = new Color(0.88f, 0.91f, 0.94f), Trim = new Color(0.62f, 0.76f, 0.86f), RoofColour = new Color(0.80f, 0.86f, 0.92f),
+                        Wood = new Color(0.42f, 0.50f, 0.38f), Opening = new Color(0.06f, 0.10f, 0.14f), Moss = new Color(0.40f, 0.52f, 0.42f),
+                        Roof = KitRoof.Flat, Storey = 3.6f, Bay = 2.4f, Pitch = 0f, Quoins = false, Crenels = false, Shutters = false,
+                        TowerChance = 0f, BalconyChance = 0f, StairChance = 0f
+                    };
                 default:
                     return new CultureTrim
                     {
@@ -151,6 +175,8 @@ namespace Punchy.Terrain
             KitMaterial.Stone => Color.Lerp(t.Wall, t.Trim, 0.5f) * 0.85f,
             KitMaterial.Lamp => new Color(1f, 0.72f, 0.38f),
             KitMaterial.Net => new Color(0.70f, 0.66f, 0.55f),
+            KitMaterial.Rune => new Color(0.55f, 0.95f, 1f),
+            KitMaterial.Ice => Color.Lerp(t.Wall, t.Trim, 0.25f),
             _ => t.Wall
         };
 
@@ -329,6 +355,213 @@ namespace Punchy.Terrain
                     break;
             }
         }
+
+        // ------------------------------------------------------------------------------------- mountaintops (#38)
+
+        /// <summary>Which mountaintop details turn up and how often (data: add a kind here and a case in Alpine).</summary>
+        public static readonly (AlpineDetail Kind, float Weight)[] AlpineDetails =
+        {
+            (AlpineDetail.PrayerFlags, 3f), (AlpineDetail.SnowPot, 2f), (AlpineDetail.RuneStone, 2f),
+            (AlpineDetail.Cairn, 2.5f), (AlpineDetail.IceLantern, 1.5f), (AlpineDetail.Sled, 1f)
+        };
+
+        /// <summary>A seeded pick from AlpineDetails by weight.</summary>
+        public static AlpineDetail PickAlpine(System.Random rng)
+        {
+            var total = 0f;
+            foreach (var d in AlpineDetails) total += d.Weight;
+            var roll = (float)rng.NextDouble() * total;
+            foreach (var d in AlpineDetails)
+                if ((roll -= d.Weight) < 0f)
+                    return d.Kind;
+            return AlpineDetails[0].Kind;
+        }
+
+        /// <summary>
+        /// A turtle folk igloo (#38) centred on the origin, door at +Z: a dome of snow blocks laid in rings that lean in
+        /// as they rise (the bottom ring is solid), a tall tunnel porch (3.4 m clear, for a tall race) ending in a closed
+        /// door, ice panes and a rune band that glow faintly, and by the seed: a shell-ribbed crown over the porch or a
+        /// plain arch, a smaller side dome, a snow drift, a vent cap, and a detail or two beside the door.
+        /// </summary>
+        public static List<KitPart> Igloo(uint seed, CultureTrim t, float diameter)
+        {
+            var parts = new List<KitPart>();
+            var rng = new System.Random((int)(Scramble(seed ^ 0x1600u) & 0x7FFFFFFF));
+            float R() => (float)rng.NextDouble();
+            var radius = diameter * 0.5f;
+            var squash = 0.82f + R() * 0.2f;                 // how tall the dome stands against its radius
+            Dome(parts, Vector3.zero, radius, squash, true, rng);
+
+            // The tunnel porch at +Z: two block walls, a vaulted roof of three slabs, and the door at its inner end.
+            const float doorW = 1.7f, doorH = 3.4f;
+            var tunnel = 2.2f + R() * 0.8f;
+            var z0 = radius * 0.78f;                         // where the porch meets the dome
+            var zMid = z0 + tunnel * 0.5f;
+            foreach (var side in new[] { -1f, 1f })
+                Add(parts, KitPiece.Wall, KitMaterial.Ice, new Vector3(side * (doorW * 0.5f + 0.35f), doorH * 0.5f, zMid), new Vector3(0.7f, doorH, tunnel), 0f, false);
+            Add(parts, KitPiece.Roof, KitMaterial.Ice, new Vector3(0f, doorH + 0.3f, zMid), new Vector3(doorW + 0.5f, 0.6f, tunnel), 0f, false);
+            foreach (var side in new[] { -1f, 1f })
+                Add(parts, KitPiece.Roof, KitMaterial.Ice, new Vector3(side * (doorW * 0.5f + 0.25f), doorH + 0.05f, zMid), new Vector3(0.9f, 0.6f, tunnel + 0.02f), 0f, false, 0f, side * -35f);
+            Add(parts, KitPiece.Door, KitMaterial.Wood, new Vector3(0f, doorH * 0.5f, z0 + 0.1f), new Vector3(doorW, doorH, 0.14f), 0f, false);
+            Add(parts, KitPiece.Trim, KitMaterial.Rune, new Vector3(0f, doorH * 0.62f, z0 + 0.19f), new Vector3(0.16f, 0.5f, 0.04f), 0f, false);
+            if (R() < 0.55f)
+            {
+                // A shell-shaped crown: ribs fanning out over the porch mouth, like a scallop.
+                for (int k = 0, ribs = 7; k < ribs; k++)
+                {
+                    var a = -60f + k * 120f / (ribs - 1);
+                    var dir = Quaternion.Euler(0f, 0f, a) * Vector3.up;
+                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, doorH + 0.15f, z0 + tunnel + 0.05f) + dir * 0.55f, new Vector3(0.14f, 1.1f, 0.12f), 0f, false, 0f, a);
+                }
+            }
+            else
+                Add(parts, KitPiece.Arch, KitMaterial.Trim, new Vector3(0f, doorH + 0.1f, z0 + tunnel + 0.04f), new Vector3(doorW + 1.2f, 0.32f, 0.2f), 0f, false);
+            // A path of packed snow out through the porch (walked on, not solid).
+            Add(parts, KitPiece.Floor, KitMaterial.Ice, new Vector3(0f, 0.05f, z0 + tunnel * 0.5f + 0.4f), new Vector3(doorW + 0.3f, 0.1f, tunnel + 0.8f), 0f, false);
+
+            // Ice panes round the dome and a faint rune band low on the wall: the inner glow showing through.
+            for (int k = 0, panes = 2 + rng.Next(3); k < panes; k++)
+            {
+                var a = 55f + k * 250f / panes + (R() - 0.5f) * 20f;  // round the back and sides, never on the door
+                var at = Turn(a, new Vector3(0f, radius * squash * 0.45f, radius * 0.93f));
+                Add(parts, KitPiece.Window, KitMaterial.Rune, at, new Vector3(0.7f, 0.9f, 0.12f), a, false, -24f);
+            }
+            if (R() < 0.6f)
+                for (int k = 0; k < 16; k++)
+                {
+                    var a = k * 22.5f;
+                    if (Mathf.Abs(Mathf.DeltaAngle(a, 0f)) < 25f) continue;
+                    Add(parts, KitPiece.Trim, KitMaterial.Rune, Turn(a, new Vector3(0f, 0.55f, radius * 1.005f)), new Vector3(0.5f, 0.07f, 0.04f), a, false);
+                }
+            // A smaller side dome (a store or a sleeping room), a snow drift on the windward side, a vent cap on top.
+            if (R() < 0.45f)
+            {
+                var side = R() < 0.5f ? -1f : 1f;
+                Dome(parts, new Vector3(side * radius * 1.05f, 0f, -radius * 0.25f), radius * 0.5f, 0.8f, false, rng);
+            }
+            var drift = R() * 360f;
+            if (Mathf.Abs(Mathf.DeltaAngle(drift, 0f)) > 50f)
+                Add(parts, KitPiece.Trim, KitMaterial.Wall, Turn(drift, new Vector3(0f, 0.25f, radius * 1.05f)), new Vector3(radius * 1.1f, 0.7f, 1.4f), drift, false, -18f);
+            Add(parts, KitPiece.Chimney, KitMaterial.Trim, new Vector3(0f, radius * squash + 0.15f, 0f), new Vector3(0.7f, 0.35f, 0.7f), R() * 90f, false);
+            for (int k = 0, n = 1 + rng.Next(2); k < n; k++)
+            {
+                var side = k == 0 ? (rng.Next(2) == 0 ? -1f : 1f) : -1f;
+                Alpine(parts, PickAlpine(rng), new Vector3(side * (doorW + 1.8f + R()), 0f, z0 + tunnel * (0.3f + 0.6f * R())), R() * 360f, rng);
+            }
+            return parts;
+        }
+
+        /// <summary>A dome of snow blocks in rings (each ring a little smaller and leaning in), with a gap at +Z for the porch.</summary>
+        static void Dome(List<KitPart> parts, Vector3 at, float radius, float squash, bool door, System.Random rng)
+        {
+            var rings = Mathf.Clamp(Mathf.RoundToInt(radius / 0.75f), 3, 7);
+            for (int r = 0; r < rings; r++)
+            {
+                var phi0 = r * 90f / rings;
+                var phi = (r + 0.5f) * 90f / rings;
+                var ringR = radius * Mathf.Cos(phi * Mathf.Deg2Rad);
+                var y = radius * squash * Mathf.Sin(phi * Mathf.Deg2Rad);
+                var tall = radius * squash * (Mathf.Sin((r + 1) * 90f / rings * Mathf.Deg2Rad) - Mathf.Sin(phi0 * Mathf.Deg2Rad)) + 0.08f;
+                var blocks = Mathf.Max(4, Mathf.RoundToInt(2f * Mathf.PI * ringR / 1.25f));
+                var offset = (r % 2) * 0.5f;                  // stagger the joints ring on ring
+                for (int k = 0; k < blocks; k++)
+                {
+                    var a = (k + offset) * 360f / blocks;
+                    if (door && r < 3 && Mathf.Abs(Mathf.DeltaAngle(a, 0f)) < 18f + r * 2f)
+                        continue;
+                    var len = 2f * Mathf.PI * ringR / blocks + 0.06f;
+                    var centre = at + Turn(a, new Vector3(0f, y, ringR - 0.25f));
+                    Add(parts, KitPiece.Wall, KitMaterial.Ice, centre, new Vector3(len, tall, 0.5f), a, door && r == 0, -phi * 0.9f);
+                }
+            }
+            Add(parts, KitPiece.Roof, KitMaterial.Ice, at + new Vector3(0f, radius * squash - 0.1f, 0f), new Vector3(radius * 0.5f, 0.3f, radius * 0.5f), (float)rng.NextDouble() * 90f, false);
+        }
+
+        /// <summary>A cluster of two to four mountaintop details round the origin (#38), each picked from AlpineDetails by the seed.</summary>
+        public static List<KitPart> AlpineCluster(uint seed, CultureTrim t, float spread)
+        {
+            var parts = new List<KitPart>();
+            var rng = new System.Random((int)(Scramble(seed ^ 0xA1B5u) & 0x7FFFFFFF));
+            for (int k = 0, n = 2 + rng.Next(3); k < n; k++)
+            {
+                var a = (k + (float)rng.NextDouble() * 0.6f) * Mathf.PI * 2f / n;
+                var at = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * (k == 0 ? 0f : spread * (0.6f + 0.4f * (float)rng.NextDouble()));
+                Alpine(parts, PickAlpine(rng), at, (float)rng.NextDouble() * 360f, rng);
+            }
+            return parts;
+        }
+
+        /// <summary>One mountaintop detail standing at <paramref name="at"/> (its base), turned by <paramref name="yaw"/> degrees.</summary>
+        public static void Alpine(List<KitPart> parts, AlpineDetail kind, Vector3 at, float yaw, System.Random rng)
+        {
+            float R() => (float)rng.NextDouble();
+            switch (kind)
+            {
+                case AlpineDetail.PrayerFlags:
+                {
+                    // Two leaning poles and a sagging cord hung with small flags in five colours.
+                    var w = 4f + R() * 3f;
+                    var hi = 2.6f + R() * 0.8f;
+                    foreach (var side in new[] { -0.5f, 0.5f })
+                        Add(parts, KitPiece.Column, KitMaterial.Wood, at + Turn(yaw, new Vector3(side * w, hi * 0.5f, 0f)), new Vector3(0.12f, hi, 0.12f), yaw, false, 0f, side * -8f);
+                    var flags = 6 + rng.Next(5);
+                    var mats = new[] { KitMaterial.Rune, KitMaterial.Trim, KitMaterial.Moss, KitMaterial.Roof, KitMaterial.Lamp };
+                    for (int f = 0; f < flags; f++)
+                    {
+                        var u = (f + 0.5f) / flags;
+                        var sag = 4f * u * (1f - u) * 0.6f;
+                        Add(parts, KitPiece.Trim, KitMaterial.Net, at + Turn(yaw, new Vector3((u - 0.5f) * w, hi - 0.1f - sag, 0f)), new Vector3(w / flags + 0.02f, 0.03f, 0.03f), yaw, false);
+                        Add(parts, KitPiece.Trim, mats[(f + rng.Next(2)) % mats.Length], at + Turn(yaw, new Vector3((u - 0.5f) * w, hi - 0.38f - sag, 0.02f)), new Vector3(0.34f, 0.46f, 0.02f), yaw, false, 0f, (R() - 0.5f) * 14f);
+                    }
+                    break;
+                }
+                case AlpineDetail.SnowPot:
+                    // Clay pots half sunk in a snow mound, a lid or two askew.
+                    Add(parts, KitPiece.Trim, KitMaterial.Wall, at + new Vector3(0f, 0.12f, 0f), new Vector3(1.6f, 0.35f, 1.3f), yaw, false);
+                    for (int k = 0, pots = 1 + rng.Next(3); k < pots; k++)
+                    {
+                        var p = new Vector3((R() - 0.5f) * 0.9f, 0.3f, (R() - 0.5f) * 0.7f);
+                        var size = 0.4f + R() * 0.25f;
+                        Add(parts, KitPiece.Trim, KitMaterial.Stone, at + Turn(yaw, p), new Vector3(size, size * 1.1f, size), yaw + R() * 45f, false);
+                        if (R() < 0.6f)
+                            Add(parts, KitPiece.Trim, KitMaterial.Wall, at + Turn(yaw, p + new Vector3(0f, size * 0.6f, 0f)), new Vector3(size * 0.9f, 0.08f, size * 0.9f), yaw, false, (R() - 0.5f) * 20f);
+                    }
+                    break;
+                case AlpineDetail.RuneStone:
+                {
+                    // A standing stone with a glowing rune cut in its face, and now and then a smaller one fallen beside it.
+                    var hi = 1.4f + R() * 0.9f;
+                    Add(parts, KitPiece.Column, KitMaterial.Stone, at + new Vector3(0f, hi * 0.5f, 0f), new Vector3(0.7f, hi, 0.45f), yaw, false, (R() - 0.5f) * 6f);
+                    Add(parts, KitPiece.Trim, KitMaterial.Rune, at + Turn(yaw, new Vector3(0f, hi * 0.6f, 0.24f)), new Vector3(0.12f, hi * 0.45f, 0.03f), yaw, false);
+                    Add(parts, KitPiece.Trim, KitMaterial.Rune, at + Turn(yaw, new Vector3(0f, hi * 0.66f, 0.24f)), new Vector3(0.36f, 0.08f, 0.03f), yaw, false);
+                    if (R() < 0.5f)
+                        Add(parts, KitPiece.Rubble, KitMaterial.Stone, at + Turn(yaw, new Vector3(0.9f, 0.18f, 0.2f)), new Vector3(0.9f, 0.36f, 0.4f), yaw + 70f, false);
+                    break;
+                }
+                case AlpineDetail.Cairn:
+                    // Flat stones stacked smaller and smaller, each a little off.
+                    for (int k = 0, n = 4 + rng.Next(4); k < n; k++)
+                    {
+                        var s = 0.8f * (1f - k / (float)(n + 1));
+                        Add(parts, KitPiece.Rubble, KitMaterial.Stone, at + new Vector3((R() - 0.5f) * 0.12f, 0.12f + k * 0.2f, (R() - 0.5f) * 0.12f), new Vector3(s, 0.2f, s * 0.8f), R() * 360f, false, (R() - 0.5f) * 8f);
+                    }
+                    break;
+                case AlpineDetail.IceLantern:
+                    // A block-ice post with a rune light in a hollow at the top.
+                    Add(parts, KitPiece.Column, KitMaterial.Ice, at + new Vector3(0f, 0.6f, 0f), new Vector3(0.45f, 1.2f, 0.45f), yaw, false);
+                    Add(parts, KitPiece.Window, KitMaterial.Rune, at + new Vector3(0f, 1.38f, 0f), new Vector3(0.3f, 0.36f, 0.3f), yaw, false);
+                    Add(parts, KitPiece.Trim, KitMaterial.Ice, at + new Vector3(0f, 1.62f, 0f), new Vector3(0.55f, 0.12f, 0.55f), yaw, false);
+                    break;
+                case AlpineDetail.Sled:
+                    // A long sled on two runners, a bundle lashed on it.
+                    foreach (var side in new[] { -0.4f, 0.4f })
+                        Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, new Vector3(side, 0.08f, 0f)), new Vector3(0.08f, 0.12f, 2.6f), yaw, false);
+                    Add(parts, KitPiece.Platform, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, 0.22f, 0f)), new Vector3(0.95f, 0.08f, 2.2f), yaw, false);
+                    Add(parts, KitPiece.Trim, KitMaterial.Net, at + Turn(yaw, new Vector3(0f, 0.48f, -0.2f)), new Vector3(0.7f, 0.45f, 1.1f), yaw, false);
+                    break;
+            }
+        }
+
 
         /// <summary>
         /// A house of <paramref name="storeys"/> on a width x depth footprint centred on the origin, door at +Z. Decay 0

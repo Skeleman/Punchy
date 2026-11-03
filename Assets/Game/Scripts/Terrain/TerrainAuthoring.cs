@@ -88,6 +88,10 @@ namespace Punchy.Terrain
             var village = FishingVillageBaking.LoadType();
             if (village != null && !types.Contains(village))
                 types.Add(village);
+            // #38: turtle folk settlements after the villages, for the same reason.
+            var turtles = TurtleVillageBaking.LoadType();
+            if (turtles != null && !types.Contains(turtles))
+                types.Add(turtles);
             return types;
         }
 
@@ -192,6 +196,14 @@ namespace Punchy.Terrain
                 {
                     var before = source.Landmarks;
                     source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, mouths, allocator);
+                    before.Dispose();
+                }
+                // #38: turtle folk settlements on the highest peaks, last of all, each on its own new spot.
+                var peaks = TurtleVillageBaking.Place(source, landmarkTypes);
+                if (peaks.Count > 0)
+                {
+                    var before = source.Landmarks;
+                    source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, peaks, allocator);
                     before.Dispose();
                 }
             }

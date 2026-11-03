@@ -2979,11 +2979,19 @@ namespace Punchy.Flora
                 case Punchy.Terrain.KitShape.Shore:
                     parts = Punchy.Terrain.StructureKit.Shore(seed, trim, 2.5f);
                     break;
+                case Punchy.Terrain.KitShape.Igloo:     // #38: a turtle folk's dome, one tall storey
+                    storeys = 1;
+                    parts = Punchy.Terrain.StructureKit.Igloo(seed, trim, width);
+                    break;
+                case Punchy.Terrain.KitShape.Alpine:    // #38: mountaintop details, walked round
+                    parts = Punchy.Terrain.StructureKit.AlpineCluster(seed, trim, 2.5f);
+                    break;
                 default:
                     parts = Punchy.Terrain.StructureKit.House(seed, trim, width, depth, storeys, ruined ? g.Range(0.45f, 0.9f) : 0f);
                     break;
             }
-            var house = shape == Punchy.Terrain.KitShape.House || shape == Punchy.Terrain.KitShape.StiltHouse;
+            var house = shape == Punchy.Terrain.KitShape.House || shape == Punchy.Terrain.KitShape.StiltHouse ||
+                        shape == Punchy.Terrain.KitShape.Igloo;
 
             var first = b.VertexCount;
             var top = 0f;
@@ -3001,7 +3009,7 @@ namespace Punchy.Flora
                 var jitter = ((i * 2654435761u) >> 24) / 255f;                 // a little per-stone variety, the same at every LOD
                 c = Color.Lerp(c * 0.94f, c * 1.08f, jitter);
                 b.Box(p.Centre, p.Size, p.Rotation, c, p.Material == Punchy.Terrain.KitMaterial.Moss ? FloraPart.Foliage :
-                                                       p.Material == Punchy.Terrain.KitMaterial.Lamp ? FloraPart.Window : FloraPart.Bark);
+                                                       p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Rune ? FloraPart.Window : FloraPart.Bark);
                 var high = p.Centre.y + p.Size.y * 0.5f;
                 top = Mathf.Max(top, high);
                 if (p.Solid)

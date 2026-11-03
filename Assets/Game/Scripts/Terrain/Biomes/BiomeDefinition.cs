@@ -29,7 +29,9 @@ namespace Punchy.Terrain
         Goblin = 8,
         Ogre = 16,
         SnowFolk = 32,
-        FishFolk = 64
+        FishFolk = 64,
+        /// <summary>The tall turtle folk of the mountaintops (#38): igloo settlements on the highest peaks.</summary>
+        TurtleFolk = 128
     }
 
     /// <summary>

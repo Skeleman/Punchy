@@ -405,6 +405,14 @@ namespace Punchy.Terrain
                 if (palette.Landmarks.Length == types.Count - 1)
                     palette.Landmarks = types.ToArray();
             }
+            // #38: and the turtle village type after it, the same way.
+            var turtles = TurtleVillageBaking.LoadType();
+            if (turtles != null && !types.Contains(turtles))
+            {
+                types.Add(turtles);
+                if (palette.Landmarks.Length == types.Count - 1)
+                    palette.Landmarks = types.ToArray();
+            }
             TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent, villages: true);
             // W-29: the grand falls go in after every place, so no landmark, cave or settlement sees them.
             source.GrandFalls = GrandFalls.Build(source, Allocator.Persistent);
