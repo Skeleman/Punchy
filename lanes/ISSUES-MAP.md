@@ -25,7 +25,7 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | Issue | Title | Card |
 |---|---|---|
 
-| #57 | Creature perf | A-45 (animal perf) |
+| #57 | Creature perf: staggered searches, fair flee check | A-46 row 2 |
 | #58-#64 | ECS code-health review | A-45/A-47 after perf |
 | #68 | Character selection tab: class -> species -> colour | A-46 (animal lane owns the player's body) |
 | #69 #70 #71 #72 | Zach playtest: hermit shelters, wasteland rock collision, great mushroom, biome campgrounds | W-57 (after W-56) |
