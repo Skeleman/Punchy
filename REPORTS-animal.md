@@ -1077,3 +1077,16 @@ DONE (all five rows).
 - Row 3 NOT DONE (code in): merchant gesture made bigger and held longer (4c03cde, pushed); shots not taken.
 - Build: 1 (Succeeded, Builds/Windows, from 4c03cde). Player runs: 0. Calls ~37.
 - NEXT: run Temp/a35_shots.txt once with -quit, view pairs, read -walk logs and hashes.
+## A-35 (2026-11-02): finished (relaunch)
+- Row 1 DONE (bf170f2). Player log after the merge: v2 126 landmarks / 053C63D5, v1 (`-island v1`) 102 / 51EA6463. 0 exceptions.
+- Row 2 DONE: seg 245 slope (55 deg, 2.5 m, no drop). -nopushout: walks up to 0.2 m from the end, (-1448.4, 85.5, 240.9),
+  0.0 m over the floor, pushed 0 m. Push-out on: slides back down to (-1446.4, 79.6, 237.3), 4.3 m from the end, 0.0 m over
+  the floor (never airborne), pushed 0.4 m at 0.25 s, 10.3 m by 1 s, 16.7 m by 2 s. Difference obvious: before shows the body at
+  the top; the fixed -camrel after shot loses the body (it slid out of frame), so a35b-after-down (camera aimed down the slope)
+  and a35b-after-follow show it at the bottom. Note: push-out fights the player on a real 55 deg cave floor.
+- Row 3 DONE: merchant front-on with `-watchfrom 1.6,2.5` (+2.5 is the front) once at the stall (`-untilwork 60 -wait 8`): hand
+  raised, beckoning, reads. The original -wait 2/3.3 shots caught it still walking to the stall. Ogre baker at the fire, reads.
+- Build: 0 this relaunch (A-35's 4c03cde build was current). Player runs: 4 (main list, v1 hash, slope reshoot, merchant
+  reshoot), all quit on their own. Calls ~23 this relaunch.
+- Shots: PunchyMilestones/animal/a35 (raw + 800).
+- NEXT: A-36 warp keys. Follow-up for the supervisor: push-out drives players back down steep cave slopes (seg 245).
