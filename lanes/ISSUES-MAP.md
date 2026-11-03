@@ -27,6 +27,7 @@ Closed 2026-11-03 with Zach's OK: #11 #45
 | #54 | Camera cave arm sphere-trace managed (v2 cave +1.9 ms) | A-45 first. W-48 had a Burst probe (6abc0d8, ArmProbe IJob); PR #66 kept main's managed CaveArm, so reuse that pattern. Ties to BENCH-QUEUE item 11 |
 | #55 #56 #57 | Creature perf | A-45 (animal perf) |
 | #58-#64 | ECS code-health review | A-45/A-47 after perf |
+| #68 | Character selection tab: class -> species -> colour | A-46 (animal lane owns the player's body) |
 | #31 | Laptop: houses lit wrong | Needs the laptop |
 | #21 #22 | Plant fidelity, underwater camera (design) | backlog |
 | #24 | Dungeons: caves and ruins | W-56 starts it (modular ruin kit, sunken temple) |
