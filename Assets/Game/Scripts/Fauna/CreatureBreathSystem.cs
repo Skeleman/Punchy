@@ -1,4 +1,4 @@
-using Punchy.Ambience;
+﻿using Punchy.Ambience;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -44,8 +44,7 @@ namespace Punchy.Fauna
             if (ambience == null || cam == null || ambience.Cold <= ambience.BreathThreshold)
                 return;
             float3 camAt = cam.transform.position;
-            var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
-            var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            CreatureSnapshotSystem.Get(World, query, out var states, out var bodies, out var entities);
             var players = false;
             for (int i = 0; i < states.Length; i++)
             {
@@ -73,8 +72,7 @@ namespace Punchy.Fauna
                 ambience.Breathe(mouth, forward, velocity, size);
             }
             PlayersBreathe = players;
-            states.Dispose();
-            bodies.Dispose();
+            CreatureSnapshotSystem.Release(World, states, bodies, entities);
         }
     }
 }
