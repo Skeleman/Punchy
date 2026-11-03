@@ -1,51 +1,40 @@
 # World lane state
 
-Updated 2026-11-02 after W-28b. Branch world-features @ fd91300 (pushed). One build (Builds/Dev).
+Updated 2026-11-02 after W-34. Branch world-features @ 0bdc707 (pushed). One build (Builds/Dev).
 
-## Done in W-28b (less uniform icebergs)
-- Each berg gets a seeded shape class from its own stream:
-  - Big: tabular, dry dock (two peaks), dome, tilted, pinnacle, capsized.
-  - Chunks and floes: tabular, tilted, pinnacle, dome.
-- Also per berg: a stretched footprint (up to 1.8:1, or 2:1 small), random yaw and a tilted top, an off-centre peak or
-  crown, uneven facets, a notch (55% big, 30% small), an undercut (half the slab-like big bergs) and a waterline ledge
-  (40% big). The ledge sits at 0.18 m, so it is swum onto.
-- No two neighbours alike: a class is skipped if the nearest placed berg has it, and a second pass fixes a later
-  neighbour where the new class still fits its room. v2: 1 of 100 bergs still shares a class with its nearest.
-- Collision (TerrainSource.Deck/TowerWall via IcebergShape.Height) and the meshes sample the same shape functions.
-- Colour: a 64x1 palette strip set on a copy of IcebergIce. White snow tops, bluer or greyer faces per berg (Tint),
-  jitter per face, deeper blue underwater, and a dark blue streak on 35% of big bergs.
-- The cave berg stays a slab so the chamber keeps its roof: stretched 1.05-1.3, tilt 0.04, no notch or ledge.
-- Cave joint: a double-sided frame at the chamber wall, from the tube's arch out to a 5.4 x 4.3 m arch, closes the gap.
-- Tower steps: TerrainSource.Deck now also returns SaltTowerShape.Floor. PlayerMovementSystem was not changed.
+## Done in W-34 (bridge posts, cobblestones)
+- Bridge railings (FloraGenerator.Bridge): each span used to draw its rail post only at its start, so every span's
+  far rail end floated, including the end at the bank. Each side now has posts at both ends, +-3.2 m (RailRun =
+  RoadBaking.SpanSpacing 6.4), so neighbouring spans share a post. Rails run post to post. Posts go from 0.6 m
+  below the deck to just above the rail. Mesh only: spans, pads and facing are unchanged.
+- Cobbles (TerrainSurface.shader): the grid Cobbles() is replaced with CobbleHeight + Cobbles.
+  - A domain-warped, size-weighted, jittered Voronoi (0.42 m lattice, weight 0.62-1.38).
+  - Smooth-min borders round the corners, and the gap width varies (1.5-4 cm).
+  - Domed stones with per-stone height, lean and lumps. The normal comes from finite differences (3 samples).
+  - Per-stone hue and shade, a broad patch tint, darkened rims, and dark earth or moss in the gaps.
+  - The fade is the same as before (30-80 m).
 
 ## Checks
-- Shapes, v2: big 6 [tabular 3 (incl. cave), dry dock 2, dome 1], small 94 [tabular 26, tilted 27, dome 21, pinnacle 20].
-- Cost:
-
-  | Island | Before | After |
-  |---|---|---|
-  | v2 | 5 draws, 6232 tris | 5 draws, 6712 tris |
-  | v2 cave | 1026 tris, 1 draw | 1058 tris, 1 draw |
-  | v1 | 3 draws, 2140 tris | 3 draws, 1420 tris |
-
-  v2 counts: big 6, chunks 64, floes 30. They were 6 / 56 / 38: the berg counts moved, which the card allows.
-- Cave walk: 958 steps, 0 blocked, reached the chamber and came back.
-- Tower walk: the editor called the player's own Floor through reflection. Tower (3720,-800), 245 steps, 2196
-  sub-steps, 0 blocked, from floor 7.64 to the top step at 80.42. Before the fix the ground there read 6.99.
+- Rail ends without a post: on v1 (WorldProbe.BridgeRails), 5 bridges and 10 spans; 20 before, 0 after. The largest
+  pad step between spans is 0.00 m. v2 was not counted by probe (it needs v2 in play mode). The same code draws every
+  span, so v2 also has 0 by construction, and the v2 shot shows posts at all rail ends.
+- Build: Succeeded, 0 errors, no "Shader error" in the log.
 
 ## Open
-- The cave berg, which the W-28 shots centre on, is still a near-round slab. Most of the change is in the other
-  bergs and in the colour. A taller dry-dock cave berg (top at least 13 m over the chamber) is possible.
-- No shot shows the other big bergs close up (pinnacle, dry dock and dome views were not in the card's list).
-- v1 shape counts were not logged (the static log stayed from v2). Only v1's mesh stats and hashes were read.
-- From W-29: a slanted water sheet beside the main falls curtain, snowy levees and plain gorge walls.
+- v2 bridges per island not counted by probe (see above). v2 cave hash not re-read: the player log does not print it;
+  the change is a mesh and a shader only.
+- Cobble cost: 3 CobbleHeight calls (each a 9-cell Voronoi) per paved pixel within 80 m. Not benched.
+- From W-28b: a taller dry-dock cave berg; close shots of other big bergs. From W-29: slanted sheet beside the
+  main falls, snowy levees, plain gorge walls.
 
-## Hashes (unchanged in W-28b)
-- v2 126 / 053C63D5, caves 5D90D9CFC5326976.
-- v1 102 / 51EA6463, caves 47C703C0E17F77CB.
+## Hashes (unchanged in W-34)
+- v2 126 / 053C63D5 (player log), caves 5D90D9CFC5326976 (not re-read).
+- v1 102 / 51EA6463, caves 47C703C0E17F77CB (re-read in the editor).
 
 ## Notes
-- Shots: PunchyMilestones/world/w28b (800 px), raw shots in w28b/raw.
-- Scratch: Punchy-world/Temp/w28b_*. Tower walk: Temp/w28b_tower.cs. Hashes and logs: Temp/w28b_hash.cs.
+- Shots: PunchyMilestones/world/w34 (800 px), raw shots in w34/raw.
+- Scratch: Punchy-world/Temp/w34_*. Bridge probe: WorldProbe.BridgeRails (untracked Assets/Temp/Editor).
+- Shots: run `Builds/Dev/Punchy.exe [-island v1] -shotlist <file> -shotdir <dir> -logFile <file> -quit`. v1 and v2
+  need separate runs. `-place crossing` does not exist on world-features; use `-place prop:Bridge@x,z` or `-camlook`.
+- Lines without `-shot` save stray shot-N.png files; delete them.
 - Editor console errors: Temp/w28b_errs.cs (LogEntries via reflection).
-- Shots: run `Builds/Dev/Punchy.exe -shotlist <file> -shotdir <dir> -logFile <file>`. A `-quit` line ends the list.

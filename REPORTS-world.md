@@ -904,3 +904,18 @@ b/weather-mapjob.
 - Open: the W-28 views centre on the cave berg, which stays a slab for its chamber, so the before/after there is
   mostly colour and facets. Next could be a dry-dock cave berg and a close shot of the other bergs.
 - 1 build. No Punchy.exe left running from Builds/Dev.
+
+## W-34 (2026-11-02): bridge posts, cobblestones
+- Row 1 DONE: each bridge span now has a post at both ends of each rail (shared at the joints, reaching below the
+  deck). v1: 5 bridges, 10 spans; rail ends without a post went from 20 to 0. v2 was not counted by probe; the same
+  code draws it, and the v2 shot shows posts at every rail end.
+- Row 2 DONE: cobbles are rounded, uneven stones in mixed sizes (a warped Voronoi with smooth-min borders, not a
+  grid), with per-stone colour and height and dark earth or moss in the gaps. No tiling at walking height or at 30 m.
+  - [before](PunchyMilestones/world/w34/w34-cobble-before.png) / [after](PunchyMilestones/world/w34/w34-cobble-after.png)
+  - 30 m: [before](PunchyMilestones/world/w34/w34-cobble30-before.png) / [after](PunchyMilestones/world/w34/w34-cobble30-after.png)
+- Row 3 DONE: shots by day, clear weather, viewed at 800 px.
+  - v1 bridge: [A-31 side](PunchyMilestones/world/w34/w34-v1-bridge.png), [close](PunchyMilestones/world/w34/w34-v1-bridge-close.png), [framed](PunchyMilestones/world/w34/w34-v1-bridge-framed.png)
+  - [v2 bridge](PunchyMilestones/world/w34/w34-v2-bridge.png); the cobble close-up is the after shot above.
+- **Checks:** hashes unchanged: v2 126 / 053C63D5 (caves not re-read, mesh and shader only), and v1 102 / 51EA6463,
+  caves 47C703C0E17F77CB. Build Succeeded, 0 errors.
+- 1 build, two player runs (v1 and v2 can't share a launch). No Punchy.exe left running. world-features @ 0bdc707.
