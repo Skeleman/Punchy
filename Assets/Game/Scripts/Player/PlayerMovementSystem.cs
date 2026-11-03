@@ -882,16 +882,21 @@ namespace Punchy.Player
                 if (grounded)
                     position = StandOnCaveFloor(terrain, position);
             }
-            // (Never more than the body's radius in a frame: a push-out is a correction, not a teleport.)
+            // (Never more than twice the body's radius in a frame: a push-out is a correction, not a teleport. A-32: one
+            // radius left a body that starts or lands embedded (a 55 deg slope) up to 0.2 m in for a frame or two.)
             var shift = position.xz - start;
-            if (math.lengthsq(shift) > r * r)
+            if (math.lengthsq(shift) > 4f * r * r)
             {
-                position.xz = start + math.normalize(shift) * r;
+                position.xz = start + math.normalize(shift) * (2f * r);
                 if (grounded)
                     position = StandOnCaveFloor(terrain, position);
             }
-            var headNow = SolidDistance(terrain, position + new float3(0f, high, 0f));
-            if (headNow < r - 0.05f && headNow < SolidDistance(terrain, from + new float3(0f, high, 0f)) - 0.01f)
+            // (Only rock overhead counts (its normal points down): a steep floor beside the head is the slope the body is
+            // sliding down, and undoing that step wedged a small body on a 65 deg slope for good (A-32).)
+            var headAt = position + new float3(0f, high, 0f);
+            var headNow = SolidDistance(terrain, headAt);
+            if (headNow < r - 0.05f && headNow < SolidDistance(terrain, from + new float3(0f, high, 0f)) - 0.01f &&
+                SolidNormal(terrain, headAt, headNow).y < -0.3f)
                 position = from;
             return position;
         }

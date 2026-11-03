@@ -509,6 +509,9 @@ namespace Punchy.Fauna
     {
         static FolkTalkLabels instance;
         GUIStyle style, shadow, bubble;
+        /// <summary>Draw the talk bubbles even with the HUD hidden ("-nohud" sets InteractionPrompt.Hidden): "-chatshot"
+        /// turns it on, since the bubble is what that shot is for (A-32: A-31's talk shots had none for this reason).</summary>
+        public static bool BubblesWithoutHud;
 
         public static void Ensure()
         {
@@ -547,7 +550,7 @@ namespace Punchy.Fauna
         void OnGUI()
         {
             var cam = Camera.main;
-            if (InteractionPrompt.Hidden || cam == null || Event.current.type != EventType.Repaint)
+            if (InteractionPrompt.Hidden && !BubblesWithoutHud || cam == null || Event.current.type != EventType.Repaint)
                 return;
             if (style == null)
             {
@@ -558,6 +561,8 @@ namespace Punchy.Fauna
             var clock = Time.time;
             foreach (var said in FolkTalkSystem.Shown)
             {
+                if (InteractionPrompt.Hidden)
+                    break;
                 var screen = cam.WorldToScreenPoint(said.Head);
                 if (screen.z < 0.3f)
                     continue;

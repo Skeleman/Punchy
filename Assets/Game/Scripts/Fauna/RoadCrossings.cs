@@ -25,6 +25,10 @@ namespace Punchy.Fauna
             public float2 Bank, Outward;
             /// <summary>The seeded roll: a fisher stands here.</summary>
             public bool Fisher;
+            /// <summary>The seeded hash behind the roll (lower scores better), and whether this crossing got its fisher
+            /// as the island's best score because no crossing rolled one (A-32).</summary>
+            public uint Roll;
+            public bool Fallback;
         }
 
         /// <summary>The crossings of the island last found (empty before the first), and its key.</summary>
@@ -83,6 +87,27 @@ namespace Punchy.Fauna
                     break;
                 }
             }
+            // At least one fisher per island (A-32): if no crossing with a bank spot rolled one, the one with the best
+            // (lowest) seeded score gets it. Still only from the bake and the hashes, so the same on every machine.
+            int best = -1;
+            for (int i = 0; i < List.Count; i++)
+            {
+                if (!List[i].HasSpot)
+                    continue;
+                if (List[i].Fisher)
+                {
+                    best = -1;
+                    break;
+                }
+                if (best < 0 || List[i].Roll < List[best].Roll)
+                    best = i;
+            }
+            if (best >= 0)
+            {
+                var c = List[best];
+                c.Fisher = c.Fallback = true;
+                List[best] = c;
+            }
             return true;
         }
 
@@ -96,6 +121,7 @@ namespace Punchy.Fauna
             var cell = (int2)math.floor(centre);
             var h = BiomeSampling.Scramble((uint)cell.x * 0x9E3779B1u ^ (uint)cell.y * 0x85EBCA77u ^ 0xF15E4u);
             crossing.Fisher = h % 3u == 0u;
+            crossing.Roll = h;
             var firstSide = (h >> 8) % 2u == 0u ? 1f : -1f;
             for (int k = 0; k < 2 && !crossing.HasSpot; k++)
             {

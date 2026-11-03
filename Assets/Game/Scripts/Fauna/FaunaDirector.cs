@@ -1086,13 +1086,13 @@ namespace Punchy.Fauna
             {
                 bridges += c.Bridge ? 1 : 0;
                 spots += c.HasSpot ? 1 : 0;
-                rolled += c.Fisher ? 1 : 0;
+                rolled += c.Fisher && !c.Fallback ? 1 : 0;
                 if (c.Fisher && c.HasSpot)
                 {
                     fishers++;
                     NearestSettlement(ref set, c.Spot, out var gap);
                     lone += gap >= 250f ? 1 : 0;
-                    sb.Append($" ({c.Spot.x:F0},{c.Spot.y:F0}{(c.Bridge ? " bridge" : " ford")})");
+                    sb.Append($" ({c.Spot.x:F0},{c.Spot.y:F0}{(c.Bridge ? " bridge" : " ford")}{(c.Fallback ? " best score" : "")})");
                 }
             }
             var samples = new System.Text.StringBuilder();

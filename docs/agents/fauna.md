@@ -72,3 +72,5 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
 - Cave collision (A-30): PlayerMovementSystem.PushOutOfSolids pushes knee/middle/head spheres (radius 0.35 x body size)
   out of SolidDistance and slides bodies back off cave floors steeper than ~50°. A landmark with a solid body joins
   by adding its distance to SolidDistance with math.min. CaveDistance can overstate up to 1.8x, so trace at half steps.
+- A-32: the head-undo in PushOutOfSolids only counts rock overhead (surface normal y < -0.3); counting any rock
+  wedged small bodies on steep floors. `-nohud` hides talk bubbles unless `-chatshot` sets FolkTalkLabels.BubblesWithoutHud.

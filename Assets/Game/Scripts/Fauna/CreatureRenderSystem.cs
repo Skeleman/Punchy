@@ -940,6 +940,12 @@ namespace Punchy.Fauna
                     var day = 1f - Unity.Mathematics.math.smoothstep(0.2f, 0.6f, Night);
                     faded = Unity.Mathematics.math.max(faded, Unity.Mathematics.math.max(shimmer, day));
                 }
+                // A camera right up against a body (the player's own, squeezed in by a cave wall or ceiling): dithered
+                // out from 0.6 m off its nearest part, gone by 0.35 m, so the view isn't the inside of a head (A-32).
+                var nearest = float.MaxValue;
+                for (int i = 0; i < body.SegmentCount; i++)
+                    nearest = Unity.Mathematics.math.min(nearest, Unity.Mathematics.math.distance(Output[offset + i].Position, CameraPosition));
+                faded = Unity.Mathematics.math.max(faded, Unity.Mathematics.math.saturate((0.6f - nearest) / 0.25f));
                 var haunts = body.Blob.Value.Haunts;
                 if (faded > 0f)
                     for (int i = 0; i < body.SegmentCount; i++)
