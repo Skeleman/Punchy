@@ -635,6 +635,58 @@ namespace Punchy.Flora
         /// <summary>W-63: dry ground (no water over it).</summary>
         static bool Dry(in GroundSample g) => !g.HasWater || g.Height > g.WaterSurface + 0.05f;
 
+        /// <summary>W-65f: how far from <paramref name="p"/> along <paramref name="dir"/> the first ground above
+        /// <paramref name="water"/> - 0.3 is (0.25 m steps out to 7.5 m, then bisected to ~3 cm so near-equal narrows rarely
+        /// tie); -1 when there is none.</summary>
+        static float RowBank(in TerrainSource source, float2 p, float2 dir, float water)
+        {
+            for (var d = 0.25f; d <= 7.5f; d += 0.25f)
+                if (source.SampleHeight(p + dir * d) > water - 0.3f)
+                {
+                    float lo = d - 0.25f, hi = d;
+                    for (var i = 0; i < 3; i++)
+                    {
+                        var mid = (lo + hi) * 0.5f;
+                        if (source.SampleHeight(p + dir * mid) > water - 0.3f) hi = mid; else lo = mid;
+                    }
+                    return hi;
+                }
+            return -1f;
+        }
+
+        /// <summary>W-65f: the narrowest spot a stepping-stone row fits, on a 1 m world lattice within 25 m along
+        /// <paramref name="flow"/> of <paramref name="xz"/>; false when none fits.</summary>
+        static bool NarrowestSpot(in TerrainSource source, in FloraRules rule, float2 xz, float2 flow, out float2 bestXz,
+            out float2 bestAcross, out float bestA, out float bestB, out float water)
+        {
+            bestXz = default; bestAcross = default; bestA = 0f; bestB = 0f; water = 0f;
+            var best = float.MaxValue;
+            for (var s = -25; s <= 25; s++)
+            {
+                var p = math.round(xz + flow * s);
+                var g = source.SampleGround(p);
+                if (!g.HasWater)
+                    continue;
+                var gAcross = math.normalizesafe(g.Flow, flow);
+                gAcross = new float2(-gAcross.y, gAcross.x);
+                var a = RowBank(source, p, gAcross, g.WaterSurface);
+                var b = RowBank(source, p, -gAcross, g.WaterSurface);
+                if (a < 0f || b < 0f)
+                    continue;
+                // Only spots a row fits count: a variant spans it and both of its ends land on the bank.
+                var v = FloraGenerator.StoneRowVariant(a + b);
+                if (v < 0 || v >= rule.Variants)
+                    continue;
+                var mid = p + gAcross * (a - b) * 0.5f;
+                var half = gAcross * FloraGenerator.StoneRowLength(v) * 0.5f;
+                if (!NearBank(source.SampleGround(mid + half), g.WaterSurface) || !NearBank(source.SampleGround(mid - half), g.WaterSurface))
+                    continue;
+                var w = a + b + (math.hash((int2)p) & 1023) * 1e-6f;   // a world-fixed tie-break under 1 mm
+                if (w < best) { best = w; bestXz = p; bestAcross = gAcross; bestA = a; bestB = b; water = g.WaterSurface; }
+            }
+            return best != float.MaxValue;
+        }
+
         /// <summary>W-65b: an end stone's spot is dry bank no more than 0.8 m above the water, or water under 0.3 m deep.</summary>
         static bool NearBank(in GroundSample g, float surface) => g.Height > surface - 0.3f && g.Height < surface + 0.8f;
 
@@ -1535,20 +1587,25 @@ namespace Punchy.Flora
                 // FloraGenerator.StoneRowLength) just spans it and centre the row between the two banks.
                 if (!ground.HasWater)
                     return none;
-                var water = ground.WaterSurface;
-                var across = new float2(math.cos(yaw), math.sin(yaw));
-                float outA = -1f, outB = -1f;
-                for (var d = 0.25f; d <= 7.5f && (outA < 0f || outB < 0f); d += 0.25f)
-                {
-                    if (outA < 0f && source.SampleHeight(xz + across * d) > water - 0.3f)
-                        outA = d;
-                    if (outB < 0f && source.SampleHeight(xz - across * d) > water - 0.3f)
-                        outB = d;
-                }
-                var variant = FloraGenerator.StoneRowVariant((outA + outB) / scale);
-                if (outA < 0f || outB < 0f || variant < 0 || variant >= rule.Variants)
+                // W-65f: one row per narrows. Every spot on a 1 m world lattice along the flow within 25 m is measured
+                // the same way (its own flow, no jitter) and only the narrowest one gets a row; so rows are at least ~25 m apart and each sits where the river is tightest. Every cell
+                // whose roll lands a row in this stretch makes the same row (spot, yaw, size and look come from the spot,
+                // not the cell's draws), so the copies coincide exactly and show as one.
+                // W-65g: windows of nearby cells differ, so they can pick neighbouring spots (rows 1.3 m apart); keep a
+                // spot only when it is also the narrowest in its own window (two such spots are then 25 m+ apart).
+                if (!NarrowestSpot(source, rule, xz, flow, out var bestXz, out var bestAcross, out var bestA, out var bestB, out var water) ||
+                    !NarrowestSpot(source, rule, bestXz, new float2(bestAcross.y, -bestAcross.x), out var againXz, out _, out _, out _, out _) ||
+                    math.distancesq(againXz, bestXz) > 0.25f)
                     return none;
-                xz += across * (outA - outB) * 0.5f;
+                var across = bestAcross;
+                float outA = bestA, outB = bestB;
+                xz = bestXz + across * (outA - outB) * 0.5f;
+                var spotRng = Random.CreateFromIndex(math.hash((int2)math.round(bestXz * 4f)) | 1u);
+                yaw = math.atan2(across.y, across.x) + spotRng.NextFloat(-0.15f, 0.15f);
+                scale = 1f;
+                var variant = FloraGenerator.StoneRowVariant((outA + outB) / scale);
+                if (variant < 0 || variant >= rule.Variants)
+                    return none;
                 var reach = across * FloraGenerator.StoneRowLength(variant) * 0.5f * scale;
                 var endA = source.SampleGround(xz + reach);
                 var endB = source.SampleGround(xz - reach);
@@ -1561,7 +1618,7 @@ namespace Punchy.Flora
                     Yaw = yaw,
                     Scale = scale,
                     Model = rule.FirstModel + variant,
-                    Random = rng.NextFloat(),
+                    Random = spotRng.NextFloat(),
                     Ground = GroundFor(source, rule, xz, 1f, 0.25f)
                 };
             }
