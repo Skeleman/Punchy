@@ -1017,3 +1017,22 @@ DONE (all four rows). animal-behaviours de2e8e0, on top of the origin/main merge
 - Hashes: v2 125 / D709D95C (player log). v1 not re-run in the player (no landmark code touched).
 - One build, succeeded; the player quit on its own. Commit cbdf5d1 on animal-behaviours, pushed.
 - Shots: PunchyMilestones animal/a32 (800 px), full size in raw/.
+
+## A-33 (2026-11-02)
+- Row 1 PARTLY DONE: job -> pose/prop:
+  baker = kneading at a table, dough, white cap and apron, loaf (a33-baker);
+  healer = bent over, bowl, satchel and strap (a33-healer);
+  smith = hammer at the anvil, plus tongs and hot bar (a33-dwarf-smith; the human smith was idle);
+  gatekeeper/guard = spear upright in the right hand, slow look-around (a33-gatekeeper, a33-dwarf-guard);
+  well keeper = rope and bucket, hand-over-hand haul (a33-wellkeeper);
+  woodcutter = axe swing, block, log, split piece (a33-woodcutter, hidden behind a log pile);
+  merchant = gesture with a jar or fruit (not framed: -watch Ogre:* missed at OgreCamp);
+  bat-folk roost keeper/tanner/forager = none (no walking bat-folk species yet).
+  Derived from job/task only, no new network fields.
+- Row 2 NOT DONE: seg 87 (both sides) and seg 9 pairs with -nopushout are identical. The push-out only acts on a
+  moving step, so a standing player never differs. It needs a walk-down flag (see NEXT in STATE).
+- Row 3 PARTLY DONE: HumanVillage by day, 4 folk at work in different jobs (baker, healer, gatekeeper, well
+  keeper) plus a33-humanvillage-wide. Second village DwarfHold: guard and smith. OgreCamp shots missed.
+- Hashes: v2 125 / D709D95C (player log), 0 exceptions, the player quit on its own. v1 not re-run (render code only).
+- One build, succeeded. Commit ab3c458 on animal-behaviours, pushed.
+- Shots: PunchyMilestones animal/a33 (800 px), full size in raw/.
