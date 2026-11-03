@@ -12,7 +12,26 @@ namespace Punchy.Terrain
     /// <summary>Which of a culture's trim-set colours a part is drawn in.</summary>
     public enum KitMaterial : byte
     {
-        Wall, Trim, Roof, Wood, Opening, Moss, Stone
+        Wall, Trim, Roof, Wood, Opening, Moss, Stone,
+        /// <summary>A lantern's glass: drawn as a window pane, so it lights up at dusk (fishing villages, #36).</summary>
+        Lamp,
+        /// <summary>Net and rope: a pale cord colour.</summary>
+        Net
+    }
+
+    /// <summary>
+    /// What a Kit Building species builds (#36): a house, a fishing folk's stilt house, a dock running out over the
+    /// water from its land end, or a cluster of shore details (boats pulled up, nets drying, fish racks, crab pots).
+    /// </summary>
+    public enum KitShape : byte
+    {
+        House, StiltHouse, Dock, Shore
+    }
+
+    /// <summary>The small things a fishing village leaves about (#36), picked by weight from CoastDetails.</summary>
+    public enum CoastDetail : byte
+    {
+        Boat, NetFrame, FishRack, CrabPots, Driftwood, Lantern
     }
 
     /// <summary>How a culture roofs its buildings.</summary>
@@ -99,6 +118,16 @@ namespace Punchy.Terrain
                         Roof = KitRoof.Steep, Storey = 2.6f, Bay = 2.2f, Pitch = 50f, Quoins = false, Crenels = false, Shutters = true,
                         TowerChance = 0.1f, BalconyChance = 0.1f, StairChance = 0.2f
                     };
+                case FolkCulture.FishFolk:
+                    // The coastal trim (#36): weathered grey-blue planks, white-washed trim, reed thatch, low single
+                    // storeys; no towers or balconies (stilts and porches come from KitShape.StiltHouse).
+                    return new CultureTrim
+                    {
+                        Wall = new Color(0.52f, 0.55f, 0.56f), Trim = new Color(0.84f, 0.83f, 0.78f), RoofColour = new Color(0.62f, 0.55f, 0.36f),
+                        Wood = new Color(0.40f, 0.33f, 0.25f), Opening = new Color(0.08f, 0.09f, 0.10f), Moss = new Color(0.32f, 0.42f, 0.30f),
+                        Roof = KitRoof.Steep, Storey = 2.6f, Bay = 2.0f, Pitch = 46f, Quoins = false, Crenels = false, Shutters = true,
+                        TowerChance = 0f, BalconyChance = 0f, StairChance = 0f
+                    };
                 default:
                     return new CultureTrim
                     {
@@ -120,8 +149,175 @@ namespace Punchy.Terrain
             KitMaterial.Opening => t.Opening,
             KitMaterial.Moss => t.Moss,
             KitMaterial.Stone => Color.Lerp(t.Wall, t.Trim, 0.5f) * 0.85f,
+            KitMaterial.Lamp => new Color(1f, 0.72f, 0.38f),
+            KitMaterial.Net => new Color(0.70f, 0.66f, 0.55f),
             _ => t.Wall
         };
+
+        // ------------------------------------------------------------------------------------------- coast (#36)
+
+        /// <summary>Which shore details turn up and how often (data: add a kind here and a case in Detail).</summary>
+        public static readonly (CoastDetail Kind, float Weight)[] CoastDetails =
+        {
+            (CoastDetail.Boat, 3f), (CoastDetail.NetFrame, 2f), (CoastDetail.FishRack, 2f),
+            (CoastDetail.CrabPots, 2f), (CoastDetail.Driftwood, 1.5f), (CoastDetail.Lantern, 1f)
+        };
+
+        /// <summary>A seeded pick from CoastDetails by weight.</summary>
+        public static CoastDetail PickDetail(System.Random rng)
+        {
+            var total = 0f;
+            foreach (var d in CoastDetails) total += d.Weight;
+            var roll = (float)rng.NextDouble() * total;
+            foreach (var d in CoastDetails)
+                if ((roll -= d.Weight) < 0f)
+                    return d.Kind;
+            return CoastDetails[0].Kind;
+        }
+
+        /// <summary>
+        /// A fishing folk's house (#36): one storey of House raised on stilts over a plank deck with a porch and a
+        /// stair down at the door (+Z), and a detail or two beside it (a net frame, a fish rack, a boat pulled up).
+        /// </summary>
+        public static List<KitPart> StiltHouse(uint seed, CultureTrim t, float width, float depth, float stilts)
+        {
+            var parts = House(seed, t, width, depth, 1, 0f);
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var p = parts[i];
+                p.Centre.y += stilts;
+                parts[i] = p;
+            }
+            Platform(parts, Vector3.zero, 0f, width + 1.6f, depth + 1.6f, stilts, false);
+            Platform(parts, new Vector3(0f, 0f, depth * 0.5f + 0.8f + 1.1f), 0f, 2.4f, 2.2f, stilts, true);
+            var steps = Mathf.Max(2, Mathf.CeilToInt(stilts / 0.28f));
+            Stair(parts, new Vector3(0f, 0f, depth * 0.5f + 0.8f + 2.2f + steps * 0.15f + 0.5f), 180f, stilts, 1.3f);
+            var rng = new System.Random((int)(Scramble(seed ^ 0xC0A57u) & 0x7FFFFFFF));
+            for (int k = 0, n = 1 + rng.Next(2); k < n; k++)
+            {
+                var side = k == 0 ? (rng.Next(2) == 0 ? -1f : 1f) : -1f;
+                var at = new Vector3(side * (width * 0.5f + 2.4f), 0f, ((float)rng.NextDouble() - 0.5f) * depth);
+                Detail(parts, PickDetail(rng), at, (float)rng.NextDouble() * 360f, rng, t);
+            }
+            return parts;
+        }
+
+        /// <summary>
+        /// A dock (#36) from its land end (the origin) out along +Z: a Platform deck on piles that run on down into the
+        /// water, a short stair up from the shore, a lantern post at the far end, and what the folk leave on it (crab
+        /// pots, a coil of net) with a boat moored alongside, all from the seed.
+        /// </summary>
+        public static List<KitPart> Dock(uint seed, CultureTrim t, float length, float width, float deck)
+        {
+            var parts = new List<KitPart>();
+            var rng = new System.Random((int)(Scramble(seed ^ 0xD0C4u) & 0x7FFFFFFF));
+            Platform(parts, new Vector3(0f, 0f, length * 0.5f), 0f, width, length, deck, true);
+            for (int k = 0, piles = Mathf.Max(2, Mathf.RoundToInt(length / 2.2f) + 1); k < piles; k++)
+                foreach (var side in new[] { -1f, 1f })
+                    Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(side * width * 0.45f, -1.8f, k * length / (piles - 1)), new Vector3(0.26f, 3.6f, 0.26f), 0f, false);
+            var steps = Mathf.Max(2, Mathf.CeilToInt(deck / 0.28f));
+            Stair(parts, new Vector3(0f, 0f, 0.3f - steps * 0.15f - 0.5f), 0f, deck, width * 0.8f);
+            Detail(parts, CoastDetail.Lantern, new Vector3(width * 0.35f, deck, length - 0.4f), 0f, rng, t);
+            if (rng.NextDouble() < 0.6)
+                Detail(parts, CoastDetail.CrabPots, new Vector3(-width * 0.2f, deck, length * (0.4f + 0.4f * (float)rng.NextDouble())), (float)rng.NextDouble() * 360f, rng, t);
+            if (rng.NextDouble() < 0.75)   // moored alongside, riding at the water
+                Detail(parts, CoastDetail.Boat, new Vector3((rng.Next(2) == 0 ? -1f : 1f) * (width * 0.5f + 1.1f), -0.6f, length * (0.45f + 0.35f * (float)rng.NextDouble())), 0f, rng, t);
+            return parts;
+        }
+
+        /// <summary>A cluster of two to four shore details round the origin (#36), each picked from CoastDetails by the seed.</summary>
+        public static List<KitPart> Shore(uint seed, CultureTrim t, float spread)
+        {
+            var parts = new List<KitPart>();
+            var rng = new System.Random((int)(Scramble(seed ^ 0x5408Eu) & 0x7FFFFFFF));
+            for (int k = 0, n = 2 + rng.Next(3); k < n; k++)
+            {
+                var a = (k + (float)rng.NextDouble() * 0.6f) * Mathf.PI * 2f / n;
+                var at = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * (k == 0 ? 0f : spread * (0.6f + 0.4f * (float)rng.NextDouble()));
+                Detail(parts, PickDetail(rng), at, (float)rng.NextDouble() * 360f, rng, t);
+            }
+            return parts;
+        }
+
+        /// <summary>One coast detail standing at <paramref name="at"/> (its base), turned by <paramref name="yaw"/> degrees.</summary>
+        public static void Detail(List<KitPart> parts, CoastDetail kind, Vector3 at, float yaw, System.Random rng, CultureTrim t)
+        {
+            float R() => (float)rng.NextDouble();
+            switch (kind)
+            {
+                case CoastDetail.Boat:
+                {
+                    // A rowing boat: keel, two sides flaring out, a transom, a bow, thwarts; now and then upturned.
+                    var len = 3.6f + R() * 1.6f;
+                    var flip = R() < 0.3f;
+                    var y = flip ? 0.55f : 0.2f;
+                    var keel = flip ? 0.5f : 0.06f;
+                    Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, keel, 0f)), new Vector3(0.7f, 0.12f, len * 0.9f), yaw, false);
+                    foreach (var side in new[] { -1f, 1f })
+                        Add(parts, KitPiece.Trim, KitMaterial.Trim, at + Turn(yaw, new Vector3(side * 0.55f, y, 0f)), new Vector3(0.08f, 0.45f, len * 0.85f), yaw, false, 0f, side * (flip ? -18f : 18f));
+                    Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, y, -len * 0.43f)), new Vector3(1.1f, 0.45f, 0.08f), yaw, false);
+                    Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, y + 0.08f, len * 0.46f)), new Vector3(0.18f, 0.6f, 0.3f), yaw, false);
+                    if (!flip)
+                    {
+                        Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, 0.3f, 0.1f)), new Vector3(1.05f, 0.06f, 0.25f), yaw, false);
+                        Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, new Vector3(0.35f, 0.4f, -0.4f)), new Vector3(0.06f, 0.06f, 2.4f), yaw, false, 8f);
+                    }
+                    break;
+                }
+                case CoastDetail.NetFrame:
+                {
+                    // Two poles and a bar with a net hung to dry, sagging in a few panels.
+                    var w = 2.2f + R() * 1.4f;
+                    foreach (var side in new[] { -0.5f, 0.5f })
+                        Add(parts, KitPiece.Column, KitMaterial.Wood, at + Turn(yaw, new Vector3(side * w, 0.9f, 0f)), new Vector3(0.12f, 1.8f, 0.12f), yaw, false);
+                    Add(parts, KitPiece.Beam, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, 1.78f, 0f)), new Vector3(w + 0.2f, 0.1f, 0.1f), yaw, false);
+                    for (int k = 0, panels = 3; k < panels; k++)
+                    {
+                        var drop = 0.9f + R() * 0.5f;
+                        Add(parts, KitPiece.Trim, KitMaterial.Net, at + Turn(yaw, new Vector3((k - 1) * w / panels, 1.75f - drop * 0.5f, 0.03f)), new Vector3(w / panels * 0.96f, drop, 0.03f), yaw, false, 0f, (R() - 0.5f) * 6f);
+                    }
+                    break;
+                }
+                case CoastDetail.FishRack:
+                {
+                    // A drying rack: an A-frame each end, three rails, fish hung in rows.
+                    var w = 2f + R();
+                    foreach (var side in new[] { -0.5f, 0.5f })
+                        foreach (var lean in new[] { -12f, 12f })
+                            Add(parts, KitPiece.Column, KitMaterial.Wood, at + Turn(yaw, new Vector3(side * w, 0.75f, 0f)), new Vector3(0.1f, 1.6f, 0.1f), yaw, false, lean);
+                    for (int r = 0; r < 2; r++)
+                    {
+                        var h = 0.9f + r * 0.5f;
+                        Add(parts, KitPiece.Beam, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, h, 0f)), new Vector3(w + 0.2f, 0.06f, 0.06f), yaw, false);
+                        for (int f = 0, fish = 4 + rng.Next(4); f < fish; f++)
+                            Add(parts, KitPiece.Trim, KitMaterial.Stone, at + Turn(yaw, new Vector3((f + 0.5f) / fish * w - w * 0.5f, h - 0.22f, 0f)), new Vector3(0.1f, 0.38f, 0.04f), yaw, false, 0f, (R() - 0.5f) * 10f);
+                    }
+                    break;
+                }
+                case CoastDetail.CrabPots:
+                    // A stack of slatted pots, a buoy or two on top.
+                    for (int k = 0, pots = 2 + rng.Next(4); k < pots; k++)
+                    {
+                        var p = new Vector3((k % 2 - 0.5f) * 0.7f, 0.25f + (k / 2) * 0.48f, (R() - 0.5f) * 0.2f);
+                        Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, p), new Vector3(0.62f, 0.46f, 0.62f), yaw + (R() - 0.5f) * 20f, false);
+                        Add(parts, KitPiece.Trim, KitMaterial.Net, at + Turn(yaw, p + new Vector3(0f, 0f, 0.32f)), new Vector3(0.5f, 0.34f, 0.02f), yaw, false);
+                    }
+                    Add(parts, KitPiece.Trim, KitMaterial.Roof, at + Turn(yaw, new Vector3(0.6f, 0.15f, 0.5f)), new Vector3(0.3f, 0.3f, 0.3f), yaw, false);
+                    break;
+                case CoastDetail.Driftwood:
+                    // Bleached logs and a forked branch washed up and lying askew.
+                    for (int k = 0, logs = 1 + rng.Next(3); k < logs; k++)
+                        Add(parts, KitPiece.Trim, KitMaterial.Trim, at + Turn(yaw, new Vector3((R() - 0.5f) * 1.5f, 0.12f + k * 0.08f, (R() - 0.5f) * 1.5f)),
+                            new Vector3(0.22f + R() * 0.15f, 0.2f, 1.6f + R() * 2.2f), yaw + R() * 90f, false, 0f, (R() - 0.5f) * 8f);
+                    break;
+                case CoastDetail.Lantern:
+                    // A post with an arm and a hanging lantern that lights at dusk.
+                    Add(parts, KitPiece.Column, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, 1.1f, 0f)), new Vector3(0.14f, 2.2f, 0.14f), yaw, false);
+                    Add(parts, KitPiece.Beam, KitMaterial.Wood, at + Turn(yaw, new Vector3(0.3f, 2.12f, 0f)), new Vector3(0.6f, 0.08f, 0.08f), yaw, false);
+                    Add(parts, KitPiece.Window, KitMaterial.Lamp, at + Turn(yaw, new Vector3(0.52f, 1.86f, 0f)), new Vector3(0.24f, 0.32f, 0.24f), yaw, false);
+                    break;
+            }
+        }
 
         /// <summary>
         /// A house of <paramref name="storeys"/> on a width x depth footprint centred on the origin, door at +Z. Decay 0

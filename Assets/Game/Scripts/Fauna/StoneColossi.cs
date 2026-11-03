@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Punchy.Flora;
 using Punchy.Terrain;
 using Unity.Burst;
 using Unity.Collections;
@@ -101,6 +102,11 @@ namespace Punchy.Fauna
                 }
                 var ground = source.SampleHeight(spot);
                 Positions[kind] = new float3(spot.x, ground, spot.y);
+                // Keep flora out of a circle round it and re-place the streamed tiles, so no tree grows through it (#40).
+                var keep = FloraPlacement.KeepOut.Data;
+                keep[kind] = new float4(spot.x, spot.y, kind == 0 ? 34f : 26f, 1f);
+                FloraPlacement.KeepOut.Data = keep;
+                FloraSystem.Replant = true;
                 roots[kind] = kind == 0 ? BuildTitan(Positions[kind], yaw) : BuildHead(Positions[kind], yaw);
                 Debug.Log($"StoneColossi: {(Kind)kind} placed at ({spot.x:F0}, {ground:F1}, {spot.y:F0}), facing {yaw:F0} degrees, region {cells} cells");
             }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Punchy.Terrain;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Burst;
 using Unity.Mathematics;
 using UnityEngine;
 using Random = Unity.Mathematics.Random;
@@ -894,12 +895,21 @@ namespace Punchy.Flora
         /// exactly as without), leaving out its floor height and ground colour, which sample the ground round it and cost
         /// most of the call (Blocked asks on every step of every animal in town). Other plants are placed in full.
         /// </summary>
+        /// <summary>Up to two circles (x, z, radius, on) where no flora is placed: the stone colossi (#40), set at runtime.</summary>
+        public static readonly SharedStatic<float4x2> KeepOut = SharedStatic<float4x2>.GetOrCreate<KeepOutKey>();
+        class KeepOutKey { }
+
         public static FloraSystem.FloraInstance Place(ref FloraBlob f, in TerrainSource source, int2 cell, int layer, bool footprint = false)
         {
             var none = new FloraSystem.FloraInstance { Model = -1 };
             var cellSize = f.CellSizes[layer];
             var rng = new Random(math.hash(new int3(cell, layer * 7919 + 13)) | 1u);
             var xz = ((float2)cell + rng.NextFloat2()) * cellSize;
+            // Nothing grows through a stone colossus (#40): each one keeps a clear circle round it.
+            var keepOut = KeepOut.Data;
+            if ((keepOut.c0.w > 0f && math.distancesq(xz, keepOut.c0.xy) < keepOut.c0.z * keepOut.c0.z) ||
+                (keepOut.c1.w > 0f && math.distancesq(xz, keepOut.c1.xy) < keepOut.c1.z * keepOut.c1.z))
+                return none;
             var roll = rng.NextFloat();
             var area = cellSize * cellSize / 100f;
             // Room for 31 (a four-biome border plus a landmark's props; a fuller list would silently drop species).

@@ -2962,12 +2962,33 @@ namespace Punchy.Flora
                 if (g.HasAccent)
                     trim.Moss = g.Accent;
             }
-            var parts = Punchy.Terrain.StructureKit.House(seed, trim, width, depth, storeys, ruined ? g.Range(0.45f, 0.9f) : 0f);
+            // #36: fishing villages' shapes. Their draws come after the house's own, so every existing kit building is the same.
+            var shape = ruined ? Punchy.Terrain.KitShape.House : s.KitShape;
+            var lift = 0f;
+            System.Collections.Generic.List<Punchy.Terrain.KitPart> parts;
+            switch (shape)
+            {
+                case Punchy.Terrain.KitShape.StiltHouse:
+                    storeys = 1;
+                    lift = g.Range(1.4f, 2.2f);
+                    parts = Punchy.Terrain.StructureKit.StiltHouse(seed, trim, width, depth, lift);
+                    break;
+                case Punchy.Terrain.KitShape.Dock:
+                    parts = Punchy.Terrain.StructureKit.Dock(seed, trim, width * 2.4f, 2.6f, 0.8f);
+                    break;
+                case Punchy.Terrain.KitShape.Shore:
+                    parts = Punchy.Terrain.StructureKit.Shore(seed, trim, 2.5f);
+                    break;
+                default:
+                    parts = Punchy.Terrain.StructureKit.House(seed, trim, width, depth, storeys, ruined ? g.Range(0.45f, 0.9f) : 0f);
+                    break;
+            }
+            var house = shape == Punchy.Terrain.KitShape.House || shape == Punchy.Terrain.KitShape.StiltHouse;
 
             var first = b.VertexCount;
             var top = 0f;
             var perch = Vector3.zero;
-            var eaves = storeys * trim.Storey;
+            var eaves = house ? lift + storeys * trim.Storey : 0f;
             for (int i = 0; i < parts.Count; i++)
             {
                 var p = parts[i];
@@ -2979,7 +3000,8 @@ namespace Punchy.Flora
                 var c = Punchy.Terrain.StructureKit.Colour(trim, p.Material);
                 var jitter = ((i * 2654435761u) >> 24) / 255f;                 // a little per-stone variety, the same at every LOD
                 c = Color.Lerp(c * 0.94f, c * 1.08f, jitter);
-                b.Box(p.Centre, p.Size, p.Rotation, c, p.Material == Punchy.Terrain.KitMaterial.Moss ? FloraPart.Foliage : FloraPart.Bark);
+                b.Box(p.Centre, p.Size, p.Rotation, c, p.Material == Punchy.Terrain.KitMaterial.Moss ? FloraPart.Foliage :
+                                                       p.Material == Punchy.Terrain.KitMaterial.Lamp ? FloraPart.Window : FloraPart.Bark);
                 var high = p.Centre.y + p.Size.y * 0.5f;
                 top = Mathf.Max(top, high);
                 if (p.Solid)
@@ -3006,7 +3028,7 @@ namespace Punchy.Flora
                 if ((p.Piece == Punchy.Terrain.KitPiece.Wall || p.Piece == Punchy.Terrain.KitPiece.Roof) && high > perch.y)
                     perch = new Vector3(p.Centre.x, high, p.Centre.z);
             }
-            if (!ruined)   // the inside: one fat cylinder so nothing walks through the middle of the house
+            if (!ruined && house)   // the inside: one fat cylinder so nothing walks through the middle of the house
                 g.Colliders.Add(new Vector4(0f, 0f, Mathf.Min(width, depth) * 0.45f, eaves));
             if (perch.y > 1f)
                 g.Perches.Add(perch);
@@ -3014,7 +3036,8 @@ namespace Punchy.Flora
             b.Occlude(first, (p, n) => GroundOcclusion(p, Mathf.Min(top, 4f) * 0.5f));
             g.Height = top;
             g.Width = Mathf.Max(width, depth) * 1.4f;
-            g.TrunkRadius = Mathf.Max(width, depth) * 0.55f;
+            // (A dock or a shore cluster is walked on and round, not a trunk to bump into.)
+            g.TrunkRadius = house ? Mathf.Max(width, depth) * 0.55f : 0f;
         }
 
         static void StoneHouse(Grower g)

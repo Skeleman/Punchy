@@ -397,7 +397,15 @@ namespace Punchy.Terrain
             source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Archipelago = default; source.Anchors = default; source.PondMask = default;
             var types = new List<LandmarkType>(palette.Landmarks);
             LandmarkBaking.AddLooks(types);
-            TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent);
+            // #36: the fishing village type, should the baked palette predate it (plants read the palette's list).
+            var village = FishingVillageBaking.LoadType();
+            if (village != null && !types.Contains(village))
+            {
+                types.Add(village);
+                if (palette.Landmarks.Length == types.Count - 1)
+                    palette.Landmarks = types.ToArray();
+            }
+            TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent, villages: true);
             // W-29: the grand falls go in after every place, so no landmark, cave or settlement sees them.
             source.GrandFalls = GrandFalls.Build(source, Allocator.Persistent);
             Debug.Log(GrandFalls.LastLog);

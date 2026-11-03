@@ -479,15 +479,20 @@ namespace Punchy.Flora
             }
         }
 
+        /// <summary>Set when a flora keep-out circle changes (a colossus placed): every streamed tile is dropped once and re-placed.</summary>
+        public static bool Replant;
+
         void Stream(in TerrainSource source, float2 camXZ)
         {
-            // Unload tiles that fell out of range.
+            // Unload tiles that fell out of range (or every tile once, when a keep-out circle changed: see Replant).
+            var all = Replant;
+            Replant = false;
             foreach (var l in layers)
             {
                 scratch.Clear();
                 var keep = l.Radius + l.Settings.TileSize * 1.5f;
                 foreach (var kv in l.Tiles)
-                    if (math.distance(TileCentre(l, kv.Key), camXZ) > keep)
+                    if (all || math.distance(TileCentre(l, kv.Key), camXZ) > keep)
                         scratch.Add(kv.Key);
                 foreach (var key in scratch)
                 {

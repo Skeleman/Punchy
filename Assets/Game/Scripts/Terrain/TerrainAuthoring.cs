@@ -84,6 +84,10 @@ namespace Punchy.Terrain
                 if (r.Type != null && !types.Contains(r.Type))
                     types.Add(r.Type);
             LandmarkBaking.AddLooks(types);
+            // #36: fishing villages last of all, so no other type's index moves (placed on island v2 only).
+            var village = FishingVillageBaking.LoadType();
+            if (village != null && !types.Contains(village))
+                types.Add(village);
             return types;
         }
 
@@ -123,7 +127,7 @@ namespace Punchy.Terrain
 
         /// <summary>Rivers, landmarks, settlements, caves and anchors, in that order: the part of a bake that follows the ground.</summary>
         public static void BuildPlaces(ref TerrainSource source, List<BiomeDefinition> palette, List<LandmarkType> landmarkTypes,
-                                       List<PlacedLandmark> placed, List<RoadsideLandmark> roadsideTypes, Allocator allocator)
+                                       List<PlacedLandmark> placed, List<RoadsideLandmark> roadsideTypes, Allocator allocator, bool villages = false)
         {
             // W-14: each stage's time goes to the "[bake] stages" log line (island v2 rebuilds all of this at launch).
             var watch = System.Diagnostics.Stopwatch.StartNew();
@@ -180,6 +184,17 @@ namespace Punchy.Terrain
             if (source.Landmarks.IsCreated)
                 source.Caves = CaveBaking.Build(source, palette, landmarkTypes, allocator);
             Stage("caves");
+            // #36: fishing villages after the caves too, each on its own new spot, so no landmark, road or cave moves.
+            if (villages && source.Landmarks.IsCreated)
+            {
+                var mouths = FishingVillageBaking.Place(source, landmarkTypes);
+                if (mouths.Count > 0)
+                {
+                    var before = source.Landmarks;
+                    source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, mouths, allocator);
+                    before.Dispose();
+                }
+            }
             // #35: bat folk read the caves only and write nothing anything else reads, so every hash stays put.
             source.BatFolk = BatFolkBaking.Build(source, allocator);
             UnityEngine.Debug.Log(BatFolkBaking.LastLog);

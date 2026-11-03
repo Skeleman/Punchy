@@ -270,6 +270,8 @@ namespace Punchy.Flora
         public ShelterStyle ShelterStyle;
         [Tooltip("Kit Building / Kit Ruin: whose trim set (colours, roof style, storey height) the kit builds in.")]
         public Punchy.Terrain.FolkCulture KitCulture = Punchy.Terrain.FolkCulture.Human;
+        [Tooltip("Kit Building only (#36): a house, a stilt house, a dock out along +Z from its land end, or a cluster of shore details.")]
+        public Punchy.Terrain.KitShape KitShape;
         [Tooltip("Random size of each placed plant, on top of its variant's own size.")]
         public Vector2 SizeRange = new Vector2(0.85f, 1.15f);
 
