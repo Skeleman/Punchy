@@ -208,6 +208,27 @@ Shader "Punchy/Terrain Surface"
                 return (h >> 22) / 1023.0 - 0.5;
             }
 
+            // Raindrop rings on puddles: Water.shader's RainRipples (a ring per jittered cell at a random phase), so
+            // puddles and rivers ripple alike in the rain.
+            float2 PuddleRings(float2 p, float t)
+            {
+                float2 slope = 0;
+                [unroll]
+                for (int layer = 0; layer < 2; layer++)
+                {
+                    float2 q = p * 1.7 + layer * 7.31;
+                    float2 cell = floor(q);
+                    float2 centre = float2(PunchyHash(cell + 3.1 + layer), PunchyHash(cell + 5.7 + layer)) * 0.5 + 0.25;
+                    float2 d = frac(q) - centre;
+                    float r = length(d);
+                    float phase = frac(t * 0.9 + PunchyHash(cell + 11.3 * layer));
+                    float wave = sin((r - phase * 0.45) * 45) * (1 - phase) * smoothstep(0.45, 0, r) *
+                                 smoothstep(0.12, 0, abs(r - phase * 0.45));
+                    slope += d / max(r, 1e-3) * wave;
+                }
+                return slope;
+            }
+
             float3 MicroDetail(float2 p)   // xy = slope (dh/dx, dh/dz), z = height
             {
                 const float e = 0.04;
@@ -265,7 +286,9 @@ Shader "Punchy/Terrain Surface"
                 // stores it as a negative skirt drop (surface vertices leave that channel 0; skirts are positive).
                 half shore = 0;
                 [branch] if (input.extra.w < -0.001)
-                    shore = smoothstep(0.2, 0.75, saturate(-input.extra.w) + (PunchyValueNoise(p * 0.8) - 0.5) * 0.35)
+                    // (W-43b: a broad wander as well as the fine one, so the band's edge breaks up along a whole reach.)
+                    shore = smoothstep(0.2, 0.75, saturate(-input.extra.w) + (PunchyValueNoise(p * 0.8) - 0.5) * 0.35
+                                                + (PunchyValueNoise(p * 0.13 + 2.9) - 0.5) * 0.5)
                           * (1 - saturate(input.extra.z * 2));
                 half flatness = smoothstep(0.96, 0.995, normalWS.y);
                 half puddleNoise = PunchyValueNoise(p / 2.3) * 0.65 + PunchyValueNoise(p / 0.9 + 5.1) * 0.35;
@@ -355,6 +378,14 @@ Shader "Punchy/Terrain Surface"
                 half underGrass = input.extra.y * _PunchyGrassTint.x * (1 - smoothstep(_PunchyGrassTint.y * 0.7, _PunchyGrassTint.y, distance));
                 albedo = lerp(albedo, albedo * half3(1.05, 1.16, 0.85), underGrass * 0.8);
                 albedo *= lerp(1, 0.72, wet);
+                // The wet band is patchy (W-43b): dark mud in some stretches, grey shingle and stones in others, so the
+                // bank reads as worn earth rather than a painted stripe.
+                [branch] if (shore > 0.01)
+                {
+                    half bandMix = smoothstep(0.35, 0.7, PunchyValueNoise(p * 0.21 + 8.3) * 0.75 + PunchyValueNoise(p * 1.9) * 0.25);
+                    half3 shingle = lerp(albedo, dot(albedo, half3(0.3, 0.5, 0.2)).xxx * 1.35, 0.7) * (1 + Grain(p * 6) * 0.5);
+                    albedo = lerp(albedo, shingle, bandMix * shore * (1 - input.extra.y));
+                }
                 albedo *= lerp(1, 0.55, shore * (1 - 0.4 * input.extra.y));
                 surface.albedo = lerp(albedo, albedo * 0.6, puddle);
                 surface.smoothness = lerp(lerp(input.surface.a, max(input.surface.a, 0.45), sheen), 0.92, puddle);
@@ -365,14 +396,24 @@ Shader "Punchy/Terrain Surface"
 
                 half4 color = UniversalFragmentPBR(inputData, surface);
 
-                // Puddles mirror the real sky (clouds included), strongest at grazing angles.
+                // Puddles read like the rivers (W-43b): looking down, a dark see-through film over the ground (a cool
+                // tint, like the water body); at grazing angles the live sky, by the water's Fresnel, off a surface
+                // that rain rings stir while it rains, plus the sun's glint. Was a flat 35-90% sky wash, which under
+                // a rain sky read as plain grey.
                 if (puddle > 0.01)
                 {
                     float3 v = inputData.viewDirectionWS;
-                    float3 r = reflect(-v, half3(0, 1, 0));
+                    half rain = PunchyWetnessAt(p).g * (1 - smoothstep(20, 60, distance));
+                    float2 ripple = rain > 0.01 ? PuddleRings(p, _PunchyClock) * rain * 0.35 : float2(0, 0);
+                    float3 n = normalize(float3(-ripple.x, 1, -ripple.y));
+                    float3 r = reflect(-v, n);
                     r.y = max(r.y, 0.03);
-                    half fresnel = 0.03 + 0.97 * pow(1 - saturate(v.y), 5);
-                    color.rgb = lerp(color.rgb, PunchySkyColor(r, false, true), puddle * lerp(0.35, 0.9, fresnel));
+                    half fresnel = 0.02 + 0.98 * pow(1 - saturate(dot(n, v)), 5);
+                    half3 body = color.rgb * half3(0.42, 0.47, 0.5);
+                    Light sun = GetMainLight(inputData.shadowCoord);
+                    half glint = pow(saturate(dot(r, sun.direction)), 600) * sun.shadowAttenuation * 3;
+                    half3 film = lerp(body, PunchySkyColor(r, false, true), fresnel) + sun.color * glint;
+                    color.rgb = lerp(color.rgb, film, puddle);
                 }
 
                 // Cloud shadows: dim the share of the light that comes straight from the sun.
