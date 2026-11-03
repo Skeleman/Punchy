@@ -1,6 +1,8 @@
-# Animal lane: state (2026-11-02, after batch A-34)
+# Animal lane: state (2026-11-02, after batch M-03)
 
 Worktree `Punchy` (animal lane only). On `animal-behaviours` = origin a5c8e9e (A-34), on top of ab3c458 (A-33).
+main 41a9259 (M-03, PR #53) has animal a5c8e9e and world fd91300 (not W-34 0bdc707). Merged build: v2 126 /
+053C63D5, v1 102 / 51EA6463.
 Untracked `Assets/_Recovery/` is old and not ours. Editor on port 7800.
 
 ## Shot flags added (A-34)
@@ -43,6 +45,7 @@ Untracked `Assets/_Recovery/` is old and not ours. Editor on port 7800.
 - Hashes: v2 125 / D709D95C (A-34 player log); v1 101 / E128CB1D (A-31; debug/movement-probe change since).
 
 ## NEXT
+- Merge origin/main (41a9259) into animal-behaviours.
 - Slope pair: seg 87 is a drop, not a slope. Pick a walk with a continuous floor (probe floor height along the
   line first), keep -walk short (2-3 m), and frame wide with -camrel so the body stays in shot.
 - Merchant gesture: the goblin merchant is framed but the gesture does not read; shoot closer, front-on, with

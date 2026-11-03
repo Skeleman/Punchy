@@ -1051,3 +1051,19 @@ DONE (all four rows). animal-behaviours de2e8e0, on top of the origin/main merge
   at the anvil with sparks (a34-smith-side).
 - Hashes: v2 125 / D709D95C (player log), 0 exceptions. v1 not re-run (debug/movement-probe change only).
 - One build, succeeded. Commit a5c8e9e on animal-behaviours, pushed. Shots: PunchyMilestones animal/a34 (800 px), raw/.
+
+## M-03 (2026-11-02): both lanes merged into main, main 41a9259 (one build)
+DONE (all five rows).
+- Row 1: `merge/lanes-to-main-3` from origin/main 0bd91cb; `--no-ff` merges of animal-behaviours a5c8e9e (6abd705)
+  and world-features fd91300 (d4b6c48). No conflicts. PlayerMovementSystem.cs auto-merged (still CRLF) and has both
+  the world lane's `KeepOutOfTower` call and the animal lane's `PushOutOfSolids` / `PushedTotal`. No conflict markers.
+- Row 2: editor recompile on the branch, 0 errors.
+- Row 3: build Succeeded (Builds/Windows; the only running Punchy.exe was the world lane's Builds/Dev W-34 player).
+  v2 126 / 053C63D5, `[batfolk] caves 3, picked 1`, fishers 1; v1 (`-island v1`) 102 / 51EA6463, `[batfolk] caves 0`,
+  fishers 3. Match world STATE. Cave fingerprints are not printed in player logs (WorldProbe lives only in the world
+  tree), so not checked. 0 exceptions; both players quit on their own. Logs in PunchyMilestones/animal/m03/.
+- Row 4: PR #53 merged with a merge commit; main 41a9259 contains a5c8e9e and fd91300. world-features gained W-34
+  (0bdc707) after the fetch, so that commit is not in main yet. Lane branches kept.
+- Row 5: worktree back on animal-behaviours a5c8e9e, clean (apart from Assets/_Recovery), editor 0 errors. Local
+  merge/lanes-to-main-3 deleted (in main; remote branch kept).
+- NEXT: merge origin/main into animal-behaviours so the lane carries the merge; W-34 goes in with the next merge.
