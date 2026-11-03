@@ -2,6 +2,106 @@
 
 Newest first.
 
+## 2026-11-03: item 11, slow caves on main 762c16a: standing still the cave beats open ground; walking along cave walls the camera probe eats up to 5 ms; the cost is the v2 cave field, not the mesh
+Builds: Bench-762c16a and Profile-762c16a. The comparison is v0.11.0 (4eea658, v1 island only). Laptop, 1280x720, Medium settings, 0 exceptions, 0 NaN bounds.
+
+**Bench, cap 60, ABBA (2 rounds)**: avg fps / 1% low / cpu ms / gpu ms
+
+| | cave | caveapproach (open ground) |
+|---|---|---|
+| v0.11.0 | 59.7 / 56.2 / 16.8 / 3.0 | 58.3 / 34.9 / 17.1 / 7.8 |
+| main v1 | 59.8 / 58.1 / 16.7 / 3.2 | 59.3 / 41.8 / 16.9 / 7.7 |
+| main v2 | 59.6 / 47.1 / 16.8 / 3.4 | 58.0 / 33.4 / 17.2 / 12.1 |
+
+- **Pass target, standing at the bench stop: PASS.** On both islands the cave is better than open ground on avg and on 1% low, and uses a quarter of the GPU.
+- The v2 cave's 1% low (47 vs 58 on v1) comes from cave chunk streaming spikes. In those frames FieldJob takes 143 ms and ColumnJob 57 ms on workers, while main idles 16 ms waiting for them. This is item 15's per-chunk cost.
+
+**Walking in the big cave (`-gocave #1`, 60 m legs east/north/west/south, cap 60, `-perflog`): this is the slow cave**
+
+| leg | v2 main ms | v2 frame max | v2 camera probe | v1 main ms | v1 frame max | v1 camera probe |
+|---|---|---|---|---|---|---|
+| start | 7.8 | 22.6 | 0.86 ms | 5.0 | 17.8 | 0.41 ms |
+| east | **14.1** | 23.7 | **5.0 ms** | 6.8 | 17.3 | 1.8 ms |
+| north | 9.0 | 17.2 | 1.6 ms | 5.5 | 17.2 | 0.58 ms |
+| west | 9.7 | 24.5 | 1.3 ms | 5.7 | 17.5 | 0.61 ms |
+| south | 9.0 | 25.7 | 0.94 ms | 5.8 | 17.6 | 0.18 ms |
+
+- The walks aim straight and end against walls, with push-out sliding the player along them. That's where the probe climbs.
+- The CaveArm sphere-trace takes small steps when it's near rock (5 cm minimum, up to 160 steps), so a camera close to the wall pays the most.
+- On v2, east hits 14 ms of the 16.7 ms frame on the main thread alone. With the 22-26 ms frame max, a weaker moment drops frames.
+- v1 never goes past 17.8 ms.
+
+**Collision detection (player and camera)**
+- Each sample of the cave field (IsRock / CaveDistance) costs **4.1 µs on v2 against 1.5-1.6 µs on v1, 2.7x as much**. Both run Burst.
+- `CaveSampling.Distance` walks every segment in its grid cell, plus FloorShape, StreamBed and Speleothems. v2's bigger, denser caves put more segments in each cell.
+- Every collision user pays this per sample:
+  - camera CaveArm: 0.4-5 ms, above
+  - player PushOutOfSolids plus SolidNormal: up to about 48 samples a frame. `-nopushout` saves 0.45 ms main in the v2 big cave.
+  - creatures: ReachJob 0.24 ms main plus 0.32 ms workers, and the brain's UnderRock
+  - cave meshing: FieldJob and ColumnJob
+- Main-thread profile in the cave, v2 against v1: ThirdPersonCamera.LateUpdate 1.38 vs 0.42 ms, PlayerMovement 0.33 vs 0.17.
+- v0.11.0 to main v1 (old camera and collision to new): camera −0.66, PlayerMovement +0.14, ReachJob +0.09 ms. The new sphere-trace is cheaper than v0.11's probe on v1. v2's field cost eats that gain.
+
+**Is the bigger cave mesh the problem? No.**
+- v2 draws 201-240 k cave tris against 59-82 k on v1, and keeps 20-26 chunks in view against 8-10.
+- `-nocavewalls` (walls not drawn) changes frame, main and GPU by about 0 on both islands. `-oldcave` changes nothing either.
+- Cave GPU is 2.1-3.4 ms total on either island. The draws are cheap.
+- What grew is the **field** under the mesh: per-sample cost (collision, camera, creatures) and chunk build spikes (1% low).
+
+**Top 5 inside a cave, main thread** (dev profile at the cave stop, mean self ms, v2 / v1)
+1. ThirdPersonCamera.LateUpdate (CaveArm): 1.38 / 0.42. **World** (camera). Up to 5 ms while walking (above).
+2. CaveSystem.Update: 0.58 / 0.32. **World** (caves).
+3. CreatureBrain main-thread part: 0.51 / <0.15. **Animal**.
+4. AmbienceSystem.Update: 0.44 / 0.15. **World**.
+5. CreatureRenderSystem: 0.34 / 0.15. **Animal**. This was 10.5 ms in item 6 and 2.0 ms on v0.11; now fixed.
+
+Next after these: PlayerMovement 0.33 / 0.17 (world, push-out), WeatherSystem.Update 0.29 / 0.20 (world), ReachJob 0.24 (animal), CreatureAudio 0.22 (animal), Mantrap 0.17 / 0.17 (world).
+
+Workers (v2): BrainJob 1.57 (animal), WeatherField MapJob 0.50 (world), Brain.Advance 0.45 (animal), cave ColumnJob 0.39 and FieldJob 0.26 (world), ReachJob 0.32 (animal).
+
+**GPU inside a cave**
+- FrameTime.GPU is 2.98 ms on v2 and 3.45 ms on v1.
+- `-benchgpupasses` listed 237 GPU markers but no per-pass timings on this laptop (Intel driver), so I can't rank the top 5 GPU costs pass by pass.
+- With the GPU at 3 ms of a 16.7 ms frame, it isn't what makes caves slow here. Ask the main PC if per-pass numbers are needed.
+
+**Still running underground that the player can't see or reach**
+
+Already culled through `CaveSystem.SurfaceHidden`: flora streaming, far terrain chunks, rain particles, sun shadows, critters, surface creatures, sky birds, surface audio.
+
+What's left, with the ms it would save if culled (profile mean self time):
+
+| What | Cost | Lane |
+|---|---|---|
+| WeatherField MapJob + LownessJob | 0.5-0.65 ms workers | world |
+| WeatherSystem.Update | 0.2-0.3 ms main | world |
+| AmbienceSystem (surface parts) | up to 0.15-0.44 ms main | world |
+| Mantrap | 0.17 ms main | world |
+| AmbientParticle | 0.11 ms | world |
+| DunesColossus | 0.06 ms | world |
+| CreatureAudio for unheard creatures | 0.1-0.22 ms main | animal |
+| Brain for far surface creatures | part of BrainJob's 1.57 ms workers (#59 brain LOD) | animal |
+
+- Together that's about 1 ms main and 1-1.5 ms workers on v2.
+- The `-noambientlife -nomantrap -nocolossus -nosandpuffs` run showed no change in frame time. These are worth doing, but they aren't the slow cave.
+- Water, settlements and shadow cascades: no measurable cost underground; the GPU total is 3 ms.
+
+**What would fix it (no edits made)**
+1. **World, #54: make the cave field cheaper or cache it.** For example, a coarse distance cache per loaded cave chunk, built with the mesh, that the camera, push-out and ReachJob read with one trilinear lookup. Or tighter segment cells on v2.
+2. **World, #54: cap the CaveArm steps near walls.** Use a larger minimum step (for example 15-20 cm) and fewer than 160 steps. Or start the trace from last frame's hit distance.
+3. **World, item 15: spread cave chunk builds across frames.** At most one FieldJob a frame, and never completed on main. This recovers v2's 1% low.
+4. The underground leftovers above: about 1 ms, worth doing after 1-3.
+
+**Relevant to other areas**
+- The cave field is shared by the player, camera, creatures (ReachJob, UnderRock) and cave meshing, so a cheaper or cached field helps all of them (#63).
+- Push-out and the camera arm also run at solid landmarks (salt towers, arches), so a step cap or cache helps there too.
+- The SurfaceHidden pattern that already culls the surface should be reused for underwater (#22) and dungeons (#24).
+- Open ground near the v2 cave is the heavier place: GPU 13.7 ms in the profile build, and TraceSystem 2.12 ms main (#55), more than anything in the cave.
+
+Cost: about $6.4 equivalent (this session's item 11 share; COSTS/laptop.csv).
+- Shots: results/shots-q11/
+- Data: results/q11.csv, q11-perf-*, q11b-perf-*, q11c-*, prof-762c16a-{cave,approach}-{v2,v1}.txt
+- NEXT: re-run the walk test (q11c: `-gocave #1` plus four `-walk` legs) after a #54 or field-cache fix. The v2 east leg (main 14.1 ms, probe 5.0 ms) is the number to beat.
+
 ## 2026-11-02: ECS review of main 41a9259 (Zach's request; read-only): core sound, cost is managed main-thread work and one fat component; issues #54-#64
 128 scripts, about 60k lines. No edits.
 Issues: #54 camera, #55 TraceSystem, #56 shared snapshot, #57 staggered searches, #58 split CreatureState, #59 brain

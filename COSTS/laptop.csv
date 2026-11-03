@@ -39,4 +39,4 @@ date,machine,session,title,model,subagent,calls,input,cache_read,cache_write,out
 2026-11-02,laptop,56c5f717,,claude-opus-5-5,0,69,184,19339257,789198,43906,339871,10.42
 2026-11-02,laptop,agent-a1,,claude-haiku-5-5,1,2,4,3959,9017,1027,9019,0.00
 2026-11-02,laptop,agent-a5,,claude-opus-5-5,1,72,200,7904616,2770834,18226,186907,15.80
-2026-11-03,laptop,4a29c6d6,,claude-opus-5-5,0,45,98,4113791,200511,20942,134016,2.85
+2026-11-03,laptop,4a29c6d6,,claude-opus-5-5,0,104,230,13698671,665606,58921,222980,9.24
