@@ -2,6 +2,16 @@
 
 Newest first.
 
+## 2026-11-03 batch W-56b: temple v2 finished on the ruin kit (#24)
+
+- DONE #1: the "block" was the probe, not the temple. It walked straight lines between door centres, which ran through the pillared hall's pillar row (u 6.2-7.3, v -3.9..-5.1, hall floor y 8; not the entrance). The probe now walks the room chain square-on to each doorway (along the room's centre line, across, through). Walk in and out: 1312 moves each, blocked 0, max rise 0.32 / 0.27 m, sanctum reached (trunk rooms 45/45; the 2 branch dead-end rooms are not walked). Same seed builds the same layout (CAB1F447 twice; seed 777 gives 21F1AD29). No game code changed.
+- DONE #2: the 7.5 m sink was the probe too: rooms stack in plan (stair 2 and the sanctum run under the pillared hall), and it took the first room containing the point (hall floor 8 vs sanctum floor 0.5 = 7.5). It now takes the highest drawn floor or box top within step reach. Sink 0.000 m in and out.
+- DONE #3: ground (W-56 FNV-64, 4 m over +-6 km) e39ae7f -> now: all 6E9CF8A3EACD4760 -> C0C906EE310FA91F; skipping 80 m round the temple 7E891ED5DFB2C564 on both, so the change is limited to the temple. Landmarks v2 127 / 4D245E12 (editor and player), v1 103 / 19885131 (player, `-island v1`): unchanged.
+- DONE #4: RuinKit.cs.meta committed; "Ruins" section + stacked-rooms gotcha in docs/agents/world.md (5eeb15a).
+- DONE #5: one build (Succeeded, 0 errors). Shots in D:\PunchyMilestones\W-56: w56b_swell_eye.png, w56b_entrance_day.png, w56b_entry_hall.png, w56b_sanctum_torch.png (unviewed). Perf (-perflog, 3 s): entry hall 16.67 ms (max 17.0), sanctum at 22:00 16.67 ms (max 16.8), both vsync-capped (no frame timing in this player); Unity Lights 3 (1 shadowed) in both, particles 1897 / 3079.
+- DONE #6: world-features fast-forwarded to 5eeb15a (c15a249 + 5eeb15a) and pushed; worktree is back on world-features. w56-wip pushed too.
+- Left: nothing in the table. Not checked: the two branch dead ends in the walk; the frame cost above the 60 fps cap (needs an uncapped run).
+
 ## 2026-11-02 batch W-32: sunken temple in the dunes (enterable, 8 rooms on 3 levels) + interiors design note
 
 World commit 1320e8f on world-features (local, not pushed; it sits on W-48/52/53).
