@@ -373,7 +373,11 @@ namespace Punchy.Player
                 // In a cave: pushed back out of the rock round the body (walls, a ceiling, slopes steeper than about 50°,
                 // which slide it back down rather than letting it sink in), A-30.
                 if ((inCave || caveHere) && !NoPushOut.Data)
-                    position = PushOutOfSolids(terrain, from, position, m.Grounded, settings.Radius, size, dt);
+                {
+                    var pushed = PushOutOfSolids(terrain, from, position, m.Grounded, settings.Radius, size, dt);
+                    PushedTotal.Data += math.distance(pushed, position);
+                    position = pushed;
+                }
 
                 t.Position = position;
 
@@ -831,6 +835,9 @@ namespace Punchy.Player
         /// <summary>Tests ("-nopushout" on a shot line): the cave push-out off, for a before shot of the old collision.</summary>
         public static readonly SharedStatic<bool> NoPushOut = SharedStatic<bool>.GetOrCreate<PlayerMovementSystem, NoPushOutKey>();
         struct NoPushOutKey { }
+        /// <summary>Tests (-walk probe): metres the cave push-out has moved the player in all, so a run can say how much it acted.</summary>
+        public static readonly SharedStatic<float> PushedTotal = SharedStatic<float>.GetOrCreate<PlayerMovementSystem, PushedTotalKey>();
+        struct PushedTotalKey { }
         /// <summary>A cave floor whose normal's up part is under this (50°) can't be walked up: the body slides back.</summary>
         public const float SteepFloor = 0.64f;
 
