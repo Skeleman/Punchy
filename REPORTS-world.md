@@ -2,6 +2,14 @@
 
 Newest first.
 
+## W-65f (2026-11-03): wharf shore treads + stepping stones, WIP at the call ceiling
+
+- Commit 83bbb2d on world-features (pushed). No build, no player walks, no shots, no hashes: the call ceiling came first.
+- Row 1 (#36): every wharf shore tread is now solid, a collider up to its top, so a walker on the low bank is stopped by any tread more than a step up and can't walk in under the steps. It applies to all 4 wharves. The fingerprint doesn't cover Solid. Not walked in a player yet.
+- Row 2, walkable stones: the row at -2982.6,3178.8 had holes in its support grid between stones (NaN at the row centre, tops 0-0.11 above the water). The stones were 1.1 m apart and each standable top is only about 0.36 m. Now 0.85 m apart. Not yet probed or walked.
+- Row 2, one row per narrows: NOT done. Measuring the narrowest lattice spot within 25 m along the flow gave 0 rows within 250 m of -2982.6,3178.8, so I reverted it. The patch is untracked at Punchy-world Assets/Temp/W65f_dedup_wip.patch. Cause unknown: either the probe ran before the recompile, or the filter rejects every spot.
+- Left: fix the dedup, then ONE build, the wharf -3285.9,-1644.0 walk, the stone walk, the day shot, the v1/v2 counts and all hashes. The stone pitch changes the row mesh, but its placement and the landmark hashes should not move.
+
 ## W-65e (2026-11-03) world-features adabd0b
 
 - Row 1 hashes (measured before the build): editor v2 136 / 4E61F1CF (raw B5EFF8C8), player 136 / B5EFF8C8, v1 103 / F628AE5F raw (19885131 by base name), caves C49E8E3036C741FC, ground C0C906EE310FA91F, rivers A77D2ED7B919296E. All unchanged, so nothing reverted.
