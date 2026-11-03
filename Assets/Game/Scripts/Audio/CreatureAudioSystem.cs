@@ -150,6 +150,9 @@ namespace Punchy.Audio
                 var had = last.TryGetValue(e, out var was);
                 var flap = (int)math.floor(s.Clock * math.max(b.FlapRate, 0.1f));
                 var species = bodies[i].Species;
+                // (Another player's body carries no species of its own: its calls by the species it was spawned as.)
+                if (species < 0 && EntityManager.HasComponent<RemoteAvatar>(e))
+                    species = EntityManager.GetComponentData<RemoteAvatar>(e).Species;
                 var mine = species >= 0 && species < calls.Length ? calls[species] : null;
                 var slots = int4.zero;
                 if (mine != null)
@@ -176,6 +179,8 @@ namespace Punchy.Audio
                             var call = mine[(s.Action - IdleAction.Wave) % mine.Count];
                             GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f),
                                                   (call.Pitch.x + call.Pitch.y) * 0.5f, call.Volume, call.Reach, SoundGroup.Player);
+                            UnityEngine.Debug.Log($"CreatureAudio: emote {s.Action} plays {call.Sound} from {(EntityManager.HasComponent<RemoteAvatar>(e) ? "another player's" : "our")} body" +
+                                                  $" at ({s.Position.x:F1}, {s.Position.y:F1}, {s.Position.z:F1}), {d:F1} m away");
                         }
                     }
                     // Footfalls: a leg's phase wrapping round, while moving on the ground.

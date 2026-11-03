@@ -237,6 +237,18 @@ namespace Punchy.Fauna
             void Execute(Entity self, ref CreatureState s, in CreatureBody body)
             {
                 Think(self, ref s, in body);
+                // A-44: one lying or standing still over a cave entrance (it rested there before the ground under it was
+                // known to be carved) settles onto the carved ground; up a tree or on a perch it is above the surface.
+                // (A-44b: at once, and moving too: easing down, or only when still, left 258 floating ticks a minute.)
+                if (!s.Gone && nearSolids && s.Fly < 0.5f && s.Mode != CreatureMode.Held && !body.Blob.Value.CaveDweller &&
+                    !underRock && s.Position.y < Terrain.SampleHeight(s.Position.xz) + 0.3f)
+                {
+                    var ground = CreatureMotion.Ground(Terrain, s.Position.xz, s.Position.y);
+                    if (s.Position.y - ground > 0.1f)
+                        s.Position.y = ground;
+                }
+                if (!s.Gone && CreatureMotion.StatsOn.Data != 0)
+                    CountSolids(s, ref body.Blob.Value);
                 // (The legs' pose follows whatever speed it ended the tick at, whichever way it got there; its feet are
                 // only kept planted through it near someone, where they're seen.)
                 if (!s.Gone)
@@ -271,6 +283,10 @@ namespace Punchy.Fauna
                         playerSpeed = PlayerSpeeds[p];
                         nearest = p;
                     }
+                // (A-44: only animals a player could see keep out of solids; the rest are left as they were, for the cost.)
+                nearSolids = CreatureMotion.SolidsOff.Data == 0 && !b.Upright && !b.Haunts && !b.Tunnels &&
+                             (b.Habitat == Habitat.Land || b.Habitat == Habitat.Flies) &&
+                             math.distancesq(player.xz, s.Position.xz) < CreatureMotion.SolidReach * CreatureMotion.SolidReach;
                 // (A player in a body of its own kind is one of its own: not run from. A ghost doesn't flee a ghost.)
                 var ownKind = nearest < PlayerSpecies.Length && PlayerSpecies[nearest] == body.Species && body.Species >= 0;
                 if (emote < IdleAction.Wave)
@@ -973,8 +989,20 @@ namespace Punchy.Fauna
                         landBound = false;
                         s.Speed = math.min(s.Speed, run * 0.45f);   // paddling is slow
                     }
+                    // A-44: near a player, a wild animal turns from a solid just ahead (a cave wall, a tower, an iceberg)
+                    // before it presses into it, and from a boulder or shard taller than it steps (that one checked four
+                    // times a second: a rock's placement is a whole cell's worth of work).
+                    if (nearSolids && landBound && !blocked && s.Speed > 0.05f && s.Fly < 0.5f && !underRock && !b.CaveDweller)
+                    {
+                        var probe = s.Position.xz + forward * (math.max(0.6f, s.Speed * 0.3f) * s.Scale + BodyRadius(s, ref b));
+                        blocked = SolidAt(s, ref b, probe, forward, out _);
+                        if (!blocked && HasFlora && (int)(s.Clock * 4f) != (int)((s.Clock - dt) * 4f) &&
+                            FloraPlacement.RockAt(ref Flora.Value, Terrain, probe, BodyRadius(s, ref b), out var rockTop) &&
+                            rockTop > math.max(0.3f, b.StandHeight * s.Scale * 0.6f))
+                            blocked = true;
+                    }
                     // (In a cave, running or going somewhere along the passage, it follows the wall round: Advance.)
-                    var followsWall = CaveWalker(s, ref b) && (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Drink ||
+                    var followsWall =CaveWalker(s, ref b) && (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Drink ||
                                                         s.Mode == CreatureMode.Wander && math.distance(s.Position.xz, s.Target) > 2f);
                     if (!followsWall && (blocked || landBound && s.Speed > 0.05f && SlopeAhead(s.Position.xz, ahead) > 0.8f))
                     {
@@ -991,8 +1019,10 @@ namespace Punchy.Fauna
                             var way = left * side;
                             var reach = 1.5f * s.Scale + 0.5f;
                             if (!CaveWalker(s, ref b) && !b.Haunts && !b.LavaDweller && s.Mode != CreatureMode.Swim &&
-                                !Open(s.Position.xz, s.Position.xz + way * reach, b.Habitat, landBound))
-                                way = Open(s.Position.xz, s.Position.xz - way * reach, b.Habitat, landBound) ? -way : -forward;
+                                (!Open(s.Position.xz, s.Position.xz + way * reach, b.Habitat, landBound) ||
+                                 nearSolids && SolidAt(s, ref b, s.Position.xz + way * reach, way, out _)))
+                                way = Open(s.Position.xz, s.Position.xz - way * reach, b.Habitat, landBound) &&
+                                      !(nearSolids && SolidAt(s, ref b, s.Position.xz - way * reach, -way, out _)) ? -way : -forward;
                             s.Target = s.Position.xz + way * 20f;
                         }
                         else if (s.Mode == CreatureMode.Wander || s.Mode == CreatureMode.Drink && s.Stage == 0 ||
@@ -6000,6 +6030,10 @@ namespace Punchy.Fauna
                         }
                     }
                 }
+                // A-44: near a player, cave walls, towers and icebergs are solid too: it slides along them by its own
+                // body's size, and one already in one is pushed out sideways.
+                if (nearSolids && !keepHeight && s.Fly < 0.5f && s.Mode != CreatureMode.Held && !b.CaveDweller && !underRock)
+                    to = KeepOutOfSolids(ref s, ref b, to, forward, dt);
                 s.Position.xz = to;
                 if (b.Haunts)
                 {
@@ -6011,8 +6045,10 @@ namespace Punchy.Fauna
                 }
                 else if (b.Habitat == Habitat.Land || b.Habitat == Habitat.Flies)
                 {
+                    // (A-44: over a cave entrance it stands on the carved ground, not where the heightmap would have been.)
                     if (!keepHeight)
-                        s.Position.y = Terrain.SampleHeight(s.Position.xz);
+                        s.Position.y = CreatureMotion.SolidsOff.Data != 0 ? Terrain.SampleHeight(s.Position.xz)
+                                                                          : CreatureMotion.Ground(Terrain, s.Position.xz, s.Position.y);
                     // Out of its depth, a land animal that swims sits low: only its head, neck and a strip of back
                     // above the surface (a bear's broad back shows more than a deer's), legs paddling below, bobbing
                     // gently. Wading in, it settles from standing on the bottom into that as the water deepens.
@@ -6154,6 +6190,138 @@ namespace Punchy.Fauna
 
             /// <summary>This tick's creature is a cave visitor (CaveAffinity) under rock (see Execute).</summary>
             bool underRock;
+
+            /// <summary>This tick's creature is a wild land animal near a player, so it keeps out of solids (A-44, see Think).</summary>
+            bool nearSolids;
+
+            /// <summary>Its body's half width (m, the radius it keeps from solids).</summary>
+            static float BodyRadius(in CreatureState s, ref CreatureBlob b) => math.max(math.max(b.FrontRadius, b.RearRadius) * s.Scale, 0.1f);
+
+            /// <summary>Whether its body would be in a solid at xz facing forward (CreatureMotion.Solid with its own size).</summary>
+            bool SolidAt(in CreatureState s, ref CreatureBlob b, float2 xz, float2 forward, out float sink) =>
+                SolidAt(s, ref b, xz, forward, out sink, out _);
+
+            /// <summary>SolidAt, and what was in the way. A-44b: settlement buildings and landmark props too
+            /// (FloraPlacement.Blocked, as workers and worms test them), which wild animals walked into before.</summary>
+            bool SolidAt(in CreatureState s, ref CreatureBlob b, float2 xz, float2 forward, out float sink, out CreatureMotion.SolidKind kind)
+            {
+                if (CreatureMotion.StatsOn.Data != 0)
+                    System.Threading.Interlocked.Increment(ref CreatureMotion.Stats.Data.Queries);
+                var radius = BodyRadius(s, ref b);
+                var halfLength = b.BodyLength * 0.5f * s.Scale;
+                var hit = CreatureMotion.Solid(Terrain, xz, forward, s.Position.y, radius, halfLength,
+                                               math.max((b.StandHeight + b.FrontRadius) * s.Scale, radius * 2f), out sink, out kind);
+                if (!HasFlora)
+                    return hit;
+                var built = BuildingSink(xz, forward, radius, halfLength, out var walled);
+                if (walled && !hit)
+                    kind = CreatureMotion.SolidKind.Building;
+                if (built > sink)
+                {
+                    sink = built;
+                    kind = CreatureMotion.SolidKind.Building;
+                }
+                return hit || walled;
+            }
+
+            /// <summary>
+            /// How far its body (a circle of its radius at xz) is into a building or prop, in steps (Blocked only answers
+            /// yes or no): 0 clear, 0.1 touching, 0.16 or more when over 0.15 m in, most of its radius when mostly in.
+            /// Walled: that, or its nose touching one, stops a step.
+            /// </summary>
+            float BuildingSink(float2 xz, float2 forward, float radius, float halfLength, out bool walled)
+            {
+                walled = false;
+                if (FloraPlacement.Blocked(ref Flora.Value, Terrain, xz, radius))
+                {
+                    walled = true;
+                    if (!FloraPlacement.Blocked(ref Flora.Value, Terrain, xz, math.max(radius - 0.15f, 0.02f)))
+                        return 0.1f;
+                    return FloraPlacement.Blocked(ref Flora.Value, Terrain, xz, radius * 0.3f) ? math.max(radius * 0.8f, 0.3f)
+                                                                                             : math.max(radius * 0.5f, 0.16f);
+                }
+                walled = FloraPlacement.Blocked(ref Flora.Value, Terrain, xz + forward * halfLength, radius * 0.6f);
+                return 0f;
+            }
+
+            /// <summary>
+            /// A-44: a step from where it stands to `to` that would put its body in a solid is turned to the nearest open way
+            /// either side (turning it a little that way), or cancelled; already in one, it is pushed out sideways. Counts
+            /// contacts for "-solidstats".
+            /// </summary>
+            float2 KeepOutOfSolids(ref CreatureState s, ref CreatureBlob b, float2 to, float2 forward, float dt)
+            {
+                var stats = CreatureMotion.StatsOn.Data != 0;
+                // Already in one (spawned there, or a wall that turned up under it): out sideways, to the nearest clear side.
+                if (SolidAt(s, ref b, s.Position.xz, forward, out var sinkNow) && sinkNow > 0.05f)
+                {
+                    var push = math.min(sinkNow + 0.05f, 2f * dt + 0.05f);
+                    for (int k = 0; k < 8; k++)
+                    {
+                        var angle = s.Yaw + math.PI * 0.5f + k * math.PI * 0.25f;
+                        var dir = new float2(math.sin(angle), math.cos(angle));
+                        if (!SolidAt(s, ref b, s.Position.xz + dir * push, forward, out var sinkThere) || sinkThere < sinkNow - 0.01f)
+                            return s.Position.xz + dir * push;
+                    }
+                    return s.Position.xz;
+                }
+                if (math.distancesq(to, s.Position.xz) < 1e-8f || !SolidAt(s, ref b, to, forward, out _))
+                    return to;
+                if (stats)
+                    System.Threading.Interlocked.Increment(ref CreatureMotion.Stats.Data.Contacts);
+                var step = math.distance(to, s.Position.xz);
+                for (int k = 1; k <= 7; k++)
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        var angle = s.Yaw + side * k * 0.45f;
+                        var way = new float2(math.sin(angle), math.cos(angle));
+                        var slide = s.Position.xz + way * step;
+                        if (!SolidAt(s, ref b, slide, way, out _))
+                        {
+                            s.Yaw = WrapAngle(s.Yaw + WrapAngle(angle - s.Yaw) * 0.3f);
+                            return slide;
+                        }
+                    }
+                s.Speed = 0f;
+                if (stats)
+                    System.Threading.Interlocked.Increment(ref CreatureMotion.Stats.Data.Stuck);
+                return s.Position.xz;
+            }
+
+            /// <summary>"-solidstats": how deep this tick's creature near a player is in a solid, and whether it floats over a
+            /// cave entrance's carved ground.</summary>
+            void CountSolids(in CreatureState s, ref CreatureBlob b)
+            {
+                if (b.Upright || b.Haunts || b.Tunnels || b.Habitat != Habitat.Land && b.Habitat != Habitat.Flies || s.Fly > 0.5f ||
+                    s.Mode == CreatureMode.Held || b.CaveDweller || underRock)
+                    return;
+                var near = false;
+                for (int p = 0; p < Players.Length && !near; p++)
+                    near = math.distancesq(Players[p].xz, s.Position.xz) < CreatureMotion.SolidReach * CreatureMotion.SolidReach;
+                if (!near)
+                    return;
+                ref var stats = ref CreatureMotion.Stats.Data;
+                System.Threading.Interlocked.Increment(ref stats.Samples);
+                var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                SolidAt(s, ref b, s.Position.xz, forward, out var sink, out var kind);
+                System.Threading.Interlocked.Decrement(ref stats.Queries); // (a count, not a move: Queries are the moves' cost)
+                if (sink > 0.15f)
+                {
+                    System.Threading.Interlocked.Increment(ref stats.Hidden);
+                    CreatureMotion.Cases.Data.KeepSink(new float4(s.Position.xz, sink, (float)kind));
+                }
+                var mm = (int)(sink * 1000f);
+                for (int was = stats.MaxSinkMm; mm > was; was = stats.MaxSinkMm)
+                    if (System.Threading.Interlocked.CompareExchange(ref stats.MaxSinkMm, mm, was) == was)
+                        break;
+                // (Standing over an entrance: well above the floor there. Up a tree or on a perch it is meant to be.)
+                var gap = s.Position.y - CreatureMotion.Ground(Terrain, s.Position.xz, s.Position.y);
+                if (s.Position.y < Terrain.SampleHeight(s.Position.xz) + 0.3f && gap > 0.2f)
+                {
+                    System.Threading.Interlocked.Increment(ref stats.Floating);
+                    CreatureMotion.Cases.Data.KeepFloat(new float4(s.Position.xz, gap, (float)s.Mode + (s.Speed > 0.01f ? 100f : 0f)));
+                }
+            }
 
             bool UnderRock(in CreatureState s, ref CreatureBlob b)
             {

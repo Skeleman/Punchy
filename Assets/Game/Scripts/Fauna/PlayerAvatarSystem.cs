@@ -14,6 +14,9 @@ namespace Punchy.Fauna
     public struct RemoteAvatar : IComponentData
     {
         public Entity Ghost;
+        /// <summary>The body's species in this machine's FaunaDirector (-1 if it has none), for its sounds: the body
+        /// itself carries Species -1 so the animals' systems leave it be (A-43: its emotes were silent). Local only.</summary>
+        public int Species;
     }
 
     /// <summary>

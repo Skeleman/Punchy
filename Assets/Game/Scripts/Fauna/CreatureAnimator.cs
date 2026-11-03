@@ -41,20 +41,34 @@ namespace Punchy.Fauna
         public static readonly SharedStatic<float> LeapFreeze = SharedStatic<float>.GetOrCreate<LeapFreezeKey>();
         class LeapFreezeKey { }
 
+        /// <summary>"-oldlie" (debug): 1 leaves a lying four-legged body's folded legs where they fall (before A-42),
+        /// for before shots from the same build.</summary>
+        public static readonly SharedStatic<int> OldLie = SharedStatic<int>.GetOrCreate<OldLieKey>();
+        class OldLieKey { }
+
         /// <summary>
         /// How gathered a leaping run (CreatureBlob.LeapingRun: dogs, cats, wolves) is at a point of its stride: 1 with all
-        /// four feet under the body, 0 stretched out in the leap. Held gathered, a snap out into the leap, held in the
-        /// air, then eased back in (#6, the owner's spec).
+        /// four feet under the body, 0 stretched out in the leap. Held gathered, eased out into the leap, held in the
+        /// air, then eased back in (#6, the owner's spec). A-43: the owner found the move between the two key poses
+        /// almost immediate (it took 0.08 of a stride, under a frame at 30 fps); each ease now takes about a third of
+        /// the stride (smootherstep, flat at both ends), and the holds are shorter to make room.
         /// </summary>
         public static float LeapGather(float p)
         {
             if (LeapFreeze.Data > 0f)
                 p = LeapFreeze.Data - 1f;
             p = math.frac(p);
-            if (p < 0.3f) return 1f;
-            if (p < 0.38f) return 1f - math.smoothstep(0.3f, 0.38f, p);
-            if (p < 0.68f) return 0f;
-            return math.smoothstep(0.68f, 1f, p);
+            if (p < 0.16f) return 1f;
+            if (p < 0.46f) return 1f - Smootherstep(0.16f, 0.46f, p);
+            if (p < 0.6f) return 0f;
+            return Smootherstep(0.6f, 1f, p);
+        }
+
+        /// <summary>A smoothstep whose rate also eases in and out (no kink where a hold meets an ease).</summary>
+        static float Smootherstep(float a, float b, float x)
+        {
+            var t = math.saturate((x - a) / (b - a));
+            return t * t * t * (t * (t * 6f - 15f) + 10f);
         }
 
         /// <summary>How much less a leaping run's hip swings at either extreme than the pushed run key gives (A-25, #6:
@@ -153,6 +167,16 @@ namespace Punchy.Fauna
             // Posture: lying lowers the body onto its belly; a bow or a lowered head tips the chest down.
             var lying = math.min(b.StandHeight, b.FrontRadius * b.BodyFlatten * 0.9f);
             var height = math.lerp(b.StandHeight, lying, s.Lie) * scale;
+            // (Lying across a slope the uphill hip would sit inside the flank, under the ground: raise the body by the
+            // side slope times half its width. Nothing changes on flat ground.)
+            if (!b.Upright && !aquatic && s.Lie > 0f)
+            {
+                var right = new float2(forward.z, -forward.x);
+                var halfWidth = math.max(b.FrontRadius, b.RearRadius) * scale;
+                var side = math.abs(GroundAt(terrain, s.Position.xz + right * halfWidth, s.Position.y)
+                                    - GroundAt(terrain, s.Position.xz - right * halfWidth, s.Position.y)) / (2f * halfWidth);
+                height += side * halfWidth * s.Lie * (1f - airborne);
+            }
             var lowered = b.StandHeight * scale - height;
             pitch += s.Bow * 0.3f + s.HeadDown * 0.1f * (1f - s.Lie);
             // (A lowered head, drinking or grazing, or a play bow tips the chest down about the hips: the rump stays where
@@ -695,6 +719,48 @@ namespace Punchy.Fauna
                         pos = segPos[fs] + math.mul(turned, new float3(0f, 0f, len));
                         rot = turned;
                     }
+                }
+
+                // A four-legged body lying down: its folded legs are longer than the lowered body is high, so on their own
+                // they run down into the ground. Each is swung about the hip (front legs forward, hind legs forward under
+                // the belly, failing that back, then out to the side) by the least angle that brings its lowest point up
+                // onto the ground, judged against the local ground plane under the hip so it holds on slopes too.
+                // (Splayed legs, a lizard's, don't fold, but lying flat their knees can still dip in: the same lift.)
+                var lieFold = folds ? fold : part.Role == LimbRole.Leg && part.Parent < 0 && !b.Upright && !aquatic ? s.Lie : 0f;
+                if (lieFold > 0.3f && OldLie.Data == 0 && part.FirstSegment + part.SegmentCount <= MaxSegments)
+                {
+                    var h0 = GroundAt(terrain, hip.xz, s.Position.y);
+                    var grad = new float2(GroundAt(terrain, hip.xz + new float2(0.3f, 0f), s.Position.y) - h0,
+                                          GroundAt(terrain, hip.xz + new float2(0f, 0.3f), s.Position.y) - h0) / 0.3f;
+                    var side = math.mul(rootRot, new float3(1f, 0f, 0f));
+                    var ahead = math.mul(rootRot, new float3(0f, 0f, 1f));
+                    var outward = part.Socket.x >= 0f ? 1f : -1f;
+                    var best = quaternion.identity;
+                    var bestLow = LowestLegPoint(ref b, ref part, ref segPos, ref segRot, quaternion.identity, hip, h0, grad, scale);
+                    for (int k = 1; k <= 48 && bestLow < 0f; k++)
+                    {
+                        // 12 steps of 0.13 rad each way: forward, then back, then rolled out to the side, then in under the body.
+                        var t = (1 + (k - 1) % 12) * 0.13f;
+                        var q = k <= 12 ? quaternion.AxisAngle(side, -t) : k <= 24 ? quaternion.AxisAngle(side, t) :
+                                k <= 36 ? quaternion.AxisAngle(ahead, t * outward) : quaternion.AxisAngle(ahead, -t * outward);
+                        var low = LowestLegPoint(ref b, ref part, ref segPos, ref segRot, q, hip, h0, grad, scale);
+                        // The first angle that clears wins (the loop ends); failing all, the one that comes closest.
+                        if (low > bestLow)
+                        {
+                            best = q;
+                            bestLow = low;
+                        }
+                    }
+                    var weight = math.smoothstep(0.3f, 0.9f, lieFold);
+                    var turn = math.slerp(quaternion.identity, best, weight);
+                    for (int j = 0; j < part.SegmentCount; j++)
+                    {
+                        var seg = part.FirstSegment + j;
+                        segPos[seg] = hip + math.mul(turn, segPos[seg] - hip);
+                        segRot[seg] = math.mul(turn, segRot[seg]);
+                    }
+                    pos = hip + math.mul(turn, pos - hip);
+                    rot = math.mul(turn, rot);
                 }
 
                 // Climbing onto a ledge: the hands stay on its rim (Anchor, set as the climb began) while the body pulls
@@ -1324,6 +1390,25 @@ namespace Punchy.Fauna
         /// A folded leg's extra pitch per joint: the thigh swings back, the shin folds forward under it, the foot
         /// tucks back (positive pitch swings a leg backwards).
         /// </summary>
+        /// <summary>The lowest point of a leg's segments (less their radius) above a ground plane through h0 at the hip
+        /// with the given slope, after turning the leg by q about the hip. Negative: into the ground.</summary>
+        static float LowestLegPoint(ref CreatureBlob b, ref CreaturePart part, ref FixedList4096Bytes<float3> segPos,
+            ref FixedList4096Bytes<quaternion> segRot, quaternion q, float3 hip, float h0, float2 grad, float scale)
+        {
+            var low = float.MaxValue;
+            for (int j = 0; j < part.SegmentCount; j++)
+            {
+                var seg = part.FirstSegment + j;
+                ref var bs = ref b.Segments[seg];
+                var start = hip + math.mul(q, segPos[seg] - hip);
+                var end = start + math.mul(math.mul(q, segRot[seg]), new float3(0f, 0f, bs.Length * scale));
+                var g0 = h0 + math.dot(start.xz - hip.xz, grad);
+                var g1 = h0 + math.dot(end.xz - hip.xz, grad);
+                low = math.min(low, math.min(start.y - bs.RadiusStart * bs.Flatten * scale - g0, end.y - bs.RadiusEnd * bs.Flatten * scale - g1));
+            }
+            return low;
+        }
+
         static float Fold(int joint, int count)
         {
             if (count == 1)

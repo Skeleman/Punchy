@@ -33,6 +33,7 @@ namespace Punchy.Fauna
         public Habitat Habitat;
         public float SwimDepth, Leaps;
         public float WanderRadius, FleeDistance, TurnRate;
+        public bool FleeGas;
         public float2 IdleTime, Size;
         public ActiveTime Active;
         public float Grazing, Thirst, Playfulness, Laziness, Hunger, ChaseTime;
@@ -789,6 +790,7 @@ namespace Punchy.Fauna
             root.Leaps = species.Leaps;
             root.WanderRadius = species.WanderRadius;
             root.FleeDistance = species.FleeDistance;
+            root.FleeGas = species.FleeGas;
             root.TurnRate = math.radians(species.TurnRate);
             root.IdleTime = new float2(species.IdleTime.x, species.IdleTime.y);
             var sizeScale = variant != species ? variant.VariantScale : 1f;
