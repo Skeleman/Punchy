@@ -1458,3 +1458,14 @@ FaunaDirector.cs, DebugControls.cs. All stay LF. No TerrainSource, player collis
 - **Hashes:** v1 103 / 19885131, unchanged. No landmark code was touched.
 - **Build:** one build, made before the `-menu`/`-pickclass` shot-line flags.
 - **Shots:** PunchyMilestones/animal/a46 (a46-load, spin-old/new, lift-ground/30m, player.log) and a46/editor (the Character shots show no tab).
+
+## A-46b (2026-11-03) animal: finish A-46
+
+Commits on animal-behaviours: 9c96b16 (#68 tab, #12 Play turn cap, "-oldplay"), 1e8dc1c ("-spawnradius" test flag). One build; shot list Temp/a46b_shots.txt. Shots: PunchyMilestones/animal/a46b (build), a46b/editor, a46b/net (host + client).
+Hashes: v2 127 / 4D245E12 unchanged (build log). v1 103 / 19885131 not rechecked; no landmark or terrain code touched.
+
+- #57 flees (spot -255,27 with Wolf 3, Deer 8, Marmot 8 spawned, 150 s each): old search predator 4 / alarm 3, new search predator 6 / alarm 19 (searches 576k vs 71k). Not within 10%: the counts are too small to compare (single runs, wolves hunt at random). Need a longer run or several runs to call it.
+- #68 Character tab: cause was NetAvatars calling OnDisable (which removes the tab) when the client world changed, on the first frame. Fixed with ReleaseWorld. Tab shows solo (editor and build), as host with a client connected, and on the client (shots taken after the host quit and it carried on alone, i.e. across a world change). Bird -> Fish = two clicks (Character tab, Fish). Client log shows a NullReferenceException when it lost the host; not looked into.
+- #12 Play spin: the runner (Play stage 1) re-aimed freely every frame, spinning at 200-300 deg/s when stuck. Its aim now turns at most 100 deg/s. Build, 120 s each: Marmot Play 87-96 deg/s old -> 57-69 new; Songbird barely played (new: one 7 s window at 111 deg/s); Dormouse never played (sleeps/climbs). Spins: 1 old (Monkey, Play stage 1), 0 new. Editor run: Marmot 99-103 -> 59-61, Songbird -> 35-68, spins 2 old -> 0 new.
+- #46 flying height: build run had deer at 26-29 m (surface -spawn lands 6-45 m out), so added "-spawnradius". Editor, same -goflat spot, deer at 9-15 m: ground 0 of 10 fleeing, 30 m up 0 of 20 fleeing. Deer don't flee a standing player at that range even on the ground, so height can't be judged this way; needs a moving player or a different threat.
+Left: #57 more runs; #46 test with a moving player; client-connected tab shot (host quit before client's shots); v1 hash check.
