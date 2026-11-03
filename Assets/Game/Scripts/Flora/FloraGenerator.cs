@@ -54,6 +54,8 @@ namespace Punchy.Flora
         /// rotation and scale. Empty for most plants (see FloraPlacement.NearPerches).
         /// </summary>
         public readonly List<Vector3> Perches = new List<Vector3>();
+        /// <summary>Its chimneys' flue tops (W-43c, where smoke rises), before the plant's own rotation and scale.</summary>
+        public readonly List<Vector3> Chimneys = new List<Vector3>();
         /// <summary>Whether it casts shadows. Small props (fences, palisades, signposts, garden rows, woodpiles,
         /// stalls, flowers) don't: towns have hundreds of them, and every shadow-casting draw costs a shadow pass.</summary>
         public bool CastsShadows = true;
@@ -185,6 +187,7 @@ namespace Punchy.Flora
                     model.Colliders.AddRange(g.Colliders);
                     model.ColliderBase.AddRange(g.ColliderBase);
                     model.Perches.AddRange(g.Perches);
+                    model.Chimneys.AddRange(g.Chimneys);
                     model.Pools.AddRange(g.Pools);
                     model.DoorHeight = g.DoorHeight;
                     model.Height = g.Height;
@@ -267,6 +270,7 @@ namespace Punchy.Flora
             public readonly List<Vector4> Colliders = new List<Vector4>();
             public readonly List<float> ColliderBase = new List<float>();
             public readonly List<Vector3> Perches = new List<Vector3>();
+            public readonly List<Vector3> Chimneys = new List<Vector3>();
             public readonly List<Vector4> Pools = new List<Vector4>();
 
             /// <summary>
@@ -3091,6 +3095,7 @@ namespace Punchy.Flora
         /// </summary>
         static void ChimneyTop(Grower g, Vector3 top, float half, Color stone)
         {
+            g.Chimneys.Add(top + Vector3.up * 0.1f);
             if (g.Lod == 2)
                 return;
             var b = g.B;

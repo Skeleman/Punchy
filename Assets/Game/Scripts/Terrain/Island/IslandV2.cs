@@ -447,6 +447,7 @@ namespace Punchy.Terrain
                 source.Archipelago = baked.Archipelago;
                 source.Anchors = baked.Anchors;
                 source.PondsOn = baked.PondsOn;
+                source.RiverRoughOn = baked.RiverRoughOn;
                 source.PondMask = baked.PondMask;
             }
         }

@@ -74,6 +74,8 @@ namespace Punchy.Flora
         public int FirstObstacle, ObstacleCount;
         /// <summary>Where birds can sit on top of it (roof peaks, ridges, chimneys, posts): its points in FloraBlob.Perches.</summary>
         public int FirstPerch, PerchCount;
+        /// <summary>Its chimneys' flue tops (W-43c, for smoke): its points in FloraBlob.Chimneys.</summary>
+        public int FirstChimney, ChimneyCount;
     }
 
     /// <summary>
@@ -112,6 +114,8 @@ namespace Punchy.Flora
         /// Only built for the animals' tables, like Obstacles.
         /// </summary>
         public BlobArray<float3> Perches;
+        /// <summary>Chimneys' flue tops (FloraModel.Chimneys), unturned and unscaled. Only built for the animals' tables, like Perches.</summary>
+        public BlobArray<float3> Chimneys;
         /// <summary>Grid spacing of the ground, shrub and tree layers.</summary>
         public float3 CellSizes;
     }
@@ -179,6 +183,7 @@ namespace Punchy.Flora
             var shapes = new List<FloraShape>();
             var walls = new List<float4>();
             var perches = new List<float3>();
+            var chimneys = new List<float3>();
             for (int i = 0; i < species.Count; i++)
             {
                 var s = species[i];
@@ -227,6 +232,10 @@ namespace Punchy.Flora
                         foreach (var p in model.Perches)
                             perches.Add(p);
                         shape.PerchCount = perches.Count - shape.FirstPerch;
+                        shape.FirstChimney = chimneys.Count;
+                        foreach (var c in model.Chimneys)
+                            chimneys.Add(c);
+                        shape.ChimneyCount = chimneys.Count - shape.FirstChimney;
                         model.Destroy();
                     }
                     else if (obstacles && IsAnchorRock(s))
@@ -246,6 +255,9 @@ namespace Punchy.Flora
             var perchArray = builder.Allocate(ref root.Perches, perches.Count);
             for (int i = 0; i < perches.Count; i++)
                 perchArray[i] = perches[i];
+            var chimneyArray = builder.Allocate(ref root.Chimneys, chimneys.Count);
+            for (int i = 0; i < chimneys.Count; i++)
+                chimneyArray[i] = chimneys[i];
             var glow = builder.Allocate(ref root.Glow, species.Count);
             for (int i = 0; i < species.Count; i++)
                 glow[i] = GlowLight(species[i]);
@@ -601,6 +613,35 @@ namespace Punchy.Flora
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// W-43c: the chimney tops (world) of the settlement building on one plot, if it has any. Placement is the
+        /// same pure function the drawing uses, so the smoke sits on the drawn flue.
+        /// </summary>
+        public static int PlotChimneys(ref FloraBlob f, in TerrainSource source, int plotIndex, ref FixedList128Bytes<float3> tops)
+        {
+            tops.Clear();
+            if (f.Chimneys.Length == 0 || !source.Settlements.IsCreated)
+                return 0;
+            ref var plot = ref source.Settlements.Value.Plots[plotIndex];
+            if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length)
+                return 0;
+            var building = f.SettlementSpecies[plot.Building];
+            if (building.x < 0 || building.y < 0 || f.Models[f.Rules[building.x].FirstModel].ChimneyCount == 0)
+                return 0;
+            var plant = Place(ref f, source, (int2)math.floor(plot.Centre / f.CellSizes[building.y]), building.y);
+            if (plant.Model < 0 || plant.Model >= f.Models.Length)
+                return 0;
+            var shape = f.Models[plant.Model];
+            float c = math.cos(plant.Yaw), sn = math.sin(plant.Yaw);
+            for (int i = shape.FirstChimney; i < shape.FirstChimney + shape.ChimneyCount && tops.Length < tops.Capacity; i++)
+            {
+                var p = f.Chimneys[i];
+                var at = plant.Position.xz + new float2(p.x * c - p.z * sn, p.x * sn + p.z * c) * plant.Scale;
+                tops.Add(new float3(at.x, plant.Position.y + p.y * plant.Scale, at.y));
+            }
+            return tops.Length;
         }
 
         /// <summary>A placed plant's perches near a point, in the world (see NearPerches).</summary>
