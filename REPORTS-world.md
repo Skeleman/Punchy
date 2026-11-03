@@ -1293,3 +1293,9 @@ Budget: about 90 calls (over the 85 ceiling) and 1 build.
 - Row 3: floating water is 35 under the old rule and 5 under the cascade rule (a drop of 5 m or more counts as a fall; 30 cascades). That count was measured with the reverted carve.
 - Row 1: no chimney smoke exists in the code, so 0 of N chimneys smoke. NOT DONE.
 - Not done: build (the CLI dropped and the build never ran), after shots, rows 4 to 6 shots, row 5 temple walk. The before shots in D:/PunchyMilestones/W-43b are badly framed.
+
+## W-43c (world-features e39ae7f)
+- Row 1 bank wobble: landmarks v2 127/4D245E12, caves C49E8E3036C741FC, rivers A5B3DE5D53257332 all unchanged; v1 is untouched (the wobble needs v2 Smooth). Ground F8F938002B0CBE46 -> 84FAAD0B047B05EB. Open ends 46 -> 44.
+- Row 2 chimney smoke: 6/17 chimney buildings smoking near one Inn, 84 particles peak, gather 0.01 ms.
+- Row 3 floating water (WorldProbe.Floating, cascade rule): W-43 had 35 (old rule) / 5 (cascade rule); now 23 / 3. Left: 19,202; 656,562; -2186,3604.
+- Row 4: build Succeeded, 0 errors. Shots in W-43c: bend before/after OK. The puddle, roofline and hut shots missed their framing (retake needed). eye_clear shows the W-53 sand line is still there.
