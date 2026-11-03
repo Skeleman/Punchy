@@ -2,6 +2,16 @@
 
 Newest first.
 
+## 2026-11-02 batch W-42: ArcSpire shard collision follows the lean; shooting stars 1/20, 1 in 6 red-orange
+- DONE: big wasteland shards (ArcSpire prongs >= 2 m; smaller and non-solid debris/floating shards walk-through) collide as stacked 0.5 m slices up each tilted prong (to 4.5 m) plus a low base core, via FloraObstacle (flora is not in TerrainSource; no PMS change) (world-features f137084)
+- DONE: slice plants only within 14 m of the player
+- DONE: shooting stars 0.006 -> 0.0003 per slot (shower 0.9 -> 0.045), 1 in 6 red-orange; -redstar test switch (f137084)
+- NOT DONE: shots 3 and 5 failed: shard shot has no player in frame (benchstops held the body elsewhere), red star hidden behind a prong and cloud. One build/one list used; needs a reshoot batch.
+- Checks: editor sim (PMS slide by reflection, 0.1 m steps) at 3 prongs tilt 7.1/10.0/10.9 deg: pushed 1.03/1.88/1.21 m, max sink -0.040/-0.039/-0.042 m (4 cm clear), walk-past min step 0.066/0.016/0.023 of 0.1 (no stall), got 11.8/11.3/10.9 of 12 m. Obstacles near one spire 4 -> 31; slide query 0.10 -> 0.48 us/step (managed copy), UpdateObstacles 0.022 ms. Stars (4096-slot cycle, CPU hash): normal 24 -> 2 (0.059 -> 0.005/min); shower 36.0 -> 1.78/min, red 111/730 = 15%; 5 min window: 0 -> 0 normal, shower 185 -> 12 (3 red). Build OK, 0 errors; player log 126 landmarks / 053C63D5. Ground/cave code untouched.
+- Shots: Punchy-world/Temp/w42/w42_shard.png, w42_redstar.png (both unusable, see NOT DONE)
+- Learned: docs/agents/flora.md (leaning flora collision = stacked slices, ColliderBase)
+- NEXT: reshoot 3 and 5 (place the player with -goto without -benchstops, star facing open sky); merge w37 river patch
+
 ## 2026-11-02 batch W-14: v2 loads in 7.9 s (was 15.8), cave render cost is not the world's
 - DONE: #23 load. Timed each bake stage; the pond grid (16 m sample of the whole world, ~2.8 s) ran 4 times per v2 bake (3 diagnostic counts + the mask). Now one pass whose labelling also gives the report, rows in parallel. Editor v2 stage ms before/after: rivers 228/238, landmarks 22/22, settlements 1006/1025, caves 1369/1375, anchors 155/158, ponds 8463 (3 passes)/167, island-report pond recount 2809/4; bake 11777 -> 3525 ms. Player log: `[bake] stages ms: rivers 187 landmarks 21 settlements 1019 caves 1380 anchors 154 pondmask 248`, baked in 3557 ms, `v2 ready at 7.9 s since start` (world-features d473bf1)
 - DONE: #23 cave render diagnosis (no fix: not world-owned). At the deepest chamber of the cave by each bench stop: v1 106 creatures / 2507 segments, v2 127 / 2815 (+20% / +12%). Both SurfaceHidden 1.00 (surface creatures hidden), 1 roost in 45 m (capacity v1 21, v2 28), 0 cave pools in 40 m (no cave fish). Within 60 m: v1 39 creatures, v2 4. So neither world data (roosts, pools, hidden test) nor creature count explains 2.2 -> 10.5 ms. For the animal lane: profile CreatureRenderSystem's own passes at the v2 stop (sky birds, critters, emotes, door scan, per-species loops over all 127 bodies); count is not the cause.

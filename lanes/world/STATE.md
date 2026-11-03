@@ -1,6 +1,6 @@
-# World lane state (after W-36, 2026-11-02)
+# World lane state (after W-42, 2026-11-02)
 
-Branch world-features, head 4d22a44 (pushed). Worktree D:/Unity/Punchy-world.
+Branch world-features, head f137084 (pushed). W-37 river patch parked on w37-wip (not merged). Worktree D:/Unity/Punchy-world.
 
 ## Hashes (editor play mode, Temp/w36_measure.cs)
 
@@ -13,6 +13,11 @@ Branch world-features, head 4d22a44 (pushed). Worktree D:/Unity/Punchy-world.
 | falls | 70 | 0 |
 
 Player v2 log (Builds/Dev, W-36 build): 126 landmarks, hash 053C63D5.
+
+## W-42
+
+- ArcSpire prongs collide as stacked slices (FloraModel.ColliderBase), within 14 m only. Shooting stars 1/20, 1 in 6
+  red-orange; `-redstar` holds one for shots. Shots 3 and 5 still owed (W-42 shots failed).
 
 ## Rivers now
 
