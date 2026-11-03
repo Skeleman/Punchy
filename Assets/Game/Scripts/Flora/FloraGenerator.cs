@@ -119,6 +119,7 @@ namespace Punchy.Flora
                     case FloraForm.Torch: Torch(g); break;
                     case FloraForm.Bench: Bench(g); break;
                     case FloraForm.Log: SeatLog(g); break;
+                    case FloraForm.Driftwood: Driftwood(g); break;
                     case FloraForm.Stump: Stump(g); break;
                     case FloraForm.FirePit: FirePit(g); break;
                     case FloraForm.HiveTree: Broadleaf(g); Hive(g); break;
@@ -1319,7 +1320,7 @@ namespace Punchy.Flora
         /// <summary>Forms people can climb onto and stand on (their tops go into PropSupport).</summary>
         public static bool Standable(FloraForm form) => Founded(form) || form switch
         {
-            FloraForm.Boulder or FloraForm.Spire or FloraForm.Den or FloraForm.Log or FloraForm.Woodpile or FloraForm.IceArch => true,
+            FloraForm.Boulder or FloraForm.Spire or FloraForm.Den or FloraForm.Log or FloraForm.Driftwood or FloraForm.Woodpile or FloraForm.IceArch => true,
             // Not fire pits: nobody stands in the flames (their ring collider keeps people out).
             _ => false
         };
@@ -1485,6 +1486,47 @@ namespace Punchy.Flora
                            Color.Lerp(g.Bark, new Color(0.75f, 0.62f, 0.45f).linear, 0.7f), FloraPart.Bark);
             g.Colliders.Add(new Vector4(-0.5f, 0f, 0.3f, LogSeat));
             g.Colliders.Add(new Vector4(0.5f, 0f, 0.3f, LogSeat));
+        }
+
+        /// <summary>
+        /// W-63 river dressing: a weathered log lying along X, Height long and Thickness in radius, gently bent, with
+        /// snapped branch stubs and a flare of root stubs at one end. Driftwood on a gravel bar, or (long) a log fallen
+        /// across a narrows. Its middle rests on the origin.
+        /// </summary>
+        static void Driftwood(Grower g)
+        {
+            var b = g.B;
+            var len = g.Range(g.S.Height.x, Mathf.Max(g.S.Height.x, g.S.Height.y));
+            var r = Mathf.Max(0.06f, g.S.Thickness * g.Range(0.85f, 1.15f));
+            g.Height = r * 2f;
+            g.Width = len;
+            g.TrunkRadius = 0f;
+            var bend = g.Range(-0.08f, 0.08f) * len;
+            var sides = g.Sides(9, 6, 4);
+            var first = b.VertexCount;
+            b.Tube(new List<Vector3> { new Vector3(-len * 0.5f, r * 1.1f, 0f), new Vector3(0f, r, bend), new Vector3(len * 0.5f, r * 0.8f, bend * 0.3f) },
+                   new List<float> { r * 1.15f, r, r * 0.6f }, sides, g.Bark, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, r * 0.8f));
+            if (g.Lod >= 2)
+                return;
+            // Root stubs flare out of the thick end, some up in the air.
+            for (int k = 0, n = 3 + (int)g.Range(0f, 3f); k < n; k++)
+            {
+                var a = (k + g.Range(0f, 0.6f)) * Mathf.PI * 2f / n;
+                var tip = new Vector3(-len * 0.5f - g.Range(0.2f, 0.6f), r * 1.1f + Mathf.Sin(a) * r * 2.2f, Mathf.Cos(a) * r * 2.2f);
+                b.Tube(new List<Vector3> { new Vector3(-len * 0.5f + 0.1f, r * 1.1f, 0f), tip }, new List<float> { r * 0.45f, r * 0.12f },
+                       g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
+            }
+            // A few snapped branch stubs along the length.
+            for (int k = 0, n = 1 + (int)g.Range(0f, 3.5f); k < n; k++)
+            {
+                var x = g.Range(-0.3f, 0.4f) * len;
+                var a = g.Range(-1.2f, 1.2f);
+                var from = new Vector3(x, r, Mathf.Lerp(0f, bend, 1f - Mathf.Abs(x) / (len * 0.5f)));
+                var dir = new Vector3(g.Range(0.2f, 0.6f), Mathf.Cos(a), Mathf.Sin(a)).normalized;
+                b.Tube(new List<Vector3> { from, from + dir * (r + g.Range(0.15f, 0.5f)) }, new List<float> { r * 0.3f, r * 0.15f },
+                       g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
+            }
         }
 
         /// <summary>A sawn stump to sit on, its pale top 0.42 m up.</summary>
