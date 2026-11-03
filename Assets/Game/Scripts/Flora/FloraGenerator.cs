@@ -2991,7 +2991,17 @@ namespace Punchy.Flora
                             g.Colliders.Add(new Vector4(p.Centre.x, p.Centre.z, r, high));
                     }
                     else
-                        g.Colliders.Add(new Vector4(p.Centre.x, p.Centre.z, r, Mathf.Max(high, p.Piece == Punchy.Terrain.KitPiece.Wall && p.Size.x * p.Size.z > 4f ? high : eaves)));
+                    {
+                        // A wall's circle is set back so its outer edge sits on the wall's outer face: centred on the wall
+                        // it bulged ~1.2 m out over the door step and any outside stair (W-58b walk test).
+                        var at = new Vector2(p.Centre.x, p.Centre.z);
+                        if (p.Piece == Punchy.Terrain.KitPiece.Wall)
+                        {
+                            var outward = Mathf.Abs(at.x) / width > Mathf.Abs(at.y) / depth ? new Vector2(Mathf.Sign(at.x), 0f) : new Vector2(0f, Mathf.Sign(at.y));
+                            at -= outward * Mathf.Max(0f, r - Punchy.Terrain.StructureKit.Thick * 0.5f);
+                        }
+                        g.Colliders.Add(new Vector4(at.x, at.y, r, Mathf.Max(high, p.Piece == Punchy.Terrain.KitPiece.Wall && p.Size.x * p.Size.z > 4f ? high : eaves)));
+                    }
                 }
                 if ((p.Piece == Punchy.Terrain.KitPiece.Wall || p.Piece == Punchy.Terrain.KitPiece.Roof) && high > perch.y)
                     perch = new Vector3(p.Centre.x, high, p.Centre.z);

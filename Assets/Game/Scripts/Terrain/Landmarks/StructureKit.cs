@@ -66,7 +66,7 @@ namespace Punchy.Terrain
     /// </summary>
     public static class StructureKit
     {
-        const float Thick = 0.4f;
+        public const float Thick = 0.4f;
 
         /// <summary>The trim set of a folk's buildings.</summary>
         public static CultureTrim For(FolkCulture culture)
@@ -190,9 +190,15 @@ namespace Punchy.Terrain
                         Add(parts, KitPiece.Moss, KitMaterial.Moss, Turn(yaw, new Vector3(x, standing + 0.04f, out_)), new Vector3(bw * Range(0.6f, 1f), 0.09f, Thick + 0.08f), yaw, false);
                     if (ruined && R() < 0.25f)
                     {
+                        // Ivy: a few thin trailing strands of different lengths hugging the face, not one flat panel.
                         var ivy = standing * Range(0.4f, 0.9f);
-                        Add(parts, KitPiece.Moss, KitMaterial.Moss, Turn(yaw, new Vector3(x + Range(-0.4f, 0.4f) * bw, standing - ivy * 0.5f, out_ + Thick * 0.5f + 0.03f)),
-                            new Vector3(Range(0.3f, 0.7f), ivy, 0.06f), yaw, false);
+                        var ix = x + Range(-0.3f, 0.3f) * bw;
+                        for (int v = 0, strands = rng.Next(3, 6); v < strands; v++)
+                        {
+                            var len = ivy * Range(0.35f, 1f);
+                            Add(parts, KitPiece.Moss, KitMaterial.Moss, Turn(yaw, new Vector3(ix + (v - strands * 0.5f) * 0.13f + Range(-0.04f, 0.04f), standing - len * 0.5f, out_ + Thick * 0.5f + 0.02f + v % 2 * 0.012f)),
+                                new Vector3(Range(0.06f, 0.12f), len, 0.04f), yaw, false);
+                        }
                     }
                 }
                 // String courses between storeys and under the eaves.
@@ -229,9 +235,13 @@ namespace Punchy.Terrain
             if (!ruined)
                 Roof(parts, t, rng, width, depth, top);
             else
-                for (int k = 0, n = rng.Next(0, 4); k < n; k++)   // a few rafters still up, or fallen across
-                    Add(parts, KitPiece.Beam, KitMaterial.Wood, new Vector3(Range(-0.4f, 0.4f) * width, top * Range(0.3f, 0.7f), Range(-0.3f, 0.3f) * depth),
-                        new Vector3(0.22f, 0.22f, depth * Range(0.6f, 1f)), R() * 360f, false, Range(-35f, 35f));
+                for (int k = 0, n = rng.Next(0, 4); k < n; k++)   // a few fallen rafters, one end on the floor, leaning up
+                {
+                    var len = depth * Range(0.6f, 1f);
+                    var rise = Mathf.Min(len * Range(0.15f, 0.42f), top * 0.6f);
+                    Add(parts, KitPiece.Beam, KitMaterial.Wood, new Vector3(Range(-0.3f, 0.3f) * width, rise, Range(-0.2f, 0.2f) * depth),
+                        new Vector3(0.22f, 0.22f, len), R() * 360f, false, Mathf.Asin(Mathf.Clamp01(2f * rise / len)) * Mathf.Rad2Deg);
+                }
 
             if (storeys >= 2 && R() < (ruined ? t.BalconyChance * 0.5f : t.BalconyChance))
                 Balcony(parts, t, new Vector3(Range(-0.15f, 0.15f) * width, h, depth * 0.5f), 0f, Mathf.Min(width * 0.5f, 3.6f), ruined);
@@ -428,8 +438,10 @@ namespace Punchy.Terrain
             Add(parts, KitPiece.Wall, KitMaterial.Wall, Turn(yaw, new Vector3(x, (head + y1) * 0.5f, out_)), new Vector3(bw + 0.01f, y1 - head, Thick), yaw, false);
             foreach (var s in new[] { -1f, 1f })
                 Add(parts, KitPiece.Wall, KitMaterial.Wall, Turn(yaw, new Vector3(x + s * (ww + side) * 0.5f, (sill + head) * 0.5f, out_)), new Vector3(side + 0.01f, wh, Thick), yaw, false);
-            // The opening: dark glass set back (or empty in a ruin), a sill and lintel proud of the wall, sometimes shutters.
-            Add(parts, KitPiece.Window, KitMaterial.Opening, Turn(yaw, new Vector3(x, (sill + head) * 0.5f, out_ - (ruined ? Thick * 0.45f : 0.08f))), new Vector3(ww, wh, ruined ? 0.04f : 0.1f), yaw, false);
+            // The opening: dark glass set back (a ruin's is a real hole you can see through), a sill and lintel proud of
+            // the wall, sometimes shutters.
+            if (!ruined)
+                Add(parts, KitPiece.Window, KitMaterial.Opening, Turn(yaw, new Vector3(x, (sill + head) * 0.5f, out_ - 0.08f)), new Vector3(ww, wh, 0.1f), yaw, false);
             Add(parts, KitPiece.Trim, KitMaterial.Trim, Turn(yaw, new Vector3(x, sill - 0.05f, out_ + 0.08f)), new Vector3(ww + 0.24f, 0.1f, Thick * 0.5f + 0.12f), yaw, false);
             Add(parts, KitPiece.Trim, KitMaterial.Trim, Turn(yaw, new Vector3(x, head + 0.08f, out_ + 0.05f)), new Vector3(ww + 0.3f, 0.16f, Thick * 0.5f + 0.06f), yaw, false);
             if (t.Shutters && !ruined && rng.NextDouble() < 0.5)

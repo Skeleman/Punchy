@@ -117,3 +117,46 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   that asks "which room is this point in" must pick by height too (highest floor within step reach of the feet),
   never the first room whose UV box contains it. W-56's walk probe did that and read a false 7.5 m sink; it also
   walked straight lines between door centres through a pillar row, which looked like a collision block.
+
+## StructureKit (W-58, W-58b, issue #24)
+
+`Terrain/Landmarks/StructureKit.cs` builds whole buildings out of boxes, from a seed and a culture trim, so new
+building kinds are code plus a species asset, not hand-made meshes. Everything is in building space: +Z is the
+front (the door side), y = 0 is the ground, metres.
+
+- **Parts.** `House`, `Gate`, `Platform`, `Stair`, `Balcony` and `Tower` append `KitPart`s (`Piece`, `Material`,
+  `Centre`, `Size`, `Rotation`, `Solid`) to a list. `KitPiece` says what a box is (Wall, Floor, Roof, Stair, Column,
+  Arch, Platform, Balcony, Rail, Window, Door, Trim, Rubble, Moss, Beam, Chimney); `KitMaterial` picks its colour
+  from the trim (Wall, Trim, Roof, Wood, Opening, Moss, Stone). Walls are `StructureKit.Thick` (0.4 m) thick; only
+  ground-storey wall bays are `Solid`.
+- **Culture trims.** `StructureKit.For(FolkCulture)` returns a `CultureTrim`: colours, roof shape (`KitRoof` Gable,
+  Tiered, Flat, Steep), storey height, bay width, pitch, and the details: quoins, crenels, shutters, and the chances
+  of a tower, balcony and outside stair. Dwarf: flat roof, crenels. Elf: tiered roof, 3.4 m storeys, 2.2 m bays,
+  balcony 0.7, stair 0.3. Goblin, Ogre, SnowFolk: steep roof, shutters. Human (the default): gable roof, quoins,
+  shutters. A new people is one more case in `For`.
+- **House.** `House(seed, trim, width, depth, storeys, decay)` lays bays round four walls (door bay in the middle of
+  the front, windows by chance, more at the front), string courses, quoins, the roof, then a balcony and an outside
+  stair by chance. `decay > 0` makes a ruin: walls broken down to a slope, rubble, moss caps, ivy strands, empty
+  window holes, a few fallen rafters, no roof or door. `Fingerprint(parts)` hashes a part list for regressions
+  (seed 42, Human, 8 x 7 m, 2 storeys: 203 parts).
+- **Stair and Platform.** `Stair(parts, at, yaw, rise, width)` makes 0.3 m treads of at most 0.28 m rise (not
+  solid, so the support grid makes them walkable) with a landing on top. `Platform(parts, at, yaw, width, length,
+  deckHeight, rails)` is a deck on posts with optional rails: the piece for jetties and docks.
+- **From parts to a model.** `FloraForm.KitBuilding` and `FloraForm.KitRuin` call `FloraGenerator.KitStructure`,
+  which turns each part into a box (Moss as foliage, the rest as bark; trims and moss drop at LOD2), and adds
+  colliders: intact buildings get one circle per solid part up to the eaves (wall circles set back so their outer
+  edge is the wall's outer face, W-58b) plus one fat cylinder inside; ruins get a circle per standing ground-storey
+  piece. Kit forms are Founded, so they get a support grid of walkable tops (door steps, stair treads, landings).
+  Species fields: `Height` x `Spread` is the width, `KitCulture` the trim; ruins take their wall colour from `Bark`
+  and moss from `Accent`.
+- **How a layout uses it.** Settlement plots name species. `FloraPlacement.PlotSpecies()` swaps the biggest
+  settlement's house, seat, inn, smithy, store and workshop plots to the `KitHouse` species (FloraForm.KitBuilding),
+  which stands on the plot centre facing `SettlementPlot.Facing`; `FloraGenerator.DoorFront` gives the door step
+  distance. Ruin landmarks use a species with `FloraForm.KitRuin`.
+- **Walk test (W-58b).** Intact doors are closed (no interiors yet): the player walks up to all 5 tested ElfGrove
+  doors and stops on the step. 7 of 24 KitHouse variants have an outside stair; all climb to the 3.4 m landing.
+- **For fishing villages (W-59).** Add a coastal trim (a new `FolkCulture` case or a variant of Human), build huts
+  with `House` (1 storey, small bays), docks and jetties with `Platform` (deckHeight above the water level,
+  rails), and boathouses as `House` on a `Platform`. Give them their own species with `KitCulture` set, and a
+  settlement layout whose plots name those species. Keep new random draws after the existing ones in `House`, or
+  every existing kit building changes.
