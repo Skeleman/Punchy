@@ -136,6 +136,8 @@ namespace Punchy.Terrain
         public BlobAssetReference<ArchipelagoBlob> Archipelago;
         /// <summary>Set when every place is baked: biome ponds are dug only after that, so they never move a landmark, road, cave or anchor.</summary>
         public bool PondsOn;
+        /// <summary>W-43c: set with <see cref="PondsOn"/>: riverbanks get their seeded width, slope and shoreline wobble (v2 rivers only).</summary>
+        public bool RiverRoughOn;
         /// <summary>
         /// W-10: 0..1 per 16 m cell (cell centres, sampled bilinearly) scaling the biome ponds' dig: 0 over every pond
         /// smaller than <see cref="PondMinCells"/> cells and the dry ring round it, so no specks of water are left.
@@ -591,7 +593,7 @@ namespace Punchy.Terrain
             if (Archipelago.IsCreated)
                 h = Punchy.Terrain.Archipelago.Shape(ref Archipelago.Value, xz, h);
             if (Rivers.IsCreated)
-                h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz), RiverSettings, h);
+                h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn), RiverSettings, h);
             if (Landmarks.IsCreated)
                 h = LandmarkSampling.Shape(ref Landmarks.Value, xz, h);
             if (GrandFalls.IsCreated)
@@ -632,7 +634,7 @@ namespace Punchy.Terrain
 
             if (Rivers.IsCreated)
             {
-                var river = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz);
+                var river = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn);
                 // A loaded heightmap already contains the carved channels; only noise heights get carved here.
                 if (!UsesHeightmap)
                     g.Height = RiverSampling.Carve(river, RiverSettings, g.Height);

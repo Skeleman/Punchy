@@ -129,6 +129,7 @@ namespace Punchy.Terrain
             var stages = new System.Text.StringBuilder("[bake] stages ms:");
             void Stage(string name) { stages.Append($" {name} {watch.ElapsedMilliseconds}"); watch.Restart(); }
             source.PondsOn = false;
+            source.RiverRoughOn = false;
             source.PondMask = default;
             // W-53 (W-37, option b): wide rivers on island v2 meander in bends that scale with width, but every place
             // (landmarks, settlements, the salt tower) is chosen against the jittered rivers they were always placed
@@ -183,6 +184,8 @@ namespace Punchy.Terrain
             Stage("batfolk");
             source.Anchors = AnchorBaking.Build(source, landmarkTypes, allocator);
             Stage("anchors");
+            // W-43c: rough riverbanks (width, slope and shoreline wobble) only now, so no landmark or cave moves.
+            source.RiverRoughOn = true;
             source.PondsOn = true;
             // W-10: label the ponds' wet cells and drop every pond under 3 cells (with the dry ring round it).
             // W-14: one labelling pass gives the mask and the log (the two extra PondCount passes cost ~2.8 s each).

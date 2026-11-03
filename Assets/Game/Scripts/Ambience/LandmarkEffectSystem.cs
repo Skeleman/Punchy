@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Punchy.Terrain;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
@@ -30,6 +31,16 @@ namespace Punchy.Ambience
         /// <summary>River waterfalls: how far the water carries out as it falls (m), the distance they are drawn from, and the index offset.</summary>
         const float RiverFallReach = 1.6f, RiverFallRange = 350f;
         const int RiverFallBase = 1000000, GrandFallBase = 2000000;
+        /// <summary>
+        /// W-43c chimney smoke: plots within this distance whose building has a chimney may smoke (index offset
+        /// ChimneyBase); a seeded share of buildings smoke, the same ones on every machine.
+        /// </summary>
+        const float ChimneyRange = 220f, SmokeShare = 0.42f;
+        const int ChimneyBase = 3000000, SmokeParticles = 14;
+        /// <summary>Last chimney gather: "smoking/total chimney buildings in range, particles, ms" (for the world probe).</summary>
+        public static string LastChimneyLog = "";
+        World floraWorld;
+        EntityQuery floraQuery;
 
         /// <summary>One effect. Must match LandmarkEffects.hlsl.</summary>
         [StructLayout(LayoutKind.Sequential)]
@@ -297,6 +308,7 @@ namespace Punchy.Ambience
                     if (math.distance(tiers[k].Lip.xz, cam) < Punchy.Settings.GraphicsSettings.ViewRange(Range))
                         nearby.Add(-(GrandFallBase + k));
             }
+            NearChimneys(source, cam);
             if (nearby.Count == lastNearby.Count && nearby.TrueForAll(lastNearby.Contains))
                 return;
             lastNearby.Clear();
@@ -309,6 +321,11 @@ namespace Punchy.Ambience
             float3 min = float.MaxValue, max = float.MinValue;
             foreach (var i in nearby)
             {
+                if (i <= -ChimneyBase)
+                {
+                    ChimneySmoke(source, -i - ChimneyBase, ref min, ref max);
+                    continue;
+                }
                 if (i <= -GrandFallBase)
                 {
                     GrandTier(ref source.GrandFalls.Value.Tiers[-i - GrandFallBase], math.frac(-i * 0.618f), ref min, ref max);
@@ -486,6 +503,82 @@ namespace Punchy.Ambience
             bounds = new Bounds((min + max) * 0.5f, max - min);
             Upload(ref plumeBuffer, plumes, ref plumeProps);
             Upload(ref fallBuffer, falls, ref fallProps);
+        }
+
+        /// <summary>The animals' placement tables (FloraLookup), which carry the buildings' chimney tops.</summary>
+        bool TryGetFlora(out BlobAssetReference<Punchy.Flora.FloraBlob> blob)
+        {
+            blob = default;
+            if (floraWorld == null || !floraWorld.IsCreated)
+            {
+                floraWorld = null;
+                foreach (var w in World.All)
+                {
+                    var q = w.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Flora.FloraLookup>());
+                    if (q.CalculateEntityCount() == 1) { floraWorld = w; floraQuery = q; break; }
+                }
+                if (floraWorld == null)
+                    return false;
+            }
+            if (!floraQuery.TryGetSingleton<Punchy.Flora.FloraLookup>(out var lookup) || !lookup.Blob.IsCreated)
+                return false;
+            blob = lookup.Blob;
+            return blob.Value.Chimneys.Length > 0;
+        }
+
+        /// <summary>Seeded per plot: whether its building's chimneys smoke (multiplied and shifted, not math.hash, so it mixes).</summary>
+        static bool Smokes(float2 centre)
+        {
+            var h = (uint)(int)math.round(centre.x * 4f) * 73856093u ^ (uint)(int)math.round(centre.y * 4f) * 19349663u;
+            h ^= h >> 16; h *= 0x7feb352du; h ^= h >> 15; h *= 0x846ca68bu; h ^= h >> 16;
+            return (h & 0xFFFFFF) / 16777216f < SmokeShare;
+        }
+
+        /// <summary>Adds the smoking chimney plots near the camera to <see cref="nearby"/> and logs the counts.</summary>
+        void NearChimneys(in TerrainSource source, float2 cam)
+        {
+            if (!source.Settlements.IsCreated || !TryGetFlora(out var blob))
+                return;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            ref var f = ref blob.Value;
+            ref var plots = ref source.Settlements.Value.Plots;
+            var range = Punchy.Settings.GraphicsSettings.DetailRange(ChimneyRange);
+            int total = 0, smoking = 0;
+            for (int k = 0; k < plots.Length; k++)
+            {
+                ref var plot = ref plots[k];
+                if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length || math.distancesq(plot.Centre, cam) > range * range)
+                    continue;
+                var building = f.SettlementSpecies[plot.Building];
+                if (building.x < 0 || f.Models[f.Rules[building.x].FirstModel].ChimneyCount == 0)
+                    continue;
+                total++;
+                if (!Smokes(plot.Centre))
+                    continue;
+                smoking++;
+                nearby.Add(-(ChimneyBase + k));
+            }
+            LastChimneyLog = $"smoking {smoking}/{total} chimney buildings within {range:F0} m, particles {smoking * SmokeParticles}, gather {watch.Elapsed.TotalMilliseconds:F2} ms";
+        }
+
+        /// <summary>A thin plume of grey smoke from each chimney on a plot, drifting downwind (the plume shader's drift).</summary>
+        void ChimneySmoke(in TerrainSource source, int plotIndex, ref float3 min, ref float3 max)
+        {
+            if (!TryGetFlora(out var blob))
+                return;
+            var tops = new FixedList128Bytes<float3>();
+            Punchy.Flora.FloraPlacement.PlotChimneys(ref blob.Value, source, plotIndex, ref tops);
+            for (int k = 0; k < tops.Length; k++)
+            {
+                plumes.Add(new Emitter
+                {
+                    Position = tops[k], Seed = math.frac(plotIndex * 0.618f + k * 0.37f), Color = new float4(0.5f, 0.5f, 0.52f, 0f),
+                    Shape = new float4(9f, 0.5f, 1.3f, 7f), Timing = new float4(0f, 0.25f, 0.32f, SmokeParticles)
+                });
+                min = math.min(min, tops[k] - 6f);
+                max = math.max(max, tops[k] + new float3(6f, 12f, 6f));
+            }
+            maxParticles = math.max(maxParticles, SmokeParticles);
         }
 
         static void Upload(ref GraphicsBuffer buffer, List<Emitter> emitters, ref MaterialPropertyBlock props)
