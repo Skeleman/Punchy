@@ -75,6 +75,12 @@ namespace Punchy.Net
         void OnDisable()
         {
             Punchy.UI.MainMenu.RemoveTab("Character");
+            ReleaseWorld();
+        }
+
+        /// <summary>Drops the puppets and blobs made for the current world (on disable, or when the client world changes).</summary>
+        void ReleaseWorld()
+        {
             if (world != null && world.IsCreated)
                 foreach (var r in remotes.Values)
                     if (world.EntityManager.Exists(r.Puppet))
@@ -94,7 +100,8 @@ namespace Punchy.Net
                 return;
             if (world != client)
             {
-                OnDisable();
+                // (Not OnDisable: that also removes the Character tab, which is why it never showed in A-46.)
+                ReleaseWorld();
                 world = client;
                 var em0 = world.EntityManager;
                 ghostQuery = em0.CreateEntityQuery(new EntityQueryDesc

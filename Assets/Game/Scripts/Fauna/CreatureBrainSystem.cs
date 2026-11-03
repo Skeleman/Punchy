@@ -49,6 +49,9 @@ namespace Punchy.Fauna
         /// <summary>#12 A/B switch ("-oldwander"): unhurried walkers ease their speed down while turning, as before A-46.</summary>
         public static readonly Unity.Burst.SharedStatic<int> OldWander = Unity.Burst.SharedStatic<int>.GetOrCreate<OldWanderKey>();
         struct OldWanderKey { }
+        /// <summary>#12 A/B switch ("-oldplay"): a playing runner re-aims freely every frame, as before A-46b.</summary>
+        public static readonly Unity.Burst.SharedStatic<int> OldPlay = Unity.Burst.SharedStatic<int>.GetOrCreate<OldPlayKey>();
+        struct OldPlayKey { }
         public static readonly Unity.Burst.SharedStatic<int> FlareSettleOff = Unity.Burst.SharedStatic<int>.GetOrCreate<FlareSettleKey>();
         struct FlareSettleKey { }
         /// <summary>A-26 tests ("-chattest"): folk stop to talk far more often, from further apart, cooldowns short.</summary>
@@ -1742,6 +1745,21 @@ namespace Punchy.Fauna
                     // first: left to the steering, it was stopped, sent aside, then aimed back in again each frame
                     // (Z-07).
                     var aim = math.normalizesafe(dir, flee);
+                    // The way to run swings round as fast as the chaser circles it: a chaser close by and running round
+                    // it (or the weave across a stalled run) turned it on the spot at full rate (#12: songbird, marmot,
+                    // goat 270 deg in 1-3 s at 0.1 m/s). So the run's aim turns at most 100 deg/s from last frame's.
+                    var last = s.Target - s.Position.xz;
+                    if (OldPlay.Data == 0 && s.StageTime > 0.1f && math.lengthsq(last) > 1f)
+                    {
+                        last = math.normalize(last);
+                        var turn = math.atan2(last.x * aim.y - last.y * aim.x, math.dot(last, aim));
+                        var most = math.radians(100f) * Dt;
+                        if (math.abs(turn) > most)
+                        {
+                            math.sincos(math.sign(turn) * most, out var ls, out var lc);
+                            aim = new float2(last.x * lc - last.y * ls, last.x * ls + last.y * lc);
+                        }
+                    }
                     var probe = 1.5f * s.Scale + 0.5f;
                     var land = b.Habitat == Habitat.Land;
                     if (!CaveWalker(s, ref b) && !Open(s.Position.xz, s.Position.xz + aim * probe, b.Habitat, land))

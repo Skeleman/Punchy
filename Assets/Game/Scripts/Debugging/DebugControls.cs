@@ -1438,6 +1438,8 @@ namespace Punchy.Debugging
             // A-46: "-oldwander" (#12, walkers ease down while turning, as before); flees are counted from each line's start
             // (logged with the shot, #57's fair check).
             Punchy.Fauna.CreatureBrainSystem.OldWander.Data = System.Array.IndexOf(args, "-oldwander") >= 0 ? 1 : 0;
+            // A-46b: "-oldplay" (#12, a playing runner re-aims freely each frame, as before).
+            Punchy.Fauna.CreatureBrainSystem.OldPlay.Data = System.Array.IndexOf(args, "-oldplay") >= 0 ? 1 : 0;
             lineSearch0 = Punchy.Fauna.CreatureBrainSystem.Searches.Data;
             // "-pickclass Fish" (#68): what one click on the Character tab's class does; "-menu Character": the menu open
             // on that tab for this line's shot (closed again on lines without it).
