@@ -156,6 +156,7 @@ front (the door side), y = 0 is the ground, metres.
   distance. Ruin landmarks use a species with `FloraForm.KitRuin`.
 - **Walk test (W-58b).** Intact doors are closed (no interiors yet): the player walks up to all 5 tested ElfGrove
   doors and stops on the step. 7 of 24 KitHouse variants have an outside stair; all climb to the 3.4 m landing.
+- **Fishing village wharf (W-65).** Prop 0 of FishingVillage is `FishWharf` (KitShape.Wharf, `StructureKit.Wharf`): a seeded walkway network (main + 1-3 T/L branches) with 2-4 one-storey stilt houses whose door side sits tight on a walkway with no rail there; rails only on open-water edges, ladders, lanterns at joins, skiffs, nets. Shore end is flat treads, not a pitched ramp: a pitched ramp's support sampled in >0.4 m steps where the bank fell away beside it.
 - **For fishing villages (W-59).** Add a coastal trim (a new `FolkCulture` case or a variant of Human), build huts
   with `House` (1 storey, small bays), docks and jetties with `Platform` (deckHeight above the water level,
   rails), and boathouses as `House` on a `Platform`. Give them their own species with `KitCulture` set, and a

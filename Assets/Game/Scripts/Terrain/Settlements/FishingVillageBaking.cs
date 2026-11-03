@@ -159,7 +159,7 @@ namespace Punchy.Terrain
             // Every dock runs out along the facing (FloraRule.FaceLandmark): its far end must stand in water, not on a flat beach.
             foreach (var prop in type.Props)
             {
-                if (prop.Species == null || prop.Species.KitShape != KitShape.Dock)
+                if (prop.Species == null || (prop.Species.KitShape != KitShape.Dock && prop.Species.KitShape != KitShape.Wharf))
                     continue;
                 for (int k = 0; k < math.max(1, prop.Count); k++)
                 {

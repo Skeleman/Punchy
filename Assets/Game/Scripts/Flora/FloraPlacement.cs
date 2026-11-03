@@ -26,6 +26,8 @@ namespace Punchy.Flora
         public int Aquatic, Floats;
         public float2 WaterDepth;
         public float MinRapids;
+        /// <summary>W-63: the FloraSpecies.RiverSpot it is dressed onto (0 = none; see RiverFit).</summary>
+        public int RiverSpot;
         /// <summary>How far it lies over onto the slope it stands on (rocks 0.85; upright plants 0).</summary>
         public float Tilt;
         /// <summary>1 for rocks that keep their own colour wherever they lie (ice), not the biome's rock (RockTint).</summary>
@@ -37,6 +39,8 @@ namespace Punchy.Flora
         public int FaceLandmark;
         /// <summary>1 for fishing villages' shore clutter (#36, W-59d): kept off the walk lane up each of the village's docks.</summary>
         public int ShoreKit;
+        /// <summary>W-63 (#36): 1 for a kit house or stilt house: a placed one never stands on a dock's walk lane.</summary>
+        public int House;
         /// <summary>W-62c (#37): for a landing pier, its deck length (m, the species' Height); 0 for everything else.</summary>
         public float PierReach;
         /// <summary>W-62c (#37): 1 for sea folk spires: none stands within PierEndClear of a landing pier's far end, so the
@@ -227,19 +231,23 @@ namespace Punchy.Flora
                     Floats = s.Floats ? 1 : 0,
                     WaterDepth = s.WaterDepth,
                     MinRapids = s.MinRapids,
+                    RiverSpot = (int)s.RiverSpot,
                     Tilt = s.Form == FloraForm.Boulder ? 0.85f : 0f,
                     OwnColour = s.KeepOwnColour ? 1 : 0,
                     Dirt = FloraGenerator.Founded(s.Form) ? 1 : 0,
                     // Docks (#36) face the landmark's way too: a fishing village faces open water, so they run out to sea.
                     // A sea folk pier (#37) faces its landing's way too, but sits on its bank as placed: DockShore seats on the sea.
-                    FaceLandmark = s.Form == FloraForm.HiveTree || s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? 1 : s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Dock ? 2 : 0,
+                    FaceLandmark = s.Form == FloraForm.HiveTree || s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? 1 : s.Form == FloraForm.KitBuilding && (s.KitShape == Punchy.Terrain.KitShape.Dock || s.KitShape == Punchy.Terrain.KitShape.Wharf) ? 2 : 0,
                     ShoreKit = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Shore ? 1 : 0,
+                    House = s.Form == FloraForm.KitBuilding && (s.KitShape == Punchy.Terrain.KitShape.House || s.KitShape == Punchy.Terrain.KitShape.StiltHouse) ? 1 : 0,
                     PierReach = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? s.Height.y : 0f,
                     PierClear = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Spire ? 1 : 0,
-                    // StructureKit.Igloo: the mouth is 0.78 of the radius plus the tunnel (2.2-3 m) plus the 0.8 m path out.
-                    Porch = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Igloo ? (s.Height.x + s.Height.y) * 0.5f * s.Spread * 0.39f + 3.4f : 0f,
+                    // StructureKit.Igloo (W-64): the tunnel ends 1-1.8 m past the dome's foot (the radius), plus the 0.8 m path out.
+                    Porch = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Igloo ? (s.Height.x + s.Height.y) * 0.5f * s.Spread * 0.5f + 2.2f : 0f,
                     Footprint = Footprint(s),
-                    Span = s.Form == FloraForm.IceArch ? (s.Height.x + s.Height.y) * 0.5f * math.max(s.Spread, 0.5f) * 0.5f : 0f
+                    Span = s.Form == FloraForm.IceArch ? (s.Height.x + s.Height.y) * 0.5f * math.max(s.Spread, 0.5f) * 0.5f :
+                           // W-63: a log across a narrows reaches half its shortest length each way from the middle.
+                           s.Form == FloraForm.Driftwood && s.RiverSpot == RiverSpot.LogNarrows ? s.Height.x * 0.5f : 0f
                 };
                 for (int v = 0; v < s.Variants; v++)
                 {
@@ -524,7 +532,7 @@ namespace Punchy.Flora
         }
 
         /// <summary>
-        /// Where a dock (#36, W-59c) starts: its ring spot slid along the village's facing (up to 14 m either way) to
+        /// Where a dock (#36, W-59c) starts: its ring spot slid along the village's facing (up to 14 m out, 30 m back) to
         /// just above the waterline, so the land end and its short stair stand on the bank and the deck (0.8 m up) rides
         /// clear of the sea; never below the sea itself. (W-59b's docks started anywhere from 1.7 m under water to 2.5 m
         /// up the bank, and the player snagged at the land end.)
@@ -547,8 +555,10 @@ namespace Punchy.Flora
             }
             else
             {
-                // In the water: walk back up to the first dry step.
-                for (var d = 0.5f; d <= 14f; d += 0.5f)
+                // In the water: walk back up to the first dry step. W-63 (#36): up to 30 m. A ring spot more than 14 m out
+                // (dock -3296.5,-1656.1) used to stop in the water at sea + 0.1, so the ramp foot sank about 1 m into the
+                // steep bank behind it and the walker met a 1.3 m wall; now every dock's base sits on its bank.
+                for (var d = 0.5f; d <= 30f; d += 0.5f)
                 {
                     best = spot - dir * d;
                     if (source.SampleHeight(best) > sea + above)
@@ -557,6 +567,56 @@ namespace Punchy.Flora
             }
             return new float3(best.x, math.max(source.SampleHeight(best), sea + 0.1f), best.y);
         }
+
+        /// <summary>
+        /// W-63 river dressing (Zach: cattails on a bend, driftwood, stepping stones, a fallen log): how well
+        /// <paramref name="xz"/> suits a <see cref="RiverSpot"/>, 0..1, from the river map alone (so it is seeded, the
+        /// same for every player). Slow water only (rapids under 0.3). The bend is the turn of the flow between a river
+        /// width and a half upstream and downstream; the inner side is the side it turns towards.
+        /// </summary>
+        static float RiverFit(in TerrainSource source, float2 xz, in GroundSample ground, int kind)
+        {
+            if (!source.Rivers.IsCreated || ground.Rapids > 0.3f)
+                return 0f;
+            var q = RiverSampling.Query(ref source.Rivers.Value, source.RiverSettings, xz);
+            if (!q.Found || q.Width <= 0.5f || q.Distance > q.Width * 0.5f + 4f)
+                return 0f;
+            var half = q.Width * 0.5f;
+            var edge = q.Distance - half;   // negative in the channel, positive up the bank
+            var flow = math.normalizesafe(q.Flow, new float2(0f, 1f));
+            var depth = ground.HasWater ? ground.WaterSurface - ground.Height : -1f;
+            if (kind == (int)RiverSpot.Narrows)
+            {
+                // Shallow narrows, in bands about 5 m wide across the water every 40 m along it.
+                if (q.Width > 14f || depth < 0.05f || depth > 0.9f)
+                    return 0f;
+                var band = math.frac(math.dot(xz, flow) / 40f + (math.hash(new int2((int2)math.floor(xz / 240f))) & 1023) / 1024f);
+                return band < 0.12f ? 1f : 0f;
+            }
+            if (kind == (int)RiverSpot.LogNarrows)
+                return q.Width <= 10f && q.Distance < 2f ? 1f : 0f;
+            var reach = math.max(10f, q.Width * 1.5f);
+            var up = RiverSampling.Query(ref source.Rivers.Value, source.RiverSettings, xz - flow * reach);
+            var down = RiverSampling.Query(ref source.Rivers.Value, source.RiverSettings, xz + flow * reach);
+            if (!up.Found || !down.Found)
+                return 0f;
+            var a = math.normalizesafe(up.Flow);
+            var b = math.normalizesafe(down.Flow);
+            var turn = a.x * b.y - a.y * b.x;   // > 0 turning left
+            var left = new float2(-flow.y, flow.x);
+            var sideways = RiverSampling.Query(ref source.Rivers.Value, source.RiverSettings, xz + left);
+            var onLeft = sideways.Distance > q.Distance ? 1f : -1f;
+            var bend = math.saturate(math.abs(turn) / 0.3f);
+            var inner = turn * onLeft > 0f;
+            if (kind == (int)RiverSpot.InnerBend)
+                return inner && edge > -half * 0.6f && edge < 3f ? math.smoothstep(0.15f, 0.6f, bend) : 0f;
+            if (kind == (int)RiverSpot.GravelBar)
+                return edge > -1.2f && edge < 2.5f ? (inner ? math.max(bend, 0.3f) : 0.08f) : 0f;
+            return 0f;
+        }
+
+        /// <summary>W-63: dry ground (no water over it).</summary>
+        static bool Dry(in GroundSample g) => !g.HasWater || g.Height > g.WaterSurface + 0.05f;
 
         /// <summary>
         /// How far <paramref name="xz"/> is from the walk lane of the nearest dock of this landmark (#36, W-59d): the
@@ -1150,6 +1210,10 @@ namespace Punchy.Flora
                                 // none within that of a dock's walk lane, so nothing stands on the ramp or deck.
                                 if (placedRule.ShoreKit != 0 && DockLaneDistance(ref f, source, landmark, spot) < ShoreReach * prop.Scale.y)
                                     return none;
+                                // W-63 (#36): nor a house. A stilt house at -3294.1,-1653.6 stood across a dock's deck and
+                                // the walker met a 0.9-1.6 m wall there (no draws moved: the cell just stays empty).
+                                if (placedRule.House != 0 && DockLaneDistance(ref f, source, landmark, spot) < placedRule.Footprint * prop.Scale.y + 1.5f)
+                                    return none;
                                 // W-62c: no spire near a landing pier's far end (no draws moved: the cell just stays empty).
                                 if (placedRule.PierClear != 0 && PierEndDistance(ref f, source, spot) < PierEndClear * prop.Scale.y)
                                     return none;
@@ -1304,6 +1368,9 @@ namespace Punchy.Flora
                         fw = 0f;
                     if (r.MinRapids > 0f)
                         fw *= math.smoothstep(r.MinRapids - 0.1f, r.MinRapids + 0.1f, ground.Rapids);
+                    // W-63 river dressing: only on its kind of river spot (asked only once the rest allows it).
+                    if (r.RiverSpot != 0 && fw > 0f)
+                        fw *= RiverFit(source, xz, ground, r.RiverSpot);
                     if (r.PatchCoverage < 1f)
                     {
                         var pn = noise.snoise(xz * r.PatchFrequency + r.PatchOffset) * 0.5f + 0.5f;
@@ -1360,6 +1427,33 @@ namespace Punchy.Flora
             var rule = f.Rules[picked];
             if (OnBuiltPlot(ref f, source, xz, rule.Footprint * scale))
                 return none;
+            if (rule.RiverSpot == (int)RiverSpot.LogNarrows)
+            {
+                // W-63: a fallen log lies across the river (its X across the flow), both ends on dry bank no more than
+                // 1.2 m apart in height; it rests just under the lower bank's top.
+                var flow = math.normalizesafe(ground.Flow, new float2(0f, 1f));
+                yaw = math.atan2(flow.x, -flow.y) + rng.NextFloat(-0.2f, 0.2f);
+                var reach = new float2(math.cos(yaw), math.sin(yaw)) * rule.Span * scale;
+                var endA = source.SampleGround(xz + reach);
+                var endB = source.SampleGround(xz - reach);
+                if (!Dry(endA) || !Dry(endB) || math.abs(endA.Height - endB.Height) > 1.2f)
+                    return none;
+                return new FloraSystem.FloraInstance
+                {
+                    Position = new float3(xz.x, math.min(endA.Height, endB.Height) - 0.12f, xz.y),
+                    Yaw = yaw,
+                    Scale = scale,
+                    Model = rule.FirstModel + rng.NextInt(rule.Variants),
+                    Random = rng.NextFloat(),
+                    Ground = GroundFor(source, rule, xz, 1f, 0.25f)
+                };
+            }
+            if (rule.RiverSpot == (int)RiverSpot.GravelBar)
+            {
+                // Driftwood lies roughly along the flow, as the water left it.
+                var flow = math.normalizesafe(ground.Flow, new float2(0f, 1f));
+                yaw = math.atan2(flow.y, flow.x) + rng.NextFloat(-0.6f, 0.6f);
+            }
             if (rule.Span > 0f)
             {
                 // Both feet on ground within a metre of the middle's, so neither hangs in the air (models face +Z, so

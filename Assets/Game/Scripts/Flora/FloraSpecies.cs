@@ -132,7 +132,22 @@ namespace Punchy.Flora
                  "a roof in the Kit Culture's style, sometimes a balcony, outside stair or corner tower. Each variant is its " +
                  "own building. Height (times Spread) is the footprint's width; storeys come from the kit.")] KitBuilding,
         [Tooltip("A structure-kit building fallen to ruin (#24): walls broken down from one corner, roof gone but a few " +
-                 "rafters, floors showing, rubble, moss and ivy. Bark is the stone, Accent the moss.")] KitRuin
+                 "rafters, floors showing, rubble, moss and ivy. Bark is the stone, Accent the moss.")] KitRuin,
+        [Tooltip("W-63: a weathered, barkless log lying along X, Height long (Thickness its radius), with snapped branch stubs " +
+                 "and a root flare at one end (Bark, bleached). Driftwood on gravel bars, or a fallen log across a narrows.")] Driftwood
+    }
+
+    /// <summary>
+    /// W-63: where on a river a species grows (river dressing). None = anywhere its other rules allow; the rest only
+    /// on that kind of river spot, read from the river map, so every river is dressed the same way from the seed.
+    /// </summary>
+    public enum RiverSpot : byte
+    {
+        None,
+        [Tooltip("The slow inner side of a bend, on the wet shelf and in the shallows (cattail and reed beds).")] InnerBend,
+        [Tooltip("A gravel bar: the bank edge at the waterline on the inner side of a bend, or by slow water (driftwood).")] GravelBar,
+        [Tooltip("A shallow narrows, in bands across the water (stepping stones).")] Narrows,
+        [Tooltip("Across a narrows, bank to bank, with both ends on dry ground (a fallen log; rare).")] LogNarrows
     }
 
     public enum FoliageFinish : byte
@@ -264,6 +279,8 @@ namespace Punchy.Flora
         public bool Floats;
         [Tooltip("Aquatic: only in river rapids at least this steep (0..1; 0 = anywhere). Rocks in white water.")]
         [Range(0f, 1f)] public float MinRapids;
+        [Tooltip("W-63 river dressing: only on this kind of river spot (inner bend, gravel bar, narrows, across a narrows).")]
+        public RiverSpot RiverSpot;
         [Tooltip("Blocks the player (trees, big cacti).")]
         public bool Solid = true;
         [Tooltip("W-57b, Hazard Shelter only: which hazard it is built against.")]

@@ -119,6 +119,7 @@ namespace Punchy.Flora
                     case FloraForm.Torch: Torch(g); break;
                     case FloraForm.Bench: Bench(g); break;
                     case FloraForm.Log: SeatLog(g); break;
+                    case FloraForm.Driftwood: Driftwood(g); break;
                     case FloraForm.Stump: Stump(g); break;
                     case FloraForm.FirePit: FirePit(g); break;
                     case FloraForm.HiveTree: Broadleaf(g); Hive(g); break;
@@ -1319,7 +1320,7 @@ namespace Punchy.Flora
         /// <summary>Forms people can climb onto and stand on (their tops go into PropSupport).</summary>
         public static bool Standable(FloraForm form) => Founded(form) || form switch
         {
-            FloraForm.Boulder or FloraForm.Spire or FloraForm.Den or FloraForm.Log or FloraForm.Woodpile or FloraForm.IceArch => true,
+            FloraForm.Boulder or FloraForm.Spire or FloraForm.Den or FloraForm.Log or FloraForm.Driftwood or FloraForm.Woodpile or FloraForm.IceArch => true,
             // Not fire pits: nobody stands in the flames (their ring collider keeps people out).
             _ => false
         };
@@ -1485,6 +1486,47 @@ namespace Punchy.Flora
                            Color.Lerp(g.Bark, new Color(0.75f, 0.62f, 0.45f).linear, 0.7f), FloraPart.Bark);
             g.Colliders.Add(new Vector4(-0.5f, 0f, 0.3f, LogSeat));
             g.Colliders.Add(new Vector4(0.5f, 0f, 0.3f, LogSeat));
+        }
+
+        /// <summary>
+        /// W-63 river dressing: a weathered log lying along X, Height long and Thickness in radius, gently bent, with
+        /// snapped branch stubs and a flare of root stubs at one end. Driftwood on a gravel bar, or (long) a log fallen
+        /// across a narrows. Its middle rests on the origin.
+        /// </summary>
+        static void Driftwood(Grower g)
+        {
+            var b = g.B;
+            var len = g.Range(g.S.Height.x, Mathf.Max(g.S.Height.x, g.S.Height.y));
+            var r = Mathf.Max(0.06f, g.S.Thickness * g.Range(0.85f, 1.15f));
+            g.Height = r * 2f;
+            g.Width = len;
+            g.TrunkRadius = 0f;
+            var bend = g.Range(-0.08f, 0.08f) * len;
+            var sides = g.Sides(9, 6, 4);
+            var first = b.VertexCount;
+            b.Tube(new List<Vector3> { new Vector3(-len * 0.5f, r * 1.1f, 0f), new Vector3(0f, r, bend), new Vector3(len * 0.5f, r * 0.8f, bend * 0.3f) },
+                   new List<float> { r * 1.15f, r, r * 0.6f }, sides, g.Bark, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, r * 0.8f));
+            if (g.Lod >= 2)
+                return;
+            // Root stubs flare out of the thick end, some up in the air.
+            for (int k = 0, n = 3 + (int)g.Range(0f, 3f); k < n; k++)
+            {
+                var a = (k + g.Range(0f, 0.6f)) * Mathf.PI * 2f / n;
+                var tip = new Vector3(-len * 0.5f - g.Range(0.2f, 0.6f), r * 1.1f + Mathf.Sin(a) * r * 2.2f, Mathf.Cos(a) * r * 2.2f);
+                b.Tube(new List<Vector3> { new Vector3(-len * 0.5f + 0.1f, r * 1.1f, 0f), tip }, new List<float> { r * 0.45f, r * 0.12f },
+                       g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
+            }
+            // A few snapped branch stubs along the length.
+            for (int k = 0, n = 1 + (int)g.Range(0f, 3.5f); k < n; k++)
+            {
+                var x = g.Range(-0.3f, 0.4f) * len;
+                var a = g.Range(-1.2f, 1.2f);
+                var from = new Vector3(x, r, Mathf.Lerp(0f, bend, 1f - Mathf.Abs(x) / (len * 0.5f)));
+                var dir = new Vector3(g.Range(0.2f, 0.6f), Mathf.Cos(a), Mathf.Sin(a)).normalized;
+                b.Tube(new List<Vector3> { from, from + dir * (r + g.Range(0.15f, 0.5f)) }, new List<float> { r * 0.3f, r * 0.15f },
+                       g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
+            }
         }
 
         /// <summary>A sawn stump to sit on, its pale top 0.42 m up.</summary>
@@ -2965,6 +3007,7 @@ namespace Punchy.Flora
             // #36: fishing villages' shapes. Their draws come after the house's own, so every existing kit building is the same.
             var shape = ruined ? Punchy.Terrain.KitShape.House : s.KitShape;
             var lift = 0f;
+            var wharfHouses = new System.Collections.Generic.List<Vector4>();
             System.Collections.Generic.List<Punchy.Terrain.KitPart> parts;
             switch (shape)
             {
@@ -2999,6 +3042,10 @@ namespace Punchy.Flora
                 case Punchy.Terrain.KitShape.Reef:      // #37: lake-bed details
                     parts = Punchy.Terrain.StructureKit.Reef(seed, trim, 3f);
                     break;
+                case Punchy.Terrain.KitShape.Wharf:     // W-65: walkways and houses over the water, laid out by the seed
+                    storeys = 1;
+                    parts = Punchy.Terrain.StructureKit.Wharf(seed, trim, 1.0f, wharfHouses);
+                    break;
                 default:
                     parts = Punchy.Terrain.StructureKit.House(seed, trim, width, depth, storeys, ruined ? g.Range(0.45f, 0.9f) : 0f);
                     break;
@@ -3014,13 +3061,19 @@ namespace Punchy.Flora
             {
                 var p = parts[i];
                 var small = p.Piece == Punchy.Terrain.KitPiece.Trim || p.Piece == Punchy.Terrain.KitPiece.Rail ||
-                            p.Piece == Punchy.Terrain.KitPiece.Rubble || p.Piece == Punchy.Terrain.KitPiece.Moss ||
+                            p.Piece == Punchy.Terrain.KitPiece.Rubble || p.Piece == Punchy.Terrain.KitPiece.Moss || p.Piece == Punchy.Terrain.KitPiece.MossCap ||
                             (p.Piece == Punchy.Terrain.KitPiece.Window && p.Material != Punchy.Terrain.KitMaterial.Opening);
                 if (small && g.Lod >= 2)
                     continue;
                 var c = Punchy.Terrain.StructureKit.Colour(trim, p.Material);
                 var jitter = ((i * 2654435761u) >> 24) / 255f;                 // a little per-stone variety, the same at every LOD
                 c = Color.Lerp(c * 0.94f, c * 1.08f, jitter);
+                if (p.Piece == Punchy.Terrain.KitPiece.MossCap)
+                {
+                    // W-64 (#24): one ragged, see-through sheet draped over the stone (was a 9 cm box that read as a pad).
+                    b.MossSheet(p.Centre, p.Size, p.Rotation, c, (uint)i * 2654435761u ^ seed);
+                    continue;
+                }
                 b.Box(p.Centre, p.Size, p.Rotation, c, p.Material == Punchy.Terrain.KitMaterial.Moss ? FloraPart.Foliage :
                                                        p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Rune ? FloraPart.Window : FloraPart.Bark);
                 var high = p.Centre.y + p.Size.y * 0.5f;
@@ -3038,7 +3091,18 @@ namespace Punchy.Flora
                         // A wall's circle is set back so its outer edge sits on the wall's outer face: centred on the wall
                         // it bulged ~1.2 m out over the door step and any outside stair (W-58b walk test).
                         var at = new Vector2(p.Centre.x, p.Centre.z);
-                        if (p.Piece == Punchy.Terrain.KitPiece.Wall)
+                        if (p.Piece == Punchy.Terrain.KitPiece.Wall && wharfHouses.Count > 0)
+                        {
+                            // W-65: a wharf's houses stand off the origin; set each wall back from its own house's centre.
+                            var home = wharfHouses[0];
+                            foreach (var h in wharfHouses)
+                                if ((new Vector2(h.x, h.y) - at).sqrMagnitude < (new Vector2(home.x, home.y) - at).sqrMagnitude)
+                                    home = h;
+                            var local = at - new Vector2(home.x, home.y);
+                            var outward = Mathf.Abs(local.x) / home.z > Mathf.Abs(local.y) / home.w ? new Vector2(Mathf.Sign(local.x), 0f) : new Vector2(0f, Mathf.Sign(local.y));
+                            at -= outward * Mathf.Max(0f, r - Punchy.Terrain.StructureKit.Thick * 0.5f);
+                        }
+                        else if (p.Piece == Punchy.Terrain.KitPiece.Wall)
                         {
                             var outward = Mathf.Abs(at.x) / width > Mathf.Abs(at.y) / depth ? new Vector2(Mathf.Sign(at.x), 0f) : new Vector2(0f, Mathf.Sign(at.y));
                             at -= outward * Mathf.Max(0f, r - Punchy.Terrain.StructureKit.Thick * 0.5f);
@@ -3050,13 +3114,23 @@ namespace Punchy.Flora
                     perch = new Vector3(p.Centre.x, high, p.Centre.z);
             }
             if (!ruined && house)   // the inside: one fat cylinder so nothing walks through the middle of the house
-                g.Colliders.Add(new Vector4(0f, 0f, Mathf.Min(width, depth) * 0.45f, eaves));
+            {
+                var inner = Mathf.Min(width, depth) * 0.45f;
+                // W-64 (#38): an igloo's door stands well inside the dome now; the cylinder stops 0.4 m short of it.
+                if (shape == Punchy.Terrain.KitShape.Igloo)
+                    foreach (var p in parts)
+                        if (p.Piece == Punchy.Terrain.KitPiece.Door)
+                            inner = Mathf.Min(inner, p.Centre.z - 0.4f);
+                g.Colliders.Add(new Vector4(0f, 0f, inner, eaves));
+            }
+            foreach (var h in wharfHouses)  // W-65: one inside cylinder per house on the wharf, up to its eaves
+                g.Colliders.Add(new Vector4(h.x, h.y, Mathf.Min(h.z, h.w) * 0.45f, 1.0f + trim.Storey));
             if (perch.y > 1f)
                 g.Perches.Add(perch);
             b.Recolor(first, (p, c) => p.y < 0.5f ? c * 0.82f : c);   // darker footing
             b.Occlude(first, (p, n) => GroundOcclusion(p, Mathf.Min(top, 4f) * 0.5f));
             g.Height = top;
-            g.Width = Mathf.Max(width, depth) * 1.4f;
+            g.Width = shape == Punchy.Terrain.KitShape.Wharf ? 30f : Mathf.Max(width, depth) * 1.4f;
             // (A dock or a shore cluster is walked on and round, not a trunk to bump into.)
             g.TrunkRadius = house ? Mathf.Max(width, depth) * 0.55f : 0f;
         }
