@@ -41,3 +41,4 @@ Read `lanes/shared/checks.md` first.
   `-place wall:Lizard -wait 2.5` frames it from 9 m out along the rim's outward normal (28 deg view): Lizard about
   0.5 m up the barn face. A camera beside or inside the building dithers the face away (PlayerReveal).
 - `-shotonhunt` ends its line at the first sprint, so later logs on that line (`-personalitylog`) never print: put `-personalitylog Dog -watch Dog:Hunt` on its own line. Growl lines start with `CreatureAudio:`, not `DebugControls:`. `-huntside` takes the first land hunter to sprint (it may be a wolf).
+- `-warp X N` counts from the player's position (nearest first), so a warp line after a -goto picks different targets. To match earlier warp shots, put the warp lines right after the load line.

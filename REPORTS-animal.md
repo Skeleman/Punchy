@@ -1109,3 +1109,36 @@ Checks
 Shots: PunchyMilestones/animal/a36/800: a36-warp-biome, a36-warp-town, a36-warp-cave, a36-warp-landmark, a36-help, a36v1-warp-town (best: cave and v1 town).
 
 Commit: animal-behaviours f82be16.
+
+## A-37 cave slope push-out + warp camera (2026-11-02), animal lane
+
+| Row | Status | Notes |
+|---|---|---|
+| 1 slope push-out | DONE | Cause: the steep-floor test read one noisy SDF normal at the foot (32-79 deg on lumpy seg 245) and slid the body back for every reading over 50 deg. The knee sphere was pushed off the floor it stood on, and the mid/head spheres pushed back at a 70 deg ledge. Fix: rise over a 2 m span > 60 deg; the knee skips the floor while standing; no push back along a walkable climb. |
+| 2 warp camera | PARTLY | Open-ground line-of-sight pull-in (ThirdPersonCamera), and the warp brings the camera in to 5 m at pitch 8. Biome 1 Mountains: player clear. Town 3 DwarfMiningCamp: player visible, but the camera sits in a tree crown with leaves at the frame edges (trees are not in TerrainSource). |
+| 3 shots | DONE | Viewed at 800 px. |
+
+Sim numbers (editor, real PushOutOfSolids, 4 m/s, before -> after):
+- seg 245 up: progress -1.98 -> 2.26 of 2.43 m; pushed 20.9 -> 0.47 m (15.35 m by 2 s before).
+- seg 245 down: pushed 2.88 m in 0.23 s -> 0.20 m over the full walk; progress 2.27 m (full).
+- size 0.45 up: progress 2.26 m, pushed 0.25 m.
+- flat seg 0 (4 m): pushed 0.03 m, progress 3.80 m, the same as push-out off.
+- Clipping: maxPen (mid/head) 0.10 m, against 0.18 m with push-out off.
+
+Checks:
+- Build Succeeded (1 build).
+- v2 126 / 053C63D5 in both player logs; v1 not run (no world code touched).
+- 0 exceptions.
+- No new network fields; the KeepOutOfTower line stays.
+- Commit d17f6a7, pushed to animal-behaviours.
+
+Deviations:
+- Two shot-list runs. In run 1 the warps came after the slope -goto, so they picked different targets (warps sort nearest the player). Run 2 was only load + the two warps.
+- Port 7800 reached the WORLD editor (Punchy-world). I worked in the animal editor by PID (it answers on 7801). Before I found this, a Refresh/compile request and Enter/ExitPlaymode calls may have reached the world editor.
+
+Shots (PunchyMilestones/animal/a37/800):
+- a37-slope245-up, a37-slope245-up-late
+- a37-warp-biome-retake, a37-warp-town-retake
+- From run 1: a37-warp-biome (SparklingForest, player clear under canopy) and a37-warp-town (OgreCamp).
+
+NEXT: warp camera vs tree crowns (flora along the camera line, or skip targets under canopy).

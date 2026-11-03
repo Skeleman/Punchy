@@ -1,35 +1,42 @@
-# Animal lane: state (2026-11-02, A-36 done)
+# Animal lane: state (2026-11-02, A-37 done)
 
-Worktree `Punchy` (animal lane only). On `animal-behaviours` = origin f82be16 (A-36 warp keys) on 4c03cde (A-35)
-on bf170f2 (merge of main 41a9259). Lane hashes (player log, A-36 build): v2 126 / 053C63D5, v1 102 / 51EA6463.
-Untracked `Assets/_Recovery/` is old and not ours. Editor on port 7800.
+Worktree `Punchy` (animal lane only). On `animal-behaviours` = origin d17f6a7 (A-37) on f82be16 (A-36) on 4c03cde
+(A-35). Lane hashes (player log, A-37 build): v2 126 / 053C63D5 (v1 102 / 51EA6463 from A-36; no world code touched).
+Untracked `Assets/_Recovery/` is old and not ours.
+Editor: during A-37, port 7800 reached the WORLD editor (Punchy-world). The animal editor (D:/Unity/Punchy) answered
+on port 7801 and by --pid. Check `eval Application.dataPath` before any editor call.
+
+## Push-out on cave slopes (A-37, PlayerMovementSystem.PushOutOfSolids)
+- Cause: seg 245 is lumpy (a ~70 deg ledge, then 52-62 deg). The steep-floor test read ONE SDF normal at the foot
+  (32-79 deg along the walk), so every reading over 50 deg undid the step and slid the body back at 3 m/s. The knee
+  sphere was pushed off the floor itself, and the mid/head spheres (d 0.21 < r 0.35 at the ledge, normals pointing
+  downhill) shoved it back.
+- Fix: steep = rise over a 2 m span (FloorAlong, 4 FloorUnder steps each way) > 60 deg (SteepRise 1.73); standing,
+  the knee sphere skips floor normals (n.y > 0.1); climbing a walkable slope, push-out never pushes back along the climb.
+  Wall/overhang pushes, the 2r cap and the head-ceiling revert are unchanged.
+- Sim (Temp/a37_sim.cs, real PushOutOfSolids): seg 245 up progress 2.26/2.43 m, pushed 0.47 (before: -1.98 m,
+  pushed 20.9); down 2.27, pushed 0.20 (before: 2.88 m pushed in 0.23 s); flat seg 0 pushed 0.03, progress 3.80/4.00
+  (same as push off). maxPen 0.10 (push off 0.18).
+
+## Warp camera (A-37)
+- ThirdPersonCamera, open ground only (CaveDistance(head) >= CaveNear): 16 ground samples on the target->camera line;
+  the first one under ground+0.25 m pulls the camera in to the sample before it (min 1.5 m).
+- Warp sets Distance <= 5 m (WarpCameraDistance) and pitch 8.
+- Gap: trees are not in TerrainSource. v2 town 3 (DwarfMiningCamp) shows the player, but the camera sits in a tree crown.
 
 ## Warp keys (A-36)
-- DebugControls F5 biome region, F6 settlement, F7 cave entrance, F8 landmark; Shift+key back. F5-F8 were free
-  (F4 is bound in InputSystem_Actions). First press (or after moving 300 m off the last warp) sorts nearest first.
-- Lists built in FindWarpTargets beside the N list (same v1->v2 invalidation), read only from TerrainSource:
-  biome regions = flood fill of the 150 m survey (4+ cells, deepest cell); settlements from Settlements blob (on the
-  main road just outside Radius/Palisade); caves from Caves blob (6 m out from Mouth, away from node 1); landmarks
-  from every instance (as N). Stand points walked to dry land (Dry / WalkToDryLand). Places like Jump.
-- Counts: v2 biomes 35, settlements 6, caves 37, landmarks 126; v1 biomes 45, settlements 12, caves 17, landmarks 102.
-- Banner top centre 3 s (shown even with -nohud): "F6 settlement: Name 3/6 (x, z)". Help line has a warp row.
-- Shot flag `-warp biome|town|cave|landmark N` (Nth from nearest). Log: "DebugControls: warp keys ...; targets: ...".
-- Gap: settlements have no names in the blob, so they are named by landmark type + index ("HumanVillage #4").
-- Framing: the follow camera can sit inside a steep slope (biome 1 Mountains shot) or under canopy (v2 town 3).
-
-## A-35 results
-- Slope seg 245: -nopushout walks up; push-out slides the body 4 m back down (16.7 m in 2 s). Use
-  `-camlook -1445.9,86.6,238.3,-1446.9,81.5,237.8` or `-view -10,20` to keep the body in frame.
-- Merchant front-on: `-watch *:Merchant -watchfrom 1.6,2.5 -untilwork 60 -wait 8`.
+- F5 biome, F6 settlement, F7 cave, F8 landmark; Shift back. The first press, or one more than 300 m from the last
+  warp, sorts the list nearest the player first.
+- So `-warp X N` depends on where the player is: to retake earlier warp shots, put the warp lines first after load.
+- Counts v2: biomes 35, settlements 6, caves 37, landmarks 126. Settlement names are landmark type + index.
 
 ## Shot flags
 - `-warp`, `-walk x,y,z`, `-untilwork S`, `-watch *:Job`, -place, -goto, -view, -camrel, -camlook, -watchfrom h,d,
-  -nopushout, -time, -weather, -nohud, -chatshot, -wait, -shot. Launch: -shotlist, -shotdir, -quit, -island v1.
-- Hashes: `[island] generator version N ... <n> landmarks, hash <X8>` line in the player log.
-- Build: eval BuildPipeline.BuildPlayer with --timeout 600; quote strings as \" inside a single-quoted PS arg.
-
-## Open
-- PushOutOfSolids pushes a player back down a real 55 deg cave slope (seg 245): flagged for the supervisor.
+  -nopushout, -time, -weather, -nohud, -chatshot, -wait, -shot. Launch: -shotlist, -shotdir, -quit, -island v1, -logFile.
+- Slope 245 frame: `-goto -1448.0,83.2,238.7 -walk -1448.4,86.2,241.1 -camrel 2.10,3.41,-0.44,-0.20,2.91,1.20`.
+- Build: eval BuildPipeline.BuildPlayer with --timeout 600.
 
 ## NEXT
-- Waiting for the next card. Possible: warp camera pull-in on steep slopes; settlement names if the world lane adds them.
+- Warp camera vs tree crowns: test flora/canopy along the camera line (FloraSupport or tree instances), or skip warp
+  targets under canopy.
+- Optional: check the climb rule against walking into a wall while on a slope (the move step's clear check still blocks it).
