@@ -1435,6 +1435,21 @@ namespace Punchy.Debugging
             // #46/#43 tests: "-flatfear" (plain 3D fear distance), "-nobiometable" (every biome has every sound),
             // "-callrate 1.5" (the call budget a second), "-calllog" (calls played a 10 s window, with the biome).
             Punchy.Fauna.CreatureBrainSystem.HeightFearOff.Data = System.Array.IndexOf(args, "-flatfear") >= 0 ? 1 : 0;
+            // A-46: "-oldwander" (#12, walkers ease down while turning, as before); flees are counted from each line's start
+            // (logged with the shot, #57's fair check).
+            Punchy.Fauna.CreatureBrainSystem.OldWander.Data = System.Array.IndexOf(args, "-oldwander") >= 0 ? 1 : 0;
+            lineSearch0 = Punchy.Fauna.CreatureBrainSystem.Searches.Data;
+            // "-pickclass Fish" (#68): what one click on the Character tab's class does; "-menu Character": the menu open
+            // on that tab for this line's shot (closed again on lines without it).
+            var pickAt = System.Array.IndexOf(args, "-pickclass");
+            if (pickAt >= 0 && pickAt + 1 < args.Length && System.Enum.TryParse<Punchy.Net.CharacterTab.BodyClass>(args[pickAt + 1], out var pickClass))
+            {
+                var pickAvatars = FindAnyObjectByType<Punchy.Net.NetAvatars>();
+                if (pickAvatars != null)
+                    Punchy.Net.CharacterTab.PickClass(pickAvatars, pickClass);
+            }
+            var menuAt = System.Array.IndexOf(args, "-menu");
+            Punchy.UI.MainMenu.Show(menuAt >= 0 && menuAt + 1 < args.Length && !args[menuAt + 1].StartsWith("-") ? args[menuAt + 1] : null, menuAt >= 0);
             Punchy.Fauna.AmbientSounds.TableOff.Data = System.Array.IndexOf(args, "-nobiometable") >= 0 ? 1 : 0;
             var rateArg = System.Array.IndexOf(args, "-callrate");
             if (rateArg >= 0 && rateArg + 1 < args.Length && float.TryParse(args[rateArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var cr))
@@ -2305,6 +2320,10 @@ namespace Punchy.Debugging
             Debug.Log($"DebugControls: shot {shotIndex + 1}/{shotLines.Count} '{Arg("-shot")}' after {Time.realtimeSinceStartup - shotStarted:F1} s" +
                       (drawCalls.Valid ? $", {drawCalls.LastValue} draw calls, {batches.LastValue} batches, {tris.LastValue / 1000} k tris" : "") +
                       $", player at ({at.x:F1}, {at.y:F1}, {at.z:F1})");
+            var lineSearch = Punchy.Fauna.CreatureBrainSystem.Searches.Data;
+            Debug.Log($"DebugControls: flees this line '{Arg("-shot")}' predator {lineSearch.PredatorFlee - lineSearch0.PredatorFlee}, " +
+                      $"alarm {lineSearch.AlarmFlee - lineSearch0.AlarmFlee}, searches predator {lineSearch.Predator - lineSearch0.Predator}, " +
+                      $"alarm {lineSearch.Alarm - lineSearch0.Alarm}, old search {Punchy.Fauna.CreatureBrainSystem.SearchEveryFrame.Data}");
             if (perfLog)
                 LogPerf(Arg("-shot"), at);
             shotIndex++;
@@ -2322,7 +2341,7 @@ namespace Punchy.Debugging
         struct long3 { public long X, Y, Z; public long3(long x, long y, long z) { X = x; Y = y; Z = z; } }
         long3 perfTrace0;
         long2 perfCopies0;
-        Punchy.Fauna.CreatureBrainSystem.SearchCounts perfSearch0;
+        Punchy.Fauna.CreatureBrainSystem.SearchCounts perfSearch0, lineSearch0;
         readonly FrameTiming[] perfTiming = new FrameTiming[1];
 
         void SamplePerf()

@@ -46,6 +46,9 @@ namespace Punchy.Fauna
         public static readonly Unity.Burst.SharedStatic<int> HeightFearOff = Unity.Burst.SharedStatic<int>.GetOrCreate<HeightFearKey>();
         struct HeightFearKey { }
         const float HeightFear = 2.5f;
+        /// <summary>#12 A/B switch ("-oldwander"): unhurried walkers ease their speed down while turning, as before A-46.</summary>
+        public static readonly Unity.Burst.SharedStatic<int> OldWander = Unity.Burst.SharedStatic<int>.GetOrCreate<OldWanderKey>();
+        struct OldWanderKey { }
         public static readonly Unity.Burst.SharedStatic<int> FlareSettleOff = Unity.Burst.SharedStatic<int>.GetOrCreate<FlareSettleKey>();
         struct FlareSettleKey { }
         /// <summary>A-26 tests ("-chattest"): folk stop to talk far more often, from further apart, cooldowns short.</summary>
@@ -982,6 +985,15 @@ namespace Punchy.Fauna
                         var wanted = WrapAngle(math.atan2(to.x, to.y) - s.Yaw);
                         turn = math.clamp(wanted, -b.TurnRate * dt, b.TurnRate * dt);
                         targetSpeed *= math.saturate(math.cos(wanted) * 1.5f);
+                        // (#12, A-46: an unhurried walker slows at once to a speed whose turning circle reaches its target,
+                        // radius = distance / (2 sin off-heading). Easing down from walking pace instead, a dormouse or a
+                        // songbird near its spot went round and round it at full turn rate.)
+                        if (!urgent && OldWander.Data == 0 && math.abs(wanted) > 0.2f)
+                        {
+                            var reach = b.TurnRate * math.length(to) / (2f * math.sin(math.min(math.abs(wanted), math.PI * 0.5f)));
+                            targetSpeed = math.min(targetSpeed, reach);
+                            s.Speed = math.min(s.Speed, reach);
+                        }
                     }
                     s.Yaw = WrapAngle(s.Yaw + turn);
                     s.YawRate = dt > 0f ? turn / dt : 0f;
@@ -6292,6 +6304,20 @@ namespace Punchy.Fauna
                 // Already in one (spawned there, or a wall that turned up under it): out sideways, to the nearest clear side.
                 if (SolidAt(s, ref b, s.Position.xz, forward, out var sinkNow) && sinkNow > 0.05f)
                 {
+                    // (A-46: most often it only turned its nose into the wall this tick, a bear's 1.3 m ahead of it: first
+                    // it turns back away, on the spot, to the nearest facing that's clear.)
+                    for (int k = 1; k <= 7; k++)
+                        for (int side = -1; side <= 1; side += 2)
+                        {
+                            var angle = s.Yaw + side * k * 0.45f;
+                            var face = new float2(math.sin(angle), math.cos(angle));
+                            if (!SolidAt(s, ref b, s.Position.xz, face, out var sinkFacing) || sinkFacing <= 0.05f)
+                            {
+                                s.Yaw = WrapAngle(angle);
+                                s.Speed = math.min(s.Speed, 0.3f * s.Scale);
+                                return s.Position.xz;
+                            }
+                        }
                     var push = math.min(sinkNow + 0.05f, 2f * dt + 0.05f);
                     for (int k = 0; k < 8; k++)
                     {
@@ -6316,10 +6342,11 @@ namespace Punchy.Fauna
                         // (A-45: tested facing the way it will face too, only part turned towards the slide: a bear's nose
                         // is 1.3 m ahead, and swung back towards the wall it went 0.30 m into the rock.)
                         var turned = WrapAngle(s.Yaw + WrapAngle(angle - s.Yaw) * 0.3f);
-                        if (!SolidAt(s, ref b, slide, way, out _) &&
-                            !SolidAt(s, ref b, slide, new float2(math.sin(turned), math.cos(turned)), out _))
+                        if (!SolidAt(s, ref b, slide, way, out _))
                         {
-                            s.Yaw = turned;
+                            // (A-46: if the part turn would swing its nose in, it turns the whole way to the slide, which is
+                            // tested clear, rather than stopping: a dormouse in a narrow gap stuck 27 ticks on that test.)
+                            s.Yaw = SolidAt(s, ref b, slide, new float2(math.sin(turned), math.cos(turned)), out _) ? WrapAngle(angle) : turned;
                             return slide;
                         }
                     }

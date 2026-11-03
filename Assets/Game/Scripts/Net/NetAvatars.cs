@@ -39,6 +39,11 @@ namespace Punchy.Net
         /// <summary>The local player's index in the table (-1 when their body isn't in it).</summary>
         public int LocalIndex => Fauna != null && Fauna.PlayerSpecies != null ? PlayableSpecies.IndexOf(Fauna.PlayerSpecies) : -1;
 
+        /// <summary>The colouring the local player picked on the Character tab (-1: the one their individual draws).</summary>
+        public int LocalCoat = -1;
+
+        void OnEnable() => Punchy.UI.MainMenu.AddTab("Character", 5, nav => CharacterTab.Draw(this, nav));
+
         /// <summary>Switches the local player's body (FaunaDirector rebuilds it).</summary>
         public void SetLocalSpecies(int index)
         {
@@ -48,6 +53,8 @@ namespace Punchy.Net
 
         void Start()
         {
+            // (Again here: on a scene load the outgoing instance's OnDisable can remove the tab after this one's OnEnable.)
+            OnEnable();
             // This machine's player keeps one look (posture, gait, hair, coat) across sessions, distinct from others'.
             individual = (uint)PlayerPrefs.GetInt("Punchy.PlayerIndividual", 0);
             if (individual == 0)
@@ -67,6 +74,7 @@ namespace Punchy.Net
 
         void OnDisable()
         {
+            Punchy.UI.MainMenu.RemoveTab("Character");
             if (world != null && world.IsCreated)
                 foreach (var r in remotes.Values)
                     if (world.EntityManager.Exists(r.Puppet))
@@ -115,14 +123,17 @@ namespace Punchy.Net
             if (individual != 0 && avatarQuery.TryGetSingletonEntity<PlayerAvatar>(out var avatar))
             {
                 var state = em.GetComponentData<CreatureState>(avatar);
-                if (state.Individual != individual)
+                var body = em.GetComponentData<CreatureBody>(avatar);
+                ref var blob = ref body.Blob.Value;
+                // The colouring picked on the Character tab, else the one this individual draws.
+                var coat = blob.Coats.Length == 0 ? body.Coat
+                    : LocalCoat >= 0 ? math.min(LocalCoat, blob.Coats.Length - 1)
+                    : blob.PickCoat(((individual * 2654435761u) >> 8) / 16777216f);
+                if (state.Individual != individual || body.Coat != coat)
                 {
                     state.Individual = individual;
                     em.SetComponentData(avatar, state);
-                    var body = em.GetComponentData<CreatureBody>(avatar);
-                    ref var blob = ref body.Blob.Value;
-                    if (blob.Coats.Length > 0)
-                        body.Coat = blob.PickCoat(((individual * 2654435761u) >> 8) / 16777216f);
+                    body.Coat = coat;
                     em.SetComponentData(avatar, body);
                 }
             }

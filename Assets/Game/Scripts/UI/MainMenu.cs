@@ -53,6 +53,16 @@ namespace Punchy.UI
 
         public static void RemoveTab(string title) => tabs.RemoveAll(t => t.Title == title);
 
+        /// <summary>Opens the menu (on the titled tab, when given) or closes it: shot lists' "-menu Title" lines.</summary>
+        public static void Show(string title, bool open)
+        {
+            if (instance == null)
+                return;
+            if (title != null)
+                currentTitle = title;
+            instance.SetOpen(open);
+        }
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Init()
         {
