@@ -6,10 +6,10 @@ Updated 2026-11-02, after the audit (lanes/ISSUES-AUDIT.md).
 
 ## Closed 2026-11-02 with Zach's OK
 #3 #7 #9 #13 #15 #16 #17 #18 #19 #23 #29 #30 #32 #34 #41 #42 #43 #47 #48 #49 #50
+Closed 2026-11-03 with Zach's OK: #11 #45
 
 ## Resolved, waiting for Zach's OK
-- #11: A-41 follow-up now in main (5e98141); waiting for Zach's OK.
-- #45: W-42 now in main; the reshoot is in W-48, then Zach's OK.
+(none)
 
 ## Partly done -> card
 | Issue | Title | Card |
