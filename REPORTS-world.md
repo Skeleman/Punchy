@@ -2,6 +2,14 @@
 
 Newest first.
 
+## W-63 (2026-11-03) world-features 875f785
+- #36 ramp foot: DockShore walks back up to 30 m to find the real bank, and kit houses stay off a dock's lane (a stilt house stood across that deck). The dock is now based at -3299.0,-1656.1. Editor sim, step-up 0.4, 3 lanes: it PASSES on all 3 (end feet 1.09, deck 1.29). All 8 docks pass on the centre and +0.5 lanes. The old crab-pot snag at d 9.1 is still on the -0.5 lane of 2 docks.
+- River dressing as flora data (RiverSpot on FloraSpecies, 13 biome lists): RiverCattail (inner bends, green biomes), Driftwood (gravel bars), SteppingStone (shallow narrows), FallenLog (narrow creeks, density 1). Loaded counts near -2940,3220: cattail 13, driftwood 24, stones 14, logs 13 (logs were at density 3; not re-counted at 1). Near 60,180: cattail 2, driftwood 1, stones 0, logs 5. Near village 0: cattail 10, driftwood 16. Shallow narrows are rare (2 creek spots with width <= 11 island-wide).
+- Player (1 build): dock walk reached -3283.4,-1656.1, y 1.1 on the deck (0.2 m to go): PASS. Stepping-stone crossing at -3110,3130: FAIL. It is 2 stones about 10 m apart, not a chain. The walker reached stone 1, waded the riverbed (y 40.8, water 42.05), then stuck 0.9 m short of stone 2.
+- Hashes: v2 136 / editor 4E61F1CF / player B5EFF8C8; v1 103 / F628AE5F; caves C49E8E3036C741FC; ground C0C906EE310FA91F; rivers A77D2ED7B919296E. All unchanged.
+- Shots: D:/PunchyMilestones/W-63 (w63_dock_walk_end, w63_stones_walk_end, w63_river_cattails, w63_river_driftwood, w63_stones). w63_stones is badly framed (a near bank fills the bottom half), and the cattails are hard to see in w63_river_cattails.
+- Left: lay stepping stones as a spaced row across the narrow (about 1.2 m pitch), not as single scattered draws; re-count fallen logs; better river shots.
+
 ## W-62c (2026-11-03) world-features 49d33c9
 - #37 pier end: spires keep 6.5 m from any pier's far end (placement rule). Spire that stood 3.8 m off the end is gone; nearest is now 24.2 m. Shot w62c_pier_end.
 - #36 docks: all 8 docks (4 villages) get the pier's solid bed under the planks. Editor sim, step-up 0.4, each walked from its own village, 3 lanes: all 8 reach the end on the deck (feet = deck - 0.2). Side-lane snags: crab pots at d 9.1 on 2 docks (-0.5 lane, walk around). Left over: dock -3296.5,-1656.1 meets a 1.3-1.65 m wall at its ramp foot on all 3 lanes (ground sits under the ramp start).
