@@ -1258,3 +1258,35 @@ Commit b2b6a70 on animal-behaviours (PlayerMovementSystem.cs only). 1 build, ~60
 - Checks: player log v2 126 landmarks, hash 053C63D5; 0 exceptions; run quit on its own. No network fields.
   KeepOutOfTower untouched. CRLF kept.
 NEXT: none required. If diag -1 feels sticky at the corner in play, try a wall slide that keeps the 0.10 m limit.
+
+## A-41 (2026-11-02): humanoid run elbows and leg back-swing (NOT DONE: shots and build blocked)
+Run pose lives in animal-lane files: limb keys Assets/Game/Fauna/Limbs/HumanArm.asset, HumanLeg.asset, played by
+CreatureAnimator.cs. Local commit e3b8521 on animal-behaviours, not pushed (Rule 11: shots first).
+Blocked: Zach's Punchy.exe from Builds/Windows (PID 34888, started 20:47) ran from 20:59 to past 21:31. Not killed.
+No before shot, no build, no player run.
+- Row 1, code DONE (not seen in a build). Elbow bend (deg from straight) over a run cycle, HumanArm (Human Elf Dwarf
+  Ogre Hermit Goblin Ghost all share it):
+
+| Case | armSwing 0.55 | 1.00 | 1.45 |
+|---|---|---|---|
+| run | 42-48 -> 85-95 | 70-80 -> 85-95 | 98-112 -> 85-95 |
+| sprint | 86-94 -> 85-95 | 149 (clamp) -> 85-95 | 149 (clamp) -> 85-95 |
+
+  Run keys 80/70 -> 95/85; CreatureAnimator now holds an upright runner's elbow at the keys, so the per-folk arm
+  swing trait and the sprint pump scale the shoulder only. The sprint fold to 149 was the "severe bend".
+- Row 2, code DONE (not seen in a build). HumanLeg RunPush hip 48 -> 32, RunReach -54 -> -60 (keeps most stride).
+
+| HumanLeg | Max hip extension | Stride m/cycle | Foot slide over stance |
+|---|---|---|---|
+| run | 48 -> 32 | 2.648 -> 2.423 | 14.2 -> 11.8 cm |
+| sprint | 65 -> 43 | 3.181 -> 2.949 | 33.3 -> 28.2 cm |
+
+  Stride is measured from the keys (MeasureGait) so cadence rises ~9% and feet stay matched. Slide = the probe's
+  estimate of planted-foot travel from the non-linear sweep, not new sliding. GoblinLeg (15 deg) untouched.
+- Row 3, PARTLY. Walk keys and walk elbow untouched (hold only weighs in with run). Non-humanoids: the hold needs
+  Upright + Arm; leg edit is HumanLeg only. Editor Play run: Human runs, no errors, compiles clean. Not seen in a build.
+- Row 4, NOT DONE. Frame picked in the editor (after code): PunchyMilestones/animal/a41/editor-after-run-2.0.png and
+  -2.2.png (portrait editor aspect, not the 16:9 pair). Player list ready: Temp/a41_shots.txt.
+- Checks: CRLF kept on CreatureAnimator.cs (verified 1466/1466), assets LF. No network fields; no world code (hash
+  unchanged by construction, not log-checked). PlayArgs restored.
+NEXT: when no Punchy.exe runs, before shots with Temp/a41_shots.txt on the current exe, ONE build, after shots, push.
