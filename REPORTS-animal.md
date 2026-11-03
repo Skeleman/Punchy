@@ -1398,3 +1398,42 @@ FaunaDirector.cs, DebugControls.cs. All stay LF. No TerrainSource, player collis
 - Editor sim: building and tower: 0 sink for Dormouse, Deer and GrizzlyBear. Cave wall: Dormouse 0.05 m, Deer 0.13 m, GrizzlyBear 0.30 m (6/300 ticks while pressing into a goal inside the rock).
 - Cost: Burst job, one thread: about 0.4 ms per frame at 50 near (1.3-1.7 ms in 3 of 8 minutes).
 - Hash 126 / 053C63D5. Shots: D:\PunchyMilestones\animal\a44b\cave1-{deer,bear,dormouse}-wall.png (deer viewed: whole body shows on the slope, but it isn't clearly turned at a wall).
+
+## A-45 (animal-behaviours 
+3abc2c4
+)
+- #54 ArmProbe Burst: 200 cave-air samples, 196 identical (max diff 0.0045 m); 0.486 ms managed vs 0.019 ms Burst per probe.
+- #55 trace: due checks before NoSurface; #56 shared snapshot; #57 staggered searches. Per-frame numbers in perf2 lines below.
+- Row 5 NOT met: bear max sink at 3 cave walls old 0.30/0.62/0.44 vs A-45 0.35/0.44/0.05 (target 0.15). Regression: dormouse stuck 27 ticks at wall c2. Contacts only counted for rock in KeepOutOfSolids; buildings go through WalksRoundWalls.
+- Landmark hash read 127 / 4D245E12 (card expects 126 / 053C63D5) - not investigated, needs a look.
+- Shots: D:\PunchyMilestones\animal\a45 (load, cave/approach/open before+after, 5-min flee old/new search).
+    DebugControls: perf 'cave-before' 156 frames, frame 19.36 ms (max 24.7), no frame timing; cave chunks loaded 57, submitted 57, in view 20, casting 5, 201 k cave tris in view; lights 3 (0 shadowed), particles 6 systems / 364; camera probe 0.99/frame, 704 us/frame; IsRock 1.65 us/call (Burst); underground 1.00, hidden 1.00, player (-1653.3, 29.7, 2380.4)
+    DebugControls: perf2 'cave-before' 156 frames, creatures 139; trace 13.864 ms/frame, 50.4 surface checks/frame; snapshot copies 23.8/frame, 0.032 ms/frame; searches/frame predator 105.0, alarm 124.9, chat 0.0; flees predator 0, alarm 0; totals flee 2/4
+    CreatureSolids cases: sinks; floating
+    CreatureSolids: on, 60 s, 3437 frames, 65053 creature-ticks near, contacts 0.0/min, stuck 0 ticks (0.0 s), hidden >0.15 m 0 ticks, max sink 0.00 m, floating >0.2 m 0 ticks, queries 9.4/frame (0.49 per creature-tick); cost now 40 near: 1.255 ms Burst one thread, 1.569 ms per frame at 50
+    CreatureSolids cases: sinks; floating
+    CreatureSolids: on, 60 s, 3598 frames, 58440 creature-ticks near, contacts 0.0/min, stuck 0 ticks (0.0 s), hidden >0.15 m 0 ticks, max sink 0.00 m, floating >0.2 m 0 ticks, queries 23.8/frame (1.47 per creature-tick); cost now 46 near: 1.459 ms Burst one thread, 1.586 ms per frame at 50
+    DebugControls: perf 'cave-after' 180 frames, frame 16.69 ms (max 20.5), no frame timing; cave chunks loaded 57, submitted 41, in view 20, casting 5, 201 k cave tris in view; lights 3 (0 shadowed), particles 7 systems / 345; camera probe 0.99/frame, 22 us/frame; IsRock 1.63 us/call (Burst); underground 1.00, hidden 1.00, player (-1653.3, 29.7, 2380.4)
+    DebugControls: perf2 'cave-after' 180 frames, creatures 139; trace 0.784 ms/frame, 0.7 surface checks/frame; snapshot copies 3.0/frame, 0.005 ms/frame; searches/frame predator 9.0, alarm 10.5, chat 0.0; flees predator 0, alarm 0; totals flee 7/5
+    CreatureSolids cases: sinks; floating
+    CreatureSolids: on, 60 s, 2508 frames, 50588 creature-ticks near, contacts 0.0/min, stuck 0 ticks (0.0 s), hidden >0.15 m 0 ticks, max sink 0.00 m, floating >0.2 m 0 ticks, queries 4.8/frame (0.24 per creature-tick); cost now 31 near: 0.361 ms Burst one thread, 0.582 ms per frame at 50
+    DebugControls: perf 'approach-before' 157 frames, frame 19.29 ms (max 35.8), no frame timing; cave chunks loaded 55, submitted 37, in view 27, casting 25, 167 k cave tris in view; lights 2 (1 shadowed), particles 7 systems / 407; camera probe 0.99/frame, 538 us/frame; IsRock 1.60 us/call (Burst); underground 0.00, hidden 0.00, player (-1664.0, 67.8, 2531.2)
+    DebugControls: perf2 'approach-before' 157 frames, creatures 151; trace 10.421 ms/frame, 72.8 surface checks/frame; snapshot copies 23.8/frame, 0.046 ms/frame; searches/frame predator 112.0, alarm 137.9, chat 0.0; flees predator 0, alarm 0; totals flee 43/5
+    CreatureSolids cases: sinks; floating
+    CreatureSolids: on, 60 s, 3590 frames, 79206 creature-ticks near, contacts 0.0/min, stuck 0 ticks (0.0 s), hidden >0.15 m 0 ticks, max sink 0.00 m, floating >0.2 m 0 ticks, queries 12.1/frame (0.55 per creature-tick); cost now 34 near: 0.658 ms Burst one thread, 0.968 ms per frame at 50
+    DebugControls: perf 'approach-after' 181 frames, frame 16.70 ms (max 21.4), no frame timing; cave chunks loaded 55, submitted 37, in view 27, casting 25, 167 k cave tris in view; lights 2 (1 shadowed), particles 7 systems / 413; camera probe 0.99/frame, 20 us/frame; IsRock 1.51 us/call (Burst); underground 0.00, hidden 0.00, player (-1664.0, 67.8, 2531.2)
+    DebugControls: perf2 'approach-after' 181 frames, creatures 145; trace 0.406 ms/frame, 0.7 surface checks/frame; snapshot copies 3.0/frame, 0.009 ms/frame; searches/frame predator 9.3, alarm 11.1, chat 0.0; flees predator 0, alarm 0; totals flee 44/5
+    CreatureSolids cases: sinks; floating
+    CreatureSolids: on, 60 s, 3593 frames, 85236 creature-ticks near, contacts 0.0/min, stuck 0 ticks (0.0 s), hidden >0.15 m 0 ticks, max sink 0.00 m, floating >0.2 m 0 ticks, queries 12.7/frame (0.54 per creature-tick); cost now 49 near: 0.032 ms Burst one thread, 0.033 ms per frame at 50
+    DebugControls: perf 'open-before' 181 frames, frame 16.67 ms (max 16.7), no frame timing; cave chunks loaded 14, submitted 9, in view 0, casting 0, 0 k cave tris in view; lights 2 (1 shadowed), particles 7 systems / 522; camera probe 0.00/frame, 0 us/frame; IsRock 0.49 us/call (Burst); underground 0.00, hidden 0.00, player (-1846.0, 66.7, 3104.0)
+    DebugControls: perf2 'open-before' 181 frames, creatures 96; trace 1.573 ms/frame, 69.5 surface checks/frame; snapshot copies 23.9/frame, 0.026 ms/frame; searches/frame predator 72.0, alarm 90.0, chat 0.0; flees predator 0, alarm 0; totals flee 50/5
+    CreatureSolids cases: sinks; floating
+    CreatureSolids: on, 60 s, 3598 frames, 61334 creature-ticks near, contacts 0.0/min, stuck 0 ticks (0.0 s), hidden >0.15 m 0 ticks, max sink 0.00 m, floating >0.2 m 0 ticks, queries 24.8/frame (1.45 per creature-tick); cost now 41 near: 0.028 ms Burst one thread, 0.034 ms per frame at 50
+    DebugControls: perf 'open-after' 181 frames, frame 16.67 ms (max 16.8), no frame timing; cave chunks loaded 14, submitted 9, in view 0, casting 0, 0 k cave tris in view; lights 2 (1 shadowed), particles 7 systems / 480; camera probe 0.00/frame, 0 us/frame; IsRock 0.49 us/call (Burst); underground 0.00, hidden 0.00, player (-1846.0, 66.7, 3104.0)
+    DebugControls: perf2 'open-after' 181 frames, creatures 95; trace 0.301 ms/frame, 1.0 surface checks/frame; snapshot copies 3.0/frame, 0.010 ms/frame; searches/frame predator 6.0, alarm 7.4, chat 0.0; flees predator 8, alarm 0; totals flee 58/5
+    CreatureSolids cases: sinks; floating
+    CreatureSolids: on, 60 s, 3598 frames, 43546 creature-ticks near, contacts 0.0/min, stuck 0 ticks (0.0 s), hidden >0.15 m 0 ticks, max sink 0.00 m, floating >0.2 m 0 ticks, queries 18.9/frame (1.56 per creature-tick); cost now 45 near: 0.033 ms Burst one thread, 0.037 ms per frame at 50
+    CreatureSolids cases: sinks; floating
+    CreatureSolids: on, 60 s, 3600 frames, 39769 creature-ticks near, contacts 0.0/min, stuck 0 ticks (0.0 s), hidden >0.15 m 0 ticks, max sink 0.00 m, floating >0.2 m 0 ticks, queries 17.9/frame (1.62 per creature-tick); cost now 44 near: 0.032 ms Burst one thread, 0.037 ms per frame at 50
+    CreatureSolids cases: sinks; floating
+    CreatureSolids: on, 60 s, 3600 frames, 34223 creature-ticks near, contacts 0.0/min, stuck 0 ticks (0.0 s), hidden >0.15 m 0 ticks, max sink 0.00 m, floating >0.2 m 0 ticks, queries 19.5/frame (2.05 per creature-tick); cost now 42 near: 0.035 ms Burst one thread, 0.041 ms per frame at 50
