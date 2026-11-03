@@ -977,6 +977,62 @@ namespace Punchy.Player
             // Not while climbing: a lump brushing the chest is pushed past, A-37; holding it there stops seg 245's climb.)
             if (math.lengthsq(downhill) > 0f && math.lengthsq(climbing) == 0f && BodyDepth(terrain, position, r, low, high) > math.max(0.08f, BodyDepth(terrain, from, r, low, high) + 0.005f))
                 position = from;
+            // (Climbing, a chest or head over 0.10 m in and deeper than at from is pushed sideways across the climb, never
+            // back down it, at most twice the radius. If that finds no way out and the floor ahead doesn't rise (a wall,
+            // not a step), the body stays at from; otherwise it takes the largest part of the step that stays out. A-40:
+            // diag -1 sank 0.19 m and seg 245 up 0.14 m; holding at every such step stopped seg 245's climb at 0.99 m.)
+            else if (math.lengthsq(climbing) > 0f)
+            {
+                var deep = BodyDepth(terrain, position, r, low, high);
+                var fromDepth = BodyDepth(terrain, from, r, low, high);
+                if (deep > 0.10f && deep > fromDepth + 0.005f)
+                {
+                    var best = position;
+                    var bestDepth = deep;
+                    var across = new float2(climbing.y, -climbing.x);
+                    var p = position;
+                    for (int i = 0; i < 4; i++)
+                    {
+                        var depth = BodyDepth(terrain, p, r, low, high);
+                        if (depth <= 0.08f)
+                            break;
+                        var s = math.dot(DeepNormal(terrain, p, r, low, high), across);
+                        if (math.abs(s) < 0.2f)
+                            break;
+                        p.xz += across * (math.sign(s) * (depth - 0.07f) / math.abs(s));
+                        p = StandOnCaveFloor(terrain, p);
+                    }
+                    var sideways = false;
+                    if (math.distance(p.xz, position.xz) <= 2f * r && BodyDepth(terrain, p, r, low, high) < bestDepth)
+                    {
+                        best = p;
+                        bestDepth = BodyDepth(terrain, p, r, low, high);
+                        sideways = true;
+                    }
+                    var aheadXZ = position.xz + math.normalizesafe(climbing) * 0.3f;
+                    var ahead = terrain.FloorUnder(new float3(aheadXZ.x, position.y + 0.6f, aheadXZ.y), out _);
+                    if (bestDepth > 0.10f && !sideways && ahead - position.y < 0.05f)
+                        best = from;
+                    else if (bestDepth > 0.10f)
+                    {
+                        for (float f = 0.5f; f > 0.1f; f *= 0.5f)
+                        {
+                            var q = StandOnCaveFloor(terrain, math.lerp(from, best, f));
+                            var qDepth = BodyDepth(terrain, q, r, low, high);
+                            if (qDepth <= 0.10f || qDepth <= fromDepth + 0.005f)
+                            {
+                                best = q;
+                                break;
+                            }
+                        }
+                    }
+                    position = best;
+                }
+                // (A push back down the climb from a spot that was clear holds the body instead: on diag -1 the corner
+                // pushed it back and the next step walked it in again, a 0.15 m three-frame shiver.)
+                if (math.dot(position.xz - from.xz, climbing) < -0.01f && fromDepth <= 0.10f)
+                    position = from;
+            }
             // (Only rock overhead counts (its normal points down): a steep floor beside the head is the slope the body is
             // sliding down, and undoing that step wedged a small body on a 65 deg slope for good (A-32).)
             var headAt = position + new float3(0f, high, 0f);
@@ -1020,6 +1076,17 @@ namespace Punchy.Player
             var chest = SolidDistance(terrain, position + new float3(0f, math.lerp(low, high, 0.5f), 0f));
             var head = SolidDistance(terrain, position + new float3(0f, high, 0f));
             return math.max(0f, r - math.min(chest, head));
+        }
+
+        /// <summary>The way out (sideways, unit length) of whichever of the chest and head spheres is deeper in solid.</summary>
+        static float2 DeepNormal(in TerrainSource terrain, float3 position, float r, float low, float high)
+        {
+            var chestAt = position + new float3(0f, math.lerp(low, high, 0.5f), 0f);
+            var headAt = position + new float3(0f, high, 0f);
+            var chest = SolidDistance(terrain, chestAt);
+            var head = SolidDistance(terrain, headAt);
+            var n = chest < head ? SolidNormal(terrain, chestAt, chest) : SolidNormal(terrain, headAt, head);
+            return math.normalizesafe(n.xz);
         }
 
         static float3 StandOnCaveFloor(in TerrainSource terrain, float3 position)
