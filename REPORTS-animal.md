@@ -1259,7 +1259,7 @@ Commit b2b6a70 on animal-behaviours (PlayerMovementSystem.cs only). 1 build, ~60
   KeepOutOfTower untouched. CRLF kept.
 NEXT: none required. If diag -1 feels sticky at the corner in play, try a wall slide that keeps the 0.10 m limit.
 
-## A-41 (2026-11-02): humanoid run elbows and leg back-swing (NOT DONE: shots and build blocked)
+## A-41 (2026-11-02): humanoid run elbows and leg back-swing
 Run pose lives in animal-lane files: limb keys Assets/Game/Fauna/Limbs/HumanArm.asset, HumanLeg.asset, played by
 CreatureAnimator.cs. Local commit e3b8521 on animal-behaviours, not pushed (Rule 11: shots first).
 Blocked: Zach's Punchy.exe from Builds/Windows (PID 34888, started 20:47) ran from 20:59 to past 21:31. Not killed.
@@ -1290,3 +1290,8 @@ No before shot, no build, no player run.
 - Checks: CRLF kept on CreatureAnimator.cs (verified 1466/1466), assets LF. No network fields; no world code (hash
   unchanged by construction, not log-checked). PlayArgs restored.
 NEXT: when no Punchy.exe runs, before shots with Temp/a41_shots.txt on the current exe, ONE build, after shots, push.
+A-41 finish (after Zach's player exited): before shots on the old exe, ONE build, after shots on the new exe.
+Both logs: v2 ready, 126 landmarks, hash 053C63D5. e3b8521 pushed. Row 4 DONE: pair (800 px, side-on run, wait 2.0)
+PunchyMilestones/animal/a41/a41-run-pair-800.png (left before: forearm folded, trailing leg stretched far back; right
+after: elbow near a right angle, back leg shorter); full-size before-run-*.png / after-run-*.png beside it.
+Row 3: walk and animals not re-shot; the after runner reads a little crouched at mid-stance.

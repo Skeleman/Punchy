@@ -1,7 +1,6 @@
-# Animal lane: state (2026-11-02, A-41 code done, shots + build BLOCKED)
+# Animal lane: state (2026-11-02, A-41 done)
 
-Worktree `Punchy` (animal lane only). On `animal-behaviours`: local commit e3b8521 (A-41, NOT pushed: no shots yet)
-on origin b2b6a70 (A-40) on e75918e (A-39). Lane hashes (A-40 build): v2 126 / 053C63D5 (A-41 touches no world code).
+Worktree `Punchy` (animal lane only). On `animal-behaviours`: e3b8521 (A-41, pushed, built) on b2b6a70 (A-40) on e75918e (A-39). Lane hashes (A-40 build): v2 126 / 053C63D5 (A-41 touches no world code).
 Untracked `Assets/_Recovery/` is old and not ours. `Temp/PlayArgs.txt` holds an old a29b line (editor Play mode
 reads it as extra flags); swap it out only for an editor shot run and put it back (restored after A-41).
 Editor: ports are swapped (7800 reaches Punchy-world). Target the animal editor by --pid (26472 on 2026-11-02;
@@ -18,13 +17,7 @@ the Unity.exe whose -projectpath is the Punchy tree). Check `Application.dataPat
 - BLOCKED: Zach's Punchy.exe (Builds/Windows, PID 34888, from 20:47) ran the whole batch (waited 20:59-21:31).
   No before shot, no build, no after shots in the player yet.
 
-## To finish A-41 (next agent, when no Punchy.exe runs from Builds/Windows)
-1. Before: run the current Builds/Windows exe with Temp/a41_shots.txt
-   (`-shotlist Temp/a41_shots.txt -shotdir <dir> -quit -logFile ...`). Its last lines are run-2.0..2.3.
-2. Build (Temp/a40_build.cs, --timeout 600, out of Play mode), same list for after; check log hash 126/053C63D5.
-3. Pick the mid-stride pair (editor pick: run-2.0 / run-2.2 show the trailing leg), 800 px, push e3b8521.
-- Frame: `-goto -255,27 -wait 1.5` line, then `-walk -205,35.4,27 -camrel 12,1.0,-6,12,0.9,0 -wait 2.0`. The ground
-  there rises behind the runner (dirt background); camlook with y 35-36 is underground there now.
+- A-41 finished: shots in PunchyMilestones/animal/a41, build hash 126/053C63D5 unchanged.
 
 ## Warp keys (A-36)
 - F5 biome, F6 settlement, F7 cave, F8 landmark; Shift back. `-place Start` returns to the spawn.
@@ -39,5 +32,5 @@ the Unity.exe whose -projectpath is the Punchy tree). Check `Application.dataPat
 - 800 px copies: Python PIL thumbnail.
 
 ## NEXT
-- Finish A-41 shots + build (above), then push e3b8521.
+- A-41 follow-up if Zach asks: the after runner looks a bit crouched at mid-stance (knee bend in run keys).
 - From A-40: if diag -1 feels sticky at the cave corner, try a wall slide that keeps the 0.10 m limit.
