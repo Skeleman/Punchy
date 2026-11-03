@@ -919,3 +919,10 @@ b/weather-mapjob.
 - **Checks:** hashes unchanged: v2 126 / 053C63D5 (caves not re-read, mesh and shader only), and v1 102 / 51EA6463,
   caves 47C703C0E17F77CB. Build Succeeded, 0 errors.
 - 1 build, two player runs (v1 and v2 can't share a launch). No Punchy.exe left running. world-features @ 0bdc707.
+
+## W-30 (archipelago), 2026-11-02: PAUSED for Zach's demo
+- Row 1 NOT DONE: Archipelago overlay written and compiling (v2 only, baked after places, only raises sea floor, surface to Dunes); v2 not run yet, so no islet log. Saved as Punchy-world Temp/w30-archipelago.patch, nothing committed.
+- Row 2 NOT DONE: tooling in (`-archipelago off|on`, draw calls/batches/tris on each shot log line); no numbers yet.
+- Row 3 NOT DONE: no build, no shots.
+- Checks: v1 102 / 51EA6463 unchanged (editor play mode). v2 not read.
+- ~52 tool calls, 0 builds. See lanes/world/STATE.md for what is left.

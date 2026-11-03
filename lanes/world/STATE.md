@@ -1,40 +1,45 @@
 # World lane state
 
-Updated 2026-11-02 after W-34. Branch world-features @ 0bdc707 (pushed). One build (Builds/Dev).
+Updated 2026-11-02, W-30 (archipelago) PAUSED by the supervisor for Zach's demo. Branch world-features @ 0bdc707,
+unchanged: nothing committed for W-30. No build and no player run made.
 
-## Done in W-34 (bridge posts, cobblestones)
-- Bridge railings (FloraGenerator.Bridge): each span used to draw its rail post only at its start, so every span's
-  far rail end floated, including the end at the bank. Each side now has posts at both ends, +-3.2 m (RailRun =
-  RoadBaking.SpanSpacing 6.4), so neighbouring spans share a post. Rails run post to post. Posts go from 0.6 m
-  below the deck to just above the rail. Mesh only: spans, pads and facing are unchanged.
-- Cobbles (TerrainSurface.shader): the grid Cobbles() is replaced with CobbleHeight + Cobbles.
-  - A domain-warped, size-weighted, jittered Voronoi (0.42 m lattice, weight 0.62-1.38).
-  - Smooth-min borders round the corners, and the gap width varies (1.5-4 cm).
-  - Domed stones with per-stone height, lean and lumps. The normal comes from finite differences (3 samples).
-  - Per-stone hue and shade, a broad patch tint, darkened rims, and dark earth or moss in the gaps.
-  - The fade is the same as before (30-80 m).
+## W-30 work so far (saved as Punchy-world/Temp/w30-archipelago.patch, also left uncommitted in the tree)
+- New Assets/Game/Scripts/Terrain/Island/Archipelago.cs (+ .meta). It is an overlay like GrandFalls: baked in
+  IslandV2System after BuildPlaces and GrandFalls, v2 only, so landmarks, caves and settlements never see it.
+  - Build: surveys rays every 3 deg for the dune coast with the longest sea run to the coast square
+    (WorldSize/2 + CoastWidth/2 - 60). The coast probe expects about 30-40 deg, near (3200, 2240). It then lays an arc
+    of up to 20 islets from 260 m offshore: 2-4 big ones (110-290 m wide) near shore, mid islets 32-84 m, then rocks
+    7-16 m, plus satellite rocks. Sandbars (crest -0.3 to -0.7 m) join near islands that are under 170 m apart.
+    It uses its own seed stream (Scramble(Seed ^ 0x5A17A1E5)).
+  - Shape: only raises the sea floor (fades out where the ground is above sea - 0.5). The profile is a beach, then
+    a dune crest, then a 2.6 m shelf, then a fall to the floor.
+  - Surface: turned to Dunes over islets and shelves, in SampleBiomes on the map branch. Shape weights unchanged.
+  - Logs an "[archipelago]" line: count, sandbars, coast point, extent, and each islet's coords, width and crest.
+- TerrainSource: Archipelago field, equality, SampleBiomes, SampleHeight and SampleGround (applied first, so sea
+  rules see it). IslandV2: reset, build, Shared copy.
+- DebugControls: `-archipelago off|on` swaps the field (before/after in one run). Each shot log line now adds the
+  draw calls, batches and k tris from ProfilerRecorder.
+- Compiles clean in the editor (port 7801). Editor play mode runs v1 (102 / 51EA6463 unchanged); v2 not yet run.
 
-## Checks
-- Rail ends without a post: on v1 (WorldProbe.BridgeRails), 5 bridges and 10 spans; 20 before, 0 after. The largest
-  pad step between spans is 0.00 m. v2 was not counted by probe (it needs v2 in play mode). The same code draws every
-  span, so v2 also has 0 by construction, and the v2 shot shows posts at all rail ends.
-- Build: Succeeded, 0 errors, no "Shader error" in the log.
+## Left for W-30
+- v2 run: read the [archipelago] log line, the v2 hash (126 / 053C63D5) and whether the site and count look sane.
+- One build, then one shot list (time ~11, -weather Clear, -nohud):
+  - aerial ~250 m over the dune coast;
+  - a beach on a big island looking at the mainland;
+  - before/after stats lines with -archipelago off/on;
+  - end with -quit.
+- 800 px shots into PunchyMilestones/world/w30, view them, commit, update docs/agents/world.md.
 
-## Open
-- v2 bridges per island not counted by probe (see above). v2 cave hash not re-read: the player log does not print it;
-  the change is a mesh and a shader only.
-- Cobble cost: 3 CobbleHeight calls (each a 9-cell Voronoi) per paved pixel within 80 m. Not benched.
-- From W-28b: a taller dry-dock cave berg; close shots of other big bergs. From W-29: slanted sheet beside the
-  main falls, snowy levees, plain gorge walls.
+## Open (older)
+- v2 bridges per island not counted. Cobble cost not benched. From W-28b: a taller dry-dock cave berg. From W-29:
+  slanted sheet beside the main falls, snowy levees, plain gorge walls.
 
-## Hashes (unchanged in W-34)
-- v2 126 / 053C63D5 (player log), caves 5D90D9CFC5326976 (not re-read).
-- v1 102 / 51EA6463, caves 47C703C0E17F77CB (re-read in the editor).
+## Hashes
+- v2 126 / 053C63D5, caves 5D90D9CFC5326976 (not re-read for W-30).
+- v1 102 / 51EA6463 (re-read in editor play mode with the W-30 code), caves 47C703C0E17F77CB.
 
 ## Notes
-- Shots: PunchyMilestones/world/w34 (800 px), raw shots in w34/raw.
-- Scratch: Punchy-world/Temp/w34_*. Bridge probe: WorldProbe.BridgeRails (untracked Assets/Temp/Editor).
-- Shots: run `Builds/Dev/Punchy.exe [-island v1] -shotlist <file> -shotdir <dir> -logFile <file> -quit`. v1 and v2
-  need separate runs. `-place crossing` does not exist on world-features; use `-place prop:Bridge@x,z` or `-camlook`.
-- Lines without `-shot` save stray shot-N.png files; delete them.
-- Editor console errors: Temp/w28b_errs.cs (LogEntries via reflection).
+- Editor log is Punchy-world/Temp/editor-w04.log. Eval: `unity command --port 7801 script eval_file Temp/x.cs`
+  (path positional).
+- Shots: `Builds/Dev/Punchy.exe [-island v1] -shotlist <file> -shotdir <dir> -logFile <file>`.
+- Scratch: Punchy-world/Temp/w30_* (coast probe w30_coast.cs).
