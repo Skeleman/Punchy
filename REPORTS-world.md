@@ -926,3 +926,11 @@ b/weather-mapjob.
 - Row 3 NOT DONE: no build, no shots.
 - Checks: v1 102 / 51EA6463 unchanged (editor play mode). v2 not read.
 - ~52 tool calls, 0 builds. See lanes/world/STATE.md for what is left.
+
+## W-30 (archipelago), 2026-11-02: DONE, world-features 8565688
+- Row 1 DONE: 11 islets, 4 sandbars, off the dune coast at (2972,2159) heading 36 deg, out to 1694 m. Land spans x 3122..4252, z 2323..3290, inside the coast square (limit 4486). Sizes: 205, 117, 128 m (big), 73, 59, 49 m, rocks 10-23 m. Beaches, Dunes surface, palms; turquoise shelves around the islets. Landmark diff empty: v2 126 / 053C63D5, caves 5D90D9CFC5326976; v1 102 / 51EA6463, caves 47C703C0E17F77CB.
+- Row 2 DONE: looking out from the coast (cam 2950,20,2140 to 3700,0,2900), editor play mode, v2: off 1368 draw calls, 85 set-pass, ~2105-2134 k tris; on 1368 draw calls, 85 set-pass, 2084 k tris. No added cost. (The per-shot recorders return nothing in a release player, so these are editor UnityStats.)
+- Row 3 DONE: shots viewed at 800 px. The beach shot reads well (palms, sandbar, mainland dunes behind). The 250 m aerial shows the chain trailing out but is hazy.
+- Shots: PunchyMilestones/world/w30/w30-beach.png, w30-aerial.png, w30-coast-off.png, w30-coast-on.png.
+- Notes: islet flora is denser than "a few palms" (palm groves). The commit subject picked up a BOM (cosmetic, pushed, left as is).
+- NEXT: W-35.
