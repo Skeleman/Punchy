@@ -1431,6 +1431,9 @@ namespace Punchy.Debugging
             var liftArg = System.Array.IndexOf(args, "-lift");
             liftHeight = liftArg >= 0 && liftArg + 1 < args.Length && float.TryParse(args[liftArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lh) ? lh : 0f;
             liftNext = Time.time + 4f; // first sample 4 s in, once the spawned herd has settled
+            // "-spawnradius 12": this line's -spawn puts land animals at most that far out (default 45 m; #46 needs deer in flee range).
+            var srArg = System.Array.IndexOf(args, "-spawnradius");
+            spawnRadius = srArg >= 0 && srArg + 1 < args.Length && float.TryParse(args[srArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sr) ? sr : 45f;
             liftSample = 0;
             // #46/#43 tests: "-flatfear" (plain 3D fear distance), "-nobiometable" (every biome has every sound),
             // "-callrate 1.5" (the call budget a second), "-calllog" (calls played a 10 s window, with the biome).
@@ -1793,7 +1796,7 @@ namespace Punchy.Debugging
                 }
                 for (int attempt = 0; attempt < 400 && spawned < count; attempt++)
                 {
-                    var xz = player.Position.xz + rng.NextFloat2Direction() * rng.NextFloat(6f, 45f);
+                    var xz = player.Position.xz + rng.NextFloat2Direction() * rng.NextFloat(math.min(6f, spawnRadius * 0.5f), spawnRadius);
                     var g = source.SampleGround(xz);
                     var depth = g.HasWater ? g.WaterSurface - g.Height : -1f;
                     if (wantsWater ? depth < 1f : depth > 0f)
@@ -2536,6 +2539,7 @@ namespace Punchy.Debugging
         /// with how many creatures within 40 m are fleeing, of how many (the fear distance counts height).
         /// </summary>
         static float liftHeight;
+        static float spawnRadius = 45f;
         static bool callLog;
         float callLogNext;
         int callLogFrom;
