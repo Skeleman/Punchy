@@ -2,6 +2,15 @@
 
 Newest first.
 
+## W-58b (2026-11-03): kit polish, walk test, docs, mound sim
+- Row 1 before/after: titan and head shots showed no colossus (camera at the editor-probe spots, not where the player places them) -> retaken at the player spots, both colossi in frame. Ruin: flat green squares on walls (one ivy box per bay) -> thin trailing strands; dark glass panels in ruin windows -> real holes; rafters floating at random tilt -> rest on the floor. Intact houses: wall collider circles bulged ~1.2 m past the wall over the door step and outside stair -> set back to the wall face. Left: trees grow through the half-buried head (no flora keep-out round colossi).
+- Row 2 (ElfGrove, player -walk): 5 houses (-2529.8,-1576.0; -2500.5,-1576.6; -2458.3,-1548.5; -2468.7,-1525.8; -2451.3,-1510.8) - all reached the front door and stopped 3.0/4.7/3.3/4.7/3.2 m from the centre, two up on the step (+0.5 m); no snag before the door, no fall-through. Doors are closed (no interiors), so "through" = up to the door. Stair (editor sim, player rules, step 0.4): 7 of 24 KitHouse variants have one, all 7 climb to the 3.4 m landing, no snag, no fall.
+- Row 3: StructureKit section in docs/agents/world.md (committed 3b09f20), incl. notes for W-59 docks (Platform) and trims.
+- Row 4 (#70, mounds grown directly, 5 copies on ElectricWastelands ground): all have colliders (1-9 circles, 0.57-1.88 m tall); centre walk blocked/slid on 4, 1 missed the pieces; edge walk 20/20 on all 5, no snag, 0 pass-through.
+- Row 5: build 1x Succeeded, 0 errors. v2 127 landmarks, raw A5ED303A (= 0AAACD45, unchanged). v1 103 landmarks, raw F628AE5F (same raw as W-57; not mapped to the 19885131 form). Ground/caves/rivers not re-hashed: no ground, cave or river code changed (kit colliders and ruin meshes only).
+- Shots: D:/PunchyMilestones/W-58b (city_street_elfgrove, city_overview_elfgrove, ruin_kit_1420_2160, colossus_kneeling_titan, colossus_halfburied_head).
+- PROBLEM: the v1 check player (PID 23204, Builds/Dev) is still running: inline -quit only fires after a shot list, and I launched it without one. Not killed. Builds/Dev stays locked until it is closed.
+
 ## W-58 (2026-11-03), world-features 0c85421 (WIP)
 - DONE #24 kit: StructureKit (pieces Wall, Floor, Roof, Door, Window, Trim, Rail, Stair, Rubble, Moss; trims per culture), FloraForm KitBuilding/KitRuin. Temple(seed) unchanged (CAB1F447 / 777 21F1AD29). Kit house seed 42: 203 parts, fp B65B386D; ruin 107 parts.
 - DONE #24 city: ElfGrove is the biggest (r 96, -2511,-1518, 28 plots). ElfGroveLayout gets KitBuilding = KitHouse (Elf trims, 24 variants, seeded per building). Plots unchanged. Shots: city_street_elfgrove, city_overview_elfgrove.
