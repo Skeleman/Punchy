@@ -1036,3 +1036,18 @@ DONE (all four rows). animal-behaviours de2e8e0, on top of the origin/main merge
 - Hashes: v2 125 / D709D95C (player log), 0 exceptions, the player quit on its own. v1 not re-run (render code only).
 - One build, succeeded. Commit ab3c458 on animal-behaviours, pushed.
 - Shots: PunchyMilestones animal/a33 (800 px), full size in raw/.
+
+## A-34 (2026-11-02)
+- Row 1 NOT DONE (flag done, difference not obvious): `-walk x,y,z` walks the player toward a point and logs height
+  over floor and metres pushed (PushedTotal). seg 87: the -goto start floors at y 47.4 (not 54.4) and the walk goes
+  off a drop, so the player is airborne 3-6 m over the floor. Before (-nopushout): pushed 0 m. After: 0.9 m in the
+  first 0.25 s, 1.6 m in all, then 0. The 0.5 s pair (a34-slope87-*-early) shows the body beside the wall in both,
+  slightly lower and nearer in "after"; the 1.0 s pair lost the body off frame. No visible clipping difference.
+- Row 2 PARTLY DONE: -watch fixed. "Ogre:Merchant" found nothing because OgreCamp's merchants are Goblins; "119 m
+  below" was TargetHeight 0 at work. Added `*` species, a once-only warning naming who holds the job, and a "no
+  height" readout. Shots: goblin merchant at the stall (gesture does not read clearly, side shot blocked by a post),
+  ogre gatekeeper at work with spear, ogre baker walking to its post (Work stage 0). New `-untilwork S`.
+- Row 3 DONE: woodcutter with axe over head, log pile beside not in front (a34-woodcutter-a); human smith hammering
+  at the anvil with sparks (a34-smith-side).
+- Hashes: v2 125 / D709D95C (player log), 0 exceptions. v1 not re-run (debug/movement-probe change only).
+- One build, succeeded. Commit a5c8e9e on animal-behaviours, pushed. Shots: PunchyMilestones animal/a34 (800 px), raw/.

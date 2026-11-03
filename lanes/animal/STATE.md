@@ -1,44 +1,51 @@
-# Animal lane: state (2026-11-02, after batch A-33)
+# Animal lane: state (2026-11-02, after batch A-34)
 
-Worktree `Punchy` (animal lane only). On `animal-behaviours` = origin ab3c458 (A-33), on top of cbdf5d1 (A-32).
+Worktree `Punchy` (animal lane only). On `animal-behaviours` = origin a5c8e9e (A-34), on top of ab3c458 (A-33).
 Untracked `Assets/_Recovery/` is old and not ours. Editor on port 7800.
 
+## Shot flags added (A-34)
+- `-walk x,y,z`: steers the player (PlayerInputSystem.TestMove) toward the point's xz until within 0.3 m. Logs every
+  0.25 s: position, metres to go, height over the floor, cave biome, and PlayerMovementSystem.PushedTotal (metres
+  the cave push-out has moved the player since the -walk line). Use with -goto start and -wait N; shot is mid-walk.
+- `-untilwork S`: holds the shot until the watched creature has been in CreatureMode.Work for 1 s (max S seconds).
+- `-watch *:Job`: any species. If the species is wrong, one warning names who holds the job. The readout says
+  "no height" when TargetHeight is 0 (folk at work), plus species and FolkJobs.Of.
+
+## -watch Ogre:Merchant (A-34)
+- Not a camera bug: OgreCamp's merchants are Goblins (log: "that job is held by: Goblin Goblin"). "119 m below"
+  was TargetHeight 0 at work. `-watch *:Merchant` frames the goblin merchant at the stall.
+- Ogre baker shot came at Work stage 0 (walking to post); ogre gatekeeper at Work stage 1 with spear.
+
+## Slope push-out pair (A-34): still no visible difference
+- seg 87: -goto -3993.8,54.4,812.7 floors at y 47.4 (7 m below the given point); walking to -3989.4,44.3,807.3
+  the player walks off a drop and falls (3-6 m over the floor), so it is airborne, not pressing a slope.
+- Before (-nopushout): pushed 0 m. After: pushed 0.9 m in the first 0.25 s, 1.6 m in all, then nothing.
+- The 1.0 s mid-walk shots lost the player off frame; the 0.5 s pair shows the player hanging beside the wall
+  in both, a little lower and nearer in "after". Not an obvious clipping difference.
+
 ## Job work poses and props (A-33)
-- CreatureAnimator: Tend switches on FolkJobs.Of(s). Baker kneads (Knead), healer bends over (TendBody), well
-  keeper hauls hand over hand (Haul). Guards/gatekeepers on watch (Watch at work, or Patrol standing still) get a
-  slow head turn (LookAbout) and hold the spear in the right hand when nothing else is held.
-- CreatureRenderSystem: GearParts 5 -> 8 (0-1 tool, 2 apron, 3-4 hat, 5-7 extras). HasGear covers Watch.
-  Baker: dough, white cap and apron, table and loaf. Healer: bowl, satchel and strap, no hat. Well keeper: rope
-  and bucket. Guard: 2 m spear. Smith: tongs and hot bar. Woodcutter: block, log, split piece. Farmer: hoe.
-  Trader/merchant (Gesture): jar or fruit by Individual&1.
-- All of it is derived from job/task. A client sees the task-implied job (Job is not a ghost field): a baker
-  reads as a well keeper there. Rule 11 holds.
-- Seen in shots: baker, healer, gatekeeper spear, well keeper (Human); dwarf guard spear, dwarf smith hammer.
-  Not seen: woodcutter (log pile in front), merchant/ogre jobs (watch didn't frame them), human smith (idle).
-- Bat folk roost keeper/tanner/forager: no bat-folk species walks yet, so there is nothing to show.
+- CreatureAnimator Tend switches on FolkJobs.Of(s): Knead, TendBody, Haul, LookAbout + spear for guards.
+- CreatureRenderSystem GearParts 8 (0-1 tool, 2 apron, 3-4 hat, 5-7 extras). All derived from job/task;
+  a client sees the task-implied job. Rule 11 holds.
+- Seen: baker, healer, gatekeeper, well keeper, dwarf guard/smith; A-34 added human woodcutter swing (axe over
+  head, a34-woodcutter-a) and human smith hammering with sparks (a34-smith-side).
 
 ## Crossing fishers (A-31/32)
-- Fauna/RoadCrossings.cs reads the settlement bake; the roll is Scramble(centre) % 3 == 0, seed-derived.
-- FaunaDirector.SpawnCrossingFishers by day with a player within 120 m. Fallback: the lowest-Roll crossing.
-  v1: 3 rolled; v2: 0 rolled, fallback at -2544.3,884.6. `-place crossing` frames it.
-
-## Talk bubble (A-31)
-- -chatshot sets FolkTalkLabels.BubblesWithoutHud; a32-talk-line.png shows a role line.
+- Fauna/RoadCrossings.cs; roll Scramble(centre) % 3 == 0. v2 fallback at -2544.3,884.6. `-place crossing`.
 
 ## Cave collision and camera (A-30/32)
-- PlayerMovementSystem.PushOutOfSolids runs only in caves and only on a moving player's step (from -> position).
+- PushOutOfSolids runs only in caves, only on a moving player's step, gated by NoPushOut.
   ThirdPersonCamera.CaveArm sphere-traces. Bodies fade when the camera is within ~0.6 m.
 
 ## Test flags
-- Shot lists: -place, -goto x,y,z, -view, -camrel, -watch Species:Job, -watchfrom h,d, -nopushout, -time,
-  -weather, -nohud, -chatshot, -wait, -shot. Launch line: -shotlist, -shotdir, -quit. The player takes -island v1.
-- Hashes: v2 125 / D709D95C (A-33 player log); v1 101 / E128CB1D (A-31, render-only change since).
+- Shot lists: -place, -goto, -view, -camrel, -watch Species:Job (or *:Job), -watchfrom h,d, -nopushout, -walk,
+  -untilwork, -time, -weather, -nohud, -chatshot, -wait, -shot. Launch: -shotlist, -shotdir, -quit, -island v1.
+- Hashes: v2 125 / D709D95C (A-34 player log); v1 101 / E128CB1D (A-31; debug/movement-probe change since).
 
 ## NEXT
-- Slope before/after: still identical in A-33 (seg 87 and seg 9, mid-slope, -camrel). The push-out only acts on
-  a step, so a player standing still never differs. It needs a walk: add a shot flag that walks the player down
-  the slope (like -autowalk for climbs), or -goto the steep top point and compare after a fall.
-- OgreCamp: -watch Ogre:Merchant did not frame (log: target -119 m up, anchor 2433 m). Check the species name
-  and why the folk read far off; then retake merchant/ogre baker.
-- Retakes: woodcutter from the other side (-watchfrom), human smith while working.
+- Slope pair: seg 87 is a drop, not a slope. Pick a walk with a continuous floor (probe floor height along the
+  line first), keep -walk short (2-3 m), and frame wide with -camrel so the body stays in shot.
+- Merchant gesture: the goblin merchant is framed but the gesture does not read; shoot closer, front-on, with
+  -untilwork.
+- Ogre baker settled at work (-untilwork 20).
 - Close-camera fade before shot; fords (0 found).
