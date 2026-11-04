@@ -1584,3 +1584,25 @@ Calls: about 80 across A-51 and the aborted A-50 start (A-51 alone was about 55)
 - Log lines: "[dungeon] Default World dungeon 81: animals rebuilt, 11 creatures made again at their posts"; "[dungeon] Ghost guards its chest: faces a player 35 dm away, 0 dm from the chest" (temple); "Tarantula guards its chest" (stand-in); "[dungeon] CaveSalamander drinks at its NearWater socket (526, 958)", also GiantSpider and GlowMoth. 0 exceptions.
 - Not retested here: host/client netcode worlds (this editor ran the local world). Editor closed.
 - Calls used: ~33.
+
+## A-53 (2026-11-04): audio master hook, cave FPS, CreatureState split (plan only)
+- Row 1 done: f776f88 (animal-behaviours, pushed). AudioListener.volume = focus x Master; Master dropped from the voices
+  (one-shots and loops), so the weather's own source follows master too. Editor Play logs:
+  `-settings master=0` -> `GameAudio: listener volume 0.00 (focus 1.00 x master 0.00)`; `master=0.5` -> 0.50; reset to 1.
+  Player lane: PlayerOptions.cs line ~124 comment ("AudioListener.volume don't read GameAudio.Master yet") is now stale.
+- Row 2 (#81), profiled only, no fix committed. 530,958 is the **v2** bat folk chamber (`cave 26 chamber 525,45,958`);
+  on v3 (layout B seed 8121) there is no cave within 120 m of it; the v3 bat folk chamber is -2674,23,-608.
+  Editor Play, uncapped, 240 frames, main-thread CPU ms (median / p95 / PlayerLoop):
+  - v2 cave floor 527,40,958: 8.14 / 9.94 / 6.06. v3 bat folk cave: 5.21 / 6.19 / 3.63. v3 surface at 530,958: 8.50.
+  - v2 spot top fauna (ms/frame, total): CreatureSnapshotSystem 0.80, TraceSystem 0.32, HeldPoseSystem 0.31,
+    CreatureRenderSystem 0.29, CreatureAudioSystem 0.14 (fauna ~1.9 ms). Brain 0.04, dungeon posts not in the top 25.
+  - World-owned: CaveSystem.Update 0.53 (largest single Punchy cost), AmbienceSystem 0.34, WeatherSystem 0.24.
+  - CPU is not "dreadful" in the editor, so the drop Zach saw is likely GPU-side (cave lighting, transparent pool or
+    particles) or build-only. Next: a v2 build bench at that spot with GPU frame timing, then fix the snapshot sync
+    (CreatureSnapshotSystem's cost is mostly waiting for the jobs that write CreatureState).
+- Row 3 (#58) not started (call ceiling). Plan: move the brain-only fields into a new `CreatureMind` component
+  (LookAt, LookEntity, LookKind, Timer, Partner, Leash, Home, ChatCool, ChatResume, LodDebt, LodCoast, RouteLeg,
+  ChaseCooldown, WeaponCalm, Unsettled, TargetHeight). CreatureState keeps what movement, animation, rendering, audio
+  and replication read (Position, Yaw, Speed, GaitSpeed, Phase, Mode, Scale, Action, Lie/Sit/Fly...). Brain jobs get
+  CreatureMind RW; the snapshot and ghosts get a smaller CreatureState. Mostly CreatureBrainSystem.* plus DebugControls.
+- Calls: ~42 of 45. Editor closed. Temp/PlayArgs.txt removed.
