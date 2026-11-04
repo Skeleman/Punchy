@@ -1,5 +1,18 @@
 # Player lane reports
 
+## 2026-11-03 batch P-2: island version from host to client (v3 B14, brief 8B)
+- DONE: host sends each new connection its baked island version (IslandVersionRpc); a joined client's IslandV2System waits for it (up to 15 s, then bakes its own with a warning) and bakes the host's version; solo/host keep the launch flag; bake cache keyed by version; fingerprint uses the version actually baked (check waits until baked); `-worldsalt N` test flag sets WorldSync.TestSalt (player-client 99cfd9c, on main 913d1b2)
+- NOTE: new RPC type = network table change (RPC hash): builds before 99cfd9c can't join builds after it
+- A host `-island v3`, client no flag: client "WorldSync: host runs island v3 (this launch asked for v2)" / "[island] host runs island v3; this launch asked for v2: switching to v3 (ClientWorld)" / "sending world check B291FD17"; host "player 1 has the same world (B291FD17); welcome". Client in game, 50 animals, 60 fps
+- B host v2, client `-island v3`: "switching to v2", both CAC3BAE8, welcome
+- C host v2, client `-worldsalt 7`: host "a player built a different world (0613F356, ours CAC3BAE8) ... host runs island v2. Disconnecting them."
+- OPEN (not proven mine): in all 3 host logs the host's OWN local client timed out at start-up ("Net (server): connection 1 disconnected (Timeout)" right after the server bake) and the host stayed "in game False, players 0"; the joiner was fine. a46b (older main) host had no timeout, but start-up was slower here (island ready 10.1 s vs 7.5 s, scene stream latency 6.5 s vs 3.8 s; other instances were running). Next: one host-only run of a main 913d1b2 build vs this build to attribute it
+- Also seen: C client NullReferenceException in DebugControls.ShotList (EntityQuery.TryGetSingleton) after "Lost the connection to the host"; animal lane's file, pre-existing path; shot list still finished and quit
+- Checks: compile 0 errors (1 fix: WorldFlags instead of NetCode IsClient in Terrain code), 1 build Succeeded 0 errors, 6 player runs all quit, no Punchy.exe left; editor closed
+- Shots: D:/PunchyMilestones/P-2/A-client.png (v2-launched client in game on the v3 island)
+- Cost: ~58 calls, 1 build
+- NEXT: attribute the host self-timeout (baseline run); a `-quitafter` flag so log-only net tests can run lighter (see RAM notes)
+
 ## 2026-11-03 batch P-1: resolution and window mode in the Graphics tab
 - DONE: #78 Graphics tab (main menu, also Esc in game) has Resolution (slider over the monitor's sizes, deduped by WxH, 14 on this PC), Window (Full screen / Borderless / Windowed) and Apply display; saved in PlayerPrefs (Punchy.Display.*) and re-applied at start (player-client 1a9ef6c)
 - DONE: keyboard / pad nav via MenuNav (slider steps left/right, buttons choose); no new tab, rows sit above Frame cap
