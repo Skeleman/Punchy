@@ -37,7 +37,7 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #10 #35 #37 #38 #8 | New settlements and races (bat, sea, turtle, fish folk, pygmies; race reactions) | after W-59 (Zach priority 3) |
 | #25-#27 | Roadmap | backlog |
 | #28 | Linux build | on hold |
-| #84 #86 #88 | Distance shadows/fog, driftwood, lake shelf waterfall | W-77 (part), W-77b |
+| #84 #86 #88 | Distance shadows/fog, driftwood, lake shelf waterfall | W-77 (part), W-77b; #88 tabled by Zach 11-04 after W-92 |
 | #102 | Startup hitch after island ready | W-79, A-52 |
 | #81 #58 | Cave FPS, CreatureState split | A-53 (#81 CPU fine in editor; build GPU check bench job 22), A-53b (#58) |
 | #87 | Flat house plots | W-80 |
