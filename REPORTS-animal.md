@@ -1481,3 +1481,15 @@ Left: #57 more runs; #46 test with a moving player; client-connected tab shot (h
   - animal-a47-split e6fb97a (side branch, not on animal-behaviours yet): #61 mechanical split into 7 files, the largest 1,223 lines. Not compiled.
 - **No numbers yet.** Rows 1, 2, 3 and 5 were not run. Row 4 has no before/after comparison. The hash check was not run. No build was made.
 - **Next (A-47b), after an editor restart:** recompile, then run Temp/a47_e1.txt in the editor. It covers the #57 3x300 s runs, the #46 ground vs 30 m pass, the #61 fixed-step lines and the #59 busy spot with LOD on and off. Then merge the split branch, rerun the #61 lines, check the hashes, and do one build plus the net run with a longer host list.
+
+## A-47b (2026-11-03): blocked on RAM, only the merge done
+
+- **Blocker:** free RAM never reached 7 GB. It was 5.5 GB at the start, 4.8 GB at the last check of the 60 min wait, and 3.1 GB at 20:52 with the world and player editors open. I never opened the animal editor, so rows 0 (editor part), 1, 2, 3, 4 and 5 did not run. No numbers, no hashes, no build.
+- **Row 0 (git part) done:** animal-behaviours 937706d merges origin/main (PR #89) with a merge commit. The merge was clean and is pushed. TraceSystem now has the Burst GroundJob after the A-45 cheap-checks-first order. I kept it as it is.
+  - Note: `-oldtrace` now sets both OldTrace (#81, managed lookups) and OldOrder (#55, every creature sampled). An "old" run is therefore old on both counts.
+- **The import-worker settings were not applied** because that needs the editor. ProjectSettings/EditorSettings.asset is unchanged.
+- **Split merge (row 2) is ready to resolve:** `git merge-tree` of HEAD and animal-a47-split conflicts only in CreatureBrainSystem.cs. Take the split's file, then re-apply main's two W-57 hunks:
+  - the hermit Stage line (`AnchorSide >= 2 ? AnchorSide : 1`) stays in CreatureBrainSystem.cs, around line 929;
+  - `s.AnchorSide = 1;` becomes the Variety form in CreatureBrainSystem.Folk.cs, line 204.
+  - The 6 new partial files have no .meta files yet. Unity makes them on import, and they must be committed.
+- **Next (A-47c):** the same card once there is 7 GB free, for example when one of the other editors is closed.
