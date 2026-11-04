@@ -228,22 +228,39 @@ namespace Punchy.Net
                     if (q.TryGetSingleton<Unity.Transforms.LocalTransform>(out var t))
                         CarriedPosition = t.Position;
             var solo = Solo ? World.DefaultGameObjectInjectionWorld : null;
-            // #99 (P-8): the scene's MonoBehaviours (flora, caves, fauna, ambience, weather) keep jobs running across
-            // frames that read the worlds' terrain blobs, and finish them only in OnDisable, which used to come with the
-            // scene reload, after the worlds (and the subscene's blobs) were already gone: hosting a second time then
-            // crashed in native code (burst.initialize.statics) about 2 runs in 3. Switching the old scene off first
-            // makes them finish their jobs now; the scene is reloaded onto the new worlds right after anyway.
-            foreach (var root in SceneManager.GetActiveScene().GetRootGameObjects())
-                root.SetActive(false);
+            // #99: the worlds' jobs and the scene scripts' jobs read each other's data (the subscene's terrain blobs;
+            // flora, cave and fauna containers the scripts own), so nothing may be freed while either kind still runs.
+            // P-8 switched the scene off first, which freed the scripts' containers while the worlds' jobs could still
+            // be reading them: on the laptop that crashed on the first switch (job 23). The order is now:
+            // 1. every job the worlds track finishes; 2. the scene is switched off, so the scripts finish their own jobs
+            //    and free their containers (OnDisable); 3. the worlds' jobs again (anything step 2 set off), then dispose.
+            // The scene is reloaded onto the new worlds right after anyway. "-hostorder old" keeps P-8's order (tests).
+            var doomed = new System.Collections.Generic.List<World>();
             for (int i = World.All.Count - 1; i >= 0; i--)
             {
                 var world = World.All[i];
                 if (world.IsClient() || world.IsServer() || world == solo)
-                {
-                    world.EntityManager.CompleteAllTrackedJobs();
-                    world.Dispose();
-                }
+                    doomed.Add(world);
             }
+            var oldOrder = OldHostOrder();
+            if (!oldOrder)
+                foreach (var world in doomed)
+                    world.EntityManager.CompleteAllTrackedJobs();
+            foreach (var root in SceneManager.GetActiveScene().GetRootGameObjects())
+                root.SetActive(false);
+            foreach (var world in doomed)
+            {
+                world.EntityManager.CompleteAllTrackedJobs();
+                world.Dispose();
+            }
+            Debug.Log($"GameBootstrap: {doomed.Count} worlds disposed ({(oldOrder ? "P-8 order" : "jobs first")})");
+        }
+
+        static bool OldHostOrder()
+        {
+            var args = Punchy.Debugging.DebugControls.LaunchArgs;
+            var at = Array.IndexOf(args, "-hostorder");
+            return at >= 0 && at + 1 < args.Length && args[at + 1] == "old";
         }
 
         // The subscene and every MonoBehaviour bind to the worlds as the scene loads, so reload it onto the new ones.
