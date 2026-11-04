@@ -44,3 +44,4 @@ no machine paths or personal info. Never bare `git stash`.
 - P-13 done 11-04 (f4e050a): house interiors (7 seeded rooms, 98 doors lead inside), door teleport, host-owned lamps.
 - P-14 done 11-04 (8413361): containers (chests, room storage), host-owned; drop cap 256. P-15 next.
 - P-15 done 11-04 (77887d3): quests archive + notice boards + host-owned progress. Nothing in flight.
+- P-16 done 11-04 (941e41b): quest UI sizing, interior ambient, rabbit camera checked clean, pad inventory input (item move not shown). P-17 next.
