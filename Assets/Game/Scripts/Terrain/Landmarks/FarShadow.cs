@@ -79,7 +79,9 @@ namespace Punchy.Terrain
                     return;
                 }
             }
-            if (Vector3.Angle(toward, lastSun) > 1f)
+            // lastSun starts at zero, and Vector3.Angle with a zero vector is 0, so this used to never lay the strip
+            // at all (W-82): every far shadow drew as a degenerate mesh at the origin.
+            if (lastSun == Vector3.zero || Vector3.Angle(toward, lastSun) > 1f)
             {
                 lastSun = toward;
                 Lay(source, foot, height, radius, toward);
