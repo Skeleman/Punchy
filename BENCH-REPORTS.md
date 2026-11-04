@@ -2,6 +2,17 @@
 
 Newest first.
 
+## 2026-11-04: job 24c, far shadow fix (W-90, PR #120) on main ccdad75: the 4 s stall is gone. Worst frame 23-34 ms on every walk (was 56-87 ms), no frame over 50 ms, and shadows on = -nofarshadow. StoneColossi.Update peaks at 0.52 ms in the capture (was 44 ms)
+Method: Bench-ccdad75, v3, uncapped, the q24 walks (hereclose: 300 m out along the colossus's facing, 6 m/s to 20 m), far shadows on vs -nofarshadow, 2 runs each, rotated. Then a Profile-build capture of the lizard walk (shadows on), last 2000 frames, with BigFrame and BProfileTools. 0 exceptions, no crash.
+- PR #118 moved the plant: (-53, 34, 516), facing 309 (was -167, 78). The lizard is unchanged at (-515, 26, -2477). Golem and saguaro are now placed too (7 colossi).
+- **Avg fps / 1% low / worst frame, mean of 2 runs:**
+  - Lizard, shadows on: 107.0 / 59.5 / 29 ms. Off: 107.0 / 57.5 / 34 ms. Before the fix (810955f, job 24): 105.0 / 37.0 / 62 ms.
+  - Plant, shadows on: 106.7 / 65.1 / 23 ms. Off: 106.8 / 61.3 / 28 ms. (The plant isn't in the same spot as in job 24, so no before for it.)
+  - Frames over 50 ms: 0 in all 8 walks (12 per walk before). The 1% low is up from 37 to about 60 fps.
+  - Shadows on vs off are the same within noise, so the far shadows now cost nothing measurable.
+- **Capture (lizard walk, shadows on):** 0 frames over 33 ms in 2000. Median 9.6 ms, p95 11.6 ms, worst 28 ms (TerrainStreaming, flora and rendering: nothing in it is the shadows). StoneColossi.Update: 0.03 ms median, max call 0.52 ms. The build's own log: [farshadow] schedule frame 0.44-0.54 ms (1.66 ms the first time), land frame 0.05-0.07 ms.
+- Scripts: q24c.sh. Logs: results/q24clogs/, results/prof24c-lizard-big.txt, prof24c-lizard.txt.
+
 ## 2026-11-04: job 24 (+24b), walking up to the new colossi on v3 (#40, main 810955f): no extra cost from the lizard or the plant themselves. But main now has a 44 ms main-thread frame every 4.0 s everywhere: StoneColossi far shadows re-laid all at once (#84, 1ace8bc7)
 Method: Bench-810955f, v3, uncapped. New runner stop `hereclose -close x,z,yaw`: 10 s still 300 m out along the colossus's facing, then a 6 m/s walk to 20 m from it, every frame over 50 ms logged with its distance. Control: the same walk aimed 800 m to the side, no colossus within 400 m. 2 runs each, rotated. Both colossi are placed on v3, so -colossus wasn't needed (and it can't spawn these two anyway: it only swaps the knight/smith back in). 24b: one Profile-build capture of the lizard walk with a BigFrame dump. 0 exceptions in all logs.
 - Placed (v3): SkeletalLizard at (-515, 26, -2477), facing 226; CarnivorousPlant at (-167, 98, 78), facing 306.
