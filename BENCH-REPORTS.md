@@ -2,6 +2,25 @@
 
 Newest first.
 
+## 2026-11-04: job 28, recheck on main 6f139d0: the NetMenu hitches are gone (host 14 -> 2, client 3 -> 0). New: fishing villages run at 50-62 fps because the brain job's Brain.Advance costs 6.7 ms a frame there (#132). The salt flat with the bigger ball and the town are clean. A glide burst seen once did not reproduce
+Method: Bench-6f139d0, uncapped, hitch log at 33 ms: the job 27 v2 route, the fish wharf, 30 s in each of the 7 fishing villages (4 on v2, 3 on v3), the salt crystal walk (hereclose), and host + client join/leave at the v2 cave. Then Profile-6f139d0p captures (-fpscap 60) of townwalk, glide, v2 fishing village 1 and the salt walk. q28b: the glide stop alone, 6f139d0 vs 1699574, 3 runs each, alternating. 0 exceptions, no crash.
+- **NetMenu fix (#125) confirmed.** Host: 2 hitches (33, 35 ms, not on the 10 s beat), down from 14 (34-55 ms, one every 10 s); worst frame 34.9 ms (was 55.2). Client: 0 hitches (was 3); 126.8 fps with a 1% low of 85.1 (was 110.0 / 60.4). The river's 40 ms status frame is gone (worst 27.6 ms).
+- **Fishing villages (A-66):**
+  - Avg fps / 1% low: v2 61.5/37.2, 87.5/47.7, **50.0/36.3**, 100.2/59.2; v3 94.6/49.5, 89.8/51.0, 65.0/50.2. The wharf runs at 113, the town at 87.
+  - Capture at v2 village 1, about 113 animals: CreatureBrainSystem:BrainJob median 9.0 ms (max 23.9). The main thread waits 6.3 ms median (max 20.3) in CreatureSnapshotSystem.
+  - Brain.Advance is 6.7 ms over 57 calls, against 0.63 ms over 41 calls in the bat cave (job 27, about 190 animals): about 8x per call.
+  - Likely the wall check: Walled -> FloraPlacement.Blocked, per walker per frame, plus up to 14 slide retries when blocked, among a village's buildings. It's the animal lane's file, so filed as #132 with the numbers.
+  - Two frames over 33 ms there (35, 43 ms) in v2 village 3.
+- **Salt flat (W-94 ball, about 9.6k verts):** the walk ran at 114.9 fps, 1% low 59.2, worst 22.1 ms, 0 frames over 33 ms; the capture also had 0 in 2000. Town, townwalk, forest, cave, lake, river and the wharf had 0 frames over 33 ms in Bench. The townwalk capture had 2 (35 and 38 ms: worker jobs SurfaceGlow ScanJob and CreatureRender PoseJob running long).
+- **Glide:**
+  - The route's glide had a 15 s burst: 64 frames of 33-58 ms, avg 58.6 fps, while descending at x 650-885.
+  - q28b, the glide stop alone: 6f139d0 averaged 89.2 fps / 1% low 41.6 with 0-1 hitches per run; 1699574 averaged 91.1 / 41.8 with 0-2. Same within noise, so the burst was a one-off on that run, not a regression.
+  - The glide capture shows AmbienceSystem:HeatMapJob occasionally running long on the workers: up to 171 ms of summed worker time in one frame, mean 0.09 ms. It was present on 1699574 too (52-64 ms).
+- **Run and dash:** 3 + 1 frames of 33-35 ms while streaming at speed, as in job 27.
+- Hazard houses (W-94 row 1) aren't covered: the game doesn't log harsh-biome settlement positions, so no stop goes there.
+- Scripts: q28.sh, q28b.sh. Logs: results/q28logs/, results/prof28-*-big.txt / .txt.
+- Cost: 34 calls, peak 400k context, $2.43
+
 ## 2026-11-04: job 27, big frame hunt on main 1699574: almost every frame over 33 ms left is the NetMenu status line (fixed on b/fix-netstatus, not merged yet). Colossus walks, wharf and town are clean. Startup's island-ready frame is 10.0 s (was 24.4 s in job 19, #102), and 8.6 s of that is the bake itself. SaltCrystalRoll costs 0.02 ms a frame
 Method: Bench-1699574, uncapped, hitch log at 33 ms: the v2 route (town, townwalk, forest, cave, lake, river, run, glide, dash), the fish wharf 30 s, a hereclose walk to each of the 8 v3 colossi, and a host + client join/leave at the v2 cave. Then Profile-1699574p captures (-fpscap 60, last 2000 frames) of each stop, the wharf, the lizard walk and the salt crystal walk (q27b), plus startup from launch. Each capture got BigFrame and BProfileTools. 0 exceptions, no crash.
 - **Frames over 33 ms, ranked by how often x how long:**
