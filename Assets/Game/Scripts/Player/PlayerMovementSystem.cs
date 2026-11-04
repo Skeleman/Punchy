@@ -1137,6 +1137,14 @@ namespace Punchy.Player
         /// </summary>
         public static float SolidDistance(in TerrainSource terrain, float3 p)
         {
+            // #25 (W-83): interior cells' boxes are solid too (an empty list changes nothing).
+            if (InteriorCells.Count > 0)
+                return math.min(GroundSolidDistance(terrain, p), InteriorCells.Distance(p));
+            return GroundSolidDistance(terrain, p);
+        }
+
+        static float GroundSolidDistance(in TerrainSource terrain, float3 p)
+        {
             var open = p.y - terrain.SampleHeight(p.xz);
             // W-56: a sunken temple room is air under the ground; its walls are TowerWall's (SunkenTempleShape.Wall).
             if (terrain.TempleAir(p))

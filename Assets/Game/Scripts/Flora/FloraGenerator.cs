@@ -2980,6 +2980,57 @@ namespace Punchy.Flora
             };
         }
 
+        /// <summary>
+        /// #25 (W-83): a house type's door and inside, for interior cells (Punchy.Terrain.InteriorCells), at the species'
+        /// mean height and unscaled (multiply by the settlement's folk scale as the model is). <paramref name="door"/> is
+        /// the door's foot in the model's local space (it faces +Z); <paramref name="inside"/> is the room's inner width
+        /// (X), height (Y, one storey: up to the eaves or the first floor) and depth (Z), inside the walls. False for
+        /// forms with no door, and kit buildings other than houses and stilt houses (a stilt house's door is up on its
+        /// deck; the height is not added here).
+        /// </summary>
+        public static bool HouseInterior(FloraSpecies s, out Vector3 door, out Vector3 inside)
+        {
+            door = default;
+            inside = default;
+            var front = DoorFront(s);
+            if (front < 0f)
+                return false;
+            var height = (s.Height.x + s.Height.y) * 0.5f;
+            var half = height * s.Spread * 0.5f;
+            // The same sums as the builders (Hut, StoneHouse, Tower, Inn, Hall, KitStructure), less a wall's thickness.
+            switch (s.Form)
+            {
+                case FloraForm.Hut:
+                    inside = new Vector3((half - 0.15f) * 2f, height * 0.55f, (half - 0.15f) * 2f);
+                    break;
+                case FloraForm.StoneHouse:
+                    inside = new Vector3((half - 0.3f) * 2f, height * 0.65f, (half - 0.3f) * 2f);
+                    break;
+                case FloraForm.Tower:
+                    inside = new Vector3((half - 0.3f) * 2f, height * 0.62f, (half - 0.3f) * 2f);
+                    break;
+                case FloraForm.Inn:
+                    inside = new Vector3((half - 0.25f) * 2f, height * 0.6f, (half * 0.8f - 0.25f) * 2f);
+                    break;
+                case FloraForm.Hall:
+                    // Its floor is on the 0.6 m plinth: the door's foot is there too.
+                    inside = new Vector3((half - 0.3f) * 2f, height * 0.38f, (half * 0.55f - 0.3f) * 2f);
+                    door = new Vector3(0f, 0.6f - 0.05f, front);
+                    return true;
+                case FloraForm.KitBuilding:
+                    if (s.KitShape != Punchy.Terrain.KitShape.House && s.KitShape != Punchy.Terrain.KitShape.StiltHouse)
+                        return false;
+                    var width = height * s.Spread;
+                    var thick = Punchy.Terrain.StructureKit.Thick;
+                    inside = new Vector3(width - thick * 2f, Punchy.Terrain.StructureKit.For(s.KitCulture).Storey, width * 0.925f - thick * 2f);
+                    break;
+                default:
+                    return false;
+            }
+            door = new Vector3(0f, 0f, front);
+            return true;
+        }
+
         /// <summary>A doorway in a wall facing +Z, at distance <paramref name="front"/> (see Door).</summary>
         static void Doorway(Grower g, float front, float width, float height) =>
             Door(g, new Vector3(0f, 0f, front), Quaternion.identity, width, height);
