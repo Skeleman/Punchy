@@ -2,4 +2,3 @@
 
 Oldest first. Add yourself at the bottom; only the first line may open an editor (and only with >= 7 GB free RAM). Delete your line once your editor is open.
 
-- animal A-54b since 07:55
