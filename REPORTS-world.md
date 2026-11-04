@@ -1857,3 +1857,13 @@ Commits: world-features 178e226 (merge of origin/main, no rebase, 0 compile erro
 - Hashes (v3): 108 landmarks, 4D2643D7 at the start and the end on world-features. This matches W-77, not W-77b's 3A0DC7BB. I did not measure main.
 - Shot: D:\PunchyMilestones\W-77\w77c-driftwood.png. Only checked that it isn't blank (luma stddev 46).
 - Calls: about 27. Editor closed.
+
+## W-78 (2026-11-04): #40 two new colossi, #84 far shadows
+
+- Commit 4e3b63c on world-features (pushed).
+- Inventory (v3, before W-78): Dunes colossus, Dunes (1780, 13, -1973). Kneeling titan, the biggest Tundra/Glacier/Mountains region (-2034, 147, 1612). Half-buried head, the biggest Grassland/Temperate region (1629, 28, 2521). No colossus in Ashlands, ElectricWastelands, EmberForest, FoggyMarsh, FungalForest, GlassDesert, MesaCanyonlands, PoisonSwamp, SaltFlat (it has the salt tower, a landmark), Sonoran or SparklingForest.
+- #40: StoneColossi now has a GiantTortoise in FungalForest at (-1502, 3, -2769): moss-backed plated shell, a crop of mushrooms and one big toadstool on the crest, three stone eggs by a front foot, a chipped plate on the ground, a fairy ring on its snout. It also has a CrystalSerpent in ElectricWastelands at (701, 20, -511): a slate body arching through the ground, cyan and violet crystal spines, rubble rings and crystal shards where it dives under, the head reared with the jaw open, a snapped spine and shed scales nearby. Each kind has its own salt. The flora keep-out grows to 4 circles; its SharedStatic got a new key, because a live editor can't resize one and aborts Burst init.
+- Hashes (v3): 108 landmarks, 4D2643D7 before and after. The titan, head and Dunes spots are unchanged.
+- #84: FarShadow strips now draw for the sunken temple, all four stone colossi and the Dunes colossus. Frame near the tortoise: 5.57 ms (uncapped, editor play).
+- Shots in D:\PunchyMilestones\W-78\: w78-tortoise, w78-serpent, w78-far-tortoise, w78-far-serpent, w78-far-temple. I only checked that they aren't blank. w78-far-temple is nearly flat (luma stddev 7), probably haze at (3520, 360). It needs a reframe.
+- Note: the first compile aborted Burst on the SharedStatic resize and hung the editor, so I killed my own world editor (PID 22616) and reopened it. Calls: about 42. Editor closed.
