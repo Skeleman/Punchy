@@ -71,3 +71,6 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
 
 ## Job 18 (2026-11-04): W-75 + A-51 main-thread wins
 Bench world-features 096ec00 (W-75) and animal-behaviours b527dc1 (A-51) against main 9d34275 (Bench build each, uncapped): q13 route + hut cave stop, frame ms, worst frame, main-thread ms for CreatureRender, InteractionInput, TerrainStreaming, GroundDetail, Flora, AmbientParticle; plus "world ready at" (W-75 logs it; PUNCHY_LOADBOOST=0 for the off case). 3 runs each. Job 17 (W-76) follows when W-76 posts its SHA.
+
+## Job 19 (2026-11-04): startup streaming tail
+Bench world-features 4e3b63c (v3, also v2), laptop player, uncapped, 3 cold starts. Break down the ~20 s from island ready to "[stream] world ready": per-system main-thread ms per frame, chunks per frame, frames spent waiting on jobs vs idle, and which systems gate "world ready" (terrain mesh, flora, ground detail, colliders, landmarks). Rank the 3 biggest levers with estimated seconds saved and the owning lane. Also: the v3 landmark hash reads 108/3A0DC7BB in the player but 108/4D2643D7 in the editor probe; say which code path each uses if you can see it. Read-only.
