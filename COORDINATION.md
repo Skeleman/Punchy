@@ -70,6 +70,9 @@ feature code, and it never edits files in another session's checkout.
    island version, or compare same-island builds only (tonight's v0.7.0 vs RC compare was apples to oranges).
 13. **Waiting on someone:** before blocking on another session, ask that session whether you actually need to
    wait. If they don't answer within the hour, ask the supervisor.
+14. **Editors and RAM (Zach, 2026-11-03):** close your Unity editor at the end of a card unless your lane's next
+   card is already queued. Before opening one, check free RAM is at least 7 GB; if not, wait. Never close or kill
+   another lane's editor. Idle import workers are set to shut down (standby 0) as each lane merges main.
 
 ## Sessions and lanes
 
