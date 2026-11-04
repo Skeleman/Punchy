@@ -1,7 +1,11 @@
-# Animal lane: state (2026-11-04, A-64 done)
+# Animal lane: state (2026-11-04, A-65 done)
 
-Worktree `Punchy` (animal lane only). `animal-behaviours` = origin/main 6c39129 (PR #122), pushed, nothing open on top.
+Worktree `Punchy` (animal lane only). `animal-behaviours` = origin/main 6c39129 (PR #122) + e4880c2 (A-65 #63 terrain-sample caches), pushed.
 Fauna fingerprint 2DD98BAE (branch and main).
+
+## A-65
+- #61: already split in A-47c (7 files, max 1325 lines). #63: e4880c2 caches ambience/ear/swarm samples; cpu main 6.32 -> 5.88 ms
+  (noise-level), fingerprint unchanged. Both commented, open.
 
 ## A-64 (no code)
 - #57: stagger already on main (A-45, `SearchDue`, 0.2 s per creature). HumanVillage editor A/B: 3.17 vs 3.63 us/creature

@@ -1811,3 +1811,11 @@ Fingerprint: 2DD98BAE on the branch and on 810955f (unchanged).
 - A-63's 2.64 us at 99 creatures was a different time of day (no `-time`), so compare only within this card.
 
 Calls used: about 38. Editor closed (both); Temp/PlayArgs.txt removed.
+
+## A-65 (2026-11-04): brain split, main-thread terrain samples
+- Row 1 #61: no commit. The split already landed in A-47c (a172c51 + 2567e10): CreatureBrainSystem 1325 lines, .Activities 815, .Folk 907, .FolkWork 1037, .PetsCavesFlight 889, .Places 1073, .SensesMovement 772 (all LF, all under 1,500).
+- Row 2 #63: e4880c2 on animal-behaviours.
+  - Fixed: AmbienceSystem breathers (self conditions, footstep puff, remote players) re-sample ground/normal/surface only after a 0.5 m move. AmbientLife ear height re-samples after a 1 m move. CreatureRenderSystem swarm forager heights are cached per hive slot until the terrain changes.
+  - Left: FaunaDirector (17 sites, all per event or rate-limited; changing them would move spawn RNG), Burst jobs, the OldCull debug path, UpdateSplashes (per event). Full table on #63.
+- Editor HumanVillage `-time 12`, uncapped, 6 samples: cpu main mean 6.32 -> 5.88 ms (146-157 vs 131-136 creatures, so partly noise). Brain 0.37-0.67 -> 0.46-0.56 ms.
+- Fingerprint 2DD98BAE unchanged. Both issues commented, left open.
