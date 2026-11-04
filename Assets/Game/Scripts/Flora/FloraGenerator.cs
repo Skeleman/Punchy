@@ -102,9 +102,13 @@ namespace Punchy.Flora
     /// </summary>
     public static class FloraGenerator
     {
-        public static FloraModel Grow(FloraSpecies species, int variant)
+        /// <param name="shapeOnly">A-52: only what the animals' tables read (LOD 0's colliders, perches, chimneys, trunk
+        /// and height), with no meshes and no support grid: the same sequence, so those match a full grow exactly.</param>
+        public static FloraModel Grow(FloraSpecies species, int variant, bool shapeOnly = false)
         {
-            var model = TakePregrown(species, variant) ?? GrowParts(species, variant, species.name);
+            // A shape-only grow (the fauna's obstacle pass) skips the pregrown parts: those stay for the flora build.
+            var model = shapeOnly ? GrowParts(species, variant, species.name, true)
+                                  : TakePregrown(species, variant) ?? GrowParts(species, variant, species.name);
             model.Finish();
             return model;
         }
@@ -169,12 +173,12 @@ namespace Punchy.Flora
         /// Everything Grow does but making the meshes: pure code over the species' settings, safe on a worker thread
         /// (<paramref name="name"/> is the species asset's name, read on the main thread). FloraModel.Finish makes the meshes.
         /// </summary>
-        static FloraModel GrowParts(FloraSpecies species, int variant, string name)
+        static FloraModel GrowParts(FloraSpecies species, int variant, string name, bool shapeOnly = false)
         {
-            var model = new FloraModel { Species = species, MeshName = $"{name} {variant}", Pending = new FloraMeshBuilder[3] };
+            var model = new FloraModel { Species = species, MeshName = $"{name} {variant}", Pending = shapeOnly ? null : new FloraMeshBuilder[3] };
             model.CastsShadows = !FloraModel.Shadowless(species.Form);
             var seed = (int)Hash((uint)species.Seed, (uint)variant, StableHash(name));
-            for (int lod = 0; lod < 3; lod++)
+            for (int lod = 0; lod < (shapeOnly ? 1 : 3); lod++)
             {
                 var builder = new FloraMeshBuilder();
                 builder.FoliageAs = species.Finish == FoliageFinish.Metallic ? FloraPart.Metal
@@ -261,7 +265,7 @@ namespace Punchy.Flora
                     builder.Skirt(FoundationDepth);
                 if (lod == 0)
                 {
-                    if (Standable(species.Form))
+                    if (Standable(species.Form) && !shapeOnly)
                     {
                         // Clear ice arches stand like rock; a fountain's water (drawn as metal) is for wading.
                         var fountain = species.Form == FloraForm.Fountain;
@@ -289,6 +293,8 @@ namespace Punchy.Flora
                 }
                 // Built things stand rigid in the wind (benches, halls, palisades swayed like plants, Z-11); a garden's
                 // plants still move, and cloth has its own motion (Flora.hlsl).
+                if (shapeOnly)
+                    break;
                 var flexibility = Founded(species.Form) && species.Form != FloraForm.Garden ? 0f : species.Flexibility;
                 builder.Sway(g.Height, g.Width, flexibility, species.Form == FloraForm.Flowers);
                 model.Pending[lod] = builder;

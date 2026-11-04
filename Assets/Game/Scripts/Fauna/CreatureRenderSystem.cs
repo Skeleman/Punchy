@@ -118,6 +118,7 @@ namespace Punchy.Fauna
 
         protected override void OnDestroy()
         {
+            DropPosed();
             if (roosts.IsCreated) roosts.Dispose();
             if (hives.IsCreated) hives.Dispose();
             buffer?.Release();
@@ -496,13 +497,23 @@ namespace Punchy.Fauna
         protected override void OnUpdate()
         {
             if (!SystemAPI.ManagedAPI.TryGetSingleton<FaunaRenderSettings>(out var settings) || settings.Material == null || settings.Capsule == null)
+            {
+                DropPosed();
                 return;
+            }
             var cam = Camera.main;
             if (cam == null)
+            {
+                DropPosed();
                 return;
+            }
             var windDirection = Shader.GetGlobalVector("_PunchyWindDirection");
             CreatureAnimator.Wind.Data = new float4(Shader.GetGlobalFloat("_PunchyWind"), windDirection.x, windDirection.y,
                                                     Shader.GetGlobalFloat("_PunchyClock"));
+
+            // Last frame's posing, done on the workers since then: lit, uploaded and drawn now (FinishPosed).
+            PassStart(0);
+            FinishPosed(cam, settings);
 
             // (Copied out once: the counts below and the pose job both read these.)
             var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.TempJob);
@@ -519,82 +530,90 @@ namespace Punchy.Fauna
             const float behindCos = -0.17f;
             PassStart(bodies.Length);
             Pass(0);
-            {
-                // Which to keep: worked out in Burst (CullJob). In a cave every creature's ground height is sampled, and
-                // done here in managed code that was most of this system's time at a cave stop (A-22, #23).
-                var keepFlags = new NativeArray<bool>(bodies.Length, Allocator.TempJob);
-                if (OldCull)
-                    for (int i = 0; i < bodies.Length; i++)
-                    {
-                        var to = states[i].Position - camPos;
-                        var far = math.lengthsq(to) > BehindCullRange * BehindCullRange;
-                        var behind = far && math.dot(math.normalizesafe(to), camFwd) < behindCos &&
-                                     math.length(to) > bodies[i].Blob.Value.SeenFrom * 0.5f;
-                        var underground = hidden && !(states[i].Position.y < hiddenFrom.SampleHeight(states[i].Position.xz) - 1f);
-                        keepFlags[i] = states[i].Mode == CreatureMode.Puppet || !behind && !underground;
-                    }
-                else
-                    new CullJob
-                    {
-                        States = states,
-                        Bodies = bodies,
-                        Terrain = hiddenFrom,
-                        CameraPosition = camPos,
-                        CameraForward = camFwd,
-                        BehindCos = behindCos,
-                        Hidden = hidden,
-                        Keep = keepFlags
-                    }.Run(bodies.Length);
-                var keep = 0;
+            // Which to keep (CullJob, in parallel: in a cave every creature's ground height is sampled, A-22, #23), then the
+            // kept ones packed down and their parts counted (CompactJob), all in Burst on the workers (A-51, #62) while the
+            // main thread gathers what doesn't need the creatures: the small life, the birds overhead, cave fish, traces.
+            var keepFlags = new NativeArray<bool>(bodies.Length, Allocator.TempJob);
+            var offsets = new NativeArray<int>(bodies.Length, Allocator.TempJob);
+            var hanging = new NativeList<float3>(8, Allocator.TempJob);
+            var emoting = new NativeList<float3>(2, Allocator.TempJob);
+            var counted = new NativeReference<int2>(Allocator.TempJob);
+            var culling = default(JobHandle);
+            if (OldCull)
                 for (int i = 0; i < bodies.Length; i++)
                 {
-                    if (keepFlags[i])
-                    {
-                        bodies[keep] = bodies[i];
-                        states[keep] = states[i];
-                        entities[keep] = entities[i];
-                        keep++;
-                    }
+                    var to = states[i].Position - camPos;
+                    var far = math.lengthsq(to) > BehindCullRange * BehindCullRange;
+                    var behind = far && math.dot(math.normalizesafe(to), camFwd) < behindCos &&
+                                 math.length(to) > bodies[i].Blob.Value.SeenFrom * 0.5f;
+                    var underground = hidden && !(states[i].Position.y < hiddenFrom.SampleHeight(states[i].Position.xz) - 1f);
+                    keepFlags[i] = states[i].Mode == CreatureMode.Puppet || !behind && !underground;
                 }
-                if (keep < bodies.Length)
+            else
+                culling = new CullJob
                 {
-                    var b2 = new NativeArray<CreatureBody>(keep, Allocator.TempJob);
-                    var s2 = new NativeArray<CreatureState>(keep, Allocator.TempJob);
-                    var e2 = new NativeArray<Entity>(keep, Allocator.TempJob);
-                    NativeArray<CreatureBody>.Copy(bodies, b2, keep);
-                    NativeArray<CreatureState>.Copy(states, s2, keep);
-                    NativeArray<Entity>.Copy(entities, e2, keep);
-                    bodies.Dispose();
-                    states.Dispose();
-                    entities.Dispose();
-                    bodies = b2;
-                    states = s2;
-                    entities = e2;
-                }
-                keepFlags.Dispose();
+                    States = states,
+                    Bodies = bodies,
+                    Terrain = hiddenFrom,
+                    CameraPosition = camPos,
+                    CameraForward = camFwd,
+                    BehindCos = behindCos,
+                    Hidden = hidden,
+                    Keep = keepFlags
+                }.Schedule(bodies.Length, 16);
+            culling = new CompactJob
+            {
+                Bodies = bodies,
+                States = states,
+                Entities = entities,
+                Keep = keepFlags,
+                Offsets = offsets,
+                Hanging = hanging,
+                Emoting = emoting,
+                Counted = counted
+            }.Schedule(culling);
+
+            var terrain = SystemAPI.GetSingleton<TerrainSource>();
+            float3 camAt0 = cam.transform.position;
+            // The small life round the listener (AmbientLife: songbirds, owls, crickets, frogs...), drawn only.
+            var critters = AmbientLife.Near(World, camAt0);
+            var extraCount = critters.Count * CritterParts;
+            // Birds high overhead (geese and cranes in a V, soarers on a thermal), drawn only, from the shared clock.
+            var skyClock = SkyClock(out var skyHour);
+            extraCount += GatherSkyBirds(camAt0, skyClock, skyHour, terrain);
+            // Fish in the caves' pools near the camera, drawn only.
+            extraCount += GatherCaveFish(terrain, camAt0) * FishParts;
+            // Footprints and feathers (TraceSystem).
+            var traces = World.GetExistingSystemManaged<TraceSystem>();
+            var traceCount = traces != null ? traces.Count : 0;
+            extraCount += traceCount;
+            Pass(3);
+
+            culling.Complete();
+            keepFlags.Dispose();
+            var keep = counted.Value.x;
+            var total = counted.Value.y;
+            counted.Dispose();
+            if (keep < bodies.Length)
+            {
+                var b2 = new NativeArray<CreatureBody>(keep, Allocator.TempJob);
+                var s2 = new NativeArray<CreatureState>(keep, Allocator.TempJob);
+                var e2 = new NativeArray<Entity>(keep, Allocator.TempJob);
+                NativeArray<CreatureBody>.Copy(bodies, b2, keep);
+                NativeArray<CreatureState>.Copy(states, s2, keep);
+                NativeArray<Entity>.Copy(entities, e2, keep);
+                bodies.Dispose();
+                states.Dispose();
+                entities.Dispose();
+                bodies = b2;
+                states = s2;
+                entities = e2;
             }
             Pass(1);
             SwingDoors(states);
-            var offsets = new NativeArray<int>(bodies.Length, Allocator.TempJob);
-            var hanging = new NativeList<float3>(8, Allocator.Temp);
-            var emoting = new NativeList<float3>(2, Allocator.Temp);
-            var total = 0;
-            for (int i = 0; i < bodies.Length; i++)
-            {
-                offsets[i] = total;
-                total += bodies[i].SegmentCount + MarkCount + (InWeb(states[i]) ? WebCount : 0) +
-                         LairCount(ref bodies[i].Blob.Value) + (states[i].Task == CreatureTask.Hunt ? 1 : 0) + HeldCount(states[i].Held, states[i].Task) +
-                         GearCount(states[i].Task);
-                if (states[i].Mode == CreatureMode.Roost && states[i].Stage == 200)
-                    hanging.Add(states[i].Position);
-                // (Bodies of players emoting: their gestures scatter colonies.)
-                if (states[i].Mode == CreatureMode.Puppet && states[i].Action >= IdleAction.Wave)
-                    emoting.Add(states[i].Position);
-            }
 
             Pass(2);
             // Colonies at the roosts near the camera.
-            var terrain = SystemAPI.GetSingleton<TerrainSource>();
             if (!roosts.IsCreated)
                 roosts = new Unity.Collections.NativeList<int>(16, Allocator.Persistent);
             roosts.Clear();
@@ -630,7 +649,6 @@ namespace Punchy.Fauna
             var swarmPlayer = new float3(float.MaxValue);
             foreach (var t in SystemAPI.Query<RefRO<Unity.Transforms.LocalTransform>>().WithAll<Punchy.Player.PlayerTag>())
                 swarmPlayer = t.ValueRO.Position;
-            float3 camAt0 = cam.transform.position;
             var swarmTargets = new NativeArray<float3>(hives.Length, Allocator.Temp);
             for (int i = 0; i < hives.Length; i++)
             {
@@ -660,20 +678,8 @@ namespace Punchy.Fauna
                             swarmTargets[i] = states[k].Position;
                 total += day ? SwarmRound + SwarmForagers : SwarmNight;
             }
-            Pass(3);
-            // The small life round the listener (AmbientLife: songbirds, owls, crickets, frogs...), drawn only.
-            var critters = AmbientLife.Near(World, camAt0);
-            total += critters.Count * CritterParts;
-            // Birds high overhead (geese and cranes in a V, soarers on a thermal), drawn only, from the shared clock.
-            var skyClock = SkyClock(out var skyHour);
-            total += GatherSkyBirds(camAt0, skyClock, skyHour, terrain);
-            // Fish in the caves' pools near the camera, drawn only.
-            total += GatherCaveFish(terrain, camAt0) * FishParts;
-
-            // Footprints and feathers (TraceSystem).
-            var traces = World.GetExistingSystemManaged<TraceSystem>();
-            var traceCount = traces != null ? traces.Count : 0;
-            total += traceCount;
+            // Then the small life, the birds, the fish and the traces gathered above, in that order after them.
+            total += extraCount;
             Pass(4);
 
             var instances = new NativeArray<SegmentInstance>(total, Allocator.TempJob);
@@ -721,12 +727,83 @@ namespace Punchy.Fauna
             if (traceCount > 0)
                 at = traces.Write(extras, at, (float)SystemAPI.Time.ElapsedTime);
             Pass(6);
-            posing.Complete();
+            // Not waited for (A-51, #62): the posing runs on the workers until the start of next frame's update, which
+            // lights, uploads and draws it then (a frame late, which can't be seen).
+            posed = new Posed
+            {
+                Job = posing,
+                Instances = instances,
+                Extras = extras,
+                Offsets = offsets,
+                Bodies = bodies,
+                States = states,
+                Entities = entities,
+                ColonyStart = colonyStart,
+                Total = total
+            };
+            havePosed = true;
+            PassEnd(bodies.Length, colonyStart, total, hidden);
+        }
+
+        /// <summary>One frame's posing, scheduled and left to run until the next update (A-51, #62).</summary>
+        struct Posed
+        {
+            public JobHandle Job;
+            public NativeArray<SegmentInstance> Instances, Extras;
+            public NativeArray<int> Offsets;
+            public NativeArray<CreatureBody> Bodies;
+            public NativeArray<CreatureState> States;
+            public NativeArray<Entity> Entities;
+            public int ColonyStart, Total;
+
+            public void Dispose()
+            {
+                Job.Complete();
+                Instances.Dispose();
+                Extras.Dispose();
+                Offsets.Dispose();
+                Bodies.Dispose();
+                States.Dispose();
+                Entities.Dispose();
+            }
+        }
+
+        Posed posed;
+        bool havePosed;
+
+        /// <summary>Last frame's posing let go undrawn (no camera or settings now, or the system stopping).</summary>
+        void DropPosed()
+        {
+            if (!havePosed)
+                return;
+            havePosed = false;
+            posed.Dispose();
+        }
+
+        protected override void OnStopRunning() => DropPosed();
+
+        /// <summary>
+        /// Last frame's posing, finished: the rest (colonies, bees, small life, birds, traces) copied in after the
+        /// creatures, the lanterns and torches lit, then uploaded and drawn.
+        /// </summary>
+        void FinishPosed(Camera cam, FaunaRenderSettings settings)
+        {
+            if (!havePosed)
+                return;
+            havePosed = false;
+            var p = posed;
+            p.Job.Complete();
             Pass(7);
+            var instances = p.Instances;
+            var bodies = p.Bodies;
+            var states = p.States;
+            var entities = p.Entities;
+            var offsets = p.Offsets;
+            var colonyStart = p.ColonyStart;
+            var total = p.Total;
             // (Nothing else to draw, some frames: then there's nothing to copy, and no room after the creatures to copy to.)
-            if (extras.Length > 0)
-                NativeArray<SegmentInstance>.Copy(extras, 0, instances, colonyStart, extras.Length);
-            extras.Dispose();
+            if (p.Extras.Length > 0)
+                NativeArray<SegmentInstance>.Copy(p.Extras, 0, instances, colonyStart, p.Extras.Length);
             // Lanterns and torches near the camera light the ground round them: each joins the glow list as a moving
             // light (by its carrier, so its fade-in carries on as it moves), at the middle of a lantern's glass as just
             // posed, or a torch's flame. A torch's flame itself is the world's (FireSystem), lit each frame at the top
@@ -761,10 +838,6 @@ namespace Punchy.Fauna
                 if (far <= LanternLightRange * LanternLightRange)
                     Punchy.Terrain.CaveSystem.MovingLights.Add((entities[i].Index, centre, torch ? TorchLight : LanternLight));
             }
-            var kept = bodies.Length;
-            bodies.Dispose();
-            states.Dispose();
-            entities.Dispose();
             Pass(8);
 
             if (buffer == null || buffer.count < total)
@@ -773,8 +846,7 @@ namespace Punchy.Fauna
                 buffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, Mathf.NextPowerOfTwo(total), Marshal.SizeOf<SegmentInstance>());
             }
             buffer.SetData(instances);
-            instances.Dispose();
-            offsets.Dispose();
+            p.Dispose();
 
             // Two draws from the one buffer: the creatures, casting shadows; then the colonies and traces after them,
             // which don't (sleeping bats under a cave ceiling and prints on the ground gain nothing from a shadow pass).
@@ -800,7 +872,6 @@ namespace Punchy.Fauna
                 Graphics.RenderMeshPrimitives(rp, settings.Capsule, 0, total - colonyStart);
             }
             Pass(9);
-            PassEnd(kept, colonyStart, total, hidden);
         }
 
         // ------------------------------------------------------------------------------- pass timing (A-22, #23)
@@ -891,6 +962,51 @@ namespace Punchy.Fauna
                 var behind = far && math.dot(math.normalizesafe(to), CameraForward) < BehindCos &&
                              math.length(to) > Bodies[i].Blob.Value.SeenFrom * 0.5f;
                 Keep[i] = !behind && !(Hidden && !(state.Position.y < Terrain.SampleHeight(state.Position.xz) - 1f));
+            }
+        }
+
+        /// <summary>
+        /// The creatures kept by CullJob packed to the front of the copies, their parts counted (each one's offset into
+        /// the instances, and the total), and the bats hanging at roosts and the players' bodies emoting listed (A-51).
+        /// </summary>
+        [BurstCompile]
+        struct CompactJob : IJob
+        {
+            public NativeArray<CreatureBody> Bodies;
+            public NativeArray<CreatureState> States;
+            public NativeArray<Entity> Entities;
+            [ReadOnly] public NativeArray<bool> Keep;
+            public NativeArray<int> Offsets;
+            public NativeList<float3> Hanging, Emoting;
+            /// <summary>How many were kept, and the parts they take.</summary>
+            public NativeReference<int2> Counted;
+
+            public void Execute()
+            {
+                var keep = 0;
+                for (int i = 0; i < Bodies.Length; i++)
+                    if (Keep[i])
+                    {
+                        Bodies[keep] = Bodies[i];
+                        States[keep] = States[i];
+                        Entities[keep] = Entities[i];
+                        keep++;
+                    }
+                var total = 0;
+                for (int i = 0; i < keep; i++)
+                {
+                    var state = States[i];
+                    var body = Bodies[i];
+                    Offsets[i] = total;
+                    total += body.SegmentCount + MarkCount + (InWeb(state) ? WebCount : 0) + LairCount(ref body.Blob.Value) +
+                             (state.Task == CreatureTask.Hunt ? 1 : 0) + HeldCount(state.Held, state.Task) + GearCount(state.Task);
+                    if (state.Mode == CreatureMode.Roost && state.Stage == 200)
+                        Hanging.Add(state.Position);
+                    // (Bodies of players emoting: their gestures scatter colonies.)
+                    if (state.Mode == CreatureMode.Puppet && state.Action >= IdleAction.Wave)
+                        Emoting.Add(state.Position);
+                }
+                Counted.Value = new int2(keep, total);
             }
         }
 

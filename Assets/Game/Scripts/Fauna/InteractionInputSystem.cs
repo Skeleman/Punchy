@@ -2,6 +2,7 @@ using Punchy.Player;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.NetCode;
 using Unity.Transforms;
@@ -43,6 +44,13 @@ namespace Punchy.Fauna
         (int, bool, int) lastPromptKey = (int.MinValue, false, -1);
         EntityQuery creatures;
         FaunaDirector director;
+        /// <summary>
+        /// The reach scan, read a frame late (A-51, #62): each frame takes last frame's result and schedules the next
+        /// pass without waiting on it, so the main thread no longer stalls on the scan or the brain job before it.
+        /// </summary>
+        NativeReference<ReachScan> scan;
+        JobHandle scanning;
+        bool scanned;
 
         protected override void OnCreate()
         {
@@ -64,7 +72,20 @@ namespace Punchy.Fauna
             InteractionPrompt.Ensure();
         }
 
-        protected override void OnDestroy() => Prompt = null;
+        protected override void OnDestroy()
+        {
+            Prompt = null;
+            scanning.Complete();
+            if (scan.IsCreated)
+                scan.Dispose();
+        }
+
+        static ReachScan FreshScan() => new ReachScan
+        {
+            Best = Interactions.Reach,
+            LungeBest = Interactions.LungeReach,
+            TargetSpecies = -1
+        };
 
         protected override void OnUpdate()
         {
@@ -77,14 +98,14 @@ namespace Punchy.Fauna
             var me = Interactions.HolderId(SystemAPI.TryGetSingleton<NetworkId>(out var id) ? id.Value : 0);
 
             // What we're carrying or petting, and the nearest animal within reach in front of us (a Burst pass over
-            // the creatures, no copies).
-            var scan = new NativeReference<ReachScan>(new ReachScan
-            {
-                Best = Interactions.Reach,
-                LungeBest = Interactions.LungeReach,
-                TargetSpecies = -1
-            }, Allocator.TempJob);
-            // (Scheduled after whatever writes creature state this frame, the brain's job when alone, and waited for.)
+            // the creatures, no copies), as found by last frame's pass: a frame late can't be seen or felt.
+            if (!scan.IsCreated)
+                scan = new NativeReference<ReachScan>(FreshScan(), Allocator.Persistent);
+            scanning.Complete();
+            var found = scanned ? scan.Value : FreshScan();
+            scanned = true;
+            scan.Value = FreshScan();
+            // (Scheduled after whatever writes creature state this frame, the brain's job when alone; not waited for.)
             // (An animal body can't carry: it nuzzles instead, so no "pick up" for it.)
             var folk = Interactions.CanHold(SystemAPI.TryGetSingleton<CarryTable>(out var table) ? table : default,
                                             SystemAPI.TryGetSingleton<Punchy.Net.LocalPlayerSpecies>(out var local) ? local.Index : -1);
@@ -97,9 +118,7 @@ namespace Punchy.Fauna
                 ReachPoint = player.Position + forward * (Interactions.Reach * 0.45f),
                 Result = scan
             }.Schedule(creatures, Dependency);
-            Dependency.Complete();
-            var found = scan.Value;
-            scan.Dispose();
+            scanning = Dependency;
             var held = found.Held;
             var target = found.Target;
             var lungeTarget = found.LungeTarget;

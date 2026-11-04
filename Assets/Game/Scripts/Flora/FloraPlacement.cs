@@ -268,7 +268,7 @@ namespace Punchy.Flora
                     var shape = FloraGenerator.Shape(s, v);
                     if (obstacles && (IsBuilding(s) || HasPerches(s)))
                     {
-                        var model = FloraGenerator.Grow(s, v);
+                        var model = FloraGenerator.Grow(s, v, shapeOnly: true);
                         if (IsBuilding(s))
                         {
                             shape.FirstObstacle = walls.Count;
@@ -291,7 +291,7 @@ namespace Punchy.Flora
                     else if (obstacles && IsAnchorRock(s))
                     {
                         // (Its size, for spiders to tie webs to: a rock's shape is otherwise left empty.)
-                        var model = FloraGenerator.Grow(s, v);
+                        var model = FloraGenerator.Grow(s, v, shapeOnly: true);
                         shape.Height = model.Height;
                         shape.TrunkRadius = model.TrunkRadius;
                         model.Destroy();
