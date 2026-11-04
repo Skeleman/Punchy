@@ -1628,6 +1628,9 @@ namespace Punchy.Debugging
                     wallTallest = 0f;
                     wallSearchAt = 0f;
                 }
+                // P-5: "-place temple": on a sunken temple room's floor (for camera shots underground, #85).
+                else if (args[i] == "-place" && string.Equals(args[i + 1], "temple", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var templeSource))
+                    PlaceInTemple(templeSource);
                 else if (args[i] == "-place")
                 {
                     // An exact name first (the landmark itself), else the first that contains it.
@@ -2920,6 +2923,46 @@ namespace Punchy.Debugging
                 }
             }
             Debug.LogWarning($"DebugControls: no {styleName} cave with a chamber");
+        }
+
+        /// <summary>
+        /// P-5 "-place temple": the player on the floor of a room of the nearest sunken temple (a point in its air with
+        /// rock 30 cm under and 1.5 m of air over), searched on a 2 m grid within 40 m of the temple, 0-20 m down.
+        /// </summary>
+        void PlaceInTemple(in TerrainSource source)
+        {
+            if (!playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var at = locations.FindIndex(l => l.Name.IndexOf("SunkenTemple", System.StringComparison.OrdinalIgnoreCase) >= 0);
+            if (at < 0)
+            {
+                Debug.LogWarning("DebugControls: no sunken temple in the places list");
+                return;
+            }
+            var centre = locations[at].Position;
+            for (float r = 0f; r <= 40f; r += 2f)
+                for (float x = -r; x <= r; x += 2f)
+                    for (float z = -r; z <= r; z += 2f)
+                    {
+                        if (math.max(math.abs(x), math.abs(z)) < r)
+                            continue;   // (rings outward, so the nearest room comes first)
+                        var xz = centre + new float2(x, z);
+                        var top = source.SampleHeight(xz);
+                        for (float d = 0.5f; d <= 20f; d += 0.5f)
+                        {
+                            var p = new float3(xz.x, top - d, xz.y);
+                            if (!source.TempleAir(p) || source.TempleAir(p - new float3(0f, 0.3f, 0f)) || !source.TempleAir(p + new float3(0f, 1.5f, 0f)))
+                                continue;
+                            var em = queryWorld.EntityManager;
+                            var t = em.GetComponentData<LocalTransform>(player);
+                            t.Position = p + new float3(0f, 0.05f, 0f);
+                            em.SetComponentData(player, t);
+                            em.SetComponentData(player, new PlayerMotion { Grounded = true });
+                            Debug.Log($"DebugControls: in a sunken temple room at ({p.x:F0}, {p.y:F1}, {p.z:F0}), {d:F1} m under the ground");
+                            return;
+                        }
+                    }
+            Debug.LogWarning($"DebugControls: no temple room floor found near {locations[at].Name}");
         }
 
         /// <summary>
