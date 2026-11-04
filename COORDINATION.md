@@ -73,6 +73,12 @@ feature code, and it never edits files in another session's checkout.
 14. **Editors and RAM (Zach, 2026-11-03):** close your Unity editor at the end of a card unless your lane's next
    card is already queued. Before opening one, check free RAM is at least 7 GB; if not, wait. Never close or kill
    another lane's editor. Idle import workers are set to shut down (standby 0) as each lane merges main.
+15. **Editor queue (Zach, 2026-11-03):** the lane that has waited longest opens first. Before opening an editor,
+   `git pull` and read EDITOR-QUEUE.md. If free RAM is under 7 GB or anyone is listed above you, add one line
+   `- <lane> <card> since <HH:MM>` at the bottom (once), commit and push it, and re-check every ~10 min. Open only
+   when you are first in the list and free RAM is at least 7 GB; then delete your line, commit and push. While
+   anyone is listed, close your editor at card end even if your next card is queued. If you give up waiting
+   (~90 min), delete your line and report; the supervisor relaunches you at the top of the list.
 
 ## Sessions and lanes
 
