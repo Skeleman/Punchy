@@ -2000,3 +2000,29 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Shots: W86-ash-smith.png
 - Left: a campsite shot for two biomes (needs a seed with a swamp or forest campsite, or a forced look); the ash weathering on the smith may want a darker pass.
 - Calls: ~41
+
+## W-88 (2026-11-04): #88 shelf shots, #40 colossi to Zach's list
+
+- Merged origin/main (a468c7a) into world-features. Commit a5a870d: StoneColossi places a SkeletalLizard in Ashlands and a CarnivorousPlant in PoisonSwamp. AshSmith and DrownedKnight keep their code and spawn with `-colossus AshSmith` / `-colossus DrownedKnight` (they take the same slot as the new kind).
+- Lizard: about 80 m long, standing on four splayed legs, ribcage open, skull held low with the jaw hanging open and a frill of horns, embers in the eye sockets, a smouldering heart inside the ribcage, a snapped rib and teeth lying in the ash. It sheds ash from the ribs and raises dust at its feet. Placed at about (-515, -2477).
+- Plant: about 40 m tall. A ribbed bulb on six arched tentacle legs, a stem up to a Mantrap-style snap-trap head (#41) with drool, and eight tentacle arms; every third arm ends in a small trap and the rest curl. Leaves round the feet, three young sprouts, deer bones, and spores drifting from the mouth. Placed at about (-167, 78). It stands on a steep slope, so part of its base is hidden in the shot; the legs may hang over the drop.
+- Landmark hash before/after: 108 landmarks, 4D2643D7 (game hash 3A0DC7BB), unchanged. Colossi add no landmarks.
+- Shots: w88-shelf-lake.png, w88-shelf-along.png (#88, with -lakeshelf, midday, Clear), w88-lizard.png, w88-plant.png.
+- Not done: row 3 (call ceiling reached). Next of Zach's ideas: ElectricWastelands rock golem, Sonoran saguaro, SaltFlat crystal, Tundra big worm.
+
+| Biome | #40 design | Exists now |
+|---|---|---|
+| Ocean | serpent | serpent exists |
+| ElectricWastelands | floating rock golem (Zach) | CrystalSerpent stands in |
+| PoisonSwamp | carnivorous plant (Zach) | CarnivorousPlant, W-88 |
+| Sonoran | walking saguaro (Zach) | none |
+| SaltFlat | rolling salt crystal (Zach) | none |
+| Ashlands | skeletal lizard (Zach) | SkeletalLizard, W-88 (AshSmith by flag) |
+| Tundra | bigger snow worm (Zach) | KneelingTitan (Tundra/Glacier/Mountains) |
+| Dunes | half-buried humanoid in a sandstorm | DunesColossus |
+| Grassland / Temperate | grazing titan / walking oak (suggestions) | HalfBuriedHead |
+| FungalForest | puffball (suggestion) | GiantTortoise |
+| FoggyMarsh | wader (suggestion) | none (DrownedKnight by flag) |
+| SparklingForest, EmberForest, Volcano, Mountains, Glacier, GlassDesert, MesaCanyonlands | suggestions | none (Mountains/Glacier may host the titan) |
+
+- Calls: ~47
