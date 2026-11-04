@@ -1,50 +1,26 @@
-# World lane state (after W-43, 2026-11-02)
+# World lane state (after W-91, 2026-11-04)
 
-Branch world-features, head 882af99 (W-48, W-52, W-53, W-32, W-43 local, not pushed). Worktree D:/Unity/Punchy-world.
+Branch world-features, head 6d9b5ff (W-91, pushed). Worktree D:/Unity/Punchy-world.
 
-## Hashes (editor play mode, Temp/w43_hash.cs; set PUNCHY_ISLAND=v2 in the editor first)
+## Hashes (v3, editor play mode, WorldProbe.LmList)
 
-| | v2 | v1 |
-|---|---|---|
-| landmarks | 127 / 4D245E12 | 103 / 19885131 |
-| caves | C49E8E3036C741FC | 47C703C0E17F77CB |
-| rivers | A5B3DE5D53257332 | 2508BF538DA96D7E |
-| ground | F8F938002B0CBE46 | A32E650C44A45E06 |
+- v3 landmarks 108 / 4D2643D7 (unchanged by W-91), caves 5307D41E3A2AE83C, ground CBD3E62DCF42728C, rivers F46CF58544C3E072.
+- v2 landmarks 136 / 4E61F1CF, caves C49E8E3036C741FC, ground F37805C9C70E3822, rivers 835B1404BEBDF563 (W-76).
 
-Unchanged by W-43 (v1 caves, rivers and ground were not re-measured after W-53).
+## W-91
 
-## W-43 (882af99)
+- #36: flora leaves house/stilt house/dock plots on river water empty (LandmarkSampling.OnRiver); villages log plots dropped (v3: 0/6, 2/6, 0/6).
+- #88: GrandFalls.BuildShelf scores the land behind each bay (biomes 100/200 m behind, rise) and logs before/after. On v3 the pick stays at bearing 120 (SaltFlat behind). Open: raise the land weight or loosen the bay test.
+- #40: carnivorous plant 1/4 size, head 1.7x, vines 0.5x. Renderers stay visible at 50/150/300 m in MarshFog; Colossus shader haze fade not checked by eye.
 
-- Banner cloth: fixed phase rate; one gust per banner at a fixed scroll (wind drift no longer jumps it).
-- Hall/Inn roofs start at the wall top (EaveStart). Tent panels share one sag point, so the seams are closed.
-- Tent collider rings follow the hide. Tents have no support grid, so no climbing.
-- Porch colliders. ChimneyTop on StoneHouse, Inn and Smithy.
-- `-weather X` holds (heldWeather in WeatherSystem/WeatherField).
-- Open: smoke count, particle peak and cost; 5d floating water; 5f temple walk and sanctum shot; roofline shot.
+## Open
 
-## Earlier (W-48 / W-52 / W-53 / W-32)
+- #88 shelf still faces salt flat on v3.
+- #40 eye check of w91-plant-fog-*.png.
+- Lake backwater over low banks; unexplained v2 water steps.
 
-- W-48 cave perf: Burst camera arm probe; deep in a cave only the camera's cave chunks draw.
-  - Still unexplained: frames of about 33 ms for about 70 s after load.
-  - Switches: `-perflog`, `-gocave`, `-oldcave`, `-nocavewalls`.
-- W-52: still water's mesh reaches over shallow beaches.
-- W-53: river meanders scale with river width.
-  - The v2 34.51 m dam is cut as a canyon.
-  - Landmarks are placed on the jittered river map.
-- W-32: SunkenTemple, one per island.
-  - Positions: v2 3520,360; v1 1320,-2720.
-  - Analytic collision through SunkenTempleShape.
-  - Design notes: docs/agents/interiors.md.
+## Tools and gotchas
 
-## Open ideas (not scheduled)
-
-- Lake backwater over low banks.
-- Unexplained v2 water steps (not recounted after W-53).
-
-## Tools
-
-- Temp/w43_measure.cs: roof gaps, tent seams, walk sims for tents and foyers, banner replica.
-- Temp/w43_hash.cs: hashes.
-- Temp/w37_measure.cs: steps and open ends.
-- Untracked Assets/Temp/Editor/WorldProbe.cs (leave alone): LmList, CaveBench, Shot, TowerWalk.
-- The editor env defaults to PUNCHY_ISLAND=v1. PlayArgs.txt does not pick the island.
+- Untracked Assets/Temp/Editor/WorldProbe.cs and W91Probe.cs (never commit): LmList, Shot, H, plant probes.
+- The lake shelf needs PUNCHY_LAKESHELF=1 in the editor env (SetEnvironmentVariable via eval, then re-enter play); -lakeshelf in PlayArgs alone was not seen.
+- Island pick: PUNCHY_ISLAND env (v3 for current cards).

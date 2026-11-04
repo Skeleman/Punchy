@@ -2,6 +2,15 @@
 
 Newest first.
 
+## W-91 (2026-11-04): river-free fishing villages, temperate lake shelf, small carnivorous plant
+
+world-features: 532d14e (#36), 43f66e2 (#88), 6d9b5ff (#40). Pushed. Merged origin/main first. Island v3.
+
+- Row 3, #36: houses, stilt houses and docks/wharves whose plot (docks: plot plus 30 m along the facing) is on river water (river channel > 0.3, not ocean) are left empty by flora. Plots dropped per village: v1 0 of 6, v2 2 of 6, v3 0 of 6. Landmark hash v3 108/4D2643D7 before (W-76) and after: villages and landmarks don't move, only flora plots go. Shot: w91-village.png (village 2).
+- Row 4, #88: the bay pick now adds a land score (biome 100 m and 200 m behind the shore: temperate/grass +1, mountains 0.6, forest 0.5, arid -1; plus the rise toward the mountains). Log (still behind -lakeshelf, needs PUNCHY_LAKESHELF=1 in the editor env): before bearing 120, SaltFlat 100 m behind, Temperate 200 m behind, rise -1 m; after bearing 120, same, land score -0.14. So the pick did not move on this seed: no other bay with a temperate shore scored higher. Not done: the weights need raising, or the bay test loosening, so a temperate bay wins. Shot: w91-shelf-lake.png (from the lake, unreviewed).
+- Row 5, #40: plant body at 1/4 scale, head 1.7x, vines 0.5x; sprouts and bones stay life size; far shadow cast sized 11x8. Fog check (MarshFog forced, ExpSquared density ~0.0019, no layer cull, far plane 3000): Body, Sprouts and Spores renderers stay visible at 50, 150 and 300 m, so no culling pop. Whether the Colossus shader haze fades it smoothly is not yet checked by eye. Shots: w91-plant.png (30 m), w91-plant-fog-50.png, w91-plant-fog-150.png, w91-plant-fog-300.png (the card's w91-plant-fog.png).
+- Calls: about 50 of a 45 ceiling (the shelf needed an env restart of play).
+
 ## W-76 (2026-11-04): parallel island bake
 
 world-features: b262269. Pushed. Row 2 dropped (see below).
