@@ -1,5 +1,17 @@
 # Player lane reports
 
+## 2026-11-04 batch P-9: temple chests 13, small body fully in frame, temple sky = camera in the roof (fixed)
+- DONE (all on player-client a4994d1, after merging main 1d8213e)
+- #24 chests 8 -> 13: closed halls 6 m+ keep a chest at the end farthest from their doorways, big rooms (40 m2+) a second corner chest. Totals 73: creature 15, chest 13, wall decor 15, interactable 15, clutter 15. Hash 9C11B352 (P-7) -> 0EBAB9D3, same in 4 runs. Socket format unchanged; the A-50 spawner logs "dungeon 78 type 1: 73 sockets ... same"
+- #85 small body: tilt capped by the angle the body spans from the lens. Rabbit at -50 in the hut cave: whole body in frame, ears to feet (a2-cave-up-rabbit.png); in that tight spot the arm is 0.68 m, so it keeps the body rather than tilting (looks up only ~10 deg). Human unchanged (b2-cave-up-human.png)
+- #85 P-7 b1 sky: the camera, not an open room. Room 9 touches 12 rooms, none open to the sky. -camlog before: lens at the ceiling, "in temple air False, ground +0.5 m vs lens" (in the roof). Cause: in temple rooms SolidDistance is a flat 0.5 m, so the probe only hits once its centre is inside the solid, then backed off 5 cm. Fix: back off by the whole lens then. After: "in temple air True, ground +0.6 m", ceiling drawn, no sky (b1-temple-human.png)
+- For the animal lane: bright magenta boxes on the temple walls in both temple shots (missing material): likely the A-50 stand-ins (Fauna/Dungeon/DungeonStandIn)
+- Added: `-camlog` (camera spot every 2 s); `-place temple` logs the room's neighbours and open-to-sky ones
+- Checks: compile 0 errors; 2 builds Succeeded 0 errors (2nd = the roof fix, one-fix allowance); 4 runs all finished and quit; editor closed. Two Punchy.exe (0.2 MB each, path unreadable: another account's) were listed; not mine, left alone
+- Shots: D:/PunchyMilestones/P-9/sheet2.png (rabbit cave up, human cave up, human temple with sockets, rabbit temple)
+- Cost: ~27 calls, 2 builds
+- NEXT: chests to 15 if wanted (2 more candidates); rabbit look-up in tight caves could raise the pivot while looking up
+
 ## 2026-11-04 batch P-8: host-twice crash fixed (#99); Sound and Look settings
 - DONE #99 (player-client 84208ff): root cause: GameBootstrap.DisposeGameWorlds freed the worlds (and the subscene's terrain blobs) while scene MonoBehaviours (FloraSystem, CaveSystem/SurfaceGlow, FaunaDirector, AmbienceSystem, WeatherField) still had multi-frame jobs reading them; they complete those only in OnDisable, which came with the scene reload after the dispose. Fix: switch the old scene's roots off first (OnDisable completes the jobs), CompleteAllTrackedJobs per world, then dispose. NetCycle (profiler helper copied in for the build only, not committed) `-island v2 -netcycle 3`: 5 runs, 15 re-hosts, 0 crashes, 0 exceptions, all "NETCYCLE done" rc 0; Total Used flat (solo ~460 MB, hosting ~516 MB). No unfixed baseline on this PC (laptop: 2 of 3 crashed)
 - DONE rows 1-3 (f332f30): Sound tab (Master, Music and ambience, Effects) and Look tab (mouse 0.03-0.5, pad 60-400, camera distance 3-20 m, FOV 50-100, Invert Y, Reset), MenuNav sliders/buttons, saved Punchy.Audio.* / Punchy.Look.*, applied at start and after each scene load; `-settings master=0,music=0.4,effects=0.7,mouse=0.25,pad=240,inverty=1,distance=5,fov=75` -> "Settings: master 0.00 music 0.40 effects 0.70; mouse 0.25 pad 240 invertY on distance 5.0 fov 75 (from the command line, saved)"; relaunch without it logs the same values
