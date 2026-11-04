@@ -33,6 +33,8 @@ namespace Punchy.Fauna
         static readonly int SegmentsId = Shader.PropertyToID("_Segments");
         static readonly int SegmentOffsetId = Shader.PropertyToID("_SegmentOffset");
         const int MarkCount = 3;
+        /// <summary>How much bigger a need cue is drawn than a fear mark (#64): small enough to stay a detail, big enough to read at 10 m.</summary>
+        const float CueScale = 3f;
         const int Spokes = 12, Rings = 6, Anchors = 4;
         const int WebCount = Spokes + Spokes * Rings + Anchors;
         const int MoundCount = 7;
@@ -787,6 +789,43 @@ namespace Punchy.Fauna
 
         protected override void OnStopRunning() => DropPosed();
 
+        float cueLogSince = -1f;
+
+        /// <summary>
+        /// "-needcues", once a second (#64): how many creatures the brain gives a cue, and the nearest one's cue capsules
+        /// as uploaded for the draw (centre, length, radii, glow), and whether they fall in the drawn range with any size.
+        /// </summary>
+        void LogCues(float3 camAt, NativeArray<SegmentInstance> instances, NativeArray<CreatureBody> bodies,
+                     NativeArray<CreatureState> states, NativeArray<int> offsets, int colonyStart)
+        {
+            var now = UnityEngine.Time.realtimeSinceStartup;
+            if (now - cueLogSince < 1f)
+                return;
+            cueLogSince = now;
+            int cued = 0, nearest = -1;
+            var best = float.MaxValue;
+            for (int i = 0; i < states.Length; i++)
+            {
+                if (states[i].Cue != 0)
+                    cued++;
+                var d = math.distancesq(states[i].Position, camAt);
+                if (states[i].Mode != CreatureMode.Flee && d < best) { best = d; nearest = i; }
+            }
+            var line = $"[cues] creatures {states.Length}, brain cue != none {cued}, drawn range {colonyStart}";
+            if (nearest >= 0)
+            {
+                line += $"; nearest {states[nearest].Individual} at {math.sqrt(best):0.0} m, cue {states[nearest].Cue}:";
+                var first = offsets[nearest] + bodies[nearest].SegmentCount;
+                for (int k = 0; k < MarkCount; k++)
+                {
+                    var m = instances[first + k];
+                    var drawn = first + k < colonyStart && math.max(m.RadiusStart, m.RadiusEnd) > 0f;
+                    line += $" [{k}] at ({m.Position.x:0.00},{m.Position.y:0.00},{m.Position.z:0.00}) len {m.Length:0.000} r {m.RadiusStart:0.000}/{m.RadiusEnd:0.000} a {m.Color.w:0.00} drawn {drawn}";
+                }
+            }
+            Debug.Log(line);
+        }
+
         /// <summary>
         /// Last frame's posing, finished: the rest (colonies, bees, small life, birds, traces) copied in after the
         /// creatures, the lanterns and torches lit, then uploaded and drawn.
@@ -844,6 +883,8 @@ namespace Punchy.Fauna
                     Punchy.Terrain.CaveSystem.MovingLights.Add((entities[i].Index, centre, torch ? TorchLight : LanternLight));
             }
             Pass(8);
+            if (ForceNeedCues)
+                LogCues(camAt, instances, bodies, states, offsets, colonyStart);
 
             if (buffer == null || buffer.count < total)
             {
@@ -2446,7 +2487,10 @@ namespace Punchy.Fauna
                 else if (t < Show && state.Mode != CreatureMode.Sleep && state.Holder == 0)
                     cue = state.Cue;   // (set by the brain on the host, replicated to clients: #64)
                 var swell = Unity.Mathematics.math.sin(Unity.Mathematics.math.PI * Unity.Mathematics.math.saturate(t / Show));
-                var head = new Unity.Mathematics.float3(state.Position.x, top, state.Position.z);
+                // (At the fear marks' size the cues were 0.2-2.6 cm across: drawn, but too small to see past a metre or
+                // two, A-60. Everything about a cue is scaled up from here.)
+                size *= CueScale;
+                var head =new Unity.Mathematics.float3(state.Position.x, top, state.Position.z);
                 for (int k = 0; k < MarkCount; k++)
                 {
                     var at = head;
