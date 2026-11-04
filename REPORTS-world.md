@@ -1970,3 +1970,13 @@ Commits on world-features (pushed): 79512da merge origin/main (A-52), 00b758d fl
 - Hashes: landmarks 4D2643D7 / 3A0DC7BB (108), unchanged.
 - Editor: closed at the end of the card.
 - Calls: about 42.
+
+## W-85 (2026-11-04): #102 cave spike, #40 colossi; #72 left
+
+Commits on world-features: f94399e (#102), 56f6568 (#40).
+
+- #102: the hitch was cave plant models (all species x 3 variants grown in one frame, ~148 ms). They now grow under a 6 ms/frame budget and draw once complete. BatchSpy, first 4 frames of the streaming batch: before 295 / 24 / 16 / 16 ms, after 156 / 43 / 21 / 22 ms (uncapped, noisy). Cave hash 5307D41E3A2AE83C unchanged (25 caves, 735 plants).
+- #40: biome -> colossus: Tundra/Glacier/Mountains -> KneelingTitan; Grassland/Temperate -> HalfBuriedHead; FungalForest -> GiantTortoise; ElectricWastelands -> CrystalSerpent; Dunes -> DunesColossus; FoggyMarsh/PoisonSwamp -> DrownedKnight (new). Still none: Ashlands, EmberForest, GlassDesert, MesaCanyonlands, SaltFlat, Sonoran, SparklingForest, Volcano. DrownedKnight: bronze knight on his back in the marsh, raised gauntlet with snapped sword, shield half under, seeded lily pads; own salt, second flora keep-out static. Landmark hash 4D2643D7 / game 3A0DC7BB before and after.
+- #72 not done (out of calls). Plan: CampsiteSwamp (Mud, swamp tent, Bogwood/Cattail/Driftwood) and CampsiteForest (Woodpile/Stump/FallenLog) as BiomeLooks on Campsite. Snow/desert/fungal/ash looks already exist.
+- Shots: W85-drowned-knight.png
+- Calls: ~44
