@@ -1944,3 +1944,18 @@ Commits on world-features (pushed): 79512da merge origin/main (A-52), 00b758d fl
 - 0b (#88): `-lakeshelf` in Temp/PlayArgs.txt does nothing (GrandFalls reads only the process command line). PUNCHY_LAKESHELF=1 set inside the editor process also gave no shelf line in GrandFalls.LastLog (359 chars, falls only). Probably the bake path or a cache skips BuildShelf. Not measured, no shots.
 - Rows 3 (#87 village before/after) and 4 (#102 timings): not done, out of budget.
 - Calls: about 30 more (about 60 for the card).
+
+## W-83 (world-features)
+
+- Commits: 8a9bac1 (#25 interior cells), 6e30f18 (#88 lake shelf flag). Both pushed to world-features. Merged origin/main first, keeping the #107 Flora hook.
+- Row 1 (#25), done. API: `Punchy.Terrain.InteriorCells` is a SharedStatic list of `InteriorBox` (Min, Max, Part Floor/Wall/Ceiling). It has Set/Add/Clear/Count/Get, Distance, Floor, Wall, AddRoom(insideMin, insideMax, thick, doorWidth, doorHeight) and TestRoom.
+  - It feeds TerrainSource.Deck (so FloorUnder), TerrainSource.TowerWall and PlayerMovementSystem.SolidDistance. Each checks Count > 0 first, so an empty list changes nothing.
+  - Per house type: `FloraGenerator.HouseInterior(species, out door, out inside)` gives the door's local position and the inside size. It covers Hut, StoneHouse, Tower, Inn, Hall and kit House/StiltHouse. Sizes are unscaled at the mean height, and the door faces +Z. The stilt deck lift is not included.
+  - `-interiortest` (debug flag) builds an 8x3x6 m room 300 m off +X, with its floor at sea level + 20. The player stood at (4396, 20, 0): FloorUnder 20, the wall blocks, the door gap passes, and SolidDistance under the ceiling is 0.20.
+  - Landmarks 108 / 3A0DC7BB, unchanged. Ground hash (FNV of SampleHeight over -6000..6000 step 4) is 19A5064094B4F8F6. SampleHeight never reads the list, so this hash is the same with the list empty. The W-80 figure 39BCE2E6F3B78D07 was likely a different formula or HEAD, so I don't compare against it.
+- Row 2 (#88), half done. Why the bake logged nothing: the flag was read only from the process command line, and BuildShelf ran only when the grand falls found no lake. Both are fixed. On v3 it now logs "[grand falls] lake shelf on; shelf none: no closed shore stretch (0 open rays)". Every shore stretch fails the closed / behind >= 12 m test, so no bay is picked. Still to do: work out why (lake centre or the behind-height cut on v3); no bay log line, no shots.
+- Row 3 (#86 driftwood): skipped per Zach.
+- Rows 4 (#87 village before/after) and 5 (#102 batch frame timeline): not done, out of budget.
+- Shots: none (D:\PunchyMilestones\W-83\ not created).
+- Editor: the world editor is closed, and the Audit Reports pref is restored.
+- Calls: about 48 (at the ceiling).
