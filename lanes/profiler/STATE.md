@@ -9,7 +9,7 @@ Released: v0.11.0 = 4eea658. main = 8b4bf19 (A-51, PR #101).
 2. Check: `gh auth status` (repo is public: no machine paths in issues or comments); `git pull --rebase` here;
    `results/.lock` absent in `Punchy-wt/Tools/bench/results/` (if present, read `.lock/job` and ask Zach).
 3. Hooks: `sh hooks/install.sh <folder outside the trees>` (BENCH-QUEUE setup) if telemetry isn't installed.
-4. Jobs 17-23e all reported 2026-11-04 (23e: #99 clean on main 2dae74b, 30 re-hosts; 21c: dungeon host/client works on v2). Runner b/bench-runner 973a4bd pushed. Nothing queued: idle; don't poll.
+4. Jobs 17-24 all reported 2026-11-04 (21d: guard never fires in multiplayer, server player at 0,0,0; 24: colossi cost nothing, but a 44 ms frame every 4 s from the far shadow re-lay, #84). Runner: hereclose stop (-close x,z,yaw) on b/bench-runner cd847740. Nothing queued: idle; don't poll.
 
 ## How work arrives (the supervisor messages directly with SendMessage, or adds BENCH-QUEUE items)
 - Pull `coordination` at the start of every job and before every push (`git pull --rebase` on rejection).

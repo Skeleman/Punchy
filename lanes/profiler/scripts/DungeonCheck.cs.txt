@@ -1,4 +1,4 @@
-// Profiler-only (never committed to the game): "-dungeoncheck" logs, every 10 s for 200 s, per ECS world: dungeon
+// Profiler-only (never committed to the game): "-dungeoncheck" logs, every 10 s for 300 s, per ECS world: dungeon
 // entities (DungeonSocket buffers), DungeonPost count, creatures (CreatureState) and replicas, and how many of each are
 // within 60 m of that world's player. Copied to Assets/Game/Scripts/Debugging/DungeonCheck.cs for one build, then deleted.
 // Lines start "DUNGEONCHECK".
@@ -25,7 +25,7 @@ public class DungeonCheck : MonoBehaviour
 
     IEnumerator Run()
     {
-        for (int k = 1; k <= 20; k++)
+        for (int k = 1; k <= 30; k++)
         {
             yield return new WaitForSecondsRealtime(10f);
             foreach (var w in World.All)
@@ -58,6 +58,52 @@ public class DungeonCheck : MonoBehaviour
                 var b = ps[i].Behaviour.ToString();
                 if (b.Contains("Guard")) guards++; else if (b.Contains("Drink")) drinks++;
             }
+        // Job 21d: what the creatures at the NearWater / NearChest sockets are doing in this world (on a client these are
+        // replicas, so this shows whether the server's drink/guard behaviour reaches it): drinking = in Drink mode within
+        // 2 m of a water socket; at a chest = within 3 m of a chest socket; facing = a player within 7 m and the creature
+        // turned to within 30 degrees of them. Every player in the world is listed too.
+        var water = new System.Collections.Generic.List<float3>(); var chest = new System.Collections.Generic.List<float3>();
+        using (var des = dq.ToEntityArray(Allocator.Temp))
+            foreach (var de in des)
+                foreach (var so in em.GetBuffer<Punchy.Dungeon.DungeonSocket>(de, true))
+                {
+                    if ((so.Tags & (uint)Punchy.Dungeon.SocketTags.NearWater) != 0) water.Add(so.Pos);
+                    if ((so.Tags & (uint)Punchy.Dungeon.SocketTags.NearChest) != 0) chest.Add(so.Pos);
+                }
+        var players = new System.Collections.Generic.List<float3>();
+        using (var pl = plq.ToComponentDataArray<LocalTransform>(Allocator.Temp))
+            foreach (var t in pl) players.Add(t.Position);
+        int atWater = 0, drinking = 0, atChest = 0, facing = 0;
+        var detail = new System.Text.StringBuilder();
+        using (var cs = cq.ToComponentDataArray<Punchy.Fauna.CreatureState>(Allocator.Temp))
+            foreach (var c in cs)
+            {
+                foreach (var wp in water)
+                    if (math.distance(c.Position.xz, wp.xz) < 2f && math.abs(c.Position.y - wp.y) < 4f)
+                    {
+                        atWater++;
+                        if (c.Mode == Punchy.Fauna.CreatureMode.Drink) drinking++;
+                        detail.Append($" water({wp.x:F0},{wp.z:F0}):{c.Mode}/{c.Stage}");
+                        break;
+                    }
+                foreach (var cp in chest)
+                    if (math.distance(c.Position.xz, cp.xz) < 3f && math.abs(c.Position.y - cp.y) < 4f)
+                    {
+                        atChest++;
+                        foreach (var pp in players)
+                        {
+                            var to = pp.xz - c.Position.xz;
+                            if (math.length(to) > 7f) continue;
+                            var off = math.abs(math.atan2(math.sin(math.atan2(to.x, to.y) - c.Yaw), math.cos(math.atan2(to.x, to.y) - c.Yaw)));
+                            if (off < math.radians(30f)) { facing++; break; }
+                        }
+                        detail.Append($" chest({cp.x:F0},{cp.y:F0},{cp.z:F0}):{c.Mode}");
+                        break;
+                    }
+            }
+        var who = new System.Text.StringBuilder();
+        foreach (var pp in players) who.Append($" ({pp.x:F0},{pp.y:F0},{pp.z:F0})");
+        Debug.Log($"DUNGEONPOSTS t {Time.realtimeSinceStartup:F0} {w.Name}: water sockets {water.Count}, chest sockets {chest.Count}; at water {atWater} (drinking {drinking}), at a chest {atChest} (facing a player {facing}); players {players.Count}:{who} |{detail}");
         Debug.Log($"DUNGEONCHECK t {Time.realtimeSinceStartup:F0} {w.Name}: dungeons {dq.CalculateEntityCount()}, posts {pq.CalculateEntityCount()} (guard {guards}, drink {drinks}, {postsNear} within 60 m), " +
                   $"creatures {cq.CalculateEntityCount()} ({near} within 60 m), replicas {rq.CalculateEntityCount()}, player {(hasPlayer ? $"({player.x:F0}, {player.y:F0}, {player.z:F0})" : "none")}");
     }
