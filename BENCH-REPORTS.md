@@ -97,7 +97,7 @@ What's left, with the ms it would save if culled (profile mean self time):
 - The SurfaceHidden pattern that already culls the surface should be reused for underwater (#22) and dungeons (#24).
 - Open ground near the v2 cave is the heavier place: GPU 13.7 ms in the profile build, and TraceSystem 2.12 ms main (#55), more than anything in the cave.
 
-Cost: about $6.4 equivalent (this session's item 11 share; COSTS/laptop.csv).
+Cost: about 59 calls, peak 223k context, $6.4 equiv (item 11 share of today's laptop row).
 - Shots: results/shots-q11/
 - Data: results/q11.csv, q11-perf-*, q11b-perf-*, q11c-*, prof-762c16a-{cave,approach}-{v2,v1}.txt
 - NEXT: re-run the walk test (q11c: `-gocave #1` plus four `-walk` legs) after a #54 or field-cache fix. The v2 east leg (main 14.1 ms, probe 5.0 ms) is the number to beat.

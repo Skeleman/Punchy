@@ -24,6 +24,7 @@
   same morning: Bench-4eea658 / Profile-4eea658 (v0.11.0), Bench-bc89606 (world-features before the cave-chunk,
   worm and blocked work; the A side of many checks), Bench-8d83102, Bench-b5e9715 / Profile-b5e9715, Bench-e3ab4af /
   Profile-e3ab4af, then Bench-0cc3ed7 / Profile-0cc3ed7 (main) and Profile-ed767e0 (A-26).
+- 2026-11-03 also present: Bench-41a9259, Bench-a19bc79, Bench-762c16a / Profile-762c16a (main, item 11).
 - Gone, rebuild on demand (`build <sha> Build Bench-<sha>`, ~5-7 min each): 21f1193, a66c520, b870008 (Z-30 grain),
   3976d17 (32-slot worm marks), 247c690, 256e6a9, d60e085, 2de3029, b70dbfa, 0c637a9, 3d1893d, 793f103; dev builds
   3481353 / 74d8148 (Brain.Blocked markers, on wip/brain-blocked*). No `Play` or release zips: v0.11.0 and earlier are
