@@ -25,14 +25,17 @@ namespace Punchy.Debugging
     ///  B            next day type (sunny, partly cloudy, changeable, overcast, stormy), replacing today's weather;
     ///  Y            advance the clock two hours;  T  toggle fast time (DayNightCycle);
     ///  ] / [        force the next weather over the player / clear it (WeatherSystem);
-    ///  F1           show / hide this readout (and the interaction prompt with it: the whole HUD).
+    ///  F1           show / hide this readout (off by default since A-51: about 0.5 ms of IMGUI a frame; "-hud" starts
+    ///               with it on). "-nohud" hides the interaction prompt too, for screenshots.
     /// The player-facing panels (multiplayer, graphics, quit) are in the main menu on Esc or Start (UI.MainMenu).
     /// </summary>
     public class DebugControls : MonoBehaviour
     {
         public WeatherSystem Weather;
         public DayNightCycle Cycle;
-        public bool ShowReadout = true;
+        public bool ShowReadout;
+        /// <summary>"-nohud": the interaction prompt hidden as well as the readout (screenshots).</summary>
+        bool noHud;
 
         struct Location
         {
@@ -204,8 +207,8 @@ namespace Punchy.Debugging
                 return;
             if (keyboard.f1Key.wasPressedThisFrame)
                 ShowReadout = !ShowReadout;
-            // F1 hides the whole HUD (for screenshots): the interaction prompt goes with the readout.
-            InteractionPrompt.Hidden = !ShowReadout;
+            // (The interaction prompt stays up with the readout off, its default; only "-nohud" hides it.)
+            InteractionPrompt.Hidden = noHud;
             if (keyboard.f3Key.wasPressedThisFrame)
                 CopyPosition();
             if (keyboard.bKey.wasPressedThisFrame && Weather != null)
@@ -1542,7 +1545,8 @@ namespace Punchy.Debugging
                 Punchy.Audio.CreatureAudioSystem.LogVoices = true;
             if (System.Array.IndexOf(args, "-stancelog") >= 0)
                 FolkTalkSystem.LogStances = true;
-            // "-nohud": no readout (for screenshots).
+            // "-nohud": no readout and no interaction prompt (for screenshots). "-hud": start with the readout on.
+            ShowReadout = System.Array.IndexOf(args, "-hud") >= 0;
             // "-meteors": every night a meteor shower (Sky.hlsl's test switch), for checking shooting stars against clouds (Z-09).
             if (System.Array.IndexOf(args, "-meteors") >= 0)
                 Shader.SetGlobalFloat("_PunchySkyTest", 1f);
@@ -1559,6 +1563,7 @@ namespace Punchy.Debugging
             if (System.Array.IndexOf(args, "-nohud") >= 0)
             {
                 ShowReadout = false;
+                noHud = true;
                 InteractionPrompt.Hidden = true;
             }
             for (int i = 0; i < args.Length - 1; i++)
