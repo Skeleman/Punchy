@@ -133,7 +133,9 @@ namespace Punchy.CameraRig
                 // the open-air checks below (ground clamp, hill pull-in) are skipped: they pulled the camera in to
                 // 1.5 m in temple rooms, into a small body (a rabbit), and up through the stone.
                 var ceilingUp = head.y < terrain.SampleHeight(head.xz) - 0.3f;
-                underground = terrain.CaveDistance(head) < CaveNear || terrain.TempleAir(head) || ceilingUp;
+                // (P-13: a house's room, off the island: InteriorCells boxes are solid to SolidDistance too.)
+                underground = terrain.CaveDistance(head) < CaveNear || terrain.TempleAir(head) || ceilingUp ||
+                              Punchy.Terrain.InteriorCells.Distance(head) < CaveNear;
                 if (underground)
                 {
                     var probeStart = ProbeStats ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
