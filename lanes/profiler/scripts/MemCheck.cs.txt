@@ -1,0 +1,171 @@
+// Queue item 14 (profiler, never committed to the game): editor memory across the island bake and 10 play-mode cycles.
+// Copied to Assets/Game/Scripts/Editor/MemCheck.cs only for the run, then deleted. Batchmode:
+//   Unity -batchmode -projectPath <p> -executeMethod MemCheck.Run -memout <dir> -logFile <f>   (no -quit; it exits itself)
+// Lines start "MEMCHECK". Snapshots (open in Window > Analysis > Memory Profiler): <dir>/after-bake.snap, after-10-plays.snap.
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using Unity.Profiling;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.Profiling;
+
+public static class MemCheck
+{
+    static int Cycles = 10;   // -cycles N; -leakstack: native leak detection with stack traces, no snapshots
+    static bool leakStack;
+    const double BakeTimeout = 240, AfterBake = 5, AfterExit = 5;
+    static string outDir, report;
+    static int step, cycle;
+    static double stepStart;
+    static bool baked, snapping;
+    static Dictionary<string, (int n, long bytes)> typesA;
+    static readonly string[] Counters = { "Total Used Memory", "Total Reserved Memory", "GC Used Memory", "GC Reserved Memory",
+        "Gfx Used Memory", "Gfx Reserved Memory", "System Used Memory", "Texture Memory", "Mesh Memory", "Audio Used Memory",
+        "Profiler Used Memory", "Object Count", "Texture Count", "Mesh Count", "Material Count", "Asset Count", "GameObject Count In Scene" };
+    static readonly List<ProfilerRecorder> recorders = new List<ProfilerRecorder>();
+
+    public static void Run()
+    {
+        var args = Environment.GetCommandLineArgs();
+        var i = Array.IndexOf(args, "-memout");
+        outDir = i >= 0 && i + 1 < args.Length ? args[i + 1] : "MemCheck";
+        Directory.CreateDirectory(outDir);
+        report = Path.Combine(outDir, "memcheck.txt");
+        var ci = Array.IndexOf(args, "-cycles");
+        if (ci >= 0 && ci + 1 < args.Length) Cycles = int.Parse(args[ci + 1]);
+        leakStack = Array.IndexOf(args, "-leakstack") >= 0;
+        if (leakStack) Unity.Collections.NativeLeakDetection.Mode = Unity.Collections.NativeLeakDetectionMode.EnabledWithStackTrace;
+        File.WriteAllText(report, "");
+        foreach (var c in Counters)
+            recorders.Add(ProfilerRecorder.StartNew(ProfilerCategory.Memory, c));
+        Application.logMessageReceived += (msg, st, type) => { if (msg.Contains("[island] reports")) { baked = true; Log("bake log: " + msg.Split('\n')[0]); } };
+        EditorSceneManager.OpenScene(EditorBuildSettings.scenes[0].path);
+        Log($"scene {EditorBuildSettings.scenes[0].path}, island arg {(Array.IndexOf(args, "-island") >= 0 ? args[Array.IndexOf(args, "-island") + 1] : "default")}");
+        stepStart = EditorApplication.timeSinceStartup;
+        EditorApplication.update += Tick;
+    }
+
+    static void Log(string s)
+    {
+        Debug.Log("MEMCHECK " + s);
+        File.AppendAllText(report, s + "\n");
+    }
+
+    static double Since => EditorApplication.timeSinceStartup - stepStart;
+    static void Next() { step++; stepStart = EditorApplication.timeSinceStartup; }
+
+    static void Tick()
+    {
+        if (snapping) return;
+        if (EditorApplication.timeSinceStartup > 3000) { Log("TIMED OUT at step " + step); EditorApplication.Exit(2); return; }
+        switch (step)
+        {
+            case 0: if (Since > 10) { Measure("idle (scene open, edit mode)", false); Next(); } break;
+            case 1: baked = false; bakeAt = -1; EditorApplication.isPlaying = true; Next(); break;
+            case 2:   // play 1: the first bake
+                if (EditorApplication.isPlaying && Since > 3 && (baked || Since > BakeTimeout))
+                {
+                    if (bakeAt < 0) { bakeAt = EditorApplication.timeSinceStartup; if (!baked) Log("no bake log within " + BakeTimeout + " s"); }
+                    if (EditorApplication.timeSinceStartup - bakeAt > AfterBake) { Measure("play 1, after the bake (in play mode)", true); EditorApplication.isPlaying = false; Next(); }
+                }
+                break;
+            case 3:
+                if (!EditorApplication.isPlaying && Since > AfterExit)
+                {
+                    var t = Measure("after the bake, play mode exited", true, true);
+                    typesA = t;
+                    Snap("after-bake.snap", () => { cycle = 0; Next(); });
+                }
+                break;
+            case 4: baked = false; bakeAt = -1; cycle++; EditorApplication.isPlaying = true; Next(); break;
+            case 5:
+                if (EditorApplication.isPlaying && Since > 3 && (baked || Since > BakeTimeout))
+                {
+                    if (bakeAt < 0) bakeAt = EditorApplication.timeSinceStartup;
+                    if (EditorApplication.timeSinceStartup - bakeAt > AfterBake) { EditorApplication.isPlaying = false; Next(); }
+                }
+                break;
+            case 6:
+                if (!EditorApplication.isPlaying && Since > AfterExit)
+                {
+                    Measure($"cycle {cycle} of {Cycles} exited{(baked ? "" : " (no bake log)")}", false);
+                    if (cycle < Cycles) { step = 4; stepStart = EditorApplication.timeSinceStartup; }
+                    else Next();
+                }
+                break;
+            case 7:
+            {
+                var t = Measure($"after {Cycles} more plays (GC + UnloadUnusedAssets)", true, true);
+                Grew(typesA, t);
+                Snap("after-10-plays.snap", () => { Log("done"); EditorApplication.Exit(0); });
+                Next();
+                break;
+            }
+        }
+    }
+    static double bakeAt = -1;
+
+    static void Snap(string file, Action then)
+    {
+        if (leakStack) { then(); return; }
+        snapping = true;
+        var path = Path.GetFullPath(Path.Combine(outDir, file));
+        Unity.Profiling.Memory.MemoryProfiler.TakeSnapshot(path, (p, ok) =>
+        {
+            Log($"snapshot {file}: {(ok ? "ok" : "FAILED")} {(ok && File.Exists(p) ? new FileInfo(p).Length / 1048576 : 0)} MB");
+            snapping = false;
+            then();
+        }, Unity.Profiling.Memory.CaptureFlags.ManagedObjects | Unity.Profiling.Memory.CaptureFlags.NativeObjects | Unity.Profiling.Memory.CaptureFlags.NativeAllocations);
+    }
+
+    static Dictionary<string, (int n, long bytes)> Measure(string label, bool details, bool clean = false)
+    {
+        if (clean)
+        {
+            EditorUtility.UnloadUnusedAssetsImmediate();
+            GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+        }
+        var proc = System.Diagnostics.Process.GetCurrentProcess();
+        proc.Refresh();
+        var c = string.Join(", ", Counters.Select((n, k) => $"{n} {Fmt(recorders[k], n)}"));
+        Log($"== {label}: working set {proc.WorkingSet64 / 1048576} MB, private {proc.PrivateMemorySize64 / 1048576} MB, " +
+            $"Profiler total allocated {Profiler.GetTotalAllocatedMemoryLong() / 1048576} MB, reserved {Profiler.GetTotalReservedMemoryLong() / 1048576} MB, " +
+            $"mono heap {Profiler.GetMonoHeapSizeLong() / 1048576} MB used {Profiler.GetMonoUsedSizeLong() / 1048576} MB, gfx driver {Profiler.GetAllocatedMemoryForGraphicsDriver() / 1048576} MB");
+        Log("   counters: " + c);
+        if (!details) return null;
+        var types = new Dictionary<string, (int n, long bytes)>();
+        var objs = new List<(string name, string type, long bytes)>();
+        foreach (var o in Resources.FindObjectsOfTypeAll<UnityEngine.Object>())
+        {
+            if (o == null) continue;
+            var b = Profiler.GetRuntimeMemorySizeLong(o);
+            var tn = o.GetType().Name;
+            types.TryGetValue(tn, out var v);
+            types[tn] = (v.n + 1, v.bytes + b);
+            objs.Add((o.name, tn, b));
+        }
+        Log($"   objects {objs.Count}, {objs.Sum(x => x.bytes) / 1048576} MB in all. Top 10 types:");
+        foreach (var kv in types.OrderByDescending(x => x.Value.bytes).Take(10))
+            Log($"     {kv.Value.bytes / 1048576.0,8:F1} MB  {kv.Value.n,6}x  {kv.Key}");
+        Log("   Top 10 objects:");
+        foreach (var o in objs.OrderByDescending(x => x.bytes).Take(10))
+            Log($"     {o.bytes / 1048576.0,8:F1} MB  {o.type}  '{o.name}'");
+        return types;
+    }
+
+    static string Fmt(ProfilerRecorder r, string name) =>
+        !r.Valid ? "n/a" : name.Contains("Count") ? r.LastValue.ToString() : (r.LastValue / 1048576) + " MB";
+
+    static void Grew(Dictionary<string, (int n, long bytes)> a, Dictionary<string, (int n, long bytes)> b)
+    {
+        if (a == null || b == null) return;
+        Log("   Types that grew (after bake -> after 10 plays), by MB then count:");
+        var rows = b.Select(kv => { a.TryGetValue(kv.Key, out var o); return (kv.Key, dn: kv.Value.n - o.n, db: kv.Value.bytes - o.bytes, n: kv.Value.n); })
+                    .Where(x => x.dn > 0 || x.db > 0).OrderByDescending(x => x.db).ThenByDescending(x => x.dn).Take(15);
+        foreach (var x in rows)
+            Log($"     {x.db / 1048576.0,8:F2} MB  {x.dn,6}x (now {x.n})  {x.Key}");
+    }
+}
