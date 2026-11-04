@@ -2,6 +2,41 @@
 
 Newest first.
 
+## W-68 (2026-11-03) world-features 527677a: v3 B0 water audit + B1 v3 flag
+
+- Merged origin/main (PR #89) into world-features: fast-forward to 1345b25. 0 compile errors before and after.
+- Commit 527677a: `V3Audit` (new, Terrain/Island): one `[hydro audit]` line; eval `Punchy.Terrain.V3Audit.Run(source[, step])`
+  on any island, and it runs at the end of every v3 bake. `IslandV3` (new): `-island v3`, PUNCHY_ISLAND=v3 or the new
+  editor menu Punchy/Island/v1|v2|v3|Default (EditorPrefs + process env) bakes through IslandV3, whose steps still call
+  v2. `IslandV2.RequestedVersion()` returns 1/2/3; `Requested()` keeps its meaning. `WorldSync`: "island vN" added to
+  the world fingerprint (8A), so every fingerprint changes once; the refusal log names the host's version. The v3 hydro
+  hash is not in the fingerprint yet (v3 = v2 for now); add it when B5 has a table to hash.
+- Audit, v2 = v3 (identical lines):
+
+| Count (v2, seed 1337, editor) | Value |
+|---|---|
+| Rivers (sources) | 27 |
+| River ends / open ends (not on a lake, pool or the sea) | 8 / 0 |
+| Lakes (4-connected lake cells on the river grid) | 154 (14625 cells) |
+| Falls: river / grand falls tiers | 66 / 5 |
+| Pools (landmark + grand falls plunge) / dry (under 0.2 m) | 42 / 0 |
+| Biome ponds (16 m grid) | 5 |
+| Dry beds | 0 (v2 has none) |
+| 8 m grid: wet cells / steep water (ground over 35 deg under 0.3 m+ of water) | 69771 / 810 |
+| Water over ground (surface 0.3 m+ over a dry neighbour's ground) | 343 |
+| Land between surfaces | 13 |
+| Floating water (dry and 1 m+ lower on all four sides) | 1 |
+| Grid hits within 25 m of a fall lip (curtains, counted apart) | 222 |
+
+- Reading the baseline: water over ground 343 and land between 13 are the counts v3 must take to 0; most "over" spots
+  cluster west of the lake (-2690,-1180) and "between" ones near (-1950,210). The 154 lakes include every small hollow
+  the river grid fills. Audit time 1.3-1.4 s.
+- Hashes (editor, after the merge), v2 and v3 the same: landmarks 136 / 4E61F1CF, caves C49E8E3036C741FC, ground
+  C0C906EE310FA91F, rivers A77D2ED7B919296E. All match the baselines. Only the network fingerprint differs by version.
+- v3 bake: 0 errors (console has only the editor's own "Lifecycle ERROR ... EditMode" lines). v1 not run; its path
+  only goes through `RequestedVersion() != 1`, same rule as before. Editor left on Punchy/Island/Default (v2).
+- Calls: about 45.
+
 ## W-65g (2026-11-03) world-features 6a436b5 (build at 83bbb2d)
 
 - Refresh first: left play mode, AssetDatabase.Refresh, no compile errors.

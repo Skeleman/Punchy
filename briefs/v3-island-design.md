@@ -247,6 +247,27 @@ to zero near water.
 B14 can run any time after B1, in the multiplayer lane. B2-B4 and B5-B7 are the two long chains; B8-B10 can run
 in parallel once B7 lands.
 
+### B0 baseline: v2 water audit (W-68, world-features 527677a)
+
+`Punchy.Terrain.V3Audit.Run(source)` (eval in play mode, or the line every v3 bake logs). Shores are sampled on the
+same 8 m grid for now, not at 2 m. First spots of each count are in the log line. B1's v3 skeleton gives the same
+numbers.
+
+| Count (v2, seed 1337, editor) | Value |
+|---|---|
+| Rivers (sources) | 27 |
+| River ends / open ends (not on a lake, pool or the sea) | 8 / 0 |
+| Lakes (4-connected lake cells on the river grid) | 154 (14625 cells) |
+| Falls: river / grand falls tiers | 66 / 5 |
+| Pools (landmark + grand falls plunge) / dry (under 0.2 m) | 42 / 0 |
+| Biome ponds (16 m grid) | 5 |
+| Dry beds | 0 (v2 has none) |
+| 8 m grid: wet cells / steep water (ground over 35 deg under 0.3 m+ of water) | 69771 / 810 |
+| Water over ground (surface 0.3 m+ over a dry neighbour's ground) | 343 |
+| Land between surfaces | 13 |
+| Floating water (dry and 1 m+ lower on all four sides) | 1 |
+| Grid hits within 25 m of a fall lip (curtains, counted apart) | 222 |
+
 ## What to keep from v2
 
 - Realm layout: 5 families, warped Voronoi, forbidden neighbours, the lake beside the spawn.
