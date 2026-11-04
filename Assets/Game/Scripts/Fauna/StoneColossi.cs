@@ -97,8 +97,22 @@ namespace Punchy.Fauna
             foreach (var r in roots)
                 if (r != null && r.gameObject.activeSelf == DunesColossus.Hidden)
                     r.gameObject.SetActive(!DunesColossus.Hidden);
+            // W-90 (#84): time the frames that schedule a re-lay and the frame after (which lands it), to show the
+            // stall is gone. Logged for the first few re-lays only.
+            int before = FarShadow.LaysScheduled;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
             DrawFarShadows();
+            bool laid = FarShadow.LaysScheduled != before;
+            if ((laid || landing) && relayLogs < 12)
+            {
+                relayLogs++;
+                Debug.Log($"[farshadow] {(laid ? "schedule" : "land")} frame: StoneColossi far shadows {watch.Elapsed.TotalMilliseconds:F2} ms");
+            }
+            landing = laid;
         }
+
+        bool landing;
+        int relayLogs;
 
         /// <summary>
         /// Past the real shadow distance every colossus (these and the Dunes one) still casts, through a far shadow
