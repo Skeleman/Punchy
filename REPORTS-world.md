@@ -1560,3 +1560,32 @@ Left: the igloo inner block lets 3/5 walks pass the door line (the door is still
   - #82 needs a snowy camp spot, or Zach's playtest coordinates, for the proof shot.
   - Re-hash v2, caves, ground and rivers in the editor.
   - I went over the tool budget (about 70 calls).
+
+## W-67 (2026-11-03): kit box collision (#79 #36 #38 #80)
+- Commit: world-features 52b4af5 (pushed). New file Flora/KitCollision.cs. KitParts become rotated solid boxes; decor (moss, trim, windows, lamp/rune/moss materials) opts out. FloraSystem places only the boxes within 12 m of a player (plus the model radius), refreshed with the support tops. Flora cylinders, caves and non-kit props keep their old paths.
+- PlayerMovementSystem changes (for the animal lane rebase), all commented "W-67":
+  - (a) reads the KitBox singleton buffer (`hasKit`);
+  - (b) KitCollision.KeepOut after KeepOutOfPropWalls (walls from box sides, X/Z slide);
+  - (c) new helper TopUnder: prop Sample (skipKit) or kit Floor, whichever is higher; used for the main prop floor, the climber perch, the top-out and walk-off-edge checks (`tops || hasKit`);
+  - (d) ceiling clamp from box bottoms while rising;
+  - (e) KeepOutOfPropWalls passes skipKit;
+  - (f) SlideAroundObstacles skips `Kit` obstacles. Ledge/mantle unchanged.
+- Row 1 (#79): compiles, 0 errors. Editor wharf walk (-3292,-1644 to -3272,-1644) stayed on the deck at y 1.25. Three more editor walks onto the wharf and pier arrived at foot 1.3 / 1.3 / 1.1 vs expected the same.
+- Row 2 (-walk): ARRIVED now needs the feet to have stopped falling and to be within 0.3 m of the expected floor; it logs "walk foot y A expected B". A walker below the deck target (explicit y 3.1) reported FAIL: foot -1.2 vs 3.1. A real under-deck walk is not possible on this wharf any more in the editor.
+- Rows 3-4 (player build):
+  - Wharf: NOT PROVEN. The player walked along the seabed under the deck to foot -1.3 (expected -1.5, so it reported ARRIVED). The editor run of the same walk stayed on top. My guess: in the player the boxes were not placed yet when it teleported in right after loading (the refresh may be keyed on movement), and the check's TopAt ceiling of feet+2.5 missed the deck at 1.25. Needs a look.
+  - Pier: ARRIVED, foot 28.0 vs expected 27.9.
+  - Stone row (-2972 to -2956, z 3193.4): STOPPED 7.2 m short at y 43.1. The row's real yaw and ends are not known; the walk line was a guess.
+  - Igloo door (344.67,50.04): STOPPED 4.2 m short at y 272.5.
+  - Ruin 1420.4,2159.8: STOPPED 4.5 m short at y 31.6, so walls block, but stacked floors are not proven.
+- Bench at the cave spot (editor, -goto 530,958 -time 12): before 16.71 ms/frame with PlayerMovement 0.033 ms; after 16.71 ms/frame with PlayerMovement 0.033 ms.
+- Build: 1 build, done. The player quit by itself.
+- Hashes: player v2 136 landmarks / B5EFF8C8, which matches. The editor caves/ground/rivers re-hash was still running when this was written; I did not re-run v1. Colliders are not hashed, so nothing should move.
+- Shots: D:/PunchyMilestones/W-67 (w67_wharf_deck, w67_walk_fail_demo, w67_pier_end, w67_pier_framed, w67_stone_row, w67_igloo_door, w67_ruin, player.log, shots_w67.txt).
+- Left over:
+  - The player wharf deck walk (box placement timing after a teleport).
+  - Raise the -walk TopAt ceiling.
+  - The stone row ends and the igloo door approach.
+  - Ruin stacked floors.
+  - The editor re-hash of caves, ground and rivers.
+  - I went over the tool budget.
