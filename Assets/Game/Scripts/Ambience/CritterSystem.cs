@@ -98,6 +98,7 @@ namespace Punchy.Ambience
 
         void OnDisable()
         {
+            DropPending();
             foreach (var t in tiles.Values)
                 t.Dispose();
             tiles.Clear();
@@ -164,6 +165,8 @@ namespace Punchy.Ambience
 
         void Stream(in TerrainSource source, float2 camXZ)
         {
+            if (hasPending)
+                Finish(source);
             scratch.Clear();
             foreach (var kv in tiles)
                 if (math.distance(TileCentre(kv.Key), camXZ) > Punchy.Settings.GraphicsSettings.DetailRange(Radius) + TileSize * 1.5f)
@@ -197,7 +200,7 @@ namespace Punchy.Ambience
                 coords[i] = scratch[i];
             var output = new NativeArray<Critter>(count * perTile * 2, Allocator.TempJob);
             var kinds = new NativeArray<byte>(count * perTile * 2, Allocator.TempJob);
-            new PlaceJob
+            pendingJob = new PlaceJob
             {
                 Source = source,
                 Densities = densities,
@@ -209,8 +212,42 @@ namespace Punchy.Ambience
                 MaxDensity = MaxDensity,
                 Output = output,
                 Kinds = kinds
-            }.Schedule(output.Length, 32).Complete();
+            }.Schedule(output.Length, 32);
+            pendingCoords = coords;
+            pendingOutput = output;
+            pendingKinds = kinds;
+            pendingPerTile = perTile;
+            hasPending = true;
+        }
 
+        // W-75 (#62): the place job runs while the rest of the frame does; its tiles are uploaded at the start of the
+        // next Stream, one frame later, which can't be seen at the edge of the detail range.
+        JobHandle pendingJob;
+        NativeArray<int2> pendingCoords;
+        NativeArray<Critter> pendingOutput;
+        NativeArray<byte> pendingKinds;
+        int pendingPerTile;
+        bool hasPending;
+
+        void DropPending()
+        {
+            if (!hasPending)
+                return;
+            pendingJob.Complete();
+            pendingCoords.Dispose();
+            pendingOutput.Dispose();
+            pendingKinds.Dispose();
+            hasPending = false;
+        }
+
+        void Finish(in TerrainSource source)
+        {
+            pendingJob.Complete();
+            var coords = pendingCoords;
+            var output = pendingOutput;
+            var kinds = pendingKinds;
+            var perTile = pendingPerTile;
+            var count = coords.Length;
             var fireflies = new List<Critter>();
             var butterflies = new List<Critter>();
             for (int t = 0; t < count; t++)
@@ -247,9 +284,7 @@ namespace Punchy.Ambience
                 }
                 tiles[coords[t]] = tile;
             }
-            coords.Dispose();
-            output.Dispose();
-            kinds.Dispose();
+            DropPending();
         }
 
         void Draw(Camera cam, float2 camXZ, Vector4 amounts)

@@ -126,6 +126,7 @@ namespace Punchy.Terrain
 
         void OnDisable()
         {
+            DropPending();
             foreach (var t in tiles.Values)
                 t.Dispose();
             tiles.Clear();
@@ -201,6 +202,8 @@ namespace Punchy.Terrain
 
         void BuildMissingTiles(in TerrainSource source, float2 camXZ, float radius)
         {
+            if (hasPending)
+                Finish();
             scratch.Clear();
             var r = (int)math.ceil(radius / TileSize) + 1;
             var centre = (int2)math.floor(camXZ / TileSize);
@@ -230,12 +233,66 @@ namespace Punchy.Terrain
             {
                 Source = source, Origins = origins, Grid = g, Spacing = TileSize / (g - 1), Points = samples
             }.Schedule(samples.Length, 64);
-            new ScatterJob
+            pendingJob = new ScatterJob
             {
                 Origins = origins, Points = samples, Grid = g, TileSize = TileSize,
                 MaxGrass = MaxGrass, MaxPebbles = MaxPebbles, Blades = blades, Pebbles = pebbles, Counts = counts
-            }.Schedule(count, 1, sample).Complete();
+            }.Schedule(count, 1, sample);
+            pending = new Pending
+            {
+                Origins = origins, Samples = samples, Blades = blades, Pebbles = pebbles, Counts = counts,
+                Coords = scratch.GetRange(0, count), Grid = g, MaxGrass = MaxGrass, MaxPebbles = MaxPebbles
+            };
+            hasPending = true;
+        }
 
+        // W-75 (#62): the sample and scatter jobs run while the rest of the frame does; their tiles are uploaded at the
+        // start of the next BuildMissingTiles, one frame later, which can't be seen at the edge of the grass range.
+        struct Pending
+        {
+            public NativeArray<float2> Origins;
+            public NativeArray<GroundPoint> Samples;
+            public NativeArray<Blade> Blades;
+            public NativeArray<Pebble> Pebbles;
+            public NativeArray<int2> Counts;
+            public List<int2> Coords;
+            public int Grid, MaxGrass, MaxPebbles;
+
+            public void Dispose()
+            {
+                Origins.Dispose();
+                Samples.Dispose();
+                Blades.Dispose();
+                Pebbles.Dispose();
+                Counts.Dispose();
+            }
+        }
+
+        Pending pending;
+        JobHandle pendingJob;
+        bool hasPending;
+
+        void DropPending()
+        {
+            if (!hasPending)
+                return;
+            pendingJob.Complete();
+            pending.Dispose();
+            hasPending = false;
+        }
+
+        void Finish()
+        {
+            pendingJob.Complete();
+            var origins = pending.Origins;
+            var samples = pending.Samples;
+            var blades = pending.Blades;
+            var pebbles = pending.Pebbles;
+            var counts = pending.Counts;
+            var g = pending.Grid;
+            var maxGrass = pending.MaxGrass;
+            var maxPebbles = pending.MaxPebbles;
+            var count = origins.Length;
             for (int i = 0; i < count; i++)
             {
                 var tile = new Tile
@@ -257,23 +314,18 @@ namespace Punchy.Terrain
                 if (tile.GrassCount > 0)
                 {
                     tile.Grass = new GraphicsBuffer(GraphicsBuffer.Target.Structured, tile.GrassCount, Marshal.SizeOf<Blade>());
-                    tile.Grass.SetData(blades, i * MaxGrass, 0, tile.GrassCount);
+                    tile.Grass.SetData(blades, i * maxGrass, 0, tile.GrassCount);
                     tile.GrassProps.SetBuffer(BladesId, tile.Grass);
                 }
                 if (tile.PebbleCount > 0)
                 {
                     tile.Pebbles = new GraphicsBuffer(GraphicsBuffer.Target.Structured, tile.PebbleCount, Marshal.SizeOf<Pebble>());
-                    tile.Pebbles.SetData(pebbles, i * MaxPebbles, 0, tile.PebbleCount);
+                    tile.Pebbles.SetData(pebbles, i * maxPebbles, 0, tile.PebbleCount);
                     tile.PebbleProps.SetBuffer(PebblesId, tile.Pebbles);
                 }
-                tiles[scratch[i]] = tile;
+                tiles[pending.Coords[i]] = tile;
             }
-
-            origins.Dispose();
-            samples.Dispose();
-            blades.Dispose();
-            pebbles.Dispose();
-            counts.Dispose();
+            DropPending();
         }
 
         void Draw(Camera cam, float2 camXZ)
