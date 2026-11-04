@@ -1525,3 +1525,32 @@ Left: #57 more runs; #46 test with a moving player; client-connected tab shot (h
   2. Hungry: sniff-walk with the head low between grazes, longer grazes; thirsty animals head to water in a line (already the Drink path).
   3. Lonely: more calls and drifting toward the nearest herd. Needs stay server-only; clients read the cue from mode and pose, so nothing new is sent.
 - Exceptions: none seen. Shots and log: D:\PunchyMilestonesnimal49 (s2\, editor-run2.log). Editor closed (PID 14180; Punchy-world 55872 left alone). Temp/PlayArgs.txt removed (none before). Calls: about 70 (over the ceiling: run 1 was spoiled by herd carry-over and missing shots, so I ran a second pass).
+
+## A-51 (2026-11-04): main-thread wins from profiler job 15 (#62)
+Branch animal-behaviours, pushed: b6cf915 (row 1), edabfd7 (row 2), b527dc1 (row 3). Each row is its own file and commit.
+Measured in the editor, 300 frames per stop, uncapped (-fpscap 0), with Burst safety checks, the jobs debugger and leak detection off. Numbers are main-thread ms per frame, before and after.
+
+| Row | System | Approach | Start (-place Start) | Hut cave (-goto 530,45,958) |
+|---|---|---|---|---|
+| 1 | CreatureRenderSystem | (a)+(b): CullJob parallel-scheduled, compaction in a Burst CompactJob while the main thread gathers critters, birds and fish. (c): poses drawn one frame late (PoseJob completed next frame) | 0.524 -> 0.214 | 0.369 -> 0.281 |
+| 2 | InteractionInputSystem | (c): reads last frame's ReachJob result; no Complete | 0.315 -> 0.018 | 0.293 -> 0.022 |
+| 3 | Debug HUD | Off by default; F1 or `-hud` shows it | OnGUI 2.454 -> 2.045 | n/a |
+
+- PlayerLoop: Start 6.25 -> 4.97 ms; hut cave 6.17 -> 5.63 ms.
+- Row 3:
+  - The OnGUI marker also counts other IMGUI callers, so the readout itself was about 0.4 ms.
+  - Change: F1 now toggles only the readout. The interaction prompt stays visible; `-nohud` still hides everything.
+  - The bench and shot flags were not touched.
+- Behaviour: same creature counts and the same pose job. The only visible change is that poses draw one frame late (about 7 ms at these frame rates).
+- Coordinator's PoseJob batch note: the batch size is still 8, but the pose job is no longer completed in the frame it starts, so workers absorb it. Not re-measured on the town walk or the wharf.
+- Exceptions: none from these systems. Editor closed gracefully. Temp/PlayArgs.txt removed (there was none before).
+
+## A-50: stopped on supervisor order (waits on P-7)
+- Spawner, posts and stand-in work were tried in the editor but not committed. The local cherry-pick of d7ed5eb was dropped, so the branch is unchanged.
+- Results from that try:
+  - Stand-in Cave picks: hash 0xf1e10e91 (6 creatures).
+  - Stand-in Crypt picks: hash 0x3ac96bb1 (8 creatures, with Ghost, BoneHound, Coffer-type picks). The two types give different picks.
+  - Guard log lines appeared: "Bat guards its chest: faces a player 3.5 m away".
+  - The files are kept off-repo for when P-7 lands.
+
+Calls: about 80 across A-51 and the aborted A-50 start (A-51 alone was about 55).
