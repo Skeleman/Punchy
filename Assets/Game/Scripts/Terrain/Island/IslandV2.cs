@@ -50,7 +50,9 @@ namespace Punchy.Terrain
         public static int RequestedVersion()
         {
             string v = null;
-            var args = Environment.GetCommandLineArgs();
+            // W-92 (#88): the test flags, so in the editor "-island v3" in Temp/PlayArgs.txt picks v3 too (before, only
+            // the env did, and "-island v3 -lakeshelf" there gave a v2 island with no shelf).
+            var args = Punchy.Debugging.DebugControls.LaunchArgs;
             for (int i = 0; i < args.Length - 1 && v == null; i++)
                 if (args[i] == "-island")
                     v = args[i + 1];
