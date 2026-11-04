@@ -42,6 +42,7 @@ namespace Punchy.Terrain
         SunkenTempleLayout layout;
         Material stone, sand, innerStone, innerSand, glow;
         float3[] torches;
+        FarShadow farShadow;
         bool warned;
 
         protected override void OnCreate() => RequireForUpdate<TerrainSource>();
@@ -80,6 +81,10 @@ namespace Punchy.Terrain
             }
             else if (lod == 0)
                 Draw(plug, 0, innerStone, ShadowCastingMode.Off);
+            // Past the real shadow distance the temple still casts, through a far shadow proxy (#84, as the salt tower).
+            var foot = new Vector3(bounds.center.x, source.SampleHeight(new float2(bounds.center.x, bounds.center.z)), bounds.center.z);
+            farShadow ??= new FarShadow("SunkenTemple far shadow");
+            farShadow.Draw(source, foot, math.max(4f, bounds.max.y - foot.y), math.min(bounds.extents.x, bounds.extents.z));
         }
 
         /// <summary>The wall torches: a wood flame each (FireSystem) and a flickering pooled light (CaveSystem.MovingLights).</summary>
@@ -138,7 +143,11 @@ namespace Punchy.Terrain
             return m;
         }
 
-        protected override void OnDestroy() => Clear();
+        protected override void OnDestroy()
+        {
+            Clear();
+            farShadow?.Dispose();
+        }
 
         void Clear()
         {
