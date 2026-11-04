@@ -25,12 +25,13 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | Issue | Title | Card |
 |---|---|---|
 | #57 | Creature perf: staggered searches, fair flee check | A-46 row 2 |
+| #85 | Camera underground | P-7 rows 1-3 |
 | #58-#64 | ECS code-health review | A-45/A-47 after perf |
 | #68 | Character selection tab: class -> species -> colour | A-46 (animal lane owns the player's body) |
 | #69 #70 #71 #72 | Zach playtest: hermit shelters, wasteland rock collision, great mushroom, biome campgrounds | W-57 (after W-56) |
 | #31 | Laptop: houses lit wrong | Needs the laptop |
 | #21 #22 | Plant fidelity, underwater camera (design) | backlog |
-| #24 | Dungeons: caves and ruins | Kit from W-56/W-58; two-phase plan in briefs/dungeons-two-phase.md: P-6 set pieces + sockets, A-50 spawner + behaviours |
+| #24 | Dungeons: caves and ruins | Phase 1: P-7 rows 4-5 (sockets in the sunken temple rooms; pool rooms need a world tile later), A-50 spawner + behaviours |
 | #36 | Fishing villages at river mouths | W-59, from the W-58 kit (Zach priority 2) |
 | #10 #35 #37 #38 #8 | New settlements and races (bat, sea, turtle, fish folk, pygmies; race reactions) | after W-59 (Zach priority 3) |
 | #25-#27 | Roadmap | backlog |
