@@ -204,7 +204,31 @@ namespace Punchy.Flora
         /// <paramref name="obstacles"/>, buildings' walls too (each building variant is grown once for its colliders,
         /// so only the animals' tables pay for it).
         /// </summary>
-        public static BlobAssetReference<FloraBlob> Build(BiomePalette palette, float3 cellSizes, List<FloraSpecies> species, bool obstacles = false)
+        /// <summary>
+        /// A-55 (#102): starts on worker threads the shape-only grows that Build(obstacles: true) reads (buildings' walls,
+        /// perches, chimneys), so Build can take them finished instead of growing them all in one frame. Main thread only
+        /// (it reads the assets' names).
+        /// </summary>
+        public static Dictionary<(FloraSpecies, int), System.Threading.Tasks.Task<FloraModel>> StartObstacleShapes(BiomePalette palette)
+        {
+            var list = new List<FloraSpecies>();
+            CollectSpecies(palette, list);
+            var tasks = new Dictionary<(FloraSpecies, int), System.Threading.Tasks.Task<FloraModel>>();
+            foreach (var s in list)
+                if (IsBuilding(s) || HasPerches(s) || IsAnchorRock(s))
+                {
+                    var name = s.name;
+                    for (int v = 0; v < s.Variants; v++)
+                    {
+                        var variant = v;
+                        tasks[(s, v)] = System.Threading.Tasks.Task.Run(() => FloraGenerator.GrowShape(s, variant, name));
+                    }
+                }
+            return tasks;
+        }
+
+        public static BlobAssetReference<FloraBlob> Build(BiomePalette palette, float3 cellSizes, List<FloraSpecies> species, bool obstacles = false,
+                                                          Dictionary<(FloraSpecies, int), System.Threading.Tasks.Task<FloraModel>> grownShapes = null)
         {
             CollectSpecies(palette, species);
             var landmarks = palette.Landmarks ?? Array.Empty<LandmarkType>();
@@ -268,7 +292,8 @@ namespace Punchy.Flora
                     var shape = FloraGenerator.Shape(s, v);
                     if (obstacles && (IsBuilding(s) || HasPerches(s)))
                     {
-                        var model = FloraGenerator.Grow(s, v, shapeOnly: true);
+                        var model = grownShapes != null && grownShapes.TryGetValue((s, v), out var grown) && grown.Status == System.Threading.Tasks.TaskStatus.RanToCompletion
+                            ? grown.Result : FloraGenerator.Grow(s, v, shapeOnly: true);
                         if (IsBuilding(s))
                         {
                             shape.FirstObstacle = walls.Count;
@@ -291,7 +316,8 @@ namespace Punchy.Flora
                     else if (obstacles && IsAnchorRock(s))
                     {
                         // (Its size, for spiders to tie webs to: a rock's shape is otherwise left empty.)
-                        var model = FloraGenerator.Grow(s, v, shapeOnly: true);
+                        var model = grownShapes != null && grownShapes.TryGetValue((s, v), out var grown) && grown.Status == System.Threading.Tasks.TaskStatus.RanToCompletion
+                            ? grown.Result : FloraGenerator.Grow(s, v, shapeOnly: true);
                         shape.Height = model.Height;
                         shape.TrunkRadius = model.TrunkRadius;
                         model.Destroy();

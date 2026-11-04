@@ -92,6 +92,10 @@ namespace Punchy.Fauna
         Mesh capsule;
         float spawnBudget;
         bool built;
+        // (The flora lookup's shape-only grows, started on workers before Build, #102.)
+        Dictionary<(Punchy.Flora.FloraSpecies, int), System.Threading.Tasks.Task<Punchy.Flora.FloraModel>> pendingShapes;
+        float shapesSince;
+        int shapeFrames;
         TerrainSource lastSource;
         /// <summary>Per player, how many of each species are within Radius of them (player-major).</summary>
         int[] counts;
@@ -202,6 +206,7 @@ namespace Punchy.Fauna
             if (capsule != null) Destroy(capsule);
             capsule = null;
             built = false;
+            pendingShapes = null;
         }
 
         // (Benches and profiles see the director's own work, and which of its passes a spike is in.)
@@ -232,7 +237,25 @@ namespace Punchy.Fauna
             if (built && (!source.Equals(lastSource) || ConfigChanged()))
                 Teardown();
             if (!built)
+            {
+                // A-55 (#102): the flora lookup's shape-only grows were ~0.6 s of the island-ready frame. Start them on
+                // workers and build once they're done (a few frames later; nothing spawns before), or after 10 s regardless.
+                // (-syncshapes: the old way, all in the build frame, for A/B.)
+                if (simWorld != null && pendingShapes == null && System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-syncshapes") < 0)
+                {
+                    pendingShapes = Punchy.Flora.FloraPlacement.StartObstacleShapes(palette);
+                    shapesSince = Time.realtimeSinceStartup;
+                    shapeFrames = 0;
+                }
+                if (pendingShapes != null && Time.realtimeSinceStartup - shapesSince < 10f)
+                {
+                    shapeFrames++;
+                    foreach (var task in pendingShapes.Values)
+                        if (!task.IsCompleted)
+                            return;
+                }
                 Build(source, palette);
+            }
             KeepAvatar();
             GiveReplicasBodies();
 
@@ -455,7 +478,10 @@ namespace Punchy.Fauna
                                  Punchy.Flora.FloraPlacement.CellSize(flora.Shrubs.TileSize, flora.Shrubs.CellSize),
                                  Punchy.Flora.FloraPlacement.CellSize(flora.Trees.TileSize, flora.Trees.CellSize))
                     : new float3(0.7f, 2f, 4.5f);
-                floraBlob = Punchy.Flora.FloraPlacement.Build(palette, cells, floraSpecies, obstacles: true);
+                floraBlob = Punchy.Flora.FloraPlacement.Build(palette, cells, floraSpecies, obstacles: true, grownShapes: pendingShapes);
+                if (pendingShapes != null)
+                    stages.Append(" (shapes waited ").Append(shapeFrames).Append(" frames)");
+                pendingShapes = null;
                 floraEntity = simWorld.EntityManager.CreateEntity();
                 simWorld.EntityManager.SetName(floraEntity, "Flora Lookup");
                 simWorld.EntityManager.AddComponentData(floraEntity, new Punchy.Flora.FloraLookup { Blob = floraBlob });
