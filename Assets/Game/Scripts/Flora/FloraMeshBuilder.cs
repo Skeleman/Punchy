@@ -478,6 +478,13 @@ namespace Punchy.Flora
         /// </summary>
         public Mesh ToMesh(string name, float height, float width, float flexibility, bool bendByHeight = false)
         {
+            Sway(height, width, flexibility, bendByHeight);
+            return MakeMesh(name);
+        }
+
+        /// <summary>Fills in the wind sway (ToMesh's first half; pure code, safe on a worker thread).</summary>
+        public void Sway(float height, float width, float flexibility, bool bendByHeight = false)
+        {
             for (int v = 0; v < positions.Count; v++)
             {
                 var p = positions[v];
@@ -491,7 +498,11 @@ namespace Punchy.Flora
                 d.x = flexibility * Mathf.Pow(up, 1.6f) * (bendByHeight ? 1f : 1f + 0.6f * outward);
                 data[v] = d;
             }
+        }
 
+        /// <summary>The mesh of what's been built (main thread).</summary>
+        public Mesh MakeMesh(string name)
+        {
             var mesh = new Mesh { name = name };
             if (positions.Count > 65535)
                 mesh.indexFormat = IndexFormat.UInt32;
@@ -802,11 +813,14 @@ namespace Punchy.Flora
         public static (Vector3[] verts, int[] tris) Get(int level)
         {
             level = Mathf.Clamp(level, 0, 3);
-            if (levels.Count == 0)
-                levels.Add(Base());
-            while (levels.Count <= level)
-                levels.Add(Subdivide(levels[levels.Count - 1]));
-            return levels[level];
+            lock (levels)   // W-79: plants grow on worker threads too (FloraGenerator.Pregrow)
+            {
+                if (levels.Count == 0)
+                    levels.Add(Base());
+                while (levels.Count <= level)
+                    levels.Add(Subdivide(levels[levels.Count - 1]));
+                return levels[level];
+            }
         }
 
         static (Vector3[], int[]) Base()

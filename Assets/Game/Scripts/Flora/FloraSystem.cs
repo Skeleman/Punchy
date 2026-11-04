@@ -395,17 +395,47 @@ namespace Punchy.Flora
             return ConfigStamp(palette) != configStamp;
         }
 
+        /// <summary>When off, Build grows every variant on the main thread (for before/after timing).</summary>
+        public static bool PregrowOn = true;
+
+        /// <summary>
+        /// Starts growing every flora and cave plant variant the palette uses on worker threads, so the bake can run
+        /// beside it; Build (and the caves) then only turn the grown parts into meshes. Returns the variants started.
+        /// </summary>
+        public static int Pregrow(BiomePalette palette)
+        {
+            if (!PregrowOn || palette == null)
+                return 0;
+            var species = new List<FloraSpecies>();
+            FloraPlacement.CollectSpecies(palette, species);
+            var list = new List<(FloraSpecies, int)>();
+            foreach (var s in species)
+                list.Add((s, s.Variants));
+            foreach (var s in Punchy.Terrain.CaveFloraTable.Collect(palette.Landmarks))
+                if (s != null)
+                    list.Add((s, Punchy.Terrain.CaveSystem.PlantVariants));
+            return FloraGenerator.Pregrow(list);
+        }
+
         void Build(BiomePalette palette)
         {
             // Species ordered by layer, so each layer's models are contiguous.
             var cellSizes = new float3(FloraPlacement.CellSize(Ground.TileSize, Ground.CellSize),
                                        FloraPlacement.CellSize(Shrubs.TileSize, Shrubs.CellSize),
                                        FloraPlacement.CellSize(Trees.TileSize, Trees.CellSize));
+            var clock = System.Diagnostics.Stopwatch.StartNew();
             placement = FloraPlacement.Build(palette, cellSizes, species);
+            var placed = clock.Elapsed.TotalMilliseconds;
             foreach (var s in species)
                 for (int v = 0; v < s.Variants; v++)
                     models.Add(FloraGenerator.Grow(s, v));
+            var grown = clock.Elapsed.TotalMilliseconds;
             BuildSupportGrids();
+            long vertices = 0;
+            foreach (var m in models)
+                foreach (var lod in m.Lods)
+                    vertices += lod != null ? lod.vertexCount : 0;
+            Debug.Log($"[flora] build {clock.Elapsed.TotalMilliseconds:F0} ms (placement {placed:F0}, grow {grown - placed:F0}, support grids {clock.Elapsed.TotalMilliseconds - grown:F0}); {models.Count} variants, {vertices} vertices");
             ref var rules = ref placement.Value.Rules;
 
             var settings = new[] { Ground, Shrubs, Trees };

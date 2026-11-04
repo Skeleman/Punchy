@@ -170,13 +170,8 @@ namespace Punchy.Flora
         /// <summary>The most tree cells one FindTree looks at.</summary>
         const int MaxTreeCells = 24;
 
-        /// <summary>
-        /// Builds the tables from a palette. <paramref name="species"/> receives the species in model order (sorted by
-        /// layer, then name): species i's variants are models Rules[i].FirstModel onwards. With
-        /// <paramref name="obstacles"/>, buildings' walls too (each building variant is grown once for its colliders,
-        /// so only the animals' tables pay for it).
-        /// </summary>
-        public static BlobAssetReference<FloraBlob> Build(BiomePalette palette, float3 cellSizes, List<FloraSpecies> species, bool obstacles = false)
+        /// <summary>The species a palette's flora, landmark props and settlements use, in model order (by layer, then name).</summary>
+        public static void CollectSpecies(BiomePalette palette, List<FloraSpecies> species)
         {
             var found = new HashSet<FloraSpecies>();
             foreach (var biome in palette.Biomes)
@@ -201,7 +196,20 @@ namespace Punchy.Flora
             species.Clear();
             species.AddRange(found);
             species.Sort((a, b) => a.Layer != b.Layer ? a.Layer.CompareTo(b.Layer) : string.CompareOrdinal(a.name, b.name));
+        }
 
+        /// <summary>
+        /// Builds the tables from a palette. <paramref name="species"/> receives the species in model order (sorted by
+        /// layer, then name): species i's variants are models Rules[i].FirstModel onwards. With
+        /// <paramref name="obstacles"/>, buildings' walls too (each building variant is grown once for its colliders,
+        /// so only the animals' tables pay for it).
+        /// </summary>
+        public static BlobAssetReference<FloraBlob> Build(BiomePalette palette, float3 cellSizes, List<FloraSpecies> species, bool obstacles = false)
+        {
+            CollectSpecies(palette, species);
+            var landmarks = palette.Landmarks ?? Array.Empty<LandmarkType>();
+            var buildings = SettlementBaking.Buildings(landmarks);
+            var layouts = SettlementBaking.Layouts(landmarks);
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<FloraBlob>();
             root.CellSizes = cellSizes;

@@ -46,6 +46,8 @@ namespace Punchy.Terrain
         static readonly int TerrainFocusId = Shader.PropertyToID("_TerrainFocus");
         /// <summary>Vertices per batch (a full-detail chunk is about 4,500).</summary>
         const int VertexBudget = 14000;
+        /// <summary>When off, the first batch is load-boosted too (for before/after timing).</summary>
+        public static bool SmallFirstBatch = true;
         /// <summary>Frames a batch may run before the main thread waits for it: only a backstop. A chunk at a cave mouth
         /// meshes for about 40 ms on one worker (every vertex samples the mouth cut five times), and waiting for it
         /// after a few frames was a 100 ms frame on the walk in; the next batch just starts a little later.</summary>
@@ -178,7 +180,9 @@ namespace Punchy.Terrain
             // A new island (IslandV2 resets its version while it bakes) loads in large batches again.
             if (Punchy.Terrain.IslandV2.ActiveVersion == 0)
                 Loading = true;
-            var boost = Loading && LoadBoostOn ? LoadBoost : 1;
+            // The first batch stays small so the island's first frame isn't held up (#102); the boost starts once
+            // the nearest chunks are in.
+            var boost = Loading && LoadBoostOn && (loaded.Count > 0 || !SmallFirstBatch) ? LoadBoost : 1;
             budget *= boost;
 
             UnloadDistantChunks(config, focus);
@@ -389,6 +393,8 @@ namespace Punchy.Terrain
         /// <summary>Applies a finished batch: fills the chunks' meshes and creates or updates their entities.</summary>
         void FinishBuild(in TerrainConfig config)
         {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var first = loaded.Count == 0;
             buildHandle.Complete();
             Meshing = false;
             var count = building.Count;
@@ -465,6 +471,8 @@ namespace Punchy.Terrain
                 loaded[item.Coord] = chunk;
             }
             DisposeBuild();
+            if (first || clock.Elapsed.TotalMilliseconds > 250)
+                UnityEngine.Debug.Log($"[stream] batch of {count} chunks applied in {clock.Elapsed.TotalMilliseconds:F0} ms{(first ? " (first)" : "")}");
         }
 
         /// <summary>Abandons the batch being built (settings changed, or shutting down).</summary>
