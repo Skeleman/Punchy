@@ -18,15 +18,15 @@ namespace Punchy.Terrain
     public static class IslandV2
     {
         public const int Version = 2;
-        const int N = 512;                 // grid cells per side
-        const float PX = 1024f;            // the design grid the constants below are written for
-        const float WorldSizeM = 9216f;
-        const float LakeShiftM = 1700f;    // lake centre east of the origin, so the spawn stands on its shore
+        internal const int N = 512;                 // grid cells per side
+        internal const float PX = 1024f;            // the design grid the constants below are written for
+        internal const float WorldSizeM = 9216f;
+        internal const float LakeShiftM = 1700f;    // lake centre east of the origin, so the spawn stands on its shore
 
-        enum Family { Arid, Wet, Cold, Volcanic, Temperate }
-        enum Ridge { None, Mesas, Mountains, Volcano }
+        internal enum Family { Arid, Wet, Cold, Volcanic, Temperate }
+        internal enum Ridge { None, Mesas, Mountains, Volcano }
 
-        static readonly Dictionary<Family, string[]> BiomeNames = new Dictionary<Family, string[]>
+        internal static readonly Dictionary<Family, string[]> BiomeNames = new Dictionary<Family, string[]>
         {
             { Family.Arid, new[] { "Dunes", "SaltFlat", "Sonoran", "GlassDesert", "MesaCanyonlands" } },
             { Family.Wet, new[] { "FoggyMarsh", "PoisonSwamp", "FungalForest", "SparklingForest" } },
@@ -62,31 +62,33 @@ namespace Punchy.Terrain
         {
             public BlobAssetReference<BiomeMapBlob> Map;
             public BlobAssetReference<HeightmapBlob> Island;
+            /// <summary>Island v3 only: blend radius and geology per pixel (unset for v2).</summary>
+            public BlobAssetReference<V3GroundBlob> V3Ground;
             public string Report;
         }
 
         // ---- scrambled integer hashes (a plain hash of small ints has no avalanche) ----
-        static uint Scramble(uint x) { x ^= x >> 16; x *= 0x7feb352d; x ^= x >> 15; x *= 0x846ca68b; x ^= x >> 16; return x; }
-        static uint H(uint seed, int a, int b) => Scramble(seed * 0x9E3779B1u ^ Scramble((uint)a * 0x85ebca6bu + (uint)b * 0xc2b2ae35u + 0x27d4eb2fu));
-        static float H01(uint seed, int a, int b) => (H(seed, a, b) & 0xFFFFFF) / 16777216f;
-        static float Smooth(float t) => t * t * (3 - 2 * t);
-        static float Lerp(float a, float b, float t) => a + (b - a) * t;
+        internal static uint Scramble(uint x) { x ^= x >> 16; x *= 0x7feb352d; x ^= x >> 15; x *= 0x846ca68b; x ^= x >> 16; return x; }
+        internal static uint H(uint seed, int a, int b) => Scramble(seed * 0x9E3779B1u ^ Scramble((uint)a * 0x85ebca6bu + (uint)b * 0xc2b2ae35u + 0x27d4eb2fu));
+        internal static float H01(uint seed, int a, int b) => (H(seed, a, b) & 0xFFFFFF) / 16777216f;
+        internal static float Smooth(float t) => t * t * (3 - 2 * t);
+        internal static float Lerp(float a, float b, float t) => a + (b - a) * t;
 
-        static float Value(uint seed, float x, float y)
+        internal static float Value(uint seed, float x, float y)
         {
             int ix = Mathf.FloorToInt(x), iy = Mathf.FloorToInt(y);
             float fx = Smooth(x - ix), fy = Smooth(y - iy);
             return Lerp(Lerp(H01(seed, ix, iy), H01(seed, ix + 1, iy), fx), Lerp(H01(seed, ix, iy + 1), H01(seed, ix + 1, iy + 1), fx), fy);
         }
 
-        static float Fbm(uint seed, float x, float y, int octaves = 4)
+        internal static float Fbm(uint seed, float x, float y, int octaves = 4)
         {
             float sum = 0, amp = 0.5f, norm = 0;
             for (int i = 0; i < octaves; i++) { sum += amp * Value(seed + (uint)i * 17, x, y); norm += amp; x *= 2.03f; y *= 2.03f; amp *= 0.5f; }
             return sum / norm;
         }
 
-        static Family[] Shuffled(int count, uint seed)
+        internal static Family[] Shuffled(int count, uint seed)
         {
             var all = new List<Family> { Family.Arid, Family.Wet, Family.Cold, Family.Volcanic, Family.Temperate };
             var list = new List<Family>();
@@ -99,9 +101,9 @@ namespace Punchy.Terrain
             return list.ToArray();
         }
 
-        static bool Forbidden(Family a, Family b) => (a == Family.Cold && b == Family.Volcanic) || (a == Family.Volcanic && b == Family.Cold);
+        internal static bool Forbidden(Family a, Family b) => (a == Family.Cold && b == Family.Volcanic) || (a == Family.Volcanic && b == Family.Cold);
 
-        static Ridge KindOf(Family a, Family b)
+        internal static Ridge KindOf(Family a, Family b)
         {
             if (a == Family.Volcanic || b == Family.Volcanic) return Ridge.Volcano;
             if (a == Family.Arid && b == Family.Arid) return Ridge.Mesas;
@@ -109,7 +111,7 @@ namespace Punchy.Terrain
         }
 
         // Coast: a wobbly disc, 1 at the centre falling to 0 at the shore (negative in the sea). x, y in design px.
-        static float Coast(uint seed, float x, float y, float wobble)
+        internal static float Coast(uint seed, float x, float y, float wobble)
         {
             float dx = (x - PX * 0.5f) / (PX * 0.5f), dy = (y - PX * 0.5f) / (PX * 0.5f);
             float r = Mathf.Sqrt(dx * dx + dy * dy), ang = Mathf.Atan2(dy, dx);
@@ -118,10 +120,10 @@ namespace Punchy.Terrain
             return 0.88f - r + w * wobble * 2f + local;
         }
 
-        static Vector2 Warped(uint seed, float x, float y) =>
+        internal static Vector2 Warped(uint seed, float x, float y) =>
             new Vector2(x + (Fbm(seed + 71, x / 260f, y / 260f) - 0.5f) * 0.28f * PX, y + (Fbm(seed + 73, x / 260f, y / 260f) - 0.5f) * 0.28f * PX);
 
-        static int NearestCell(uint seed, float x, float y)
+        internal static int NearestCell(uint seed, float x, float y)
         {
             int cx = Mathf.FloorToInt(x), cy = Mathf.FloorToInt(y); float best = 1e9f; int id = 0;
             for (int j = -1; j <= 1; j++)
@@ -135,7 +137,7 @@ namespace Punchy.Terrain
         }
 
         // The two nearest realms at a warped point: ids and distances.
-        static void Nearest(Vector2[] sites, Vector2 p, out int a, out int b, out float d1, out float d2)
+        internal static void Nearest(Vector2[] sites, Vector2 p, out int a, out int b, out float d1, out float d2)
         {
             d1 = d2 = 1e9f; a = b = 0;
             for (int s = 0; s < sites.Length; s++)
@@ -145,14 +147,16 @@ namespace Punchy.Terrain
             }
         }
 
-        /// <summary>Builds the biome map and the height offsets (layout B: five realms, seed 202). Palette is the game's biome palette.</summary>
-        public static Result Generate(IReadOnlyList<BiomeDefinition> palette, bool hasOcean, Allocator allocator)
-        {
-            const int realms = 5; const uint baseSeed = 202; const float lakeRadius = 0.13f, ridgeWidth = 0.016f, coastWobble = 0.14f;
-            uint seed = baseSeed;
+        internal const int Realms = 5;
 
-            // Realm sites; pick over a few tries so that cold and volcanic realms are never neighbours. Scored on a coarse grid.
-            Vector2[] sites = null; Family[] fam = null; int bestBad = int.MaxValue;
+        /// <summary>
+        /// Realm sites and families (seed 202); picked over a few tries so that cold and volcanic realms are never
+        /// neighbours, scored on a coarse grid. W-69: split out of <see cref="Generate"/> so v3's ranges read the same layout.
+        /// </summary>
+        internal static void PickRealms(out Vector2[] sites, out Family[] fam, out uint seed, out int bestBad)
+        {
+            const int realms = Realms; const uint baseSeed = 202;
+            seed = baseSeed; sites = null; fam = null; bestBad = int.MaxValue;
             for (uint attempt = 0; attempt < 80 && bestBad > 0; attempt++)
             {
                 uint s = baseSeed + attempt * 7919;
@@ -175,6 +179,13 @@ namespace Punchy.Terrain
                 }
                 if (bad < bestBad) { bestBad = bad; sites = sx; fam = fm; seed = s; }
             }
+        }
+
+        /// <summary>Builds the biome map and the height offsets (layout B: five realms, seed 202). Palette is the game's biome palette.</summary>
+        public static Result Generate(IReadOnlyList<BiomeDefinition> palette, bool hasOcean, Allocator allocator)
+        {
+            const int realms = Realms; const float lakeRadius = 0.13f, ridgeWidth = 0.016f, coastWobble = 0.14f;
+            PickRealms(out var sites, out var fam, out uint seed, out int bestBad);
 
             // Palette ids by name; a family biome the palette lacks is skipped (a family with none falls back to biome 0).
             var ids = new Dictionary<string, int>();
@@ -402,6 +413,7 @@ namespace Punchy.Terrain
             source.BiomeKind = BiomeSourceKind.Map;
             source.BiomeMap = gen.Map;
             source.Island = gen.Island;
+            source.V3Ground = gen.V3Ground;
             source.BiomeCells = default;
             source.RiverSettings = version == IslandV3.Version ? IslandV3.Rivers(source.RiverSettings) : IslandV2.Rivers(source.RiverSettings);
             source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Archipelago = default; source.Anchors = default; source.PondMask = default;
@@ -448,7 +460,7 @@ namespace Punchy.Terrain
             // (Ponds: the "[ponds]" line from BuildPlaces; W-14 dropped the second count here, ~2.8 s.)
             if (source.Rivers.IsCreated) Debug.Log("[island] " + RiverReport(ref source.Rivers.Value));
             // W-68: v3 ends every bake with the water audit (V3Audit; on v2 run it from the editor for a baseline).
-            if (version == IslandV3.Version) Debug.Log(V3Audit.Run(source));
+            if (version == IslandV3.Version) { Debug.Log(V3Audit.Run(source)); Debug.Log(V3Ranges.Checks(source)); Debug.Log(V3Ground.Report(source)); }
             Debug.Log($"[island] reports {report.ElapsedMilliseconds} ms; v{version} ready at {UnityEngine.Time.realtimeSinceStartup:F1} s since start ({World.Name})");
         }
 
@@ -472,6 +484,7 @@ namespace Punchy.Terrain
                 source.BiomeKind = baked.BiomeKind;
                 source.BiomeMap = baked.BiomeMap;
                 source.Island = baked.Island;
+                source.V3Ground = baked.V3Ground;
                 source.BiomeCells = baked.BiomeCells;
                 source.RiverSettings = baked.RiverSettings;
                 source.Rivers = baked.Rivers;
