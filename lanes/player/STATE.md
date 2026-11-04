@@ -42,3 +42,4 @@ no machine paths or personal info. Never bare `git stash`.
 - P-12 row 0 11-04 (46abd95): #99 two-frame gap; desktop release 15/15 clean; waiting on the laptop's q23.
 - P-13 done 11-04 (f4e050a): house interiors (7 seeded rooms, 98 doors lead inside), door teleport, host-owned lamps.
 - P-14 done 11-04 (8413361): containers (chests, room storage), host-owned; drop cap 256. P-15 next.
+- P-15 done 11-04 (77887d3): quests archive + notice boards + host-owned progress. Nothing in flight.
