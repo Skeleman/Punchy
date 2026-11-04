@@ -435,154 +435,13 @@ namespace Punchy.Fauna
                 // Settlements' animals are used to people: they let them come close (not predators, though).
                 var tame = s.Leash > 0f && !b.Upright ? 0.3f : 1f;
 
-                // Danger: the player, or predators of this species (from further off when they're hunting it).
-                // Asleep, it notices only at half the distance; perched birds let you a bit closer.
-                var alert = (s.Mode == CreatureMode.Sleep ? 0.5f : 1f) * (perched ? 0.5f : 1f);
                 var away = s.Position.xz - player.xz;
-                // Someone walking up slowly (not running) is noticed half as far off; from behind or the side, only at
-                // the last moment, so a small animal can be crept up on and caught.
-                var facing = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
-                if (playerSpeed < 2.5f)
-                    alert *= math.dot(facing, math.normalizesafe(-away)) < 0.3f ? 0.1f : 0.5f;
                 var playerDistance = math.distance(s.Position, player);   // (3D: high overhead is far)
-                // Danger is judged by real distance, so high overhead is far: a player flying over the herd doesn't
-                // scatter it, and nor does someone walking on the ground over a cave. (On foot across level ground it's
-                // much the same as the distance across.) A bird in the air keeps on with a hunt unless the player is
-                // really close.
-                // (#46: and the height gap counts for more than the ground between: a flyer hovering over the herd, 15 m up,
-                // is further off than 15 m. Within 1.5 m of level it's the plain distance, so ground-level fear is as it was.)
-                var gapUp = math.abs(s.Position.y - player.y);
-                var heightWeight = HeightFearOff.Data == 0 && gapUp > 1.5f ? 1.5f + (gapUp - 1.5f) * HeightFear : gapUp;
-                var threatDistance = math.length(new float3(s.Position.x - player.x, heightWeight, s.Position.z - player.z));
-                var nerve = s.Mode == CreatureMode.Hunt && flier ? 0.4f : 1f;
-                // Someone cheering or dancing about is noticed (and run from) further off; waving, a little. (Only by
-                // the skittish: a curious one comes to look, and some pay it no heed.)
-                var commotion = b.Reaction != EmoteReaction.Flees ? 1f :
-                                emote == IdleAction.Cheer || emote == IdleAction.Dance ? 1.8f : emote == IdleAction.Wave ? 1.25f : 1f;
-                var threatened = !aloft && !ownKind && b.FleeDistance > 0f && threatDistance < b.FleeDistance * s.Scale * alert * nerve * tame * commotion;
-                var threat = player.xz;
-                if (threatened && s.Mode != CreatureMode.Flee)
-                    System.Threading.Interlocked.Increment(ref Searches.Data.PlayerFlee);
-                // A hunter after it: heard creeping close, or seen drawing back to throw (and the throw itself).
-                if (!threatened && !aloft && b.FleeDistance > 0f && FindHunter(self, ref s, alert, out var hunter))
-                {
-                    threatened = true;
-                    threat = hunter;
-                }
-                // (#57: staggered to once per SearchPeriod, phased per creature; one already fleeing keeps looking every frame.)
-                var searchDue = SearchDue(in s);
-                if (!threatened && !aloft && b.Hunted && (searchDue || s.Mode == CreatureMode.Flee) && FindPredator(self, ref s, body.Species, alert, out var predator))
-                {
-                    threatened = true;
-                    threat = predator;
-                    if (s.Mode != CreatureMode.Flee)
-                        System.Threading.Interlocked.Increment(ref Searches.Data.PredatorFlee);
-                }
-                // A wolf, a bear or the like in a town: a guard running at it (or a night guard's torch close by) sends it
-                // off out of the place.
-                if (!threatened && !aloft && b.DrivenOff && FindChaser(self, in s, out var chaser))
-                {
-                    threatened = true;
-                    threat = chaser;
-                    // It makes for the town's edge, the nearest way out, veering off from the guard (so it doesn't run
-                    // deeper in, away from one coming in from the bounds).
-                    var town = SettlementOf(s.Position.xz);
-                    if (town >= 0)
-                    {
-                        ref var t = ref Terrain.Settlements.Value.Settlements[town];
-                        var outward = math.normalizesafe(s.Position.xz - t.Centre, new float2(1f, 0f));
-                        var veer = math.normalizesafe(s.Position.xz - chaser, outward);
-                        threat = s.Position.xz - math.normalizesafe(outward + veer * 0.6f, outward) * 5f;
-                    }
-                }
-                // One bolts, they all bolt: a herd (or a flock) runs when any of it close by does, from the same thing.
-                if (!threatened && !aloft && b.FleeDistance > 0f && s.Mode != CreatureMode.Flee && searchDue && FindAlarm(self, ref s, body.Species, out var alarm))
-                {
-                    threatened = true;
-                    threat = alarm;
-                    System.Threading.Interlocked.Increment(ref Searches.Data.AlarmFlee);
-                }
-                // Birds of a feather: when one takes off, the others near it go along to the same place.
-                if (!threatened && flier && (s.Mode == CreatureMode.Idle || s.Mode == CreatureMode.Graze || s.Mode == CreatureMode.Rest) &&
-                    FindTakeoff(self, ref s, body.Species, out var leader))
-                    Follow(ref s, leader, ref rng);
-                // Invited to play: someone has started a game of chase with this one.
-                if (!threatened && b.Playfulness > 0f && Free(s.Mode) && !perched && !(flier && Flying(s)) && FindPlaymate(self, ref s, out var playmate))
-                {
-                    SetMode(ref s, CreatureMode.Play);
-                    s.Partner = playmate;
-                    s.Stage = 1;
-                    s.Timer = rng.NextFloat(12f, 25f);
-                    s.Focus = s.Leash > 0f ? s.Home : s.Position.xz;   // where the game is played
-                }
-                // A burrower with its burrow near runs for it instead of just running.
-                if (threatened && b.Burrows && s.Mode != CreatureMode.Burrow && s.AnchorSize > 0f &&
-                    math.distance(s.Position.xz, s.Anchor.xz) < 30f)
-                {
-                    SetMode(ref s, CreatureMode.Burrow);
-                    s.Timer = rng.NextFloat(8f, 20f);
-                    s.Focus = threat;
-                    threatened = false;
-                }
-                else if (threatened && s.Mode == CreatureMode.Burrow)
-                {
-                    s.Focus = threat;
-                    threatened = false;
-                }
-                // Bats hanging asleep are startled off their roost by someone waving, bowing, cheering or dancing close by:
-                // out along the passages, as at dusk (they come back to roost when they're sleepy again).
-                if (b.Roosts && s.Mode == CreatureMode.Roost && s.Stage == 200 && emote != IdleAction.None &&
-                    math.distance(s.Position, player) < 15f)
-                {
-                    M.Unsettled = rng.NextFloat(40f, 80f);
-                    if (s.LairCave >= 0)
-                    {
-                        s.Stage = (byte)(100 + math.min(s.LairNode, 89));
-                        s.StageTime = 0f;
-                    }
-                    else
-                        NightLoop(ref s, ref b, ref rng);
-                }
-                // Rooted to the spot: it never runs from anything; what comes within reach, it snaps at.
-                if (b.Rooted)
-                {
-                    threatened = false;
-                    Snap(self, ref s, ref b, player, ref rng);
-                }
-                // A beast scared inside a town (by a guard, or bolting with the rest of its pack) takes itself off
-                // somewhere else: its range moved out past the edge the way it's running, so it isn't held to ground
-                // inside the place and doesn't come straight back.
-                if (threatened && b.DrivenOff && s.Leash > 0f)
-                {
-                    var town = SettlementOf(s.Position.xz);
-                    if (town >= 0)
-                    {
-                        ref var t = ref Terrain.Settlements.Value.Settlements[town];
-                        var off = math.normalizesafe(s.Position.xz - threat, math.normalizesafe(s.Position.xz - t.Centre, new float2(1f, 0f)));
-                        if (math.distance(s.Position.xz, t.Centre) < t.Radius && math.distance(s.Home, t.Centre) < t.Radius + s.Leash)
-                            s.Home = t.Centre + math.normalizesafe(s.Position.xz + off * t.Radius - t.Centre, off) * (t.Radius + s.Leash + 10f);
-                    }
-                }
+                // Danger (Sense), what else is going on round it (React), and running from it.
+                var threatened = Sense(self, ref s, ref b, body.Species, player, playerSpeed, emote, away, ownKind, aloft, perched, flier, tame, out var threat);
+                React(self, ref s, ref b, body.Species, ref rng, player, emote, flier, perched, ref threatened, threat);
                 if (threatened)
-                {
-                    if (s.Mode != CreatureMode.Flee)
-                    {
-                        SetMode(ref s, CreatureMode.Flee);
-                        var dir = math.normalizesafe(s.Position.xz - threat, new float2(1f, 0f));
-                        if (flier)
-                        {
-                            // Up and away, to come down somewhere further off.
-                            s.Stage = 1;
-                            s.Target = s.Position.xz + dir * rng.NextFloat(30f, 50f) + rng.NextFloat2Direction() * 8f;
-                            s.TargetHeight = Terrain.SampleHeight(s.Target);
-                        }
-                        else if (CaveWalker(s, ref b))
-                            s.Target = CaveEscape(s, threat, ref rng);
-                        else
-                            s.Target = s.Position.xz + dir * 30f + rng.NextFloat2Direction() * 6f;
-                    }
-                    s.Focus = threat;
-                }
+                    StartFleeing(ref s, ref b, ref rng, threat, flier);
                 // How one of the folk takes the nearest player's body (Z-52): kin, a rival, wary, annoyed, warm or neither.
                 var stance = b.Upright && b.Hands && !b.Haunts && nearest < PlayerSpecies.Length
                     ? b.StanceToward(PlayerSpecies[nearest], s.Individual) : FolkStance.Neutral;
@@ -591,56 +450,10 @@ namespace Punchy.Fauna
                 if (!threatened && stance != FolkStance.Neutral)
                     Regarding(ref s, ref b, ref rng, stance, player, playerDistance, dt);
 
-                // A ghost abroad at night: someone coming close and it's gone, to appear again further off (dithering
-                // back in, as anything new does); someone within sight, and it drifts closer to watch them from a few
-                // metres off.
                 if (b.Haunts && SleepTime(ref b) < 0.5f)
-                {
-                    // (Not from a ghost: one of its own it lets come close.)
-                    if (playerDistance < 3.5f && !ownKind)
-                    {
-                        var off = math.normalizesafe(s.Position.xz - player.xz, rng.NextFloat2Direction());
-                        s.Position.xz += off * rng.NextFloat(20f, 35f) + rng.NextFloat2Direction() * 6f;
-                        s.Clock = 0f;
-                        Pause(ref s, ref b, ref rng);
-                    }
-                    else if (playerDistance < 18f && (s.Mode == CreatureMode.Idle || s.Mode == CreatureMode.Wander))
-                    {
-                        if (s.Mode != CreatureMode.Wander)
-                            SetMode(ref s, CreatureMode.Wander);
-                        s.Target = player.xz - math.normalizesafe(player.xz - s.Position.xz) * 5f;
-                    }
-                }
+                    Haunting(ref s, ref b, ref rng, player, playerDistance, ownKind);
 
-                // Swimming with nowhere to go (it stopped, or wanted to graze or rest): it makes for the nearest shore.
-                if (b.CrossesWater && !threatened && s.Mode != CreatureMode.Wander && s.Mode != CreatureMode.Flee &&
-                    s.Mode != CreatureMode.Hunt && s.Mode != CreatureMode.Play && s.Mode != CreatureMode.Greet && s.Mode != CreatureMode.Held &&
-                    WaterDepth(s.Position.xz) > b.StandHeight * s.Scale * 0.8f && NearestShore(s.Position.xz, out var ashore))
-                {
-                    SetMode(ref s, CreatureMode.Wander);
-                    s.Target = ashore;
-                }
-
-                // Two folk stopped to talk (A-26): a talk something else broke off is over for this one; and now and then
-                // two whose paths cross (or who stand near each other at a well or a seat) stop for one.
-                s.ChatCool = math.max(s.ChatCool - dt, 0f);
-                if (s.ChatRole != 0 && !(s.Mode == CreatureMode.Idle && (s.Stage == ChatTalk || s.Stage == ChatListen)))
-                    s.ChatRole = 0;
-                if (s.ChatRole == 0 && ChatFree(in s, ref b))
-                    StartChat(self, ref s, ref b, ref rng, dt);
-
-                // A messenger bird coming to this one: it stops what it's doing to meet it.
-                if (b.Upright && b.Hands && s.Leash > 0f && (Free(s.Mode) || s.Mode == CreatureMode.Greet) && !(s.Mode == CreatureMode.Idle && s.Stage >= MessageWait) &&
-                    rng.NextFloat() < 0.25f && FindMessenger(self, in s, out var messenger))
-                {
-                    SetMode(ref s, CreatureMode.Idle);
-                    s.Stage = MessageWait;
-                    s.Partner = messenger;
-                    s.Timer = 40f;
-                }
-
-                if (b.RaidsHives)
-                    M.ChaseCooldown = math.max(M.ChaseCooldown - dt, 0f);
+                Errands(self, ref s, ref b, ref rng, dt, threatened);
 
                 var targetSpeed = 0f;
                 var desiredLook = 0f;
@@ -662,113 +475,15 @@ namespace Punchy.Fauna
                 switch (s.Mode)
                 {
                     case CreatureMode.Idle:
-                        if (s.Stage == ChatTalk || s.Stage == ChatListen)
-                        {
-                            if (Chatting(self, ref s, ref b, ref rng, dt))
-                            {
-                                targetSpeed = walk;
-                                moving = true;
-                            }
-                            desiredLook = 0f;
-                            break;
-                        }
-                        if (s.Stage >= MessageWait)
-                        {
-                            Receiving(ref s, ref b, ref rng, dt);
-                            break;
-                        }
-                        // An idle action under way finishes before it moves on.
-                        if (s.Action == IdleAction.None)
-                            s.Timer -= dt;
-                        desiredLook = idleLook;
-                        if (s.Timer <= 0f)
-                            Decide(self, ref s, ref b, body.Species, ref rng, perched, player);
+                        Idling(self, ref s, ref b, body.Species, ref rng, dt, walk, idleLook, perched, player, ref targetSpeed, ref moving, ref desiredLook);
                         break;
 
                     case CreatureMode.Wander:
-                        // A moth round its light: from point to point (in a cave, under the rock: no cruising height).
-                        if (b.DrawnToLight)
-                        {
-                            custom = true;
-                            if (FlitTo(ref s, ref b, dt, ref vertical))
-                                Flit(ref s, ref rng);
-                            break;
-                        }
-                        if ((flier || b.Breaches) && s.Stage >= 1)
-                        {
-                            custom = true;
-                            if (s.Stage == 2)
-                                Soar(ref s, ref b, ref rng, dt);
-                            // A sky serpent diving back in: once under, swimming again.
-                            if (b.Breaches && s.Stage == 3 && FlyTo(ref s, ref b, s.Target, s.TargetHeight, b.FlySpeed, dt, ref vertical))
-                            {
-                                Pause(ref s, ref b, ref rng);
-                                break;
-                            }
-                            if (b.Breaches && s.Stage == 3)
-                                break;
-                            if (FlyTo(ref s, ref b, s.Target, s.TargetHeight, b.FlySpeed, dt, ref vertical))
-                            {
-                                // Bats don't land: they hawk for insects in loops all night, then go to roost.
-                                if (b.DrawnToLight)
-                                    Flit(ref s, ref rng);
-                                else if (b.Roosts && SleepTime(ref b) < 0.5f)
-                                    NightLoop(ref s, ref b, ref rng);
-                                else if (b.Roosts)
-                                    StartRoost(ref s, ref b, ref rng);
-                                else
-                                    Land(ref s, ref b, ref rng);
-                            }
-                            break;
-                        }
-                        targetSpeed = walk;
-                        moving = true;
-                        // (Right into its nest, when that's where it's going.)
-                        var arrive = b.Nests == NestSite.Ground && math.all(s.Target == s.Anchor.xz) ? 0.2f : 1f;
-                        // (A crawler in a cave is going to a point on a wall or the ceiling: there in three dimensions.)
-                        var crawlTo = b.Crawls && CaveWalker(s, ref b);
-                        if (crawlTo ? math.distance(s.Position, new float3(s.Target.x, s.TargetHeight, s.Target.y)) < 0.4f
-                                    : math.distance(s.Position.xz, s.Target) < arrive)
-                            Pause(ref s, ref b, ref rng);
+                        Wandering(ref s, ref b, ref rng, dt, walk, flier, ref targetSpeed, ref moving, ref custom, ref vertical);
                         break;
 
                     case CreatureMode.Flee:
-                        if (flier)
-                        {
-                            custom = true;
-                            if (FlyTo(ref s, ref b, s.Target, s.TargetHeight, b.FlySpeed * 1.2f, dt, ref vertical) ||
-                                !threatened && s.ModeTime > 6f && s.Position.y - Terrain.SampleHeight(s.Position.xz) < 0.5f)
-                                Land(ref s, ref b, ref rng);
-                            break;
-                        }
-                        targetSpeed = run;
-                        moving = true;
-                        // In a cave: on along the passages, a point at a time (and another way if it's stuck at a
-                        // wall: StageTime counts the time without getting anywhere).
-                        if (CaveWalker(s, ref b))
-                        {
-                            if (s.Speed > 0.15f)
-                                s.StageTime = 0f;
-                            if (threatened && (math.distance(s.Position.xz, s.Target) < 1.5f || s.StageTime > 1f))
-                            {
-                                s.Target = CaveEscape(s, s.Focus, ref rng);
-                                s.StageTime = 0f;
-                            }
-                        }
-                        else if (threatened && math.distance(s.Position.xz, s.Target) < 2f)
-                            s.Target = s.Position.xz + math.normalizesafe(s.Position.xz - s.Focus, new float2(1f, 0f)) * 30f;
-                        // Prey with something close behind it jinks: every second or two a sharp turn of up to 50° off
-                        // straight away (Z-53: a chase that weaves, and that a hunter can close on).
-                        else if (threatened && b.Hunted && b.Habitat == Habitat.Land && math.distance(s.Position.xz, s.Focus) < 20f &&
-                                 s.StageTime > 1f + (s.Seed % 8u) * 0.125f)
-                        {
-                            var fleeDir = math.normalizesafe(s.Position.xz - s.Focus, new float2(1f, 0f));
-                            math.sincos(rng.NextFloat(-0.87f, 0.87f), out var jinkSin, out var jinkCos);
-                            s.Target = s.Position.xz + new float2(fleeDir.x * jinkCos - fleeDir.y * jinkSin, fleeDir.x * jinkSin + fleeDir.y * jinkCos) * 30f;
-                            s.StageTime = 0f;
-                        }
-                        else if (!threatened && (s.ModeTime > 3f || math.distance(s.Position.xz, s.Target) < 2f))
-                            Pause(ref s, ref b, ref rng);
+                        Fleeing(ref s, ref b, ref rng, dt, run, flier, threatened, ref targetSpeed, ref moving, ref custom, ref vertical);
                         break;
 
                     case CreatureMode.Graze:
@@ -859,46 +574,7 @@ namespace Punchy.Fauna
                         break;
 
                     case CreatureMode.Sit:
-                        if (s.Stage == 0)
-                        {
-                            targetSpeed = walk;
-                            moving = true;
-                            // (Its time there starts when it sits down; a spot it can't reach in a minute, it gives up on.)
-                            if (s.StageTime > 60f)
-                                Pause(ref s, ref b, ref rng);
-                            // (Two that chose the same spot in the same moment: the later of them finds another.)
-                            else if (Contested(self, in s) && !Resettle(self, ref s, ref rng))
-                                Pause(ref s, ref b, ref rng);
-                            // (Close is enough: it shuffles the rest of the way on, which for a seat is past the front
-                            // of the seat itself, solid to walkers.)
-                            else if (math.distance(s.Position.xz, s.Target) < (s.TargetHeight == 4f || s.TargetHeight == CreatureAnimator.HearthSeat ? 0.9f : 0.5f))
-                            {
-                                s.Stage = (byte)s.TargetHeight;
-                                s.StageTime = 0f;
-                            }
-                        }
-                        else
-                        {
-                            // Turned to the well (or the view, or the way its seat faces), then down: sitting up and
-                            // looking about, or lying back.
-                            s.Timer -= dt;
-                            // (Shuffling the last of the way onto its own spot, so it neither crowds the next nor the wall.)
-                            var short_ = s.Target - s.Position.xz;
-                            var shuffle = math.min(math.length(short_), 0.5f * dt);
-                            s.Position.xz += math.normalizesafe(short_) * shuffle;
-                            var toFace = s.Focus - s.Position.xz;
-                            var wantedYaw = WrapAngle(math.atan2(toFace.x, toFace.y) - s.Yaw);
-                            s.Yaw = WrapAngle(s.Yaw + math.clamp(wantedYaw, -b.TurnRate * dt, b.TurnRate * dt));
-                            // (At the town's fire, some stand.)
-                            if (s.Stage == 3)
-                                lie = 1f;
-                            else if (s.Stage != CreatureAnimator.HearthStand)
-                                sit = 1f;
-                            desiredLook = s.Stage == 3 ? 0f : idleLook;
-                            var hearth = AtHearth(s.Stage);
-                            if (s.Timer <= 0f || hearth && !Gathering(in s, ref b) || Contested(self, in s) && !Resettle(self, ref s, ref rng))
-                                Pause(ref s, ref b, ref rng);
-                        }
+                        Sitting(self, ref s, ref b, ref rng, dt, walk, idleLook, ref targetSpeed, ref moving, ref lie, ref sit, ref desiredLook);
                         break;
 
                     case CreatureMode.Swim:
@@ -910,61 +586,7 @@ namespace Punchy.Fauna
                         break;
 
                     case CreatureMode.Work:
-                        // (A miner has no post: its day is a round, into the mine and back out with ore.)
-                        if (s.Task == CreatureTask.Mine)
-                        {
-                            custom = true;
-                            Mining(ref s, ref b, ref rng, dt, walk);
-                            break;
-                        }
-                        if (s.Task == CreatureTask.Travel)
-                        {
-                            custom = true;
-                            Travelling(ref s, ref b, ref rng, dt, walk);
-                            break;
-                        }
-                        if (s.Task == CreatureTask.Messenger)
-                        {
-                            custom = true;
-                            Messenger(ref s, ref b, ref rng, dt, ref vertical);
-                            break;
-                        }
-                        if (s.Stage >= CreatureAnimator.RaidWalk && s.Stage <= CreatureAnimator.RaidLick)
-                        {
-                            Raiding(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref sit, ref vertical, ref desiredLook, ref headDown, ref bow);
-                            break;
-                        }
-                        // (A fisher's time at the water starts when it gets there, however far it had to walk.)
-                        if (s.Stage >= 1 || s.Task != CreatureTask.Fish)
-                            s.Timer -= dt;
-                        if (s.Stage == 0)
-                        {
-                            s.Target = s.WorkSpot;
-                            targetSpeed = walk;
-                            moving = true;
-                            if (math.distance(s.Position.xz, s.WorkSpot) < 0.4f)
-                            {
-                                // (A hermit's chores: chopping at its woodpile is stage 1, stooped over its garden or the
-                                // water stage 2, so every machine poses it right.)
-                                s.Stage = (byte)(s.Task == CreatureTask.Hermit && s.AnchorSide >= 2 ? s.AnchorSide : 1);
-                                s.StageTime = 0f;
-                            }
-                        }
-                        else if (s.Task == CreatureTask.Fish)
-                            Fishing(ref s, ref b, ref rng, dt, ref desiredLook);
-                        else
-                        {
-                            // At the post: turn to face the work, glance about now and then.
-                            var toWork = s.WorkFace - s.Position.xz;
-                            var wanted = WrapAngle(math.atan2(toWork.x, toWork.y) - s.Yaw);
-                            s.Yaw = WrapAngle(s.Yaw + math.clamp(wanted, -b.TurnRate * dt, b.TurnRate * dt));
-                            desiredLook = math.frac(s.ModeTime / 9f) > 0.85f ? idleLook : 0f;
-                            // Asleep on their feet at night.
-                            if (SleepTime(ref b) > 0.5f)
-                                headDown = 0.35f;
-                        }
-                        if (s.Timer <= 0f)
-                            Pause(ref s, ref b, ref rng);
+                        Working(ref s, ref b, ref rng, dt, walk, run, idleLook, ref targetSpeed, ref moving, ref custom, ref vertical, ref sit, ref desiredLook, ref headDown, ref bow);
                         break;
 
                     case CreatureMode.Climb:
@@ -1012,6 +634,458 @@ namespace Punchy.Fauna
                 // Little things done while standing about: start one now and then, keep it going, and take up the
                 // posture it needs.
                 Fidget(self, body.Species, ref s, ref b, ref rng, dt, perched, ref sit, ref vertical, ref bow, ref desiredLook);
+                ChildPlay(ref s, ref b, ref rng, dt);
+                KeepToLeash(ref s, moving, ref targetSpeed);
+
+                var urgent = s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Hunt || s.Mode == CreatureMode.Play ||
+                             s.Mode == CreatureMode.Burrow && s.ModeTime < 3f;
+                if (!custom)
+                    Steer(ref s, ref b, ref rng, dt, moving, urgent, targetSpeed, flier, perched, walk, run);
+                else
+                    CreatureMotion.AdvancePhase(ref s, ref b, dt);
+                Posture(self, ref s, ref b, ref rng, dt, player, playerSpeed, emote, desiredLook, urgent, lie, headDown, bow, curl, sit, vertical);
+                var fly = Flying(s) && (flier || b.Breaches && s.Mode == CreatureMode.Wander && s.Stage >= 2) ? 1f : 0f;
+                CarriedItem(ref s, ref b);
+                s.Fly += (fly - s.Fly) * math.min(1f, dt * 6f);
+                s.Seed = rng.state;
+            }
+
+            /// <summary>Whether it is in danger this tick (the player, a hunter after it, a predator, a guard driving it off, the herd bolting), and from where.</summary>
+            bool Sense(Entity self, ref CreatureState s, ref CreatureBlob b, int species, float3 player, float playerSpeed, IdleAction emote, float2 away, bool ownKind, bool aloft, bool perched, bool flier, float tame, out float2 threat)
+            {
+                // Danger: the player, or predators of this species (from further off when they're hunting it).
+                // Asleep, it notices only at half the distance; perched birds let you a bit closer.
+                var alert = (s.Mode == CreatureMode.Sleep ? 0.5f : 1f) * (perched ? 0.5f : 1f);
+                // Someone walking up slowly (not running) is noticed half as far off; from behind or the side, only at
+                // the last moment, so a small animal can be crept up on and caught.
+                var facing = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                if (playerSpeed < 2.5f)
+                    alert *= math.dot(facing, math.normalizesafe(-away)) < 0.3f ? 0.1f : 0.5f;
+                // Danger is judged by real distance, so high overhead is far: a player flying over the herd doesn't
+                // scatter it, and nor does someone walking on the ground over a cave. (On foot across level ground it's
+                // much the same as the distance across.) A bird in the air keeps on with a hunt unless the player is
+                // really close.
+                // (#46: and the height gap counts for more than the ground between: a flyer hovering over the herd, 15 m up,
+                // is further off than 15 m. Within 1.5 m of level it's the plain distance, so ground-level fear is as it was.)
+                var gapUp = math.abs(s.Position.y - player.y);
+                var heightWeight = HeightFearOff.Data == 0 && gapUp > 1.5f ? 1.5f + (gapUp - 1.5f) * HeightFear : gapUp;
+                var threatDistance = math.length(new float3(s.Position.x - player.x, heightWeight, s.Position.z - player.z));
+                var nerve = s.Mode == CreatureMode.Hunt && flier ? 0.4f : 1f;
+                // Someone cheering or dancing about is noticed (and run from) further off; waving, a little. (Only by
+                // the skittish: a curious one comes to look, and some pay it no heed.)
+                var commotion = b.Reaction != EmoteReaction.Flees ? 1f :
+                                emote == IdleAction.Cheer || emote == IdleAction.Dance ? 1.8f : emote == IdleAction.Wave ? 1.25f : 1f;
+                var threatened = !aloft && !ownKind && b.FleeDistance > 0f && threatDistance < b.FleeDistance * s.Scale * alert * nerve * tame * commotion;
+                threat = player.xz;
+                if (threatened && s.Mode != CreatureMode.Flee)
+                    System.Threading.Interlocked.Increment(ref Searches.Data.PlayerFlee);
+                // A hunter after it: heard creeping close, or seen drawing back to throw (and the throw itself).
+                if (!threatened && !aloft && b.FleeDistance > 0f && FindHunter(self, ref s, alert, out var hunter))
+                {
+                    threatened = true;
+                    threat = hunter;
+                }
+                // (#57: staggered to once per SearchPeriod, phased per creature; one already fleeing keeps looking every frame.)
+                var searchDue = SearchDue(in s);
+                if (!threatened && !aloft && b.Hunted && (searchDue || s.Mode == CreatureMode.Flee) && FindPredator(self, ref s, species, alert, out var predator))
+                {
+                    threatened = true;
+                    threat = predator;
+                    if (s.Mode != CreatureMode.Flee)
+                        System.Threading.Interlocked.Increment(ref Searches.Data.PredatorFlee);
+                }
+                // A wolf, a bear or the like in a town: a guard running at it (or a night guard's torch close by) sends it
+                // off out of the place.
+                if (!threatened && !aloft && b.DrivenOff && FindChaser(self, in s, out var chaser))
+                {
+                    threatened = true;
+                    threat = chaser;
+                    // It makes for the town's edge, the nearest way out, veering off from the guard (so it doesn't run
+                    // deeper in, away from one coming in from the bounds).
+                    var town = SettlementOf(s.Position.xz);
+                    if (town >= 0)
+                    {
+                        ref var t = ref Terrain.Settlements.Value.Settlements[town];
+                        var outward = math.normalizesafe(s.Position.xz - t.Centre, new float2(1f, 0f));
+                        var veer = math.normalizesafe(s.Position.xz - chaser, outward);
+                        threat = s.Position.xz - math.normalizesafe(outward + veer * 0.6f, outward) * 5f;
+                    }
+                }
+                // One bolts, they all bolt: a herd (or a flock) runs when any of it close by does, from the same thing.
+                if (!threatened && !aloft && b.FleeDistance > 0f && s.Mode != CreatureMode.Flee && searchDue && FindAlarm(self, ref s, species, out var alarm))
+                {
+                    threatened = true;
+                    threat = alarm;
+                    System.Threading.Interlocked.Increment(ref Searches.Data.AlarmFlee);
+                }
+                return threatened;
+            }
+
+            /// <summary>What else it heeds round it: a flock taking off, a game of chase, its burrow, a startled roost, snapping, a town it is driven from.</summary>
+            void React(Entity self, ref CreatureState s, ref CreatureBlob b, int species, ref Random rng, float3 player, IdleAction emote, bool flier, bool perched, ref bool threatened, float2 threat)
+            {
+                // Birds of a feather: when one takes off, the others near it go along to the same place.
+                if (!threatened && flier && (s.Mode == CreatureMode.Idle || s.Mode == CreatureMode.Graze || s.Mode == CreatureMode.Rest) &&
+                    FindTakeoff(self, ref s, species, out var leader))
+                    Follow(ref s, leader, ref rng);
+                // Invited to play: someone has started a game of chase with this one.
+                if (!threatened && b.Playfulness > 0f && Free(s.Mode) && !perched && !(flier && Flying(s)) && FindPlaymate(self, ref s, out var playmate))
+                {
+                    SetMode(ref s, CreatureMode.Play);
+                    s.Partner = playmate;
+                    s.Stage = 1;
+                    s.Timer = rng.NextFloat(12f, 25f);
+                    s.Focus = s.Leash > 0f ? s.Home : s.Position.xz;   // where the game is played
+                }
+                // A burrower with its burrow near runs for it instead of just running.
+                if (threatened && b.Burrows && s.Mode != CreatureMode.Burrow && s.AnchorSize > 0f &&
+                    math.distance(s.Position.xz, s.Anchor.xz) < 30f)
+                {
+                    SetMode(ref s, CreatureMode.Burrow);
+                    s.Timer = rng.NextFloat(8f, 20f);
+                    s.Focus = threat;
+                    threatened = false;
+                }
+                else if (threatened && s.Mode == CreatureMode.Burrow)
+                {
+                    s.Focus = threat;
+                    threatened = false;
+                }
+                // Bats hanging asleep are startled off their roost by someone waving, bowing, cheering or dancing close by:
+                // out along the passages, as at dusk (they come back to roost when they're sleepy again).
+                if (b.Roosts && s.Mode == CreatureMode.Roost && s.Stage == 200 && emote != IdleAction.None &&
+                    math.distance(s.Position, player) < 15f)
+                {
+                    M.Unsettled = rng.NextFloat(40f, 80f);
+                    if (s.LairCave >= 0)
+                    {
+                        s.Stage = (byte)(100 + math.min(s.LairNode, 89));
+                        s.StageTime = 0f;
+                    }
+                    else
+                        NightLoop(ref s, ref b, ref rng);
+                }
+                // Rooted to the spot: it never runs from anything; what comes within reach, it snaps at.
+                if (b.Rooted)
+                {
+                    threatened = false;
+                    Snap(self, ref s, ref b, player, ref rng);
+                }
+                // A beast scared inside a town (by a guard, or bolting with the rest of its pack) takes itself off
+                // somewhere else: its range moved out past the edge the way it's running, so it isn't held to ground
+                // inside the place and doesn't come straight back.
+                if (threatened && b.DrivenOff && s.Leash > 0f)
+                {
+                    var town = SettlementOf(s.Position.xz);
+                    if (town >= 0)
+                    {
+                        ref var t = ref Terrain.Settlements.Value.Settlements[town];
+                        var off = math.normalizesafe(s.Position.xz - threat, math.normalizesafe(s.Position.xz - t.Centre, new float2(1f, 0f)));
+                        if (math.distance(s.Position.xz, t.Centre) < t.Radius && math.distance(s.Home, t.Centre) < t.Radius + s.Leash)
+                            s.Home = t.Centre + math.normalizesafe(s.Position.xz + off * t.Radius - t.Centre, off) * (t.Radius + s.Leash + 10f);
+                    }
+                }
+            }
+
+            /// <summary>Threatened: it starts running from the threat (a flier up and away), or keeps on.</summary>
+            void StartFleeing(ref CreatureState s, ref CreatureBlob b, ref Random rng, float2 threat, bool flier)
+            {
+                if (s.Mode != CreatureMode.Flee)
+                {
+                    SetMode(ref s, CreatureMode.Flee);
+                    var dir = math.normalizesafe(s.Position.xz - threat, new float2(1f, 0f));
+                    if (flier)
+                    {
+                        // Up and away, to come down somewhere further off.
+                        s.Stage = 1;
+                        s.Target = s.Position.xz + dir * rng.NextFloat(30f, 50f) + rng.NextFloat2Direction() * 8f;
+                        s.TargetHeight = Terrain.SampleHeight(s.Target);
+                    }
+                    else if (CaveWalker(s, ref b))
+                        s.Target = CaveEscape(s, threat, ref rng);
+                    else
+                        s.Target = s.Position.xz + dir * 30f + rng.NextFloat2Direction() * 6f;
+                }
+                s.Focus = threat;
+            }
+
+            /// <summary>A ghost abroad at night: gone from someone close, drifting nearer to watch someone in sight.</summary>
+            void Haunting(ref CreatureState s, ref CreatureBlob b, ref Random rng, float3 player, float playerDistance, bool ownKind)
+            {
+                // (Not from a ghost: one of its own it lets come close.)
+                if (playerDistance < 3.5f && !ownKind)
+                {
+                    var off = math.normalizesafe(s.Position.xz - player.xz, rng.NextFloat2Direction());
+                    s.Position.xz += off * rng.NextFloat(20f, 35f) + rng.NextFloat2Direction() * 6f;
+                    s.Clock = 0f;
+                    Pause(ref s, ref b, ref rng);
+                }
+                else if (playerDistance < 18f && (s.Mode == CreatureMode.Idle || s.Mode == CreatureMode.Wander))
+                {
+                    if (s.Mode != CreatureMode.Wander)
+                        SetMode(ref s, CreatureMode.Wander);
+                    s.Target = player.xz - math.normalizesafe(player.xz - s.Position.xz) * 5f;
+                }
+            }
+
+            /// <summary>Small errands between ticks: a swimmer making for shore, folk stopping to talk, meeting a messenger bird, a raider's cooldown.</summary>
+            void Errands(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, bool threatened)
+            {
+                // Swimming with nowhere to go (it stopped, or wanted to graze or rest): it makes for the nearest shore.
+                if (b.CrossesWater && !threatened && s.Mode != CreatureMode.Wander && s.Mode != CreatureMode.Flee &&
+                    s.Mode != CreatureMode.Hunt && s.Mode != CreatureMode.Play && s.Mode != CreatureMode.Greet && s.Mode != CreatureMode.Held &&
+                    WaterDepth(s.Position.xz) > b.StandHeight * s.Scale * 0.8f && NearestShore(s.Position.xz, out var ashore))
+                {
+                    SetMode(ref s, CreatureMode.Wander);
+                    s.Target = ashore;
+                }
+
+                // Two folk stopped to talk (A-26): a talk something else broke off is over for this one; and now and then
+                // two whose paths cross (or who stand near each other at a well or a seat) stop for one.
+                s.ChatCool = math.max(s.ChatCool - dt, 0f);
+                if (s.ChatRole != 0 && !(s.Mode == CreatureMode.Idle && (s.Stage == ChatTalk || s.Stage == ChatListen)))
+                    s.ChatRole = 0;
+                if (s.ChatRole == 0 && ChatFree(in s, ref b))
+                    StartChat(self, ref s, ref b, ref rng, dt);
+
+                // A messenger bird coming to this one: it stops what it's doing to meet it.
+                if (b.Upright && b.Hands && s.Leash > 0f && (Free(s.Mode) || s.Mode == CreatureMode.Greet) && !(s.Mode == CreatureMode.Idle && s.Stage >= MessageWait) &&
+                    rng.NextFloat() < 0.25f && FindMessenger(self, in s, out var messenger))
+                {
+                    SetMode(ref s, CreatureMode.Idle);
+                    s.Stage = MessageWait;
+                    s.Partner = messenger;
+                    s.Timer = 40f;
+                }
+
+                if (b.RaidsHives)
+                    M.ChaseCooldown = math.max(M.ChaseCooldown - dt, 0f);
+            }
+
+            /// <summary>CreatureMode.Idle: talking, reading a message, or standing about until it decides on something.</summary>
+            void Idling(Entity self, ref CreatureState s, ref CreatureBlob b, int species, ref Random rng, float dt, float walk, float idleLook, bool perched, float3 player, ref float targetSpeed, ref bool moving, ref float desiredLook)
+            {
+                if (s.Stage == ChatTalk || s.Stage == ChatListen)
+                {
+                    if (Chatting(self, ref s, ref b, ref rng, dt))
+                    {
+                        targetSpeed = walk;
+                        moving = true;
+                    }
+                    desiredLook = 0f;
+                    return;
+                }
+                if (s.Stage >= MessageWait)
+                {
+                    Receiving(ref s, ref b, ref rng, dt);
+                    return;
+                }
+                // An idle action under way finishes before it moves on.
+                if (s.Action == IdleAction.None)
+                    s.Timer -= dt;
+                desiredLook = idleLook;
+                if (s.Timer <= 0f)
+                    Decide(self, ref s, ref b, species, ref rng, perched, player);
+            }
+
+            /// <summary>CreatureMode.Wander: a moth round its light, a flier in the air, or a walk to its target.</summary>
+            void Wandering(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, bool flier, ref float targetSpeed, ref bool moving, ref bool custom, ref float vertical)
+            {
+                // A moth round its light: from point to point (in a cave, under the rock: no cruising height).
+                if (b.DrawnToLight)
+                {
+                    custom = true;
+                    if (FlitTo(ref s, ref b, dt, ref vertical))
+                        Flit(ref s, ref rng);
+                    return;
+                }
+                if ((flier || b.Breaches) && s.Stage >= 1)
+                {
+                    custom = true;
+                    if (s.Stage == 2)
+                        Soar(ref s, ref b, ref rng, dt);
+                    // A sky serpent diving back in: once under, swimming again.
+                    if (b.Breaches && s.Stage == 3 && FlyTo(ref s, ref b, s.Target, s.TargetHeight, b.FlySpeed, dt, ref vertical))
+                    {
+                        Pause(ref s, ref b, ref rng);
+                        return;
+                    }
+                    if (b.Breaches && s.Stage == 3)
+                        return;
+                    if (FlyTo(ref s, ref b, s.Target, s.TargetHeight, b.FlySpeed, dt, ref vertical))
+                    {
+                        // Bats don't land: they hawk for insects in loops all night, then go to roost.
+                        if (b.DrawnToLight)
+                            Flit(ref s, ref rng);
+                        else if (b.Roosts && SleepTime(ref b) < 0.5f)
+                            NightLoop(ref s, ref b, ref rng);
+                        else if (b.Roosts)
+                            StartRoost(ref s, ref b, ref rng);
+                        else
+                            Land(ref s, ref b, ref rng);
+                    }
+                    return;
+                }
+                targetSpeed = walk;
+                moving = true;
+                // (Right into its nest, when that's where it's going.)
+                var arrive = b.Nests == NestSite.Ground && math.all(s.Target == s.Anchor.xz) ? 0.2f : 1f;
+                // (A crawler in a cave is going to a point on a wall or the ceiling: there in three dimensions.)
+                var crawlTo = b.Crawls && CaveWalker(s, ref b);
+                if (crawlTo ? math.distance(s.Position, new float3(s.Target.x, s.TargetHeight, s.Target.y)) < 0.4f
+                            : math.distance(s.Position.xz, s.Target) < arrive)
+                    Pause(ref s, ref b, ref rng);
+            }
+
+            /// <summary>CreatureMode.Flee: running (in a cave along the passages, jinking with something close behind), or flying off.</summary>
+            void Fleeing(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float run, bool flier, bool threatened, ref float targetSpeed, ref bool moving, ref bool custom, ref float vertical)
+            {
+                if (flier)
+                {
+                    custom = true;
+                    if (FlyTo(ref s, ref b, s.Target, s.TargetHeight, b.FlySpeed * 1.2f, dt, ref vertical) ||
+                        !threatened && s.ModeTime > 6f && s.Position.y - Terrain.SampleHeight(s.Position.xz) < 0.5f)
+                        Land(ref s, ref b, ref rng);
+                    return;
+                }
+                targetSpeed = run;
+                moving = true;
+                // In a cave: on along the passages, a point at a time (and another way if it's stuck at a
+                // wall: StageTime counts the time without getting anywhere).
+                if (CaveWalker(s, ref b))
+                {
+                    if (s.Speed > 0.15f)
+                        s.StageTime = 0f;
+                    if (threatened && (math.distance(s.Position.xz, s.Target) < 1.5f || s.StageTime > 1f))
+                    {
+                        s.Target = CaveEscape(s, s.Focus, ref rng);
+                        s.StageTime = 0f;
+                    }
+                }
+                else if (threatened && math.distance(s.Position.xz, s.Target) < 2f)
+                    s.Target = s.Position.xz + math.normalizesafe(s.Position.xz - s.Focus, new float2(1f, 0f)) * 30f;
+                // Prey with something close behind it jinks: every second or two a sharp turn of up to 50° off
+                // straight away (Z-53: a chase that weaves, and that a hunter can close on).
+                else if (threatened && b.Hunted && b.Habitat == Habitat.Land && math.distance(s.Position.xz, s.Focus) < 20f &&
+                         s.StageTime > 1f + (s.Seed % 8u) * 0.125f)
+                {
+                    var fleeDir = math.normalizesafe(s.Position.xz - s.Focus, new float2(1f, 0f));
+                    math.sincos(rng.NextFloat(-0.87f, 0.87f), out var jinkSin, out var jinkCos);
+                    s.Target = s.Position.xz + new float2(fleeDir.x * jinkCos - fleeDir.y * jinkSin, fleeDir.x * jinkSin + fleeDir.y * jinkCos) * 30f;
+                    s.StageTime = 0f;
+                }
+                else if (!threatened && (s.ModeTime > 3f || math.distance(s.Position.xz, s.Target) < 2f))
+                    Pause(ref s, ref b, ref rng);
+            }
+
+            /// <summary>CreatureMode.Sit: walking to its spot, then sitting (or lying) there facing the way it chose.</summary>
+            void Sitting(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, float idleLook, ref float targetSpeed, ref bool moving, ref float lie, ref float sit, ref float desiredLook)
+            {
+                if (s.Stage == 0)
+                {
+                    targetSpeed = walk;
+                    moving = true;
+                    // (Its time there starts when it sits down; a spot it can't reach in a minute, it gives up on.)
+                    if (s.StageTime > 60f)
+                        Pause(ref s, ref b, ref rng);
+                    // (Two that chose the same spot in the same moment: the later of them finds another.)
+                    else if (Contested(self, in s) && !Resettle(self, ref s, ref rng))
+                        Pause(ref s, ref b, ref rng);
+                    // (Close is enough: it shuffles the rest of the way on, which for a seat is past the front
+                    // of the seat itself, solid to walkers.)
+                    else if (math.distance(s.Position.xz, s.Target) < (s.TargetHeight == 4f || s.TargetHeight == CreatureAnimator.HearthSeat ? 0.9f : 0.5f))
+                    {
+                        s.Stage = (byte)s.TargetHeight;
+                        s.StageTime = 0f;
+                    }
+                }
+                else
+                {
+                    // Turned to the well (or the view, or the way its seat faces), then down: sitting up and
+                    // looking about, or lying back.
+                    s.Timer -= dt;
+                    // (Shuffling the last of the way onto its own spot, so it neither crowds the next nor the wall.)
+                    var short_ = s.Target - s.Position.xz;
+                    var shuffle = math.min(math.length(short_), 0.5f * dt);
+                    s.Position.xz += math.normalizesafe(short_) * shuffle;
+                    var toFace = s.Focus - s.Position.xz;
+                    var wantedYaw = WrapAngle(math.atan2(toFace.x, toFace.y) - s.Yaw);
+                    s.Yaw = WrapAngle(s.Yaw + math.clamp(wantedYaw, -b.TurnRate * dt, b.TurnRate * dt));
+                    // (At the town's fire, some stand.)
+                    if (s.Stage == 3)
+                        lie = 1f;
+                    else if (s.Stage != CreatureAnimator.HearthStand)
+                        sit = 1f;
+                    desiredLook = s.Stage == 3 ? 0f : idleLook;
+                    var hearth = AtHearth(s.Stage);
+                    if (s.Timer <= 0f || hearth && !Gathering(in s, ref b) || Contested(self, in s) && !Resettle(self, ref s, ref rng))
+                        Pause(ref s, ref b, ref rng);
+                }
+            }
+
+            /// <summary>CreatureMode.Work: a miner's, traveller's, messenger's or raider's round, or walking to its post and working there.</summary>
+            void Working(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, float run, float idleLook, ref float targetSpeed, ref bool moving, ref bool custom, ref float vertical, ref float sit, ref float desiredLook, ref float headDown, ref float bow)
+            {
+                // (A miner has no post: its day is a round, into the mine and back out with ore.)
+                if (s.Task == CreatureTask.Mine)
+                {
+                    custom = true;
+                    Mining(ref s, ref b, ref rng, dt, walk);
+                    return;
+                }
+                if (s.Task == CreatureTask.Travel)
+                {
+                    custom = true;
+                    Travelling(ref s, ref b, ref rng, dt, walk);
+                    return;
+                }
+                if (s.Task == CreatureTask.Messenger)
+                {
+                    custom = true;
+                    Messenger(ref s, ref b, ref rng, dt, ref vertical);
+                    return;
+                }
+                if (s.Stage >= CreatureAnimator.RaidWalk && s.Stage <= CreatureAnimator.RaidLick)
+                {
+                    Raiding(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref sit, ref vertical, ref desiredLook, ref headDown, ref bow);
+                    return;
+                }
+                // (A fisher's time at the water starts when it gets there, however far it had to walk.)
+                if (s.Stage >= 1 || s.Task != CreatureTask.Fish)
+                    s.Timer -= dt;
+                if (s.Stage == 0)
+                {
+                    s.Target = s.WorkSpot;
+                    targetSpeed = walk;
+                    moving = true;
+                    if (math.distance(s.Position.xz, s.WorkSpot) < 0.4f)
+                    {
+                        // (A hermit's chores: chopping at its woodpile is stage 1, stooped over its garden or the
+                        // water stage 2, so every machine poses it right.)
+                        s.Stage = (byte)(s.Task == CreatureTask.Hermit && s.AnchorSide >= 2 ? s.AnchorSide : 1);
+                        s.StageTime = 0f;
+                    }
+                }
+                else if (s.Task == CreatureTask.Fish)
+                    Fishing(ref s, ref b, ref rng, dt, ref desiredLook);
+                else
+                {
+                    // At the post: turn to face the work, glance about now and then.
+                    var toWork = s.WorkFace - s.Position.xz;
+                    var wanted = WrapAngle(math.atan2(toWork.x, toWork.y) - s.Yaw);
+                    s.Yaw = WrapAngle(s.Yaw + math.clamp(wanted, -b.TurnRate * dt, b.TurnRate * dt));
+                    desiredLook = math.frac(s.ModeTime / 9f) > 0.85f ? idleLook : 0f;
+                    // Asleep on their feet at night.
+                    if (SleepTime(ref b) > 0.5f)
+                        headDown = 0.35f;
+                }
+                if (s.Timer <= 0f)
+                    Pause(ref s, ref b, ref rng);
+            }
+
+            /// <summary>A child's poke with its stick or throw of its stone.</summary>
+            void ChildPlay(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
+            {
                 // A child standing about now and then pokes at the ground with its stick, or throws its stone; more
                 // often sitting in a play ring, into the middle of it.
                 var playing = s.Mode == CreatureMode.Sit && s.Stage == CreatureAnimator.PlayRing;
@@ -1029,7 +1103,11 @@ namespace Punchy.Fauna
                     s.LookFor = s.ActionLength + 0.5f;
                     s.Timer = math.max(s.Timer, s.ActionLength + 0.5f);
                 }
+            }
 
+            /// <summary>Keeps the target inside its home range.</summary>
+            void KeepToLeash(ref CreatureState s, bool moving, ref float targetSpeed)
+            {
                 // Animals with a home never head out of range of it (penned animals stay in their pen, even fleeing).
                 // Going indoors is going home: a door beyond the leash would otherwise be cut short to a spot it stands
                 // on for a minute, turning on it (Z-07, an elf by the ElfGrove fountain).
@@ -1042,121 +1120,123 @@ namespace Punchy.Fauna
                     if (math.distance(s.Position.xz, s.Target) < 0.8f && s.Mode == CreatureMode.Flee)
                         targetSpeed *= 0.2f;   // cornered: mill about rather than run on the spot
                 }
+            }
 
-                var urgent = s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Hunt || s.Mode == CreatureMode.Play ||
-                             s.Mode == CreatureMode.Burrow && s.ModeTime < 3f;
-                if (!custom)
+            /// <summary>Turning and moving by itself (not climbing, flying or the like): turn to the target, keep off water, cliffs and solids, then Advance.</summary>
+            void Steer(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, bool moving, bool urgent, float targetSpeed, bool flier, bool perched, float walk, float run)
+            {
+                // Getting up comes before going anywhere.
+                targetSpeed *= math.saturate(1f - math.max(s.Lie, s.Sit) * 1.5f);
+
+                // Turn towards the target, then move; slow down while turning sharply.
+                var turn = 0f;
+                // (Not within 10 cm of the target: the way to it there is noise, and following it spins the body on
+                // the spot at its full turn rate, Z-07.)
+                var to = s.Target - s.Position.xz;
+                if (moving && math.lengthsq(to) > 0.01f)
                 {
-                    // Getting up comes before going anywhere.
-                    targetSpeed *= math.saturate(1f - math.max(s.Lie, s.Sit) * 1.5f);
-
-                    // Turn towards the target, then move; slow down while turning sharply.
-                    var turn = 0f;
-                    // (Not within 10 cm of the target: the way to it there is noise, and following it spins the body on
-                    // the spot at its full turn rate, Z-07.)
-                    var to = s.Target - s.Position.xz;
-                    if (moving && math.lengthsq(to) > 0.01f)
+                    var wanted = WrapAngle(math.atan2(to.x, to.y) - s.Yaw);
+                    turn = math.clamp(wanted, -b.TurnRate * dt, b.TurnRate * dt);
+                    targetSpeed *= math.saturate(math.cos(wanted) * 1.5f);
+                    // (#12, A-46: an unhurried walker slows at once to a speed whose turning circle reaches its target,
+                    // radius = distance / (2 sin off-heading). Easing down from walking pace instead, a dormouse or a
+                    // songbird near its spot went round and round it at full turn rate.)
+                    if (!urgent && OldWander.Data == 0 && math.abs(wanted) > 0.2f)
                     {
-                        var wanted = WrapAngle(math.atan2(to.x, to.y) - s.Yaw);
-                        turn = math.clamp(wanted, -b.TurnRate * dt, b.TurnRate * dt);
-                        targetSpeed *= math.saturate(math.cos(wanted) * 1.5f);
-                        // (#12, A-46: an unhurried walker slows at once to a speed whose turning circle reaches its target,
-                        // radius = distance / (2 sin off-heading). Easing down from walking pace instead, a dormouse or a
-                        // songbird near its spot went round and round it at full turn rate.)
-                        if (!urgent && OldWander.Data == 0 && math.abs(wanted) > 0.2f)
-                        {
-                            var reach = b.TurnRate * math.length(to) / (2f * math.sin(math.min(math.abs(wanted), math.PI * 0.5f)));
-                            targetSpeed = math.min(targetSpeed, reach);
-                            s.Speed = math.min(s.Speed, reach);
-                        }
+                        var reach = b.TurnRate * math.length(to) / (2f * math.sin(math.min(math.abs(wanted), math.PI * 0.5f)));
+                        targetSpeed = math.min(targetSpeed, reach);
+                        s.Speed = math.min(s.Speed, reach);
                     }
-                    s.Yaw = WrapAngle(s.Yaw + turn);
-                    s.YawRate = dt > 0f ? turn / dt : 0f;
-                    s.Speed += (targetSpeed - s.Speed) * math.min(1f, dt * (urgent ? 4f : 2.5f));
-
-                    // Stay out of water and off cliffs: stop (or, running, veer) when the way ahead is bad.
-                    var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
-                    var ahead = s.Position.xz + forward * math.max(1.2f, s.Speed * 0.5f) * s.Scale;
-                    var landBound = (b.Habitat == Habitat.Land || flier) && !CaveWalker(s, ref b);
-                    var blocked = b.Crawls && CaveWalker(s, ref b) ? false : CaveWalker(s, ref b) ? s.Speed > 0.05f && !CaveFloor(ahead, s.Position.y)
-                                                : s.Speed > 0.05f && !Walkable(ahead, b.Habitat);
-                    // Folk out swimming keep to the water while they swim, and wade out onto the bank when they're done.
-                    if (s.Mode == CreatureMode.Swim && s.Stage >= 1)
-                    {
-                        blocked = s.Stage == 1 && s.Speed > 0.05f && !Swimmable(ahead);
-                        landBound = false;
-                    }
-                    // Animals that swim go on into water when they're on their way somewhere (not to stand in it), and a
-                    // lake bed's slope doesn't stop them.
-                    // A lava dweller keeps to lava (a swimmer's water test passes ordinary water too).
-                    if (b.LavaDweller && s.Speed > 0.05f && !blocked && !InLava(ahead))
-                        blocked = true;
-                    // Ghosts drift over water and up slopes alike (only a cave's hole turns them).
-                    if (b.Haunts)
-                    {
-                        blocked = s.Speed > 0.05f && Terrain.IsCaveHole(ahead);
-                        landBound = false;
-                    }
-                    if (b.CrossesWater && blocked && s.Mode != CreatureMode.Drink && s.Mode != CreatureMode.Graze && Swimmable(ahead))
-                    {
-                        blocked = false;
-                        landBound = false;
-                    }
-                    if (b.CrossesWater && WaterDepth(s.Position.xz) > b.StandHeight * s.Scale * 0.6f)
-                    {
-                        landBound = false;
-                        s.Speed = math.min(s.Speed, run * 0.45f);   // paddling is slow
-                    }
-                    // A-44: near a player, a wild animal turns from a solid just ahead (a cave wall, a tower, an iceberg)
-                    // before it presses into it, and from a boulder or shard taller than it steps (that one checked four
-                    // times a second: a rock's placement is a whole cell's worth of work).
-                    if (nearSolids && landBound && !blocked && s.Speed > 0.05f && s.Fly < 0.5f && !underRock && !b.CaveDweller)
-                    {
-                        var probe = s.Position.xz + forward * (math.max(0.6f, s.Speed * 0.3f) * s.Scale + BodyRadius(s, ref b));
-                        blocked = SolidAt(s, ref b, probe, forward, out _);
-                        if (!blocked && HasFlora && (int)(s.Clock * 4f) != (int)((s.Clock - dt) * 4f) &&
-                            FloraPlacement.RockAt(ref Flora.Value, Terrain, probe, BodyRadius(s, ref b), out var rockTop) &&
-                            rockTop > math.max(0.3f, b.StandHeight * s.Scale * 0.6f))
-                            blocked = true;
-                    }
-                    // (In a cave, running or going somewhere along the passage, it follows the wall round: Advance.)
-                    var followsWall =CaveWalker(s, ref b) && (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Drink ||
-                                                        s.Mode == CreatureMode.Wander && math.distance(s.Position.xz, s.Target) > 2f);
-                    if (!followsWall && (blocked || landBound && s.Speed > 0.05f && SlopeAhead(s.Position.xz, ahead) > 0.8f))
-                    {
-                        s.Speed *= 0.5f;
-                        if (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Play && s.Stage == 1)
-                        {
-                            // Running, it veers along whatever's in the way: to the side its run leans to (head-on, its
-                            // own side), the other side if that's blocked too, or back the way it came if both are.
-                            // Never a coin toss: a fresh one each frame left it turning on the spot (Z-07, quail
-                            // fleeing on a slope, playing prairie dogs).
-                            var left = new float2(-forward.y, forward.x);
-                            var lean = math.dot(s.Target - s.Position.xz, left);
-                            var side = math.abs(lean) > 0.5f ? math.sign(lean) : (s.Seed & 1u) == 0u ? 1f : -1f;
-                            var way = left * side;
-                            var reach = 1.5f * s.Scale + 0.5f;
-                            if (!CaveWalker(s, ref b) && !b.Haunts && !b.LavaDweller && s.Mode != CreatureMode.Swim &&
-                                (!Open(s.Position.xz, s.Position.xz + way * reach, b.Habitat, landBound) ||
-                                 nearSolids && SolidAt(s, ref b, s.Position.xz + way * reach, way, out _)))
-                                way = Open(s.Position.xz, s.Position.xz - way * reach, b.Habitat, landBound) &&
-                                      !(nearSolids && SolidAt(s, ref b, s.Position.xz - way * reach, -way, out _)) ? -way : -forward;
-                            s.Target = s.Position.xz + way * 20f;
-                        }
-                        else if (s.Mode == CreatureMode.Wander || s.Mode == CreatureMode.Drink && s.Stage == 0 ||
-                                 s.Mode == CreatureMode.Climb && s.Stage == 0 || s.Mode == CreatureMode.Web && s.Stage == 0)
-                            Pause(ref s, ref b, ref rng);
-                    }
-                    // Swimmers now and then leap out of the water while they're moving.
-                    if (b.Habitat == Habitat.Swims && b.Leaps > 0f && s.Air <= 0f && s.Speed > walk * 0.5f && rng.NextFloat() < b.Leaps * dt / 60f)
-                    {
-                        s.Air = 0.001f;
-                        s.AirHeight = (b.BodyLength * 1.2f + 0.4f) * s.Scale * rng.NextFloat(0.6f, 1.2f);
-                    }
-                    Advance(ref s, ref b, dt, keepHeight: perched);
                 }
-                else
-                    CreatureMotion.AdvancePhase(ref s, ref b, dt);
+                s.Yaw = WrapAngle(s.Yaw + turn);
+                s.YawRate = dt > 0f ? turn / dt : 0f;
+                s.Speed += (targetSpeed - s.Speed) * math.min(1f, dt * (urgent ? 4f : 2.5f));
+
+                // Stay out of water and off cliffs: stop (or, running, veer) when the way ahead is bad.
+                var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                var ahead = s.Position.xz + forward * math.max(1.2f, s.Speed * 0.5f) * s.Scale;
+                var landBound = (b.Habitat == Habitat.Land || flier) && !CaveWalker(s, ref b);
+                var blocked = b.Crawls && CaveWalker(s, ref b) ? false : CaveWalker(s, ref b) ? s.Speed > 0.05f && !CaveFloor(ahead, s.Position.y)
+                                            : s.Speed > 0.05f && !Walkable(ahead, b.Habitat);
+                // Folk out swimming keep to the water while they swim, and wade out onto the bank when they're done.
+                if (s.Mode == CreatureMode.Swim && s.Stage >= 1)
+                {
+                    blocked = s.Stage == 1 && s.Speed > 0.05f && !Swimmable(ahead);
+                    landBound = false;
+                }
+                // Animals that swim go on into water when they're on their way somewhere (not to stand in it), and a
+                // lake bed's slope doesn't stop them.
+                // A lava dweller keeps to lava (a swimmer's water test passes ordinary water too).
+                if (b.LavaDweller && s.Speed > 0.05f && !blocked && !InLava(ahead))
+                    blocked = true;
+                // Ghosts drift over water and up slopes alike (only a cave's hole turns them).
+                if (b.Haunts)
+                {
+                    blocked = s.Speed > 0.05f && Terrain.IsCaveHole(ahead);
+                    landBound = false;
+                }
+                if (b.CrossesWater && blocked && s.Mode != CreatureMode.Drink && s.Mode != CreatureMode.Graze && Swimmable(ahead))
+                {
+                    blocked = false;
+                    landBound = false;
+                }
+                if (b.CrossesWater && WaterDepth(s.Position.xz) > b.StandHeight * s.Scale * 0.6f)
+                {
+                    landBound = false;
+                    s.Speed = math.min(s.Speed, run * 0.45f);   // paddling is slow
+                }
+                // A-44: near a player, a wild animal turns from a solid just ahead (a cave wall, a tower, an iceberg)
+                // before it presses into it, and from a boulder or shard taller than it steps (that one checked four
+                // times a second: a rock's placement is a whole cell's worth of work).
+                if (nearSolids && landBound && !blocked && s.Speed > 0.05f && s.Fly < 0.5f && !underRock && !b.CaveDweller)
+                {
+                    var probe = s.Position.xz + forward * (math.max(0.6f, s.Speed * 0.3f) * s.Scale + BodyRadius(s, ref b));
+                    blocked = SolidAt(s, ref b, probe, forward, out _);
+                    if (!blocked && HasFlora && (int)(s.Clock * 4f) != (int)((s.Clock - dt) * 4f) &&
+                        FloraPlacement.RockAt(ref Flora.Value, Terrain, probe, BodyRadius(s, ref b), out var rockTop) &&
+                        rockTop > math.max(0.3f, b.StandHeight * s.Scale * 0.6f))
+                        blocked = true;
+                }
+                // (In a cave, running or going somewhere along the passage, it follows the wall round: Advance.)
+                var followsWall =CaveWalker(s, ref b) && (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Drink ||
+                                                    s.Mode == CreatureMode.Wander && math.distance(s.Position.xz, s.Target) > 2f);
+                if (!followsWall && (blocked || landBound && s.Speed > 0.05f && SlopeAhead(s.Position.xz, ahead) > 0.8f))
+                {
+                    s.Speed *= 0.5f;
+                    if (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Play && s.Stage == 1)
+                    {
+                        // Running, it veers along whatever's in the way: to the side its run leans to (head-on, its
+                        // own side), the other side if that's blocked too, or back the way it came if both are.
+                        // Never a coin toss: a fresh one each frame left it turning on the spot (Z-07, quail
+                        // fleeing on a slope, playing prairie dogs).
+                        var left = new float2(-forward.y, forward.x);
+                        var lean = math.dot(s.Target - s.Position.xz, left);
+                        var side = math.abs(lean) > 0.5f ? math.sign(lean) : (s.Seed & 1u) == 0u ? 1f : -1f;
+                        var way = left * side;
+                        var reach = 1.5f * s.Scale + 0.5f;
+                        if (!CaveWalker(s, ref b) && !b.Haunts && !b.LavaDweller && s.Mode != CreatureMode.Swim &&
+                            (!Open(s.Position.xz, s.Position.xz + way * reach, b.Habitat, landBound) ||
+                             nearSolids && SolidAt(s, ref b, s.Position.xz + way * reach, way, out _)))
+                            way = Open(s.Position.xz, s.Position.xz - way * reach, b.Habitat, landBound) &&
+                                  !(nearSolids && SolidAt(s, ref b, s.Position.xz - way * reach, -way, out _)) ? -way : -forward;
+                        s.Target = s.Position.xz + way * 20f;
+                    }
+                    else if (s.Mode == CreatureMode.Wander || s.Mode == CreatureMode.Drink && s.Stage == 0 ||
+                             s.Mode == CreatureMode.Climb && s.Stage == 0 || s.Mode == CreatureMode.Web && s.Stage == 0)
+                        Pause(ref s, ref b, ref rng);
+                }
+                // Swimmers now and then leap out of the water while they're moving.
+                if (b.Habitat == Habitat.Swims && b.Leaps > 0f && s.Air <= 0f && s.Speed > walk * 0.5f && rng.NextFloat() < b.Leaps * dt / 60f)
+                {
+                    s.Air = 0.001f;
+                    s.AirHeight = (b.BodyLength * 1.2f + 0.4f) * s.Scale * rng.NextFloat(0.6f, 1.2f);
+                }
+                Advance(ref s, ref b, dt, keepHeight: perched);
+            }
+
+            /// <summary>Where it looks and how it holds itself, eased towards this tick's wishes.</summary>
+            void Posture(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float3 player, float playerSpeed, IdleAction emote, float desiredLook, bool urgent, float lie, float headDown, float bow, float curl, float sit, float vertical)
+            {
                 // A glance at something near and interesting, over whatever else it was looking at. Not while the head is
                 // busy with something of its own (preening, grazing, drinking, a head-down posture, reading...): then
                 // the look eases back to straight ahead and leaves the head to the action.
@@ -1181,7 +1261,11 @@ namespace Punchy.Fauna
                 s.Curl += (curl - s.Curl) * math.min(1f, dt * (curl > s.Curl ? 0.6f : 4f));
                 s.Sit += (sit - s.Sit) * math.min(1f, dt * (urgent ? 6f : 2.5f));
                 s.Vertical += (vertical - s.Vertical) * math.min(1f, dt * 3f);
-                var fly = Flying(s) && (flier || b.Breaches && s.Mode == CreatureMode.Wander && s.Stage >= 2) ? 1f : 0f;
+            }
+
+            /// <summary>What it has in its hands: lanterns after dark, tools at work, a child's plaything.</summary>
+            void CarriedItem(ref CreatureState s, ref CreatureBlob b)
+            {
                 // Folk out and about after dark carry a lantern: lit at dusk, put away at dawn (with a margin either way so
                 // it doesn't flicker at the turn), and not asleep, indoors, dozing at a post, or in someone's arms.
                 // (A guard by day has its weapon, worn or drawn: Patrol works out which.)
@@ -1235,8 +1319,6 @@ namespace Punchy.Fauna
                     var light = b.GuardKit == GuardKit.Goblin || b.GuardKit == GuardKit.Ogre ? HeldItem.Torch : HeldItem.Lantern;
                     s.Held = dark && about ? light : HeldItem.None;
                 }
-                s.Fly += (fly - s.Fly) * math.min(1f, dt * 6f);
-                s.Seed = rng.state;
             }
         }
     }
