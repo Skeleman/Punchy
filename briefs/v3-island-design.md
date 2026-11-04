@@ -265,3 +265,12 @@ in parallel once B7 lands.
    110-170 m or go taller?
 4. Stepped pools: farmed paddies near villages, natural travertine terraces, or both?
 5. Waterfalls: a few big, memorable falls, or many small ones along every mountain stream?
+
+## Zach's answers (2026-11-03)
+
+1. Spawn: doesn't matter while the teleport shortcuts work. The world is arbitrary for now (exploration only).
+2. Deserts: mostly dry riverbeds. A real river is fine where it makes sense or keeps things simple.
+3. Ranges: some borders get no range or a very short one. A river can also be a border. Add one mountain
+   massif somewhere: a wide expanse of high ground and peaks, not a single ridge line.
+4. Stepped pools: the more types, the better.
+5. Waterfalls: mix per river. Some get one big memorable fall, others a run of small ones.
