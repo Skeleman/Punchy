@@ -1576,3 +1576,11 @@ Calls: about 80 across A-51 and the aborted A-50 start (A-51 alone was about 55)
 - Row 2 NOT proven: DungeonPost (guard at NearChest: stay within the leash, face the nearest player; drink at NearWater) is in, the server logs "spawns animals" and the species lookups all resolve, but a later query found 0 DungeonPost entities in ServerWorld and no drink/guard log lines; the server-side player sat at (0,0,0), not at -goto. Next: check whether the director culls/recycles the dungeon creatures (they aren't in its tier counts) and retest with a player inside the temple.
 - The stand-in stays until a set piece writes NearWater sockets (comment in DungeonStandIn.cs says so).
 - Calls used: ~62 (over the ceiling; the build crash cost ~10).
+
+## A-50b (2026-11-04): #24 row 2, dungeon creatures kept and posted
+- Commit on animal-behaviours (pushed): 8b9d708. Two causes of 0 DungeonPost: (1) FaunaDirector.Despawn let the dungeon creatures go by distance (no player near the temple; they counted as wild/settled/cave); (2) a director rebuild (terrain re-bake, the second "[fauna build]" right after the stand-in filled) destroyed every animal while the dungeon stayed marked filled.
+- Fix: every dungeon creature gets a DungeonPost (Behaviour None too); the director's wild query skips DungeonPost, so they're their own tier (never let go by distance, not in the caps); DungeonFilled records director.Builds and a rebuild makes the creatures again (props not repeated).
+- Retest, editor Play (local world, -dungeontest), player moved by eval to the temple and the stand-in cave: posts 24 (guard 3, drink 3), still 24 over a minute later.
+- Log lines: "[dungeon] Default World dungeon 81: animals rebuilt, 11 creatures made again at their posts"; "[dungeon] Ghost guards its chest: faces a player 35 dm away, 0 dm from the chest" (temple); "Tarantula guards its chest" (stand-in); "[dungeon] CaveSalamander drinks at its NearWater socket (526, 958)", also GiantSpider and GlowMoth. 0 exceptions.
+- Not retested here: host/client netcode worlds (this editor ran the local world). Editor closed.
+- Calls used: ~33.
