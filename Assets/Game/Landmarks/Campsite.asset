@@ -104,3 +104,11 @@ MonoBehaviour:
     - {fileID: 11400000, guid: 2643950432d89264cafbe718d23c0c4e, type: 2}
     - {fileID: 11400000, guid: fa4ebbcc3834f4c47afc7a79abe40ad7, type: 2}
     Look: {fileID: 11400000, guid: f943c02b3fa6465fbcc3c97f6a1beea7, type: 2}
+  - Biomes:
+    - {fileID: 11400000, guid: 796e3aff2526932459f9855a9d99abee, type: 2}
+    - {fileID: 11400000, guid: b4700b22c7df17e4ea2ac59d984c4566, type: 2}
+    Look: {fileID: 11400000, guid: 06f58f274eed460f8cf11af9bf8be42b, type: 2}
+  - Biomes:
+    - {fileID: 11400000, guid: 277e2018d3d2abb46be2568301b07cab, type: 2}
+    - {fileID: 11400000, guid: 68e89c7ddec9ab245918187f5662a6c2, type: 2}
+    Look: {fileID: 11400000, guid: 8439e88bb449444595c2b0df3bc0fe13, type: 2}
