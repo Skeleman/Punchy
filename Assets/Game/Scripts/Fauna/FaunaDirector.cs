@@ -677,6 +677,29 @@ namespace Punchy.Fauna
 
         // ------------------------------------------------------------------------------------------- the player's body
 
+        const string BodyKey = "Punchy.Character.Body";
+        bool bodyRestored;
+
+        /// <summary>
+        /// #68: takes the body saved when it was last picked (and that body's remembered colouring, as the Character
+        /// tab keeps it), if it is still playable; a "-body" launch flag wins.
+        /// </summary>
+        void RestoreBody()
+        {
+            var name = PlayerPrefs.GetString(BodyKey, "");
+            if (name.Length == 0 || System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-body") >= 0)
+                return;
+            var avatars = UnityEngine.Object.FindFirstObjectByType<Punchy.Net.NetAvatars>();
+            var pick = avatars != null ? avatars.PlayableSpecies.Find(s => s != null && s.name == name) : species.Find(s => s != null && s.name == name);
+            if (pick == null)
+                return;
+            PlayerSpecies = pick;
+            var coat = PlayerPrefs.GetInt("Punchy.Coat." + name, -1);
+            if (avatars != null)
+                avatars.LocalCoat = coat;
+            Debug.Log($"[character] restored body {name}, colouring {coat}");
+        }
+
         /// <summary>
         /// Spawns the player's body if it's missing (or the species changed). There's always one: with no species
         /// chosen, a human (the player entity itself has no mesh). The body has its own runtime data, so changing
@@ -687,10 +710,25 @@ namespace Punchy.Fauna
             if (!playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return;
             var em = queryWorld.EntityManager;
+            // #68: the body (and its colouring) picked on the Character tab last session, unless "-body" asks for one.
+            if (!bodyRestored)
+            {
+                bodyRestored = true;
+                RestoreBody();
+            }
             if (PlayerSpecies == null)
                 PlayerSpecies = species.Find(s => s.Role == DirectorRole.Folk) ?? species.Find(s => s.Body.Upright);
             if (PlayerSpecies != avatarSpecies)
+            {
+                // A body changed mid-session (a Character tab pick) is the one the next session starts in.
+                if (avatarSpecies != null && PlayerSpecies != null)
+                {
+                    PlayerPrefs.SetString(BodyKey, PlayerSpecies.name);
+                    PlayerPrefs.Save();
+                    Debug.Log($"[character] body {PlayerSpecies.name} saved for next time");
+                }
                 DropAvatar();
+            }
             if (PlayerSpecies == null)
                 return;
             if (avatarQuery.CalculateEntityCount() > 0)
