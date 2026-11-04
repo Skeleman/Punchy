@@ -1707,3 +1707,22 @@ Left: a framed #64 shot (spawn a herd next to the player, or launch with v2 and 
 - #64: added the `-needcues` debug flag (forces need cues on, commit on animal-behaviours). The framed shot still failed: two tries (Deer:6, watch 1.5-2 m up, 4-5 m off, `-goflat -weather Clear`) both came out as flat grey haze with no creatures readable. a58-needs.png is not usable. Next: find out what fills the frame (camera in fog volume or in terrain?) before retrying.
 - #68: picked Goblin, colouring 2 in the Character tab (a58-character.png, not reviewed). Stopped and restarted Play; log: `[character] body Goblin saved for next time` then `[character] restored body Goblin, colouring 2`. PlayerPrefs left set to Goblin/2.
 - Note for later: clients don't see need cues (needs are simulation-only and not sent to clients). Not fixed.
+
+## A-59 (2026-11-04): need cues for clients, needs split; shot and client test not finished
+
+Commits on animal-behaviours (pushed): merge of origin/main 7bca6b7, a49e354 (#64 cue byte + #58 needs move). Stopped over the call ceiling.
+
+- Setup: PlayerPrefs body was Goblin (left by A-58b); deleted the body key and the per-class colouring keys, so the default body is back.
+- Row 1 (#64): cause not proven. The camera is not inside the ground or water: during the `-watch Deer -watchfrom 1.8,4.5` hold it sat 1.8 m above the ground (36.3 over 34.5) on dry land, with fog ExponentialSquared at density 0.0013. A retake with the same setup (a59-try1.png) is not grey haze: it shows a deer, but the camera is low, the foreground ground is blurred, the sky is overcast even with `-weather Clear` on the first line, and no cue is readable. a59-probe.png is a stray frame, not usable. Likely cause of the A-58b haze: the shot dir was missing (the editor clears Temp at startup), so those frames came from a different point in the run. Not checked.
+- Row 2 (#64): network change: CreatureNet (the creature ghost) gets one new `[GhostField] byte Cue`. CreatureState.Cue (NeedCue: None/Tired/Hungry/Thirsty/Lonely, the strongest need past 0.6, none while asleep or held) is set by the brain in Needs, written by CreatureNetWriteSystem and copied back by CreatureReplicaSystem. The renderer draws state.Cue, so host, solo and client use the same path. **The host+client compare is not done**: the probe eval failed and I stopped at the ceiling. Fingerprint 51E641E9 after (host editor run, 0 game exceptions).
+- Row 3 (#58): moved by reader (no before/after us/creature, not measured):
+
+| Field | From | To | Readers |
+|---|---|---|---|
+| Hunger, Thirst, Tired, Lonely | CreatureState | CreatureMind | brain; FaunaDirector spawn; DebugControls -thirsty and hunt log; NetMenu means (host only, a client reads 0) |
+| Cue (new) | - | CreatureState | brain writes; ghost; renderer |
+
+  The spawn RNG draws keep their order, so spawns are unchanged. The raid spawn now edits CreatureMind instead of replacing it.
+
+Shots: a59-try1.png (deer, no cue), a59-probe.png (not usable). Editor closed gracefully. Calls used: about 55 (ceiling 45).
+Left: the host+client cue compare (Temp probe Cues(): ServerWorld vs ClientWorld by Individual), a framed `-needcues` shot (camera higher, nearer the herd), us/creature before/after for the split.
