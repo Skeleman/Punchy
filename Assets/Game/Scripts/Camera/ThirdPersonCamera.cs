@@ -33,6 +33,8 @@ namespace Punchy.CameraRig
         public float PivotHeight => Mathf.Max(TargetHeight * bodySize, 0.3f);
         float bodySize = 1f;
         public float MouseSensitivity = 0.15f;
+        /// <summary>P-8: moving the mouse or stick up looks down (Look tab, PlayerOptions).</summary>
+        public static bool InvertY;
         public float StickSensitivity = 180f;
         public float ZoomSensitivity = 0.01f;
         public float MinPitch = -20f;
@@ -91,7 +93,7 @@ namespace Punchy.CameraRig
                 if (Gamepad.current != null)
                     look += Gamepad.current.rightStick.ReadValue() * (StickSensitivity * Time.deltaTime);
                 yaw += look.x;
-                pitch = Mathf.Clamp(pitch - look.y, underground ? UndergroundMinPitch : MinPitch, underground ? UndergroundMaxPitch : MaxPitch);
+                pitch = Mathf.Clamp(pitch + (InvertY ? look.y : -look.y), underground ? UndergroundMinPitch : MinPitch, underground ? UndergroundMaxPitch : MaxPitch);
 
                 if (Mouse.current != null)
                     Distance = Mathf.Clamp(Distance - Mouse.current.scroll.ReadValue().y * ZoomSensitivity * Distance,

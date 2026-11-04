@@ -228,11 +228,21 @@ namespace Punchy.Net
                     if (q.TryGetSingleton<Unity.Transforms.LocalTransform>(out var t))
                         CarriedPosition = t.Position;
             var solo = Solo ? World.DefaultGameObjectInjectionWorld : null;
+            // #99 (P-8): the scene's MonoBehaviours (flora, caves, fauna, ambience, weather) keep jobs running across
+            // frames that read the worlds' terrain blobs, and finish them only in OnDisable, which used to come with the
+            // scene reload, after the worlds (and the subscene's blobs) were already gone: hosting a second time then
+            // crashed in native code (burst.initialize.statics) about 2 runs in 3. Switching the old scene off first
+            // makes them finish their jobs now; the scene is reloaded onto the new worlds right after anyway.
+            foreach (var root in SceneManager.GetActiveScene().GetRootGameObjects())
+                root.SetActive(false);
             for (int i = World.All.Count - 1; i >= 0; i--)
             {
                 var world = World.All[i];
                 if (world.IsClient() || world.IsServer() || world == solo)
+                {
+                    world.EntityManager.CompleteAllTrackedJobs();
                     world.Dispose();
+                }
             }
         }
 
