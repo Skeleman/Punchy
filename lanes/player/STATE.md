@@ -22,6 +22,7 @@ Never merge PRs, close or comment-close issues (one-line progress comments are f
 no machine paths or personal info. Never bare `git stash`.
 
 ## In flight
+- Queue 11-04: P-9 (temple chests, small-body camera, sky), P-10 (doors and interiors, #25), P-11 (items and inventory, #26).
 - P-1 done 11-03 (player-client 1a9ef6c): resolution + window mode in the Graphics tab (#78). PR #90 merged 11-03 (5a56458).
 - P-2 done 11-03 (player-client 99cfd9c), but don't merge alone: joiners can time out while baking (P-3).
 - P-3 done 11-03: -quitafter flag; host/joiner timeouts = bake blocking main thread past the 10 s DisconnectTimeoutMS. Waiting on a supervisor call on the shared net-code fix.
