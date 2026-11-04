@@ -2,6 +2,21 @@
 
 Newest first.
 
+## W-94 (2026-11-04): hazard shelter houses, brick ruins + dune mound, sunk mound lip
+
+Commits on world-features: 26c6163 (row 1), 853b1bc (row 2), cbdf6cf (row 3). All pushed. I commented on #69, #80 and #70.
+- Row 1 (#69): four kit shelter houses for harsh biomes: Ash, Snow, Storm and Sand (new kit shapes; new materials Copper, Sand and Ash; banks, hoods and cheeks). They replace the dome entries in 7 settlement layouts. The old dome assets stay in the repo but nothing uses them now. v3 landmarks are 108 / 4D2643D7.
+  - Ash house (890.9,-3864.9): the walker goes through the bank gap, under the hood, and stops at the closed door.
+  - Snow house (-3292.0,1563.7): the front walk stops at the door. The side walk climbs the snow bank (about 1.2 m) and stops at the wall.
+  - Only Ashlands and Tundra have a settlement on v3, so there are 2 shots: Assets/Temp/shots/w94-shelter-ashlands.png and w94-shelter-tundra.png. Storm and Sand houses are not on v3 yet, so they have no walk or shot.
+- Row 2 (#80):
+  - Ruined kit wall bays draw as old coursed stone blocks at close range: staggered courses, worn and slightly tipped blocks, a few missing, a ragged top, and some fallen at the foot. This is drawing only; collision is unchanged.
+  - The sunken temple's sand mound is now wind-shaped: a long windward side, ripples, and drifts at the top's edge.
+  - v2 checks: north-gap walk ARRIVED (foot 31.5); east-wall walk STOPPED at x 1424.9 (same as W-67b); landmarks 136 / 4E61F1CF, unchanged.
+  - Shots: w94-ruin-bricks.png (the bricks read well) and w94-sandmound.png. The mound's steep flanks still show the brown rock-slope shading and the dune shape is weak. It may need a gentler flank, which would be a follow-up.
+- Row 3 (#70): the lowest tier box on a drift mound is now a 0.15 m lip. A walk uphill onto a MagneticDrift mound on a 0.46 slope (-789.9,-4026.8, v3) stepped up about 0.3 m per tier and reached the top (y 7.56) without stopping.
+- Notes: the W-67b walk spots are on v2. The editor keeps v3 in EditorPrefs, so I switched the island for one play by setting PUNCHY_ISLAND inside the editor process. I closed the editor at the end. I went well over the call budget.
+
 ## W-93 (2026-11-04): wasteland rock collision, plant skirt drape, salt crystal clock + lumpy ball + furrow
 
 Branch world-features: 3ef6bde (row 1, #70), fd20db4 (row 4, #40), 34a0924 (rows 3+5, #40). Row 2 (#69) not done.
