@@ -71,6 +71,9 @@ namespace Punchy.Terrain
         readonly List<BuildItem> wanted = new List<BuildItem>();
         readonly List<Mesh> buildMeshes = new List<Mesh>();
         readonly List<BatchMeshID> buildMeshIds = new List<BatchMeshID>();
+        /// <summary>W-75: new chunk entities are instantiated from these (Prefab-tagged) in one call per batch, instead of
+        /// several structural changes per entity.</summary>
+        Entity terrainPrototype, waterPrototype;
 
         // The batch being built in the background.
         readonly List<BuildItem> building = new List<BuildItem>();
@@ -283,8 +286,7 @@ namespace Punchy.Terrain
                     scratchCoords.Add(coord);
             }
 
-            foreach (var coord in scratchCoords)
-                Unload(coord);
+            UnloadCoords();
         }
 
         void CollectWantedChunks(in TerrainConfig config, float2 focus)
@@ -387,6 +389,22 @@ namespace Punchy.Terrain
             }
             Mesh.ApplyAndDisposeWritableMeshData(buildData, buildMeshes, MeshFlags);
 
+            // The batch's new terrain and water entities, made in one structural change each.
+            var newTerrain = 0;
+            var newWater = 0;
+            for (int i = 0; i < count; i++)
+            {
+                var exists = loaded.TryGetValue(building[i].Coord, out var known);
+                if (!exists)
+                    newTerrain++;
+                if (buildWaterRanges[i].x <= buildWaterRanges[i].y && waterMaterialId != BatchMaterialID.Null && (!exists || known.WaterEntity == Entity.Null))
+                    newWater++;
+            }
+            var terrainEntities = Spawn(ref terrainPrototype, TerrainDesc, materialId, buildMeshIds[0], true, newTerrain);
+            var waterEntities = Spawn(ref waterPrototype, WaterDesc, waterMaterialId, buildMeshIds[count], false, newWater);
+            newTerrain = 0;
+            newWater = 0;
+
             for (int i = 0; i < count; i++)
             {
                 var item = building[i];
@@ -399,13 +417,13 @@ namespace Punchy.Terrain
                 {
                     chunk = new LoadedChunk
                     {
-                        Entity = CreateRenderEntity(item.Coord, origin, TerrainDesc, materialId, buildMeshIds[i], "TerrainChunk"),
+                        Entity = Place(terrainEntities[newTerrain++], origin, materialId, buildMeshIds[i], terrainBounds, "TerrainChunk"),
                         Mesh = buildMeshes[i],
                         MeshId = buildMeshIds[i],
                         WaterMesh = buildMeshes[count + i],
                         WaterMeshId = buildMeshIds[count + i]
                     };
-                    EntityManager.AddComponentData(chunk.Entity, new TerrainChunk { Coord = item.Coord, Lod = item.Lod });
+                    EntityManager.SetComponentData(chunk.Entity, new TerrainChunk { Coord = item.Coord, Lod = item.Lod });
                 }
                 else
                 {
@@ -417,7 +435,7 @@ namespace Punchy.Terrain
                 // Water entities come and go as a chunk's water appears or disappears.
                 var canDrawWater = hasWater && waterMaterialId != BatchMaterialID.Null;
                 if (canDrawWater && chunk.WaterEntity == Entity.Null)
-                    chunk.WaterEntity = CreateRenderEntity(item.Coord, origin, WaterDesc, waterMaterialId, chunk.WaterMeshId, "WaterChunk");
+                    chunk.WaterEntity = Place(waterEntities[newWater++], origin, waterMaterialId, chunk.WaterMeshId, waterBounds, "WaterChunk");
                 else if (canDrawWater)
                     EntityManager.SetComponentData(chunk.WaterEntity, new RenderBounds { Value = waterBounds });
                 else if (chunk.WaterEntity != Entity.Null)
@@ -508,13 +526,32 @@ namespace Punchy.Terrain
             toShow.Dispose();
         }
 
-        Entity CreateRenderEntity(int2 coord, float2 origin, in RenderMeshDescription desc, BatchMaterialID material, BatchMeshID mesh, string name)
+        /// <summary><paramref name="n"/> new render entities, instantiated in one call from a prototype made on first use.</summary>
+        NativeArray<Entity> Spawn(ref Entity prototype, in RenderMeshDescription desc, BatchMaterialID material, BatchMeshID mesh, bool chunk, int n)
+        {
+            if (n == 0)
+                return default;
+            if (prototype == Entity.Null || !EntityManager.Exists(prototype))
+            {
+                prototype = EntityManager.CreateEntity();
+                EntityManager.AddComponentData(prototype, LocalTransform.Identity);
+                EntityManager.AddComponentData(prototype, new LocalToWorld { Value = float4x4.identity });
+                RenderMeshUtility.AddComponents(prototype, EntityManager, desc, new MaterialMeshInfo(material, mesh));
+                if (chunk)
+                    EntityManager.AddComponentData(prototype, new TerrainChunk());
+                EntityManager.AddComponent<Prefab>(prototype);
+            }
+            return EntityManager.Instantiate(prototype, n, Allocator.Temp);
+        }
+
+        /// <summary>Fills in a freshly instantiated chunk entity (no structural change).</summary>
+        Entity Place(Entity entity, float2 origin, BatchMaterialID material, BatchMeshID mesh, AABB bounds, string name)
         {
             var transform = LocalTransform.FromPosition(origin.x, 0f, origin.y);
-            var entity = EntityManager.CreateEntity();
-            EntityManager.AddComponentData(entity, transform);
-            EntityManager.AddComponentData(entity, new LocalToWorld { Value = transform.ToMatrix() });
-            RenderMeshUtility.AddComponents(entity, EntityManager, desc, new MaterialMeshInfo(material, mesh));
+            EntityManager.SetComponentData(entity, transform);
+            EntityManager.SetComponentData(entity, new LocalToWorld { Value = transform.ToMatrix() });
+            EntityManager.SetComponentData(entity, new MaterialMeshInfo(material, mesh));
+            EntityManager.SetComponentData(entity, new RenderBounds { Value = bounds });
 #if UNITY_EDITOR
             // One name per kind: the editor only has room for a few thousand distinct entity names, and streaming
             // creates chunks without end.
@@ -523,12 +560,13 @@ namespace Punchy.Terrain
             return entity;
         }
 
-        void Unload(int2 coord)
+        /// <summary>Unloads a chunk; its entities go on the dead list, destroyed together by the caller.</summary>
+        void Unload(int2 coord, NativeList<Entity> dead)
         {
             var chunk = loaded[coord];
-            EntityManager.DestroyEntity(chunk.Entity);
+            dead.Add(chunk.Entity);
             if (chunk.WaterEntity != Entity.Null)
-                EntityManager.DestroyEntity(chunk.WaterEntity);
+                dead.Add(chunk.WaterEntity);
             meshPool.Push((chunk.Mesh, chunk.MeshId));
             meshPool.Push((chunk.WaterMesh, chunk.WaterMeshId));
             loaded.Remove(coord);
@@ -538,8 +576,19 @@ namespace Punchy.Terrain
         {
             scratchCoords.Clear();
             scratchCoords.AddRange(loaded.Keys);
+            UnloadCoords();
+        }
+
+        /// <summary>Unloads the chunks in scratchCoords, destroying their entities in one structural change.</summary>
+        void UnloadCoords()
+        {
+            if (scratchCoords.Count == 0)
+                return;
+            var dead = new NativeList<Entity>(scratchCoords.Count * 2, Allocator.Temp);
             foreach (var coord in scratchCoords)
-                Unload(coord);
+                Unload(coord, dead);
+            EntityManager.DestroyEntity(dead.AsArray());
+            dead.Dispose();
         }
     }
 }
