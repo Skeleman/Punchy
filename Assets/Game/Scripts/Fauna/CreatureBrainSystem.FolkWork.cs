@@ -436,7 +436,7 @@ namespace Punchy.Fauna
                 if (!RoundPoint(town, leg, legs, InnerRound(s), out var point, out var gate))
                     return false;
                 SetMode(ref s, CreatureMode.Patrol);
-                s.RouteLeg = (byte)leg;
+                M.RouteLeg = (byte)leg;
                 s.WorkSpot = point;
                 s.WorkFace = s.Position.xz;
                 s.AnchorSize = gate ? 1f : 0f;
@@ -644,7 +644,7 @@ namespace Punchy.Fauna
                     return;
                 var legs = RoundLegs(s);
                 var inner = InnerRound(s);
-                var reached = s.RouteLeg % legs;
+                var reached = M.RouteLeg % legs;
                 var pause = s.AnchorSize > 0f ? rng.NextFloat(8f, 16f) : reached == 0 || reached == legs / 2 ? rng.NextFloat(4f, 8f) : 0f;
                 var leg = reached;
                 for (int k = 0; k < legs; k++)
@@ -652,7 +652,7 @@ namespace Punchy.Fauna
                     leg = (leg + legs + RoundWay(s)) % legs;
                     if (RoundPoint(town, leg, legs, inner, out var point, out var gate) && math.distancesq(point, s.WorkSpot) > 1f)
                     {
-                        s.RouteLeg = (byte)leg;
+                        M.RouteLeg = (byte)leg;
                         s.WorkFace = s.WorkSpot;
                         s.WorkSpot = point;
                         s.AnchorSize = gate ? 1f : 0f;
@@ -690,7 +690,7 @@ namespace Punchy.Fauna
                 {
                     var near = player.xz - s.Position.xz;
                     var alert = s.Stage == 2 || math.length(near) < 15f && (playerSpeed > 7f || emote != IdleAction.None);
-                    s.WeaponCalm = alert ? 0f : s.WeaponCalm + dt;
+                    M.WeaponCalm = alert ? 0f : M.WeaponCalm + dt;
                     if (s.Action == IdleAction.None && alert && s.Held == HeldItem.Spear)
                     {
                         s.Held = HeldItem.SpearDrawn;
@@ -698,7 +698,7 @@ namespace Punchy.Fauna
                         s.ActionTime = 0f;
                         s.ActionLength = 0.5f;
                     }
-                    else if (s.Action == IdleAction.None && !alert && s.Held == HeldItem.SpearDrawn && s.WeaponCalm > 4f)
+                    else if (s.Action == IdleAction.None && !alert && s.Held == HeldItem.SpearDrawn && M.WeaponCalm > 4f)
                     {
                         s.Held = HeldItem.Spear;
                         s.Action = IdleAction.Sheathe;
@@ -710,7 +710,7 @@ namespace Punchy.Fauna
                 // off out past the town's edge, then back to its round (to the point it was making for). It never goes
                 // more than 30 m beyond the edge after one, nor for more than 40 s, and leaves any one beast to a pair;
                 // after one, a minute and a half before it goes after another (so it's now and then, not all day).
-                s.ChaseCooldown = math.max(s.ChaseCooldown - dt, 0f);
+                M.ChaseCooldown = math.max(M.ChaseCooldown - dt, 0f);
                 if (s.Stage == 2)
                 {
                     var town = SettlementOf(s.Home);
@@ -731,9 +731,9 @@ namespace Punchy.Fauna
                     s.Stage = 0;
                     s.StageTime = 0f;
                     s.Partner = Entity.Null;
-                    s.ChaseCooldown = 90f;
+                    M.ChaseCooldown = 90f;
                 }
-                else if (s.ChaseCooldown <= 0f && FindMenace(self, in s, out var menace))
+                else if (M.ChaseCooldown <= 0f && FindMenace(self, in s, out var menace))
                 {
                     s.Stage = 2;
                     s.StageTime = 0f;

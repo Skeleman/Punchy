@@ -34,13 +34,13 @@ namespace Punchy.Fauna
                 if (s.LookFor > 0f)
                 {
                     s.LookFor -= dt;
-                    if (s.LookKind == 1 && Lookup.TryGetValue(s.LookEntity, out var j))
-                        s.LookAt = States[j].Position + new float3(0f, HeadHeight(States[j], ref Bodies[j].Blob.Value), 0f);
-                    else if (s.LookKind == 1)
+                    if (M.LookKind == 1 && Lookup.TryGetValue(M.LookEntity, out var j))
+                        M.LookAt = States[j].Position + new float3(0f, HeadHeight(States[j], ref Bodies[j].Blob.Value), 0f);
+                    else if (M.LookKind == 1)
                         s.LookFor = 0f;
-                    else if (s.LookKind == 2)
-                        s.LookAt = player + new float3(0f, 1.6f, 0f);
-                    var to = s.LookAt - (s.Position + new float3(0f, HeadHeight(s, ref b), 0f));
+                    else if (M.LookKind == 2)
+                        M.LookAt = player + new float3(0f, 1.6f, 0f);
+                    var to = M.LookAt - (s.Position + new float3(0f, HeadHeight(s, ref b), 0f));
                     var yaw = WrapAngle(math.atan2(to.x, to.z) - s.Yaw);
                     // (Gone round behind it: let it go.)
                     if (math.abs(yaw) > 1.9f)
@@ -92,15 +92,15 @@ namespace Punchy.Fauna
                     ? (playerSpeed > 4f || emote != IdleAction.None ? 3f : 1.2f) / dp : 0f;
                 if (playerScore > best)
                 {
-                    s.LookKind = 2;
-                    s.LookAt = player + new float3(0f, 1.6f, 0f);
+                    M.LookKind = 2;
+                    M.LookAt = player + new float3(0f, 1.6f, 0f);
                     s.LookFor = rng.NextFloat(1f, 4f);
                 }
                 else if (target >= 0)
                 {
-                    s.LookKind = 1;
-                    s.LookEntity = Entities[target];
-                    s.LookAt = States[target].Position + new float3(0f, HeadHeight(States[target], ref Bodies[target].Blob.Value), 0f);
+                    M.LookKind = 1;
+                    M.LookEntity = Entities[target];
+                    M.LookAt = States[target].Position + new float3(0f, HeadHeight(States[target], ref Bodies[target].Blob.Value), 0f);
                     // (A predator keeps its eyes on prey longer.)
                     var watching = false;
                     for (int k = 0; k < b.Prey.Length && !watching; k++)
@@ -348,7 +348,7 @@ namespace Punchy.Fauna
                 s.Target = hive.Position.xz + hive.Facing * (trunk + 0.05f);
                 s.Timer = 120f;
                 // (Even if it never gets there: no other raid for a long while.)
-                s.ChaseCooldown = RaidCooldown;
+                M.ChaseCooldown = RaidCooldown;
                 return true;
             }
 
@@ -593,8 +593,8 @@ namespace Punchy.Fauna
                 // (Eyes on the bird, as it comes in and while it's there.)
                 if (hasBird && s.Stage < MessageRead)
                 {
-                    s.LookKind = 1;
-                    s.LookEntity = s.Partner;
+                    M.LookKind = 1;
+                    M.LookEntity = s.Partner;
                     s.LookFor = math.max(s.LookFor, 0.3f);
                 }
                 // (Turned to the bird as it comes in; holding still for the last few metres, so it has a steady arm to land on.)
@@ -679,10 +679,10 @@ namespace Punchy.Fauna
             /// target), 2 on its way to or at its post (ChatResume.x the time left at work: Timer is the talk's while it lasts),
             /// 3 on its way to a seat (it picks something new after), 0 standing about.
             /// </summary>
-            static void BeginChat(ref CreatureState s, Entity with, byte stage, byte role)
+            void BeginChat(ref CreatureState s, Entity with, byte stage, byte role)
             {
                 s.ChatWalk = (byte)(s.Mode == CreatureMode.Wander ? 1 : s.Mode == CreatureMode.Work ? 2 : s.Mode == CreatureMode.Sit ? 3 : 0);
-                s.ChatResume = s.ChatWalk == 2 ? new float2(s.Timer, 0f) : s.Target;
+                M.ChatResume = s.ChatWalk == 2 ? new float2(s.Timer, 0f) : s.Target;
                 SetMode(ref s, CreatureMode.Idle);
                 s.Stage = stage;
                 s.Partner = with;
@@ -690,9 +690,9 @@ namespace Punchy.Fauna
             }
 
             /// <summary>After a talk, on to wherever it was going (or a pause where it stood), not to talk again for a while.</summary>
-            static void EndChat(ref CreatureState s, ref CreatureBlob b, ref Random rng, float cool)
+            void EndChat(ref CreatureState s, ref CreatureBlob b, ref Random rng, float cool)
             {
-                var to = s.ChatResume;
+                var to = M.ChatResume;
                 if (s.ChatWalk == 1)
                 {
                     SetMode(ref s, CreatureMode.Wander);
@@ -782,8 +782,8 @@ namespace Punchy.Fauna
                 var to = o.Position.xz - s.Position.xz;
                 var gap = math.length(to);
                 var want = s.ChatRole == 3 ? 1.9f : 1.25f;
-                s.LookKind = 1;
-                s.LookEntity = s.Partner;
+                M.LookKind = 1;
+                M.LookEntity = s.Partner;
                 s.LookFor = math.max(s.LookFor, 0.3f);
                 var spare = gap - want;
                 if (joined && spare > 0.15f)

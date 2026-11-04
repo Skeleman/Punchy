@@ -23,10 +23,10 @@ namespace Punchy.Fauna
             /// activity that meets them goes on: grazing or a hunt for hunger, drinking for thirst, rest and sleep for
             /// tiredness, play, a flock or company for loneliness.
             /// </summary>
-            static void Needs(ref CreatureState s, ref CreatureBlob b, float dt)
+            void Needs(ref CreatureState s, ref CreatureBlob b, float dt)
             {
                 using var profiled = NeedsMarker.Auto();
-                s.Unsettled = math.max(s.Unsettled - dt, 0f);
+                M.Unsettled = math.max(M.Unsettled - dt, 0f);
                 s.Hunger += dt * (0.002f + (b.Grazing + b.Hunger) * 0.003f);
                 s.Thirst += dt * b.Thirst * 0.004f;
                 s.Tired += dt * 0.0015f;
@@ -213,7 +213,7 @@ namespace Punchy.Fauna
                 }
                 // A bear by day, now and then, goes after a wild hive's honey (rarely: after a raid it leaves hives be a
                 // long while).
-                if (b.RaidsHives && sleepy < 0.3f && s.ChaseCooldown <= 0f && rng.NextFloat() < 0.08f && StartRaid(ref s, ref rng))
+                if (b.RaidsHives && sleepy < 0.3f && M.ChaseCooldown <= 0f && rng.NextFloat() < 0.08f && StartRaid(ref s, ref rng))
                     return;
                 // Children by day now and then sit down in a ring on a green to play with their sticks and stones.
                 if (b.Child && sleepy < 0.3f && Night < 0.4f && s.Leash > 0f && rng.NextFloat() < 0.3f && StartPlayRing(self, ref s, ref rng))
@@ -237,7 +237,7 @@ namespace Punchy.Fauna
                 if (b.Roosts)
                 {
                     // (Startled off its roost, it flies about a while before it settles again.)
-                    if (sleepy > 0.5f && s.Unsettled <= 0f)
+                    if (sleepy > 0.5f && M.Unsettled <= 0f)
                         StartRoost(ref s, ref b, ref rng);
                     else
                         NightLoop(ref s, ref b, ref rng);

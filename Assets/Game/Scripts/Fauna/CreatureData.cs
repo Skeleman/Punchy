@@ -568,15 +568,8 @@ namespace Punchy.Fauna
         /// <summary>Head turn relative to the body, radians; and up (+) or down (−), radians.</summary>
         public float Look;
         public float LookPitch;
-        /// <summary>
-        /// What it's looking at, for a glance (Look/LookPitch turn the head there): a point (LookKind 0), a creature it
-        /// follows (1: LookEntity), or the player (2); for LookFor more seconds, then none for LookCool. Set by the
-        /// brain (CreatureBrainSystem.Glance), readable by any behaviour that wants to know where it's looking.
-        /// </summary>
-        public float3 LookAt;
-        public Entity LookEntity;
+        /// <summary>A glance's seconds left, then seconds before the next (what it looks at: CreatureMind.LookAt).</summary>
         public float LookFor, LookCool;
-        public byte LookKind;
         public float Scale;
         public float2 Target;
         public float Timer;
@@ -603,12 +596,8 @@ namespace Punchy.Fauna
         /// </summary>
         public float ChatCool;
         public byte ChatRole, ChatWalk;
-        /// <summary>Brain LOD (#59, host-only): time since a far creature last thought, and how far it coasted meanwhile.</summary>
-        public float LodDebt;
-        public float2 LodCoast;
         /// <summary>A folk's job when the host handed it one (FolkJob; 0 = the one its Task implies). Local, not a ghost field (A-29).</summary>
         public byte Job;
-        public float2 ChatResume;
         /// <summary>Fixed for life: picks this individual's traits (posture, gait, hair). Set at spawn.</summary>
         public uint Individual;
         /// <summary>A worker's job, where it stands to do it, and what it faces there.</summary>
@@ -655,21 +644,41 @@ namespace Punchy.Fauna
         public int Holder;
         /// <summary>What it has in hand (folk: a lantern at night). Replicated; each machine draws it.</summary>
         public HeldItem Held;
-        /// <summary>A guard: which leg of its round it's on; and how long before it goes after another beast (s).
-        /// Simulation only (not sent).</summary>
-        public byte RouteLeg;
-        public float ChaseCooldown;
-        /// <summary>A guard with its weapon drawn: how long since anything needed it (it's put away after a while).</summary>
-        public float WeaponCalm;
 
         // Needs, 0 (satisfied) to 1 (pressing): they rise with time by the species' tastes and are eased by the
         // activity that meets them; what it decides to do next is weighted by them. Simulation only (not sent).
         public float Hunger, Thirst, Tired, Lonely;
-        /// <summary>Seconds left before a startled animal will settle again (a bat waved off its roost). Simulation only.</summary>
-        public float Unsettled;
         /// <summary>Half the width of what this player's body carries in its arms (m; 0 for nothing): local, set each
         /// frame on every machine by HeldPoseSystem from the creature carried, so the arms open round it. Not sent.</summary>
         public float CarryWidth;
+    }
+
+    /// <summary>
+    /// What only the brain reads and writes (#58): split off CreatureState so the snapshot, the ghosts and every other
+    /// reader copy less. Host (or single player) only, never sent; FaunaDirector adds it to every animal it spawns.
+    /// </summary>
+    public struct CreatureMind : IComponentData
+    {
+        /// <summary>
+        /// What it's looking at, for a glance (Look/LookPitch turn the head there): a point (LookKind 0), a creature it
+        /// follows (1: LookEntity), or the player (2); for CreatureState.LookFor more seconds. Set by the brain
+        /// (CreatureBrainSystem.Glance).
+        /// </summary>
+        public float3 LookAt;
+        public Entity LookEntity;
+        public byte LookKind;
+        /// <summary>Brain LOD (#59): time since a far creature last thought, and how far it coasted meanwhile.</summary>
+        public float LodDebt;
+        public float2 LodCoast;
+        /// <summary>A talk's carry-on (see CreatureState.ChatWalk and CreatureBrainSystem.BeginChat).</summary>
+        public float2 ChatResume;
+        /// <summary>A guard: which leg of its round it's on; and how long before it goes after another beast (s).</summary>
+        public byte RouteLeg;
+        public float ChaseCooldown;
+        /// <summary>A guard with its weapon drawn: how long since anything needed it (it's put away after a while).</summary>
+        public float WeaponCalm;
+        /// <summary>Seconds left before a startled animal will settle again (a bat waved off its roost).</summary>
+        public float Unsettled;
     }
 
     /// <summary>One segment as the creature shader draws it (a tapered capsule). Must match Creature.shader.</summary>

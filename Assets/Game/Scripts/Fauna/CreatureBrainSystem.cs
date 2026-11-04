@@ -72,9 +72,13 @@ namespace Punchy.Fauna
         public static readonly Unity.Burst.SharedStatic<int> BrainLodOff = Unity.Burst.SharedStatic<int>.GetOrCreate<BrainLodOffKey>();
         struct BrainLodOffKey { }
         /// <summary>#59 brain LOD: beyond this (m) from every player a creature thinks once every BrainLodFrames frames,
-        /// phased by its Individual so the load stays even; in between a walker on open ground only coasts on.</summary>
-        const float BrainLodRange = 60f;
-        const uint BrainLodFrames = 3;
+        /// phased by its Individual so the load stays even; in between a walker on open ground only coasts on.
+        /// (A-54: 80 m and every 4th frame, was 60 m and every 3rd; "-brainlod 60,3" sets them for an A/B.)</summary>
+        public static readonly Unity.Burst.SharedStatic<float2> BrainLod = Unity.Burst.SharedStatic<float2>.GetOrCreate<BrainLodKey>();
+        struct BrainLodKey { }
+        public static readonly float2 BrainLodDefault = new float2(80f, 4f);
+        static float BrainLodRange => BrainLod.Data.x > 0f ? BrainLod.Data.x : BrainLodDefault.x;
+        static uint BrainLodFrames => BrainLod.Data.y >= 1f ? (uint)BrainLod.Data.y : (uint)BrainLodDefault.y;
         /// <summary>#57: each creature looks for predators, alarms and someone asking it to chat once per this (s), phased
         /// by its Individual on the shared clock (the same on every machine); fleeing ones still look every frame.</summary>
         const float SearchPeriod = 0.2f;
@@ -281,7 +285,18 @@ namespace Punchy.Fauna
             /// <summary>Snapshot indices of the hunters out after game now (FolkHunting stages).</summary>
             [ReadOnly] public NativeArray<int> Hunters;
 
-            void Execute(Entity self, ref CreatureState s, in CreatureBody body)
+            /// <summary>This creature's CreatureMind while it ticks (#58: a copy, written back after, so every helper
+            /// reaches it without passing it along; the job struct is each worker's own, as with Dt and Step).</summary>
+            CreatureMind M;
+
+            void Execute(Entity self, ref CreatureState s, ref CreatureMind mind, in CreatureBody body)
+            {
+                M = mind;
+                Tick(self, ref s, in body);
+                mind = M;
+            }
+
+            void Tick(Entity self, ref CreatureState s, in CreatureBody body)
             {
                 using var ticked = TickMarker.Auto();
                 // #59 brain LOD: far from every player it thinks only on its turn, for the time since its last think; on
@@ -292,28 +307,33 @@ namespace Punchy.Fauna
                 var far = BrainLodOff.Data == 0 && !s.Gone && s.Mode != CreatureMode.Held && s.Mode != CreatureMode.Puppet;
                 for (int p = 0; p < Players.Length && far; p++)
                     far = math.distancesq(Players[p].xz, s.Position.xz) > BrainLodRange * BrainLodRange;
-                var thinks = !far || (Frame + math.hash(new uint2(s.Individual, 0x59u))) % BrainLodFrames == 0;
+                // (The phase is mixed first: math.hash alone doesn't spread its low bits well, and only those pick the frame.)
+                var phase = math.hash(new uint2(s.Individual, 0x59u));
+                phase ^= phase >> 16;
+                phase *= 0x7FEB352Du;
+                phase ^= phase >> 15;
+                var thinks = !far || (Frame + phase) % BrainLodFrames == 0;
                 if (!thinks)
                 {
-                    s.LodDebt += frameStep;
+                    M.LodDebt += frameStep;
                     if (body.Blob.Value.Habitat == Habitat.Land && s.Speed > 0f && s.Fly < 0.01f &&
                         math.abs(s.Position.y - Terrain.SampleHeight(s.Position.xz)) < 0.3f)
                     {
                         var coast = new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * s.Speed * frameDt;
-                        s.LodCoast += coast;
+                        M.LodCoast += coast;
                         s.Position.xz += coast;
                         s.Position.y = CreatureMotion.Ground(Terrain, s.Position.xz, s.Position.y);
                     }
                     System.Threading.Interlocked.Increment(ref Searches.Data.LodSkips);
                     return;
                 }
-                if (s.LodDebt > 0f)
+                if (M.LodDebt > 0f)
                 {
-                    s.Position.xz -= s.LodCoast;
-                    Step = frameStep + s.LodDebt;
+                    s.Position.xz -= M.LodCoast;
+                    Step = frameStep + M.LodDebt;
                     Dt = math.min(Step, 0.3f);
-                    s.LodDebt = 0f;
-                    s.LodCoast = float2.zero;
+                    M.LodDebt = 0f;
+                    M.LodCoast = float2.zero;
                 }
                 System.Threading.Interlocked.Increment(ref Searches.Data.Thinks);
                 Think(self, ref s, in body);
@@ -514,7 +534,7 @@ namespace Punchy.Fauna
                 if (b.Roosts && s.Mode == CreatureMode.Roost && s.Stage == 200 && emote != IdleAction.None &&
                     math.distance(s.Position, player) < 15f)
                 {
-                    s.Unsettled = rng.NextFloat(40f, 80f);
+                    M.Unsettled = rng.NextFloat(40f, 80f);
                     if (s.LairCave >= 0)
                     {
                         s.Stage = (byte)(100 + math.min(s.LairNode, 89));
@@ -620,7 +640,7 @@ namespace Punchy.Fauna
                 }
 
                 if (b.RaidsHives)
-                    s.ChaseCooldown = math.max(s.ChaseCooldown - dt, 0f);
+                    M.ChaseCooldown = math.max(M.ChaseCooldown - dt, 0f);
 
                 var targetSpeed = 0f;
                 var desiredLook = 0f;
@@ -1004,8 +1024,8 @@ namespace Punchy.Fauna
                     s.ActionLength = s.Held == HeldItem.Stick ? rng.NextFloat(2f, 3.5f) : 1.2f;
                     // (Watching where its stone lands, a few metres ahead, or the ground it pokes at.)
                     var ahead = s.Position.xz + new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * (s.Held == HeldItem.Stone ? 3.5f : 0.6f);
-                    s.LookKind = 0;
-                    s.LookAt = new float3(ahead.x, Terrain.SampleHeight(ahead), ahead.y);
+                    M.LookKind = 0;
+                    M.LookAt = new float3(ahead.x, Terrain.SampleHeight(ahead), ahead.y);
                     s.LookFor = s.ActionLength + 0.5f;
                     s.Timer = math.max(s.Timer, s.ActionLength + 0.5f);
                 }

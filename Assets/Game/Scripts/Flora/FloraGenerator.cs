@@ -113,6 +113,12 @@ namespace Punchy.Flora
             return model;
         }
 
+        /// <summary>
+        /// A-55 (#102): a shape-only grow's work, safe on a worker thread (<paramref name="name"/> is the species asset's
+        /// name, read on the main thread). The same result as Grow(species, variant, shapeOnly: true).
+        /// </summary>
+        public static FloraModel GrowShape(FloraSpecies species, int variant, string name) => GrowParts(species, variant, name, true);
+
         // W-79 (#102): growing every variant took ~8 s of the main thread on the frame the island was ready. It depends
         // only on the palette, so the bake starts it on worker threads (Pregrow) and Grow just turns the result into meshes.
         static readonly Dictionary<(FloraSpecies, int), System.Threading.Tasks.Task<FloraModel>> pregrown =
