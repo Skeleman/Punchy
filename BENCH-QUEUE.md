@@ -61,3 +61,6 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
     cave stop (-goto 530,958) and a wharf town if the route passes one. Per-frame ms and the top main-thread costs,
     with PlayerMovement, ReachJob and ThirdPersonCamera.LateUpdate shown separately. Interim number: W-67b is still
     changing this code, so expect a re-run. If 52b4af5 won't build, report that and stop.
+
+## Added 2026-11-03 (night). main = 913d1b2 (PR #89 box collision, #90 P-1, #91 W-68 v3 flag)
+13. Merged-main check after job 12. main 913d1b2 vs 27bf8c1, `-island v2`, uncapped, same stops as q12/q12b (route, hut cave floor `-goto 530,45,958`, FishWharf steps). Expect the hut-cave gap (ThirdPersonCamera, TraceSystem) closed now that A-45 and the collision are both on main. Numbers only unless something regressed.
