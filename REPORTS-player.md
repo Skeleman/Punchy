@@ -1,5 +1,18 @@
 # Player lane reports
 
+## 2026-11-03 batch P-3: host self-timeout attributed (long bake vs 10 s timeout); -quitafter flag
+- DONE: `-quitafter N` (Debugging/QuitAfter.cs, new file, LF): quits N s after start, real time (player-client see git log; after 99cfd9c)
+- FOUND: cause is the island bake blocking the main thread past NetDrivers.DisconnectTimeoutMS (10 s), not the version RPC:
+  - mine 99cfd9c, host-only v2, x2: "Net (server): connection 1 disconnected (Timeout)", host "in game False, players 0" all run; bake 5988 ms (places 5425), a46b had 3154 ms (places 2607)
+  - same build, host-only `-island v1` (no bake, my RPC still sent "sent island v1 to player 1"), x2: no timeout, "in game True, players 1"
+- WORSE, partly mine: P-2 test A rerun (host v3, client v2, -gfx Low, -quitafter) the JOINER also timed out after "sending world check B291FD17" (P-2's run survived). Since P-2 the client bakes after it connects, so its whole bake counts against the server's 10 s. Don't merge P-2 alone
+- NOT DONE: main 913d1b2 baseline build (needs a 2nd build; v1 runs attribute it instead). No fix: the fix is shared net code not lent to me
+- Proposed fix (needs supervisor OK, NetDrivers.cs / GameBootstrap.cs): raise DisconnectTimeoutMS back toward 30 s at least for the in-process (IPC) link and while a joiner bakes; or bake off the main thread / split the places step across frames (world lane)
+- Checks: compile 0 errors; 1 build Succeeded 0 errors; 7 player runs, all quit (QuitAfter "75.0 s, quitting" / "55.0 s, quitting"), no Punchy.exe left; editor closed; editor queue was empty, RAM 8.5 GB at open
+- Noted only: DebugControls.ShotList NullReference after a lost connection (animal lane)
+- Cost: ~30 calls, 1 build
+- NEXT: supervisor decision on the timeout fix; then rerun P-2 A + C with -quitafter
+
 ## 2026-11-03 batch P-2: island version from host to client (v3 B14, brief 8B)
 - DONE: host sends each new connection its baked island version (IslandVersionRpc); a joined client's IslandV2System waits for it (up to 15 s, then bakes its own with a warning) and bakes the host's version; solo/host keep the launch flag; bake cache keyed by version; fingerprint uses the version actually baked (check waits until baked); `-worldsalt N` test flag sets WorldSync.TestSalt (player-client 99cfd9c, on main 913d1b2)
 - NOTE: new RPC type = network table change (RPC hash): builds before 99cfd9c can't join builds after it

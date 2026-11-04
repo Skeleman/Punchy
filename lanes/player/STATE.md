@@ -23,4 +23,5 @@ no machine paths or personal info. Never bare `git stash`.
 
 ## In flight
 - P-1 done 11-03 (player-client 1a9ef6c): resolution + window mode in the Graphics tab (#78). PR #90 merged 11-03 (5a56458).
-- P-2 done 11-03 (player-client 99cfd9c): v3 B14 island version host to client. Open: host's own client times out at start-up in all 3 runs (attribution pending, see report).
+- P-2 done 11-03 (player-client 99cfd9c), but don't merge alone: joiners can time out while baking (P-3).
+- P-3 done 11-03: -quitafter flag; host/joiner timeouts = bake blocking main thread past the 10 s DisconnectTimeoutMS. Waiting on a supervisor call on the shared net-code fix.
