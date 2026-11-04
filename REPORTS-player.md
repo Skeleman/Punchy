@@ -1,5 +1,12 @@
 # Player lane reports
 
+## 2026-11-04 batch P-12 row 0: #99 two-frame gap between old and new worlds
+- DONE (player-client 46abd95): Host / PlaySolo / Join / HostRelay / JoinRelay dispose the old worlds (P-10's order: jobs first, scene off, dispose) at once, then make the new worlds and reload the scene 2 frames later from a runner kept across scene loads; a second switch during the gap is ignored. `-switchgap N` sets the gap, `-switchgap 0` is the old same-frame switch (for an A/B in one build). Each delayed make logs "GameBootstrap: making the new worlds (2 frames after the old ones went)"
+- Build type, correcting job 23c's guess: every desktop build of mine (P-8, P-10 0a, this one) is BuildOptions.None, a release build like BProfileTools.Build (checked: dev=False). So the desktop/laptop difference is the machine, not Dev vs release
+- Desktop, release build, `-island v2 -fpscap 0 -netcycle 3`, default graphics, NetCycle (copied in for the build only), stop at the first crash: 5 runs, 15 re-hosts, 30 switches all through the gap, 0 crashes, 0 exceptions
+- Ask (profiler): q23 on player-client 46abd95, default vs `-switchgap 0`, v2, stop each at its first crash. If the gap still crashes there, next is `-switchgap 10` (longer), then checking which Burst statics the new worlds' systems initialise (a SharedStatic set by a script the teardown switched off)
+- Cost: ~12 calls, 1 build (row 0's own)
+
 ## 2026-11-04 batch P-12: chests with lids, MenuNav inventory (pad input unverified), host/solo labels
 - Row 0 (#99 fallback): not run: no q23 result on 38a8f4c in BENCH-REPORTS yet (only 23b on main 0ec7a8d). Still waiting on the laptop
 - DONE #24 row 1 (player-client 05baa8a): a chest (brown box, metal band, lid on a back hinge, brass latch) at every temple Chest socket, URP ItemMaterial. The lid opens to 105 deg once the chest is in the host-owned openedChests (ChestOpenedRpc, P-11) and stays open. The A-50 "Dungeon ..." placeholder on a chest socket is hidden at runtime (renderer off; their file untouched). Shots: D:/PunchyMilestones/P-12/chests.png (chest 17 closed, then open with Coin x10 in front: "chest 17 opened (seed C98F19AB): Coin x10")
