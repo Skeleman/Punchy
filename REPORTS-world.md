@@ -1780,3 +1780,15 @@ Commits: world-features 178e226 (merge of origin/main, no rebase, 0 compile erro
 - Shots: D:/PunchyMilestones/W-71 (w71_character_tab, w71_player_ingame; player.log, shots.txt).
 - No colour was picked (no shot flag for coats); colour pick not checked.
 - Calls: about 36.
+
+## W-74 (2026-11-03) snowy camp, campgrounds per biome, settlement plots
+
+- Commits (world-features): bdc3913 (0c, release blocker: the palette append for FishingVillage/turtle/sea folk now runs on the Shared path too, before the "shared with" log), c2a86cf (rows 0 + 0b), f22f056 (rows 1-3). Merged origin/main first (872c121, clean).
+- Row 0: v3 audit reports run only with `-islandaudit` or PUNCHY_ISLANDAUDIT=1. The editor turns it on by default (Punchy/Island/Audit Reports). v3 bake with the flag: baked 6.5 s + reports 22.8 s, ready at 47 s. Without it: baked 6.2 s + reports 1 ms, ready at 14.6 s (W-73: 6.0-6.4 s + 17.4-18.5 s). The reports still print with the flag.
+- Row 0b: the base elevation used for range-top rounding is averaged over a 6-point ring at 110 m. Range 3 top 15% (slope / over 35 deg / convexity): W-72 30 / 38% / 51.5, W-73 31 / 39% / 61.2, W-74 27 / 33% / 59.8. Whole ground 16.3 deg / 8.3% / 15.31. Cost: 6 extra SampleBiomes calls per range sample. This is probably why the reports got slower (17-18 s to 23 s).
+- Row 1 (#82): snow on settlement props was already in 29fefb1 (built plots, placed props, tent centrepiece). New: CampsiteSnow gets a grey RockArch (Layer 2) over the fire, a hide tent (CampTentSnow) in place of the ogre tent, and a woodpile. NOT SHOT: neither seed has a snowy camp or a snowy town (v2: 2 camps, Campsite and Fungal; v3: 3 camps, Ash and 2 Fungal; SampleBiomeSnow is under 0.05 at every town centre). So the arch camp and snowy village shots are still owed. They need a cold-seed spot or a test placement.
+- Row 2 (#72): per-biome tent cloth: CampTent (canvas, default camp, in place of the second bedroll), CampTentSnow, CampTentDune (red/sand), CampTentAsh (soot). Fungal keeps its puffball. Each look already had its own ground. Shots: 2 of the 3 asked for (only these two camp kinds are near on v2). Framing not checked; the first take came out blank before streaming, so I retook it after a 25 s wait.
+- Row 3 (#87): plot pads now mix weighted by w^8 instead of levelling one after another. Houses with a corner more than 0.3 m off the ground (corners at the plot's half size): v2 1 -> 0 of 129 (worst 0.36 -> 0.02 m). v3 before: 2 of 115 buried (worst 1.35 m at -3339,1570); v3 after was not measured.
+- Shots: D:\PunchyMilestones\W-74\w74_camp_default_v2.png, w74_camp_fungal_v2.png.
+- Hashes: v2 landmarks 136 / 4E61F1CF (unchanged). v3 landmarks 108 / 4D2643D7 (unchanged, measured before rows 1-3; rows 1-3 change no landmark positions). The ground hash changes on v2 and v3 (plot levelling; on v3 also 0b) but was not re-measured. Caves, rivers and v1 were not run.
+- Calls: about 80 (over the ~70 ceiling). Editor closed; island pref put back to v3.
