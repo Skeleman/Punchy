@@ -2,6 +2,14 @@
 
 Newest first.
 
+## 2026-11-03: item 13, merged main 913d1b2 vs 27bf8c1: hut-cave gap closed (camera 0.18 ms, trace 0.04 ms), other stops within noise; the biggest-cave stop catches the cave mesh bake, more of it on 913d1b2
+Builds: Bench/Profile 913d1b2 (new), 27bf8c1 (from job 12). Island v2, uncapped, 1280x720, Medium, 2 rounds with the order flipped, 0 exceptions, 0 NaN bounds, no dialogs, same end x,z on both builds.
+- Bench (avg fps / 1% low / CPU ms), 27bf8c1 | 913d1b2: town 85.8/57.0/11.7 | 86.0/58.5/11.6; townwalk 80.2/37.5/12.4 | 79.6/40.1/12.6; caveapproach 61.5/27.4/16.2 | 61.2/27.5/16.4; glide 89.8/39.5/11.1 | 89.3/38.5/11.1; FishWharf steps 108.7/63.4/9.2 | 109.7/67.7/9.1; hut cave floor 90.8/52.9/11.0 | **94.3/56.1/10.6**; biggest cave 119.7/41.7/8.4 | **105.8/37.3/9.4**.
+- Named markers on 913d1b2 (mean ms): ThirdPersonCamera.LateUpdate hut cave 0.18 (world-features in job 12: 1.66; main 0.19), townwalk 0.41; TraceSystem hut cave 0.04 (job 12: 0.42). PlayerMovementSystem wharf 0.038, hut cave 0.389, biggest cave 0.33 (27bf8c1 0.33). ReachJob (main + workers) townwalk 0.14, wharf 0.43, hut cave 0.67. The hut-cave profile mean is 13.02 -> 11.61 ms.
+- Biggest cave: the view, cave chunks (180, 57 meshed) and triangles (393k) are the same on both builds, but 913d1b2 was slower in both rounds (109.7/102.0 vs 122.4/117.0). In the profile, CaveSystem Column/Field/MeshJob run during the measured window on 913d1b2 (2.8 ms worker time per frame, 6 frames > 33 ms, up to 219 ms) and not on 27bf8c1. With 30 s extra wait (-benchwait 30) both builds still mesh there (913d1b2 4.2, 27bf8c1 3.1 ms per frame), so the stop catches part of the cave bake on both builds, not a steady cost. CaveSystem.cs didn't change between them; world ready is about 0.6 s later on 913d1b2 (23.2 vs 22.6 s). Watch, not a regression yet. Owner: world (caves). A longer settle at the cave stop would take the bake out of the measurement.
+- Scripts: lanes/profiler/scripts/q13.sh, q13b.sh (cave profiles), q13c.sh (30 s wait). Shots: results/shots-q13/ (every stop on both builds).
+- Cost: 24 calls, peak 154k context, $1.22
+
 ## 2026-11-03: item 12, box collision cost (#79): the collision itself costs nothing measurable; world-features is ~0.6 ms slower in the hut cave only because it lacks main's A-45 camera probe
 Builds: Bench and Profile for 27bf8c1 (main), b28ee7b (52b4af5's parent) and 52b4af5. world-features isn't based on 27bf8c1 (merge base c39bc42), so b28ee7b -> 52b4af5 isolates #79. Island v2, laptop, 1280x720, Medium, **uncapped**, 2 rounds with the order flipped, 0 exceptions, 0 NaN bounds, no dialogs, every stop ended at the same x,z on all builds.
 - Bench (avg fps / 1% low / CPU ms, mean of 2 rounds), main | b28ee7b | 52b4af5:

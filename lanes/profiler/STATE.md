@@ -2,14 +2,14 @@
 
 The laptop is **profiler only** (since 2026-11-02). The supervisor is the main account on the main PC.
 Backlog: `BENCH-QUEUE.md` (top first) and `gh issue list -R Skeleman/Punchy -l lane:profiler`.
-Released: v0.11.0 = 4eea658. main = 27bf8c1 (PR #77; animal lane A-45 is in main, not in world-features).
+Released: v0.11.0 = 4eea658. main = 913d1b2 (PR #91: box collision, P-1, W-68 v3 flag).
 
 ## First session on a new account
 1. Read this file, then `FILES.md`, `TESTING.md`, `lanes/shared/report.md`, `lanes/shared/git.md`.
 2. Check: `gh auth status` (repo is public: no machine paths in issues or comments); `git pull --rebase` here;
    `results/.lock` absent in `Punchy-wt/Tools/bench/results/` (if present, read `.lock/job` and ask Zach).
 3. Hooks: `sh hooks/install.sh <folder outside the trees>` (BENCH-QUEUE setup) if telemetry isn't installed.
-4. Nothing queued on 2026-11-03 after item 12. Stay idle until Zach or the supervisor adds work; don't poll.
+4. Nothing queued on 2026-11-03 after item 13. Stay idle until Zach or the supervisor adds work; don't poll.
 
 ## How work arrives (the supervisor messages directly with SendMessage, or adds BENCH-QUEUE items)
 - Pull `coordination` at the start of every job and before every push (`git pull --rebase` on rejection).
@@ -31,6 +31,8 @@ All profiles and benches run uncapped (no frame cap, vsync off) unless a card as
 - Ask Zach before deleting builds; list the exact items and count, and check no keep name is in it.
 
 ## Open threads
+- **Item 13**: the biggest-cave stop measures part of the cave mesh bake (both builds, more on 913d1b2); a longer
+  settle there (bench runner) would make it a steady number. Hut-cave camera gap closed on main.
 - **Item 12 (#79)**, box collision: no measurable cost (b28ee7b -> 52b4af5). Re-run `scripts/q12.sh` + `q12b.sh`
   when W-67b lands (change the commits). The hut cave camera gap vs main is A-45, missing on world-features.
 - **Item 11 (79be014)**, slow caves: v2 cave CaveArm up to 5 ms/frame along walls (main 14.1 ms); cave field
