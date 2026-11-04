@@ -1643,3 +1643,20 @@ Calls: about 80 across A-51 and the aborted A-50 start (A-51 alone was about 55)
 - Row 4 (#58 step 2) not done (optional, budget).
 - Calls: ~33. Editor closed (PID 61544, mine, graceful); Punchy-world and Punchy-player editors left alone.
   Temp/PlayArgs.txt removed. Shots in D:\PunchyMilestones\animal\a54.
+## A-55 (2026-11-04): load time, brain searches, brain file split
+- Row 1 (#102), 6c441fa (animal-behaviours, pushed): the FaunaDirector build frame was almost all the flora lookup's
+  shape-only grows (flora stage 570-630 ms). FaunaDirector now starts them on worker threads
+  (FloraPlacement.StartObstacleShapes, FloraGenerator.GrowShape) and builds once they're done, 1-2 frames later
+  (10 s cap). Editor build frame: v2 735 -> 27 ms, v3 605 -> 21 ms; flora stage 634 -> 1 ms. Fauna fingerprint
+  51E641E9 before and after on both. `-syncshapes` keeps the old path for A/B.
+- Row 2 (#57): the stagger was already in (A-45: SearchDue, SearchPeriod, `-oldsearch`); nothing left to stagger
+  except a fleeing animal's predator search (kept every frame on purpose) and the rare random chat searches.
+  No commit. HumanVillage town 1, uncapped, 90 s wait: `-oldsearch` brain 1.068 ms (195 creatures, predator
+  4.7 / alarm 5.6 searches/frame) vs default 1.089 ms (192, 4.2 / 5.1). The near-equal search counts suggest
+  `-oldsearch` from Temp/PlayArgs.txt didn't take (it may only apply per shot line); A/B unconfirmed. ~8 min of
+  Play over the card, 0 exceptions.
+- Row 3 (#61) no commit: the split was done in A-47c (7 partial files). What's left in CreatureBrainSystem.cs
+  (1243 lines) is mostly Think(), one ~875-line method (lines 366-1240) whose sections share locals, so it can't
+  be split into files mechanically; it needs extracting into methods (a refactor card with a fingerprint check).
+- Calls: ~47 (ceiling hit). Editor closed (PID 34164, mine); Punchy-world (21836) and Punchy-player left alone.
+  Temp/PlayArgs.txt removed.
