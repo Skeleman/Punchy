@@ -1848,3 +1848,12 @@ Commits: world-features 178e226 (merge of origin/main, no rebase, 0 compile erro
 - #86 driftwood: not started (call ceiling).
 - Shots in D:\PunchyMilestones\W-77\: w77-falls-after, w77b-tower-after, w77b-far-after.
 - Calls: about 44.
+
+## W-77c (2026-11-04): #86 driftwood
+
+- Commit f546783 on world-features (pushed): new DriftwoodSystem.cs (self-creating MonoBehaviour, no scene change). A pool of 12 logs and branches: the Driftwood species' 4 variants at scale 0.4-1.1, drawn with a tinted Colossus copy. They spawn on running river water within 150 m of the camera, preferring water that flows towards it. Each one follows GroundSample.Flow (faster in rapids, steering away from the shallow side), bobs and turns, sometimes snags on a bank for 3-9 s, and sinks away at a lake or the sea, or when far. The drift runs as a Burst job, read back one frame later as in CritterSystem. Cosmetic and local.
+- Count: 12 afloat (the pool was full) at the v3 river near (170, -760) after 30 s.
+- Cost: 0.021-0.024 ms on the main thread per frame. This includes waiting for the job; the frame was 16.6 ms, vsync in the editor.
+- Hashes (v3): 108 landmarks, 4D2643D7 at the start and the end on world-features. This matches W-77, not W-77b's 3A0DC7BB. I did not measure main.
+- Shot: D:\PunchyMilestones\W-77\w77c-driftwood.png. Only checked that it isn't blank (luma stddev 46).
+- Calls: about 27. Editor closed.
