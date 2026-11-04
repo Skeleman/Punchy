@@ -35,6 +35,9 @@ Read `lanes/shared/checks.md` first.
 - runcsv's log is `q-<csv>-c<cap>-<round>.log`, overwritten by every run in a round: copy it after each run if needed.
 - Editor memory: `scripts/MemCheck.cs.txt` (batchmode, play cycles, snapshots; `-cycles N -leakstack` names native leaks).
   Process.WorkingSet64 reads 0 under Unity's Mono: use the System Used Memory counter.
+- Host/leave cycles in a player: copy `scripts/NetCycle.cs.txt` to Assets/Game/Scripts/Debugging/NetCycle.cs for one
+  Bench build (see q16.sh), then `-netcycle N`. Switching Burst safety checks off in the editor recompiles Burst on the
+  next play: don't time that play.
 - `-place CaveNetwork` doesn't frame the big cave's mouth; `-benchspot -2822,-648,90` stands at the mouth, facing in.
 - Gate shots are 1280x720 (the bench window); frame-rate numbers are measured at that size.
 

@@ -1,0 +1,73 @@
+// Profiler-only (never committed to the game): "-netcycle N" hosts and goes back to solo N times, logging memory after
+// each switch settles. Copied to Assets/Game/Scripts/Debugging/NetCycle.cs for one Bench build, then deleted.
+// Lines start "NETCYCLE".
+using System.Collections;
+using Unity.Profiling;
+using UnityEngine;
+
+public class NetCycle : MonoBehaviour
+{
+    ProfilerRecorder total, system, gc, gfx, mesh;
+    bool ready;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    static void Boot()
+    {
+        if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-netcycle") < 0 || FindAnyObjectByType<NetCycle>() != null)
+            return;
+        var go = new GameObject("NetCycle");
+        DontDestroyOnLoad(go);
+        go.AddComponent<NetCycle>();
+    }
+
+    void OnEnable()
+    {
+        total = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "Total Used Memory");
+        system = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "System Used Memory");
+        gc = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Used Memory");
+        gfx = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "Gfx Used Memory");
+        mesh = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "Mesh Memory");
+        Application.logMessageReceived += (m, s, t) => { if (m.StartsWith("[island]") && m.Contains(" ready at ") || m.Contains("shared with")) ready = true; };
+        StartCoroutine(Run());
+    }
+
+    void Log(string label)
+    {
+        System.GC.Collect();
+        var p = System.Diagnostics.Process.GetCurrentProcess();
+        p.Refresh();
+        Debug.Log($"NETCYCLE {label}: Total Used {total.LastValue >> 20} MB, System Used {system.LastValue >> 20} MB, GC {gc.LastValue >> 20} MB, " +
+                  $"Gfx {gfx.LastValue >> 20} MB, Mesh {mesh.LastValue >> 20} MB, private {p.PrivateMemorySize64 >> 20} MB, working set {p.WorkingSet64 >> 20} MB, " +
+                  $"t {Time.realtimeSinceStartup:F0} s");
+    }
+
+    IEnumerator Settle()
+    {
+        var t = 0f;
+        while (!ready && t < 120f) { t += Time.unscaledDeltaTime; yield return null; }
+        yield return new WaitForSecondsRealtime(10f);
+        if (!ready) Debug.Log("NETCYCLE (no ready log within 120 s)");
+    }
+
+    IEnumerator Run()
+    {
+        var args = System.Environment.GetCommandLineArgs();
+        var n = int.Parse(args[System.Array.IndexOf(args, "-netcycle") + 1]);
+        ready = false;
+        yield return Settle();
+        Log("solo start");
+        for (int i = 1; i <= n; i++)
+        {
+            ready = false;
+            Punchy.Net.GameBootstrap.Host();
+            yield return Settle();
+            Log($"cycle {i} hosting");
+            ready = false;
+            Punchy.Net.GameBootstrap.PlaySolo();
+            yield return Settle();
+            Log($"cycle {i} back to solo");
+        }
+        Debug.Log("NETCYCLE done");
+        Application.Quit();
+    }
+}

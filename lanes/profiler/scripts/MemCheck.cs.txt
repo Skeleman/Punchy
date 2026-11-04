@@ -15,7 +15,12 @@ using UnityEngine.Profiling;
 public static class MemCheck
 {
     static int Cycles = 10;   // -cycles N; -leakstack: native leak detection with stack traces, no snapshots
-    static bool leakStack;
+    static bool leakStack, noSnap, fastTiming;
+    // -fasttiming: Burst safety checks, the jobs debugger and leak detection off for play 1 (the timed bake), leak
+    // detection back on (Enabled) for the cycles; the editor's own settings are put back before exit. -nosnap: no snapshots.
+    static bool origSafety, origJobsDebugger;
+    static Unity.Collections.NativeLeakDetectionMode origLeak;
+    static int bakeLines;
     const double BakeTimeout = 240, AfterBake = 5, AfterExit = 5;
     static string outDir, report;
     static int step, cycle;
@@ -38,11 +43,27 @@ public static class MemCheck
         if (ci >= 0 && ci + 1 < args.Length) Cycles = int.Parse(args[ci + 1]);
         leakStack = Array.IndexOf(args, "-leakstack") >= 0;
         if (leakStack) Unity.Collections.NativeLeakDetection.Mode = Unity.Collections.NativeLeakDetectionMode.EnabledWithStackTrace;
+        noSnap = Array.IndexOf(args, "-nosnap") >= 0;
+        fastTiming = Array.IndexOf(args, "-fasttiming") >= 0;
+        origSafety = Unity.Burst.BurstCompiler.Options.EnableBurstSafetyChecks;
+        origJobsDebugger = Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobDebuggerEnabled;
+        origLeak = Unity.Collections.NativeLeakDetection.Mode;
+        if (fastTiming)
+        {
+            Unity.Burst.BurstCompiler.Options.EnableBurstSafetyChecks = false;
+            Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobDebuggerEnabled = false;
+            Unity.Collections.NativeLeakDetection.Mode = Unity.Collections.NativeLeakDetectionMode.Disabled;
+        }
         File.WriteAllText(report, "");
         foreach (var c in Counters)
             recorders.Add(ProfilerRecorder.StartNew(ProfilerCategory.Memory, c));
-        Application.logMessageReceived += (msg, st, type) => { if (msg.Contains("[island] reports")) { baked = true; Log("bake log: " + msg.Split('\n')[0]); } };
+        Application.logMessageReceived += (msg, st, type) =>
+        {
+            if (msg.StartsWith("[island]") && (step <= 2 || msg.Contains("[island] reports")) && bakeLines++ < 40) Log("bake log: " + msg.Split('\n')[0]);
+            if (msg.Contains("[island] reports")) baked = true;
+        };
         EditorSceneManager.OpenScene(EditorBuildSettings.scenes[0].path);
+        Log($"editor settings were: Burst compilation {Unity.Burst.BurstCompiler.Options.EnableBurstCompilation}, safety checks {origSafety}, jobs debugger {origJobsDebugger}, leak detection {origLeak}; fasttiming {fastTiming}");
         Log($"scene {EditorBuildSettings.scenes[0].path}, island arg {(Array.IndexOf(args, "-island") >= 0 ? args[Array.IndexOf(args, "-island") + 1] : "default")}");
         stepStart = EditorApplication.timeSinceStartup;
         EditorApplication.update += Tick;
@@ -60,7 +81,7 @@ public static class MemCheck
     static void Tick()
     {
         if (snapping) return;
-        if (EditorApplication.timeSinceStartup > 3000) { Log("TIMED OUT at step " + step); EditorApplication.Exit(2); return; }
+        if (EditorApplication.timeSinceStartup > 3000) { Log("TIMED OUT at step " + step); Restore(); EditorApplication.Exit(2); return; }
         switch (step)
         {
             case 0: if (Since > 10) { Measure("idle (scene open, edit mode)", false); Next(); } break;
@@ -80,7 +101,9 @@ public static class MemCheck
                     Snap("after-bake.snap", () => { cycle = 0; Next(); });
                 }
                 break;
-            case 4: baked = false; bakeAt = -1; cycle++; EditorApplication.isPlaying = true; Next(); break;
+            case 4:
+                if (cycle == 0 && fastTiming) { Unity.Collections.NativeLeakDetection.Mode = Unity.Collections.NativeLeakDetectionMode.Enabled; Log("leak detection on for the cycles"); }
+                baked = false; bakeAt = -1; cycle++; EditorApplication.isPlaying = true; Next(); break;
             case 5:
                 if (EditorApplication.isPlaying && Since > 3 && (baked || Since > BakeTimeout))
                 {
@@ -100,7 +123,7 @@ public static class MemCheck
             {
                 var t = Measure($"after {Cycles} more plays (GC + UnloadUnusedAssets)", true, true);
                 Grew(typesA, t);
-                Snap("after-10-plays.snap", () => { Log("done"); EditorApplication.Exit(0); });
+                Snap("after-10-plays.snap", () => { Restore(); Log("done"); EditorApplication.Exit(0); });
                 Next();
                 break;
             }
@@ -108,9 +131,17 @@ public static class MemCheck
     }
     static double bakeAt = -1;
 
+    static void Restore()
+    {
+        Unity.Burst.BurstCompiler.Options.EnableBurstSafetyChecks = origSafety;
+        Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobDebuggerEnabled = origJobsDebugger;
+        Unity.Collections.NativeLeakDetection.Mode = origLeak;
+        Log($"editor settings restored: safety checks {origSafety}, jobs debugger {origJobsDebugger}, leak detection {origLeak}");
+    }
+
     static void Snap(string file, Action then)
     {
-        if (leakStack) { then(); return; }
+        if (leakStack || noSnap) { then(); return; }
         snapping = true;
         var path = Path.GetFullPath(Path.Combine(outDir, file));
         Unity.Profiling.Memory.MemoryProfiler.TakeSnapshot(path, (p, ok) =>

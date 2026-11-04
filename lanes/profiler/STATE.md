@@ -2,14 +2,14 @@
 
 The laptop is **profiler only** (since 2026-11-02). The supervisor is the main account on the main PC.
 Backlog: `BENCH-QUEUE.md` (top first) and `gh issue list -R Skeleman/Punchy -l lane:profiler`.
-Released: v0.11.0 = 4eea658. main = 3a4acb8 (PR #94).
+Released: v0.11.0 = 4eea658. main = f405348 (PR #95 W-73 leak fix, #96).
 
 ## First session on a new account
 1. Read this file, then `FILES.md`, `TESTING.md`, `lanes/shared/report.md`, `lanes/shared/git.md`.
 2. Check: `gh auth status` (repo is public: no machine paths in issues or comments); `git pull --rebase` here;
    `results/.lock` absent in `Punchy-wt/Tools/bench/results/` (if present, read `.lock/job` and ask Zach).
 3. Hooks: `sh hooks/install.sh <folder outside the trees>` (BENCH-QUEUE setup) if telemetry isn't installed.
-4. Nothing queued on 2026-11-03 after item 15. Stay idle until Zach or the supervisor adds work; don't poll.
+4. Nothing queued on 2026-11-03 after item 16; item 17 waits for W-75/W-76 SHAs (bake parallelism + startup streaming, before/after). Stay idle until Zach or the supervisor adds work; don't poll.
 
 ## How work arrives (the supervisor messages directly with SendMessage, or adds BENCH-QUEUE items)
 - Pull `coordination` at the start of every job and before every push (`git pull --rebase` on rejection).
@@ -33,8 +33,9 @@ All profiles and benches run uncapped (no frame cap, vsync off) unless a card as
 ## Open threads
 - **Item 15**: Burst audit; all runtime jobs are Burst, main thread is the limit (workers 7-16% busy). Re-profile
   with `scripts/q15.sh` after the animal/world sync fixes land.
-- **Item 14**: 12 island-bake blobs leak per play-mode cycle (~22 MB); re-run `scripts/q14b.sh` (leak stacks) after
-  the world lane fixes it. Runner 3f76120: the cave stop settles until CaveSystem.Settled (30 s max).
+- **Item 16**: W-73 leak fix confirmed. Open: intermittent player crash on the 2nd host in one session (Burst statics
+  init), v2 2/3 runs, also before W-73; repro `scripts/q16b.sh` (needs a Bench build with NetCycle.cs.txt copied in).
+- Runner 3f76120: the cave stop settles until CaveSystem.Settled (30 s max).
 - Item 13: hut-cave camera gap closed on main.
 - **Item 12 (#79)**, box collision: no measurable cost (b28ee7b -> 52b4af5). Re-run `scripts/q12.sh` + `q12b.sh`
   when W-67b lands (change the commits). The hut cave camera gap vs main is A-45, missing on world-features.
