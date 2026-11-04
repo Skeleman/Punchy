@@ -193,7 +193,11 @@ namespace Punchy.Fauna
     }
 
     /// <summary>On a dungeon entity once the spawner has filled its sockets (each world fills its own once).</summary>
-    public struct DungeonFilled : IComponentData { }
+    public struct DungeonFilled : IComponentData
+    {
+        /// <summary>The director build its creatures were made in (0: none made in this world).</summary>
+        public int Builds;
+    }
 
     /// <summary>
     /// Fills dungeons (#24): for each entity with a <see cref="DungeonSocket"/> buffer, picks content per socket, logs
@@ -209,12 +213,13 @@ namespace Punchy.Fauna
         readonly int[] counts = new int[5];
         readonly List<GameObject> props = new();
         FaunaDirector director;
-        EntityQuery fresh;
+        EntityQuery fresh, filled;
 
         protected override void OnCreate()
         {
             fresh = new EntityQueryBuilder(Allocator.Temp).WithAll<DungeonSocket>().WithNone<DungeonFilled>().Build(this);
-            RequireForUpdate(fresh);
+            filled = new EntityQueryBuilder(Allocator.Temp).WithAll<DungeonSocket, DungeonFilled>().Build(this);
+            RequireAnyForUpdate(fresh, filled);
         }
 
         protected override void OnDestroy()
@@ -234,6 +239,19 @@ namespace Punchy.Fauna
             var shows = World == World.DefaultGameObjectInjectionWorld;
             if (!animals && !World.IsClient())
                 return;
+            // A director rebuild (terrain re-baked) destroys every animal: make the creatures again, not the props.
+            if (animals && !filled.IsEmpty)
+            {
+                using var done = filled.ToEntityArray(Allocator.Temp);
+                foreach (var d in done)
+                {
+                    if (EntityManager.GetComponentData<DungeonFilled>(d).Builds == director.Builds)
+                        continue;
+                    DungeonSpawner.PickAll(EntityManager.GetBuffer<DungeonSocket>(d, true), picks, counts);
+                    var made = MakeCreatures(d);
+                    Debug.Log($"[dungeon] {World.Name} dungeon {d.Index}: animals rebuilt, {made} creatures made again at their posts");
+                }
+            }
             using var dungeons = fresh.ToEntityArray(Allocator.Temp);
             foreach (var d in dungeons)
             {
@@ -252,37 +270,53 @@ namespace Punchy.Fauna
                           $" (again 0x{again:x8}{(again == hash ? ", same" : ", DIFFERS")}; as other types{asTypes})" +
                           $" ({(animals ? "spawns animals" : "no animals here")}{(shows ? ", shows props" : "")}): " +
                           string.Join(" ", picks.FindAll(c => c != DungeonContent.Empty)));
-                var made = new List<(Entity e, DungeonPost post)>();
-                // (A copy: spawning a creature is a structural change, which invalidates the buffer.)
-                using var copy = sockets.ToNativeArray(Allocator.Temp);
-                for (int i = 0; i < copy.Length; i++)
+                if (shows)
                 {
-                    var s = copy[i];
-                    var c = picks[i];
-                    if (c == DungeonContent.Empty)
-                        continue;
-                    if (DungeonSpawner.IsCreature(c))
-                    {
-                        if (!animals)
-                            continue;
-                        var species = director.SpeciesIndex(c.ToString());
-                        if (species < 0)
-                            continue;
-                        var fwd = math.mul(s.Rot, new float3(0, 0, 1));
-                        var e = director.Spawn(species, s.Pos, math.atan2(fwd.x, fwd.z));
-                        var post = DungeonPost.From(s, c);
-                        if (post.Behaviour != DungeonBehaviour.None)
-                            made.Add((e, post));
-                    }
-                    else if (shows)
-                        props.Add(MakeProp(s, c));
+                    using var items = sockets.ToNativeArray(Allocator.Temp);
+                    for (int i = 0; i < items.Length; i++)
+                        if (picks[i] != DungeonContent.Empty && !DungeonSpawner.IsCreature(picks[i]))
+                            props.Add(MakeProp(items[i], picks[i]));
                 }
-                // (After the loop: adding components moves entities.)
-                foreach (var (e, post) in made)
-                    if (EntityManager.Exists(e))
-                        EntityManager.AddComponentData(e, post);
-                EntityManager.AddComponent<DungeonFilled>(d);
+                if (animals)
+                    MakeCreatures(d);
+                else
+                    EntityManager.AddComponentData(d, new DungeonFilled());
             }
+        }
+
+        /// <summary>
+        /// Makes the creature picks (already in <see cref="picks"/>) at their sockets, each with its post, and marks the
+        /// dungeon filled in this director build. Returns how many were made.
+        /// </summary>
+        int MakeCreatures(Entity d)
+        {
+            var made = new List<(Entity e, DungeonPost post)>();
+            // (A copy: spawning a creature is a structural change, which invalidates the buffer.)
+            using var copy = EntityManager.GetBuffer<DungeonSocket>(d, true).ToNativeArray(Allocator.Temp);
+            for (int i = 0; i < copy.Length; i++)
+            {
+                var s = copy[i];
+                var c = picks[i];
+                if (!DungeonSpawner.IsCreature(c))
+                    continue;
+                var species = director.SpeciesIndex(c.ToString());
+                if (species < 0)
+                    continue;
+                var fwd = math.mul(s.Rot, new float3(0, 0, 1));
+                var e = director.Spawn(species, s.Pos, math.atan2(fwd.x, fwd.z));
+                // (Every dungeon creature gets a post, even with nothing to do there: the post is what keeps the
+                // director from letting it go.)
+                made.Add((e, DungeonPost.From(s, c)));
+            }
+            // (After the loop: adding components moves entities.)
+            foreach (var (e, post) in made)
+                if (EntityManager.Exists(e))
+                    EntityManager.AddComponentData(e, post);
+            if (EntityManager.HasComponent<DungeonFilled>(d))
+                EntityManager.SetComponentData(d, new DungeonFilled { Builds = director.Builds });
+            else
+                EntityManager.AddComponentData(d, new DungeonFilled { Builds = director.Builds });
+            return made.Count;
         }
 
         /// <summary>A placeholder box for an item pick: sized by kind, tinted by content, no collider.</summary>
