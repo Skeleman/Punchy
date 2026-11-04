@@ -2,6 +2,34 @@
 
 Newest first.
 
+## W-92 (2026-11-04): lake shelf arid rule, plant skirt, rolling salt crystal
+
+world-features: 91b7320 (#88), 438685d (#40 plant), f086dd0 (#40 salt crystal). Pushed. Island v3. Rerun after the last editor hung at shutdown.
+
+DONE
+- Row 1, #88: BuildShelf rules out stretches with arid land (LandOf < 0) at 50, 100 or 200 m behind in their middle two thirds, land weight 2.5 -> 4, with a logged fallback. -island and -lakeshelf now read from PlayArgs (IslandV2 uses DebugControls.LaunchArgs). Log: before, W-91 and after all bearing 120 (SaltFlat 50 m, SaltFlat 100 m, Temperate 200 m, rise -1 m, land -0.14); "every bay has arid land behind it (11 ruled out), taking the best anyway". Shelf 10.2 m over the lake, lip 252 m, 25 fall stretches.
+- Row 3, #40: carnivorous plant gets a leafy skirt: 9-13 broad drooping leaves (own seed, lean 18-34 deg), a purple vein down each, red tips on every third, 6 red spots on the bulb.
+- Row 2, #40: SaltCrystal colossus (slot 7, SaltFlat, keep radius 78 m). A faceted 13 m salt ball with short salt points and dirt smears rolls at 1.6 m/s round a seeded circle, following the ground, and drags a 90 m dirt strip fading back to salt; salt crumbs lie by the track. Cosmetic, clock-driven (SaltCrystalRoll.cs). Log: spot (3702, 7.3, -917), circle radius 36 m, lap 142 s, relief 2.9 m. The other seven colossi kept their spots.
+
+NOT DONE
+- #88 goal: no temperate bay wins on v3. Only 11 bays pass the 10 m high-ground test and all have arid land behind. A per-ray probe found the only non-arid stretch at 50/100 m (Grassland, bearing 75-80) has -3 m ground behind and MesaCanyonlands at 200 m. Needs a call: move the shelf off the bay test, or terraform one.
+
+Checks
+- Landmarks v3 108 / 4D2643D7 before and after (game hash 3A0DC7BB), with and without -lakeshelf.
+- Compiles clean; no exceptions from StoneColossi in play.
+
+Shots
+- w92-shelf-lake.png (from the lake), w92-plant.png (close up), w92-saltcrystal.png (ball, trail arc, crumbs).
+
+Learned
+- Unity wipes Temp/PlayArgs.txt at editor start; write it after the editor opens.
+- Script edits don't compile while the editor sits in play mode (isCompiling stays true): stop play first.
+
+NEXT
+- Zach's call on the shelf (#88). Salt crystal trail could print into the ground texture instead of a strip.
+
+- Calls: ~45
+
 ## W-91 (2026-11-04): river-free fishing villages, temperate lake shelf, small carnivorous plant
 
 world-features: 532d14e (#36), 43f66e2 (#88), 6d9b5ff (#40). Pushed. Merged origin/main first. Island v3.
