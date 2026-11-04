@@ -77,3 +77,6 @@ Bench world-features 4e3b63c (v3, also v2), laptop player, uncapped, 3 cold star
 
 ## Job 20 (2026-11-04): startup hitch re-bench (#102)
 Bench world-features cfae8be (W-79 + W-79b, includes main with A-52) against 4e3b63c (job 19's capture), laptop player, uncapped, 3 cold starts on v2 and v3, no town teleport. Same capture-from-launch breakdown as job 19: the "island ready" frame ms and its parts (bake, flora, fauna, caves, first terrain batch, anything else over 200 ms), island ready and "[stream] world ready" times. The editor shows v3's island-ready frame at ~29 s with audit/biome reports in it: say whether the player runs those. Host + local client once: the client's flora rebuild ms. Landmark hashes (expect v2 B5EFF8C8, v3 3A0DC7BB). Read-only.
+
+## Job 21 (2026-11-04): dungeon host/client check (#24, PR #104)
+Main e31291e, laptop player build, island v3. Two processes: host + client joining it. Both walk the player into the temple (P-7) and the stand-in cave. Check: same spawner pick hash on both (temple 0x7c8c8b71, cave 0xa9995035 in editor), creatures visible on the client, DungeonPost count > 0 on the host a minute later, a guard log line and a drink log line, 0 exceptions, frame ms inside the temple. Read-only.
