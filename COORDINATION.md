@@ -172,3 +172,6 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
   without the author's permission.
 - 2026-10-27: Animal session's additive edits to Net/NetPlayer.cs and Net/World/CreatureGhosts.cs (carry
   replication) accepted; it wrote both. Multiplayer carry test goes on the other PC by Relay, between benchmark runs.
+- 2026-11-03: #24 dungeons: `DungeonSocket` contract pushed on player-client d7ed5eb (Assets/Game/Scripts/Dungeon/DungeonSocket.cs:
+  buffer element; SocketKind, SocketSize, SocketTags flags, DungeonSocket.MakeSeed). Animal lane: start the spawner from it.
+  Changes to it get a heads-up here first.
