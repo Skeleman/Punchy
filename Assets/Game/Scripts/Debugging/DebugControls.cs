@@ -240,9 +240,11 @@ namespace Punchy.Debugging
             var entities = creatureQuery.ToEntityArray(Unity.Collections.Allocator.Temp);
             foreach (var e in entities)
             {
-                var state = em.GetComponentData<CreatureState>(e);
-                state.Thirst = 1f;
-                em.SetComponentData(e, state);
+                if (!em.HasComponent<CreatureMind>(e))
+                    continue;
+                var mind = em.GetComponentData<CreatureMind>(e);
+                mind.Thirst = 1f;
+                em.SetComponentData(e, mind);
             }
             entities.Dispose();
         }
@@ -885,13 +887,13 @@ namespace Punchy.Debugging
                     if (had)
                     {
                         hunts.Remove(e);
-                        HuntLine(director ??= FindAnyObjectByType<FaunaDirector>(), bodies[i], c,
+                        HuntLine(director ??= FindAnyObjectByType<FaunaDirector>(), bodies[i], c, em.HasComponent<CreatureMind>(e) ? em.GetComponentData<CreatureMind>(e).Hunger : 0f,
                             "ended: " + (was.y == 3 ? "ate" : was.y == 4 ? "missed" : was.y == 2 ? "slipped away" : "tired") + $", now {c.Mode}");
                     }
                     continue;
                 }
                 if (!had || was.y != now.y)
-                    HuntLine(director ??= FindAnyObjectByType<FaunaDirector>(), bodies[i], c,
+                    HuntLine(director ??= FindAnyObjectByType<FaunaDirector>(), bodies[i], c, em.HasComponent<CreatureMind>(e) ? em.GetComponentData<CreatureMind>(e).Hunger : 0f,
                         now.y switch { 0 => "stalking", 1 => "running", 2 => "pounce landed", 3 => "eating", 4 => "pounce missed", _ => $"stage {now.y}" });
                 hunts[e] = now;
             }
@@ -902,11 +904,11 @@ namespace Punchy.Debugging
             bodies.Dispose();
         }
 
-        static void HuntLine(FaunaDirector director, CreatureBody body, CreatureState c, string what)
+        static void HuntLine(FaunaDirector director, CreatureBody body, CreatureState c, float hunger, string what)
         {
             var name = director != null ? director.SpeciesAt(body.Species)?.name : body.Species.ToString();
             var aggression = CreaturePersonality.Of(ref body.Blob.Value, c.Individual).Aggression;
-            Debug.Log($"DebugControls: hunt: {name} #{c.Individual:X8} {what} (speed {c.Speed:F1}, hunger {c.Hunger:F2}, aggression {aggression:F2}) at " +
+            Debug.Log($"DebugControls: hunt: {name} #{c.Individual:X8} {what} (speed {c.Speed:F1}, hunger {hunger:F2}, aggression {aggression:F2}) at " +
                       $"({c.Position.x:F1}, {c.Position.y:F1}, {c.Position.z:F1}); caught so far {FaunaDirector.Caught}");
         }
 

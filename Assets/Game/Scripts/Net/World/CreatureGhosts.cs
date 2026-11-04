@@ -42,6 +42,8 @@ namespace Punchy.Net
         /// <summary>Who is petting or carrying it (Interactions.HolderId; 0 = nobody).</summary>
         [GhostField] public int Holder;
         [GhostField] public byte Held;
+        /// <summary>The need cue it shows (CreatureState.Cue, a NeedCue), so clients draw it too (#64).</summary>
+        [GhostField] public byte Cue;
     }
 
     /// <summary>Client: this creature is a server ghost that FaunaDirector has given a body (CreatureState/CreatureBody).</summary>
@@ -101,6 +103,7 @@ namespace Punchy.Net
                 n.AnchorSize = c.AnchorSize;
                 n.Holder = c.Holder;
                 n.Held = (byte)c.Held;
+                n.Cue = c.Cue;
             }
         }
     }
@@ -213,6 +216,7 @@ namespace Punchy.Net
                 c.AnchorSize = n.AnchorSize;
                 c.Holder = n.Holder;
                 c.Held = (HeldItem)n.Held;
+                c.Cue = n.Cue;
                 CreatureMotion.AdvancePhase(ref c, ref b, dt);
                 CreatureMotion.EaseGait(ref c, ref b, dt);
             }

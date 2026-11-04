@@ -645,9 +645,9 @@ namespace Punchy.Fauna
         /// <summary>What it has in hand (folk: a lantern at night). Replicated; each machine draws it.</summary>
         public HeldItem Held;
 
-        // Needs, 0 (satisfied) to 1 (pressing): they rise with time by the species' tastes and are eased by the
-        // activity that meets them; what it decides to do next is weighted by them. Simulation only (not sent).
-        public float Hunger, Thirst, Tired, Lonely;
+        /// <summary>The need cue it shows (NeedCue: none, tired, hungry, thirsty, lonely): its strongest need past 0.6,
+        /// set by the brain (CreatureBrainSystem.Needs) and replicated as one byte, so clients draw the same cue (#64).</summary>
+        public byte Cue;
         /// <summary>Half the width of what this player's body carries in its arms (m; 0 for nothing): local, set each
         /// frame on every machine by HeldPoseSystem from the creature carried, so the arms open round it. Not sent.</summary>
         public float CarryWidth;
@@ -679,7 +679,14 @@ namespace Punchy.Fauna
         public float WeaponCalm;
         /// <summary>Seconds left before a startled animal will settle again (a bat waved off its roost).</summary>
         public float Unsettled;
+        // Needs, 0 (satisfied) to 1 (pressing): they rise with time by the species' tastes and are eased by the
+        // activity that meets them; what it decides to do next is weighted by them. Only the brain reads them (#58:
+        // moved here from CreatureState); what others see is CreatureState.Cue.
+        public float Hunger, Thirst, Tired, Lonely;
     }
+
+    /// <summary>The need cue a creature shows (CreatureState.Cue), strongest need first.</summary>
+    public enum NeedCue : byte { None, Tired, Hungry, Thirsty, Lonely }
 
     /// <summary>One segment as the creature shader draws it (a tapered capsule). Must match Creature.shader.</summary>
     [StructLayout(LayoutKind.Sequential)]

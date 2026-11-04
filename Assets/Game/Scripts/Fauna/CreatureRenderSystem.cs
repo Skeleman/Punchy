@@ -23,12 +23,18 @@ namespace Punchy.Fauna
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     public partial class CreatureRenderSystem : SystemBase
     {
+        /// <summary>"-needcues" (a test flag): every creature not fleeing shows one of the four need cues, picked by its
+        /// Individual, all the time, whatever its needs, so a shot can show them side by side.</summary>
+        static readonly bool ForceNeedCues = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-needcues") >= 0;
+
         EntityQuery query;
         GraphicsBuffer buffer;
         MaterialPropertyBlock props, flatProps;
         static readonly int SegmentsId = Shader.PropertyToID("_Segments");
         static readonly int SegmentOffsetId = Shader.PropertyToID("_SegmentOffset");
         const int MarkCount = 3;
+        /// <summary>How much bigger a need cue is drawn than a fear mark (#64): small enough to stay a detail, big enough to read at 10 m.</summary>
+        const float CueScale = 3f;
         const int Spokes = 12, Rings = 6, Anchors = 4;
         const int WebCount = Spokes + Spokes * Rings + Anchors;
         const int MoundCount = 7;
@@ -694,6 +700,7 @@ namespace Punchy.Fauna
                 Output = instances,
                 Time = (float)SystemAPI.Time.ElapsedTime,
                 CameraRight = cam.transform.right,
+                ForceCues = ForceNeedCues,
                 CameraPosition = cam.transform.position,
                 FootDetail = FootDetailRange,
                 FadeInTime = 1.2f,
@@ -782,6 +789,43 @@ namespace Punchy.Fauna
 
         protected override void OnStopRunning() => DropPosed();
 
+        float cueLogSince = -1f;
+
+        /// <summary>
+        /// "-needcues", once a second (#64): how many creatures the brain gives a cue, and the nearest one's cue capsules
+        /// as uploaded for the draw (centre, length, radii, glow), and whether they fall in the drawn range with any size.
+        /// </summary>
+        void LogCues(float3 camAt, NativeArray<SegmentInstance> instances, NativeArray<CreatureBody> bodies,
+                     NativeArray<CreatureState> states, NativeArray<int> offsets, int colonyStart)
+        {
+            var now = UnityEngine.Time.realtimeSinceStartup;
+            if (now - cueLogSince < 1f)
+                return;
+            cueLogSince = now;
+            int cued = 0, nearest = -1;
+            var best = float.MaxValue;
+            for (int i = 0; i < states.Length; i++)
+            {
+                if (states[i].Cue != 0)
+                    cued++;
+                var d = math.distancesq(states[i].Position, camAt);
+                if (states[i].Mode != CreatureMode.Flee && d < best) { best = d; nearest = i; }
+            }
+            var line = $"[cues] creatures {states.Length}, brain cue != none {cued}, drawn range {colonyStart}";
+            if (nearest >= 0)
+            {
+                line += $"; nearest {states[nearest].Individual} at {math.sqrt(best):0.0} m, cue {states[nearest].Cue}:";
+                var first = offsets[nearest] + bodies[nearest].SegmentCount;
+                for (int k = 0; k < MarkCount; k++)
+                {
+                    var m = instances[first + k];
+                    var drawn = first + k < colonyStart && math.max(m.RadiusStart, m.RadiusEnd) > 0f;
+                    line += $" [{k}] at ({m.Position.x:0.00},{m.Position.y:0.00},{m.Position.z:0.00}) len {m.Length:0.000} r {m.RadiusStart:0.000}/{m.RadiusEnd:0.000} a {m.Color.w:0.00} drawn {drawn}";
+                }
+            }
+            Debug.Log(line);
+        }
+
         /// <summary>
         /// Last frame's posing, finished: the rest (colonies, bees, small life, birds, traces) copied in after the
         /// creatures, the lanterns and torches lit, then uploaded and drawn.
@@ -839,6 +883,8 @@ namespace Punchy.Fauna
                     Punchy.Terrain.CaveSystem.MovingLights.Add((entities[i].Index, centre, torch ? TorchLight : LanternLight));
             }
             Pass(8);
+            if (ForceNeedCues)
+                LogCues(camAt, instances, bodies, states, offsets, colonyStart);
 
             if (buffer == null || buffer.count < total)
             {
@@ -1021,6 +1067,8 @@ namespace Punchy.Fauna
             [NativeDisableParallelForRestriction] public NativeArray<SegmentInstance> Output;
             public float Time;
             public Unity.Mathematics.float3 CameraRight, CameraPosition;
+            /// <summary>"-needcues": every creature shows a need cue all the time (for shots of #64).</summary>
+            public bool ForceCues;
             /// <summary>How near the camera feet are fitted to the ground (FootDetailRange, at the graphics settings).</summary>
             public float FootDetail;
             /// <summary>Faded in over this long after it's made; out over this far before it's let go.</summary>
@@ -2375,38 +2423,135 @@ namespace Punchy.Fauna
 
             /// <summary>
             /// Three short lines fanning out above the creature's highest point, facing the camera, flashing on and
-            /// off while it flees. Sized to the creature, but never too small to see.
+            /// off while it flees. Sized to the creature, but never too small to see. When it isn't fleeing, the same
+            /// three capsules show its strongest pressing need (#64) for a moment on its own beat (each creature's cycle
+            /// and phase come from its Individual, so a herd never shows them all at once): tired, pale bubbles drifting
+            /// up; hungry, dust puffed up where its nose sniffs the ground; thirsty, a drop falling over its head;
+            /// lonely, a small pink heart. Drawn only: nothing in the simulation reads them.
             /// </summary>
             /// <param name="id">Fixed per creature, so each flashes on its own steady beat (its random seed changes
             /// every frame, which made the marks flicker).</param>
             void FearMarks(in CreatureState state, int offset, int segments, int id)
             {
                 var top = float.MinValue;
+                var fwd = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
+                var nose = state.Position;
+                var reach = float.MinValue;
                 for (int i = 0; i < segments; i++)
                 {
                     var seg = Output[offset + i];
                     var end = seg.Position + Unity.Mathematics.math.mul(seg.Rotation, new Unity.Mathematics.float3(0f, 0f, seg.Length));
                     top = Unity.Mathematics.math.max(top, Unity.Mathematics.math.max(seg.Position.y + seg.RadiusStart, end.y + seg.RadiusEnd));
+                    var ahead = Unity.Mathematics.math.dot(end - state.Position, fwd);
+                    if (ahead > reach) { reach = ahead; nose = end; }
+                    ahead = Unity.Mathematics.math.dot(seg.Position - state.Position, fwd);
+                    if (ahead > reach) { reach = ahead; nose = seg.Position; }
                 }
                 var size = Unity.Mathematics.math.clamp(state.Scale * 0.3f, 0.25f, 0.5f);
-                var flash = Unity.Mathematics.math.frac(Time * 3f + (id % 97) * 0.01f) < 0.6f;
-                var visible = state.Mode == CreatureMode.Flee && flash;
                 var up = new Unity.Mathematics.float3(0f, 1f, 0f);
                 var right = Unity.Mathematics.math.normalizesafe(new Unity.Mathematics.float3(CameraRight.x, 0f, CameraRight.z), new Unity.Mathematics.float3(1f, 0f, 0f));
+                if (state.Mode == CreatureMode.Flee)
+                {
+                    var visible = Unity.Mathematics.math.frac(Time * 3f + (id % 97) * 0.01f) < 0.6f;
+                    for (int k = 0; k < MarkCount; k++)
+                    {
+                        var angle = (k - 1) * 0.6f;
+                        var dir = up * Unity.Mathematics.math.cos(angle) + right * Unity.Mathematics.math.sin(angle);
+                        var start = new Unity.Mathematics.float3(state.Position.x, top, state.Position.z) + dir * size * 0.7f;
+                        Output[offset + segments + k] = new SegmentInstance
+                        {
+                            Position = start,
+                            Rotation = Unity.Mathematics.quaternion.LookRotationSafe(dir, right),
+                            Length = visible ? size : 0f,
+                            RadiusStart = visible ? size * 0.16f : 0f,
+                            RadiusEnd = visible ? size * 0.1f : 0f,
+                            Flatten = 1f,
+                            Color = new Unity.Mathematics.float4(1f, 0.92f, 0.55f, 0.6f)
+                        };
+                    }
+                    return;
+                }
+                // Which need shows, if any: the strongest past 0.6, during the first 2.6 s of this creature's own
+                // 8-15 s cycle (from a scrambled Individual, since neighbouring ids would otherwise keep in step).
+                var h = state.Individual * 0x9E3779B1u;
+                h ^= h >> 15; h *= 0x85EBCA77u; h ^= h >> 13; h *= 0xC2B2AE3Du; h ^= h >> 16;
+                var period = 8f + (h & 1023) / 1023f * 7f;
+                var t = Unity.Mathematics.math.frac(Time / period + ((h >> 10) & 1023) / 1023f) * period;
+                const float Show = 2.6f;
+                int cue = 0;
+                if (ForceCues)
+                {
+                    t = Unity.Mathematics.math.frac(Time / Show + ((h >> 10) & 1023) / 1023f) * Show;
+                    cue = 1 + (int)((h >> 20) % 4);
+                }
+                else if (t < Show && state.Mode != CreatureMode.Sleep && state.Holder == 0)
+                    cue = state.Cue;   // (set by the brain on the host, replicated to clients: #64)
+                var swell = Unity.Mathematics.math.sin(Unity.Mathematics.math.PI * Unity.Mathematics.math.saturate(t / Show));
+                // (At the fear marks' size the cues were 0.2-2.6 cm across: drawn, but too small to see past a metre or
+                // two, A-60. Everything about a cue is scaled up from here.)
+                size *= CueScale;
+                var head =new Unity.Mathematics.float3(state.Position.x, top, state.Position.z);
                 for (int k = 0; k < MarkCount; k++)
                 {
-                    var angle = (k - 1) * 0.6f;
-                    var dir = up * Unity.Mathematics.math.cos(angle) + right * Unity.Mathematics.math.sin(angle);
-                    var start = new Unity.Mathematics.float3(state.Position.x, top, state.Position.z) + dir * size * 0.7f;
+                    var at = head;
+                    var dir = up;
+                    float length = 0f, radius = 0f, tip = 0f;
+                    var color = new Unity.Mathematics.float4(0f);
+                    switch (cue)
+                    {
+                        case 1: // Tired: bubbles rising one after another, swaying a little.
+                        {
+                            var rise = Unity.Mathematics.math.frac(t / 1.3f + k / 3f);
+                            at = head + up * size * (0.25f + rise * 1.1f) + right * size * (0.25f + 0.12f * Unity.Mathematics.math.sin((t + k) * 2.4f));
+                            radius = tip = size * (0.05f + 0.05f * rise) * Unity.Mathematics.math.saturate((1f - rise) * 4f);
+                            length = radius * 0.2f;
+                            color = new Unity.Mathematics.float4(0.78f, 0.86f, 1f, 0.45f);
+                            break;
+                        }
+                        case 2: // Hungry: little puffs of dust kicked up round its nose, as if sniffing the ground.
+                        {
+                            var puff = Unity.Mathematics.math.frac(t / 0.9f + k * 0.37f);
+                            var side = (k - 1) * 0.5f;
+                            at = new Unity.Mathematics.float3(nose.x, state.Position.y, nose.z) + (right * side + fwd * 0.3f) * size * (0.3f + puff) + up * size * puff * 0.35f;
+                            radius = tip = size * 0.1f * Unity.Mathematics.math.sin(Unity.Mathematics.math.PI * puff) * swell;
+                            length = radius * 0.3f;
+                            color = new Unity.Mathematics.float4(0.74f, 0.64f, 0.48f, 0.15f);
+                            break;
+                        }
+                        case 3: // Thirsty: one drop falling over its head, again and again.
+                            if (k == 0)
+                            {
+                                var fall = Unity.Mathematics.math.frac(t / 1.1f);
+                                dir = -up;
+                                at = head + up * size * (1.1f - fall * 0.6f);
+                                length = size * 0.22f;
+                                radius = size * 0.03f;
+                                tip = size * 0.11f * Unity.Mathematics.math.saturate((1f - fall) * 5f);
+                                color = new Unity.Mathematics.float4(0.4f, 0.65f, 1f, 0.6f);
+                            }
+                            break;
+                        case 4: // Lonely: a small heart (two strokes meeting at its point), bobbing.
+                            if (k < 2)
+                            {
+                                var s2 = k == 0 ? -1f : 1f;
+                                dir = Unity.Mathematics.math.normalize(up * 1.1f + right * s2);
+                                at = head + up * size * (0.45f + 0.08f * Unity.Mathematics.math.sin(t * 3f));
+                                length = size * 0.42f * swell;
+                                radius = size * 0.07f * swell;
+                                tip = size * 0.15f * swell;
+                                color = new Unity.Mathematics.float4(1f, 0.45f, 0.62f, 0.6f);
+                            }
+                            break;
+                    }
                     Output[offset + segments + k] = new SegmentInstance
                     {
-                        Position = start,
-                        Rotation = Unity.Mathematics.quaternion.LookRotationSafe(dir, right),
-                        Length = visible ? size : 0f,
-                        RadiusStart = visible ? size * 0.16f : 0f,
-                        RadiusEnd = visible ? size * 0.1f : 0f,
+                        Position = at,
+                        Rotation = Unity.Mathematics.quaternion.LookRotationSafe(dir, Unity.Mathematics.math.abs(dir.y) > 0.99f ? right : up),
+                        Length = length,
+                        RadiusStart = radius,
+                        RadiusEnd = tip,
                         Flatten = 1f,
-                        Color = new Unity.Mathematics.float4(1f, 0.92f, 0.55f, 0.6f)
+                        Color = color
                     };
                 }
             }

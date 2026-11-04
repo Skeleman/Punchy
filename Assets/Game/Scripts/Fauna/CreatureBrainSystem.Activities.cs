@@ -27,29 +27,40 @@ namespace Punchy.Fauna
             {
                 using var profiled = NeedsMarker.Auto();
                 M.Unsettled = math.max(M.Unsettled - dt, 0f);
-                s.Hunger += dt * (0.002f + (b.Grazing + b.Hunger) * 0.003f);
-                s.Thirst += dt * b.Thirst * 0.004f;
-                s.Tired += dt * 0.0015f;
-                s.Lonely += dt * b.Playfulness * 0.003f;
+                M.Hunger += dt * (0.002f + (b.Grazing + b.Hunger) * 0.003f);
+                M.Thirst += dt * b.Thirst * 0.004f;
+                M.Tired += dt * 0.0015f;
+                M.Lonely += dt * b.Playfulness * 0.003f;
                 switch (s.Mode)
                 {
-                    case CreatureMode.Graze: s.Hunger -= dt * 0.04f; break;
-                    case CreatureMode.Hunt: s.Hunger -= dt * 0.01f; break;
-                    case CreatureMode.Drink: if (s.Stage == 1) s.Thirst -= dt * 0.12f; break;
-                    case CreatureMode.Rest: s.Tired -= dt * 0.02f; break;
-                    case CreatureMode.Sleep: s.Tired -= dt * 0.04f; break;
-                    case CreatureMode.Burrow: if (s.Stage == 2) s.Tired -= dt * 0.03f; break;
-                    case CreatureMode.Home: if (s.Stage == 2) s.Tired -= dt * 0.04f; break;
-                    case CreatureMode.Roost: if (s.Stage == 200) s.Tired -= dt * 0.04f; break;
-                    case CreatureMode.Climb: if (s.Stage == 3) s.Tired -= dt * 0.02f; break;
-                    case CreatureMode.Play: s.Lonely -= dt * 0.05f; break;
-                    case CreatureMode.Greet: s.Lonely -= dt * 0.03f; break;
-                    case CreatureMode.Petted: s.Lonely -= dt * 0.08f; break;
+                    case CreatureMode.Graze: M.Hunger -= dt * 0.04f; break;
+                    case CreatureMode.Hunt: M.Hunger -= dt * 0.01f; break;
+                    case CreatureMode.Drink: if (s.Stage == 1) M.Thirst -= dt * 0.12f; break;
+                    case CreatureMode.Rest: M.Tired -= dt * 0.02f; break;
+                    case CreatureMode.Sleep: M.Tired -= dt * 0.04f; break;
+                    case CreatureMode.Burrow: if (s.Stage == 2) M.Tired -= dt * 0.03f; break;
+                    case CreatureMode.Home: if (s.Stage == 2) M.Tired -= dt * 0.04f; break;
+                    case CreatureMode.Roost: if (s.Stage == 200) M.Tired -= dt * 0.04f; break;
+                    case CreatureMode.Climb: if (s.Stage == 3) M.Tired -= dt * 0.02f; break;
+                    case CreatureMode.Play: M.Lonely -= dt * 0.05f; break;
+                    case CreatureMode.Greet: M.Lonely -= dt * 0.03f; break;
+                    case CreatureMode.Petted: M.Lonely -= dt * 0.08f; break;
                 }
-                s.Hunger = math.saturate(s.Hunger);
-                s.Thirst = math.saturate(s.Thirst);
-                s.Tired = math.saturate(s.Tired);
-                s.Lonely = math.saturate(s.Lonely);
+                M.Hunger = math.saturate(M.Hunger);
+                M.Thirst = math.saturate(M.Thirst);
+                M.Tired = math.saturate(M.Tired);
+                M.Lonely = math.saturate(M.Lonely);
+                // The cue others see (#64): the strongest need past 0.6, none asleep or while held.
+                var cue = NeedCue.None;
+                if (s.Mode != CreatureMode.Sleep && s.Holder == 0)
+                {
+                    var strongest = 0.6f;
+                    if (M.Tired > strongest) { strongest = M.Tired; cue = NeedCue.Tired; }
+                    if (M.Hunger > strongest) { strongest = M.Hunger; cue = NeedCue.Hungry; }
+                    if (M.Thirst > strongest) { strongest = M.Thirst; cue = NeedCue.Thirsty; }
+                    if (M.Lonely > strongest) cue = NeedCue.Lonely;
+                }
+                s.Cue = (byte)cue;
             }
 
             /// <summary>How much a need pushes an activity: a little even when met, a lot when pressing.</summary>
@@ -147,12 +158,12 @@ namespace Punchy.Fauna
                 var onGround = !perched;
                 // Each activity's appeal: the species' taste for it, pressed by the need it meets.
                 var wander = 1f * awake * (onGround ? 1f : 0f);
-                var graze = b.Grazing * 2.5f * awake * (onGround ? 1f : 0f) * Urge(s.Hunger);
-                var rest = b.Laziness * 0.7f * Urge(s.Tired);
-                var sleep = sleepy > 0.5f ? 6f : b.Active == ActiveTime.Always ? b.Laziness * 0.4f * Urge(s.Tired) : 0f;
-                var drink = b.Thirst * 1.2f * awake * (onGround && !flier ? 1f : 0f) * Urge(s.Thirst);
-                var play = playmate != Entity.Null ? b.Playfulness * 2f * Urge(s.Lonely) : 0f;
-                var hunt = prey != Entity.Null ? b.Hunger * 2.5f * Urge(s.Hunger) : 0f;
+                var graze = b.Grazing * 2.5f * awake * (onGround ? 1f : 0f) * Urge(M.Hunger);
+                var rest = b.Laziness * 0.7f * Urge(M.Tired);
+                var sleep = sleepy > 0.5f ? 6f : b.Active == ActiveTime.Always ? b.Laziness * 0.4f * Urge(M.Tired) : 0f;
+                var drink = b.Thirst * 1.2f * awake * (onGround && !flier ? 1f : 0f) * Urge(M.Thirst);
+                var play = playmate != Entity.Null ? b.Playfulness * 2f * Urge(M.Lonely) : 0f;
+                var hunt = prey != Entity.Null ? b.Hunger * 2.5f * Urge(M.Hunger) : 0f;
                 // (Keener with prey close: Z-53, so more chases start where they can be seen.)
                 if (prey != Entity.Null && Lookup.TryGetValue(prey, out var preyAt) && math.distance(States[preyAt].Position.xz, s.Position.xz) < 20f)
                     hunt *= 1.5f;
@@ -227,7 +238,7 @@ namespace Punchy.Fauna
                 // (Someone arriving at the edge of its home range counts: it goes as far as its range lets it.)
                 var nearPerson = math.distance(player.xz, s.Position.xz) < 35f &&
                                  (s.Leash <= 0f || math.distance(player.xz, s.Home) < s.Leash + 15f);
-                if (b.Friendly && nearPerson && sleepy < 0.5f && rng.NextFloat() < 0.35f + s.Lonely * 0.6f)
+                if (b.Friendly && nearPerson && sleepy < 0.5f && rng.NextFloat() < 0.35f + M.Lonely * 0.6f)
                 {
                     SetMode(ref s, CreatureMode.Greet);
                     s.Timer = rng.NextFloat(20f, 45f);
@@ -642,7 +653,7 @@ namespace Punchy.Fauna
                     headDown = 1f;
                     if (s.Timer <= 0f)
                     {
-                        s.Hunger = math.max(0f, s.Hunger - 0.6f);
+                        M.Hunger = math.max(0f, M.Hunger - 0.6f);
                         SetMode(ref s, CreatureMode.Rest);
                         s.Timer = rng.NextFloat(30f, 60f);
                     }
@@ -793,9 +804,9 @@ namespace Punchy.Fauna
                 s.ActionLength = 0.7f;
             }
 
-            static void Tired(ref CreatureState s, ref Random rng)
+            void Tired(ref CreatureState s, ref Random rng)
             {
-                s.Hunger = math.max(0f, s.Hunger - 0.4f);
+                M.Hunger = math.max(0f, M.Hunger - 0.4f);
                 SetMode(ref s, CreatureMode.Rest);
                 s.Timer = rng.NextFloat(15f, 40f);
             }

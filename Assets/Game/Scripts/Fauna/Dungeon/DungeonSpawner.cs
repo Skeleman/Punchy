@@ -421,7 +421,12 @@ namespace Punchy.Fauna
             if (propMaterial != null)
                 r.sharedMaterial = propMaterial;
             propBlock ??= new MaterialPropertyBlock();
-            propBlock.SetColor(BaseColorId, Color.HSVToRGB((h & 1023) / 1023f, 0.45f, 0.75f));
+            // A-61: wall decor (skull niches) is a stone-grey stand-in set into the wall, not a bright tinted slab:
+            // the saturated purple read as a glitch box when the camera sat beside it (#24, a57-temple-mw).
+            bool wall = s.Kind == SocketKind.WallDecor;
+            propBlock.SetColor(BaseColorId, Color.HSVToRGB((h & 1023) / 1023f, wall ? 0.12f : 0.45f, wall ? 0.32f : 0.75f));
+            if (wall)
+                go.transform.position -= go.transform.forward * size.z * 0.5f;
             r.SetPropertyBlock(propBlock);
             return go;
         }
