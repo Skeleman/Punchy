@@ -45,7 +45,7 @@ namespace Punchy.Debugging
         /// <summary>Landmarks' middles (for -place, not in the N list).</summary>
         readonly List<Location> centres = new List<Location>();
         int current = -1;
-        EntityQuery playerQuery, terrainQuery, paletteQuery;
+        EntityQuery playerQuery, terrainQuery, paletteQuery, floraQuery;
         World queryWorld;
         GUIStyle style, hintStyle;
         /// <summary>The control hints, under the readout: prompt text with button tokens (UI.Prompts draws their icons).</summary>
@@ -53,6 +53,118 @@ namespace Punchy.Debugging
         string readout;
         Vector2 readoutSize;
         float nextReadout;
+
+        float solidStatsSince = -1f;
+        int solidStatsFrames;
+
+        /// <summary>
+        /// "-solidstats" (A-44): every 60 s, the wild animals near the player that minute: creature-ticks sampled, wall
+        /// contacts (steps turned or stopped by a solid), ticks boxed in, ticks with a body over 0.15 m in a solid, the
+        /// deepest sink, ticks floating over carved ground, solid queries per frame; and what those queries cost, timed
+        /// here on the main thread unburst for the animals within reach, scaled to 50 (an upper bound: the brain runs
+        /// them Burst-compiled, spread over the workers).
+        /// </summary>
+        void SolidStatsLog()
+        {
+            if (CreatureMotion.StatsOn.Data == 0 || queryWorld == null || !queryWorld.IsCreated)
+                return;
+            solidStatsFrames++;
+            if (solidStatsSince < 0f)
+                solidStatsSince = Time.unscaledTime;
+            var span = Time.unscaledTime - solidStatsSince;
+            if (span < 60f || !terrainQuery.TryGetSingleton<TerrainSource>(out var terrain))
+                return;
+            var stats = CreatureMotion.Stats.Data;
+            CreatureMotion.Stats.Data = default;
+            var frames = solidStatsFrames;
+            solidStatsFrames = 0;
+            solidStatsSince = Time.unscaledTime;
+            var em = queryWorld.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var eye = Camera.main != null ? (float3)Camera.main.transform.position : float3.zero;
+            var queriesPerTick = frames > 0 && stats.Samples > 0 ? (float)stats.Queries / stats.Samples : 2f;
+            var bodyList = new NativeList<float4>(64, Allocator.TempJob);
+            var shapeList = new NativeList<float4>(64, Allocator.TempJob);
+            for (int i = 0; i < states.Length; i++)
+            {
+                var s = states[i];
+                ref var b = ref bodies[i].Blob.Value;
+                if (s.Gone || b.Upright || b.Haunts || b.Habitat != Habitat.Land && b.Habitat != Habitat.Flies ||
+                    math.distancesq(eye.xz, s.Position.xz) > CreatureMotion.SolidReach * CreatureMotion.SolidReach)
+                    continue;
+                var radius = math.max(math.max(b.FrontRadius, b.RearRadius) * s.Scale, 0.1f);
+                bodyList.Add(new float4(s.Position, s.Yaw));
+                shapeList.Add(new float4(radius, b.BodyLength * 0.5f * s.Scale, math.max((b.StandHeight + b.FrontRadius) * s.Scale, radius * 2f), 0f));
+            }
+            var near = bodyList.Length;
+            // (A-44b: the queries a frame's moves make, timed as the brain runs them, Burst-compiled, but on one thread.)
+            var hasFlora = floraQuery.TryGetSingleton<FloraLookup>(out var flora) && flora.Blob.IsCreated;
+            var job = new SolidCostJob
+            {
+                Terrain = terrain, Flora = hasFlora ? flora.Blob : default, HasFlora = hasFlora,
+                Bodies = bodyList.AsArray(), Shapes = shapeList.AsArray(), PerTick = math.max(1, (int)math.round(queriesPerTick)),
+            };
+            job.Run(); // (warm: the first run compiles)
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            for (int r = 0; r < 10; r++)
+                job.Run();
+            var ms = (float)watch.Elapsed.TotalMilliseconds / 10f;
+            bodyList.Dispose();
+            shapeList.Dispose();
+            var minutes = span / 60f;
+            var cases = CreatureMotion.Cases.Data;
+            CreatureMotion.Cases.Data = default;
+            var sinks = new System.Text.StringBuilder();
+            var floats = new System.Text.StringBuilder();
+            for (int i = 0; i < 10; i++)
+            {
+                var c = cases.Sink(i);
+                if (c.z > 0f)
+                    sinks.Append($" [{(CreatureMotion.SolidKind)(int)c.w} {c.z:F2} m at {c.x:F0},{c.y:F0}]");
+                var f = cases.Float(i);
+                if (f.z > 0f)
+                    floats.Append($" [{(CreatureMode)((int)f.w % 100)}{(f.w >= 100f ? " moving" : "")} {f.z:F2} m at {f.x:F0},{f.y:F0}]");
+            }
+            Debug.Log($"CreatureSolids cases: sinks{sinks}; floating{floats}");
+            Debug.Log($"CreatureSolids: {(CreatureMotion.SolidsOff.Data != 0 ? "OFF (before)" : "on")}, {span:F0} s, {frames} frames, " +
+                      $"{stats.Samples} creature-ticks near, contacts {stats.Contacts / minutes:F1}/min, stuck {stats.Stuck} ticks " +
+                      $"({stats.Stuck * span / math.max(1, frames):F1} s), hidden >0.15 m {stats.Hidden} ticks, max sink {stats.MaxSinkMm / 1000f:F2} m, " +
+                      $"floating >0.2 m {stats.Floating} ticks, queries {(float)stats.Queries / math.max(1, frames):F1}/frame " +
+                      $"({queriesPerTick:F2} per creature-tick); cost now {near} near: {ms:F3} ms Burst one thread, " +
+                      $"{(near > 0 ? ms * 50f / near : 0f):F3} ms per frame at 50");
+        }
+
+        /// <summary>"-solidstats" cost (A-44b): each animal's solid queries for one frame (its moves' SolidAt, buildings
+        /// included, and its ground), Burst-compiled as in the brain.</summary>
+        [Unity.Burst.BurstCompile]
+        struct SolidCostJob : Unity.Jobs.IJob
+        {
+            public TerrainSource Terrain;
+            public BlobAssetReference<FloraBlob> Flora;
+            public bool HasFlora;
+            [ReadOnly] public NativeArray<float4> Bodies, Shapes;
+            public int PerTick;
+
+            public void Execute()
+            {
+                for (int i = 0; i < Bodies.Length; i++)
+                {
+                    var p = Bodies[i];
+                    var shape = Shapes[i];
+                    var forward = new float2(math.sin(p.w), math.cos(p.w));
+                    for (int k = 0; k < PerTick; k++)
+                    {
+                        var xz = p.xz + forward * 0.1f * k;
+                        CreatureMotion.Solid(Terrain, xz, forward, p.y, shape.x, shape.y, shape.z, out _);
+                        if (HasFlora && !FloraPlacement.Blocked(ref Flora.Value, Terrain, xz, shape.x))
+                            FloraPlacement.Blocked(ref Flora.Value, Terrain, xz + forward * shape.y, shape.x * 0.6f);
+                    }
+                    CreatureMotion.Ground(Terrain, p.xz, p.y);
+                }
+            }
+        }
 
         void Update()
         {
@@ -67,6 +179,7 @@ namespace Punchy.Debugging
             Pose();
             Interact();
             ShotList();
+            SolidStatsLog();
             Lift();
             CallLog();
             var keyboard = Keyboard.current;
@@ -1117,6 +1230,7 @@ namespace Punchy.Debugging
         /// beating its wings if flying).</summary>
         static string poseRequest;
         Entity posed;
+        float posedAt;   // when the -pose specimen appeared (for "scare")
         float2? swimSpot;
         /// <summary>"-interact Cat:carry" (or ":pet"): walks up to the nearest one, pets it or picks it up, and puts it
         /// down again a while later, as if the keys were pressed (alone, hosting or joined).</summary>
@@ -1357,6 +1471,12 @@ namespace Punchy.Debugging
             if (System.Array.IndexOf(args, "-meteors") >= 0)
                 Shader.SetGlobalFloat("_PunchySkyTest", 1f);
             Punchy.Player.PlayerMovementSystem.NoPushOut.Data = System.Array.IndexOf(args, "-nopushout") >= 0;
+            // "-oldlie" (A-42): lying four-legged bodies' legs left where they fall, for before shots from the same build.
+            CreatureAnimator.OldLie.Data = System.Array.IndexOf(args, "-oldlie") >= 0 ? 1 : 0;
+            // "-solidsoff" (A-44): wild animals ignore cave walls, towers and carved ground as before, for before numbers
+            // from the same build. "-solidstats": log their contacts, sink and floating every 60 s (SolidStatsLog).
+            CreatureMotion.SolidsOff.Data = System.Array.IndexOf(args, "-solidsoff") >= 0 ? 1 : 0;
+            CreatureMotion.StatsOn.Data = System.Array.IndexOf(args, "-solidstats") >= 0 ? 1 : 0;
             // "-redstar": one red-orange shooting star held mid-flight high in the east, for shots (W-42).
             if (System.Array.IndexOf(args, "-redstar") >= 0)
                 Shader.SetGlobalFloat("_PunchySkyTest", 2f);
@@ -1503,7 +1623,7 @@ namespace Punchy.Debugging
                     if (parts.Length >= 3 && float.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var gy))
                         t.Position.y = ground.FloorUnder(new float3(gx, gy + 1f, gz), out _) + 0.05f;
                     em.SetComponentData(goer, t);
-                    Debug.Log($"DebugControls: to {gx:F0},{gz:F0}");
+                    Debug.Log($"DebugControls: to {gx:F0},{t.Position.y:F1},{gz:F0}");
                     // W-67b: the kit boxes there may not be placed yet (tiles still loading after the jump): wait for them.
                     gotoSettle = new float3(gx, parts.Length >= 3 ? t.Position.y - 0.05f : float.NaN, gz);
                     gotoSettleUntil = Time.unscaledTime + 5f;
@@ -1522,6 +1642,12 @@ namespace Punchy.Debugging
             // "-oldtrace" (#81): TraceSystem's managed per-creature ground lookups, as before W-66.
             Punchy.Fauna.TraceSystem.OldTrace = System.Array.IndexOf(args, "-oldtrace") >= 0;
             perfLog = System.Array.IndexOf(args, "-perflog") >= 0;
+            // A-45 A/B toggles: "-oldsearch" (#57, every brain search every frame), "-oldsnapshot" (#56, each reader copies
+            // the creatures itself), "-oldtrace" (#55, the ground sampled for every creature in trace range).
+            Punchy.Fauna.CreatureBrainSystem.SearchEveryFrame.Data = System.Array.IndexOf(args, "-oldsearch") >= 0 ? 1 : 0;
+            Punchy.Fauna.CreatureSnapshotSystem.Off = System.Array.IndexOf(args, "-oldsnapshot") >= 0;
+            Punchy.Fauna.TraceSystem.OldOrder = System.Array.IndexOf(args, "-oldtrace") >= 0;
+            Punchy.Fauna.TraceSystem.Stats = perfLog;
             CaveSystem.CountStats = ThirdPersonCamera.ProbeStats = perfLog;
             // "-goflat" (A-13 #46): to the nearest dry spot whose ground height spread over a 30 m circle is under 0.5 m
             // (found once, by rings round the start; the spot and its measured spread are logged).
@@ -2003,6 +2129,14 @@ namespace Punchy.Debugging
             var glide = how == "glide";
             if (glide)
                 how = "fly";
+            // A-42: "lie": lying down (Rest), its legs folded; "-oldlie" on the same line leaves them as they fell before
+            // A-42. A later -pose line naming another species swaps the specimen.
+            var lie = how == "lie";
+            if (posed != Entity.Null && em.Exists(posed) && em.GetComponentData<CreatureBody>(posed).Species != director.SpeciesIndex(parts[0]))
+            {
+                em.DestroyEntity(posed);
+                posed = Entity.Null;
+            }
             if (posed == Entity.Null || !em.Exists(posed))
             {
                 var index = director.SpeciesIndex(parts[0]);
@@ -2014,6 +2148,7 @@ namespace Punchy.Debugging
                 }
                 var spot = player.Position.xz + new float2(2f, 0f);
                 posed = director.Spawn(index, new float3(spot.x, source.SampleHeight(spot), spot.y), 0f);
+                posedAt = Time.time;
                 em.AddComponent<PosedForTest>(posed);
                 Debug.Log($"DebugControls: posing {parts[0]} ({how})");
             }
@@ -2023,12 +2158,26 @@ namespace Punchy.Debugging
             var xz = player.Position.xz + new float2(2f, 0f);
             var ground = source.SampleHeight(xz);
             var size = b.BodyLength * c.Scale;
-            c.Mode = how == "hang" ? CreatureMode.Roost : CreatureMode.Idle;
+            c.Mode = how == "hang" ? CreatureMode.Roost : lie ? CreatureMode.Rest : CreatureMode.Idle;
+            if (lie)
+                c.Lie = 1f;
+            // "scare" (A-42): stands 3 s, then turns and runs off straight ahead (+z), as if frightened: the flee state
+            // change a skunk's gas starts from. The camera follows it.
+            var scared = how == "scare" ? math.max(Time.time - posedAt - 3f, 0f) : 0f;
+            if (scared > 0f)
+            {
+                c.Mode = CreatureMode.Flee;
+                c.Speed = b.RunSpeed * c.Scale;
+                c.GaitSpeed = c.Speed;
+                CreatureMotion.AdvancePhase(ref c, ref b, dt);
+                xz += new float2(0f, scared * c.Speed);
+                ground = source.SampleHeight(xz);
+            }
             c.Stage = (byte)(how == "hang" ? 200 : 0);
             c.Fly = how == "fly" ? 1f : 0f;
             c.Vertical = how == "hang" ? -1f : 0f;
-            c.Speed = how == "fly" ? b.FlySpeed * 0.6f : 0f;
-            var onGround = how == "rest" || how == "nest" && b.Nests == NestSite.Ground;
+            c.Speed = how == "fly" ? b.FlySpeed * 0.6f : scared > 0f ? c.Speed : 0f;
+            var onGround = how == "rest" || lie || how == "scare" || how == "nest" && b.Nests == NestSite.Ground;
             c.Position = new float3(xz.x, ground + (onGround ? 0f : math.max(1.2f, size * 4f)), xz.y);
             // Sitting in its nest (made where it is, the size FindNest gives one).
             if (how == "nest")
@@ -2337,6 +2486,12 @@ namespace Punchy.Debugging
         double perfFrame, perfMax, perfMain, perfRender, perfGpu, perfDraws, perfTris;
         long perfLoaded, perfSubmitted, perfInView, perfShadows, perfCaveTris;
         long perfProbeCalls0 = -1, perfProbeTicks0;
+        // (A-45 baselines: trace frames/ticks/surface checks, snapshot copies/ticks, brain searches and flees.)
+        struct long2 { public long X, Y; public long2(long x, long y) { X = x; Y = y; } }
+        struct long3 { public long X, Y, Z; public long3(long x, long y, long z) { X = x; Y = y; Z = z; } }
+        long3 perfTrace0;
+        long2 perfCopies0;
+        Punchy.Fauna.CreatureBrainSystem.SearchCounts perfSearch0;
         readonly FrameTiming[] perfTiming = new FrameTiming[1];
 
         void SamplePerf()
@@ -2345,6 +2500,9 @@ namespace Punchy.Debugging
             {
                 perfProbeCalls0 = ThirdPersonCamera.ProbeCalls;
                 perfProbeTicks0 = ThirdPersonCamera.ProbeTicks;
+                perfTrace0 = new long3(Punchy.Fauna.TraceSystem.Frames, Punchy.Fauna.TraceSystem.Ticks, Punchy.Fauna.TraceSystem.NoSurfaceCalls);
+                perfCopies0 = new long2(Punchy.Fauna.CreatureSnapshotSystem.Copies, Punchy.Fauna.CreatureSnapshotSystem.CopyTicks);
+                perfSearch0 = Punchy.Fauna.CreatureBrainSystem.Searches.Data;
             }
             var dt = Time.unscaledDeltaTime * 1000.0;
             perfFrames++;
@@ -2415,6 +2573,18 @@ namespace Punchy.Debugging
                       $"{perfCaveTris / c / 1000} k cave tris in view; lights {lights} ({shadowLights} shadowed), particles {systems} systems / {particles}; " +
                       $"camera probe {(double)probeCalls / n:F2}/frame, {probeMs / n * 1000:F0} us/frame; IsRock {benchUs:F2} us/call (Burst); " +
                       $"underground {CaveSystem.Underground:F2}, hidden {CaveSystem.SurfaceHidden:F2}, player ({at.x:F1}, {at.y:F1}, {at.z:F1})");
+            // A-45 (#55-#57): traces, shared creature snapshot, staggered brain searches.
+            var freq = (double)System.Diagnostics.Stopwatch.Frequency;
+            var traceFrames = System.Math.Max(Punchy.Fauna.TraceSystem.Frames - perfTrace0.X, 1);
+            var se = Punchy.Fauna.CreatureBrainSystem.Searches.Data;
+            Debug.Log($"DebugControls: perf2 '{name}' {perfFrames} frames, creatures {World.DefaultGameObjectInjectionWorld?.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>()).CalculateEntityCount() ?? 0}; " +
+                      $"trace {(Punchy.Fauna.TraceSystem.Ticks - perfTrace0.Y) * 1000.0 / freq / traceFrames:F3} ms/frame, " +
+                      $"{(double)(Punchy.Fauna.TraceSystem.NoSurfaceCalls - perfTrace0.Z) / traceFrames:F1} surface checks/frame; " +
+                      $"snapshot copies {(double)(Punchy.Fauna.CreatureSnapshotSystem.Copies - perfCopies0.X) / n:F1}/frame, " +
+                      $"{(Punchy.Fauna.CreatureSnapshotSystem.CopyTicks - perfCopies0.Y) * 1000.0 / freq / n:F3} ms/frame; " +
+                      $"searches/frame predator {(double)(se.Predator - perfSearch0.Predator) / n:F1}, alarm {(double)(se.Alarm - perfSearch0.Alarm) / n:F1}, " +
+                      $"chat {(double)(se.Chat - perfSearch0.Chat) / n:F1}; flees predator {se.PredatorFlee - perfSearch0.PredatorFlee}, " +
+                      $"alarm {se.AlarmFlee - perfSearch0.AlarmFlee}; totals flee {se.PredatorFlee}/{se.AlarmFlee}");
             perfFrames = perfTimed = perfChunkFrames = 0;
             perfFrame = perfMax = perfMain = perfRender = perfGpu = perfDraws = perfTris = 0;
             perfLoaded = perfSubmitted = perfInView = perfShadows = perfCaveTris = 0;
@@ -3728,6 +3898,7 @@ namespace Punchy.Debugging
                 playerQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
                 terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
                 paletteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
+                floraQuery = em.CreateEntityQuery(ComponentType.ReadOnly<FloraLookup>());
                 queryWorld = world;
                 locations.Clear();
             }
@@ -4224,20 +4395,33 @@ namespace Punchy.Debugging
                 }
             }
 
-            // Landmarks: every one, seen from just outside (the low side of a cliff), as N does.
+            // Landmarks: every one, seen from just outside (the low side of a cliff), as N does. Not the caves and
+            // grottoes (a landmark type with a Cave): F7 already goes to those (A-43, the owner's call).
             if (hasLandmarks)
             {
                 ref var set = ref source.Landmarks.Value;
+                var caveKinds = new SortedDictionary<string, int>();
                 for (int i = 0; i < set.Instances.Length; i++)
                 {
                     ref var inst = ref set.Instances[i];
                     if (inst.Type >= palette.Landmarks.Length || palette.Landmarks[inst.Type] == null)
                         continue;
+                    if (palette.Landmarks[inst.Type].Cave)
+                    {
+                        caveKinds.TryGetValue(palette.Landmarks[inst.Type].name, out var seen);
+                        caveKinds[palette.Landmarks[inst.Type].name] = seen + 1;
+                        continue;
+                    }
                     var radius = set.Types[inst.Type].Radius * inst.Scale;
                     var away = set.Types[inst.Type].Shape == LandmarkShape.Cliff ? -inst.Facing : math.normalizesafe(inst.Position, new float2(1f, 0f));
                     var at = Dry(source, inst.Position + away * radius * 1.1f, inst.Position);
                     warpTargets[3].Add(new Location { Name = palette.Landmarks[inst.Type].name, Position = at, Yaw = Yaw(inst.Position - at) });
                 }
+                var dropped = 0;
+                foreach (var kind in caveKinds.Values)
+                    dropped += kind;
+                Debug.Log($"DebugControls: F8 landmarks {warpTargets[3].Count + dropped} before, {warpTargets[3].Count} after leaving out caves: " +
+                          string.Join(", ", System.Linq.Enumerable.Select(caveKinds, k => $"{k.Key} {k.Value}")));
             }
 
             Debug.Log($"DebugControls: warp keys F5 {WarpNames[0]}, F6 {WarpNames[1]}, F7 {WarpNames[2]}, F8 {WarpNames[3]} (Shift back; F4 is taken by the input actions); targets: biomes {warpTargets[0].Count}, settlements {warpTargets[1].Count}, caves {warpTargets[2].Count}, landmarks {warpTargets[3].Count}");
@@ -4261,7 +4445,9 @@ namespace Punchy.Debugging
         {
             if (playerQuery.TryGetSingleton<LocalTransform>(out var player))
             {
-                GUIUtility.systemCopyBuffer = $"-goto {player.Position.x:F0},{player.Position.z:F0}";
+                // (With the height, A-43: in a cave the spot is under the ground surface, and -goto x,y,z goes back
+                // to the floor there.)
+                GUIUtility.systemCopyBuffer = $"-goto {player.Position.x:F0},{player.Position.y:F1},{player.Position.z:F0}";
                 copiedUntil = Time.unscaledTime + 2f;
                 readout = null;
             }
@@ -4331,6 +4517,8 @@ namespace Punchy.Debugging
             return string.Join(" · ", hints);
         }
 
+        bool readoutUnderground;
+
         string BuildReadout()
         {
             var lines = new List<string>();
@@ -4344,8 +4532,15 @@ namespace Punchy.Debugging
                 // Where exactly (for reporting a spot: F3 copies it; "-goto x,z" comes back to it).
                 var forward = math.mul(player.Rotation, new float3(0f, 0f, 1f));
                 var heading = (math.degrees(math.atan2(forward.x, forward.z)) + 360f) % 360f;
+                source.FloorUnder(player.Position + new float3(0f, 0.5f, 0f), out var underground);
                 lines.Add($"x <b>{player.Position.x:F0}</b>   y <b>{player.Position.y:F0}</b>   z <b>{player.Position.z:F0}</b>   facing {heading:F0}°" +
-                          (copiedUntil > Time.unscaledTime ? "   <color=#9f9>copied</color>" : ""));
+                          (underground ? "   <b>in cave</b>" : "") + (copiedUntil > Time.unscaledTime ? "   <color=#9f9>copied</color>" : ""));
+                // (Logged whenever it goes into or out of a cave, so a test run shows what the readout said there.)
+                if (underground != readoutUnderground)
+                {
+                    readoutUnderground = underground;
+                    Debug.Log($"DebugControls: readout {lines[lines.Count - 1].Replace("<b>", "").Replace("</b>", "")}");
+                }
                 if (Weather != null && Weather.Field.Ready)
                     lines.Add($"day: <b>{Weather.DayTypeName}</b>   weather here: {Weather.Field.Describe(new Vector2(xz.x, xz.y))}");
             }

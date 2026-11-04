@@ -101,13 +101,33 @@ namespace Punchy.CameraRig
                 var near = -1f;
                 if (terrain.CaveDistance(head) < CaveNear)
                 {
-                    // The head under a low ceiling: the pivot drops until it's in the air.
-                    for (var i = 0; i < 8 && PlayerMovementSystem.SolidDistance(terrain, ToFloat3(target)) < 0.15f && target.y > playerPosition.y + 0.4f; i++)
-                        target.y -= 0.15f;
+                    var probeStart = ProbeStats ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
+                    float clear;
+                    if (OldProbe)
+                    {
+                        // The head under a low ceiling: the pivot drops until it's in the air.
+                        for (var i = 0; i < 8 && PlayerMovementSystem.SolidDistance(terrain, ToFloat3(target)) < 0.15f && target.y > playerPosition.y + 0.4f; i++)
+                            target.y -= 0.15f;
+                        var oldBack = position - target;
+                        var oldLength = oldBack.magnitude;
+                        clear = CaveArm(terrain, target, oldBack / Mathf.Max(oldLength, 1e-4f), oldLength);
+                    }
+                    else
+                    {
+                        // The same pivot drop and sphere trace in Burst (#54, the ArmProbe pattern from W-48): managed
+                        // TerrainSource calls cost ~16 us each, and a tight chamber takes up to 160 of them a frame.
+                        var result = new Unity.Collections.NativeArray<float>(2, Unity.Collections.Allocator.TempJob);
+                        Unity.Jobs.IJobExtensions.Run(new ArmProbe
+                        {
+                            Terrain = terrain, Target = ToFloat3(target), Position = ToFloat3(position),
+                            PlayerY = playerPosition.y, Result = result
+                        });
+                        target.y = result[0];
+                        clear = result[1];
+                        result.Dispose();
+                    }
                     var back = position - target;
                     var length = back.magnitude;
-                    var probeStart = ProbeStats ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
-                    var clear = CaveArm(terrain, target, back / Mathf.Max(length, 1e-4f), length);
                     if (ProbeStats)
                     {
                         ProbeCalls++;
@@ -168,7 +188,7 @@ namespace Punchy.CameraRig
             transform.SetPositionAndRotation(position, rotation);
         }
 
-        /// <summary>Testing (-oldcave): kept for the flag; the cave arm is now always the sphere trace (CaveArm).</summary>
+        /// <summary>Testing (-oldcave): the cave arm's pivot drop and sphere trace in managed code (CaveArm), as before the Burst ArmProbe (#54).</summary>
         public static bool OldProbe;
         /// <summary>Testing (-perflog): time the cave arm probe.</summary>
         public static bool ProbeStats;
@@ -204,6 +224,47 @@ namespace Punchy.CameraRig
                 t = Mathf.Min(t + Mathf.Max((d - lens) * 0.5f, 0.05f), length);
             }
             return t;
+        }
+
+        /// <summary>
+        /// The cave arm in Burst (#54): the pivot drop under a low ceiling, then CaveArm's sphere trace, step for step.
+        /// Result[0] is the pivot's height after the drop, Result[1] how far out the lens can go.
+        /// </summary>
+        [Unity.Burst.BurstCompile]
+        public struct ArmProbe : Unity.Jobs.IJob
+        {
+            public TerrainSource Terrain;
+            public Unity.Mathematics.float3 Target, Position;
+            public float PlayerY;
+            public Unity.Collections.NativeArray<float> Result;
+
+            public void Execute()
+            {
+                var target = Target;
+                for (var i = 0; i < 8 && PlayerMovementSystem.SolidDistance(Terrain, target) < 0.15f && target.y > PlayerY + 0.4f; i++)
+                    target.y -= 0.15f;
+                var back = Position - target;
+                var length = Unity.Mathematics.math.length(back);
+                var dir = back / Unity.Mathematics.math.max(length, 1e-4f);
+                Result[0] = target.y;
+                Result[1] = Trace(Terrain, target, dir, length);
+            }
+
+            static float Trace(in TerrainSource terrain, Unity.Mathematics.float3 from, Unity.Mathematics.float3 dir, float length)
+            {
+                var lens = Unity.Mathematics.math.clamp(PlayerMovementSystem.SolidDistance(terrain, from) * 0.9f, 0.05f, LensRadius);
+                var t = 0f;
+                for (var i = 0; i < 160; i++)
+                {
+                    var d = PlayerMovementSystem.SolidDistance(terrain, from + dir * t);
+                    if (d < lens)
+                        return Unity.Mathematics.math.max(t - LensMargin, 0.2f);
+                    if (t >= length)
+                        return length;
+                    t = Unity.Mathematics.math.min(t + Unity.Mathematics.math.max((d - lens) * 0.5f, 0.05f), length);
+                }
+                return t;
+            }
         }
 
         void SetNearPlane(float near)

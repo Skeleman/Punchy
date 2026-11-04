@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Punchy.Terrain;
 using Unity.Collections;
 using Unity.Entities;
@@ -74,9 +74,7 @@ namespace Punchy.Fauna
             if (cam != null && SystemAPI.TryGetSingleton<TerrainSource>(out var terrain))
             {
                 float3 camAt = cam.transform.position;
-                var entities = query.ToEntityArray(Allocator.Temp);
-                var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
-                var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+                CreatureSnapshotSystem.Get(World, query, out var states, out var bodies, out var entities);
                 nowOut.Clear();
                 for (int i = 0; i < states.Length; i++)
                 {
@@ -119,9 +117,7 @@ namespace Punchy.Fauna
                     foreach (var e in stale)
                         lastBump.Remove(e);
                 }
-                entities.Dispose();
-                states.Dispose();
-                bodies.Dispose();
+                CreatureSnapshotSystem.Release(World, states, bodies, entities);
                 foreach (var m in bumps)
                     Offer(new Vector4(m.At.x, (now - m.Born) / TrailTime, m.At.y, m.Radius), math.distance(m.At, camAt.xz));
                 foreach (var m in craters)

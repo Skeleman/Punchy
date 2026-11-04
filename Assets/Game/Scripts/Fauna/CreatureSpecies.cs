@@ -78,6 +78,8 @@ namespace Punchy.Fauna
         public Vector2 IdleTime = new Vector2(2f, 8f);
         [Tooltip("Runs away from the player within this distance (0 = unafraid).")]
         public float FleeDistance = 12f;
+        [Tooltip("Gives off a puff of green gas from its rear as it starts to run away (a skunk). Looks only.")]
+        public bool FleeGas;
         [Tooltip("Degrees per second.")]
         public float TurnRate = 140f;
         [Tooltip("Drawn, kept about and sent to other players from this far off (metres), for huge animals seen across " +

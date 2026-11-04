@@ -1,4 +1,4 @@
-using Punchy.Terrain;
+﻿using Punchy.Terrain;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -65,9 +65,7 @@ namespace Punchy.Fauna
             {
                 float3 camAt = cam.transform.position;
                 var frame = UnityEngine.Time.frameCount;
-                var entities = query.ToEntityArray(Allocator.Temp);
-                var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
-                var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+                CreatureSnapshotSystem.Get(World, query, out var states, out var bodies, out var entities);
                 for (int i = 0; i < states.Length; i++)
                 {
                     var s = states[i];
@@ -122,9 +120,7 @@ namespace Punchy.Fauna
                     distances[slot] = d;
                     slots[slot] = new Vector4(r.At.x, (now - r.Born) / RippleTime, r.At.y, r.Strength);
                 }
-                states.Dispose();
-                bodies.Dispose();
-                entities.Dispose();
+                CreatureSnapshotSystem.Release(World, states, bodies, entities);
                 if (wet.Count > 2000)
                     wet.Clear();
                 if (lastRipple.Count > 500)

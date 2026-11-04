@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Punchy.Fauna;
 using Punchy.Terrain;
 using Unity.Collections;
@@ -134,9 +134,7 @@ namespace Punchy.Audio
         void Creatures(float3 ear, TerrainSource terrain)
         {
             var clock = (float)SystemAPI.Time.ElapsedTime;
-            var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
-            var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
-            var entities = query.ToEntityArray(Allocator.Temp);
+            CreatureSnapshotSystem.Get(World, query, out var states, out var bodies, out var entities);
             var seen = new HashSet<Entity>();
             for (int i = 0; i < states.Length; i++)
             {
@@ -150,6 +148,9 @@ namespace Punchy.Audio
                 var had = last.TryGetValue(e, out var was);
                 var flap = (int)math.floor(s.Clock * math.max(b.FlapRate, 0.1f));
                 var species = bodies[i].Species;
+                // (Another player's body carries no species of its own: its calls by the species it was spawned as.)
+                if (species < 0 && EntityManager.HasComponent<RemoteAvatar>(e))
+                    species = EntityManager.GetComponentData<RemoteAvatar>(e).Species;
                 var mine = species >= 0 && species < calls.Length ? calls[species] : null;
                 var slots = int4.zero;
                 if (mine != null)
@@ -176,6 +177,8 @@ namespace Punchy.Audio
                             var call = mine[(s.Action - IdleAction.Wave) % mine.Count];
                             GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f),
                                                   (call.Pitch.x + call.Pitch.y) * 0.5f, call.Volume, call.Reach, SoundGroup.Player);
+                            UnityEngine.Debug.Log($"CreatureAudio: emote {s.Action} plays {call.Sound} from {(EntityManager.HasComponent<RemoteAvatar>(e) ? "another player's" : "our")} body" +
+                                                  $" at ({s.Position.x:F1}, {s.Position.y:F1}, {s.Position.z:F1}), {d:F1} m away");
                         }
                     }
                     // Footfalls: a leg's phase wrapping round, while moving on the ground.
@@ -234,9 +237,7 @@ namespace Punchy.Audio
                     stale.Add(e);
             foreach (var e in stale)
                 last.Remove(e);
-            states.Dispose();
-            bodies.Dispose();
-            entities.Dispose();
+            CreatureSnapshotSystem.Release(World, states, bodies, entities);
         }
 
         /// <summary>Whether a call this far off fits the budget (taking its share if so).</summary>
@@ -288,9 +289,7 @@ namespace Punchy.Audio
         /// </summary>
         void Moods(float3 ear)
         {
-            var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
-            var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
-            var entities = query.ToEntityArray(Allocator.Temp);
+            CreatureSnapshotSystem.Get(World, query, out var states, out var bodies, out var entities);
             var now = (float)SystemAPI.Time.ElapsedTime;
             var dt = SystemAPI.Time.DeltaTime;
             var purring = new HashSet<Entity>();
@@ -364,9 +363,7 @@ namespace Punchy.Audio
             }
             if (moodVoice.Count > 512)
                 moodVoice.Clear();
-            states.Dispose();
-            bodies.Dispose();
-            entities.Dispose();
+            CreatureSnapshotSystem.Release(World, states, bodies, entities);
         }
 
         void Step(in CreatureState s, ref CreatureBlob b, float side, TerrainSource terrain)

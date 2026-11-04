@@ -873,6 +873,10 @@ namespace Punchy.Fauna
                 var p = at + rng.NextFloat2Direction() * rng.NextFloat(0f, 2f + group * 1.5f);
                 var g = source.SampleGround(p);
                 var d = g.HasWater ? g.WaterSurface - g.Height : -1f;
+                // (A-44: not over a cave entrance's carved ground, where the heightmap would leave it in the air.)
+                var land = s.Habitat == Habitat.Land || s.Habitat == Habitat.Flies;
+                if (land && g.Height - CreatureMotion.Ground(source, p, g.Height) > 0.2f)
+                    continue;
                 if (Suits(s.Habitat, d))
                     Spawn(best, new float3(p.x, s.Habitat == Habitat.Land || s.Habitat == Habitat.Flies ? g.Height : g.WaterSurface - math.min(d * 0.45f, s.SwimDepth), p.y));
             }

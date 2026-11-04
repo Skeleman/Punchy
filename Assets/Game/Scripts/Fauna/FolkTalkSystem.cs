@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Punchy.Player;
 using Punchy.Terrain;
 using Unity.Collections;
@@ -141,9 +141,7 @@ namespace Punchy.Fauna
             var hour = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Hour : 12f;
             hourNow = hour;
 
-            var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
-            var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
-            var entities = query.ToEntityArray(Allocator.Temp);
+            CreatureSnapshotSystem.Get(World, query, out var states, out var bodies, out var entities);
             // The player's own body (the puppet where the player stands), for {player}: only to folk of another kind (a
             // dwarf doesn't remark on a dwarf).
             string playerSpecies = null, playerKind = null;
@@ -297,9 +295,7 @@ namespace Punchy.Fauna
             if (director == null)
                 director = Object.FindAnyObjectByType<FaunaDirector>();
             var cam = Camera.main;
-            var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
-            var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
-            var entities = query.ToEntityArray(Allocator.Temp);
+            CreatureSnapshotSystem.Get(World, query, out var states, out var bodies, out var entities);
             talking.Clear();
             childrenBy.Clear();
             for (int i = 0; i < states.Length; i++)
@@ -384,9 +380,7 @@ namespace Punchy.Fauna
             }
             if (ChatMix && cam != null && now >= nextMix)
                 LogMix(now, (float3)cam.transform.position, states, bodies);
-            states.Dispose();
-            bodies.Dispose();
-            entities.Dispose();
+            CreatureSnapshotSystem.Release(World, states, bodies, entities);
             if (Bubbles.Count > 0)
             {
                 FolkTalkLabels.Ensure();

@@ -77,7 +77,7 @@ MonoBehaviour:
   - Limb: {fileID: 11400000, guid: 6446bb73adb18454ab8e1fb210787bc3, type: 2}
     Parent: 1
     Socket: {x: 0.1615, y: 0.01, z: -0.063}
-    Direction: {x: 180, y: 0, z: 0}
+    Direction: {x: 155, y: 0, z: 0}
     Mirror: 1
     Phase: 0.5
     MirrorPhase: 0.5
