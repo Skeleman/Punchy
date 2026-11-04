@@ -41,6 +41,14 @@ namespace Punchy.Debugging
         // Graphics and process memory at the end of each stop (does streaming fill video memory over a route?).
         ProfilerRecorder gfxUsed, gfxReserved, systemUsed, drawCalls;
         int hitchLines;
+        /// <summary>-hitchms N: log every frame over N ms while measuring (default 50).</summary>
+        static readonly float HitchSec = HitchArg();
+        static float HitchArg()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            var i = System.Array.IndexOf(args, "-hitchms");
+            return i >= 0 && i + 1 < args.Length && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var ms) ? ms / 1000f : 0.05f;
+        }
         static string phase = "";
         long drawTotal, batchTotal, setPassTotal, shadowTotal, triTotal;
         ProfilerRecorder batches, setPass, shadowCasters, tris;
@@ -365,7 +373,7 @@ namespace Punchy.Debugging
                 return;
             frameMs.Add(Time.unscaledDeltaTime * 1000f);
             // Every frame over 50 ms while measuring: when, where and in which part of a driven stop (job 22).
-            if (Time.unscaledDeltaTime > 0.05f && hitchLines++ < 300 && TryGetPlayerPosition(out var hp))
+            if (Time.unscaledDeltaTime > HitchSec && hitchLines++ < 300 && TryGetPlayerPosition(out var hp))
                 Debug.Log($"BenchRoute: hitch {Time.unscaledDeltaTime * 1000f:F0} ms at {Time.realtimeSinceStartup:F1} s, frame {Time.frameCount}, player {hp.x:F0},{hp.y:F0},{hp.z:F0}, {phase}");
             if (drawCalls.Valid)
                 drawTotal += drawCalls.LastValue;
