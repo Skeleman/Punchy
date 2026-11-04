@@ -2,6 +2,21 @@
 
 Newest first.
 
+## 2026-11-04: job 18, W-75 (world-features 096ec00) and A-51 (animal-behaviours b527dc1) vs main 9d34275: A-51 is a real win where creatures are (hut cave 96.8 -> 125.8 fps, median 10.07 -> 7.83 ms); W-75 is frame-neutral and its load boost brings "[stream] world ready" 37.3 -> 35.5 s
+Method: Bench builds of 9d34275, 096ec00, b527dc1, plus Bench-f405348n (A-51's base, from job 16). Island v2, uncapped, 3 rounds with the order rotated. Each round runs the q13 route (town, townwalk, cave, caveapproach, glide) and the hut cave floor (`-goto 530,45,958`). W-75 also ran 3 times with PUNCHY_LOADBOOST=0. Dev profiles at townwalk and the hut cave for the three new SHAs. 0 exceptions in every log.
+- Mean of 3 (avg fps / 1% low / median ms / worst ms), main -> W-75 -> A-51 (A-51's base f405348 in brackets):
+  - hut cave: 96.8/58.3/10.07/35.6 -> 96.1/56.7/10.07/35.8 -> **125.8/76.1/7.83/32.1** [96.1/57.5/10.10/33.4]
+  - cave: 116.9/70.4/8.37/28.5 -> 120.8/72.7/8.07/26.7 -> **135.5/87.7/7.30/26.9** [119.1/70.4/8.20/27.5]
+  - town: 86.0/53.5/11.60/27.2 -> 86.1/50.4/11.60/25.9 -> 88.4/56.0/11.37/21.8 [85.7/53.4/11.67/23.3]
+  - townwalk: 78.4/37.5/12.30/33.9 -> 79.5/38.7/12.17/34.4 -> 80.5/44.6/12.17/27.4 [79.2/38.5/12.20/34.0]
+  - caveapproach: 62.1/28.8/15.73/46.8 -> 60.9/27.9/15.97/47.7 -> 63.7/31.5/15.47/41.4 [61.8/28.0/15.77/53.3]
+  - glide: 89.4/37.7/10.63/37.6 -> 89.7/37.7/10.53/36.0 -> 88.6/40.8/10.53/31.8 [89.3/36.5/10.67/37.9]
+- A-51, main-thread self ms (dev profile, frame mean). Hut cave: CreatureRenderSystem:PoseJob 1.63 -> off the main thread; CreatureRenderSystem 0.58 -> 0.23; Brain.Tick + Brain.Advance 0.64 -> 0.02; ReachJob 0.30 -> off the main thread. Frame 12.46 -> 9.30 ms. Townwalk: PoseJob 0.34 and the debug HUD (DebugControls.OnGUI 0.25 + GUIStyle.GetDimensions 0.22, so about 0.45 ms, close to the 0.5 ms estimate) are gone; WaitForJobGroupID 0.29 -> 0.12. Frame 12.58 -> 12.38 ms. On the worst frames A-51 is 5-12 ms better at townwalk, caveapproach and glide.
+- W-75: frame-neutral everywhere (every stop within noise of main). TerrainStreamingSystem 1.00 vs 0.99 ms and FloraSystem.LateUpdate 0.64 vs 0.65 ms at townwalk. In the hut cave Brain.Tick + Advance read 0.34 vs 0.64 ms on main; only one capture, so treat that as noise until it's measured again.
+- World ready (3 runs each): BenchRoute's "world ready" is about 23.5 s on all four builds (23.2-23.8 s), and the island is ready at 15.2-15.6 s, so W-75 doesn't change either. W-75's own "[stream] world ready" line comes later (it waits for the full streaming radius): 35.4-35.8 s with the boost on and 37.2-37.5 s with PUNCHY_LOADBOOST=0. **The boost saves about 1.9 s (37.3 -> 35.5 s)**, which is 9 % of the 21.9 s from island ready to world fully streamed. Only W-75 logs that line, so there's no main number to compare it with.
+- Scripts: q18.sh. Results: results/q18.csv, q18-table.txt, q18logs/, prof18-*.
+- Cost: session total so far 153 calls, peak 301k context, $10.55 (jobs 12-18 and Zach's questions; per-job split isn't recorded)
+
 ## 2026-11-04: item 16, memory recheck on main f405348: the W-73 fix holds (editor Total Used flat over 10 plays on v2 and v3, no Persistent leak at shutdown); separately, an intermittent player crash on the 2nd host in one session, also on main before W-73
 Builds: Bench-f405348n and Bench-3a4acb8n, each with a profiler-only helper (lanes/profiler/scripts/NetCycle.cs.txt, never committed: -netcycle N hosts and goes back to solo N times, logging memory). Editor: batchmode on f405348 with MemCheck (-fasttiming -nosnap). Play 1 runs with Burst safety checks, the jobs debugger and leak detection off; leak detection is Enabled for the 10 cycles; the editor's settings were put back at exit (they were: safety checks on, jobs debugger on, leak detection Enabled).
 - Editor v2, Total Used (MB): idle 2174, play 1 after the bake 3129, after exit 2291, cycles 1-10: 2131 2131 2131 2132 2132 2132 2132 2000 2000 2000. **Flat** (job 14 on 5d0956a: +22 MB every cycle). The shutdown check has no "Persistent allocates" line; only the old "2 preview scenes not closed".
