@@ -9,7 +9,7 @@ Released: v0.11.0 = 4eea658. main = 8b4bf19 (A-51, PR #101).
 2. Check: `gh auth status` (repo is public: no machine paths in issues or comments); `git pull --rebase` here;
    `results/.lock` absent in `Punchy-wt/Tools/bench/results/` (if present, read `.lock/job` and ask Zach).
 3. Hooks: `sh hooks/install.sh <folder outside the trees>` (BENCH-QUEUE setup) if telemetry isn't installed.
-4. Jobs 17-20 and 23 reported 2026-11-04 (23: #99 fix 84208ff crashes on the first switch 7/7). Running in order: 21b (dungeon host/client on v2, after 21's v3 join timed out), 22b (bat folk cave GPU captures; push runner efbcd3a with the job 22 report), 23b (#99 on main 0ec7a8d). Reports for 21 and 22 come after their reruns. Then idle; don't poll.
+4. Jobs 17-20, 22 (+22b/22c) and 23/23b/23c reported 2026-11-04. Runner b/bench-runner 973a4bd pushed (herewarm, hereentry/hereentryfast, hitch log). Running in order: 23e (#99 on main 2dae74b, NetCycle, stop at the first crash), then 21c (dungeon host/client on v2 with a 30 s client delay); the job 21 report comes after 21c. Then idle; don't poll.
 
 ## How work arrives (the supervisor messages directly with SendMessage, or adds BENCH-QUEUE items)
 - Pull `coordination` at the start of every job and before every push (`git pull --rebase` on rejection).
@@ -54,3 +54,5 @@ All profiles and benches run uncapped (no frame cap, vsync off) unless a card as
 - `FILES.md`: machine, paths, runner, builds. `TESTING.md`: flags, gotchas, baselines.
 - `scripts/`: item 11 scripts (q11 bench+profiles, q11b leftovers, q11c cave walk), as patterns for new jobs.
   They source the runner's `lib.sh`; never assign its variable names (see TESTING.md).
+
+- Crash tests (Zach, 2026-11-04): stop at the first crash and report it with its stack; one crash is enough to say a fix failed. Only a clean result needs the full set of runs/re-hosts.
