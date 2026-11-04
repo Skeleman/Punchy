@@ -90,7 +90,9 @@ namespace Punchy.Net
         }
 
         /// <summary>Drops any network game and carries on alone where we stand, without networking.</summary>
-        public static void PlaySolo()
+        public static void PlaySolo() => Switch(DoPlaySolo);
+
+        static void DoPlaySolo()
         {
             JoiningSince = -1f;
             PendingPlacement = Placement.KeepPosition;
@@ -119,7 +121,9 @@ namespace Punchy.Net
         }
 
         /// <summary>Drops the current game and joins the host at an address (keeps the scene, rebuilds the worlds).</summary>
-        public static void Join(NetworkEndpoint host)
+        public static void Join(NetworkEndpoint host) => Switch(() => DoJoin(host));
+
+        static void DoJoin(NetworkEndpoint host)
         {
             StartedJoining(host.ToString());
             PendingPlacement = Placement.NearHost;
@@ -133,7 +137,9 @@ namespace Punchy.Net
         }
 
         /// <summary>Drops the current game and hosts a new one on <see cref="Port"/>.</summary>
-        public static void Host()
+        public static void Host() => Switch(DoHost);
+
+        static void DoHost()
         {
             JoiningSince = -1f;
             PendingPlacement = Placement.KeepPosition;
@@ -153,7 +159,9 @@ namespace Punchy.Net
         /// Drops the current game and hosts a new one reachable through Unity Relay (friends join with a code): the
         /// server listens both on an in-process link for our own client and on the Relay allocation.
         /// </summary>
-        public static void HostRelay(RelayServerData relay)
+        public static void HostRelay(RelayServerData relay) => Switch(() => DoHostRelay(relay));
+
+        static void DoHostRelay(RelayServerData relay)
         {
             JoiningSince = -1f;
             PendingPlacement = Placement.KeepPosition;
@@ -192,7 +200,9 @@ namespace Punchy.Net
         }
 
         /// <summary>Drops the current game and joins a host through Unity Relay.</summary>
-        public static void JoinRelay(RelayServerData relay)
+        public static void JoinRelay(RelayServerData relay) => Switch(() => DoJoinRelay(relay));
+
+        static void DoJoinRelay(RelayServerData relay)
         {
             StartedJoining("an online game");
             PendingPlacement = Placement.NearHost;
@@ -213,6 +223,69 @@ namespace Punchy.Net
                 driver.Connect(em, relay.Endpoint);
             }
             ReloadScene();
+        }
+
+        /// <summary>
+        /// #99 (P-12): replacing the game's worlds happens in two steps a few frames apart: the old worlds (and the old
+        /// scene's scripts) go now, and the new worlds are made and the scene reloaded <see cref="SwitchGap"/> frames
+        /// later. Making them in the same frame crashed release players on some machines (the laptop, 6 of 6) inside
+        /// Burst's static set-up for the new worlds, every time a teardown change freed native memory first. A second
+        /// switch asked for during the gap is ignored. "-switchgap N" sets the gap (0: the old same-frame switch).
+        /// </summary>
+        static void Switch(Action create)
+        {
+            if (switching)
+            {
+                Debug.Log("GameBootstrap: a switch is already under way; ignored");
+                return;
+            }
+            DisposeGameWorlds();
+            var gap = SwitchGap();
+            if (gap <= 0)
+            {
+                create();
+                return;
+            }
+            switching = true;
+            SwitchRunner.After(gap, () =>
+            {
+                switching = false;
+                Debug.Log($"GameBootstrap: making the new worlds ({gap} frames after the old ones went)");
+                create();
+            });
+        }
+
+        static bool switching;
+
+        static int SwitchGap()
+        {
+            var args = Punchy.Debugging.DebugControls.LaunchArgs;
+            var at = Array.IndexOf(args, "-switchgap");
+            return at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out var n) ? n : 2;
+        }
+
+        /// <summary>Runs the second half of a switch a few frames on (kept across scene loads, outside the old scene).</summary>
+        class SwitchRunner : MonoBehaviour
+        {
+            static SwitchRunner instance;
+
+            public static void After(int frames, Action action)
+            {
+                if (instance == null)
+                {
+                    var go = new GameObject("SwitchRunner") { hideFlags = HideFlags.HideInHierarchy };
+                    DontDestroyOnLoad(go);
+                    instance = go.AddComponent<SwitchRunner>();
+                }
+                instance.StartCoroutine(instance.Run(frames, action));
+            }
+
+            System.Collections.IEnumerator Run(int frames, Action action)
+            {
+                for (int i = 0; i < frames; i++)
+                    yield return null;
+                action();
+            }
         }
 
         /// <summary>Raised just before the worlds are replaced, while the old game is still intact.</summary>
