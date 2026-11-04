@@ -1908,3 +1908,16 @@ Commits on world-features (pushed): 79512da merge origin/main (A-52), 00b758d fl
   - after_fishing: the village is out of frame, so this shot is weak.
   - after_driftwood.
 - Calls: about 53 (ceiling). Editor closed.
+
+## W-81 (2026-11-04): #86 driftwood, #88 lake shelf (tabled)
+
+- 3d05f54 (#86): MaxLogs 2, MinGap 120 m. No after shot (see below).
+- 61f953b (#88): rows 1-2 are coded but only half checked, so row 3 applies. The shelf is behind a flag, **off by default**: `-lakeshelf` on the command line or `PUNCHY_LAKESHELF=1`. With it off, v3 has no shelf at all (the W-77b peninsula is gone too).
+  - Placement: rays every 2.5 degrees all round the lake. Each 60-degree stretch is scored by how far its middle sits back from its chord (bay) and the lowest land 30-90 m behind it, plus a small seeded nudge. A stretch needs at least 12 m of land behind it. The shelf takes that land's height (10-40 m), and the lip is the bay's middle two thirds.
+  - Falls: one sheet per ~10 m chord of the lip, as wide as the chord, each facing its own normal. The sheets meet at the lip; they widen a little lower down.
+  - First run, before the 12 m rule: bay at bearing 343 (215 m behind its chord), land behind -9 m. That was an inlet, not the mountain side, so I added the rule. The run with the rule was killed for low RAM, so the new pick is unmeasured.
+  - v3 landmark hash: 108 / 3A0DC7BB at the end, the same as at W-80 on this HEAD. The shelf goes in after landmarks.
+- What's left on #88: measure the new pick (log line "lake shelf bay at bearing ..."), take shots from (1680,60,260) and from the lake, check the land is flush, and maybe add a feeder stream.
+- No shots: free RAM dropped to about 3.5 GB twice while other lanes ran editors and the player lane built, and both runs were killed. D:\PunchyMilestones\W-81\ is empty.
+- The editor opened with a compile error (my typo, since fixed) and stopped at the Safe Mode prompt; I pressed Ignore. The editor was closed with EditorApplication.Exit.
+- Calls: about 45 (ceiling).
