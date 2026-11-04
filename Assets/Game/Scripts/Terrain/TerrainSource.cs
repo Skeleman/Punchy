@@ -995,7 +995,9 @@ namespace Punchy.Terrain
         public bool TowerWall(float3 p, float stepUp, float head) =>
             Tower(p.xz, out var tower, out var height) && SaltTowerShape.Wall(SaltTowerShape.Layout(tower, height), p, stepUp, head)
             || Temple(p.xz, out var temple) && SunkenTempleShape.Wall(ref Landmarks.Value, temple, p, stepUp, head, SampleHeight(p.xz) - temple.Base)
-            || Icebergs.IsCreated && IcebergShape.Wall(ref Icebergs.Value, World.SeaLevel, p, stepUp, head);
+            || Icebergs.IsCreated && IcebergShape.Wall(ref Icebergs.Value, World.SeaLevel, p, stepUp, head)
+            // #25 (W-83): an interior cell's walls (empty list: nothing).
+            || InteriorCells.Count > 0 && InteriorCells.Wall(p, stepUp, head);
 
         /// <summary>A bridge deck under a point that's on or just below it (see SettlementSampling.Deck).</summary>
         public bool Deck(float3 p, out float deck)
@@ -1021,6 +1023,12 @@ namespace Punchy.Terrain
                 templeFloor > SampleHeight(p.xz) - 0.05f && (!onDeck || templeFloor > deck))
             {
                 deck = templeFloor;
+                onDeck = true;
+            }
+            // #25 (W-83): an interior cell's floor (or any box top) stands bodies too (empty list: nothing).
+            if (InteriorCells.Count > 0 && InteriorCells.Floor(p, out var room) && (!onDeck || room > deck))
+            {
+                deck = room;
                 onDeck = true;
             }
             return onDeck;

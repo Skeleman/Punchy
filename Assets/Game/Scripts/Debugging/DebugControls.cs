@@ -1414,6 +1414,10 @@ namespace Punchy.Debugging
                 batches = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Batches Count");
                 tris = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Triangles Count");
             }
+            // #25 (W-83): "-interiortest" builds one test room off the island (InteriorCells.TestRoom) and logs where.
+            if (System.Array.IndexOf(args, "-interiortest") >= 0 && queryWorld != null && queryWorld.IsCreated &&
+                terrainQuery.TryGetSingleton<TerrainSource>(out var roomSource))
+                Debug.Log(InteriorCells.TestRoom(roomSource));
             // W-30: "-archipelago off|on" takes the archipelago out of the terrain or puts it back (before/after numbers from one build).
             var archArg = System.Array.IndexOf(args, "-archipelago");
             if (archArg >= 0 && archArg + 1 < args.Length)

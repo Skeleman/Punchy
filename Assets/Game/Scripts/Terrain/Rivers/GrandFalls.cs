@@ -123,9 +123,10 @@ namespace Punchy.Terrain
         const int ShelfHalfSteps = 12;
 
         /// <summary>W-81 (#88): the lake shelf is tabled behind this flag, off by default (seed-derived either way: every
-        /// player must launch with the same setting). Turn it on with <c>-lakeshelf</c> or PUNCHY_LAKESHELF=1.</summary>
+        /// player must launch with the same setting). Turn it on with <c>-lakeshelf</c> or PUNCHY_LAKESHELF=1.
+        /// W-83: read through DebugControls.LaunchArgs, so in the editor Temp/PlayArgs.txt turns it on too.</summary>
         public static bool LakeShelfOn() =>
-            System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-lakeshelf") >= 0
+            System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-lakeshelf") >= 0
             || System.Environment.GetEnvironmentVariable("PUNCHY_LAKESHELF") == "1";
         const float ShelfDepth = 50f;
 
@@ -335,6 +336,13 @@ namespace Punchy.Terrain
         /// <summary>Bakes the falls from the ground as it is now (call it before setting <see cref="TerrainSource.GrandFalls"/>).</summary>
         public static BlobAssetReference<GrandFallsBlob> Build(in TerrainSource source, Allocator allocator, bool shelf = false)
         {
+            // W-83 (#88): with the shelf on, the shelf and its falls are the lake's falls. Before, it was built only
+            // when the grand falls path found no lake, so wherever that path did find one the flag did nothing.
+            if (shelf)
+            {
+                LastLog = "[grand falls] lake shelf on";
+                return BuildShelf(source, allocator);
+            }
             var src = source;
             // The path, sampled every 4 m, run on past the last site node until it is in the lake.
             var pts = new List<float2>();
@@ -356,7 +364,7 @@ namespace Punchy.Terrain
             if (lake == float.MinValue || top < lake + 100f)
             {
                 LastLog = $"[grand falls] none: lake {(lake == float.MinValue ? "not found" : lake.ToString("F1"))}, top {top:F1}";
-                return shelf ? BuildShelf(source, allocator) : default;
+                return default;
             }
             int count = pts.Count;
             var along = new float[count];
