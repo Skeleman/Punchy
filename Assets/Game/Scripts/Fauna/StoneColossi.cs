@@ -792,6 +792,8 @@ namespace Punchy.Fauna
         static readonly Color Slime = new Color(0.55f, 0.70f, 0.30f);
         static readonly Color Bone = new Color(0.80f, 0.76f, 0.68f);
         static readonly Color BoneDark = new Color(0.58f, 0.54f, 0.48f);
+        static readonly Color PlantRed = new Color(0.66f, 0.10f, 0.12f);
+        static readonly Color PlantPurple = new Color(0.40f, 0.14f, 0.46f);
 
         /// <summary>A tapering tube along a cubic Bezier from <paramref name="p0"/> to <paramref name="p3"/>, banded in two colours.</summary>
         static void Tentacle(DunesColossus.MeshBuilder m, Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, float r0, float r1, Color c0, Color c1, int segs = 12)
@@ -906,6 +908,35 @@ namespace Punchy.Fauna
                 var rot = Quaternion.Euler(0f, a, 0f);
                 m.Ellipsoid(rot * new Vector3(0f, 0.8f, 15f), new Vector3(4f, 0.4f, 9f), rot * Quaternion.Euler(-4f, 0f, 0f), k % 2 == 0 ? PlantGreen : PlantDark, 12, 4);
                 m.Limb(rot * new Vector3(0f, 1.1f, 7f), rot * new Vector3(0f, 1.1f, 23f), 0.3f, 0.1f, PlantDark, 4);
+            }
+            // W-92 (#40, Zach): a leafy skirt round the base of the bulb, broad leaves bending out and drooping, each with
+            // a purple vein and every third tipped red, plus a few red spots on the bulb. Its own random, seeded by the
+            // plant's spot, so the count and lean differ per plant and the draws above keep their values.
+            var srng = Unity.Mathematics.Random.CreateFromIndex(math.hash((int3)math.floor(at)) ^ 0x5C127u);
+            int skirt = srng.NextInt(9, 14);
+            var lean = srng.NextFloat(18f, 34f);
+            for (int k = 0; k < skirt; k++)
+            {
+                var turn = Quaternion.Euler(0f, k * 360f / skirt + srng.NextFloat(-8f, 8f), 0f);
+                var droop = lean + srng.NextFloat(-6f, 6f);
+                var len = srng.NextFloat(7f, 10f);
+                var root0 = bulb + turn * new Vector3(0f, -5f, 6.5f);
+                var inner = turn * Quaternion.Euler(droop * 0.4f, 0f, 0f);
+                var outer = turn * Quaternion.Euler(droop, 0f, 0f);
+                var bend = root0 + inner * Vector3.forward * len;
+                var tipEnd = bend + outer * Vector3.forward * len * 0.9f;
+                var col = k % 2 == 0 ? PlantGreen : PlantDark;
+                m.Ellipsoid(root0 + inner * Vector3.forward * len * 0.5f, new Vector3(len * 0.34f, 0.35f, len * 0.55f), inner, col, 10, 4);
+                m.Ellipsoid(bend + outer * Vector3.forward * len * 0.45f, new Vector3(len * 0.28f, 0.3f, len * 0.5f), outer, col, 10, 4);
+                m.Limb(root0 + inner * Vector3.up * 0.3f, bend + inner * Vector3.up * 0.3f, 0.24f, 0.16f, PlantPurple, 4);
+                m.Limb(bend + outer * Vector3.up * 0.28f, tipEnd + outer * Vector3.up * 0.2f, 0.16f, 0.06f, PlantPurple, 4);
+                if (k % 3 == 0)
+                    m.Ellipsoid(tipEnd - outer * Vector3.forward * 0.8f, new Vector3(len * 0.12f, 0.36f, 1.1f), outer, PlantRed, 8, 4);
+            }
+            for (int k = 0; k < 6; k++)
+            {
+                var spot = Quaternion.Euler(srng.NextFloat(-40f, 30f), srng.NextFloat(0f, 360f), 0f) * Vector3.forward;
+                m.Ellipsoid(bulb + Vector3.Scale(spot, new Vector3(9f, 8f, 9f)) * 0.99f, Vector3.one * srng.NextFloat(0.6f, 1.1f), Quaternion.LookRotation(spot), PlantRed, 8, 4);
             }
             AddPart("Body", root, m.ToMesh("CarnivorousPlant"));
             root.Find("Body").localScale = Vector3.one * PlantScale;
