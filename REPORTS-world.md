@@ -1589,3 +1589,24 @@ Left: the igloo inner block lets 3/5 walks pass the door line (the door is still
   - Ruin stacked floors.
   - The editor re-hash of caves, ground and rivers.
   - I went over the tool budget.
+
+## W-67b (2026-11-03): box collision proof, finished (#79 #36 #38 #80)
+
+Commit: world-features a080fd5 (DebugControls.cs, KitCollision.cs). One build; all walks in that build.
+- Harness fix (row 1): `-goto` now waits (up to 5 s) until the kit boxes round the spot are placed, then stands the walker on the lowest kit floor over the ground there. `-walk` waits for that. The walk floor check now uses the first floor over the ground (`KitCollision.LowestTopAt`) instead of "highest top below feet + 2.5 m", which is why the seabed walk had ARRIVED.
+- Why walks stopped 4-7 m short in W-67 (row 2): the targets were guesses. The stone row runs at yaw -59, not along x. The igloo target was the dome centre, behind the closed door. The ruin walk hit the east wall, which is correct. The new targets come from the bake data (probe in the editor).
+
+| Walk | Foot y | Expected | Result |
+|---|---|---|---|
+| Wharf: ramp onto the deck (-3292,-1644 to -3272,-1644) | 1.3 | 1.3 | ARRIVED |
+| Wharf: forced under the deck (-3282,-1.5 to -3276) | -1.0 | 1.3 | FAIL (as wanted) |
+| Stone row, end to end (-2967.7,3199.9 to -2960.0,3187.0) | 46.2 | 46.3 | ARRIVED; held at 44.1 on the stones, 1.2 m over the bank |
+| Igloo: tunnel mouth to inside the door (347.9,58.9 to 346.2,54.1) | 272.3 | 275.3 | FAIL on the check only: reached 0.3 m from the target. The expected 275.3 looks wrong (3 m over the tunnel floor), so the floor search probably skips the tunnel floor. Open |
+| Ruin: north gap to inside (1420.9,2167.5 to 1420.9,2161.8) | 31.5 | 31.5 | ARRIVED |
+| Ruin: straight into the east wall (1434 to 1420.4, z 2159.8) | 31.6 | - | STOPPED at x 1424.9: the wall blocks |
+
+- The ruin has no upper floor (single storey; tops at 33-35 m are broken wall tops), so no upper-floor walk.
+- Found, out of scope: two stepping-stone rows sit on the same spot (-2963.9,3193.4; yaw -59 and -46).
+- Hashes: player landmarks v2 136 / B5EFF8C8. Editor v2: landmarks 136 / 4E61F1CF, caves C49E8E3036C741FC, ground C0C906EE310FA91F, rivers A77D2ED7B919296E, all unchanged. v1 103 was not measured: it needs an editor restart with PUNCHY_ISLAND=v1.
+- Shots: D:\PunchyMilestones\W-67b (wharf_deck, wharf_framed, underdeck_fail, stone_row, igloo_door, igloo_framed, ruin_entrance, ruin_wall, ruin_framed).
+- Calls: about 50.
