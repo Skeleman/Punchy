@@ -80,3 +80,6 @@ Bench world-features cfae8be (W-79 + W-79b, includes main with A-52) against 4e3
 
 ## Job 21 (2026-11-04): dungeon host/client check (#24, PR #104)
 Main e31291e, laptop player build, island v3. Two processes: host + client joining it. Both walk the player into the temple (P-7) and the stand-in cave. Check: same spawner pick hash on both (temple 0x7c8c8b71, cave 0xa9995035 in editor), creatures visible on the client, DungeonPost count > 0 on the host a minute later, a guard log line and a drink log line, 0 exceptions, frame ms inside the temple. Read-only.
+
+## Job 22 (2026-11-04): cave FPS at the bat folk cave (#81)
+Main 0ec7a8d, laptop player build, uncapped. A-53 found editor main-thread CPU fine at the v2 bat folk cave (530, 958): 8.1 ms (v3's cave at -2674, -608: 5.2 ms). So measure the build: at both caves, frame ms, main vs render thread vs GPU ms, draw calls/batches, shadow casters, and the top GPU passes (cave fog, glow, particles, white pools). Compare with a surface spot nearby. Say which lane owns the biggest cost. Read-only.
