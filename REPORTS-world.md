@@ -2,9 +2,10 @@
 
 Newest first.
 
-## W-94 (2026-11-04): hazard shelter houses, brick ruins + dune mound, sunk mound lip
+## W-94 (2026-11-04): hazard shelter houses, brick ruins + dune mound, sunk mound lip, meteoroid salt ball
 
-Commits on world-features: 26c6163 (row 1), 853b1bc (row 2), cbdf6cf (row 3). All pushed. I commented on #69, #80 and #70.
+Commits on world-features: 26c6163 (row 1), 853b1bc (row 2), cbdf6cf (row 3), aab2d6a (row 4). All pushed. I commented on #69, #80, #70 and #40.
+- Row 4 (#40): the salt ball is now one 32x22-facet, slightly elongated body (seeded, about 1.13 x 0.9 x 0.96). Seeded noise gives it swells, sharp ridges and 8-11 round pits with low rims. The crystals are small and low and sit on its surface: outcrops stand 1-2 m proud, crust 0.4-1 m. The trail's width and lip height vary smoothly along the circle (three seeded whole-turn waves, about 0.7-1.3x, fixed to the ground and the same for every player). The furrow, lips and 0.5 m rebuild rule are unchanged. Ball vertices: 7050 before, 9624 after. Main thread: Update 0.0003 -> 0.0002 ms; a rebuild is 0.0125 -> 0.0132 ms. Shot: Assets/Temp/shots/w94-saltcrystal.png (the w93 camera). The pits read only faintly at that distance, and the sky was hazy.
 - Row 1 (#69): four kit shelter houses for harsh biomes: Ash, Snow, Storm and Sand (new kit shapes; new materials Copper, Sand and Ash; banks, hoods and cheeks). They replace the dome entries in 7 settlement layouts. The old dome assets stay in the repo but nothing uses them now. v3 landmarks are 108 / 4D2643D7.
   - Ash house (890.9,-3864.9): the walker goes through the bank gap, under the hood, and stops at the closed door.
   - Snow house (-3292.0,1563.7): the front walk stops at the door. The side walk climbs the snow bank (about 1.2 m) and stops at the wall.
