@@ -1554,3 +1554,13 @@ Measured in the editor, 300 frames per stop, uncapped (-fpscap 0), with Burst sa
   - The files are kept off-repo for when P-7 lands.
 
 Calls: about 80 across A-51 and the aborted A-50 start (A-51 alone was about 55).
+
+## A-52 (#102 fauna build hitch), 2026-11-04
+
+- Commit f2ff575 on animal-behaviours (pushed).
+- Profile (editor, safety/jobs debugger/leak detection off, uncapped): species 0-3, prey 3-4, blobs 8-30, capsule 0-2, carry 2-6 ms; flora 2170-2317 ms. The fauna's obstacle pass (`FloraPlacement.Build(obstacles: true)`) was ~95%: it grew full 3-LOD meshes and support grids it never reads.
+- Fix: `FloraGenerator.Grow(species, variant, shapeOnly)` (additive optional flag: LOD 0 parts only, no support grid, no meshes); the obstacle pass passes `shapeOnly: true`. **World lane: additive change in shared FloraGenerator.cs / FloraPlacement.cs; default behaviour unchanged.**
+- Build frame before -> after: v2 2347 -> 798 ms (flora 2209 -> 687); v3 2208 -> 609 ms (flora 2170 -> 588).
+- Fingerprint (FNV-1a of species names + serialized creature/carry/flora-obstacle blobs, 112 species): E698F061 before and after, v2 and v3. Logged as `[fauna build]` lines, editor only.
+- Not done: Burst/Parallel.For of the remaining grows (Grow touches UnityEngine.Object, main-thread only) and overlap with the world's flora build; the rest is now ~0.6 s, left for a follow-up if still needed.
+- Calls used: ~55.
