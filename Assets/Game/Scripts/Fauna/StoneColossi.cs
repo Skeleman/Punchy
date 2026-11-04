@@ -134,7 +134,9 @@ namespace Punchy.Fauna
                 if (k < Kinds ? roots[k] == null : math.all(at == 0f))
                     continue;
                 shadows[k] ??= new FarShadow(k < Kinds ? $"{Placed[k]} far shadow" : "DunesColossus far shadow");
-                shadows[k].Draw(source, at, Casts[k].x, Casts[k].y);
+                // W-91 (#40): the carnivorous plant is a quarter of its old height now (about 11 m, 8 m across).
+                var cast = k < Kinds && Placed[k] == Kind.CarnivorousPlant ? new float2(11f, 8f) : Casts[k];
+                shadows[k].Draw(source, at, cast.x, cast.y);
             }
         }
 
@@ -837,6 +839,9 @@ namespace Punchy.Fauna
             root.SetPositionAndRotation(new Vector3(at.x, at.y - 1f, at.z), Quaternion.Euler(0f, yaw, 0f));
             var m = new DunesColossus.MeshBuilder();
             var rng = Unity.Mathematics.Random.CreateFromIndex(0xD20Bu);
+            // W-91 (#40, Zach): the body is drawn in its old units and shown at PlantScale (about a quarter of its old
+            // ~40 m height), with a bigger head (HeadScale) and thinner vines (VineScale); the sprouts and bones stay life size.
+            const float PlantScale = 0.25f, HeadScale = 1.7f, VineScale = 0.5f;
             // The bulb, raised on its legs, with darker ribs down it.
             var bulb = new Vector3(0f, 12f, 0f);
             m.Ellipsoid(bulb, new Vector3(9f, 8f, 9f), Quaternion.identity, PlantGreen, 14, 8);
@@ -849,11 +854,11 @@ namespace Punchy.Fauna
                 var d = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a));
                 var from = bulb + d * 6f - Vector3.up * 3f;
                 var foot = d * rng.NextFloat(22f, 27f) + Vector3.up * 0.6f;
-                Tentacle(m, from, from + d * 7f + Vector3.up * 9f, foot + Vector3.up * 12f - d * 2f, foot, 3.2f, 1.4f, PlantGreen, PlantDark, 14);
+                Tentacle(m, from, from + d * 7f + Vector3.up * 9f, foot + Vector3.up * 12f - d * 2f, foot, 3.2f * VineScale, 1.4f * VineScale, PlantGreen, PlantDark, 14);
                 for (int r = 0; r < 4; r++)
                 {
                     var ra = a + (r - 1.5f) * 0.5f;
-                    m.Limb(foot, foot + new Vector3(Mathf.Sin(ra), -0.4f, Mathf.Cos(ra)) * rng.NextFloat(3f, 5f), 0.9f, 0.15f, PlantDark, 5);
+                    m.Limb(foot, foot + new Vector3(Mathf.Sin(ra), -0.4f, Mathf.Cos(ra)) * rng.NextFloat(3f, 5f), 0.9f * VineScale, 0.15f, PlantDark, 5);
                 }
             }
             // The stem, a little bent, up to the head; the mouth gapes at the sky over the bog.
@@ -861,13 +866,13 @@ namespace Punchy.Fauna
             m.Limb(bulb + Vector3.up * 6f, new Vector3(2.5f, 24f, -0.5f), 4.6f, 3.8f, PlantDark, 9);
             m.Limb(new Vector3(2.5f, 24f, -0.5f), neck, 3.8f, 3.4f, PlantGreen, 9);
             var face = Quaternion.Euler(-35f, 0f, 0f);
-            var hinge = neck + new Vector3(0f, 2f, -4f);
-            Trap(m, hinge, face, new Vector3(7.5f, 5.5f, 8.5f), 60f, 2.8f);
+            var hinge = neck + new Vector3(0f, 2f, -4f) * HeadScale;
+            Trap(m, hinge, face, new Vector3(7.5f, 5.5f, 8.5f) * HeadScale, 60f, 2.8f * HeadScale);
             // Drool hanging from the upper fangs.
             for (int k = 0; k < 4; k++)
             {
-                var drip = hinge + face * Quaternion.Euler(-42f, 0f, 0f) * new Vector3(-4.5f + k * 3f, -1.5f, 15f);
-                m.Limb(drip, drip + Vector3.down * rng.NextFloat(2.5f, 5.5f), 0.35f, 0.15f, Slime, 4);
+                var drip = hinge + face * Quaternion.Euler(-42f, 0f, 0f) * new Vector3(-4.5f + k * 3f, -1.5f, 15f) * HeadScale;
+                m.Limb(drip, drip + Vector3.down * rng.NextFloat(2.5f, 5.5f), 0.35f * HeadScale, 0.15f * HeadScale, Slime, 4);
             }
             // Eight arms reaching out from the top of the bulb and the stem, curling at the tips; every third ends in a trap.
             for (int k = 0; k < 8; k++)
@@ -879,7 +884,7 @@ namespace Punchy.Fauna
                 var reach = rng.NextFloat(20f, 28f);
                 var lift = rng.NextFloat(-4f, 12f);
                 var tip = from + d * reach + Vector3.up * lift;
-                Tentacle(m, from, from + d * 8f + Vector3.up * 12f, tip - d * 6f + Vector3.up * 10f + side * 4f, tip, 2.2f, 0.5f, PlantGreen, PlantDark, 14);
+                Tentacle(m, from, from + d * 8f + Vector3.up * 12f, tip - d * 6f + Vector3.up * 10f + side * 4f, tip, 2.2f * VineScale, 0.5f * VineScale, PlantGreen, PlantDark, 14);
                 if (k % 3 == 0)
                     Trap(m, tip, Quaternion.LookRotation(d + Vector3.up * 0.3f), new Vector3(1.8f, 1.3f, 2.1f), 50f, 0.8f);
                 else
@@ -889,7 +894,7 @@ namespace Punchy.Fauna
                     for (int c = 0; c < 4; c++)
                     {
                         var q = p + (Quaternion.AngleAxis(-70f * (c + 1), side) * d) * (2.2f - c * 0.4f);
-                        m.Limb(p, q, 0.5f - c * 0.08f, 0.42f - c * 0.08f, c % 2 == 0 ? PlantDark : PlantGreen, 6);
+                        m.Limb(p, q, (0.5f - c * 0.08f) * VineScale, (0.42f - c * 0.08f) * VineScale, c % 2 == 0 ? PlantDark : PlantGreen, 6);
                         p = q;
                     }
                 }
@@ -902,25 +907,28 @@ namespace Punchy.Fauna
                 m.Ellipsoid(rot * new Vector3(0f, 0.8f, 15f), new Vector3(4f, 0.4f, 9f), rot * Quaternion.Euler(-4f, 0f, 0f), k % 2 == 0 ? PlantGreen : PlantDark, 12, 4);
                 m.Limb(rot * new Vector3(0f, 1.1f, 7f), rot * new Vector3(0f, 1.1f, 23f), 0.3f, 0.1f, PlantDark, 4);
             }
-            // Three young sprouts, man-high, with shut traps.
+            AddPart("Body", root, m.ToMesh("CarnivorousPlant"));
+            root.Find("Body").localScale = Vector3.one * PlantScale;
+            // Three young sprouts, man-high, with shut traps (life size, round the shrunk plant).
+            m = new DunesColossus.MeshBuilder();
             for (int k = 0; k < 3; k++)
             {
                 var a = rng.NextFloat(0f, Mathf.PI * 2f);
-                var p = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * rng.NextFloat(30f, 36f) + Vector3.up * 0.8f;
+                var p = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * rng.NextFloat(30f, 36f) * PlantScale + Vector3.up * 0.3f;
                 var top = p + new Vector3(rng.NextFloat(-0.5f, 0.5f), 2.2f, rng.NextFloat(-0.5f, 0.5f));
                 m.Limb(p, top, 0.18f, 0.12f, PlantGreen, 5);
                 Trap(m, top, Quaternion.Euler(-20f, rng.NextFloat(0f, 360f), 0f), new Vector3(0.35f, 0.28f, 0.4f), 18f, 0.12f);
             }
             // A deer's bones picked clean by one foot: ribs, spine, skull, a leg bone.
-            var bones = new Vector3(-24f, 0.9f, 8f);
+            var bones = new Vector3(-24f * PlantScale, 0.9f, 8f * PlantScale);
             m.Limb(bones, bones + new Vector3(0f, 0f, 2.4f), 0.16f, 0.14f, Bone, 5);
             for (int k = 0; k < 5; k++)
                 for (int s = -1; s <= 1; s += 2)
                     m.Limb(bones + new Vector3(0f, 0.1f, 0.3f + k * 0.45f), bones + new Vector3(s * 0.7f, 0.5f, 0.4f + k * 0.45f), 0.06f, 0.05f, Bone, 4);
             m.Ellipsoid(bones + new Vector3(0.3f, 0.15f, 3f), new Vector3(0.28f, 0.25f, 0.45f), Quaternion.Euler(0f, 20f, 0f), Bone, 8, 4);
             m.Limb(bones + new Vector3(1.2f, 0f, -0.6f), bones + new Vector3(2.4f, 0f, 0.4f), 0.07f, 0.06f, BoneDark, 4);
-            AddPart("Body", root, m.ToMesh("CarnivorousPlant"));
-            Puffs(root, "Spores", hinge + face * new Vector3(0f, 0f, 9f) + Vector3.up * 4f, new Vector3(10f, 3f, 10f),
+            AddPart("Sprouts", root, m.ToMesh("CarnivorousPlantSprouts"));
+            Puffs(root, "Spores", (hinge + face * new Vector3(0f, 0f, 9f * HeadScale) + Vector3.up * 4f) * PlantScale, new Vector3(4f, 1.5f, 4f),
                   new Color(0.80f, 0.86f, 0.55f, 0.22f), new Color(0.70f, 0.80f, 0.45f, 0.30f), 1.5f, 4f, 3f, 0.6f, 12f);
             return root;
         }

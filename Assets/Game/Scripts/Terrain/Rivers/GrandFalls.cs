@@ -134,11 +134,21 @@ namespace Punchy.Terrain
             || System.Environment.GetEnvironmentVariable("PUNCHY_LAKESHELF") == "1";
         const float ShelfDepth = 50f;
 
+        /// <summary>W-91 (#88): the palette id with the most weight in a blend.</summary>
+        static int Dominant(in BiomeWeights w)
+        {
+            int id = w.Ids.x; float best = w.Weights.x;
+            if (w.Weights.y > best) { best = w.Weights.y; id = w.Ids.y; }
+            if (w.Weights.z > best) { best = w.Weights.z; id = w.Ids.z; }
+            if (w.Weights.w > best) { id = w.Ids.w; }
+            return id;
+        }
+
         /// <summary>
         /// Bakes the lake shelf (W-77, #88): rays from the lake centre across the shelf's arc find the shore, smoothed
         /// into one lip line; the long fall is a tier every 14 m along it.
         /// </summary>
-        static BlobAssetReference<GrandFallsBlob> BuildShelf(in TerrainSource source, Allocator allocator)
+        static BlobAssetReference<GrandFallsBlob> BuildShelf(in TerrainSource source, Allocator allocator, IReadOnlyList<BiomeDefinition> biomes)
         {
             var src = source;
             var c = IslandV3.LakeCentre;
@@ -155,6 +165,7 @@ namespace Punchy.Terrain
             // (the mountain side), with a small seeded nudge; the shelf fills the best bay's back.
             const int rays = 144; // every 2.5 degrees
             var shoreR = new float[rays]; var behindH = new float[rays]; var rayDir = new float2[rays];
+            var nearB = new int[rays]; var farB = new int[rays]; var riseH = new float[rays];
             int open = 0;
             for (int k = 0; k < rays; k++)
             {
@@ -171,13 +182,32 @@ namespace Punchy.Terrain
                 float sum = 0f;
                 for (int j = 0; j < 4; j++) sum += src.SampleGround(c + d * (shoreR[k] + 30f + 20f * j)).Height;
                 behindH[k] = sum * 0.25f - lake;
+                // W-91 (#88): the biomes 100 m and 200 m behind the shore, and how much the land keeps rising out to 300 m.
+                nearB[k] = Dominant(src.SampleGround(c + d * (shoreR[k] + 100f)).Biomes);
+                farB[k] = Dominant(src.SampleGround(c + d * (shoreR[k] + 200f)).Biomes);
+                riseH[k] = src.SampleGround(c + d * (shoreR[k] + 300f)).Height - src.SampleGround(c + d * (shoreR[k] + 60f)).Height;
+            }
+            // W-91 (#88): Zach wants the shelf to come down from the mountains towards the temperate land, not out of the
+            // desert. Each ray's land score: temperate or grassland behind it (forest half), desert a penalty, plus the
+            // land rising towards the peaks. It outweighs the bay shape, so a plainer bay on the right side wins.
+            string NameOf(int id) => biomes != null && id >= 0 && id < biomes.Count && biomes[id] != null ? biomes[id].name : "?";
+            float LandOf(int id)
+            {
+                var n = NameOf(id);
+                if (n.StartsWith("Temperate") || n.StartsWith("Grassland")) return 1f;
+                if (n.StartsWith("Mountains")) return 0.6f;
+                if (n.Contains("Forest") && !n.StartsWith("Ember")) return 0.5f;
+                foreach (var arid in new[] { "Dunes", "SaltFlat", "Sonoran", "GlassDesert", "MesaCanyonlands" })
+                    if (n.StartsWith(arid)) return -1f;
+                return 0f;
             }
             // W-84 (#88): a stretch spans about the same shore length on any lake (ShelfArc either side, 4-12 rays), not a
             // fixed 30 degrees: on the big v3 lake (shore ~750 m out) 30 degrees is ~400 m of shore, and no stretch that
             // long has 12 m of high ground behind all of it.
             System.Func<int, int> halfAt = k => math.clamp((int)math.round(math.degrees(ShelfArc / math.max(shoreR[k], 1f)) / 2.5f), 4, ShelfHalfSteps);
             var rng = new Unity.Mathematics.Random(math.max(1u, source.World.Seed * 747796405u + 2891336453u));
-            int bestK = -1, bestHalf = 0; float bestScore = float.MinValue, bestBay = 0f, bestBehind = 0f;
+            int bestK = -1, bestHalf = 0; float bestScore = float.MinValue, bestBay = 0f, bestBehind = 0f, bestLand = 0f;
+            int oldK = -1; float oldScore = float.MinValue;
             for (int k = 0; k < rays; k++)
             {
                 var nudge = rng.NextFloat(0f, 0.08f);
@@ -198,7 +228,16 @@ namespace Punchy.Terrain
                 var bay = math.dot(m - a, chordN);
                 var chord = math.max(math.distance(a, b), 1f);
                 var score = math.clamp(bay / chord, -0.4f, 0.4f) * 1.5f + math.saturate(minBehind / 80f) * 1.5f + nudge;
-                if (score > bestScore) { bestScore = score; bestK = k; bestBay = bay; bestBehind = minBehind; bestHalf = half; }
+                if (score > oldScore) { oldScore = score; oldK = k; }
+                float land = 0f;
+                for (int s = -half; s <= half; s++)
+                {
+                    var kk = (k + s + rays) % rays;
+                    land += 0.6f * LandOf(nearB[kk]) + 0.4f * LandOf(farB[kk]) + 0.5f * math.saturate(riseH[kk] / 60f);
+                }
+                land /= 2 * half + 1;
+                score += 2.5f * land;
+                if (score > bestScore) { bestScore = score; bestK = k; bestBay = bay; bestBehind = minBehind; bestHalf = half; bestLand = land; }
             }
             if (bestK < 0)
             {
@@ -265,6 +304,9 @@ namespace Punchy.Terrain
                 });
             }
             var bearing = (bestK * 360f / rays);
+            // W-91 (#88): the biomes behind the old pick (bay and height only) and the new one.
+            LastLog += $"; shelf biomes before (bay-only pick) at bearing {oldK * 360f / rays:F0}: {NameOf(nearB[oldK])} 100 m behind, {NameOf(farB[oldK])} 200 m behind, rise {riseH[oldK]:F0} m";
+            LastLog += $"; after at bearing {bearing:F0}: {NameOf(nearB[bestK])} 100 m behind, {NameOf(farB[bestK])} 200 m behind, rise {riseH[bestK]:F0} m, land score {bestLand:F2}";
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<GrandFallsBlob>();
             var lipArr = builder.Allocate(ref root.ShelfLip, lip.Count);
@@ -351,14 +393,14 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Bakes the falls from the ground as it is now (call it before setting <see cref="TerrainSource.GrandFalls"/>).</summary>
-        public static BlobAssetReference<GrandFallsBlob> Build(in TerrainSource source, Allocator allocator, bool shelf = false)
+        public static BlobAssetReference<GrandFallsBlob> Build(in TerrainSource source, Allocator allocator, bool shelf = false, IReadOnlyList<BiomeDefinition> biomes = null)
         {
             // W-83 (#88): with the shelf on, the shelf and its falls are the lake's falls. Before, it was built only
             // when the grand falls path found no lake, so wherever that path did find one the flag did nothing.
             if (shelf)
             {
                 LastLog = "[grand falls] lake shelf on";
-                return BuildShelf(source, allocator);
+                return BuildShelf(source, allocator, biomes);
             }
             var src = source;
             // The path, sampled every 4 m, run on past the last site node until it is in the lake.

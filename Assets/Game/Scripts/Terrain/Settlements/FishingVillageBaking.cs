@@ -115,6 +115,28 @@ namespace Punchy.Terrain
                     break;
                 }
             }
+            // W-91 (#36): count each village's building plots on river water (flora leaves those plots empty).
+            for (int v = 0; v < placed.Count; v++)
+            {
+                int plots = 0, river = 0;
+                foreach (var prop in type.Props)
+                {
+                    if (prop.Species == null || prop.Species.Form != Punchy.Flora.FloraForm.KitBuilding)
+                        continue;
+                    var shape = prop.Species.KitShape;
+                    var dock = shape == KitShape.Dock || shape == KitShape.Wharf;
+                    if (!dock && shape != KitShape.House && shape != KitShape.StiltHouse)
+                        continue;
+                    for (int k = 0; k < math.max(1, prop.Count); k++)
+                    {
+                        var spot = LandmarkSampling.ToWorld(placed[v], LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / math.max(1, prop.Count)), type.Radius);
+                        plots++;
+                        if (LandmarkSampling.OnRiver(source, spot, placed[v].Facing, dock ? 30f : 0f))
+                            river++;
+                    }
+                }
+                LastLog += $"\n[villages] village {v + 1}: {river} of {plots} building plots on river water, dropped";
+            }
             LastLog = $"[villages] {placed.Count} fishing villages from {mouths.Count} mouth cells ({tried} tried)" + (LastLog.Length > 0 ? "\n" + LastLog : "");
             UnityEngine.Debug.Log(LastLog);
             return placed;

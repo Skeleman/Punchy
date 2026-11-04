@@ -95,6 +95,24 @@ namespace Punchy.Terrain
     /// <summary>How landmarks reshape, flood and repaint the ground. Used by TerrainSource.</summary>
     public static class LandmarkSampling
     {
+        /// <summary>
+        /// W-91 (#36): whether a building plot sits on river water: the spot, and for a dock its run out along
+        /// <paramref name="facing"/> to <paramref name="reach"/> m, sampled every ~5 m. River means a river channel
+        /// (GroundSample.River) off the open sea; the sea and lakes are fine. Fishing village buildings never stand there.
+        /// </summary>
+        public static bool OnRiver(in TerrainSource source, float2 xz, float2 facing, float reach)
+        {
+            var dir = math.normalizesafe(facing, new float2(1f, 0f));
+            var steps = (int)math.ceil(reach / 5f);
+            for (int i = 0; i <= steps; i++)
+            {
+                var p = xz + dir * (steps > 0 ? reach * i / steps : 0f);
+                if (source.OceanFactor(p) < 0.5f && source.SampleGround(p).River > 0.3f)
+                    return true;
+            }
+            return false;
+        }
+
         /// <summary>The range of grid items (indices into Items) for the cell containing a point.</summary>
         public static int2 CellRange(ref LandmarkSetBlob set, float2 xz)
         {

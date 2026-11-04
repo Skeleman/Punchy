@@ -850,6 +850,9 @@ namespace Punchy.Flora
         const float DockRampRun = 4.6f, DockMaxLength = 20f;
         /// <summary>How far a shore cluster (StructureKit.Shore, spread 2.5) reaches from its spot, plus half the lane (m).</summary>
         const float ShoreReach = 5.6f;
+        /// <summary>W-91 (#36): how far out from its ring spot a dock is checked for river water (it slides up to 14 m
+        /// out to the waterline, then its deck runs up to ~19 m further).</summary>
+        const float RiverDockReach = 30f;
 
         /// <summary>
         /// The floor a plot's building stands at: the average ground over its footprint (the middle and four points
@@ -1380,6 +1383,11 @@ namespace Punchy.Flora
                                 // the walker met a 0.9-1.6 m wall there (no draws moved: the cell just stays empty).
                                 // W-65c: and off every branch of a wharf, not just its main lane.
                                 if (placedRule.House != 0 && math.min(DockLaneDistance(ref f, source, landmark, spot), WharfDistance(ref f, source, landmark, spot)) < placedRule.Footprint * prop.Scale.y + 1.5f)
+                                    return none;
+                                // W-91 (#36): houses, stilt houses, docks and wharfs stand by the sea or a lake, never in a
+                                // river: a plot on river water (a dock along its whole run out) stays empty (no draws moved).
+                                if (!footprint && (placedRule.House != 0 || placedRule.FaceLandmark == 2) &&
+                                    LandmarkSampling.OnRiver(source, spot, set.Instances[landmark.Instance].Facing, placedRule.FaceLandmark == 2 ? RiverDockReach : 0f))
                                     return none;
                                 // W-62c: no spire near a landing pier's far end (no draws moved: the cell just stays empty).
                                 if (placedRule.PierClear != 0 && PierEndDistance(ref f, source, spot) < PierEndClear * prop.Scale.y)
