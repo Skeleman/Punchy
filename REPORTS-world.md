@@ -1820,3 +1820,11 @@ Commits: world-features 178e226 (merge of origin/main, no rebase, 0 compile erro
 - Shots: D:\PunchyMilestones\W-74\w74_camp_default_v2.png, w74_camp_fungal_v2.png.
 - Hashes: v2 landmarks 136 / 4E61F1CF (unchanged). v3 landmarks 108 / 4D2643D7 (unchanged, measured before rows 1-3; rows 1-3 change no landmark positions). The ground hash changes on v2 and v3 (plot levelling; on v3 also 0b) but was not re-measured. Caves, rivers and v1 were not run.
 - Calls: about 80 (over the ~70 ceiling). Editor closed; island pref put back to v3.
+
+## R-12 (release prep v0.12.0), 2026-11-04, finished by the supervisor
+- Source: main 9d34275, built in a detached Punchy-release worktree. Build: Succeeded, 0 errors, 3 warnings, 3 min 46 s.
+- Smoke test (host `-body Bison`, client `-join 127.0.0.1`): both "in game True", same world check CAC3BAE8, 0 exceptions in both logs. Host at the end: players 2, animals 46, nearest player 3 m, 60 fps. The client went solo when the host quit first (expected). One "serverTick prediction error" warning on the client at the host's shutdown.
+- Colour: not tested (no launch option sets it); Zach to check by hand.
+- Zip: Punchy-v0.12.0-windows.zip, 51 MB, same layout as v0.11.0 (no BurstDebugInformation folder, no logs, no provenance file).
+- Notes: batches/R-12-notes.md, with a Known issues line for #99.
+- Calls: the R-12 agent about 45, then the supervisor finished build watch, test, zip and publish.
