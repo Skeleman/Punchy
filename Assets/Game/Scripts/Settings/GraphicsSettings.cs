@@ -174,7 +174,7 @@ namespace Punchy.Settings
 
         /// <summary>
         /// The main menu's Graphics tab: the presets, the three sliders and Reset, applied as they move, and the frame
-        /// cap (also on the Options button). Quit is in the menu's foot, for every tab.
+        /// cap (also on the Options button), and the resolution and window mode (DisplaySettings). Quit is in the menu's foot, for every tab.
         /// </summary>
         static void DrawTab(Punchy.UI.MenuNav nav)
         {
@@ -197,6 +197,8 @@ namespace Punchy.Settings
             GUILayout.Space(6);
             if (nav.Button("Reset (Medium)"))
                 Set(GraphicsPreset.Medium);
+            GUILayout.Space(6);
+            DisplaySettings.DrawRows(nav);
             GUILayout.Space(6);
             if (nav.Button($"Frame cap: {FrameRateCap.Describe(FrameRateCap.Current)}"))
                 FrameRateCap.Next();
