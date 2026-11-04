@@ -8,6 +8,10 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
 - Pull `coordination` and run `sh hooks/install.sh <fixed folder outside your trees>` (J-041 commit telemetry).
   Make one test commit on a b/ branch and check ~/.punchy-telemetry/commits.csv gets a row.
 
+## Standing rule: uncapped (Zach, 2026-11-03)
+- Profile and bench uncapped (no frame cap, vsync off). Capped runs hide CPU/GPU headroom. Use a cap only if a card
+  asks for one, and label it.
+
 ## Standing rule: cost log (from 2026-11-02, main-account supervisor)
 - After every bench job or session end, and once now for the backlog: pull `coordination`, run
   `python tools/usage_log.py --machine laptop`, and commit `COSTS/laptop.csv` (message "Costs: laptop <date>").

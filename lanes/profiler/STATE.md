@@ -21,6 +21,9 @@ Released: v0.11.0 = 4eea658. main = 762c16a (world lane merged, PR #66; animal l
   after merge plus Zach's OK.
 - If a job needs Zach (an install, a dialog, a design call), say so in the report and the issue, and stop.
 
+## Rule: uncapped (Zach, 2026-11-03)
+All profiles and benches run uncapped (no frame cap, vsync off) unless a card asks for a cap.
+
 ## Unity on the laptop
 - Only Unity user here. Still take `results/.lock` for every run; one editor or player at a time (MP pair excepted).
 - Launch only from `Builds/Bench` (`fixed <build>` copies it there). Never `-screen-*` on a real Punchy build.
