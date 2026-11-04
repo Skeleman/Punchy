@@ -59,6 +59,15 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
+        /// W-74: whether the v3 bake ends with its audit reports (V3Audit, V3Ranges.Checks, V3Ground.Report, ~17 s).
+        /// Only on request: <c>-islandaudit</c> on the command line or PUNCHY_ISLANDAUDIT=1 (the editor menu
+        /// Punchy/Island/Audit Reports and the world probe set it). Releases and joins skip them.
+        /// </summary>
+        public static bool AuditRequested() =>
+            Array.IndexOf(Environment.GetCommandLineArgs(), "-islandaudit") >= 0
+            || Environment.GetEnvironmentVariable("PUNCHY_ISLANDAUDIT") == "1";
+
+        /// <summary>
         /// P-2 (v3 B14, brief 8B): the island version the host sent this joined client (WorldSync's IslandVersionRpc;
         /// 0 = none yet). A joined client's <see cref="IslandV2System"/> waits for it and bakes that version instead of
         /// its own launch's, so a v2-launched client joins a v3 host on the v3 island. Solo and hosting ignore it: the
@@ -416,7 +425,7 @@ namespace Punchy.Terrain
         /// The landmark count and fingerprint hash: each instance as "type x z scale", sorted, FNV-1a. Logged for both
         /// versions so every player run can show the seeds held (W-16: version 1 used to log nothing).
         /// </summary>
-        static string LandmarkHash(ref TerrainSource source, BiomePalette palette)
+        public static string LandmarkHash(ref TerrainSource source, IReadOnlyList<LandmarkType> types)
         {
             if (!source.Landmarks.IsCreated)
                 return "no landmarks";
@@ -425,7 +434,7 @@ namespace Punchy.Terrain
             for (int i = 0; i < set.Instances.Length; i++)
             {
                 var l = set.Instances[i];
-                var t = l.Type < palette.Landmarks.Length && palette.Landmarks[l.Type] != null ? palette.Landmarks[l.Type].name : l.Type.ToString();
+                var t = l.Type < types.Count && types[l.Type] != null ? types[l.Type].name : l.Type.ToString();
                 lines.Add($"{t} {l.Position.x:F1} {l.Position.y:F1} {l.Scale:F3}");
             }
             lines.Sort(StringComparer.Ordinal);
@@ -440,7 +449,7 @@ namespace Punchy.Terrain
         /// them. Those are also appended to the palette itself (plants and WorldSync.Signature read its list) while no
         /// look was added. W-74: every world calls this, the ones sharing the bake too, so all palettes match.
         /// </summary>
-        static List<LandmarkType> LandmarkTypes(BiomePalette palette)
+        public static List<LandmarkType> LandmarkTypes(BiomePalette palette)
         {
             var types = new List<LandmarkType>(palette.Landmarks);
             LandmarkBaking.AddLooks(types);
@@ -466,7 +475,7 @@ namespace Punchy.Terrain
                 if (!source.Landmarks.IsCreated || palette.Landmarks == null) return;
                 done = true;
                 IslandV2.ActiveVersion = 1;
-                Debug.Log($"[island] generator version 1 (baked); {LandmarkHash(ref source, palette)}");
+                Debug.Log($"[island] generator version 1 (baked); {LandmarkHash(ref source, palette.Landmarks)}");
                 Debug.Log(BatFolkBaking.Report(source));
                 Debug.Log(IcebergBaking.Report(source));
                 return;
@@ -487,11 +496,18 @@ namespace Punchy.Terrain
                 IslandV2.ActiveVersion = version;
                 // W-74 (0c): this world's palette needs the same appended types as the baking world's, or its
                 // landmark names (WorldSync.Signature) differ and the host refuses its own client.
-                LandmarkTypes(palette);
-                Debug.Log($"[island] v{version} shared with {World.Name} from this process's bake (no rebake); {LandmarkHash(ref source, palette)}");
+                // #102: the hash names types from that list, as the bake's does, so both paths print the same value.
+                var sharedTypes = LandmarkTypes(palette);
+                // W-79b: this world's plants are built again (a host's client world after its server's), and the
+                // first build took the pregrown parts: grow them again on worker threads, not ~4.6 s on the main thread.
+                var regrown = Punchy.Flora.FloraSystem.Pregrow(palette);
+                Debug.Log($"[island] v{version} shared with {World.Name} from this process's bake (no rebake); {LandmarkHash(ref source, sharedTypes)}; {regrown} plant variants pregrown");
                 return;
             }
 
+            // #102: the plants depend on the palette, not the island, so they grow on worker threads beside the bake.
+            var types = LandmarkTypes(palette);
+            var pregrown = Punchy.Flora.FloraSystem.Pregrow(palette);
             var watch = System.Diagnostics.Stopwatch.StartNew();
             var biomes = new List<BiomeDefinition>(palette.Biomes);
             bool hasOcean = source.Biomes.Value.OceanIndex >= 0;
@@ -504,11 +520,10 @@ namespace Punchy.Terrain
             source.BiomeCells = default;
             source.RiverSettings = version == IslandV3.Version ? IslandV3.Rivers(source.RiverSettings) : IslandV2.Rivers(source.RiverSettings);
             source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Archipelago = default; source.Anchors = default; source.PondMask = default;
-            var types = LandmarkTypes(palette);
             TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent, villages: true);
             // W-29: the grand falls go in after every place, so no landmark, cave or settlement sees them.
             long fallsAt = watch.ElapsedMilliseconds;
-            source.GrandFalls = GrandFalls.Build(source, Allocator.Persistent);
+            source.GrandFalls = GrandFalls.Build(source, Allocator.Persistent, version == IslandV3.Version && GrandFalls.LakeShelfOn());
             Debug.Log(GrandFalls.LastLog);
             long fallsMs = watch.ElapsedMilliseconds - fallsAt;
             // W-30: the archipelago too, off the dune coast; it only raises sea floor.
@@ -521,13 +536,14 @@ namespace Punchy.Terrain
             IslandV2.ActiveVersion = version;
             long placesMs = watch.ElapsedMilliseconds - genMs;
 
-            string hashText = LandmarkHash(ref source, palette);
+            string hashText = LandmarkHash(ref source, types) + $"; {pregrown} plant variants pregrown";
             Debug.Log($"[island] {gen.Report}; baked in {watch.ElapsedMilliseconds} ms (generate {genMs}, places {placesMs}: grand falls {fallsMs}, archipelago {archMs}); {hashText}");
             var report = System.Diagnostics.Stopwatch.StartNew();
             // (Ponds: the "[ponds]" line from BuildPlaces; W-14 dropped the second count here, ~2.8 s.)
             if (source.Rivers.IsCreated) Debug.Log("[island] " + RiverReport(ref source.Rivers.Value));
-            // W-68: v3 ends every bake with the water audit (V3Audit; on v2 run it from the editor for a baseline).
-            if (version == IslandV3.Version) { Debug.Log(V3Audit.Run(source)); Debug.Log(V3Ranges.Checks(source)); Debug.Log(V3Ground.Report(source)); }
+            // W-68: v3 ends the bake with the water audit (V3Audit; on v2 run it from the editor for a baseline).
+            // W-74: only when asked (-islandaudit / PUNCHY_ISLANDAUDIT=1); they cost ~17 s against a ~6 s bake.
+            if (version == IslandV3.Version && IslandV2.AuditRequested()) { Debug.Log(V3Audit.Run(source)); Debug.Log(V3Ranges.Checks(source)); Debug.Log(V3Ground.Report(source)); }
             Debug.Log($"[island] reports {report.ElapsedMilliseconds} ms; v{version} ready at {UnityEngine.Time.realtimeSinceStartup:F1} s since start ({World.Name})");
         }
 

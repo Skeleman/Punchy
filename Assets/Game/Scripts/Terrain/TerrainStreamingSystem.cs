@@ -46,6 +46,8 @@ namespace Punchy.Terrain
         static readonly int TerrainFocusId = Shader.PropertyToID("_TerrainFocus");
         /// <summary>Vertices per batch (a full-detail chunk is about 4,500).</summary>
         const int VertexBudget = 14000;
+        /// <summary>When off, the first batch is load-boosted too (for before/after timing).</summary>
+        public static bool SmallFirstBatch = true;
         /// <summary>Frames a batch may run before the main thread waits for it: only a backstop. A chunk at a cave mouth
         /// meshes for about 40 ms on one worker (every vertex samples the mouth cut five times), and waiting for it
         /// after a few frames was a 100 ms frame on the walk in; the next batch just starts a little later.</summary>
@@ -71,6 +73,9 @@ namespace Punchy.Terrain
         readonly List<BuildItem> wanted = new List<BuildItem>();
         readonly List<Mesh> buildMeshes = new List<Mesh>();
         readonly List<BatchMeshID> buildMeshIds = new List<BatchMeshID>();
+        /// <summary>W-75: new chunk entities are instantiated from these (Prefab-tagged) in one call per batch, instead of
+        /// several structural changes per entity.</summary>
+        Entity terrainPrototype, waterPrototype;
 
         // The batch being built in the background.
         readonly List<BuildItem> building = new List<BuildItem>();
@@ -80,6 +85,12 @@ namespace Punchy.Terrain
         /// <summary>True while a batch of chunks is meshing in the background, so other background work (the weather
         /// maps) can hold off rather than crowd it out.</summary>
         public static bool Meshing { get; private set; }
+        /// <summary>W-75: true from the island bake until the first time every chunk in view is built. There is no frame
+        /// to protect before the player spawns, so batches are <see cref="LoadBoost"/> times larger (flora places faster
+        /// too). PUNCHY_LOADBOOST=0 turns it off, for before/after benches.</summary>
+        public static bool Loading { get; private set; } = true;
+        const int LoadBoost = 6;
+        static readonly bool LoadBoostOn = System.Environment.GetEnvironmentVariable("PUNCHY_LOADBOOST") != "0";
         Mesh.MeshDataArray buildData;
         NativeArray<ChunkBuildRequest> buildRequests;
         NativeArray<float2> buildRanges, buildWaterRanges;
@@ -166,11 +177,25 @@ namespace Punchy.Terrain
                 focusHeading = math.normalizesafe(math.lerp(focusHeading, step / moved, 1f - math.exp(-dt * 3f)));
             var fast = focusSpeed > FastSpeed;
             var budget = fast ? VertexBudget / 4 : VertexBudget;
+            // A new island (IslandV2 resets its version while it bakes) loads in large batches again.
+            if (Punchy.Terrain.IslandV2.ActiveVersion == 0)
+                Loading = true;
+            // The first batch stays small so the island's first frame isn't held up (#102); the boost starts once
+            // the nearest chunks are in.
+            var boost = Loading && LoadBoostOn && (loaded.Count > 0 || !SmallFirstBatch) ? LoadBoost : 1;
+            budget *= boost;
 
             UnloadDistantChunks(config, focus);
             CollectWantedChunks(config, focus);
             if (wanted.Count == 0)
+            {
+                if (Loading && Punchy.Terrain.IslandV2.ActiveVersion != 0 && building.Count == 0)
+                {
+                    Loading = false;
+                    UnityEngine.Debug.Log($"[stream] world ready at {UnityEngine.Time.realtimeSinceStartup:F1} s since start, {loaded.Count} chunks (load boost {(LoadBoostOn ? LoadBoost : 1)}x, {World.Name})");
+                }
                 return;
+            }
 
             // Fast: chunks ahead count as up to 40% nearer and those behind up to 40% farther, so small batches go
             // where the view is heading first.
@@ -186,7 +211,7 @@ namespace Punchy.Terrain
             wanted.Sort((a, b) => a.Distance.CompareTo(b.Distance));
             var count = 0;
             var vertices = 0;
-            while (count < wanted.Count && count < config.MaxBuildsPerFrame)
+            while (count < wanted.Count && count < config.MaxBuildsPerFrame * boost)
             {
                 var quads = config.QuadsForLod(wanted[count].Lod);
                 vertices += BuildChunkMeshJob.VertexCount(quads);
@@ -283,8 +308,7 @@ namespace Punchy.Terrain
                     scratchCoords.Add(coord);
             }
 
-            foreach (var coord in scratchCoords)
-                Unload(coord);
+            UnloadCoords();
         }
 
         void CollectWantedChunks(in TerrainConfig config, float2 focus)
@@ -369,6 +393,8 @@ namespace Punchy.Terrain
         /// <summary>Applies a finished batch: fills the chunks' meshes and creates or updates their entities.</summary>
         void FinishBuild(in TerrainConfig config)
         {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var first = loaded.Count == 0;
             buildHandle.Complete();
             Meshing = false;
             var count = building.Count;
@@ -387,6 +413,22 @@ namespace Punchy.Terrain
             }
             Mesh.ApplyAndDisposeWritableMeshData(buildData, buildMeshes, MeshFlags);
 
+            // The batch's new terrain and water entities, made in one structural change each.
+            var newTerrain = 0;
+            var newWater = 0;
+            for (int i = 0; i < count; i++)
+            {
+                var exists = loaded.TryGetValue(building[i].Coord, out var known);
+                if (!exists)
+                    newTerrain++;
+                if (buildWaterRanges[i].x <= buildWaterRanges[i].y && waterMaterialId != BatchMaterialID.Null && (!exists || known.WaterEntity == Entity.Null))
+                    newWater++;
+            }
+            var terrainEntities = Spawn(ref terrainPrototype, TerrainDesc, materialId, buildMeshIds[0], true, newTerrain);
+            var waterEntities = Spawn(ref waterPrototype, WaterDesc, waterMaterialId, buildMeshIds[count], false, newWater);
+            newTerrain = 0;
+            newWater = 0;
+
             for (int i = 0; i < count; i++)
             {
                 var item = building[i];
@@ -399,13 +441,13 @@ namespace Punchy.Terrain
                 {
                     chunk = new LoadedChunk
                     {
-                        Entity = CreateRenderEntity(item.Coord, origin, TerrainDesc, materialId, buildMeshIds[i], "TerrainChunk"),
+                        Entity = Place(terrainEntities[newTerrain++], origin, materialId, buildMeshIds[i], terrainBounds, "TerrainChunk"),
                         Mesh = buildMeshes[i],
                         MeshId = buildMeshIds[i],
                         WaterMesh = buildMeshes[count + i],
                         WaterMeshId = buildMeshIds[count + i]
                     };
-                    EntityManager.AddComponentData(chunk.Entity, new TerrainChunk { Coord = item.Coord, Lod = item.Lod });
+                    EntityManager.SetComponentData(chunk.Entity, new TerrainChunk { Coord = item.Coord, Lod = item.Lod });
                 }
                 else
                 {
@@ -417,7 +459,7 @@ namespace Punchy.Terrain
                 // Water entities come and go as a chunk's water appears or disappears.
                 var canDrawWater = hasWater && waterMaterialId != BatchMaterialID.Null;
                 if (canDrawWater && chunk.WaterEntity == Entity.Null)
-                    chunk.WaterEntity = CreateRenderEntity(item.Coord, origin, WaterDesc, waterMaterialId, chunk.WaterMeshId, "WaterChunk");
+                    chunk.WaterEntity = Place(waterEntities[newWater++], origin, waterMaterialId, chunk.WaterMeshId, waterBounds, "WaterChunk");
                 else if (canDrawWater)
                     EntityManager.SetComponentData(chunk.WaterEntity, new RenderBounds { Value = waterBounds });
                 else if (chunk.WaterEntity != Entity.Null)
@@ -429,6 +471,8 @@ namespace Punchy.Terrain
                 loaded[item.Coord] = chunk;
             }
             DisposeBuild();
+            if (first || clock.Elapsed.TotalMilliseconds > 250)
+                UnityEngine.Debug.Log($"[stream] batch of {count} chunks applied in {clock.Elapsed.TotalMilliseconds:F0} ms{(first ? " (first)" : "")}");
         }
 
         /// <summary>Abandons the batch being built (settings changed, or shutting down).</summary>
@@ -508,13 +552,32 @@ namespace Punchy.Terrain
             toShow.Dispose();
         }
 
-        Entity CreateRenderEntity(int2 coord, float2 origin, in RenderMeshDescription desc, BatchMaterialID material, BatchMeshID mesh, string name)
+        /// <summary><paramref name="n"/> new render entities, instantiated in one call from a prototype made on first use.</summary>
+        NativeArray<Entity> Spawn(ref Entity prototype, in RenderMeshDescription desc, BatchMaterialID material, BatchMeshID mesh, bool chunk, int n)
+        {
+            if (n == 0)
+                return default;
+            if (prototype == Entity.Null || !EntityManager.Exists(prototype))
+            {
+                prototype = EntityManager.CreateEntity();
+                EntityManager.AddComponentData(prototype, LocalTransform.Identity);
+                EntityManager.AddComponentData(prototype, new LocalToWorld { Value = float4x4.identity });
+                RenderMeshUtility.AddComponents(prototype, EntityManager, desc, new MaterialMeshInfo(material, mesh));
+                if (chunk)
+                    EntityManager.AddComponentData(prototype, new TerrainChunk());
+                EntityManager.AddComponent<Prefab>(prototype);
+            }
+            return EntityManager.Instantiate(prototype, n, Allocator.Temp);
+        }
+
+        /// <summary>Fills in a freshly instantiated chunk entity (no structural change).</summary>
+        Entity Place(Entity entity, float2 origin, BatchMaterialID material, BatchMeshID mesh, AABB bounds, string name)
         {
             var transform = LocalTransform.FromPosition(origin.x, 0f, origin.y);
-            var entity = EntityManager.CreateEntity();
-            EntityManager.AddComponentData(entity, transform);
-            EntityManager.AddComponentData(entity, new LocalToWorld { Value = transform.ToMatrix() });
-            RenderMeshUtility.AddComponents(entity, EntityManager, desc, new MaterialMeshInfo(material, mesh));
+            EntityManager.SetComponentData(entity, transform);
+            EntityManager.SetComponentData(entity, new LocalToWorld { Value = transform.ToMatrix() });
+            EntityManager.SetComponentData(entity, new MaterialMeshInfo(material, mesh));
+            EntityManager.SetComponentData(entity, new RenderBounds { Value = bounds });
 #if UNITY_EDITOR
             // One name per kind: the editor only has room for a few thousand distinct entity names, and streaming
             // creates chunks without end.
@@ -523,12 +586,13 @@ namespace Punchy.Terrain
             return entity;
         }
 
-        void Unload(int2 coord)
+        /// <summary>Unloads a chunk; its entities go on the dead list, destroyed together by the caller.</summary>
+        void Unload(int2 coord, NativeList<Entity> dead)
         {
             var chunk = loaded[coord];
-            EntityManager.DestroyEntity(chunk.Entity);
+            dead.Add(chunk.Entity);
             if (chunk.WaterEntity != Entity.Null)
-                EntityManager.DestroyEntity(chunk.WaterEntity);
+                dead.Add(chunk.WaterEntity);
             meshPool.Push((chunk.Mesh, chunk.MeshId));
             meshPool.Push((chunk.WaterMesh, chunk.WaterMeshId));
             loaded.Remove(coord);
@@ -538,8 +602,19 @@ namespace Punchy.Terrain
         {
             scratchCoords.Clear();
             scratchCoords.AddRange(loaded.Keys);
+            UnloadCoords();
+        }
+
+        /// <summary>Unloads the chunks in scratchCoords, destroying their entities in one structural change.</summary>
+        void UnloadCoords()
+        {
+            if (scratchCoords.Count == 0)
+                return;
+            var dead = new NativeList<Entity>(scratchCoords.Count * 2, Allocator.Temp);
             foreach (var coord in scratchCoords)
-                Unload(coord);
+                Unload(coord, dead);
+            EntityManager.DestroyEntity(dead.AsArray());
+            dead.Dispose();
         }
     }
 }

@@ -113,7 +113,7 @@ namespace Punchy.Terrain
                 for (int i = 0; i < g.Tiers.Length; i++)
                 {
                     pools++;
-                    if (DryPool(s, g.Tiers[i].Pool, g.Tiers[i].PoolRadius)) { dryPools++; if (dryAt.Count < 6) dryAt.Add($"grand({g.Tiers[i].Pool.x:F0},{g.Tiers[i].Pool.z:F0})"); }
+                    if (!g.Tiers[i].Shelf && DryPool(s, g.Tiers[i].Pool, g.Tiers[i].PoolRadius)) { dryPools++; if (dryAt.Count < 6) dryAt.Add($"grand({g.Tiers[i].Pool.x:F0},{g.Tiers[i].Pool.z:F0})"); }
                 }
             }
             int ponds = s.PondCount(16f, out _);

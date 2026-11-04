@@ -20,14 +20,23 @@ namespace Punchy.Fauna
     /// </summary>
     public class StoneColossi : MonoBehaviour
     {
-        public enum Kind { KneelingTitan, HalfBuriedHead }
+        /// <summary>W-78 added a moss-backed giant tortoise (FungalForest) and a crystal-spined serpent (ElectricWastelands).</summary>
+        public enum Kind { KneelingTitan, HalfBuriedHead, GiantTortoise, CrystalSerpent }
+        const int Kinds = 4;
 
         /// <summary>Where each kind stands (NaN until placed), for probes and shot lists.</summary>
-        public static readonly float3[] Positions = { new float3(float.NaN), new float3(float.NaN) };
+        public static readonly float3[] Positions = { new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN) };
 
         const float Step = 150f;
-        static readonly string[][] Biomes = { new[] { "Tundra", "Glacier", "Mountains" }, new[] { "Grassland", "Temperate" } };
-        static readonly uint[] Salts = { 0x71A4u, 0x4EADu };
+        static readonly string[][] Biomes =
+        {
+            new[] { "Tundra", "Glacier", "Mountains" }, new[] { "Grassland", "Temperate" }, new[] { "FungalForest" }, new[] { "ElectricWastelands" },
+        };
+        // Each kind draws from its own salt on the world seed, so adding one moves no other colossus or landmark.
+        static readonly uint[] Salts = { 0x71A4u, 0x4EADu, 0x7027u, 0x5E2Bu };
+        static readonly float[] KeepRadius = { 34f, 42f, 38f, 44f };
+        /// <summary>Height and half-width each one casts with its far shadow (#84); the last entry is the Dunes colossus.</summary>
+        static readonly float2[] Casts = { new float2(46f, 14f), new float2(22f, 12f), new float2(30f, 20f), new float2(26f, 9f), new float2(58f, 20f) };
 
         static readonly Color Stone = new Color(0.50f, 0.50f, 0.49f);
         static readonly Color Dark = new Color(0.36f, 0.36f, 0.36f);
@@ -48,7 +57,8 @@ namespace Punchy.Fauna
 
         static void OnSceneLoaded(UnityEngine.SceneManagement.Scene scene, UnityEngine.SceneManagement.LoadSceneMode mode) => Create();
 
-        readonly Transform[] roots = new Transform[2];
+        readonly Transform[] roots = new Transform[Kinds];
+        readonly FarShadow[] shadows = new FarShadow[Kinds + 1];
         bool placed;
         float nextTry;
 
@@ -66,6 +76,37 @@ namespace Punchy.Fauna
             foreach (var r in roots)
                 if (r != null && r.gameObject.activeSelf == DunesColossus.Hidden)
                     r.gameObject.SetActive(!DunesColossus.Hidden);
+            DrawFarShadows();
+        }
+
+        /// <summary>
+        /// Past the real shadow distance every colossus (these and the Dunes one) still casts, through a far shadow
+        /// proxy (#84, as the salt tower). The terrain is fetched each frame so a rebaked island is never sampled stale.
+        /// </summary>
+        void DrawFarShadows()
+        {
+            if (DunesColossus.Hidden)
+                return;
+            var world = Unity.Entities.World.DefaultGameObjectInjectionWorld;
+            if (world == null || !world.IsCreated)
+                return;
+            using var terrainQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (!terrainQuery.TryGetSingleton(out TerrainSource source))
+                return;
+            for (int k = 0; k <= Kinds; k++)
+            {
+                var at = k < Kinds ? Positions[k] : DunesColossus.Position;
+                if (k < Kinds ? roots[k] == null : math.all(at == 0f))
+                    continue;
+                shadows[k] ??= new FarShadow(k < Kinds ? $"{(Kind)k} far shadow" : "DunesColossus far shadow");
+                shadows[k].Draw(source, at, Casts[k].x, Casts[k].y);
+            }
+        }
+
+        void OnDestroy()
+        {
+            foreach (var s in shadows)
+                s?.Dispose();
         }
 
         void TryPlace()
@@ -92,7 +133,7 @@ namespace Punchy.Fauna
             var biomes = grid.ToArray();
             grid.Dispose();
             placed = true;
-            for (int kind = 0; kind < 2; kind++)
+            for (int kind = 0; kind < Kinds; kind++)
             {
                 var wanted = new HashSet<int>();
                 for (int b = 0; b < palette.Biomes.Length; b++)
@@ -110,10 +151,16 @@ namespace Punchy.Fauna
                 // Keep flora out of a circle round it and re-place the streamed tiles, so no tree grows through it (#40).
                 var keep = FloraPlacement.KeepOut.Data;
                 // The head's circle is wide enough (W-59d) to leave a clear sight line from about 40 m away.
-                keep[kind] = new float4(spot.x, spot.y, kind == 0 ? 34f : 42f, 1f);
+                keep[kind] = new float4(spot.x, spot.y, KeepRadius[kind], 1f);
                 FloraPlacement.KeepOut.Data = keep;
                 FloraSystem.Replant = true;
-                roots[kind] = kind == 0 ? BuildTitan(Positions[kind], yaw) : BuildHead(Positions[kind], yaw);
+                roots[kind] = (Kind)kind switch
+                {
+                    Kind.KneelingTitan => BuildTitan(Positions[kind], yaw),
+                    Kind.HalfBuriedHead => BuildHead(Positions[kind], yaw),
+                    Kind.GiantTortoise => BuildTortoise(Positions[kind], yaw),
+                    _ => BuildSerpent(Positions[kind], yaw),
+                };
                 Debug.Log($"StoneColossi: {(Kind)kind} placed at ({spot.x:F0}, {ground:F1}, {spot.y:F0}), facing {yaw:F0} degrees, region {cells} cells");
             }
         }
@@ -306,6 +353,176 @@ namespace Punchy.Fauna
             var mesh = m.ToMesh("HalfBuriedHead");
             Weather(mesh, Moss, 0.35f, 0.85f);
             AddPart("Head", root, mesh);
+            return root;
+        }
+
+        static readonly Color CapRed = new Color(0.72f, 0.24f, 0.16f);
+        static readonly Color CapPale = new Color(0.86f, 0.74f, 0.52f);
+        static readonly Color Stalk = new Color(0.88f, 0.85f, 0.76f);
+        static readonly Color SlateBlue = new Color(0.40f, 0.43f, 0.50f);
+        static readonly Color SlateDark = new Color(0.26f, 0.28f, 0.34f);
+        static readonly Color Crystal = new Color(0.45f, 0.85f, 0.95f);
+        static readonly Color Violet = new Color(0.62f, 0.45f, 0.92f);
+
+        /// <summary>
+        /// A stone tortoise about 50 m long in the fungal forest, head stretched out low as if it stopped mid-step:
+        /// a domed shell of raised plates with moss on everything facing up, and growing from the moss a crop of
+        /// mushrooms with one huge toadstool on the crest. Details: a clutch of three stone eggs half sunk by a front
+        /// foot, a chipped plate lying on the ground, and a little mushroom ring on its snout.
+        /// </summary>
+        static Transform BuildTortoise(float3 at, float yaw)
+        {
+            var root = new GameObject("GiantTortoise").transform;
+            root.SetPositionAndRotation(new Vector3(at.x, at.y - 1.5f, at.z), Quaternion.Euler(0f, yaw, 0f));
+            var m = new DunesColossus.MeshBuilder();
+            var c = new Vector3(0f, 7f, 0f);
+            var shell = new Vector3(19f, 15f, 23f);
+            m.Dome(c, shell, Quaternion.identity, Stone, false, 16, 5);
+            m.Ellipsoid(c, new Vector3(20.5f, 2.6f, 24.5f), Quaternion.identity, Dark, 16, 4);              // shell rim
+            // Raised plates on the dome, in rings, each turned to the dome's surface.
+            for (int ring = 0; ring < 3; ring++)
+            {
+                var theta = 0.28f + ring * 0.42f;                       // from the crest down
+                var count = ring == 0 ? 1 : ring * 6 + 1;
+                for (int k = 0; k < count; k++)
+                {
+                    var phi = k * Mathf.PI * 2f / count + ring * 0.4f;
+                    var d = new Vector3(Mathf.Sin(theta) * Mathf.Cos(phi), Mathf.Cos(theta), Mathf.Sin(theta) * Mathf.Sin(phi));
+                    if (ring == 0) d = Vector3.up;
+                    var p = c + Vector3.Scale(d, shell);
+                    var n = new Vector3(d.x / shell.x, d.y / shell.y, d.z / shell.z).normalized;
+                    m.Ellipsoid(p, new Vector3(4.6f, 1.3f, 4.6f), Quaternion.FromToRotation(Vector3.up, n), (ring + k) % 2 == 0 ? Dark : Stone, 6, 3);
+                }
+            }
+            // Four pillar legs with blunt toes, the front left one lifted a little (mid-step).
+            for (int k = 0; k < 4; k++)
+            {
+                float sx = k % 2 == 0 ? -1f : 1f, sz = k < 2 ? 1f : -1f;
+                var lift = k == 0 ? 2.5f : 0f;
+                var hip = new Vector3(sx * 14f, 7f, sz * 14f);
+                var foot = new Vector3(sx * 18f, 1.2f + lift, sz * 18f);
+                m.Limb(hip, foot, 5.5f, 4.6f, Stone);
+                m.Ellipsoid(foot + new Vector3(0f, -0.4f, sz * 1.6f), new Vector3(5f, 2f, 5.5f), Quaternion.identity, Dark, 8, 4);
+                for (int t = -1; t <= 1; t++)
+                    m.Ellipsoid(foot + new Vector3(t * 2.4f, -0.6f, sz * 5.6f), new Vector3(1.1f, 0.9f, 1f), Quaternion.identity, Stone, 5, 3);
+            }
+            // Neck reaching forward and down, the head turned a little, a hooked beak and deep eyes.
+            m.Limb(new Vector3(0f, 8f, 22f), new Vector3(2f, 7f, 32f), 5.4f, 4.2f, Dark);
+            var look = Quaternion.Euler(10f, 14f, 0f);
+            var head = new Vector3(3f, 7.5f, 36f);
+            m.Ellipsoid(head, new Vector3(5f, 4.2f, 6.6f), look, Stone);
+            m.Ellipsoid(head + look * new Vector3(0f, -1.2f, 5.6f), new Vector3(2.6f, 2.2f, 2f), look, Dark);            // beak
+            m.Ellipsoid(head + look * new Vector3(-3.4f, 1.2f, 3f), new Vector3(1f, 1f, 1f), look, Hollow);
+            m.Ellipsoid(head + look * new Vector3(3.4f, 1.2f, 3f), new Vector3(1f, 1f, 1f), look, Hollow);
+            m.Limb(new Vector3(0f, 5f, -23f), new Vector3(-2f, 1.5f, -30f), 3f, 0.6f, Dark);               // stubby tail
+            // A chipped plate on the ground beside it, and three stone eggs half sunk by the front left foot.
+            m.Ellipsoid(new Vector3(26f, 1.5f, -6f), new Vector3(4.2f, 1.1f, 4.4f), Quaternion.Euler(14f, 30f, 22f), Dark, 6, 3);
+            m.Ellipsoid(new Vector3(-27f, 1.6f, 22f), new Vector3(1.6f, 2f, 1.6f), Quaternion.Euler(10f, 0f, 8f), Stalk, 8, 5);
+            m.Ellipsoid(new Vector3(-29.5f, 1.4f, 20.5f), new Vector3(1.5f, 1.9f, 1.5f), Quaternion.Euler(-8f, 0f, -14f), Stalk, 8, 5);
+            m.Ellipsoid(new Vector3(-28f, 1.3f, 19f), new Vector3(1.5f, 1.8f, 1.5f), Quaternion.Euler(4f, 0f, 20f), Stalk, 8, 5);
+            var mesh = m.ToMesh("GiantTortoise");
+            Weather(mesh, Moss, 0.35f, 0.85f);
+            AddPart("Body", root, mesh);
+
+            // The mushrooms go in their own mesh so the moss pass doesn't colour their caps.
+            var f = new DunesColossus.MeshBuilder();
+            var rng = Unity.Mathematics.Random.CreateFromIndex(0x7027u);
+            void Mushroom(Vector3 basePos, float height, float cap, Color color)
+            {
+                f.Limb(basePos, basePos + Vector3.up * height, cap * 0.22f, cap * 0.16f, Stalk, 6);
+                f.Dome(basePos + Vector3.up * height, new Vector3(cap, cap * 0.55f, cap), Quaternion.identity, color, false, 10, 3);
+                f.Ellipsoid(basePos + Vector3.up * (height - 0.05f), new Vector3(cap * 0.95f, cap * 0.08f, cap * 0.95f), Quaternion.identity, Stalk, 10, 2);  // gills
+            }
+            Mushroom(c + new Vector3(1.5f, shell.y - 0.6f, -2f), 7f, 5.5f, CapRed);                    // the toadstool on the crest
+            for (int k = 0; k < 7; k++)
+            {
+                f.Ellipsoid(c + new Vector3(1.5f, shell.y + 6.4f, -2f) + Quaternion.Euler(0f, k * 51f, 0f) * new Vector3(3.2f, 0.2f, 0f), new Vector3(0.6f, 0.25f, 0.6f), Quaternion.identity, Stalk, 6, 2); // spots
+            }
+            for (int k = 0; k < 14; k++)
+            {
+                var theta = rng.NextFloat(0.35f, 1.15f);
+                var phi = rng.NextFloat(0f, Mathf.PI * 2f);
+                var d = new Vector3(Mathf.Sin(theta) * Mathf.Cos(phi), Mathf.Cos(theta), Mathf.Sin(theta) * Mathf.Sin(phi));
+                var cluster = c + Vector3.Scale(d, shell) - Vector3.up * 0.4f;
+                for (int j = rng.NextInt(1, 4); j > 0; j--)
+                    Mushroom(cluster + new Vector3(rng.NextFloat(-1.5f, 1.5f), 0f, rng.NextFloat(-1.5f, 1.5f)), rng.NextFloat(0.8f, 2.4f), rng.NextFloat(0.6f, 1.6f), rng.NextBool() ? CapRed : CapPale);
+            }
+            for (int k = 0; k < 6; k++)                                                                   // a fairy ring on its snout
+                Mushroom(head + look * new Vector3(Mathf.Cos(k * 1.05f) * 2.2f, 3.8f, Mathf.Sin(k * 1.05f) * 2.2f - 0.5f), 0.45f, 0.35f, CapPale);
+            AddPart("Mushrooms", root, f.ToMesh("GiantTortoiseMushrooms"));
+            return root;
+        }
+
+        /// <summary>
+        /// A slate-blue serpent about 120 m long in the electric wastes, swimming through the ground in arches, its
+        /// head reared 20 m up with the jaw open and a row of crystal spines (cyan and violet) down every arch. Details:
+        /// rubble rings where it dives under, crystal shards sprouting from the ground beside those holes, a spine
+        /// snapped off and lying in the dust, and two shed scales.
+        /// </summary>
+        static Transform BuildSerpent(float3 at, float yaw)
+        {
+            var root = new GameObject("CrystalSerpent").transform;
+            root.SetPositionAndRotation(new Vector3(at.x, at.y - 2f, at.z), Quaternion.Euler(0f, yaw, 0f));
+            const float Ground = 2f;
+            var m = new DunesColossus.MeshBuilder();
+            var rng = Unity.Mathematics.Random.CreateFromIndex(0x5E2Bu);
+            const int N = 44;
+            Vector3 Path(float s) => new Vector3(14f * Mathf.Sin(s * Mathf.PI * 1.8f), Ground - 1.5f + 11f * Mathf.Sin(s * Mathf.PI * 3.5f), -60f + 110f * s);
+            float Radius(float s) => Mathf.Lerp(1.2f, 4.6f, Mathf.SmoothStep(0f, 1f, s * 1.6f));
+            for (int i = 0; i < N; i++)
+            {
+                float s0 = i / (float)N, s1 = (i + 1f) / N;
+                Vector3 a = Path(s0), b = Path(s1);
+                m.Limb(a, b, Radius(s0), Radius(s1), i / 3 % 2 == 0 ? SlateBlue : SlateDark, 8);
+                // Rubble ring where the body enters or leaves the ground.
+                if ((a.y - Ground) * (b.y - Ground) < 0f)
+                {
+                    var hole = Vector3.Lerp(a, b, (Ground - a.y) / (b.y - a.y));
+                    for (int k = 0; k < 9; k++)
+                    {
+                        var ang = rng.NextFloat(0f, Mathf.PI * 2f);
+                        var size = rng.NextFloat(0.8f, 2f);
+                        var p = new Vector3(hole.x + Mathf.Cos(ang) * (Radius(s0) + 1.5f), Ground, hole.z + Mathf.Sin(ang) * (Radius(s0) + 1.5f));
+                        m.Ellipsoid(p, new Vector3(size * 1.3f, size * 0.6f, size), Quaternion.Euler(rng.NextFloat(-15f, 15f), rng.NextFloat(0f, 360f), 0f), SlateDark, 6, 3);
+                    }
+                    for (int k = 0; k < 4; k++)
+                    {
+                        var side = new Vector3(rng.NextBool() ? -1f : 1f, 0f, 0f) * (Radius(s0) + rng.NextFloat(3f, 6f));
+                        var foot = new Vector3(hole.x, Ground - 0.5f, hole.z + rng.NextFloat(-3f, 3f)) + side;
+                        m.Limb(foot, foot + new Vector3(rng.NextFloat(-1.2f, 1.2f), rng.NextFloat(1.5f, 3.5f), rng.NextFloat(-1.2f, 1.2f)), 0.6f, 0.05f, k % 2 == 0 ? Crystal : Violet, 4);
+                    }
+                }
+                // Crystal spines on the back wherever the body is above the ground, longest mid-body.
+                if (a.y > Ground + 1f && i % 2 == 0)
+                {
+                    var up = Vector3.Cross(b - a, Vector3.right).normalized;
+                    if (up.y < 0f) up = -up;
+                    var len = rng.NextFloat(3f, 7f) * Mathf.Lerp(0.4f, 1f, Radius(s0) / 4.6f);
+                    var lean = (a - b).normalized * 0.35f;
+                    m.Limb(a + up * Radius(s0) * 0.8f, a + (up + lean).normalized * (Radius(s0) + len), 1f, 0.08f, i / 2 % 2 == 0 ? Crystal : Violet, 4);
+                }
+            }
+            // The reared neck and head, jaw open, glinting crystal eyes and a crest of short spines.
+            var neckBase = Path(1f);
+            var headPos = neckBase + new Vector3(0f, 18f, 9f);
+            m.Limb(neckBase, neckBase + new Vector3(0f, 10f, 1f), 4.6f, 4.2f, SlateBlue, 8);
+            m.Limb(neckBase + new Vector3(0f, 10f, 1f), headPos, 4.2f, 3.6f, SlateDark, 8);
+            var pitch = Quaternion.Euler(18f, 0f, 0f);
+            m.Ellipsoid(headPos + pitch * new Vector3(0f, 1f, 4f), new Vector3(4.4f, 3f, 8f), pitch, SlateBlue);
+            var jaw = Quaternion.Euler(44f, 0f, 0f);
+            m.Ellipsoid(headPos + jaw * new Vector3(0f, -1.5f, 4.5f), new Vector3(3.8f, 1.4f, 7f), jaw, SlateDark);
+            m.Ellipsoid(headPos + pitch * new Vector3(0f, -0.8f, 5f), new Vector3(3f, 1.2f, 5.5f), pitch, Hollow);        // the open mouth
+            m.Ellipsoid(headPos + pitch * new Vector3(-3.4f, 2.4f, 4f), new Vector3(1f, 0.8f, 1.3f), pitch, Crystal);
+            m.Ellipsoid(headPos + pitch * new Vector3(3.4f, 2.4f, 4f), new Vector3(1f, 0.8f, 1.3f), pitch, Crystal);
+            for (int k = 0; k < 2; k++)                                                                    // fangs
+                m.Limb(headPos + pitch * new Vector3(k == 0 ? -2.2f : 2.2f, -1.2f, 10f), headPos + pitch * new Vector3(k == 0 ? -2f : 2f, -4.4f, 10.4f), 0.6f, 0.05f, Stalk, 5);
+            for (int k = 0; k < 5; k++)
+                m.Limb(headPos + pitch * new Vector3(0f, 3f, 2f - k * 2.2f), headPos + pitch * new Vector3(0f, 6.5f - k * 0.5f, -1f - k * 2.4f), 0.9f, 0.06f, k % 2 == 0 ? Violet : Crystal, 4);
+            // A snapped spine lying in the dust, and two shed scales.
+            m.Limb(new Vector3(-22f, Ground + 0.4f, 6f), new Vector3(-17f, Ground + 1.2f, 10f), 1f, 0.08f, Crystal, 4);
+            m.Ellipsoid(new Vector3(20f, Ground + 0.1f, -14f), new Vector3(2.4f, 0.25f, 1.8f), Quaternion.Euler(6f, 40f, 4f), SlateBlue, 6, 2);
+            m.Ellipsoid(new Vector3(23f, Ground + 0.1f, -10f), new Vector3(2f, 0.25f, 1.5f), Quaternion.Euler(-5f, 110f, 3f), SlateDark, 6, 2);
+            AddPart("Body", root, m.ToMesh("CrystalSerpent"));
             return root;
         }
 

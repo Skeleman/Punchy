@@ -73,6 +73,20 @@ namespace Punchy.Flora
             form is FloraForm.Pen or FloraForm.Palisade or FloraForm.Signpost or FloraForm.Garden or FloraForm.Woodpile
                  or FloraForm.Stall or FloraForm.Flowers or FloraForm.Bedroll or FloraForm.RailFence;
 
+        /// <summary>W-79: each level's geometry until Finish makes its mesh (FloraGenerator grows it on a worker), and their name.</summary>
+        internal FloraMeshBuilder[] Pending;
+        internal string MeshName;
+
+        /// <summary>Makes the meshes from the grown geometry (main thread).</summary>
+        internal void Finish()
+        {
+            if (Pending == null)
+                return;
+            for (int lod = 0; lod < Pending.Length; lod++)
+                Lods[lod] = Pending[lod].MakeMesh($"{MeshName} LOD{lod}");
+            Pending = null;
+        }
+
         public void Destroy()
         {
             foreach (var m in Lods)
@@ -92,13 +106,81 @@ namespace Punchy.Flora
         /// and height), with no meshes and no support grid: the same sequence, so those match a full grow exactly.</param>
         public static FloraModel Grow(FloraSpecies species, int variant, bool shapeOnly = false)
         {
-            var model = new FloraModel { Species = species };
-            var builder = new FloraMeshBuilder();
+            // A shape-only grow (the fauna's obstacle pass) skips the pregrown parts: those stay for the flora build.
+            var model = shapeOnly ? GrowParts(species, variant, species.name, true)
+                                  : TakePregrown(species, variant) ?? GrowParts(species, variant, species.name);
+            model.Finish();
+            return model;
+        }
+
+        // W-79 (#102): growing every variant took ~8 s of the main thread on the frame the island was ready. It depends
+        // only on the palette, so the bake starts it on worker threads (Pregrow) and Grow just turns the result into meshes.
+        static readonly Dictionary<(FloraSpecies, int), System.Threading.Tasks.Task<FloraModel>> pregrown =
+            new Dictionary<(FloraSpecies, int), System.Threading.Tasks.Task<FloraModel>>();
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetPregrown()
+        {
+            lock (pregrown)
+                pregrown.Clear();   // Play mode keeps statics: an earlier session's leftovers may be stale
+        }
+
+        /// <summary>
+        /// Starts growing these species' variants (all but their meshes) on worker threads. A later Grow of the same
+        /// species and variant takes the result, waiting for it if it isn't done; anything never asked for is dropped
+        /// with the next Play session. Main thread only (it reads the assets' names). Returns how many were started.
+        /// </summary>
+        public static int Pregrow(IEnumerable<(FloraSpecies species, int variants)> list)
+        {
+            int started = 0;
+            lock (pregrown)
+                foreach (var (species, variants) in list)
+                {
+                    if (species == null)
+                        continue;
+                    var name = species.name;
+                    for (int v = 0; v < variants; v++)
+                    {
+                        if (pregrown.ContainsKey((species, v)))
+                            continue;
+                        var variant = v;
+                        pregrown[(species, v)] = System.Threading.Tasks.Task.Run(() => GrowParts(species, variant, name));
+                        started++;
+                    }
+                }
+            return started;
+        }
+
+        /// <summary>The pregrown parts of this variant (waiting for them if needed), or null if none were started or they failed.</summary>
+        static FloraModel TakePregrown(FloraSpecies species, int variant)
+        {
+            System.Threading.Tasks.Task<FloraModel> task;
+            lock (pregrown)
+            {
+                if (!pregrown.TryGetValue((species, variant), out task))
+                    return null;
+                pregrown.Remove((species, variant));
+            }
+            try { return task.Result; }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"[flora] pregrowing {species.name} {variant} failed, growing it here: {e.GetBaseException().Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Everything Grow does but making the meshes: pure code over the species' settings, safe on a worker thread
+        /// (<paramref name="name"/> is the species asset's name, read on the main thread). FloraModel.Finish makes the meshes.
+        /// </summary>
+        static FloraModel GrowParts(FloraSpecies species, int variant, string name, bool shapeOnly = false)
+        {
+            var model = new FloraModel { Species = species, MeshName = $"{name} {variant}", Pending = shapeOnly ? null : new FloraMeshBuilder[3] };
             model.CastsShadows = !FloraModel.Shadowless(species.Form);
-            var seed = (int)Hash((uint)species.Seed, (uint)variant, StableHash(species.name));
+            var seed = (int)Hash((uint)species.Seed, (uint)variant, StableHash(name));
             for (int lod = 0; lod < (shapeOnly ? 1 : 3); lod++)
             {
-                builder.Clear();
+                var builder = new FloraMeshBuilder();
                 builder.FoliageAs = species.Finish == FoliageFinish.Metallic ? FloraPart.Metal
                                   : species.Finish == FoliageFinish.Glowing ? FloraPart.Glow
                                   : species.Finish == FoliageFinish.Glass ? FloraPart.Glass : FloraPart.Foliage;
@@ -214,7 +296,8 @@ namespace Punchy.Flora
                 if (shapeOnly)
                     break;
                 var flexibility = Founded(species.Form) && species.Form != FloraForm.Garden ? 0f : species.Flexibility;
-                model.Lods[lod] = builder.ToMesh($"{species.name} {variant} LOD{lod}", g.Height, g.Width, flexibility, species.Form == FloraForm.Flowers);
+                builder.Sway(g.Height, g.Width, flexibility, species.Form == FloraForm.Flowers);
+                model.Pending[lod] = builder;
             }
             return model;
         }

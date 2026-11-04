@@ -170,13 +170,8 @@ namespace Punchy.Flora
         /// <summary>The most tree cells one FindTree looks at.</summary>
         const int MaxTreeCells = 24;
 
-        /// <summary>
-        /// Builds the tables from a palette. <paramref name="species"/> receives the species in model order (sorted by
-        /// layer, then name): species i's variants are models Rules[i].FirstModel onwards. With
-        /// <paramref name="obstacles"/>, buildings' walls too (each building variant is grown once for its colliders,
-        /// so only the animals' tables pay for it).
-        /// </summary>
-        public static BlobAssetReference<FloraBlob> Build(BiomePalette palette, float3 cellSizes, List<FloraSpecies> species, bool obstacles = false)
+        /// <summary>The species a palette's flora, landmark props and settlements use, in model order (by layer, then name).</summary>
+        public static void CollectSpecies(BiomePalette palette, List<FloraSpecies> species)
         {
             var found = new HashSet<FloraSpecies>();
             foreach (var biome in palette.Biomes)
@@ -201,7 +196,20 @@ namespace Punchy.Flora
             species.Clear();
             species.AddRange(found);
             species.Sort((a, b) => a.Layer != b.Layer ? a.Layer.CompareTo(b.Layer) : string.CompareOrdinal(a.name, b.name));
+        }
 
+        /// <summary>
+        /// Builds the tables from a palette. <paramref name="species"/> receives the species in model order (sorted by
+        /// layer, then name): species i's variants are models Rules[i].FirstModel onwards. With
+        /// <paramref name="obstacles"/>, buildings' walls too (each building variant is grown once for its colliders,
+        /// so only the animals' tables pay for it).
+        /// </summary>
+        public static BlobAssetReference<FloraBlob> Build(BiomePalette palette, float3 cellSizes, List<FloraSpecies> species, bool obstacles = false)
+        {
+            CollectSpecies(palette, species);
+            var landmarks = palette.Landmarks ?? Array.Empty<LandmarkType>();
+            var buildings = SettlementBaking.Buildings(landmarks);
+            var layouts = SettlementBaking.Layouts(landmarks);
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<FloraBlob>();
             root.CellSizes = cellSizes;
@@ -1238,9 +1246,10 @@ namespace Punchy.Flora
         /// exactly as without), leaving out its floor height and ground colour, which sample the ground round it and cost
         /// most of the call (Blocked asks on every step of every animal in town). Other plants are placed in full.
         /// </summary>
-        /// <summary>Up to two circles (x, z, radius, on) where no flora is placed: the stone colossi (#40), set at runtime.</summary>
-        public static readonly SharedStatic<float4x2> KeepOut = SharedStatic<float4x2>.GetOrCreate<KeepOutKey>();
-        class KeepOutKey { }
+        /// <summary>Up to four circles (x, z, radius, on) where no flora is placed: the stone colossi (#40), set at runtime.</summary>
+        public static readonly SharedStatic<float4x4> KeepOut = SharedStatic<float4x4>.GetOrCreate<KeepOutCircles>();
+        // Keyed apart from the old two-circle static: a live editor can't resize a SharedStatic it already made.
+        class KeepOutCircles { }
 
         public static FloraSystem.FloraInstance Place(ref FloraBlob f, in TerrainSource source, int2 cell, int layer, bool footprint = false)
         {
@@ -1250,9 +1259,9 @@ namespace Punchy.Flora
             var xz = ((float2)cell + rng.NextFloat2()) * cellSize;
             // Nothing grows through a stone colossus (#40): each one keeps a clear circle round it.
             var keepOut = KeepOut.Data;
-            if ((keepOut.c0.w > 0f && math.distancesq(xz, keepOut.c0.xy) < keepOut.c0.z * keepOut.c0.z) ||
-                (keepOut.c1.w > 0f && math.distancesq(xz, keepOut.c1.xy) < keepOut.c1.z * keepOut.c1.z))
-                return none;
+            for (int k = 0; k < 4; k++)
+                if (keepOut[k].w > 0f && math.distancesq(xz, keepOut[k].xy) < keepOut[k].z * keepOut[k].z)
+                    return none;
             var roll = rng.NextFloat();
             var area = cellSize * cellSize / 100f;
             // Room for 31 (a four-biome border plus a landmark's props; a fuller list would silently drop species).

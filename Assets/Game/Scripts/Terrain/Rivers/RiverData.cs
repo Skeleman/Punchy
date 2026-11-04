@@ -223,10 +223,12 @@ namespace Punchy.Terrain
             }
         }
 
-        public static RiverQuery Query(ref RiverMapBlob map, in RiverSettings s, float2 xz, bool rough = false)
+        /// <param name="maxBankSlope">Caps the valley walls' slope here (W-73: v3 pass tracks keep river banks walkable).</param>
+        public static RiverQuery Query(ref RiverMapBlob map, in RiverSettings s, float2 xz, bool rough = false, float maxBankSlope = float.MaxValue)
         {
             var q = new RiverQuery { Carve = float.MaxValue, Distance = float.MaxValue, FallWater = float.MinValue };
             var bank = Bank.At(ref map, s, xz, rough);
+            bank.Slope = math.min(bank.Slope, maxBankSlope);
             var cell = (int2)math.floor((xz - map.Origin) / map.CellSize);
             for (int y = -1; y <= 1; y++)
             for (int x = -1; x <= 1; x++)
