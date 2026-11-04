@@ -4,6 +4,7 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.NetCode;
 using Unity.Transforms;
 using UnityEngine;
 
@@ -158,6 +159,93 @@ namespace Punchy.Fauna
                 s.Action = IdleAction.None;
                 s.ActionTime = 0f;
             }
+        }
+    }
+
+    /// <summary>
+    /// Test only (#24): "-guardtest" puts this machine's player 3 m in front of a guarded chest once the dungeon's
+    /// sockets exist, so a guard line can be shown without walking there. Solo and the host take the first guarded
+    /// chest, a joined client the second (when there is one), so a host + client run shows a line for each player.
+    /// Runs where the local player lives; the picks are seed-derived, so every machine finds the same chests.
+    /// </summary>
+    [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
+    [UpdateInGroup(typeof(SimulationSystemGroup))]
+    public partial class DungeonGuardTestSystem : SystemBase
+    {
+        EntityQuery dungeons, player;
+        float holdUntil = -1f;
+        float3 spot;
+        float3 face;
+
+        protected override void OnCreate()
+        {
+            Enabled = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-guardtest") >= 0;
+            dungeons = new EntityQueryBuilder(Allocator.Temp).WithAll<DungeonSocket>().Build(this);
+            player = new EntityQueryBuilder(Allocator.Temp).WithAll<PlayerTag, LocalTransform>().Build(this);
+            RequireForUpdate(dungeons);
+            RequireForUpdate(player);
+        }
+
+        protected override void OnUpdate()
+        {
+            if (holdUntil < 0f && !Pick())
+                return;
+            if (holdUntil < 0f)
+                holdUntil = (float)SystemAPI.Time.ElapsedTime + 3f;
+            // Held for a few seconds, so a -place still settling or the floor still loading doesn't carry it off.
+            if (SystemAPI.Time.ElapsedTime > holdUntil)
+            {
+                Enabled = false;
+                return;
+            }
+            var e = player.GetSingletonEntity();
+            var t = EntityManager.GetComponentData<LocalTransform>(e);
+            t.Position = spot;
+            t.Rotation = quaternion.LookRotationSafe(face, math.up());
+            EntityManager.SetComponentData(e, t);
+        }
+
+        bool Pick()
+        {
+            var chests = new System.Collections.Generic.List<DungeonSocket>();
+            using var all = dungeons.ToEntityArray(Allocator.Temp);
+            foreach (var d in all)
+            {
+                var sockets = EntityManager.GetBuffer<DungeonSocket>(d, true);
+                for (int i = 0; i < sockets.Length; i++)
+                {
+                    var g = sockets[i];
+                    if (((SocketTags)g.Tags & SocketTags.NearChest) == 0 || !DungeonSpawner.IsCreature(DungeonSpawner.Pick(g)))
+                        continue;
+                    // The chest this guard keeps: the nearest chest socket.
+                    var best = -1;
+                    var bestD = float.MaxValue;
+                    for (int j = 0; j < sockets.Length; j++)
+                        if (sockets[j].Kind == SocketKind.Chest && math.distancesq(sockets[j].Pos, g.Pos) < bestD)
+                        {
+                            bestD = math.distancesq(sockets[j].Pos, g.Pos);
+                            best = j;
+                        }
+                    if (best >= 0 && !chests.Exists(c => math.distancesq(c.Pos, sockets[best].Pos) < 0.01f))
+                        chests.Add(sockets[best]);
+                }
+            }
+            if (chests.Count == 0)
+                return false;
+            var host = false;
+            foreach (var w in World.All)
+                host |= w.IsServer();
+            var joined = World.IsClient() && !host;
+            var k = joined && chests.Count > 1 ? 1 : 0;
+            var chest = chests[k];
+            // In front of the chest (its socket faces the room), turned to face it.
+            var fwd = math.mul(chest.Rot, new float3(0, 0, 1));
+            var dir = math.normalizesafe(new float3(fwd.x, 0f, fwd.z), new float3(0, 0, 1));
+            spot = chest.Pos + dir * 3f + new float3(0f, 0.3f, 0f);
+            face = -dir;
+            Debug.Log($"[guardtest] {World.Name} ({(joined ? "joined client" : host ? "host" : "solo")}): player put 3 m from guarded chest {k + 1} of {chests.Count} " +
+                      $"at ({chest.Pos.x:F1}, {chest.Pos.y:F1}, {chest.Pos.z:F1})");
+            return true;
         }
     }
 }
