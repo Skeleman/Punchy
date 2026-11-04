@@ -97,6 +97,7 @@ Paths are under `Assets/Game/`.
 | Animal behavior manager | `Scripts/Fauna/**`, `Fauna/**` assets, `Resources/Domestics.asset`, `Scripts/Debugging/DebugControls.cs` (shared test flags), `Scripts/Weather/WeatherSystem.cs` Sun handling, `GLOSSARY.md`, `Scripts/Audio/**` (shared sound system; others call its API), `Scripts/Ambience/` butterflies and fireflies |
 | world feature manager | `Scripts/Terrain/Caves/**`, `Scripts/Terrain/Anchors/**`, `Scripts/Terrain/Landmarks/**`, `Scripts/Terrain/Settlements/**`, `Scripts/Editor/CaveTools.cs`, `Biomes/Glacier.asset`, `Biomes/Surfaces/GlacierIce.asset`, `Landmarks/*.asset`, cave style and settlement assets, `Shaders/Cave.shader`, `WORLD.md` |
 | kind-possum | `Scripts/Debugging/BenchmarkRoute.cs` and its own `b/*` branches |
+| kind-possum, perf fixes (Zach approved 11-04) | May fix perf, crash and stall bugs it found and measured, in any file, on a `b/fix-*` branch cut from current main, when: the file isn't touched by a running card (check the open branches' diff vs main and batches/), the fix is small (no features, no design changes), and it ships with before/after numbers. The supervisor reviews and merges like any lane. If the file is busy, or the fix is a redesign, report it and the supervisor cards it |
 | player lane (2nd account, 11-03) | `Scripts/Settings/**`, `Scripts/UI/**`, `Scripts/Camera/ThirdPersonCamera.cs`, branch `player-client`; later interiors, doors, lights, pickups, inventory (#26) |
 
 **Shared, additive only (tell the other owner):** `Flora/FloraGenerator.cs`, `Flora/FloraPlacement.cs`,
