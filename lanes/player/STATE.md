@@ -39,4 +39,4 @@ no machine paths or personal info. Never bare `git stash`.
 - P-10 0a 11-04 (38a8f4c): #99 teardown reordered (jobs first); clean on desktop in both orders, needs the laptop to confirm.
 - P-12 done 11-04 (05baa8a): chests with lids, MenuNav inventory (pad unverified), solo/host labels. #99 still waits on the laptop's q23 on 38a8f4c.
 - P-12 row 0 11-04 (46abd95): #99 two-frame gap; desktop release 15/15 clean; waiting on the laptop's q23.
-- P-13 queued 11-04: #25 interiors on the world lane's InteriorCells hook (main f97bfc8). Card batches/P-13.md.
+- P-13 done 11-04 (f4e050a): house interiors (7 seeded rooms, 98 doors lead inside), door teleport, host-owned lamps.
