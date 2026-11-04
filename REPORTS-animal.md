@@ -1819,3 +1819,4 @@ Calls used: about 38. Editor closed (both); Temp/PlayArgs.txt removed.
   - Left: FaunaDirector (17 sites, all per event or rate-limited; changing them would move spawn RNG), Burst jobs, the OldCull debug path, UpdateSplashes (per event). Full table on #63.
 - Editor HumanVillage `-time 12`, uncapped, 6 samples: cpu main mean 6.32 -> 5.88 ms (146-157 vs 131-136 creatures, so partly noise). Brain 0.37-0.67 -> 0.46-0.56 ms.
 - Fingerprint 2DD98BAE unchanged. Both issues commented, left open.
+- Calls used: about 50 (incl. pre-summary). Editor closed; Temp/PlayArgs.txt removed.
