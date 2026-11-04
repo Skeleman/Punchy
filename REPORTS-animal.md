@@ -1873,5 +1873,7 @@ Fauna fingerprint: 2DD98BAE -> D0B9488A (114 species) after row 1; row 2 keeps D
   - So I'm calling the shift editor noise, but that is not proven. A second pair of runs would settle it.
 - The runs were done before that fix and before merging 8502bca. The final commit compiled with 0 errors. #60 commented, left open.
 
-Left: a repeat before/after pair if the Rest/Wander shift needs settling.
+**Follow-up: #60 differential proof.** For each creature in one play session, the old chain from 3e2d774 (temporary `DecideOld`) and the new table got copies of the same state, mind and `Random` seed, 300 seeds per creature.
+- Mismatched picks were 0 at every spot: wild spot noon (100 creatures, 30,000 decisions), HumanVillage noon (106, 31,800), HumanVillage into night (104, 31,200) and the spot resets (253, 75,900). An earlier session was also 0 (428 creatures, 128,400 decisions). The state, rng and mind mismatch counts were also 0.
+- No fix was needed, so 69340e1 stands with no new commit. The Rest/Wander shift was editor noise, and row 2 is safe to merge. The harness was not committed and has been removed, and Burst is back on. Posted on #60, which is left open.
 Calls used: about 60 across the card (incl. pre-summary). Editor closed at the end.

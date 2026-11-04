@@ -7,7 +7,7 @@ Fauna fingerprint D0B9488A (114 species; branch and main).
 - #10/#35: fish folk in the FishFolk settlements (3 villages, 12-21 each, `Wades`), blind cave pygmies in the bat-folk chambers (1 band
   of 6, `Blind`, ChamberFolk). Fingerprint 2DD98BAE -> D0B9488A. Merged as PR #127.
 - #60: Decide = forced -> urgent -> weighted table (69340e1), same RNG order, fingerprint unchanged. Rest -2..3 / Wander +2..3 at
-  both spots after; code checked equal, called noise (unproven). Both issues commented, open.
+  both spots after; proven equal by differential test (0 mismatches, ~300k decisions), shift = noise. Both issues commented, open.
 - Perf/mix recipe: shot list `Temp/a66b.txt` (3 perflog windows, then `-spincheck -wait 65` at HumanVillage and at `-goto 900,-1400`).
 
 ## A-65
