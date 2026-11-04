@@ -34,7 +34,7 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #21 #22 | Plant fidelity, underwater camera (design) | backlog |
 | #24 | Dungeons: caves and ruins | Phase 1: P-7 rows 4-5 (sockets in the sunken temple rooms; pool rooms need a world tile later), A-50 spawner + behaviours; merged PR #104; host/client check bench job 21 |
 | #36 | Fishing villages at river mouths | W-59, from the W-58 kit (Zach priority 2) |
-| #10 #35 #37 #38 #8 | New settlements and races (bat, sea, turtle, fish folk, pygmies; race reactions) | after W-59 (Zach priority 3) |
+| #10 #35 #37 #38 #8 | New settlements and races (bat, sea, turtle, fish folk, pygmies; race reactions) | A-66: fish folk walk in the existing FishFolk settlements; pygmies walk in the existing bat folk chambers (W-19/W-20 homes) |
 | #25-#27 | Roadmap | backlog |
 | #28 | Linux build | on hold |
 | #84 #86 #88 | Distance shadows/fog, driftwood, lake shelf waterfall | W-77 (part), W-77b; #88 tabled by Zach 11-04 after W-92 |
