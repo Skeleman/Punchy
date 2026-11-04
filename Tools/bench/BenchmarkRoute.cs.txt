@@ -24,7 +24,7 @@ namespace Punchy.Debugging
     /// </summary>
     public class BenchmarkRoute : MonoBehaviour
     {
-        const float Settle = 10f, Measure = 20f;
+        const float Settle = 10f, Measure = 20f, MaxCaveSettle = 30f;
         // Approach walks: start this far out, at walking pace, so settling plus measuring ends about 100 m short.
         const float ApproachFrom = 400f, ApproachSpeed = 6f, ApproachMeasure = 40f;
         // The direction Stop carries the player in.
@@ -101,7 +101,8 @@ namespace Punchy.Debugging
             // Walking through the village (streets, plots, roads leading out), at walking pace.
             yield return Stop("townwalk", () => JumpToVillage(controls) && SetWeather("Partly cloudy", 24), 6f, 0.1f, 30f);
             yield return Stop("forest", () => JumpTo(controls, "OakGrove") && SetWeather("Partly cloudy", 12));
-            yield return Stop("cave", () => PlaceInBiggestCave() && SetWeather("Partly cloudy", 13));
+            // Settles until the cave chunks are all built (CaveSystem.Settled), 30 s at most, so the bake isn't measured (item 13).
+            yield return Stop("cave", () => PlaceInBiggestCave() && SetWeather("Partly cloudy", 13), waitCaves: true);
             // -benchmouth x,y,z,yaw: deep in the biggest cave, then halfway through out to that point at its mouth, so the
             // hitch as the surface comes back (terrain, flora) is measured.
             var mouthArg = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-benchmouth");
@@ -162,7 +163,7 @@ namespace Punchy.Debugging
         /// measured part is already at speed.
         /// </summary>
         IEnumerator Stop(string name, System.Func<bool> arrive, float speed = 0f, float height = 0f, float measure = Measure, float hour = 12f,
-                         System.Action midway = null)
+                         System.Action midway = null, bool waitCaves = false)
         {
             // -benchstops run,glide runs only the listed stops (to profile one of them on its own).
             var args = System.Environment.GetCommandLineArgs();
@@ -197,13 +198,20 @@ namespace Punchy.Debugging
             frameMs.Clear(); cpuMs.Clear(); gpuMs.Clear();
             TurnOff();
             lightsMax = 0; lightsTotal = 0; drawTotal = 0;
-            while (t < Settle + measure)
+            var settle = Settle;   // waitCaves: pushed on while cave chunks are queued or building, up to MaxCaveSettle
+            var caves = waitCaves ? FindAnyObjectByType<CaveSystem>() : null;
+            var settledProp = caves != null ? typeof(CaveSystem).GetProperty("Settled", BindingFlags.Public | BindingFlags.Instance) : null;
+            while (t < settle + measure)
             {
                 t += Time.unscaledDeltaTime;
+                if (!measuring && settledProp != null && t > settle && t < MaxCaveSettle && !(bool)settledProp.GetValue(caves))
+                    settle = t;
                 if (speed > 0f)
                     Carry(start + ApproachDirection * speed * t, height);
-                if (!measuring && t > Settle)
+                if (!measuring && t > settle)
                 {
+                    if (waitCaves)
+                        Debug.Log($"BenchRoute: {name}: settled {t:F1} s (caves {(settledProp == null ? "n/a" : (bool)settledProp.GetValue(caves) ? "built" : "still building at the cap")})");
                     gcAtStart = System.GC.CollectionCount(0);   // garbage collections during the measured part
                     StartGpuPasses();
                     if (profiling)
@@ -214,9 +222,9 @@ namespace Punchy.Debugging
                         UnityEngine.Profiling.Profiler.enabled = true;
                     }
                 }
-                measuring = t > Settle;
+                measuring = t > settle;
                 // Something to happen halfway through the measured part (a move whose hitch should be caught).
-                if (midway != null && t > Settle + measure * 0.5f)
+                if (midway != null && t > settle + measure * 0.5f)
                 {
                     midway();
                     midway = null;
