@@ -2,6 +2,19 @@
 
 Newest first.
 
+## W-69 (2026-11-03): v3 B2, range spines, taper, spurs, passes
+
+Commits: world-features 5d63a75 (V3Ranges.cs new; IslandV3 feeds the range field into v3 ground; IslandV2 helpers made internal, v1/v2 behaviour unchanged). All behind `-island v3`.
+
+- Row 1, `[ranges]`: spines 20 (4 ranges + 16 spurs), length 22.3 km (ranges 8.0); range peak max 142 min 95 m, field max 190 m; passes 5; borders 6: Wet-Volcanic open (no range, 1.8 km), Wet-Cold range Mountains 3.6/4.7 km 1 pass, Volcanic-Arid short Volcano 0.9/3.4 km 1 pass, Arid-Temperate range Mountains 2.3/3.4 km 2 passes, Arid-Cold river (no range, 0.7 km), Temperate-Cold short Mountains 1.2/3.7 km 1 pass; no range on 2; massif at (-2538,659) r 1295 m h 161 m; field 1024 (9 m cells), ~0.5 s. 0 compile errors.
+- Row 2, walls (8 m grid, wall = over 45 deg): v2 land 774555 cells, over 45 deg 47480, over 38 deg 69052, max 82 deg. v3 land 780707, over 45 deg 32063 (-32%), over 38 deg 50735, max 81 deg. Done condition met.
+- Passes (best of 7 parallel lines, max 4 m step on dry ground / range field alone): Wet-Cold 45/10, Volcanic-Arid 17/13, Arid-Temperate (2232,1734) 37/14, Arid-Temperate (1405,835) 46/8, Temperate-Cold 48/10 deg. The range field is walkable at every pass (max 14 deg; a medial-axis jump that gave 70 deg was fixed by taking the max over every nearby segment, plus a light blur). The 37-48 deg dry steps come from v2 ground features still under the field (river banks, the Mountains-biome strips), which B3/B4 replace.
+- V3Audit: `[hydro audit] rivers 36 (ends 12, open 0), lakes 144 (14191 cells), falls 101 + grand 5, pools 42 (dry 0), ponds 5, dry beds 0 | grid 8 m: wet 70106, steep 975, water over ground 428, land between 8, floating 4, near falls 282`. Water code untouched; counts move because the ground moved.
+- Row 3, hashes: v2 unchanged: 136 landmarks / 4E61F1CF, caves C49E8E3036C741FC, ground C0C906EE310FA91F, rivers 835B1404BEBDF563 (rivers hash is a new W-69 recipe over the river blob arrays). v3 measured: 141 landmarks / AC163FFE, caves 41 / 26115845CA1A851B, ground D02B2E32D2F18F61, rivers 1414CB113CBA4E0A. v1 not re-measured (calls); no v1 code path touched (only IslandV2 helper visibility changed).
+- Shots (D:\PunchyMilestones\W-69): w69_v2_height, w69_v3_height (passes red, massif ring white), w69_v3_massif, w69_v3_range_end, w69_v3_pass (all _800).
+- Notes: biome map is still v2 until B3, so Mountains-biome strips remain beside the new ranges. Editor left on Island Default.
+- Calls used: about 70 (over the 50 budget: two compile/measure rounds to fix pass slopes).
+
 ## W-68 (2026-11-03) world-features 527677a: v3 B0 water audit + B1 v3 flag
 
 - Merged origin/main (PR #89) into world-features: fast-forward to 1345b25. 0 compile errors before and after.
