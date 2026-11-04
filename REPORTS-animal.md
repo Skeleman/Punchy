@@ -1660,3 +1660,18 @@ Calls: about 80 across A-51 and the aborted A-50 start (A-51 alone was about 55)
   be split into files mechanically; it needs extracting into methods (a refactor card with a fingerprint check).
 - Calls: ~47 (ceiling hit). Editor closed (PID 34164, mine); Punchy-world (21836) and Punchy-player left alone.
   Temp/PlayArgs.txt removed.
+
+## A-56 (2026-11-04): dungeon chests and loot, -oldsearch A/B
+- Commit b397c2e (animal-behaviours, pushed, on top of main 2dae74b). Rows 1-3 landed in one commit by mistake
+  (message covers #24; it also holds the #57 DebugControls change).
+- Row 1 (#24): MakeProp skips Chest sockets (Items draws the chest) and the stand-in boxes use Resources/ItemMaterial
+  tinted via MaterialPropertyBlock _BaseColor. Shot a56-temple-chests: inside room 9, props tinted, no magenta seen
+  in a small check; a chest isn't clearly framed. Note: `-place temple` lands at the surface SunkenTemple
+  (1320,-2720), not the socket temple (3519,19,360); the first shot-list `-goto` lands on the sand above it.
+- Row 2 (#24): PickLoot, 3-6 loose items on empty Creature/Clutter sockets from the folded socket seeds; host/solo
+  Items.Spawn. Log, same in 5 runs: "loot: dungeon type 1 seed 0x16503f99: 4 items, 4 spawned: Coinx4@59
+  Stonex1@1 Mushroomx2@0 Stonex2@8". Shot a56-loot-stone (unchecked; camera may be wall-blocked).
+- Row 3 (#57): cause found: each shot line reset the flag. Now sticky + logged ("-oldsearch ON"). HumanVillage,
+  uncapped, 60 s each, one session: new brain 0.592 ms (124 creatures, 2.9/4.0 searches/frame) vs old 0.281 ms
+  (97, 22.5/28.4). Flag confirmed (8x searches); ms not comparable (creature counts differ), searches look cheap.
+- Fauna fingerprint not measured. Calls ~46 (ceiling). Editor closed; 0 exceptions.
