@@ -54,18 +54,22 @@ namespace Punchy.Fauna
     {
         const float GuardLeash = 2.5f, GuardSees = 7f;
 
-        EntityQuery players;
+        EntityQuery players, netPlayers;
 
         public void OnCreate(ref SystemState state)
         {
             players = SystemAPI.QueryBuilder().WithAll<PlayerTag, LocalTransform>().Build();
+            netPlayers = SystemAPI.QueryBuilder().WithAll<Punchy.Net.NetPlayer, LocalTransform>().Build();
             state.RequireForUpdate<DungeonPost>();
         }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            var seen = players.ToComponentDataListAsync<LocalTransform>(state.WorldUpdateAllocator, state.Dependency, out var got);
+            // On a server the players are the networked ones (the host's and every client's): its world has no
+            // PlayerTag. Solo, the one local player. The same choice as the brain's.
+            var who = netPlayers.IsEmptyIgnoreFilter ? players : netPlayers;
+            var seen = who.ToComponentDataListAsync<LocalTransform>(state.WorldUpdateAllocator, state.Dependency, out var got);
             state.Dependency = new PostJob { Players = seen.AsDeferredJobArray(), Dt = SystemAPI.Time.DeltaTime }.Schedule(got);
         }
 
