@@ -20,6 +20,10 @@ namespace Punchy.Terrain
         public BlobArray<byte> Blend;
         /// <summary>Geology family (<see cref="IslandV2.Family"/>) of the realm the pixel's biome came from (a bled cell takes its neighbour's).</summary>
         public BlobArray<byte> Family;
+        /// <summary>W-70b: pass corridor, 0..255 = 0..1: how much of the biome shape relief is faded out (1 in a pass saddle).</summary>
+        public BlobArray<byte> Pass;
+        /// <summary>W-70b: the whole pass box, 0..255 = 0..1, where long walls of biome relief are notched (see TerrainSource.ShapeHeight).</summary>
+        public BlobArray<byte> PassZone;
     }
 
     /// <summary>
@@ -61,7 +65,7 @@ namespace Punchy.Terrain
             }
 
             var passes = V3Ranges.Passes; var spines = V3Ranges.Spines;
-            var biomeIds = new byte[N * N]; var blend = new byte[N * N]; var family = new byte[N * N];
+            var biomeIds = new byte[N * N]; var blend = new byte[N * N]; var family = new byte[N * N]; var corridor = new byte[N * N]; var zone = new byte[N * N];
             int bled = 0, land = 0, narrow = 0, wide = 0;
             float FieldAt(float wx, float wz)
             {
@@ -86,13 +90,16 @@ namespace Punchy.Terrain
                     // How open the border is here: the range field standing on it (crest ~60 m or more = closed).
                     float h = Mathf.Max(FieldAt(wx, wz), 0f);
                     float open = 1f - Mathf.Clamp01(h / 60f);
-                    float toPass = float.MaxValue;
+                    float toPass = float.MaxValue, flat = 0f, box = 0f;
                     foreach (var q in passes)
                     {
                         float d = Vector2.Distance(q.At, new Vector2(wx, wz));
                         float reach = Mathf.Max(q.Width, spines[q.Spine].HalfWidth * 1.4f);
                         toPass = Mathf.Min(toPass, d / reach);
+                        flat = Mathf.Max(flat, Corridor(q, spines[q.Spine].HalfWidth, new Vector2(wx, wz)));
+                        box = Mathf.Max(box, Zone(q, spines[q.Spine].HalfWidth, new Vector2(wx, wz)));
                     }
+                    corridor[i] = (byte)Mathf.RoundToInt(flat * 255f); zone[i] = (byte)Mathf.RoundToInt(box * 255f);
                     float passOpen = 0.85f * (1f - Mathf.Clamp01(toPass));
                     open = Mathf.Max(open, passOpen);
 
@@ -107,7 +114,10 @@ namespace Punchy.Terrain
                     family[i] = (byte)fam[realm];
 
                     // Blend radius: narrow where a crest stands, medium in passes and taper ends, wide on open borders.
+                    // W-70b: only near the border. W-70 widened every interior cell edge too (no range there = "open"),
+                    // which blurred the surface weights so far that most landmark spots lost their 90% biome.
                     float r = Mathf.Lerp(BlendNarrow, BlendWide, Mathf.Clamp01(open));
+                    r = Mathf.Lerp(r, BlendNarrow, Smooth01((borderM - r) / r));
                     if (r < 100f) narrowRows[y]++; else if (r > 300f) wideRows[y]++;
                     blend[i] = (byte)Mathf.Clamp(Mathf.RoundToInt(r / BlendUnit), 1, 255);
                 }
@@ -125,15 +135,62 @@ namespace Punchy.Terrain
             var b2 = new BlobBuilder(Allocator.Temp);
             ref var g = ref b2.ConstructRoot<V3GroundBlob>();
             g.Resolution = N; g.Origin = origin; g.WorldSize = W;
-            var ba = b2.Allocate(ref g.Blend, N * N); var fa = b2.Allocate(ref g.Family, N * N);
-            for (int i = 0; i < N * N; i++) { ba[i] = blend[i]; fa[i] = family[i]; }
+            var ba = b2.Allocate(ref g.Blend, N * N); var fa = b2.Allocate(ref g.Family, N * N); var pa = b2.Allocate(ref g.Pass, N * N); var za = b2.Allocate(ref g.PassZone, N * N);
+            for (int i = 0; i < N * N; i++) { ba[i] = blend[i]; fa[i] = family[i]; pa[i] = corridor[i]; za[i] = zone[i]; }
             ground = b2.CreateBlobAssetReference<V3GroundBlob>(allocator); b2.Dispose();
 
             log = $"[v3 biomes] land {land} px ({W / N:F0} m), bled {bled}, blend under 100 m {narrow}, over 300 m {wide}; no border strips";
             return mapBlob;
         }
 
+        static float Smooth01(float t) { t = Mathf.Clamp01(t); return t * t * (3f - 2f * t); }
+
+        /// <summary>
+        /// W-70b: a walkable track through a pass, 1 on it and 0 off it: a strip along the crossing (out to 1.8
+        /// half-widths of the range either side, fading by 2.6) and narrow across it (TrackHalf, fading over TrackFade,
+        /// a few ground cells). The biome shape relief is faded out on it, so the smooth range field carries one
+        /// walkable line; the rest of the saddle keeps its crags and steep sections.
+        /// </summary>
+        const float TrackHalf = 24f, TrackFade = 72f;
+
+        static float Corridor(V3Ranges.RangePass q, float halfWidth, Vector2 p)
+        {
+            var d = p - q.At;
+            float a = Mathf.Abs(Vector2.Dot(d, q.Across)), b = Mathf.Abs(Vector2.Dot(d, new Vector2(q.Across.y, -q.Across.x)));
+            float wa = 1f - Smooth01((a - 1.8f * halfWidth) / (0.8f * halfWidth));
+            // The track's width wanders along it, so the relief it cuts back steps in and out instead of lining the
+            // track with two long straight walls.
+            float s = Vector2.Dot(d, q.Across), vary = 0.5f + 0.25f * Mathf.Sin(s / 37f + q.Along * 0.01f) + 0.25f * Mathf.Sin(s / 23f + 1.7f);
+            float wb = 1f - Smooth01((b - TrackHalf * (0.5f + 1.5f * vary)) / TrackFade);
+            return wa * wb;
+        }
+
+        /// <summary>W-70b: the whole pass box (the crossing as for the track, the full pass width along the spine, fading by half that).</summary>
+        static float Zone(V3Ranges.RangePass q, float halfWidth, Vector2 p)
+        {
+            var d = p - q.At;
+            float a = Mathf.Abs(Vector2.Dot(d, q.Across)), b = Mathf.Abs(Vector2.Dot(d, new Vector2(q.Across.y, -q.Across.x)));
+            return (1f - Smooth01((a - 1.8f * halfWidth) / (0.8f * halfWidth))) * (1f - Smooth01((b - q.Width) / (0.5f * q.Width)));
+        }
+
         // ---------------------------------------------------------------- sampling (Burst)
+
+        /// <summary>W-70b: pass box weight (0..1) at a point, bilinear.</summary>
+        public static float PassBox(ref V3GroundBlob g, float2 xz) => Bilinear(ref g.PassZone, ref g, xz);
+
+        /// <summary>W-70b: pass corridor weight (0..1) at a point, bilinear: how much biome shape relief to fade out.</summary>
+        public static float PassFlat(ref V3GroundBlob g, float2 xz) => Bilinear(ref g.Pass, ref g, xz);
+
+        static float Bilinear(ref BlobArray<byte> m, ref V3GroundBlob g, float2 xz)
+        {
+            var max = g.Resolution - 1;
+            var uv = math.clamp((xz - g.Origin) / g.WorldSize * g.Resolution - 0.5f, 0f, max);
+            var i0 = math.min((int2)math.floor(uv), max - 1);
+            var f = uv - i0;
+            int row = i0.y * g.Resolution + i0.x;
+            float a = math.lerp(m[row], m[row + 1], f.x), b = math.lerp(m[row + g.Resolution], m[row + g.Resolution + 1], f.x);
+            return math.lerp(a, b, f.y) * (1f / 255f);
+        }
 
         /// <summary>Blend radius (metres) at a point, bilinear.</summary>
         public static float BlendRadius(ref V3GroundBlob g, float2 xz)
