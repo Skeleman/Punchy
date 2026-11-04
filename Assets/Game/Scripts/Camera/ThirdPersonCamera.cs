@@ -31,6 +31,9 @@ namespace Punchy.CameraRig
         public float ZoomSensitivity = 0.01f;
         public float MinPitch = -20f;
         public float MaxPitch = 80f;
+        [Tooltip("Underground (caves, temple rooms): how far the camera can look up and down (#85).")]
+        public float UndergroundMinPitch = -60f;
+        public float UndergroundMaxPitch = 85f;
         [Tooltip("Keep the camera at least this far above the ground.")]
         public float GroundClearance = 0.5f;
 
@@ -38,12 +41,15 @@ namespace Punchy.CameraRig
         float pitch = 20f;
         /// <summary>In a cave: how far out the camera is now (it comes in at once for rock, out again slowly).</summary>
         float caveArm = 8f;
+        /// <summary>Last frame's view was underground (cave or temple room): the wider pitch range applies.</summary>
+        bool underground;
 
         /// <summary>Points the camera: yaw is the compass direction it looks towards, in degrees.</summary>
         public void SetView(float newYaw, float newPitch)
         {
             yaw = newYaw;
-            pitch = Mathf.Clamp(newPitch, MinPitch, MaxPitch);
+            // (#85: the underground range; above ground LateUpdate eases it back into MinPitch..MaxPitch.)
+            pitch = Mathf.Clamp(newPitch, Mathf.Min(MinPitch, UndergroundMinPitch), Mathf.Max(MaxPitch, UndergroundMaxPitch));
         }
         EntityManager entityManager;
         EntityQuery playerQuery;
@@ -78,13 +84,16 @@ namespace Punchy.CameraRig
                 if (Gamepad.current != null)
                     look += Gamepad.current.rightStick.ReadValue() * (StickSensitivity * Time.deltaTime);
                 yaw += look.x;
-                pitch = Mathf.Clamp(pitch - look.y, MinPitch, MaxPitch);
+                pitch = Mathf.Clamp(pitch - look.y, underground ? UndergroundMinPitch : MinPitch, underground ? UndergroundMaxPitch : MaxPitch);
 
                 if (Mouse.current != null)
                     Distance = Mathf.Clamp(Distance - Mouse.current.scroll.ReadValue().y * ZoomSensitivity * Distance,
                                            WatchTarget.HasValue ? Mathf.Min(MinDistance, WatchDistance) : MinDistance, MaxDistance);
             }
 
+            // #85: back above ground, a look from the wider underground range eases into the normal one.
+            if (!underground)
+                pitch = Mathf.MoveTowards(pitch, Mathf.Clamp(pitch, MinPitch, MaxPitch), Time.deltaTime * 90f);
             var target = playerPosition + Vector3.up * TargetHeight;
             var rotation = Quaternion.Euler(pitch, yaw, 0f);
             var position = target - rotation * Vector3.forward * Distance;
@@ -99,7 +108,13 @@ namespace Punchy.CameraRig
                 // wall or a ceiling, from the cave's mouth in as well as deep inside; very close, the near plane comes in.)
                 var head = new Unity.Mathematics.float3(target.x, target.y, target.z);
                 var near = -1f;
-                if (terrain.CaveDistance(head) < CaveNear)
+                // #85: underground is a cave near the head, or a sunken temple room (its walls aren't cave field, but
+                // SolidDistance knows them), or the head under the ground surface. There the rock probe decides, and
+                // the open-air checks below (ground clamp, hill pull-in) are skipped: they pulled the camera in to
+                // 1.5 m in temple rooms, into a small body (a rabbit), and up through the stone.
+                var ceilingUp = head.y < terrain.SampleHeight(head.xz) - 0.3f;
+                underground = terrain.CaveDistance(head) < CaveNear || terrain.TempleAir(head) || ceilingUp;
+                if (underground)
                 {
                     var probeStart = ProbeStats ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
                     float clear;
@@ -145,7 +160,8 @@ namespace Punchy.CameraRig
                 else
                     caveArm = Distance;
                 SetNearPlane(near);
-                if (terrain.CaveDistance(new Unity.Mathematics.float3(position.x, position.y, position.z)) < 0f)
+                var lens = new Unity.Mathematics.float3(position.x, position.y, position.z);
+                if (terrain.CaveDistance(lens) < 0f || underground && (terrain.TempleAir(lens) || position.y < terrain.SampleHeight(lens.xz)))
                 {
                     transform.SetPositionAndRotation(position, rotation);
                     return;
@@ -170,7 +186,7 @@ namespace Punchy.CameraRig
                 // Out in the open, a hill between the player and the camera (a steep slope, A-37): the camera comes in
                 // along its line to just before the ground, so the view isn't from inside the hill. Not near caves,
                 // where the ground height says nothing about the tunnel the player is in.
-                if (terrain.CaveDistance(head) >= CaveNear)
+                if (!underground)
                 {
                     var arm = position - target;
                     var armLength = arm.magnitude;
