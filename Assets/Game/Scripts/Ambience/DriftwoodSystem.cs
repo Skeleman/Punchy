@@ -21,13 +21,13 @@ namespace Punchy.Ambience
     /// </summary>
     public class DriftwoodSystem : MonoBehaviour
     {
-        // W-80 (#86): a lone piece here and there, never several in one view.
-        public int MaxLogs = 3;
+        // W-80/W-81 (#86): a lone piece here and there, at most one in view.
+        public int MaxLogs = 2;
         public float SpawnRadius = 150f;
         [Tooltip("Seconds between new logs while the pool isn't full.")]
         public float SpawnInterval = 15f;
         [Tooltip("No new log within this distance (m) of one already afloat.")]
-        public float MinGap = 60f;
+        public float MinGap = 120f;
 
         /// <summary>Logs afloat now, and the main-thread cost of the last Update (ms), for probes and the perf log.</summary>
         public static int Live;
