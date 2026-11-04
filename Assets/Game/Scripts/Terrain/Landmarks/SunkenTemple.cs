@@ -27,9 +27,11 @@ namespace Punchy.Terrain
     {
         public const float Top = 12.5f, Bottom = -6f, FloorReach = 0.45f, Margin = 0.3f;
         /// <summary>The swell's flat top (u InU0..InU1, |v| up to InV) and how far it falls away in front and elsewhere.</summary>
-        public const float InU0 = -19f, InU1 = 28f, InV = 12f, FrontFall = 40f, Fall = 22f;
-        /// <summary>The swell's extents in local u and v; nothing reaches further from the centre than Reach.</summary>
-        public const float MinU = -59f, MaxU = 50f, MaxV = 34f, Reach = 70f;
+        public const float InU0 = -19f, InU1 = 28f, InV = 12f, FrontFall = 80f, Fall = 74f;
+        /// <summary>The swell's extents in local u and v; nothing reaches further from the centre than Reach. W-95 (#80):
+        /// the falls are long enough that no flank tops ~20 degrees, under the slope shading's rock and scree, so the
+        /// swell stays sand; Reach runs past the type's Radius (the landmark grid lists the temple out to it).</summary>
+        public const float MinU = -108f, MaxU = 110f, MaxV = 94f, Reach = 120f;
         /// <summary>Where the ruin's rooms and boxes can be (the ruin kit keeps its branches inside).</summary>
         public const float RuinU0 = -29f, RuinU1 = 29f, RuinV = 15f;
         public const float Open = RuinKit.Open;
@@ -50,7 +52,7 @@ namespace Punchy.Terrain
             return new float3(xz.x, q.y + l.Base, xz.y);
         }
 
-        /// <summary>0 on the swell's flat top, 1 where it has fallen to Bottom.</summary>
+        /// <summary>0 on the swell's flat top, 1 where it has fallen to the ground around it.</summary>
         public static float MoundT(float u, float v)
         {
             float df = math.max(InU0 - u, 0f) / FrontFall, db = math.max(u - InU1, 0f) / Fall, ds = math.max(math.abs(v) - InV, 0f) / Fall;

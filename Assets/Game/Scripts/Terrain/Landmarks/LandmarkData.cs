@@ -222,7 +222,10 @@ namespace Punchy.Terrain
             var range = CellRange(ref set, xz);
             for (int k = range.x; k < range.x + range.y; k++)
             {
-                if (!Hit(ref set, set.Items[k], xz, out var hit))
+                // W-95 (#80): the temple's sand swell reaches past its footprint (Mask, Profile and pools are all zero
+                // there), so it can fall away gently.
+                if (!Hit(ref set, set.Items[k], xz, out var hit) &&
+                    (set.Types[hit.Type].Temple == 0 || hit.Distance * hit.Radius >= SunkenTempleShape.Reach))
                     continue;
                 ref var inst = ref set.Instances[hit.Instance];
                 ref var type = ref set.Types[hit.Type];
@@ -238,22 +241,25 @@ namespace Punchy.Terrain
                 // windward flank stretched long and low, the lee shorter and steeper, soft ripples across the wind on the
                 // flanks (sharp-crested, bent), and uneven drifts heaped against the top's edge. The flat top, where the
                 // ruin stands, is unchanged, and the drifts only add sand.
+                // W-95 (#80): gentler, so the slope shading keeps it sand: long falls past the footprint, down to the
+                // ground around it (not below), a milder lee, lower, longer ripples and broader drifts.
                 if (type.Temple != 0)
                 {
                     var l = hit.Local;
                     var wind = math.normalize(new float2(-0.25f, 1f));
                     var lee = math.dot(math.normalizesafe(l), wind);
-                    var t = SunkenTempleShape.MoundT(l.x, l.y) * (1f + 0.2f * lee);
+                    var t = SunkenTempleShape.MoundT(l.x, l.y) * (1f + 0.1f * lee);
                     if (t < 1f)
                     {
                         var flank = math.saturate(3f * t) * (1f - t);
-                        var across = math.dot(l, wind) * 1.5f + 1.8f * math.sin(math.dot(l, new float2(wind.y, -wind.x)) * 0.17f + inst.Seed);
-                        var ripple = 0.35f * noise.snoise(l * 0.07f + inst.Seed) * flank +
-                                     0.13f * (math.sin(across) + 0.35f * math.sin(2f * across)) * flank;
-                        var edge = math.saturate(t * 6f) * (1f - math.smoothstep(0.25f, 0.7f, t));
-                        var drift = edge * (1.4f * math.max(0f, noise.snoise(l * 0.06f - inst.Seed)) + 0.5f * math.max(0f, noise.snoise(l * 0.17f + inst.Seed)));
-                        var mound = SunkenTempleShape.Bottom + (SunkenTempleShape.Top - SunkenTempleShape.Bottom) * (1f - math.smoothstep(0f, 1f, t));
-                        var target = inst.BaseHeight + mound + ripple + drift;
+                        var across = math.dot(l, wind) * 0.8f + 1.8f * math.sin(math.dot(l, new float2(wind.y, -wind.x)) * 0.17f + inst.Seed);
+                        var ripple = 0.2f * noise.snoise(l * 0.05f + inst.Seed) * flank +
+                                     0.06f * (math.sin(across) + 0.35f * math.sin(2f * across)) * flank;
+                        var edge = math.saturate(t * 6f) * (1f - math.smoothstep(0.15f, 0.5f, t));
+                        var drift = edge * (1.1f * math.max(0f, noise.snoise(l * 0.05f - inst.Seed)) + 0.3f * math.max(0f, noise.snoise(l * 0.11f + inst.Seed)));
+                        // Mostly an even fall with eased ends: its steepest is 1.2x the average where a plain smoothstep's is 1.5x.
+                        var fall = 0.6f * t + 0.4f * math.smoothstep(0f, 1f, t);
+                        var target = math.lerp(inst.BaseHeight + SunkenTempleShape.Top, h, fall) + ripple + drift;
                         h = math.lerp(h, SmoothMax(h, target, 3f), 1f - math.smoothstep(0.75f, 1f, t));
                     }
                 }
