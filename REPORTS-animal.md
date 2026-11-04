@@ -1820,3 +1820,58 @@ Calls used: about 38. Editor closed (both); Temp/PlayArgs.txt removed.
 - Editor HumanVillage `-time 12`, uncapped, 6 samples: cpu main mean 6.32 -> 5.88 ms (146-157 vs 131-136 creatures, so partly noise). Brain 0.37-0.67 -> 0.46-0.56 ms.
 - Fingerprint 2DD98BAE unchanged. Both issues commented, left open.
 - Calls used: about 50 (incl. pre-summary). Editor closed; Temp/PlayArgs.txt removed.
+
+## A-66 (2026-11-04): fish folk and cave pygmies (#10, #35), Decide as a tier table (#60)
+
+Commits on animal-behaviours: 3e2d774 (row 1, merged to main as PR #127 / 8502bca), then 69340e1 (row 2, on top of 8502bca), pushed.
+Fauna fingerprint: 2DD98BAE -> D0B9488A (114 species) after row 1; row 2 keeps D0B9488A. Landmarks 108 / 3A0DC7BB, which is the game form of the editor's 4D2643D7: no change.
+
+**Row 1 (#10, #35): done.**
+- Fish folk now live in the existing FishFolk-flag settlements. There are 3 villages with 12 to 21 fish folk each.
+  - They wade and swim in the shallows near home far more often than townsfolk (new `Wades` blob value).
+  - They fish from the shore like other fishers.
+- Blind cave pygmies live in the bat-folk chambers. There is 1 band of 6: PoolFisher 1, RoostKeeper 2, Tanner 1, Forager 2.
+  - They are a ChamberFolk species, so the general cave-dweller spawner skips them.
+  - New `Blind` flag: they sense by short-range touch, not sight, and carry a feeling staff.
+  - The camp idea was dropped, as the coordinator asked. This closes the #35 gap that "no species walks yet".
+- Shots (full size, not reviewed by anyone else):
+  - D:\Unity\PunchyMilestones\animal\fishfolk-pygmies\gallery\a66-fishfolk.png
+  - D:\Unity\PunchyMilestones\animal\fishfolk-pygmies\gallery\a66-pygmies.png
+- cpu main at HumanVillage: 5.99 -> 6.19 ms (within noise). #10 commented, left open.
+
+**Row 2 (#60): done.**
+- Decide's early-return chain is now one table in tiers. Each forced or urgent entry is a small bool `Decide*` method. `Weights()` fills a FixedList indexed by the `Weighted` enum, `StartWeighted()` is a switch, and `WanderOff` is the fallback. There are no delegates, so Burst is unaffected.
+- The order, top to bottom:
+
+  | Tier | Entries |
+  |---|---|
+  | forced | Flit, Breach, Patrol, Hermit, Camper, (fisher spot fix-up), Rooted, Disguised |
+  | senses | FindKin, FindPrey |
+  | forced | Nest return |
+  | urgent | Folk hunt 60%, Raid 8%, Play ring 30%, Hearth 80% |
+  | (roll drawn) | |
+  | forced | Greet, Roost, Burrow |
+  | weighted | Work, Home, Hunt, Play, Sleep, Rest, Graze, then Drink*, Climb*, Swim*, Lounge*, Web*, Fly* (* = can fail; the spent roll falls to the next one with weight) |
+  | fallback | Wander |
+
+  The full table is on #60.
+- Fingerprint is still D0B9488A.
+- cpu main at HumanVillage, `-time 12`, uncapped, 3 windows each:
+  - before 6.36 / 5.96 / 5.79 ms
+  - after 6.31 / 6.71 / 6.98 ms (rose as creatures spawned in; within the A-64 window spread)
+- Activity mix, share of creature-seconds:
+
+  | Spot | Run | Creature-s | Idle | Graze | Rest | Sleep | Wander | Roost |
+  |---|---|---|---|---|---|---|---|---|
+  | HumanVillage | before | 7245 | 30.2 | 15.4 | 18.0 | 12.1 | 9.6 | 6.9 |
+  | HumanVillage | after | 7169 | 30.8 | 15.9 | 15.2 | 12.2 | 12.6 | 5.7 |
+  | Wild 900,-1400 | before | 4824 | 30.6 | 19.1 | 15.5 | 14.7 | 11.6 | 4.4 |
+  | Wild 900,-1400 | after | 4936 | 30.5 | 19.9 | 13.8 | 15.5 | 13.9 | 1.5 |
+
+  - Rest went down and Wander up at both spots. I checked the code line by line against the old chain.
+  - The only real difference was the order of the nest return and `FindDoor`, which writes to the creature's state. It is restored in 69340e1 and only affects upright nesters with a home range (probably none).
+  - So I'm calling the shift editor noise, but that is not proven. A second pair of runs would settle it.
+- The runs were done before that fix and before merging 8502bca. The final commit compiled with 0 errors. #60 commented, left open.
+
+Left: a repeat before/after pair if the Rest/Wander shift needs settling.
+Calls used: about 60 across the card (incl. pre-summary). Editor closed at the end.

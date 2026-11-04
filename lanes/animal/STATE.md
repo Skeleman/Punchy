@@ -1,7 +1,14 @@
-# Animal lane: state (2026-11-04, A-65 done)
+# Animal lane: state (2026-11-04, A-66 done)
 
-Worktree `Punchy` (animal lane only). `animal-behaviours` = origin/main 6c39129 (PR #122) + e4880c2 (A-65 #63 terrain-sample caches), pushed.
-Fauna fingerprint 2DD98BAE (branch and main).
+Worktree `Punchy` (animal lane only). `animal-behaviours` = origin/main 8502bca (PR #127, A-66 row 1) + 69340e1 (A-66 #60 Decide tiers), pushed.
+Fauna fingerprint D0B9488A (114 species; branch and main).
+
+## A-66
+- #10/#35: fish folk in the FishFolk settlements (3 villages, 12-21 each, `Wades`), blind cave pygmies in the bat-folk chambers (1 band
+  of 6, `Blind`, ChamberFolk). Fingerprint 2DD98BAE -> D0B9488A. Merged as PR #127.
+- #60: Decide = forced -> urgent -> weighted table (69340e1), same RNG order, fingerprint unchanged. Rest -2..3 / Wander +2..3 at
+  both spots after; code checked equal, called noise (unproven). Both issues commented, open.
+- Perf/mix recipe: shot list `Temp/a66b.txt` (3 perflog windows, then `-spincheck -wait 65` at HumanVillage and at `-goto 900,-1400`).
 
 ## A-65
 - #61: already split in A-47c (7 files, max 1325 lines). #63: e4880c2 caches ambience/ear/swarm samples; cpu main 6.32 -> 5.88 ms
