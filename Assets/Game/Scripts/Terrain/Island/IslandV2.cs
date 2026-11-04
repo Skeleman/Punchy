@@ -40,14 +40,22 @@ namespace Punchy.Terrain
         /// command line wins over the environment. Host and client each decide from their own launch, so both must be
         /// started the same way (no flag on either = both v2).
         /// </summary>
-        public static bool Requested()
+        public static bool Requested() => RequestedVersion() != 1;
+
+        /// <summary>
+        /// W-68 (v3 B1): the island version this launch asks for: 1, 3, or 2 (the default, and any other value). Read
+        /// the same way as above: <c>-island v1|v2|v3</c> wins over PUNCHY_ISLAND (which the editor menu
+        /// Punchy/Island sets inside the editor). Versions 2 and 3 both bake through <see cref="IslandV2System"/>.
+        /// </summary>
+        public static int RequestedVersion()
         {
+            string v = null;
             var args = Environment.GetCommandLineArgs();
-            for (int i = 0; i < args.Length - 1; i++)
+            for (int i = 0; i < args.Length - 1 && v == null; i++)
                 if (args[i] == "-island")
-                    return args[i + 1].ToLowerInvariant() != "v1";
-            var env = Environment.GetEnvironmentVariable("PUNCHY_ISLAND");
-            return env == null || env.ToLowerInvariant() != "v1";
+                    v = args[i + 1];
+            v = (v ?? Environment.GetEnvironmentVariable("PUNCHY_ISLAND"))?.ToLowerInvariant();
+            return v == "v1" ? 1 : v == "v3" ? IslandV3.Version : Version;
         }
 
         public struct Result
@@ -325,11 +333,13 @@ namespace Punchy.Terrain
         protected override void OnCreate()
         {
             query = GetEntityQuery(ComponentType.ReadWrite<TerrainSource>(), ComponentType.ReadOnly<BiomePalette>());
-            v2 = IslandV2.Requested();
+            version = IslandV2.RequestedVersion();
+            v2 = version != 1;
             RequireForUpdate(query);
         }
 
         bool v2;
+        int version;   // 2, or 3 for the v3 path (IslandV3), which also ends with the water audit
 
         /// <summary>
         /// The landmark count and fingerprint hash: each instance as "type x z scale", sorted, FNV-1a. Logged for both
@@ -380,20 +390,20 @@ namespace Punchy.Terrain
             {
                 Shared.ApplyTo(ref source);
                 EntityManager.SetComponentData(entity, source);
-                Debug.Log($"[island] v2 shared with {World.Name} from this process's bake (no rebake); {LandmarkHash(ref source, palette)}");
+                Debug.Log($"[island] v{version} shared with {World.Name} from this process's bake (no rebake); {LandmarkHash(ref source, palette)}");
                 return;
             }
 
             var watch = System.Diagnostics.Stopwatch.StartNew();
             var biomes = new List<BiomeDefinition>(palette.Biomes);
             bool hasOcean = source.Biomes.Value.OceanIndex >= 0;
-            var gen = IslandV2.Generate(biomes, hasOcean, Allocator.Persistent);
+            var gen = version == IslandV3.Version ? IslandV3.Generate(biomes, hasOcean, Allocator.Persistent) : IslandV2.Generate(biomes, hasOcean, Allocator.Persistent);
             long genMs = watch.ElapsedMilliseconds;
             source.BiomeKind = BiomeSourceKind.Map;
             source.BiomeMap = gen.Map;
             source.Island = gen.Island;
             source.BiomeCells = default;
-            source.RiverSettings = IslandV2.Rivers(source.RiverSettings);
+            source.RiverSettings = version == IslandV3.Version ? IslandV3.Rivers(source.RiverSettings) : IslandV2.Rivers(source.RiverSettings);
             source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Archipelago = default; source.Anchors = default; source.PondMask = default;
             var types = new List<LandmarkType>(palette.Landmarks);
             LandmarkBaking.AddLooks(types);
@@ -437,7 +447,9 @@ namespace Punchy.Terrain
             var report = System.Diagnostics.Stopwatch.StartNew();
             // (Ponds: the "[ponds]" line from BuildPlaces; W-14 dropped the second count here, ~2.8 s.)
             if (source.Rivers.IsCreated) Debug.Log("[island] " + RiverReport(ref source.Rivers.Value));
-            Debug.Log($"[island] reports {report.ElapsedMilliseconds} ms; v2 ready at {UnityEngine.Time.realtimeSinceStartup:F1} s since start ({World.Name})");
+            // W-68: v3 ends every bake with the water audit (V3Audit; on v2 run it from the editor for a baseline).
+            if (version == IslandV3.Version) Debug.Log(V3Audit.Run(source));
+            Debug.Log($"[island] reports {report.ElapsedMilliseconds} ms; v{version} ready at {UnityEngine.Time.realtimeSinceStartup:F1} s since start ({World.Name})");
         }
 
         /// <summary>
