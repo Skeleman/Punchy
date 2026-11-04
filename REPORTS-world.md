@@ -2,6 +2,34 @@
 
 Newest first.
 
+## W-76 (2026-11-04): parallel island bake, paused (not committed)
+
+Stopped at the coordinator's request (editor queue: R-12 and P-7 first). Nothing committed. The work is left uncommitted in the world tree: BatFolkBaking, RiverBaking, TerrainAuthoring, FishingVillageBaking, TurtleVillageBaking, SeaFolkBaking (114+/32-).
+
+- Row 0, before (v2, warm editor): rivers 1153, landmarks 24, settlements 395 (towns 130, roads 176, roadside 40), caves 597, "batfolk" 2708, anchors 157, pondmask 95, icebergs 32 ms. v2 ready at 14.0-15.1 s. The island bake is ~5.2 s of that; the rest is play-mode entry.
+- Row 0, before (v3): v2base 521, ranges 567, ground 66; rivers 1506, settlements 406, caves 497, "batfolk" 2178, anchors 91, pondmask 97, icebergs 21 ms. v3 ready at 37.2 s (the audit reports are most of that, see W-73).
+- Finding: the "batfolk" stage also timed the fishing, turtle and sea folk placements. Split on v2: fishing 773, turtles 547, seafolk 488, batfolk 429 ms.
+- Done so far (v2, after): bat folk sites place in parallel; the fishing mouth scan, turtle height grid and sea folk lake beds sample in parallel rows; the second river build copies the first's drainage grid. Now fishing 678, turtles 63, seafolk 154, batfolk 470, rivers 1070-1143 ms. About 1.4 s off the v2 bake.
+- Hashes unchanged on v2 after the changes: 136/4E61F1CF, caves C49E8E3036C741FC, ground F37805C9C70E3822, rivers 835B1404BEBDF563, batfolk 3/70 5E495C663CB43E07. v3 before: 108/4D2643D7, caves 5307D41E3A2AE83C, ground CBD3E62DCF42728C, rivers F46CF58544C3E072, batfolk 1/29 7019110BE7B5BB34. v3 after is not measured yet.
+- Row 2: the pond mask can't run beside the chain. TerrainSource heights read the landmarks, settlements and caves, and the mask needs PondsOn and RiverRoughOn. The three village placements can't run side by side either: SampleHeight sees each earlier one's flattening. Only the icebergs (~30 ms) are independent, so row 2 is not worth doing.
+- Left to do: the v3 after hashes and stages, the worst frame during the bake (row 3), the fishing remainder (~680 ms), caves, roads, then commit.
+
+## W-75 (2026-11-04): spread frame work, faster world load
+
+world-features: e4db17b, 140a494, 3d45402 (merge of origin/main; the IslandV2.cs conflict kept both sides), 096ec00. Pushed.
+
+- Row 1: AmbientParticle, Critter and GroundDetail now finish their placing jobs a frame later (approach c). AmbienceSystem heat and Flora were already like this.
+- Row 2: terrain and water chunk entities are created and destroyed in batches; the mesh data jobs were already there. While the world first loads (before the first full ring), streaming builds 6x per frame and flora 4x cells per frame. PUNCHY_LOADBOOST=0 turns it off. A "world ready at" log line was added.
+- Frame ms, average and worst, before -> after: spawn 10.40 -> 9.73 (worst 390 -> 41); cave 13.65 -> 11.11 (worst 454 -> 39); fly 11.65 -> 9.95 (worst 54 -> 46).
+- System ms at the fly stop, before -> after: GroundDetail 0.288 -> 0.075, TerrainStreaming 0.550 -> 0.519, AmbientParticle 0.370 -> 0.350 (0.169 -> 0.335 at the cave stop, likely noise), Critter 0.059 -> 0.049, Flora LateUpdate 0.567 -> 0.385.
+- Island-ready -> world-ready gap (v2, this PC): 10.8 / 10.8 s without the load boost, 9.1 / 9.0 s with it.
+- 0 errors and 0 warnings in the bench runs. There is no before shot, so the visual check is written only: the same data lands one frame later.
+
+## I-1 (2026-11-04): main merge check for PR #98
+
+- Merge 79ab19b compiled clean. Solo v3 runs: 17898 / 18583 / 19066 ms, ready at 31.2 / 32.0 / 42.1 s. 0 errors, no leaks. The host "shared with" line was not tested.
+- Line endings: IslandV2.cs is CRLF, IslandV3.cs is LF.
+
 ## W-73 (2026-11-03): bake blob leak, pass bank, bake profile
 
 world-features: 2d6ad34 (rows 1-2), 9765d71 (row 3). Not on main.
