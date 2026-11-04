@@ -115,6 +115,20 @@ namespace Punchy.Dungeon
                             Add(w.x, w.y, math.min(1.6f, headroom - 0.5f), -across, SocketKind.WallDecor, SocketSize.Small);
                         }
                     }
+                    // P-9: a closed hall 6 m or longer keeps a chest at its end farthest from its doorways (an alcove).
+                    if (r.Kind == 0 && longer >= 6f && !deadEnd)
+                    {
+                        float2 endA = At(0.8f, 0f), endB = At(longer - 0.8f, 0f);
+                        float dA = float.MaxValue, dB = float.MaxValue;
+                        foreach (var d in doors)
+                            if (d.a == i || d.b == i)
+                            {
+                                dA = math.min(dA, math.distance(endA, d.q.xz));
+                                dB = math.min(dB, math.distance(endB, d.q.xz));
+                            }
+                        var end = dA >= dB ? endA : endB;
+                        Add(end.x, end.y, 0.05f, math.normalizesafe(new float2(cu, cv) - end), SocketKind.Chest, SocketSize.Medium, SocketTags.NearChest);
+                    }
                 }
                 else
                 {
@@ -149,6 +163,12 @@ namespace Punchy.Dungeon
                                 (farD, far) = (nearest, corner);
                         }
                         Add(far.x, far.y, 0.05f, math.normalizesafe(new float2(cu, cv) - far), SocketKind.Chest, SocketSize.Medium, SocketTags.NearChest);
+                        // P-9: a big room (40 m2 or more) keeps a second, in the opposite corner.
+                        if (lu * lv >= 40f)
+                        {
+                            var opposite = new float2(r.U0 + r.U1, r.V0 + r.V1) - far;
+                            Add(opposite.x, opposite.y, 0.05f, math.normalizesafe(new float2(cu, cv) - opposite), SocketKind.Chest, SocketSize.Medium, SocketTags.NearChest);
+                        }
                     }
                 }
                 if (deadEnd)

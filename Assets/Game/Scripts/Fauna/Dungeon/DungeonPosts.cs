@@ -75,7 +75,7 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<LocalTransform> Players;
             public float Dt;
 
-            void Execute(ref CreatureState s, ref DungeonPost p)
+            void Execute(ref CreatureState s, ref CreatureMind m, ref DungeonPost p)
             {
                 p.Cool -= Dt;
                 var home = p.Anchor.xz;
@@ -133,7 +133,7 @@ namespace Punchy.Fauna
                     var want = math.atan2(to.x, to.y);
                     var turn = math.atan2(math.sin(want - s.Yaw), math.cos(want - s.Yaw));
                     s.Yaw += math.clamp(turn, -3f * Dt, 3f * Dt);
-                    s.LookAt = Players[near].Position;
+                    m.LookAt = Players[near].Position;
                     if (!p.Logged)
                     {
                         p.Logged = true;
