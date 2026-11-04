@@ -73,6 +73,8 @@ namespace Punchy.Fauna
         World queryWorld, simWorld;
         /// <summary>The world that simulates animals (the server's, when hosting); null before the director is up.</summary>
         public World SimWorld => simWorld;
+        /// <summary>Counts the director's builds; a rebuild (terrain re-baked) destroys every animal, so dungeons refill theirs (#24).</summary>
+        public int Builds { get; private set; }
         EntityQuery terrainQuery, paletteQuery, playerQuery, avatarQuery, replicaQuery, newReplicaQuery;
         EntityQuery wildQuery, simCreatureQuery, netPlayerQuery, simPlayerQuery, ghostSpawnerQuery, floraQuery;
         /// <summary>When the far ones are next let go (and the counts tallied): four times a second is plenty.</summary>
@@ -331,8 +333,11 @@ namespace Punchy.Fauna
                         All = new[] { ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>() },
                         None = new[] { ComponentType.ReadOnly<PlayerAvatar>(), ComponentType.ReadOnly<RemoteAvatar>(), ComponentType.ReadOnly<CreatureReplica>() }
                     };
-                    wildQuery = sem.CreateEntityQuery(wild);
                     simCreatureQuery = sem.CreateEntityQuery(wild);
+                    // (Dungeon creatures are their own tier (#24): kept at their posts for the dungeon's life, never
+                    // let go by distance nor counted towards the wild, settled or cave caps.)
+                    wild.None = new[] { ComponentType.ReadOnly<PlayerAvatar>(), ComponentType.ReadOnly<RemoteAvatar>(), ComponentType.ReadOnly<CreatureReplica>(), ComponentType.ReadOnly<DungeonPost>() };
+                    wildQuery = sem.CreateEntityQuery(wild);
                     netPlayerQuery = sem.CreateEntityQuery(ComponentType.ReadOnly<NetPlayer>(), ComponentType.ReadOnly<LocalTransform>());
                     simPlayerQuery = sem.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
                     ghostSpawnerQuery = sem.CreateEntityQuery(ComponentType.ReadOnly<CreatureGhostSpawner>());
@@ -460,6 +465,7 @@ namespace Punchy.Fauna
             lastSource = source;
             configStamp = ConfigStamp();
             built = true;
+            Builds++;
         }
 
         /// <summary>

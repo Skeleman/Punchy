@@ -1661,9 +1661,9 @@ namespace Punchy.Debugging
                     wallTallest = 0f;
                     wallSearchAt = 0f;
                 }
-                // P-5: "-place temple": on a sunken temple room's floor (for camera shots underground, #85).
-                else if (args[i] == "-place" && string.Equals(args[i + 1], "temple", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var templeSource))
-                    PlaceInTemple(templeSource);
+                // P-5/P-7: "-place temple" / "temple:N": on a sunken temple room's floor (for camera shots underground, #85).
+                else if (args[i] == "-place" && args[i + 1].StartsWith("temple", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var templeSource))
+                    PlaceInTemple(templeSource, args[i + 1]);
                 else if (args[i] == "-place")
                 {
                     // An exact name first (the landmark itself), else the first that contains it.
@@ -2971,43 +2971,54 @@ namespace Punchy.Debugging
         }
 
         /// <summary>
-        /// P-5 "-place temple": the player on the floor of a room of the nearest sunken temple (a point in its air with
-        /// rock 30 cm under and 1.5 m of air over), searched on a 2 m grid within 40 m of the temple, 0-20 m down.
+        /// P-5/P-7 "-place temple" (or "temple:N" for room N): the player on a sunken temple room's floor. The rooms are
+        /// the ruin kit's layout in the temple's own frame (RuinRooms: u, y above Base, v); without N, the biggest closed
+        /// room. Its centre's floor (plus drifted sand) goes back to the world through SunkenTempleShape.World.
         /// </summary>
-        void PlaceInTemple(in TerrainSource source)
+        void PlaceInTemple(in TerrainSource source, string spec)
         {
-            if (!playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+            if (!playerQuery.TryGetSingletonEntity<LocalTransform>(out var player) || !source.Landmarks.IsCreated)
                 return;
-            var at = locations.FindIndex(l => l.Name.IndexOf("SunkenTemple", System.StringComparison.OrdinalIgnoreCase) >= 0);
-            if (at < 0)
+            ref var set = ref source.Landmarks.Value;
+            var temple = -1;
+            for (int i = 0; i < set.Instances.Length && temple < 0; i++)
+                if (set.Types[set.Instances[i].Type].Temple != 0)
+                    temple = i;
+            if (temple < 0 || set.RuinRooms.Length == 0)
             {
-                Debug.LogWarning("DebugControls: no sunken temple in the places list");
+                Debug.LogWarning($"DebugControls: no sunken temple ({set.RuinRooms.Length} ruin rooms)");
                 return;
             }
-            var centre = locations[at].Position;
-            for (float r = 0f; r <= 40f; r += 2f)
-                for (float x = -r; x <= r; x += 2f)
-                    for (float z = -r; z <= r; z += 2f)
-                    {
-                        if (math.max(math.abs(x), math.abs(z)) < r)
-                            continue;   // (rings outward, so the nearest room comes first)
-                        var xz = centre + new float2(x, z);
-                        var top = source.SampleHeight(xz);
-                        for (float d = 0.5f; d <= 20f; d += 0.5f)
-                        {
-                            var p = new float3(xz.x, top - d, xz.y);
-                            if (!source.TempleAir(p) || source.TempleAir(p - new float3(0f, 0.3f, 0f)) || !source.TempleAir(p + new float3(0f, 1.5f, 0f)))
-                                continue;
-                            var em = queryWorld.EntityManager;
-                            var t = em.GetComponentData<LocalTransform>(player);
-                            t.Position = p + new float3(0f, 0.05f, 0f);
-                            em.SetComponentData(player, t);
-                            em.SetComponentData(player, new PlayerMotion { Grounded = true });
-                            Debug.Log($"DebugControls: in a sunken temple room at ({p.x:F0}, {p.y:F1}, {p.z:F0}), {d:F1} m under the ground");
-                            return;
-                        }
-                    }
-            Debug.LogWarning($"DebugControls: no temple room floor found near {locations[at].Name}");
+            var room = -1;
+            var colon = spec.IndexOf(':');
+            if (colon < 0 || !int.TryParse(spec.Substring(colon + 1), out room) || room < 0 || room >= set.RuinRooms.Length)
+            {
+                room = -1;
+                var best = 0f;
+                for (int i = 0; i < set.RuinRooms.Length; i++)
+                {
+                    var r = set.RuinRooms[i];
+                    var area = (r.U1 - r.U0) * (r.V1 - r.V0);
+                    if (r.Kind == 0 && area > best)
+                        (best, room) = (area, i);
+                }
+                if (room < 0)
+                    room = 0;
+            }
+            var rr = set.RuinRooms[room];
+            float u = (rr.U0 + rr.U1) * 0.5f, v = (rr.V0 + rr.V1) * 0.5f;
+            var layout = SunkenTempleShape.Layout(set.Instances[temple]);
+            var floor = rr.FloorAt(u) + SunkenTempleShape.Sand(ref set, room, u, v);
+            var p = SunkenTempleShape.World(layout, new float3(u, floor + 0.05f, v));
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(player);
+            t.Position = p;
+            // (Facing along the room's long side.)
+            var along = rr.U1 - rr.U0 >= rr.V1 - rr.V0 ? layout.F : layout.R;
+            t.Rotation = quaternion.RotateY(math.atan2(along.x, along.y));
+            em.SetComponentData(player, t);
+            em.SetComponentData(player, new PlayerMotion { Grounded = true });
+            Debug.Log($"DebugControls: in sunken temple room {room}/{set.RuinRooms.Length} ({rr.U1 - rr.U0:F0} x {rr.V1 - rr.V0:F0} m, ceiling {rr.Ceil - floor:F1} m, kind {rr.Kind}) at ({p.x:F1}, {p.y:F1}, {p.z:F1}); the ground is {source.SampleHeight(p.xz) - p.y:F1} m above");
         }
 
         /// <summary>
