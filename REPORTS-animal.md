@@ -1549,7 +1549,7 @@ Measured in the editor, 300 frames per stop, uncapped (-fpscap 0), with Burst sa
 - Spawner, posts and stand-in work were tried in the editor but not committed. The local cherry-pick of d7ed5eb was dropped, so the branch is unchanged.
 - Results from that try:
   - Stand-in Cave picks: hash 0xf1e10e91 (6 creatures).
-  - Stand-in Crypt picks: hash 0x3ac96bb1 (8 creatures, with Ghost, BoneHound, Coffer-type picks). The two types give different picks.
+  - Stand-in Crypt picks: hash 0x3ac96bb1 (8 creatures, with Ghost, BoneHound, Altar, SkullNiche picks). The two types give different picks.
   - Guard log lines appeared: "Bat guards its chest: faces a player 3.5 m away".
   - The files are kept off-repo for when P-7 lands.
 
