@@ -103,10 +103,16 @@ namespace Punchy.Net
             var hasTerrain = terrain.TryGetSingleton<TerrainSource>(out var source);
             float SampleGround(World _, float2 xz) => hasTerrain ? source.SampleHeight(xz) : 0f;
             float hunger = 0f, thirst = 0f, tired = 0f, lonely = 0f;
+            // (Needs live in CreatureMind, host or single player only: #58. A client reads 0.)
+            using (var minds = em.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Fauna.CreatureMind>(), ComponentType.ReadOnly<Punchy.Fauna.CreatureState>()))
+            {
+                var all = minds.ToComponentDataArray<Punchy.Fauna.CreatureMind>(Unity.Collections.Allocator.Temp);
+                foreach (var m in all) { hunger += m.Hunger; thirst += m.Thirst; tired += m.Tired; lonely += m.Lonely; }
+                all.Dispose();
+            }
             int flying = 0, high = 0, climbing = 0, webs = 0, acting = 0, sitting = 0, diving = 0, hunting = 0, burrows = 0, below = 0, roosting = 0, hanging = 0, inCaves = 0;
             foreach (var c in states)
             {
-                hunger += c.Hunger; thirst += c.Thirst; tired += c.Tired; lonely += c.Lonely;
                 if (c.Fly > 0.5f) flying++;
                 if (c.Mode == Punchy.Fauna.CreatureMode.Climb) climbing++;
                 if (c.Mode == Punchy.Fauna.CreatureMode.Web && c.Stage >= 2 && c.Stage <= 4) webs++;

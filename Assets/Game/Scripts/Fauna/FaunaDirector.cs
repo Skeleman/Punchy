@@ -1501,7 +1501,9 @@ namespace Punchy.Fauna
             state.Focus = hive.Position.xz + hive.Facing * trunk;
             state.Target = hive.Position.xz + hive.Facing * (trunk + 0.35f);
             state.Timer = 120f;
-            em.SetComponentData(e, new CreatureMind { ChaseCooldown = 900f });
+            var raidMind = em.GetComponentData<CreatureMind>(e);
+            raidMind.ChaseCooldown = 900f;
+            em.SetComponentData(e, raidMind);
             state.Held = HeldItem.Stick;
             state.Home = from;
             state.Leash = 0f;
@@ -2071,23 +2073,33 @@ namespace Punchy.Fauna
                 SegmentCount = b.Segments.Length,
                 Coat = b.PickCoat(rng.NextFloat())
             });
-            em.SetComponentData(e, new CreatureState
+            // (Drawn in the same order as before the needs moved to CreatureMind (#58), so spawns stay the same.)
+            var startYaw = float.IsNaN(yaw) ? rng.NextFloat(-math.PI, math.PI) : yaw;
+            var phase = rng.NextFloat();
+            var scale = rng.NextFloat(b.Size.x, math.max(b.Size.x, b.Size.y));
+            var timer = rng.NextFloat(0.5f, 4f);
+            // Needs start part-way, so a new arrival doesn't do everything at once.
+            var mind = new CreatureMind
             {
-                Position = position,
-                Yaw = float.IsNaN(yaw) ? rng.NextFloat(-math.PI, math.PI) : yaw,
-                Phase = rng.NextFloat(),
-                Scale = rng.NextFloat(b.Size.x, math.max(b.Size.x, b.Size.y)),
-                Mode = CreatureMode.Idle,
-                Timer = rng.NextFloat(0.5f, 4f),
-                LairCave = -1,
-                // Needs start part-way, so a new arrival doesn't do everything at once.
                 Hunger = rng.NextFloat(0.1f, 0.7f),
                 Thirst = rng.NextFloat(0.1f, 0.6f),
                 Tired = rng.NextFloat(0f, 0.5f),
-                Lonely = rng.NextFloat(0f, 0.5f),
+                Lonely = rng.NextFloat(0f, 0.5f)
+            };
+            em.SetComponentData(e, new CreatureState
+            {
+                Position = position,
+                Yaw = startYaw,
+                Phase = phase,
+                Scale = scale,
+                Mode = CreatureMode.Idle,
+                Timer = timer,
+                LairCave = -1,
                 Seed = rng.NextUInt() | 1u,
                 Individual = rng.NextUInt() | 1u
             });
+            if (em.HasComponent<CreatureMind>(e))
+                em.SetComponentData(e, mind);
             if (em.HasComponent<LocalTransform>(e))
                 em.SetComponentData(e, LocalTransform.FromPosition(position));
         }

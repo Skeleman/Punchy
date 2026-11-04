@@ -2444,13 +2444,7 @@ namespace Punchy.Fauna
                     cue = 1 + (int)((h >> 20) % 4);
                 }
                 else if (t < Show && state.Mode != CreatureMode.Sleep && state.Holder == 0)
-                {
-                    var strongest = 0.6f;
-                    if (state.Tired > strongest) { strongest = state.Tired; cue = 1; }
-                    if (state.Hunger > strongest) { strongest = state.Hunger; cue = 2; }
-                    if (state.Thirst > strongest) { strongest = state.Thirst; cue = 3; }
-                    if (state.Lonely > strongest) cue = 4;
-                }
+                    cue = state.Cue;   // (set by the brain on the host, replicated to clients: #64)
                 var swell = Unity.Mathematics.math.sin(Unity.Mathematics.math.PI * Unity.Mathematics.math.saturate(t / Show));
                 var head = new Unity.Mathematics.float3(state.Position.x, top, state.Position.z);
                 for (int k = 0; k < MarkCount; k++)
