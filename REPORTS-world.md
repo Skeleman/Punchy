@@ -1830,3 +1830,12 @@ Commits: world-features 178e226 (merge of origin/main, no rebase, 0 compile erro
 - Zip: Punchy-v0.12.0-windows.zip, 51 MB, same layout as v0.11.0 (no BurstDebugInformation folder, no logs, no provenance file).
 - Notes: batches/R-12-notes.md, with a Known issues line for #99.
 - Calls: the R-12 agent about 45, then the supervisor finished build watch, test, zip and publish.
+
+## W-77 (2026-11-04): #84, #86, #88, partly done
+
+- Commit 3a6d069 on world-features (pushed).
+- #84: the sunken temple ruins now draw with tinted Colossus copies (Colossus.shader has a new `_BaseColor`), so they fade into the PunchyAtmosphere haze. Not done: the salt tower is still on URP Lit SaltTowerBasalt, there is no far shadow or shadow proxy (shadowDistance stays 40 m), and the after ms was not measured. Before ms near the tower: 5.95 ms/frame (uncapped).
+- #88: the lake shelf bake (GrandFalls.BuildShelf plus its effects) is in, but it does not fire yet. It logs "shelf none: no lake at the centre", most likely because IslandV3.LakeCentre is unset on a cached bake. v3 hash 4D2643D7 before and after (108 landmarks), so nothing has moved.
+- #86 driftwood: not started.
+- Shots in D:\PunchyMilestones\W-77\: w77-far-before/after, w77-tower-before/after, w77-falls-before. There is no falls-after shot.
+- Calls: about 64 (over the 60 ceiling).
