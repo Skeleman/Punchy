@@ -3058,7 +3058,7 @@ namespace Punchy.Flora
                     door = new Vector3(0f, 0.6f - 0.05f, front);
                     return true;
                 case FloraForm.KitBuilding:
-                    if (s.KitShape != Punchy.Terrain.KitShape.House && s.KitShape != Punchy.Terrain.KitShape.StiltHouse)
+                    if (!Punchy.Terrain.StructureKit.HouseLike(s.KitShape))
                         return false;
                     var width = height * s.Spread;
                     var thick = Punchy.Terrain.StructureKit.Thick;
@@ -3287,11 +3287,18 @@ namespace Punchy.Flora
                     storeys = 1;
                     parts = Punchy.Terrain.StructureKit.Wharf(seed, trim, 1.0f, wharfHouses);
                     break;
+                case Punchy.Terrain.KitShape.AshHouse:   // #69: harsh-biome hazard houses, one storey each
+                case Punchy.Terrain.KitShape.SnowHouse:
+                case Punchy.Terrain.KitShape.StormHouse:
+                case Punchy.Terrain.KitShape.SandHouse:
+                    storeys = 1;
+                    parts = Punchy.Terrain.StructureKit.HazardHouse(seed, trim, shape, width, depth);
+                    break;
                 default:
                     parts = Punchy.Terrain.StructureKit.House(seed, trim, width, depth, storeys, ruined ? g.Range(0.45f, 0.9f) : 0f);
                     break;
             }
-            var house = shape == Punchy.Terrain.KitShape.House || shape == Punchy.Terrain.KitShape.StiltHouse ||
+            var house = Punchy.Terrain.StructureKit.HouseLike(shape) ||
                         shape == Punchy.Terrain.KitShape.Igloo || shape == Punchy.Terrain.KitShape.ShellDome;
 
             var first = b.VertexCount;
