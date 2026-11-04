@@ -1,5 +1,17 @@
 # Player lane reports
 
+## 2026-11-03 batch P-4: 30 s net timeout fixes the timeouts; uncovers host refusing its own client
+- DONE: NetDrivers.DisconnectTimeoutMS 10000 -> 30000 (player-client 18e305d, merged main incl. PR #93 first, no conflicts)
+- Timeouts gone: 0 "disconnected (Timeout)" lines in 5 runs
+- A (host v3, client v2): client "switching to v3", "sending world check B291FD17"; host "player 1 has the same world (B291FD17); welcome"; client "in game True, players 1", 48-62 animals, 60 fps. PASS for the joiner
+- C (host v2, client -worldsalt 7): host "a player built a different world (0613F356, ours CAC3BAE8) ... Disconnecting them." PASS
+- NOT DONE row 2 / host half of A: the HOST REFUSES ITS OWN LOCAL CLIENT in every run (host-only v2, A, C): host client "sending world check F5BF2604" (A; C 48648189) vs server B291FD17 / CAC3BAE8 -> "a player built a different world ... Disconnecting them", host ends "in game False, players 0". Was hidden before by the 10 s timeout dropping that client first
+- Cause: WorldSync.Signature hashes palette.Landmarks names. FishingVillage (and turtle / sea folk village + landing) are in no scene (FishingVillage.asset guid not referenced by any .unity), so IslandV2System appends them to the palette at bake time, but only in the world that bakes. The host's client world takes the Shared bake path and never appends them -> different palette -> different fingerprint. Joiners bake themselves, so they match. On main since #36/#37/#38, not from P-2
+- Proposed fix (IslandV2System, not lent this card): move the palette append (village, turtles, sea folk) into a helper and call it on the Shared path too, before the "shared with" log. ~10 lines, then rerun host-only + A + C
+- Checks: compile 0 errors, DisconnectTimeoutMS 30000 read back in the editor; 1 build Succeeded 0 errors; 5 player runs all quit by -quitafter, no Punchy.exe left; editor closed; queue empty, RAM 14.3 GB at open
+- Cost: ~17 calls, 1 build
+- NEXT: lend IslandV2System for the palette fix above (one build), rerun the P-4 rows
+
 ## 2026-11-03 batch P-3: host self-timeout attributed (long bake vs 10 s timeout); -quitafter flag
 - DONE: `-quitafter N` (Debugging/QuitAfter.cs, new file, LF): quits N s after start, real time (player-client 2d0b08b)
 - FOUND: cause is the island bake blocking the main thread past NetDrivers.DisconnectTimeoutMS (10 s), not the version RPC:

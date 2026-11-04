@@ -25,3 +25,4 @@ no machine paths or personal info. Never bare `git stash`.
 - P-1 done 11-03 (player-client 1a9ef6c): resolution + window mode in the Graphics tab (#78). PR #90 merged 11-03 (5a56458).
 - P-2 done 11-03 (player-client 99cfd9c), but don't merge alone: joiners can time out while baking (P-3).
 - P-3 done 11-03: -quitafter flag; host/joiner timeouts = bake blocking main thread past the 10 s DisconnectTimeoutMS. Waiting on a supervisor call on the shared net-code fix.
+- P-4 done 11-03 (player-client 18e305d): 30 s timeout; timeouts gone, joiners pass. Host refuses its OWN client (palette landmark types appended only by the baking world; fix needs IslandV2System, see report).
