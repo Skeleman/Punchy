@@ -1777,3 +1777,18 @@ Fingerprint: not measured this card (it is editor only and the card ran out of c
 **Row 3, fingerprint shift: PR #114 (merge bf20ffb, campsites).** Read from the diffs, not bisected by runs: the fauna fingerprint hashes the flora blob, and FloraPlacement.Build collects its species from every landmark type's props, including biome looks (LandmarkBaking.AddLooks). #114 gave Campsite two biome looks (CampsiteForest, CampsiteSwamp) whose props are the new CampTentForest and CampTentSwamp species, so the flora species list, props and landmark type count in the blob all change. #113 (colossus keep-outs) only adds a runtime SharedStatic check in Place, not blob data; #112, #115 and #116 touch no baked data.
 
 Calls used: about 50 (over the ceiling: two wasted on PowerShell quoting of the eval, two on host runs without a guard line).
+
+## A-63 (2026-11-04)
+
+Commits: f79d7f7 (merge of origin/main into animal-behaviours), ea4548d `-guardtest` (#24): puts this machine's player 3 m in front of a guarded chest once the dungeon sockets exist (solo/host: first guarded chest, joined client: the second), held 3 s. Test-only flag, off by default.
+Fingerprint: not measured this card (the change is a test flag off by default; main stays 2DD98BAE).
+
+**Row 1 (#24): done.** Dev build, v2, `-place temple -guardtest`, uncapped.
+- Host solo: `[guardtest] ClientWorld (host): player put 3 m from guarded chest 1 of 3`, then `[dungeon] Tarantula guards its chest: faces a player 25 dm away, 0 dm from the chest`. 0 exceptions.
+- Host + client (`-join 127.0.0.1`): host log has the Tarantula line for the host's player, then after the client connected `[dungeon] Goblin guards its chest: faces a player 42 dm away, 1 dm from the chest` (the client's player, put at guarded chest 2 of 3; client stood at 3 m from it). 0 exceptions on host and client. So the dbfb2b7 fix works on a server: the guards see the host's and the client's networked players.
+
+**Row 2 (#58): half done.** Spot: `-place HumanVillage` (Sonoran HumanVillage), noon, `-perflog` shot list, 4 windows of 3 s after a 45 s settle. Branch (= main 7fbf224 + #24 commits): 98-99 creatures, brain ms 0.250 / 0.261 / 0.252 / 0.282 (mean 0.261), so **2.64 us/creature**; thinks/frame ~45, LOD skips/frame ~52. Main before #117 (810955f, the #117 merge's first parent; ccd2151 is an older merge): a temp worktree with a copied Library opened fine but `BuildPlayer` failed in Entities `ContentCatalogBuildUtility.BuildContentArchives` (status Error), so no number. Next: build 810955f from a clean import (or swap only the 8 #117 script files in place with the editor closed, minus files that use CreatureMind) and run the same shot list.
+
+**Row 3 (#57): not started** (over budget). The HumanVillage brain ms above (0.261 ms, 99 creatures) is the "before" number to compare against once the stagger lands.
+
+Calls used: about 50 (over the ceiling: two runs lost to log-path quoting and `-perflog` needing to be on each shot line, 15 min lost to a readiness poll that never connected).
