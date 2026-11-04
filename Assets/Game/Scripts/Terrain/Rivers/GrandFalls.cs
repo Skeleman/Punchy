@@ -132,7 +132,8 @@ namespace Punchy.Terrain
             var src = source;
             var c = IslandV3.LakeCentre;
             var g0 = src.SampleGround(c);
-            if (!g0.HasWater || g0.WaterSurface < src.World.SeaLevel + 1f)
+            // W-77b (#88): the v3 central lake sits at sea level, so only ask for open water over the bed here.
+            if (!g0.HasWater || g0.WaterSurface < g0.Height + 0.5f)
             {
                 LastLog += "; shelf none: no lake at the centre";
                 return default;
