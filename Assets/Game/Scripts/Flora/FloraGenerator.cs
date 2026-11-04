@@ -401,19 +401,21 @@ namespace Punchy.Flora
             /// tier, each as wide as the chunk at half a tier under its top, tiers under a step (0.4 m) apart, so the player
             /// steps up a low chunk and stops at a tall one's face. Chunks too thin to stand on get none (walked over).
             /// Only the turn about y is kept (tops stay flat). Model space, bottoms sunk 0.5 m under the ground.
+            /// W-94 (#70): the lowest tier is sunk to a 0.15 m lip (the rest spaced evenly above it), because on a slope the
+            /// widest tier's downhill edge stands its own height plus the ground's fall across it: 0.35 m read as a wall.
             /// </summary>
             public void AddTierBoxes(Vector3 centre, Vector3 radii, Quaternion rotation)
             {
-                const float tier = 0.35f, bottom = -0.5f;
+                const float tier = 0.35f, bottom = -0.5f, lip = 0.15f;
                 var top = centre.y + radii.y;
                 if (top < ChunkStep)
                     return;
-                var n = Mathf.Clamp(Mathf.CeilToInt(top / tier), 1, 6);
+                var n = Mathf.Clamp(Mathf.CeilToInt((top - lip) / tier) + 1, 2, 7);
                 var yaw = Quaternion.Euler(0f, rotation.eulerAngles.y, 0f);
                 for (int k = 1; k <= n; k++)
                 {
-                    var t = top * k / n;
-                    var u = Mathf.Clamp((t - top * 0.5f / n - centre.y) / Mathf.Max(radii.y, 0.01f), -1f, 1f);
+                    var t = lip + (top - lip) * (k - 1) / (n - 1);
+                    var u = Mathf.Clamp((t - (k == 1 ? lip : (top - lip) / (n - 1)) * 0.5f - centre.y) / Mathf.Max(radii.y, 0.01f), -1f, 1f);
                     var s = Mathf.Sqrt(1f - u * u) * 0.8f;
                     var half = new Vector3(radii.x * s, (t - bottom) * 0.5f, radii.z * s);
                     if (half.x < 0.15f || half.z < 0.15f)
