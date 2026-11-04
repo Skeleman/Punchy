@@ -222,7 +222,7 @@ namespace Punchy.Ambience
             var reach = main ? 3f + t.Drop * 0.06f : RiverFallReach + t.Drop * 0.05f;
             var out3 = new float3(t.Out.x, 0f, t.Out.y);
             var side = new float3(-t.Out.y, 0f, t.Out.x);
-            int curtains = main ? 3 : 1;
+            int curtains = main && !t.Shelf ? 3 : 1; // a lake shelf stretch is one wide sheet, overlapping its neighbours
             for (int c = 0; c < curtains; c++)
             {
                 var offset = curtains == 1 ? 0f : (c - 1) * t.Width * 0.3f;
@@ -231,7 +231,7 @@ namespace Punchy.Ambience
                     Position = t.Lip + side * offset,
                     Seed = math.frac(seed + c * 0.37f),
                     Color = new float4(0.6f, 0.72f, 0.76f, 0f),
-                    Shape = new float4(reach, t.Width * (main ? 0.4f : 0.85f), main ? 2.4f : 1.3f, main ? 3.4f : 1.9f),
+                    Shape = new float4(reach, t.Width * (t.Shelf ? 1.1f : main ? 0.4f : 0.85f), main ? 2.4f : 1.3f, main ? 3.4f : 1.9f),
                     Timing = new float4(0f, 0.25f, 0.85f, 24f),
                     Out = t.Out,
                     Drop = t.Drop
@@ -243,6 +243,7 @@ namespace Punchy.Ambience
                 Position = foot, Seed = math.frac(seed + 0.31f), Color = new float4(0.95f, 0.97f, 1f, 0f),
                 Shape = new float4(main ? 6f : 2.5f, t.Width * (main ? 1.4f : 0.9f), main ? 2.2f : 1f, main ? 2.2f : 1.4f), Timing = new float4(0f, 0.25f, 0.6f, 24f)
             });
+            if (!t.Shelf) // the shelf falls straight into the lake: the foot spray is its pool
             plumes.Add(new Emitter
             {
                 Position = new float3(t.Pool.x, t.Pool.y + 0.1f, t.Pool.z), Seed = math.frac(seed + 0.62f), Color = new float4(0.92f, 0.94f, 0.96f, 0f),

@@ -110,11 +110,13 @@ namespace Punchy.Terrain
         {
             if (stone != null)
                 return true;
-            var basalt = Resources.Load<Material>("SaltTowerBasalt");
+            // W-77: tinted copies of the Colossus material (vertex colour x tint, terrain haze), so the ruins fade into
+            // the fog from high up like the ground around them.
+            var basalt = Resources.Load<Material>("Colossus");
             if (basalt == null)
             {
                 if (!warned)
-                    Debug.LogWarning("[landmarks] SaltTowerBasalt material missing from Resources");
+                    Debug.LogWarning("[landmarks] Colossus material missing from Resources");
                 warned = true;
                 return false;
             }
@@ -589,6 +591,7 @@ namespace Punchy.Terrain
                 var m = new Mesh { name = name, indexFormat = IndexFormat.UInt32 };
                 m.SetVertices(v);
                 m.SetNormals(n);
+                m.SetColors(System.Linq.Enumerable.ToList(System.Linq.Enumerable.Repeat(Color.white, v.Count)));
                 m.subMeshCount = sub.Length;
                 for (int i = 0; i < sub.Length; i++)
                     m.SetTriangles(sub[i], i);

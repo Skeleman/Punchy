@@ -17,6 +17,9 @@ namespace Punchy.Terrain
     {
         public const int Version = 3;
 
+        /// <summary>The central lake's centre (world xz) from the last v3 bake; the lake shelf (GrandFalls) starts from it.</summary>
+        public static float2 LakeCentre;
+
         /// <summary>
         /// Biome map and height offsets. B2: the height offsets are the range field (<see cref="V3Ranges"/>, 1024 a
         /// side) plus the v2 lake bowl; the v2 border ridge is gone. The biome map is still version 2's until B3.
@@ -37,6 +40,7 @@ namespace Punchy.Terrain
             float cx0 = PX * 0.5f + IslandV2.LakeShiftM / W * PX + (IslandV2.H01(seed, 8, 8) - 0.5f) * 40f, cy0 = PX * 0.5f + (IslandV2.H01(seed, 9, 9) - 0.5f) * 40f;
             float lakeR = lakeRadius * PX;
             var lakeWorld = new Vector2(cx0 / PX * W - W * 0.5f, cy0 / PX * W - W * 0.5f);
+            LakeCentre = new float2(lakeWorld.x, lakeWorld.y);
 
             var field = V3Ranges.Build(sites, fam, seed, coastWobble, lakeWorld, lakeR / PX * W);
             Step("ranges");
