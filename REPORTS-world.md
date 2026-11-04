@@ -1610,3 +1610,25 @@ Commit: world-features a080fd5 (DebugControls.cs, KitCollision.cs). One build; a
 - Hashes: player landmarks v2 136 / B5EFF8C8. Editor v2: landmarks 136 / 4E61F1CF, caves C49E8E3036C741FC, ground C0C906EE310FA91F, rivers A77D2ED7B919296E, all unchanged. v1 103 was not measured: it needs an editor restart with PUNCHY_ISLAND=v1.
 - Shots: D:\PunchyMilestones\W-67b (wharf_deck, wharf_framed, underdeck_fail, stone_row, igloo_door, igloo_framed, ruin_entrance, ruin_wall, ruin_framed).
 - Calls: about 50.
+
+## W-67c (2026-11-03): main merged into world-features, igloo check fixed (#38)
+
+Commits: world-features 178e226 (merge of origin/main, no rebase, 0 compile errors) and eb95cf2 (#38 check fix: DebugControls.cs, KitCollision.cs). No new build; all walks in the open editor.
+- DebugControls.cs conflict: kept main's `-goto` log line (to x,y,z) and the W-67b settle wait; `-oldtrace` now sets both TraceSystem.OldTrace (#81) and OldOrder (A-45).
+- TraceSystem.cs conflict: kept both. Main's CreatureSnapshotSystem.Get/Release and A-45 due-first order (feather, stone, step) drive pass 1; my #81 Burst GroundJob runs once over the creatures that need ground; pass 2 does splash, no-surface, feather, stone, wake/footprint. OldTrace keeps the managed path.
+- #38 cause: at the igloo target the kit boxes are the tunnel roof/lintel (tops 275.0 and 275.3) over a 272.5 floor. LowestTopAt took the roof top because nothing sat on it. Fix: LowestTopAt takes a roof gap (2 m: walker height plus step) and skips boxes whose bottom is more than that over the ground; no gap over water. The igloo is unchanged.
+- Stepping-stone pair (not fixed): the W-65g recheck accepts a spot within 0.5 m, and each spot gets its own `across` direction and yaw jitter from hash(round(bestXz*4)), so two near spots can centre on one point with yaw -59 and -46. Not a one-liner and it moves placement; left for a card.
+
+| Walk | Foot y | Expected | Result |
+|---|---|---|---|
+| Wharf: ramp onto the deck | 1.3 | 1.3 | ARRIVED |
+| Wharf: forced under the deck | -1.0 | 1.3 | FAIL (as wanted) |
+| Stone row, end to end | 46.2 | 46.3 | ARRIVED |
+| Igloo: tunnel mouth to inside the door | 272.3 | 272.5 | ARRIVED (was FAIL vs 275.3) |
+| Ruin: north gap to inside | 31.5 | 31.5 | ARRIVED |
+| Ruin: into the east wall | 31.6 | - | STOPPED at x 1424.9, wall blocks |
+
+- Fauna near cave #1: no exceptions in the console after the merge; shot w67c_cave_fauna. The probe's creature count read 0; cause not checked, so no count to report.
+- Hashes: incomplete. The eval came back truncated: landmarks read 103 / 19885131 (that is the v1 set, not comparable to v2 136 / 4E61F1CF); caves, ground and rivers lines were cut off. Re-measure v2 caves/ground/rivers next card (baselines C49E8E3036C741FC / C0C906EE310FA91F / A77D2ED7B919296E).
+- Shots: D:\PunchyMilestones\W-67c (pick: w67c_igloo_framed, w67c_wharf_deck, w67c_cave_fauna; also underdeck_fail, stone_row, igloo_door, ruin_entrance, ruin_wall).
+- Calls: about 52.
