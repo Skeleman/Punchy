@@ -276,20 +276,7 @@ namespace Punchy.Net
             if (RelaySessions.Status != null)
                 GUILayout.Label(RelaySessions.Status, new GUIStyle(GUI.skin.label) { wordWrap = true });
 
-            // Which body we have (everyone sees it).
-            if (Avatars != null && Avatars.PlayableSpecies.Count > 0)
-            {
-                GUILayout.Space(6);
-                var index = Avatars.LocalIndex;
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("Body:", GUILayout.Width(40));
-                if (nav.Button("<", GUILayout.Width(24)))
-                    Avatars.SetLocalSpecies((index - 1 + Avatars.PlayableSpecies.Count) % Avatars.PlayableSpecies.Count);
-                GUILayout.Label(index >= 0 ? Avatars.PlayableSpecies[index].name : "(custom)", GUILayout.Width(150));
-                if (nav.Button(">", GUILayout.Width(24)))
-                    Avatars.SetLocalSpecies((index + 1) % Avatars.PlayableSpecies.Count);
-                GUILayout.EndHorizontal();
-            }
+            // (Which body we have is picked on the Character tab, NetAvatars/CharacterTab.)
         }
 
         /// <summary>

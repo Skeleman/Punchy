@@ -168,6 +168,23 @@ namespace Punchy.Debugging
 
         void Update()
         {
+            // A client's world is replaced when it loses the host: rebuild the cached queries before anything reads them
+            // (A-47 #68: the shot list read the old world's playerQuery and threw a NullReferenceException).
+            var liveWorld = World.DefaultGameObjectInjectionWorld;
+            if (queryWorld != null && (queryWorld != liveWorld || !queryWorld.IsCreated))
+            {
+                if (liveWorld != null && liveWorld.IsCreated)
+                    EnsureLocations(out _);
+                else
+                    queryWorld = null;
+            }
+            // (#61: on a -fixeddt line, the sim's state 60 s of game time in, whatever the frame rate.)
+            if (fixedFrames >= 0 && ++fixedFrames == 1800)
+            {
+                var fs = Punchy.Fauna.CreatureBrainSystem.Searches.Data;
+                Debug.Log($"DebugControls: fixed 60 s '{CurrentShotName()}' flees predator {fs.PredatorFlee - fixedSearch0.PredatorFlee}, alarm {fs.AlarmFlee - fixedSearch0.AlarmFlee}, " +
+                          $"player {fs.PlayerFlee - fixedSearch0.PlayerFlee}, {SimPrint()}");
+            }
             ApplyLaunchOptions();
             SpawnRequested();
             PlaceByLedge();
@@ -1449,10 +1466,41 @@ namespace Punchy.Debugging
             var liftArg = System.Array.IndexOf(args, "-lift");
             liftHeight = liftArg >= 0 && liftArg + 1 < args.Length && float.TryParse(args[liftArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lh) ? lh : 0f;
             liftNext = Time.time + 4f; // first sample 4 s in, once the spawned herd has settled
+            // "-spawnradius 12": this line's -spawn puts land animals at most that far out (default 45 m; #46 needs deer in flee range).
+            var srArg = System.Array.IndexOf(args, "-spawnradius");
+            spawnRadius = srArg >= 0 && srArg + 1 < args.Length && float.TryParse(args[srArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sr) ? sr : 45f;
             liftSample = 0;
+            // "-liftpass 8" (A-47 #46): with -lift, the player starts 40 m west and 10 m north of where it stood, and 5 s in
+            // runs due east at that speed (m/s) for 80 m: a moving threat passing the herd 10 m off, on the ground or high up.
+            var lpArg = System.Array.IndexOf(args, "-liftpass");
+            liftPass = lpArg >= 0 && lpArg + 1 < args.Length && float.TryParse(args[lpArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lpv) ? lpv : 0f;
+            liftPassStart = null;
+            // "-nobrainlod" (A-47 #59): every creature thinks every frame. "-fixeddt" (#61): Play mode steps a fixed 1/30 s,
+            // so two runs of the same line can be compared number for number.
+            Punchy.Fauna.CreatureBrainSystem.BrainLodOff.Data = System.Array.IndexOf(args, "-nobrainlod") >= 0 ? 1 : 0;
+            Time.captureFramerate = System.Array.IndexOf(args, "-fixeddt") >= 0 ? 30 : 0;
+            fixedFrames = Time.captureFramerate > 0 ? 0 : -1;
+            fixedSearch0 = Punchy.Fauna.CreatureBrainSystem.Searches.Data;
             // #46/#43 tests: "-flatfear" (plain 3D fear distance), "-nobiometable" (every biome has every sound),
             // "-callrate 1.5" (the call budget a second), "-calllog" (calls played a 10 s window, with the biome).
             Punchy.Fauna.CreatureBrainSystem.HeightFearOff.Data = System.Array.IndexOf(args, "-flatfear") >= 0 ? 1 : 0;
+            // A-46: "-oldwander" (#12, walkers ease down while turning, as before); flees are counted from each line's start
+            // (logged with the shot, #57's fair check).
+            Punchy.Fauna.CreatureBrainSystem.OldWander.Data = System.Array.IndexOf(args, "-oldwander") >= 0 ? 1 : 0;
+            // A-46b: "-oldplay" (#12, a playing runner re-aims freely each frame, as before).
+            Punchy.Fauna.CreatureBrainSystem.OldPlay.Data = System.Array.IndexOf(args, "-oldplay") >= 0 ? 1 : 0;
+            lineSearch0 = Punchy.Fauna.CreatureBrainSystem.Searches.Data;
+            // "-pickclass Fish" (#68): what one click on the Character tab's class does; "-menu Character": the menu open
+            // on that tab for this line's shot (closed again on lines without it).
+            var pickAt = System.Array.IndexOf(args, "-pickclass");
+            if (pickAt >= 0 && pickAt + 1 < args.Length && System.Enum.TryParse<Punchy.Net.CharacterTab.BodyClass>(args[pickAt + 1], out var pickClass))
+            {
+                var pickAvatars = FindAnyObjectByType<Punchy.Net.NetAvatars>();
+                if (pickAvatars != null)
+                    Punchy.Net.CharacterTab.PickClass(pickAvatars, pickClass);
+            }
+            var menuAt = System.Array.IndexOf(args, "-menu");
+            Punchy.UI.MainMenu.Show(menuAt >= 0 && menuAt + 1 < args.Length && !args[menuAt + 1].StartsWith("-") ? args[menuAt + 1] : null, menuAt >= 0);
             Punchy.Fauna.AmbientSounds.TableOff.Data = System.Array.IndexOf(args, "-nobiometable") >= 0 ? 1 : 0;
             var rateArg = System.Array.IndexOf(args, "-callrate");
             if (rateArg >= 0 && rateArg + 1 < args.Length && float.TryParse(args[rateArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var cr))
@@ -1804,7 +1852,7 @@ namespace Punchy.Debugging
                 }
                 for (int attempt = 0; attempt < 400 && spawned < count; attempt++)
                 {
-                    var xz = player.Position.xz + rng.NextFloat2Direction() * rng.NextFloat(6f, 45f);
+                    var xz = player.Position.xz + rng.NextFloat2Direction() * rng.NextFloat(math.min(6f, spawnRadius * 0.5f), spawnRadius);
                     var g = source.SampleGround(xz);
                     var depth = g.HasWater ? g.WaterSurface - g.Height : -1f;
                     if (wantsWater ? depth < 1f : depth > 0f)
@@ -2486,13 +2534,39 @@ namespace Punchy.Debugging
             Debug.Log($"DebugControls: shot {shotIndex + 1}/{shotLines.Count} '{Arg("-shot")}' after {Time.realtimeSinceStartup - shotStarted:F1} s" +
                       (drawCalls.Valid ? $", {drawCalls.LastValue} draw calls, {batches.LastValue} batches, {tris.LastValue / 1000} k tris" : "") +
                       $", player at ({at.x:F1}, {at.y:F1}, {at.z:F1})");
+            var lineSearch = Punchy.Fauna.CreatureBrainSystem.Searches.Data;
+            Debug.Log($"DebugControls: flees this line '{Arg("-shot")}' predator {lineSearch.PredatorFlee - lineSearch0.PredatorFlee}, " +
+                      $"alarm {lineSearch.AlarmFlee - lineSearch0.AlarmFlee}, player {lineSearch.PlayerFlee - lineSearch0.PlayerFlee}, {SimPrint()}, searches predator {lineSearch.Predator - lineSearch0.Predator}, " +
+                      $"alarm {lineSearch.Alarm - lineSearch0.Alarm}, old search {Punchy.Fauna.CreatureBrainSystem.SearchEveryFrame.Data}");
             if (perfLog)
                 LogPerf(Arg("-shot"), at);
             shotIndex++;
             shotStarted = -1f;
         }
 
+        /// <summary>#61: every creature's count and summed position, so two runs (or two builds) of a line compare exactly.</summary>
+        string SimPrint()
+        {
+            var w = World.DefaultGameObjectInjectionWorld;
+            if (w == null || !w.IsCreated)
+                return "sim none";
+            using var q = w.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>());
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var sum = double3.zero;
+            int live = 0;
+            foreach (var cs in states)
+                if (!cs.Gone)
+                {
+                    live++;
+                    sum += (double3)cs.Position;
+                }
+            states.Dispose();
+            return $"sim {live} live, position sum ({sum.x:F2}, {sum.y:F2}, {sum.z:F2})";
+        }
+
         // "-perflog" sums over the last 3 s of a shot line's wait.
+        Unity.Profiling.ProfilerRecorder brainTick;
+        double perfBrain;
         bool perfLog;
         int perfFrames, perfTimed, perfChunkFrames;
         double perfFrame, perfMax, perfMain, perfRender, perfGpu, perfDraws, perfTris;
@@ -2503,7 +2577,7 @@ namespace Punchy.Debugging
         struct long3 { public long X, Y, Z; public long3(long x, long y, long z) { X = x; Y = y; Z = z; } }
         long3 perfTrace0;
         long2 perfCopies0;
-        Punchy.Fauna.CreatureBrainSystem.SearchCounts perfSearch0;
+        Punchy.Fauna.CreatureBrainSystem.SearchCounts perfSearch0, lineSearch0;
         readonly FrameTiming[] perfTiming = new FrameTiming[1];
 
         void SamplePerf()
@@ -2519,6 +2593,10 @@ namespace Punchy.Debugging
             var dt = Time.unscaledDeltaTime * 1000.0;
             perfFrames++;
             perfFrame += dt;
+            if (!brainTick.Valid)
+                brainTick = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Scripts, "Brain.Tick");
+            else
+                perfBrain += brainTick.LastValue * 1e-6;
             perfMax = System.Math.Max(perfMax, dt);
             FrameTimingManager.CaptureFrameTimings();
             if (FrameTimingManager.GetLatestTimings(1, perfTiming) > 0)
@@ -2596,7 +2674,9 @@ namespace Punchy.Debugging
                       $"{(Punchy.Fauna.CreatureSnapshotSystem.CopyTicks - perfCopies0.Y) * 1000.0 / freq / n:F3} ms/frame; " +
                       $"searches/frame predator {(double)(se.Predator - perfSearch0.Predator) / n:F1}, alarm {(double)(se.Alarm - perfSearch0.Alarm) / n:F1}, " +
                       $"chat {(double)(se.Chat - perfSearch0.Chat) / n:F1}; flees predator {se.PredatorFlee - perfSearch0.PredatorFlee}, " +
-                      $"alarm {se.AlarmFlee - perfSearch0.AlarmFlee}; totals flee {se.PredatorFlee}/{se.AlarmFlee}");
+                      $"alarm {se.AlarmFlee - perfSearch0.AlarmFlee}; totals flee {se.PredatorFlee}/{se.AlarmFlee}; " +
+                      $"brain ms {perfBrain / n:F3} (summed over workers), thinks/frame {(double)(se.Thinks - perfSearch0.Thinks) / n:F1}, lod skips/frame {(double)(se.LodSkips - perfSearch0.LodSkips) / n:F1}, lod off {Punchy.Fauna.CreatureBrainSystem.BrainLodOff.Data}");
+            perfBrain = 0;
             perfFrames = perfTimed = perfChunkFrames = 0;
             perfFrame = perfMax = perfMain = perfRender = perfGpu = perfDraws = perfTris = 0;
             perfLoaded = perfSubmitted = perfInView = perfShadows = perfCaveTris = 0;
@@ -2696,6 +2776,7 @@ namespace Punchy.Debugging
         /// with how many creatures within 40 m are fleeing, of how many (the fear distance counts height).
         /// </summary>
         static float liftHeight;
+        static float spawnRadius = 45f;
         static bool callLog;
         float callLogNext;
         int callLogFrom;
@@ -2714,6 +2795,20 @@ namespace Punchy.Debugging
         }
         float liftNext;
         int liftSample;
+        float liftPass;
+        int fixedFrames = -1;
+
+        /// <summary>The -shot name of the shot-list line being run, or null (for log lines outside the shot loop).</summary>
+        string CurrentShotName()
+        {
+            if (shotLines == null || shotIndex < 0 || shotIndex >= shotLines.Count)
+                return null;
+            var line = shotLines[shotIndex];
+            var i = System.Array.IndexOf(line, "-shot");
+            return i >= 0 && i + 1 < line.Length ? line[i + 1] : null;
+        }
+        Punchy.Fauna.CreatureBrainSystem.SearchCounts fixedSearch0;
+        (float2 from, float at)? liftPassStart;
 
         void Lift()
         {
@@ -2721,6 +2816,12 @@ namespace Punchy.Debugging
                 return;
             var em = queryWorld.EntityManager;
             var t = em.GetComponentData<LocalTransform>(self);
+            if (liftPass > 0f)
+            {
+                liftPassStart ??= (t.Position.xz + new float2(-40f, 10f), Time.time);
+                var run = math.clamp(Time.time - liftPassStart.Value.at - 5f, 0f, 80f / liftPass);
+                t.Position.xz = liftPassStart.Value.from + new float2(run * liftPass, 0f);
+            }
             t.Position.y = ground.SampleHeight(t.Position.xz) + liftHeight;
             em.SetComponentData(self, t);
             if (Time.time < liftNext)

@@ -144,6 +144,8 @@ namespace Punchy.Terrain
         /// Built at the end of a bake by <see cref="BuildPondMask"/>; without it every pond is dug.
         /// </summary>
         public BlobAssetReference<HeightmapBlob> PondMask;
+        /// <summary>Island v3 only (W-70, B3/B4): per-pixel biome blend radius and realm geology; unset on v1 and v2.</summary>
+        public BlobAssetReference<V3GroundBlob> V3Ground;
         public const float PondStep = 16f;
         public const int PondMinCells = 3;
 
@@ -179,6 +181,17 @@ namespace Punchy.Terrain
             if (UsesBiomeMap)
             {
                 // The painted map already contains the ocean.
+                if (V3Ground.IsCreated)
+                {
+                    // Island v3 (B3): the blend follows the ranges (narrow under a crest, wide on open borders); no
+                    // highland takeover, the rock pass in SampleSurface does that job.
+                    var r = Punchy.Terrain.V3Ground.BlendRadius(ref V3Ground.Value, xz);
+                    surface = BiomeSampling.SampleMapBlurred(ref BiomeMap.Value, xz, r * 0.5f);
+                    shape = BiomeSampling.SampleMapBlurred(ref BiomeMap.Value, xz, math.max(r, BiomeNoise.ShapeBlendDistance) * 0.5f);
+                    if (Archipelago.IsCreated)
+                        surface = Punchy.Terrain.Archipelago.Surface(ref Archipelago.Value, xz, surface);
+                    return;
+                }
                 surface = BiomeSampling.SampleMap(ref BiomeMap.Value, xz);
                 shape = BiomeSampling.SampleMapBlurred(ref BiomeMap.Value, xz, BiomeNoise.ShapeBlendDistance * 0.5f);
                 surface = HighlandSurface(xz, surface, shape);
@@ -1102,6 +1115,9 @@ namespace Punchy.Terrain
                 if (w > 0f)
                     result.AddScaled(BiomeSampling.EvaluateBiome(ref set, ground.Biomes.Ids[i], context), w);
             }
+            if (V3Ground.IsCreated && context.WaterDepth < 0.3f)
+                Punchy.Terrain.V3Ground.Apply(ref V3Ground.Value, xz, math.max(context.Slope, FieldSlope(xz)),
+                    Island.IsCreated ? math.max(Island.Value.Sample(xz), 0f) : 0f, context.EdgeNoise, ref result);
             if (Landmarks.IsCreated)
                 LandmarkSampling.Ground(ref Landmarks.Value, xz, context.EdgeNoise, context.ColorNoise, ref result);
             if (Settlements.IsCreated)
@@ -1109,6 +1125,20 @@ namespace Punchy.Terrain
             if (Landmarks.IsCreated)
                 LandmarkSampling.TroddenGround(ref Landmarks.Value, xz, context.EdgeNoise, ref result);
             return result;
+        }
+
+        /// <summary>
+        /// Island v3 (B4): slope in degrees of the island height offsets alone (the range field), over 12 m. Far LODs
+        /// smooth the mesh slope; this keeps their cliffs in rock. 0 without island offsets.
+        /// </summary>
+        public float FieldSlope(float2 xz)
+        {
+            if (!Island.IsCreated) return 0f;
+            const float e = 6f;
+            ref var hm = ref Island.Value;
+            var gx = (hm.Sample(xz + new float2(e, 0f)) - hm.Sample(xz - new float2(e, 0f))) / (2f * e);
+            var gz = (hm.Sample(xz + new float2(0f, e)) - hm.Sample(xz - new float2(0f, e))) / (2f * e);
+            return math.degrees(math.atan(math.sqrt(gx * gx + gz * gz)));
         }
 
         /// <summary>
@@ -1145,6 +1175,6 @@ namespace Punchy.Terrain
         public bool Equals(TerrainSource o) =>
             World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
-            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Anchors == o.Anchors && PondMask == o.PondMask;
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Anchors == o.Anchors && PondMask == o.PondMask && V3Ground == o.V3Ground;
     }
 }
