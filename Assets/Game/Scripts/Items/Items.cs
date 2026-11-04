@@ -11,6 +11,7 @@ using Unity.NetCode;
 using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
 
 namespace Punchy.Items
 {
@@ -97,7 +98,12 @@ namespace Punchy.Items
         int target = -1, targetChest = -1;
         string prompt;
         bool panel;
-        int selected;
+        int selected, lastFocus = -1;
+        readonly Punchy.UI.MenuNav nav = new Punchy.UI.MenuNav();
+        bool padTest;
+        float padAt;
+        int padStep;
+        Gamepad testPad;
         int pickupArg, pickupDone;
         bool dropArg, openChestArg;
         float testAt;
@@ -129,9 +135,10 @@ namespace Punchy.Items
             instance.dropArg = System.Array.IndexOf(args, "-drop") >= 0;
             instance.openChestArg = System.Array.IndexOf(args, "-openchest") >= 0;
             instance.panel = System.Array.IndexOf(args, "-inventory") >= 0;
+            instance.padTest = System.Array.IndexOf(args, "-invpad") >= 0;
         }
 
-        bool Hosting => server != null && server.IsCreated;
+        bool Hosting => server != null && server.IsCreated && server.IsServer();
         bool Joined => !Hosting && client != null && client.IsCreated && client.IsClient();
 
         void Update()
@@ -164,8 +171,10 @@ namespace Punchy.Items
                 else OpenChest(targetChest);
             }
             Tests(terrain);
+            PadTest();
             UpdateInventoryKeys();
             Draw();
+            DrawChests();
         }
 
         bool TryTerrain(out TerrainSource terrain)
@@ -576,21 +585,134 @@ namespace Punchy.Items
             }
         }
 
+        /// <summary>
+        /// The panel: Tab or I, or LB on a pad, opens and closes it (B too). Inside, MenuNav moves between the slots
+        /// (arrows, d-pad, left stick) and Submit (Enter, A) or the Use key drops one of the focused slot's items.
+        /// </summary>
         void UpdateInventoryKeys()
         {
-            var keyboard = Keyboard.current;
-            if (keyboard == null || Punchy.UI.Overlay.AnyOpen)
+            if (Punchy.UI.Overlay.AnyOpen)
                 return;
-            if (keyboard.tabKey.wasPressedThisFrame || keyboard.iKey.wasPressedThisFrame)
-                panel = !panel;
+            var keyboard = Keyboard.current;
+            var pad = Gamepad.current;
+            var toggle = keyboard != null && (keyboard.tabKey.wasPressedThisFrame || keyboard.iKey.wasPressedThisFrame) ||
+                         pad != null && pad.leftShoulder.wasPressedThisFrame;
+            if (toggle || panel && pad != null && pad.buttonEast.wasPressedThisFrame)
+            {
+                panel = toggle && !panel;
+                nav.Reset();
+                lastFocus = -1;
+                Debug.Log($"Items: inventory {(panel ? "open" : "closed")}");
+            }
             if (!panel)
                 return;
-            if (keyboard.rightArrowKey.wasPressedThisFrame) selected = (selected + 1) % slots.Length;
-            if (keyboard.leftArrowKey.wasPressedThisFrame) selected = (selected + slots.Length - 1) % slots.Length;
-            if (keyboard.downArrowKey.wasPressedThisFrame) selected = (selected + 4) % slots.Length;
-            if (keyboard.upArrowKey.wasPressedThisFrame) selected = (selected + slots.Length - 4) % slots.Length;
+            nav.ReadInput();
+            if (nav.Active && nav.Focus != lastFocus)
+            {
+                lastFocus = nav.Focus;
+                (byte item, int count) s = nav.Focus < slots.Length ? slots[nav.Focus] : ((byte)255, 0);
+                Debug.Log($"Items: inventory slot {nav.Focus} ({(s.item == 255 ? "empty" : $"{ItemTable.Items[s.item].Name} x{s.count}")})");
+            }
+            selected = nav.Focus;
             if (target < 0 && targetChest < 0 && UseKey.WasPressed())
                 Drop(selected);
+        }
+
+        /// <summary>
+        /// "-invpad": drives the panel with a virtual gamepad through the Input System (the real input path): LB opens it,
+        /// d-pad right three times, A drops one, B closes it. Starts 45 s in (after any -pickup).
+        /// </summary>
+        void PadTest()
+        {
+            if (!padTest)
+                return;
+            padAt = padAt == 0f ? Time.realtimeSinceStartup + 45f : padAt;
+            if (Time.realtimeSinceStartup < padAt)
+                return;
+            padAt = Time.realtimeSinceStartup + 0.35f;
+            // (A test window often isn't in front: let its input through anyway, as a real pad's would be when focused.)
+            InputSystem.settings.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
+            testPad ??= InputSystem.AddDevice<Gamepad>("InventoryTestPad");
+            testPad.MakeCurrent();
+            GamepadButton[] script = { GamepadButton.LeftShoulder, GamepadButton.DpadRight, GamepadButton.DpadRight, GamepadButton.DpadRight, GamepadButton.South, GamepadButton.East };
+            var press = padStep % 2 == 0;
+            var button = script[padStep / 2];
+            InputSystem.QueueStateEvent(testPad, press ? new UnityEngine.InputSystem.LowLevel.GamepadState().WithButton(button) : new UnityEngine.InputSystem.LowLevel.GamepadState());
+            if (press)
+                Debug.Log($"Items: -invpad presses {button}");
+            if (++padStep >= script.Length * 2)
+            {
+                padTest = false;
+                InputSystem.RemoveDevice(testPad);
+            }
+        }
+
+        readonly Dictionary<int, (GameObject root, Transform lid)> chests = new Dictionary<int, (GameObject, Transform)>();
+        float hideStandInsAt;
+
+        /// <summary>
+        /// P-12: a chest at every temple Chest socket, a box and a lid on a hinge at the back; the lid opens (to 105
+        /// degrees, over half a second) once the chest is in openedChests (the host's word) and stays open. The A-50
+        /// spawner's placeholder box on the same socket (a "Dungeon ..." primitive, drawn magenta in a build) is hidden.
+        /// </summary>
+        void DrawChests()
+        {
+            var list = new List<(int, float3)>(ChestSockets());
+            if (list.Count == 0)
+                return;
+            foreach (var (socket, pos) in list)
+            {
+                if (!chests.TryGetValue(socket, out var c) || c.root == null)
+                {
+                    TryChest(socket, out var s);
+                    var root = new GameObject($"Chest {socket}") { hideFlags = HideFlags.HideInHierarchy };
+                    root.transform.SetPositionAndRotation(pos, s.Rot);
+                    Part(root.transform, new Vector3(0f, 0.22f, 0f), new Vector3(0.8f, 0.44f, 0.5f), new Color(0.42f, 0.27f, 0.14f));
+                    Part(root.transform, new Vector3(0f, 0.22f, 0.255f), new Vector3(0.82f, 0.08f, 0.02f), new Color(0.35f, 0.33f, 0.3f));
+                    var hinge = new GameObject("Lid hinge").transform;
+                    hinge.SetParent(root.transform, false);
+                    hinge.localPosition = new Vector3(0f, 0.44f, -0.25f);
+                    Part(hinge, new Vector3(0f, 0.06f, 0.25f), new Vector3(0.82f, 0.12f, 0.52f), new Color(0.48f, 0.31f, 0.16f));
+                    Part(hinge, new Vector3(0f, 0.04f, 0.5f), new Vector3(0.12f, 0.1f, 0.03f), new Color(0.85f, 0.7f, 0.25f));
+                    c = (root, hinge);
+                    chests[socket] = c;
+                }
+                var angle = openedChests.Contains(socket) ? -105f : 0f;
+                var now = c.lid.localEulerAngles.x > 180f ? c.lid.localEulerAngles.x - 360f : c.lid.localEulerAngles.x;
+                c.lid.localRotation = Quaternion.Euler(Mathf.MoveTowards(now, angle, Time.deltaTime * 210f), 0f, 0f);
+            }
+            if (Time.realtimeSinceStartup >= hideStandInsAt)
+            {
+                hideStandInsAt = Time.realtimeSinceStartup + 3f;
+                foreach (var r in FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
+                {
+                    if (!r.enabled || !r.gameObject.name.StartsWith("Dungeon "))
+                        continue;
+                    foreach (var (_, pos) in list)
+                        if (math.distance(((float3)r.transform.position).xz, pos.xz) < 0.4f)
+                        {
+                            r.enabled = false;
+                            break;
+                        }
+                }
+            }
+        }
+
+        static void Part(Transform parent, Vector3 at, Vector3 size, Color colour)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            Destroy(go.GetComponent<Collider>());
+            go.hideFlags = HideFlags.HideInHierarchy;
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = at;
+            go.transform.localScale = size;
+            var r = go.GetComponent<Renderer>();
+            itemMaterial ??= Resources.Load<Material>("ItemMaterial");
+            if (itemMaterial != null)
+                r.sharedMaterial = itemMaterial;
+            var b = new MaterialPropertyBlock();
+            b.SetColor(BaseColorId, colour);
+            r.SetPropertyBlock(b);
         }
 
         /// <summary>Small coloured blocks for the items within DrawRange of the camera (a pool of primitives).</summary>
@@ -650,28 +772,40 @@ namespace Punchy.Items
             }
             if (!panel)
                 return;
-            slotStyle ??= new GUIStyle(GUI.skin.box) { fontSize = 13, alignment = TextAnchor.LowerCenter, wordWrap = true };
+            slotStyle ??= new GUIStyle(GUI.skin.button) { fontSize = 13, alignment = TextAnchor.LowerCenter, wordWrap = true };
             const float cell = 74f, gap = 6f;
             var w = 4 * cell + 5 * gap;
-            var origin = new Vector2(Screen.width - w - 20f, Screen.height * 0.25f);
-            GUI.Box(new Rect(origin.x, origin.y - 28f, w, 4 * (cell + gap) + gap + 28f), $"Inventory   (click or {UseKey.Name}: drop one)");
+            var area = new Rect(Screen.width - w - 20f, Screen.height * 0.25f - 28f, w, 4 * (cell + gap) + gap + 28f);
+            GUI.Box(area, $"Inventory   ({UseKey.Name} / A: drop one)");
             var colour = GUI.color;
-            for (int i = 0; i < slots.Length; i++)
+            GUILayout.BeginArea(new Rect(area.x + gap, area.y + 28f, w - 2 * gap, area.height - 28f));
+            nav.Begin();
+            for (int row = 0; row < 4; row++)
             {
-                var rect = new Rect(origin.x + gap + i % 4 * (cell + gap), origin.y + gap + i / 4 * (cell + gap), cell, cell);
-                GUI.color = i == selected ? new Color(1f, 0.9f, 0.5f) : Color.white;
-                var s = slots[i];
-                if (GUI.Button(rect, s.item == 255 ? "" : $"{ItemTable.Items[s.item].Name}\nx{s.count}", slotStyle))
+                GUILayout.BeginHorizontal();
+                for (int col = 0; col < 4; col++)
                 {
-                    selected = i;
-                    Drop(i);
+                    var i = row * 4 + col;
+                    var s = slots[i];
+                    if (nav.Button(s.item == 255 ? "" : $"{ItemTable.Items[s.item].Name}\nx{s.count}", slotStyle, GUILayout.Width(cell), GUILayout.Height(cell)))
+                    {
+                        selected = i;
+                        Drop(i);
+                    }
+                    if (s.item != 255 && Event.current.type == EventType.Repaint)
+                    {
+                        var rect = GUILayoutUtility.GetLastRect();
+                        GUI.color = ItemTable.Items[s.item].Colour;
+                        GUI.DrawTexture(new Rect(rect.x + cell * 0.3f, rect.y + 8f, cell * 0.4f, cell * 0.35f), Texture2D.whiteTexture);
+                        GUI.color = colour;
+                    }
+                    GUILayout.Space(gap);
                 }
-                if (s.item != 255)
-                {
-                    GUI.color = ItemTable.Items[s.item].Colour;
-                    GUI.DrawTexture(new Rect(rect.x + cell * 0.3f, rect.y + 8f, cell * 0.4f, cell * 0.35f), Texture2D.whiteTexture);
-                }
+                GUILayout.EndHorizontal();
+                GUILayout.Space(gap);
             }
+            nav.End();
+            GUILayout.EndArea();
             GUI.color = colour;
         }
     }

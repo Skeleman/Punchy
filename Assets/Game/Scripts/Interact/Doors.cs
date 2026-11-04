@@ -167,7 +167,7 @@ namespace Punchy.Interact
             }
             if (!TryTerrain(out var terrain))
                 return;
-            var hosting = server != null && server.IsCreated;
+            var hosting = server != null && server.IsCreated && server.IsServer();
             var joined = !hosting && client != null && client.IsCreated && client.IsClient();
             if (hosting)
                 ServeDoors();
@@ -273,7 +273,8 @@ namespace Punchy.Interact
                 Debug.Log($"Doors: asked the host to use door {door}");
                 return;
             }
-            Set(door, !open.Contains(door), server != null && server.IsCreated ? "host" : "solo");
+            // (Solo's local world is NetWorlds.Server too: only a real server is a host.)
+            Set(door, !open.Contains(door), server != null && server.IsCreated && server.IsServer() ? "host" : "solo");
         }
 
         void Set(int door, bool isOpen, string who)
@@ -283,7 +284,7 @@ namespace Punchy.Interact
             if (!isOpen && TryGetDoor(door, out var p, out _))
                 Punchy.Flora.FloraDoors.SetOpen(p, 0f);
             Debug.Log($"Doors: door {door} {(isOpen ? "open" : "shut")} ({who})");
-            if (server != null && server.IsCreated)
+            if (server != null && server.IsCreated && server.IsServer())
                 Broadcast(door, isOpen);
         }
 
