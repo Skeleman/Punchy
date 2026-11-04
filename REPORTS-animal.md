@@ -1622,3 +1622,24 @@ Calls: about 80 across A-51 and the aborted A-50 start (A-51 alone was about 55)
   (Tame and FolkTalk may run off the host) and moving only Timer, TargetHeight and ChatCool in a step 2.
 - Stale comment: player lane's PlayerOptions.cs line 124 ("AudioListener.volume don't read GameAudio.Master yet").
 - Calls: ~38 of 40. Editor closed (PID 23316, mine); Punchy-world editor left alone. Temp/PlayArgs.txt removed.
+## A-54 / A-54b (2026-11-04): flee height, spinning wanderers, brain LOD
+- Merged origin/main (ba1ce3c) into animal-behaviours: b861a73. Commit 0d64408 (pushed): brain LOD 80 m / every 4th
+  frame with a scrambled per-creature phase, `-brainlod R,N` A/B flag, and a flips-per-minute count in `-spincheck`.
+- Row 1 (#46): the height weighting was already in (HeightFear, `-flatfear`); no new commit. Editor log, 10 deer
+  spawned 6 m round the player, first sample after 20 s: on the ground 10 of 10 and 18 of 20 fleeing; hovering at
+  40 m over the same spot 0 of 13 and 0 of 12 (mean distance 9-10 m across, gap 40 m).
+- Row 2 (#12): no wander spin left to fix. `-spincheck`, 16 songbirds + 8 dormice at Start, four 30 s windows:
+  Songbird Wander/ground and /flare 0.0-0.2 flips/min (0-2 deg/s), Wander/flying 0-9/min (one 2 s sample 32/min);
+  Dormouse Wander/ground 0.0 flips/min every window. The turning that's left is Play (songbird chase: 16-29
+  flips/min at 54-95 deg/s, ~1 m/s), plus GlowMoth round its light (~90/min, intended) and bats (~20/min). If Zach
+  still sees songbirds spin, it's likely their Play chase: a judgment call whether to calm it. No fix committed, so
+  no after number.
+- Row 3 (#59): brain ms (summed over workers) at the HumanVillage spot (-255,27), uncapped, ~450 frames each. Spawns
+  pile up line by line, so compare per creature: old (60 m, every 3rd) 0.553 ms/143 = 3.9 us and 1.198/244 = 4.9 us;
+  new (80 m, every 4th) 0.899/197 = 4.6 us and 1.307/275 = 4.8 us. Thinks per creature per frame 0.48-0.50 old,
+  0.52 new (the wider range keeps more of the spawn ring "near"). Same within noise: the change evens out the phase
+  but doesn't save time at this spot. Near/far split not measured separately. Fauna fingerprint 51E641E9 (was
+  E698F061 before the main merge; the merge changed it, the LOD can't). About 9 min of Play, 0 errors/exceptions.
+- Row 4 (#58 step 2) not done (optional, budget).
+- Calls: ~33. Editor closed (PID 61544, mine, graceful); Punchy-world and Punchy-player editors left alone.
+  Temp/PlayArgs.txt removed. Shots in D:\PunchyMilestones\animal\a54.
