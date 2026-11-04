@@ -1764,3 +1764,16 @@ Fingerprint: 2DD98BAE (both the branch and main runs this card, and the A-60 ses
 **Row 3 (#58), only half done:** branch: 45 creatures, Brain.Tick 4.233 us/creature (0.190 ms/frame, 20 s, uncapped, at the temple spot). Main (origin/main scripts checked out, same spot): **0 creatures** were counted, so there is no number. Main's creatures had not spawned within ~60 s at the temple, or the CreatureMind query doesn't match on main. Next: bench both at a busy surface spot, waiting until the creature count matches.
 
 Calls used: about 40.
+
+## A-62 (2026-11-04)
+
+Commits: dbfb2b7 (animal-behaviours, after a fast-forward to origin/main 7fbf224): DungeonPostSystem reads the NetPlayer positions in a server world (host and clients), falling back to PlayerTag solo, the same choice as CreatureBrainSystem (#24).
+Fingerprint: not measured this card (it is editor only and the card ran out of calls before play mode). Main stays 2DD98BAE per A-61.
+
+**Row 1 (#24), fix in, not yet shown on a host:** cause found: DungeonPostSystem queried PlayerTag, which a ServerWorld has none of, so on a host the guards saw no player at all. Dev build host runs on v2 (`-place temple -benchroute`, then `-goto 3519,19,360`): 0 exceptions, ServerWorld temple 0EBAB9D3 and both dungeons built, drink lines on the host (GlowMoth, CaveSalamander, GiantSpider), but still **no guard line** in either run. Not yet known whether the host's player actually stood within 7 m of a guard (the temple hash moved from 9C11B352 since 21c, so the chests may sit elsewhere). Next: a host run with a log of the nearest guard distance, or the profiler's DungeonCheck rerun on dbfb2b7.
+
+**Row 2 (#58): not done** (ran out of calls). Note: after the merge the branch equals main (7fbf224), so the comparison is main before PR #117 (810955f) against 7fbf224, with the creature counts matched.
+
+**Row 3, fingerprint shift: PR #114 (merge bf20ffb, campsites).** Read from the diffs, not bisected by runs: the fauna fingerprint hashes the flora blob, and FloraPlacement.Build collects its species from every landmark type's props, including biome looks (LandmarkBaking.AddLooks). #114 gave Campsite two biome looks (CampsiteForest, CampsiteSwamp) whose props are the new CampTentForest and CampTentSwamp species, so the flora species list, props and landmark type count in the blob all change. #113 (colossus keep-outs) only adds a runtime SharedStatic check in Place, not blob data; #112, #115 and #116 touch no baked data.
+
+Calls used: about 50 (over the ceiling: two wasted on PowerShell quoting of the eval, two on host runs without a guard line).
