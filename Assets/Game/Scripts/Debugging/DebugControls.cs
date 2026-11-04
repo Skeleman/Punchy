@@ -1871,7 +1871,7 @@ namespace Punchy.Debugging
             var ground = t.Position.y;
             float top;
             var found = float.IsNaN(spot.y)
-                ? KitCollision.LowestTopAt(kit, spot.xz, ground - 0.3f, 1.7f, out top)
+                ? KitCollision.LowestTopAt(kit, spot.xz, ground - 0.3f, 1.7f, out top, RoofGap(spot.xz))
                 : KitCollision.TopAt(kit, spot.xz, spot.y + 1f, 1.7f, out top);
             if (found && top > ground)
             {
@@ -1962,9 +1962,21 @@ namespace Punchy.Debugging
             // a wharf deck missed it and was ARRIVED on the seabed). Upper floors need an explicit "x,y,z".
             using var kitQuery = queryWorld.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<KitBox>());
             if (kitQuery.TryGetSingletonBuffer<KitBox>(out var kit, true) &&
-                KitCollision.LowestTopAt(kit, target.xz, expected - 0.3f, 1.7f, out var kitTop) && kitTop > expected)
+                KitCollision.LowestTopAt(kit, target.xz, expected - 0.3f, 1.7f, out var kitTop, RoofGap(target.xz)) && kitTop > expected)
                 expected = kitTop;
             return true;
+        }
+
+        /// <summary>
+        /// W-67c (#38): for KitCollision.LowestTopAt from 0.3 m under the ground: on dry ground a box with a body's
+        /// height (1.7 m) clear under it is a roof, not a floor; under water any box over the seabed is the floor.
+        /// </summary>
+        float RoofGap(float2 xz)
+        {
+            if (!EnsureLocations(out var source))
+                return float.MaxValue;
+            var g = source.SampleGround(xz);
+            return g.HasWater && g.WaterSurface > g.Height ? float.MaxValue : 0.3f + 1.7f;
         }
 
         /// <summary>

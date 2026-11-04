@@ -164,13 +164,17 @@ namespace Punchy.Flora
         /// <summary>
         /// W-67b: the lowest box top at xz no lower than above, with a body's headroom clear over it: the first floor
         /// over the ground there (a deck over the seabed, a building's ground floor rather than its roof).
+        /// W-67c (#38): a box whose bottom is roofGap or more over above has standing room under it: it's a roof over
+        /// that floor (an igloo's tunnel roof, 2.2 m over the dry ground), not the floor. Pass float.MaxValue where the
+        /// ground is under water, so a deck still counts over the seabed.
         /// </summary>
-        public static bool LowestTopAt(in DynamicBuffer<KitBox> boxes, float2 xz, float above, float headroom, out float height)
+        public static bool LowestTopAt(in DynamicBuffer<KitBox> boxes, float2 xz, float above, float headroom, out float height,
+                                       float roofGap = float.MaxValue)
         {
             height = float.MaxValue;
             for (int i = 0; i < boxes.Length; i++)
             {
-                if (!Span(boxes[i], xz, out _, out var top) || top < above || top >= height)
+                if (!Span(boxes[i], xz, out var bottom, out var top) || top < above || top >= height || bottom >= above + roofGap)
                     continue;
                 var clear = true;
                 for (int j = 0; j < boxes.Length && clear; j++)
