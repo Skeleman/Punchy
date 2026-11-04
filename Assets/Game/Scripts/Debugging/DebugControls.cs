@@ -1737,6 +1737,20 @@ namespace Punchy.Debugging
                     gotoSettleUntil = Time.unscaledTime + 5f;
                 }
             }
+            // #72 (W-87): "-campsitetest swamp": 9 m west of the test campsite the bake added (CampsiteTest), facing it.
+            if (goTo < 0 && System.Array.IndexOf(args, "-campsitetest") >= 0 && !math.any(math.isnan(Punchy.Terrain.CampsiteTest.At)) &&
+                EnsureLocations(out var campGround) && playerQuery.TryGetSingletonEntity<LocalTransform>(out var camper))
+            {
+                var c = Punchy.Terrain.CampsiteTest.At - new float2(9f, 0f);
+                var em = queryWorld.EntityManager;
+                var t = em.GetComponentData<LocalTransform>(camper);
+                t.Position = new float3(c.x, campGround.SampleHeight(c) + 0.1f, c.y);
+                t.Rotation = quaternion.LookRotationSafe(new float3(1f, 0f, 0f), math.up());
+                em.SetComponentData(camper, t);
+                Debug.Log($"DebugControls: beside the test campsite, {Punchy.Terrain.CampsiteTest.LastLog}");
+                gotoSettle = new float3(c.x, float.NaN, c.y);
+                gotoSettleUntil = Time.unscaledTime + 5f;
+            }
             // "-gocave -1669,2494" (x,z): onto the floor at the cave node nearest that spot in plan, at any depth.
             // "-gocave #2": the second-largest cave (by summed chamber volume), at its biggest node.
             var goCave = System.Array.IndexOf(args, "-gocave");
