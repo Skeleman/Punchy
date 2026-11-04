@@ -2,6 +2,18 @@
 
 Newest first.
 
+## W-93 (2026-11-04): wasteland rock collision, plant skirt drape, salt crystal clock + lumpy ball + furrow
+
+Branch world-features: 3ef6bde (row 1, #70), fd20db4 (row 4, #40), 34a0924 (rows 3+5, #40). Row 2 (#69) not done.
+
+- Row 1 (#70): Debris and FloatingRock mounds get terraced KitBoxes (0.35 m tiers, at most 6), same rng order. Fallen chunks under 0.45 m flatten to decals, with no boxes. Editor walk: east at z -4005, the player stops at a fallen chunk (x -987.0). South from (-981.6,-4000.5), the player steps up 8.27 to 8.42 onto a debris tier, walks level, then steps down. East at z -3972.5, the player stops at a 2.3 m MagneticDrift mound. Main thread at (-987,-3972.5): 6.74 ms before, 6.22 ms after (noise); PlayerMovementSystem 0.026 ms both. Caveat: on a slope, a drift mound's lowest tier reads as a wall from downhill. Shot w93-wasteland.png. Commented on #70.
+- Row 4 (#40): the skirt is darker green (0.05,0.15,0.04 / 0.03,0.10,0.03), rooted high on the bulb under the stem and hanging down over it, with slightly broader leaves. Count, lean, purple veins and red tips/spots keep their draws. Shot w93-plant.png (PlantShot d 22 up 5, the w92 view).
+- Row 3: the roll angle reads _PunchyClock (WorldSync: the server tick time on a client, Time.time on the host; Time.time when it is 0). The rotation is absolute from the angle, so the face matches too. The trail rebuilds only after 0.5 m. No host/client join run: the angle is a pure function of the shared clock, and the clock lag between host and client (about 0.1 s) is about 0.25 degrees on a 36 m circle. Solo check: clock 42.67 = Time.time.
+- Row 5 (#40): the ball is a coarse, squashed core (7x5 facets, seeded radii and turn) with 6-9 big lumps and 2-3 crystal outcrops. It uses its own rng, so the circle, crust, crumbs and direction keep their draws. The trail is now a 7-column furrow, 9 m wide: a dirt floor and dark inner walls (as the worm crater rim darkens), with 0.6 m salt lips that slump towards the tail, shaded by its normals. Main thread: Update 0.0006 ms; a rebuild is 0.013 ms, about every 0.3 s. Shot w93-saltcrystal.png (the w92 camera).
+- Row 2 (#69): not started, because of the call budget. W-57b already swaps HazardShelter domes onto house plots via SettlementBuilding.OnlyIn (PlaceShelters, no rng). The remaining work is a kit-built house shape per harsh biome, swapped in the same way.
+- Landmarks are 108 / 4D2643D7, unchanged.
+- Shots are in D:\Unity\Punchy-world\Assets\Temp\shots: w93-wasteland.png, w93-plant.png, w93-saltcrystal.png.
+
 ## W-92 (2026-11-04): lake shelf arid rule, plant skirt, rolling salt crystal
 
 world-features: 91b7320 (#88), 438685d (#40 plant), f086dd0 (#40 salt crystal). Pushed. Island v3. Rerun after the last editor hung at shutdown.
