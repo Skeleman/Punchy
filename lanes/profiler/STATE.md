@@ -9,7 +9,7 @@ Released: v0.11.0 = 4eea658. main = 8b4bf19 (A-51, PR #101).
 2. Check: `gh auth status` (repo is public: no machine paths in issues or comments); `git pull --rebase` here;
    `results/.lock` absent in `Punchy-wt/Tools/bench/results/` (if present, read `.lock/job` and ask Zach).
 3. Hooks: `sh hooks/install.sh <folder outside the trees>` (BENCH-QUEUE setup) if telemetry isn't installed.
-4. Jobs 17-20, 22 (+22b/22c) and 23/23b/23c reported 2026-11-04. Runner b/bench-runner 973a4bd pushed (herewarm, hereentry/hereentryfast, hitch log). Running in order: 23e (#99 on main 2dae74b, NetCycle, stop at the first crash), then 21c (dungeon host/client on v2 with a 30 s client delay); the job 21 report comes after 21c. Then idle; don't poll.
+4. Jobs 17-23e all reported 2026-11-04 (23e: #99 clean on main 2dae74b, 30 re-hosts; 21c: dungeon host/client works on v2). Runner b/bench-runner 973a4bd pushed. Nothing queued: idle; don't poll.
 
 ## How work arrives (the supervisor messages directly with SendMessage, or adds BENCH-QUEUE items)
 - Pull `coordination` at the start of every job and before every push (`git pull --rebase` on rejection).

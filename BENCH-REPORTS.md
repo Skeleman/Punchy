@@ -2,6 +2,32 @@
 
 Newest first.
 
+## 2026-11-04: job 21 (+21b, 21c), dungeon host/client (#24, PR #104): works on v2. The external client gets the creatures (43 in the temple, 187 in the cave), every hash matches, the host keeps 22 posts with drink lines, 0 exceptions
+Method: job 21: main e31291e, v3, host plus an external client (`-join 127.0.0.1`), with the DungeonCheck helper (per-world dungeons, posts, creatures, replicas every 10 s). 21b: the same on v2. 21c: v2 again, with the client started 30 s after the host's world was ready. Two spots: the sunken temple (3519, 19, 360) and the -dungeontest cave (530, 45, 958). Uncapped, both processes on the laptop.
+- **21 (v3):** the hashes matched everywhere (temple 0x7c8c8b71, cave 0xa9995035, sockets D58F4D47), the host's ServerWorld held 24 posts (guard 3, drink 3), and drink and guard lines were logged. The external client timed out: main's v3 audit makes a ~40 s frame on the host, so it couldn't answer.
+- **21b (v2, client right after the host):** the host's own local client got replicas (40-177), but the external client gave up ("Couldn't reach") because it started during the host's long startup frame.
+- **21c (v2, client 30 s later): both spots work.**
+  - The client connects ("connection 2 Connected") and builds the same dungeons: type 0 hash 0xa9995035, type 1 0x484858e9, sunken temple 9C11B352. The host matches on ServerWorld and ClientWorld, and the island is v2 136/B5EFF8C8.
+  - Creatures on the client: about 10 s after joining it has 43-46 replicas at the temple (17 within 60 m) and 187 at the cave (74-76 within 60 m). That's the same count as the host's own client, so they are visible.
+  - Host ServerWorld: 22 posts (guard 4, drink 3) from t 30 s to the end at t 110 s, so still there a minute later. Creatures 53-55 at the temple and 182-198 at the cave. Drink lines on the host: GlowMoth, GiantSpider and CaveSalamander (several times).
+  - Guard lines: none on the host in 21c. DungeonCheck sees no player in ServerWorld (it reports 0,0,0), so maybe no player counts as near a chest there. The client logs "Tarantula guards its chest: faces a player 35 dm away" after it falls back to solo, and job 21 logged guard lines on the v3 host.
+  - 0 exceptions in all four logs.
+  - The client disconnects ("ClosedByRemote") about 55 s after joining, when the host finishes its bench route and quits. Then it goes back to solo in Default World ("v2 shared with Default World ... no rebake", same hashes, 22 posts).
+- **Frame ms (here stop, uncapped, two game processes on one laptop):**
+  - Temple host: 48.7 fps, median 18.1 ms, GPU 15.1 ms, main thread 9.3 ms, 9 moving lights. The client's figure, 124.9 fps / median 7.2 ms, was measured after it went back to solo, so it isn't a client-in-session number.
+  - Cave host: 79.0 fps, median 12.3 ms, main thread 12.6 ms (198 creatures on the server). The client after solo fallback: 114.3 fps, median 8.5 ms.
+- Owner of open points: none blocking. The guard lines on a host are worth a look by the animal lane if they should fire for remote players. The client timing (joining during the host's startup frame) is player lane / net.
+- Logs: results/q21logs/, q21blogs/, q21clogs/. Scripts: q21.sh, q21b.sh, q21c.sh, DungeonCheck.cs.txt.
+- Cost: session total so far 357 calls, peak 381k context, $25.48 (jobs 21-21c and 23e about 25 calls, $2)
+
+## 2026-11-04: job 23e, #99 on main 2dae74b: CLEAN. 30 re-hosts in 10 runs, 0 crashes (15 at the default gap, 15 with -switchgap 0)
+Method: Bench-2dae74b with the NetCycle helper, -island v2, uncapped, 5 runs of -netcycle 3 per series (host, solo, ×3). Series B ran only after A was clean through 15 re-hosts.
+- **Run A (default gap):** 5 of 5 runs clean. Each run hosts 3 times and goes back to solo 3 times: 15 re-hosts, 15 returns to solo. rc 0, 0 managed exceptions, no dialogs. Each run logs "GameBootstrap: making the new worlds (2 frames after the old ones went)" 6 times, once per switch.
+- **Run B (-switchgap 0):** 5 of 5 runs clean, 15 re-hosts and 15 returns to solo, rc 0, 0 exceptions. The "making the new worlds (2 frames ...)" line is logged 0 times, as expected with no gap.
+- For comparison, the same repro crashed on the 1st or 2nd switch on 84208ff (7/7), main 0ec7a8d (3/3) and 38a8f4c (6/6), with Burst static init on world creation. 2dae74b fixes it on this laptop, with or without the 2-frame gap.
+- Logs: results/q23/e-A-*/, e-B-*/. Script: q23e.sh.
+- Cost: in the session total in the job 21 report.
+
 ## 2026-11-04: job 22 (+22b, 22c), bat folk cave FPS (#81): the caves are cheap (v2 128 fps, v3 174 fps on main 0ec7a8d); the surface and the walk in cost more (80-100 fps, GPU 7-8 ms). Main has no frame over 50 ms on the way in. Zach's bab5e33 runs at half the frame rate everywhere and stutters at a cave mouth
 Method: laptop Bench builds, uncapped. Job 22: main 0ec7a8d, 3 runs, `-benchstops here` at both caves and at a nearby surface spot. 22b: Dev-build Profiler captures of the same stops. 22c: main 0ec7a8d vs world-features head 3aaeb59 vs Zach's freeze build bab5e33 (world-features of 2026-11-03 12:44, before W-75's hitch fixes and #102). 2 rounds per island, builds rotated. Stops: `here` (standing in the cave), `hereentry` (walk at 6 m/s from 250 m out on the surface, through the mouth, along the passages to the -goto point) and `hereentryfast` (the same path at 18 m/s). Every frame over 50 ms is logged with its position and phase. New runner stops are on b/bench-runner 7d483b3 and 973a4bd (pushed). 0 exceptions in all 28 logs.
 - **Job 22, main 0ec7a8d, mean of 3:**
