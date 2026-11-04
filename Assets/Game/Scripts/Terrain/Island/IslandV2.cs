@@ -349,7 +349,14 @@ namespace Punchy.Terrain
             RequireForUpdate(query);
         }
 
+        protected override void OnDestroy()
+        {
+            if (shares) Shared.Release();
+            shares = false;
+        }
+
         bool v2;
+        bool shares;   // W-73: this world holds the shared bake's blobs (released in OnDestroy)
         int version;   // 2, or 3 for the v3 path (IslandV3), which also ends with the water audit
 
         /// <summary>
@@ -401,6 +408,7 @@ namespace Punchy.Terrain
             {
                 Shared.ApplyTo(ref source);
                 EntityManager.SetComponentData(entity, source);
+                shares = true; Shared.Users++;
                 Debug.Log($"[island] v{version} shared with {World.Name} from this process's bake (no rebake); {LandmarkHash(ref source, palette)}");
                 return;
             }
@@ -445,17 +453,21 @@ namespace Punchy.Terrain
                 }
             TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent, villages: true);
             // W-29: the grand falls go in after every place, so no landmark, cave or settlement sees them.
+            long fallsAt = watch.ElapsedMilliseconds;
             source.GrandFalls = GrandFalls.Build(source, Allocator.Persistent);
             Debug.Log(GrandFalls.LastLog);
+            long fallsMs = watch.ElapsedMilliseconds - fallsAt;
             // W-30: the archipelago too, off the dune coast; it only raises sea floor.
             source.Archipelago = Archipelago.Build(source, biomes.FindIndex(b => b != null && b.name == "Dunes"), Allocator.Persistent);
             Debug.Log(Archipelago.LastLog);
+            long archMs = watch.ElapsedMilliseconds - fallsAt - fallsMs;
             EntityManager.SetComponentData(entity, source);
             Shared.Keep(source);
+            shares = true; Shared.Users++;
             long placesMs = watch.ElapsedMilliseconds - genMs;
 
             string hashText = LandmarkHash(ref source, palette);
-            Debug.Log($"[island] {gen.Report}; baked in {watch.ElapsedMilliseconds} ms (generate {genMs}, places {placesMs}); {hashText}");
+            Debug.Log($"[island] {gen.Report}; baked in {watch.ElapsedMilliseconds} ms (generate {genMs}, places {placesMs}: grand falls {fallsMs}, archipelago {archMs}); {hashText}");
             var report = System.Diagnostics.Stopwatch.StartNew();
             // (Ponds: the "[ponds]" line from BuildPlaces; W-14 dropped the second count here, ~2.8 s.)
             if (source.Rivers.IsCreated) Debug.Log("[island] " + RiverReport(ref source.Rivers.Value));
@@ -474,10 +486,56 @@ namespace Punchy.Terrain
             public static bool Ready;
             static TerrainSource baked;
 
+            // W-73: worlds using the blobs, and whether the app (or Play mode) is quitting. Play mode keeps statics
+            // (domain reload is off), so the old Reset dropped a whole bake (~22 MB of Persistent blobs) per cycle.
+            // Freed only once every world that took them is gone and Play mode has ended (other systems' jobs may still
+            // read them while a world is being destroyed). Mid-session (hosting from solo destroys the solo world) the
+            // next world still shares them instead of baking again (#23). A player frees them when the process exits.
+            public static int Users;
+
             [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-            static void Reset() { Ready = false; baked = default; }
+            static void Reset()
+            {
+                Dispose();   // whatever an earlier Play session left (no world from it is alive any more)
+                Users = 0;
+#if UNITY_EDITOR
+                UnityEditor.EditorApplication.playModeStateChanged -= OnPlayMode;
+                UnityEditor.EditorApplication.playModeStateChanged += OnPlayMode;
+                UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= Dispose;
+                UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += Dispose;
+#endif
+            }
+
+#if UNITY_EDITOR
+            static void OnPlayMode(UnityEditor.PlayModeStateChange change)
+            {
+                if (change == UnityEditor.PlayModeStateChange.EnteredEditMode && Users == 0)
+                    Dispose();
+            }
+#endif
 
             public static void Keep(in TerrainSource source) { baked = source; Ready = true; }
+
+            /// <summary>A world that took the blobs is gone (see <see cref="Users"/>).</summary>
+            public static void Release() => Users = Math.Max(0, Users - 1);
+
+            /// <summary>Frees every blob this system's bake made (the subscene's own blobs belong to the subscene).</summary>
+            static void Dispose()
+            {
+                if (!Ready) return;
+                Ready = false;
+                Free(ref baked.BiomeMap); Free(ref baked.Island); Free(ref baked.V3Ground);
+                Free(ref baked.Rivers); Free(ref baked.Landmarks); Free(ref baked.Settlements); Free(ref baked.Caves);
+                Free(ref baked.BatFolk); Free(ref baked.Icebergs); Free(ref baked.GrandFalls); Free(ref baked.Archipelago);
+                Free(ref baked.Anchors); Free(ref baked.PondMask);
+                baked = default;
+            }
+
+            static void Free<T>(ref BlobAssetReference<T> blob) where T : unmanaged
+            {
+                if (blob.IsCreated) blob.Dispose();
+                blob = default;
+            }
 
             public static void ApplyTo(ref TerrainSource source)
             {

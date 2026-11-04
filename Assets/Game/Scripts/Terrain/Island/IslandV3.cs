@@ -23,8 +23,13 @@ namespace Punchy.Terrain
         /// </summary>
         public static IslandV2.Result Generate(IReadOnlyList<BiomeDefinition> palette, bool hasOcean, Allocator allocator)
         {
+            // W-73: each step's time goes to the "[bake] v3 generate ms" log line.
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var steps = new System.Text.StringBuilder("[bake] v3 generate ms:");
+            void Step(string name) { steps.Append($" {name} {watch.ElapsedMilliseconds}"); watch.Restart(); }
             var gen = IslandV2.Generate(palette, hasOcean, allocator);
             gen.Island.Dispose();
+            Step("v2base");
 
             const float coastWobble = 0.14f, lakeRadius = 0.13f;
             IslandV2.PickRealms(out var sites, out var fam, out uint seed, out _);
@@ -34,12 +39,14 @@ namespace Punchy.Terrain
             var lakeWorld = new Vector2(cx0 / PX * W - W * 0.5f, cy0 / PX * W - W * 0.5f);
 
             var field = V3Ranges.Build(sites, fam, seed, coastWobble, lakeWorld, lakeR / PX * W);
+            Step("ranges");
 
             // B3: the biome map follows the ranges (no border strips, blend radius, bleed through passes); B4's
             // geology rides along in the ground blob.
             gen.Map.Dispose();
             gen.Map = V3Ground.Build(palette, hasOcean, (float[])field.Clone(), allocator, out gen.V3Ground, out var biomeLog);
             Debug.Log(biomeLog);
+            Step("ground");
 
             // Same lake bowl as version 2, on the finer grid.
             const int R = V3Ranges.Res;
@@ -59,6 +66,8 @@ namespace Punchy.Terrain
             var arr = b.Allocate(ref hm.Heights, R * R);
             for (int i = 0; i < R * R; i++) arr[i] = (ushort)Mathf.Clamp(Mathf.RoundToInt((field[i] + 60f) / hm.HeightStep), 0, 65535);
             gen.Island = b.CreateBlobAssetReference<HeightmapBlob>(allocator); b.Dispose();
+            Step("bowl");
+            Debug.Log(steps.ToString());
 
             Debug.Log(V3Ranges.LastLog);
             gen.Report = "v3 (B2 ranges, B3 biomes, B4 rock) " + gen.Report;
