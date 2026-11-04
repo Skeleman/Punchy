@@ -1,5 +1,5 @@
 // Profiler-only editor script (never committed): dumps the main-thread call tree of the longest frames in a .raw capture.
-// Unity -batchmode -executeMethod BigFrame.Dump -raw <file> -out <txt> [-minms 40] [-frames 3]
+// Unity -batchmode -executeMethod BigFrame.Dump -raw <file> -out <txt> [-minms 40] [-frames 3] [-listms 500]
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -14,7 +14,7 @@ public static class BigFrame
     public static void Dump()
     {
         var raw = Arg("-raw", ""); var outPath = Arg("-out", "bigframe.txt");
-        var minMs = double.Parse(Arg("-minms", "40"), CultureInfo.InvariantCulture); var nFrames = int.Parse(Arg("-frames", "3"));
+        var minMs = double.Parse(Arg("-minms", "40"), CultureInfo.InvariantCulture); var nFrames = int.Parse(Arg("-frames", "3")); var listMs = double.Parse(Arg("-listms", "500"), CultureInfo.InvariantCulture);
         var sb = new StringBuilder();
         ProfilerDriver.ClearAllFrames();
         var ok = ProfilerDriver.LoadProfile(raw, false);
@@ -25,7 +25,7 @@ public static class BigFrame
         for (int f = first; f <= last; f++)
             using (var v = ProfilerDriver.GetRawFrameDataView(f, 0))
                 if (v.valid) { if (t0 < 0) t0 = v.frameStartTimeMs; frames.Add((f, v.frameTimeMs, (v.frameStartTimeMs - t0) / 1000.0)); }
-        sb.AppendLine("frames over 500 ms (index, start s from capture start, ms): " + string.Join(" ", frames.Where(x => x.ms > 500).Select(x => $"{x.f}@{x.start:F1}s={x.ms:F0}")));
+        sb.AppendLine($"frames over {listMs} ms (index, start s from capture start, ms): " + string.Join(" ", frames.Where(x => x.ms > listMs).Select(x => $"{x.f}@{x.start:F1}s={x.ms:F0}")));
         foreach (var fr in frames.OrderByDescending(x => x.ms).Take(nFrames))
         {
             sb.AppendLine($"== frame {fr.f} at {fr.start:F1} s: {fr.ms:F0} ms (samples >= {minMs} ms, incl / self)");

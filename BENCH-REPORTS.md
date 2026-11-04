@@ -2,6 +2,13 @@
 
 Newest first.
 
+## 2026-11-04: job 23b, #99 on main 0ec7a8d (includes 84208ff): crashes on the first world switch, 3 of 3 runs
+Method: Bench-0ec7a8d with the NetCycle helper, -island v2 -netcycle 3, uncapped, 3 runs (as job 23).
+- Every run segfaults (rc 139) with the same burst.initialize.statics stack. Runs 1 and 2 crash inside the first Host() from solo; run 3 hosts once and crashes going back to solo. No run completes a cycle.
+- So a player on main who starts solo and then hosts from the Multiplayer tab will very likely crash. Launching straight into a host (-host) is a different path and worked in jobs 20 and 21b.
+- Owner: player lane, P-10 row 0a (#99 reopened). Logs: results/q23/main-v2-*/game.log. Script: q23b.sh.
+- Cost: in the session total in the job 22 report.
+
 ## 2026-11-04: job 23 (Zach asked), #99 confirmation in a build: FAILS. The P-8 fix 84208ff crashes on the FIRST world switch in 7 of 7 runs; its parent be6d005 crashes on the 2nd-3rd host (3 of 3). Same native stack as before (burst.initialize.statics)
 Method: Bench builds of 84208ff and be6d005, each with the NetCycle helper (job 16's repro, never committed): -netcycle 3 = host, solo, host, solo, host, solo, memory logged after each switch settles. Uncapped. Fix: 5 runs v2 + 2 runs v3; parent: 3 runs v2, interleaved.
 - **Fix 84208ff:** all 7 runs end with a segfault (rc 139). Six of them (v2 runs 2-5, both v3 runs) crash inside the first GameBootstrap.Host(), before "cycle 1 hosting" is logged; v2 run 1 hosts once and crashes going back to solo. No run completes a cycle.
