@@ -40,6 +40,11 @@ namespace Punchy.Flora
         /// </summary>
         public readonly List<Vector4> Colliders = new List<Vector4>();
         /// <summary>
+        /// W-67 (#79): a kit building's or ruin's solid parts as boxes (model space): the player stands on, bumps into
+        /// and jumps under these rather than its cylinders and support grid. Empty for everything else.
+        /// </summary>
+        public readonly List<KitBox> Boxes = new List<KitBox>();
+        /// <summary>
         /// Where each collider starts above the base, by index (missing = 0, the ground). Lets a leaning shape (an
         /// ArcSpire's prongs) be a stack of short slices that follow its tilt instead of one fat upright cylinder.
         /// </summary>
@@ -189,6 +194,7 @@ namespace Punchy.Flora
                     builder.Bounds(out model.CentreY, out model.Radius);
                     model.TrunkRadius = g.TrunkRadius;
                     model.Colliders.AddRange(g.Colliders);
+                    model.Boxes.AddRange(g.Boxes);
                     model.ColliderBase.AddRange(g.ColliderBase);
                     model.Perches.AddRange(g.Perches);
                     model.Chimneys.AddRange(g.Chimneys);
@@ -272,6 +278,7 @@ namespace Punchy.Flora
             /// <summary>A tree's limbs (Broadleaf), each a path from the trunk outwards, for things that hang from them.</summary>
             public List<List<Vector3>> Limbs;
             public readonly List<Vector4> Colliders = new List<Vector4>();
+            public readonly List<KitBox> Boxes = new List<KitBox>();
             public readonly List<float> ColliderBase = new List<float>();
             public readonly List<Vector3> Perches = new List<Vector3>();
             public readonly List<Vector3> Chimneys = new List<Vector3>();
@@ -3128,6 +3135,13 @@ namespace Punchy.Flora
                                                        p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Rune ? FloraPart.Window : FloraPart.Bark);
                 var high = p.Centre.y + p.Size.y * 0.5f;
                 top = Mathf.Max(top, high);
+                // W-67 (#79): every part is a solid box unless it's decor (moss, trim, windows, lamps and runes): the
+                // collision is the art. Only LOD 0 keeps them (that's the one FloraModel copies).
+                var decor = p.Piece == Punchy.Terrain.KitPiece.Moss || p.Piece == Punchy.Terrain.KitPiece.Trim ||
+                            p.Piece == Punchy.Terrain.KitPiece.Window || p.Material == Punchy.Terrain.KitMaterial.Lamp ||
+                            p.Material == Punchy.Terrain.KitMaterial.Rune || p.Material == Punchy.Terrain.KitMaterial.Moss;
+                if (g.Lod == 0 && !decor)
+                    g.Boxes.Add(new KitBox { Centre = p.Centre, Half = p.Size * 0.5f, Rotation = p.Rotation, Reach = p.Size.magnitude * 0.5f });
                 if (p.Solid)
                 {
                     var r = Mathf.Max(p.Size.x, p.Size.z) * 0.55f;

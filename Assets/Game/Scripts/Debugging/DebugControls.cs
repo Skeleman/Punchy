@@ -1094,6 +1094,8 @@ namespace Punchy.Debugging
         static readonly System.Collections.Generic.List<float3> walkPath = new();
         /// <summary>W-65c: how the current walk ended ("ARRIVED", "STOPPED"), null while it goes on.</summary>
         static string walkEnd;
+        /// <summary>W-67: the walker's height last frame (ARRIVED waits for it to stop falling).</summary>
+        static float walkLastY;
         static float2 walkStillAt;
         static float walkStillSince;
         static int walkMoves;
@@ -1728,7 +1730,8 @@ namespace Punchy.Debugging
             // stood still for 2 s (blocked: a door, a wall).
             if (walkEnd == null)
             {
-                if (walkPath.Count == 0 && distance <= 0.35f)
+                // (W-67: and not still falling, as after a -goto drop onto the target.)
+                if (walkPath.Count == 0 && distance <= 0.35f && math.abs(walker.Position.y - walkLastY) < 0.01f)
                     walkEnd = "ARRIVED";
                 else if (math.distance(walker.Position.xz, walkStillAt) > 0.05f)
                 {
@@ -1738,6 +1741,15 @@ namespace Punchy.Debugging
                 }
                 else if (walkMoves > 5 && Time.unscaledTime - walkStillSince > 2f)   // (not while the world first loads)
                     walkEnd = "STOPPED";
+                // W-67: arrived means on the target's floor too, not just over its x, z (a walker under a deck was
+                // ARRIVED): feet within 0.3 m of the expected top, else FAIL.
+                if (walkEnd == "ARRIVED" && ExpectedFloor(walkTarget.Value, walker.Position, out var expected))
+                {
+                    Debug.Log($"DebugControls: walk foot y {V(walker.Position.y)} expected {V(expected)} ({V(walker.Position.y - expected)} m)");
+                    if (math.abs(walker.Position.y - expected) > 0.3f)
+                        walkEnd = "FAIL";
+                }
+                walkLastY = walker.Position.y;
                 if (walkEnd != null)
                     Debug.Log($"DebugControls: walk {walkEnd} at ({V(walker.Position.x)}, {V(walker.Position.y)}, {V(walker.Position.z)}), {V(distance)} m to go, {walkPath.Count} legs left");
             }
@@ -1750,6 +1762,26 @@ namespace Punchy.Debugging
                           $"{V(walker.Position.y - floor)} m over the floor (in cave {walkInCave}), pushed out {V(Punchy.Player.PlayerMovementSystem.PushedTotal.Data)} m in all" +
                           (Punchy.Player.PlayerMovementSystem.NoPushOut.Data ? " (push-out off)" : ""));
             }
+        }
+
+        /// <summary>
+        /// W-67: the floor a walker at the -walk target should stand on: its y if the leg gave one ("x,y,z"), else the
+        /// higher of the ground under the walker's height and the highest kit top there (within 2.5 m above the feet,
+        /// with headroom over it), so standing under a deck doesn't count as arriving on it.
+        /// </summary>
+        bool ExpectedFloor(float3 target, float3 feet, out float expected)
+        {
+            expected = target.y;
+            if (target.y != 0f)
+                return true;
+            if (!EnsureLocations(out var ground))
+                return false;
+            expected = ground.FloorUnder(new float3(target.x, feet.y + 0.5f, target.z), out _);
+            using var kitQuery = queryWorld.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<KitBox>());
+            if (kitQuery.TryGetSingletonBuffer<KitBox>(out var kit, true) &&
+                KitCollision.TopAt(kit, target.xz, feet.y + 2.5f, 1.7f, out var kitTop) && kitTop > expected)
+                expected = kitTop;
+            return true;
         }
 
         /// <summary>
