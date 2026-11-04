@@ -9,7 +9,7 @@ Released: v0.11.0 = 4eea658. main = 9d34275.
 2. Check: `gh auth status` (repo is public: no machine paths in issues or comments); `git pull --rebase` here;
    `results/.lock` absent in `Punchy-wt/Tools/bench/results/` (if present, read `.lock/job` and ask Zach).
 3. Hooks: `sh hooks/install.sh <folder outside the trees>` (BENCH-QUEUE setup) if telemetry isn't installed.
-4. Job 18 (W-75 + A-51) reported 2026-11-04. Next: job 17 (W-76 b262269 vs b262269~1, per-stage bake ms, ready at, hashes, v2+v3, 3 cold starts; Zach also asked for startup streaming island ready -> "[stream] world ready" in it). After that, stay idle until Zach or the supervisor adds work; don't poll.
+4. Jobs 17 (W-76 bake) and 18 (W-75 + A-51) reported 2026-11-04. Nothing queued; stay idle until Zach or the supervisor adds work; don't poll.
 
 ## How work arrives (the supervisor messages directly with SendMessage, or adds BENCH-QUEUE items)
 - Pull `coordination` at the start of every job and before every push (`git pull --rebase` on rejection).

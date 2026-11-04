@@ -2,6 +2,18 @@
 
 Newest first.
 
+## 2026-11-04: job 17, W-76 parallel island bake (world-features b262269 vs its parent 096ec00): v2 bake 9.9 -> 7.8 s and island ready 15.3 -> 13.1 s; v3 bake 12.8 -> 11.2 s, ready 18.2 -> 16.5 s; hashes identical; startup streaming unchanged
+Method: Bench builds (player, laptop), 3 cold starts per island per build, order rotated, uncapped, `-benchstops town`. Each log has the [bake] stage line, "baked in" with the landmark hash, island ready, BenchRoute world ready and W-75's "[stream] world ready". 0 exceptions in all 12 logs.
+- v2, mean of 3, before -> after (ms): total bake 9925 -> 7771 (-2.15 s, -22 %); places 8773 -> 6611; generate 1151 -> 1157. Rivers 2287 -> 1858. The four placements (the old "batfolk" stage) 3717 -> 1792 (fishing 941, turtles 194, seafolk 246, batfolk 609). Landmarks, settlements, caves, anchors, pondmask and icebergs are unchanged (within 40 ms).
+- v3, mean of 3 (ms): total bake 12825 -> 11221 (-1.6 s, -13 %); generate 3743 -> 3787; rivers 3123 -> 2536; the four placements 3058 -> 1983 (fishing 771, turtles 236, seafolk 724, batfolk 252); the rest unchanged.
+- Island ready: v2 15.27 -> 13.10 s; v3 18.17 -> 16.53 s. BenchRoute world ready: v2 23.30 -> 21.17 s, v3 24.97 -> 23.37 s. "[stream] world ready" (W-75 boost on): v2 35.33 -> 33.27 s, v3 37.43 -> 35.67 s.
+- Startup streaming (island ready -> "[stream] world ready") is unchanged, as expected: v2 20.1 s before and 20.2 s after; v3 19.3 s and 19.1 s. The whole startup gain comes from the bake. W-75's load boost already saves about 1.9 s there (job 18). The next bigger lever is the ~20 s streaming tail or the bake cache.
+- Hashes are identical before and after on every run: v2 136 landmarks, hash B5EFF8C8; v3 108 landmarks, hash 3A0DC7BB. The player prints only the landmark hash, not W-76's cave, ground and river hashes; those match in W-76's editor check.
+- The laptop player's stages take about 1.5-2x W-76's editor numbers, but the saving is similar (v2 -2.15 s here vs -1.4 s in the editor). With the -islandaudit gate (W-74), v3 is ready at 16.5 s instead of 55 s on main f405348.
+- Worst frame during the bake isn't measured: a Bench run measures nothing until the world is ready. The bake runs in one frame, so that frame is at least the "baked in" time (7.8 s v2, 11.2 s v3). W-76's editor check put it at 7.4 s.
+- Scripts: q17.sh. Logs: results/q17logs/.
+- Cost: session total so far 167 calls, peak 301k context, $11.15 (job 17 about 14 calls, $0.60)
+
 ## 2026-11-04: job 18, W-75 (world-features 096ec00) and A-51 (animal-behaviours b527dc1) vs main 9d34275: A-51 is a real win where creatures are (hut cave 96.8 -> 125.8 fps, median 10.07 -> 7.83 ms); W-75 is frame-neutral and its load boost brings "[stream] world ready" 37.3 -> 35.5 s
 Method: Bench builds of 9d34275, 096ec00, b527dc1, plus Bench-f405348n (A-51's base, from job 16). Island v2, uncapped, 3 rounds with the order rotated. Each round runs the q13 route (town, townwalk, cave, caveapproach, glide) and the hut cave floor (`-goto 530,45,958`). W-75 also ran 3 times with PUNCHY_LOADBOOST=0. Dev profiles at townwalk and the hut cave for the three new SHAs. 0 exceptions in every log.
 - Mean of 3 (avg fps / 1% low / median ms / worst ms), main -> W-75 -> A-51 (A-51's base f405348 in brackets):
