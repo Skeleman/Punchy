@@ -33,3 +33,4 @@ no machine paths or personal info. Never bare `git stash`.
 - P-7 done 11-04 (player-client be6d005): -place temple fixed, small-body camera (partial), temple socket buffer (68, hash 9C11B352). P-8 next.
 - P-8 done 11-04: #99 host-twice crash fixed (84208ff, 5 netcycle runs clean); Sound/Look tabs + -settings (f332f30). Nothing in flight.
 - P-9 done 11-04 (a4994d1): chests 13 (hash 0EBAB9D3), small body in frame, temple roof camera fix. Nothing in flight.
+- P-10 done 11-04 (717e007): Use key F/RB + Keys tab, host-owned doors. Interiors blocked (world-lane collision hook, see report). P-11 next.

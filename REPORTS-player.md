@@ -1,5 +1,16 @@
 # Player lane reports
 
+## 2026-11-04 batch P-10: Use key + host-owned doors done; interiors blocked on collision
+- DONE row 0: PlayerOptions master comment (ea26b30)
+- DONE #25 row 1 (717e007): a separate Use key (F, cycle F/G/R/T/V in a new Keys tab; RB on a pad) because Interact (E) is the animal lane's pet/pick up/sit and would sit the player at a door. Prompt "F  open door" / "F  close door" facing a Door anchor within 2.5 m (door-prompt.png)
+- DONE #25 row 2: 130 house doors (Door anchors, index = door id, same on every machine). Host owns the open set: UseDoorRpc client -> host, DoorStateRpc host -> all, late joiners get every open door; applied through FloraDoors every frame. Host `-usedoor 3`: host "door 3 open (host)", client "door 3 open (from the host)". Client `-usedoor 5`: client "asked the host to use door 5", host "door 5 open (host, for a client)", client "door 5 open (from the host)". Shots: doors2.png (door 60 thatched hut and door 100 stone house, shut then open: leaf swung, dark doorway). Door 3 is a tepee: no visible leaf
+- NOT DONE #25 row 3 (interiors): houses aren't hollow (FloraGenerator draws a dark doorway panel behind the leaf), and an interior cell off-island can't be walked: the player only stands where PlayerMovementSystem knows ground (terrain, cave field, TempleAir, flora kit boxes in SupportGrids). What the world lane would need: (a) a hook in SolidDistance/FloorUnder for "interior cell" volumes (a list of boxes: floor, walls, ceiling, in a blob or a static Burst-readable array) that a player-lane InteriorCells system could fill, or (b) let runtime code add KitBox colliders to the flora support grid; plus, per house type, the door's local position and an inside size (the kit already has HumanDoor and the wall sizes). With (a) I can build seeded rooms off-island, a door teleport in/out and a switchable light in one card
+- Known nit: solo logs "(host)" instead of "(solo)" (NetWorlds.Server non-null in solo?); cosmetic
+- Network table change: new RPC types (UseDoorRpc, DoorStateRpc): builds before 717e007 can't join builds after it
+- Checks: compile 0 errors; 1 build Succeeded 0 errors; 5 player runs all quit; editor closed
+- Cost: ~37 calls, 1 build
+- NEXT: P-11 (items) uses the same Use key and RPC pattern
+
 ## 2026-11-04 batch P-9: temple chests 13, small body fully in frame, temple sky = camera in the roof (fixed)
 - DONE (all on player-client a4994d1, after merging main 1d8213e)
 - #24 chests 8 -> 13: closed halls 6 m+ keep a chest at the end farthest from their doorways, big rooms (40 m2+) a second corner chest. Totals 73: creature 15, chest 13, wall decor 15, interactable 15, clutter 15. Hash 9C11B352 (P-7) -> 0EBAB9D3, same in 4 runs. Socket format unchanged; the A-50 spawner logs "dungeon 78 type 1: 73 sockets ... same"
