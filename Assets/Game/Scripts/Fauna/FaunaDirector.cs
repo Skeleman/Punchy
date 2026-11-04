@@ -1437,7 +1437,7 @@ namespace Punchy.Fauna
             state.Focus = hive.Position.xz + hive.Facing * trunk;
             state.Target = hive.Position.xz + hive.Facing * (trunk + 0.35f);
             state.Timer = 120f;
-            state.ChaseCooldown = 900f;
+            em.SetComponentData(e, new CreatureMind { ChaseCooldown = 900f });
             state.Held = HeldItem.Stick;
             state.Home = from;
             state.Leash = 0f;
@@ -1938,10 +1938,10 @@ namespace Punchy.Fauna
             {
                 e = em.Instantiate(spawner.Prefab);
                 // (Both at once: one move to the new archetype, not two.)
-                em.AddComponent(e, new ComponentTypeSet(ComponentType.ReadWrite<CreatureState>(), ComponentType.ReadWrite<CreatureBody>()));
+                em.AddComponent(e, new ComponentTypeSet(ComponentType.ReadWrite<CreatureState>(), ComponentType.ReadWrite<CreatureBody>(), ComponentType.ReadWrite<CreatureMind>()));
             }
             else
-                e = em.CreateEntity(typeof(CreatureState), typeof(CreatureBody));
+                e = em.CreateEntity(typeof(CreatureState), typeof(CreatureBody), typeof(CreatureMind));
             Init(e, speciesIndex, position, yaw);
             return e;
         }
@@ -1977,12 +1977,12 @@ namespace Punchy.Fauna
             if (simWorld.IsServer() && ghostSpawnerQuery.TryGetSingleton<CreatureGhostSpawner>(out var spawner))
             {
                 made = em.Instantiate(spawner.Prefab, n, Allocator.Temp);
-                em.AddComponent(made, new ComponentTypeSet(ComponentType.ReadWrite<CreatureState>(), ComponentType.ReadWrite<CreatureBody>()));
+                em.AddComponent(made, new ComponentTypeSet(ComponentType.ReadWrite<CreatureState>(), ComponentType.ReadWrite<CreatureBody>(), ComponentType.ReadWrite<CreatureMind>()));
             }
             else
             {
                 if (!plainArchetype.Valid)
-                    plainArchetype = em.CreateArchetype(typeof(CreatureState), typeof(CreatureBody));
+                    plainArchetype = em.CreateArchetype(typeof(CreatureState), typeof(CreatureBody), typeof(CreatureMind));
                 made = em.CreateEntity(plainArchetype, n, Allocator.Temp);
             }
             for (int i = 0; i < n; i++)
