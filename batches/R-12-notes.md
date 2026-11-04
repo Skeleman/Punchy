@@ -66,5 +66,8 @@
 - **Builds**: everyone needs v0.12.0 (the world changed, so v0.11.0 and v0.12.0 players can't join each other).
 - **Tested** by hosting and joining on one PC.
 
+## Known issues
+- The game can crash if you host a second time in one session (Host, stop, Host again). Restart the game before hosting again. Fix on the way (#99).
+
 ## Download
 Unzip `Punchy-v0.12.0-windows.zip` anywhere and run `Punchy.exe`. Windows 64-bit only.
