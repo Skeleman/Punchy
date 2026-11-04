@@ -129,7 +129,11 @@ namespace Punchy.Terrain
                 if (w > 0f)
                     h = math.lerp(h, math.lerp(s.A.y, s.B.y, t), w);
             }
+            // W-74 (#87): plots no longer level one after another (a later neighbour's blend fringe tilted an earlier
+            // plot's pad and left house corners buried or floating). The pads mix weighted by w^8, so a plot's own
+            // pad all but wins inside it and the seam between two fringes stays smooth.
             range = set.PlotCells[cell];
+            float best = 0f, sum = 0f, mix = 0f;
             for (int k = range.x; k < range.x + range.y; k++)
             {
                 ref var p = ref set.Plots[set.PlotItems[k]];
@@ -137,10 +141,15 @@ namespace Punchy.Terrain
                 if (p.Role == PlotRole.Bridge || p.Role == PlotRole.Palisade || p.Role == PlotRole.Fence || math.any(xz < p.Min) || math.any(xz > p.Max))
                     continue;
                 var w = 1f - math.smoothstep(0f, PadBlend, Outside(p, xz));
-                if (w > 0f)
-                    h = math.lerp(h, p.Pad, w);
+                if (w <= 0f)
+                    continue;
+                var w2 = w * w;
+                var w8 = w2 * w2 * w2 * w2;
+                sum += w8;
+                mix += w8 * p.Pad;
+                best = math.max(best, w);
             }
-            return h;
+            return best > 0f ? math.lerp(h, mix / sum, best) : h;
         }
 
         /// <summary>Paints the streets' surface over the ground, with a ragged edge.</summary>

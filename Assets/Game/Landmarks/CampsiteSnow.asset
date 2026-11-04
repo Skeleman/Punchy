@@ -58,7 +58,7 @@ MonoBehaviour:
     Count: 1
     Angle: 154
     Clearance: 1
-  - Species: {fileID: 11400000, guid: 311bc8fab0da76c4fb31ccc78f1f2569, type: 2}
+  - Species: {fileID: 11400000, guid: 4f22ddd65a4a47a186c72328c5e86e0e, type: 2}
     Density: 0
     Ring: {x: 0.5, y: 0.5}
     Scale: {x: 1, y: 1}
@@ -67,6 +67,24 @@ MonoBehaviour:
     Count: 1
     Angle: 206
     Clearance: 1
+  - Species: {fileID: 11400000, guid: 8a81c2bce59a2c54594a0ed5b9f56c7d, type: 2}
+    Density: 0
+    Ring: {x: 0.45, y: 0.45}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: 300
+    Clearance: 1
+  - Species: {fileID: 11400000, guid: 143e0cf3f1d248e88cb2442efca36d5a, type: 2}
+    Density: 0
+    Ring: {x: 0, y: 0}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: 0
+    Clearance: 0
   Effects:
   - Kind: 2
     Offset: {x: 0, y: 0}
