@@ -1,5 +1,13 @@
 # Player lane reports
 
+## 2026-11-04 batch P-10 row 0a: #99 teardown reordered; the crash doesn't reproduce on the desktop
+- DONE (player-client 38a8f4c): GameBootstrap.DisposeGameWorlds now (1) completes every doomed world's tracked jobs, (2) switches the scene's roots off (scripts finish their own jobs and free their containers in OnDisable), (3) completes again and disposes. P-8 did (2) first, freeing flora/cave/fauna containers while the worlds' jobs could still read them: the likely reason job 23 crashed sooner. `-hostorder old` keeps P-8's order in the same build for an A/B; each switch logs "GameBootstrap: N worlds disposed (jobs first | P-8 order)"
+- Build type: BProfileTools.Build is BuildOptions.None, the same as my Dev builds (plus BenchmarkRoute.cs, PunchyBench identity, batchmode). My P-8 runs differed in conditions, not build type: -gfx Low and the 60 fps cap. This time I matched job 23: `-island v2 -fpscap 0 -netcycle 3`, default graphics, NetCycle copied in for the build only
+- Desktop results, one build: P-8 order 3 runs = 9 re-hosts, 0 crashes; new order 5 runs = 15 re-hosts, 0 crashes, all "NETCYCLE done" rc 0. So neither order crashes on the desktop: NOT confirmed fixed where it fails (the laptop: _avx2 Burst code, fewer cores)
+- Cause, best reading: lib_burst_generated in a player has few named symbols, so "burst.initialize.statics" is likely just the nearest name to a crashing Burst job, not Burst's static init itself; a job reading freed memory fits both the original crash (scripts' jobs reading freed world blobs) and job 23's (worlds' jobs reading freed script containers)
+- Ask (profiler): q23 on player-client 38a8f4c with NetCycle, `-hostorder old` vs default, v2, 15 re-hosts each. If the new order still crashes on the laptop, next step is a one-frame gap (dispose, wait a frame, create) in Host/PlaySolo
+- Cost: ~16 calls, 1 build
+
 ## 2026-11-04 batch P-11: items, host-decided pickup, inventory, seeded temple chests (#26, #24)
 - DONE (player-client 6621249, Items/Items.cs + Items/Resources/ItemMaterial.mat; Doors.cs: Use-key arbitration)
 - #26 row 1: "Items: table of 8: 0 Stick (stack 20, 0.3 kg), 1 Stone (20, 1 kg), 2 Berry (30, 0.02), 3 Mushroom (20, 0.05), 4 Shell (20, 0.05), 5 Fish (5, 0.8), 6 Coin (99, 0.01), 7 Key (5, 0.05)". World: 260 starter items (2 seeded per house door, same on every machine, not sent)
