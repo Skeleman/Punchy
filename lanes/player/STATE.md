@@ -22,4 +22,5 @@ Never merge PRs, close or comment-close issues (one-line progress comments are f
 no machine paths or personal info. Never bare `git stash`.
 
 ## In flight
-- P-1 done 11-03 (player-client 1a9ef6c): resolution + window mode in the Graphics tab (#78). Nothing in flight.
+- P-1 done 11-03 (player-client 1a9ef6c): resolution + window mode in the Graphics tab (#78). PR #90 merged 11-03 (5a56458).
+- P-2 queued 11-03: v3 B14, island version host to client (batches/P-2.md).
