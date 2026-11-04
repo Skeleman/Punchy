@@ -607,6 +607,11 @@ namespace Punchy.Terrain
 
         readonly List<Punchy.Flora.FloraModel> plantModels = new List<Punchy.Flora.FloraModel>();
         BiomePalette plantsFrom;
+        /// <summary>The palette whose cave plant models are part grown (from plantSpecies), until all are.</summary>
+        BiomePalette plantsGrowing;
+        List<Punchy.Flora.FloraSpecies> plantSpecies;
+        /// <summary>Time each frame may spend growing cave plant models (#102).</summary>
+        const double PlantGrowBudgetMs = 6.0;
         Material floraMaterial;
         GraphicsBuffer plantInstances, plantVisible;
 
@@ -681,16 +686,31 @@ namespace Punchy.Terrain
             var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
             if (palette != plantsFrom)
             {
-                ReleasePlants();
-                foreach (var species in CaveFloraTable.Collect(palette.Landmarks))
+                if (palette != plantsGrowing)
                 {
-                    for (int v = 0; v < PlantVariants; v++)
-                        plantModels.Add(Punchy.Flora.FloraGenerator.Grow(species, v));
-                    // The same light the plant casts on the surface (colour and reach by how much of it glows).
-                    speciesGlow.Add(Punchy.Flora.FloraPlacement.GlowLight(species));
-                    speciesTorch.Add(species.Form == Punchy.Flora.FloraForm.Torch ? species.Height.y : 0f);
+                    ReleasePlants();
+                    plantSpecies = CaveFloraTable.Collect(palette.Landmarks);
+                    plantsGrowing = palette;
                 }
+                // Growing every model at once was a ~150 ms hitch on the first cave frame (#102): grow them in model
+                // order a few ms' worth per frame, and draw nothing until all are grown (same models, a few frames later).
+                var budget = System.Diagnostics.Stopwatch.StartNew();
+                while (plantModels.Count < plantSpecies.Count * PlantVariants && budget.Elapsed.TotalMilliseconds < PlantGrowBudgetMs)
+                {
+                    var species = plantSpecies[plantModels.Count / PlantVariants];
+                    plantModels.Add(Punchy.Flora.FloraGenerator.Grow(species, plantModels.Count % PlantVariants));
+                    if (plantModels.Count % PlantVariants == 0)
+                    {
+                        // The same light the plant casts on the surface (colour and reach by how much of it glows).
+                        speciesGlow.Add(Punchy.Flora.FloraPlacement.GlowLight(species));
+                        speciesTorch.Add(species.Form == Punchy.Flora.FloraForm.Torch ? species.Height.y : 0f);
+                    }
+                }
+                if (plantModels.Count < plantSpecies.Count * PlantVariants)
+                    return;
                 plantsFrom = palette;
+                plantsGrowing = null;
+                plantsAround = new float3(float.MaxValue);
             }
 
             if (math.distancesq(camPos, plantsAround) > 16f)
@@ -818,7 +838,7 @@ namespace Punchy.Terrain
             plantVisible?.Release();
             plantArgs?.Release();
             plantInstances = plantVisible = plantArgs = null;
-            plantsFrom = null;
+            plantsFrom = plantsGrowing = null;
             plantsAround = new float3(float.MaxValue);
         }
 
