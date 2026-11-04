@@ -1792,3 +1792,22 @@ Fingerprint: not measured this card (the change is a test flag off by default; m
 **Row 3 (#57): not started** (over budget). The HumanVillage brain ms above (0.261 ms, 99 creatures) is the "before" number to compare against once the stagger lands.
 
 Calls used: about 50 (over the ceiling: two runs lost to log-path quoting and `-perflog` needing to be on each shot line, 15 min lost to a readiness poll that never connected).
+
+## A-64 (2026-11-04): #57 stagger measured, #58 main-side number
+
+Commits: none to code. animal-behaviours fast-forwarded to origin/main 6c39129 (PR #122) and pushed.
+Fingerprint: 2DD98BAE on the branch and on 810955f (unchanged).
+
+**Row 1 (#57): done, no code change needed.** The stagger is already in (A-45 3abc2c4, on main since PR #93): `SearchDue` runs FindPredator, FindAlarm and the asked-to-chat FindChat once per 0.2 s per creature, phased by a hash of Individual off `ElapsedTime` (the shared clock, so deterministic); a creature already fleeing keeps searching every frame, so reactions don't lag. "Keep the last result" isn't needed: a flee, once started, carries its threat; between slots no new flee starts, which is the 0.2 s delay the issue allows. `-oldsearch` per shot line is the A/B.
+- Editor Play, uncapped, `-place HumanVillage -time 12`, 48 s settle, then 8 perflog windows alternating stagger / `-oldsearch` in pairs (ABBA-ish), 0 exceptions.
+- Stagger: brain ms 0.424 / 0.401 / 0.407 / 0.452 (128-139 creatures), **3.17 us/creature**; predator searches/frame 2.3-2.6, alarm 3.5-3.7.
+- Every frame (`-oldsearch`): 0.454 / 0.449 / 0.536 / 0.583 (131-147 creatures), **3.63 us/creature**; predator 41-43/frame, alarm 54-59.
+- So about 13% less brain time per creature, 17x fewer searches. Chat searches were ~0 either way here. Not a bench townwalk run (no player build); the editor spot stands in.
+
+**Row 2 (#58): done.** Same shot list, same spot, temp worktree of 810955f (main before #117) with a copied Library, editor Play. Removed after.
+- 810955f stagger windows: 0.387 / 0.395 / 0.429 / 0.407 ms (124-138 creatures), **3.08 us/creature**; `-oldsearch` windows 0.420 / 0.429 / 0.486 / 0.478 (129-142), 3.33 us.
+- Branch (6c39129, after #117): **3.17 us/creature** stagger, 3.63 `-oldsearch` (128-147).
+- Branch vs main: +3% on the staggered windows (inside the window-to-window spread of about 10%), so #117's CreatureMind split costs nothing measurable. Counts match within 4 per window (creatures keep spawning in through the run, 124 -> 147).
+- A-63's 2.64 us at 99 creatures was a different time of day (no `-time`), so compare only within this card.
+
+Calls used: about 38. Editor closed (both); Temp/PlayArgs.txt removed.
