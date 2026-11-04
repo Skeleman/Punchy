@@ -141,6 +141,7 @@ namespace Punchy.Items
                 int.TryParse(args[ca + 1], out instance.containerArg);
             instance.putArg = System.Array.IndexOf(args, "-putitem") >= 0;
             instance.takeArg = System.Array.IndexOf(args, "-takeitem") >= 0;
+            instance.QuestArgs(args);
         }
 
         bool Hosting => server != null && server.IsCreated && server.IsServer();
@@ -181,6 +182,7 @@ namespace Punchy.Items
             if (openContainer >= 0 && TryPlayer(out var at) && math.distance(at.Position.xz, containers[openContainer].Pos.xz) > 3f)
                 openContainer = -1;
             ContainerTests();
+            UpdateQuests(terrain);
             Tests(terrain);
             PadTest();
             UpdateInventoryKeys();
@@ -480,6 +482,7 @@ namespace Punchy.Items
                     em.DestroyEntity(r);
                 }
             ServeContainers(em);
+            ServeQuests(em);
             // A player who has just joined: what's been taken, added and opened so far.
             using (var q = em.CreateEntityQuery(typeof(NetworkId), typeof(NetworkStreamInGame)))
             using (var cs = q.ToEntityArray(Allocator.Temp))
@@ -541,6 +544,7 @@ namespace Punchy.Items
             });
             Each<GrantRpc>(m => Grant(m.Item, m.Count));
             Each<ContainerSlotRpc>(ReceiveContainer);
+            Each<QuestStateRpc>(ReceiveQuestState);
             Each<ChestOpenedRpc>(m =>
             {
                 if (openedChests.Add(m.Socket))
@@ -829,6 +833,7 @@ namespace Punchy.Items
             }
             GUILayout.EndArea();
             DrawContainerPane(cell, gap, area);
+            DrawQuestLog(area);
             nav.End();
             GUI.color = colour;
         }
