@@ -87,6 +87,8 @@ namespace Punchy.Interact
     public class Doors : MonoBehaviour
     {
         public const float Reach = 2.5f;
+        /// <summary>How far the door the player faces is (float.MaxValue: none): the Use key goes to the nearer of it and an item (P-11).</summary>
+        public static float FacingDistance = float.MaxValue;
 
         static Doors instance;
         /// <summary>Which doors are open, on this machine (the host's word, or our own solo).</summary>
@@ -230,6 +232,7 @@ namespace Punchy.Interact
         {
             facing = -1;
             prompt = null;
+            FacingDistance = float.MaxValue;
             var world = World.DefaultGameObjectInjectionWorld;
             using var q = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
             if (!q.TryGetSingleton<LocalTransform>(out var player))
@@ -247,6 +250,10 @@ namespace Punchy.Interact
                     continue;
                 (best, facing) = (d, k);
             }
+            FacingDistance = facing >= 0 ? best : float.MaxValue;
+            // (An item or chest at least as near takes the Use key: Items.)
+            if (facing >= 0 && FacingDistance >= Punchy.Items.Items.TargetDistance)
+                facing = -1;
             if (facing >= 0)
                 prompt = $"{UseKey.Name}  {(open.Contains(facing) ? "close" : "open")} door";
         }
