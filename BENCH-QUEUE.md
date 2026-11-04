@@ -51,3 +51,9 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
     cave fps and 1% low BETTER than open ground on the same build. So also list what still runs or draws inside a
     cave that the player can't see or reach: surface terrain chunks, grass/flora, sky/weather, water, far creatures,
     shadow cascades, settlements. Give the ms each would save if culled underground.
+
+## Added 2026-11-03 (evening). main = 27bf8c1 (PR #77)
+12. Box collision cost (#79, W-67). world-features 52b4af5 vs main 27bf8c1, `-island v2`, standard route plus the
+    cave stop (-goto 530,958) and a wharf town if the route passes one. Per-frame ms and the top main-thread costs,
+    with PlayerMovement, ReachJob and ThirdPersonCamera.LateUpdate shown separately. Interim number: W-67b is still
+    changing this code, so expect a re-run. If 52b4af5 won't build, report that and stop.
