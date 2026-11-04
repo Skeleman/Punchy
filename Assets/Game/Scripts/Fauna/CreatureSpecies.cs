@@ -137,6 +137,16 @@ namespace Punchy.Fauna
         public bool Burrows;
         [Tooltip("Lives inside caves: appears on cave floors when a player comes near a cave, and stays in.")]
         public bool CaveDweller;
+        [Tooltip("Cave dwellers that live as a band in the bat folk chambers (#35; the blind cave pygmies): a band of Group " +
+                 "Size in each chamber, taking its planned jobs (a roost keeper per hut, a tanner per rack, a forager per " +
+                 "basket, a fisher at the white pool), and in no other cave.")]
+        public bool ChamberFolk;
+        [Tooltip("Has no eyes (blind cave pygmies): notices by sound and nearness, not sight. Facing makes no odds, so it " +
+                 "can't be crept up on from behind, but someone walking slowly is heard only close by; never carries a light.")]
+        public bool Blind;
+        [Tooltip("Water folk (fish folk): wades and swims in the shallows near home, far more often than other folk and in " +
+                 "water from waist deep. 0: swims like anyone, now and then in deep water.")]
+        [Range(0f, 1f)] public float Wades;
         [Tooltip("Crawls on any surface (lizards, spiders): steep rock faces outside, walls and ceilings in caves, its body " +
                  "turned to lie on the surface.")]
         public bool Crawls;

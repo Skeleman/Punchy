@@ -24,7 +24,7 @@ namespace Punchy.Fauna
     /// is sorted by name so its indices mean the same animal on every machine. Without netcode everything happens in
     /// the one local world, as before.
     /// </summary>
-    public class FaunaDirector : MonoBehaviour
+    public partial class FaunaDirector : MonoBehaviour
     {
         public Material Material;
         [Tooltip("Tells animals whether it's day or night (when they sleep).")]
@@ -202,6 +202,7 @@ namespace Punchy.Fauna
             speciesByName.Clear();
             occupied.Clear();
             occupiedCaves.Clear();
+            occupiedChambers.Clear();
             Caught = 0;
             if (capsule != null) Destroy(capsule);
             capsule = null;
@@ -283,6 +284,7 @@ namespace Punchy.Fauna
                 {
                     SpawnResidents(source);
                     SpawnCaveDwellers(source);
+                    SpawnChamberBands(source);
                     SpawnWildFolk(source);
                     SpawnCrossingFishers(source);
                 }
@@ -409,8 +411,13 @@ namespace Punchy.Fauna
             domestics = Resources.Load<DomesticTable>("Domestics");
             Debug.Log($"FaunaDirector: domestic animals table {(domestics != null ? domestics.Entries.Count + " entries" : "missing")}");
             if (domestics != null)
+            {
                 foreach (var d in domestics.Entries)
                     AddSpecies(d.Species);
+                if (domestics.CaveFolk != null)
+                    foreach (var c in domestics.CaveFolk)
+                        AddSpecies(c);
+            }
             // The index is how the network names a species, so it must mean the same animal on every machine: sort by
             // asset name, and refuse to network if two share one.
             species.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
@@ -1238,6 +1245,7 @@ namespace Punchy.Fauna
                 return;
             ref var set = ref source.Landmarks.Value;
             LogBatJobs(source);
+            LogChamberBands(source);
             scratch.Clear();
             foreach (var i in occupied)
                 if (NearestPlayer(set.Instances[i].Position) > DespawnDistance + 20f)
@@ -1424,8 +1432,8 @@ namespace Punchy.Fauna
 
         /// <summary>
         /// Once per island: the jobs each bat folk chamber would hand out, one per prop (a roost keeper per hut, a tanner per
-        /// drying rack, a forager per basket) and a fisher for its white pool. Planned only: no bat folk species walks
-        /// yet, and adding one shifts the species network indices (rule 11), so this is the table for when it does.
+        /// drying rack, a forager per basket) and a fisher for its white pool. The chamber folk (the blind cave pygmies,
+        /// #10) take these posts when a player comes near: SpawnChamberBands.
         /// </summary>
         void LogBatJobs(in TerrainSource source)
         {
@@ -1449,7 +1457,7 @@ namespace Punchy.Fauna
                     }
                 var site = bats.Sites[s];
                 Debug.Log($"FolkJobs: bat folk chamber {s} (cave {site.Cave}) at ({site.Centre.x:F0}, {site.Centre.y:F0}, {site.Centre.z:F0}) radius {site.Radius:F0}: " +
-                          $"RoostKeeper {huts}, Tanner {racks}, Forager {baskets}, PoolFisher 1 (planned)");
+                          $"RoostKeeper {huts}, Tanner {racks}, Forager {baskets}, PoolFisher 1");
             }
         }
 
@@ -1935,6 +1943,9 @@ namespace Punchy.Fauna
                     // one or two in the chambers near the mouth.
                     var visitor = !body.CaveDweller && species[sp].CaveAffinity > 0f;
                     if (!body.CaveDweller && !visitor)
+                        continue;
+                    // Chamber folk (the blind cave pygmies, #10) live only in the bat folk chambers: SpawnChamberBands.
+                    if (body.ChamberFolk)
                         continue;
                     if (visitor && (rng.NextFloat() >= species[sp].CaveAffinity || !LivesAt(source, sp, cave.Mouth.xz)))
                         continue;
