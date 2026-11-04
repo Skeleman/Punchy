@@ -511,7 +511,8 @@ namespace Punchy.Flora
 
             // Placement runs in the background: collect each layer's finished batch, then start the next one with the
             // nearest missing tiles, within a shared per-frame budget (near layers first).
-            var budget = CellsPerFrame;
+            // W-75: larger batches while the world first loads (no frame to protect before the player spawns).
+            var budget = Punchy.Terrain.TerrainStreamingSystem.Loading ? CellsPerFrame * 4 : CellsPerFrame;
             foreach (var l in layers)
             {
                 if (l.ModelCount == 0)

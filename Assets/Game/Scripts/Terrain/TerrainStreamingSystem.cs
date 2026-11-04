@@ -83,6 +83,12 @@ namespace Punchy.Terrain
         /// <summary>True while a batch of chunks is meshing in the background, so other background work (the weather
         /// maps) can hold off rather than crowd it out.</summary>
         public static bool Meshing { get; private set; }
+        /// <summary>W-75: true from the island bake until the first time every chunk in view is built. There is no frame
+        /// to protect before the player spawns, so batches are <see cref="LoadBoost"/> times larger (flora places faster
+        /// too). PUNCHY_LOADBOOST=0 turns it off, for before/after benches.</summary>
+        public static bool Loading { get; private set; } = true;
+        const int LoadBoost = 6;
+        static readonly bool LoadBoostOn = System.Environment.GetEnvironmentVariable("PUNCHY_LOADBOOST") != "0";
         Mesh.MeshDataArray buildData;
         NativeArray<ChunkBuildRequest> buildRequests;
         NativeArray<float2> buildRanges, buildWaterRanges;
@@ -169,11 +175,23 @@ namespace Punchy.Terrain
                 focusHeading = math.normalizesafe(math.lerp(focusHeading, step / moved, 1f - math.exp(-dt * 3f)));
             var fast = focusSpeed > FastSpeed;
             var budget = fast ? VertexBudget / 4 : VertexBudget;
+            // A new island (IslandV2 resets its version while it bakes) loads in large batches again.
+            if (Punchy.Terrain.IslandV2.ActiveVersion == 0)
+                Loading = true;
+            var boost = Loading && LoadBoostOn ? LoadBoost : 1;
+            budget *= boost;
 
             UnloadDistantChunks(config, focus);
             CollectWantedChunks(config, focus);
             if (wanted.Count == 0)
+            {
+                if (Loading && Punchy.Terrain.IslandV2.ActiveVersion != 0 && building.Count == 0)
+                {
+                    Loading = false;
+                    UnityEngine.Debug.Log($"[stream] world ready at {UnityEngine.Time.realtimeSinceStartup:F1} s since start, {loaded.Count} chunks (load boost {(LoadBoostOn ? LoadBoost : 1)}x, {World.Name})");
+                }
                 return;
+            }
 
             // Fast: chunks ahead count as up to 40% nearer and those behind up to 40% farther, so small batches go
             // where the view is heading first.
@@ -189,7 +207,7 @@ namespace Punchy.Terrain
             wanted.Sort((a, b) => a.Distance.CompareTo(b.Distance));
             var count = 0;
             var vertices = 0;
-            while (count < wanted.Count && count < config.MaxBuildsPerFrame)
+            while (count < wanted.Count && count < config.MaxBuildsPerFrame * boost)
             {
                 var quads = config.QuadsForLod(wanted[count].Lod);
                 vertices += BuildChunkMeshJob.VertexCount(quads);
