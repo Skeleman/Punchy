@@ -30,7 +30,7 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #69 #70 #71 #72 | Zach playtest: hermit shelters, wasteland rock collision, great mushroom, biome campgrounds | W-57 (after W-56) |
 | #31 | Laptop: houses lit wrong | Needs the laptop |
 | #21 #22 | Plant fidelity, underwater camera (design) | backlog |
-| #24 | Dungeons: caves and ruins | W-56 starts the kit; W-58 extends it to cities and ruins (Zach priority) |
+| #24 | Dungeons: caves and ruins | Kit from W-56/W-58; two-phase plan in briefs/dungeons-two-phase.md: P-6 set pieces + sockets, A-50 spawner + behaviours |
 | #36 | Fishing villages at river mouths | W-59, from the W-58 kit (Zach priority 2) |
 | #10 #35 #37 #38 #8 | New settlements and races (bat, sea, turtle, fish folk, pygmies; race reactions) | after W-59 (Zach priority 3) |
 | #25-#27 | Roadmap | backlog |
