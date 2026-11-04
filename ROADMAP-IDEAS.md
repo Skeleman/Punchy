@@ -54,3 +54,10 @@ current release. Lane: A = animal, W = world.
   - find a rare item.
 - Depends on items/inventory, anchors (places) and NPC dialogue (who gives the quest). Quest text can use the same
   editable archive and fill-in slots as dialogue. Progress is synced in multiplayer.
+
+## Fire revamp (2026-11-04)
+
+- Ember Forest catches fire at night. Each night it burns in one colour, picked at random (seeded per night, the same for
+  every player): orange (standard, the most common), golden, silver, violet, emerald, crimson, black.
+- One standard fire effect (flame, glow, light, embers, smoke) with a colour setting, used by everything that burns:
+  torches, campfires, ruin sconces, braziers, the forest. Build the shared effect first, then move the existing fires onto it.
