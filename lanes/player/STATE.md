@@ -30,3 +30,4 @@ no machine paths or personal info. Never bare `git stash`.
 - P-6 11-03: DungeonSocket contract d7ed5eb (posted). Set pieces blocked: underground collision is world-lane code; options in the report.
 - P-7 (11-04): temple fix, small-body camera pivot, temple dungeon sockets + debug draw (supervisor picked the temple-rooms option). P-8 after: sound and look settings.
 - P-7 done 11-04 (player-client be6d005): -place temple fixed, small-body camera (partial), temple socket buffer (68, hash 9C11B352). P-8 next.
+- P-8 done 11-04: #99 host-twice crash fixed (84208ff, 5 netcycle runs clean); Sound/Look tabs + -settings (f332f30). Nothing in flight.

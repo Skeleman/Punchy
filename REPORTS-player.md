@@ -1,5 +1,15 @@
 # Player lane reports
 
+## 2026-11-04 batch P-8: host-twice crash fixed (#99); Sound and Look settings
+- DONE #99 (player-client 84208ff): root cause: GameBootstrap.DisposeGameWorlds freed the worlds (and the subscene's terrain blobs) while scene MonoBehaviours (FloraSystem, CaveSystem/SurfaceGlow, FaunaDirector, AmbienceSystem, WeatherField) still had multi-frame jobs reading them; they complete those only in OnDisable, which came with the scene reload after the dispose. Fix: switch the old scene's roots off first (OnDisable completes the jobs), CompleteAllTrackedJobs per world, then dispose. NetCycle (profiler helper copied in for the build only, not committed) `-island v2 -netcycle 3`: 5 runs, 15 re-hosts, 0 crashes, 0 exceptions, all "NETCYCLE done" rc 0; Total Used flat (solo ~460 MB, hosting ~516 MB). No unfixed baseline on this PC (laptop: 2 of 3 crashed)
+- DONE rows 1-3 (f332f30): Sound tab (Master, Music and ambience, Effects) and Look tab (mouse 0.03-0.5, pad 60-400, camera distance 3-20 m, FOV 50-100, Invert Y, Reset), MenuNav sliders/buttons, saved Punchy.Audio.* / Punchy.Look.*, applied at start and after each scene load; `-settings master=0,music=0.4,effects=0.7,mouse=0.25,pad=240,inverty=1,distance=5,fov=75` -> "Settings: master 0.00 music 0.40 effects 0.70; mouse 0.25 pad 240 invertY on distance 5.0 fov 75 (from the command line, saved)"; relaunch without it logs the same values
+- HOOK (not my files): master 0 silences GameAudio's voices (they multiply by GameAudio.Master) but not the weather's own AudioSource (WeatherSystem) nor AudioListener.volume (GameAudio sets it to the focus level). One line for the audio owner: AudioListener.volume = focusLevel * Master, then drop Master from the voices. Music: no music exists yet; the slider drives the World and Weather groups
+- Learned: since A-46, `-menu Tab` is a shot-list LINE option; a line without it closes the menu, so `-menu` on the launch line no longer shows in shots
+- Checks: compile 0 errors; 2 builds Succeeded 0 errors; 10 player runs, all quit, no Punchy.exe left; PlayerPrefs exported before and restored after (no Punchy.Audio/Look keys left); editor closed
+- Shots: D:/PunchyMilestones/P-8/tabs.png (Look and Sound tabs with the saved values)
+- Cost: ~42 calls, 2 builds
+- NEXT: audio owner adds the master hook; P-7 leftovers (chests to ~15, full rabbit body looking up, b1 sky check)
+
 ## 2026-11-04 batch P-7: temple placement fixed, small-body camera, 68 temple sockets (#85, #24)
 - DONE: merged main 9d34275 (fast-forward), pushed
 - DONE #85 row 1: `-place temple[:N]` uses the baked RuinRooms in the temple frame: "in sunken temple room 9/47 (16 x 16 m, ceiling 4.0 m, kind 0) at (3518.9, 19.0, 360.4); the ground is 4.5 m above"
