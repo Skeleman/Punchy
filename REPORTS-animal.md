@@ -1750,3 +1750,17 @@ Fingerprint: 51E641E9 expected (render-only change); not re-measured this card.
 - Left: a mesh-level raycast against the cave/temple chunk meshes (they are not RenderMeshArray entities) to name it. My guess is a cave ceiling shaft showing the sky, or a temple decor slab.
 
 Calls used: about 56 (the ceiling was about 45).
+
+## A-61 (2026-11-04)
+
+Commits: 3a09d58 (animal-behaviours, after merging origin/main): temple wall-decor stand-ins drawn stone grey and set flush into the wall (#24).
+Fingerprint: 2DD98BAE (both the branch and main runs this card, and the A-60 session log too). It is not 51E641E9: main itself gives 2DD98BAE now, so the change came in with main, not this branch.
+
+**Row 2 (#24), drawer named:** `DungeonSpawner.MakeProp`. It makes the placeholder cube for a WallDecor socket, content SkullNiche ("Dungeon SkullNiche", ItemMaterial), tinted through a property block with the hue from the content hash. For SkullNiche that is purple (0.57,0.41,0.75). From the mushroom spot the niche sits at (3513.4,20.9,368.5), 0.7 m from the camera, so a 0.40 x 0.60 x 0.12 box fills the upper right. A-60 ruled it out as too small, but it was just very close to the camera. Bisect: with all GameObject renderers off the box went (pixel (0.98,0.2) pink 0.95,0.77,0.84 -> wall 0.22,0.17,0.13). With only that one niche off it went too (0.24,0.18,0.14). Turning off SunkenTempleSystem, CreatureRender, SaltTower or Iceberg did not change it.
+- What it's meant to be: a stand-in for a skull niche (wall decor) until set-piece art exists.
+- Fix: wall decor now gets a low-saturation, dark tint (it measures 0.30,0.28,0.32) and moves half its depth back so it sits flush on the wall. Other props keep their hue tints.
+- Shot: a61-temple-mw.png. The same pixel now reads 0.19,0.18,0.17. The editor camera at this spot sits closer than in A-57, so the framing differs.
+
+**Row 3 (#58), only half done:** branch: 45 creatures, Brain.Tick 4.233 us/creature (0.190 ms/frame, 20 s, uncapped, at the temple spot). Main (origin/main scripts checked out, same spot): **0 creatures** were counted, so there is no number. Main's creatures had not spawned within ~60 s at the temple, or the CreatureMind query doesn't match on main. Next: bench both at a busy surface spot, waiting until the creature count matches.
+
+Calls used: about 40.
