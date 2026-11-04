@@ -29,7 +29,7 @@ namespace Punchy.Audio
     {
         public const int MaxVoices = 24;
 
-        /// <summary>Each group's level (0..1), and the master level.</summary>
+        /// <summary>Each group's level (0..1), and the master level (applied once, on AudioListener.volume).</summary>
         public static readonly float[] Volume = { 1f, 1f, 1f, 1f };
         public static float Master = 1f;
 
@@ -47,6 +47,8 @@ namespace Punchy.Audio
         /// <summary>The level everything is heard at, easing to 0 out of focus (AudioListener.volume: every sound, the
         /// weather's too).</summary>
         static float focusLevel = 1f;
+        /// <summary>The master level last logged (a line each time it changes, for the -settings checks).</summary>
+        static float loggedMaster = -1f;
 
         static GameAudio instance;
         readonly Dictionary<SoundId, AudioClip[]> bank = new Dictionary<SoundId, AudioClip[]>();
@@ -124,7 +126,13 @@ namespace Punchy.Audio
             // Fading out over a quarter second when the window loses focus, back in over half a second.
             var quiet = !focused && MuteInBackground;
             focusLevel = Mathf.MoveTowards(focusLevel, quiet ? 0f : 1f, Time.unscaledDeltaTime * (quiet ? 4f : 2f));
-            AudioListener.volume = focusLevel;
+            // Master scales the listener, so it reaches every sound (the weather's own source too), not only the voices.
+            AudioListener.volume = focusLevel * Master;
+            if (Master != loggedMaster)
+            {
+                loggedMaster = Master;
+                Debug.Log($"GameAudio: listener volume {AudioListener.volume:0.00} (focus {focusLevel:0.00} x master {Master:0.00})");
+            }
             if (making != null && making.IsCompleted)
             {
                 foreach (var (id, v, samples) in making.Result)
@@ -138,10 +146,10 @@ namespace Punchy.Audio
                 making = null;
             }
             Echo();
-            // Loops follow the group and master levels as they change.
+            // Loops follow the group levels as they change (master is on the listener).
             foreach (var voice in voices)
                 if (voice.Loop && voice.Source.isPlaying)
-                    voice.Source.volume = voice.Volume * Volume[(int)voice.Group] * Master;
+                    voice.Source.volume = voice.Volume * Volume[(int)voice.Group];
         }
 
         void OnDestroy()
@@ -272,7 +280,7 @@ namespace Punchy.Audio
             s.maxDistance = reach;
             // (Full volume out to a quarter of its reach, then falling away: heard where it's meant to be heard.)
             s.minDistance = Mathf.Max(1f, reach * 0.25f);
-            s.volume = volume * Volume[(int)group] * Master;
+            s.volume = volume * Volume[(int)group];
             // Far off (past 40 m), muffled as the air muffles it: a wolf's howl across the valley is soft and dull, not
             // crisp, down to a 1.8 kHz top by 200 m.
             var far = Mathf.InverseLerp(40f, 200f, Vector3.Distance(at, Ear));
@@ -338,7 +346,7 @@ namespace Punchy.Audio
                 {
                     voice.Source.transform.position = at;
                     voice.Volume = volume * ThroughRock(at);
-                    voice.Source.volume = voice.Volume * Volume[(int)voice.Group] * Master;
+                    voice.Source.volume = voice.Volume * Volume[(int)voice.Group];
                 }
         }
 
