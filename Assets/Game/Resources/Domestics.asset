@@ -163,3 +163,15 @@ MonoBehaviour:
     Count: {x: 2, y: 3}
     Range: 0.6
     Task: 9
+  - Settlement: {fileID: 11400000, guid: 1dc9ef0424be4804f9dd5c4106be4098, type: 2}
+    Species: {fileID: 11400000, guid: 01fa8bddbd24420bb1e9d8710bf361a0, type: 2}
+    Count: {x: 3, y: 5}
+    Range: 0.7
+    Task: 0
+  - Settlement: {fileID: 11400000, guid: 1dc9ef0424be4804f9dd5c4106be4098, type: 2}
+    Species: {fileID: 11400000, guid: 01fa8bddbd24420bb1e9d8710bf361a0, type: 2}
+    Count: {x: 1, y: 2}
+    Range: 1
+    Task: 8
+  CaveFolk:
+  - {fileID: 11400000, guid: cbb815d60ecb46bd9e5b824c868cc533, type: 2}

@@ -18,7 +18,7 @@ namespace Punchy.Fauna
         Smith, Woodcutter, Merchant, WellKeeper, Gatekeeper, Hunter, Guard, Fisher, Miner, Traveller, Hermit,
         // Handed out in villages (A-29).
         Baker, Healer, Herder, Farmer, Trader,
-        // Bat folk chamber jobs (planned per chamber from its props: no bat folk species walks yet).
+        // Bat folk chamber jobs (per chamber from its props), taken by the chamber folk (the blind cave pygmies, #10).
         RoostKeeper, Tanner, Forager, PoolFisher,
     }
 

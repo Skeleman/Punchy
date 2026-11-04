@@ -15,6 +15,11 @@ namespace Punchy.Fauna
     public class DomesticTable : ScriptableObject
     {
         public List<DomesticEntry> Entries = new List<DomesticEntry>();
+
+        [Header("Cave folk")]
+        [Tooltip("Folk that live in the bat folk chambers (#35; the blind cave pygmies, Chamber Folk set): a band in " +
+                 "each chamber, taking the chamber's jobs.")]
+        public List<CreatureSpecies> CaveFolk = new List<CreatureSpecies>();
     }
 
     [Serializable]

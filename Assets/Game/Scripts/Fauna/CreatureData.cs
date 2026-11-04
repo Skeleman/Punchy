@@ -53,6 +53,9 @@ namespace Punchy.Fauna
         public IdleActions Idles;
         public float Fidgets, Climbing;
         public bool SpinsWebs, Burrows, CaveDweller, Roosts, Friendly, CrossesWater, Haunts, LavaDweller, DrawnToLight, DrivenOff;
+        /// <summary>No eyes: notices by sound and nearness (Sense). Wades: water folk's taste for the shallows (Decide, StartSwim).</summary>
+        public bool Blind;
+        public float Wades;
         /// <summary>Its town guards' kit (helmet, weapon) and the colours of their armour and sash (linear).</summary>
         public GuardKit GuardKit;
         public float4 GuardArmour, GuardSash;
@@ -832,6 +835,8 @@ namespace Punchy.Fauna
             root.SpinsWebs = species.SpinsWebs;
             root.Burrows = species.Burrows;
             root.CaveDweller = species.CaveDweller;
+            root.Blind = species.Blind;
+            root.Wades = species.Wades;
             root.Roosts = species.Roosts;
             root.Friendly = species.Friendly;
             root.CrossesWater = species.CrossesWater && species.Habitat == Habitat.Land;

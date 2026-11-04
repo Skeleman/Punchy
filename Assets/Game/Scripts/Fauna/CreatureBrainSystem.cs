@@ -659,7 +659,11 @@ namespace Punchy.Fauna
                 // Someone walking up slowly (not running) is noticed half as far off; from behind or the side, only at
                 // the last moment, so a small animal can be crept up on and caught.
                 var facing = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
-                if (playerSpeed < 2.5f)
+                // (A blind one goes by its ears: facing makes no odds, a slow step is heard only close by, and it hears
+                // through rock as well as anyone. #10.)
+                if (b.Blind)
+                    alert *= playerSpeed < 2.5f ? 0.45f : 1f;
+                else if (playerSpeed < 2.5f)
                     alert *= math.dot(facing, math.normalizesafe(-away)) < 0.3f ? 0.1f : 0.5f;
                 // Danger is judged by real distance, so high overhead is far: a player flying over the herd doesn't
                 // scatter it, and nor does someone walking on the ground over a cave. (On foot across level ground it's
@@ -1307,6 +1311,9 @@ namespace Punchy.Fauna
                         s.Held = HeldItem.Stick;
                 }
                 // A child out by day has a stick or a stone (its own kind of plaything), not indoors or asleep.
+                // A blind cave pygmy needs no light: up and about, most feel their way with a staff (the rest by hand).
+                else if (b.Blind && b.Hands)
+                    s.Held = ((s.Individual >> 7) & 3u) != 0 && s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Rest ? HeldItem.Staff : HeldItem.None;
                 else if (b.Child && b.Hands && Night < 0.5f && s.Mode != CreatureMode.Sleep && !(s.Mode == CreatureMode.Home && s.Stage >= 1))
                     s.Held = ((s.Individual >> 5) & 1u) != 0 ? HeldItem.Stick : HeldItem.Stone;
                 else if (b.Hands && b.Upright)

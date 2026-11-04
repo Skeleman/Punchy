@@ -216,10 +216,11 @@ namespace Punchy.Fauna
             /// <summary>
             /// Water good for a swim near where it is: calm (no rapids), deep enough to swim (1.6 m), not lava or a
             /// cave's hole, and warm (no snow on the bank). Sets off to the bank there (WorkSpot) with the middle of the
-            /// swim at Focus. False if there's none within 60 m.
+            /// swim at Focus. False if there's none within 60 m. Water folk (Wades) take to the shallows: from 0.5 m deep.
             /// </summary>
-            bool StartSwim(ref CreatureState s, ref Random rng)
+            bool StartSwim(ref CreatureState s, ref CreatureBlob b, ref Random rng)
             {
+                var deep = b.Wades > 0f ? 0.5f : 1.6f;
                 var start = rng.NextFloat(math.PI * 2f);
                 for (var d = 6f; d <= 60f; d += 6f)
                     for (int k = 0; k < 12; k++)
@@ -228,7 +229,7 @@ namespace Punchy.Fauna
                         var dir = new float2(math.sin(a), math.cos(a));
                         var p = s.Position.xz + dir * d;
                         var g = Terrain.SampleGround(p);
-                        if (!g.HasWater || g.WaterSurface - g.Height < 1.6f || g.Rapids > 0.15f || !Swimmable(p))
+                        if (!g.HasWater || g.WaterSurface - g.Height < deep || g.Rapids > 0.15f || !Swimmable(p))
                             continue;
                         var q = p;
                         for (int step = 0; step < 40 && !Walkable(q, Habitat.Land); step++)
@@ -275,7 +276,7 @@ namespace Punchy.Fauna
                             for (int k = 0; k < 6; k++)
                             {
                                 var p = s.Focus + rng.NextFloat2Direction() * rng.NextFloat(2f, 10f);
-                                if (WaterDepth(p) > 1.3f && Swimmable(p))
+                                if (WaterDepth(p) > (b.Wades > 0f ? 0.35f : 1.3f) && Swimmable(p))
                                 {
                                     s.Target = p;
                                     break;

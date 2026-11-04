@@ -172,7 +172,8 @@ namespace Punchy.Fauna
                 // Townsfolk sit a while by the well, or lie back on the ground near it, by day.
                 var lounge = b.Upright && b.Hands && s.Leash > 0f && sleepy < 0.3f && Night < 0.3f && s.Task != CreatureTask.Patrol ? 0.2f * awake : 0f;
                 // Townsfolk now and then go for a swim, in the warm middle of the day.
-                var swim = b.Upright && b.Hands && s.Leash > 0f && sleepy < 0.2f && Night < 0.2f && s.Task != CreatureTask.Patrol ? 0.12f * awake : 0f;
+                // (Water folk wade and swim in the shallows near home far more often: #10.)
+                var swim = b.Upright && b.Hands && s.Leash > 0f && sleepy < 0.2f && Night < 0.2f && s.Task != CreatureTask.Patrol ? (0.12f + b.Wades * 1.2f) * awake : 0f;
                 if (climb > 0f && sleepy > 0.5f)
                     sleep *= 0.2f;
                 // Web spinners spend most of their time in their web.
@@ -317,7 +318,7 @@ namespace Punchy.Fauna
                 }
                 // (Only for species that do these: a failed drink above leaves the roll below zero.)
                 else if (climb > 0f && (roll -= climb) < 0f && StartClimb(ref s, ref b, ref rng, sleepy > 0.5f)) { }
-                else if (swim > 0f && (roll -= swim) < 0f && StartSwim(ref s, ref rng)) { }
+                else if (swim > 0f && (roll -= swim) < 0f && StartSwim(ref s, ref b, ref rng)) { }
                 else if (lounge > 0f && (roll -= lounge) < 0f && StartLounge(self, ref s, ref rng)) { }
                 else if (web > 0f && (roll -= web) < 0f && GoToWeb(ref s, ref b, ref rng)) { }
                 else if (fly > 0f && (roll -= fly) < 0f && StartFlight(ref s, ref b, ref rng, sleepy > 0.5f)) { }
