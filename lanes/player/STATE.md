@@ -27,3 +27,4 @@ no machine paths or personal info. Never bare `git stash`.
 - P-3 done 11-03: -quitafter flag; host/joiner timeouts = bake blocking main thread past the 10 s DisconnectTimeoutMS. Waiting on a supervisor call on the shared net-code fix.
 - P-4 done 11-03 (player-client 18e305d): 30 s timeout; timeouts gone, joiners pass. Host refuses its OWN client (palette landmark types appended only by the baking world; fix needs IslandV2System, see report).
 - P-5 done 11-03 (player-client 0b2309d): camera underground (#85). Caves verified; temple room not shot yet (-place temple finds no room); small-body pivot open.
+- P-6 11-03: DungeonSocket contract d7ed5eb (posted). Set pieces blocked: underground collision is world-lane code; options in the report.
