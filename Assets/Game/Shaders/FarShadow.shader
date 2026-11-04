@@ -5,7 +5,7 @@ Shader "Punchy/FarShadow"
     // shows as a dark patch from high up. Vertex alpha is the strip's own fade towards its tip and sides.
     Properties
     {
-        _Strength ("Strength", Range(0, 1)) = 0.45
+        _Strength ("Strength", Range(0, 1)) = 0.6
         _Near ("Fade in from (m)", Float) = 40
     }
     SubShader
@@ -61,7 +61,10 @@ Shader "Punchy/FarShadow"
                 // PunchyAtmosphere is affine in the colour, so what it lets through is A(1) - A(0).
                 half3 through = saturate(PunchyAtmosphere(half3(1, 1, 1), input.positionWS) - PunchyAtmosphere(half3(0, 0, 0), input.positionWS));
                 float d = distance(input.positionWS, _WorldSpaceCameraPos);
-                half a = _Strength * input.alpha * smoothstep(_Near, _Near + 15, d) * dot(through, half3(0.333, 0.333, 0.334));
+                // W-82 (#84): the square root of what the haze lets through, not the plain value. A strip 1 km off kept
+                // only ~6% darkening (invisible) although the ground there still showed through the haze; this keeps it
+                // ~23% there and still fades it to nothing where the haze is all that is left.
+                half a = _Strength * input.alpha * smoothstep(_Near, _Near + 15, d) * sqrt(dot(through, half3(0.333, 0.333, 0.334)));
                 return half4((1 - a).xxx, 1);
             }
             ENDHLSL

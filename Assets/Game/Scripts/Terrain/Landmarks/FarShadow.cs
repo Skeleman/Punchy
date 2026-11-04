@@ -17,6 +17,16 @@ namespace Punchy.Terrain
         const int Along = 24, Across = 4;
         const float MaxLength = 700f;
 
+        /// <summary>Toggle for every far shadow strip (W-82, #84): -nofarshadow on the command line turns them off.</summary>
+        public static bool Enabled = !System.Environment.CommandLine.Contains("-nofarshadow");
+        /// <summary>Strips drawn this session, for probes and logs.</summary>
+        public static readonly System.Collections.Generic.List<FarShadow> Live = new();
+
+        /// <summary>Last lay: the sun's elevation (degrees), the strip's length (m) and the middle of the strip.</summary>
+        public float SunElevation, Length;
+        public Vector3 Middle;
+        public string Name => mesh.name;
+
         readonly Mesh mesh;
         readonly Vector3[] verts = new Vector3[(Along + 1) * (Across + 1)];
         Vector3 lastSun;
@@ -32,9 +42,10 @@ namespace Punchy.Terrain
             for (int i = 0; i <= Along; i++)
                 for (int j = 0; j <= Across; j++)
                 {
-                    // Fades towards the tip, and to nothing at both sides, so its edge reads as a penumbra.
+                    // Fades towards the tip, and to nothing at both sides, so its edge reads as a penumbra. The core is
+                    // kept near full (W-82: cubic along, quartic across) so a far strip isn't faint all over.
                     float u = i / (float)Along, s = math.abs(j / (float)Across * 2f - 1f);
-                    colors[i * (Across + 1) + j] = new Color(0, 0, 0, (1f - u * u) * (1f - s * s));
+                    colors[i * (Across + 1) + j] = new Color(0, 0, 0, (1f - u * u * u) * (1f - s * s * s * s));
                 }
             for (int i = 0; i < Along; i++)
                 for (int j = 0; j < Across; j++)
@@ -46,13 +57,14 @@ namespace Punchy.Terrain
             mesh.vertices = verts;
             mesh.colors = colors;
             mesh.triangles = idx;
+            Live.Add(this);
         }
 
         /// <summary>Lays (when the sun moved) and draws the strip for a landmark standing at foot, this tall and wide.</summary>
         public void Draw(in TerrainSource source, Vector3 foot, float height, float radius)
         {
             var sun = RenderSettings.sun;
-            if (sun == null || !sun.isActiveAndEnabled)
+            if (!Enabled || sun == null || !sun.isActiveAndEnabled)
                 return;
             var toward = sun.transform.forward; // the direction the light travels
             if (toward.y > -0.05f)
@@ -85,6 +97,10 @@ namespace Punchy.Terrain
             // Length on level ground: height over the tangent of the sun's elevation.
             var length = math.min(MaxLength, height * horizontal / -toward.y) + radius;
             var start = new float2(foot.x, foot.z) - dir * radius;
+            SunElevation = math.degrees(math.atan2(-toward.y, horizontal));
+            Length = length;
+            var mid = start + dir * (0.5f * length);
+            Middle = new Vector3(mid.x, source.SampleHeight(mid), mid.y);
             for (int i = 0; i <= Along; i++)
                 for (int j = 0; j <= Across; j++)
                 {
@@ -97,6 +113,10 @@ namespace Punchy.Terrain
             mesh.RecalculateBounds();
         }
 
-        public void Dispose() => Object.Destroy(mesh);
+        public void Dispose()
+        {
+            Live.Remove(this);
+            Object.Destroy(mesh);
+        }
     }
 }
