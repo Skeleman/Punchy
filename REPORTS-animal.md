@@ -1702,3 +1702,8 @@ Commits on animal-behaviours (pushed, on main ccd2151): f56d361 (#64 need cues),
 
 Shots: D:\PunchyMilestones\A-58\ (a58-needs1-5, not usable). The editor was closed gracefully. Calls used: about 49 of a ceiling of about 48.
 Left: a framed #64 shot (spawn a herd next to the player, or launch with v2 and go to the village), the #68 tab shot plus a restart-Play log, and a same-commit v2 rerun if wanted.
+
+### A-58b (follow-up)
+- #64: added the `-needcues` debug flag (forces need cues on, commit on animal-behaviours). The framed shot still failed: two tries (Deer:6, watch 1.5-2 m up, 4-5 m off, `-goflat -weather Clear`) both came out as flat grey haze with no creatures readable. a58-needs.png is not usable. Next: find out what fills the frame (camera in fog volume or in terrain?) before retrying.
+- #68: picked Goblin, colouring 2 in the Character tab (a58-character.png, not reviewed). Stopped and restarted Play; log: `[character] body Goblin saved for next time` then `[character] restored body Goblin, colouring 2`. PlayerPrefs left set to Goblin/2.
+- Note for later: clients don't see need cues (needs are simulation-only and not sent to clients). Not fixed.
