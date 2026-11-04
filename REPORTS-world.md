@@ -1981,6 +1981,16 @@ Commits on world-features: f94399e (#102), 56f6568 (#40).
 - Shots: W85-drowned-knight.png
 - Calls: ~44
 
+## W-87 (2026-11-04): #72 campsite test shots, #36 fishing villages on v3
+
+Commit on world-features: ff45024 (#72). Island v3.
+
+- #72: new debug flag `-campsitetest <look>` (swamp, forest, snow, desert, ash, fungal: the end of a campsite look's name). The bake adds one campsite with that look at the flat dry spot of a matching biome nearest the island middle (clear of other landmarks by 70 m) after every other place, and DebugControls puts the player 9 m west of it, facing it. Nothing is added without the flag. Spots on this seed: CampsiteSwamp 0,32; CampsiteForest 16,-32. Landmark hash without the flag 3A0DC7BB (same as W-86); with the flag F73AD8B1 (the one test campsite, expected).
+- #36: already built (PR #89, W-59..W-67c) and it runs on v3 too: 3 fishing villages from 69 mouth cells, at -3941,1290, -3144,-1596 and -4041,921 (stilt houses, pier with a solid bed, shore props). No code change, so the landmark hash is the same before and after (3A0DC7BB). Shot at village 2. FishingVillageBaking's summary still says "Island v2 only"; that's out of date.
+- Shots: W87-campsite-swamp.png, W87-campsite-forest.png, W87-fishing-village.png
+- Left: no boat could be seen in the village shot at that distance (they're seeded shore props, maybe small or missing); v3 has 3 villages (Most is 4). The swamp tent looks pale in the shot.
+- Calls: ~44
+
 ## W-86 (2026-11-04): #72 campsite looks, #40 ash smith
 
 Commits on world-features: 375e76c (#72), feecbc2 (#40).
