@@ -1628,6 +1628,9 @@ namespace Punchy.Debugging
                     wallTallest = 0f;
                     wallSearchAt = 0f;
                 }
+                // P-5: "-place temple": on a sunken temple room's floor (for camera shots underground, #85).
+                else if (args[i] == "-place" && string.Equals(args[i + 1], "temple", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var templeSource))
+                    PlaceInTemple(templeSource);
                 else if (args[i] == "-place")
                 {
                     // An exact name first (the landmark itself), else the first that contains it.
@@ -1733,7 +1736,7 @@ namespace Punchy.Debugging
             }
             // "-weather Storm" (any WeatherPreset; Clear clears): that weather forced over the player, where it ends up.
             var weatherArg = System.Array.IndexOf(args, "-weather");
-            if (weatherArg >= 0 && weatherArg + 1 < args.Length && playerQuery.TryGetSingleton<LocalTransform>(out var under) &&
+            if (weatherArg >= 0 && weatherArg + 1 < args.Length && QueriesLive() && playerQuery.TryGetSingleton<LocalTransform>(out var under) &&
                 FindAnyObjectByType<WeatherSystem>() is WeatherSystem weather)
                 weather.ForceAt(args[weatherArg + 1], new Vector2(under.Position.x, under.Position.z));
             // "-waterprobe 1" (2, 3; 0 off): the water drawn as its foam, its thickness over the bed, or its alpha.
@@ -1744,7 +1747,7 @@ namespace Punchy.Debugging
             // -place), for framing a place whose coordinates aren't known.
             var camRel = System.Array.IndexOf(args, "-camrel");
             if (camRel >= 0 && camRel + 1 < args.Length && ParseFloats(args[camRel + 1]) is float[] rel && rel.Length >= 6 &&
-                playerQuery.TryGetSingleton<LocalTransform>(out var origin))
+                QueriesLive() && playerQuery.TryGetSingleton<LocalTransform>(out var origin))
             {
                 Vector3 camFrom = (Vector3)origin.Position + new Vector3(rel[0], rel[1], rel[2]);
                 Vector3 camTo = (Vector3)origin.Position + new Vector3(rel[3], rel[4], rel[5]);
@@ -2530,14 +2533,15 @@ namespace Punchy.Debugging
                 Debug.Log($"DebugControls: walk FAIL timeout after {limit:F0} s, shot '{Arg("-shot")}' taken anyway");
             }
             Shot((Arg("-shot") ?? $"shot-{shotIndex}") + ".png");
-            var at = playerQuery.TryGetSingleton<LocalTransform>(out var shooter) ? shooter.Position : float3.zero;
+            var at = QueriesLive() && playerQuery.TryGetSingleton<LocalTransform>(out var shooter) ? shooter.Position : float3.zero;
             Debug.Log($"DebugControls: shot {shotIndex + 1}/{shotLines.Count} '{Arg("-shot")}' after {Time.realtimeSinceStartup - shotStarted:F1} s" +
                       (drawCalls.Valid ? $", {drawCalls.LastValue} draw calls, {batches.LastValue} batches, {tris.LastValue / 1000} k tris" : "") +
                       $", player at ({at.x:F1}, {at.y:F1}, {at.z:F1})");
             var lineSearch = Punchy.Fauna.CreatureBrainSystem.Searches.Data;
             Debug.Log($"DebugControls: flees this line '{Arg("-shot")}' predator {lineSearch.PredatorFlee - lineSearch0.PredatorFlee}, " +
                       $"alarm {lineSearch.AlarmFlee - lineSearch0.AlarmFlee}, player {lineSearch.PlayerFlee - lineSearch0.PlayerFlee}, {SimPrint()}, searches predator {lineSearch.Predator - lineSearch0.Predator}, " +
-                      $"alarm {lineSearch.Alarm - lineSearch0.Alarm}, old search {Punchy.Fauna.CreatureBrainSystem.SearchEveryFrame.Data}");
+                      $"alarm {lineSearch.Alarm - lineSearch0.Alarm}, old search {Punchy.Fauna.CreatureBrainSystem.SearchEveryFrame.Data}, " +
+                      $"ground samples sky {Punchy.Fauna.CreatureRenderSystem.SkyGroundSamples} perch {Punchy.Fauna.AmbientLife.PerchGroundSamples} by frame {Time.frameCount}");
             if (perfLog)
                 LogPerf(Arg("-shot"), at);
             shotIndex++;
@@ -2919,6 +2923,46 @@ namespace Punchy.Debugging
                 }
             }
             Debug.LogWarning($"DebugControls: no {styleName} cave with a chamber");
+        }
+
+        /// <summary>
+        /// P-5 "-place temple": the player on the floor of a room of the nearest sunken temple (a point in its air with
+        /// rock 30 cm under and 1.5 m of air over), searched on a 2 m grid within 40 m of the temple, 0-20 m down.
+        /// </summary>
+        void PlaceInTemple(in TerrainSource source)
+        {
+            if (!playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var at = locations.FindIndex(l => l.Name.IndexOf("SunkenTemple", System.StringComparison.OrdinalIgnoreCase) >= 0);
+            if (at < 0)
+            {
+                Debug.LogWarning("DebugControls: no sunken temple in the places list");
+                return;
+            }
+            var centre = locations[at].Position;
+            for (float r = 0f; r <= 40f; r += 2f)
+                for (float x = -r; x <= r; x += 2f)
+                    for (float z = -r; z <= r; z += 2f)
+                    {
+                        if (math.max(math.abs(x), math.abs(z)) < r)
+                            continue;   // (rings outward, so the nearest room comes first)
+                        var xz = centre + new float2(x, z);
+                        var top = source.SampleHeight(xz);
+                        for (float d = 0.5f; d <= 20f; d += 0.5f)
+                        {
+                            var p = new float3(xz.x, top - d, xz.y);
+                            if (!source.TempleAir(p) || source.TempleAir(p - new float3(0f, 0.3f, 0f)) || !source.TempleAir(p + new float3(0f, 1.5f, 0f)))
+                                continue;
+                            var em = queryWorld.EntityManager;
+                            var t = em.GetComponentData<LocalTransform>(player);
+                            t.Position = p + new float3(0f, 0.05f, 0f);
+                            em.SetComponentData(player, t);
+                            em.SetComponentData(player, new PlayerMotion { Grounded = true });
+                            Debug.Log($"DebugControls: in a sunken temple room at ({p.x:F0}, {p.y:F1}, {p.z:F0}), {d:F1} m under the ground");
+                            return;
+                        }
+                    }
+            Debug.LogWarning($"DebugControls: no temple room floor found near {locations[at].Name}");
         }
 
         /// <summary>
@@ -3998,6 +4042,18 @@ namespace Punchy.Debugging
         }
 
         float3 locationsKey;
+
+        /// <summary>A-48: the cached queries belong to the live world. Before EnsureLocations has run (a client at join
+        /// time) or once a lost host has disposed the world, they are default or stale and TryGetSingleton throws.</summary>
+        bool QueriesLive()
+        {
+            var world = World.DefaultGameObjectInjectionWorld;
+            if (world == null || !world.IsCreated)
+                return false;
+            if (queryWorld != world)
+                EnsureLocations(out _);
+            return queryWorld == world && queryWorld.IsCreated;
+        }
 
         bool EnsureLocations(out TerrainSource source)
         {

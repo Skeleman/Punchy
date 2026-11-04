@@ -35,6 +35,11 @@ namespace Punchy.Fauna
         const float SkyCell = 512f, SkySlot = 90f, SkyCrossing = 1300f, SkyRange = 900f;
         const int SkyLanes = 3;
         readonly List<SkyFlight> skyFlights = new List<SkyFlight>();
+        /// <summary>#63: each sky cell's ground height (the island's terrain, keyed by its landmarks blob).</summary>
+        readonly Dictionary<int2, float> skyGround = new Dictionary<int2, float>();
+        int skyGroundKey;
+        /// <summary>How many sky cell grounds were sampled since the start (A-48 check: a handful, not 9 a frame).</summary>
+        public static int SkyGroundSamples;
 
         static int SkyParts(SkyKind kind) => kind == SkyKind.Cranes ? 5 : 4;
 
@@ -52,13 +57,26 @@ namespace Punchy.Fauna
             if (!dusk && !day)
                 return 0;
             var parts = 0;
+            // (Forgotten when the island changes, v1 baked then v2, or when the camera has crossed many cells.)
+            var islandKey = terrain.Landmarks.GetHashCode();
+            if (islandKey != skyGroundKey || skyGround.Count > 256)
+            {
+                skyGround.Clear();
+                skyGroundKey = islandKey;
+            }
             var centreCell = (int2)math.floor(cam.xz / SkyCell);
             for (int cz = -1; cz <= 1; cz++)
             for (int cx = -1; cx <= 1; cx++)
             {
                 var cell = centreCell + new int2(cx, cz);
                 var middle = ((float2)cell + 0.5f) * SkyCell;
-                var ground = math.max(terrain.SampleHeight(middle), 0f);
+                // (#63: the ground under a sky cell, sampled once per cell rather than 9 times a frame in managed code.)
+                if (!skyGround.TryGetValue(cell, out var ground))
+                {
+                    ground = math.max(terrain.SampleHeight(middle), 0f);
+                    skyGround[cell] = ground;
+                    SkyGroundSamples++;
+                }
                 for (int lane = 0; lane < SkyLanes; lane++)
                 {
                     var laneShift = (math.hash(new int3(cell, lane)) % 1000u) / 1000.0 * SkySlot;
