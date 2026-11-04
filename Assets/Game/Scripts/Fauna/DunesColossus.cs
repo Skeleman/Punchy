@@ -523,6 +523,32 @@ namespace Punchy.Fauna
                 }
             }
 
+            /// <summary>
+            /// W-94 (#40): an ellipsoid whose surface is pushed in and out along each point's direction by
+            /// <paramref name="scale"/> (given the unit-sphere direction before the radii; 1 = on the ellipsoid), for rock
+            /// bodies with dents, ridges and pits. Same facet layout as <see cref="Ellipsoid"/>.
+            /// </summary>
+            public void Rock(Vector3 centre, Vector3 radii, Quaternion rotation, Color color, int lon, int lat, System.Func<Vector3, float> scale)
+            {
+                var ring = new Vector3[(lat + 1) * lon];
+                for (int j = 0; j <= lat; j++)
+                for (int i = 0; i < lon; i++)
+                {
+                    var phi = Mathf.PI * j / lat;
+                    var theta = 2f * Mathf.PI * i / lon;
+                    var u = new Vector3(Mathf.Sin(phi) * Mathf.Cos(theta), Mathf.Cos(phi), Mathf.Sin(phi) * Mathf.Sin(theta));
+                    ring[j * lon + i] = centre + rotation * Vector3.Scale(u, radii) * scale(u);
+                }
+                for (int j = 0; j < lat; j++)
+                for (int i = 0; i < lon; i++)
+                {
+                    int i1 = (i + 1) % lon;
+                    var a = ring[j * lon + i]; var b = ring[j * lon + i1]; var c = ring[(j + 1) * lon + i1]; var d = ring[(j + 1) * lon + i];
+                    if (j > 0) Tri(a, c, b, color);
+                    if (j < lat - 1) Tri(a, d, c, color);
+                }
+            }
+
             /// <summary>The upper half of an ellipsoid (a bowl opening downwards), for coconut-shell shapes; inside = wound to face inwards.</summary>
             public void Dome(Vector3 centre, Vector3 radii, Quaternion rotation, Color color, bool inside = false, int lon = 12, int lat = 4)
             {

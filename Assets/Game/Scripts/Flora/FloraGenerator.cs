@@ -401,19 +401,21 @@ namespace Punchy.Flora
             /// tier, each as wide as the chunk at half a tier under its top, tiers under a step (0.4 m) apart, so the player
             /// steps up a low chunk and stops at a tall one's face. Chunks too thin to stand on get none (walked over).
             /// Only the turn about y is kept (tops stay flat). Model space, bottoms sunk 0.5 m under the ground.
+            /// W-94 (#70): the lowest tier is sunk to a 0.15 m lip (the rest spaced evenly above it), because on a slope the
+            /// widest tier's downhill edge stands its own height plus the ground's fall across it: 0.35 m read as a wall.
             /// </summary>
             public void AddTierBoxes(Vector3 centre, Vector3 radii, Quaternion rotation)
             {
-                const float tier = 0.35f, bottom = -0.5f;
+                const float tier = 0.35f, bottom = -0.5f, lip = 0.15f;
                 var top = centre.y + radii.y;
                 if (top < ChunkStep)
                     return;
-                var n = Mathf.Clamp(Mathf.CeilToInt(top / tier), 1, 6);
+                var n = Mathf.Clamp(Mathf.CeilToInt((top - lip) / tier) + 1, 2, 7);
                 var yaw = Quaternion.Euler(0f, rotation.eulerAngles.y, 0f);
                 for (int k = 1; k <= n; k++)
                 {
-                    var t = top * k / n;
-                    var u = Mathf.Clamp((t - top * 0.5f / n - centre.y) / Mathf.Max(radii.y, 0.01f), -1f, 1f);
+                    var t = lip + (top - lip) * (k - 1) / (n - 1);
+                    var u = Mathf.Clamp((t - (k == 1 ? lip : (top - lip) / (n - 1)) * 0.5f - centre.y) / Mathf.Max(radii.y, 0.01f), -1f, 1f);
                     var s = Mathf.Sqrt(1f - u * u) * 0.8f;
                     var half = new Vector3(radii.x * s, (t - bottom) * 0.5f, radii.z * s);
                     if (half.x < 0.15f || half.z < 0.15f)
@@ -3058,7 +3060,7 @@ namespace Punchy.Flora
                     door = new Vector3(0f, 0.6f - 0.05f, front);
                     return true;
                 case FloraForm.KitBuilding:
-                    if (s.KitShape != Punchy.Terrain.KitShape.House && s.KitShape != Punchy.Terrain.KitShape.StiltHouse)
+                    if (!Punchy.Terrain.StructureKit.HouseLike(s.KitShape))
                         return false;
                     var width = height * s.Spread;
                     var thick = Punchy.Terrain.StructureKit.Thick;
@@ -3223,6 +3225,62 @@ namespace Punchy.Flora
         }
 
         /// <summary>
+        /// W-94 (#80): a ruin's wall bay drawn as old coursed stone blocks instead of one slab: a darker mortar core a
+        /// little inside the face, then courses about 0.32 m high of blocks 0.55-0.95 m long, every other course half a
+        /// block over, each block worn smaller at its edges, proud or sunk a little, tipped a degree or two and shaded
+        /// apart; a few blocks missing (more along the ragged top course), and some of those lying fallen at the wall's
+        /// foot. Drawing only: the bay's collision box is still the part's own (KitStructure adds it), so walks are unchanged.
+        /// </summary>
+        static void RuinBricks(FloraMeshBuilder b, in Punchy.Terrain.KitPart p, Color c, uint seed)
+        {
+            var rng = new System.Random((int)(seed & 0x7FFFFFFF));
+            float R() => (float)rng.NextDouble();
+            var alongX = p.Size.x >= p.Size.z;
+            float length = alongX ? p.Size.x : p.Size.z, thick = alongX ? p.Size.z : p.Size.x, height = p.Size.y;
+            Vector3 Local(float a, float y, float t) => alongX ? new Vector3(a, y, t) : new Vector3(t, y, a);
+            b.Box(p.Centre, Local(length - 0.04f, height - 0.02f, Mathf.Max(0.05f, thick - 0.1f)), p.Rotation, c * 0.6f, FloraPart.Bark);
+            var courses = Mathf.Max(1, Mathf.RoundToInt(height / 0.32f));
+            var ch = height / courses;
+            for (int row = 0; row < courses; row++)
+            {
+                var top = row == courses - 1;
+                float start = -length * 0.5f, end = length * 0.5f, cursor = start;
+                var first = true;
+                while (cursor < end - 0.05f)
+                {
+                    var len = first && (row & 1) == 1 ? 0.28f + R() * 0.2f : 0.55f + R() * 0.4f;
+                    var e = Mathf.Min(end, cursor + len);
+                    if (end - e < 0.25f)
+                        e = end;
+                    float a = (cursor + e) * 0.5f, l = e - cursor;
+                    cursor = e;
+                    first = false;
+                    var gone = R() < (top ? 0.22f : row > 0 ? 0.03f : 0f);
+                    var wear = 0.025f + R() * 0.035f;
+                    var bh = ch - wear - (top ? R() * ch * 0.35f : 0f);
+                    var y = -height * 0.5f + row * ch + bh * 0.5f + wear * 0.5f;
+                    var shade = Color.Lerp(c * 0.84f, c * 1.12f, R());
+                    if (R() < 0.15f)
+                        shade = Color.Lerp(shade, new Color(0.42f, 0.44f, 0.36f), 0.25f);   // a lichened or weathered block
+                    var tip = Quaternion.Euler((R() - 0.5f) * 3f, (R() - 0.5f) * 3f, (R() - 0.5f) * 3f);
+                    if (!gone)
+                    {
+                        var size = Local(Mathf.Max(0.1f, l - wear), bh, thick + 0.02f - R() * 0.06f);
+                        b.Box(p.Centre + p.Rotation * Local(a, y, (R() - 0.5f) * 0.03f), size, p.Rotation * tip, shade, FloraPart.Bark);
+                    }
+                    else if (row > 0 && R() < 0.6f && p.Centre.y - height * 0.5f < 0.3f)   // only from a bay standing on the ground
+                    {
+                        // Fallen to the foot of the wall, on one face or the other, turned and settled into the ground.
+                        var side = R() < 0.5f ? -1f : 1f;
+                        var at = Local(a + (R() - 0.5f) * 0.8f, -height * 0.5f + bh * 0.35f, side * (thick * 0.5f + 0.25f + R() * 0.9f));
+                        var fall = Quaternion.Euler((R() - 0.5f) * 30f, R() * 360f, (R() - 0.5f) * 30f);
+                        b.Box(p.Centre + p.Rotation * at, Local(Mathf.Max(0.2f, l - wear), bh, thick * 0.8f), p.Rotation * fall, shade * 0.95f, FloraPart.Bark);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
         /// A structure-kit building (FloraForm.KitBuilding) or its ruin (FloraForm.KitRuin), #24: StructureKit lays out
         /// the parts from a seed drawn per variant, in the species' Kit Culture trim set (a ruin takes its stone from Bark
         /// and its moss from Accent). Far LODs drop the small trim. Intact buildings collide round their walls up to the
@@ -3287,11 +3345,18 @@ namespace Punchy.Flora
                     storeys = 1;
                     parts = Punchy.Terrain.StructureKit.Wharf(seed, trim, 1.0f, wharfHouses);
                     break;
+                case Punchy.Terrain.KitShape.AshHouse:   // #69: harsh-biome hazard houses, one storey each
+                case Punchy.Terrain.KitShape.SnowHouse:
+                case Punchy.Terrain.KitShape.StormHouse:
+                case Punchy.Terrain.KitShape.SandHouse:
+                    storeys = 1;
+                    parts = Punchy.Terrain.StructureKit.HazardHouse(seed, trim, shape, width, depth);
+                    break;
                 default:
                     parts = Punchy.Terrain.StructureKit.House(seed, trim, width, depth, storeys, ruined ? g.Range(0.45f, 0.9f) : 0f);
                     break;
             }
-            var house = shape == Punchy.Terrain.KitShape.House || shape == Punchy.Terrain.KitShape.StiltHouse ||
+            var house = Punchy.Terrain.StructureKit.HouseLike(shape) ||
                         shape == Punchy.Terrain.KitShape.Igloo || shape == Punchy.Terrain.KitShape.ShellDome;
 
             var first = b.VertexCount;
@@ -3315,8 +3380,11 @@ namespace Punchy.Flora
                     b.MossSheet(p.Centre, p.Size, p.Rotation, c, (uint)i * 2654435761u ^ seed);
                     continue;
                 }
-                b.Box(p.Centre, p.Size, p.Rotation, c, p.Material == Punchy.Terrain.KitMaterial.Moss ? FloraPart.Foliage :
-                                                       p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Rune ? FloraPart.Window : FloraPart.Bark);
+                if (ruined && g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Wall && p.Material == Punchy.Terrain.KitMaterial.Wall)
+                    RuinBricks(b, p, c, seed ^ (uint)i * 0x9E3779B9u);   // W-94 (#80): old coursed blocks up close
+                else
+                    b.Box(p.Centre, p.Size, p.Rotation, c, p.Material == Punchy.Terrain.KitMaterial.Moss ? FloraPart.Foliage :
+                                                           p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Rune ? FloraPart.Window : FloraPart.Bark);
                 var high = p.Centre.y + p.Size.y * 0.5f;
                 top = Mathf.Max(top, high);
                 // W-67 (#79): every part is a solid box unless it's decor (moss, trim, windows, lamps and runes): the

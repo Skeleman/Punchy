@@ -1248,35 +1248,57 @@ namespace Punchy.Fauna
                 heights[i] = source.SampleHeight(new float2(at.x + Mathf.Cos(a) * radius, at.z + Mathf.Sin(a) * radius)) - at.y;
             }
             var m = new DunesColossus.MeshBuilder();
-            // W-93 (#40, Zach): lumpy, not a smooth ball. A coarse, unevenly squashed core (few facets, so they read as
-            // broad uneven faces), knobbed with big overlapping lumps and two or three large crystal outcrops. Its own
-            // random, so the circle, the crust and the crumbs below keep their draws.
+            // W-94 (#40, Zach): a meteoroid, not a lumpy sphere. One fine-faceted (32x22), slightly elongated body whose
+            // surface is pushed in and out by seeded noise: broad swells, sharp ridges (folded noise) and round pits with
+            // low rims. The crystals on it are small and low, so it can plausibly roll over them. Its own random, so the
+            // circle, the crust and the crumbs below keep their draws.
             var lrng = Unity.Mathematics.Random.CreateFromIndex(seed ^ 0xBA11u);
-            m.Ellipsoid(Vector3.zero, new Vector3(CrystalBall * lrng.NextFloat(0.88f, 1f), CrystalBall * lrng.NextFloat(0.84f, 0.94f), CrystalBall * lrng.NextFloat(0.88f, 1f)),
-                Quaternion.Euler(lrng.NextFloat(0f, 360f), lrng.NextFloat(0f, 360f), 0f), SaltWhite, 7, 5);
-            int lumps = lrng.NextInt(6, 10);
-            for (int k = 0; k < lumps; k++)
+            var radii = new Vector3(CrystalBall * lrng.NextFloat(1.08f, 1.18f), CrystalBall * lrng.NextFloat(0.86f, 0.94f), CrystalBall * lrng.NextFloat(0.92f, 1f));
+            var turn = Quaternion.Euler(lrng.NextFloat(0f, 360f), lrng.NextFloat(0f, 360f), 0f);
+            var o1 = lrng.NextFloat3(-50f, 50f); var o2 = lrng.NextFloat3(-50f, 50f); var o3 = lrng.NextFloat3(-50f, 50f);
+            var pits = new float4[lrng.NextInt(8, 12)];
+            for (int k = 0; k < pits.Length; k++)
+                pits[k] = new float4(lrng.NextFloat3Direction(), lrng.NextFloat(0.16f, 0.42f));
+            var pitDepth = lrng.NextFloat(0.045f, 0.07f);
+            float Shape(Vector3 u)
             {
-                var d = (Vector3)lrng.NextFloat3Direction();
-                var s = CrystalBall * lrng.NextFloat(0.3f, 0.5f);
-                m.Ellipsoid(d * CrystalBall * lrng.NextFloat(0.62f, 0.78f), new Vector3(s, s * lrng.NextFloat(0.6f, 0.9f), s * lrng.NextFloat(0.8f, 1.1f)),
-                    Quaternion.LookRotation(d) * Quaternion.Euler(0f, 0f, lrng.NextFloat(0f, 180f)), k % 4 == 3 ? SaltPink : SaltWhite, 6, 4);
+                var p = (float3)u;
+                var f = 1f + 0.075f * noise.snoise(p * 1.3f + o1) + 0.03f * noise.snoise(p * 3.2f + o2);
+                var ridge = 1f - math.abs(noise.snoise(p * 2.3f + o3));
+                f += 0.05f * ridge * ridge * ridge - 0.015f;
+                for (int k = 0; k < pits.Length; k++)
+                {
+                    var x = math.acos(math.clamp(math.dot(p, pits[k].xyz), -1f, 1f)) / pits[k].w;
+                    var depth = pitDepth * (0.5f + pits[k].w);
+                    if (x < 1f) f -= depth * (1f - x * x);
+                    else if (x < 1.45f) f += depth * 0.3f * math.sin((x - 1f) / 0.45f * math.PI);
+                }
+                return f;
             }
+            // The body's surface along a direction from its centre (root-local, before the roll).
+            Vector3 Surface(Vector3 d)
+            {
+                var u = Vector3.Scale(Quaternion.Inverse(turn) * d, new Vector3(1f / radii.x, 1f / radii.y, 1f / radii.z)).normalized;
+                return turn * Vector3.Scale(u, radii) * Shape(u);
+            }
+            m.Rock(Vector3.zero, radii, turn, SaltWhite, 32, 22, Shape);
             int outcrops = lrng.NextInt(2, 4);
             for (int k = 0; k < outcrops; k++)
             {
                 var d = (Vector3)lrng.NextFloat3Direction();
-                m.Limb(d * CrystalBall * 0.6f, d * CrystalBall * lrng.NextFloat(1.25f, 1.4f), lrng.NextFloat(3.5f, 5f), lrng.NextFloat(0.4f, 1.2f), k == 0 ? SaltPink : SaltWhite, 5);
+                var s = Surface(d);
+                m.Limb(s * 0.85f, s * lrng.NextFloat(1.08f, 1.15f), lrng.NextFloat(1.8f, 2.6f), lrng.NextFloat(0.3f, 0.8f), k == 0 ? SaltPink : SaltWhite, 5);
             }
             for (int k = 0; k < 14; k++)
             {
                 var d = Quaternion.Euler(rng.NextFloat(-80f, 80f), rng.NextFloat(0f, 360f), 0f) * Vector3.forward;
-                m.Limb(d * CrystalBall * 0.75f, d * CrystalBall * rng.NextFloat(1.06f, 1.2f), rng.NextFloat(1.8f, 3f), 0.25f, k % 3 == 0 ? SaltPink : SaltWhite, 5);
+                var s = Surface(d);
+                m.Limb(s * 0.9f, s * rng.NextFloat(1.03f, 1.08f), rng.NextFloat(0.8f, 1.5f), 0.2f, k % 3 == 0 ? SaltPink : SaltWhite, 5);
             }
             for (int k = 0; k < 7; k++)
             {
                 var d = Quaternion.Euler(rng.NextFloat(-70f, 70f), rng.NextFloat(0f, 360f), 0f) * Vector3.forward;
-                m.Ellipsoid(d * CrystalBall * 0.97f, new Vector3(rng.NextFloat(2f, 4f), rng.NextFloat(1.5f, 3f), 0.5f), Quaternion.LookRotation(d), SaltDirt, 6, 3);
+                m.Ellipsoid(Surface(d) * 0.99f, new Vector3(rng.NextFloat(2f, 4f), rng.NextFloat(1.5f, 3f), 0.5f), Quaternion.LookRotation(d), SaltDirt, 6, 3);
             }
             AddPart("Ball", root, m.ToMesh("SaltCrystal"));
             // Salt crumbs shed beside the track.
@@ -1292,7 +1314,7 @@ namespace Punchy.Fauna
             }
             AddPart("Crumbs", root, g.ToMesh("SaltCrystalCrumbs"));
             var roll = root.gameObject.AddComponent<SaltCrystalRoll>();
-            roll.Init(root.Find("Ball"), radius, CrystalBall, heights, math.radians(yaw), rng.NextBool() ? 1f : -1f, Resources.Load<Material>("Colossus"));
+            roll.Init(root.Find("Ball"), radius, CrystalBall, heights, math.radians(yaw), rng.NextBool() ? 1f : -1f, Resources.Load<Material>("Colossus"), lrng.NextUInt());
             Debug.Log($"StoneColossi: SaltCrystal circle radius {radius:F0} m round ({at.x:F0}, {at.z:F0}), ball {CrystalBall:F0} m, lap {SaltCrystalRoll.LapSeconds(radius):F0} s, trail {SaltCrystalRoll.TrailLength:F0} m");
             return root;
         }

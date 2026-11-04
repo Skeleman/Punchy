@@ -72,79 +72,76 @@ namespace Punchy.Fauna
             float SleepTime(ref CreatureBlob b) =>
                 b.Active == ActiveTime.Day ? Night : b.Active == ActiveTime.Night ? 1f - Night : 0f;
 
+            /// <summary>
+            /// The weighted activities, in the order the roll is spent on them. Those marked * can fail to start (no
+            /// water, tree, web or flight found); then the roll, already spent, falls to the next * one that has any
+            /// weight, and at last to a wander.
+            /// </summary>
+            enum Weighted : byte { Work, Home, Hunt, Play, Sleep, Rest, Graze, Drink, Climb, Swim, Lounge, Web, Fly, Count }
+
+            /// <summary>
+            /// Chooses what to do next (#60). Every activity, its condition, and what decides it, in priority order: the
+            /// first of the forced, then the urgent, that applies starts and ends the choice; otherwise the weighted roll.
+            /// <code>
+            /// tier     activity     condition                                                  weight / chance      start
+            /// forced   Flit         drawn to light                                             always               Flit
+            /// forced   Breach       breaches, awake                                            30%                  soar (Wander 2)
+            /// forced   Patrol       guard on shift / night guard by day                        always               StartPatrol / Home, Sleep
+            /// forced   Hermit       hermit, its day at the shelter                             HermitDay            HermitDay
+            /// forced   Camper       traveller, its night at camp                               CamperNight          CamperNight
+            ///          (a fisher with no spot looks for one; none, and it's townsfolk)
+            /// forced   Rooted       rooted                                                     always               Sleep / Idle
+            /// forced   Disguised    passes for a plant                                         asleep, or 85%       Sleep / Rest
+            ///          (senses: kin, prey, nest; then the weights below)
+            /// forced   Nest         walker away from its nest in its sleeping time             always               Wander to the nest
+            /// urgent   HuntGame     hunter by day, game within 100 m                           60%                  Hunt (stalk)
+            /// urgent   Raid         hive raider by day, cooldown over                          8%                   StartRaid
+            /// urgent   PlayRing     child by day, homed                                        30%                  StartPlayRing
+            /// urgent   Hearth       townsfolk at dusk, room at the fire                        80%                  StartHearth
+            ///          (the roll is drawn here)
+            /// urgent   Greet        friendly, a person near its range, awake                   35% + lonely 60%     Greet
+            /// urgent   Roost        roosting species                                           always               StartRoost / NightLoop
+            /// urgent   Burrow       burrower in its sleeping time with sleep weight            has or digs one      Burrow
+            /// weighted Work         posted task                                                6 day, 10 night*     Work   (*0 for day work)
+            /// weighted Home         townsfolk with a door (not the watch)                      14 night, 0.15 day   Home
+            /// weighted Hunt         prey found (fierce enough)                                 hunger x2.5 (x1.5 near) Hunt
+            /// weighted Play         kin to play with                                           play x2 x lonely     Play
+            /// weighted Sleep        its sleeping time / always-active and lazy                 6 / lazy x0.4        Sleep
+            /// weighted Rest         -                                                          lazy x0.7 x tired    Rest
+            /// weighted Graze        on the ground                                              graze x2.5 x hunger  Graze
+            /// weighted Drink*       on the ground, not a flier                                 thirst x1.2 x thirst FindWater / FindCaveWater
+            /// weighted Climb*       climber, flora                                             climb x2.5 (8 asleep) StartClimb
+            /// weighted Swim*        homed townsfolk at midday                                  0.12 + wades x1.2    StartSwim
+            /// weighted Lounge*      homed townsfolk by day                                     0.2                  StartLounge
+            /// weighted Web*         web spinner                                                6                    GoToWeb
+            /// weighted Fly*         flier                                                      1.2 (2 perched, 8 to roost) StartFlight
+            /// fallback Wander       on the ground                                              1 (in the roll)      Wander (cave crawl, sunny rock, far shore)
+            /// </code>
+            /// Night overrides zero some weights (posted folk and townsfolk going in, birds going to roost). The roll is
+            /// drawn after the hearth and before the greet, as it always was, so every creature's random draws (and so its
+            /// choices) are the same as before the table.
+            /// </summary>
             void Decide(Entity self, ref CreatureState s, ref CreatureBlob b, int species, ref Random rng, bool perched, float3 player)
             {
                 using var profiled = DecideMarker.Auto();
-                if (b.DrawnToLight)
-                {
-                    Flit(ref s, ref rng);
-                    return;
-                }
                 var sleepy = SleepTime(ref b);
                 var awake = 1f - sleepy * 0.8f;
                 var flier = b.Habitat == Habitat.Flies;
 
-                // A sky serpent, awake under the water, now and then bursts up and out to soar a while.
-                if (b.Breaches && sleepy < 0.5f && rng.NextFloat() < 0.3f)
-                {
-                    SetMode(ref s, CreatureMode.Wander);
-                    s.Stage = 2;
-                    s.Focus = s.Position.xz;
-                    s.TargetHeight = Cruise(s, ref b, s.Focus);
-                    s.Timer = rng.NextFloat(180f, 480f);   // (long spells: it spends much of its day in the air)
-                    s.Target = s.Focus;
+                // ---- forced (before the senses)
+                if (DecideFlit(ref s, ref b, ref rng) || DecideBreach(ref s, ref b, ref rng, sleepy) || DecidePatrol(ref s, ref rng))
                     return;
-                }
-
-                // A guard on shift goes (back) on its rounds; a night guard off shift sleeps the day away indoors (a day
-                // guard off shift has its evening and goes home to bed like anyone).
-                if (s.Task == CreatureTask.Patrol)
-                {
-                    if (OnShift(s) && StartPatrol(ref s))
-                        return;
-                    if (NightShift(s) && Night < 0.45f)
-                    {
-                        if (FindDoor(ref s))
-                        {
-                            SetMode(ref s, CreatureMode.Home);
-                            s.Timer = rng.NextFloat(300f, 600f);
-                        }
-                        else
-                        {
-                            SetMode(ref s, CreatureMode.Sleep);
-                            s.Timer = rng.NextFloat(120f, 300f);
-                        }
-                        return;
-                    }
-                }
-
-                // A hermit's day at its shelter, and a traveller's night at a roadside camp.
                 if (s.Task == CreatureTask.Hermit && HermitDay(ref s, ref b, ref rng, sleepy))
                     return;
                 if (s.Task == CreatureTask.Camper && CamperNight(ref s, ref rng))
                     return;
-
-                // A fisher finds its spot the first time (none within reach, and it's just one of the townsfolk).
+                // (A fisher finds its spot the first time: none within reach, and it's just one of the townsfolk.)
                 if (s.Task == CreatureTask.Fish && sleepy < 0.5f && math.all(s.WorkSpot == float2.zero) && !FindFishingSpot(ref s))
                     s.Task = CreatureTask.None;
-
-                // Rooted to the spot: it only waits, awake or (in its sleeping hours) closed up asleep.
-                if (b.Rooted)
-                {
-                    SetMode(ref s, sleepy > 0.5f ? CreatureMode.Sleep : CreatureMode.Idle);
-                    s.Timer = sleepy > 0.5f ? rng.NextFloat(90f, 300f) : rng.NextFloat(5f, 15f);
+                if (DecideRooted(ref s, ref b, ref rng, sleepy) || DecideDisguised(ref s, ref b, ref rng, sleepy))
                     return;
-                }
-                // Passing for a plant: it mostly sits still, and only now and then (in its waking hours) creeps off
-                // somewhere new.
-                if (b.Disguised && (sleepy > 0.5f || rng.NextFloat() < 0.85f))
-                {
-                    SetMode(ref s, sleepy > 0.5f ? CreatureMode.Sleep : CreatureMode.Rest);
-                    s.Timer = rng.NextFloat(30f, 90f);
-                    return;
-                }
 
-                // Find company first: the options depend on it.
+                // ---- senses, and the weights
                 var playmate = Entity.Null;
                 // (A critter runs light: no company to look for.)
                 if (b.Playfulness > 0f && sleepy < 0.5f && !perched && s.Task != CreatureTask.Critter)
@@ -153,15 +150,71 @@ namespace Punchy.Fauna
                 // (Only the fierce ones of a species with a hunting threshold: a dog chases hares if it's aggressive, #50.)
                 if (b.Prey.Length > 0 && b.Hunger > 0f && sleepy < 0.5f && CreaturePersonality.WillHunt(ref b, s.Individual))
                     FindPrey(self, ref s, ref b, flier ? 60f : 35f, out prey);
+                var w = new FixedList64Bytes<float>();
+                w.Length = (int)Weighted.Count;
+                var wander = Weights(ref s, ref b, ref w, sleepy, awake, flier, perched, playmate, prey, out var awayFromNest);
 
+                // ---- forced (after the senses)
+                if (!flier && awayFromNest && sleepy > 0.5f)
+                {
+                    SetMode(ref s, CreatureMode.Wander);
+                    s.Target = s.Anchor.xz;
+                    return;
+                }
+
+                // ---- urgent
+                if (s.Task == CreatureTask.Hunt && sleepy < 0.5f && rng.NextFloat() < 0.6f && FindGame(self, ref s, 100f, out var game))
+                {
+                    SetMode(ref s, CreatureMode.Hunt);
+                    s.Partner = game;
+                    s.Stage = FolkHunting.Stalk;
+                    s.Timer = rng.NextFloat(60f, 100f);
+                    return;
+                }
+                // A bear by day, now and then, goes after a wild hive's honey (rarely: after a raid it leaves hives be a
+                // long while).
+                if (b.RaidsHives && sleepy < 0.3f && M.ChaseCooldown <= 0f && rng.NextFloat() < 0.08f && StartRaid(ref s, ref rng))
+                    return;
+                // Children by day now and then sit down in a ring on a green to play with their sticks and stones.
+                if (b.Child && sleepy < 0.3f && Night < 0.4f && s.Leash > 0f && rng.NextFloat() < 0.3f && StartPlayRing(self, ref s, ref rng))
+                    return;
+                // Townsfolk gather round the town's fire at dusk, as many as it has room for (the rest go in as usual).
+                if (Gathering(in s, ref b) && rng.NextFloat() < 0.8f && StartHearth(self, ref s, ref rng))
+                    return;
+                // (The sum in its old order, so the roll lands on the same activity for the same draw.)
+                var roll = rng.NextFloat(wander + w[(int)Weighted.Graze] + w[(int)Weighted.Rest] + w[(int)Weighted.Sleep] + w[(int)Weighted.Drink] +
+                                         w[(int)Weighted.Play] + w[(int)Weighted.Hunt] + w[(int)Weighted.Work] + w[(int)Weighted.Climb] +
+                                         w[(int)Weighted.Web] + w[(int)Weighted.Fly] + w[(int)Weighted.Home] + w[(int)Weighted.Swim] +
+                                         w[(int)Weighted.Lounge]);
+                if (DecideGreet(ref s, ref b, ref rng, sleepy, player) || DecideRoost(ref s, ref b, ref rng, sleepy) ||
+                    DecideBurrow(ref s, ref b, ref rng, sleepy, w[(int)Weighted.Sleep]))
+                    return;
+
+                // ---- weighted
+                for (int i = 0; i < (int)Weighted.Count; i++)
+                {
+                    if (w[i] <= 0f || (roll -= w[i]) >= 0f)
+                        continue;
+                    if (StartWeighted((Weighted)i, self, ref s, ref b, ref rng, sleepy, flier, playmate, prey))
+                        return;
+                }
+                WanderOff(ref s, ref b, ref rng, flier, !perched);
+            }
+
+            /// <summary>
+            /// The weighted activities' appeal (the species' taste for each, pressed by the need it meets), into w by
+            /// Weighted; returns the wander's. Picks a nester's nest the first time, and says whether it's away from it.
+            /// </summary>
+            float Weights(ref CreatureState s, ref CreatureBlob b, ref FixedList64Bytes<float> w, float sleepy, float awake, bool flier,
+                          bool perched, Entity playmate, Entity prey, out bool awayFromNest)
+            {
                 // On a branch, a bird can only rest, sleep or fly off.
-                var onGround = !perched;
-                // Each activity's appeal: the species' taste for it, pressed by the need it meets.
-                var wander = 1f * awake * (onGround ? 1f : 0f);
-                var graze = b.Grazing * 2.5f * awake * (onGround ? 1f : 0f) * Urge(M.Hunger);
+                var ground = perched ? 0f : 1f;
+                var wander = 1f * awake * ground;
+                var graze = b.Grazing * 2.5f * awake * ground * Urge(M.Hunger);
                 var rest = b.Laziness * 0.7f * Urge(M.Tired);
                 var sleep = sleepy > 0.5f ? 6f : b.Active == ActiveTime.Always ? b.Laziness * 0.4f * Urge(M.Tired) : 0f;
-                var drink = b.Thirst * 1.2f * awake * (onGround && !flier ? 1f : 0f) * Urge(M.Thirst);
+                var drink = b.Thirst * 1.2f * awake * (!perched && !flier ? 1f : 0f) * Urge(M.Thirst);
                 var play = playmate != Entity.Null ? b.Playfulness * 2f * Urge(M.Lonely) : 0f;
                 var hunt = prey != Entity.Null ? b.Hunger * 2.5f * Urge(M.Hunger) : 0f;
                 // (Keener with prey close: Z-53, so more chases start where they can be seen.)
@@ -184,7 +237,7 @@ namespace Punchy.Fauna
                 if (b.Nests != NestSite.None && s.AnchorSize == 0f)
                     FindNest(ref s, ref b);
                 var nest = b.Nests != NestSite.None && s.AnchorSize > 0f;
-                var awayFromNest = nest && math.distance(s.Position, s.Anchor) > 0.5f;
+                awayFromNest = nest && math.distance(s.Position, s.Anchor) > 0.5f;
                 if (flier && sleepy > 0.5f && HasFlora && (!perched || awayFromNest))
                 {
                     fly = 8f;
@@ -192,12 +245,9 @@ namespace Punchy.Fauna
                 }
                 else if (nest && sleepy > 0.5f && !awayFromNest)
                     fly = 0f;   // home in the nest: stays put till morning
-                if (!flier && nest && sleepy > 0.5f && awayFromNest)
-                {
-                    SetMode(ref s, CreatureMode.Wander);
-                    s.Target = s.Anchor.xz;
-                    return;
-                }
+                // (Going home to the nest is forced: stop before FindDoor, which writes to the state, as before.)
+                if (!flier && awayFromNest && sleepy > 0.5f)
+                    return wander;
                 // Workers mostly work by day, taking a short wander or rest between stints; at night they doze at
                 // their post.
                 // (Hunters have no post: by day they go out after game, at night they sleep at home.)
@@ -215,151 +265,233 @@ namespace Punchy.Fauna
                     if (sleepy > 0.5f)
                         work = sleep = 0f;
                 }
-                if (s.Task == CreatureTask.Hunt && sleepy < 0.5f && rng.NextFloat() < 0.6f && FindGame(self, ref s, 100f, out var game))
-                {
-                    SetMode(ref s, CreatureMode.Hunt);
-                    s.Partner = game;
-                    s.Stage = FolkHunting.Stalk;
-                    s.Timer = rng.NextFloat(60f, 100f);
-                    return;
-                }
-                // A bear by day, now and then, goes after a wild hive's honey (rarely: after a raid it leaves hives be a
-                // long while).
-                if (b.RaidsHives && sleepy < 0.3f && M.ChaseCooldown <= 0f && rng.NextFloat() < 0.08f && StartRaid(ref s, ref rng))
-                    return;
-                // Children by day now and then sit down in a ring on a green to play with their sticks and stones.
-                if (b.Child && sleepy < 0.3f && Night < 0.4f && s.Leash > 0f && rng.NextFloat() < 0.3f && StartPlayRing(self, ref s, ref rng))
-                    return;
-                // Townsfolk gather round the town's fire at dusk, as many as it has room for (the rest go in as usual).
-                if (Gathering(in s, ref b) && rng.NextFloat() < 0.8f && StartHearth(self, ref s, ref rng))
-                    return;
-                var roll = rng.NextFloat(wander + graze + rest + sleep + drink + play + hunt + work + climb + web + fly + home + swim + lounge);
+                w[(int)Weighted.Work] = work;
+                w[(int)Weighted.Home] = home;
+                w[(int)Weighted.Hunt] = hunt;
+                w[(int)Weighted.Play] = play;
+                w[(int)Weighted.Sleep] = sleep;
+                w[(int)Weighted.Rest] = rest;
+                w[(int)Weighted.Graze] = graze;
+                w[(int)Weighted.Drink] = drink;
+                w[(int)Weighted.Climb] = climb;
+                w[(int)Weighted.Swim] = swim;
+                w[(int)Weighted.Lounge] = lounge;
+                w[(int)Weighted.Web] = web;
+                w[(int)Weighted.Fly] = fly;
+                return wander;
+            }
 
-                // Friendly animals go over to a person nearby (within their home range) more often than not.
-                // (Someone arriving at the edge of its home range counts: it goes as far as its range lets it.)
-                var nearPerson = math.distance(player.xz, s.Position.xz) < 35f &&
-                                 (s.Leash <= 0f || math.distance(player.xz, s.Home) < s.Leash + 15f);
-                if (b.Friendly && nearPerson && sleepy < 0.5f && rng.NextFloat() < 0.35f + M.Lonely * 0.6f)
+            /// <summary>Starts a weighted activity the roll landed on; false if it found nowhere to do it (the * ones).</summary>
+            bool StartWeighted(Weighted a, Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float sleepy, bool flier, Entity playmate, Entity prey)
+            {
+                switch (a)
                 {
-                    SetMode(ref s, CreatureMode.Greet);
-                    s.Timer = rng.NextFloat(20f, 45f);
-                    return;
+                    case Weighted.Work:
+                        SetMode(ref s, CreatureMode.Work);
+                        s.Timer = s.Task == CreatureTask.Fish ? rng.NextFloat(120f, 300f) : rng.NextFloat(40f, 120f);
+                        return true;
+                    case Weighted.Home:
+                        SetMode(ref s, CreatureMode.Home);
+                        // (At night it stays in till morning: the time only runs by day.)
+                        s.Timer = rng.NextFloat(15f, 45f);
+                        return true;
+                    case Weighted.Hunt:
+                        SetMode(ref s, CreatureMode.Hunt);
+                        s.Partner = prey;
+                        s.Timer = b.ChaseTime * rng.NextFloat(0.7f, 1.3f);
+                        if (flier)
+                            s.Stage = 1;
+                        return true;
+                    case Weighted.Play:
+                        SetMode(ref s, CreatureMode.Play);
+                        s.Partner = playmate;
+                        s.Timer = rng.NextFloat(12f, 25f);
+                        s.Focus = s.Leash > 0f ? s.Home : s.Position.xz;   // where the game is played
+                        return true;
+                    case Weighted.Sleep:
+                        SetMode(ref s, CreatureMode.Sleep);
+                        s.Timer = sleepy > 0.5f ? rng.NextFloat(90f, 300f) : rng.NextFloat(20f, 60f);
+                        return true;
+                    case Weighted.Rest:
+                        SetMode(ref s, CreatureMode.Rest);
+                        s.Timer = rng.NextFloat(12f, 40f);
+                        return true;
+                    case Weighted.Graze:
+                        SetMode(ref s, CreatureMode.Graze);
+                        s.Timer = rng.NextFloat(8f, 25f);
+                        return true;
+                    case Weighted.Drink:
+                        if (!(CaveWalker(s, ref b) ? FindCaveWater(ref s, ref b, ref rng, out var shore, out var water)
+                                                   : FindWater(ref s, ref b, ref rng, out shore, out water)))
+                            return false;
+                        SetMode(ref s, CreatureMode.Drink);
+                        s.Target = shore;
+                        s.Focus = water;
+                        return true;
+                    case Weighted.Climb: return StartClimb(ref s, ref b, ref rng, sleepy > 0.5f);
+                    case Weighted.Swim: return StartSwim(ref s, ref b, ref rng);
+                    case Weighted.Lounge: return StartLounge(self, ref s, ref rng);
+                    case Weighted.Web: return GoToWeb(ref s, ref b, ref rng);
+                    case Weighted.Fly: return StartFlight(ref s, ref b, ref rng, sleepy > 0.5f);
                 }
-                // Roosting species: hang up to sleep through their sleeping time, and otherwise stay on the wing.
-                if (b.Roosts)
-                {
-                    // (Startled off its roost, it flies about a while before it settles again.)
-                    if (sleepy > 0.5f && M.Unsettled <= 0f)
-                        StartRoost(ref s, ref b, ref rng);
-                    else
-                        NightLoop(ref s, ref b, ref rng);
-                    return;
-                }
-                // Burrowers sleep down their burrow (digging one where they are if they have none yet).
-                if (b.Burrows && s.AnchorSize < 0f && s.Leash <= 0f &&
-                    math.any((float2)s.Anchor.xz != (math.floor(s.Position.xz / 16f) + 0.5f) * 16f))
-                    s.AnchorSize = 0f;   // somewhere new since it last found no room: look again
-                if (b.Burrows && sleep > 0f && sleepy > 0.5f && (s.AnchorSize > 0f || s.AnchorSize == 0f && DigBurrow(ref s, ref b, ref rng)))
-                {
-                    SetMode(ref s, CreatureMode.Burrow);
-                    s.Timer = rng.NextFloat(120f, 400f);
-                    return;
-                }
-                if (b.Burrows && s.AnchorSize == 0f)
-                    DigBurrow(ref s, ref b, ref rng);
+                return false;
+            }
 
-                if ((roll -= work) < 0f)
+            /// <summary>The fallback: off somewhere new nearby (a cave crawler over the rock, a lizard to sunny rock, a
+            /// swimmer to the far shore), within its home range; a bird on a branch just waits.</summary>
+            void WanderOff(ref CreatureState s, ref CreatureBlob b, ref Random rng, bool flier, bool onGround)
+            {
+                if (!onGround)
                 {
-                    SetMode(ref s, CreatureMode.Work);
-                    s.Timer = s.Task == CreatureTask.Fish ? rng.NextFloat(120f, 300f) : rng.NextFloat(40f, 120f);
+                    s.Timer = 1f;
+                    return;
                 }
-                else if ((roll -= home) < 0f)
+                var candidate = s.Position.xz + rng.NextFloat2Direction() * b.WanderRadius * rng.NextFloat(0.3f, 1f) * (flier ? 0.15f : 1f);
+                // Animals that swim now and then set off for the far side of water in front of them.
+                if (b.CrossesWater && s.Leash <= 0f && rng.NextFloat() < 0.3f && FarShore(s.Position.xz, ref rng, out var farShore))
+                    candidate = farShore;
+                // Animals with a home stay near it.
+                if (s.Leash > 0f && math.distance(candidate, s.Home) > s.Leash)
+                    candidate = s.Home + rng.NextFloat2Direction() * s.Leash * rng.NextFloat(0.1f, 0.8f);
+                // A crawler in a cave: off over the rock, onto a wall or the ceiling as likely as the floor.
+                if (b.Crawls && CaveWalker(s, ref b))
                 {
-                    SetMode(ref s, CreatureMode.Home);
-                    // (At night it stays in till morning: the time only runs by day.)
-                    s.Timer = rng.NextFloat(15f, 45f);
-                }
-                else if ((roll -= hunt) < 0f)
-                {
-                    SetMode(ref s, CreatureMode.Hunt);
-                    s.Partner = prey;
-                    s.Timer = b.ChaseTime * rng.NextFloat(0.7f, 1.3f);
-                    if (flier)
-                        s.Stage = 1;
-                }
-                else if ((roll -= play) < 0f)
-                {
-                    SetMode(ref s, CreatureMode.Play);
-                    s.Partner = playmate;
-                    s.Timer = rng.NextFloat(12f, 25f);
-                    s.Focus = s.Leash > 0f ? s.Home : s.Position.xz;   // where the game is played
-                }
-                else if ((roll -= sleep) < 0f)
-                {
-                    SetMode(ref s, CreatureMode.Sleep);
-                    s.Timer = sleepy > 0.5f ? rng.NextFloat(90f, 300f) : rng.NextFloat(20f, 60f);
-                }
-                else if ((roll -= rest) < 0f)
-                {
-                    SetMode(ref s, CreatureMode.Rest);
-                    s.Timer = rng.NextFloat(12f, 40f);
-                }
-                else if ((roll -= graze) < 0f)
-                {
-                    SetMode(ref s, CreatureMode.Graze);
-                    s.Timer = rng.NextFloat(8f, 25f);
-                }
-                else if ((roll -= drink) < 0f && (CaveWalker(s, ref b) ? FindCaveWater(ref s, ref b, ref rng, out var shore, out var water)
-                                                                 : FindWater(ref s, ref b, ref rng, out shore, out water)))
-                {
-                    SetMode(ref s, CreatureMode.Drink);
-                    s.Target = shore;
-                    s.Focus = water;
-                }
-                // (Only for species that do these: a failed drink above leaves the roll below zero.)
-                else if (climb > 0f && (roll -= climb) < 0f && StartClimb(ref s, ref b, ref rng, sleepy > 0.5f)) { }
-                else if (swim > 0f && (roll -= swim) < 0f && StartSwim(ref s, ref b, ref rng)) { }
-                else if (lounge > 0f && (roll -= lounge) < 0f && StartLounge(self, ref s, ref rng)) { }
-                else if (web > 0f && (roll -= web) < 0f && GoToWeb(ref s, ref b, ref rng)) { }
-                else if (fly > 0f && (roll -= fly) < 0f && StartFlight(ref s, ref b, ref rng, sleepy > 0.5f)) { }
-                else if (onGround)
-                {
-                    var candidate = s.Position.xz + rng.NextFloat2Direction() * b.WanderRadius * rng.NextFloat(0.3f, 1f) * (flier ? 0.15f : 1f);
-                    // Animals that swim now and then set off for the far side of water in front of them.
-                    if (b.CrossesWater && s.Leash <= 0f && rng.NextFloat() < 0.3f && FarShore(s.Position.xz, ref rng, out var farShore))
-                        candidate = farShore;
-                    // Animals with a home stay near it.
-                    if (s.Leash > 0f && math.distance(candidate, s.Home) > s.Leash)
-                        candidate = s.Home + rng.NextFloat2Direction() * s.Leash * rng.NextFloat(0.1f, 0.8f);
-                    // A crawler in a cave: off over the rock, onto a wall or the ceiling as likely as the floor.
-                    if (b.Crawls && CaveWalker(s, ref b))
-                    {
-                        if (CrawlTarget(s, ref b, ref rng, out var spot))
-                        {
-                            SetMode(ref s, CreatureMode.Wander);
-                            s.Target = spot.xz;
-                            s.TargetHeight = spot.y;
-                        }
-                        else
-                            s.Timer = 0.5f;
-                    }
-                    // A lizard outside makes for steep, sunny rock (of a few places, the steepest).
-                    else if (b.Crawls && b.Habitat == Habitat.Land && CaveWalkerNot(s, ref b) && SteepestOf(s.Position.xz, b.WanderRadius, ref rng, out var face))
+                    if (CrawlTarget(s, ref b, ref rng, out var spot))
                     {
                         SetMode(ref s, CreatureMode.Wander);
-                        s.Target = face;
-                    }
-                    else if ((CaveWalker(s, ref b) ? CaveFloor(candidate, s.Position.y) : b.Habitat == Habitat.Land ? OpenGround(candidate) : Walkable(candidate, b.Habitat)) &&
-                        (!b.LavaDweller || InLava(candidate)))
-                    {
-                        SetMode(ref s, CreatureMode.Wander);
-                        s.Target = candidate;
+                        s.Target = spot.xz;
+                        s.TargetHeight = spot.y;
                     }
                     else
                         s.Timer = 0.5f;
                 }
+                // A lizard outside makes for steep, sunny rock (of a few places, the steepest).
+                else if (b.Crawls && b.Habitat == Habitat.Land && CaveWalkerNot(s, ref b) && SteepestOf(s.Position.xz, b.WanderRadius, ref rng, out var face))
+                {
+                    SetMode(ref s, CreatureMode.Wander);
+                    s.Target = face;
+                }
+                else if ((CaveWalker(s, ref b) ? CaveFloor(candidate, s.Position.y) : b.Habitat == Habitat.Land ? OpenGround(candidate) : Walkable(candidate, b.Habitat)) &&
+                    (!b.LavaDweller || InLava(candidate)))
+                {
+                    SetMode(ref s, CreatureMode.Wander);
+                    s.Target = candidate;
+                }
                 else
-                    s.Timer = 1f;
+                    s.Timer = 0.5f;
+            }
+
+            // ---- the forced and urgent entries: each starts its activity and returns true if it applies.
+
+            bool DecideFlit(ref CreatureState s, ref CreatureBlob b, ref Random rng)
+            {
+                if (!b.DrawnToLight)
+                    return false;
+                Flit(ref s, ref rng);
+                return true;
+            }
+
+            /// <summary>A sky serpent, awake under the water, now and then bursts up and out to soar a while.</summary>
+            bool DecideBreach(ref CreatureState s, ref CreatureBlob b, ref Random rng, float sleepy)
+            {
+                if (!(b.Breaches && sleepy < 0.5f && rng.NextFloat() < 0.3f))
+                    return false;
+                SetMode(ref s, CreatureMode.Wander);
+                s.Stage = 2;
+                s.Focus = s.Position.xz;
+                s.TargetHeight = Cruise(s, ref b, s.Focus);
+                s.Timer = rng.NextFloat(180f, 480f);   // (long spells: it spends much of its day in the air)
+                s.Target = s.Focus;
+                return true;
+            }
+
+            /// <summary>A guard on shift goes (back) on its rounds; a night guard off shift sleeps the day away indoors (a
+            /// day guard off shift has its evening and goes home to bed like anyone).</summary>
+            bool DecidePatrol(ref CreatureState s, ref Random rng)
+            {
+                if (s.Task != CreatureTask.Patrol)
+                    return false;
+                if (OnShift(s) && StartPatrol(ref s))
+                    return true;
+                if (!(NightShift(s) && Night < 0.45f))
+                    return false;
+                if (FindDoor(ref s))
+                {
+                    SetMode(ref s, CreatureMode.Home);
+                    s.Timer = rng.NextFloat(300f, 600f);
+                }
+                else
+                {
+                    SetMode(ref s, CreatureMode.Sleep);
+                    s.Timer = rng.NextFloat(120f, 300f);
+                }
+                return true;
+            }
+
+            /// <summary>Rooted to the spot: it only waits, awake or (in its sleeping hours) closed up asleep.</summary>
+            bool DecideRooted(ref CreatureState s, ref CreatureBlob b, ref Random rng, float sleepy)
+            {
+                if (!b.Rooted)
+                    return false;
+                SetMode(ref s, sleepy > 0.5f ? CreatureMode.Sleep : CreatureMode.Idle);
+                s.Timer = sleepy > 0.5f ? rng.NextFloat(90f, 300f) : rng.NextFloat(5f, 15f);
+                return true;
+            }
+
+            /// <summary>Passing for a plant: it mostly sits still, and only now and then (in its waking hours) creeps off
+            /// somewhere new.</summary>
+            bool DecideDisguised(ref CreatureState s, ref CreatureBlob b, ref Random rng, float sleepy)
+            {
+                if (!(b.Disguised && (sleepy > 0.5f || rng.NextFloat() < 0.85f)))
+                    return false;
+                SetMode(ref s, sleepy > 0.5f ? CreatureMode.Sleep : CreatureMode.Rest);
+                s.Timer = rng.NextFloat(30f, 90f);
+                return true;
+            }
+
+            /// <summary>Friendly animals go over to a person nearby (within their home range) more often than not.
+            /// (Someone arriving at the edge of its home range counts: it goes as far as its range lets it.)</summary>
+            bool DecideGreet(ref CreatureState s, ref CreatureBlob b, ref Random rng, float sleepy, float3 player)
+            {
+                var nearPerson = math.distance(player.xz, s.Position.xz) < 35f &&
+                                 (s.Leash <= 0f || math.distance(player.xz, s.Home) < s.Leash + 15f);
+                if (!(b.Friendly && nearPerson && sleepy < 0.5f && rng.NextFloat() < 0.35f + M.Lonely * 0.6f))
+                    return false;
+                SetMode(ref s, CreatureMode.Greet);
+                s.Timer = rng.NextFloat(20f, 45f);
+                return true;
+            }
+
+            /// <summary>Roosting species: hang up to sleep through their sleeping time, and otherwise stay on the wing.
+            /// (Startled off its roost, it flies about a while before it settles again.)</summary>
+            bool DecideRoost(ref CreatureState s, ref CreatureBlob b, ref Random rng, float sleepy)
+            {
+                if (!b.Roosts)
+                    return false;
+                if (sleepy > 0.5f && M.Unsettled <= 0f)
+                    StartRoost(ref s, ref b, ref rng);
+                else
+                    NightLoop(ref s, ref b, ref rng);
+                return true;
+            }
+
+            /// <summary>Burrowers sleep down their burrow (digging one where they are if they have none yet).</summary>
+            bool DecideBurrow(ref CreatureState s, ref CreatureBlob b, ref Random rng, float sleepy, float sleep)
+            {
+                if (!b.Burrows)
+                    return false;
+                if (s.AnchorSize < 0f && s.Leash <= 0f &&
+                    math.any((float2)s.Anchor.xz != (math.floor(s.Position.xz / 16f) + 0.5f) * 16f))
+                    s.AnchorSize = 0f;   // somewhere new since it last found no room: look again
+                if (sleep > 0f && sleepy > 0.5f && (s.AnchorSize > 0f || s.AnchorSize == 0f && DigBurrow(ref s, ref b, ref rng)))
+                {
+                    SetMode(ref s, CreatureMode.Burrow);
+                    s.Timer = rng.NextFloat(120f, 400f);
+                    return true;
+                }
+                if (s.AnchorSize == 0f)
+                    DigBurrow(ref s, ref b, ref rng);
+                return false;
             }
 
             static bool Free(CreatureMode mode) =>
