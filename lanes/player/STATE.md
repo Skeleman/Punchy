@@ -29,3 +29,4 @@ no machine paths or personal info. Never bare `git stash`.
 - P-5 done 11-03 (player-client 0b2309d): camera underground (#85). Caves verified; temple room not shot yet (-place temple finds no room); small-body pivot open.
 - P-6 11-03: DungeonSocket contract d7ed5eb (posted). Set pieces blocked: underground collision is world-lane code; options in the report.
 - P-7 (11-04): temple fix, small-body camera pivot, temple dungeon sockets + debug draw (supervisor picked the temple-rooms option). P-8 after: sound and look settings.
+- P-7 done 11-04 (player-client be6d005): -place temple fixed, small-body camera (partial), temple socket buffer (68, hash 9C11B352). P-8 next.

@@ -1,5 +1,17 @@
 # Player lane reports
 
+## 2026-11-04 batch P-7: temple placement fixed, small-body camera, 68 temple sockets (#85, #24)
+- DONE: merged main 9d34275 (fast-forward), pushed
+- DONE #85 row 1: `-place temple[:N]` uses the baked RuinRooms in the temple frame: "in sunken temple room 9/47 (16 x 16 m, ceiling 4.0 m, kind 0) at (3518.9, 19.0, 360.4); the ground is 4.5 m above"
+- DONE #85 row 2 (after only): rabbit in that room, camera inside, walls and pillars, no stone see-through (a2-temple-rabbit-side.png). No "before": the pre-P-5 build is gone (overwritten in P-5)
+- PARTLY #85 row 3: pivot = 1.6 m x PlayerBody.Size (rabbit 0.25 -> 0.4 m); small bodies (size < 0.75) looking up underground orbit no lower than -10 deg and tilt the view the rest. Rabbit at -50 in the hut cave: head/ears at the frame's foot only (a3-cave-up-rabbit.png); human unchanged, body in frame (b2-cave-up-human.png)
+- DONE #24 rows 4-5: TempleSocketSystem -> entity "Dungeon (sunken temple)" with DungeonInfo + DungeonSocket buffer: 68 sockets from 47 rooms: creature 15, chest 8, wall decor 15, interactable 15, clutter 15; hash 9C11B352 in 2 runs (rabbit / human). Rooms classed by shape (hall, dead end, doorway, pedestal, dark); chests = dead-end far walls + far corners of closed rooms. Debug draw: F9 / `-sockets` (b1-temple-sockets.png). Biome = 0 for now. SHA posted in COORDINATION.md (be6d005)
+- CHECK NEEDED: in b1 (human, temple room 9) the camera shows sky over the walls: either an open neighbouring room or the camera leaving the room; not resolved
+- Checks: 1 compile error fixed (ref param in a local function); 3 builds Succeeded 0 errors (2nd: chest fallback + small-body tilt, under the one-fix allowance; 1st open hit Safe Mode, editor force-closed, it was mine); 4 runs all quit, no Punchy.exe left; editor closed. Went ahead of R-12 in the queue with Zach's OK (23 GB free)
+- Shots: D:/PunchyMilestones/P-7/sheet2.png, a2-temple-rabbit-side.png, b1-temple-sockets.png, a3-cave-up-rabbit.png, b2-cave-up-human.png
+- Cost: ~46 calls, 3 builds
+- NEXT: chest count to ~15 (more closed rooms or Large rooms 2 chests); full rabbit body in frame looking up (raise the pivot only while looking up); check the b1 sky; Biome from the temple's biome
+
 ## 2026-11-03 batch P-6: DungeonSocket contract pushed; set pieces BLOCKED on underground collision
 - DONE: #24 row 1 `DungeonSocket` exactly per the brief (IBufferElementData: Pos, Rot, SocketKind Kind, byte Size, uint Tags, uint Seed, ushort DungeonType, byte Biome) + SocketKind / SocketSize / SocketTags (NearWater, NearChest, NearAltar, Dark, Ledge, Doorway, Ceiling; append-only) + MakeSeed(world, dungeon, index) (player-client d7ed5eb). SHA posted in COORDINATION.md log. Folder is Assets/Game/Scripts/Dungeon/ (repo convention), not Assets/Scripts/Dungeon/ as the card wrote
 - NOT DONE rows 2-3, blocked (decision needed, not mine to make):

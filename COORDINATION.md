@@ -175,3 +175,7 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
 - 2026-11-03: #24 dungeons: `DungeonSocket` contract pushed on player-client d7ed5eb (Assets/Game/Scripts/Dungeon/DungeonSocket.cs:
   buffer element; SocketKind, SocketSize, SocketTags flags, DungeonSocket.MakeSeed). Animal lane: start the spawner from it.
   Changes to it get a heads-up here first.
+- 2026-11-04: #24 socket buffer live on player-client be6d005 (Dungeon/TempleSockets.cs): TempleSocketSystem makes one entity per world
+  "Dungeon (sunken temple)" with DungeonInfo {Id, Type=DungeonTypes.SunkenTemple (1), Sockets, Hash} and a DynamicBuffer<DungeonSocket>
+  (68 on seed 8121: creature 15, chest 8, wall decor 15, interactable 15, clutter 15; hash 9C11B352, same every run). Biome is 0 for now.
+  A-50 spawner: read it, never write it. F9 / -sockets draws them.
