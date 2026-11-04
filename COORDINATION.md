@@ -88,6 +88,7 @@ Paths are under `Assets/Game/`.
 | Animal behavior manager | `Scripts/Fauna/**`, `Fauna/**` assets, `Resources/Domestics.asset`, `Scripts/Debugging/DebugControls.cs` (shared test flags), `Scripts/Weather/WeatherSystem.cs` Sun handling, `GLOSSARY.md`, `Scripts/Audio/**` (shared sound system; others call its API), `Scripts/Ambience/` butterflies and fireflies |
 | world feature manager | `Scripts/Terrain/Caves/**`, `Scripts/Terrain/Anchors/**`, `Scripts/Terrain/Landmarks/**`, `Scripts/Terrain/Settlements/**`, `Scripts/Editor/CaveTools.cs`, `Biomes/Glacier.asset`, `Biomes/Surfaces/GlacierIce.asset`, `Landmarks/*.asset`, cave style and settlement assets, `Shaders/Cave.shader`, `WORLD.md` |
 | kind-possum | `Scripts/Debugging/BenchmarkRoute.cs` and its own `b/*` branches |
+| player lane (2nd account, 11-03) | `Scripts/Settings/**`, `Scripts/UI/**`, `Scripts/Camera/ThirdPersonCamera.cs`, branch `player-client`; later interiors, doors, lights, pickups, inventory (#26) |
 
 **Shared, additive only (tell the other owner):** `Flora/FloraGenerator.cs`, `Flora/FloraPlacement.cs`,
 `Flora/FloraSystem.cs`, biome assets (landmark lists only), `Water.shader` (world session is doing the surface
