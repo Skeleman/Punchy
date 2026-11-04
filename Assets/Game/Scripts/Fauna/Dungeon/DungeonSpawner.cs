@@ -171,6 +171,63 @@ namespace Punchy.Fauna
             return hash;
         }
 
+        /// <summary>One loose item on a dungeon floor: an ItemTable id, a count and where it lies.</summary>
+        public struct Loot
+        {
+            public byte Item, Count;
+            public int Socket;
+            public float3 Pos;
+        }
+
+        // ItemTable ids (player lane, Punchy.Items.ItemTable): Stone 1, Mushroom 3, Coin 6, Key 7.
+        static readonly (byte item, ushort weight, byte maxCount)[] LootRows = { (6, 45, 5), (3, 25, 3), (1, 25, 2), (7, 5, 1) };
+
+        /// <summary>
+        /// Loose items for a dungeon (#24): 3-6 of its empty floor sockets (Creature or Clutter sockets that picked
+        /// nothing, so no prop or chest stands there), chosen and filled from the dungeon's seed (all its socket seeds
+        /// folded), so every machine gets the same list and no two dungeons lay theirs out alike. Coins most, then
+        /// mushrooms and stones, a key rarely. Returns the dungeon seed.
+        /// </summary>
+        public static uint PickLoot(DynamicBuffer<DungeonSocket> sockets, List<DungeonContent> picks, List<Loot> into)
+        {
+            into.Clear();
+            uint seed = 0x9E3779B9u;
+            for (int i = 0; i < sockets.Length; i++)
+                seed = Scramble(seed ^ sockets[i].Seed);
+            var spots = new List<(uint key, int i)>();
+            for (int i = 0; i < sockets.Length && i < picks.Count; i++)
+                if ((sockets[i].Kind == SocketKind.Creature || sockets[i].Kind == SocketKind.Clutter) && picks[i] == DungeonContent.Empty)
+                    spots.Add((Scramble(sockets[i].Seed ^ seed ^ 0x10075EEDu), i));
+            spots.Sort((a, b) => a.key.CompareTo(b.key));
+            var n = math.min(spots.Count, 3 + (int)(seed % 4));
+            int total = 0;
+            foreach (var row in LootRows)
+                total += row.weight;
+            for (int k = 0; k < n; k++)
+            {
+                var r = Scramble(spots[k].key ^ 0xC0FFEEu);
+                var roll = (int)(r % (uint)total);
+                var pick = LootRows[0];
+                foreach (var row in LootRows)
+                    if ((roll -= row.weight) < 0)
+                    {
+                        pick = row;
+                        break;
+                    }
+                var r2 = Scramble(r);
+                // (A little off the socket's centre, so the loot doesn't sit on a grid.)
+                var jitter = new float3(((r2 & 255) / 255f - 0.5f) * 0.7f, 0f, (((r2 >> 8) & 255) / 255f - 0.5f) * 0.7f);
+                into.Add(new Loot
+                {
+                    Item = pick.item,
+                    Count = (byte)(1 + (r2 >> 16) % pick.maxCount),
+                    Socket = spots[k].i,
+                    Pos = sockets[spots[k].i].Pos + jitter,
+                });
+            }
+            return seed;
+        }
+
         /// <summary>
         /// The same sockets picked as if they were another dungeon type: the pick hash and how many sockets get
         /// something. Only for the log, to show the tables differ by type; the real picks use the socket's own type.
@@ -212,6 +269,7 @@ namespace Punchy.Fauna
         readonly List<DungeonContent> picks = new();
         readonly int[] counts = new int[5];
         readonly List<GameObject> props = new();
+        readonly List<DungeonSpawner.Loot> loot = new();
         FaunaDirector director;
         EntityQuery fresh, filled;
 
@@ -274,8 +332,21 @@ namespace Punchy.Fauna
                 {
                     using var items = sockets.ToNativeArray(Allocator.Temp);
                     for (int i = 0; i < items.Length; i++)
-                        if (picks[i] != DungeonContent.Empty && !DungeonSpawner.IsCreature(picks[i]))
-                            props.Add(MakeProp(items[i], picks[i]));
+                        if (picks[i] != DungeonContent.Empty && !DungeonSpawner.IsCreature(picks[i]) &&
+                            MakeProp(items[i], picks[i]) is { } prop)
+                            props.Add(prop);
+                    // Loose loot: the host or solo puts it in the world for everyone (Items.Spawn is ignored on a
+                    // joined client, which is sent the host's items instead).
+                    var lootSeed = DungeonSpawner.PickLoot(sockets, picks, loot);
+                    var list = new System.Text.StringBuilder();
+                    int spawned = 0;
+                    foreach (var l in loot)
+                    {
+                        if (Punchy.Items.Items.Spawn(l.Item, l.Count, l.Pos) >= 0)
+                            spawned++;
+                        list.Append($" {Punchy.Items.ItemTable.Items[l.Item].Name}x{l.Count}@{l.Socket}({l.Pos.x:F1},{l.Pos.y:F1},{l.Pos.z:F1})");
+                    }
+                    Debug.Log($"[dungeon] loot: dungeon {d.Index} type {type} seed 0x{lootSeed:x8}: {loot.Count} items, {spawned} spawned here:{list}");
                 }
                 if (animals)
                     MakeCreatures(d);
@@ -319,9 +390,19 @@ namespace Punchy.Fauna
             return made.Count;
         }
 
-        /// <summary>A placeholder box for an item pick: sized by kind, tinted by content, no collider.</summary>
+        static Material propMaterial;
+        static MaterialPropertyBlock propBlock;
+        static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+
+        /// <summary>
+        /// A placeholder box for an item pick: sized by kind, tinted by content, no collider. Null for a chest socket:
+        /// the player lane's Items draws the chest there. Drawn with the items' URP material (Resources/ItemMaterial,
+        /// the pipeline's default lit material), tinted through a property block, so it never draws magenta.
+        /// </summary>
         static GameObject MakeProp(in DungeonSocket s, DungeonContent c)
         {
+            if (s.Kind == SocketKind.Chest)
+                return null;
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
             go.name = $"Dungeon {c}";
             Object.Destroy(go.GetComponent<Collider>());
@@ -335,7 +416,13 @@ namespace Punchy.Fauna
             go.transform.SetPositionAndRotation((Vector3)s.Pos + Vector3.up * size.y * 0.5f, s.Rot);
             go.transform.localScale = size;
             var h = DungeonSpawner.Scramble((uint)c * 0x9E3779B1u);
-            go.GetComponent<Renderer>().material.color = Color.HSVToRGB((h & 1023) / 1023f, 0.45f, 0.75f);
+            var r = go.GetComponent<Renderer>();
+            propMaterial ??= Resources.Load<Material>("ItemMaterial");
+            if (propMaterial != null)
+                r.sharedMaterial = propMaterial;
+            propBlock ??= new MaterialPropertyBlock();
+            propBlock.SetColor(BaseColorId, Color.HSVToRGB((h & 1023) / 1023f, 0.45f, 0.75f));
+            r.SetPropertyBlock(propBlock);
             return go;
         }
     }

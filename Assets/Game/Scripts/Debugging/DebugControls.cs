@@ -1748,7 +1748,11 @@ namespace Punchy.Debugging
             perfLog = System.Array.IndexOf(args, "-perflog") >= 0;
             // A-45 A/B toggles: "-oldsearch" (#57, every brain search every frame), "-oldsnapshot" (#56, each reader copies
             // the creatures itself), "-oldtrace" (#55, the ground sampled for every creature in trace range).
-            Punchy.Fauna.CreatureBrainSystem.SearchEveryFrame.Data = System.Array.IndexOf(args, "-oldsearch") >= 0 ? 1 : 0;
+            // (-oldsearch also holds from the command line or PlayArgs through every shot-list line: A-55's A/B lost it
+            // when the first shot line, without the flag, switched it back off.)
+            var oldSearch = System.Array.IndexOf(args, "-oldsearch") >= 0 || System.Array.IndexOf(LaunchArgs, "-oldsearch") >= 0 ? 1 : 0;
+            Debug.Log($"DebugControls: -oldsearch {(oldSearch != 0 ? "ON (every brain search every frame)" : "off (staggered searches)")}");
+            Punchy.Fauna.CreatureBrainSystem.SearchEveryFrame.Data = oldSearch;
             Punchy.Fauna.CreatureSnapshotSystem.Off = System.Array.IndexOf(args, "-oldsnapshot") >= 0;
             Punchy.Fauna.TraceSystem.OldOrder = System.Array.IndexOf(args, "-oldtrace") >= 0;
             Punchy.Fauna.TraceSystem.Stats = perfLog;
