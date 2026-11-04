@@ -27,6 +27,8 @@ namespace Punchy.Terrain
         Bounds bounds;
         Material material;
         bool warned;
+        float towerHeight;
+        FarShadow farShadow;
 
         protected override void OnCreate() => RequireForUpdate<TerrainSource>();
 
@@ -44,14 +46,19 @@ namespace Punchy.Terrain
                 return;
             if (material == null)
             {
-                material = Resources.Load<Material>("SaltTowerBasalt");
-                if (material == null)
+                // W-77b (#84): a copy of the Colossus material tinted like the basalt (vertex colour x tint, terrain
+                // haze), so the tower fades into the fog from high up like the ground and the sunken temple.
+                var colossus = Resources.Load<Material>("Colossus");
+                var basalt = Resources.Load<Material>("SaltTowerBasalt");
+                if (colossus == null)
                 {
                     if (!warned)
-                        Debug.LogWarning("[landmarks] SaltTowerBasalt material missing from Resources");
+                        Debug.LogWarning("[landmarks] Colossus material missing from Resources");
                     warned = true;
                     return;
                 }
+                material = new Material(colossus) { name = "SaltTowerHazed" };
+                material.SetColor("_BaseColor", basalt != null && basalt.HasProperty("_BaseColor") ? basalt.GetColor("_BaseColor") : new Color(0.32f, 0.31f, 0.33f));
             }
             var cam = Camera.main;
             if (cam == null)
@@ -60,9 +67,18 @@ namespace Punchy.Terrain
             var lod = d < Lod0Distance ? 0 : d < Lod1Distance ? 1 : 2;
             var rp = new RenderParams(material) { worldBounds = bounds, shadowCastingMode = ShadowCastingMode.On, receiveShadows = true };
             Graphics.RenderMesh(rp, lods[lod], 0, Matrix4x4.Translate(origin));
+            // Past the real shadow distance the tower still casts, through its far shadow proxy.
+            farShadow ??= new FarShadow("SaltTower far shadow");
+            farShadow.Draw(source, origin, towerHeight, SaltTowerShape.BodyRadius + 1.5f);
         }
 
-        protected override void OnDestroy() => Clear();
+        protected override void OnDestroy()
+        {
+            Clear();
+            farShadow?.Dispose();
+            if (material != null)
+                Object.Destroy(material);
+        }
 
         void Clear()
         {
@@ -86,6 +102,7 @@ namespace Punchy.Terrain
                     continue;
                 var l = SaltTowerShape.Layout(inst, h);
                 origin = new Vector3(l.Centre.x, l.Base, l.Centre.y);
+                towerHeight = l.Height;
                 lods = new Mesh[3];
                 for (int lod = 0; lod < 3; lod++)
                 {
@@ -240,6 +257,7 @@ namespace Punchy.Terrain
                 var m = new Mesh { name = name, indexFormat = IndexFormat.UInt32 };
                 m.SetVertices(v);
                 m.SetNormals(n);
+                m.SetColors(System.Linq.Enumerable.ToList(System.Linq.Enumerable.Repeat(Color.white, v.Count))); // Colossus reads vertex colour
                 m.SetTriangles(idx, 0);
                 m.RecalculateBounds();
                 return m;
