@@ -21,10 +21,13 @@ namespace Punchy.Ambience
     /// </summary>
     public class DriftwoodSystem : MonoBehaviour
     {
-        public int MaxLogs = 12;
+        // W-80 (#86): a lone piece here and there, never several in one view.
+        public int MaxLogs = 3;
         public float SpawnRadius = 150f;
         [Tooltip("Seconds between new logs while the pool isn't full.")]
-        public float SpawnInterval = 1.2f;
+        public float SpawnInterval = 15f;
+        [Tooltip("No new log within this distance (m) of one already afloat.")]
+        public float MinGap = 60f;
 
         /// <summary>Logs afloat now, and the main-thread cost of the last Update (ms), for probes and the perf log.</summary>
         public static int Live;
@@ -107,6 +110,7 @@ namespace Punchy.Ambience
                 Time = Time.time,
                 Seed = math.hash(new uint2(++frame, 0x9E3779B9u)) | 1u,
                 Spawn = spawn,
+                MinGap = MinGap,
                 SpawnRadius = Punchy.Settings.GraphicsSettings.DetailRange(SpawnRadius)
             }.Schedule();
             hasPending = true;
@@ -199,6 +203,16 @@ namespace Punchy.Ambience
             public uint Seed;
             public bool Spawn;
             public float SpawnRadius;
+            public float MinGap;
+
+            /// <summary>Another log afloat within MinGap of a point (so two never share a view).</summary>
+            bool Crowded(float2 xz)
+            {
+                for (int i = 0; i < Logs.Length; i++)
+                    if (Logs[i].State != 0 && math.distance(Logs[i].Position.xz, xz) < MinGap)
+                        return true;
+                return false;
+            }
 
             /// <summary>Running river water here: a channel with flow, deep enough to float in.</summary>
             bool River(float2 xz, out GroundSample g)
@@ -282,7 +296,7 @@ namespace Punchy.Ambience
                     var a = rng.NextFloat(math.PI * 2f);
                     var d = math.sqrt(rng.NextFloat(0.04f, 1f)) * SpawnRadius;
                     var xz = cam + new float2(math.cos(a), math.sin(a)) * d;
-                    if (!River(xz, out var g) || g.WaterSurface - g.Height < 0.6f)
+                    if (!River(xz, out var g) || g.WaterSurface - g.Height < 0.6f || Crowded(xz))
                         continue;
                     var towards = math.dot(g.Flow, math.normalizesafe(cam - xz));
                     if (towards < -0.2f && d > 50f)
