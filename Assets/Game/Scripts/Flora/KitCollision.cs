@@ -161,6 +161,35 @@ namespace Punchy.Flora
             return height > float.MinValue;
         }
 
+        /// <summary>
+        /// W-67b: the lowest box top at xz no lower than above, with a body's headroom clear over it: the first floor
+        /// over the ground there (a deck over the seabed, a building's ground floor rather than its roof).
+        /// </summary>
+        public static bool LowestTopAt(in DynamicBuffer<KitBox> boxes, float2 xz, float above, float headroom, out float height)
+        {
+            height = float.MaxValue;
+            for (int i = 0; i < boxes.Length; i++)
+            {
+                if (!Span(boxes[i], xz, out _, out var top) || top < above || top >= height)
+                    continue;
+                var clear = true;
+                for (int j = 0; j < boxes.Length && clear; j++)
+                    clear = j == i || !Span(boxes[j], xz, out var b2, out var t2) || t2 <= top + 0.05f || b2 >= top + headroom;
+                if (clear)
+                    height = top;
+            }
+            return height < float.MaxValue;
+        }
+
+        /// <summary>Whether any box reaches within margin of xz (in plan): the kit set round there has been placed.</summary>
+        public static bool AnyNear(in DynamicBuffer<KitBox> boxes, float2 xz, float margin)
+        {
+            for (int i = 0; i < boxes.Length; i++)
+                if (math.distancesq(boxes[i].Centre.xz, xz) <= math.square(boxes[i].Reach + margin))
+                    return true;
+            return false;
+        }
+
         static float2 Round(int k, int n)
         {
             math.sincos((k - 1) * (2f * math.PI / n), out var s, out var c);

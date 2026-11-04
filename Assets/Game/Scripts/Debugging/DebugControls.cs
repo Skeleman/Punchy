@@ -62,6 +62,7 @@ namespace Punchy.Debugging
             ClimbTest();
             ActionTest();
             Watch();
+            SettleGoto();
             WalkTo();
             Pose();
             Interact();
@@ -1096,6 +1097,12 @@ namespace Punchy.Debugging
         static string walkEnd;
         /// <summary>W-67: the walker's height last frame (ARRIVED waits for it to stop falling).</summary>
         static float walkLastY;
+        /// <summary>
+        /// W-67b: a -goto waiting for the kit boxes round its point (x, z; y the explicit height, or NaN), so it can land
+        /// on a deck or floor rather than the ground under it, and the -walk holds till then; and when it gives up.
+        /// </summary>
+        static float3? gotoSettle;
+        static float gotoSettleUntil;
         static float2 walkStillAt;
         static float walkStillSince;
         static int walkMoves;
@@ -1497,6 +1504,9 @@ namespace Punchy.Debugging
                         t.Position.y = ground.FloorUnder(new float3(gx, gy + 1f, gz), out _) + 0.05f;
                     em.SetComponentData(goer, t);
                     Debug.Log($"DebugControls: to {gx:F0},{gz:F0}");
+                    // W-67b: the kit boxes there may not be placed yet (tiles still loading after the jump): wait for them.
+                    gotoSettle = new float3(gx, parts.Length >= 3 ? t.Position.y - 0.05f : float.NaN, gz);
+                    gotoSettleUntil = Time.unscaledTime + 5f;
                 }
             }
             // "-gocave -1669,2494" (x,z): onto the floor at the cave node nearest that spot in plan, at any depth.
@@ -1708,11 +1718,56 @@ namespace Punchy.Debugging
             return first;
         }
 
+        /// <summary>
+        /// W-67b: after a -goto, once kit boxes reach the point, lifts the player onto the first kit floor over the
+        /// ground there (a wharf deck, not the seabed under it). With an explicit "x,y,z" it stays on the floor under
+        /// that height, so a forced under-deck walk is still possible. Gives up after 5 s (no kit there).
+        /// </summary>
+        void SettleGoto()
+        {
+            if (!gotoSettle.HasValue || queryWorld == null || !queryWorld.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var goer))
+                return;
+            var spot = gotoSettle.Value;
+            var em = queryWorld.EntityManager;
+            using var kitQuery = em.CreateEntityQuery(ComponentType.ReadOnly<KitBox>());
+            var ready = kitQuery.TryGetSingletonBuffer<KitBox>(out var kit, true) && KitCollision.AnyNear(kit, spot.xz, 0.5f);
+            if (!ready)
+            {
+                if (Time.unscaledTime > gotoSettleUntil)
+                {
+                    Debug.Log($"DebugControls: goto no kit boxes at {V(spot.x)},{V(spot.z)} after 5 s");
+                    gotoSettle = null;
+                }
+                return;
+            }
+            gotoSettle = null;
+            var t = em.GetComponentData<LocalTransform>(goer);
+            var ground = t.Position.y;
+            float top;
+            var found = float.IsNaN(spot.y)
+                ? KitCollision.LowestTopAt(kit, spot.xz, ground - 0.3f, 1.7f, out top)
+                : KitCollision.TopAt(kit, spot.xz, spot.y + 1f, 1.7f, out top);
+            if (found && top > ground)
+            {
+                t.Position.y = top + 0.05f;
+                em.SetComponentData(goer, t);
+            }
+            Debug.Log($"DebugControls: goto kit ready, floor {(found ? V(top) : "none")} (ground {V(ground)})");
+        }
+
         /// <summary>"-walk": steers the player at the line's walk target, and logs probe lines on the way.</summary>
         void WalkTo()
         {
             if (!walkTarget.HasValue || queryWorld == null || !queryWorld.IsCreated || !playerQuery.TryGetSingleton<LocalTransform>(out var walker))
                 return;
+            // W-67b: hold still till the -goto has its kit boxes (and has landed on a deck if there is one).
+            if (gotoSettle.HasValue)
+            {
+                PlayerInputSystem.TestMove = float2.zero;
+                walkStillSince = Time.unscaledTime;
+                walkLastY = walker.Position.y;
+                return;
+            }
             var to = walkTarget.Value.xz - walker.Position.xz;
             var distance = math.length(to);
             // Waypoints: within 0.6 m of a leg's end, log it and head for the next one (the last stops at 0.3 m as before).
@@ -1777,9 +1832,11 @@ namespace Punchy.Debugging
             if (!EnsureLocations(out var ground))
                 return false;
             expected = ground.FloorUnder(new float3(target.x, feet.y + 0.5f, target.z), out _);
+            // W-67b: the first kit floor over that ground (not just one within 2.5 m of the feet: a walker 2.6 m under
+            // a wharf deck missed it and was ARRIVED on the seabed). Upper floors need an explicit "x,y,z".
             using var kitQuery = queryWorld.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<KitBox>());
             if (kitQuery.TryGetSingletonBuffer<KitBox>(out var kit, true) &&
-                KitCollision.TopAt(kit, target.xz, feet.y + 2.5f, 1.7f, out var kitTop) && kitTop > expected)
+                KitCollision.LowestTopAt(kit, target.xz, expected - 0.3f, 1.7f, out var kitTop) && kitTop > expected)
                 expected = kitTop;
             return true;
         }
