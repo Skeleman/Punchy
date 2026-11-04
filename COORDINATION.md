@@ -133,7 +133,7 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
 | 7 | `TerrainStreamingSystem.cs` | world feature manager | Per-frame chunk-mesh cap while moving (perf batch) | Lent |
 | 10 | `Flora/FloraPlacement.cs` | world feature manager | Biome-border flora compatibility (19e) | Lent |
 | 11 | Sky shader, `WeatherSystem` moon parts | world feature manager | Moon phases and the second blue moon; Sun stays the animal session's | Lent |
-| 9 | `Scripts/Player/PlayerMovementSystem.cs` | world feature manager (was animal) | Box collision from kit parts (W-67, #79); Zach OK 11-03. Animal lane: don't edit until W-67 merges | Lent |
+| 9 | `Scripts/Player/PlayerMovementSystem.cs` | animal feature manager | Back to animal after PR #89 (box collision, #79). World lane: ask before editing | Owned |
 | 8 | Shader/PSO warm-up at load, `Weather/WeatherField` redraw rate | kind-possum | Glide hitches, weather job cost; own b/ branch | Lent |
 
 ## Open questions
