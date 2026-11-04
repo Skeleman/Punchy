@@ -2,6 +2,36 @@
 
 Newest first.
 
+## W-70 (2026-11-03): v3 B3 biome blend and bleed, B4 rock and scree
+
+- Commit: dbce62f on world-features (pushed). New V3Ground.cs; small hooks in TerrainSource, IslandV2, IslandV3. All behind `-island v3`.
+- Row 0: the data didn't change, only the hash recipe. The old W-68 recipe (Bed, WaterLevel, Width, Down) still gives A77D2ED7B919296E on v2 today. W-69's recipe hashes more river arrays, so it reads 835B1404BEBDF563.
+- Row 1 (B3): the v3 biome map has no border strips. Each pixel has a blend radius of 60-480 m (wide on open ground and around passes), and realms bleed through passes (rolled per cell, stronger near a pass). HighlandSurface is skipped in v3. Biome-colour map: w70_v3_biome_map.png (base surface albedo plus hillshade, passes in red).
+- Pass slopes from `[ranges check]`. Each is "on dry ground / range field alone":
+  - Wet-Cold 39/22
+  - Volcanic-Arid 19/11
+  - Arid-Temperate (2232,1734) 68/13
+  - Arid-Temperate (1405,835) 55/8
+  - Temperate-Cold 66/10
+  - Worst pass 68 deg (range field alone 22).
+  - NOT MET: the range field is now well under 45 deg at every pass, but 3 of 5 passes are still over 45 on dry ground. Both narrow ones (w13, w37) are among them. Next suspect: biome shape relief or river banks cutting the saddle at 4 m steps. I didn't tune this, to stay inside the call budget.
+  - Land overall: over 45 deg 37666 / 773880 cells, max 85.
+- Row 2 (B4): geology per realm (sandstone, slate, granite, basalt, limestone). Altitude bands for alpine, scree and snow sit above the range foot. Scree comes in at 28-38 deg and rock at 38-45 deg; edge noise wobbles both cut-offs. Far LODs use the same SampleSurface path. v3 baked with no errors.
+  - `[rock] land cells (16 m) per realm, ground/alpine/scree/rock/snow: Arid 26777/415/1274/4952/0; Wet 29125/3703/1577/1556/0; Cold 22001/2356/4202/5543/2531; Volcanic 43155/2/733/662/0; Temperate 23583/169/1280/1749/0`
+- Audit (v3): `[hydro audit] rivers 23 (ends 12, open 0), lakes 100 (10583 cells), falls 78 + grand 0, pools 35 (dry 0), ponds 47, dry beds 0 | grid 8 m: wet 53547, steep 804, water over ground 655, land between 45, floating 16, near falls 205`
+- Hashes:
+  - v1, re-measured: 103 / 19885131 (unchanged), caves 47C703C0E17F77CB, ground A96DC8AA7978A9A7, rivers 9833D8B2BD09C77E (W-69 recipe).
+  - v2, unchanged: 136 / 4E61F1CF, caves C49E8E3036C741FC, ground C0C906EE310FA91F, rivers 835B1404BEBDF563 (W-69 recipe) / A77D2ED7B919296E (W-68 recipe).
+  - v3, measured only: 86 landmarks / 64748C4D, caves 16 / B5FFCC2A57A390D4, ground E831C2DEA66D4893, rivers C0D23F3DFB9AF19D.
+- Shots (D:\PunchyMilestones\W-70, not viewed):
+  - w70_v3_biome_map
+  - w70_v3_pass_bleed (Arid-Temperate pass, Arid on both sides)
+  - w70_v3_cliff_Cold
+  - w70_v3_cliff_Arid
+  - w70_v3_cliff_Volcanic_far
+  - The cliff spots were picked by range-field slope on a 32 m grid. Arid (24 deg) and Volcanic (20 deg) came out mild, so those two shots may not show real cliffs.
+- Calls: about 68. Editor left open: W-71 exists and EDITOR-QUEUE is empty.
+
 ## W-69 (2026-11-03): v3 B2, range spines, taper, spurs, passes
 
 Commits: world-features 5d63a75 (V3Ranges.cs new; IslandV3 feeds the range field into v3 ground; IslandV2 helpers made internal, v1/v2 behaviour unchanged). All behind `-island v3`.
