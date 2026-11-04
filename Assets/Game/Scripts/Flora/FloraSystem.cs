@@ -1078,7 +1078,7 @@ namespace Punchy.Flora
         }
 
         /// <summary>Two crossed ribbons along +z from 0 to 1 (ArcBolt.shader bends and widens them).</summary>
-        static Mesh BoltMesh()
+        internal static Mesh BoltMesh()
         {
             const int segments = 24;
             var positions = new List<Vector3>();

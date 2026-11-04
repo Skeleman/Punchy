@@ -26,15 +26,18 @@ namespace Punchy.Fauna
         /// carnivorous plant in the PoisonSwamp and a skeletal lizard shedding ash in the Ashlands in the last two slots; the
         /// drowned knight and the smith are kept whole for later and come back with "-colossus DrownedKnight" / "-colossus AshSmith".
         /// </summary>
-        public enum Kind { KneelingTitan, HalfBuriedHead, GiantTortoise, CrystalSerpent, DrownedKnight, AshSmith, CarnivorousPlant, SkeletalLizard }
+        // W-89 (#40, Zach's designs): a golem of floating rocks held together by arcs takes the ElectricWastelands slot
+        // (the crystal serpent comes back with "-colossus CrystalSerpent"), and a seventh slot holds a walking saguaro in
+        // the Sonoran.
+        public enum Kind { KneelingTitan, HalfBuriedHead, GiantTortoise, CrystalSerpent, DrownedKnight, AshSmith, CarnivorousPlant, SkeletalLizard, RockGolem, WalkingSaguaro }
         /// <summary>Slots: one colossus stands in each.</summary>
-        const int Kinds = 6;
+        const int Kinds = 7;
 
-        /// <summary>What stands in each slot. Slots 4 and 5 hold the plant and the lizard unless a "-colossus" flag swaps the old kind back in.</summary>
-        public static readonly Kind[] Placed = { Kind.KneelingTitan, Kind.HalfBuriedHead, Kind.GiantTortoise, Kind.CrystalSerpent, Kind.CarnivorousPlant, Kind.SkeletalLizard };
+        /// <summary>What stands in each slot. Slots 3, 4 and 5 hold the golem, the plant and the lizard unless a "-colossus" flag swaps the old kind back in.</summary>
+        public static readonly Kind[] Placed = { Kind.KneelingTitan, Kind.HalfBuriedHead, Kind.GiantTortoise, Kind.RockGolem, Kind.CarnivorousPlant, Kind.SkeletalLizard, Kind.WalkingSaguaro };
 
         /// <summary>Where each slot's colossus stands (NaN until placed), for probes and shot lists.</summary>
-        public static readonly float3[] Positions = { new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN) };
+        public static readonly float3[] Positions = { new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN) };
 
         const float Step = 150f;
         /// <summary>The biomes each kind looks for, by <see cref="Kind"/>.</summary>
@@ -42,12 +45,19 @@ namespace Punchy.Fauna
         {
             new[] { "Tundra", "Glacier", "Mountains" }, new[] { "Grassland", "Temperate" }, new[] { "FungalForest" }, new[] { "ElectricWastelands" },
             new[] { "FoggyMarsh", "PoisonSwamp" }, new[] { "Ashlands", "Volcano", "EmberForest" }, new[] { "PoisonSwamp" }, new[] { "Ashlands" },
+            new[] { "ElectricWastelands" }, new[] { "Sonoran" },
         };
         // Each slot draws from its own salt on the world seed, so adding one moves no other colossus or landmark.
-        static readonly uint[] Salts = { 0x71A4u, 0x4EADu, 0x7027u, 0x5E2Bu, 0xD20Au, 0xA54Du };
-        static readonly float[] KeepRadius = { 34f, 42f, 38f, 44f, 44f, 46f };
+        static readonly uint[] Salts = { 0x71A4u, 0x4EADu, 0x7027u, 0x5E2Bu, 0xD20Au, 0xA54Du, 0x5A6Au };
+        static readonly float[] KeepRadius = { 34f, 42f, 38f, 44f, 44f, 46f, 34f };
         /// <summary>Height and half-width each slot casts with its far shadow (#84); the last entry is the Dunes colossus.</summary>
-        static readonly float2[] Casts = { new float2(46f, 14f), new float2(22f, 12f), new float2(30f, 20f), new float2(26f, 9f), new float2(40f, 18f), new float2(18f, 20f), new float2(58f, 20f) };
+        static readonly float2[] Casts = { new float2(46f, 14f), new float2(22f, 12f), new float2(30f, 20f), new float2(52f, 14f), new float2(40f, 18f), new float2(18f, 20f), new float2(56f, 12f), new float2(58f, 20f) };
+        /// <summary>
+        /// W-89 (#40): the most relief (highest minus lowest ground, m) a colossus spot may have across its keep circle.
+        /// A spot steeper than this is redrawn (up to eight times, then the flattest draw wins), so no colossus stands
+        /// on a hillside with its feet hanging over the drop. A spot already flat enough keeps its first draw.
+        /// </summary>
+        const float MaxRelief = 6f;
 
         static readonly Color Stone = new Color(0.50f, 0.50f, 0.49f);
         static readonly Color Dark = new Color(0.36f, 0.36f, 0.36f);
@@ -146,12 +156,14 @@ namespace Punchy.Fauna
             placed = true;
             // "-colossus AshSmith" (or DrownedKnight) puts a kept kind back in the slot it used to stand in.
             // Reset first: statics live on between editor play runs.
+            Placed[3] = Kind.RockGolem;
             Placed[4] = Kind.CarnivorousPlant;
             Placed[5] = Kind.SkeletalLizard;
             var args = Punchy.Debugging.DebugControls.LaunchArgs;
             for (int i = 0; i + 1 < args.Length; i++)
                 if (args[i] == "-colossus" && System.Enum.TryParse<Kind>(args[i + 1], true, out var swap))
                 {
+                    if (swap == Kind.CrystalSerpent) Placed[3] = swap;
                     if (swap == Kind.DrownedKnight) Placed[4] = swap;
                     if (swap == Kind.AshSmith) Placed[5] = swap;
                 }
@@ -163,7 +175,7 @@ namespace Punchy.Fauna
                         foreach (var name in Biomes[(int)Placed[kind]])
                             if (palette.Biomes[b].name.StartsWith(name, System.StringComparison.OrdinalIgnoreCase))
                                 wanted.Add(b);
-                if (!Pick(source, biomes, n, half, wanted, Salts[kind], out var spot, out var yaw, out var cells))
+                if (!Pick(source, biomes, n, half, wanted, Salts[kind], KeepRadius[kind] * 0.7f, out var spot, out var yaw, out var cells))
                 {
                     Debug.Log($"StoneColossi: no room for a {Placed[kind]} in this world, none placed");
                     continue;
@@ -196,14 +208,16 @@ namespace Punchy.Fauna
                     Kind.DrownedKnight => BuildKnight(Positions[kind], yaw),
                     Kind.AshSmith => BuildSmith(Positions[kind], yaw),
                     Kind.CarnivorousPlant => BuildPlant(Positions[kind], yaw),
+                    Kind.RockGolem => BuildGolem(Positions[kind], yaw, (uint)source.World.Seed ^ Salts[kind]),
+                    Kind.WalkingSaguaro => BuildSaguaro(Positions[kind], yaw, (uint)source.World.Seed ^ Salts[kind]),
                     _ => BuildLizard(Positions[kind], yaw),
                 };
-                Debug.Log($"StoneColossi: {Placed[kind]} placed at ({spot.x:F0}, {ground:F1}, {spot.y:F0}), facing {yaw:F0} degrees, region {cells} cells");
+                Debug.Log($"StoneColossi: {Placed[kind]} placed at ({spot.x:F0}, {ground:F1}, {spot.y:F0}), facing {yaw:F0} degrees, region {cells} cells, relief {Relief(source, spot, KeepRadius[kind] * 0.7f):F1} m");
             }
         }
 
         /// <summary>The biggest 4-connected region of <paramref name="wanted"/> cells, then a seeded pick among its most inland cells clear of settlements.</summary>
-        static bool Pick(in TerrainSource source, int[] grid, int n, float half, HashSet<int> wanted, uint salt, out float2 spot, out float yaw, out int cells)
+        static bool Pick(in TerrainSource source, int[] grid, int n, float half, HashSet<int> wanted, uint salt, float radius, out float2 spot, out float yaw, out int cells)
         {
             spot = default; yaw = 0f; cells = 0;
             var region = new int[n * n];
@@ -275,10 +289,32 @@ namespace Punchy.Fauna
                 if (At(i % n, i / n) == biggest && scores[i] >= best - 1)
                     candidates.Add(i);
             var rng = Unity.Mathematics.Random.CreateFromIndex((uint)source.World.Seed ^ salt);
-            var pick = candidates[rng.NextInt(candidates.Count)];
-            spot = new float2(-half + pick % n * Step, -half + pick / n * Step) + rng.NextFloat2(-Step * 0.3f, Step * 0.3f);
+            // The first draw is the pre-W-89 spot; only a steep one draws again (MaxRelief).
+            var flattest = float.MaxValue;
+            for (int attempt = 0; attempt < 8; attempt++)
+            {
+                var pick = candidates[rng.NextInt(candidates.Count)];
+                var at = new float2(-half + pick % n * Step, -half + pick / n * Step) + rng.NextFloat2(-Step * 0.3f, Step * 0.3f);
+                var relief = Relief(source, at, radius);
+                if (relief < flattest) { flattest = relief; spot = at; }
+                if (relief <= MaxRelief)
+                    break;
+            }
             yaw = rng.NextFloat(0f, 360f);
             return true;
+        }
+
+        /// <summary>Highest minus lowest ground at the centre and twelve points round a circle of <paramref name="radius"/>.</summary>
+        static float Relief(in TerrainSource source, float2 at, float radius)
+        {
+            float lo = source.SampleHeight(at), hi = lo;
+            for (int k = 0; k < 12; k++)
+            {
+                var a = k * math.PI / 6f;
+                var h = source.SampleHeight(at + new float2(math.cos(a), math.sin(a)) * radius);
+                lo = math.min(lo, h); hi = math.max(hi, h);
+            }
+            return hi - lo;
         }
 
         [BurstCompile]
@@ -996,6 +1032,268 @@ namespace Punchy.Fauna
             // Ash shed from the ribcage, and dust round the feet.
             Puffs(root, "Ash", Spine(0.62f), new Vector3(14f, 8f, 30f), new Color(0.34f, 0.32f, 0.31f, 0.35f), new Color(0.48f, 0.46f, 0.44f, 0.40f), 2.5f, 7f, 10f, 1.4f, 10f);
             Puffs(root, "Dust", Spine(0.6f) * 0f + new Vector3(0f, 1.5f, 0f), new Vector3(46f, 1f, 70f), new Color(0.55f, 0.50f, 0.45f, 0.20f), new Color(0.62f, 0.58f, 0.52f, 0.28f), 6f, 14f, 5f, 0.5f, 12f);
+            return root;
+        }
+
+        static readonly Color GolemBasalt = new Color(0.22f, 0.21f, 0.24f);
+        static readonly Color BasaltPale = new Color(0.34f, 0.33f, 0.37f);
+        static readonly Color Scorch = new Color(0.12f, 0.11f, 0.12f);
+
+        /// <summary>
+        /// W-89 (#40, Zach's ElectricWastelands design): a golem about 55 m tall built from the area's floating rocks, caught
+        /// mid-stride. Every body part is its own jagged rock (the floating rocks' dark basalt with violet and blue shards),
+        /// hanging a couple of metres from the next, and each one bobs and turns on its own; the floating rocks' arcs
+        /// (ArcBolt, as between the arcing spires) crackle across every gap and hold it together (<see cref="GolemArcs"/>).
+        /// Seeded per world: its size, the step, how far each arm swings and the tilt of the head. Details: shards orbiting
+        /// the chest with arcs to some of them, crystal eyes, a scorched mound under each foot, and a rock it has dropped
+        /// lying in the dirt with one weak arc still reaching up to its hand.
+        /// </summary>
+        static Transform BuildGolem(float3 at, float yaw, uint seed)
+        {
+            var root = new GameObject("RockGolem").transform;
+            root.SetPositionAndRotation(new Vector3(at.x, at.y - 0.8f, at.z), Quaternion.Euler(0f, yaw, 0f));
+            var rng = Unity.Mathematics.Random.CreateFromIndex(seed);
+            var scale = rng.NextFloat(0.9f, 1.12f);
+            root.localScale = Vector3.one * scale;
+            var step = rng.NextFloat(4f, 7f);
+            var swingL = rng.NextFloat(-6f, -2f);
+            var swingR = rng.NextFloat(3f, 9f);
+            var tilt = Quaternion.Euler(rng.NextFloat(-6f, 12f), rng.NextFloat(-20f, 20f), rng.NextFloat(-8f, 8f));
+            var arcs = root.gameObject.AddComponent<GolemArcs>();
+            var shape = Unity.Mathematics.Random.CreateFromIndex(seed ^ 0x9E37u);
+
+            int Rock(string name, Vector3 centre, Vector3 radii, Quaternion rot, float bob, int shards)
+            {
+                var m = new DunesColossus.MeshBuilder();
+                m.Ellipsoid(Vector3.zero, radii, rot, GolemBasalt, 7, 4);
+                for (int k = 0; k < 3; k++)                                                                     // jagged lumps
+                {
+                    var d = (Vector3)shape.NextFloat3Direction();
+                    m.Ellipsoid(Vector3.Scale(d, radii) * 0.55f, radii * shape.NextFloat(0.45f, 0.7f), Quaternion.Euler((Vector3)shape.NextFloat3(0f, 360f)), k == 0 ? BasaltPale : GolemBasalt, 6, 3);
+                }
+                for (int k = 0; k < shards; k++)                                                                // crystal shards poking out
+                {
+                    var d = (Vector3)shape.NextFloat3Direction();
+                    var foot = Vector3.Scale(d, radii) * 0.85f;
+                    m.Limb(foot, foot + d * shape.NextFloat(1.2f, 2.6f), shape.NextFloat(0.3f, 0.6f), 0.04f, k % 2 == 0 ? Violet : Crystal, 5);
+                }
+                var go = new GameObject(name);
+                go.transform.SetParent(root, false);
+                go.transform.localPosition = centre;
+                AddPart("Rock", go.transform, m.ToMesh(name));
+                return arcs.AddSegment(go.transform, Mathf.Min(radii.x, Mathf.Min(radii.y, radii.z)) * 0.9f, bob, shape.NextFloat(0f, 6.28f));
+            }
+
+            // Legs mid-stride: the left forward, the right back with its heel lifted.
+            int lFoot = Rock("LeftFoot", new Vector3(-5.5f, 2f, step), new Vector3(3.6f, 2f, 5f), Quaternion.identity, 0.1f, 1);
+            int rFoot = Rock("RightFoot", new Vector3(5.5f, 3f, -step - 1f), new Vector3(3.4f, 2f, 4.6f), Quaternion.Euler(-18f, 0f, 0f), 0.2f, 1);
+            int lShin = Rock("LeftShin", new Vector3(-5.5f, 10.5f, step * 0.7f), new Vector3(3.2f, 4f, 3.2f), Quaternion.Euler(-8f, 0f, 0f), 0.5f, 1);
+            int rShin = Rock("RightShin", new Vector3(5.5f, 11f, -step * 0.8f), new Vector3(3.2f, 4f, 3.2f), Quaternion.Euler(14f, 0f, 0f), 0.5f, 1);
+            int lThigh = Rock("LeftThigh", new Vector3(-5f, 20.5f, step * 0.35f), new Vector3(3.8f, 4.2f, 3.8f), Quaternion.Euler(-14f, 0f, 0f), 0.7f, 2);
+            int rThigh = Rock("RightThigh", new Vector3(5f, 20.5f, -step * 0.35f), new Vector3(3.8f, 4.2f, 3.8f), Quaternion.Euler(12f, 0f, 0f), 0.7f, 2);
+            int pelvis = Rock("Pelvis", new Vector3(0f, 28.5f, 0f), new Vector3(7f, 2.8f, 4.5f), Quaternion.identity, 0.8f, 2);
+            int torso = Rock("Torso", new Vector3(0f, 40f, 0.8f), new Vector3(10f, 7f, 6.5f), Quaternion.Euler(6f, 0f, 0f), 0.9f, 6);
+            int head = Rock("Head", new Vector3(0f, 52.5f, 2f), new Vector3(3.8f, 4f, 4.2f), tilt, 1.2f, 3);
+            // Crystal eyes in the head's face.
+            {
+                var eyes = new DunesColossus.MeshBuilder();
+                for (int side = -1; side <= 1; side += 2)
+                    eyes.Ellipsoid(tilt * new Vector3(side * 1.5f, 0.6f, 3.9f), new Vector3(0.8f, 0.5f, 0.5f), tilt, Crystal, 6, 3);
+                AddPart("Eyes", arcs.Segment(head), eyes.ToMesh("RockGolemEyes"));
+            }
+            // Arms swinging against the legs: shoulder, upper arm, forearm, fist, each hanging free.
+            var fists = new int[2];
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var swing = side < 0 ? swingL : swingR;
+                var n = side < 0 ? "Left" : "Right";
+                int shoulder = Rock(n + "Shoulder", new Vector3(side * 15f, 45.5f, 0.5f), new Vector3(3.6f, 3.4f, 3.6f), Quaternion.identity, 1f, 2);
+                int upper = Rock(n + "UpperArm", new Vector3(side * 17f, 37f, swing * 0.4f), new Vector3(3f, 4.2f, 3f), Quaternion.Euler(-swing * 2f, 0f, side * 6f), 1.1f, 1);
+                int fore = Rock(n + "Forearm", new Vector3(side * 18f, 27f, swing * 0.9f), new Vector3(3f, 4f, 3f), Quaternion.Euler(-swing * 3f, 0f, side * 4f), 1.2f, 1);
+                int fist = Rock(n + "Fist", new Vector3(side * 18.5f, 18f, swing * 1.4f), new Vector3(3.6f, 3.4f, 3.6f), Quaternion.identity, 1.3f, 3);
+                fists[side < 0 ? 0 : 1] = fist;
+                arcs.Link(torso, shoulder, 2);
+                arcs.Link(shoulder, upper, 1);
+                arcs.Link(upper, fore, 2);
+                arcs.Link(fore, fist, 1);
+            }
+            arcs.Link(lFoot, lShin, 1); arcs.Link(lShin, lThigh, 2); arcs.Link(lThigh, pelvis, 1);
+            arcs.Link(rFoot, rShin, 1); arcs.Link(rShin, rThigh, 2); arcs.Link(rThigh, pelvis, 1);
+            arcs.Link(pelvis, torso, 3);
+            arcs.Link(torso, head, 2);
+            // Shards orbiting the chest; every other one is wired to it.
+            for (int k = 0; k < 7; k++)
+            {
+                var a = k / 7f * Mathf.PI * 2f + rng.NextFloat(-0.3f, 0.3f);
+                var p = new Vector3(Mathf.Cos(a) * 15f, 40f + rng.NextFloat(-6f, 7f), Mathf.Sin(a) * 11f);
+                var piece = rng.NextFloat(0.8f, 1.6f);
+                int shard = Rock("Shard" + k, p, new Vector3(piece, piece * 1.3f, piece), Quaternion.identity, 2f, 0);
+                if (k % 2 == 0)
+                    arcs.Link(torso, shard, 1);
+            }
+
+            // On the ground: a scorched, cracked mound under each foot, magnetic rubble, and the dropped rock.
+            var g = new DunesColossus.MeshBuilder();
+            foreach (var foot in new[] { new Vector3(-5.5f, 0.3f, step), new Vector3(5.5f, 0.3f, -step - 1f) })
+            {
+                g.Ellipsoid(foot, new Vector3(7f, 0.7f, 8f), Quaternion.Euler(0f, rng.NextFloat(0f, 360f), 0f), Scorch, 10, 3);
+                for (int k = 0; k < 4; k++)
+                {
+                    var ca = rng.NextFloat(0f, Mathf.PI * 2f);
+                    g.Limb(foot + Vector3.up * 0.5f, foot + new Vector3(Mathf.Cos(ca) * 9f, 0.2f, Mathf.Sin(ca) * 9f), 0.35f, 0.08f, Hollow, 4);
+                }
+            }
+            for (int k = 0; k < 14; k++)
+            {
+                var a = rng.NextFloat(0f, Mathf.PI * 2f);
+                var p = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * rng.NextFloat(10f, 28f);
+                var r = rng.NextFloat(0.5f, 1.8f);
+                p.y = r * 0.4f;
+                g.Ellipsoid(p, new Vector3(r, r * 0.7f, r * 0.9f), Quaternion.Euler(rng.NextFloat(0f, 360f), rng.NextFloat(0f, 360f), 0f), k % 3 == 0 ? BasaltPale : GolemBasalt, 6, 3);
+            }
+            var dropped = new Vector3(rng.NextFloat(22f, 26f), 1.6f, rng.NextFloat(-2f, 8f));
+            g.Ellipsoid(dropped, new Vector3(3f, 2f, 2.6f), Quaternion.Euler(12f, 40f, 8f), GolemBasalt, 7, 4);
+            g.Ellipsoid(dropped + new Vector3(0.4f, -1.2f, 0f), new Vector3(4.5f, 0.5f, 4f), Quaternion.identity, Scorch, 8, 3);
+            g.Limb(dropped + Vector3.up * 1.6f, dropped + new Vector3(-0.6f, 4f, 0.4f), 0.4f, 0.04f, Violet, 5);
+            AddPart("Ground", root, g.ToMesh("RockGolemGround"));
+            var droppedPoint = new GameObject("DroppedRock").transform;
+            droppedPoint.SetParent(root, false);
+            droppedPoint.localPosition = dropped;
+            arcs.Link(arcs.AddSegment(droppedPoint, 1.8f, 0f, 0f), fists[1], 1, 0.5f);
+            return root;
+        }
+
+        static readonly Color Saguaro = new Color(0.34f, 0.47f, 0.28f);
+        static readonly Color SaguaroDark = new Color(0.22f, 0.33f, 0.19f);
+        static readonly Color SpinePale = new Color(0.88f, 0.84f, 0.68f);
+        static readonly Color Blossom = new Color(0.96f, 0.95f, 0.88f);
+        static readonly Color Pollen = new Color(0.96f, 0.80f, 0.28f);
+        static readonly Color Fruit = new Color(0.74f, 0.20f, 0.24f);
+        static readonly Color Dirt = new Color(0.50f, 0.39f, 0.28f);
+
+        /// <summary>
+        /// W-89 (#40, Zach's Sonoran design): a saguaro about 50 m tall walking across the desert on its roots, mid-stride:
+        /// a ribbed, spined trunk leaning into the step on three root legs (one lifted, dripping soil), and two to four
+        /// arms (one may droop, as old saguaros' do). Seeded per world: height, lean, the arms and which one droops.
+        /// Details: white blossoms and red fruit on the crown and arm tips, woodpecker holes in the trunk, a hawk perched
+        /// on an arm, footprint holes in a line behind it, and dust kicked up round the feet.
+        /// </summary>
+        static Transform BuildSaguaro(float3 at, float yaw, uint seed)
+        {
+            var root = new GameObject("WalkingSaguaro").transform;
+            root.SetPositionAndRotation(new Vector3(at.x, at.y - 0.6f, at.z), Quaternion.Euler(0f, yaw, 0f));
+            var m = new DunesColossus.MeshBuilder();
+            var rng = Unity.Mathematics.Random.CreateFromIndex(seed);
+            var height = rng.NextFloat(44f, 54f);
+            var lean = rng.NextFloat(4f, 9f);
+            const float R = 4.6f;
+            var trunkBase = new Vector3(0f, 9f, 0f);
+            Vector3 Trunk(float t) => trunkBase + new Vector3(0f, (height - trunkBase.y) * t, lean * t * t);
+
+            // A ribbed column with pale spines along every rib.
+            void Ribbed(System.Func<float, Vector3> path, float radius, int steps, int ribs)
+            {
+                for (int s = 0; s < steps; s++)
+                    m.Limb(path(s / (float)steps), path((s + 1f) / steps), radius * 0.9f, radius * 0.9f, SaguaroDark, ribs);
+                for (int k = 0; k < ribs; k++)
+                {
+                    var a = k * Mathf.PI * 2f / ribs;
+                    for (int s = 0; s < steps; s++)
+                    {
+                        Vector3 p0 = path(s / (float)steps), p1 = path((s + 1f) / steps);
+                        var along = (p1 - p0).normalized;
+                        var side = Vector3.Cross(along, Vector3.right).sqrMagnitude > 0.1f ? Vector3.Cross(along, Vector3.right).normalized : Vector3.forward;
+                        var out0 = Quaternion.AngleAxis(a * Mathf.Rad2Deg, along) * side;
+                        m.Limb(p0 + out0 * radius * 0.85f, p1 + out0 * radius * 0.85f, radius * 0.22f, radius * 0.22f, Saguaro, 4);
+                        if ((s + k) % 2 == 0)
+                        {
+                            var sp = Vector3.Lerp(p0, p1, 0.5f) + out0 * radius * 1.05f;
+                            m.Limb(sp, sp + out0 * radius * 0.16f + along * 0.1f, 0.07f, 0.01f, SpinePale, 3);
+                        }
+                    }
+                }
+                var top = path(1f);
+                m.Ellipsoid(top, new Vector3(radius, radius * 0.8f, radius), Quaternion.identity, Saguaro, 12, 5);
+            }
+            void Bloom(Vector3 top, float radius, int count)
+            {
+                for (int k = 0; k < count; k++)
+                {
+                    var a = rng.NextFloat(0f, Mathf.PI * 2f);
+                    var p = top + new Vector3(Mathf.Cos(a) * radius * 0.55f, radius * 0.6f, Mathf.Sin(a) * radius * 0.55f);
+                    if (k % 3 == 2)
+                        m.Ellipsoid(p, new Vector3(0.35f, 0.5f, 0.35f) * radius * 0.3f, Quaternion.identity, Fruit, 6, 3);
+                    else
+                    {
+                        m.Ellipsoid(p, new Vector3(0.6f, 0.2f, 0.6f) * radius * 0.3f, Quaternion.identity, Blossom, 8, 3);
+                        m.Ellipsoid(p + Vector3.up * 0.1f, new Vector3(0.2f, 0.12f, 0.2f) * radius * 0.3f, Quaternion.identity, Pollen, 5, 2);
+                    }
+                }
+            }
+            Ribbed(Trunk, R, 10, 14);
+            Bloom(Trunk(1f), R, 9);
+            // Arms: out from the trunk, a rounded elbow, then up (or, for the drooping one, down and out).
+            var arms = rng.NextInt(2, 5);
+            var droop = rng.NextInt(0, arms + 1);                                                           // arms means none droops
+            Vector3 perch = default;
+            for (int k = 0; k < arms; k++)
+            {
+                var a = (k * 360f / arms + rng.NextFloat(-25f, 25f)) * Mathf.Deg2Rad;
+                var d = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a));
+                var t = rng.NextFloat(0.35f, 0.7f);
+                var from = Trunk(t);
+                var out1 = from + d * rng.NextFloat(8f, 11f) + Vector3.up * 1.5f;
+                var r = R * rng.NextFloat(0.55f, 0.7f);
+                var rise = k == droop ? -rng.NextFloat(6f, 10f) : rng.NextFloat(8f, 16f);
+                var tip = out1 + Vector3.up * rise + d * (k == droop ? 3f : 0.5f);
+                Ribbed(s => Vector3.Lerp(from, out1, Mathf.Min(1f, s * 2f)) + (s > 0.5f ? (tip - out1) * (s - 0.5f) * 2f : Vector3.zero), r, 6, 10);
+                m.Ellipsoid(out1, Vector3.one * r * 0.95f, Quaternion.identity, Saguaro, 10, 5);
+                if (k != droop)
+                    Bloom(tip, r, 4);
+                if (k == 0)
+                    perch = tip + Vector3.up * r * 0.8f;
+            }
+            // A hawk perched on the first arm, looking out.
+            m.Ellipsoid(perch + Vector3.up * 0.5f, new Vector3(0.35f, 0.55f, 0.4f), Quaternion.Euler(-15f, 0f, 0f), new Color(0.32f, 0.24f, 0.18f), 6, 4);
+            m.Ellipsoid(perch + new Vector3(0f, 1.1f, 0.1f), new Vector3(0.22f, 0.22f, 0.24f), Quaternion.identity, new Color(0.85f, 0.80f, 0.72f), 6, 3);
+            // Woodpecker holes, with darker rims.
+            for (int k = 0; k < 4; k++)
+            {
+                var a = rng.NextFloat(0f, Mathf.PI * 2f);
+                var p = Trunk(rng.NextFloat(0.2f, 0.8f)) + new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a)) * R * 1.02f;
+                m.Ellipsoid(p, new Vector3(0.9f, 1.1f, 0.9f), Quaternion.Euler(0f, a * Mathf.Rad2Deg, 0f), SaguaroDark, 6, 3);
+                m.Ellipsoid(p + new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a)) * 0.3f, new Vector3(0.55f, 0.75f, 0.55f), Quaternion.Euler(0f, a * Mathf.Rad2Deg, 0f), Hollow, 6, 3);
+            }
+            // Three root legs: two planted wide, the third lifted forward mid-step, soil hanging from its roots.
+            for (int k = 0; k < 3; k++)
+            {
+                var a = (k * 120f + 180f) * Mathf.Deg2Rad;
+                var d = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a));
+                var lifted = k == 0;
+                if (lifted) d = Vector3.forward;
+                var foot = d * (lifted ? 11f : 12f) + Vector3.up * (lifted ? rng.NextFloat(4f, 6f) : 0.5f);
+                var from = trunkBase + d * 2f;
+                Tentacle(m, from, from + d * 5f + Vector3.down * 1f, foot + Vector3.up * 5f - d * 2f, foot, R * 0.75f, 1f, SaguaroDark, Saguaro, 10);
+                for (int r = 0; r < 5; r++)
+                {
+                    var ra = Mathf.Atan2(d.x, d.z) + (r - 2f) * 0.45f;
+                    var to = foot + new Vector3(Mathf.Sin(ra) * rng.NextFloat(3f, 5f), lifted ? -rng.NextFloat(1f, 2.5f) : -0.4f, Mathf.Cos(ra) * rng.NextFloat(3f, 5f));
+                    m.Limb(foot, to, 0.6f, 0.1f, Dirt, 5);
+                    if (lifted)
+                        m.Ellipsoid(to + Vector3.down * 0.3f, Vector3.one * rng.NextFloat(0.4f, 0.8f), Quaternion.identity, Dirt, 5, 3);   // clods of soil
+                }
+                if (!lifted)
+                    m.Ellipsoid(foot + Vector3.down * 0.2f, new Vector3(5f, 0.6f, 5f), Quaternion.identity, Dirt, 10, 3);
+            }
+            // Footprints behind it: holes torn out of the ground, a line back the way it came.
+            for (int k = 1; k <= 5; k++)
+            {
+                var p = new Vector3((k % 2 == 0 ? -4f : 4f) + rng.NextFloat(-1f, 1f), 0.25f, -10f - k * 11f);
+                m.Ellipsoid(p, new Vector3(4.5f, 0.5f, 4f), Quaternion.Euler(0f, rng.NextFloat(0f, 360f), 0f), Dirt, 10, 3);
+                m.Ellipsoid(p + Vector3.up * 0.15f, new Vector3(3f, 0.4f, 2.6f), Quaternion.identity, new Color(0.30f, 0.23f, 0.17f), 8, 3);
+            }
+            AddPart("Body", root, m.ToMesh("WalkingSaguaro"));
+            Puffs(root, "Dust", new Vector3(0f, 1.5f, 2f), new Vector3(28f, 1f, 24f), new Color(0.66f, 0.55f, 0.42f, 0.20f), new Color(0.74f, 0.64f, 0.50f, 0.28f), 4f, 10f, 4f, 0.5f, 10f);
             return root;
         }
 
