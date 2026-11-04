@@ -1,3 +1,6 @@
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -81,6 +84,9 @@ namespace Punchy.Terrain
             }
             // lastSun starts at zero, and Vector3.Angle with a zero vector is 0, so this used to never lay the strip
             // at all (W-82): every far shadow drew as a degenerate mesh at the origin.
+            // A lay scheduled last frame lands now (W-90, #84): one frame of shadow delay, no main-thread stall.
+            if (pending)
+                Land();
             if (lastSun == Vector3.zero || Vector3.Angle(toward, lastSun) > 1f)
             {
                 lastSun = toward;
@@ -103,20 +109,57 @@ namespace Punchy.Terrain
             Length = length;
             var mid = start + dir * (0.5f * length);
             Middle = new Vector3(mid.x, source.SampleHeight(mid), mid.y);
-            for (int i = 0; i <= Along; i++)
-                for (int j = 0; j <= Across; j++)
-                {
-                    float u = i / (float)Along, s = j / (float)Across * 2f - 1f;
-                    // A little narrower at the tip, as the summit slab is all that casts that far.
-                    var p = start + dir * (u * length) + side * (s * radius * (1.15f - 0.35f * u));
-                    verts[i * (Across + 1) + j] = new Vector3(p.x, source.SampleHeight(p) + 0.4f, p.y);
-                }
+            // The 125 ground samples per strip cost ~44 ms a re-lay over all colossi in managed code (profiler job 24),
+            // so they run as a Burst job, completed next frame in Draw (W-90, #84).
+            if (!points.IsCreated)
+                points = new NativeArray<float3>(verts.Length, Allocator.Persistent);
+            handle = new LayJob { Source = source, Start = start, Dir = dir, Side = side, Length = length, Radius = radius, Points = points }
+                .Schedule(verts.Length, 8);
+            JobHandle.ScheduleBatchedJobs();
+            pending = true;
+            LaysScheduled++;
+        }
+
+        void Land()
+        {
+            handle.Complete();
+            pending = false;
+            for (int i = 0; i < verts.Length; i++)
+                verts[i] = points[i];
             mesh.vertices = verts;
             mesh.RecalculateBounds();
         }
 
+        /// <summary>Strip lays scheduled this session; StoneColossi times the frames these happen on.</summary>
+        public static int LaysScheduled;
+
+        NativeArray<float3> points;
+        JobHandle handle;
+        bool pending;
+
+        [BurstCompile]
+        struct LayJob : IJobParallelFor
+        {
+            [ReadOnly] public TerrainSource Source;
+            public float2 Start, Dir, Side;
+            public float Length, Radius;
+            [WriteOnly] public NativeArray<float3> Points;
+
+            public void Execute(int k)
+            {
+                int i = k / (Across + 1), j = k % (Across + 1);
+                float u = i / (float)Along, s = j / (float)Across * 2f - 1f;
+                // A little narrower at the tip, as the summit slab is all that casts that far.
+                var p = Start + Dir * (u * Length) + Side * (s * Radius * (1.15f - 0.35f * u));
+                Points[k] = new float3(p.x, Source.SampleHeight(p) + 0.4f, p.y);
+            }
+        }
+
         public void Dispose()
         {
+            handle.Complete();
+            if (points.IsCreated)
+                points.Dispose();
             Live.Remove(this);
             Object.Destroy(mesh);
         }

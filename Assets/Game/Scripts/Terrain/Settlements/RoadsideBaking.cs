@@ -43,6 +43,7 @@ namespace Punchy.Terrain
                                                    List<SettlementLayout> layouts, List<int> firstBuilding, List<SettlementPlot> plots)
         {
             var placed = new List<LandmarkInstance>();
+            CampsDry = CampsWet = 0;
             if (roadside == null || roadside.Count == 0 || roads.Count == 0)
                 return placed;
             var src = source;   // local functions can't capture an in parameter
@@ -260,7 +261,16 @@ namespace Punchy.Terrain
                 }
                 if (highest - lowest > type.MaxRelief || lowest < src.World.SeaLevel + 1.5f)
                     return;
+                // #72 (W-90): a campsite's pad is flattened to its centre's height, so a pool beside it can flood the pad
+                // (the swamp tent stood in water). Reject a site where any water within its radius stands over the pad.
+                if (type.Anchors == WildAnchors.Campsite && PadTouchesWater(src, site, radius, src.SampleHeight(site)))
+                {
+                    CampsWet++;
+                    return;
+                }
 
+                if (type.Anchors == WildAnchors.Campsite)
+                    CampsDry++;
                 placed.Add(new LandmarkInstance
                 {
                     Position = site,
@@ -313,6 +323,26 @@ namespace Punchy.Terrain
                     });
                 }
             }
+        }
+
+        /// <summary>Roadside campsites placed and sites rejected for a wet pad in the last Place (W-90 log).</summary>
+        public static int CampsDry, CampsWet;
+
+        /// <summary>
+        /// #72 (W-90): whether water within this radius of a pad flattened to padHeight would stand on it: a river, or a
+        /// pool, pond or sea whose surface is above the pad less a little margin. Checks the centre and two rings.
+        /// </summary>
+        public static bool PadTouchesWater(in TerrainSource src, float2 site, float radius, float padHeight)
+        {
+            for (int k = 0; k < 25; k++)
+            {
+                var ring = k == 0 ? 0f : k <= 8 ? 0.55f : 1.05f;
+                var a = k * math.PI / (k <= 8 ? 4f : 8f);
+                var g = src.SampleGround(site + new float2(math.cos(a), math.sin(a)) * radius * ring);
+                if (g.River > 0.02f || g.HasWater && g.WaterSurface > padHeight - 0.6f)
+                    return true;
+            }
+            return false;
         }
 
         static float SegmentDistance(float2 p, float2 a, float2 b)
