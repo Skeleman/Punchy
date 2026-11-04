@@ -52,3 +52,4 @@ Read `lanes/shared/checks.md` first.
 ## Baselines (Medium, cap 60, 1% low)
 - v0.11.0 (4eea658): townwalk 35.0, glide 29.6, glide uncapped 37.1, MP joined townwalk 25.9.
 - 0c637a9: townwalk ~41, glide ~31, caveapproach ~35, forest ~51. Glide at cap 60 has sat near 30 since v0.8.
+- Startup profiling: a dev build takes `-profiler-enable -profiler-maxusedmemory 268435456 -profiler-log-file <raw>` from launch, but the editor loads only the last 2000 frames, so cap at -fpscap 20 for a startup capture. BigFrame.cs.txt dumps the longest frames' trees. The town bench stop teleports (restreams); use `-benchstops here` for load times.

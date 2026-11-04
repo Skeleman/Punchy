@@ -1,0 +1,139 @@
+// Profiler-only (never committed to the game): "-streamtrace" logs the startup streaming tail, from "[island] ... ready at"
+// to "[stream] world ready" (+3 s), then the route carries on. Copied to Assets/Game/Scripts/Debugging/StreamTrace.cs for one
+// build, then deleted. Lines start "STREAMTRACE". Per second: frames, frame ms, terrain batches, chunks, main-thread ms of
+// the systems that run during the load; at the end, a summary and every batch (chunks, frames, ms).
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Unity.Entities;
+using Unity.Jobs;
+using Unity.Profiling;
+using Unity.Profiling.LowLevel.Unsafe;
+using UnityEngine;
+
+public class StreamTrace : MonoBehaviour
+{
+    static readonly string[] Wanted = { "TerrainStreamingSystem", "FloraSystem", "GroundDetailSystem", "CaveSystem", "EntitiesGraphicsSystem",
+        "CreatureRenderSystem", "WaterSystem", "LandmarkSystem", "AmbientParticleSystem", "CritterSystem", "WeatherField", "PlayerLoop",
+        "BuildChunkMeshJob", "WaitForJobGroupID", "Gfx.WaitForPresentOnGfxThread", "Physics", "Camera.Render", "GC.Collect",
+        "FloraPlaceJob", "GroundDetail", "StructuralChange", "Instantiate", "TransformSystemGroup", "PresentationSystemGroup" };
+    readonly List<(string name, ProfilerRecorder rec)> recs = new List<(string, ProfilerRecorder)>();
+    ProfilerRecorder mainTime;
+    bool started, finished;
+    float tReady, tWorld = -1f;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    static void Boot()
+    {
+        if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-streamtrace") < 0 || FindAnyObjectByType<StreamTrace>() != null)
+            return;
+        var go = new GameObject("StreamTrace");
+        DontDestroyOnLoad(go);
+        go.AddComponent<StreamTrace>();
+    }
+
+    void OnEnable()
+    {
+        Application.logMessageReceived += (m, s, t) =>
+        {
+            if (!started && m.StartsWith("[island]") && m.Contains(" ready at ")) { started = true; tReady = Time.realtimeSinceStartup; Begin(); }
+            if (m.StartsWith("[stream] world ready") && tWorld < 0f) tWorld = Time.realtimeSinceStartup;
+        };
+    }
+
+    void Begin()
+    {
+        mainTime = ProfilerRecorder.StartNew(ProfilerCategory.Internal, "CPU Main Thread Frame Time", 1);
+        if (!mainTime.Valid) mainTime = ProfilerRecorder.StartNew(ProfilerCategory.Internal, "Main Thread", 1);
+        var handles = new List<ProfilerRecorderHandle>();
+        ProfilerRecorderHandle.GetAvailable(handles);
+        var seen = new HashSet<string>();
+        foreach (var h in handles)
+        {
+            var d = ProfilerRecorderHandle.GetDescription(h);
+            if (d.Name == null || !Wanted.Any(w => d.Name.Contains(w)) || !seen.Add(d.Name) || recs.Count >= 120) continue;
+            var r = new ProfilerRecorder(h, 1, ProfilerRecorderOptions.SumAllSamplesInFrame | ProfilerRecorderOptions.StartImmediately);
+            if (r.Valid) recs.Add((d.Name, r));
+        }
+        Debug.Log($"STREAMTRACE start at {tReady:F1} s; main thread recorder {(mainTime.Valid ? "ok" : "n/a")}; {recs.Count} markers: " + string.Join(", ", recs.Select(x => x.name)));
+        StartCoroutine(Run());
+    }
+
+    // TerrainStreamingSystem private state, by reflection.
+    object sys; FieldInfo fLoaded, fBuilding, fHandle, fWanted; FieldInfo fCoord, fLod;
+    bool Bind()
+    {
+        foreach (var w in World.All)
+        {
+            var t = System.Type.GetType("Punchy.Terrain.TerrainStreamingSystem, Assembly-CSharp");
+            if (t == null) return false;
+            var s = w.GetExistingSystemManaged(t);
+            if (s == null) continue;
+            sys = s;
+            const BindingFlags F = BindingFlags.NonPublic | BindingFlags.Instance;
+            fLoaded = t.GetField("loaded", F); fBuilding = t.GetField("building", F); fHandle = t.GetField("buildHandle", F); fWanted = t.GetField("wanted", F);
+            var item = t.GetNestedType("BuildItem", BindingFlags.NonPublic);
+            fCoord = item?.GetField("Coord"); fLod = item?.GetField("Lod");
+            return fLoaded != null && fBuilding != null && fHandle != null;
+        }
+        return false;
+    }
+
+    IEnumerator Run()
+    {
+        while (!Bind()) yield return null;
+        var batches = new List<(int chunks, int frames, float ms, float start)>();
+        string sig = ""; int batchChunks = 0, batchFrame = 0; float batchStart = 0f;
+        int frame = 0, secFrames = 0, fWait = 0, fReadyIdle = 0, fNone = 0;
+        double secMs = 0, secMax = 0, secMain = 0, totMs = 0, totMain = 0;
+        var secSum = new double[recs.Count]; var totSum = new double[recs.Count];
+        float secStart = Time.realtimeSinceStartup;
+        int secBatches = 0;
+        while (true)
+        {
+            yield return new WaitForEndOfFrame();
+            frame++;
+            var dt = Time.unscaledDeltaTime * 1000.0;
+            var building = (System.Collections.IList)fBuilding.GetValue(sys);
+            var handle = (JobHandle)fHandle.GetValue(sys);
+            var count = building.Count;
+            var s = count == 0 ? "" : count + ":" + fCoord?.GetValue(building[0]) + ":" + fLod?.GetValue(building[0]);
+            if (s != sig)
+            {
+                if (sig != "") batches.Add((batchChunks, frame - batchFrame, (Time.realtimeSinceStartup - batchStart) * 1000f, batchStart - tReady));
+                sig = s; batchChunks = count; batchFrame = frame; batchStart = Time.realtimeSinceStartup;
+                if (count > 0) secBatches++;
+            }
+            if (count == 0) fNone++; else if (handle.IsCompleted) fReadyIdle++; else fWait++;
+            secFrames++; secMs += dt; totMs += dt; secMax = System.Math.Max(secMax, dt);
+            var main = mainTime.Valid ? mainTime.LastValue / 1e6 : 0; secMain += main; totMain += main;
+            for (int i = 0; i < recs.Count; i++) { var v = recs[i].rec.LastValue / 1e6; secSum[i] += v; totSum[i] += v; }
+            var now = Time.realtimeSinceStartup;
+            if (now - secStart >= 1f || (tWorld > 0 && !finished))
+            {
+                var loaded = ((System.Collections.ICollection)fLoaded.GetValue(sys)).Count;
+                var wanted = fWanted != null ? ((System.Collections.ICollection)fWanted.GetValue(sys)).Count : -1;
+                var top = Enumerable.Range(0, recs.Count).OrderByDescending(i => secSum[i]).Take(10)
+                    .Select(i => $"{recs[i].name} {secSum[i] / secFrames:F2}");
+                Debug.Log($"STREAMTRACE t {now - tReady:F1}: frames {secFrames}, frame {secMs / secFrames:F1} ms (max {secMax:F0}), main {secMain / secFrames:F1}, " +
+                          $"batches {secBatches}, loaded {loaded}, wanted {wanted}, building {count} | " + string.Join(" | ", top));
+                secFrames = 0; secMs = 0; secMax = 0; secMain = 0; secBatches = 0; secStart = now;
+                System.Array.Clear(secSum, 0, secSum.Length);
+                if (tWorld > 0 && !finished) finished = true;
+            }
+            if (finished && now - tWorld > 3f) break;
+            if (now - tReady > 120f) { Debug.Log("STREAMTRACE no world ready within 120 s"); break; }
+        }
+        var n = frame;
+        var tops = Enumerable.Range(0, recs.Count).OrderByDescending(i => totSum[i]).Take(25)
+            .Select(i => $"{recs[i].name} {totSum[i] / n:F2} ms/frame ({totSum[i] / 1000:F2} s)");
+        var b = batches.Where(x => x.chunks > 0).ToList();
+        Debug.Log($"STREAMTRACE summary: island ready {tReady:F1} s, world ready {tWorld:F1} s, tail {tWorld - tReady:F1} s; frames {n}, " +
+                  $"mean frame {totMs / n:F1} ms, main thread {totMain / n:F1} ms; frames with a batch meshing {fWait}, batch done but not yet picked up {fReadyIdle}, " +
+                  $"no batch {fNone}; batches {b.Count}, chunks {b.Sum(x => x.chunks)}, chunks/batch {(b.Count > 0 ? b.Average(x => x.chunks) : 0):F1}, " +
+                  $"frames/batch {(b.Count > 0 ? b.Average(x => x.frames) : 0):F1}, ms/batch {(b.Count > 0 ? b.Average(x => x.ms) : 0):F0}");
+        Debug.Log("STREAMTRACE totals: " + string.Join(" | ", tops));
+        Debug.Log("STREAMTRACE batches (t chunks frames ms): " + string.Join(" ", b.Select(x => $"{x.start:F1}/{x.chunks}/{x.frames}/{x.ms:F0}")));
+    }
+}

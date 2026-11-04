@@ -1,0 +1,60 @@
+// Profiler-only editor script (never committed): dumps the main-thread call tree of the longest frames in a .raw capture.
+// Unity -batchmode -executeMethod BigFrame.Dump -raw <file> -out <txt> [-minms 40] [-frames 3]
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Text;
+using UnityEditorInternal;
+
+public static class BigFrame
+{
+    static string Arg(string n, string d) { var a = Environment.GetCommandLineArgs(); var i = Array.IndexOf(a, n); return i >= 0 && i + 1 < a.Length ? a[i + 1] : d; }
+    public static void Dump()
+    {
+        var raw = Arg("-raw", ""); var outPath = Arg("-out", "bigframe.txt");
+        var minMs = double.Parse(Arg("-minms", "40"), CultureInfo.InvariantCulture); var nFrames = int.Parse(Arg("-frames", "3"));
+        var sb = new StringBuilder();
+        ProfilerDriver.ClearAllFrames();
+        var ok = ProfilerDriver.LoadProfile(raw, false);
+        int first = ProfilerDriver.firstFrameIndex, last = ProfilerDriver.lastFrameIndex;
+        sb.AppendLine($"loaded={ok} frames {first}..{last}");
+        var frames = new List<(int f, double ms, double start)>();
+        double t0 = -1;
+        for (int f = first; f <= last; f++)
+            using (var v = ProfilerDriver.GetRawFrameDataView(f, 0))
+                if (v.valid) { if (t0 < 0) t0 = v.frameStartTimeMs; frames.Add((f, v.frameTimeMs, (v.frameStartTimeMs - t0) / 1000.0)); }
+        sb.AppendLine("frames over 500 ms (index, start s from capture start, ms): " + string.Join(" ", frames.Where(x => x.ms > 500).Select(x => $"{x.f}@{x.start:F1}s={x.ms:F0}")));
+        foreach (var fr in frames.OrderByDescending(x => x.ms).Take(nFrames))
+        {
+            sb.AppendLine($"== frame {fr.f} at {fr.start:F1} s: {fr.ms:F0} ms (samples >= {minMs} ms, incl / self)");
+            using var v = ProfilerDriver.GetRawFrameDataView(fr.f, 0);
+            var depth = new int[v.sampleCount]; var self = new double[v.sampleCount];
+            var stack = new Stack<(int idx, int left)>();
+            for (int i = 0; i < v.sampleCount; i++)
+            {
+                double incl = v.GetSampleTimeMs(i); self[i] = incl;
+                depth[i] = stack.Count;
+                if (stack.Count > 0) { var top = stack.Pop(); self[top.idx] -= incl; if (top.left - 1 > 0) stack.Push((top.idx, top.left - 1)); }
+                int c = v.GetSampleChildrenCount(i);
+                if (c > 0) stack.Push((i, c));
+            }
+            // depth above is the stack size after popping the parent slot; recompute properly
+            var d2 = new int[v.sampleCount]; var st = new Stack<(int idx, int left)>();
+            for (int i = 0; i < v.sampleCount; i++)
+            {
+                while (st.Count > 0 && st.Peek().left == 0) st.Pop();
+                d2[i] = st.Count;
+                if (st.Count > 0) { var top = st.Pop(); st.Push((top.idx, top.left - 1)); }
+                int c = v.GetSampleChildrenCount(i);
+                if (c > 0) st.Push((i, c));
+            }
+            for (int i = 0; i < v.sampleCount; i++)
+                if (v.GetSampleTimeMs(i) >= minMs || self[i] >= minMs / 2)
+                    sb.AppendLine($"{new string(' ', 2 * Math.Min(d2[i], 30))}{v.GetSampleName(i)}  {v.GetSampleTimeMs(i):F0} / {self[i]:F0}");
+        }
+        File.WriteAllText(outPath, sb.ToString());
+        UnityEditor.EditorApplication.Exit(0);
+    }
+}
