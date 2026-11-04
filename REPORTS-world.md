@@ -1888,3 +1888,23 @@ Commits on world-features (pushed): 79512da merge origin/main (A-52), 00b758d fl
 - Host play v2: bake "136 landmarks, hash B5EFF8C8" and "v2 shared with ClientWorld ... hash B5EFF8C8": equal. v3 bake hash 108/3A0DC7BB.
 - Host run 1 showed the client world rebuilding flora with nothing pregrown (4644 ms); the shared path now pregrows missing variants (third commit). Run 2 built once (220 ms), so the fix is not yet seen working in the double-build case.
 - Calls: about 43.
+
+## W-80 (2026-11-04): #87 flat house plots, #86 driftwood
+
+- Merged origin/main (a20eff1), with the W-79b FloraGenerator resolution kept.
+- c92b0ca (#87): plots were already levelled to their mean pad in SettlementSampling.Height. That code is seed-derived, so host and client match. Two changes:
+  - A pad far off the ground now blends out over 3 m plus 1 m per metre of height difference, up to 6 m. Plot bounds were widened to fit.
+  - Inside its own plot, a pad now wins outright, so a neighbour's fringe can't tilt it.
+  - Plots flattened: 161 levelled, 149 of them built.
+  - House corners off the floor: worst 0.04 m before, 0.00 m after. None were above 0.3 m.
+  - Fishing and turtle villages and sea folk are separate landmark bakes and are untouched, so stilts and igloos are skipped.
+- Area changed: 64037 m2 checked. 5546 m2 moved more than 1 cm and 2228 m2 more than 10 cm, with a maximum of 2.53 m.
+- Hashes: landmarks 4D2643D7 / 3A0DC7BB (108) before and after. Ground 94A257A419224B6D -> 39BCE2E6F3B78D07. Caves and rivers unchanged.
+- Timing: the hash pass took 9535 ms before and 8884 ms after, so no bake cost was measurable. Three editors were open at the time.
+- 3aaeb59 (#86): MaxLogs 3, SpawnInterval 15 s, and a new log needs a 60 m gap from the others. Live count at (170,-760) every 10 s over 2 min: 0,0,1,2,2,2,2,2,3,3. The after shot still shows two far pieces in one wide view. Suggest a MinGap of about 120 m or MaxLogs 2.
+- Shots in D:\PunchyMilestones\W-80\:
+  - before_set0 and after_set0: the OgreCamp sloped plot. The tipi sits flat.
+  - before_set3 and after_dwarfhold: no house in frame, only the streets.
+  - after_fishing: the village is out of frame, so this shot is weak.
+  - after_driftwood.
+- Calls: about 53 (ceiling). Editor closed.
