@@ -1,5 +1,16 @@
 # Player lane reports
 
+## 2026-11-03 batch P-5: camera underground (#85), partly verified
+- DONE (code): underground = cave near the head, sunken temple room (TempleAir), or head under the ground surface; there the rock probe decides and the open-air ground clamp + hill pull-in (to 1.5 m) are skipped. Underground pitch -60..85 (above ground -20..80, eases back); SetView takes the wide range. DebugControls additive: `-place temple` (player-client 0b2309d). Tell-supervisor note: DebugControls is the animal lane's file, change is additive only
+- Why: #85 says "inside ruins the camera zooms in and clips most of the character as a rabbit". Ruins = sunken temple rooms (underground, not cave field), so the camera ran the open-air path: ground clamp lifted it through the stone, hill check pulled it to 1.5 m from a pivot 1.6 m above a rabbit
+- VERIFIED: hut cave (Granite cave by HermitHutAsh, -3989,37,807), rabbit: default view unchanged (a4-cave.png); `-view 0,-50` now looks up the shaft to the sky hole (a5-cave-up.png; was capped at -20, b5-cave-up.png). Above ground a -50 request eases back into range (t3-temple-up.png)
+- NOT VERIFIED: inside a temple room. `-place temple` found no room floor (2 m grid, 40 m round the places-list SunkenTemple spot, 0-20 m down); `-place SunkenTemple` lands on open sand beside it (t1). Before shots of `-place Ruins` (b1/b2) are the surface Ruins landmark, open grass, no walls
+- NOT DONE: looking up underground loses a small body from frame: the pivot is a fixed TargetHeight 1.6 m above the feet (rabbit a5). Needs a body-scaled pivot (no body-height field on CreatureSpecies; read it from the player's collider/skeleton)
+- Checks: compile 0 errors; 2 builds Succeeded 0 errors (2nd: one-line SetView clamp so -view/warps can aim past -20, under the one-fix allowance); 3 player runs all quit, no Punchy.exe left; editor closed (queue empty, 10 GB at open)
+- Shots: D:/PunchyMilestones/P-5/after-sheet.png (a1-a3 failed temple placement, a4 cave, a5 cave looking up), before-sheet.png, temple-sheet.png
+- Cost: ~40 calls, 2 builds (1 over card, see above)
+- NEXT: fix `-place temple` (check the temple's local frame: SunkenTempleShape.Local / Top 12.5 Bottom -6, maybe search above the cut surface too), shoot temple before/after; body-scaled camera pivot for small bodies
+
 ## 2026-11-03 batch P-4: 30 s net timeout fixes the timeouts; uncovers host refusing its own client
 - DONE: NetDrivers.DisconnectTimeoutMS 10000 -> 30000 (player-client 18e305d, merged main incl. PR #93 first, no conflicts)
 - Timeouts gone: 0 "disconnected (Timeout)" lines in 5 runs
