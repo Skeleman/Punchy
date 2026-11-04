@@ -1689,3 +1689,16 @@ Commits on animal-behaviours: 58b75dd (merge origin/main, far shadows), 2567e10 
 
 Shots: D:\PunchyMilestones\A-57\ (a57-old1-3, a57-new1-3, a57-temple-*). The editor was closed gracefully. Calls used: about 44 of a ceiling of about 45.
 Left: a dedicated crop check of the temple shot if wanted, and why the loot seed changed since A-56.
+
+## A-58 (2026-11-04): need cues, character save, loot seed cause
+
+Commits on animal-behaviours (pushed, on main ccd2151): f56d361 (#64 need cues), 9521bdd (#68 body save/restore). Stopped at the call ceiling.
+
+| # | Result |
+|---|---|
+| 1 (#64) | The 3 spare fear-mark capsules now show the strongest need over 0.6 when not fleeing: tired = pale bubbles rising, hungry = dust puffs at the nose, thirsty = falling drop, lonely = pink heart. Each shows 2.6 s of its own 8-15 s cycle, from a scrambled Individual, so a herd doesn't show cues in step. Render only. Fingerprint 51E641E9 after, the same as A-57. Compiles, 0 exceptions. **No usable shot**: a58-needs1-5 are mis-framed (v3 island, so the village spot is snow, and the eval move put the player in a cave). Needs are host/solo only (not sent), so clients see no cues. |
+| 2 (#68) | The Character tab (class -> species -> colour) already exists from A-46. It is hooked by the one line `MainMenu.AddTab("Character", 5, ...)` in Net/NetAvatars.cs OnEnable (player lane, unchanged). The missing part was keeping the body across sessions. FaunaDirector now saves `Punchy.Character.Body` when the body changes mid-session and restores it (and that species' saved colouring) on the first avatar build. `-body` overrides it. **Not tested in Play**: no tab shot and no log of a restore after restarting Play. |
+| 3 (#24) | Cause: the island version. Socket seeds are MakeSeed(worldSeed, dungeonId, i), and dungeonId is the temple's landmark *instance index*. On v2 the temple is instance 126 (seed 0x16503f99, 4 items); on v3 it is instance 99 (seed 0xf9205369, 3 items). The temple is at the same spot. A-57's second session and today's editor ran v3 (the log says "[island] v3 (B2...)"; PUNCHY_ISLAND or -island at editor launch, not set in this shell). Matching runs: v2, 6 runs in A-57's Editor-prev.log all 0x16503f99. v3: A-57 and today (ccd2151) both 0xf9205369 with the same 3 items. Fragile: any change to the landmark list re-seeds the loot. Suggestion for the Dungeon owner: key the id on the temple's position, not its index. |
+
+Shots: D:\PunchyMilestones\A-58\ (a58-needs1-5, not usable). The editor was closed gracefully. Calls used: about 49 of a ceiling of about 48.
+Left: a framed #64 shot (spawn a herd next to the player, or launch with v2 and go to the village), the #68 tab shot plus a restart-Play log, and a same-commit v2 rerun if wanted.
