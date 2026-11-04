@@ -32,10 +32,11 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #69 #70 #71 #72 | Zach playtest: hermit shelters, wasteland rock collision, great mushroom, biome campgrounds | W-57 (after W-56) |
 | #31 | Laptop: houses lit wrong | Needs the laptop |
 | #21 #22 | Plant fidelity, underwater camera (design) | backlog |
-| #24 | Dungeons: caves and ruins | Phase 1: P-7 rows 4-5 (sockets in the sunken temple rooms; pool rooms need a world tile later), A-50 spawner + behaviours |
+| #24 | Dungeons: caves and ruins | Phase 1: P-7 rows 4-5 (sockets in the sunken temple rooms; pool rooms need a world tile later), A-50 spawner + behaviours; merged PR #104; host/client check bench job 21 |
 | #36 | Fishing villages at river mouths | W-59, from the W-58 kit (Zach priority 2) |
 | #10 #35 #37 #38 #8 | New settlements and races (bat, sea, turtle, fish folk, pygmies; race reactions) | after W-59 (Zach priority 3) |
 | #25-#27 | Roadmap | backlog |
 | #28 | Linux build | on hold |
 | #84 #86 #88 | Distance shadows/fog, driftwood, lake shelf waterfall | W-77 (part), W-77b |
 | #102 | Startup hitch after island ready | W-79, A-52 |
+| #81 #58 | Cave FPS (fauna part), CreatureState split | A-53 |
