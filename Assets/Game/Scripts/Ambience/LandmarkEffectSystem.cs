@@ -222,7 +222,7 @@ namespace Punchy.Ambience
             var reach = main ? 3f + t.Drop * 0.06f : RiverFallReach + t.Drop * 0.05f;
             var out3 = new float3(t.Out.x, 0f, t.Out.y);
             var side = new float3(-t.Out.y, 0f, t.Out.x);
-            int curtains = main && !t.Shelf ? 3 : 1; // a lake shelf stretch is one wide sheet, overlapping its neighbours
+            int curtains = main && !t.Shelf ? 3 : 1; // a lake shelf stretch is one sheet, as wide as its chord of the lip (W-81)
             for (int c = 0; c < curtains; c++)
             {
                 var offset = curtains == 1 ? 0f : (c - 1) * t.Width * 0.3f;
@@ -231,7 +231,7 @@ namespace Punchy.Ambience
                     Position = t.Lip + side * offset,
                     Seed = math.frac(seed + c * 0.37f),
                     Color = new float4(0.6f, 0.72f, 0.76f, 0f),
-                    Shape = new float4(reach, t.Width * (t.Shelf ? 1.1f : main ? 0.4f : 0.85f), main ? 2.4f : 1.3f, main ? 3.4f : 1.9f),
+                    Shape = new float4(reach, t.Width * (t.Shelf ? 1f : main ? 0.4f : 0.85f), main ? 2.4f : 1.3f, main ? 3.4f : 1.9f),
                     Timing = new float4(0f, 0.25f, 0.85f, 24f),
                     Out = t.Out,
                     Drop = t.Drop

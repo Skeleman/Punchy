@@ -523,7 +523,7 @@ namespace Punchy.Terrain
             TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent, villages: true);
             // W-29: the grand falls go in after every place, so no landmark, cave or settlement sees them.
             long fallsAt = watch.ElapsedMilliseconds;
-            source.GrandFalls = GrandFalls.Build(source, Allocator.Persistent, version == IslandV3.Version);
+            source.GrandFalls = GrandFalls.Build(source, Allocator.Persistent, version == IslandV3.Version && GrandFalls.LakeShelfOn());
             Debug.Log(GrandFalls.LastLog);
             long fallsMs = watch.ElapsedMilliseconds - fallsAt;
             // W-30: the archipelago too, off the dune coast; it only raises sea floor.

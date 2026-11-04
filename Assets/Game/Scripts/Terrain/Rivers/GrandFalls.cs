@@ -119,9 +119,15 @@ namespace Punchy.Terrain
             return math.lerp(h, lev, weight);
         }
 
-        /// <summary>Where the shelf faces from the lake centre (degrees from +x towards +z: the east cliffs, away from the
-        /// sea folk village on the south-west shore), half its arc, how far it stands above the lake, and its width.</summary>
-        const float ShelfBearing = 32f, ShelfHalfArc = 36f, ShelfRise = 34f, ShelfDepth = 50f;
+        /// <summary>Half a scored shore stretch in 2.5 degree rays (W-81: about 30 degrees either side), and the shelf's width.</summary>
+        const int ShelfHalfSteps = 12;
+
+        /// <summary>W-81 (#88): the lake shelf is tabled behind this flag, off by default (seed-derived either way: every
+        /// player must launch with the same setting). Turn it on with <c>-lakeshelf</c> or PUNCHY_LAKESHELF=1.</summary>
+        public static bool LakeShelfOn() =>
+            System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-lakeshelf") >= 0
+            || System.Environment.GetEnvironmentVariable("PUNCHY_LAKESHELF") == "1";
+        const float ShelfDepth = 50f;
 
         /// <summary>
         /// Bakes the lake shelf (W-77, #88): rays from the lake centre across the shelf's arc find the shore, smoothed
@@ -139,51 +145,108 @@ namespace Punchy.Terrain
                 return default;
             }
             var lake = g0.WaterSurface;
-            var level = lake + ShelfRise;
-            var radii = new List<float>(); var dirs = new List<float2>();
-            for (float a = -ShelfHalfArc; a <= ShelfHalfArc + 0.01f; a += 2.5f)
+            // W-81 (#88): rays all round the lake find the shore and the ground behind it. Each stretch is scored by how
+            // far its middle sits back from the chord between its ends (a bay) and by the height of the land behind it
+            // (the mountain side), with a small seeded nudge; the shelf fills the best bay's back.
+            const int rays = 144; // every 2.5 degrees
+            var shoreR = new float[rays]; var behindH = new float[rays]; var rayDir = new float2[rays];
+            int open = 0;
+            for (int k = 0; k < rays; k++)
             {
-                var ang = math.radians(ShelfBearing + a);
+                var ang = math.radians(k * 360f / rays);
                 var d = new float2(math.cos(ang), math.sin(ang));
+                rayDir[k] = d; shoreR[k] = -1f;
                 for (int j = 1; j <= 500; j++)
                 {
                     var g = src.SampleGround(c + d * (4f * j));
-                    if (!g.HasWater || g.WaterSurface < g.Height + 0.3f || math.abs(g.WaterSurface - lake) > 1f) { radii.Add(4f * j); dirs.Add(d); break; }
+                    if (!g.HasWater || g.WaterSurface < g.Height + 0.3f || math.abs(g.WaterSurface - lake) > 1f) { shoreR[k] = 4f * j; break; }
                 }
+                if (shoreR[k] < 0f) { open++; continue; }
+                // The land behind: mean ground height 30-90 m past the shore.
+                float sum = 0f;
+                for (int j = 0; j < 4; j++) sum += src.SampleGround(c + d * (shoreR[k] + 30f + 20f * j)).Height;
+                behindH[k] = sum * 0.25f - lake;
             }
-            if (radii.Count < 6)
+            const int half = ShelfHalfSteps;
+            var rng = new Unity.Mathematics.Random(math.max(1u, source.World.Seed * 747796405u + 2891336453u));
+            int bestK = -1; float bestScore = float.MinValue, bestBay = 0f, bestBehind = 0f;
+            for (int k = 0; k < rays; k++)
             {
-                LastLog += $"; shelf none: {radii.Count} shore rays";
+                var nudge = rng.NextFloat(0f, 0.08f);
+                bool ok = true; float minBehind = float.MaxValue;
+                for (int s = -half; s <= half && ok; s++)
+                {
+                    var kk = (k + s + rays) % rays;
+                    if (shoreR[kk] < 0f) ok = false; else minBehind = math.min(minBehind, behindH[kk]);
+                }
+                // Only real high ground behind the whole stretch: a low saddle or an inlet to other water is no bay for it.
+                if (!ok || minBehind < 12f) continue;
+                int ka = (k - half + rays) % rays, kb = (k + half) % rays;
+                var a = c + rayDir[ka] * shoreR[ka]; var b = c + rayDir[kb] * shoreR[kb]; var m = c + rayDir[k] * shoreR[k];
+                // How far the middle sits behind the chord, away from the lake centre (positive = a bay).
+                var chordN = math.normalizesafe(new float2(b.y - a.y, a.x - b.x));
+                if (math.dot(chordN, m - c) < 0f) chordN = -chordN;
+                var bay = math.dot(m - a, chordN);
+                var chord = math.max(math.distance(a, b), 1f);
+                var score = math.clamp(bay / chord, -0.4f, 0.4f) * 1.5f + math.saturate(minBehind / 80f) * 1.5f + nudge;
+                if (score > bestScore) { bestScore = score; bestK = k; bestBay = bay; bestBehind = minBehind; }
+            }
+            if (bestK < 0)
+            {
+                LastLog += $"; shelf none: no closed shore stretch ({open} open rays)";
                 return default;
             }
-            // Smooth the shore twice so the lip is one long bow, not every cove.
-            for (int pass = 0; pass < 2; pass++)
+            // Flush with the land behind: the shelf takes the lowest of the stretch's ground behind, kept between 10 and 40 m.
+            var rise = math.clamp(bestBehind, 10f, 40f);
+            var level = lake + rise;
+            // The lip: the bay's back (its middle two thirds), shore smoothed once so the joints follow its curve.
+            var radii = new List<float>(); var dirs = new List<float2>();
+            int lipHalf = half * 2 / 3;
+            for (int s = -lipHalf; s <= lipHalf; s++) { var kk = (bestK + s + rays) % rays; radii.Add(shoreR[kk]); dirs.Add(rayDir[kk]); }
             {
                 var sm = new List<float>(radii);
                 for (int i = 1; i + 1 < radii.Count; i++) sm[i] = 0.25f * radii[i - 1] + 0.5f * radii[i] + 0.25f * radii[i + 1];
                 radii = sm;
             }
+            var pts = new List<float2>();
+            for (int i = 0; i < radii.Count; i++) pts.Add(c + dirs[i] * radii[i]);
+            // Each lip point faces out along the edge's own normal (the mean of its two segments'), towards the lake.
             var lip = new List<float4>();
-            for (int i = 0; i < radii.Count; i++) { var p = c + dirs[i] * radii[i]; lip.Add(new float4(p.x, p.y, -dirs[i].x, -dirs[i].y)); }
-            var tiers = new List<GrandFallTier>();
-            float length = 0f, next = 7f;
-            for (int i = 0; i + 1 < lip.Count; i++)
+            for (int i = 0; i < pts.Count; i++)
             {
-                var seg = math.distance(lip[i].xy, lip[i + 1].xy);
-                while (next <= length + seg)
-                {
-                    var t = (next - length) / math.max(seg, 1e-3f);
-                    var p = math.lerp(lip[i].xy, lip[i + 1].xy, t);
-                    var o = math.normalizesafe(math.lerp(lip[i].zw, lip[i + 1].zw, t));
-                    tiers.Add(new GrandFallTier
-                    {
-                        Lip = new float3(p.x, level, p.y), Out = o, Drop = ShelfRise, Width = 16f,
-                        Pool = new float3(p.x + o.x * 8f, lake, p.y + o.y * 8f), PoolRadius = 8f, Along = next, Shelf = true
-                    });
-                    next += 14f;
-                }
-                length += seg;
+                var tan = math.normalizesafe(pts[math.min(i + 1, pts.Count - 1)] - pts[math.max(i - 1, 0)]);
+                var o = new float2(tan.y, -tan.x);
+                if (math.dot(o, c - pts[i]) < 0f) o = -o;
+                lip.Add(new float4(pts[i], o));
             }
+            // The falls: one sheet per chord of the lip resampled every ~10 m, each facing its own chord's normal and
+            // exactly as wide as it, so neighbouring sheets meet at the joints with no gap or overlap at the lip.
+            var tiers = new List<GrandFallTier>();
+            float length = 0f;
+            var cum = new List<float> { 0f };
+            for (int i = 0; i + 1 < lip.Count; i++) { length += math.distance(lip[i].xy, lip[i + 1].xy); cum.Add(length); }
+            int sheets = math.max(1, (int)math.round(length / 10f));
+            float2 At(float s)
+            {
+                int i = 0;
+                while (i + 2 < cum.Count && cum[i + 1] < s) i++;
+                var t = math.saturate((s - cum[i]) / math.max(cum[i + 1] - cum[i], 1e-3f));
+                return math.lerp(lip[i].xy, lip[i + 1].xy, t);
+            }
+            for (int q = 0; q < sheets; q++)
+            {
+                var p0 = At(length * q / sheets); var p1 = At(length * (q + 1) / sheets);
+                var p = 0.5f * (p0 + p1);
+                var tan = math.normalizesafe(p1 - p0);
+                var o = new float2(tan.y, -tan.x);
+                if (math.dot(o, c - p) < 0f) o = -o;
+                tiers.Add(new GrandFallTier
+                {
+                    Lip = new float3(p.x, level, p.y), Out = o, Drop = rise, Width = math.distance(p0, p1) + 0.2f,
+                    Pool = new float3(p.x + o.x * 8f, lake, p.y + o.y * 8f), PoolRadius = 8f, Along = length * (q + 0.5f) / sheets, Shelf = true
+                });
+            }
+            var bearing = (bestK * 360f / rays);
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<GrandFallsBlob>();
             var lipArr = builder.Allocate(ref root.ShelfLip, lip.Count);
@@ -197,6 +260,7 @@ namespace Punchy.Terrain
             root.Bounds = root.ShelfBounds;
             var blob = builder.CreateBlobAssetReference<GrandFallsBlob>(allocator);
             builder.Dispose();
+            LastLog += $"; lake shelf bay at bearing {bearing:F0} (score {bestScore:F2}, bay {bestBay:F0} m behind its chord, land behind {bestBehind:F0} m over the lake)";
             LastLog += $"; lake shelf at {level:F1} m over the lake at {lake:F1} m: lip {length:F0} m from ({lip[0].x:F0},{lip[0].y:F0}) to ({lip[lip.Count - 1].x:F0},{lip[lip.Count - 1].y:F0}), {tiers.Count} fall stretches";
             return blob;
         }
