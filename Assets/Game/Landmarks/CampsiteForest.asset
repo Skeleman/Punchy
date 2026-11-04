@@ -27,7 +27,7 @@ MonoBehaviour:
   WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
   WaterMurk: 0.3
   WaterGlow: 0
-  Ground: {fileID: 11400000, guid: be5b1eae4bf62554b845de2587eb0d65, type: 2}
+  Ground: {fileID: 11400000, guid: f397da19159900045997c350ec927c49, type: 2}
   GroundRadius: 0.5
   ClearRadius: 0.8
   Props:

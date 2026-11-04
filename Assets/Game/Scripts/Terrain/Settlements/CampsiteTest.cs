@@ -49,6 +49,7 @@ namespace Punchy.Terrain
             var half = source.World.WorldSize * 0.5f;
             var best = new float2(float.NaN);
             var bestDist = float.MaxValue;
+            var wet = 0;
             for (float z = -half; z < half; z += 16f)
             for (float x = -half; x < half; x += 16f)
             {
@@ -57,6 +58,8 @@ namespace Punchy.Terrain
                 if (d >= bestDist) continue;
                 var h = source.SampleHeight(p);
                 if (h < sea + 2f || InRiver(source, p)) continue;
+                // W-90: no tent, fire or log on water: the whole pad (flattened to h) must stay dry.
+                if (RoadsideBaking.PadTouchesWater(source, p, look.Look.Radius, h)) { wet++; continue; }
                 var slope = math.max(math.abs(source.SampleHeight(p + new float2(5f, 0f)) - h), math.abs(source.SampleHeight(p + new float2(0f, 5f)) - h));
                 slope = math.max(slope, math.max(math.abs(source.SampleHeight(p - new float2(5f, 0f)) - h), math.abs(source.SampleHeight(p - new float2(0f, 5f)) - h)));
                 if (slope > 1.2f) continue;
@@ -88,7 +91,8 @@ namespace Punchy.Terrain
             source.Landmarks = LandmarkBaking.Append(before, types, new List<LandmarkInstance> { camp }, allocator);
             before.Dispose();
             At = best;
-            LastLog = $"[campsitetest] {look.Look.name} at {best.x:F0},{best.y:F0} (ground {camp.BaseHeight - sea:F1} m over the sea)";
+            LastLog = $"[campsitetest] {look.Look.name} at {best.x:F0},{best.y:F0} (ground {camp.BaseHeight - sea:F1} m over the sea; " +
+                      $"{wet} nearer spots rejected for water on the pad; roadside campsites {RoadsideBaking.CampsDry} placed, {RoadsideBaking.CampsWet} wet sites rejected)";
             UnityEngine.Debug.Log(LastLog);
         }
 
