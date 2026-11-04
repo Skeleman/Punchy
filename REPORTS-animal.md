@@ -1675,3 +1675,17 @@ Calls: about 80 across A-51 and the aborted A-50 start (A-51 alone was about 55)
   uncapped, 60 s each, one session: new brain 0.592 ms (124 creatures, 2.9/4.0 searches/frame) vs old 0.281 ms
   (97, 22.5/28.4). Flag confirmed (8x searches); ms not comparable (creature counts differ), searches look cheap.
 - Fauna fingerprint not measured. Calls ~46 (ceiling). Editor closed; 0 exceptions.
+
+## A-57 (2026-11-04): A-56 checks, fair -oldsearch A/B, brain split
+
+Commits on animal-behaviours: 58b75dd (merge origin/main, far shadows), 2567e10 (#61 Think split). Rows 1-3 have no code commits.
+
+| # | Result |
+|---|---|
+| 1 | Fingerprint 51E641E9 on 58b75dd, the same as main 2dae74b. b397c2e only touches DebugControls/DungeonSpawner and main's new commit is render-only, so b397c2e was not measured on its own. |
+| 2 (#24) | Shot a57-temple-mw.png: camera at the mushroom loot spot (3513,19,368) looking west. It shows a chest and the loose Mushroom x3 (with its pickup prompt), and the magenta-pixel count is 0. Checked on a 200 px contact-sheet tile, not a separate crop. The temple's glow crystals are purple/pink, not magenta. Loot seed 0xf9205369 gave 3 items, where A-56 had 0x16503f99 with 4. Not investigated. |
+| 3 (#57) | Same session and spot (HumanVillage -255,27), uncapped, alternating 15 s windows, 61-73 creatures. Brain time per creature: old 3.43/3.66/3.00 us (mean 3.36), new 3.16/3.10/2.97 us (mean 3.08), about 8% cheaper. Predator/alarm searches per frame: old 10.5-13.8 / 14-18, new 0.8-1.3 / 1.3-1.9. Verdict: **keep**. 0 exceptions. |
+| 4 (#61) | Think went from about 875 lines to 286. Its sections became named methods with summaries: Sense, React, StartFleeing, Haunting, Errands, Idling, Wandering, Fleeing, Sitting, Working, ChildPlay, KeepToLeash, Steer, Posture, CarriedItem. It compiles and the fingerprint is unchanged (51E641E9). |
+
+Shots: D:\PunchyMilestones\A-57\ (a57-old1-3, a57-new1-3, a57-temple-*). The editor was closed gracefully. Calls used: about 44 of a ceiling of about 45.
+Left: a dedicated crop check of the temple shot if wanted, and why the loot seed changed since A-56.
