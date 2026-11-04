@@ -1921,3 +1921,14 @@ Commits on world-features (pushed): 79512da merge origin/main (A-52), 00b758d fl
 - No shots: free RAM dropped to about 3.5 GB twice while other lanes ran editors and the player lane built, and both runs were killed. D:\PunchyMilestones\W-81\ is empty.
 - The editor opened with a compile error (my typo, since fixed) and stopped at the Safe Mode prompt; I pressed Ignore. The editor was closed with EditorApplication.Exit.
 - Calls: about 45 (ceiling).
+
+## W-82 (2026-11-04): #84 far shadow (code only), blocked on a hung editor
+
+- **Blocked:** the world editor (PID 21836, from W-81) is stuck inside EditorApplication.Exit. Its log stopped at 07:51 and it keeps one core busy, but Pipeline can't reach it. `unity close` returned closed=false, method none, and my permission to force-end it was refused. The project stays locked, so I couldn't open another editor. No shots, no Play runs. Rows 3, 0a, 0b and 4 were not started. Someone has to end PID 21836 (5.6 GB) before the next world card.
+- 3d88837 (#84, rows 1-2, **not yet seen in the editor**): I worked out why the strip didn't show without an editor. The W-78 far tower spot (2600,450,-1900) is ~1660 m from the strip's middle. That is past the 1536 m view distance (24 chunks x 64 m), where the haze lets ~1% through: exp(-(1.98 d/1536)^2) = 0.010. That gives an alpha of 0.45 x 0.75 x 0.010 = 0.0035, so the strip can't be seen at any time of day. At noon the strip also lies short (sun high) and mostly behind the tower from that side.
+  - Fix: the shader fades by the square root of what the haze lets through; strength 0.45 -> 0.6 (shader default and FarShadow.mat); the vertex profile is (1-u^3)(1-s^4), so the core stays near full.
+  - Estimated alpha at the middle, from the distance haze only (the LUT haze is ignored): 600 m 0.19 -> 0.39, 1000 m 0.06 -> 0.23, 1660 m 0.004 -> 0.05.
+  - New: `-nofarshadow` / `FarShadow.Enabled` toggle. Each strip records its last sun elevation, length and middle (`FarShadow.Live`) for the on/off shots.
+  - The probe class W82 is ready in the untracked WorldProbe.cs: `W82.Sun(h)`, then `W82.Far(name, nextToggle, pos, at)`, which logs the sun angle, strip length, estimated alpha and the patch darkening measured between the on and off shots. Suggest a nearer far spot too (~800-1000 m), as nothing shows at 1660 m.
+- Row 4 (#102), from reading the code only: the backstop doesn't hold a ready batch back. OnUpdate returns only while `buildHandle.IsCompleted` is false, so the 39-chunk batch is really still running for 60 frames. Likely causes: the workers are busy with the bake-time flora pregrow, cave and hydro jobs, or the batch has slow cave-mouth chunks (~40 ms each). This needs a timeline in the editor, and possibly a fix that lands a batch's chunks one by one.
+- Calls: about 30. D:\PunchyMilestones\W-82\ was not created.
