@@ -3018,6 +3018,16 @@ namespace Punchy.Debugging
             t.Rotation = quaternion.RotateY(math.atan2(along.x, along.y));
             em.SetComponentData(player, t);
             em.SetComponentData(player, new PlayerMotion { Grounded = true });
+            // P-9: the rooms touching this one, and whether each is open to the sky (kind 1: a cut through the ground).
+            var touching = new System.Text.StringBuilder();
+            for (int j = 0; j < set.RuinRooms.Length; j++)
+            {
+                var o = set.RuinRooms[j];
+                float ou = math.min(rr.U1, o.U1) - math.max(rr.U0, o.U0), ov = math.min(rr.V1, o.V1) - math.max(rr.V0, o.V0);
+                if (j != room && ou >= -0.25f && ov >= -0.25f && math.max(ou, ov) >= 0.5f)
+                    touching.Append($" {j}{(o.Kind == 1 ? " (open to the sky)" : "")}");
+            }
+            Debug.Log($"DebugControls: temple room {room} touches:{touching}");
             Debug.Log($"DebugControls: in sunken temple room {room}/{set.RuinRooms.Length} ({rr.U1 - rr.U0:F0} x {rr.V1 - rr.V0:F0} m, ceiling {rr.Ceil - floor:F1} m, kind {rr.Kind}) at ({p.x:F1}, {p.y:F1}, {p.z:F1}); the ground is {source.SampleHeight(p.xz) - p.y:F1} m above");
         }
 
