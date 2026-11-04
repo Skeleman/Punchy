@@ -20,24 +20,34 @@ namespace Punchy.Fauna
     /// </summary>
     public class StoneColossi : MonoBehaviour
     {
-        /// <summary>W-86 added a basalt smith hunched over his anvil (Ashlands, Volcano or EmberForest). W-78 added a moss-backed giant tortoise (FungalForest) and a crystal-spined serpent (ElectricWastelands).</summary>
-        public enum Kind { KneelingTitan, HalfBuriedHead, GiantTortoise, CrystalSerpent, DrownedKnight, AshSmith }
+        /// <summary>
+        /// W-86 added a basalt smith hunched over his anvil (Ashlands, Volcano or EmberForest). W-78 added a moss-backed giant
+        /// tortoise (FungalForest) and a crystal-spined serpent (ElectricWastelands). W-88 (#40, Zach's designs) put a giant
+        /// carnivorous plant in the PoisonSwamp and a skeletal lizard shedding ash in the Ashlands in the last two slots; the
+        /// drowned knight and the smith are kept whole for later and come back with "-colossus DrownedKnight" / "-colossus AshSmith".
+        /// </summary>
+        public enum Kind { KneelingTitan, HalfBuriedHead, GiantTortoise, CrystalSerpent, DrownedKnight, AshSmith, CarnivorousPlant, SkeletalLizard }
+        /// <summary>Slots: one colossus stands in each.</summary>
         const int Kinds = 6;
 
-        /// <summary>Where each kind stands (NaN until placed), for probes and shot lists.</summary>
+        /// <summary>What stands in each slot. Slots 4 and 5 hold the plant and the lizard unless a "-colossus" flag swaps the old kind back in.</summary>
+        public static readonly Kind[] Placed = { Kind.KneelingTitan, Kind.HalfBuriedHead, Kind.GiantTortoise, Kind.CrystalSerpent, Kind.CarnivorousPlant, Kind.SkeletalLizard };
+
+        /// <summary>Where each slot's colossus stands (NaN until placed), for probes and shot lists.</summary>
         public static readonly float3[] Positions = { new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN) };
 
         const float Step = 150f;
+        /// <summary>The biomes each kind looks for, by <see cref="Kind"/>.</summary>
         static readonly string[][] Biomes =
         {
             new[] { "Tundra", "Glacier", "Mountains" }, new[] { "Grassland", "Temperate" }, new[] { "FungalForest" }, new[] { "ElectricWastelands" },
-            new[] { "FoggyMarsh", "PoisonSwamp" }, new[] { "Ashlands", "Volcano", "EmberForest" },
+            new[] { "FoggyMarsh", "PoisonSwamp" }, new[] { "Ashlands", "Volcano", "EmberForest" }, new[] { "PoisonSwamp" }, new[] { "Ashlands" },
         };
-        // Each kind draws from its own salt on the world seed, so adding one moves no other colossus or landmark.
+        // Each slot draws from its own salt on the world seed, so adding one moves no other colossus or landmark.
         static readonly uint[] Salts = { 0x71A4u, 0x4EADu, 0x7027u, 0x5E2Bu, 0xD20Au, 0xA54Du };
-        static readonly float[] KeepRadius = { 34f, 42f, 38f, 44f, 40f, 40f };
-        /// <summary>Height and half-width each one casts with its far shadow (#84); the last entry is the Dunes colossus.</summary>
-        static readonly float2[] Casts = { new float2(46f, 14f), new float2(22f, 12f), new float2(30f, 20f), new float2(26f, 9f), new float2(30f, 12f), new float2(34f, 16f), new float2(58f, 20f) };
+        static readonly float[] KeepRadius = { 34f, 42f, 38f, 44f, 44f, 46f };
+        /// <summary>Height and half-width each slot casts with its far shadow (#84); the last entry is the Dunes colossus.</summary>
+        static readonly float2[] Casts = { new float2(46f, 14f), new float2(22f, 12f), new float2(30f, 20f), new float2(26f, 9f), new float2(40f, 18f), new float2(18f, 20f), new float2(58f, 20f) };
 
         static readonly Color Stone = new Color(0.50f, 0.50f, 0.49f);
         static readonly Color Dark = new Color(0.36f, 0.36f, 0.36f);
@@ -99,7 +109,7 @@ namespace Punchy.Fauna
                 var at = k < Kinds ? Positions[k] : DunesColossus.Position;
                 if (k < Kinds ? roots[k] == null : math.all(at == 0f))
                     continue;
-                shadows[k] ??= new FarShadow(k < Kinds ? $"{(Kind)k} far shadow" : "DunesColossus far shadow");
+                shadows[k] ??= new FarShadow(k < Kinds ? $"{Placed[k]} far shadow" : "DunesColossus far shadow");
                 shadows[k].Draw(source, at, Casts[k].x, Casts[k].y);
             }
         }
@@ -134,17 +144,28 @@ namespace Punchy.Fauna
             var biomes = grid.ToArray();
             grid.Dispose();
             placed = true;
+            // "-colossus AshSmith" (or DrownedKnight) puts a kept kind back in the slot it used to stand in.
+            // Reset first: statics live on between editor play runs.
+            Placed[4] = Kind.CarnivorousPlant;
+            Placed[5] = Kind.SkeletalLizard;
+            var args = Punchy.Debugging.DebugControls.LaunchArgs;
+            for (int i = 0; i + 1 < args.Length; i++)
+                if (args[i] == "-colossus" && System.Enum.TryParse<Kind>(args[i + 1], true, out var swap))
+                {
+                    if (swap == Kind.DrownedKnight) Placed[4] = swap;
+                    if (swap == Kind.AshSmith) Placed[5] = swap;
+                }
             for (int kind = 0; kind < Kinds; kind++)
             {
                 var wanted = new HashSet<int>();
                 for (int b = 0; b < palette.Biomes.Length; b++)
                     if (palette.Biomes[b] != null)
-                        foreach (var name in Biomes[kind])
+                        foreach (var name in Biomes[(int)Placed[kind]])
                             if (palette.Biomes[b].name.StartsWith(name, System.StringComparison.OrdinalIgnoreCase))
                                 wanted.Add(b);
                 if (!Pick(source, biomes, n, half, wanted, Salts[kind], out var spot, out var yaw, out var cells))
                 {
-                    Debug.Log($"StoneColossi: no room for a {(Kind)kind} in this world, none placed");
+                    Debug.Log($"StoneColossi: no room for a {Placed[kind]} in this world, none placed");
                     continue;
                 }
                 var ground = source.SampleHeight(spot);
@@ -166,16 +187,18 @@ namespace Punchy.Fauna
                     FloraPlacement.KeepOutMore.Data = keep;
                 }
                 FloraSystem.Replant = true;
-                roots[kind] = (Kind)kind switch
+                roots[kind] = Placed[kind] switch
                 {
                     Kind.KneelingTitan => BuildTitan(Positions[kind], yaw),
                     Kind.HalfBuriedHead => BuildHead(Positions[kind], yaw),
                     Kind.GiantTortoise => BuildTortoise(Positions[kind], yaw),
                     Kind.CrystalSerpent => BuildSerpent(Positions[kind], yaw),
                     Kind.DrownedKnight => BuildKnight(Positions[kind], yaw),
-                    _ => BuildSmith(Positions[kind], yaw),
+                    Kind.AshSmith => BuildSmith(Positions[kind], yaw),
+                    Kind.CarnivorousPlant => BuildPlant(Positions[kind], yaw),
+                    _ => BuildLizard(Positions[kind], yaw),
                 };
-                Debug.Log($"StoneColossi: {(Kind)kind} placed at ({spot.x:F0}, {ground:F1}, {spot.y:F0}), facing {yaw:F0} degrees, region {cells} cells");
+                Debug.Log($"StoneColossi: {Placed[kind]} placed at ({spot.x:F0}, {ground:F1}, {spot.y:F0}), facing {yaw:F0} degrees, region {cells} cells");
             }
         }
 
@@ -708,6 +731,327 @@ namespace Punchy.Fauna
             Weather(mesh, Ash, 0.82f, 1f);
             AddPart("Body", root, mesh);
             return root;
+        }
+
+        static readonly Color PlantGreen = new Color(0.20f, 0.42f, 0.16f);
+        static readonly Color PlantDark = new Color(0.12f, 0.30f, 0.12f);
+        static readonly Color Maw = new Color(0.55f, 0.10f, 0.14f);
+        static readonly Color Fang = new Color(0.86f, 0.82f, 0.66f);
+        static readonly Color Slime = new Color(0.55f, 0.70f, 0.30f);
+        static readonly Color Bone = new Color(0.80f, 0.76f, 0.68f);
+        static readonly Color BoneDark = new Color(0.58f, 0.54f, 0.48f);
+
+        /// <summary>A tapering tube along a cubic Bezier from <paramref name="p0"/> to <paramref name="p3"/>, banded in two colours.</summary>
+        static void Tentacle(DunesColossus.MeshBuilder m, Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, float r0, float r1, Color c0, Color c1, int segs = 12)
+        {
+            Vector3 P(float t) { var u = 1f - t; return u * u * u * p0 + 3f * u * u * t * p1 + 3f * u * t * t * p2 + t * t * t * p3; }
+            for (int i = 0; i < segs; i++)
+            {
+                float t0 = i / (float)segs, t1 = (i + 1f) / segs;
+                m.Limb(P(t0), P(t1), Mathf.Lerp(r0, r1, t0), Mathf.Lerp(r0, r1, t1), i % 2 == 0 ? c0 : c1, 7);
+            }
+        }
+
+        /// <summary>A snap-trap head like the Mantrap's (#41): two shell halves hinged at <paramref name="hinge"/>, mouth along the frame's +Z, red lining and fangs round the rims.</summary>
+        static void Trap(DunesColossus.MeshBuilder m, Vector3 hinge, Quaternion frame, Vector3 radii, float gape, float fang)
+        {
+            var up = frame * Quaternion.Euler(-gape * 0.7f, 0f, 0f);
+            var low = frame * Quaternion.Euler(gape * 0.3f, 0f, 0f);
+            for (int half = 0; half < 2; half++)
+            {
+                var rot = half == 0 ? up : low;
+                var flip = half == 0 ? rot : rot * Quaternion.Euler(180f, 180f, 0f);
+                var centre = hinge + rot * new Vector3(0f, 0f, radii.z);
+                m.Dome(centre, radii, flip, half == 0 ? PlantGreen : PlantDark, false, 14, 5);
+                m.Dome(centre, radii * 0.93f, flip, Maw, true, 14, 5);
+                var dir = rot * (half == 0 ? Vector3.down : Vector3.up);
+                for (int k = 0; k < 11; k++)
+                {
+                    var a = Mathf.Lerp(-80f, 80f, (k + half * 0.5f) / 10.5f) * Mathf.Deg2Rad;
+                    var rim = centre + rot * new Vector3(Mathf.Sin(a) * radii.x * 0.95f, 0f, Mathf.Cos(a) * radii.z * 0.95f);
+                    m.Limb(rim, rim + dir * fang + rot * new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a)) * fang * 0.3f, fang * 0.12f, fang * 0.02f, Fang, 4);
+                }
+            }
+        }
+
+        /// <summary>
+        /// W-88 (#40, Zach's PoisonSwamp design): a carnivorous plant about 40 m tall standing in the bog. A ribbed bulb
+        /// on six arched tentacle legs rooted in the mud, a thick stem up to a snap-trap head (as the Mantrap's, #41) gaping
+        /// at the sky with drool hanging from its fangs, and eight tentacle arms reaching out, every third ending in a small
+        /// trap of its own. Details: broad leaves lying flat round its feet, three young mantrap sprouts, a deer's bones
+        /// picked clean by one foot, and pale spores drifting from the mouth.
+        /// </summary>
+        static Transform BuildPlant(float3 at, float yaw)
+        {
+            var root = new GameObject("CarnivorousPlant").transform;
+            root.SetPositionAndRotation(new Vector3(at.x, at.y - 1f, at.z), Quaternion.Euler(0f, yaw, 0f));
+            var m = new DunesColossus.MeshBuilder();
+            var rng = Unity.Mathematics.Random.CreateFromIndex(0xD20Bu);
+            // The bulb, raised on its legs, with darker ribs down it.
+            var bulb = new Vector3(0f, 12f, 0f);
+            m.Ellipsoid(bulb, new Vector3(9f, 8f, 9f), Quaternion.identity, PlantGreen, 14, 8);
+            for (int k = 0; k < 8; k++)
+                m.Ellipsoid(bulb + Quaternion.Euler(0f, k * 45f, 0f) * new Vector3(0f, 0f, 8.2f), new Vector3(1.4f, 7.4f, 1.2f), Quaternion.Euler(0f, k * 45f, 0f), PlantDark, 6, 6);
+            // Six tentacle legs arching out and down into the mud, each splayed into roots at the foot.
+            for (int k = 0; k < 6; k++)
+            {
+                var a = (k * 60f + 30f) * Mathf.Deg2Rad;
+                var d = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a));
+                var from = bulb + d * 6f - Vector3.up * 3f;
+                var foot = d * rng.NextFloat(22f, 27f) + Vector3.up * 0.6f;
+                Tentacle(m, from, from + d * 7f + Vector3.up * 9f, foot + Vector3.up * 12f - d * 2f, foot, 3.2f, 1.4f, PlantGreen, PlantDark, 14);
+                for (int r = 0; r < 4; r++)
+                {
+                    var ra = a + (r - 1.5f) * 0.5f;
+                    m.Limb(foot, foot + new Vector3(Mathf.Sin(ra), -0.4f, Mathf.Cos(ra)) * rng.NextFloat(3f, 5f), 0.9f, 0.15f, PlantDark, 5);
+                }
+            }
+            // The stem, a little bent, up to the head; the mouth gapes at the sky over the bog.
+            var neck = new Vector3(2f, 30f, 1f);
+            m.Limb(bulb + Vector3.up * 6f, new Vector3(2.5f, 24f, -0.5f), 4.6f, 3.8f, PlantDark, 9);
+            m.Limb(new Vector3(2.5f, 24f, -0.5f), neck, 3.8f, 3.4f, PlantGreen, 9);
+            var face = Quaternion.Euler(-35f, 0f, 0f);
+            var hinge = neck + new Vector3(0f, 2f, -4f);
+            Trap(m, hinge, face, new Vector3(7.5f, 5.5f, 8.5f), 60f, 2.8f);
+            // Drool hanging from the upper fangs.
+            for (int k = 0; k < 4; k++)
+            {
+                var drip = hinge + face * Quaternion.Euler(-42f, 0f, 0f) * new Vector3(-4.5f + k * 3f, -1.5f, 15f);
+                m.Limb(drip, drip + Vector3.down * rng.NextFloat(2.5f, 5.5f), 0.35f, 0.15f, Slime, 4);
+            }
+            // Eight arms reaching out from the top of the bulb and the stem, curling at the tips; every third ends in a trap.
+            for (int k = 0; k < 8; k++)
+            {
+                var a = (k * 45f + rng.NextFloat(-12f, 12f)) * Mathf.Deg2Rad;
+                var d = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a));
+                var side = new Vector3(d.z, 0f, -d.x);
+                var from = new Vector3(1f, 16f + k % 3 * 3.5f, 0f) + d * 4f;
+                var reach = rng.NextFloat(20f, 28f);
+                var lift = rng.NextFloat(-4f, 12f);
+                var tip = from + d * reach + Vector3.up * lift;
+                Tentacle(m, from, from + d * 8f + Vector3.up * 12f, tip - d * 6f + Vector3.up * 10f + side * 4f, tip, 2.2f, 0.5f, PlantGreen, PlantDark, 14);
+                if (k % 3 == 0)
+                    Trap(m, tip, Quaternion.LookRotation(d + Vector3.up * 0.3f), new Vector3(1.8f, 1.3f, 2.1f), 50f, 0.8f);
+                else
+                {
+                    // A tight curl back on itself.
+                    var p = tip;
+                    for (int c = 0; c < 4; c++)
+                    {
+                        var q = p + (Quaternion.AngleAxis(-70f * (c + 1), side) * d) * (2.2f - c * 0.4f);
+                        m.Limb(p, q, 0.5f - c * 0.08f, 0.42f - c * 0.08f, c % 2 == 0 ? PlantDark : PlantGreen, 6);
+                        p = q;
+                    }
+                }
+            }
+            // Broad leaves lying flat round the feet.
+            for (int k = 0; k < 7; k++)
+            {
+                var a = k * 51.4f + rng.NextFloat(-10f, 10f);
+                var rot = Quaternion.Euler(0f, a, 0f);
+                m.Ellipsoid(rot * new Vector3(0f, 0.8f, 15f), new Vector3(4f, 0.4f, 9f), rot * Quaternion.Euler(-4f, 0f, 0f), k % 2 == 0 ? PlantGreen : PlantDark, 12, 4);
+                m.Limb(rot * new Vector3(0f, 1.1f, 7f), rot * new Vector3(0f, 1.1f, 23f), 0.3f, 0.1f, PlantDark, 4);
+            }
+            // Three young sprouts, man-high, with shut traps.
+            for (int k = 0; k < 3; k++)
+            {
+                var a = rng.NextFloat(0f, Mathf.PI * 2f);
+                var p = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * rng.NextFloat(30f, 36f) + Vector3.up * 0.8f;
+                var top = p + new Vector3(rng.NextFloat(-0.5f, 0.5f), 2.2f, rng.NextFloat(-0.5f, 0.5f));
+                m.Limb(p, top, 0.18f, 0.12f, PlantGreen, 5);
+                Trap(m, top, Quaternion.Euler(-20f, rng.NextFloat(0f, 360f), 0f), new Vector3(0.35f, 0.28f, 0.4f), 18f, 0.12f);
+            }
+            // A deer's bones picked clean by one foot: ribs, spine, skull, a leg bone.
+            var bones = new Vector3(-24f, 0.9f, 8f);
+            m.Limb(bones, bones + new Vector3(0f, 0f, 2.4f), 0.16f, 0.14f, Bone, 5);
+            for (int k = 0; k < 5; k++)
+                for (int s = -1; s <= 1; s += 2)
+                    m.Limb(bones + new Vector3(0f, 0.1f, 0.3f + k * 0.45f), bones + new Vector3(s * 0.7f, 0.5f, 0.4f + k * 0.45f), 0.06f, 0.05f, Bone, 4);
+            m.Ellipsoid(bones + new Vector3(0.3f, 0.15f, 3f), new Vector3(0.28f, 0.25f, 0.45f), Quaternion.Euler(0f, 20f, 0f), Bone, 8, 4);
+            m.Limb(bones + new Vector3(1.2f, 0f, -0.6f), bones + new Vector3(2.4f, 0f, 0.4f), 0.07f, 0.06f, BoneDark, 4);
+            AddPart("Body", root, m.ToMesh("CarnivorousPlant"));
+            Puffs(root, "Spores", hinge + face * new Vector3(0f, 0f, 9f) + Vector3.up * 4f, new Vector3(10f, 3f, 10f),
+                  new Color(0.80f, 0.86f, 0.55f, 0.22f), new Color(0.70f, 0.80f, 0.45f, 0.30f), 1.5f, 4f, 3f, 0.6f, 12f);
+            return root;
+        }
+
+        /// <summary>
+        /// W-88 (#40, Zach's Ashlands design): the skeleton of a lizard about 80 m nose to tail, still standing on four
+        /// splayed legs in the ash, ribcage open, the skull low with its jaw hanging and a frill of horns. It gives off
+        /// ash from the ribs and kicks up a ring of dust at its feet. Details: a smouldering heart still glowing inside the
+        /// cage, embers in the eye sockets, a snapped rib and a few teeth lying in the ash.
+        /// </summary>
+        static Transform BuildLizard(float3 at, float yaw)
+        {
+            var root = new GameObject("SkeletalLizard").transform;
+            root.SetPositionAndRotation(new Vector3(at.x, at.y - 1f, at.z), Quaternion.Euler(0f, yaw, 0f));
+            var m = new DunesColossus.MeshBuilder();
+            var rng = Unity.Mathematics.Random.CreateFromIndex(0xA54Eu);
+            // The spine from the tail tip (s = 0) to the neck (s = 1): the tail trails on the ground, the back arches.
+            Vector3 Spine(float s) => new Vector3(5f * Mathf.Sin(s * Mathf.PI * 1.6f + 0.6f),
+                                                  s < 0.35f ? Mathf.Lerp(1.6f, 10f, s / 0.35f) : 10f + 3f * Mathf.Sin((s - 0.35f) / 0.65f * Mathf.PI),
+                                                  -48f + 76f * s);
+            float Radius(float s) => s < 0.35f ? Mathf.Lerp(0.5f, 2f, s / 0.35f) : 2f;
+            const int N = 44;
+            for (int i = 0; i <= N; i++)
+            {
+                var s = i / (float)N;
+                var v = Spine(s);
+                var r = Radius(s);
+                var along = (Spine(math.min(1f, s + 0.02f)) - Spine(math.max(0f, s - 0.02f))).normalized;
+                var rot = Quaternion.LookRotation(along);
+                m.Ellipsoid(v, new Vector3(r * 1.3f, r, r * 0.75f), rot, i % 2 == 0 ? Bone : BoneDark, 8, 5);
+                m.Limb(v, v + Vector3.up * r * 2.4f - along * r * 0.6f, r * 0.35f, r * 0.08f, Bone, 5);       // the spine's ridge
+                // Ribs hanging from the back between the hips and the shoulders, deepest mid-chest.
+                if (s > 0.42f && s < 0.85f && i % 2 == 0)
+                {
+                    var depth = Mathf.Sin((s - 0.42f) / 0.43f * Mathf.PI);
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        var p0 = v + new Vector3(side * r, -0.3f, 0f);
+                        var p3 = v + new Vector3(side * (4f + 3f * depth), -(4f + 6.5f * depth), 1f);
+                        if (s > 0.6f && s < 0.66f && side > 0)
+                            continue;                                                                          // the snapped rib's gap
+                        Tentacle(m, p0, p0 + new Vector3(side * 5f, 1.5f, 0f), p3 + new Vector3(side * 4f, 3f, 0f), p3, 0.6f, 0.3f, Bone, Bone, 6);
+                    }
+                }
+            }
+            // Hips and shoulders: a flat pelvis and two shoulder blades; four splayed legs with knuckled joints and claws.
+            for (int g = 0; g < 2; g++)
+            {
+                var s = g == 0 ? 0.38f : 0.86f;
+                var v = Spine(s);
+                m.Ellipsoid(v + Vector3.down * 0.8f, new Vector3(5f, 1.6f, 3.4f), Quaternion.identity, BoneDark, 10, 4);
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    var hip = v + new Vector3(side * 3.5f, -1.5f, 0f);
+                    var elbow = v + new Vector3(side * 12f, 1f, g == 0 ? -3f : 3f);
+                    var wrist = new Vector3(v.x + side * 14f, 1.8f, v.z + (g == 0 ? 1f : 6f));
+                    m.Limb(hip, elbow, 1.5f, 1.2f, Bone, 7);
+                    m.Ellipsoid(elbow, new Vector3(1.8f, 1.8f, 1.8f), Quaternion.identity, BoneDark, 8, 5);
+                    m.Limb(elbow, wrist, 1.1f, 0.9f, Bone, 7);
+                    m.Ellipsoid(wrist, new Vector3(1.4f, 1.2f, 1.4f), Quaternion.identity, BoneDark, 8, 5);
+                    for (int t = 0; t < 4; t++)
+                    {
+                        var ta = (side * 30f + (t - 1.5f) * 24f) * Mathf.Deg2Rad;
+                        var knuckle = wrist + new Vector3(Mathf.Sin(ta) * 2.6f, -1f, Mathf.Cos(ta) * 2.6f);
+                        m.Limb(wrist, knuckle, 0.45f, 0.35f, Bone, 5);
+                        m.Limb(knuckle, knuckle + new Vector3(Mathf.Sin(ta) * 1.6f, -0.9f, Mathf.Cos(ta) * 1.6f), 0.35f, 0.05f, BoneDark, 4);
+                    }
+                }
+            }
+            // Neck bones down to the skull, held low; the jaw hangs open, a frill of horns at the back.
+            var neckBase = Spine(1f);
+            var skull = new Vector3(neckBase.x + 1f, 8f, neckBase.z + 13f);
+            for (int k = 0; k < 6; k++)
+            {
+                var p = Vector3.Lerp(neckBase, skull - new Vector3(0f, 0f, 4f), k / 5f) + Vector3.up * Mathf.Sin(k / 5f * Mathf.PI) * 2f;
+                m.Ellipsoid(p, new Vector3(1.9f, 1.6f, 1.3f), Quaternion.identity, k % 2 == 0 ? Bone : BoneDark, 8, 5);
+                m.Limb(p, p + new Vector3(0f, 2.4f, -0.6f), 0.6f, 0.1f, Bone, 5);
+            }
+            var pitch = Quaternion.Euler(12f, 6f, 0f);
+            m.Ellipsoid(skull, new Vector3(4.4f, 3f, 7.5f), pitch, Bone, 12, 7);
+            m.Ellipsoid(skull + pitch * new Vector3(0f, 1.6f, -2.5f), new Vector3(3.6f, 2.2f, 3.4f), pitch, BoneDark, 10, 5);   // the crown
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var eye = skull + pitch * new Vector3(side * 2.9f, 1.4f, 1.5f);
+                m.Ellipsoid(eye, new Vector3(1.3f, 1.1f, 1.5f), pitch, Hollow, 8, 5);
+                m.Ellipsoid(eye + pitch * new Vector3(side * 0.6f, 0f, 0f), new Vector3(0.35f, 0.3f, 0.35f), pitch, Ember, 5, 3);
+                m.Ellipsoid(skull + pitch * new Vector3(side * 1.1f, 1.6f, 6.6f), new Vector3(0.45f, 0.35f, 0.6f), pitch, Hollow, 5, 3); // nostrils
+            }
+            var jaw = Quaternion.Euler(34f, 6f, 0f);
+            var jawHinge = skull + pitch * new Vector3(0f, -1.6f, -4.5f);
+            m.Ellipsoid(jawHinge + jaw * new Vector3(0f, 0f, 6f), new Vector3(3.6f, 1.1f, 6.6f), jaw, BoneDark, 10, 5);
+            for (int k = 0; k < 8; k++)
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    var z = 1f + k * 0.8f;
+                    var top = skull + pitch * new Vector3(side * (3.4f - k * 0.25f), -2.4f, z);
+                    m.Limb(top, top + pitch * new Vector3(0f, -1.4f + k * 0.08f, 0.2f), 0.28f, 0.04f, Fang, 4);
+                    var bottom = jawHinge + jaw * new Vector3(side * (3f - k * 0.25f), 0.9f, 5f + k * 0.8f);
+                    m.Limb(bottom, bottom + jaw * new Vector3(0f, 1.2f, 0.2f), 0.25f, 0.04f, Fang, 4);
+                }
+            for (int k = 0; k < 5; k++)                                                                                    // the frill of horns
+            {
+                var a = Mathf.Lerp(-60f, 60f, k / 4f) * Mathf.Deg2Rad;
+                var foot = skull + pitch * new Vector3(Mathf.Sin(a) * 3.4f, 2.2f, -5f);
+                m.Limb(foot, foot + pitch * new Vector3(Mathf.Sin(a) * 3f, 2.5f + (k % 2) * 1.5f, -4f), 0.7f, 0.06f, BoneDark, 5);
+            }
+            // The smouldering heart inside the cage, and what has fallen into the ash: the snapped rib and a few teeth.
+            var heart = Spine(0.6f) + new Vector3(0f, -6.5f, 0f);
+            m.Ellipsoid(heart, new Vector3(2.2f, 1.8f, 2.4f), Quaternion.Euler(10f, 30f, 0f), Ember, 8, 5);
+            m.Ellipsoid(heart + Vector3.down * 1.4f, new Vector3(3.4f, 0.8f, 3.4f), Quaternion.identity, Soot, 8, 3);
+            var fallen = Spine(0.63f) + new Vector3(9f, 0f, 2f);
+            m.Limb(new Vector3(fallen.x, 0.6f, fallen.z), new Vector3(fallen.x + 6f, 0.9f, fallen.z + 5f), 0.55f, 0.3f, Bone, 6);
+            m.Limb(new Vector3(fallen.x + 6f, 0.9f, fallen.z + 5f), new Vector3(fallen.x + 8f, 0.5f, fallen.z + 9f), 0.3f, 0.2f, Bone, 6);
+            for (int k = 0; k < 6; k++)
+            {
+                var p = skull + new Vector3(rng.NextFloat(-7f, 7f), 0f, rng.NextFloat(-2f, 9f));
+                p.y = 0.7f;
+                m.Limb(p, p + new Vector3(rng.NextFloat(-0.6f, 0.6f), 0.3f, rng.NextFloat(-1.2f, 1.2f)), 0.25f, 0.04f, Fang, 4);
+            }
+            var mesh = m.ToMesh("SkeletalLizard");
+            Weather(mesh, Ash, 0.82f, 1f);
+            AddPart("Bones", root, mesh);
+            // Ash shed from the ribcage, and dust round the feet.
+            Puffs(root, "Ash", Spine(0.62f), new Vector3(14f, 8f, 30f), new Color(0.34f, 0.32f, 0.31f, 0.35f), new Color(0.48f, 0.46f, 0.44f, 0.40f), 2.5f, 7f, 10f, 1.4f, 10f);
+            Puffs(root, "Dust", Spine(0.6f) * 0f + new Vector3(0f, 1.5f, 0f), new Vector3(46f, 1f, 70f), new Color(0.55f, 0.50f, 0.45f, 0.20f), new Color(0.62f, 0.58f, 0.52f, 0.28f), 6f, 14f, 5f, 0.5f, 12f);
+            return root;
+        }
+
+        /// <summary>Slow, soft puffs rising from a box round <paramref name="local"/> (ash, dust, spores), in the ambience puff material.</summary>
+        static void Puffs(Transform parent, string name, Vector3 local, Vector3 box, Color a, Color b, float sizeMin, float sizeMax, float rate, float rise, float life)
+        {
+            var go = new GameObject(name);
+            go.SetActive(false);
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = local;
+            var ps = go.AddComponent<ParticleSystem>();
+            ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var main = ps.main;
+            main.playOnAwake = false;
+            main.loop = true;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.maxParticles = 300;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(life * 0.7f, life);
+            main.startSpeed = 0f;
+            main.startSize = new ParticleSystem.MinMaxCurve(sizeMin, sizeMax);
+            main.startColor = new ParticleSystem.MinMaxGradient(a, b);
+            var emission = ps.emission;
+            emission.rateOverTime = rate;
+            var shape = ps.shape;
+            shape.shapeType = ParticleSystemShapeType.Box;
+            shape.scale = box;
+            var vel = ps.velocityOverLifetime;
+            vel.enabled = true;
+            vel.space = ParticleSystemSimulationSpace.World;
+            vel.x = new ParticleSystem.MinMaxCurve(-0.4f, 0.6f);
+            vel.y = new ParticleSystem.MinMaxCurve(rise, rise * 1.6f);
+            vel.z = new ParticleSystem.MinMaxCurve(-0.4f, 0.4f);
+            var noise = ps.noise;
+            noise.enabled = true;
+            noise.strength = 1.5f;
+            noise.frequency = 0.15f;
+            var size = ps.sizeOverLifetime;
+            size.enabled = true;
+            size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 0.6f), new Keyframe(1f, 1.8f)));
+            var color = ps.colorOverLifetime;
+            color.enabled = true;
+            var fade = new Gradient();
+            fade.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                         new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.2f), new GradientAlphaKey(0f, 1f) });
+            color.color = fade;
+            var renderer = go.GetComponent<ParticleSystemRenderer>();
+            var ambience = FindAnyObjectByType<Punchy.Ambience.AmbienceSystem>();
+            if (ambience != null && ambience.PuffMaterial != null)
+                renderer.sharedMaterial = ambience.PuffMaterial;
+            renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            renderer.sortMode = ParticleSystemSortMode.Distance;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            go.SetActive(true);
+            ps.Simulate(life, true, true);
+            ps.Play();
         }
 
         /// <summary>Snow or moss on every face turned up past <paramref name="from"/> (full at <paramref name="full"/>).</summary>
