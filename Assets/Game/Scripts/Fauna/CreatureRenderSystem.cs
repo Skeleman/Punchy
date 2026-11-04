@@ -2375,38 +2375,133 @@ namespace Punchy.Fauna
 
             /// <summary>
             /// Three short lines fanning out above the creature's highest point, facing the camera, flashing on and
-            /// off while it flees. Sized to the creature, but never too small to see.
+            /// off while it flees. Sized to the creature, but never too small to see. When it isn't fleeing, the same
+            /// three capsules show its strongest pressing need (#64) for a moment on its own beat (each creature's cycle
+            /// and phase come from its Individual, so a herd never shows them all at once): tired, pale bubbles drifting
+            /// up; hungry, dust puffed up where its nose sniffs the ground; thirsty, a drop falling over its head;
+            /// lonely, a small pink heart. Drawn only: nothing in the simulation reads them.
             /// </summary>
             /// <param name="id">Fixed per creature, so each flashes on its own steady beat (its random seed changes
             /// every frame, which made the marks flicker).</param>
             void FearMarks(in CreatureState state, int offset, int segments, int id)
             {
                 var top = float.MinValue;
+                var fwd = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
+                var nose = state.Position;
+                var reach = float.MinValue;
                 for (int i = 0; i < segments; i++)
                 {
                     var seg = Output[offset + i];
                     var end = seg.Position + Unity.Mathematics.math.mul(seg.Rotation, new Unity.Mathematics.float3(0f, 0f, seg.Length));
                     top = Unity.Mathematics.math.max(top, Unity.Mathematics.math.max(seg.Position.y + seg.RadiusStart, end.y + seg.RadiusEnd));
+                    var ahead = Unity.Mathematics.math.dot(end - state.Position, fwd);
+                    if (ahead > reach) { reach = ahead; nose = end; }
+                    ahead = Unity.Mathematics.math.dot(seg.Position - state.Position, fwd);
+                    if (ahead > reach) { reach = ahead; nose = seg.Position; }
                 }
                 var size = Unity.Mathematics.math.clamp(state.Scale * 0.3f, 0.25f, 0.5f);
-                var flash = Unity.Mathematics.math.frac(Time * 3f + (id % 97) * 0.01f) < 0.6f;
-                var visible = state.Mode == CreatureMode.Flee && flash;
                 var up = new Unity.Mathematics.float3(0f, 1f, 0f);
                 var right = Unity.Mathematics.math.normalizesafe(new Unity.Mathematics.float3(CameraRight.x, 0f, CameraRight.z), new Unity.Mathematics.float3(1f, 0f, 0f));
+                if (state.Mode == CreatureMode.Flee)
+                {
+                    var visible = Unity.Mathematics.math.frac(Time * 3f + (id % 97) * 0.01f) < 0.6f;
+                    for (int k = 0; k < MarkCount; k++)
+                    {
+                        var angle = (k - 1) * 0.6f;
+                        var dir = up * Unity.Mathematics.math.cos(angle) + right * Unity.Mathematics.math.sin(angle);
+                        var start = new Unity.Mathematics.float3(state.Position.x, top, state.Position.z) + dir * size * 0.7f;
+                        Output[offset + segments + k] = new SegmentInstance
+                        {
+                            Position = start,
+                            Rotation = Unity.Mathematics.quaternion.LookRotationSafe(dir, right),
+                            Length = visible ? size : 0f,
+                            RadiusStart = visible ? size * 0.16f : 0f,
+                            RadiusEnd = visible ? size * 0.1f : 0f,
+                            Flatten = 1f,
+                            Color = new Unity.Mathematics.float4(1f, 0.92f, 0.55f, 0.6f)
+                        };
+                    }
+                    return;
+                }
+                // Which need shows, if any: the strongest past 0.6, during the first 2.6 s of this creature's own
+                // 8-15 s cycle (from a scrambled Individual, since neighbouring ids would otherwise keep in step).
+                var h = state.Individual * 0x9E3779B1u;
+                h ^= h >> 15; h *= 0x85EBCA77u; h ^= h >> 13; h *= 0xC2B2AE3Du; h ^= h >> 16;
+                var period = 8f + (h & 1023) / 1023f * 7f;
+                var t = Unity.Mathematics.math.frac(Time / period + ((h >> 10) & 1023) / 1023f) * period;
+                const float Show = 2.6f;
+                int cue = 0;
+                if (t < Show && state.Mode != CreatureMode.Sleep && state.Holder == 0)
+                {
+                    var strongest = 0.6f;
+                    if (state.Tired > strongest) { strongest = state.Tired; cue = 1; }
+                    if (state.Hunger > strongest) { strongest = state.Hunger; cue = 2; }
+                    if (state.Thirst > strongest) { strongest = state.Thirst; cue = 3; }
+                    if (state.Lonely > strongest) cue = 4;
+                }
+                var swell = Unity.Mathematics.math.sin(Unity.Mathematics.math.PI * Unity.Mathematics.math.saturate(t / Show));
+                var head = new Unity.Mathematics.float3(state.Position.x, top, state.Position.z);
                 for (int k = 0; k < MarkCount; k++)
                 {
-                    var angle = (k - 1) * 0.6f;
-                    var dir = up * Unity.Mathematics.math.cos(angle) + right * Unity.Mathematics.math.sin(angle);
-                    var start = new Unity.Mathematics.float3(state.Position.x, top, state.Position.z) + dir * size * 0.7f;
+                    var at = head;
+                    var dir = up;
+                    float length = 0f, radius = 0f, tip = 0f;
+                    var color = new Unity.Mathematics.float4(0f);
+                    switch (cue)
+                    {
+                        case 1: // Tired: bubbles rising one after another, swaying a little.
+                        {
+                            var rise = Unity.Mathematics.math.frac(t / 1.3f + k / 3f);
+                            at = head + up * size * (0.25f + rise * 1.1f) + right * size * (0.25f + 0.12f * Unity.Mathematics.math.sin((t + k) * 2.4f));
+                            radius = tip = size * (0.05f + 0.05f * rise) * Unity.Mathematics.math.saturate((1f - rise) * 4f);
+                            length = radius * 0.2f;
+                            color = new Unity.Mathematics.float4(0.78f, 0.86f, 1f, 0.45f);
+                            break;
+                        }
+                        case 2: // Hungry: little puffs of dust kicked up round its nose, as if sniffing the ground.
+                        {
+                            var puff = Unity.Mathematics.math.frac(t / 0.9f + k * 0.37f);
+                            var side = (k - 1) * 0.5f;
+                            at = new Unity.Mathematics.float3(nose.x, state.Position.y, nose.z) + (right * side + fwd * 0.3f) * size * (0.3f + puff) + up * size * puff * 0.35f;
+                            radius = tip = size * 0.1f * Unity.Mathematics.math.sin(Unity.Mathematics.math.PI * puff) * swell;
+                            length = radius * 0.3f;
+                            color = new Unity.Mathematics.float4(0.74f, 0.64f, 0.48f, 0.15f);
+                            break;
+                        }
+                        case 3: // Thirsty: one drop falling over its head, again and again.
+                            if (k == 0)
+                            {
+                                var fall = Unity.Mathematics.math.frac(t / 1.1f);
+                                dir = -up;
+                                at = head + up * size * (1.1f - fall * 0.6f);
+                                length = size * 0.22f;
+                                radius = size * 0.03f;
+                                tip = size * 0.11f * Unity.Mathematics.math.saturate((1f - fall) * 5f);
+                                color = new Unity.Mathematics.float4(0.4f, 0.65f, 1f, 0.6f);
+                            }
+                            break;
+                        case 4: // Lonely: a small heart (two strokes meeting at its point), bobbing.
+                            if (k < 2)
+                            {
+                                var s2 = k == 0 ? -1f : 1f;
+                                dir = Unity.Mathematics.math.normalize(up * 1.1f + right * s2);
+                                at = head + up * size * (0.45f + 0.08f * Unity.Mathematics.math.sin(t * 3f));
+                                length = size * 0.42f * swell;
+                                radius = size * 0.07f * swell;
+                                tip = size * 0.15f * swell;
+                                color = new Unity.Mathematics.float4(1f, 0.45f, 0.62f, 0.6f);
+                            }
+                            break;
+                    }
                     Output[offset + segments + k] = new SegmentInstance
                     {
-                        Position = start,
-                        Rotation = Unity.Mathematics.quaternion.LookRotationSafe(dir, right),
-                        Length = visible ? size : 0f,
-                        RadiusStart = visible ? size * 0.16f : 0f,
-                        RadiusEnd = visible ? size * 0.1f : 0f,
+                        Position = at,
+                        Rotation = Unity.Mathematics.quaternion.LookRotationSafe(dir, Unity.Mathematics.math.abs(dir.y) > 0.99f ? right : up),
+                        Length = length,
+                        RadiusStart = radius,
+                        RadiusEnd = tip,
                         Flatten = 1f,
-                        Color = new Unity.Mathematics.float4(1f, 0.92f, 0.55f, 0.6f)
+                        Color = color
                     };
                 }
             }
