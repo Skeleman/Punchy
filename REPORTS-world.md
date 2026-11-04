@@ -1867,3 +1867,13 @@ Commits: world-features 178e226 (merge of origin/main, no rebase, 0 compile erro
 - #84: FarShadow strips now draw for the sunken temple, all four stone colossi and the Dunes colossus. Frame near the tortoise: 5.57 ms (uncapped, editor play).
 - Shots in D:\PunchyMilestones\W-78\: w78-tortoise, w78-serpent, w78-far-tortoise, w78-far-serpent, w78-far-temple. I only checked that they aren't blank. w78-far-temple is nearly flat (luma stddev 7), probably haze at (3520, 360). It needs a reframe.
 - Note: the first compile aborted Burst on the SharedStatic resize and hung the editor, so I killed my own world editor (PID 22616) and reopened it. Calls: about 42. Editor closed.
+
+## W-79 (2026-11-04) - startup hitch #102
+
+Commit bd27f3d on world-features (pushed, on top of 4e3b63c). Editor, safety/jobs debugger/leak detection off.
+- Flora build: v2 4110 -> 2413 ms, v3 4123 ms before (after not measured); 620 variants, 1846476 vertices both ways. Pregrow starts on workers at the bake; meshes are made on the main thread. A first build (~4.1 s) still runs before the v2/v3 bake, so it gets no pregrow (to do).
+- Caves v2 first frame: 1984 ms (drips 1739) -> under 250 ms (drip spots now gathered on a worker). v3 not re-measured.
+- First terrain batch: unboosted, 3 chunks applied in 0 ms (was 18 chunks, 10 ms in editor; 1.6 s/96 chunks in player).
+- Hashes (LandmarkTypes): v2 136/B5EFF8C8, v3 108/3A0DC7BB. Probe LmList now prints the game hash. Bake = shared in one process: not verified (no host run).
+- merge-tree world-features vs animal-behaviours: CONFLICT in FloraGenerator.cs (Grow: my pregrow vs A-52 shapeOnly). Needs resolving.
+- Calls: about 75 (past the ceiling).
