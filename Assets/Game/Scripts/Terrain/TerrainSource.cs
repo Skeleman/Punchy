@@ -298,13 +298,44 @@ namespace Punchy.Terrain
 
             ref var set = ref Biomes.Value;
             float height = 0f;
+            // Island v3 (W-70b): the biome relief fades out in a pass corridor, so a pass is walkable.
+            var track = V3Ground.IsCreated ? Punchy.Terrain.V3Ground.PassFlat(ref V3Ground.Value, xz) : 0f;
+            var relief = 1f - track;
+            // In the rest of the pass box, long walls of relief are notched: gullies on a 96 m grid of world lines
+            // keep 40% of the relief, so any straight face crossing the pass is broken every 96 m or less.
+            if (V3Ground.IsCreated)
+            {
+                var box = Punchy.Terrain.V3Ground.PassBox(ref V3Ground.Value, xz);
+                if (box > 0.001f)
+                {
+                    var dd = math.abs(math.frac(xz / 96f) - 0.5f) * 96f;
+                    var notch = 1f - math.smoothstep(6f, 28f, math.min(dd.x, dd.y));
+                    relief *= 1f - 0.6f * box * notch;
+                }
+            }
             for (int i = 0; i < 4; i++)
             {
                 var w = shape.Weights[i];
                 if (w <= 0f)
                     continue;
                 ref var biome = ref set.Biomes[shape.Ids[i]];
-                height += w * (biome.BaseElevation + BiomeSampling.Relief(ref biome, xz));
+                height += w * (biome.BaseElevation + BiomeSampling.Relief(ref biome, xz) * relief);
+            }
+            // The blurred shape weights still wobble every few tens of metres, and between biomes of different base
+            // elevation that alone makes 50+ deg steps: on the track the base elevations are averaged over a ring.
+            if (track > 0.001f)
+            {
+                float local = 0f, ring = 0f;
+                for (int i = 0; i < 4; i++)
+                    if (shape.Weights[i] > 0f) local += shape.Weights[i] * set.Biomes[shape.Ids[i]].BaseElevation;
+                for (int k = 0; k < 8; k++)
+                {
+                    math.sincos(k * (math.PI / 4f), out var sn, out var cs);
+                    SampleBiomes(xz + new float2(cs, sn) * 90f, out _, out var near);
+                    for (int i = 0; i < 4; i++)
+                        if (near.Weights[i] > 0f) ring += near.Weights[i] * set.Biomes[near.Ids[i]].BaseElevation;
+                }
+                height += track * ((ring + local) / 9f - local);
             }
             if (Island.IsCreated)
                 height += Island.Value.Sample(xz);
