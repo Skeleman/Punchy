@@ -112,6 +112,10 @@ namespace Punchy.Debugging
                               measure: 600f, drive: t => DriveEntry(t, 6f));
             yield return Stop("hereentryfast", () => hereSet && StartEntry(hereAt) && SetWeather("Partly cloudy", 10),
                               measure: 600f, drive: t => DriveEntry(t, 18f));
+            // -benchstops hereclose -close x,z,yaw: walk on the surface at 6 m/s from 300 m out (along yaw) to 20 m
+            // from x,z, facing it, e.g. up to a colossus (job 24). Waits 10 s at the start first.
+            yield return Stop("hereclose", () => StartClose() && SetWeather("Partly cloudy", 10),
+                              measure: 600f, drive: DriveClose);
             // -benchstops hereapproach: walk on the surface from 400 m out to 100 m from where -place put the player (what
             // a cave or mine costs before you're in it).
             yield return Stop("hereapproach", () => hereSet && PlaceAt(new float3(hereAt.x, float.NaN, hereAt.z) - ApproachDirection * ApproachFrom, 0f) &&
@@ -622,6 +626,58 @@ namespace Punchy.Debugging
             Debug.Log($"BenchRoute: entry path into cave {cave} ({count} nodes): start {startXZ.x:F0},{startXZ.y:F0}, mouth {mouth.x:F0},{mouth.y:F0},{mouth.z:F0}, " +
                       $"{chain.Count} passage nodes{(chain.Count == 0 ? " (no route through the segments: straight in)" : "")}, {entryLength:F0} m");
             return PlaceAt(new float3(startXZ.x, float.NaN, startXZ.y), math.degrees(math.atan2(-outward.x, -outward.y)));
+        }
+
+        static float2 closeTarget, closeDir;
+        const float CloseOut = 300f, CloseNear = 20f, CloseWalk = 6f;
+
+        /// <summary>Reads -close x,z,yaw and puts the player 300 m out from x,z along yaw, facing x,z.</summary>
+        static bool StartClose()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            var i = System.Array.IndexOf(args, "-close");
+            if (i < 0 || i + 1 >= args.Length)
+                return false;
+            var v = args[i + 1].Split(',');
+            if (v.Length < 3)
+                return false;
+            var ci = System.Globalization.CultureInfo.InvariantCulture;
+            closeTarget = new float2(float.Parse(v[0], ci), float.Parse(v[1], ci));
+            var yaw = math.radians(float.Parse(v[2], ci));
+            closeDir = new float2(math.sin(yaw), math.cos(yaw));
+            var start = closeTarget + closeDir * CloseOut;
+            if (TryGetWorld(out var em, out _))
+            {
+                using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+                if (!terrainQuery.IsEmpty)
+                {
+                    var source = terrainQuery.GetSingleton<TerrainSource>();
+                    var hs = new System.Text.StringBuilder();
+                    for (float d = CloseOut; d >= CloseNear - 0.1f; d -= 40f)
+                        hs.Append($" {source.SampleHeight(closeTarget + closeDir * d):F0}");
+                    Debug.Log($"BenchRoute: approach from {start.x:F0},{start.y:F0} to {CloseNear:F0} m from {closeTarget.x:F0},{closeTarget.y:F0}, ground every 40 m:{hs}");
+                }
+            }
+            return PlaceAt(new float3(start.x, float.NaN, start.y), math.degrees(math.atan2(-closeDir.x, -closeDir.y)));
+        }
+
+        /// <summary>Still for 10 s, then walks in at 6 m/s; the phase says how far out it is (10 m steps).</summary>
+        static string DriveClose(float t)
+        {
+            if (!TryGetWorld(out var em, out var player))
+                return "no world";
+            var d = CloseOut - math.max(0f, t - EntrySettle) * CloseWalk;
+            if (d < CloseNear)
+                return "done";
+            using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            var source = terrainQuery.GetSingleton<TerrainSource>();
+            var p = closeTarget + closeDir * d;
+            var tr = em.GetComponentData<LocalTransform>(player);
+            tr.Position = new float3(p.x, source.SampleHeight(p) + 0.1f, p.y);
+            tr.Rotation = quaternion.RotateY(math.atan2(-closeDir.x, -closeDir.y));
+            em.SetComponentData(player, tr);
+            em.SetComponentData(player, new PlayerMotion { Grounded = true });
+            return t < EntrySettle ? "waiting at the start" : $"{math.round(d / 10f) * 10f:F0} m out";
         }
 
         /// <summary>Carries the player along the entry path: still for the settle time, then at speed. Returns the phase.</summary>
