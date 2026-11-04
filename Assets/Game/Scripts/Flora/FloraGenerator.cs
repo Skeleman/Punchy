@@ -396,6 +396,32 @@ namespace Punchy.Flora
                 AddCollider(centre, new Vector3(radii.x * shrink, radii.y, radii.z * shrink), rotation);
             }
 
+            /// <summary>
+            /// W-93 (#70): a low rounded chunk as upright kit boxes (KitCollision), terraced like contour lines: one box per
+            /// tier, each as wide as the chunk at half a tier under its top, tiers under a step (0.4 m) apart, so the player
+            /// steps up a low chunk and stops at a tall one's face. Chunks too thin to stand on get none (walked over).
+            /// Only the turn about y is kept (tops stay flat). Model space, bottoms sunk 0.5 m under the ground.
+            /// </summary>
+            public void AddTierBoxes(Vector3 centre, Vector3 radii, Quaternion rotation)
+            {
+                const float tier = 0.35f, bottom = -0.5f;
+                var top = centre.y + radii.y;
+                if (top < ChunkStep)
+                    return;
+                var n = Mathf.Clamp(Mathf.CeilToInt(top / tier), 1, 6);
+                var yaw = Quaternion.Euler(0f, rotation.eulerAngles.y, 0f);
+                for (int k = 1; k <= n; k++)
+                {
+                    var t = top * k / n;
+                    var u = Mathf.Clamp((t - top * 0.5f / n - centre.y) / Mathf.Max(radii.y, 0.01f), -1f, 1f);
+                    var s = Mathf.Sqrt(1f - u * u) * 0.8f;
+                    var half = new Vector3(radii.x * s, (t - bottom) * 0.5f, radii.z * s);
+                    if (half.x < 0.15f || half.z < 0.15f)
+                        continue;
+                    Boxes.Add(new KitBox { Centre = new Vector3(centre.x, (t + bottom) * 0.5f, centre.z), Half = half, Rotation = yaw, Reach = half.magnitude });
+                }
+            }
+
             public void AddCollider(Vector3 centre, Vector3 radii, Quaternion rotation)
             {
                 var top = centre.y + radii.y;
@@ -2597,11 +2623,13 @@ namespace Punchy.Flora
 
             var mound = ring * 0.35f;
             var first = b.VertexCount;
-            b.Blob(Vector3.up * mound * 0.05f, new Vector3(mound, mound * 0.3f, mound * 0.9f), Quaternion.Euler(0f, g.R() * 360f, 0f),
+            var moundTurn = Quaternion.Euler(0f, g.R() * 360f, 0f);
+            b.Blob(Vector3.up * mound * 0.05f, new Vector3(mound, mound * 0.3f, mound * 0.9f), moundTurn,
                    g.Sides(2, 1, 0), 0.4f, g.R() * 100f, g.Bark * 0.7f, FloraPart.Bark);
             b.Occlude(first, (p, n) => GroundOcclusion(p, mound));
             // Solid (#70): the mound where it stands above a step (its turn isn't kept, so the narrower, round footprint).
             g.AddSteppedCollider(Vector3.up * mound * 0.05f, new Vector3(mound * 0.9f, mound * 0.3f, mound * 0.9f), Quaternion.identity);
+            g.AddTierBoxes(Vector3.up * mound * 0.05f, new Vector3(mound, mound * 0.3f, mound * 0.9f), moundTurn);
 
             // Pieces that would hang within walking reach (bottom under head height) have dropped instead: they lie
             // still on the ground or the mound, half sunk, and are solid; only the high ones orbit (#70).
@@ -2625,8 +2653,15 @@ namespace Punchy.Flora
                 var onMound = flat.magnitude < mound * 0.85f ? mound * 0.35f * Mathf.Sqrt(1f - Mathf.Pow(flat.magnitude / mound, 2f)) : 0f;
                 var rest = new Vector3(at.x, onMound + radii.y * 0.45f, at.z);
                 var lying = Quaternion.Euler(g.Range(-12f, 12f), turn.eulerAngles.y, g.Range(-12f, 12f));
+                // W-93 (#70): a chunk too thin to stand on lies pressed flat into the ground, a decal walked over.
+                if (rest.y + radii.y < ChunkStep && onMound <= 0f)
+                {
+                    radii.y = Mathf.Min(radii.y, 0.08f);
+                    rest.y = radii.y * 0.3f;
+                }
                 b.Blob(rest, radii, lying, g.Sides(1, 1, 0), 0.3f, seed, color * 0.8f, FloraPart.Bark, 1f, 0.5f);
                 g.AddSteppedCollider(rest, radii, lying);
+                g.AddTierBoxes(rest, radii, lying);
             }
             var floating = b.VertexCount;
             foreach (var p in high)
@@ -2636,6 +2671,9 @@ namespace Punchy.Flora
 
         /// <summary>How high (m, before scaling) a Debris piece's bottom must float to stay in the air: above a head.</summary>
         const float DebrisHeadroom = 2.2f;
+
+        /// <summary>W-93 (#70): a wasteland chunk topping out under this (m, before scaling) is walked over, so it gets no boxes.</summary>
+        const float ChunkStep = 0.45f;
 
         /// <summary>
         /// A shelter against a harsh biome's hazard (FloraForm.HazardShelter, #69): settlements in ash, snow and storm
@@ -2775,12 +2813,14 @@ namespace Punchy.Flora
 
             var mound = size * 0.6f;
             var first = b.VertexCount;
-            b.Blob(Vector3.up * mound * 0.04f, new Vector3(mound, mound * 0.18f, mound * 0.9f), Quaternion.Euler(0f, g.R() * 360f, 0f),
+            var moundTurn = Quaternion.Euler(0f, g.R() * 360f, 0f);
+            b.Blob(Vector3.up * mound * 0.04f, new Vector3(mound, mound * 0.18f, mound * 0.9f), moundTurn,
                    g.Sides(2, 1, 0), 0.45f, g.R() * 100f, g.Bark * 0.6f, FloraPart.Bark);
             b.Occlude(first, (p, n) => GroundOcclusion(p, mound));
             // Solid (#70): the scorched mound (the flat chunk underfoot). The rock itself floats at least ~5 m up, far
             // over a head, so it stays non-solid.
             g.AddSteppedCollider(Vector3.up * mound * 0.04f, new Vector3(mound * 0.9f, mound * 0.18f, mound * 0.9f), Quaternion.identity);
+            g.AddTierBoxes(Vector3.up * mound * 0.04f, new Vector3(mound, mound * 0.18f, mound * 0.9f), moundTurn);
 
             var floating = b.VertexCount;
             var centre = Vector3.up * (lift + size * 0.5f);

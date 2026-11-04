@@ -799,6 +799,8 @@ namespace Punchy.Fauna
         static readonly Color BoneDark = new Color(0.58f, 0.54f, 0.48f);
         static readonly Color PlantRed = new Color(0.66f, 0.10f, 0.12f);
         static readonly Color PlantPurple = new Color(0.40f, 0.14f, 0.46f);
+        static readonly Color SkirtGreen = new Color(0.05f, 0.15f, 0.04f);
+        static readonly Color SkirtDark = new Color(0.03f, 0.10f, 0.03f);
 
         /// <summary>A tapering tube along a cubic Bezier from <paramref name="p0"/> to <paramref name="p3"/>, banded in two colours.</summary>
         static void Tentacle(DunesColossus.MeshBuilder m, Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, float r0, float r1, Color c0, Color c1, int segs = 12)
@@ -914,9 +916,10 @@ namespace Punchy.Fauna
                 m.Ellipsoid(rot * new Vector3(0f, 0.8f, 15f), new Vector3(4f, 0.4f, 9f), rot * Quaternion.Euler(-4f, 0f, 0f), k % 2 == 0 ? PlantGreen : PlantDark, 12, 4);
                 m.Limb(rot * new Vector3(0f, 1.1f, 7f), rot * new Vector3(0f, 1.1f, 23f), 0.3f, 0.1f, PlantDark, 4);
             }
-            // W-92 (#40, Zach): a leafy skirt round the base of the bulb, broad leaves bending out and drooping, each with
-            // a purple vein and every third tipped red, plus a few red spots on the bulb. Its own random, seeded by the
-            // plant's spot, so the count and lean differ per plant and the draws above keep their values.
+            // W-92 (#40, Zach): a leafy skirt, broad dark leaves each with a purple vein and every third tipped red, plus a
+            // few red spots on the bulb. Its own random, seeded by the plant's spot, so the count and lean differ per plant
+            // and the draws above keep their values. W-93: rooted high on the bulb under the stem and hanging down over
+            // it (steep, then near-vertical), rather than splaying out at the base.
             var srng = Unity.Mathematics.Random.CreateFromIndex(math.hash((int3)math.floor(at)) ^ 0x5C127u);
             int skirt = srng.NextInt(9, 14);
             var lean = srng.NextFloat(18f, 34f);
@@ -925,14 +928,14 @@ namespace Punchy.Fauna
                 var turn = Quaternion.Euler(0f, k * 360f / skirt + srng.NextFloat(-8f, 8f), 0f);
                 var droop = lean + srng.NextFloat(-6f, 6f);
                 var len = srng.NextFloat(7f, 10f);
-                var root0 = bulb + turn * new Vector3(0f, -5f, 6.5f);
-                var inner = turn * Quaternion.Euler(droop * 0.4f, 0f, 0f);
-                var outer = turn * Quaternion.Euler(droop, 0f, 0f);
-                var bend = root0 + inner * Vector3.forward * len;
+                var root0 = bulb + turn * new Vector3(0f, 6.5f, 6.4f);
+                var inner = turn * Quaternion.Euler(35f + droop * 0.6f, 0f, 0f);
+                var outer = turn * Quaternion.Euler(70f + droop * 0.4f, 0f, 0f);
+                var bend = root0 + inner * Vector3.forward * len * 0.7f;
                 var tipEnd = bend + outer * Vector3.forward * len * 0.9f;
-                var col = k % 2 == 0 ? PlantGreen : PlantDark;
-                m.Ellipsoid(root0 + inner * Vector3.forward * len * 0.5f, new Vector3(len * 0.34f, 0.35f, len * 0.55f), inner, col, 10, 4);
-                m.Ellipsoid(bend + outer * Vector3.forward * len * 0.45f, new Vector3(len * 0.28f, 0.3f, len * 0.5f), outer, col, 10, 4);
+                var col = k % 2 == 0 ? SkirtGreen : SkirtDark;
+                m.Ellipsoid(root0 + inner * Vector3.forward * len * 0.35f, new Vector3(len * 0.4f, 0.35f, len * 0.4f), inner, col, 10, 4);
+                m.Ellipsoid(bend + outer * Vector3.forward * len * 0.45f, new Vector3(len * 0.34f, 0.3f, len * 0.5f), outer, col, 10, 4);
                 m.Limb(root0 + inner * Vector3.up * 0.3f, bend + inner * Vector3.up * 0.3f, 0.24f, 0.16f, PlantPurple, 4);
                 m.Limb(bend + outer * Vector3.up * 0.28f, tipEnd + outer * Vector3.up * 0.2f, 0.16f, 0.06f, PlantPurple, 4);
                 if (k % 3 == 0)
@@ -1245,7 +1248,26 @@ namespace Punchy.Fauna
                 heights[i] = source.SampleHeight(new float2(at.x + Mathf.Cos(a) * radius, at.z + Mathf.Sin(a) * radius)) - at.y;
             }
             var m = new DunesColossus.MeshBuilder();
-            m.Ellipsoid(Vector3.zero, new Vector3(CrystalBall, CrystalBall * 0.96f, CrystalBall), Quaternion.identity, SaltWhite, 9, 6);
+            // W-93 (#40, Zach): lumpy, not a smooth ball. A coarse, unevenly squashed core (few facets, so they read as
+            // broad uneven faces), knobbed with big overlapping lumps and two or three large crystal outcrops. Its own
+            // random, so the circle, the crust and the crumbs below keep their draws.
+            var lrng = Unity.Mathematics.Random.CreateFromIndex(seed ^ 0xBA11u);
+            m.Ellipsoid(Vector3.zero, new Vector3(CrystalBall * lrng.NextFloat(0.88f, 1f), CrystalBall * lrng.NextFloat(0.84f, 0.94f), CrystalBall * lrng.NextFloat(0.88f, 1f)),
+                Quaternion.Euler(lrng.NextFloat(0f, 360f), lrng.NextFloat(0f, 360f), 0f), SaltWhite, 7, 5);
+            int lumps = lrng.NextInt(6, 10);
+            for (int k = 0; k < lumps; k++)
+            {
+                var d = (Vector3)lrng.NextFloat3Direction();
+                var s = CrystalBall * lrng.NextFloat(0.3f, 0.5f);
+                m.Ellipsoid(d * CrystalBall * lrng.NextFloat(0.62f, 0.78f), new Vector3(s, s * lrng.NextFloat(0.6f, 0.9f), s * lrng.NextFloat(0.8f, 1.1f)),
+                    Quaternion.LookRotation(d) * Quaternion.Euler(0f, 0f, lrng.NextFloat(0f, 180f)), k % 4 == 3 ? SaltPink : SaltWhite, 6, 4);
+            }
+            int outcrops = lrng.NextInt(2, 4);
+            for (int k = 0; k < outcrops; k++)
+            {
+                var d = (Vector3)lrng.NextFloat3Direction();
+                m.Limb(d * CrystalBall * 0.6f, d * CrystalBall * lrng.NextFloat(1.25f, 1.4f), lrng.NextFloat(3.5f, 5f), lrng.NextFloat(0.4f, 1.2f), k == 0 ? SaltPink : SaltWhite, 5);
+            }
             for (int k = 0; k < 14; k++)
             {
                 var d = Quaternion.Euler(rng.NextFloat(-80f, 80f), rng.NextFloat(0f, 360f), 0f) * Vector3.forward;
