@@ -970,6 +970,8 @@ namespace Punchy.Debugging
         /// <summary>Per species, Mode and (wandering) stage: heading change (deg), seconds, speed x seconds, |yaw rate| x
         /// seconds (#12: the songbirds' wandering split into on the ground, flying, and the flare near the spot).</summary>
         readonly System.Collections.Generic.Dictionary<int, float4> turnSum = new System.Collections.Generic.Dictionary<int, float4>();
+        /// <summary>A-54 #12: heading flips (a turn of 15 deg or more one way, then back the other) per turnSum key.</summary>
+        readonly System.Collections.Generic.Dictionary<int, int> flipSum = new System.Collections.Generic.Dictionary<int, int>();
         float turnLogAt, traceAt;
         readonly System.Collections.Generic.Dictionary<Entity, float> wanderSince = new System.Collections.Generic.Dictionary<Entity, float>();
         Entity traced = Entity.Null;
@@ -997,8 +999,18 @@ namespace Punchy.Debugging
                 var e = entities[i];
                 if (!spins.TryGetValue(e, out var w))
                     w = new float4(c.Yaw, 0f, 0f, 0f);
-                var step = math.abs(math.atan2(math.sin(c.Yaw - w.x), math.cos(c.Yaw - w.x)));
+                var signed = math.atan2(math.sin(c.Yaw - w.x), math.cos(c.Yaw - w.x));
+                var step = math.abs(signed);
                 w.x = c.Yaw;
+                // (w.w: the turn so far in the one direction; reversing after 15 deg or more of it is a flip.)
+                var flipped = false;
+                if (signed * w.w < 0f)
+                {
+                    flipped = math.abs(w.w) >= math.radians(15f);
+                    w.w = signed;
+                }
+                else
+                    w.w += signed;
                 // (Heading change per second of the songbirds' and dormice's wandering, for the Z-12 before/after.)
                 // (A-13 #12: Wander counts only after 5 s of it, so the turn out of a flee or a takeoff is left out.)
                 if (c.Mode != CreatureMode.Wander)
@@ -1012,6 +1024,8 @@ namespace Punchy.Debugging
                     var bucket = c.Mode != CreatureMode.Wander ? 0 : c.Stage == 0 ? 1 : c.Stage == 1 ? (targetGap < 1.5f ? 3 : 2) : 4;
                     var key = (bodies[i].Species * 64 + (int)c.Mode) * 8 + bucket;
                     turnSum.TryGetValue(key, out var acc);
+                    flipSum.TryGetValue(key, out var flips);
+                    flipSum[key] = flips + (flipped ? 1 : 0);
                     turnSum[key] = new float4(acc.x + math.degrees(step), acc.y + dt, acc.z + c.Speed * dt, acc.w + math.abs(math.degrees(c.YawRate)) * dt);                    // One wandering songbird traced twice a second (40 lines): stage, speed, yaw rate, how far from its
                     // target and how far above its target height.
                     if (c.Mode == CreatureMode.Wander && traceLines < 40 && (traced == Entity.Null ? c.Stage == 1 : traced == e) && now >= traceAt)
@@ -1065,12 +1079,14 @@ namespace Punchy.Debugging
                         lines.TryGetValue(species, out var line);
                         var stage = (kv.Key % 8) switch { 1 => "/ground", 2 => "/flying", 3 => "/flare", 4 => "/stage2+", _ => "" };
                         var secs = math.max(kv.Value.y, 1e-3f);
-                        lines[species] = line + $" {(CreatureMode)(modeKey % 64)}{stage} {kv.Value.y:F0}s {kv.Value.x / secs:F1}deg/s v{kv.Value.z / secs:F1} yr{kv.Value.w / secs:F0};";
+                        flipSum.TryGetValue(kv.Key, out var flipCount);
+                        lines[species] = line + $" {(CreatureMode)(modeKey % 64)}{stage} {kv.Value.y:F0}s {kv.Value.x / secs:F1}deg/s v{kv.Value.z / secs:F1} yr{kv.Value.w / secs:F0} flips{flipCount * 60f / secs:F1}/min;";
                     }
                     foreach (var kv in lines)
                         Debug.Log($"DebugControls: heading change: {kv.Key}:{kv.Value}");
                 }
                 turnSum.Clear();
+                flipSum.Clear();
                 turnLogAt = now + 30f;
             }
             if (spins.Count > 4000)
@@ -1509,6 +1525,10 @@ namespace Punchy.Debugging
             // "-nobrainlod" (A-47 #59): every creature thinks every frame. "-fixeddt" (#61): Play mode steps a fixed 1/30 s,
             // so two runs of the same line can be compared number for number.
             Punchy.Fauna.CreatureBrainSystem.BrainLodOff.Data = System.Array.IndexOf(args, "-nobrainlod") >= 0 ? 1 : 0;
+            // "-brainlod 60,3" (A-54 #59): the LOD's range (m) and frames per think for this line (default 80 m, every 4th).
+            var lodArg = System.Array.IndexOf(args, "-brainlod");
+            Punchy.Fauna.CreatureBrainSystem.BrainLod.Data = lodArg >= 0 && lodArg + 1 < args.Length && ParseFloats(args[lodArg + 1]) is float[] lod && lod.Length >= 2
+                ? new float2(lod[0], lod[1]) : Punchy.Fauna.CreatureBrainSystem.BrainLodDefault;
             Time.captureFramerate = System.Array.IndexOf(args, "-fixeddt") >= 0 ? 30 : 0;
             fixedFrames = Time.captureFramerate > 0 ? 0 : -1;
             fixedSearch0 = Punchy.Fauna.CreatureBrainSystem.Searches.Data;

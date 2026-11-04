@@ -72,9 +72,13 @@ namespace Punchy.Fauna
         public static readonly Unity.Burst.SharedStatic<int> BrainLodOff = Unity.Burst.SharedStatic<int>.GetOrCreate<BrainLodOffKey>();
         struct BrainLodOffKey { }
         /// <summary>#59 brain LOD: beyond this (m) from every player a creature thinks once every BrainLodFrames frames,
-        /// phased by its Individual so the load stays even; in between a walker on open ground only coasts on.</summary>
-        const float BrainLodRange = 60f;
-        const uint BrainLodFrames = 3;
+        /// phased by its Individual so the load stays even; in between a walker on open ground only coasts on.
+        /// (A-54: 80 m and every 4th frame, was 60 m and every 3rd; "-brainlod 60,3" sets them for an A/B.)</summary>
+        public static readonly Unity.Burst.SharedStatic<float2> BrainLod = Unity.Burst.SharedStatic<float2>.GetOrCreate<BrainLodKey>();
+        struct BrainLodKey { }
+        public static readonly float2 BrainLodDefault = new float2(80f, 4f);
+        static float BrainLodRange => BrainLod.Data.x > 0f ? BrainLod.Data.x : BrainLodDefault.x;
+        static uint BrainLodFrames => BrainLod.Data.y >= 1f ? (uint)BrainLod.Data.y : (uint)BrainLodDefault.y;
         /// <summary>#57: each creature looks for predators, alarms and someone asking it to chat once per this (s), phased
         /// by its Individual on the shared clock (the same on every machine); fleeing ones still look every frame.</summary>
         const float SearchPeriod = 0.2f;
@@ -303,7 +307,12 @@ namespace Punchy.Fauna
                 var far = BrainLodOff.Data == 0 && !s.Gone && s.Mode != CreatureMode.Held && s.Mode != CreatureMode.Puppet;
                 for (int p = 0; p < Players.Length && far; p++)
                     far = math.distancesq(Players[p].xz, s.Position.xz) > BrainLodRange * BrainLodRange;
-                var thinks = !far || (Frame + math.hash(new uint2(s.Individual, 0x59u))) % BrainLodFrames == 0;
+                // (The phase is mixed first: math.hash alone doesn't spread its low bits well, and only those pick the frame.)
+                var phase = math.hash(new uint2(s.Individual, 0x59u));
+                phase ^= phase >> 16;
+                phase *= 0x7FEB352Du;
+                phase ^= phase >> 15;
+                var thinks = !far || (Frame + phase) % BrainLodFrames == 0;
                 if (!thinks)
                 {
                     M.LodDebt += frameStep;
