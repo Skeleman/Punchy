@@ -152,6 +152,10 @@ namespace Punchy.Fauna
         /// <summary>How many ground perches were sampled since the start (A-48 check against per-frame sampling).</summary>
         public static int PerchGroundSamples;
         static readonly List<Ambient> now = new List<Ambient>();
+        /// <summary>The ground height under the listener, where (and on which island) it was last read.</summary>
+        static TerrainSource earSource;
+        static float2 earAt;
+        static float earGround;
         static int frame = -1;
         /// <summary>The queries and scene objects Near reads, kept between frames (made again for another world).</summary>
         static World queried;
@@ -173,6 +177,7 @@ namespace Punchy.Fauna
             cells.Clear();
             sitting.Clear();
             perchGround.Clear();
+            earSource = default;
             now.Clear();
             frame = -1;
         }
@@ -284,7 +289,14 @@ namespace Punchy.Fauna
 
             CollectSettled(terrain);
             // (High above the ground, flying or gliding, the small life below is out of sight and earshot.)
-            if (ear.y - terrain.SampleHeight(ear.xz) > Range)
+            // (#63: the ground under the ear is read again only once it has moved a metre, not every frame.)
+            if (!earSource.Equals(terrain) || math.distancesq(ear.xz, earAt) > 1f)
+            {
+                earSource = terrain;
+                earAt = ear.xz;
+                earGround = terrain.SampleHeight(ear.xz);
+            }
+            if (ear.y - earGround > Range)
                 return now;
 
             var min = (int2)math.floor((ear.xz - Range) / CellSize);

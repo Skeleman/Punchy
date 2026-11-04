@@ -87,7 +87,17 @@ namespace Punchy.Ambience
             public float BreathTimer, ExhaleLeft, StepDistance;
             public bool LeftFoot, HasLast, Seen;
             public float3 LastPosition;
+            /// <summary>#63: the ground under them (sampled where they last were, again once they move GroundStep m).</summary>
+            public bool HasGround;
+            public float2 GroundAt;
+            public GroundSample Ground;
+            public float Snow;
         }
+        /// <summary>How far someone moves before the ground, biome and snow under them are sampled again (#63: each
+        /// sample is a ground, a normal and a surface read in managed code, about 16 us apiece in the player).</summary>
+        const float GroundStep = 0.5f;
+        /// <summary>How many ground reads (ground + normal + surface) the breathers made since the start (A-65 check).</summary>
+        public static int GroundReads;
         readonly Breather self = new Breather();
         readonly Dictionary<Entity, Breather> others = new Dictionary<Entity, Breather>();
         readonly List<Entity> gone = new List<Entity>();
@@ -169,6 +179,9 @@ namespace Punchy.Ambience
             heatJob.Complete();
             heatPending = false;
             hasHeatMap = false;
+            self.HasGround = false;
+            foreach (var b in others.Values)
+                b.HasGround = false;
             if (biomeAmbience.IsCreated) biomeAmbience.Dispose();
             biomeAmbience = new NativeArray<float4>(palette.Biomes.Length, Allocator.Persistent);
             for (int i = 0; i < palette.Biomes.Length; i++)
@@ -269,9 +282,8 @@ namespace Punchy.Ambience
 
         void UpdateConditions(in TerrainSource source, float3 playerPosition)
         {
-            var xz = playerPosition.xz;
-            var ground = source.SampleGround(xz);
-            var surface = source.SampleSurface(xz, ground, source.SampleNormal(xz, 1f));
+            GroundUnder(self, source, playerPosition.xz);
+            var ground = self.Ground;
             var biome = AmbienceAt(ground.Biomes);
 
             var w = Weather != null ? Weather.Local : default;
@@ -287,7 +299,7 @@ namespace Punchy.Ambience
 
             // Heat: strong sun on clear, dry days. Where it shows is up to the heat map.
             Heat = math.smoothstep(0.15f, 0.6f, sunHeight) * (1f - w.Coverage * 0.75f) * dry * (1f - w.Dust * 0.7f);
-            Cold = ColdAt(source, ground.Height, surface.Snow, biome);
+            Cold = ColdAt(source, ground.Height, self.Snow, biome);
             Fireflies = night * dry * calm * (1f - math.smoothstep(0.4f, 0.7f, Cold));
             Butterflies = math.smoothstep(0.1f, 0.4f, sunHeight) * dry * calm * math.lerp(1f, 0.35f, w.Coverage) * (1f - math.smoothstep(0.4f, 0.7f, Cold));
 
@@ -296,6 +308,18 @@ namespace Punchy.Ambience
             Shader.SetGlobalVector(CrittersId, new Vector4(Fireflies, Butterflies, 0f, 0f));
             if (HeatHaze != null && HeatHaze.isActive != heatVisible > 0.02f)
                 HeatHaze.SetActive(heatVisible > 0.02f);
+        }
+
+        /// <summary>The ground, biome and snow under someone, kept from the last read until they move GroundStep m (#63).</summary>
+        static void GroundUnder(Breather b, in TerrainSource source, float2 xz)
+        {
+            if (b.HasGround && math.distancesq(xz, b.GroundAt) < GroundStep * GroundStep)
+                return;
+            b.HasGround = true;
+            b.GroundAt = xz;
+            b.Ground = source.SampleGround(xz);
+            b.Snow = source.SampleSurface(xz, b.Ground, source.SampleNormal(xz, 1f)).Snow;
+            GroundReads++;
         }
 
         /// <summary>Cold at a spot: the biome, height, night, snow on the ground or falling; warm biomes push back.</summary>
@@ -340,9 +364,8 @@ namespace Punchy.Ambience
                 if (!others.TryGetValue(e, out var b))
                     others[e] = b = new Breather { BreathTimer = UnityEngine.Random.Range(0f, BreathInterval) };
                 b.Seen = true;
-                var ground = source.SampleGround(t.Position.xz);
-                var snow = source.SampleSurface(t.Position.xz, ground, source.SampleNormal(t.Position.xz, 1f)).Snow;
-                var cold = ColdAt(source, ground.Height, snow, AmbienceAt(ground.Biomes));
+                GroundUnder(b, source, t.Position.xz);
+                var cold = ColdAt(source, b.Ground.Height, b.Snow, AmbienceAt(b.Ground.Biomes));
                 OthersNearby++;
                 if (cold > BreathThreshold)
                     OthersBreathing++;
@@ -426,8 +449,8 @@ namespace Punchy.Ambience
             var snow = 0f;
             if (grounded && speed > 1f)
             {
-                var ground = source.SampleGround(position.xz);
-                snow = source.SampleSurface(position.xz, ground, source.SampleNormal(position.xz, 1f)).Snow;
+                GroundUnder(b, source, position.xz);
+                snow = b.Snow;
             }
             if (snow > 0.3f)
             {

@@ -114,6 +114,12 @@ namespace Punchy.Fauna
         readonly System.Collections.Generic.Dictionary<int, float> hiveAngry = new System.Collections.Generic.Dictionary<int, float>();
         /// <summary>The bear (entity index) a hive's bees are after, if it was a bear that set them off.</summary>
         readonly System.Collections.Generic.Dictionary<int, int> hiveRaider = new System.Collections.Generic.Dictionary<int, int>();
+        /// <summary>#63: the ground height under each forager's flower (hive anchor index * 64 + bee), sampled once,
+        /// not every frame; forgotten when the island changes.</summary>
+        static readonly System.Collections.Generic.Dictionary<int, float> foragerGround = new System.Collections.Generic.Dictionary<int, float>();
+        static TerrainSource foragerSource;
+        /// <summary>How many forager spots were sampled since the start (A-65 check against per-frame sampling).</summary>
+        public static int ForagerGroundSamples;
 
         protected override void OnCreate()
         {
@@ -203,7 +209,13 @@ namespace Punchy.Fauna
                     var u = math.frac(now / trip + phase);
                     var dir = rng.NextFloat2Direction();
                     var spot2 = comb.xz + dir * rng.NextFloat(8f, 20f);
-                    var spot = new float3(spot2.x, terrain.SampleHeight(spot2) + 0.4f, spot2.y);
+                    if (!foragerGround.TryGetValue(index * 64 + k, out var ground))
+                    {
+                        ground = terrain.SampleHeight(spot2);
+                        foragerGround[index * 64 + k] = ground;
+                        ForagerGroundSamples++;
+                    }
+                    var spot = new float3(spot2.x, ground + 0.4f, spot2.y);
                     var out_ = math.smoothstep(0f, 0.4f, u) * (1f - math.smoothstep(0.6f, 1f, u));
                     var lift = math.sin(out_ * math.PI) * 1.5f;
                     at3 = math.lerp(comb, spot, out_) + up * lift;
@@ -719,6 +731,11 @@ namespace Punchy.Fauna
                 at = Colony(terrain.Anchors.Value.Anchors[roosts[i]], roosts[i], colonySizes[i], colonyFades[i], extras, at);
             colonySizes.Dispose();
             colonyFades.Dispose();
+            if (!foragerSource.Equals(terrain))
+            {
+                foragerGround.Clear();
+                foragerSource = terrain;
+            }
             for (int i = 0; i < hives.Length; i++)
             {
                 var hive = terrain.Anchors.Value.Anchors[hives[i]];
