@@ -1738,3 +1738,11 @@ Commits: world-features 178e226 (merge of origin/main, no rebase, 0 compile erro
 - Hashes: incomplete. The eval came back truncated: landmarks read 103 / 19885131 (that is the v1 set, not comparable to v2 136 / 4E61F1CF); caves, ground and rivers lines were cut off. Re-measure v2 caves/ground/rivers next card (baselines C49E8E3036C741FC / C0C906EE310FA91F / A77D2ED7B919296E).
 - Shots: D:\PunchyMilestones\W-67c (pick: w67c_igloo_framed, w67c_wharf_deck, w67c_cave_fauna; also underdeck_fail, stone_row, igloo_door, ruin_entrance, ruin_wall).
 - Calls: about 52.
+
+## W-71 (2026-11-03): play build from main, #68 smoke
+- Main: 3a4acb8 (CharacterTab.cs present). World tree detached there for the build, back on world-features after; QualitySettings change left uncommitted, no stash needed.
+- Build: Builds/Dev/Punchy.exe, Succeeded, errors 0, warnings 3, 1m21s. (A first try queued via EditorApplication.delayCall never ran; rebuilt synchronously in eval. Still one build.)
+- Smoke (solo, default island, shot list `-pickclass Quadruped -menu Character`): Character tab shows Class -> Species -> Colour; Quadruped picks Wolf (Colour row Grey/Black/White, none chosen). In game the player body is the wolf. Player quit by itself, 2 shots in 12.1 s. Exceptions in player log: 0.
+- Shots: D:/PunchyMilestones/W-71 (w71_character_tab, w71_player_ingame; player.log, shots.txt).
+- No colour was picked (no shot flag for coats); colour pick not checked.
+- Calls: about 36.
