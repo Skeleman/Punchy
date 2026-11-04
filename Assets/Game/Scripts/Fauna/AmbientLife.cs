@@ -147,6 +147,10 @@ namespace Punchy.Fauna
         /// there), so the ground is sampled once a hop rather than every frame.
         /// </summary>
         static readonly Dictionary<uint, (int step, float2 at, float y)> sitting = new Dictionary<uint, (int, float2, float)>();
+        /// <summary>#63: the ground height under each songbird's ground perch (by seed and perch number).</summary>
+        static readonly Dictionary<(uint, int), float> perchGround = new Dictionary<(uint, int), float>();
+        /// <summary>How many ground perches were sampled since the start (A-48 check against per-frame sampling).</summary>
+        public static int PerchGroundSamples;
         static readonly List<Ambient> now = new List<Ambient>();
         static int frame = -1;
         /// <summary>The queries and scene objects Near reads, kept between frames (made again for another world).</summary>
@@ -168,6 +172,7 @@ namespace Punchy.Fauna
             EndSettling();
             cells.Clear();
             sitting.Clear();
+            perchGround.Clear();
             now.Clear();
             frame = -1;
         }
@@ -319,6 +324,8 @@ namespace Punchy.Fauna
             }
             if (sitting.Count > 2000)
                 sitting.Clear();
+            if (perchGround.Count > 2000)
+                perchGround.Clear();
             // (Cells long out of range forgotten.)
             if (cells.Count > 400)
             {
@@ -603,7 +610,14 @@ namespace Punchy.Fauna
             if (rng.NextFloat() < 0.14f)
             {
                 var g = r.TreeBase.xz + dir.xz * (r.CrownRadius + rng.NextFloat(0.5f, 2f));
-                return new float3(g.x, terrain.SampleHeight(g), g.y);
+                // (#63: a ground perch is used for two hops, read every frame: its height is sampled once.)
+                if (!perchGround.TryGetValue((seed, n), out var y))
+                {
+                    y = terrain.SampleHeight(g);
+                    perchGround[(seed, n)] = y;
+                    PerchGroundSamples++;
+                }
+                return new float3(g.x, y, g.y);
             }
             // (Where a bird can be seen, not buried in the leaves: on top of the crown, against the sky, or out at its
             // lower edge.)
