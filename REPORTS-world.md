@@ -1839,3 +1839,12 @@ Commits: world-features 178e226 (merge of origin/main, no rebase, 0 compile erro
 - #86 driftwood: not started.
 - Shots in D:\PunchyMilestones\W-77\: w77-far-before/after, w77-tower-before/after, w77-falls-before. There is no falls-after shot.
 - Calls: about 64 (over the 60 ceiling).
+
+## W-77b (2026-11-04): #88 and #84 done, #86 not started
+
+- Commits on world-features (pushed): f447128 (#88), 36126d9 (#84).
+- #88: the cause was not the cached bake. IslandV3.LakeCentre was set (1610, -53), but the v3 central lake sits at sea level and the shelf asked for water above sea level + 1 m. It now asks for open water over the bed. Log: "lake shelf at 34.0 m over the lake at 0.0 m: lip 1099 m from (2009,-81) to (1938,685), 79 fall stretches". v3 landmark hash 3A0DC7BB (108 landmarks) before and after. This run's before hash was 3A0DC7BB, not the 4D2643D7 in the W-77 entry. The falls-before camera spot wasn't recorded, so falls-after is framed from the lake at (1680, 60, 260) looking at the lip.
+- #84: the salt tower now draws with a Colossus copy tinted like SaltTowerBasalt, so it takes the haze. New FarShadow proxy (FarShadow.cs, Punchy/FarShadow shader, Resources/FarShadow.mat): a ground-hugging strip cast away from the sun. It shows only past the real shadow distance and fades with the haze. Global shadow distance unchanged. It is used by the salt tower only; the sunken temple could reuse it. Frame near the tower: 5.95 before, 5.6 ms after (uncapped, editor play).
+- #86 driftwood: not started (call ceiling).
+- Shots in D:\PunchyMilestones\W-77\: w77-falls-after, w77b-tower-after, w77b-far-after.
+- Calls: about 44.
