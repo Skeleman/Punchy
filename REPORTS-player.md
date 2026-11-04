@@ -1,5 +1,19 @@
 # Player lane reports
 
+## 2026-11-04 batch P-11: items, host-decided pickup, inventory, seeded temple chests (#26, #24)
+- DONE (player-client 6621249, Items/Items.cs + Items/Resources/ItemMaterial.mat; Doors.cs: Use-key arbitration)
+- #26 row 1: "Items: table of 8: 0 Stick (stack 20, 0.3 kg), 1 Stone (20, 1 kg), 2 Berry (30, 0.02), 3 Mushroom (20, 0.05), 4 Shell (20, 0.05), 5 Fish (5, 0.8), 6 Coin (99, 0.01), 7 Key (5, 0.05)". World: 260 starter items (2 seeded per house door, same on every machine, not sent)
+- #26 row 2: Use key, nearer of door/item wins; host decides. Host `-pickup 1`: host "item 405 (Berry) taken (host)", client "item 405 gone (from the host)". Client `-pickup 5`: "asked the host for item 400" -> host "item 400 (Fish) taken (host)" -> client "item 400 gone", "picked up Fish" (x5 items)
+- #26 row 3: 16-slot session inventory (Tab / I; click or arrows + Use drops one). Client `-drop`: client "dropped Fish", host "item 2000000 (Fish x1) on the ground", client "item 2000000 (Fish x1) appeared (from the host)". Shot inv-client.png: Shell x2, Mushroom x1, Coin x1 + "F  pick up fish" over the dropped fish
+- #24 row 4: temple chest sockets open with Use; host lays out 1-3 items from the socket's seed. Host `-openchest`: "chest 17 opened (seed C98F19AB): Coin x10"; client "item 1000068 (Coin x10) appeared (from the host)", "chest 17 opened (from the host)". Solo gives the same chest 17 / C98F19AB / Coin x10
+- NOT DONE: a clear open-chest shot: no chest model of mine (no lid to open; the A-50 stand-in at the socket draws magenta), and the coins sat behind a pillar in chest-open.png. A joined client's `-place temple` is overridden by the near-host spawn
+- For the animal lane: (1) dungeon item spawns: call `Punchy.Items.Items.Spawn(byte item, int count, float3 pos)` on the host or solo (ignored on a client); it returns the uid and sends the item to everyone; item ids are ItemTable indices (append-only). (2) The magenta boxes: GameObject.CreatePrimitive's default material has no URP shader in a player build; give them a material asset (I used one made from GraphicsSettings.currentRenderPipeline.defaultMaterial, loaded from Resources, colour via MaterialPropertyBlock _BaseColor)
+- Network table change: 7 new RPC types (PickupRpc, OpenChestRpc, DropRpc, ItemGoneRpc, ItemSpawnRpc, GrantRpc, ChestOpenedRpc)
+- Checks: compile 0 errors; 2 builds Succeeded 0 errors (2nd: magenta items -> ItemMaterial, one-fix allowance); 5 player runs all quit; editor closed
+- Shots: D:/PunchyMilestones/P-11/inv-client.png, chest-open.png
+- Cost: ~27 calls, 2 builds
+- NEXT: a chest model with a lid (or ask the animal lane's stand-in for an "opened" state); inventory on a pad (MenuNav)
+
 ## 2026-11-04 batch P-10: Use key + host-owned doors done; interiors blocked on collision
 - DONE row 0: PlayerOptions master comment (ea26b30)
 - DONE #25 row 1 (717e007): a separate Use key (F, cycle F/G/R/T/V in a new Keys tab; RB on a pad) because Interact (E) is the animal lane's pet/pick up/sit and would sit the player at a door. Prompt "F  open door" / "F  close door" facing a Door anchor within 2.5 m (door-prompt.png)
