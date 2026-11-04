@@ -40,6 +40,8 @@ namespace Punchy.Debugging
         int gcAtStart;
         // Graphics and process memory at the end of each stop (does streaming fill video memory over a route?).
         ProfilerRecorder gfxUsed, gfxReserved, systemUsed, drawCalls;
+        int hitchLines;
+        static string phase = "";
         long drawTotal, batchTotal, setPassTotal, shadowTotal, triTotal;
         ProfilerRecorder batches, setPass, shadowCasters, tris;
 
@@ -103,6 +105,13 @@ namespace Punchy.Debugging
                 yield return Stop("herewarm", () => (hereSet = TryGetPlayerPosition(out hereAt)) && SetWeather("Partly cloudy", 10));
                 yield return Stop("here", () => (hereSet = TryGetPlayerPosition(out hereAt)) && SetWeather("Partly cloudy", 10));
             }
+            // -benchstops hereentry / hereentryfast: from 250 m out on the surface to the mouth of the cave the -goto point
+            // is in, then along its passages (segment graph) to that point: walking (6 m/s) or flying fast (18 m/s), so
+            // streaming, the cave chunks meshing and the surface going hidden are all measured on the way in (job 22).
+            yield return Stop("hereentry", () => hereSet && StartEntry(hereAt) && SetWeather("Partly cloudy", 10),
+                              measure: 600f, drive: t => DriveEntry(t, 6f));
+            yield return Stop("hereentryfast", () => hereSet && StartEntry(hereAt) && SetWeather("Partly cloudy", 10),
+                              measure: 600f, drive: t => DriveEntry(t, 18f));
             // -benchstops hereapproach: walk on the surface from 400 m out to 100 m from where -place put the player (what
             // a cave or mine costs before you're in it).
             yield return Stop("hereapproach", () => hereSet && PlaceAt(new float3(hereAt.x, float.NaN, hereAt.z) - ApproachDirection * ApproachFrom, 0f) &&
@@ -173,7 +182,7 @@ namespace Punchy.Debugging
         /// measured part is already at speed.
         /// </summary>
         IEnumerator Stop(string name, System.Func<bool> arrive, float speed = 0f, float height = 0f, float measure = Measure, float hour = 12f,
-                         System.Action midway = null, bool waitCaves = false)
+                         System.Action midway = null, bool waitCaves = false, System.Func<float, string> drive = null)
         {
             // -benchstops run,glide runs only the listed stops (to profile one of them on its own).
             var args = System.Environment.GetCommandLineArgs();
@@ -205,7 +214,7 @@ namespace Punchy.Debugging
             var profile = System.Array.IndexOf(args, "-profilestop");
             var profiling = profile >= 0 && profile + 2 < args.Length && args[profile + 1] == name;
             var t = 0f;
-            frameMs.Clear(); cpuMs.Clear(); gpuMs.Clear(); mainMs.Clear(); renderMs.Clear();
+            frameMs.Clear(); cpuMs.Clear(); gpuMs.Clear(); mainMs.Clear(); renderMs.Clear(); hitchLines = 0; phase = name;
             TurnOff();
             lightsMax = 0; lightsTotal = 0; drawTotal = 0; batchTotal = 0; setPassTotal = 0; shadowTotal = 0; triTotal = 0;
             var settle = Settle;   // waitCaves: pushed on while cave chunks are queued or building, up to MaxCaveSettle
@@ -216,7 +225,13 @@ namespace Punchy.Debugging
                 t += Time.unscaledDeltaTime;
                 if (!measuring && settledProp != null && t > settle && t < MaxCaveSettle && !(bool)settledProp.GetValue(caves))
                     settle = t;
-                if (speed > 0f)
+                if (drive != null)
+                {
+                    phase = drive(t);
+                    if (phase == "done")
+                        break;
+                }
+                else if (speed > 0f)
                     Carry(start + ApproachDirection * speed * t, height);
                 if (!measuring && t > settle)
                 {
@@ -345,6 +360,9 @@ namespace Punchy.Debugging
             if (!measuring)
                 return;
             frameMs.Add(Time.unscaledDeltaTime * 1000f);
+            // Every frame over 50 ms while measuring: when, where and in which part of a driven stop (job 22).
+            if (Time.unscaledDeltaTime > 0.05f && hitchLines++ < 300 && TryGetPlayerPosition(out var hp))
+                Debug.Log($"BenchRoute: hitch {Time.unscaledDeltaTime * 1000f:F0} ms at {Time.realtimeSinceStartup:F1} s, frame {Time.frameCount}, player {hp.x:F0},{hp.y:F0},{hp.z:F0}, {phase}");
             if (drawCalls.Valid)
                 drawTotal += drawCalls.LastValue;
             if (batches.Valid) batchTotal += batches.LastValue;
@@ -533,6 +551,110 @@ namespace Punchy.Debugging
         }
 
         /// <summary>Puts the player on the floor of the widest spot in the cave with the most nodes.</summary>
+        static readonly List<float3> entryPath = new List<float3>();
+        static readonly List<bool> entryUnder = new List<bool>();
+        static float entryLength;
+        const float EntryOut = 250f, EntrySettle = 10f;
+
+        /// <summary>The path into the cave holding the target: surface start, mouth, passage nodes, target. The player
+        /// waits at the start for the stop's settle time (10 s, the same as EntrySettle).</summary>
+        static bool StartEntry(float3 target)
+        {
+            entryPath.Clear(); entryUnder.Clear(); entryLength = 0f;
+            if (!TryGetWorld(out var em, out _))
+                return false;
+            using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (terrainQuery.IsEmpty)
+                return false;
+            var source = terrainQuery.GetSingleton<TerrainSource>();
+            if (!source.Caves.IsCreated)
+                return false;
+            ref var set = ref source.Caves.Value;
+            int best = -1;
+            for (int n = 0; n < set.Nodes.Length; n++)
+                if (best < 0 || math.distance(set.Nodes[n].Position, target) < math.distance(set.Nodes[best].Position, target))
+                    best = n;
+            if (best < 0)
+                return false;
+            int cave = -1;
+            for (int c = 0; c < set.Caves.Length; c++)
+                if (best >= set.Caves[c].FirstNode && best < set.Caves[c].FirstNode + set.Caves[c].NodeCount)
+                    cave = c;
+            if (cave < 0)
+                return false;
+            ref var cv = ref set.Caves[cave];
+            int first = cv.FirstNode, count = cv.NodeCount;
+            var mouth = cv.Mouth;
+            int from = first;
+            for (int n = first; n < first + count; n++)
+                if (math.distance(set.Nodes[n].Position, mouth) < math.distance(set.Nodes[from].Position, mouth))
+                    from = n;
+            // Breadth-first over the cave's segments from the node at the mouth to the node at the target.
+            var prev = new int[count];
+            for (int i = 0; i < count; i++) prev[i] = -2;
+            var queue = new Queue<int>();
+            queue.Enqueue(from); prev[from - first] = -1;
+            while (queue.Count > 0)
+            {
+                var n = queue.Dequeue();
+                if (n == best) break;
+                for (int k = cv.FirstSegment; k < cv.FirstSegment + cv.SegmentCount; k++)
+                {
+                    var sg = set.Segments[k];
+                    var o = sg.A == n ? sg.B : sg.B == n ? sg.A : -1;
+                    if (o < first || o >= first + count || prev[o - first] != -2) continue;
+                    prev[o - first] = n; queue.Enqueue(o);
+                }
+            }
+            var chain = new List<int>();
+            if (prev[best - first] != -2)
+                for (var n = best; n >= 0; n = prev[n - first]) chain.Add(n);
+            chain.Reverse();
+            var outward = math.normalizesafe(mouth.xz - target.xz, new float2(1f, 0f));
+            if (chain.Count > 1) outward = math.normalizesafe(mouth.xz - set.Nodes[chain[1]].Position.xz, outward);
+            var startXZ = mouth.xz + outward * EntryOut;
+            entryPath.Add(new float3(startXZ.x, 0f, startXZ.y)); entryUnder.Add(false);
+            entryPath.Add(mouth); entryUnder.Add(false);
+            foreach (var n in chain) { entryPath.Add(set.Nodes[n].Position); entryUnder.Add(true); }
+            entryPath.Add(target); entryUnder.Add(true);
+            for (int i = 1; i < entryPath.Count; i++)
+                entryLength += math.distance(entryPath[i - 1].xz, entryPath[i].xz) + (entryUnder[i] ? math.abs(entryPath[i].y - entryPath[i - 1].y) : 0f);
+            Debug.Log($"BenchRoute: entry path into cave {cave} ({count} nodes): start {startXZ.x:F0},{startXZ.y:F0}, mouth {mouth.x:F0},{mouth.y:F0},{mouth.z:F0}, " +
+                      $"{chain.Count} passage nodes{(chain.Count == 0 ? " (no route through the segments: straight in)" : "")}, {entryLength:F0} m");
+            return PlaceAt(new float3(startXZ.x, float.NaN, startXZ.y), math.degrees(math.atan2(-outward.x, -outward.y)));
+        }
+
+        /// <summary>Carries the player along the entry path: still for the settle time, then at speed. Returns the phase.</summary>
+        static string DriveEntry(float t, float speed)
+        {
+            if (entryPath.Count < 2 || !TryGetWorld(out var em, out var player))
+                return "no path";
+            var d = math.max(0f, t - EntrySettle) * speed;
+            if (d > entryLength + 3f * speed)
+                return "done";
+            for (int i = 1; i < entryPath.Count; i++)
+            {
+                var a = entryPath[i - 1]; var b = entryPath[i];
+                var len = math.distance(a.xz, b.xz) + (entryUnder[i] ? math.abs(b.y - a.y) : 0f);
+                if (d > len && i < entryPath.Count - 1) { d -= len; continue; }
+                var f = len > 0f ? math.saturate(d / len) : 1f;
+                using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+                var source = terrainQuery.GetSingleton<TerrainSource>();
+                var p = math.lerp(a, b, f);
+                var y = entryUnder[i] ? source.FloorUnder(p + new float3(0f, 1f, 0f), out _) : source.SampleHeight(p.xz);
+                var tr = em.GetComponentData<LocalTransform>(player);
+                var dir = math.normalizesafe(b.xz - a.xz, new float2(0f, 1f));
+                tr.Position = new float3(p.x, y + 0.1f, p.z);
+                tr.Rotation = quaternion.RotateY(math.atan2(dir.x, dir.y));
+                em.SetComponentData(player, tr);
+                em.SetComponentData(player, new PlayerMotion { Grounded = true });
+                if (t < EntrySettle) return "waiting at the start";
+                if (!entryUnder[i]) return "surface walk to the mouth";
+                return i == entryPath.Count - 1 && f >= 1f ? "in the chamber" : "in the passages";
+            }
+            return "done";
+        }
+
         /// <summary>
         /// Puts the player at a point facing yaw degrees: on the ground when y is NaN, else on the floor under (x, y, z),
         /// which may be a cave's.
