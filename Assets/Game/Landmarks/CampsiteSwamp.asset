@@ -1,0 +1,113 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a5407ac3b5877da49af18e077398168c, type: 3}
+  m_Name: CampsiteSwamp
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.LandmarkType
+  Radius: 10
+  Scale: {x: 1, y: 1}
+  MaxRelief: 8
+  Elevation: {x: 3, y: 10000}
+  Shape: 0
+  Height: 0
+  ShapeRadius: 0.7
+  Edge: 0.2
+  Flatten: 0.8
+  Roughness: 0
+  Pools: []
+  OverrideWater: 0
+  WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
+  WaterMurk: 0.3
+  WaterGlow: 0
+  Ground: {fileID: 11400000, guid: df538c85803bafa47873340f23f14be5, type: 2}
+  GroundRadius: 0.5
+  ClearRadius: 0.8
+  Props:
+  - Species: {fileID: 11400000, guid: c887decb958a4564ab754192d577157a, type: 2}
+    Density: 0
+    Ring: {x: 0, y: 0}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 1
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 2
+  - Species: {fileID: 11400000, guid: 0813c1a5fdee47a381b99c50f1f94e75, type: 2}
+    Density: 0
+    Ring: {x: 0.2, y: 0.2}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: 154
+    Clearance: 1
+  - Species: {fileID: 11400000, guid: bb680d1260298604d98103ae46a2b5bc, type: 2}
+    Density: 0
+    Ring: {x: 0.32, y: 0.32}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: 70
+    Clearance: 2
+  - Species: {fileID: 11400000, guid: 8c18703a43404be38e602050e945907f, type: 2}
+    Density: 0
+    Ring: {x: 0.5, y: 0.5}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: 206
+    Clearance: 1
+  - Species: {fileID: 11400000, guid: 506c009015914c66ad32e84ea3d65ee2, type: 2}
+    Density: 0
+    Ring: {x: 0.34, y: 0.34}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: 10
+    Clearance: 1
+  - Species: {fileID: 11400000, guid: e8772a9d62ea3cb4faae30254ce1f08f, type: 2}
+    Density: 0
+    Ring: {x: 0.85, y: 0.85}
+    Scale: {x: 0.7, y: 0.9}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 1
+    Angle: 290
+    Clearance: 2
+  - Species: {fileID: 11400000, guid: f961e7c3a68d3094c9d2e7c7691bd6d1, type: 2}
+    Density: 0
+    Ring: {x: 0.7, y: 0.7}
+    Scale: {x: 0.8, y: 1.2}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 5
+    Angle: 30
+    Clearance: 0
+  Effects:
+  - Kind: 2
+    Offset: {x: 0, y: 0}
+    Height: 1
+    Width: 0.8
+    Size: 0.8
+    Particles: 5
+    Lifetime: 1
+    Color: {r: 1, g: 0.6, b: 0.2, a: 1}
+    Opacity: 1
+    Glow: 1
+    Period: 0
+    Duty: 0.25
+    Flame: 0
+    NightOnly: 1
+  Residents: []
+  Anchors: 1
