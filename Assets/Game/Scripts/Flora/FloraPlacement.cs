@@ -1276,6 +1276,9 @@ namespace Punchy.Flora
         public static readonly SharedStatic<float4x4> KeepOut = SharedStatic<float4x4>.GetOrCreate<KeepOutCircles>();
         // Keyed apart from the old two-circle static: a live editor can't resize a SharedStatic it already made.
         class KeepOutCircles { }
+        /// <summary>Four more circles for colossi past the fourth (W-85 drowned knight).</summary>
+        public static readonly SharedStatic<float4x4> KeepOutMore = SharedStatic<float4x4>.GetOrCreate<KeepOutCirclesMore>();
+        class KeepOutCirclesMore { }
 
         public static FloraSystem.FloraInstance Place(ref FloraBlob f, in TerrainSource source, int2 cell, int layer, bool footprint = false)
         {
@@ -1287,6 +1290,10 @@ namespace Punchy.Flora
             var keepOut = KeepOut.Data;
             for (int k = 0; k < 4; k++)
                 if (keepOut[k].w > 0f && math.distancesq(xz, keepOut[k].xy) < keepOut[k].z * keepOut[k].z)
+                    return none;
+            var keepMore = KeepOutMore.Data;
+            for (int k = 0; k < 4; k++)
+                if (keepMore[k].w > 0f && math.distancesq(xz, keepMore[k].xy) < keepMore[k].z * keepMore[k].z)
                     return none;
             var roll = rng.NextFloat();
             var area = cellSize * cellSize / 100f;
