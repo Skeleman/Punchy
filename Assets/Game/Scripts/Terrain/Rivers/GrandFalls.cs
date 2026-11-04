@@ -121,6 +121,10 @@ namespace Punchy.Terrain
 
         /// <summary>Half a scored shore stretch in 2.5 degree rays (W-81: about 30 degrees either side), and the shelf's width.</summary>
         const int ShelfHalfSteps = 12;
+        /// <summary>W-84: half a scored shore stretch as shore length (m); the ray count follows the shore's distance.</summary>
+        const float ShelfArc = 160f;
+        /// <summary>W-84: the least land behind every ray of a stretch (m over the lake), the shelf's own lowest rise.</summary>
+        const float ShelfMinBehind = 10f;
 
         /// <summary>W-81 (#88): the lake shelf is tabled behind this flag, off by default (seed-derived either way: every
         /// player must launch with the same setting). Turn it on with <c>-lakeshelf</c> or PUNCHY_LAKESHELF=1.
@@ -168,20 +172,24 @@ namespace Punchy.Terrain
                 for (int j = 0; j < 4; j++) sum += src.SampleGround(c + d * (shoreR[k] + 30f + 20f * j)).Height;
                 behindH[k] = sum * 0.25f - lake;
             }
-            const int half = ShelfHalfSteps;
+            // W-84 (#88): a stretch spans about the same shore length on any lake (ShelfArc either side, 4-12 rays), not a
+            // fixed 30 degrees: on the big v3 lake (shore ~750 m out) 30 degrees is ~400 m of shore, and no stretch that
+            // long has 12 m of high ground behind all of it.
+            System.Func<int, int> halfAt = k => math.clamp((int)math.round(math.degrees(ShelfArc / math.max(shoreR[k], 1f)) / 2.5f), 4, ShelfHalfSteps);
             var rng = new Unity.Mathematics.Random(math.max(1u, source.World.Seed * 747796405u + 2891336453u));
-            int bestK = -1; float bestScore = float.MinValue, bestBay = 0f, bestBehind = 0f;
+            int bestK = -1, bestHalf = 0; float bestScore = float.MinValue, bestBay = 0f, bestBehind = 0f;
             for (int k = 0; k < rays; k++)
             {
                 var nudge = rng.NextFloat(0f, 0.08f);
-                bool ok = true; float minBehind = float.MaxValue;
+                bool ok = shoreR[k] >= 0f; float minBehind = float.MaxValue;
+                var half = ok ? halfAt(k) : 0;
                 for (int s = -half; s <= half && ok; s++)
                 {
                     var kk = (k + s + rays) % rays;
                     if (shoreR[kk] < 0f) ok = false; else minBehind = math.min(minBehind, behindH[kk]);
                 }
                 // Only real high ground behind the whole stretch: a low saddle or an inlet to other water is no bay for it.
-                if (!ok || minBehind < 12f) continue;
+                if (!ok || minBehind < ShelfMinBehind) continue;
                 int ka = (k - half + rays) % rays, kb = (k + half) % rays;
                 var a = c + rayDir[ka] * shoreR[ka]; var b = c + rayDir[kb] * shoreR[kb]; var m = c + rayDir[k] * shoreR[k];
                 // How far the middle sits behind the chord, away from the lake centre (positive = a bay).
@@ -190,11 +198,20 @@ namespace Punchy.Terrain
                 var bay = math.dot(m - a, chordN);
                 var chord = math.max(math.distance(a, b), 1f);
                 var score = math.clamp(bay / chord, -0.4f, 0.4f) * 1.5f + math.saturate(minBehind / 80f) * 1.5f + nudge;
-                if (score > bestScore) { bestScore = score; bestK = k; bestBay = bay; bestBehind = minBehind; }
+                if (score > bestScore) { bestScore = score; bestK = k; bestBay = bay; bestBehind = minBehind; bestHalf = half; }
             }
             if (bestK < 0)
             {
-                LastLog += $"; shelf none: no closed shore stretch ({open} open rays)";
+                // W-84 (#88): say how close the best stretch came, so a seed with no bay can be read from the log.
+                int high = 0, topK = 0; float topMin = float.MinValue;
+                for (int k = 0; k < rays; k++)
+                {
+                    if (shoreR[k] >= 0f && behindH[k] >= ShelfMinBehind) high++;
+                    float mn = float.MaxValue; var half = shoreR[k] < 0f ? 0 : halfAt(k);
+                    for (int s = -half; s <= half; s++) { var kk = (k + s + rays) % rays; mn = math.min(mn, shoreR[kk] < 0f ? -999f : behindH[kk]); }
+                    if (mn > topMin) { topMin = mn; topK = k; }
+                }
+                LastLog += $"; shelf none: no closed shore stretch ({open} open rays, {high} rays with >= {ShelfMinBehind:F0} m behind, best stretch min {topMin:F1} m at {topK * 360f / rays:F0} deg, shore {shoreR[topK]:F0} m)";
                 return default;
             }
             // Flush with the land behind: the shelf takes the lowest of the stretch's ground behind, kept between 10 and 40 m.
@@ -202,7 +219,7 @@ namespace Punchy.Terrain
             var level = lake + rise;
             // The lip: the bay's back (its middle two thirds), shore smoothed once so the joints follow its curve.
             var radii = new List<float>(); var dirs = new List<float2>();
-            int lipHalf = half * 2 / 3;
+            int lipHalf = bestHalf * 2 / 3;
             for (int s = -lipHalf; s <= lipHalf; s++) { var kk = (bestK + s + rays) % rays; radii.Add(shoreR[kk]); dirs.Add(rayDir[kk]); }
             {
                 var sm = new List<float>(radii);
