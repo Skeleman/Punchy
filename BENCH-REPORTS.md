@@ -2,6 +2,18 @@
 
 Newest first.
 
+## 2026-11-04: job 23 (Zach asked), #99 confirmation in a build: FAILS. The P-8 fix 84208ff crashes on the FIRST world switch in 7 of 7 runs; its parent be6d005 crashes on the 2nd-3rd host (3 of 3). Same native stack as before (burst.initialize.statics)
+Method: Bench builds of 84208ff and be6d005, each with the NetCycle helper (job 16's repro, never committed): -netcycle 3 = host, solo, host, solo, host, solo, memory logged after each switch settles. Uncapped. Fix: 5 runs v2 + 2 runs v3; parent: 3 runs v2, interleaved.
+- **Fix 84208ff:** all 7 runs end with a segfault (rc 139). Six of them (v2 runs 2-5, both v3 runs) crash inside the first GameBootstrap.Host(), before "cycle 1 hosting" is logged; v2 run 1 hosts once and crashes going back to solo. No run completes a cycle.
+- **Parent be6d005:** all 3 crash too, but later: they host 3, 2 and 2 times and get back to solo 2, 1 and 2 times. That matches job 16 on f405348 (2 of 3 crashed) and 3a4acb8 (1 of 3).
+- The stack in every crash, fix and parent alike: lib_burst_generated burst.initialize.statics.9af43d12..._avx2 (some also c2e4d500... or d857da5c...). This is Burst's static init on world creation, the same as job 16.
+- 0 managed exceptions before the crash in every run. The bake is shared, not redone, on each switch ("shared with ServerWorld/ClientWorld ... no rebake", v2 136/B5EFF8C8).
+- What 84208ff does (GameBootstrap.DisposeGameWorlds): SetActive(false) on every root of the active scene, so their OnDisable completes their jobs; then EntityManager.CompleteAllTrackedJobs() and Dispose() for each client/server/solo world. On this laptop that makes the crash come sooner, not go away. P-8 saw 5 runs / 15 re-hosts with 0 crashes, so this doesn't reproduce here. Possible differences: their build type (a Dev build?) and machine, or NetCycle calling Host()/PlaySolo() directly while their run went through the UI. Their commit says NetCycle, -island v2 -netcycle 3, so the repro should be the same.
+- 84208ff is on main, so main likely has this too. I'm checking main 0ec7a8d (NetCycle build, 3 runs v2) as 23b after job 22b.
+- Owner: player lane (P-8) / net bootstrap. Suggest reopening #99 (I don't change issues).
+- Crash reports are under %LOCALAPPDATA%/Temp/DefaultCompany/PunchyBench/Crashes on the laptop, and the logs in results/q23/<run>/game.log. Scripts: q23.sh, q23b.sh, NetCycle.cs.txt.
+- Cost: session total so far 274 calls, peak 301k context, $18.65 (job 23 about 8 calls, $0.60)
+
 ## 2026-11-04: job 20, startup hitch fix (#102) world-features cfae8be vs 4e3b63c: "[stream] world ready" v2 33.1 -> 19.1 s (-14.0 s), v3 35.1 -> 23.2 s (-11.9 s); the island-ready frame is 24.4 -> 10.8 s (v2) and 26.9 -> 14.4 s (v3); hashes as expected; the player doesn't run the v3 audit
 Method: Bench builds, 3 cold starts per island per build, rotated, `-benchstops here` (no teleport), uncapped. Profile-cfae8be with the StreamTrace helper: one trace run per island, then a capture from launch at -fpscap 20 (BigFrame dump, as in job 19; 4e3b63c's capture is job 19's). One `-host` run per island (host + local client in one process). 0 exceptions in all 22 logs.
 - Times, mean of 3 (s since start), 4e3b63c -> cfae8be:
