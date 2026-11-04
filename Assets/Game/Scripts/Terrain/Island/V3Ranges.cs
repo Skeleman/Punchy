@@ -291,7 +291,7 @@ namespace Punchy.Terrain
                         float t = 1f - r / MassifRadius;
                         if (t > 0f)
                         {
-                            float ridged = 1f - Mathf.Abs(2f * V2.Fbm(seed + 417, p.x / 330f, p.y / 330f, 3) - 1f);
+                            float ridged = 1f - SoftAbs(2f * V2.Fbm(seed + 417, p.x / 330f, p.y / 330f, 3) - 1f);
                             h = Mathf.Max(h, MassifHeight * (0.62f * Smooth01(t * 1.7f) + 0.5f * ridged * ridged * Smooth01(t * 1.3f)));
                             prox = Mathf.Max(prox, Mathf.Clamp01(t * 2f));
                         }
@@ -354,10 +354,14 @@ namespace Punchy.Terrain
 
         static float Smooth01(float t) { t = Mathf.Clamp01(t); return t * t * (3f - 2f * t); }
 
+        /// <summary>W-72: |x| with the V at 0 rounded (a hyperbola, still 1 at |x| = 1), so ridged noise gives domed
+        /// peaks rather than cusps.</summary>
+        static float SoftAbs(float x) { const float e = 0.3f; return (Mathf.Sqrt(x * x + e * e) - e) / (Mathf.Sqrt(1f + e * e) - e); }
+
         /// <summary>Crest height at s along the spine: ridged peaks and saddles along its length, dipped at its passes.</summary>
         static float CrestAt(Spine sp, int si, float s)
         {
-            float r = 1f - Mathf.Abs(2f * V2.Fbm(seed + 401 + (uint)si * 7, s / 380f, si * 3.7f, 3) - 1f);
+            float r = 1f - SoftAbs(2f * V2.Fbm(seed + 401 + (uint)si * 7, s / 380f, si * 3.7f, 3) - 1f);
             float c = sp.Kind == (byte)V2.Ridge.Volcano ? sp.Crest * (0.35f + 0.65f * r * r * r)
                     : sp.Kind == (byte)V2.Ridge.Mesas ? sp.Crest * (0.85f + 0.15f * r)
                     : sp.Crest * (0.55f + 0.45f * r * r);
@@ -365,11 +369,15 @@ namespace Punchy.Terrain
             return c;
         }
 
-        /// <summary>Cross-section by distance from the spine (u = 0 on the crest, 1 at the foot): a sharp crest and a
+        /// <summary>Cross-section by distance from the spine (u = 0 on the crest, 1 at the foot): a rounded crest and a
         /// concave lower flank; cones for volcano chains, soft steps for mesa bands.</summary>
         static float Profile(byte kind, float u)
         {
             float p = 1f - u;
+            // W-72: u is softened near the crest (a hyperbola, still 1 at the foot), so the crest is a rounded dome
+            // about a quarter of the half width across rather than a V; the flanks keep their concave fall.
+            const float c = 0.22f;
+            if (kind != (byte)V2.Ridge.Mesas) p = 1f - (Mathf.Sqrt(u * u + c * c) - c) / (Mathf.Sqrt(1f + c * c) - c);
             if (kind == (byte)V2.Ridge.Volcano) return Mathf.Pow(p, 2.3f);
             if (kind == (byte)V2.Ridge.Mesas)
             {

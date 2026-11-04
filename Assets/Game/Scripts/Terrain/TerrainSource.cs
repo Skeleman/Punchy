@@ -313,13 +313,19 @@ namespace Punchy.Terrain
                     relief *= 1f - 0.6f * box * notch;
                 }
             }
+            // Island v3 (W-72): on range tops (range field 35-95 m and up) ridged biome relief gets rounded creases,
+            // fewer fine octaves and less height, so crests read as soft ridges and domed summits; the lower flanks
+            // keep their crags.
+            var top = 0f;
+            if (V3Ground.IsCreated && Island.IsCreated)
+                top = math.smoothstep(35f, 95f, Island.Value.Sample(xz));
             for (int i = 0; i < 4; i++)
             {
                 var w = shape.Weights[i];
                 if (w <= 0f)
                     continue;
                 ref var biome = ref set.Biomes[shape.Ids[i]];
-                height += w * (biome.BaseElevation + BiomeSampling.Relief(ref biome, xz) * relief);
+                height += w * (biome.BaseElevation + BiomeSampling.Relief(ref biome, xz, top) * relief * (1f - 0.45f * top));
             }
             // The blurred shape weights still wobble every few tens of metres, and between biomes of different base
             // elevation that alone makes 50+ deg steps: on the track the base elevations are averaged over a ring.

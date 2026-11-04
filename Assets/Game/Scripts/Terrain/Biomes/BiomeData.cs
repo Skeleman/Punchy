@@ -991,8 +991,10 @@ namespace Punchy.Terrain
             return math.smoothstep(edge, edge + 0.3f, n) * b.PondDepth;
         }
 
-        /// <summary>Height of one biome's relief above its base elevation, at xz (metres).</summary>
-        public static float Relief(ref BiomeBlobData b, float2 xz)
+        /// <summary>Height of one biome's relief above its base elevation, at xz (metres). round (0..1, island v3
+        /// range tops only) rounds the relief: soft creases on ridged relief, fewer fine octaves, sharpness eased toward 1;
+        /// 0 keeps the old heights exactly.</summary>
+        public static float Relief(ref BiomeBlobData b, float2 xz, float round = 0f)
         {
             if (b.Relief <= 0f)
                 return 0f;
@@ -1009,8 +1011,13 @@ namespace Punchy.Terrain
                     float sum = 0f, norm = 0f, amp = 1f, freq = 1f;
                     for (int i = 0; i < b.Octaves; i++)
                     {
-                        var n = 1f - math.abs(noise.snoise(p * freq + o + i * 17.3f));
-                        sum += n * n * amp;
+                        var sn = noise.snoise(p * freq + o + i * 17.3f);
+                        // A soft abs (a hyperbola, scaled to still reach 1 at |sn| = 1) turns the V of each crease
+                        // into a rounded crest; round = 0 keeps the plain abs and the old heights exactly.
+                        float e = 0.6f * round;
+                        var n = 1f - (round > 0f ? (math.sqrt(sn * sn + e * e) - e) / (math.sqrt(1f + e * e) - e) : math.abs(sn));
+                        // Rounded tops also lose most of the fine octaves (the jagged teeth on a crest).
+                        sum += n * n * amp * (i > 0 ? 1f - 0.6f * round : 1f);
                         norm += amp;
                         amp *= 0.5f;
                         freq *= 2.03f;
@@ -1039,7 +1046,7 @@ namespace Punchy.Terrain
                     float sum = 0f, norm = 0f, amp = 1f, freq = 1f;
                     for (int i = 0; i < b.Octaves; i++)
                     {
-                        sum += amp * noise.snoise(p * freq + o + i * 17.3f);
+                        sum += amp * noise.snoise(p * freq + o + i * 17.3f) * (i > 0 ? 1f - 0.5f * round : 1f);
                         norm += amp;
                         amp *= 0.5f;
                         freq *= 2.03f;
@@ -1049,7 +1056,8 @@ namespace Punchy.Terrain
                 }
             }
 
-            h = math.pow(math.saturate(h), b.Sharpness);
+            // Sharpness over 1 points the peaks; rounded tops ease it toward 1 (domes).
+            h = math.pow(math.saturate(h), round > 0f ? math.lerp(b.Sharpness, math.min(b.Sharpness, 1f), 0.6f * round) : b.Sharpness);
             if (b.TerraceSteps > 0)
             {
                 var t = h * b.TerraceSteps;
