@@ -16,6 +16,9 @@ namespace Punchy.Flora
         /// <summary>How far a tree trunk's centre leans from its base at half its height and at its height (world x, z;
         /// FloraModel.TrunkLeanMid/Top, turned and scaled as the tree is drawn). Zero for a straight post or a rock.</summary>
         public float2 LeanMid, LeanTop;
+        /// <summary>W-67 (#79): one of a kit building's circles. The player skips these (it collides with the kit's
+        /// boxes, KitCollision); creatures, the camera and the rest still use them.</summary>
+        public bool Kit;
 
         /// <summary>The trunk's centre (x, z) at a height (world y): as drawn, not a straight post up from its base.</summary>
         public static float2 CentreAt(float3 position, float height, float2 leanMid, float2 leanTop, float y)

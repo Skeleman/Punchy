@@ -46,5 +46,5 @@ MonoBehaviour:
   Solid: 0
   SizeRange: {x: 0.8, y: 1.25}
   RiverSpot: 2
- 5
+  Variants: 5
   Seed: 632

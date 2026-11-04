@@ -174,6 +174,7 @@ namespace Punchy.Debugging
             ClimbTest();
             ActionTest();
             Watch();
+            SettleGoto();
             WalkTo();
             Pose();
             Interact();
@@ -1205,6 +1206,19 @@ namespace Punchy.Debugging
         static float walkLogNext;
         /// <summary>"-walk x,z;x,z;...": the legs still to walk after walkTarget, in order (W-61b; dev/test only).</summary>
         static readonly System.Collections.Generic.List<float3> walkPath = new();
+        /// <summary>W-65c: how the current walk ended ("ARRIVED", "STOPPED"), null while it goes on.</summary>
+        static string walkEnd;
+        /// <summary>W-67: the walker's height last frame (ARRIVED waits for it to stop falling).</summary>
+        static float walkLastY;
+        /// <summary>
+        /// W-67b: a -goto waiting for the kit boxes round its point (x, z; y the explicit height, or NaN), so it can land
+        /// on a deck or floor rather than the ground under it, and the -walk holds till then; and when it gives up.
+        /// </summary>
+        static float3? gotoSettle;
+        static float gotoSettleUntil;
+        static float2 walkStillAt;
+        static float walkStillSince;
+        static int walkMoves;
         static int walkLeg;
         /// <summary>"-untilwork": the most seconds a shot waits past -wait for the watched folk to work, and since when it has.</summary>
         static float untilWork;
@@ -1498,6 +1512,10 @@ namespace Punchy.Debugging
                 if (args[i] == "-walk" && ParseWalkPath(args[i + 1]) is float3 firstLeg)
                 {
                     walkTarget = firstLeg;
+                    walkEnd = null;
+                    walkStillAt = float.MaxValue;
+                    walkStillSince = Time.unscaledTime;
+                    walkMoves = 0;
                     walkLogNext = 0f;
                     Punchy.Player.PlayerMovementSystem.PushedTotal.Data = 0f;
                 }
@@ -1606,6 +1624,9 @@ namespace Punchy.Debugging
                         t.Position.y = ground.FloorUnder(new float3(gx, gy + 1f, gz), out _) + 0.05f;
                     em.SetComponentData(goer, t);
                     Debug.Log($"DebugControls: to {gx:F0},{t.Position.y:F1},{gz:F0}");
+                    // W-67b: the kit boxes there may not be placed yet (tiles still loading after the jump): wait for them.
+                    gotoSettle = new float3(gx, parts.Length >= 3 ? t.Position.y - 0.05f : float.NaN, gz);
+                    gotoSettleUntil = Time.unscaledTime + 5f;
                 }
             }
             // "-gocave -1669,2494" (x,z): onto the floor at the cave node nearest that spot in plan, at any depth.
@@ -1618,6 +1639,8 @@ namespace Punchy.Debugging
             // "-nocavewalls" (no cave walls drawn, to price them), "-perflog" (frame costs over the last 3 s of the wait).
             CaveSystem.NoRoomCull = ThirdPersonCamera.OldProbe = System.Array.IndexOf(args, "-oldcave") >= 0;
             CaveSystem.NoWalls = System.Array.IndexOf(args, "-nocavewalls") >= 0;
+            // "-oldtrace" (#81): TraceSystem's managed per-creature ground lookups, as before W-66.
+            Punchy.Fauna.TraceSystem.OldTrace = System.Array.IndexOf(args, "-oldtrace") >= 0;
             perfLog = System.Array.IndexOf(args, "-perflog") >= 0;
             // A-45 A/B toggles: "-oldsearch" (#57, every brain search every frame), "-oldsnapshot" (#56, each reader copies
             // the creatures itself), "-oldtrace" (#55, the ground sampled for every creature in trace range).
@@ -1821,11 +1844,56 @@ namespace Punchy.Debugging
             return first;
         }
 
+        /// <summary>
+        /// W-67b: after a -goto, once kit boxes reach the point, lifts the player onto the first kit floor over the
+        /// ground there (a wharf deck, not the seabed under it). With an explicit "x,y,z" it stays on the floor under
+        /// that height, so a forced under-deck walk is still possible. Gives up after 5 s (no kit there).
+        /// </summary>
+        void SettleGoto()
+        {
+            if (!gotoSettle.HasValue || queryWorld == null || !queryWorld.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var goer))
+                return;
+            var spot = gotoSettle.Value;
+            var em = queryWorld.EntityManager;
+            using var kitQuery = em.CreateEntityQuery(ComponentType.ReadOnly<KitBox>());
+            var ready = kitQuery.TryGetSingletonBuffer<KitBox>(out var kit, true) && KitCollision.AnyNear(kit, spot.xz, 0.5f);
+            if (!ready)
+            {
+                if (Time.unscaledTime > gotoSettleUntil)
+                {
+                    Debug.Log($"DebugControls: goto no kit boxes at {V(spot.x)},{V(spot.z)} after 5 s");
+                    gotoSettle = null;
+                }
+                return;
+            }
+            gotoSettle = null;
+            var t = em.GetComponentData<LocalTransform>(goer);
+            var ground = t.Position.y;
+            float top;
+            var found = float.IsNaN(spot.y)
+                ? KitCollision.LowestTopAt(kit, spot.xz, ground - 0.3f, 1.7f, out top, RoofGap(spot.xz))
+                : KitCollision.TopAt(kit, spot.xz, spot.y + 1f, 1.7f, out top);
+            if (found && top > ground)
+            {
+                t.Position.y = top + 0.05f;
+                em.SetComponentData(goer, t);
+            }
+            Debug.Log($"DebugControls: goto kit ready, floor {(found ? V(top) : "none")} (ground {V(ground)})");
+        }
+
         /// <summary>"-walk": steers the player at the line's walk target, and logs probe lines on the way.</summary>
         void WalkTo()
         {
             if (!walkTarget.HasValue || queryWorld == null || !queryWorld.IsCreated || !playerQuery.TryGetSingleton<LocalTransform>(out var walker))
                 return;
+            // W-67b: hold still till the -goto has its kit boxes (and has landed on a deck if there is one).
+            if (gotoSettle.HasValue)
+            {
+                PlayerInputSystem.TestMove = float2.zero;
+                walkStillSince = Time.unscaledTime;
+                walkLastY = walker.Position.y;
+                return;
+            }
             var to = walkTarget.Value.xz - walker.Position.xz;
             var distance = math.length(to);
             // Waypoints: within 0.6 m of a leg's end, log it and head for the next one (the last stops at 0.3 m as before).
@@ -1839,6 +1907,33 @@ namespace Punchy.Debugging
                 distance = math.length(to);
             }
             PlayerInputSystem.TestMove = distance > 0.3f ? to / distance : float2.zero;
+            // W-65c: the walk's end, for the shot list (a shot after a walk waits for it): arrived on the last leg, or
+            // stood still for 2 s (blocked: a door, a wall).
+            if (walkEnd == null)
+            {
+                // (W-67: and not still falling, as after a -goto drop onto the target.)
+                if (walkPath.Count == 0 && distance <= 0.35f && math.abs(walker.Position.y - walkLastY) < 0.01f)
+                    walkEnd = "ARRIVED";
+                else if (math.distance(walker.Position.xz, walkStillAt) > 0.05f)
+                {
+                    walkStillAt = walker.Position.xz;
+                    walkStillSince = Time.unscaledTime;
+                    walkMoves++;
+                }
+                else if (walkMoves > 5 && Time.unscaledTime - walkStillSince > 2f)   // (not while the world first loads)
+                    walkEnd = "STOPPED";
+                // W-67: arrived means on the target's floor too, not just over its x, z (a walker under a deck was
+                // ARRIVED): feet within 0.3 m of the expected top, else FAIL.
+                if (walkEnd == "ARRIVED" && ExpectedFloor(walkTarget.Value, walker.Position, out var expected))
+                {
+                    Debug.Log($"DebugControls: walk foot y {V(walker.Position.y)} expected {V(expected)} ({V(walker.Position.y - expected)} m)");
+                    if (math.abs(walker.Position.y - expected) > 0.3f)
+                        walkEnd = "FAIL";
+                }
+                walkLastY = walker.Position.y;
+                if (walkEnd != null)
+                    Debug.Log($"DebugControls: walk {walkEnd} at ({V(walker.Position.x)}, {V(walker.Position.y)}, {V(walker.Position.z)}), {V(distance)} m to go, {walkPath.Count} legs left");
+            }
             // Probe lines every quarter second: where it is, its clearance over the floor, and how far the push-out has moved it.
             if (Time.unscaledTime >= walkLogNext && EnsureLocations(out var walkGround))
             {
@@ -1848,6 +1943,40 @@ namespace Punchy.Debugging
                           $"{V(walker.Position.y - floor)} m over the floor (in cave {walkInCave}), pushed out {V(Punchy.Player.PlayerMovementSystem.PushedTotal.Data)} m in all" +
                           (Punchy.Player.PlayerMovementSystem.NoPushOut.Data ? " (push-out off)" : ""));
             }
+        }
+
+        /// <summary>
+        /// W-67: the floor a walker at the -walk target should stand on: its y if the leg gave one ("x,y,z"), else the
+        /// higher of the ground under the walker's height and the highest kit top there (within 2.5 m above the feet,
+        /// with headroom over it), so standing under a deck doesn't count as arriving on it.
+        /// </summary>
+        bool ExpectedFloor(float3 target, float3 feet, out float expected)
+        {
+            expected = target.y;
+            if (target.y != 0f)
+                return true;
+            if (!EnsureLocations(out var ground))
+                return false;
+            expected = ground.FloorUnder(new float3(target.x, feet.y + 0.5f, target.z), out _);
+            // W-67b: the first kit floor over that ground (not just one within 2.5 m of the feet: a walker 2.6 m under
+            // a wharf deck missed it and was ARRIVED on the seabed). Upper floors need an explicit "x,y,z".
+            using var kitQuery = queryWorld.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<KitBox>());
+            if (kitQuery.TryGetSingletonBuffer<KitBox>(out var kit, true) &&
+                KitCollision.LowestTopAt(kit, target.xz, expected - 0.3f, 1.7f, out var kitTop, RoofGap(target.xz)) && kitTop > expected)
+                expected = kitTop;
+            return true;
+        }
+
+        /// <summary>
+        /// W-67c (#38): for KitCollision.LowestTopAt from 0.3 m under the ground: on dry ground a box with a body's
+        /// height (1.7 m) clear under it is a roof, not a floor; under water any box over the seabed is the floor.
+        /// </summary>
+        float RoofGap(float2 xz)
+        {
+            if (!EnsureLocations(out var source))
+                return float.MaxValue;
+            var g = source.SampleGround(xz);
+            return g.HasWater && g.WaterSurface > g.Height ? float.MaxValue : 0.3f + 1.7f;
         }
 
         /// <summary>
@@ -2342,6 +2471,16 @@ namespace Punchy.Debugging
             // Underground, also until the caves round the camera are built (up to 10 s more).
             if (!settled && Time.realtimeSinceStartup - shotStarted < shotWait + 10f)
                 return;
+            // W-65c: a line that walks shoots only once the walk has ended (arrived or blocked), or after
+            // "-walktimeout" s (default 60), logged as a FAIL.
+            if (Arg("-walk") != null && walkEnd == null)
+            {
+                var limit = float.TryParse(Arg("-walktimeout"), System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var wt) ? wt : 60f;
+                if (Time.realtimeSinceStartup - shotStarted < shotWait + limit)
+                    return;
+                Debug.Log($"DebugControls: walk FAIL timeout after {limit:F0} s, shot '{Arg("-shot")}' taken anyway");
+            }
             Shot((Arg("-shot") ?? $"shot-{shotIndex}") + ".png");
             var at = playerQuery.TryGetSingleton<LocalTransform>(out var shooter) ? shooter.Position : float3.zero;
             Debug.Log($"DebugControls: shot {shotIndex + 1}/{shotLines.Count} '{Arg("-shot")}' after {Time.realtimeSinceStartup - shotStarted:F1} s" +

@@ -46,6 +46,8 @@ namespace Punchy.Flora
         /// <summary>W-62c (#37): 1 for sea folk spires: none stands within PierEndClear of a landing pier's far end, so the
         /// village reads from the deck (a spire stood 3.8 m off the end and filled the view).</summary>
         public int PierClear;
+        /// <summary>W-65b (#36): 1 for a fishing village's wharf: its variant follows the village, so no two villages share a layout.</summary>
+        public int PerVillage;
         /// <summary>
         /// W-61b (#38): for igloos, how far out the porch mouth is (0 for everything else). On a settlement's slope an
         /// igloo set at its centre's ground had its porch floor up to 1 m over a dip at the mouth, or buried in a knoll;
@@ -242,12 +244,16 @@ namespace Punchy.Flora
                     House = s.Form == FloraForm.KitBuilding && (s.KitShape == Punchy.Terrain.KitShape.House || s.KitShape == Punchy.Terrain.KitShape.StiltHouse) ? 1 : 0,
                     PierReach = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? s.Height.y : 0f,
                     PierClear = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Spire ? 1 : 0,
+                    PerVillage = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Wharf ? 1 : 0,
                     // StructureKit.Igloo (W-64): the tunnel ends 1-1.8 m past the dome's foot (the radius), plus the 0.8 m path out.
                     Porch = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Igloo ? (s.Height.x + s.Height.y) * 0.5f * s.Spread * 0.5f + 2.2f : 0f,
                     Footprint = Footprint(s),
                     Span = s.Form == FloraForm.IceArch ? (s.Height.x + s.Height.y) * 0.5f * math.max(s.Spread, 0.5f) * 0.5f :
                            // W-63: a log across a narrows reaches half its shortest length each way from the middle.
-                           s.Form == FloraForm.Driftwood && s.RiverSpot == RiverSpot.LogNarrows ? s.Height.x * 0.5f : 0f
+                           s.Form == FloraForm.Driftwood && s.RiverSpot == RiverSpot.LogNarrows ? s.Height.x * 0.5f :
+                           // W-65b: a stepping-stone row reaches half its length each way.
+                           // (W-65d: the longest; FloraPlacement fits each row's variant to its narrows.)
+                           s.Form == FloraForm.Boulder && s.RiverSpot == RiverSpot.Narrows ? FloraGenerator.StoneRowLength(FloraGenerator.StoneRowVariants - 1) * 0.5f : 0f
                 };
                 for (int v = 0; v < s.Variants; v++)
                 {
@@ -504,31 +510,42 @@ namespace Punchy.Flora
         static float FacingYaw(float2 facing) => math.atan2(-facing.x, facing.y);
 
         /// <summary>
-        /// W-61b (#38): an igloo facing its settlement's centre, turned up to 60 degrees either way to the heading whose
+        /// W-61b (#38): an igloo facing its settlement's centre, turned up to 30 degrees either way (W-65b; was 60) to the heading whose
         /// porch mouth (<paramref name="porch"/> m out) is nearest its centre's height (straight on wins near-ties), then
-        /// lowered (up to 1.4 m, the dome sinking into the slope) or raised (up to 0.5 m, within its foundation skirt) so
+        /// lowered (up to 3.5 m since W-65d, was 1.4; the dome sinking into the slope) or raised (up to 0.5 m, within its foundation skirt) so
         /// the porch floor meets the ground at the mouth, not a ledge over a dip. No random draws, so nothing else moves.
         /// </summary>
         static void PorchSeat(in TerrainSource source, float2 spot, float porch, ref float yaw, ref float y)
         {
             var best = yaw;
             var bestCost = float.MaxValue;
-            var mouthY = y;
-            for (int k = 0; k < 5; k++)
+            var bestY = y;
+            // W-65b (#38): up to 30 degrees now (was 60): a mouth turned 60 degrees faced a neighbour, and the walk
+            // between two mouths ran into a dome.
+            // W-65d (#38): on a steep slope no turn within 30 degrees seats the mouth (three igloos kept a 1.8 m step up
+            // onto the path, or a tunnel buried 2-4 m), so the igloo may now sink up to 3.5 m into the slope, and as a
+            // last resort it turns its back on the centre (150-210 degrees: a mouth facing out never faces a neighbour)
+            // to face downhill. A heading is judged by what the walker meets: the step from the ground up onto the
+            // path at the mouth (at most 0.3) and the ground in the tunnel under a 1.8 m head (roof 4 m over the floor).
+            for (int k = 0; k < 6; k++)
             {
-                var turn = math.radians(30f) * (k == 0 ? 0 : k == 1 ? 1 : k == 2 ? -1 : k == 3 ? 2 : -2);
+                var turn = math.radians(k < 3 ? 30f * (k == 0 ? 0 : k == 1 ? 1 : -1) : 180f + 30f * (k - 4));
                 var a = yaw + turn;
-                var ground = source.SampleHeight(spot + new float2(-math.sin(a), math.cos(a)) * porch);
-                var cost = math.abs(ground - y) + 0.25f * math.abs(turn);
+                var fwd = new float2(-math.sin(a), math.cos(a));
+                var mouth = source.SampleHeight(spot + fwd * porch);
+                var tunnel = math.max(source.SampleHeight(spot + fwd * (porch - 1.5f)), source.SampleHeight(spot + fwd * (porch - 3f)));
+                var seat = math.clamp(mouth, y - 3.5f, y + 0.5f);
+                var miss = math.max(0f, seat - 0.3f - mouth) + math.max(0f, math.max(mouth, tunnel) - seat - 2f);
+                var cost = miss * 10f + (k < 3 ? 0.25f * math.abs(turn) : 3f) + 0.05f * math.abs(seat - y);
                 if (cost < bestCost)
                 {
                     bestCost = cost;
                     best = a;
-                    mouthY = ground;
+                    bestY = seat;
                 }
             }
             yaw = best;
-            y = math.clamp(mouthY, y - 1.4f, y + 0.5f);
+            y = bestY;
         }
 
         /// <summary>
@@ -618,6 +635,61 @@ namespace Punchy.Flora
         /// <summary>W-63: dry ground (no water over it).</summary>
         static bool Dry(in GroundSample g) => !g.HasWater || g.Height > g.WaterSurface + 0.05f;
 
+        /// <summary>W-65f: how far from <paramref name="p"/> along <paramref name="dir"/> the first ground above
+        /// <paramref name="water"/> - 0.3 is (0.25 m steps out to 7.5 m, then bisected to ~3 cm so near-equal narrows rarely
+        /// tie); -1 when there is none.</summary>
+        static float RowBank(in TerrainSource source, float2 p, float2 dir, float water)
+        {
+            for (var d = 0.25f; d <= 7.5f; d += 0.25f)
+                if (source.SampleHeight(p + dir * d) > water - 0.3f)
+                {
+                    float lo = d - 0.25f, hi = d;
+                    for (var i = 0; i < 3; i++)
+                    {
+                        var mid = (lo + hi) * 0.5f;
+                        if (source.SampleHeight(p + dir * mid) > water - 0.3f) hi = mid; else lo = mid;
+                    }
+                    return hi;
+                }
+            return -1f;
+        }
+
+        /// <summary>W-65f: the narrowest spot a stepping-stone row fits, on a 1 m world lattice within 25 m along
+        /// <paramref name="flow"/> of <paramref name="xz"/>; false when none fits.</summary>
+        static bool NarrowestSpot(in TerrainSource source, in FloraRules rule, float2 xz, float2 flow, out float2 bestXz,
+            out float2 bestAcross, out float bestA, out float bestB, out float water)
+        {
+            bestXz = default; bestAcross = default; bestA = 0f; bestB = 0f; water = 0f;
+            var best = float.MaxValue;
+            for (var s = -25; s <= 25; s++)
+            {
+                var p = math.round(xz + flow * s);
+                var g = source.SampleGround(p);
+                if (!g.HasWater)
+                    continue;
+                var gAcross = math.normalizesafe(g.Flow, flow);
+                gAcross = new float2(-gAcross.y, gAcross.x);
+                var a = RowBank(source, p, gAcross, g.WaterSurface);
+                var b = RowBank(source, p, -gAcross, g.WaterSurface);
+                if (a < 0f || b < 0f)
+                    continue;
+                // Only spots a row fits count: a variant spans it and both of its ends land on the bank.
+                var v = FloraGenerator.StoneRowVariant(a + b);
+                if (v < 0 || v >= rule.Variants)
+                    continue;
+                var mid = p + gAcross * (a - b) * 0.5f;
+                var half = gAcross * FloraGenerator.StoneRowLength(v) * 0.5f;
+                if (!NearBank(source.SampleGround(mid + half), g.WaterSurface) || !NearBank(source.SampleGround(mid - half), g.WaterSurface))
+                    continue;
+                var w = a + b + (math.hash((int2)p) & 1023) * 1e-6f;   // a world-fixed tie-break under 1 mm
+                if (w < best) { best = w; bestXz = p; bestAcross = gAcross; bestA = a; bestB = b; water = g.WaterSurface; }
+            }
+            return best != float.MaxValue;
+        }
+
+        /// <summary>W-65b: an end stone's spot is dry bank no more than 0.8 m above the water, or water under 0.3 m deep.</summary>
+        static bool NearBank(in GroundSample g, float surface) => g.Height > surface - 0.3f && g.Height < surface + 0.8f;
+
         /// <summary>
         /// How far <paramref name="xz"/> is from the walk lane of the nearest dock of this landmark (#36, W-59d): the
         /// line from the foot of its plank ramp (4.6 m inland of the dock's base) out along the facing to its far end.
@@ -648,6 +720,57 @@ namespace Punchy.Flora
                 }
             }
             return best;
+        }
+
+        /// <summary>
+        /// W-65c (#36): how far <paramref name="xz"/> is from the whole deck of the nearest wharf of this landmark: its
+        /// main lane, the T or L across its end and the side branches (StructureKit.Wharf builds them within about 14 m
+        /// on its -X side, 7 m on its +X side, out to the lane's length plus the end walk). A box in the wharf's frame,
+        /// 0 inside it. float.MaxValue when the landmark has no wharf.
+        /// </summary>
+        static float WharfDistance(ref FloraBlob f, in TerrainSource source, in LandmarkHit landmark, float2 xz)
+        {
+            ref var set = ref source.Landmarks.Value;
+            var instance = set.Instances[landmark.Instance];
+            var dir = math.normalizesafe(instance.Facing, new float2(1f, 0f));
+            var side = new float2(dir.y, -dir.x);   // the wharf's local +X (FacingYaw turns local +Z onto the facing)
+            float2 lo = new float2(-14.5f, -DockRampRun), hi = new float2(7.5f, DockMaxLength + 3.5f);
+            var best = float.MaxValue;
+            for (int l = 0; l < 3; l++)
+            {
+                var placed = f.PropRanges[landmark.Type * 3 + l];
+                for (int e = placed.x; e < placed.x + placed.y; e++)
+                {
+                    var prop = f.Props[e];
+                    if (f.Rules[prop.Species].FaceLandmark != 2 || f.Rules[prop.Species].PerVillage == 0)
+                        continue;
+                    for (int k = 0; k < prop.Count; k++)
+                    {
+                        var spot = LandmarkSampling.ToWorld(instance, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
+                        var d = xz - DockShore(source, spot, instance.Facing).xz;
+                        var local = new float2(math.dot(d, side), math.dot(d, dir));
+                        var outside = math.max(math.max(lo - local, local - hi), 0f);
+                        best = math.min(best, math.length(outside));
+                    }
+                }
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// W-65b (#36): which variant a per-village prop (a wharf) takes at landmark <paramref name="instance"/>: the
+        /// village's rank among the landmarks of its type, plus a scrambled offset from the type. Ranks differ, so up to
+        /// <paramref name="variants"/> villages all get different layouts (the cell's own draw gave v0 and v2 the same one).
+        /// </summary>
+        static int VillageVariant(ref LandmarkSetBlob set, int instance, int variants)
+        {
+            var type = set.Instances[instance].Type;
+            var rank = 0;
+            for (int i = 0; i < instance; i++)
+                if (set.Instances[i].Type == type)
+                    rank++;
+            var offset = (int)(BiomeSampling.Scramble((uint)type * 0x9E3779B9u ^ 0x3A4F0B1Du) % (uint)math.max(1, variants));
+            return (rank + offset) % math.max(1, variants);
         }
 
         /// <summary>
@@ -1167,6 +1290,7 @@ namespace Punchy.Flora
                             Scale = bridge || plot.Role == PlotRole.Fence ? 1f : rng.NextFloat(0.95f, 1.05f) * towns.Layouts[towns.Settlements[plot.Settlement].Layout].BuildingScale,
                             Model = buildingRule.FirstModel + rng.NextInt(buildingRule.Variants),
                             Random = rng.NextFloat(),
+                            Snow = bridge || footprint ? 0f : source.SampleBiomeSnow(plot.Centre),   // #82: built plots too
                             Ground = bridge || footprint ? 0u : DirtColor(source, buildingRule, plot.Centre, math.cmax(plot.Half), 0.9f)
                         };
                     }
@@ -1212,7 +1336,8 @@ namespace Punchy.Flora
                                     return none;
                                 // W-63 (#36): nor a house. A stilt house at -3294.1,-1653.6 stood across a dock's deck and
                                 // the walker met a 0.9-1.6 m wall there (no draws moved: the cell just stays empty).
-                                if (placedRule.House != 0 && DockLaneDistance(ref f, source, landmark, spot) < placedRule.Footprint * prop.Scale.y + 1.5f)
+                                // W-65c: and off every branch of a wharf, not just its main lane.
+                                if (placedRule.House != 0 && math.min(DockLaneDistance(ref f, source, landmark, spot), WharfDistance(ref f, source, landmark, spot)) < placedRule.Footprint * prop.Scale.y + 1.5f)
                                     return none;
                                 // W-62c: no spire near a landing pier's far end (no draws moved: the cell just stays empty).
                                 if (placedRule.PierClear != 0 && PierEndDistance(ref f, source, spot) < PierEndClear * prop.Scale.y)
@@ -1226,13 +1351,18 @@ namespace Punchy.Flora
                                     PorchSeat(source, spot, placedRule.Porch, ref placedYaw, ref at.y);
                                 if (placedRule.FaceLandmark == 2 && !footprint)
                                     at = DockShore(source, spot, set.Instances[landmark.Instance].Facing);
+                                var placedScale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y));
+                                var placedModel = placedRule.FirstModel + rng.NextInt(placedRule.Variants);
+                                if (placedRule.PerVillage != 0)
+                                    placedModel = placedRule.FirstModel + VillageVariant(ref set, landmark.Instance, placedRule.Variants);
                                 return new FloraSystem.FloraInstance
                                 {
                                     Position = at,
                                     Yaw = placedYaw,
-                                    Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
-                                    Model = placedRule.FirstModel + rng.NextInt(placedRule.Variants),
+                                    Scale = placedScale,
+                                    Model = placedModel,
                                     Random = rng.NextFloat(),
+                                    Snow = footprint ? 0f : source.SampleBiomeSnow(spot),   // #82: stalls on a snowy square
                                     Ground = footprint ? 0u : GroundFor(source, placedRule, spot, 1f, 0.25f)
                                 };
                             }
@@ -1269,6 +1399,7 @@ namespace Punchy.Flora
                                 Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
                                 Model = centreRule.FirstModel + rng.NextInt(centreRule.Variants),
                                 Random = rng.NextFloat(),
+                                Snow = footprint ? 0f : source.SampleBiomeSnow(centre),   // #82: the camp's big tent
                                 Ground = footprint ? 0u : GroundFor(source, centreRule, centre, 2f, 0.5f)
                             };
                         }
@@ -1445,6 +1576,52 @@ namespace Punchy.Flora
                     Scale = scale,
                     Model = rule.FirstModel + rng.NextInt(rule.Variants),
                     Random = rng.NextFloat(),
+                    Ground = GroundFor(source, rule, xz, 1f, 0.25f)
+                };
+            }
+            if (rule.RiverSpot == (int)RiverSpot.Narrows && rule.Span > 0f)
+            {
+                // W-65b: a stepping-stone row crosses the river (its X across the flow), both end stones on or just off
+                // the bank; the model's origin sits on the water surface, so every top is 4-12 cm above the water.
+                var flow = math.normalizesafe(ground.Flow, new float2(0f, 1f));
+                yaw = math.atan2(flow.x, -flow.y) + rng.NextFloat(-0.15f, 0.15f);
+                // W-65d: the row fits the narrows it is in (a fixed 12 m row found no narrows on either island): walk
+                // out each way to the first bank (or water under 0.3 m), take the variant whose length (4-14 m, every 2 m,
+                // FloraGenerator.StoneRowLength) just spans it and centre the row between the two banks.
+                if (!ground.HasWater)
+                    return none;
+                // W-65f: one row per narrows. Every spot on a 1 m world lattice along the flow within 25 m is measured
+                // the same way (its own flow, no jitter) and only the narrowest one gets a row; so rows are at least ~25 m apart and each sits where the river is tightest. Every cell
+                // whose roll lands a row in this stretch makes the same row (spot, yaw, size and look come from the spot,
+                // not the cell's draws), so the copies coincide exactly and show as one.
+                // W-65g: windows of nearby cells differ, so they can pick neighbouring spots (rows 1.3 m apart); keep a
+                // spot only when it is also the narrowest in its own window (two such spots are then 25 m+ apart).
+                if (!NarrowestSpot(source, rule, xz, flow, out var bestXz, out var bestAcross, out var bestA, out var bestB, out var water) ||
+                    !NarrowestSpot(source, rule, bestXz, new float2(bestAcross.y, -bestAcross.x), out var againXz, out _, out _, out _, out _) ||
+                    math.distancesq(againXz, bestXz) > 0.25f)
+                    return none;
+                var across = bestAcross;
+                float outA = bestA, outB = bestB;
+                xz = bestXz + across * (outA - outB) * 0.5f;
+                var spotRng = Random.CreateFromIndex(math.hash((int2)math.round(bestXz * 4f)) | 1u);
+                yaw = math.atan2(across.y, across.x) + spotRng.NextFloat(-0.15f, 0.15f);
+                scale = 1f;
+                var variant = FloraGenerator.StoneRowVariant((outA + outB) / scale);
+                if (variant < 0 || variant >= rule.Variants)
+                    return none;
+                var reach = across * FloraGenerator.StoneRowLength(variant) * 0.5f * scale;
+                var endA = source.SampleGround(xz + reach);
+                var endB = source.SampleGround(xz - reach);
+                if (!NearBank(endA, water) || !NearBank(endB, water))
+                    return none;
+                rng.NextInt(rule.Variants);   // the draw the fixed row's variant took, so the rest of the cell stays put
+                return new FloraSystem.FloraInstance
+                {
+                    Position = new float3(xz.x, water, xz.y),
+                    Yaw = yaw,
+                    Scale = scale,
+                    Model = rule.FirstModel + variant,
+                    Random = spotRng.NextFloat(),
                     Ground = GroundFor(source, rule, xz, 1f, 0.25f)
                 };
             }

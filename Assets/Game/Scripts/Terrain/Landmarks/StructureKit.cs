@@ -386,16 +386,21 @@ namespace Punchy.Terrain
                     foreach (var side in new[] { -1f, 1f })
                         Add(parts, KitPiece.Column, KitMaterial.Wood, c + Turn(yaw, new Vector3(side * W * 0.45f, deck - 3.2f, -len * 0.5f + k * len / (piles - 1))), new Vector3(0.26f, 6f, 0.26f), yaw, false);
             }
-            const float rampDrop = 0.4f, rampRun = 5.2f;
+            const float rampDrop = 0.4f, rampRun = 6f;
             var rise = deck + rampDrop;
             // Shore steps rather than a pitched ramp: flat treads 0.2 m apart read as solid support on a low bank too
             // (a pitched ramp's support sampled in steps over 0.4 m where the bank fell away beside it).
-            const int treads = 7;
+            // W-65d: 10 treads (0.14 m each) over 6 m, so a walker still on the bank beside the low treads meets each
+            // next tread well within the 0.4 m step-up (with 7 the gap to the bank outgrew it near the deck end).
+            // W-65f (#36): each tread is solid (a collider up to its top), so a walker on the low bank beside or below the
+            // shore end is stopped by any tread more than a step up and only gets onto the steps where one is within a
+            // step; it can no longer walk in under the higher treads (the player stopped under them at -3285.9,-1644.0).
+            const int treads = 10;
             for (int k = 0; k < treads; k++)
             {
                 var top = deck - rise * (k + 1) / treads;
                 var run = rampRun / treads;
-                Add(parts, KitPiece.Platform, KitMaterial.Wood, new Vector3(0f, (top - 0.6f) * 0.5f, -run * (k + 0.5f)), new Vector3(W * 0.8f, top + 0.6f, run + 0.02f), 0f, false);
+                Add(parts, KitPiece.Platform, KitMaterial.Wood, new Vector3(0f, (top - 0.6f) * 0.5f, -run * (k + 0.5f)), new Vector3(W * 0.8f, top + 0.6f, run + 0.02f), 0f, true);
                 Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3(0f, top + 0.02f, -run * k - 0.04f), new Vector3(W * 0.82f, 0.05f, 0.08f), 0f, false);
             }
 
@@ -686,11 +691,16 @@ namespace Punchy.Terrain
             var z0 = Mathf.Max(radius * Mathf.Sqrt(1f - lintel * lintel) - 0.5f, 1.5f);   // where the door stands
             var tunnel = radius - z0 + 1f + R() * 0.8f;
             var zMid = z0 + tunnel * 0.5f;
+            // W-65c (#38): the tunnel roof sits `lift` above the door, so a 1.8 m walker clears it even where the seated
+            // igloo's slope leaves the tunnel floor above the dome's (walls, crown and arch rise with it; a lintel of
+            // snow fills the gap over the door).
+            const float lift = 0.6f;
             foreach (var side in new[] { -1f, 1f })
-                Add(parts, KitPiece.Wall, KitMaterial.Ice, new Vector3(side * (doorW * 0.5f + 0.35f), doorH * 0.5f, zMid), new Vector3(0.7f, doorH, tunnel), 0f, false);
-            Add(parts, KitPiece.Roof, KitMaterial.Ice, new Vector3(0f, doorH + 0.3f, zMid), new Vector3(doorW + 0.5f, 0.6f, tunnel), 0f, false);
+                Add(parts, KitPiece.Wall, KitMaterial.Ice, new Vector3(side * (doorW * 0.5f + 0.35f), (doorH + lift) * 0.5f, zMid), new Vector3(0.7f, doorH + lift, tunnel), 0f, false);
+            Add(parts, KitPiece.Roof, KitMaterial.Ice, new Vector3(0f, doorH + lift + 0.3f, zMid), new Vector3(doorW + 0.5f, 0.6f, tunnel), 0f, false);
             foreach (var side in new[] { -1f, 1f })
-                Add(parts, KitPiece.Roof, KitMaterial.Ice, new Vector3(side * (doorW * 0.5f + 0.25f), doorH + 0.05f, zMid), new Vector3(0.9f, 0.6f, tunnel + 0.02f), 0f, false, 0f, side * -35f);
+                Add(parts, KitPiece.Roof, KitMaterial.Ice, new Vector3(side * (doorW * 0.5f + 0.25f), doorH + lift + 0.05f, zMid), new Vector3(0.9f, 0.6f, tunnel + 0.02f), 0f, false, 0f, side * -35f);
+            Add(parts, KitPiece.Wall, KitMaterial.Ice, new Vector3(0f, doorH + lift * 0.5f, z0 + 0.1f), new Vector3(doorW + 0.4f, lift + 0.05f, 0.3f), 0f, false);
             Add(parts, KitPiece.Door, KitMaterial.Wood, new Vector3(0f, doorH * 0.5f, z0 + 0.1f), new Vector3(doorW, doorH, 0.14f), 0f, false);
             Add(parts, KitPiece.Trim, KitMaterial.Rune, new Vector3(0f, doorH * 0.62f, z0 + 0.19f), new Vector3(0.16f, 0.5f, 0.04f), 0f, false);
             if (R() < 0.55f)
@@ -700,11 +710,11 @@ namespace Punchy.Terrain
                 {
                     var a = -60f + k * 120f / (ribs - 1);
                     var dir = Quaternion.Euler(0f, 0f, a) * Vector3.up;
-                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, doorH + 0.15f, z0 + tunnel + 0.05f) + dir * 0.55f, new Vector3(0.14f, 1.1f, 0.12f), 0f, false, 0f, a);
+                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, doorH + lift + 0.15f, z0 + tunnel + 0.05f) + dir * 0.55f, new Vector3(0.14f, 1.1f, 0.12f), 0f, false, 0f, a);
                 }
             }
             else
-                Add(parts, KitPiece.Arch, KitMaterial.Trim, new Vector3(0f, doorH + 0.1f, z0 + tunnel + 0.04f), new Vector3(doorW + 1.2f, 0.32f, 0.2f), 0f, false);
+                Add(parts, KitPiece.Arch, KitMaterial.Trim, new Vector3(0f, doorH + lift + 0.1f, z0 + tunnel + 0.04f), new Vector3(doorW + 1.2f, 0.32f, 0.2f), 0f, false);
             // A path of packed snow out through the porch (walked on, not solid).
             Add(parts, KitPiece.Floor, KitMaterial.Ice, new Vector3(0f, 0.05f, z0 + tunnel * 0.5f + 0.4f), new Vector3(doorW + 0.3f, 0.1f, tunnel + 0.8f), 0f, false);
             // (W-61's buried steps out of the mouth are gone: being under y = 0, the foundation skirt sank them 1.6 m
@@ -745,6 +755,8 @@ namespace Punchy.Terrain
                     dz = Mathf.Sqrt(clear * clear - dx * dx);
                 Alpine(parts, PickAlpine(rng), new Vector3(dx, 0f, dz), R() * 360f, rng);
             }
+            // (W-65b's snow block behind the door is gone: it showed through the door. W-65c stops walkers with a
+            // collider-only circle behind the door instead: FloraGenerator, the igloo's inside cylinders.)
             return parts;
         }
 

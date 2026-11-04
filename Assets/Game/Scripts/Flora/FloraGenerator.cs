@@ -40,6 +40,11 @@ namespace Punchy.Flora
         /// </summary>
         public readonly List<Vector4> Colliders = new List<Vector4>();
         /// <summary>
+        /// W-67 (#79): a kit building's or ruin's solid parts as boxes (model space): the player stands on, bumps into
+        /// and jumps under these rather than its cylinders and support grid. Empty for everything else.
+        /// </summary>
+        public readonly List<KitBox> Boxes = new List<KitBox>();
+        /// <summary>
         /// Where each collider starts above the base, by index (missing = 0, the ground). Lets a leaning shape (an
         /// ArcSpire's prongs) be a stack of short slices that follow its tilt instead of one fat upright cylinder.
         /// </summary>
@@ -189,6 +194,7 @@ namespace Punchy.Flora
                     builder.Bounds(out model.CentreY, out model.Radius);
                     model.TrunkRadius = g.TrunkRadius;
                     model.Colliders.AddRange(g.Colliders);
+                    model.Boxes.AddRange(g.Boxes);
                     model.ColliderBase.AddRange(g.ColliderBase);
                     model.Perches.AddRange(g.Perches);
                     model.Chimneys.AddRange(g.Chimneys);
@@ -272,6 +278,7 @@ namespace Punchy.Flora
             /// <summary>A tree's limbs (Broadleaf), each a path from the trunk outwards, for things that hang from them.</summary>
             public List<List<Vector3>> Limbs;
             public readonly List<Vector4> Colliders = new List<Vector4>();
+            public readonly List<KitBox> Boxes = new List<KitBox>();
             public readonly List<float> ColliderBase = new List<float>();
             public readonly List<Vector3> Perches = new List<Vector3>();
             public readonly List<Vector3> Chimneys = new List<Vector3>();
@@ -2135,6 +2142,11 @@ namespace Punchy.Flora
         {
             var s = g.S;
             var b = g.B;
+            if (s.RiverSpot == RiverSpot.Narrows)
+            {
+                StoneRow(g);
+                return;
+            }
             var size = g.Range(s.Height);
             var family = g.Variant % 5;
             var detail = g.Sides(3, 2, 1);
@@ -2200,6 +2212,51 @@ namespace Punchy.Flora
             g.Width = w * 2.4f;
             g.TrunkRadius = w * 0.45f;
             b.Occlude(first, (p, n) => GroundOcclusion(p, size * 0.25f) * Mathf.Lerp(0.75f, 1f, Mathf.Clamp01(n.y + 0.6f)));
+            Moss(g, first);
+        }
+
+        /// <summary>
+        /// How long a row of stepping stones is, end stone to end stone, by its variant (W-65d: 4, 6, ... 14 m, so
+        /// FloraPlacement can fit a row to the narrows it crosses and seat both ends on the bank; was always 12 m).
+        /// </summary>
+        public static float StoneRowLength(int variant) => 4f + 2f * variant;
+        /// <summary>How many row lengths there are (the SteppingStone species needs this many variants).</summary>
+        public const int StoneRowVariants = 6;
+        /// <summary>The shortest row variant reaching across <paramref name="width"/> m of water (bank to bank), or -1
+        /// when the water is narrower than 3 m or wider than the longest row.</summary>
+        public static int StoneRowVariant(float width) =>
+            width < 3f || width > StoneRowLength(StoneRowVariants - 1) ? -1 : Mathf.Max(0, Mathf.CeilToInt((width - 4f) / 2f));
+
+        /// <summary>
+        /// W-65b: stepping stones as one row across a shallow narrows (a single stone per draw left 10 m gaps, W-63).
+        /// flat stones along X, about 0.85 m apart (W-65f), tops 4-12 cm over the origin (FloraPlacement seats the origin
+        /// on the water surface) and reaching 0.9 m down to the bed. No colliders: they are stood on, through the
+        /// support grid, not bumped into.
+        /// </summary>
+        static void StoneRow(Grower g)
+        {
+            var b = g.B;
+            var first = b.VertexCount;
+            var detail = g.Sides(3, 2, 1);
+            // W-65d: the length by variant. W-65f: stones about 0.85 m apart (were 1.1): a stone's standable top (the part
+            // under 57 degrees) is only about 0.36 m round its middle, so 1.1 m left 0.4 m holes in the support grid that
+            // the player dropped through into the river; at 0.85 m the holes are narrower than the feet's sample spread.
+            var length = StoneRowLength(g.Variant % StoneRowVariants);
+            var n = Mathf.RoundToInt(length / 0.85f) + 1;
+            var pitch = length / (n - 1);
+            for (int k = 0; k < n; k++)
+            {
+                var x = -length * 0.5f + k * pitch + (k == 0 || k == n - 1 ? 0f : g.Range(-0.06f, 0.06f));
+                var radii = new Vector3(g.Range(0.42f, 0.5f), 0.48f, g.Range(0.4f, 0.5f));
+                var top = g.Range(0.04f, 0.12f);
+                var at = new Vector3(x, top - radii.y, g.Range(-0.15f, 0.15f));
+                var turn = Quaternion.Euler(g.Range(-3f, 3f), g.Range(0f, 360f), g.Range(-3f, 3f));
+                b.Blob(at, radii, turn, detail, 0.1f, g.R() * 100f, Color.Lerp(g.Bark, g.Bark * 0.8f, g.R()), FloraPart.Bark, 1f, g.Range(0.35f, 0.6f), 0.55f);
+            }
+            g.Height = 0.2f;
+            g.Width = length + 1f;
+            g.TrunkRadius = 0f;
+            b.Occlude(first, (p, n2) => Mathf.Lerp(0.7f, 1f, Mathf.Clamp01(n2.y + 0.6f)));
             Moss(g, first);
         }
 
@@ -3078,6 +3135,13 @@ namespace Punchy.Flora
                                                        p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Rune ? FloraPart.Window : FloraPart.Bark);
                 var high = p.Centre.y + p.Size.y * 0.5f;
                 top = Mathf.Max(top, high);
+                // W-67 (#79): every part is a solid box unless it's decor (moss, trim, windows, lamps and runes): the
+                // collision is the art. Only LOD 0 keeps them (that's the one FloraModel copies).
+                var decor = p.Piece == Punchy.Terrain.KitPiece.Moss || p.Piece == Punchy.Terrain.KitPiece.Trim ||
+                            p.Piece == Punchy.Terrain.KitPiece.Window || p.Material == Punchy.Terrain.KitMaterial.Lamp ||
+                            p.Material == Punchy.Terrain.KitMaterial.Rune || p.Material == Punchy.Terrain.KitMaterial.Moss;
+                if (g.Lod == 0 && !decor)
+                    g.Boxes.Add(new KitBox { Centre = p.Centre, Half = p.Size * 0.5f, Rotation = p.Rotation, Reach = p.Size.magnitude * 0.5f });
                 if (p.Solid)
                 {
                     var r = Mathf.Max(p.Size.x, p.Size.z) * 0.55f;
@@ -3122,6 +3186,12 @@ namespace Punchy.Flora
                         if (p.Piece == Punchy.Terrain.KitPiece.Door)
                             inner = Mathf.Min(inner, p.Centre.z - 0.4f);
                 g.Colliders.Add(new Vector4(0f, 0f, inner, eaves));
+                // W-65c (#38): a collider-only circle behind the igloo's door (no mesh, so nothing shows through), its
+                // front 0.1 m before the door slab: walkers stop at the door line, not inside it.
+                if (shape == Punchy.Terrain.KitShape.Igloo)
+                    foreach (var p in parts)
+                        if (p.Piece == Punchy.Terrain.KitPiece.Door)
+                            g.Colliders.Add(new Vector4(p.Centre.x, p.Centre.z + 0.2f - 0.95f, 0.95f, p.Size.y));
             }
             foreach (var h in wharfHouses)  // W-65: one inside cylinder per house on the wharf, up to its eaves
                 g.Colliders.Add(new Vector4(h.x, h.y, Mathf.Min(h.z, h.w) * 0.45f, 1.0f + trim.Storey));
