@@ -120,8 +120,8 @@ namespace Punchy.Settings
         }
 
         /// <summary>
-        /// Through GameAudio's own levels (its voices multiply by them). Hook for the audio owners: the weather's own
-        /// source and AudioListener.volume don't read GameAudio.Master yet, so master 0 doesn't silence the weather.
+        /// Through GameAudio's own levels: Master on AudioListener.volume (focus x Master, so 0 silences everything,
+        /// the weather too), and the group levels its voices multiply by.
         /// </summary>
         static void ApplySound()
         {

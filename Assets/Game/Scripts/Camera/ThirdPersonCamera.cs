@@ -71,6 +71,7 @@ namespace Punchy.CameraRig
         void Start()
         {
             yaw = transform.eulerAngles.y;
+            camLog = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-camlog") >= 0;
             SetCursorCaptured(true);
         }
 
@@ -112,7 +113,7 @@ namespace Punchy.CameraRig
             if (underground && bodySize < 0.75f && pitch < SmallLookOrbit)
             {
                 orbitPitch = SmallLookOrbit;
-                lookUp = Mathf.Min(SmallLookOrbit - pitch, (cam != null ? cam.fieldOfView : 60f) * 0.5f - 8f);
+                lookUp = SmallLookOrbit - pitch;   // (capped in Place, once the arm's length is known)
             }
             var rotation = Quaternion.Euler(orbitPitch, yaw, 0f);
             var position = target - rotation * Vector3.forward * Distance;
@@ -182,7 +183,7 @@ namespace Punchy.CameraRig
                 var lens = new Unity.Mathematics.float3(position.x, position.y, position.z);
                 if (terrain.CaveDistance(lens) < 0f || underground && (terrain.TempleAir(lens) || position.y < terrain.SampleHeight(lens.xz)))
                 {
-                    transform.SetPositionAndRotation(position, rotation * Quaternion.Euler(-lookUp, 0f, 0f));
+                    Place(position, rotation, lookUp, target, playerPosition);
                     return;
                 }
                 var ground = terrain.SampleGround(new Unity.Mathematics.float2(position.x, position.z));
@@ -220,9 +221,37 @@ namespace Punchy.CameraRig
                 }
             }
 
-            transform.SetPositionAndRotation(position, rotation * Quaternion.Euler(-lookUp, 0f, 0f));
+            Place(position, rotation, lookUp, target, playerPosition);
         }
 
+        /// <summary>
+        /// Puts the camera there. A small body looking up (<paramref name="lookUp"/> degrees past the orbit) tilts the view
+        /// up only as far as keeps its feet inside the frame's foot (P-9: the angle the body spans from the lens, plus a
+        /// margin), so the whole body stays in view, not just its head.
+        /// </summary>
+        void Place(Vector3 position, Quaternion rotation, float lookUp, Vector3 target, Vector3 feet)
+        {
+            if (lookUp > 0f)
+            {
+                var half = (cam != null ? cam.fieldOfView : 60f) * 0.5f;
+                var toTarget = target - position;
+                var toFeet = feet - position;
+                var span = Vector3.Angle(toTarget, toFeet);
+                lookUp = Mathf.Clamp(lookUp, 0f, Mathf.Max(half - span - 4f, 0f));
+            }
+            transform.SetPositionAndRotation(position, rotation * Quaternion.Euler(-lookUp, 0f, 0f));
+            if (camLog && Time.unscaledTime >= nextCamLog && terrainQuery.TryGetSingleton<TerrainSource>(out var t))
+            {
+                nextCamLog = Time.unscaledTime + 2f;
+                var p = ToFloat3(position);
+                Debug.Log($"Camera: at ({p.x:F1}, {p.y:F1}, {p.z:F1}), pivot {PivotHeight:F2} m, arm {(position - target).magnitude:F2} m, pitch {pitch:F0} tilt {lookUp:F0}, " +
+                          $"underground {underground}, in temple air {t.TempleAir(p)}, ground {t.SampleHeight(p.xz) - p.y:+0.0;-0.0} m vs lens, cave {t.CaveDistance(p):F1}");
+            }
+        }
+
+        /// <summary>Testing: "-camlog" logs where the camera is every 2 s (P-9: is it inside the room it should be?).</summary>
+        bool camLog;
+        float nextCamLog;
         /// <summary>#85: the lowest a small body's camera circles underground (deg); looking further up tilts the view instead.</summary>
         const float SmallLookOrbit = -10f;
 
@@ -256,7 +285,9 @@ namespace Punchy.CameraRig
             {
                 var d = PlayerMovementSystem.SolidDistance(terrain, ToFloat3(from + dir * t));
                 if (d < lens)
-                    return Mathf.Max(t - LensMargin, 0.2f);
+                    // (P-9: centre already in the solid, as in a temple room, where SolidDistance is a flat 0.5 m and says nothing
+                    // of the ceiling coming: back off by the whole lens, or the near plane looks through the roof at the sky.)
+                    return Mathf.Max(t - (d < 0f ? lens + LensMargin : LensMargin), 0.2f);
                 if (t >= length)
                     return length;
                 t = Mathf.Min(t + Mathf.Max((d - lens) * 0.5f, 0.05f), length);
@@ -296,7 +327,7 @@ namespace Punchy.CameraRig
                 {
                     var d = PlayerMovementSystem.SolidDistance(terrain, from + dir * t);
                     if (d < lens)
-                        return Unity.Mathematics.math.max(t - LensMargin, 0.2f);
+                        return Unity.Mathematics.math.max(t - (d < 0f ? lens + LensMargin : LensMargin), 0.2f);
                     if (t >= length)
                         return length;
                     t = Unity.Mathematics.math.min(t + Unity.Mathematics.math.max((d - lens) * 0.5f, 0.05f), length);
