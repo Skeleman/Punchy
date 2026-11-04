@@ -165,7 +165,7 @@ namespace Punchy.Terrain
             // (the mountain side), with a small seeded nudge; the shelf fills the best bay's back.
             const int rays = 144; // every 2.5 degrees
             var shoreR = new float[rays]; var behindH = new float[rays]; var rayDir = new float2[rays];
-            var nearB = new int[rays]; var farB = new int[rays]; var riseH = new float[rays];
+            var nearB = new int[rays]; var farB = new int[rays]; var riseH = new float[rays]; var closeB = new int[rays];
             int open = 0;
             for (int k = 0; k < rays; k++)
             {
@@ -183,6 +183,7 @@ namespace Punchy.Terrain
                 for (int j = 0; j < 4; j++) sum += src.SampleGround(c + d * (shoreR[k] + 30f + 20f * j)).Height;
                 behindH[k] = sum * 0.25f - lake;
                 // W-91 (#88): the biomes 100 m and 200 m behind the shore, and how much the land keeps rising out to 300 m.
+                closeB[k] = Dominant(src.SampleGround(c + d * (shoreR[k] + 50f)).Biomes);
                 nearB[k] = Dominant(src.SampleGround(c + d * (shoreR[k] + 100f)).Biomes);
                 farB[k] = Dominant(src.SampleGround(c + d * (shoreR[k] + 200f)).Biomes);
                 riseH[k] = src.SampleGround(c + d * (shoreR[k] + 300f)).Height - src.SampleGround(c + d * (shoreR[k] + 60f)).Height;
@@ -206,8 +207,16 @@ namespace Punchy.Terrain
             // long has 12 m of high ground behind all of it.
             System.Func<int, int> halfAt = k => math.clamp((int)math.round(math.degrees(ShelfArc / math.max(shoreR[k], 1f)) / 2.5f), 4, ShelfHalfSteps);
             var rng = new Unity.Mathematics.Random(math.max(1u, source.World.Seed * 747796405u + 2891336453u));
+            // W-92 (#88): a ray with desert or salt flat 50, 100 or 200 m behind its shore. The W-91 land score alone
+            // left the v3 pick facing a salt flat (bearing 120), so a stretch with arid land behind the shelf's own
+            // span (its middle two thirds) is ruled out, and the land weighs more (4 against W-91's 2.5). If every
+            // stretch is ruled out the best of them still wins, so a seed always gets its shelf.
+            bool Arid(int kk) => LandOf(closeB[kk]) < 0f || LandOf(nearB[kk]) < 0f || LandOf(farB[kk]) < 0f;
             int bestK = -1, bestHalf = 0; float bestScore = float.MinValue, bestBay = 0f, bestBehind = 0f, bestLand = 0f;
             int oldK = -1; float oldScore = float.MinValue;
+            int w91K = -1; float w91Score = float.MinValue;
+            int anyK = -1, anyHalf = 0; float anyScore = float.MinValue, anyBay = 0f, anyBehind = 0f, anyLand = 0f;
+            int aridOut = 0;
             for (int k = 0; k < rays; k++)
             {
                 var nudge = rng.NextFloat(0f, 0.08f);
@@ -236,8 +245,18 @@ namespace Punchy.Terrain
                     land += 0.6f * LandOf(nearB[kk]) + 0.4f * LandOf(farB[kk]) + 0.5f * math.saturate(riseH[kk] / 60f);
                 }
                 land /= 2 * half + 1;
-                score += 2.5f * land;
+                if (score + 2.5f * land > w91Score) { w91Score = score + 2.5f * land; w91K = k; }
+                score += 4f * land;
+                if (score > anyScore) { anyScore = score; anyK = k; anyBay = bay; anyBehind = minBehind; anyHalf = half; anyLand = land; }
+                bool arid = false;
+                for (int s = -half * 2 / 3; s <= half * 2 / 3 && !arid; s++) arid = Arid((k + s + rays) % rays);
+                if (arid) { aridOut++; continue; }
                 if (score > bestScore) { bestScore = score; bestK = k; bestBay = bay; bestBehind = minBehind; bestHalf = half; bestLand = land; }
+            }
+            if (bestK < 0 && anyK >= 0)
+            {
+                LastLog += $"; shelf: every bay has arid land behind it ({aridOut} ruled out), taking the best anyway";
+                bestScore = anyScore; bestK = anyK; bestBay = anyBay; bestBehind = anyBehind; bestHalf = anyHalf; bestLand = anyLand;
             }
             if (bestK < 0)
             {
@@ -306,7 +325,8 @@ namespace Punchy.Terrain
             var bearing = (bestK * 360f / rays);
             // W-91 (#88): the biomes behind the old pick (bay and height only) and the new one.
             LastLog += $"; shelf biomes before (bay-only pick) at bearing {oldK * 360f / rays:F0}: {NameOf(nearB[oldK])} 100 m behind, {NameOf(farB[oldK])} 200 m behind, rise {riseH[oldK]:F0} m";
-            LastLog += $"; after at bearing {bearing:F0}: {NameOf(nearB[bestK])} 100 m behind, {NameOf(farB[bestK])} 200 m behind, rise {riseH[bestK]:F0} m, land score {bestLand:F2}";
+            LastLog += $"; W-91 pick (land x2.5) at bearing {w91K * 360f / rays:F0}: {NameOf(nearB[w91K])} 100 m behind, {NameOf(farB[w91K])} 200 m behind, rise {riseH[w91K]:F0} m";
+            LastLog += $"; after (W-92: land x4, {aridOut} arid bays ruled out) at bearing {bearing:F0}: {NameOf(closeB[bestK])} 50 m, {NameOf(nearB[bestK])} 100 m, {NameOf(farB[bestK])} 200 m behind, rise {riseH[bestK]:F0} m, land score {bestLand:F2}";
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<GrandFallsBlob>();
             var lipArr = builder.Allocate(ref root.ShelfLip, lip.Count);
