@@ -45,3 +45,4 @@ no machine paths or personal info. Never bare `git stash`.
 - P-14 done 11-04 (8413361): containers (chests, room storage), host-owned; drop cap 256. P-15 next.
 - P-15 done 11-04 (77887d3): quests archive + notice boards + host-owned progress. Nothing in flight.
 - P-16 done 11-04 (941e41b): quest UI sizing, interior ambient, rabbit camera checked clean, pad inventory input (item move not shown). P-17 next.
+- P-17 done 11-04 (1eda8de): host-checked hand-ins; clear-an-area quests (solo proven, MP chase not); lead-quest ask in the report.
