@@ -22,4 +22,4 @@ Never merge PRs, close or comment-close issues (one-line progress comments are f
 no machine paths or personal info. Never bare `git stash`.
 
 ## In flight
-- P-1: graphics settings window (#78).
+- P-1 done 11-03 (player-client 1a9ef6c): resolution + window mode in the Graphics tab (#78). Nothing in flight.
