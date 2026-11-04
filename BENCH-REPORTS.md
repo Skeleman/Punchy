@@ -2,6 +2,46 @@
 
 Newest first.
 
+## 2026-11-03: item 15, Burst and jobs audit on main 3a4acb8: every runtime job is already Burst; the time goes to managed main-thread code and same-frame job syncs, with workers 7-16% busy
+Method: Profile-3a4acb8 (dev build, so no safety checks), island v2, uncapped, one capture per q13 stop (town, townwalk, cave, caveapproach, glide, hut cave floor, FishWharf steps), 0 exceptions. I read the code with git grep on 3a4acb8 and didn't open the Burst Inspector (it's an editor window). The cave stop settled in 10.8 s, caves built.
+- Main vs workers (mean ms per frame; workers = job time summed over the 7 worker threads; main busy = main-thread self time without waits):
+  - town: frame 11.6, main busy 7.4 + waits 2.3, workers 8.5 (10.5% of 7 threads)
+  - townwalk: frame 12.5, main 7.9 + 2.7, workers 10.7 (12.2%)
+  - cave: frame 9.7, main 5.9 + 2.0, workers 4.5 (6.7%)
+  - caveapproach: frame 16.2, main 11.1 + 3.1, workers 18.1 (15.9%)
+  - glide: frame 11.8, main 7.9 + 1.9, workers 12.7 (15.4%)
+  - hut cave: frame 12.1, main 8.5 + 1.8, workers 5.9 (7.0%)
+  - wharf: frame 10.4, main 7.7 + 0.8, workers 5.3 (7.2%)
+  The main thread is the limit; the workers have room for far more. WaitForJobGroupID (main waiting on jobs) is about 1.3 ms a frame at townwalk.
+- Top 10 main-thread costs (mean self ms over the 7 stops; kind; Burst/jobs):
+  1. TerrainStreamingSystem 0.65: SystemBase, managed. Its mesh build job is Burst and parallel; the mesh apply and entity work run on the main thread.
+  2. CreatureRenderSystem 0.52: SystemBase, managed per-creature loops. CullJob is Burst but runs with .Run() on the main thread (CreatureRenderSystem.cs:547). PoseJob is Burst and parallel but completed in the same frame (:724), so 0.48 ms more of it runs on the main thread.
+  3. FloraSystem.LateUpdate 0.45: MonoBehaviour, managed; PlaceJob is Burst and parallel.
+  4. ThirdPersonCamera.LateUpdate 0.43: MonoBehaviour; ArmProbe is Burst, run with .Run() on the main thread.
+  5. AmbienceSystem.Update 0.39: MonoBehaviour, managed; the heat job is Burst but scheduled and completed in the same frame.
+  6. CaveSystem.Update 0.32 (0.75 in the hut cave): MonoBehaviour bookkeeping; the field and mesh jobs are Burst and parallel.
+  7. WeatherSystem.Update 0.24: MonoBehaviour, managed; WeatherField MapJob is Burst.
+  8. DebugControls.OnGUI 0.23, plus IMGUI GUIStyle.GetDimensions/GetMeshInfo 0.27: managed IMGUI, no jobs. The HUD is on by default (ShowReadout = true).
+  9. CreatureAudioSystem 0.18: SystemBase, managed, no jobs.
+  10. AmbientParticleSystem.Update 0.17: MonoBehaviour; its Burst job is .Schedule().Complete() in the same call.
+  Next: TraceSystem 0.15 (SystemBase; GroundJob is Burst, .Run()), Mantrap.Update 0.15, PlayerMovementSystem 0.11 (ISystem, Burst).
+- Grep results:
+  - All 45 runtime IJob structs have [BurstCompile]; the only one without is the editor-only TerrainAuthoringEditor SampleBiomeJob.
+  - 15 ISystems: OnUpdate is [BurstCompile] on all but ConnectionLogSystem and NetPlayerVisibilitySystem (net, cheap).
+  - 16 managed SystemBase systems, among them CreatureRender, CreatureAudio, TerrainStreaming, Trace, InteractionInput, CreatureSnapshot/Wake/Breath/Burrow, FolkTalk, PlayerInput, Iceberg, SaltTower, SunkenTemple, SkyEvents.
+  - Per-frame same-frame syncs: InteractionInputSystem.cs:100 (Dependency.Complete right after ReachJob), CreatureRenderSystem :547 and :724, ThirdPersonCamera.cs:120 (.Run), TraceSystem.cs:131 (.Run), AmbientParticleSystem.cs:233, CritterSystem.cs:212, GroundDetailSystem.cs:237, AmbienceSystem heat job, FloraSystem Placing.Complete.
+  - No Entities.ForEach or WithoutBurst anywhere.
+- Editor Burst settings: none are saved in EditorPrefs, so the editor runs at Unity's defaults: Burst compilation on, safety checks on, jobs debugger on, leak detection on. For editor profiling, turn off safety checks, the jobs debugger and leak detection (Jobs menu / Preferences). Players aren't affected: no BurstAotSettings in ProjectSettings means the default AOT (Burst on, no safety checks). Not changed.
+- **5 biggest wins (estimates, main-thread ms per frame):**
+  1. CreatureRenderSystem: schedule CullJob and PoseJob early and complete them late in presentation instead of .Run() + same-frame Complete, and move the managed per-creature loops (colonies, swarms, critters, sky birds, cave fish) into a Burst job. About 0.6-0.9 ms. Owner: animal.
+  2. InteractionInputSystem: Complete() right after scheduling ReachJob also forces the brain job to finish on the main thread (Main-thread ReachJob 0.16 + Brain.Tick 0.16 + Brain.Advance 0.11, up to 0.35 ms of ReachJob in the hut cave). Using last frame's result would remove the stall. About 0.3-0.5 ms. Owner: animal.
+  3. MonoBehaviour Burst jobs that are scheduled and completed in the same call (Ambience heat, AmbientParticle, Critter, GroundDetail, Flora placing): schedule in Update, complete in LateUpdate or the next frame. About 0.3-0.5 ms. Owner: world.
+  4. Debug HUD: about 0.5 ms of IMGUI every frame with the readout on, which it is by default. Off by default outside dev builds, or lay it out a few times a second instead of every GUI event. About 0.4-0.5 ms in a release build. Owner: shared.
+  5. TerrainStreamingSystem: 0.65 ms managed main thread on every stop (0.97 at townwalk). Write meshes through Mesh.MeshDataArray in the Burst build job and batch the entity creation. About 0.3-0.5 ms. Owner: world.
+  Together about 2-3 ms of an 8-11 ms main thread. GPU time sits around 9 ms at town and townwalk, so from there the GPU becomes the limit; caves (GPU about 2.5 ms) gain the full amount.
+- Scripts: lanes/profiler/scripts/q15.sh. Profiles: results/prof15-*.txt.
+- Cost: 20 calls, peak 227k context, $1.44
+
 ## 2026-11-03: item 14, memory check on main 5d0956a: each play-mode cycle leaks about 22 MB of native memory (12 island-bake blobs never disposed); the editor is mostly the editor; player 1.0-1.15 GB
 Runner change (asked after item 13): the biggest-cave stop now settles until CaveSystem.Settled, 30 s at most, and logs the time (b/bench-runner 3f76120). On 5d0956a it took 11.1 s (v2) and 10.0 s (v3), caves built both times.
 Method: batchmode editor (no window, so less RAM than an interactive editor) on 5d0956a, island v2 (default), with a temporary editor script (lanes/profiler/scripts/MemCheck.cs.txt, never committed): idle with the scene open, play 1 after the bake, after exit (GC + UnloadUnusedAssets, snapshot), 10 more enter/exit cycles, then the same clean-up and a second snapshot. Snapshots (about 1.3 GB each, open in the Memory Profiler package and Compare): Punchy-wt/Tools/bench/results/q14/after-bake.snap and after-10-plays.snap. Process working set read 0 under Unity's Mono, so RAM below is Unity's System Used Memory.
