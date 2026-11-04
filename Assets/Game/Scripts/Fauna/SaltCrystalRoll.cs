@@ -3,9 +3,11 @@ using UnityEngine;
 namespace Punchy.Fauna
 {
     /// <summary>
-    /// W-92 (#40): rolls the SaltFlat colossus's salt crystal slowly round its circle and drags a dirt trail behind it, a
-    /// strip that fades back to salt over <see cref="TrailLength"/> metres (capped, so it never closes the ring). It is
-    /// cosmetic and runs off the clock, so each player rolls their own copy from the same seeded circle.
+    /// W-92 (#40): rolls the SaltFlat colossus's salt crystal slowly round its circle and drags a trail behind it that
+    /// fades back to salt over <see cref="TrailLength"/> metres (capped, so it never closes the ring). It is cosmetic but
+    /// runs off the shared clock (W-93: _PunchyClock, the one the fauna sway on; Time.time when solo), so host and clients
+    /// see the ball at the same place. W-93: the trail is a furrow, read the way the worms' craters are: a dark pressed-in
+    /// floor between two raised salt lips, shaded by its own tilted normals rather than cut into the ground.
     /// </summary>
     public class SaltCrystalRoll : MonoBehaviour
     {
@@ -13,15 +15,21 @@ namespace Punchy.Fauna
         public const int Steps = 144;
         /// <summary>The trail's length behind the ball (m).</summary>
         public const float TrailLength = 90f;
-        const float Speed = 1.6f, HalfWidth = 3.5f, Sink = 0.92f;
-        const int Segs = 40;
+        const float Speed = 1.6f, HalfWidth = 4.5f, Sink = 0.92f, Lip = 0.6f, Rebuild = 0.5f;
+        const int Segs = 40, Cols = 7;
+        // The furrow's cross-section, outside edge to outside edge: where across (of HalfWidth), how high (of Lip), and
+        // how much dirt it shows (0 salt, 1 dirt, above 1 the shadowed inner wall).
+        static readonly float[] Across = { -1f, -0.72f, -0.45f, 0f, 0.45f, 0.72f, 1f };
+        static readonly float[] Rise = { 0.04f, 1f, 0.15f, 0.06f, 0.15f, 1f, 0.04f };
+        static readonly float[] Shows = { 0f, 0f, 1.35f, 1f, 1.35f, 0f, 0f };
+        static readonly int ClockId = Shader.PropertyToID("_PunchyClock");
         static readonly Color Dirt = new Color(0.33f, 0.26f, 0.20f), Salt = new Color(0.86f, 0.84f, 0.80f);
 
         /// <summary>Seconds per lap on a circle of this radius.</summary>
         public static float LapSeconds(float radius) => Mathf.PI * 2f * radius / Speed;
 
         Transform ball;
-        float radius, ballRadius, start, dir, last = float.NaN;
+        float radius, ballRadius, start, dir, trailAt = float.NaN;
         float[] heights;
         Mesh trail;
         Vector3[] verts;
@@ -29,24 +37,32 @@ namespace Punchy.Fauna
         public void Init(Transform ball, float radius, float ballRadius, float[] heights, float start, float dir, Material material)
         {
             this.ball = ball; this.radius = radius; this.ballRadius = ballRadius; this.heights = heights; this.start = start; this.dir = dir;
-            verts = new Vector3[(Segs + 1) * 2];
+            verts = new Vector3[(Segs + 1) * Cols];
             var cols = new Color[verts.Length];
-            var normals = new Vector3[verts.Length];
-            var tris = new int[Segs * 6];
+            var tris = new int[Segs * (Cols - 1) * 6];
             for (int i = 0; i <= Segs; i++)
             {
-                // Dark at the ball, back to the salt's own colour at the tail.
-                var c = Color.Lerp(Dirt, Salt, Mathf.Pow(i / (float)Segs, 0.8f));
-                cols[i * 2] = cols[i * 2 + 1] = c;
-                normals[i * 2] = normals[i * 2 + 1] = Vector3.up;
+                // Dark at the ball, back to the salt's own colour at the tail; the inner walls darker still (the worms'
+                // crater rim darkens the same way), the lip crests a touch brighter than the flat.
+                var fade = Mathf.Pow(i / (float)Segs, 0.8f);
+                for (int j = 0; j < Cols; j++)
+                {
+                    var near = Shows[j] > 1f ? Dirt * (2f - Shows[j]) : Color.Lerp(Salt * (Rise[j] > 0.5f ? 1.06f : 1f), Dirt, Shows[j]);
+                    var c = Color.Lerp(near, Salt, fade);
+                    c.a = 1f;
+                    cols[i * Cols + j] = c;
+                }
                 if (i == Segs) break;
-                int v = i * 2, t = i * 6;
-                tris[t] = v; tris[t + 1] = v + 2; tris[t + 2] = v + 1;
-                tris[t + 3] = v + 1; tris[t + 4] = v + 2; tris[t + 5] = v + 3;
+                for (int j = 0; j < Cols - 1; j++)
+                {
+                    int v = i * Cols + j, t = (i * (Cols - 1) + j) * 6;
+                    tris[t] = v; tris[t + 1] = v + Cols; tris[t + 2] = v + 1;
+                    tris[t + 3] = v + 1; tris[t + 4] = v + Cols; tris[t + 5] = v + Cols + 1;
+                }
             }
             trail = new Mesh { name = "SaltCrystalTrail" };
             trail.MarkDynamic();
-            trail.vertices = verts; trail.colors = cols; trail.normals = normals;
+            trail.vertices = verts; trail.colors = cols;
             trail.triangles = tris;
             var go = new GameObject("Trail");
             go.transform.SetParent(transform, false);
@@ -68,28 +84,35 @@ namespace Punchy.Fauna
         {
             if (ball == null || heights == null)
                 return;
-            var a = start + dir * Speed / radius * Time.time;
+            // The shared clock is the server's tick time on a client and Time.time on the host or solo; it reads 0
+            // before WorldSync has run, so fall back then too.
+            var clock = Shader.GetGlobalFloat(ClockId);
+            var a = start + dir * Speed / radius * (clock > 0f ? clock : Time.time);
             var radial = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
             ball.localPosition = radial * radius + Vector3.up * (Height(a) + ballRadius * Sink);
-            // Roll: turn about the axis across the motion by the distance covered over the ball's radius.
-            if (!float.IsNaN(last))
-            {
-                var move = new Vector3(-radial.z, 0f, radial.x) * dir;
-                var dist = Mathf.Abs(a - last) * radius;
-                ball.localRotation = Quaternion.AngleAxis(dist / ballRadius * Mathf.Rad2Deg, Vector3.Cross(Vector3.up, move)) * ball.localRotation;
-            }
-            last = a;
-            // The trail, from just behind the ball's contact back along the circle.
+            // Roll: face along the motion and spin about the axis across it by the distance covered over the ball's
+            // radius. Absolute, from the angle alone, so every player's ball shows the same face.
+            var move = new Vector3(-radial.z, 0f, radial.x) * dir;
+            var spin = Mathf.Repeat(dir * (a - start) * radius / ballRadius * Mathf.Rad2Deg, 360f);
+            ball.localRotation = Quaternion.LookRotation(move) * Quaternion.Euler(spin, 0f, 0f);
+            // The trail, from just behind the ball's contact back along the circle; rebuilt only once the ball has
+            // moved Rebuild metres (the head stays under the ball meanwhile).
+            if (!float.IsNaN(trailAt) && Mathf.Abs(a - trailAt) * radius < Rebuild)
+                return;
+            trailAt = a;
             var span = TrailLength / radius;
             for (int i = 0; i <= Segs; i++)
             {
                 var ai = a - dir * (0.02f + span * i / Segs);
                 var r = new Vector3(Mathf.Cos(ai), 0f, Mathf.Sin(ai));
-                var y = Height(ai) + 0.25f;
-                verts[i * 2] = r * (radius - HalfWidth) + Vector3.up * y;
-                verts[i * 2 + 1] = r * (radius + HalfWidth) + Vector3.up * y;
+                var y = Height(ai) + 0.2f;
+                // The lips slump back towards the tail as the salt creeps in.
+                var lip = Lip * (1f - 0.7f * i / Segs);
+                for (int j = 0; j < Cols; j++)
+                    verts[i * Cols + j] = r * (radius + Across[j] * HalfWidth) + Vector3.up * (y + Rise[j] * lip);
             }
             trail.vertices = verts;
+            trail.RecalculateNormals();
             trail.RecalculateBounds();
         }
     }

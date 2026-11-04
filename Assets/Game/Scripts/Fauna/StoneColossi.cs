@@ -1248,7 +1248,26 @@ namespace Punchy.Fauna
                 heights[i] = source.SampleHeight(new float2(at.x + Mathf.Cos(a) * radius, at.z + Mathf.Sin(a) * radius)) - at.y;
             }
             var m = new DunesColossus.MeshBuilder();
-            m.Ellipsoid(Vector3.zero, new Vector3(CrystalBall, CrystalBall * 0.96f, CrystalBall), Quaternion.identity, SaltWhite, 9, 6);
+            // W-93 (#40, Zach): lumpy, not a smooth ball. A coarse, unevenly squashed core (few facets, so they read as
+            // broad uneven faces), knobbed with big overlapping lumps and two or three large crystal outcrops. Its own
+            // random, so the circle, the crust and the crumbs below keep their draws.
+            var lrng = Unity.Mathematics.Random.CreateFromIndex(seed ^ 0xBA11u);
+            m.Ellipsoid(Vector3.zero, new Vector3(CrystalBall * lrng.NextFloat(0.88f, 1f), CrystalBall * lrng.NextFloat(0.84f, 0.94f), CrystalBall * lrng.NextFloat(0.88f, 1f)),
+                Quaternion.Euler(lrng.NextFloat(0f, 360f), lrng.NextFloat(0f, 360f), 0f), SaltWhite, 7, 5);
+            int lumps = lrng.NextInt(6, 10);
+            for (int k = 0; k < lumps; k++)
+            {
+                var d = (Vector3)lrng.NextFloat3Direction();
+                var s = CrystalBall * lrng.NextFloat(0.3f, 0.5f);
+                m.Ellipsoid(d * CrystalBall * lrng.NextFloat(0.62f, 0.78f), new Vector3(s, s * lrng.NextFloat(0.6f, 0.9f), s * lrng.NextFloat(0.8f, 1.1f)),
+                    Quaternion.LookRotation(d) * Quaternion.Euler(0f, 0f, lrng.NextFloat(0f, 180f)), k % 4 == 3 ? SaltPink : SaltWhite, 6, 4);
+            }
+            int outcrops = lrng.NextInt(2, 4);
+            for (int k = 0; k < outcrops; k++)
+            {
+                var d = (Vector3)lrng.NextFloat3Direction();
+                m.Limb(d * CrystalBall * 0.6f, d * CrystalBall * lrng.NextFloat(1.25f, 1.4f), lrng.NextFloat(3.5f, 5f), lrng.NextFloat(0.4f, 1.2f), k == 0 ? SaltPink : SaltWhite, 5);
+            }
             for (int k = 0; k < 14; k++)
             {
                 var d = Quaternion.Euler(rng.NextFloat(-80f, 80f), rng.NextFloat(0f, 360f), 0f) * Vector3.forward;
