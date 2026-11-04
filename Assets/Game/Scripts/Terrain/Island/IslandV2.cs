@@ -521,6 +521,8 @@ namespace Punchy.Terrain
             source.RiverSettings = version == IslandV3.Version ? IslandV3.Rivers(source.RiverSettings) : IslandV2.Rivers(source.RiverSettings);
             source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Archipelago = default; source.Anchors = default; source.PondMask = default;
             TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent, villages: true);
+            // #72 (W-87): "-campsitetest <look>" adds one test campsite (debug only; nothing without the flag).
+            CampsiteTest.Add(ref source, biomes, types, Allocator.Persistent);
             // W-29: the grand falls go in after every place, so no landmark, cave or settlement sees them.
             long fallsAt = watch.ElapsedMilliseconds;
             source.GrandFalls = GrandFalls.Build(source, Allocator.Persistent, version == IslandV3.Version && GrandFalls.LakeShelfOn());
