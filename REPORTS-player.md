@@ -1,7 +1,7 @@
 # Player lane reports
 
 ## 2026-11-03 batch P-3: host self-timeout attributed (long bake vs 10 s timeout); -quitafter flag
-- DONE: `-quitafter N` (Debugging/QuitAfter.cs, new file, LF): quits N s after start, real time (player-client see git log; after 99cfd9c)
+- DONE: `-quitafter N` (Debugging/QuitAfter.cs, new file, LF): quits N s after start, real time (player-client 2d0b08b)
 - FOUND: cause is the island bake blocking the main thread past NetDrivers.DisconnectTimeoutMS (10 s), not the version RPC:
   - mine 99cfd9c, host-only v2, x2: "Net (server): connection 1 disconnected (Timeout)", host "in game False, players 0" all run; bake 5988 ms (places 5425), a46b had 3154 ms (places 2607)
   - same build, host-only `-island v1` (no bake, my RPC still sent "sent island v1 to player 1"), x2: no timeout, "in game True, players 1"
