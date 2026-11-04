@@ -1726,3 +1726,27 @@ Commits on animal-behaviours (pushed): merge of origin/main 9a6f896, a49e354 (#6
 
 Shots: a59-try1.png (deer, no cue), a59-probe.png (not usable). Editor closed gracefully. Calls used: about 55 (ceiling 45).
 Left: the host+client cue compare (Temp probe Cues(): ServerWorld vs ClientWorld by Individual), a framed `-needcues` shot (camera higher, nearer the herd), us/creature before/after for the split.
+
+## A-60 (2026-11-04)
+
+Commits: 57ad7b2 (animal-behaviours) – need cues drawn 3x bigger, plus a once-a-second `-needcues` log.
+Fingerprint: 51E641E9 expected (render-only change); not re-measured this card.
+
+**Row 1 (#64) – cause found.** The cues were drawn all along: they sit inside the drawn range, on the fear-mark path, but their radii were 0.2 to 2.6 cm, too small to see beyond a metre or two.
+- Before: `[cues] creatures 97, brain cue != none 37, drawn range 3185; nearest 2044372579 at 8.7 m, cue 0: [0] at (-356.88,130.27,-46.99) len 0.005 r 0.023/0.023 a 0.45 drawn True`
+- After (CueScale 3): `[cues] creatures 36, brain cue != none 3, drawn range 1249; nearest 2044372579 at 8.7 m, cue 0: [0] at (-356.64,131.06,-46.99) len 0.011 r 0.054/0.054 a 0.45 drawn True`
+- "a" is the glow channel (Color.w); the marks have no real alpha.
+
+**Row 2 (#64):** a60-needs.png. The camera is 2.8 m from creature 1362455765's head, and pale "tired" bubbles are visible above it. Takes a60-needs0 to a60-needs3 are also saved.
+
+**Row 3 (#64):** host and client in one editor (`-host`): "host 118 creatures, client replicas 104, on both 104, same cue 104; host cued 41, client same 41". Examples: #A5482709, #5F7ABD0D and #62983A0F, each Thirsty on host and on client.
+
+**Row 4 (#58):** not done (over budget). Plan: check out a49e354^ scripts, bench Brain.Tick per creature in the same scene, restore, bench again.
+
+**Extra row (temple magenta), only partly done:**
+- What it is: a flat blue-purple box, at the mushroom loot spot (3513,19,368) looking west, above the chest. It shows in a60-temple-probe.png, but a60-temple-mw.png is not taken yet.
+- Probe results: viewport rays at (0.85,0.8) and (0.9,0.9) find no ECS render entity and no physics collider. The only GameObject renderer whose bounds they cross is "Dungeon SkullNiche" (ItemMaterial, URP/Lit) at 1.5 m, and it is small (0.26 x 0.60 x 0.42), so it is not the quad.
+- What it is not: it is not the error shader (the colour is flat purple-blue, not magenta, and it has a lit edge). TempleGlow.mat is not implicated by the probe.
+- Left: a mesh-level raycast against the cave/temple chunk meshes (they are not RenderMeshArray entities) to name it. My guess is a cave ceiling shaft showing the sky, or a temple decor slab.
+
+Calls used: about 56 (the ceiling was about 45).
