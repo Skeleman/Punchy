@@ -1959,3 +1959,14 @@ Commits on world-features (pushed): 79512da merge origin/main (A-52), 00b758d fl
 - Shots: none (D:\PunchyMilestones\W-83\ not created).
 - Editor: the world editor is closed, and the Audit Reports pref is restored.
 - Calls: about 48 (at the ceiling).
+
+## W-84 (2026-11-04): #87 village before/after, #102 batch timeline, #88 lake bay
+
+- Commit 1a8efde (#88), pushed to world-features after merging origin/main (f97bfc8, fast-forward).
+- Row 1 (#87), done. I put the pre-#87 plot code (f22f056^) back for the before shot only, then restored it. Before: settlement 3 has 2 house plots tilted, the worst 1.39 m at (-3339.5, 126.1, 1570.2). After: no tilted plots anywhere. Same camera: (-3319.5,135,1550.2) looking at the plot. In the before shot the huts' front walls sink into the slope (I looked at a crop).
+- Row 2 (#102): this time the 39-chunk batch ran 4 frames, not 60 (t=31.9 s, during the load boost). Frame times: 205, 13, 16, 19 ms, then 13 ms on the frame it lands. **Biggest part: CaveSystem.Update() at 147 ms of the 205 ms first frame.** The other frames are mostly EditorLoop. The 18-chunk batch just before it had an 88 ms WeatherSystem.Update() in a 147 ms frame. The 30 s frame before both is the island bake (InitializationSystemGroup). Probe: W84 / BatchSpy in the untracked probe (Profiler frame data, the heaviest chain per frame). The 60-frame case didn't happen again in the editor.
+- Row 3 (#88), done. Why no bay: the v3 lake shore is ~670-750 m from the centre (1610,-53), so a 30-degree stretch was ~400 m of shore. Only 45 of 144 rays have 12 m of land behind them, and the best stretch's lowest point was 5.2 m. Fix: a stretch now spans ~160 m of shore either side (4-12 rays), and it needs 10 m of land behind (the shelf's lowest rise). With 12 m the best was 10.7 m, so still no bay. The failure log now says how close the best stretch came. Log: "lake shelf bay at bearing 120 (score 0.37, bay 27 m behind its chord, land behind 10 m over the lake); lake shelf at 10.2 m over the lake at 0.0 m: lip 252 m from (1323,638) to (1074,645), 25 fall stretches". It is a low shelf (10 m), on the north-west shore. Still only with -lakeshelf, so nothing changes by default.
+- Shots: w84-village-before.png, w84-village-after.png, w84-lakeshelf-hill.png (from (1680,60,260); the lip is ~600 m off in haze, so it barely reads), w84-lakeshelf-lake.png (from the lake, not viewed).
+- Hashes: landmarks 4D2643D7 / 3A0DC7BB (108), unchanged.
+- Editor: closed at the end of the card.
+- Calls: about 42.
