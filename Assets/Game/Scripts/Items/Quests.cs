@@ -65,6 +65,7 @@ namespace Punchy.Items
         readonly Dictionary<(int, int, int), int> questRecord = new Dictionary<(int, int, int), int>();
         int targetBoard = -1;
         bool atBoardArg, takeQuestArg, turnInArg;
+        int takeQuestsArg;
         float questTestAt;
         string giveArg;
 
@@ -75,6 +76,9 @@ namespace Punchy.Items
             atBoardArg = System.Array.IndexOf(args, "-atboard") >= 0;
             takeQuestArg = System.Array.IndexOf(args, "-takequest") >= 0;
             turnInArg = System.Array.IndexOf(args, "-turnin") >= 0;
+            var tq = System.Array.IndexOf(args, "-takequests");
+            if (tq >= 0 && tq + 1 < args.Length)
+                int.TryParse(args[tq + 1], out takeQuestsArg);
             var g = System.Array.IndexOf(args, "-giveitem");
             if (g >= 0 && g + 1 < args.Length)
                 giveArg = args[g + 1];
@@ -324,6 +328,8 @@ namespace Punchy.Items
 
         void QuestTests(LocalTransform player)
         {
+            if (takeQuestsArg > 0 && Time.realtimeSinceStartup > 25f)
+                TakeQuestsTest(player);
             if (!atBoardArg && !takeQuestArg && !turnInArg && giveArg == null)
                 return;
             if (giveArg != null)
@@ -375,17 +381,60 @@ namespace Punchy.Items
             }
         }
 
-        /// <summary>The quest log, under the inventory pane.</summary>
+        Vector2 questScroll;
+        GUIStyle questLineStyle;
+
+        /// <summary>
+        /// The quest log, under the inventory pane (P-16): each quest's row as tall as its wrapped text, and the list
+        /// scrolls once it would run past the bottom of the screen.
+        /// </summary>
         void DrawQuestLog(Rect inventory)
         {
+            questLineStyle ??= new GUIStyle(GUI.skin.label) { richText = true, wordWrap = true, fontSize = 13 };
             var lines = new List<string>();
             foreach (var kv in myQuests)
                 if (kv.Key.Item1 < boards.Count && quests.Length > 0)
-                    lines.Add($"{(kv.Value == 2 ? "[done] " : "")}{QuestText(kv.Key.Item1, kv.Key.Item2)}");
-            var text = lines.Count > 0 ? string.Join("\n", lines) : "No quests yet: notice boards stand in every town.";
-            var area = new Rect(inventory.x, inventory.yMax + 8f, inventory.width, 30f + 20f * math.max(lines.Count, 1));
+                    lines.Add($"{(kv.Value == 2 ? "<b>[done]</b> " : "\u2022 ")}{QuestText(kv.Key.Item1, kv.Key.Item2)}");
+            if (lines.Count == 0)
+                lines.Add("No quests yet: notice boards stand in every town.");
+            var inner = inventory.width - 16f;
+            var heights = lines.ConvertAll(l => questLineStyle.CalcHeight(new GUIContent(l), inner - 16f) + 4f);
+            var total = 0f;
+            foreach (var h in heights) total += h;
+            // (On the left of the screen, up to three quarters of its height: under the inventory there was no room.)
+            var top = Screen.height * 0.12f;
+            var room = Screen.height * 0.75f;
+            var boxHeight = Mathf.Min(total + 30f, room);
+            var area = new Rect(20f, top, inventory.width, boxHeight);
             GUI.Box(area, "");
-            GUI.Label(new Rect(area.x + 8f, area.y + 4f, area.width - 16f, area.height - 8f), "<b>Quests</b>\n" + text, new GUIStyle(GUI.skin.label) { richText = true, wordWrap = true });
+            GUI.Label(new Rect(area.x + 8f, area.y + 4f, inner, 22f), "<b>Quests</b>", questLineStyle);
+            var view = new Rect(area.x + 8f, area.y + 26f, inner, boxHeight - 30f);
+            questScroll = GUI.BeginScrollView(view, questScroll, new Rect(0f, 0f, inner - 16f, total));
+            var y = 0f;
+            for (int i = 0; i < lines.Count; i++)
+            {
+                GUI.Label(new Rect(0f, y, inner - 16f, heights[i]), lines[i], questLineStyle);
+                y += heights[i];
+            }
+            GUI.EndScrollView();
+        }
+
+        /// <summary>"-takequests N" (tests, P-16): takes the next quests from the nearest boards until N are taken, any distance.</summary>
+        void TakeQuestsTest(LocalTransform player)
+        {
+            if (takeQuestsArg <= 0 || boards.Count == 0 || quests.Length == 0)
+                return;
+            var order = new List<int>();
+            for (int b = 0; b < boards.Count; b++) order.Add(b);
+            order.Sort((x, y) => math.distance(boards[x].Pos, player.Position).CompareTo(math.distance(boards[y].Pos, player.Position)));
+            foreach (var b in order)
+                for (int slot = 0; slot < boards[b].Offers.Length && takeQuestsArg > 0; slot++)
+                    if (!myQuests.ContainsKey((b, slot)))
+                    {
+                        TakeQuest(b, slot);
+                        takeQuestsArg--;
+                    }
+            takeQuestsArg = 0;
         }
     }
 }
