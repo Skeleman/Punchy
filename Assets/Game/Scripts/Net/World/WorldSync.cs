@@ -263,7 +263,7 @@ namespace Punchy.Net
                 var connection = em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection;
                 if (ours != 0 && theirs != ours && em.Exists(connection))
                 {
-                    Debug.LogWarning($"WorldSync: a player built a different world ({theirs:X8}, ours {ours:X8}): seed, biomes or species differ. Disconnecting them.");
+                    Debug.LogWarning($"WorldSync: a player built a different world ({theirs:X8}, ours {ours:X8}): seed, island version, biomes or species differ; host runs island v{Punchy.Terrain.IslandV2.RequestedVersion()}. Disconnecting them.");
                     em.AddComponent<NetworkStreamRequestDisconnect>(connection);
                 }
                 else if (em.Exists(connection))
@@ -373,6 +373,8 @@ namespace Punchy.Net
             Add(source.World.Seed.ToString());
             Add(source.World.WorldSize.ToString("R"));
             Add(source.World.SeaLevel.ToString("R"));
+            // W-68 (v3 brief 8A): the island version, so a v2 client can't join a v3 host and walk a different island.
+            Add("island v" + Punchy.Terrain.IslandV2.RequestedVersion());
             var species = new SortedSet<string>(System.StringComparer.Ordinal);
             foreach (var b in palette.Biomes)
             {
