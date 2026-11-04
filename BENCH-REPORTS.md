@@ -2,6 +2,34 @@
 
 Newest first.
 
+## 2026-11-04: job 20, startup hitch fix (#102) world-features cfae8be vs 4e3b63c: "[stream] world ready" v2 33.1 -> 19.1 s (-14.0 s), v3 35.1 -> 23.2 s (-11.9 s); the island-ready frame is 24.4 -> 10.8 s (v2) and 26.9 -> 14.4 s (v3); hashes as expected; the player doesn't run the v3 audit
+Method: Bench builds, 3 cold starts per island per build, rotated, `-benchstops here` (no teleport), uncapped. Profile-cfae8be with the StreamTrace helper: one trace run per island, then a capture from launch at -fpscap 20 (BigFrame dump, as in job 19; 4e3b63c's capture is job 19's). One `-host` run per island (host + local client in one process). 0 exceptions in all 22 logs.
+- Times, mean of 3 (s since start), 4e3b63c -> cfae8be:
+  - v2: island ready 13.4 -> 13.8, BenchRoute world ready 21.6 -> 15.4, "[stream] world ready" 33.1 -> 19.1.
+  - v3: island ready 16.7 -> 17.8, BenchRoute world ready 23.7 -> 19.5, "[stream] world ready" 35.1 -> 23.2 (22.8 / 22.8 / 24.0).
+  - Tail after island ready: v2 19.7 -> 5.3 s, v3 18.4 -> 5.4 s.
+- **Island-ready frame**, 4e3b63c (job 19) -> cfae8be, v2 (v3):
+  - total 24.4 -> 10.8 s (26.9 -> 14.4)
+  - bake (IslandV2System) 7.8 -> 8.6 s (11.4 -> 12.1)
+  - FaunaDirector.Update 5.3 -> 1.2 s (5.3 -> 1.2); 1.0 s of that is self time
+  - FloraSystem.LateUpdate 8.2 -> 0.28 s (8.3 -> 0.25)
+  - CaveSystem.Update 2.5 -> under 0.1 s (1.3 -> under 0.1)
+  - PresentationSystemGroup 0.2 s
+  - Nothing else over 200 ms. v3 has DriftwoodSystem 0.11 s, a shader load.
+- [flora] build is 182-205 ms in every run (placement 2-8, grow 162-186, support grids 16-23; 687 variants, 2.41 M vertices).
+- The fix costs the bake about 0.8 s on v2 and 0.7 s on v3 (IslandV2System self 6.6 -> 7.4 s, 9.8 -> 10.5 s), so island ready comes 0.4-1.0 s later. The pregrow beside the bake likely competes with it.
+- **The 5.3 s tail now:** about 1.7 s is the rest of the island-ready frame (fauna, flora, presentation). Then terrain: 22 batches. The new small first batches (3, 18, 39 chunks) don't finish faster. On v2 the 39-chunk batch runs 60 frames / 1.8 s and is only picked up at the MaxBuildFrames=60 backstop. On v3 the second full batch runs 34 frames / 0.8 s. The other 18 batches take 10-240 ms each, and streaming finishes about 1 s after that.
+- **v3 audit and biome reports: not in the player.** No "[hydro audit]" or biome report lines in any player log, and nothing like them in the v3 island-ready frame. The player runs them only with -islandaudit or PUNCHY_ISLANDAUDIT=1 (IslandV2.AuditRequested). The editor's ~29 s frame means the editor has one of those set; Temp/PlayArgs.txt is read as launch args in the editor.
+- **Host + local client:** one "[flora] build" per process, 190 ms v2 / 185 ms v3, with no second build for ClientWorld. FloraSystem runs on the default world, which is the client, and ServerWorld logs "shared with ClientWorld". Hosting adds nothing measurable to startup (v2 world ready 19.2 s hosting vs 19.1 solo; v3 22.3 vs 23.2).
+- Hashes: v2 136/B5EFF8C8 and v3 108/3A0DC7BB in every run on both builds. The host run logs the same hash on the bake path and on the "shared with ClientWorld" path, so the palette mismatch from job 19 is gone.
+- **Next levers:**
+  1. The bake: 8.6 s v2 / 12.1 s v3, all main thread (world; bake cache or more W-76-style parallel stages).
+  2. The first terrain batches: v2's 39-chunk batch waits out the 60-frame backstop, 1.8 s (world, cave-mouth chunks: split those or let them land later).
+  3. FaunaDirector's 1.0 s self in the island-ready frame (animal; A-52's stage log names the parts).
+  - At launch, before the bake: Init FMOD 1.5 s, CaveSystem.OnEnable 0.6 s.
+- Scripts: q20.sh. Logs: results/q20logs/, results/q20-bigframe-v2.txt, results/q20-bigframe-v3.txt.
+- Cost: session total so far 258 calls, peak 301k context, $17.07 (job 20 about 20 calls, $1.50; job 21-23 setup included)
+
 ## 2026-11-04: job 19, startup streaming tail on world-features 4e3b63c: it isn't streaming. The frame that logs "island ready" keeps the main thread for another ~16.5 s (flora build 8.2 s, FaunaDirector build 5.3 s, CaveSystem 2.5 s on v2 / 1.3 s on v3); all terrain chunks then stream in ~3 s
 Method: Bench-4e3b63c, 3 cold starts per island, player left where it spawns (`-benchstops here`), uncapped. Profile-4e3b63c with a profiler-only helper (StreamTrace.cs.txt, never committed): per frame it reads TerrainStreamingSystem's batches, 2 runs per island. Then a Unity profiler capture from launch (`-profiler-enable -profiler-log-file`), v2 and v3, and the longest frames' call trees (BigFrame.cs.txt). That capture ran at `-fpscap 20` so the whole startup fits the profiler's 2000-frame window; the cap doesn't change what runs inside a frame. 0 exceptions.
 - Times (mean of 3, s since start): v2 island ready 13.2, BenchRoute world ready 21.4, "[stream] world ready" 32.9 (32.3-33.5), 1804 chunks; tail 19.7 s. v3: 16.8 / 23.6 / 35.0, tail 18.2 s.

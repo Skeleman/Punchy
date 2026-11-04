@@ -1,0 +1,64 @@
+// Profiler-only (never committed to the game): "-dungeoncheck" logs, every 10 s for 200 s, per ECS world: dungeon
+// entities (DungeonSocket buffers), DungeonPost count, creatures (CreatureState) and replicas, and how many of each are
+// within 60 m of that world's player. Copied to Assets/Game/Scripts/Debugging/DungeonCheck.cs for one build, then deleted.
+// Lines start "DUNGEONCHECK".
+using System.Collections;
+using Unity.Collections;
+using Unity.Entities;
+using Unity.Mathematics;
+using Unity.Transforms;
+using UnityEngine;
+
+public class DungeonCheck : MonoBehaviour
+{
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    static void Boot()
+    {
+        if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-dungeoncheck") < 0 || FindAnyObjectByType<DungeonCheck>() != null)
+            return;
+        var go = new GameObject("DungeonCheck");
+        DontDestroyOnLoad(go);
+        go.AddComponent<DungeonCheck>();
+    }
+
+    void OnEnable() => StartCoroutine(Run());
+
+    IEnumerator Run()
+    {
+        for (int k = 1; k <= 20; k++)
+        {
+            yield return new WaitForSecondsRealtime(10f);
+            foreach (var w in World.All)
+            {
+                if (!w.IsCreated || (w.Flags & WorldFlags.Game) == 0) continue;
+                try { Log(w); } catch (System.Exception e) { Debug.Log($"DUNGEONCHECK {w.Name}: {e.GetBaseException().Message}"); }
+            }
+        }
+    }
+
+    static void Log(World w)
+    {
+        var em = w.EntityManager;
+        using var dq = em.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Dungeon.DungeonSocket>());
+        using var pq = em.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Fauna.DungeonPost>(), ComponentType.ReadOnly<Punchy.Fauna.CreatureState>());
+        using var cq = em.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Fauna.CreatureState>());
+        using var rq = em.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Net.CreatureReplica>());
+        using var plq = em.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Player.PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
+        var player = float3.zero; var hasPlayer = false;
+        using (var pl = plq.ToComponentDataArray<LocalTransform>(Allocator.Temp))
+            if (pl.Length > 0) { player = pl[0].Position; hasPlayer = true; }
+        int near = 0, postsNear = 0, guards = 0, drinks = 0;
+        using (var cs = cq.ToComponentDataArray<Punchy.Fauna.CreatureState>(Allocator.Temp))
+            foreach (var c in cs) if (hasPlayer && math.distance(c.Position, player) < 60f) near++;
+        using (var ps = pq.ToComponentDataArray<Punchy.Fauna.DungeonPost>(Allocator.Temp))
+        using (var pcs = pq.ToComponentDataArray<Punchy.Fauna.CreatureState>(Allocator.Temp))
+            for (int i = 0; i < ps.Length; i++)
+            {
+                if (hasPlayer && math.distance(pcs[i].Position, player) < 60f) postsNear++;
+                var b = ps[i].Behaviour.ToString();
+                if (b.Contains("Guard")) guards++; else if (b.Contains("Drink")) drinks++;
+            }
+        Debug.Log($"DUNGEONCHECK t {Time.realtimeSinceStartup:F0} {w.Name}: dungeons {dq.CalculateEntityCount()}, posts {pq.CalculateEntityCount()} (guard {guards}, drink {drinks}, {postsNear} within 60 m), " +
+                  $"creatures {cq.CalculateEntityCount()} ({near} within 60 m), replicas {rq.CalculateEntityCount()}, player {(hasPlayer ? $"({player.x:F0}, {player.y:F0}, {player.z:F0})" : "none")}");
+    }
+}

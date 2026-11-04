@@ -9,7 +9,7 @@ Released: v0.11.0 = 4eea658. main = 8b4bf19 (A-51, PR #101).
 2. Check: `gh auth status` (repo is public: no machine paths in issues or comments); `git pull --rebase` here;
    `results/.lock` absent in `Punchy-wt/Tools/bench/results/` (if present, read `.lock/job` and ask Zach).
 3. Hooks: `sh hooks/install.sh <folder outside the trees>` (BENCH-QUEUE setup) if telemetry isn't installed.
-4. Jobs 17, 18, 19 reported 2026-11-04 (19: the startup tail is one main-thread frame: flora build, FaunaDirector build, CaveSystem; streaming ~3 s). Nothing queued; stay idle until Zach or the supervisor adds work; don't poll.
+4. Jobs 17-20 reported 2026-11-04. Running in order: 21 (dungeon host/client, e31291e), 22 (bat folk cave GPU, 0ec7a8d; uses runner efbcd3a, push it with the report), 23 (#99 confirmation, Zach asked: 84208ff vs be6d005, NetCycle). Then idle; don't poll.
 
 ## How work arrives (the supervisor messages directly with SendMessage, or adds BENCH-QUEUE items)
 - Pull `coordination` at the start of every job and before every push (`git pull --rebase` on rejection).
