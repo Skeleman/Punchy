@@ -2,6 +2,15 @@
 
 Newest first.
 
+## 2026-11-04: job 23c, #99 on player-client 38a8f4c (P-10 row 0a, teardown reordered): still crashes, 6 of 6 runs, with either order
+Method: Bench-38a8f4c with the NetCycle helper, -island v2, uncapped. 3 runs of -netcycle 5 with the default (new) order and 3 with -hostorder old, interleaved. A crash ends its run, so 30 re-hosts were planned and 8 were attempted.
+- **Default order:** 3 of 3 runs crash. Run 1 crashes inside the first Host(); runs 2 and 3 host once and crash going back to solo. That's 3 crashes in 5 switches.
+- **-hostorder old:** 3 of 3 runs crash inside the first Host(). That's 3 crashes in 3 switches.
+- First stack (default run 1), the same as every #99 crash so far: lib_burst_generated burst.initialize.statics.9af43d12..._avx2 (x3), then burst.initialize.statics.c2e4d500..._avx2, then c2e4d500..., then UnityPlayer UnityMain. 0 managed exceptions.
+- Across jobs 16 and 23, every build with a teardown change (84208ff, main 0ec7a8d, 38a8f4c either order) crashes on the 1st or 2nd switch here. Builds without it (be6d005, f405348, 3a4acb8) crash later or only sometimes. The crash is always in Burst static init while the new worlds are created, not in the dispose itself.
+- Possible reason P-8/P-10 see clean runs and the laptop doesn't: these are release Bench builds (PunchyBench identity, no development flag). If their check used a Dev build, I can run the same NetCycle cycles in a Dev build of 38a8f4c here to test that.
+- Logs: results/q23/c-default-*/, c-old-*/. Script: q23c.sh.
+
 ## 2026-11-04: job 23b, #99 on main 0ec7a8d (includes 84208ff): crashes on the first world switch, 3 of 3 runs
 Method: Bench-0ec7a8d with the NetCycle helper, -island v2 -netcycle 3, uncapped, 3 runs (as job 23).
 - Every run segfaults (rc 139) with the same burst.initialize.statics stack. Runs 1 and 2 crash inside the first Host() from solo; run 3 hosts once and crashes going back to solo. No run completes a cycle.
