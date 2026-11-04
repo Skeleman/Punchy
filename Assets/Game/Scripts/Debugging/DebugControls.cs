@@ -25,14 +25,17 @@ namespace Punchy.Debugging
     ///  B            next day type (sunny, partly cloudy, changeable, overcast, stormy), replacing today's weather;
     ///  Y            advance the clock two hours;  T  toggle fast time (DayNightCycle);
     ///  ] / [        force the next weather over the player / clear it (WeatherSystem);
-    ///  F1           show / hide this readout (and the interaction prompt with it: the whole HUD).
+    ///  F1           show / hide this readout (off by default since A-51: about 0.5 ms of IMGUI a frame; "-hud" starts
+    ///               with it on). "-nohud" hides the interaction prompt too, for screenshots.
     /// The player-facing panels (multiplayer, graphics, quit) are in the main menu on Esc or Start (UI.MainMenu).
     /// </summary>
     public class DebugControls : MonoBehaviour
     {
         public WeatherSystem Weather;
         public DayNightCycle Cycle;
-        public bool ShowReadout = true;
+        public bool ShowReadout;
+        /// <summary>"-nohud": the interaction prompt hidden as well as the readout (screenshots).</summary>
+        bool noHud;
 
         struct Location
         {
@@ -204,8 +207,8 @@ namespace Punchy.Debugging
                 return;
             if (keyboard.f1Key.wasPressedThisFrame)
                 ShowReadout = !ShowReadout;
-            // F1 hides the whole HUD (for screenshots): the interaction prompt goes with the readout.
-            InteractionPrompt.Hidden = !ShowReadout;
+            // (The interaction prompt stays up with the readout off, its default; only "-nohud" hides it.)
+            InteractionPrompt.Hidden = noHud;
             if (keyboard.f3Key.wasPressedThisFrame)
                 CopyPosition();
             if (keyboard.bKey.wasPressedThisFrame && Weather != null)
@@ -219,8 +222,34 @@ namespace Punchy.Debugging
                     Warp(c, keyboard.shiftKey.isPressed ? -1 : 1);
         }
 
+        /// <summary>"-thirsty": tops up every simulated creature's thirst each second (shots of drinking at water).</summary>
+        static bool thirsty;
+        float thirstyNext;
+
+        void Thirsty()
+        {
+            if (!thirsty || Time.time < thirstyNext || !QueriesLive())
+                return;
+            thirstyNext = Time.time + 1f;
+            var em = queryWorld.EntityManager;
+            if (creatureWorld != queryWorld)
+            {
+                creatureWorld = queryWorld;
+                creatureQuery = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            }
+            var entities = creatureQuery.ToEntityArray(Unity.Collections.Allocator.Temp);
+            foreach (var e in entities)
+            {
+                var state = em.GetComponentData<CreatureState>(e);
+                state.Thirst = 1f;
+                em.SetComponentData(e, state);
+            }
+            entities.Dispose();
+        }
+
         void LateUpdate()
         {
+            Thirsty();
             FootDrift();
             SpinCheck();
             HuntLog();
@@ -1461,6 +1490,8 @@ namespace Punchy.Debugging
             // "-personalitylog Dog": list each of that species' personality a few seconds in (#50).
             var plArg = System.Array.IndexOf(args, "-personalitylog");
             personalitySpecies = plArg >= 0 && plArg + 1 < args.Length ? args[plArg + 1] : null;
+            // "-thirsty" (A-49 #64): every creature's thirst is topped up for this line, so drinking shows up soon.
+            thirsty = System.Array.IndexOf(args, "-thirsty") >= 0;
             personalityAt = -1f;
             // "-lift 15": the player held that high over the ground (see Lift), per shot line.
             var liftArg = System.Array.IndexOf(args, "-lift");
@@ -1514,7 +1545,8 @@ namespace Punchy.Debugging
                 Punchy.Audio.CreatureAudioSystem.LogVoices = true;
             if (System.Array.IndexOf(args, "-stancelog") >= 0)
                 FolkTalkSystem.LogStances = true;
-            // "-nohud": no readout (for screenshots).
+            // "-nohud": no readout and no interaction prompt (for screenshots). "-hud": start with the readout on.
+            ShowReadout = System.Array.IndexOf(args, "-hud") >= 0;
             // "-meteors": every night a meteor shower (Sky.hlsl's test switch), for checking shooting stars against clouds (Z-09).
             if (System.Array.IndexOf(args, "-meteors") >= 0)
                 Shader.SetGlobalFloat("_PunchySkyTest", 1f);
@@ -1531,6 +1563,7 @@ namespace Punchy.Debugging
             if (System.Array.IndexOf(args, "-nohud") >= 0)
             {
                 ShowReadout = false;
+                noHud = true;
                 InteractionPrompt.Hidden = true;
             }
             for (int i = 0; i < args.Length - 1; i++)
@@ -1704,8 +1737,17 @@ namespace Punchy.Debugging
             // (found once, by rings round the start; the spot and its measured spread are logged).
             if (System.Array.IndexOf(args, "-goflat") >= 0 && EnsureLocations(out var flatSource) && playerQuery.TryGetSingletonEntity<LocalTransform>(out var flatGoer))
             {
-                if (!flatSpot.HasValue)
-                    flatSpot = FindFlatSpot(flatSource, out flatSpread);
+                // ("-goflat 2": the third such spot, each at least 150 m from the ones before, so a test line gets a
+                // fresh herd away from the last line's, A-49 #46.)
+                var flatAt = System.Array.IndexOf(args, "-goflat");
+                var flatIndex = flatAt + 1 < args.Length && int.TryParse(args[flatAt + 1], out var fi) ? math.max(fi, 0) : 0;
+                while (flatSpots.Count <= flatIndex && FindFlatSpot(flatSource, out var foundSpread, flatSpots) is float2 foundFlat)
+                {
+                    flatSpots.Add(foundFlat);
+                    flatSpreads.Add(foundSpread);
+                }
+                flatSpot = flatSpots.Count > flatIndex ? flatSpots[flatIndex] : (float2?)null;
+                flatSpread = flatSpot.HasValue ? flatSpreads[flatIndex] : 0f;
                 if (flatSpot.HasValue)
                 {
                     var em = queryWorld.EntityManager;
@@ -2056,6 +2098,9 @@ namespace Punchy.Debugging
             // ("Human:Baker": only those with that job, A-29.)
             var watchJob = FolkJob.None;
             var hasJob = !hasTask && watchParts.Length > 1 && System.Enum.TryParse(watchParts[1], true, out watchJob);
+            // ("Deer:Drink": only those doing that, A-49 #64.)
+            var watchDoing = CreatureMode.Wander;
+            var hasDoing = !hasTask && !hasJob && watchParts.Length > 1 && System.Enum.TryParse(watchParts[1], true, out watchDoing);
             if (index < 0 || !playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return;
             if (Time.unscaledTime >= nextWatchPick || !em.Exists(watched))
@@ -2069,7 +2114,7 @@ namespace Punchy.Debugging
                 {
                     var species = em.GetComponentData<CreatureBody>(e).Species;
                     var c = em.GetComponentData<CreatureState>(e);
-                    if (hasTask && c.Task != watchTask || hasJob && FolkJobs.Of(c) != watchJob)
+                    if (hasTask && c.Task != watchTask || hasJob && FolkJobs.Of(c) != watchJob || hasDoing && c.Mode != watchDoing)
                         continue;
                     if (!anySpecies && species != index)
                     {
@@ -3281,10 +3326,12 @@ namespace Punchy.Debugging
         /// down across it; the player parked out of shot.
         /// </summary>
         static float2? flatSpot;
+        static readonly System.Collections.Generic.List<float2> flatSpots = new System.Collections.Generic.List<float2>();
+        static readonly System.Collections.Generic.List<float> flatSpreads = new System.Collections.Generic.List<float>();
         static float flatSpread;
 
         /// <summary>The nearest dry spot (rings of 30 m from the origin) whose ground height, centre and two rings out to 15 m, varies under 0.5 m.</summary>
-        static float2? FindFlatSpot(in TerrainSource source, out float spread)
+        static float2? FindFlatSpot(in TerrainSource source, out float spread, System.Collections.Generic.List<float2> awayFrom)
         {
             spread = 0f;
             for (int ring = 0; ring <= 150; ring++)
@@ -3292,6 +3339,11 @@ namespace Punchy.Debugging
                 {
                     var angle = k * 2f * math.PI / math.max(ring * 8, 1);
                     var at = new float2(math.cos(angle), math.sin(angle)) * ring * 30f;
+                    var near = false;
+                    foreach (var other in awayFrom)
+                        near |= math.distance(other, at) < 150f;
+                    if (near)
+                        continue;
                     var lo = float.MaxValue;
                     var hi = float.MinValue;
                     var dry = true;
