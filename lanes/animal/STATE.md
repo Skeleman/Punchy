@@ -1,7 +1,14 @@
-# Animal lane: state (2026-11-04, A-66 done)
+# Animal lane: state (2026-11-04, A-67 done)
 
-Worktree `Punchy` (animal lane only). `animal-behaviours` = origin/main 8502bca (PR #127, A-66 row 1) + 69340e1 (A-66 #60 Decide tiers), pushed.
-Fauna fingerprint D0B9488A (114 species; branch and main).
+Worktree `Punchy` (animal lane only). `animal-behaviours` = origin/main 6f139d0 merged + c0277c9 (A-67 bat folk), pushed.
+Fauna fingerprint 8726AADB on branch (115 species); main D0B9488A.
+
+## A-67
+- #35: BatFolk species in the bat folk chambers (1 chamber, 6 folk); hammock/goggle peg posts; `ShunsLight` -> Shield
+  entry (player within 6 m underground), `SurfaceTrips` -> Surface entry with goggles by day. Pygmies moved to the largest
+  chamber of a cave with no bat folk site. cpu main 3.23 -> 2.95 ms at `-place batfolk`. Commented, open.
+- Weak: ears/hammock not clear in shots; no lantern so the shield pose isn't shown; fires/torches aren't lights.
+- On `-island v3` a shot list needs a `-wait 25` warmup line before `-place`.
 
 ## A-66
 - #10/#35: fish folk in the FishFolk settlements (3 villages, 12-21 each, `Wades`), blind cave pygmies in the bat-folk chambers (1 band

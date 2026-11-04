@@ -1877,3 +1877,33 @@ Fauna fingerprint: 2DD98BAE -> D0B9488A (114 species) after row 1; row 2 keeps D
 - Mismatched picks were 0 at every spot: wild spot noon (100 creatures, 30,000 decisions), HumanVillage noon (106, 31,800), HumanVillage into night (104, 31,200) and the spot resets (253, 75,900). An earlier session was also 0 (428 creatures, 128,400 decisions). The state, rng and mind mismatch counts were also 0.
 - No fix was needed, so 69340e1 stands with no new commit. The Rest/Wander shift was editor noise, and row 2 is safe to merge. The harness was not committed and has been removed, and Burst is back on. Posted on #60, which is left open.
 Calls used: about 60 across the card (incl. pre-summary). Editor closed at the end.
+
+## A-67: bat folk residents (#35)
+Commit c0277c9 on `animal-behaviours`, pushed. It is on top of origin/main 6f139d0, which is merged locally.
+- **Species:** a new BatFolk species on the folk rig (copied from the cave pygmy).
+  - Big ears, as their own seeded style group: BigEar, PointyEar or GoblinEar, scaled 1.35 to 1.6.
+  - A wing membrane on the arm.
+  - Seeded size (0.62 to 0.8), 5 dark fur coats and 3 hair colours.
+  - Each one holds a seeded staff, a stick or nothing. No lanterns.
+- **Homes and work:** hammocks and goggle pegs are now posts. A hammock's sleeper is its roost keeper, followed by the hut, rack and basket posts.
+- **New data fields:** `ShunsLight` and `SurfaceTrips`, plus the IdleAction `ShieldEyes` (an arm over the face).
+- **New A-66 Decide entries:** a forced `Shield` entry and a weighted `Surface` entry (appended last, so the RNG order for other species is unchanged).
+  - Light near means a player within 6 m under rock, or daylight on the surface.
+  - Goggles: they wear goggles on the surface by day. Goggles stop the shielding.
+- **Pygmies:** the band left the BatFolk chamber. It now lives in the largest chamber of a cave with no bat folk site, at (-3069, 159, 1017) on v3. It is seed-derived, one band.
+- **Counts on v3:** 1 chamber with bat folk, 6 bat folk in total (PoolFisher 1, RoostKeeper 2, Forager 2, Tanner 1).
+- **Fingerprint:** D0B9488A became 8726AADB (115 species). This is from the new species and the new blob fields.
+- **Landmarks:** game form 108 / 3A0DC7BB (unchanged).
+- **cpu main at the chamber** (`-place batfolk -time 23`, uncapped, editor): 3.23 ms before (76 creatures), 2.95 ms after (74). No measurable cost. Brain 0.43 to 0.49 ms.
+- **Shots:** in D:\PunchyMilestones\animal\A-67\ (a67-batfolk.png, a67-batfolk-light.png).
+- **Weak points:**
+  - In the shots they read dark. The pygmy hair parts look like hats, and the ears are not obvious.
+  - The hammock is not clearly in frame.
+  - The light shot doesn't catch a shield pose. The player carries no lantern, so the trigger is distance only.
+  - Fires and NPC torches don't count as light.
+  - The surface walk is a straight line to the mouth.
+  - Small eyes come from the head mesh as it is.
+- **New debug flag:** `-place batfolk`.
+- **Shot gotcha:** on `-island v3`, a shot list needs a `-wait 25` warmup line before `-place`.
+- #35 commented, left open. Editor closed.
+Calls used: about 110 (over budget).
