@@ -41,3 +41,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #102 | Startup hitch after island ready | W-79, A-52 |
 | #81 #58 | Cave FPS, CreatureState split | A-53 (#81 CPU fine in editor; build GPU check bench job 22), A-53b (#58) |
 | #87 | Flat house plots | W-80 |
+| #88 | Lake shelf rework (bay, mountain side, falls follow the edge) | W-81 |
