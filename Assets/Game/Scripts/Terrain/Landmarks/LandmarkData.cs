@@ -234,13 +234,26 @@ namespace Punchy.Terrain
 
                 // W-56: the sunken temple's sand swell is ground (same sand, shading and curvature as the dunes): the
                 // mound's height merged into the dunes with a smooth max, faded out over its last quarter.
+                // W-94 (#80): shaped by a wind across it (local +v, a little forward) instead of a regular swell: the
+                // windward flank stretched long and low, the lee shorter and steeper, soft ripples across the wind on the
+                // flanks (sharp-crested, bent), and uneven drifts heaped against the top's edge. The flat top, where the
+                // ruin stands, is unchanged, and the drifts only add sand.
                 if (type.Temple != 0)
                 {
-                    var t = SunkenTempleShape.MoundT(hit.Local.x, hit.Local.y);
+                    var l = hit.Local;
+                    var wind = math.normalize(new float2(-0.25f, 1f));
+                    var lee = math.dot(math.normalizesafe(l), wind);
+                    var t = SunkenTempleShape.MoundT(l.x, l.y) * (1f + 0.2f * lee);
                     if (t < 1f)
                     {
-                        var ripple = 0.35f * noise.snoise(hit.Local * 0.07f + inst.Seed) * math.saturate(3f * t) * (1f - t);
-                        var target = inst.BaseHeight + SunkenTempleShape.MoundTop(hit.Local.x, hit.Local.y) + ripple;
+                        var flank = math.saturate(3f * t) * (1f - t);
+                        var across = math.dot(l, wind) * 1.5f + 1.8f * math.sin(math.dot(l, new float2(wind.y, -wind.x)) * 0.17f + inst.Seed);
+                        var ripple = 0.35f * noise.snoise(l * 0.07f + inst.Seed) * flank +
+                                     0.13f * (math.sin(across) + 0.35f * math.sin(2f * across)) * flank;
+                        var edge = math.saturate(t * 6f) * (1f - math.smoothstep(0.25f, 0.7f, t));
+                        var drift = edge * (1.4f * math.max(0f, noise.snoise(l * 0.06f - inst.Seed)) + 0.5f * math.max(0f, noise.snoise(l * 0.17f + inst.Seed)));
+                        var mound = SunkenTempleShape.Bottom + (SunkenTempleShape.Top - SunkenTempleShape.Bottom) * (1f - math.smoothstep(0f, 1f, t));
+                        var target = inst.BaseHeight + mound + ripple + drift;
                         h = math.lerp(h, SmoothMax(h, target, 3f), 1f - math.smoothstep(0.75f, 1f, t));
                     }
                 }

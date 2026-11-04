@@ -31,12 +31,21 @@ namespace Punchy.Fauna
         Transform ball;
         float radius, ballRadius, start, dir, trailAt = float.NaN;
         float[] heights;
+        // W-94 (#40): the trail's width along the circle, a few seeded whole-turn waves (so it closes on itself), as if
+        // a body that is not round presses it in wider and narrower. By the absolute angle, so it is fixed to the ground
+        // and the same for every player.
+        Vector3 waveK, wavePhase;
         Mesh trail;
         Vector3[] verts;
 
-        public void Init(Transform ball, float radius, float ballRadius, float[] heights, float start, float dir, Material material)
+        public void Init(Transform ball, float radius, float ballRadius, float[] heights, float start, float dir, Material material, uint seed = 1u)
         {
             this.ball = ball; this.radius = radius; this.ballRadius = ballRadius; this.heights = heights; this.start = start; this.dir = dir;
+            var rng = Unity.Mathematics.Random.CreateFromIndex(seed);
+            // Waves about 18, 9 and 5 m long on a 40 m circle (scaled with its length).
+            var turn = Mathf.PI * 2f * radius;
+            waveK = new Vector3(Mathf.Round(turn / rng.NextFloat(15f, 22f)), Mathf.Round(turn / rng.NextFloat(7.5f, 11f)), Mathf.Round(turn / rng.NextFloat(4.5f, 6f)));
+            wavePhase = new Vector3(rng.NextFloat(0f, 6.2832f), rng.NextFloat(0f, 6.2832f), rng.NextFloat(0f, 6.2832f));
             verts = new Vector3[(Segs + 1) * Cols];
             var cols = new Color[verts.Length];
             var tris = new int[Segs * (Cols - 1) * 6];
@@ -80,6 +89,9 @@ namespace Punchy.Fauna
             return Mathf.Lerp(heights[i % Steps], heights[(i + 1) % Steps], f - i);
         }
 
+        float Width(float a) => 1f + 0.15f * Mathf.Sin(waveK.x * a + wavePhase.x) + 0.09f * Mathf.Sin(waveK.y * a + wavePhase.y)
+                                   + 0.05f * Mathf.Sin(waveK.z * a + wavePhase.z);
+
         void Update()
         {
             if (ball == null || heights == null)
@@ -107,9 +119,11 @@ namespace Punchy.Fauna
                 var r = new Vector3(Mathf.Cos(ai), 0f, Mathf.Sin(ai));
                 var y = Height(ai) + 0.2f;
                 // The lips slump back towards the tail as the salt creeps in.
-                var lip = Lip * (1f - 0.7f * i / Segs);
+                // A wider press pushes up a taller lip.
+                var w = Width(ai);
+                var lip = Lip * (1f - 0.7f * i / Segs) * w;
                 for (int j = 0; j < Cols; j++)
-                    verts[i * Cols + j] = r * (radius + Across[j] * HalfWidth) + Vector3.up * (y + Rise[j] * lip);
+                    verts[i * Cols + j] = r * (radius + Across[j] * HalfWidth * w) + Vector3.up * (y + Rise[j] * lip);
             }
             trail.vertices = verts;
             trail.RecalculateNormals();

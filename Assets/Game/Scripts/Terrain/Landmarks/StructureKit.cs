@@ -26,7 +26,13 @@ namespace Punchy.Terrain
         /// <summary>A turtle folk rune or ice pane (#38): a pale blue-green glow, drawn as a window pane so it lights at dusk.</summary>
         Rune,
         /// <summary>Packed snow and ice blocks: the turtle folk's igloo shell, a little bluer than the wall colour.</summary>
-        Ice
+        Ice,
+        /// <summary>A hazard house's (#69) lightning rod and its strap: weathered copper.</summary>
+        Copper,
+        /// <summary>Wind-blown sand drifted against a desert house (#69).</summary>
+        Sand,
+        /// <summary>Grey volcanic ash heaped on and around an ash house (#69).</summary>
+        Ash
     }
 
     /// <summary>
@@ -49,7 +55,15 @@ namespace Punchy.Terrain
         /// <summary>A cluster of lake-bed details (#37): kelp, shell mosaics, bubble vents, sunken goods, coral arches, anemones.</summary>
         Reef,
         /// <summary>A fishing village's wharf (W-65): a small network of walkways from the bank with houses on stilts over the water.</summary>
-        Wharf
+        Wharf,
+        /// <summary>A harsh-biome hazard house (#69): one storey of House in a thick stone skin under an ash hood (Ashlands, Volcano).</summary>
+        AshHouse,
+        /// <summary>A hazard house (#69) half sunk in snow banked up its back and sides (Tundra, Glacier, Mountains).</summary>
+        SnowHouse,
+        /// <summary>A hazard house (#69) grounded by a copper rod down to a stake and plate (ElectricWastelands).</summary>
+        StormHouse,
+        /// <summary>A hazard house (#69) with thick walls, a slatted shade porch and sand drifts (Dunes, SaltFlat, GlassDesert).</summary>
+        SandHouse
     }
 
     /// <summary>The small things a sea folk settlement leaves on the lake bed (#37), picked by weight from SeaDetails.</summary>
@@ -219,6 +233,9 @@ namespace Punchy.Terrain
             KitMaterial.Net => new Color(0.70f, 0.66f, 0.55f),
             KitMaterial.Rune => new Color(0.55f, 0.95f, 1f),
             KitMaterial.Ice => Color.Lerp(t.Wall, t.Trim, 0.25f),
+            KitMaterial.Copper => new Color(0.62f, 0.40f, 0.24f),
+            KitMaterial.Sand => new Color(0.84f, 0.73f, 0.52f),
+            KitMaterial.Ash => new Color(0.36f, 0.34f, 0.33f),
             _ => t.Wall
         };
 
@@ -268,6 +285,138 @@ namespace Punchy.Terrain
                 Detail(parts, PickDetail(rng), at, (float)rng.NextDouble() * 360f, rng, t);
             }
             return parts;
+        }
+
+        /// <summary>Whether a kit shape is a walled house with a door and an inside (House, StiltHouse and the #69 hazard houses).</summary>
+        public static bool HouseLike(KitShape s) => s == KitShape.House || s == KitShape.StiltHouse || s >= KitShape.AshHouse;
+
+        // ------------------------------------------------------------------------------------------- hazard houses (#69)
+
+        /// <summary>
+        /// A harsh-biome hazard house (#69): one storey of House (its door bay on +Z) with what the biome asks for, from
+        /// the seed with its own draws (so House's own draws, and every other kit building, are unchanged).
+        /// AshHouse: a second stone skin round the walls, a pitched hood over the door on stone cheeks, ash heaped against
+        /// the walls and drifted on the hood. SnowHouse: snow banked steeply up the back and sides so the walls stand half
+        /// sunk, low banks flanking the door, snow along the ridge. StormHouse: a copper rod up past the ridge at a back
+        /// corner, its strap down to a stone plate and on to an earth stake, a strap along the ridge. SandHouse: a stone
+        /// skin, a four-post porch under slats and a cloth, sand drifted against the walls. The door's front stays clear.
+        /// </summary>
+        public static List<KitPart> HazardHouse(uint seed, CultureTrim t, KitShape shape, float width, float depth)
+        {
+            var parts = House(seed, t, width, depth, 1, 0f);
+            var rng = new System.Random((int)(Scramble(seed ^ 0x5AFE5u) & 0x7FFFFFFF));
+            float R() => (float)rng.NextDouble();
+            var door = 0f;
+            foreach (var p in parts)
+                if (p.Piece == KitPiece.Door) { door = p.Centre.x; break; }
+            float hw = width * 0.5f, hd = depth * 0.5f, h = t.Storey;
+            var ridge = h + (t.Roof == KitRoof.Flat ? 0.7f : hw * Mathf.Tan(Mathf.Max(t.Pitch, 20f) * Mathf.Deg2Rad));
+            switch (shape)
+            {
+                case KitShape.AshHouse:
+                {
+                    Skin(parts, KitMaterial.Stone, hw, hd, h * 0.92f, 0.45f, door, 1.8f);
+                    // The hood: a pitched slab out over the door on two stone cheeks, ash drifted on top.
+                    var hz = hd + Thick * 0.5f + 0.45f + 0.75f;
+                    Add(parts, KitPiece.Roof, KitMaterial.Stone, new Vector3(door, h * 0.86f, hz), new Vector3(2.7f, 0.22f, 1.8f), 0f, false, 16f);
+                    Add(parts, KitPiece.Rubble, KitMaterial.Ash, new Vector3(door + (R() - 0.5f) * 0.6f, h * 0.86f + 0.17f, hz - 0.2f), new Vector3(1.6f + R() * 0.6f, 0.12f, 1.0f), (R() - 0.5f) * 20f, false, 16f);
+                    foreach (var side in new[] { -1f, 1f })
+                        Add(parts, KitPiece.Wall, KitMaterial.Stone, new Vector3(door + side * 1.2f, h * 0.41f, hz - 0.1f), new Vector3(0.3f, h * 0.82f, 1.5f), 0f, false);
+                    Bank(parts, rng, KitMaterial.Ash, hw + Thick * 0.5f + 0.45f, hd + Thick * 0.5f + 0.45f, 0.5f, 0.4f, door, 3.6f);
+                    break;
+                }
+                case KitShape.SnowHouse:
+                    Bank(parts, rng, KitMaterial.Ice, hw + Thick * 0.5f, hd + Thick * 0.5f, h * 0.55f, 0.5f, door, 2.2f);
+                    Add(parts, KitPiece.Trim, KitMaterial.Ice, new Vector3(0f, ridge - 0.05f, 0f), new Vector3(0.9f, 0.25f, depth * 0.9f), 0f, false);
+                    break;
+                case KitShape.StormHouse:
+                {
+                    var cx = (rng.Next(2) == 0 ? -1f : 1f) * (hw + Thick * 0.5f + 0.12f);
+                    var cz = -hd - Thick * 0.5f - 0.12f;
+                    var rodTop = ridge + 2.2f + R() * 0.8f;
+                    Add(parts, KitPiece.Column, KitMaterial.Copper, new Vector3(cx, rodTop * 0.5f, cz), new Vector3(0.09f, rodTop, 0.09f), 0f, false);
+                    for (int k = 0; k < 3; k++)   // a crown of points at the top
+                        Add(parts, KitPiece.Trim, KitMaterial.Copper, new Vector3(cx, rodTop + 0.12f, cz), new Vector3(0.04f, 0.4f, 0.04f), k * 120f, false, 22f);
+                    for (var y = 0.9f; y < ridge; y += 1.3f)   // stand-off brackets back to the wall
+                        Add(parts, KitPiece.Trim, KitMaterial.Copper, new Vector3(cx - Mathf.Sign(cx) * 0.1f, y, cz + 0.06f), new Vector3(0.22f, 0.05f, 0.05f), 0f, false);
+                    Add(parts, KitPiece.Platform, KitMaterial.Stone, new Vector3(cx, 0.04f, cz), new Vector3(0.9f, 0.08f, 0.9f), R() * 40f, false);
+                    var stake = new Vector3(cx + Mathf.Sign(cx) * (1.2f + R()), 0f, cz - 0.8f - R());
+                    var run = stake - new Vector3(cx, 0f, cz);
+                    Add(parts, KitPiece.Trim, KitMaterial.Copper, new Vector3(cx, 0.03f, cz) + run * 0.5f, new Vector3(0.05f, 0.04f, run.magnitude), Mathf.Atan2(run.x, run.z) * Mathf.Rad2Deg, false);
+                    Add(parts, KitPiece.Column, KitMaterial.Copper, stake + Vector3.up * 0.25f, new Vector3(0.07f, 0.5f, 0.07f), 0f, false);
+                    Add(parts, KitPiece.Trim, KitMaterial.Copper, new Vector3(0f, ridge + 0.05f, 0f), new Vector3(0.06f, 0.05f, depth + 0.3f), 0f, false);
+                    break;
+                }
+                case KitShape.SandHouse:
+                {
+                    Skin(parts, KitMaterial.Stone, hw, hd, h * 0.85f, 0.4f, door, 1.8f);
+                    // The porch: four posts, slats across and a cloth over them, high enough to walk under.
+                    var top = Mathf.Max(2.4f, h * 0.85f);
+                    var pz0 = hd + Thick * 0.5f + 0.4f;
+                    var pz1 = pz0 + 2.4f + R() * 0.4f;
+                    foreach (var side in new[] { -1f, 1f })
+                        foreach (var z in new[] { pz0 + 0.2f, pz1 })
+                            Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(door + side * 1.5f, top * 0.5f, z), new Vector3(0.16f, top, 0.16f), 0f, false);
+                    for (var z = pz0 + 0.15f; z < pz1 + 0.1f; z += 0.42f)
+                        Add(parts, KitPiece.Beam, KitMaterial.Wood, new Vector3(door, top + 0.06f, z), new Vector3(3.3f, 0.08f, 0.12f), 0f, false);
+                    Add(parts, KitPiece.Roof, KitMaterial.Roof, new Vector3(door + (R() - 0.5f) * 0.3f, top + 0.16f, (pz0 + pz1) * 0.5f), new Vector3(3.0f, 0.04f, pz1 - pz0 - 0.2f), (R() - 0.5f) * 6f, false, -4f);
+                    Bank(parts, rng, KitMaterial.Sand, hw + Thick * 0.5f + 0.4f, hd + Thick * 0.5f + 0.4f, 0.75f, 0.5f, door, 3.6f);
+                    break;
+                }
+            }
+            return parts;
+        }
+
+        /// <summary>A second wall skin round a house's four sides (#69), <paramref name="thick"/> deep, with a gap at the door.</summary>
+        static void Skin(List<KitPart> parts, KitMaterial m, float hw, float hd, float height, float thick, float door, float gap)
+        {
+            var ox = hw + Thick * 0.5f + thick * 0.5f;
+            var oz = hd + Thick * 0.5f + thick * 0.5f;
+            foreach (var side in new[] { -1f, 1f })
+                Add(parts, KitPiece.Wall, m, new Vector3(side * ox, height * 0.5f, 0f), new Vector3(thick, height, oz * 2f + thick), 0f, false);
+            Add(parts, KitPiece.Wall, m, new Vector3(0f, height * 0.5f, -oz), new Vector3(ox * 2f - thick, height, thick), 0f, false);
+            float left = -ox + thick * 0.5f, right = ox - thick * 0.5f, a = door - gap * 0.5f, b = door + gap * 0.5f;
+            if (a - left > 0.2f) Add(parts, KitPiece.Wall, m, new Vector3((left + a) * 0.5f, height * 0.5f, oz), new Vector3(a - left, height, thick), 0f, false);
+            if (right - b > 0.2f) Add(parts, KitPiece.Wall, m, new Vector3((b + right) * 0.5f, height * 0.5f, oz), new Vector3(right - b, height, thick), 0f, false);
+        }
+
+        /// <summary>
+        /// Drifts (#69) banked against a house's back, sides and front corners (faces at hw, hd): sloped slabs leaning on
+        /// the walls, each a little different in height and length, the front kept clear <paramref name="gap"/> wide round
+        /// the door.
+        /// </summary>
+        static void Bank(List<KitPart> parts, System.Random rng, KitMaterial m, float hw, float hd, float height, float vary, float door, float gap)
+        {
+            float R() => (float)rng.NextDouble();
+            void Lean(Vector3 foot, float yaw, float length, float rise)
+            {
+                // A 0.6 m slab whose top face runs from rise up the wall down to the ground 1.6 rise out (about 32 degrees).
+                var run = rise * 1.6f;
+                var slope = Mathf.Sqrt(run * run + rise * rise);
+                var pitch = Mathf.Atan2(rise, run) * Mathf.Rad2Deg;
+                var drop = 0.3f / Mathf.Cos(pitch * Mathf.Deg2Rad);
+                var centre = foot + Turn(yaw, new Vector3(0f, rise * 0.5f - drop, run * 0.5f));
+                Add(parts, KitPiece.Platform, m, centre, new Vector3(length, 0.6f, slope), yaw, false, pitch);
+            }
+            for (int s = 0; s < 3; s++)       // back, left, right: two or three overlapping drifts each
+            {
+                var along = s == 0 ? hw * 2f : hd * 2f;
+                var yaw = s == 0 ? 180f : s == 1 ? 270f : 90f;
+                var n = 2 + rng.Next(2);
+                for (int k = 0; k < n; k++)
+                {
+                    var off = (k + 0.5f) / n * along - along * 0.5f + (R() - 0.5f) * 0.4f;
+                    var foot = s == 0 ? new Vector3(off, 0f, -hd) : new Vector3(s == 1 ? -hw : hw, 0f, off);
+                    Lean(foot, yaw, along / n + 0.6f, height * (1f - vary * 0.5f + vary * R()));
+                }
+            }
+            foreach (var side in new[] { -1f, 1f })   // the front, each side of the door
+            {
+                var inner = door + side * gap * 0.5f;
+                var outer = side * hw;
+                if ((outer - inner) * side > 0.6f)
+                    Lean(new Vector3((inner + outer) * 0.5f, 0f, hd), 0f, Mathf.Abs(outer - inner), height * (0.45f + 0.3f * R()));
+            }
         }
 
         /// <summary>
