@@ -29,15 +29,16 @@ namespace Punchy.Fauna
         // W-89 (#40, Zach's designs): a golem of floating rocks held together by arcs takes the ElectricWastelands slot
         // (the crystal serpent comes back with "-colossus CrystalSerpent"), and a seventh slot holds a walking saguaro in
         // the Sonoran.
-        public enum Kind { KneelingTitan, HalfBuriedHead, GiantTortoise, CrystalSerpent, DrownedKnight, AshSmith, CarnivorousPlant, SkeletalLizard, RockGolem, WalkingSaguaro }
+        public enum Kind { KneelingTitan, HalfBuriedHead, GiantTortoise, CrystalSerpent, DrownedKnight, AshSmith, CarnivorousPlant, SkeletalLizard, RockGolem, WalkingSaguaro, SaltCrystal }
+        // W-92 (#40, Zach's SaltFlat design): an eighth slot holds a giant rounded salt crystal rolling in slow circles.
         /// <summary>Slots: one colossus stands in each.</summary>
-        const int Kinds = 7;
+        const int Kinds = 8;
 
         /// <summary>What stands in each slot. Slots 3, 4 and 5 hold the golem, the plant and the lizard unless a "-colossus" flag swaps the old kind back in.</summary>
-        public static readonly Kind[] Placed = { Kind.KneelingTitan, Kind.HalfBuriedHead, Kind.GiantTortoise, Kind.RockGolem, Kind.CarnivorousPlant, Kind.SkeletalLizard, Kind.WalkingSaguaro };
+        public static readonly Kind[] Placed = { Kind.KneelingTitan, Kind.HalfBuriedHead, Kind.GiantTortoise, Kind.RockGolem, Kind.CarnivorousPlant, Kind.SkeletalLizard, Kind.WalkingSaguaro, Kind.SaltCrystal };
 
         /// <summary>Where each slot's colossus stands (NaN until placed), for probes and shot lists.</summary>
-        public static readonly float3[] Positions = { new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN) };
+        public static readonly float3[] Positions = { new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN) };
 
         const float Step = 150f;
         /// <summary>The biomes each kind looks for, by <see cref="Kind"/>.</summary>
@@ -45,19 +46,22 @@ namespace Punchy.Fauna
         {
             new[] { "Tundra", "Glacier", "Mountains" }, new[] { "Grassland", "Temperate" }, new[] { "FungalForest" }, new[] { "ElectricWastelands" },
             new[] { "FoggyMarsh", "PoisonSwamp" }, new[] { "Ashlands", "Volcano", "EmberForest" }, new[] { "PoisonSwamp" }, new[] { "Ashlands" },
-            new[] { "ElectricWastelands" }, new[] { "Sonoran" },
+            new[] { "ElectricWastelands" }, new[] { "Sonoran" }, new[] { "SaltFlat" },
         };
         // Each slot draws from its own salt on the world seed, so adding one moves no other colossus or landmark.
-        static readonly uint[] Salts = { 0x71A4u, 0x4EADu, 0x7027u, 0x5E2Bu, 0xD20Au, 0xA54Du, 0x5A6Au };
-        static readonly float[] KeepRadius = { 34f, 42f, 38f, 44f, 44f, 46f, 34f };
+        static readonly uint[] Salts = { 0x71A4u, 0x4EADu, 0x7027u, 0x5E2Bu, 0xD20Au, 0xA54Du, 0x5A6Au, 0x5A17u };
+        static readonly float[] KeepRadius = { 34f, 42f, 38f, 44f, 44f, 46f, 34f, CrystalKeep };
         /// <summary>Height and half-width each slot casts with its far shadow (#84); the last entry is the Dunes colossus.</summary>
-        static readonly float2[] Casts = { new float2(46f, 14f), new float2(22f, 12f), new float2(30f, 20f), new float2(52f, 14f), new float2(40f, 18f), new float2(18f, 20f), new float2(56f, 12f), new float2(58f, 20f) };
+        static readonly float2[] Casts = { new float2(46f, 14f), new float2(22f, 12f), new float2(30f, 20f), new float2(52f, 14f), new float2(40f, 18f), new float2(18f, 20f), new float2(56f, 12f), new float2(2f * CrystalBall, CrystalBall), new float2(58f, 20f) };
         /// <summary>
         /// W-89 (#40): the most relief (highest minus lowest ground, m) a colossus spot may have across its keep circle.
         /// A spot steeper than this is redrawn (up to eight times, then the flattest draw wins), so no colossus stands
         /// on a hillside with its feet hanging over the drop. A spot already flat enough keeps its first draw.
         /// </summary>
         const float MaxRelief = 6f;
+        /// <summary>W-92 (#40): the salt crystal's radius (m), the most its rolling circle may span, and the keep circle
+        /// round the whole circle (flora out of its path; the slope check uses 0.7 of it, like the others).</summary>
+        const float CrystalBall = 13f, CrystalCircleMax = 60f, CrystalKeep = CrystalCircleMax + CrystalBall + 5f;
 
         static readonly Color Stone = new Color(0.50f, 0.50f, 0.49f);
         static readonly Color Dark = new Color(0.36f, 0.36f, 0.36f);
@@ -226,6 +230,7 @@ namespace Punchy.Fauna
                     Kind.CarnivorousPlant => BuildPlant(Positions[kind], yaw),
                     Kind.RockGolem => BuildGolem(Positions[kind], yaw, (uint)source.World.Seed ^ Salts[kind]),
                     Kind.WalkingSaguaro => BuildSaguaro(Positions[kind], yaw, (uint)source.World.Seed ^ Salts[kind]),
+                    Kind.SaltCrystal => BuildCrystal(source, Positions[kind], yaw, (uint)source.World.Seed ^ Salts[kind]),
                     _ => BuildLizard(Positions[kind], yaw),
                 };
                 Debug.Log($"StoneColossi: {Placed[kind]} placed at ({spot.x:F0}, {ground:F1}, {spot.y:F0}), facing {yaw:F0} degrees, region {cells} cells, relief {Relief(source, spot, KeepRadius[kind] * 0.7f):F1} m");
@@ -1213,6 +1218,60 @@ namespace Punchy.Fauna
             droppedPoint.SetParent(root, false);
             droppedPoint.localPosition = dropped;
             arcs.Link(arcs.AddSegment(droppedPoint, 1.8f, 0f, 0f), fists[1], 1, 0.5f);
+            return root;
+        }
+
+        static readonly Color SaltWhite = new Color(0.93f, 0.91f, 0.88f);
+        static readonly Color SaltPink = new Color(0.90f, 0.78f, 0.76f);
+        static readonly Color SaltDirt = new Color(0.42f, 0.34f, 0.26f);
+
+        /// <summary>
+        /// W-92 (#40, Zach's SaltFlat design): a giant rounded salt crystal, faceted and studded with short points,
+        /// rolling slowly round a seeded circle about the spot and dragging a fading dirt trail behind it
+        /// (<see cref="SaltCrystalRoll"/>). The root sits at the circle's centre. Details: dirt smeared on the ball where
+        /// it has rolled through mud, and salt crumbs it has shed lying near the track.
+        /// </summary>
+        static Transform BuildCrystal(in TerrainSource source, float3 at, float yaw, uint seed)
+        {
+            var root = new GameObject("SaltCrystal").transform;
+            root.position = new Vector3(at.x, at.y, at.z);
+            var rng = Unity.Mathematics.Random.CreateFromIndex(seed);
+            var radius = rng.NextFloat(36f, CrystalCircleMax - 4f);
+            // The ground round the circle, local to the root, so the ball and the trail follow the salt's rise and fall.
+            var heights = new float[SaltCrystalRoll.Steps];
+            for (int i = 0; i < heights.Length; i++)
+            {
+                var a = i * Mathf.PI * 2f / heights.Length;
+                heights[i] = source.SampleHeight(new float2(at.x + Mathf.Cos(a) * radius, at.z + Mathf.Sin(a) * radius)) - at.y;
+            }
+            var m = new DunesColossus.MeshBuilder();
+            m.Ellipsoid(Vector3.zero, new Vector3(CrystalBall, CrystalBall * 0.96f, CrystalBall), Quaternion.identity, SaltWhite, 9, 6);
+            for (int k = 0; k < 14; k++)
+            {
+                var d = Quaternion.Euler(rng.NextFloat(-80f, 80f), rng.NextFloat(0f, 360f), 0f) * Vector3.forward;
+                m.Limb(d * CrystalBall * 0.75f, d * CrystalBall * rng.NextFloat(1.06f, 1.2f), rng.NextFloat(1.8f, 3f), 0.25f, k % 3 == 0 ? SaltPink : SaltWhite, 5);
+            }
+            for (int k = 0; k < 7; k++)
+            {
+                var d = Quaternion.Euler(rng.NextFloat(-70f, 70f), rng.NextFloat(0f, 360f), 0f) * Vector3.forward;
+                m.Ellipsoid(d * CrystalBall * 0.97f, new Vector3(rng.NextFloat(2f, 4f), rng.NextFloat(1.5f, 3f), 0.5f), Quaternion.LookRotation(d), SaltDirt, 6, 3);
+            }
+            AddPart("Ball", root, m.ToMesh("SaltCrystal"));
+            // Salt crumbs shed beside the track.
+            var g = new DunesColossus.MeshBuilder();
+            for (int k = 0; k < 10; k++)
+            {
+                var a = rng.NextFloat(0f, Mathf.PI * 2f);
+                var r = radius + rng.NextFloat(-9f, 9f);
+                var p = new Vector3(Mathf.Cos(a) * r, 0f, Mathf.Sin(a) * r);
+                p.y = source.SampleHeight(new float2(at.x + p.x, at.z + p.z)) - at.y + 0.2f;
+                var s = rng.NextFloat(0.4f, 1.2f);
+                g.Ellipsoid(p, new Vector3(s, s * 0.7f, s * 0.9f), Quaternion.Euler(rng.NextFloat(0f, 360f), rng.NextFloat(0f, 360f), 0f), k % 4 == 0 ? SaltPink : SaltWhite, 6, 3);
+            }
+            AddPart("Crumbs", root, g.ToMesh("SaltCrystalCrumbs"));
+            var roll = root.gameObject.AddComponent<SaltCrystalRoll>();
+            roll.Init(root.Find("Ball"), radius, CrystalBall, heights, math.radians(yaw), rng.NextBool() ? 1f : -1f, Resources.Load<Material>("Colossus"));
+            Debug.Log($"StoneColossi: SaltCrystal circle radius {radius:F0} m round ({at.x:F0}, {at.z:F0}), ball {CrystalBall:F0} m, lap {SaltCrystalRoll.LapSeconds(radius):F0} s, trail {SaltCrystalRoll.TrailLength:F0} m");
             return root;
         }
 
