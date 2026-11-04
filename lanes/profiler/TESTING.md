@@ -30,6 +30,9 @@ Read `lanes/shared/checks.md` first.
 - `-camlook` holds through a `here` stop; `-watch` follows any animal of that species. The Glacier has native
   SnowWorms, so "no spawn" isn't "no worms".
 - One townwalk capture of Brain.* can swing 2x with where animals stand: take 2 per build, ABBA.
+- `-goto x,z` lands on the ground surface (above any cave); `-goto x,y,z` lands on the floor under that point.
+- `-benchshots <dir>` writes nothing if the folder is missing: `mkdir -p` it first.
+- runcsv's log is `q-<csv>-c<cap>-<round>.log`, overwritten by every run in a round: copy it after each run if needed.
 - `-place CaveNetwork` doesn't frame the big cave's mouth; `-benchspot -2822,-648,90` stands at the mouth, facing in.
 - Gate shots are 1280x720 (the bench window); frame-rate numbers are measured at that size.
 

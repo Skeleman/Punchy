@@ -2,6 +2,27 @@
 
 Newest first.
 
+## 2026-11-03: item 12, box collision cost (#79): the collision itself costs nothing measurable; world-features is ~0.6 ms slower in the hut cave only because it lacks main's A-45 camera probe
+Builds: Bench and Profile for 27bf8c1 (main), b28ee7b (52b4af5's parent) and 52b4af5. world-features isn't based on 27bf8c1 (merge base c39bc42), so b28ee7b -> 52b4af5 isolates #79. Island v2, laptop, 1280x720, Medium, **uncapped**, 2 rounds with the order flipped, 0 exceptions, 0 NaN bounds, no dialogs, every stop ended at the same x,z on all builds.
+- Bench (avg fps / 1% low / CPU ms, mean of 2 rounds), main | b28ee7b | 52b4af5:
+  - town 86.5/59.2/11.6 | 84.6/51.0/11.8 | 85.1/51.3/11.8
+  - townwalk 78.6/31.9/12.7 | 79.1/39.2/12.7 | 79.5/40.4/12.6
+  - cave (biggest) 111.8/41.3/8.9 | 107.7/37.6/9.3 | 107.3/39.1/9.4
+  - caveapproach 61.5/29.2/16.3 | 61.7/29.5/16.2 | 61.5/28.9/16.3
+  - glide 88.0/36.2/11.3 | 88.7/37.4/11.3 | 89.0/40.7/11.2
+  - wharf (-place prop:FishWharf, standing by its steps) 109.0/63.8/9.2 | 113.7/71.4/8.8 | 113.2/69.3/8.8
+  - hut cave floor (-goto 530,45,958, batfolk cave 26, surface hidden 1.00) 93.0/53.5/10.8 | 87.1/54.9/11.5 | 87.6/52.0/11.4
+- Named markers, mean ms per frame (main | b28ee7b | 52b4af5):
+  - PlayerMovementSystem: wharf 0.035 | 0.034 | 0.038; hut cave 0.397 | 0.405 | 0.389. Not listed at townwalk, where the route carries the player.
+  - ReachJob (main + workers): townwalk 0.14 | 0.14 | 0.15; wharf 0.42 | 0.42 | 0.42; hut cave 0.78 | 0.73 | 0.76.
+  - ThirdPersonCamera.LateUpdate: townwalk 0.40 | 0.42 | 0.40; hut cave **0.19 | 1.67 | 1.66**. Not listed at the wharf.
+- Collision (b28ee7b -> 52b4af5): no marker or stop moved beyond noise; profile frame means 12.60 -> 12.45 (townwalk), 10.39 -> 10.39 (wharf), 13.05 -> 12.96 (hut cave).
+- main -> 52b4af5: the hut cave loses 5.4 fps (CPU +0.6 ms). The cause is ThirdPersonCamera +1.47 ms and TraceSystem +0.26 ms, both already in b28ee7b. main has A-45 (3abc2c4: Burst arm probe, trace check order) and world-features doesn't, so the gap closes when world-features takes main. Town, townwalk and glide on main vs world-features are within noise. The wharf is +4 fps on world-features.
+- Top main thread (52b4af5, mean self ms): townwalk TerrainStreamingSystem 0.97, Profiler.FlushMemoryCounters 0.90 (dev builds only), FloraSystem.LateUpdate 0.63, CreatureRenderSystem 0.41, ThirdPersonCamera 0.40. Wharf: TerrainStreaming 0.90, FloraSystem.LateUpdate 0.55, CreatureRenderSystem 0.44, AmbienceSystem 0.37, AmbientParticleSystem 0.30. Hut cave: ThirdPersonCamera 1.66, CaveSystem.Update 0.75, CreatureRenderSystem 0.56, TraceSystem 0.42, PlayerMovement 0.39.
+- Caveats: the wharf is a standing measurement next to the deck, not a walk across it. The "-goto 530,958" in the request lands on the surface above the cave, so I re-ran the spot as x,y,z (surface numbers, avg about 69-74 fps, are left out). Interim: re-run when W-67b lands (scripts/q12.sh + q12b.sh).
+- Shots: Punchy-wt/Tools/bench/results/shots-q12/ (52b4af5 wharf, town and hut cave; hut cave on all 3 builds).
+- Cost: 43 calls, peak 120k context, $2.29
+
 ## 2026-11-03: item 11, slow caves on main 762c16a: standing still the cave beats open ground; walking along cave walls the camera probe eats up to 5 ms; the cost is the v2 cave field, not the mesh
 Builds: Bench-762c16a and Profile-762c16a. The comparison is v0.11.0 (4eea658, v1 island only). Laptop, 1280x720, Medium settings, 0 exceptions, 0 NaN bounds.
 
