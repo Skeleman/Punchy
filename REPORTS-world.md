@@ -2026,3 +2026,12 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 | SparklingForest, EmberForest, Volcano, Mountains, Glacier, GlassDesert, MesaCanyonlands | suggestions | none (Mountains/Glacier may host the titan) |
 
 - Calls: ~47
+
+## W-89 / W-89b (2026-11-04): #40 rock golem and walking saguaro
+
+- Commit e0af8ed on world-features: StoneColossi places a RockGolem in ElectricWastelands (floating basalt segments held by electric arcs, new GolemArcs.cs; FloraSystem.BoltMesh made internal) and a WalkingSaguaro in Sonoran. The duplicate `Basalt` colour fix compiles; console clean. The world editor had stuck at start-up on the old compile error and was restarted.
+- Slope cap (up to 8 tries, keeps the flattest): of the two colossi with a W-88 record, 1 moved: CarnivorousPlant (-167, 78) -> (-53, 516), relief 11.0 m; SkeletalLizard unchanged at (-515, -2477). GiantTortoise unchanged at (-1502, -2769). Now: titan (-1990, 1321), head (1716, 2493), golem (707, -329), saguaro (2925, -1710).
+- Landmark hash before/after: 108 landmarks, 4D2643D7 (game hash 3A0DC7BB), unchanged.
+- Shots (W-89 milestone folder): w89-golem.png (arcs between the segments), w89-saguaro.png (side view, root legs mid-stride).
+- Row 5 (SaltFlat rolling crystal): not started (budget).
+- Calls: ~38
