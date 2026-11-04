@@ -1,4 +1,11 @@
-# Animal lane: state (2026-11-03, A-49 done)
+# Animal lane: state (2026-11-04, A-50 partly done)
+
+## A-50 (cd9dda5 merge of be6d005, d243ab7; pushed, not built)
+- Dungeon spawner, posts and the -dungeontest cave stand-in live in Assets/Game/Scripts/Fauna/Dungeon/ (ours).
+  Temple picks 0x7c8c8b71, stand-in 0xa9995035, same on ServerWorld and ClientWorld.
+- Open: 0 DungeonPost entities after spawn (row 2 unproven). Check whether the director culls the dungeon creatures.
+- Builds/Dev is locked: two crashed Punchy.exe hold lib_burst_generated.dll (stale, 23:13). Kill them before building.
+- Temp/PlayArgs.txt was deleted after the run (the old a29b line is gone; write a new one per shot run).
 
 Worktree `Punchy` (animal lane only). On `animal-behaviours`: 5fe1f85 (A-48 #63 caches, pushed, built to Builds/Dev) on
 f0be45c (A-48 guard; doesn't compile alone) on a merge of origin/main 3a4acb8 (PR #94). Older: 3ba679b (A-43).

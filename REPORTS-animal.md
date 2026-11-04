@@ -1564,3 +1564,15 @@ Calls: about 80 across A-51 and the aborted A-50 start (A-51 alone was about 55)
 - Fingerprint (FNV-1a of species names + serialized creature/carry/flora-obstacle blobs, 112 species): E698F061 before and after, v2 and v3. Logged as `[fauna build]` lines, editor only.
 - Not done: Burst/Parallel.For of the remaining grows (Grow touches UnityEngine.Object, main-thread only) and overlap with the world's flora build; the rest is now ~0.6 s, left for a follow-up if still needed.
 - Calls used: ~55.
+
+## A-50 (2026-11-04): #24 dungeons phase 2, spawner + dungeon behaviours
+- Commits on animal-behaviours (pushed): cd9dda5 (merge of player-client be6d005: P-7 TempleSockets), d243ab7 (spawner, posts, stand-in). New animal-owned folder Assets/Game/Scripts/Fauna/Dungeon/; Assets/Game/Scripts/Dungeon/ is only read.
+- Row 1 done: weighted tables keyed by biome + dungeon type + socket kind + size, one seeded pick per DungeonSocket (Scrambled socket seed), creatures + placeholder item boxes. The spawner reads any entity with a DungeonSocket buffer, so TempleSockets is picked up with no glue.
+  - Sunken temple (68 sockets from 47 rooms, socket hash D58F4D47): picks hash 0x7c8c8b71, picked again 0x7c8c8b71 (same); creatures 13, chests 5, wall 12, interactables 13, clutter 13.
+  - Same sockets picked as other types: cave 0x5bbaf48f/37 filled, crypt 0x691230ca/54, ruin 0xde111b4a/54, mine 0x911717db/47; so the tables differ by type.
+  - Cave stand-in (-dungeontest only, 24 sockets at the hut cave, gives the NearWater sockets the temple doesn't have yet): 0xa9995035, same again.
+- Row 3 done in editor Play as host (ServerWorld + ClientWorld in one editor): identical hashes and pick lists in both worlds, 0 exceptions after the fix below. No separate-process join: the one player build crashed (stale Burst dll from a 30 s eval timeout), and the rebuild couldn't overwrite Builds/Dev lib_burst_generated.dll because the two crashed Punchy.exe stay running (couldn't stop them). **Supervisor: kill the stuck Punchy.exe processes before the next build there.**
+- Fixes along the way: Burst Debug.Log doesn't take F1 (ints instead); the spawn loop now copies the socket buffer first (director.Spawn is a structural change, which invalidated the buffer and spawned duplicates every frame).
+- Row 2 NOT proven: DungeonPost (guard at NearChest: stay within the leash, face the nearest player; drink at NearWater) is in, the server logs "spawns animals" and the species lookups all resolve, but a later query found 0 DungeonPost entities in ServerWorld and no drink/guard log lines; the server-side player sat at (0,0,0), not at -goto. Next: check whether the director culls/recycles the dungeon creatures (they aren't in its tier counts) and retest with a player inside the temple.
+- The stand-in stays until a set piece writes NearWater sockets (comment in DungeonStandIn.cs says so).
+- Calls used: ~62 (over the ceiling; the build crash cost ~10).
