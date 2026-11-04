@@ -23,6 +23,10 @@ namespace Punchy.Fauna
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     public partial class CreatureRenderSystem : SystemBase
     {
+        /// <summary>"-needcues" (a test flag): every creature not fleeing shows one of the four need cues, picked by its
+        /// Individual, all the time, whatever its needs, so a shot can show them side by side.</summary>
+        static readonly bool ForceNeedCues = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-needcues") >= 0;
+
         EntityQuery query;
         GraphicsBuffer buffer;
         MaterialPropertyBlock props, flatProps;
@@ -694,6 +698,7 @@ namespace Punchy.Fauna
                 Output = instances,
                 Time = (float)SystemAPI.Time.ElapsedTime,
                 CameraRight = cam.transform.right,
+                ForceCues = ForceNeedCues,
                 CameraPosition = cam.transform.position,
                 FootDetail = FootDetailRange,
                 FadeInTime = 1.2f,
@@ -1021,6 +1026,8 @@ namespace Punchy.Fauna
             [NativeDisableParallelForRestriction] public NativeArray<SegmentInstance> Output;
             public float Time;
             public Unity.Mathematics.float3 CameraRight, CameraPosition;
+            /// <summary>"-needcues": every creature shows a need cue all the time (for shots of #64).</summary>
+            public bool ForceCues;
             /// <summary>How near the camera feet are fitted to the ground (FootDetailRange, at the graphics settings).</summary>
             public float FootDetail;
             /// <summary>Faded in over this long after it's made; out over this far before it's let go.</summary>
@@ -2431,7 +2438,12 @@ namespace Punchy.Fauna
                 var t = Unity.Mathematics.math.frac(Time / period + ((h >> 10) & 1023) / 1023f) * period;
                 const float Show = 2.6f;
                 int cue = 0;
-                if (t < Show && state.Mode != CreatureMode.Sleep && state.Holder == 0)
+                if (ForceCues)
+                {
+                    t = Unity.Mathematics.math.frac(Time / Show + ((h >> 10) & 1023) / 1023f) * Show;
+                    cue = 1 + (int)((h >> 20) % 4);
+                }
+                else if (t < Show && state.Mode != CreatureMode.Sleep && state.Holder == 0)
                 {
                     var strongest = 0.6f;
                     if (state.Tired > strongest) { strongest = state.Tired; cue = 1; }
