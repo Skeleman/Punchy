@@ -498,7 +498,10 @@ namespace Punchy.Terrain
                 // landmark names (WorldSync.Signature) differ and the host refuses its own client.
                 // #102: the hash names types from that list, as the bake's does, so both paths print the same value.
                 var sharedTypes = LandmarkTypes(palette);
-                Debug.Log($"[island] v{version} shared with {World.Name} from this process's bake (no rebake); {LandmarkHash(ref source, sharedTypes)}");
+                // W-79b: this world's plants are built again (a host's client world after its server's), and the
+                // first build took the pregrown parts: grow them again on worker threads, not ~4.6 s on the main thread.
+                var regrown = Punchy.Flora.FloraSystem.Pregrow(palette);
+                Debug.Log($"[island] v{version} shared with {World.Name} from this process's bake (no rebake); {LandmarkHash(ref source, sharedTypes)}; {regrown} plant variants pregrown");
                 return;
             }
 
