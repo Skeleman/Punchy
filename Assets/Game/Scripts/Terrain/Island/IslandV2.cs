@@ -62,6 +62,8 @@ namespace Punchy.Terrain
         {
             public BlobAssetReference<BiomeMapBlob> Map;
             public BlobAssetReference<HeightmapBlob> Island;
+            /// <summary>Island v3 only: blend radius and geology per pixel (unset for v2).</summary>
+            public BlobAssetReference<V3GroundBlob> V3Ground;
             public string Report;
         }
 
@@ -411,6 +413,7 @@ namespace Punchy.Terrain
             source.BiomeKind = BiomeSourceKind.Map;
             source.BiomeMap = gen.Map;
             source.Island = gen.Island;
+            source.V3Ground = gen.V3Ground;
             source.BiomeCells = default;
             source.RiverSettings = version == IslandV3.Version ? IslandV3.Rivers(source.RiverSettings) : IslandV2.Rivers(source.RiverSettings);
             source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Archipelago = default; source.Anchors = default; source.PondMask = default;
@@ -457,7 +460,7 @@ namespace Punchy.Terrain
             // (Ponds: the "[ponds]" line from BuildPlaces; W-14 dropped the second count here, ~2.8 s.)
             if (source.Rivers.IsCreated) Debug.Log("[island] " + RiverReport(ref source.Rivers.Value));
             // W-68: v3 ends every bake with the water audit (V3Audit; on v2 run it from the editor for a baseline).
-            if (version == IslandV3.Version) { Debug.Log(V3Audit.Run(source)); Debug.Log(V3Ranges.Checks(source)); }
+            if (version == IslandV3.Version) { Debug.Log(V3Audit.Run(source)); Debug.Log(V3Ranges.Checks(source)); Debug.Log(V3Ground.Report(source)); }
             Debug.Log($"[island] reports {report.ElapsedMilliseconds} ms; v{version} ready at {UnityEngine.Time.realtimeSinceStartup:F1} s since start ({World.Name})");
         }
 
@@ -481,6 +484,7 @@ namespace Punchy.Terrain
                 source.BiomeKind = baked.BiomeKind;
                 source.BiomeMap = baked.BiomeMap;
                 source.Island = baked.Island;
+                source.V3Ground = baked.V3Ground;
                 source.BiomeCells = baked.BiomeCells;
                 source.RiverSettings = baked.RiverSettings;
                 source.Rivers = baked.Rivers;

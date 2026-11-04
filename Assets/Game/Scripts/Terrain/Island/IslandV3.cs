@@ -35,6 +35,12 @@ namespace Punchy.Terrain
 
             var field = V3Ranges.Build(sites, fam, seed, coastWobble, lakeWorld, lakeR / PX * W);
 
+            // B3: the biome map follows the ranges (no border strips, blend radius, bleed through passes); B4's
+            // geology rides along in the ground blob.
+            gen.Map.Dispose();
+            gen.Map = V3Ground.Build(palette, hasOcean, (float[])field.Clone(), allocator, out gen.V3Ground, out var biomeLog);
+            Debug.Log(biomeLog);
+
             // Same lake bowl as version 2, on the finer grid.
             const int R = V3Ranges.Res;
             System.Threading.Tasks.Parallel.For(0, R, y =>
@@ -55,7 +61,7 @@ namespace Punchy.Terrain
             gen.Island = b.CreateBlobAssetReference<HeightmapBlob>(allocator); b.Dispose();
 
             Debug.Log(V3Ranges.LastLog);
-            gen.Report = "v3 (B2 ranges; biome map still v2) " + gen.Report;
+            gen.Report = "v3 (B2 ranges, B3 biomes, B4 rock) " + gen.Report;
             return gen;
         }
 
