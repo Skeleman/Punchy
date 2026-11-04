@@ -52,11 +52,22 @@ namespace Punchy.Net
     }
 
     /// <summary>
+    /// Host → client on connecting (P-2, v3 B14): the island version the host baked, so a client launched on another
+    /// version bakes the host's island before it spawns (IslandV2.HostVersion) and its fingerprint then matches.
+    /// </summary>
+    public struct IslandVersionRpc : IRpcCommand
+    {
+        public int Version;
+    }
+
+    /// <summary>
     /// Keeps every player under the same sky. On the host it publishes the day/night cycle and the weather field
     /// (cells, pressure pattern, wind, day type, cloud drift) on a WorldState ghost, and sends lightning as RPCs; on
     /// a client that joined someone else it puts WeatherSystem in remote mode and copies that state in every frame.
     /// It also checks that joining clients built the same world (seed, biomes, landmarks, species tables) and
-    /// disconnects them if not.
+    /// disconnects them if not. Before that the host sends each new connection its island version (IslandVersionRpc),
+    /// which a joined client bakes instead of its own launch's. Test flag: "-worldsalt N" on a client mixes N into its
+    /// fingerprint, to check that a client with a different world is still refused.
     /// </summary>
     [DefaultExecutionOrder(-20)]   // before DayNightCycle and WeatherSystem read the time and cells
     public class WorldSync : MonoBehaviour
@@ -76,8 +87,16 @@ namespace Punchy.Net
         static readonly List<WeatherField.CellState> carriedCells = new List<WeatherField.CellState>();
         static bool hasCarried;
 
-        void OnEnable() => GameBootstrap.WorldsReplacing += CarrySky;
+        void OnEnable()
+        {
+            GameBootstrap.WorldsReplacing += CarrySky;
+            var args = Punchy.Debugging.DebugControls.LaunchArgs;
+            var at = System.Array.IndexOf(args, "-worldsalt");
+            if (at >= 0 && at + 1 < args.Length && uint.TryParse(args[at + 1], out var salt))
+                TestSalt = salt;
+        }
         readonly HashSet<Entity> checkedConnections = new HashSet<Entity>();
+        readonly HashSet<Entity> versionSent = new HashSet<Entity>();
         World server, client;
         Entity stateGhost;
         bool subscribed;
@@ -103,6 +122,7 @@ namespace Punchy.Net
                 client = c;
                 stateGhost = Entity.Null;
                 checkedConnections.Clear();
+                versionSent.Clear();
             }
             if (Weather != null && !subscribed)
             {
@@ -120,10 +140,12 @@ namespace Punchy.Net
             if (hosting)
             {
                 EnsureStateGhost();
+                SendIslandVersion();
                 CheckJoiners();
             }
             if (client != null && client.IsCreated && client.IsClient())
             {
+                ReceiveIslandVersion(joined);
                 SendWorldCheck();
                 ReceiveLightning(joined);
                 if (joined)
@@ -248,6 +270,27 @@ namespace Punchy.Net
             // No target connection: sent to everyone.
         }
 
+        /// <summary>Sends each new connection the island version this host baked, once it has baked.</summary>
+        void SendIslandVersion()
+        {
+            var version = Punchy.Terrain.IslandV2.ActiveVersion;
+            if (version == 0)
+                return;
+            var em = server.EntityManager;
+            var connections = CachedQueries.Get<NetworkId>(em.World);
+            var list = connections.ToEntityArray(Allocator.Temp);
+            foreach (var connection in list)
+            {
+                if (!versionSent.Add(connection))
+                    continue;
+                var rpc = em.CreateEntity(typeof(IslandVersionRpc), typeof(SendRpcCommandRequest));
+                em.SetComponentData(rpc, new IslandVersionRpc { Version = version });
+                em.SetComponentData(rpc, new SendRpcCommandRequest { TargetConnection = connection });
+                Debug.Log($"WorldSync: sent island v{version} to player {em.GetComponentData<NetworkId>(connection).Value}");
+            }
+            list.Dispose();
+        }
+
         /// <summary>Turns away clients whose world differs from ours.</summary>
         void CheckJoiners()
         {
@@ -263,7 +306,7 @@ namespace Punchy.Net
                 var connection = em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection;
                 if (ours != 0 && theirs != ours && em.Exists(connection))
                 {
-                    Debug.LogWarning($"WorldSync: a player built a different world ({theirs:X8}, ours {ours:X8}): seed, island version, biomes or species differ; host runs island v{Punchy.Terrain.IslandV2.RequestedVersion()}. Disconnecting them.");
+                    Debug.LogWarning($"WorldSync: a player built a different world ({theirs:X8}, ours {ours:X8}): seed, island version, biomes or species differ; host runs island v{Punchy.Terrain.IslandV2.ActiveVersion}. Disconnecting them.");
                     em.AddComponent<NetworkStreamRequestDisconnect>(connection);
                 }
                 else if (em.Exists(connection))
@@ -274,6 +317,30 @@ namespace Punchy.Net
         }
 
         // ------------------------------------------------------------------------------------------- client
+
+        /// <summary>The host's island version: a joined client's island bake waits for it (IslandV2System).</summary>
+        void ReceiveIslandVersion(bool joined)
+        {
+            var em = client.EntityManager;
+            var query = CachedQueries.Get<IslandVersionRpc, ReceiveRpcCommandRequest>(em.World);
+            if (query.IsEmpty)
+                return;
+            var requests = query.ToEntityArray(Allocator.Temp);
+            foreach (var r in requests)
+            {
+                var version = em.GetComponentData<IslandVersionRpc>(r).Version;
+                if (joined)
+                {
+                    var active = Punchy.Terrain.IslandV2.ActiveVersion;
+                    Debug.Log($"WorldSync: host runs island v{version} (this launch asked for v{Punchy.Terrain.IslandV2.RequestedVersion()})");
+                    if (active != 0 && active != version)
+                        Debug.LogWarning($"WorldSync: the host's island v{version} came after this client baked v{active}; the world check will refuse it");
+                    Punchy.Terrain.IslandV2.HostVersion = version;
+                }
+                em.DestroyEntity(r);
+            }
+            requests.Dispose();
+        }
 
         void SendWorldCheck()
         {
@@ -361,8 +428,9 @@ namespace Punchy.Net
             if (!terrain.TryGetSingleton<TerrainSource>(out var source) || palettes.CalculateEntityCount() != 1)
                 return 0;
             var palette = em.GetComponentObject<BiomePalette>(palettes.GetSingletonEntity());
-            if (palette == null || palette.Biomes == null)
-                return 0;
+            var island = Punchy.Terrain.IslandV2.ActiveVersion;
+            if (palette == null || palette.Biomes == null || island == 0)
+                return 0;   // (island 0: not baked yet, so no check until it is)
             var hash = 2166136261u;
             void Add(string s)
             {
@@ -374,7 +442,8 @@ namespace Punchy.Net
             Add(source.World.WorldSize.ToString("R"));
             Add(source.World.SeaLevel.ToString("R"));
             // W-68 (v3 brief 8A): the island version, so a v2 client can't join a v3 host and walk a different island.
-            Add("island v" + Punchy.Terrain.IslandV2.RequestedVersion());
+            // P-2: the version actually baked here (a joined client takes the host's), not this launch's flag.
+            Add("island v" + island);
             var species = new SortedSet<string>(System.StringComparer.Ordinal);
             foreach (var b in palette.Biomes)
             {

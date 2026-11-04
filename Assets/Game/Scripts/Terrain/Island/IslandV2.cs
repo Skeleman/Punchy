@@ -58,6 +58,17 @@ namespace Punchy.Terrain
             return v == "v1" ? 1 : v == "v3" ? IslandV3.Version : Version;
         }
 
+        /// <summary>
+        /// P-2 (v3 B14, brief 8B): the island version the host sent this joined client (WorldSync's IslandVersionRpc;
+        /// 0 = none yet). A joined client's <see cref="IslandV2System"/> waits for it and bakes that version instead of
+        /// its own launch's, so a v2-launched client joins a v3 host on the v3 island. Solo and hosting ignore it: the
+        /// launch flag decides.
+        /// </summary>
+        public static int HostVersion;
+
+        /// <summary>The version this process's island was baked (or kept) at: 0 until then. The world fingerprint reads it.</summary>
+        public static int ActiveVersion;
+
         public struct Result
         {
             public BlobAssetReference<BiomeMapBlob> Map;
@@ -335,11 +346,53 @@ namespace Punchy.Terrain
             query = GetEntityQuery(ComponentType.ReadWrite<TerrainSource>(), ComponentType.ReadOnly<BiomePalette>());
             version = IslandV2.RequestedVersion();
             v2 = version != 1;
+            IslandV2.ActiveVersion = 0;
             RequireForUpdate(query);
         }
 
         bool v2;
         int version;   // 2, or 3 for the v3 path (IslandV3), which also ends with the water audit
+        bool decided;
+        float waitingSince = -1f;
+        /// <summary>How long a joined client waits for the host's island version before baking its own (s).</summary>
+        const float HostWait = 15f;
+
+        /// <summary>
+        /// P-2: a joined client (a client world with no server in this process) takes the host's island version,
+        /// waiting up to <see cref="HostWait"/> for it; false while it's still waiting. Terrain streaming rebuilds its
+        /// chunks when the TerrainSource changes, so the few frames of the subscene's own bake before this are redrawn.
+        /// </summary>
+        bool DecideVersion()
+        {
+            if (decided)
+                return true;
+            var joined = (World.Flags & WorldFlags.GameClient) == WorldFlags.GameClient;
+            foreach (var w in World.All)
+                if (w.IsCreated && (w.Flags & WorldFlags.GameServer) == WorldFlags.GameServer)
+                    joined = false;
+            if (joined)
+            {
+                var host = IslandV2.HostVersion;
+                if (host == 0)
+                {
+                    if (waitingSince < 0f)
+                        waitingSince = UnityEngine.Time.realtimeSinceStartup;
+                    if (UnityEngine.Time.realtimeSinceStartup - waitingSince < HostWait)
+                        return false;
+                    Debug.LogWarning($"[island] no island version from the host after {HostWait:F0} s; baking this launch's v{version} ({World.Name})");
+                }
+                else if (host != version)
+                {
+                    Debug.Log($"[island] host runs island v{host}; this launch asked for v{version}: switching to v{host} ({World.Name})");
+                    version = host;
+                }
+                else
+                    Debug.Log($"[island] host runs island v{host}, the same as this launch ({World.Name})");
+                v2 = version != 1;
+            }
+            decided = true;
+            return true;
+        }
 
         /// <summary>
         /// The landmark count and fingerprint hash: each instance as "type x z scale", sorted, FNV-1a. Logged for both
@@ -365,7 +418,7 @@ namespace Punchy.Terrain
 
         protected override void OnUpdate()
         {
-            if (done) return;
+            if (done || !DecideVersion()) return;
             var entity = query.GetSingletonEntity();
             var source = EntityManager.GetComponentData<TerrainSource>(entity);
             var palette = EntityManager.GetComponentObject<BiomePalette>(entity);
@@ -374,6 +427,7 @@ namespace Punchy.Terrain
                 // Version 1 keeps its baked terrain: just report the landmarks once they've loaded.
                 if (!source.Landmarks.IsCreated || palette.Landmarks == null) return;
                 done = true;
+                IslandV2.ActiveVersion = 1;
                 Debug.Log($"[island] generator version 1 (baked); {LandmarkHash(ref source, palette)}");
                 Debug.Log(BatFolkBaking.Report(source));
                 Debug.Log(IcebergBaking.Report(source));
@@ -385,11 +439,13 @@ namespace Punchy.Terrain
             // #23 (W-27b): one bake per process. A host has a server and a client world (and hosting from solo
             // replaces the solo world with both), each with its own TerrainSource; baking in each blocked the main
             // thread ~4 s per world, and the host's own connection timed out. Later worlds take the first bake's
-            // blobs (Persistent, never disposed, read-only once baked).
-            if (Shared.Ready)
+            // blobs (Persistent, never disposed, read-only once baked). P-2: kept per version, so a client that
+            // switches to the host's version rebakes rather than taking another version's island.
+            if (Shared.Has(version))
             {
-                Shared.ApplyTo(ref source);
+                Shared.ApplyTo(ref source, version);
                 EntityManager.SetComponentData(entity, source);
+                IslandV2.ActiveVersion = version;
                 Debug.Log($"[island] v{version} shared with {World.Name} from this process's bake (no rebake); {LandmarkHash(ref source, palette)}");
                 return;
             }
@@ -439,7 +495,8 @@ namespace Punchy.Terrain
             source.Archipelago = Archipelago.Build(source, biomes.FindIndex(b => b != null && b.name == "Dunes"), Allocator.Persistent);
             Debug.Log(Archipelago.LastLog);
             EntityManager.SetComponentData(entity, source);
-            Shared.Keep(source);
+            Shared.Keep(source, version);
+            IslandV2.ActiveVersion = version;
             long placesMs = watch.ElapsedMilliseconds - genMs;
 
             string hashText = LandmarkHash(ref source, palette);
@@ -459,16 +516,18 @@ namespace Punchy.Terrain
         /// </summary>
         static class Shared
         {
-            public static bool Ready;
-            static TerrainSource baked;
+            static readonly Dictionary<int, TerrainSource> bakes = new Dictionary<int, TerrainSource>();
 
             [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-            static void Reset() { Ready = false; baked = default; }
+            static void Reset() { bakes.Clear(); IslandV2.HostVersion = 0; IslandV2.ActiveVersion = 0; }
 
-            public static void Keep(in TerrainSource source) { baked = source; Ready = true; }
+            public static bool Has(int version) => bakes.ContainsKey(version);
 
-            public static void ApplyTo(ref TerrainSource source)
+            public static void Keep(in TerrainSource source, int version) => bakes[version] = source;
+
+            public static void ApplyTo(ref TerrainSource source, int version)
             {
+                var baked = bakes[version];
                 source.BiomeKind = baked.BiomeKind;
                 source.BiomeMap = baked.BiomeMap;
                 source.Island = baked.Island;
