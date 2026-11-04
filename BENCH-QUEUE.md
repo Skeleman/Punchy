@@ -64,3 +64,4 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
 
 ## Added 2026-11-03 (night). main = 913d1b2 (PR #89 box collision, #90 P-1, #91 W-68 v3 flag)
 13. Merged-main check after job 12. main 913d1b2 vs 27bf8c1, `-island v2`, uncapped, same stops as q12/q12b (route, hut cave floor `-goto 530,45,958`, FishWharf steps). Expect the hut-cave gap (ThirdPersonCamera, TraceSystem) closed now that A-45 and the collision are both on main. Numbers only unless something regressed.
+14. Memory check (Zach asked, 2026-11-03). On main 913d1b2 in the editor, with the Memory Profiler package: snapshot after the island bake, then enter and exit play mode 10 times, snapshot again; list anything that grew (leaks) and the top 10 holders of editor memory (is the island bake a big part?). Also note editor RAM idle vs after bake vs after 10 plays, and a player build's RAM on v2 and v3. Numbers and the top-10 list only; no fixes.
