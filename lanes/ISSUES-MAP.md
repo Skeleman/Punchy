@@ -38,3 +38,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #25-#27 | Roadmap | backlog |
 | #28 | Linux build | on hold |
 | #84 #86 #88 | Distance shadows/fog, driftwood, lake shelf waterfall | W-77 (part), W-77b |
+| #102 | Startup hitch after island ready | W-79, A-52 |
