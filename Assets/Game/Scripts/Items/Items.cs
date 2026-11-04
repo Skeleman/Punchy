@@ -73,7 +73,7 @@ namespace Punchy.Items
     /// Test flags: "-pickup N" picks up the N nearest items (any distance) through the same path; "-drop" drops one from
     /// the first slot afterwards; "-openchest" opens the nearest temple chest; "-inventory" shows the panel.
     /// </summary>
-    public class Items : MonoBehaviour
+    public partial class Items : MonoBehaviour
     {
         public const float Reach = 2f, DrawRange = 60f;
         /// <summary>Uids: seeded door items are door*4+k; chest items ChestBase + socket*4+k; drops DropBase upwards.</summary>
@@ -136,6 +136,12 @@ namespace Punchy.Items
             instance.openChestArg = System.Array.IndexOf(args, "-openchest") >= 0;
             instance.panel = System.Array.IndexOf(args, "-inventory") >= 0;
             instance.padTest = System.Array.IndexOf(args, "-invpad") >= 0;
+            var ca = System.Array.IndexOf(args, "-container");
+            if (ca >= 0 && ca + 1 < args.Length)
+                int.TryParse(args[ca + 1], out instance.containerArg);
+            instance.putArg = System.Array.IndexOf(args, "-putitem") >= 0;
+            instance.takeArg = System.Array.IndexOf(args, "-takeitem") >= 0;
+            instance.QuestArgs(args);
         }
 
         bool Hosting => server != null && server.IsCreated && server.IsServer();
@@ -158,6 +164,7 @@ namespace Punchy.Items
             }
             if (!TryTerrain(out var terrain))
                 return;
+            RegisterChests();
             if (Hosting)
                 Serve();
             if (client != null && client.IsCreated && client.IsClient())
@@ -165,11 +172,17 @@ namespace Punchy.Items
 
             FindTarget();
             // (The Use key goes to the nearer of a door and an item, judged on last frame's distances.)
-            if ((target >= 0 || targetChest >= 0) && TargetDistance <= Doors.FacingDistance && UseKey.WasPressed())
+            if ((target >= 0 || targetChest >= 0 || targetContainer >= 0) && TargetDistance <= Doors.FacingDistance && UseKey.WasPressed())
             {
                 if (target >= 0) Pickup(target);
-                else OpenChest(targetChest);
+                else if (targetChest >= 0) OpenChest(targetChest);
+                else OpenContainer(targetContainer);
             }
+            // (Walked away from an open container: it closes.)
+            if (openContainer >= 0 && TryPlayer(out var at) && math.distance(at.Position.xz, containers[openContainer].Pos.xz) > 3f)
+                openContainer = -1;
+            ContainerTests();
+            UpdateQuests(terrain);
             Tests(terrain);
             PadTest();
             UpdateInventoryKeys();
@@ -254,9 +267,17 @@ namespace Punchy.Items
                 if (d < TargetDistance && d <= Reach && math.abs(pos.y - player.Position.y) < 1.5f)
                     (TargetDistance, target, targetChest) = (d, -1, socket);
             }
+            var before = TargetDistance;
+            FindContainer(player.Position, ref TargetDistance);
+            if (TargetDistance < before && targetContainer >= 0)
+                (target, targetChest) = (-1, -1);
+            else
+                targetContainer = -1;
             if (TargetDistance > Doors.FacingDistance)
                 return;
-            if (target >= 0)
+            if (targetContainer >= 0)
+                prompt = $"{UseKey.Name}  look in the {containers[targetContainer].Name}";
+            else if (target >= 0)
             {
                 var it = world[target];
                 prompt = $"{UseKey.Name}  pick up {ItemTable.Items[it.Item].Name.ToLowerInvariant()}{(it.Count > 1 ? $" x{it.Count}" : "")}";
@@ -396,6 +417,8 @@ namespace Punchy.Items
             var w = new WorldItem { Item = item, Count = (byte)math.clamp(count, 1, 255), Pos = pos };
             world[uid] = w;
             added[uid] = w;
+            if (uid >= DropBase)
+                NoteDrop(uid);
             Debug.Log($"Items: item {uid} ({ItemTable.Items[item].Name} x{w.Count}) on the ground at ({pos.x:F1}, {pos.y:F1}, {pos.z:F1})");
             if (Hosting)
                 Broadcast(new ItemSpawnRpc { Uid = uid, Item = item, Count = w.Count, Pos = pos });
@@ -414,29 +437,20 @@ namespace Punchy.Items
             return true;
         }
 
-        /// <summary>A chest's contents: 1-3 items from the socket's seed, laid out in front of it. The same everywhere.</summary>
+        /// <summary>
+        /// Opening a chest (P-14): its lid opens for everyone and it becomes a container; its seeded contents (1-3 items
+        /// from the socket's seed, the same everywhere) stay inside to be taken through the inventory screen.
+        /// </summary>
         void HostOpenChest(int socket)
         {
             if (!openedChests.Add(socket) || !TryChest(socket, out var s))
                 return;
-            var rng = Unity.Mathematics.Random.CreateFromIndex(s.Seed);
-            var n = rng.NextInt(1, 4);
-            var face = math.mul(s.Rot, new float3(0f, 0f, 1f));
-            var side = math.cross(new float3(0f, 1f, 0f), face);
-            var names = new List<string>();
-            for (int k = 0; k < n; k++)
-            {
-                // (Coins, keys and finds: more coins than anything.)
-                var roll = rng.NextInt(0, 10);
-                byte item = roll < 4 ? (byte)6 : roll < 6 ? ItemTable.Key : (byte)rng.NextInt(0, 6);
-                var count = item == 6 ? rng.NextInt(3, 12) : 1;
-                var pos = s.Pos + face * 0.7f + side * ((k - (n - 1) * 0.5f) * 0.45f);
-                Add(ChestBase + socket * 4 + k, item, count, pos);
-                names.Add($"{ItemTable.Items[item].Name} x{count}");
-            }
-            Debug.Log($"Items: chest {socket} opened (seed {s.Seed:X8}): {string.Join(", ", names)}");
+            RegisterChests();
+            Debug.Log($"Items: chest {socket} opened (seed {s.Seed:X8}): {(containers.TryGetValue(socket, out var c) ? Describe(c.Slots) : "?")}");
             if (Hosting)
                 Broadcast(new ChestOpenedRpc { Socket = socket });
+            if (containers.ContainsKey(socket))
+                OpenContainer(socket);
         }
 
         void Serve()
@@ -467,6 +481,8 @@ namespace Punchy.Items
                     HostOpenChest(em.GetComponentData<OpenChestRpc>(r).Socket);
                     em.DestroyEntity(r);
                 }
+            ServeContainers(em);
+            ServeQuests(em);
             // A player who has just joined: what's been taken, added and opened so far.
             using (var q = em.CreateEntityQuery(typeof(NetworkId), typeof(NetworkStreamInGame)))
             using (var cs = q.ToEntityArray(Allocator.Temp))
@@ -477,6 +493,7 @@ namespace Punchy.Items
                     foreach (var uid in gone) Send(em, c, new ItemGoneRpc { Uid = uid });
                     foreach (var kv in added) Send(em, c, new ItemSpawnRpc { Uid = kv.Key, Item = kv.Value.Item, Count = kv.Value.Count, Pos = kv.Value.Pos });
                     foreach (var s in openedChests) Send(em, c, new ChestOpenedRpc { Socket = s });
+                    SendContainers(em, c);
                 }
         }
 
@@ -526,6 +543,8 @@ namespace Punchy.Items
                 Debug.Log($"Items: item {m.Uid} ({ItemTable.Items[m.Item].Name} x{m.Count}) appeared (from the host)");
             });
             Each<GrantRpc>(m => Grant(m.Item, m.Count));
+            Each<ContainerSlotRpc>(ReceiveContainer);
+            Each<QuestStateRpc>(ReceiveQuestState);
             Each<ChestOpenedRpc>(m =>
             {
                 if (openedChests.Add(m.Socket))
@@ -605,7 +624,10 @@ namespace Punchy.Items
                 Debug.Log($"Items: inventory {(panel ? "open" : "closed")}");
             }
             if (!panel)
+            {
+                openContainer = -1;
                 return;
+            }
             nav.ReadInput();
             if (nav.Active && nav.Focus != lastFocus)
             {
@@ -614,8 +636,12 @@ namespace Punchy.Items
                 Debug.Log($"Items: inventory slot {nav.Focus} ({(s.item == 255 ? "empty" : $"{ItemTable.Items[s.item].Name} x{s.count}")})");
             }
             selected = nav.Focus;
-            if (target < 0 && targetChest < 0 && UseKey.WasPressed())
-                Drop(selected);
+            if (target < 0 && targetChest < 0 && targetContainer < 0 && UseKey.WasPressed())
+            {
+                if (openContainer >= 0 && selected >= slots.Length) TakeFromContainer(openContainer, selected - slots.Length);
+                else if (openContainer >= 0) Put(selected);
+                else Drop(selected);
+            }
         }
 
         /// <summary>
@@ -778,8 +804,8 @@ namespace Punchy.Items
             var area = new Rect(Screen.width - w - 20f, Screen.height * 0.25f - 28f, w, 4 * (cell + gap) + gap + 28f);
             GUI.Box(area, $"Inventory   ({UseKey.Name} / A: drop one)");
             var colour = GUI.color;
-            GUILayout.BeginArea(new Rect(area.x + gap, area.y + 28f, w - 2 * gap, area.height - 28f));
             nav.Begin();
+            GUILayout.BeginArea(new Rect(area.x + gap, area.y + 28f, w - 2 * gap, area.height - 28f));
             for (int row = 0; row < 4; row++)
             {
                 GUILayout.BeginHorizontal();
@@ -790,7 +816,8 @@ namespace Punchy.Items
                     if (nav.Button(s.item == 255 ? "" : $"{ItemTable.Items[s.item].Name}\nx{s.count}", slotStyle, GUILayout.Width(cell), GUILayout.Height(cell)))
                     {
                         selected = i;
-                        Drop(i);
+                        if (openContainer >= 0) Put(i);
+                        else Drop(i);
                     }
                     if (s.item != 255 && Event.current.type == EventType.Repaint)
                     {
@@ -804,8 +831,10 @@ namespace Punchy.Items
                 GUILayout.EndHorizontal();
                 GUILayout.Space(gap);
             }
-            nav.End();
             GUILayout.EndArea();
+            DrawContainerPane(cell, gap, area);
+            DrawQuestLog(area);
+            nav.End();
             GUI.color = colour;
         }
     }

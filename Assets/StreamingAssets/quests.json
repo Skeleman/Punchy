@@ -1,0 +1,16 @@
+{
+  "_readme": [
+    "Quests for the notice boards (#27). Edit freely while the game runs: it is read again a second after you save (or press F10).",
+    "type: fetch (bring count of item to the board) or find (a rare item is hidden within 40 m of the board: bring it back).",
+    "item, reward: item names from the item table (Stick, Stone, Berry, Mushroom, Shell, Fish, Coin, Key). count: how many to bring. rewardCount: how many of reward are paid.",
+    "text slots: {item}, {count}, {town} (the settlement), {place} (the notice board in {town}).",
+    "Each board shows one or two quests picked by its town's index, so adding or reordering quests changes what the boards offer."
+  ],
+  "quests": [
+    { "id": "sticks", "type": "fetch", "item": "Stick", "count": 3, "text": "The smithy in {town} needs {count} sticks for the forge. Bring them to {place}.", "reward": "Coin", "rewardCount": 6 },
+    { "id": "berries", "type": "fetch", "item": "Berry", "count": 5, "text": "{town} is short of berries: {count} to {place}, please.", "reward": "Coin", "rewardCount": 4 },
+    { "id": "stones", "type": "fetch", "item": "Stone", "count": 4, "text": "A wall in {town} needs mending: bring {count} stones to {place}.", "reward": "Coin", "rewardCount": 8 },
+    { "id": "lost-key", "type": "find", "item": "Key", "count": 1, "text": "Someone in {town} lost a key not far from the board. Find it and bring it back.", "reward": "Coin", "rewardCount": 12 },
+    { "id": "shell", "type": "find", "item": "Shell", "count": 1, "text": "A child in {town} dropped a lucky shell nearby. Find the shell and bring it to {place}.", "reward": "Mushroom", "rewardCount": 3 }
+  ]
+}

@@ -40,9 +40,12 @@ namespace Punchy.Interact
             public Light Lamp;
             public GameObject Root;
             public string Furniture;
+            public bool HasShelf;
         }
 
         static Interiors instance;
+        /// <summary>"-enterdoor shelf": the first door whose room has a shelf.</summary>
+        const int ShelfDoor = 1_000_000;
         readonly List<Room> rooms = new List<Room>();
         /// <summary>Each door's room (index into rooms), or -1 (a house type with no inside, or not a house).</summary>
         int[] doorRoom = System.Array.Empty<int>();
@@ -72,7 +75,8 @@ namespace Punchy.Interact
             var args = Punchy.Debugging.DebugControls.LaunchArgs;
             var at = System.Array.IndexOf(args, "-enterdoor");
             if (at >= 0 && at + 1 < args.Length)
-                int.TryParse(args[at + 1], out instance.enterDoorArg);
+                if (!int.TryParse(args[at + 1], out instance.enterDoorArg) && args[at + 1] == "shelf")
+                    instance.enterDoorArg = ShelfDoor;
             instance.lampArg = System.Array.IndexOf(args, "-lamp") >= 0;
             instance.leaveArg = System.Array.IndexOf(args, "-leaveroom") >= 0;
         }
@@ -233,6 +237,29 @@ namespace Punchy.Interact
                     Block(root.transform, new float3(x, min.y + 0.35f, z + half.z * 0.6f), new float3(0.5f, 0.3f, 0.1f), new Color(1f, 0.45f, 0.1f));
                 pieces.Add(kind);
             }
+            // P-14: storage, seeded: 0-2 of shelf / chest against the side walls' front halves (by the door), each a
+            // container (Items) with 0-3 starter items, now and then a surprise.
+            var storage = new List<string>();
+            var stores = rng.NextInt(0, 3);
+            for (int k = 0; k < stores; k++)
+            {
+                var shelf = rng.NextBool();
+                float3 half = shelf ? new float3(0.2f, 0.8f, 0.6f) : new float3(0.25f, 0.25f, 0.4f);
+                var x = k == 0 ? min.x + half.x + 0.05f : max.x - half.x - 0.05f;
+                var z = max.z - 1.6f - half.z - rng.NextFloat(0f, math.max(size.z * 0.3f - half.z, 0f));
+                var lo = new float3(x - half.x, min.y, z - half.z);
+                var hi = new float3(x + half.x, min.y + half.y * 2f, z + half.z);
+                InteriorCells.Add(new InteriorBox(lo, hi, InteriorPart.Wall));
+                Block(root.transform, (lo + hi) * 0.5f, hi - lo, shelf ? new Color(0.45f, 0.32f, 0.2f) : new Color(0.42f, 0.27f, 0.14f));
+                if (shelf)
+                    for (int b = 1; b < 4; b++)
+                        Block(root.transform, new float3(x + (k == 0 ? 0.05f : -0.05f), min.y + b * 0.4f, z), new float3(0.34f, 0.04f, 1.2f), new Color(0.6f, 0.45f, 0.3f));
+                var id = Punchy.Items.Items.RoomBase + index * 4 + k;
+                var front = new float3(x + (k == 0 ? 0.7f : -0.7f), min.y, z);
+                Punchy.Items.Items.RegisterContainer(id, front, shelf ? "shelf" : "chest", math.hash(new uint3(RoomSeed(worldSeed, index), (uint)k, 0x5E1Fu)));
+                storage.Add($"{(shelf ? "shelf" : "chest")} {id}: {Punchy.Items.Items.DescribeContainer(id)}");
+            }
+            pieces.Add(storage.Count > 0 ? "storage: " + string.Join("; ", storage) : "no storage");
             // The lamp hangs in the middle under the ceiling; its switch is on the door wall, beside the door.
             var lampAt = new float3(centre.x, max.y - 0.35f, centre.z);
             var lampGo = new GameObject("Lamp");
@@ -252,6 +279,7 @@ namespace Punchy.Interact
                 Type = type, Min = min, Max = max, Root = root, Lamp = lamp, LampAt = lampAt, SwitchAt = switchAt,
                 DoorInside = new float3(centre.x, min.y + 0.05f, max.z - 1.0f),
                 Furniture = pieces.Count > 0 ? string.Join(", ", pieces) : "bare",
+                HasShelf = storage.Exists(x => x.StartsWith("shelf")),
             };
         }
 
@@ -453,6 +481,8 @@ namespace Punchy.Interact
                 }
                 var door = enterDoorArg;
                 enterDoorArg = -1;
+                if (door == ShelfDoor)
+                    door = System.Array.FindIndex(doorRoom, r => r >= 0 && rooms[r].HasShelf);
                 Debug.Log($"Interiors: -enterdoor {door}: {(CanEnter(door) ? $"room {doorRoom[door]}" : "no room for that house")}");
                 if (!EnterRoom(door) && doorRoom.Length > 0)
                 {
