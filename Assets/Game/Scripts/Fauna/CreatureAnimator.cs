@@ -979,6 +979,13 @@ namespace Punchy.Fauna
                     if (part.Role == LimbRole.Tail) return new float3(-0.2f * e, 0.6f * swing * e * (1f + joint * 0.5f), 0f);
                     break;
                 }
+                case IdleAction.ShieldEyes:
+                    // Bat folk from a light (#35): the right arm raised and folded so the forearm lies across the eyes
+                    // (the elbow out to the side), the head bowed and turned a little away, the left hand up at the chest.
+                    if (part.Role == LimbRole.Arm && joint == 0) return part.Side > 0f ? new float3(-2.1f * e, 0f, 0.55f * e) : new float3(-0.5f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Arm && joint == 1) return new float3((part.Side > 0f ? -2.0f : -1.3f) * e, 0f, 0f);
+                    if (part.Role == LimbRole.Head) return new float3(0.35f * e, -0.3f * e, 0f);
+                    break;
                 case IdleAction.Bow:
                 {
                     // Bent at the waist, head down, then up again (a body without a torso part bows its neck).

@@ -147,6 +147,13 @@ namespace Punchy.Fauna
         [Tooltip("Water folk (fish folk): wades and swims in the shallows near home, far more often than other folk and in " +
                  "water from waist deep. 0: swims like anyone, now and then in deep water.")]
         [Range(0f, 1f)] public float Wades;
+        [Tooltip("Shuns light (bat folk, #35): the owners of the bat folk chambers (they live by its hammocks and goggle " +
+                 "pegs). Covers its face with an arm when a light is near (a player's lantern underground, the surface by " +
+                 "day) unless it wears goggles; never carries a lantern or torch.")]
+        public bool ShunsLight;
+        [Tooltip("Light shunners only: how keen it is to walk up out of its cave now and then (goggles on by day, bare at " +
+                 "night). 0: never leaves.")]
+        [Range(0f, 1f)] public float SurfaceTrips;
         [Tooltip("Crawls on any surface (lizards, spiders): steep rock faces outside, walls and ceilings in caves, its body " +
                  "turned to lie on the surface.")]
         public bool Crawls;
@@ -345,7 +352,9 @@ namespace Punchy.Fauna
         // A player sitting down or lying back where they are, or on a seat (postures held until they move).
         SitDown, LieBack,
         // A player's roll on the ground (the right face button); a body-wide somersault, not an action's limb pose.
-        Roll
+        Roll,
+        // Bat folk (#35): a forearm up across the eyes, head bowed, from a light near (DecideShield).
+        ShieldEyes
     }
 
     public enum GallopStyle : byte

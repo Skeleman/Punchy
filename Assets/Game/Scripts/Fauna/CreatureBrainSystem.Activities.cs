@@ -77,14 +77,15 @@ namespace Punchy.Fauna
             /// water, tree, web or flight found); then the roll, already spent, falls to the next * one that has any
             /// weight, and at last to a wander.
             /// </summary>
-            enum Weighted : byte { Work, Home, Hunt, Play, Sleep, Rest, Graze, Drink, Climb, Swim, Lounge, Web, Fly, Count }
+            enum Weighted : byte { Work, Home, Hunt, Play, Sleep, Rest, Graze, Drink, Climb, Swim, Lounge, Web, Fly, Surface, Count }
 
             /// <summary>
             /// Chooses what to do next (#60). Every activity, its condition, and what decides it, in priority order: the
             /// first of the forced, then the urgent, that applies starts and ends the choice; otherwise the weighted roll.
             /// <code>
             /// tier     activity     condition                                                  weight / chance      start
-            /// forced   Flit         drawn to light                                             always               Flit
+            /// forced   Shield       light shunner, no goggles, a light near (LightNear)        always               Idle + ShieldEyes
+            /// forced   Flit        drawn to light                                             always               Flit
             /// forced   Breach       breaches, awake                                            30%                  soar (Wander 2)
             /// forced   Patrol       guard on shift / night guard by day                        always               StartPatrol / Home, Sleep
             /// forced   Hermit       hermit, its day at the shelter                             HermitDay            HermitDay
@@ -115,6 +116,7 @@ namespace Punchy.Fauna
             /// weighted Lounge*      homed townsfolk by day                                     0.2                  StartLounge
             /// weighted Web*         web spinner                                                6                    GoToWeb
             /// weighted Fly*         flier                                                      1.2 (2 perched, 8 to roost) StartFlight
+            /// weighted Surface*     light shunner under the rock, awake                        surface trips x0.5   StartSurface (goggles by day)
             /// fallback Wander       on the ground                                              1 (in the roll)      Wander (cave crawl, sunny rock, far shore)
             /// </code>
             /// Night overrides zero some weights (posted folk and townsfolk going in, birds going to roost). The roll is
@@ -129,6 +131,8 @@ namespace Punchy.Fauna
                 var flier = b.Habitat == Habitat.Flies;
 
                 // ---- forced (before the senses)
+                if (DecideShield(ref s, ref b, ref rng))
+                    return;
                 if (DecideFlit(ref s, ref b, ref rng) || DecideBreach(ref s, ref b, ref rng, sleepy) || DecidePatrol(ref s, ref rng))
                     return;
                 if (s.Task == CreatureTask.Hermit && HermitDay(ref s, ref b, ref rng, sleepy))
@@ -185,7 +189,7 @@ namespace Punchy.Fauna
                 var roll = rng.NextFloat(wander + w[(int)Weighted.Graze] + w[(int)Weighted.Rest] + w[(int)Weighted.Sleep] + w[(int)Weighted.Drink] +
                                          w[(int)Weighted.Play] + w[(int)Weighted.Hunt] + w[(int)Weighted.Work] + w[(int)Weighted.Climb] +
                                          w[(int)Weighted.Web] + w[(int)Weighted.Fly] + w[(int)Weighted.Home] + w[(int)Weighted.Swim] +
-                                         w[(int)Weighted.Lounge]);
+                                         w[(int)Weighted.Lounge] + w[(int)Weighted.Surface]);
                 if (DecideGreet(ref s, ref b, ref rng, sleepy, player) || DecideRoost(ref s, ref b, ref rng, sleepy) ||
                     DecideBurrow(ref s, ref b, ref rng, sleepy, w[(int)Weighted.Sleep]))
                     return;
@@ -278,7 +282,59 @@ namespace Punchy.Fauna
                 w[(int)Weighted.Lounge] = lounge;
                 w[(int)Weighted.Web] = web;
                 w[(int)Weighted.Fly] = fly;
+                // Bat folk now and then walk up out of their cave (#35): goggles on by day (UpdateHeld), bare at night.
+                // (Last in the roll's sum and 0 for everyone else, so their draws are unchanged.)
+                w[(int)Weighted.Surface] = b.SurfaceTrips > 0f && underRock && sleepy < 0.5f ? b.SurfaceTrips * 0.5f * awake : 0f;
                 return wander;
+            }
+
+            /// <summary>
+            /// A light shunner's forced entry (#35): with no goggles on and a light near (LightNear), it stops and covers
+            /// its face with an arm for a few seconds, then looks again (a short wait, so it keeps covering while the
+            /// light stays).
+            /// </summary>
+            bool DecideShield(ref CreatureState s, ref CreatureBlob b, ref Random rng)
+            {
+                if (!b.ShunsLight || s.Held == HeldItem.Goggles || !LightNear(in s))
+                    return false;
+                SetMode(ref s, CreatureMode.Idle);
+                s.Action = IdleAction.ShieldEyes;
+                s.ActionTime = 0f;
+                s.ActionLength = rng.NextFloat(3f, 6f);
+                s.Timer = 0.5f;
+                return true;
+            }
+
+            /// <summary>
+            /// Weighted Surface (#35): off up its cave to the mouth (the cave whose passage is nearest), for a look
+            /// outside; false if it isn't in a cave. (A straight walk to the mouth, not along the passage.)
+            /// </summary>
+            bool StartSurface(ref CreatureState s, ref Random rng)
+            {
+                if (!Terrain.Caves.IsCreated)
+                    return false;
+                ref var set = ref Terrain.Caves.Value;
+                var best = 900f;
+                var mouth = float3.zero;
+                for (int c = 0; c < set.Caves.Length; c++)
+                {
+                    ref var cave = ref set.Caves[c];
+                    for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
+                    {
+                        var d = math.distancesq(set.Nodes[n].Position.xz, s.Position.xz);
+                        if (d < best)
+                        {
+                            best = d;
+                            mouth = cave.Mouth;
+                        }
+                    }
+                }
+                if (best >= 900f)
+                    return false;
+                SetMode(ref s, CreatureMode.Wander);
+                s.Target = mouth.xz;
+                s.Timer = rng.NextFloat(60f, 120f);
+                return true;
             }
 
             /// <summary>Starts a weighted activity the roll landed on; false if it found nowhere to do it (the * ones).</summary>
@@ -333,6 +389,7 @@ namespace Punchy.Fauna
                     case Weighted.Lounge: return StartLounge(self, ref s, ref rng);
                     case Weighted.Web: return GoToWeb(ref s, ref b, ref rng);
                     case Weighted.Fly: return StartFlight(ref s, ref b, ref rng, sleepy > 0.5f);
+                    case Weighted.Surface: return StartSurface(ref s, ref rng);
                 }
                 return false;
             }

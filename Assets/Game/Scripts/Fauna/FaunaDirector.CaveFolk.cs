@@ -7,11 +7,13 @@ using UnityEngine;
 namespace Punchy.Fauna
 {
     /// <summary>
-    /// The folk of the bat folk chambers (#10, #35): a band of the chamber folk (the blind cave pygmies) in each chamber
-    /// a player comes near, at the jobs the chamber's props hand out (a roost keeper under each hut, a tanner at each
-    /// drying rack, a forager at each basket, a fisher at its white pool). Band size and who takes which post come from a
-    /// hash of the chamber's key, never the director's rng, so the other spawns keep their draws and the same chamber
-    /// has the same band on every machine.
+    /// The folk of the bat folk chambers (#10, #35): a band of the chamber folk (the bat folk, who shun light) in each
+    /// chamber a player comes near, at the posts the chamber's props hand out (a sleeper by each hammock, a worker at
+    /// each goggle peg, a roost keeper under each hut, a tanner at each drying rack, a forager at each basket, a fisher
+    /// at its white pool). Band size and who takes which post come from a hash of the chamber's key, never the
+    /// director's rng, so the other spawns keep their draws and the same chamber has the same band on every machine.
+    /// The blind cave pygmies, who had the chambers before the bat folk came, keep one band in the largest chamber of
+    /// a cave with no bat folk.
     /// </summary>
     public partial class FaunaDirector
     {
@@ -28,15 +30,23 @@ namespace Punchy.Fauna
 
         readonly List<ChamberPost> chamberPosts = new List<ChamberPost>();
 
-        /// <summary>The first chamber folk species in the table (the pygmies), or -1.</summary>
-        int ChamberFolkIndex()
+        /// <summary>The chamber folk species that owns the chambers: the first that shuns light (the bat folk), else the first, or -1.</summary>
+        int ChamberFolkIndex() => ChamberFolkIndex(true);
+
+        /// <summary>The first chamber folk species that does (or doesn't) shun light, else the first chamber folk, or -1.</summary>
+        int ChamberFolkIndex(bool shunsLight)
         {
             if (domestics == null || domestics.CaveFolk == null)
                 return -1;
+            CreatureSpecies first = null;
             foreach (var c in domestics.CaveFolk)
                 if (c != null && c.Body.ChamberFolk)
-                    return SpeciesIndex(c);
-            return -1;
+                {
+                    if (c.Body.ShunsLight == shunsLight)
+                        return SpeciesIndex(c);
+                    first ??= c;
+                }
+            return first != null ? SpeciesIndex(first) : -1;
         }
 
         /// <summary>A floor spot under the rock at (or just above) a point, or false.</summary>
@@ -78,14 +88,14 @@ namespace Punchy.Fauna
                     }
                 }
             }
-            // The props by job, in their baked order.
-            var kinds = new[] { BatFolkPropKind.Hut, BatFolkPropKind.Rack, BatFolkPropKind.Basket };
-            var next = new int[3];
+            // The props by job, in their baked order: hammocks (homes) and goggle pegs first, so each has a keeper.
+            var kinds = new[] { BatFolkPropKind.Hammock, BatFolkPropKind.GogglePeg, BatFolkPropKind.Hut, BatFolkPropKind.Rack, BatFolkPropKind.Basket };
+            var next = new int[kinds.Length];
             var any = true;
             while (chamberPosts.Count < band && any)
             {
                 any = false;
-                for (int k = 0; k < 3 && chamberPosts.Count < band; k++)
+                for (int k = 0; k < kinds.Length && chamberPosts.Count < band; k++)
                 {
                     for (; next[k] < bats.Props.Length; next[k]++)
                     {
@@ -108,7 +118,8 @@ namespace Punchy.Fauna
                         {
                             Stand = stand,
                             Face = p.Kind == BatFolkPropKind.Hut ? s.Centre.xz : p.Position.xz,
-                            Job = FolkJobs.BatJob(p.Kind)
+                            // (A hammock's keeper is its sleeper: the roost keeper's job, at home.)
+                            Job = p.Kind == BatFolkPropKind.Hammock ? FolkJob.RoostKeeper : FolkJobs.BatJob(p.Kind)
                         });
                         any = true;
                         break;
@@ -177,6 +188,80 @@ namespace Punchy.Fauna
                     });
                 }
             }
+            SpawnPygmyBand(source);
+        }
+
+        // The pygmies' chamber (a node index, -2 = not looked for yet, -1 = none), and whether their band is out.
+        int pygmyNode = -2;
+        bool pygmiesOut;
+
+        /// <summary>
+        /// The largest chamber node of a cave with no bat folk site in its box, or -1. Seed-derived, so every machine
+        /// picks the same one.
+        /// </summary>
+        static int PygmyChamber(in TerrainSource source)
+        {
+            ref var caves = ref source.Caves.Value;
+            ref var bats = ref source.BatFolk.Value;
+            int best = -1;
+            for (int c = 0; c < caves.Caves.Length; c++)
+            {
+                var cave = caves.Caves[c];
+                var batty = false;
+                for (int i = 0; i < bats.Sites.Length && !batty; i++)
+                    batty = math.all(bats.Sites[i].Centre >= cave.Min) && math.all(bats.Sites[i].Centre <= cave.Max);
+                if (batty)
+                    continue;
+                for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
+                    if (caves.Kinds[n] == CaveNodeKind.Chamber && (best < 0 || caves.Nodes[n].Radius > caves.Nodes[best].Radius))
+                        best = n;
+            }
+            return best;
+        }
+
+        /// <summary>Spawns the pygmy band in its chamber once a player comes near; forgets it once every player is well away.</summary>
+        void SpawnPygmyBand(in TerrainSource source)
+        {
+            var sp = ChamberFolkIndex(false);
+            if (sp < 0 || sp == ChamberFolkIndex(true))
+                return;
+            if (pygmyNode == -2)
+            {
+                pygmyNode = PygmyChamber(source);
+                if (pygmyNode >= 0)
+                    Debug.Log($"[cavefolk] {species[sp].name} band moved to the chamber at {source.Caves.Value.Nodes[pygmyNode].Position} (no bat folk there)");
+            }
+            if (pygmyNode < 0 || pygmyNode >= source.Caves.Value.Nodes.Length)
+                return;
+            var node = source.Caves.Value.Nodes[pygmyNode];
+            var near = NearestPlayer(node.Position.xz);
+            if (pygmiesOut)
+            {
+                pygmiesOut = near <= DespawnDistance + 20f;
+                return;
+            }
+            if (near > Radius || caveCount >= MaxCave)
+                return;
+            pygmiesOut = true;
+            var r = new Unity.Mathematics.Random(BiomeSampling.Scramble((uint)pygmyNode ^ 0x51ED270Bu) | 1u);
+            var g = species[sp].Body.GroupSize;
+            var band = math.max(1, g.x) + r.NextInt(0, math.max(1, g.y - g.x + 1));
+            var home = node.Position.xz;
+            var leash = math.max(node.Radius, 6f);
+            for (int k = 0; k < band && caveCount < MaxCave; k++)
+            {
+                var off = r.NextFloat2Direction() * r.NextFloat(0.5f, math.max(1f, node.Radius * 0.5f));
+                if (!ChamberFloor(source, node.Position + new float3(off.x, 0f, off.y), out var start) && !ChamberFloor(source, node.Position, out start))
+                    continue;
+                Enqueue(sp, start, SpawnTier.Cave, e =>
+                {
+                    var em = simWorld.EntityManager;
+                    var state = em.GetComponentData<CreatureState>(e);
+                    state.Home = home;
+                    state.Leash = leash;
+                    em.SetComponentData(e, state);
+                });
+            }
         }
 
         // (The bands last logged, by chamber count and first centre.)
@@ -207,6 +292,12 @@ namespace Punchy.Fauna
             foreach (var kv in jobs)
                 text.Append($" {kv.Key} {kv.Value}");
             Debug.Log($"[cavefolk] {species[sp].name}: {bats.Sites.Length} chamber bands, {members} in all; posts{text}");
+            if (species[sp].Body.ShunsLight)
+                Debug.Log($"[batfolk] chambers with bat folk {bats.Sites.Length}, bat folk total {members}");
+            // (Where each chamber's first hammock is, to frame shots by.)
+            for (int i = 0; i < bats.Props.Length; i++)
+                if (bats.Props[i].Kind == BatFolkPropKind.Hammock && (i == 0 || bats.Props[i - 1].Site != bats.Props[i].Site || bats.Props[i - 1].Kind != BatFolkPropKind.Hammock))
+                    Debug.Log($"[batfolk] hammock in chamber {bats.Props[i].Site} at {bats.Props[i].Position}");
             LogFishFolk(source);
         }
 
