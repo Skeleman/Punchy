@@ -182,7 +182,7 @@ namespace Punchy.Debugging
             if (fixedFrames >= 0 && ++fixedFrames == 1800)
             {
                 var fs = Punchy.Fauna.CreatureBrainSystem.Searches.Data;
-                Debug.Log($"DebugControls: fixed 60 s '{Arg("-shot")}' flees predator {fs.PredatorFlee - fixedSearch0.PredatorFlee}, alarm {fs.AlarmFlee - fixedSearch0.AlarmFlee}, " +
+                Debug.Log($"DebugControls: fixed 60 s '{CurrentShotName()}' flees predator {fs.PredatorFlee - fixedSearch0.PredatorFlee}, alarm {fs.AlarmFlee - fixedSearch0.AlarmFlee}, " +
                           $"player {fs.PlayerFlee - fixedSearch0.PlayerFlee}, {SimPrint()}");
             }
             ApplyLaunchOptions();
@@ -2797,6 +2797,16 @@ namespace Punchy.Debugging
         int liftSample;
         float liftPass;
         int fixedFrames = -1;
+
+        /// <summary>The -shot name of the shot-list line being run, or null (for log lines outside the shot loop).</summary>
+        string CurrentShotName()
+        {
+            if (shotLines == null || shotIndex < 0 || shotIndex >= shotLines.Count)
+                return null;
+            var line = shotLines[shotIndex];
+            var i = System.Array.IndexOf(line, "-shot");
+            return i >= 0 && i + 1 < line.Length ? line[i + 1] : null;
+        }
         Punchy.Fauna.CreatureBrainSystem.SearchCounts fixedSearch0;
         (float2 from, float at)? liftPassStart;
 
