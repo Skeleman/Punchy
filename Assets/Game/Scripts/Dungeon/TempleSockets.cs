@@ -50,6 +50,9 @@ namespace Punchy.Dungeon
             int n = set.RuinRooms.Length;
             var rooms = new RuinRoom[n];
             for (int i = 0; i < n; i++) rooms[i] = set.RuinRooms[i];
+            // (Copied out of the blob: the local functions below can't read a ref parameter.)
+            var drifts = new RuinDrift[set.RuinDrifts.Length];
+            for (int k = 0; k < drifts.Length; k++) drifts[k] = set.RuinDrifts[k];
 
             // Doorways: where two rooms touch along at least half a metre (rectangles 25 cm apart or overlapping).
             var neighbours = new int[n];
@@ -73,7 +76,7 @@ namespace Punchy.Dungeon
                 var r = rooms[i];
                 float lu = r.U1 - r.U0, lv = r.V1 - r.V0, longer = math.max(lu, lv), shorter = math.min(lu, lv);
                 float cu = (r.U0 + r.U1) * 0.5f, cv = (r.V0 + r.V1) * 0.5f;
-                float Floor(float u, float v) => r.FloorAt(u) + SunkenTempleShape.Sand(ref set, i, u, v);
+                float Floor(float u, float v) => r.FloorAt(u) + Sand(drifts, i, u, v);
                 var headroom = r.Ceil - Floor(cu, cv);
                 bool hall = longer >= 2.2f * shorter && shorter <= 5f;
                 bool deadEnd = neighbours[i] == 1 && r.Kind == 0;
@@ -130,6 +133,23 @@ namespace Punchy.Dungeon
                     Add(cu, r.V1 - 0.05f, decorUp, new float2(0f, -1f), SocketKind.WallDecor, lu >= 4f ? SocketSize.Medium : SocketSize.Small);
                     Add(r.U0 + 0.05f, cv, decorUp, new float2(1f, 0f), SocketKind.WallDecor, lv >= 4f ? SocketSize.Medium : SocketSize.Small);
                     Add(r.U1 - 0.05f, cv, decorUp, new float2(-1f, 0f), SocketKind.WallDecor, lv >= 4f ? SocketSize.Medium : SocketSize.Small);
+                    // A chest spot in the corner farthest from every doorway (dead ends add one at their far wall too).
+                    if (r.Kind == 0 && !deadEnd)
+                    {
+                        float2 far = new float2(cu, cv);
+                        var farD = -1f;
+                        for (int c = 0; c < 4; c++)
+                        {
+                            var corner = new float2(c % 2 == 0 ? r.U0 + 1f : r.U1 - 1f, c < 2 ? r.V0 + 1f : r.V1 - 1f);
+                            var nearest = float.MaxValue;
+                            foreach (var d in doors)
+                                if (d.a == i || d.b == i)
+                                    nearest = math.min(nearest, math.distance(corner, d.q.xz));
+                            if (nearest > farD)
+                                (farD, far) = (nearest, corner);
+                        }
+                        Add(far.x, far.y, 0.05f, math.normalizesafe(new float2(cu, cv) - far), SocketKind.Chest, SocketSize.Medium, SocketTags.NearChest);
+                    }
                 }
                 if (deadEnd)
                 {
@@ -216,6 +236,20 @@ namespace Punchy.Dungeon
                 });
             }
             return result;
+        }
+
+        /// <summary>Sand drifted onto room <paramref name="room"/>'s floor at (u, v): SunkenTempleShape.Sand, from a copy of the drifts.</summary>
+        static float Sand(RuinDrift[] drifts, int room, float u, float v)
+        {
+            var s = 0f;
+            foreach (var d in drifts)
+            {
+                if (d.Room != room)
+                    continue;
+                float du = (u - d.Ellipse.x) / d.Ellipse.z, dv = (v - d.Ellipse.y) / d.Ellipse.w;
+                s += d.Height * math.smoothstep(0f, 1f, 1f - du * du - dv * dv);
+            }
+            return s;
         }
 
         /// <summary>FNV-1a over every socket: position to the centimetre, kind, size, tags and seed.</summary>

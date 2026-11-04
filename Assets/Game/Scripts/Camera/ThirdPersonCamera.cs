@@ -102,7 +102,17 @@ namespace Punchy.CameraRig
             if (!underground)
                 pitch = Mathf.MoveTowards(pitch, Mathf.Clamp(pitch, MinPitch, MaxPitch), Time.deltaTime * 90f);
             var target = playerPosition + Vector3.up * PivotHeight;
-            var rotation = Quaternion.Euler(pitch, yaw, 0f);
+            // #85 (P-7): a small body looking up underground. Circling the camera under a low pivot puts it on the floor
+            // beside the body, which then drops out of the bottom of the frame; instead the camera circles no lower
+            // than SmallLookOrbit and tilts its view up for the rest, at most until the body reaches the frame's edge.
+            var orbitPitch = pitch;
+            var lookUp = 0f;
+            if (underground && bodySize < 0.75f && pitch < SmallLookOrbit)
+            {
+                orbitPitch = SmallLookOrbit;
+                lookUp = Mathf.Min(SmallLookOrbit - pitch, (cam != null ? cam.fieldOfView : 60f) * 0.5f - 8f);
+            }
+            var rotation = Quaternion.Euler(orbitPitch, yaw, 0f);
             var position = target - rotation * Vector3.forward * Distance;
 
             // Don't let the camera dip under hills or water; if it has to rise, keep looking at the player.
@@ -170,7 +180,7 @@ namespace Punchy.CameraRig
                 var lens = new Unity.Mathematics.float3(position.x, position.y, position.z);
                 if (terrain.CaveDistance(lens) < 0f || underground && (terrain.TempleAir(lens) || position.y < terrain.SampleHeight(lens.xz)))
                 {
-                    transform.SetPositionAndRotation(position, rotation);
+                    transform.SetPositionAndRotation(position, rotation * Quaternion.Euler(-lookUp, 0f, 0f));
                     return;
                 }
                 var ground = terrain.SampleGround(new Unity.Mathematics.float2(position.x, position.z));
@@ -208,8 +218,11 @@ namespace Punchy.CameraRig
                 }
             }
 
-            transform.SetPositionAndRotation(position, rotation);
+            transform.SetPositionAndRotation(position, rotation * Quaternion.Euler(-lookUp, 0f, 0f));
         }
+
+        /// <summary>#85: the lowest a small body's camera circles underground (deg); looking further up tilts the view instead.</summary>
+        const float SmallLookOrbit = -10f;
 
         /// <summary>Testing (-oldcave): the cave arm's pivot drop and sphere trace in managed code (CaveArm), as before the Burst ArmProbe (#54).</summary>
         public static bool OldProbe;
