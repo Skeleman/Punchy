@@ -33,14 +33,15 @@ namespace Punchy.Debugging
         bool hereSet;
 
         readonly List<float> frameMs = new List<float>();
-        readonly List<double> cpuMs = new List<double>(), gpuMs = new List<double>();
+        readonly List<double> cpuMs = new List<double>(), gpuMs = new List<double>(), mainMs = new List<double>(), renderMs = new List<double>();
         readonly FrameTiming[] timing = new FrameTiming[1];
         readonly StringBuilder summary = new StringBuilder();
         bool measuring;
         int gcAtStart;
         // Graphics and process memory at the end of each stop (does streaming fill video memory over a route?).
         ProfilerRecorder gfxUsed, gfxReserved, systemUsed, drawCalls;
-        long drawTotal;
+        long drawTotal, batchTotal, setPassTotal, shadowTotal, triTotal;
+        ProfilerRecorder batches, setPass, shadowCasters, tris;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
@@ -57,7 +58,7 @@ namespace Punchy.Debugging
             gfxUsed.Dispose();
             gfxReserved.Dispose();
             systemUsed.Dispose();
-            drawCalls.Dispose();
+            drawCalls.Dispose(); batches.Dispose(); setPass.Dispose(); shadowCasters.Dispose(); tris.Dispose();
         }
 
         IEnumerator Start()
@@ -66,6 +67,10 @@ namespace Punchy.Debugging
             gfxReserved = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "Gfx Reserved Memory");
             systemUsed = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "System Used Memory");
             drawCalls = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Draw Calls Count");
+            batches = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Batches Count");
+            setPass = ProfilerRecorder.StartNew(ProfilerCategory.Render, "SetPass Calls Count");
+            shadowCasters = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Shadow Casters Count");
+            tris = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Triangles Count");
             StartCoroutine(SampleLights());
             // -fpscap <30|40|60|120|0>: same flag as the game's frame-cap option (0 = uncapped), for builds without it.
             var capArg = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-fpscap");
@@ -92,7 +97,12 @@ namespace Punchy.Debugging
             // -benchstops here: measure where the game's own -place put the player (a mine, a camp, any new place).
             var stopsArg = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-benchstops");
             if (stopsArg >= 0 && stopsArg + 1 < System.Environment.GetCommandLineArgs().Length && System.Environment.GetCommandLineArgs()[stopsArg + 1].Contains("here"))
+            {
+                // -benchstops herewarm,here: a throwaway stop in the same place first (-benchgpupasses reads nothing on the
+                // first stop it runs).
+                yield return Stop("herewarm", () => (hereSet = TryGetPlayerPosition(out hereAt)) && SetWeather("Partly cloudy", 10));
                 yield return Stop("here", () => (hereSet = TryGetPlayerPosition(out hereAt)) && SetWeather("Partly cloudy", 10));
+            }
             // -benchstops hereapproach: walk on the surface from 400 m out to 100 m from where -place put the player (what
             // a cave or mine costs before you're in it).
             yield return Stop("hereapproach", () => hereSet && PlaceAt(new float3(hereAt.x, float.NaN, hereAt.z) - ApproachDirection * ApproachFrom, 0f) &&
@@ -195,9 +205,9 @@ namespace Punchy.Debugging
             var profile = System.Array.IndexOf(args, "-profilestop");
             var profiling = profile >= 0 && profile + 2 < args.Length && args[profile + 1] == name;
             var t = 0f;
-            frameMs.Clear(); cpuMs.Clear(); gpuMs.Clear();
+            frameMs.Clear(); cpuMs.Clear(); gpuMs.Clear(); mainMs.Clear(); renderMs.Clear();
             TurnOff();
-            lightsMax = 0; lightsTotal = 0; drawTotal = 0;
+            lightsMax = 0; lightsTotal = 0; drawTotal = 0; batchTotal = 0; setPassTotal = 0; shadowTotal = 0; triTotal = 0;
             var settle = Settle;   // waitCaves: pushed on while cave chunks are queued or building, up to MaxCaveSettle
             var caves = waitCaves ? FindAnyObjectByType<CaveSystem>() : null;
             var settledProp = caves != null ? typeof(CaveSystem).GetProperty("Settled", BindingFlags.Public | BindingFlags.Instance) : null;
@@ -337,12 +347,18 @@ namespace Punchy.Debugging
             frameMs.Add(Time.unscaledDeltaTime * 1000f);
             if (drawCalls.Valid)
                 drawTotal += drawCalls.LastValue;
+            if (batches.Valid) batchTotal += batches.LastValue;
+            if (setPass.Valid) setPassTotal += setPass.LastValue;
+            if (shadowCasters.Valid) shadowTotal += shadowCasters.LastValue;
+            if (tris.Valid) triTotal += tris.LastValue;
             for (int i = 0; i < gpuPasses.Count; i++)
                 gpuPassNs[i] += gpuPasses[i].LastValue;
             if (FrameTimingManager.GetLatestTimings(1, timing) > 0)
             {
                 cpuMs.Add(timing[0].cpuFrameTime);
                 gpuMs.Add(timing[0].gpuFrameTime);
+                mainMs.Add(timing[0].cpuMainThreadFrameTime);
+                renderMs.Add(timing[0].cpuRenderThreadFrameTime);
             }
         }
 
@@ -413,7 +429,8 @@ namespace Punchy.Debugging
             if (movingLights != null)
                 line += $", moving lights max {lightsMax} avg {(float)lightsTotal / frameMs.Count:F1}";
             if (drawCalls.Valid)
-                line += $", draw calls avg {drawTotal / frameMs.Count}";
+                line += $", draw calls avg {drawTotal / frameMs.Count}, batches {batchTotal / frameMs.Count}, setpass {setPassTotal / frameMs.Count}, shadow casters {shadowTotal / frameMs.Count}, rendered tris {triTotal / frameMs.Count / 1000}k";
+            line += $", main thread {Average(mainMs)} ms, render thread {Average(renderMs)} ms";
             // CaveSystem.SurfaceHidden at the end of the stop (1 deep in a cave: the surface isn't drawn), where it exists.
             var hidden = typeof(CaveSystem).GetProperty("SurfaceHidden", BindingFlags.Public | BindingFlags.Static);
             if (hidden != null)
