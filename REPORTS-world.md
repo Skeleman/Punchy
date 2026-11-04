@@ -2035,3 +2035,12 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Shots (W-89 milestone folder): w89-golem.png (arcs between the segments), w89-saguaro.png (side view, root legs mid-stride).
 - Row 5 (SaltFlat rolling crystal): not started (budget).
 - Calls: ~38
+
+## W-90 (2026-11-04): rows 0-2 done, 3-5 left (budget)
+
+- 438fc81 #84 row 0: FarShadow.Lay runs as one Burst IJobParallelFor per strip (TerrainSource, NativeArray), scheduled when the sun moves, completed next frame (copy to mesh, RecalculateBounds). StoneColossi far shadows: 0.28-0.36 ms schedule frame (0.96 first, Burst warm-up), 0.04 ms land frame (was 44 ms). All 10 strips lay (lengths 31-79 m). -nofarshadow kept.
+- 5ac804c #72 rows 1-2: Campsite and CampsiteForest ground Grass -> Dirt (swamp already Mud). Pads rejected if a river or water surface within the radius stands over the flattened pad (test and roadside). Swamp test camp moved to dry ground (1266 nearer wet spots rejected); roadside: 3 placed, 0 rejected, so normal placement unchanged.
+- Shot: w90-campsite-swamp.png (tent on dry mud, no grass or water patch). Forest after shot not taken.
+- Hash with -campsitetest swamp: 109 landmarks, F8E930BB (game 67B353C1).
+- Left: forest shot, rows 3 (#36 river plots), 4 (#88 shelf bay), 5 (#40 plant size and fog).
+- Calls: ~44.
