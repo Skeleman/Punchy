@@ -48,13 +48,17 @@ namespace Punchy.Terrain
             var n = (int)math.floor(rivers.Resolution * rivers.CellSize / Step);
 
             // Heights on a coarse grid (sea where there is no land), then every cell higher than its eight neighbours.
+            // W-76: rows in parallel (sampling only reads blobs).
             var heights = new float[n * n];
-            for (int y = 0; y < n; y++)
+            var src = source;
+            System.Threading.Tasks.Parallel.For(0, n, y =>
+            {
                 for (int x = 0; x < n; x++)
                 {
                     var p = min + (new float2(x, y) + 0.5f) * Step;
-                    heights[y * n + x] = source.OceanFactor(p) > 0.5f ? sea : source.SampleHeight(p);
+                    heights[y * n + x] = src.OceanFactor(p) > 0.5f ? sea : src.SampleHeight(p);
                 }
+            });
             var peaks = new List<int>();
             for (int y = 1; y < n - 1; y++)
                 for (int x = 1; x < n - 1; x++)

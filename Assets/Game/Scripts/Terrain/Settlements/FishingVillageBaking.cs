@@ -50,15 +50,24 @@ namespace Punchy.Terrain
             float2 At(int c) => origin + (new float2(c % res, c / res) + 0.5f) * cellSize;
 
             // Mouths: the last river cell on land before the sea, widest first (index breaks ties, so the order is fixed).
-            var mouths = new List<int>();
-            for (int c = 0; c < rivers.Width.Length; c++)
+            // W-76: the cells are tested in parallel rows (sampling only reads blobs) and gathered in index order.
+            var isMouth = new bool[rivers.Width.Length];
+            var src = source;
+            System.Threading.Tasks.Parallel.For(0, (isMouth.Length + res - 1) / res, row =>
             {
-                if (rivers.Width[c] <= 0f || source.OceanFactor(At(c)) > 0.5f)
-                    continue;
-                var down = rivers.Down[c];
-                if (down < 0 || source.OceanFactor(At(down)) > 0.5f || source.SampleHeight(At(down)) < sea)
+                ref var rv = ref src.Rivers.Value;
+                for (int c = row * res; c < math.min(isMouth.Length, (row + 1) * res); c++)
+                {
+                    if (rv.Width[c] <= 0f || src.OceanFactor(At(c)) > 0.5f)
+                        continue;
+                    var down = rv.Down[c];
+                    isMouth[c] = down < 0 || src.OceanFactor(At(down)) > 0.5f || src.SampleHeight(At(down)) < sea;
+                }
+            });
+            var mouths = new List<int>();
+            for (int c = 0; c < isMouth.Length; c++)
+                if (isMouth[c])
                     mouths.Add(c);
-            }
             var widths = new Dictionary<int, float>();
             foreach (var m in mouths)
                 widths[m] = rivers.Width[m];

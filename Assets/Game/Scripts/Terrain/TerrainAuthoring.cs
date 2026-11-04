@@ -152,9 +152,12 @@ namespace Punchy.Terrain
             {
                 // Both bakes see the ground without rivers (a source with a river map samples its carve).
                 var bare = source;
+                // W-76: the second bake copies the first's drainage grid (same ground, same settings) instead of
+                // sampling and flooding the whole world again.
+                using var drainage = new RiverBaking.Drainage();
                 if (source.RiverSettings.Smooth)
-                    drawnRivers = RiverBaking.Build(bare, source.RiverSettings, allocator);
-                source.Rivers = RiverBaking.Build(bare, source.RiverSettings, allocator, meander: false);
+                    drawnRivers = RiverBaking.Build(bare, source.RiverSettings, allocator, drainage: drainage);
+                source.Rivers = RiverBaking.Build(bare, source.RiverSettings, allocator, meander: false, drainage: drainage);
             }
             Stage("rivers");
             if (palette.Count > 0)
@@ -196,6 +199,7 @@ namespace Punchy.Terrain
             if (villages && source.Landmarks.IsCreated)
             {
                 var mouths = FishingVillageBaking.Place(source, landmarkTypes);
+                Stage("fishing");
                 if (mouths.Count > 0)
                 {
                     var before = source.Landmarks;
@@ -204,6 +208,7 @@ namespace Punchy.Terrain
                 }
                 // #38: turtle folk settlements on the highest peaks, last of all, each on its own new spot.
                 var peaks = TurtleVillageBaking.Place(source, landmarkTypes);
+                Stage("turtles");
                 if (peaks.Count > 0)
                 {
                     var before = source.Landmarks;
@@ -212,6 +217,7 @@ namespace Punchy.Terrain
                 }
                 // #37: the sea folk settlement in the largest deep lake and its landing, after the turtles.
                 var lake = SeaFolkBaking.Place(source, landmarkTypes);
+                Stage("seafolk");
                 if (lake.Count > 0)
                 {
                     var before = source.Landmarks;

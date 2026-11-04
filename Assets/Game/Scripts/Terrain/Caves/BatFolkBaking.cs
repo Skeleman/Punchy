@@ -158,20 +158,33 @@ namespace Punchy.Terrain
             var white = builder.Allocate(ref root.WhitePools, set.Pools.Length);
             for (int i = 0; i < set.Pools.Length; i++)
                 white[i] = 0;
-            var props = new List<BatFolkProp>();
+            var siteList = new BatFolkSite[chosen.Count];
             for (int i = 0; i < chosen.Count; i++)
             {
                 var (c, n, p, _) = chosen[i];
-                sites[i] = new BatFolkSite
+                siteList[i] = new BatFolkSite
                 {
                     Cave = c, Key = set.Caves[c].Key, Chamber = n, Centre = set.Nodes[n].Position,
                     Radius = set.Nodes[n].Radius * set.Caves[c].Profile.x, Pool = p
                 };
+                sites[i] = siteList[i];
                 white[p] = 1;
-                var first = props.Count;
-                PlaceProps(source, ref set, sites[i], i, stream, props);
-                PlaceKit(source, ref set, sites[i], i, stream, props, first);
             }
+            // W-76: each site's props come from its own RNG and only test against its own props, so the sites place in
+            // parallel and are joined in site order (bit-identical to placing them one after another).
+            var perSite = new List<BatFolkProp>[chosen.Count];
+            var src = source;
+            System.Threading.Tasks.Parallel.For(0, chosen.Count, i =>
+            {
+                ref var caves = ref src.Caves.Value;
+                var own = new List<BatFolkProp>();
+                PlaceProps(src, ref caves, siteList[i], i, stream, own);
+                PlaceKit(src, ref caves, siteList[i], i, stream, own, 0);
+                perSite[i] = own;
+            });
+            var props = new List<BatFolkProp>();
+            foreach (var own in perSite)
+                props.AddRange(own);
             var propArray = builder.Allocate(ref root.Props, props.Count);
             for (int i = 0; i < props.Count; i++)
                 propArray[i] = props[i];
