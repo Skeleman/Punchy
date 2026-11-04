@@ -315,10 +315,19 @@ namespace Punchy.Terrain
             }
             // Island v3 (W-72): on range tops (range field 35-95 m and up) ridged biome relief gets rounded creases,
             // fewer fine octaves and less height, so crests read as soft ridges and domed summits; the lower flanks
-            // keep their crags.
+            // keep their crags. W-73: also where the total height (range field + biome base elevation) is high, so
+            // a low range on a high biome (Hills) is rounded too; the field must still be a range (15-40 m and up).
             var top = 0f;
             if (V3Ground.IsCreated && Island.IsCreated)
-                top = math.smoothstep(35f, 95f, Island.Value.Sample(xz));
+            {
+                var field = Island.Value.Sample(xz);
+                float baseElevation = 0f;
+                for (int i = 0; i < 4; i++)
+                    if (shape.Weights[i] > 0f)
+                        baseElevation += shape.Weights[i] * set.Biomes[shape.Ids[i]].BaseElevation;
+                top = math.max(math.smoothstep(35f, 95f, field),
+                               math.smoothstep(100f, 160f, field + baseElevation) * math.smoothstep(15f, 40f, field));
+            }
             for (int i = 0; i < 4; i++)
             {
                 var w = shape.Weights[i];
@@ -643,7 +652,7 @@ namespace Punchy.Terrain
             if (Archipelago.IsCreated)
                 h = Punchy.Terrain.Archipelago.Shape(ref Archipelago.Value, xz, h);
             if (Rivers.IsCreated)
-                h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn), RiverSettings, h);
+                h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz)), RiverSettings, h);
             if (Landmarks.IsCreated)
                 h = LandmarkSampling.Shape(ref Landmarks.Value, xz, h);
             if (GrandFalls.IsCreated)
@@ -655,6 +664,19 @@ namespace Punchy.Terrain
         /// Settlements' streets and plot pads levelled into the ground. Applied last, and levelling towards a fixed
         /// height, so applying it again (to a heightmap exported with it) changes nothing.
         /// </summary>
+        /// <summary>
+        /// W-73: where a v3 pass track crosses a river, the valley walls are capped from the roughest bank slope
+        /// (1.25 rise/m, no change) down to 0.5 (27 deg) on the track's centre, so the walk over the pass stays
+        /// under ~30 deg. Uncapped off the track and on v1/v2.
+        /// </summary>
+        float PassBankCap(float2 xz)
+        {
+            if (!V3Ground.IsCreated)
+                return float.MaxValue;
+            var track = Punchy.Terrain.V3Ground.PassFlat(ref V3Ground.Value, xz);
+            return track > 0.001f ? math.lerp(1.25f, 0.5f, math.smoothstep(0f, 0.6f, track)) : float.MaxValue;
+        }
+
         float Settle(float2 xz, float h) => Settlements.IsCreated ? SettlementSampling.Height(ref Settlements.Value, xz, h) : h;
 
         /// <summary>Height plus biome, river and water information, computed together.</summary>
@@ -684,7 +706,7 @@ namespace Punchy.Terrain
 
             if (Rivers.IsCreated)
             {
-                var river = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn);
+                var river = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz));
                 // A loaded heightmap already contains the carved channels; only noise heights get carved here.
                 if (!UsesHeightmap)
                     g.Height = RiverSampling.Carve(river, RiverSettings, g.Height);
