@@ -1877,3 +1877,14 @@ Commit bd27f3d on world-features (pushed, on top of 4e3b63c). Editor, safety/job
 - Hashes (LandmarkTypes): v2 136/B5EFF8C8, v3 108/3A0DC7BB. Probe LmList now prints the game hash. Bake = shared in one process: not verified (no host run).
 - merge-tree world-features vs animal-behaviours: CONFLICT in FloraGenerator.cs (Grow: my pregrow vs A-52 shapeOnly). Needs resolving.
 - Calls: about 75 (past the ceiling).
+## W-79b (2026-11-04) - finish W-79, #102
+
+Commits on world-features (pushed): 79512da merge origin/main (A-52), 00b758d flora builds once after the bake, cfae8be shared path pregrows. Editor, checks off, uncapped.
+- Merge: Grow keeps the pregrown parts plus A-52's shapeOnly (LOD 0 only, no support grid, break before meshes); a shapeOnly grow skips the pregrown parts. 0 compile errors.
+- Fauna fingerprint on world-features: 51E641E9 with shapeOnly on and with it forced off (full grows), v2 and v3, so the shapes match. It is not E698F061 because this branch's content differs from main (W-77c/W-78); E698F061 is main's value.
+- Flora: the first ~4.1 s build ran on the old terrain before the bake and was thrown away. FloraSystem now waits for the bake (toggle WaitForIsland / PUNCHY_FLORAWAIT=0). Frame before the bake: v2 4939 -> 728 ms, v3 5525 -> 714 ms. Island-ready frame: v2 5615 -> 5303 ms (flora 237 -> 71 ms); v3 flora 235 -> 99 ms. 620 variants, 1846476 vertices.
+- Caves v3: no frame over 250 ms (the cave slow-frame log stays quiet), both runs.
+- v3 island-ready frame is ~29 s in editor both ways: bake 5.5 s plus ~23 s after it (hydro audit / v3 biome reports run). Not flora or caves; worth a look.
+- Host play v2: bake "136 landmarks, hash B5EFF8C8" and "v2 shared with ClientWorld ... hash B5EFF8C8": equal. v3 bake hash 108/3A0DC7BB.
+- Host run 1 showed the client world rebuilding flora with nothing pregrown (4644 ms); the shared path now pregrows missing variants (third commit). Run 2 built once (220 ms), so the fix is not yet seen working in the double-build case.
+- Calls: about 43.
