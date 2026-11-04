@@ -58,6 +58,17 @@ namespace Punchy.Terrain
             return v == "v1" ? 1 : v == "v3" ? IslandV3.Version : Version;
         }
 
+        /// <summary>
+        /// P-2 (v3 B14, brief 8B): the island version the host sent this joined client (WorldSync's IslandVersionRpc;
+        /// 0 = none yet). A joined client's <see cref="IslandV2System"/> waits for it and bakes that version instead of
+        /// its own launch's, so a v2-launched client joins a v3 host on the v3 island. Solo and hosting ignore it: the
+        /// launch flag decides.
+        /// </summary>
+        public static int HostVersion;
+
+        /// <summary>The version this process's island was baked (or kept) at: 0 until then. The world fingerprint reads it.</summary>
+        public static int ActiveVersion;
+
         public struct Result
         {
             public BlobAssetReference<BiomeMapBlob> Map;
@@ -346,6 +357,7 @@ namespace Punchy.Terrain
             query = GetEntityQuery(ComponentType.ReadWrite<TerrainSource>(), ComponentType.ReadOnly<BiomePalette>());
             version = IslandV2.RequestedVersion();
             v2 = version != 1;
+            IslandV2.ActiveVersion = 0;
             RequireForUpdate(query);
         }
 
@@ -358,6 +370,47 @@ namespace Punchy.Terrain
         bool v2;
         bool shares;   // W-73: this world holds the shared bake's blobs (released in OnDestroy)
         int version;   // 2, or 3 for the v3 path (IslandV3), which also ends with the water audit
+        bool decided;
+        float waitingSince = -1f;
+        /// <summary>How long a joined client waits for the host's island version before baking its own (s).</summary>
+        const float HostWait = 15f;
+
+        /// <summary>
+        /// P-2: a joined client (a client world with no server in this process) takes the host's island version,
+        /// waiting up to <see cref="HostWait"/> for it; false while it's still waiting. Terrain streaming rebuilds its
+        /// chunks when the TerrainSource changes, so the few frames of the subscene's own bake before this are redrawn.
+        /// </summary>
+        bool DecideVersion()
+        {
+            if (decided)
+                return true;
+            var joined = (World.Flags & WorldFlags.GameClient) == WorldFlags.GameClient;
+            foreach (var w in World.All)
+                if (w.IsCreated && (w.Flags & WorldFlags.GameServer) == WorldFlags.GameServer)
+                    joined = false;
+            if (joined)
+            {
+                var host = IslandV2.HostVersion;
+                if (host == 0)
+                {
+                    if (waitingSince < 0f)
+                        waitingSince = UnityEngine.Time.realtimeSinceStartup;
+                    if (UnityEngine.Time.realtimeSinceStartup - waitingSince < HostWait)
+                        return false;
+                    Debug.LogWarning($"[island] no island version from the host after {HostWait:F0} s; baking this launch's v{version} ({World.Name})");
+                }
+                else if (host != version)
+                {
+                    Debug.Log($"[island] host runs island v{host}; this launch asked for v{version}: switching to v{host} ({World.Name})");
+                    version = host;
+                }
+                else
+                    Debug.Log($"[island] host runs island v{host}, the same as this launch ({World.Name})");
+                v2 = version != 1;
+            }
+            decided = true;
+            return true;
+        }
 
         /// <summary>
         /// The landmark count and fingerprint hash: each instance as "type x z scale", sorted, FNV-1a. Logged for both
@@ -403,7 +456,7 @@ namespace Punchy.Terrain
 
         protected override void OnUpdate()
         {
-            if (done) return;
+            if (done || !DecideVersion()) return;
             var entity = query.GetSingletonEntity();
             var source = EntityManager.GetComponentData<TerrainSource>(entity);
             var palette = EntityManager.GetComponentObject<BiomePalette>(entity);
@@ -412,6 +465,7 @@ namespace Punchy.Terrain
                 // Version 1 keeps its baked terrain: just report the landmarks once they've loaded.
                 if (!source.Landmarks.IsCreated || palette.Landmarks == null) return;
                 done = true;
+                IslandV2.ActiveVersion = 1;
                 Debug.Log($"[island] generator version 1 (baked); {LandmarkHash(ref source, palette)}");
                 Debug.Log(BatFolkBaking.Report(source));
                 Debug.Log(IcebergBaking.Report(source));
@@ -423,12 +477,14 @@ namespace Punchy.Terrain
             // #23 (W-27b): one bake per process. A host has a server and a client world (and hosting from solo
             // replaces the solo world with both), each with its own TerrainSource; baking in each blocked the main
             // thread ~4 s per world, and the host's own connection timed out. Later worlds take the first bake's
-            // blobs (Persistent, never disposed, read-only once baked).
-            if (Shared.Ready)
+            // blobs (Persistent, never disposed, read-only once baked). P-2: kept per version, so a client that
+            // switches to the host's version rebakes rather than taking another version's island.
+            if (Shared.Has(version))
             {
-                Shared.ApplyTo(ref source);
+                Shared.ApplyTo(ref source, version);
                 EntityManager.SetComponentData(entity, source);
                 shares = true; Shared.Users++;
+                IslandV2.ActiveVersion = version;
                 // W-74 (0c): this world's palette needs the same appended types as the baking world's, or its
                 // landmark names (WorldSync.Signature) differ and the host refuses its own client.
                 LandmarkTypes(palette);
@@ -460,8 +516,9 @@ namespace Punchy.Terrain
             Debug.Log(Archipelago.LastLog);
             long archMs = watch.ElapsedMilliseconds - fallsAt - fallsMs;
             EntityManager.SetComponentData(entity, source);
-            Shared.Keep(source);
+            Shared.Keep(source, version);
             shares = true; Shared.Users++;
+            IslandV2.ActiveVersion = version;
             long placesMs = watch.ElapsedMilliseconds - genMs;
 
             string hashText = LandmarkHash(ref source, palette);
@@ -481,8 +538,7 @@ namespace Punchy.Terrain
         /// </summary>
         static class Shared
         {
-            public static bool Ready;
-            static TerrainSource baked;
+            static readonly Dictionary<int, TerrainSource> bakes = new Dictionary<int, TerrainSource>();
 
             // W-73: worlds using the blobs, and whether the app (or Play mode) is quitting. Play mode keeps statics
             // (domain reload is off), so the old Reset dropped a whole bake (~22 MB of Persistent blobs) per cycle.
@@ -496,6 +552,7 @@ namespace Punchy.Terrain
             {
                 Dispose();   // whatever an earlier Play session left (no world from it is alive any more)
                 Users = 0;
+                IslandV2.HostVersion = 0; IslandV2.ActiveVersion = 0;
 #if UNITY_EDITOR
                 UnityEditor.EditorApplication.playModeStateChanged -= OnPlayMode;
                 UnityEditor.EditorApplication.playModeStateChanged += OnPlayMode;
@@ -512,21 +569,26 @@ namespace Punchy.Terrain
             }
 #endif
 
-            public static void Keep(in TerrainSource source) { baked = source; Ready = true; }
+            public static bool Has(int version) => bakes.ContainsKey(version);
+
+            public static void Keep(in TerrainSource source, int version) => bakes[version] = source;
 
             /// <summary>A world that took the blobs is gone (see <see cref="Users"/>).</summary>
             public static void Release() => Users = Math.Max(0, Users - 1);
 
-            /// <summary>Frees every blob this system's bake made (the subscene's own blobs belong to the subscene).</summary>
+            /// <summary>Frees every blob this system's bakes made, every version (the subscene's own blobs belong to
+            /// the subscene), then forgets them.</summary>
             static void Dispose()
             {
-                if (!Ready) return;
-                Ready = false;
-                Free(ref baked.BiomeMap); Free(ref baked.Island); Free(ref baked.V3Ground);
-                Free(ref baked.Rivers); Free(ref baked.Landmarks); Free(ref baked.Settlements); Free(ref baked.Caves);
-                Free(ref baked.BatFolk); Free(ref baked.Icebergs); Free(ref baked.GrandFalls); Free(ref baked.Archipelago);
-                Free(ref baked.Anchors); Free(ref baked.PondMask);
-                baked = default;
+                foreach (var kv in bakes)
+                {
+                    var baked = kv.Value;
+                    Free(ref baked.BiomeMap); Free(ref baked.Island); Free(ref baked.V3Ground);
+                    Free(ref baked.Rivers); Free(ref baked.Landmarks); Free(ref baked.Settlements); Free(ref baked.Caves);
+                    Free(ref baked.BatFolk); Free(ref baked.Icebergs); Free(ref baked.GrandFalls); Free(ref baked.Archipelago);
+                    Free(ref baked.Anchors); Free(ref baked.PondMask);
+                }
+                bakes.Clear();
             }
 
             static void Free<T>(ref BlobAssetReference<T> blob) where T : unmanaged
@@ -535,8 +597,9 @@ namespace Punchy.Terrain
                 blob = default;
             }
 
-            public static void ApplyTo(ref TerrainSource source)
+            public static void ApplyTo(ref TerrainSource source, int version)
             {
+                var baked = bakes[version];
                 source.BiomeKind = baked.BiomeKind;
                 source.BiomeMap = baked.BiomeMap;
                 source.Island = baked.Island;

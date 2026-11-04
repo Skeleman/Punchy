@@ -6,11 +6,12 @@ namespace Punchy.Net
 {
     /// <summary>
     /// Network settings for every connection we make: Netcode's defaults, but a crashed peer is given up on after
-    /// <see cref="DisconnectTimeoutMS"/> instead of 30 s, so a player whose host vanishes carries on alone sooner.
+    /// <see cref="DisconnectTimeoutMS"/> (P-4: back to 30 s from 10 s: the island bake blocks the main thread ~6 s,
+    /// and with start-up loading a host's own link or a baking joiner went past 10 s and was dropped).
     /// </summary>
     public static class NetDrivers
     {
-        public const int DisconnectTimeoutMS = 10000;
+        public const int DisconnectTimeoutMS = 30000;
 
         public static NetworkSettings Client() => WithTimeout(DefaultDriverBuilder.GetNetworkClientSettings());
         public static NetworkSettings Server() => WithTimeout(DefaultDriverBuilder.GetNetworkServerSettings());
