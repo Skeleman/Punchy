@@ -185,8 +185,12 @@ namespace Punchy.Items
                 {
                     var m = em.GetComponentData<PutRpc>(r);
                     var from = em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection;
+                    Carry(PlayerId(em, from), m.Item, -m.Count);
                     if (!HostPut(m.Container, m.Item, m.Count, "host, for a client") && em.Exists(from))
+                    {
                         Send(em, from, new GrantRpc { Item = m.Item, Count = m.Count });   // (full: back to them)
+                        Carry(PlayerId(em, from), m.Item, m.Count);
+                    }
                     em.DestroyEntity(r);
                 }
             using (var q = em.CreateEntityQuery(typeof(TakeRpc), typeof(ReceiveRpcCommandRequest)))
@@ -199,6 +203,7 @@ namespace Punchy.Items
                     {
                         var s = c.Slots[m.Slot];
                         SetSlot(m.Container, m.Slot, 255, 0, "host, for a client");
+                        Carry(PlayerId(em, from), s.item, s.count);
                         Send(em, from, new GrantRpc { Item = s.item, Count = (byte)math.min(s.count, 255) });
                     }
                     em.DestroyEntity(r);

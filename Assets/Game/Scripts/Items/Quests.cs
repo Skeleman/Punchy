@@ -28,6 +28,9 @@ namespace Punchy.Items
         public string item;
         public int count = 1;
         public string text;
+        /// <summary>"clear" (P-17): the species to drive off, and how far round the board (m).</summary>
+        public string creature;
+        public float radius = 25f;
         public string reward = "Coin";
         public int rewardCount = 5;
     }
@@ -66,6 +69,7 @@ namespace Punchy.Items
         int targetBoard = -1;
         bool atBoardArg, takeQuestArg, turnInArg;
         int takeQuestsArg;
+        bool handingIn;
         float questTestAt;
         string giveArg;
 
@@ -107,7 +111,7 @@ namespace Punchy.Items
         {
             var q = quests[boards[board].Offers[slot] % quests.Length];
             var place = $"the notice board in {boards[board].Town}";
-            return (q.text ?? "").Replace("{item}", q.item).Replace("{count}", q.count.ToString()).Replace("{town}", boards[board].Town).Replace("{place}", place);
+            return (q.text ?? "").Replace("{item}", q.item).Replace("{count}", q.count.ToString()).Replace("{town}", boards[board].Town).Replace("{place}", place).Replace("{creature}", q.creature ?? "");
         }
 
         /// <summary>Called from Update: reloading, the boards, the Use key at a board, the tests.</summary>
@@ -141,6 +145,8 @@ namespace Punchy.Items
                 }
             }
             QuestTests(player);
+            CheckTests(player);
+            UpdateClearing();
         }
 
         /// <summary>The slot to act on at a board: one taken and ready to hand in, else the first not yet taken (-1: none).</summary>
@@ -253,7 +259,10 @@ namespace Punchy.Items
                 }
             Debug.Log($"Quests: handed in {q.count} {q.item} at board {board} ({boards[board].Town}); inventory: {DescribeInventory()}");
             if (Joined)
+            {
+                handingIn = true;
                 SendToHost(new TurnInRpc { Board = board, Slot = (byte)slot });
+            }
             else
             {
                 myQuests[(board, slot)] = 2;
@@ -314,16 +323,21 @@ namespace Punchy.Items
                     var m = em.GetComponentData<TurnInRpc>(r);
                     var from = em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection;
                     var id = em.Exists(from) ? em.GetComponentData<NetworkId>(from).Value : -1;
-                    HostRecord(id, m.Board, m.Slot, 2, "host, for a client");
-                    if (em.Exists(from)) Send(em, from, new QuestStateRpc { Board = m.Board, Slot = m.Slot, State = 2 });
+                    // (P-17: only if the host saw this player carry what the quest asks for.)
+                    var ok = m.Board >= 0 && m.Board < boards.Count && m.Slot < boards[m.Board].Offers.Length && CheckHandIn(id, m.Board, m.Slot);
+                    if (ok)
+                        HostRecord(id, m.Board, m.Slot, 2, "host, for a client");
+                    if (em.Exists(from)) Send(em, from, new QuestStateRpc { Board = m.Board, Slot = m.Slot, State = (byte)(ok ? 2 : 1) });
                     em.DestroyEntity(r);
                 }
         }
 
         void ReceiveQuestState(QuestStateRpc m)
         {
+            var was = myQuests.TryGetValue((m.Board, m.Slot), out var w) ? w : 0;
             myQuests[(m.Board, m.Slot)] = m.State;
-            Debug.Log($"Quests: board {m.Board} slot {m.Slot} {(m.State == 2 ? "done" : "taken")} (from the host)");
+            Debug.Log($"Quests: board {m.Board} slot {m.Slot} {(m.State == 2 ? "done" : was == 1 && handingIn ? "hand-in refused by the host" : "taken")} (from the host)");
+            handingIn = false;
         }
 
         void QuestTests(LocalTransform player)
@@ -376,6 +390,14 @@ namespace Punchy.Items
             {
                 turnInArg = false;
                 var slot = NextSlot(nearest, out var ready);
+                if (fakeHandInArg && !ready)
+                {
+                    // (Test: hand in a taken quest without the items, to see the host refuse it.)
+                    for (int s = 0; s < boards[nearest].Offers.Length; s++)
+                        if (myQuests.TryGetValue((nearest, s), out var st) && st == 1)
+                            (slot, ready) = (s, true);
+                    Debug.Log($"Quests: -fakehandin: board {nearest} slot {slot}, without the items");
+                }
                 Debug.Log($"Quests: -turnin: board {nearest} slot {slot} ({(ready ? "has the items" : "doesn't have the items")})");
                 if (slot >= 0 && ready) TurnIn(nearest, slot);
             }

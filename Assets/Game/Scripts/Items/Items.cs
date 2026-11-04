@@ -142,6 +142,7 @@ namespace Punchy.Items
             instance.putArg = System.Array.IndexOf(args, "-putitem") >= 0;
             instance.takeArg = System.Array.IndexOf(args, "-takeitem") >= 0;
             instance.QuestArgs(args);
+            instance.CheckArgs(args);
         }
 
         bool Hosting => server != null && server.IsCreated && server.IsServer();
@@ -463,7 +464,10 @@ namespace Punchy.Items
                     var uid = em.GetComponentData<PickupRpc>(r).Uid;
                     var from = em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection;
                     if (Take(uid, out var it) && em.Exists(from))
+                    {
                         Send(em, from, new GrantRpc { Item = it.Item, Count = it.Count });
+                        Carry(PlayerId(em, from), it.Item, it.Count);   // (P-17: the host's tally)
+                    }
                     em.DestroyEntity(r);
                 }
             using (var q = em.CreateEntityQuery(typeof(DropRpc), typeof(ReceiveRpcCommandRequest)))
@@ -471,6 +475,7 @@ namespace Punchy.Items
                 foreach (var r in rs)
                 {
                     var d = em.GetComponentData<DropRpc>(r);
+                    Carry(PlayerId(em, em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection), d.Item, -d.Count);
                     Spawn(d.Item, d.Count, d.Pos);
                     em.DestroyEntity(r);
                 }
