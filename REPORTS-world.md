@@ -2,6 +2,34 @@
 
 Newest first.
 
+## W-70b (2026-11-03): v3 walkable passes, notched pass walls, landmark drop
+
+- Commit: b83c9c7 on world-features (pushed). V3Ground.cs, V3Ranges.cs, TerrainSource.ShapeHeight. All behind `-island v3`.
+- Row 1, cause: biome shape, not rivers or rock. The range field was fine, but (a) biome relief stood in the saddle, and (b) the blurred shape weights wobble every ~40 m between biomes with different base elevations (Temperate-Cold: 15-20 m bumps every 40 m), which alone gave 50+ deg steps.
+- Row 1, fix (per Zach's change: steep bits OK, no walls, one walkable line): each pass gets a narrow track (12-60 m wide, the width wanders along it). On the track, biome relief fades to 0 and base elevations are ring-averaged (8 taps at 90 m). The rest of the pass box keeps its crags, but relief is notched by gullies on a 96 m world grid (40% relief kept in the gully), so long faces are broken.
+- Pass slopes: max slope along the walkable line / range field alone, and the longest over-60-deg wall in the pass:
+  - Wet-Cold 26/13, wall 72 m
+  - Volcanic-Arid 12/11, wall 0 m
+  - Arid-Temperate (2232,1734) 17/13, wall 88 m
+  - Arid-Temperate (1405,835) 10/8, wall 56 m
+  - Temperate-Cold 27/10, wall 152 m (still the longest; notching took it from 192 to 152)
+  - Worst pass 27 deg. MET (all 5 under 45).
+  - Walls before notching: 40 / 0 / 152 / 160 / 192 m.
+- Row 2: W-70 gave every interior cell edge the wide 480 m blend, because no range stands there and that counted as "open". The surface blur then pulled most spots under the 90% dominant-biome landmark threshold. Now the wide blend applies only within about one radius of a realm border. v3 landmarks: 86 -> 111 (W-69 had 141; the rest moved with the new v3 terrain and rock).
+- Row 3 shots, in D:\PunchyMilestones\W-70b:
+  - w70b_v3_pass_worst.png: pass at (2232,1734), W-70 framing.
+  - w70b_v3_cliff_Arid.png: (272,-208), slope 82 deg, 99 m drop over 30 m. 1619 cells over 50 deg in Arid.
+  - w70b_v3_cliff_Volcanic.png: (224,-280), slope 84 deg, 35 m drop. 133 cells over 50 deg in Volcanic.
+- Audit (v3): `[hydro audit] rivers 22 (ends 11, open 0), lakes 62 (9974 cells), falls 65 + grand 0, pools 35 (dry 0), ponds 47, dry beds 0 | grid 8 m: wet 49516, steep 740, water over ground 552, land between 35, floating 11, near falls 159`
+  - Lakes fell from 100 to 62: the notched pass boxes changed where basins hold water.
+  - Land overall: over 45 deg 38531 / 773399 cells, max 85.
+- Hashes:
+  - v1 (unchanged): 103 / 19885131, caves 47C703C0E17F77CB, ground A96DC8AA7978A9A7, rivers 9833D8B2BD09C77E.
+  - v2 (unchanged): 136 / 4E61F1CF, caves C49E8E3036C741FC, ground C0C906EE310FA91F, rivers 835B1404BEBDF563.
+  - W70Probe's W-68-recipe line read 8B429C2B75DCBADF (v2). It differs from the A77D2ED7B919296E in W-70, while every other v2 hash matches, so this is probably a probe-recipe difference. Not chased.
+  - v3: 111 / A96593A9, caves 26 / 36019D3F36E79493, ground AA3740C3D5A99D61, rivers B0356AAD4A717AB9.
+- Calls used: ~62 (over the ~60 ceiling: the mid-task pass brief change cost one extra measure loop). Editor closed at the end.
+
 ## W-70 (2026-11-03): v3 B3 biome blend and bleed, B4 rock and scree
 
 - Commit: dbce62f on world-features (pushed). New V3Ground.cs; small hooks in TerrainSource, IslandV2, IslandV3. All behind `-island v3`.
