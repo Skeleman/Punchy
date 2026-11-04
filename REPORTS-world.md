@@ -2,6 +2,40 @@
 
 Newest first.
 
+## W-73 (2026-11-03): bake blob leak, pass bank, bake profile
+
+world-features: 2d6ad34 (rows 1-2), 9765d71 (row 3). Not on main.
+
+- Row 1, leak: fixed. Domain reload is off, so IslandV2System.Shared.Reset dropped the 13 Persistent bake blobs every play cycle. Worlds now refcount the shared bake. The blobs are freed when Play mode ends with no world using them, and before assembly reload. #23 sharing is unchanged. 10 v3 enter/exit cycles with leak detection (EnabledWithStackTrace): Total Used 1013 MB at start, 1035 after cycle 1, then 1035/1047/1048/1036/1037/1036/1037/1016/1017 MB. That is flat: +4 MB net, 32 MB peak-to-peak (it was ~+22 MB per cycle). 0 leak warnings, 0 exceptions.
+- Row 2, bake profile (v3): the bake is 6.0-6.4 s (generate 1.2 s, places 4.8-5.2 s). The 18 s is the end-of-bake reports at 17.4-18.5 s: V3Audit + V3Ranges.Checks + V3Ground.Report, which run on every v3 bake (IslandV2.cs line 475). v3 is ready at ~31 s, v2 at ~14 s. The 3 slowest steps: **reports 17400-18500 ms**, **batfolk 2084-2202 ms**, **rivers 1502-1616 ms**. Next: settlements 427, ranges 563-717, v2base 526, caves 483-537, grand falls 1-4, archipelago (v2 107). No fix made: making the reports editor-only or on-request touches the audit workflow. Suggest a card: run them only on request (~17 s back per v3 bake).
+- Row 3, pass: partial, 43 -> **36 deg** (field 13). Not under 30. The 43 deg step at (-578,874) was a rough river bank (bank slope up to 1.2 rise/m) crossing the track: carve 3.6 m in 4 m at track 0.99. Query now takes a bank slope cap, and TerrainSource.PassBankCap lerps it from 1.25 to 0.5 rise/m across the pass track. New best line: 36 deg at (-505,974), shape 2.8 m in 4 m at track 0.84 (relief that is left at the track edge). Lines 0/1 still have 36/43 deg steps near (-600,765) at track ~1. Other passes: Wet-Cold 26 -> 25, the rest unchanged. Land over 45 deg 37043 -> 36476, max 85.
+- Row 3, top rounding: top = max(smoothstep(35,95,field), smoothstep(100,160,field+base) * smoothstep(15,40,field)). Range 3 top-15%: 30 deg / 38% / 51.5 convexity before, **31 deg / 39% / 61.2** after. It did not help and is a bit worse. Its top cells are now field 90, base 95, total 185 (were 66/104/170). Overall ground top15: 16.8/9.4%/15.8 -> 16.2/8.0%/14.55. Likely cause: base elevation jumps between Hills and its neighbours, so `top` changes quickly across the range. Next try: blur the base elevation, or revert this half.
+- Hashes, rows 1-2 (all unchanged vs W-72): v1 103/19885131, caves 47C703C0E17F77CB, ground A96DC8AA7978A9A7, rivers 9833D8B2BD09C77E. v2 136/4E61F1CF, caves C49E8E3036C741FC, ground C0C906EE310FA91F, rivers 835B1404BEBDF563. v3 110/C1CD73AE, caves 300F01C693A56304, ground AAB8C9CFFF5D8029, rivers E783445189E1B572.
+- Hashes, row 3: v1 and v2 unchanged (same as above). v3 is now 108/4D2643D7, caves 25 / B5CF07D35E0B3AED, ground 7D490D9220C4E743, rivers BCF87133353A873F. Audit: rivers 22 (ends 11, open 0), lakes 101 (9432 cells), falls 79, pools 35 (dry 0), ponds 45, dry beds 0 | wet 47738, steep 622, water over ground 576, land between 31, floating 17. The audit on unchanged code was already wet 47714 / steep 634 / over 557 / between 29 / floating 16, not the numbers in the W-72 report.
+- Editor closed. QualitySettings.asset and Assets/Temp are not committed. W73Probe.cs is scratch in Assets/Temp. Calls used: ~66 (over the ~60 ceiling, because of eval timeouts and a wasted first open).
+
+## W-72 (2026-11-03): v3 rounded mountain tops
+
+- Commit: 7239c07 on world-features (pushed). V3Ranges.cs, TerrainSource.ShapeHeight, BiomeSampling.Relief (new `round` argument, 0 = old heights exactly). All behind `-island v3`.
+- Cause: mostly the biome relief on the range tops, not the range field. Ridged biome relief (abs of noise, sharp creases, fine octaves) sits on the crests, e.g. biome 15 (Ridged, relief 110 m, ~220 m wavelength) on range 2. The range field itself had a V crest (`pow(1-u, 1.8)`) and ridged-noise cusps along the spine and on the massif, but was much smoother.
+- Fix: range cross-section crest rounded (soft distance, dome about a quarter of the half width); soft abs on the along-spine and massif ridged noise; on range tops (range field 35-95 m and up) biome relief gets soft creases, about half its fine octaves, sharpness eased toward 1, and up to 45% less height. Flanks below keep their crags.
+- Spikiness (top 15% of each range's height, foot = 10th percentile; mean slope / share over 35 deg / convexity = minus the Laplacian at 12 m, 1/km):
+  - Ground before: 19.6 deg / 9.1% / 22.3. Worst range (2) 41 deg / 61% / 211.
+  - Ground after: 16.8 deg / 9.4% / 15.8. Range 2 26 deg / 30% / 53.5.
+  - Range field alone: 15.6 deg / 8.1 before, 11.9 deg / 4.4 after.
+  - Still rough: range 3 (30 deg / 38% / 52, was 30 / 34% / 79). Its top is biome 12 (Hills, base 120 m, relief 90) at a range field of only ~73 m, so it is a high plateau's bumps more than a crest. A follow-up could key the rounding on total height, not the range field.
+- Pass slopes (walkable line / range field alone, longest over-60 wall): Wet-Cold 26/20, wall 72 m; Volcanic-Arid 16/16, 0 m; Arid-Temperate (2232,1734) 15/14, 56 m; Arid-Temperate (1405,835) 13/11, 48 m; Temperate-Cold 43/13, 176 m. Worst 43 deg, all under 45, but Temperate-Cold went from 27 to 43: its steepest step is at (-578,874), ~750 m down the walk line from the saddle, with a carve of 3.6 m. Worth a look before more v3 changes.
+- Land: over 45 deg 37043 / 774902 cells (W-70b 38531), max 85.
+- Audit (v3): `[hydro audit] rivers 22 (ends 11, open 0), lakes 101 (9434 cells), falls 77 + grand 0, pools 35 (dry 0), ponds 45, dry beds 0 | grid 8 m: wet 48873, steep 618, water over ground 558, land between 27, floating 12`
+- Hashes:
+  - v1 (unchanged): 103 / 19885131, caves 47C703C0E17F77CB, ground A96DC8AA7978A9A7, rivers 9833D8B2BD09C77E.
+  - v2 (unchanged): 136 / 4E61F1CF, caves C49E8E3036C741FC, ground C0C906EE310FA91F, rivers 835B1404BEBDF563.
+  - v3: 110 / C1CD73AE, caves 25 / 300F01C693A56304, ground AAB8C9CFFF5D8029, rivers E783445189E1B572.
+- Shots, in D:\PunchyMilestones\W-72:
+  - w72_v3_pass_worst.png: pass at (2232,1734), W-70b framing.
+  - w72_v3_skyline.png: range 0 (longest mountain range) from the side, 2.2 km out, mid at (-1991,386).
+- Calls used: ~52. The first two editor opens failed on probe compile errors (my scratch probe). Editor closed at the end.
+
 ## W-70b (2026-11-03): v3 walkable passes, notched pass walls, landmark drop
 
 - Commit: b83c9c7 on world-features (pushed). V3Ground.cs, V3Ranges.cs, TerrainSource.ShapeHeight. All behind `-island v3`.
