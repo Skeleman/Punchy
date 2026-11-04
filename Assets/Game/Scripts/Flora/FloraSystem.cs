@@ -303,6 +303,11 @@ namespace Punchy.Flora
             // Rebuild everything when the terrain is re-baked or (in the editor) a biome's flora or a species changes.
             if (built && (!source.Equals(lastSource) || ConfigChanged(palette)))
                 Teardown();
+            // W-79b (#102): not before the island is baked. The first build used to run on the old terrain (~4 s, its
+            // plants not pregrown) and was thrown away when the bake replaced it; now the one build follows the bake,
+            // whose plants grew on worker threads beside it.
+            if (!built && WaitForIsland && Punchy.Terrain.IslandV2.ActiveVersion == 0)
+                return;
             if (!built)
             {
                 Build(palette);
@@ -395,17 +400,50 @@ namespace Punchy.Flora
             return ConfigStamp(palette) != configStamp;
         }
 
+        /// <summary>When off, the plants are built before the island is baked too, and again after it (for before/after timing).</summary>
+        public static bool WaitForIsland = System.Environment.GetEnvironmentVariable("PUNCHY_FLORAWAIT") != "0";
+
+        /// <summary>When off, Build grows every variant on the main thread (for before/after timing).</summary>
+        public static bool PregrowOn = true;
+
+        /// <summary>
+        /// Starts growing every flora and cave plant variant the palette uses on worker threads, so the bake can run
+        /// beside it; Build (and the caves) then only turn the grown parts into meshes. Returns the variants started.
+        /// </summary>
+        public static int Pregrow(BiomePalette palette)
+        {
+            if (!PregrowOn || palette == null)
+                return 0;
+            var species = new List<FloraSpecies>();
+            FloraPlacement.CollectSpecies(palette, species);
+            var list = new List<(FloraSpecies, int)>();
+            foreach (var s in species)
+                list.Add((s, s.Variants));
+            foreach (var s in Punchy.Terrain.CaveFloraTable.Collect(palette.Landmarks))
+                if (s != null)
+                    list.Add((s, Punchy.Terrain.CaveSystem.PlantVariants));
+            return FloraGenerator.Pregrow(list);
+        }
+
         void Build(BiomePalette palette)
         {
             // Species ordered by layer, so each layer's models are contiguous.
             var cellSizes = new float3(FloraPlacement.CellSize(Ground.TileSize, Ground.CellSize),
                                        FloraPlacement.CellSize(Shrubs.TileSize, Shrubs.CellSize),
                                        FloraPlacement.CellSize(Trees.TileSize, Trees.CellSize));
+            var clock = System.Diagnostics.Stopwatch.StartNew();
             placement = FloraPlacement.Build(palette, cellSizes, species);
+            var placed = clock.Elapsed.TotalMilliseconds;
             foreach (var s in species)
                 for (int v = 0; v < s.Variants; v++)
                     models.Add(FloraGenerator.Grow(s, v));
+            var grown = clock.Elapsed.TotalMilliseconds;
             BuildSupportGrids();
+            long vertices = 0;
+            foreach (var m in models)
+                foreach (var lod in m.Lods)
+                    vertices += lod != null ? lod.vertexCount : 0;
+            Debug.Log($"[flora] build {clock.Elapsed.TotalMilliseconds:F0} ms (placement {placed:F0}, grow {grown - placed:F0}, support grids {clock.Elapsed.TotalMilliseconds - grown:F0}); {models.Count} variants, {vertices} vertices");
             ref var rules = ref placement.Value.Rules;
 
             var settings = new[] { Ground, Shrubs, Trees };
@@ -511,7 +549,8 @@ namespace Punchy.Flora
 
             // Placement runs in the background: collect each layer's finished batch, then start the next one with the
             // nearest missing tiles, within a shared per-frame budget (near layers first).
-            var budget = CellsPerFrame;
+            // W-75: larger batches while the world first loads (no frame to protect before the player spawns).
+            var budget = Punchy.Terrain.TerrainStreamingSystem.Loading ? CellsPerFrame * 4 : CellsPerFrame;
             foreach (var l in layers)
             {
                 if (l.ModelCount == 0)

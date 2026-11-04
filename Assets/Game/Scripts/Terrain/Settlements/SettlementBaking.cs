@@ -549,7 +549,7 @@ namespace Punchy.Terrain
                 if (hi - lo > layout.MaxRelief * scale)
                     return false;
 
-                var reach = math.length(half) + SettlementSampling.PadBlend;
+                var reach = math.length(half) + SettlementSampling.PadBlendMax;
                 plots.Add(new SettlementPlot
                 {
                     Centre = centre,

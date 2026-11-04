@@ -21,8 +21,27 @@ namespace Punchy.Terrain
     /// </summary>
     public static class RiverBaking
     {
+        /// <summary>
+        /// W-76: the drainage grid before any meander-dependent step (cell heights and rain, flood levels and order,
+        /// downstream links and widths). It only depends on the ground and the settings, so a second bake of the same
+        /// ground (island v2's jittered and meandering maps) copies it instead of sampling and flooding again.
+        /// </summary>
+        public sealed class Drainage : System.IDisposable
+        {
+            internal NativeArray<float> Elevation, Rain, Level, Width;
+            internal NativeArray<int> Down;
+            internal NativeArray<int> Order;
+            public void Dispose()
+            {
+                if (!Elevation.IsCreated) return;
+                Elevation.Dispose(); Rain.Dispose(); Level.Dispose(); Width.Dispose(); Down.Dispose(); Order.Dispose();
+            }
+        }
+
+        /// <param name="drainage">W-76: null, or a Drainage shared by bakes of the same ground and settings: empty on
+        /// the first bake (filled by it), copied by the next instead of recomputing (bit-identical).</param>
         public static BlobAssetReference<RiverMapBlob> Build(in TerrainSource source, in RiverSettings settings, Allocator allocator,
-                                                             bool meander = true)
+                                                             bool meander = true, Drainage drainage = null)
         {
             // Cover the landmass plus a margin of sea so every river reaches the coast.
             var cellSize = math.max(settings.CellSize, 4f);
@@ -48,23 +67,34 @@ namespace Punchy.Terrain
 
             try
             {
-                var sample = new SampleCellsJob
+                var reuse = drainage != null && drainage.Elevation.IsCreated && drainage.Elevation.Length == count;
+                var flow = default(JobHandle);
+                if (reuse)
                 {
-                    Source = source, Settings = settings, Origin = origin, CellSize = cellSize, Resolution = resolution,
-                    Elevation = elevation, Rain = rain
-                }.Schedule(count, 256);
+                    elevation.CopyFrom(drainage.Elevation); rain.CopyFrom(drainage.Rain); level.CopyFrom(drainage.Level);
+                    width.CopyFrom(drainage.Width); down.CopyFrom(drainage.Down);
+                    order.Clear(); order.AddRange(drainage.Order);
+                }
+                else
+                {
+                    var sample = new SampleCellsJob
+                    {
+                        Source = source, Settings = settings, Origin = origin, CellSize = cellSize, Resolution = resolution,
+                        Elevation = elevation, Rain = rain
+                    }.Schedule(count, 256);
 
-                var flood = new PriorityFloodJob
-                {
-                    Resolution = resolution, CellSize = cellSize, SeaLevel = source.World.SeaLevel,
-                    Elevation = elevation, Level = level, Down = down, Order = order
-                }.Schedule(sample);
+                    var flood = new PriorityFloodJob
+                    {
+                        Resolution = resolution, CellSize = cellSize, SeaLevel = source.World.SeaLevel,
+                        Elevation = elevation, Level = level, Down = down, Order = order
+                    }.Schedule(sample);
 
-                var flow = new FlowJob
-                {
-                    Settings = settings, CellSize = cellSize, SeaLevel = source.World.SeaLevel,
-                    Elevation = elevation, Rain = rain, Down = down, Order = order, Width = width
-                }.Schedule(flood);
+                    flow = new FlowJob
+                    {
+                        Settings = settings, CellSize = cellSize, SeaLevel = source.World.SeaLevel,
+                        Elevation = elevation, Rain = rain, Down = down, Order = order, Width = width
+                    }.Schedule(flood);
+                }
 
                 // W-37: segment points need the widths, and every later step reads them.
                 new PathPointsJob
@@ -72,6 +102,16 @@ namespace Punchy.Terrain
                     Resolution = resolution, Origin = origin, CellSize = cellSize, Meander = settings.Meander, Seed = seed,
                     Smooth = settings.Smooth && meander, Down = down, Width = width, Points = points
                 }.Schedule(flow).Complete();
+                if (drainage != null && !reuse)
+                {
+                    drainage.Dispose();
+                    drainage.Elevation = new NativeArray<float>(elevation, Allocator.Persistent);
+                    drainage.Rain = new NativeArray<float>(rain, Allocator.Persistent);
+                    drainage.Level = new NativeArray<float>(level, Allocator.Persistent);
+                    drainage.Width = new NativeArray<float>(width, Allocator.Persistent);
+                    drainage.Down = new NativeArray<int>(down, Allocator.Persistent);
+                    drainage.Order = new NativeArray<int>(order.AsArray(), Allocator.Persistent);
+                }
 
                 var lake = new LakeJob
                 {

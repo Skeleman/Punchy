@@ -72,6 +72,7 @@ namespace Punchy.Ambience
 
         void Teardown()
         {
+            DropPending();
             foreach (var t in tiles.Values)
                 t.Dispose();
             tiles.Clear();
@@ -157,6 +158,8 @@ namespace Punchy.Ambience
 
         void Stream(in TerrainSource source, float2 camXZ)
         {
+            if (hasPending)
+                Finish(source);
             scratch.Clear();
             foreach (var kv in tiles)
                 if (math.distance(TileCentre(kv.Key), camXZ) > radius + TileSize * 1.5f)
@@ -216,7 +219,7 @@ namespace Punchy.Ambience
             }
             var output = new NativeArray<Particle>(count * perTile, Allocator.TempJob);
             var keep = new NativeArray<byte>(count * perTile, Allocator.TempJob);
-            new PlaceJob
+            pendingJob = new PlaceJob
             {
                 Source = source,
                 Densities = densities,
@@ -230,8 +233,59 @@ namespace Punchy.Ambience
                 PerTile = perTile,
                 Output = output,
                 Keep = keep
-            }.Schedule(output.Length, 32).Complete();
+            }.Schedule(output.Length, 32);
+            pending = new Pending { Coords = coords, SlotType = slotType, SlotDensity = slotDensity, GroundTint = groundTint, Output = output, Keep = keep, SlotsPerType = slotsPerType, SlotStart = slotStart, PerTile = perTile };
+            hasPending = true;
+        }
 
+        // W-75 (#62): the place job runs while the rest of the frame does; its tiles are uploaded at the start of the
+        // next Stream, one frame later, which can't be seen at the edge of the detail range.
+        struct Pending
+        {
+            public NativeArray<int2> Coords;
+            public NativeArray<int> SlotType;
+            public NativeArray<float> SlotDensity;
+            public NativeArray<byte> GroundTint;
+            public NativeArray<Particle> Output;
+            public NativeArray<byte> Keep;
+            public int[] SlotsPerType, SlotStart;
+            public int PerTile;
+
+            public void Dispose()
+            {
+                Coords.Dispose();
+                SlotType.Dispose();
+                SlotDensity.Dispose();
+                GroundTint.Dispose();
+                Output.Dispose();
+                Keep.Dispose();
+            }
+        }
+
+        Pending pending;
+        JobHandle pendingJob;
+        bool hasPending;
+
+        void DropPending()
+        {
+            if (!hasPending)
+                return;
+            pendingJob.Complete();
+            pending.Dispose();
+            hasPending = false;
+        }
+
+        void Finish(in TerrainSource source)
+        {
+            pendingJob.Complete();
+            hasPending = false;
+            var coords = pending.Coords;
+            var output = pending.Output;
+            var keep = pending.Keep;
+            var slotsPerType = pending.SlotsPerType;
+            var slotStart = pending.SlotStart;
+            var perTile = pending.PerTile;
+            var count = coords.Length;
             var list = new List<Particle>();
             for (int i = 0; i < count; i++)
             {
@@ -263,12 +317,7 @@ namespace Punchy.Ambience
                 }
                 tiles[coords[i]] = tile;
             }
-            coords.Dispose();
-            slotType.Dispose();
-            slotDensity.Dispose();
-            groundTint.Dispose();
-            output.Dispose();
-            keep.Dispose();
+            pending.Dispose();
         }
 
         void Draw(float2 camXZ)

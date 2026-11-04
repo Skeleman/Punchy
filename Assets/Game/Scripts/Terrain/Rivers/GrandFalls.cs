@@ -16,6 +16,8 @@ namespace Punchy.Terrain
         public float PoolRadius;
         /// <summary>Distance along the path of the foot, where the pool starts.</summary>
         public float Along;
+        /// <summary>One stretch of the lake shelf's long fall (W-77): no plunge pool of its own, it drops straight into the lake.</summary>
+        public bool Shelf;
     }
 
     /// <summary>
@@ -34,6 +36,16 @@ namespace Punchy.Terrain
         public BlobArray<GrandFallTier> Tiers;
         /// <summary>(min x, min z, max x, max z), already grown by the widest bank.</summary>
         public float4 Bounds;
+
+        /// <summary>
+        /// The lake shelf (W-77, #88), v3 only: a long terrace of higher water along the central lake's shore that spills
+        /// over its whole lip as one continuous fall. Lip points are (x, z, out x, out z), out pointing at the lake;
+        /// empty when there is no shelf.
+        /// </summary>
+        public BlobArray<float4> ShelfLip;
+        /// <summary>Shelf water level, the lake's level below it, and the shelf's width behind the lip at its middle.</summary>
+        public float ShelfLevel, ShelfLake, ShelfWidth;
+        public float4 ShelfBounds;
     }
 
     public static class GrandFalls
@@ -55,7 +67,9 @@ namespace Punchy.Terrain
         public static float Shape(ref GrandFallsBlob set, float2 xz, float h, out float water, out float2 flow, out float rapids, out float mask)
         {
             water = GroundSample.NoWater; flow = float2.zero; rapids = 0f; mask = 0f;
-            if (math.any(xz < set.Bounds.xy) || math.any(xz > set.Bounds.zw))
+            if (set.ShelfLip.Length > 1 && math.all(xz >= set.ShelfBounds.xy) && math.all(xz <= set.ShelfBounds.zw))
+                return ShapeShelf(ref set, xz, h, out water, out flow, out rapids, out mask);
+            if (set.Nodes.Length < 2 || math.any(xz < set.Bounds.xy) || math.any(xz > set.Bounds.zw))
                 return h;
             // Nearest point on the path.
             float best = float.MaxValue, w = 0f, hw = 1f, s = 0f, drop = 0f, len = 1f;
@@ -83,7 +97,7 @@ namespace Punchy.Terrain
             for (int k = 0; k < set.Tiers.Length; k++)
             {
                 ref var tier = ref set.Tiers[k];
-                if (s < tier.Along - 0.5f) continue;
+                if (tier.Shelf || s < tier.Along - 0.5f) continue;
                 var r = math.distance(xz, tier.Pool.xz);
                 if (r > tier.PoolRadius + 40f) continue;
                 var poolLev = Level(r, tier.PoolRadius, tier.Pool.y, PoolDepth, h, out var poolWeight);
@@ -105,6 +119,210 @@ namespace Punchy.Terrain
             return math.lerp(h, lev, weight);
         }
 
+        /// <summary>Half a scored shore stretch in 2.5 degree rays (W-81: about 30 degrees either side), and the shelf's width.</summary>
+        const int ShelfHalfSteps = 12;
+
+        /// <summary>W-81 (#88): the lake shelf is tabled behind this flag, off by default (seed-derived either way: every
+        /// player must launch with the same setting). Turn it on with <c>-lakeshelf</c> or PUNCHY_LAKESHELF=1.</summary>
+        public static bool LakeShelfOn() =>
+            System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-lakeshelf") >= 0
+            || System.Environment.GetEnvironmentVariable("PUNCHY_LAKESHELF") == "1";
+        const float ShelfDepth = 50f;
+
+        /// <summary>
+        /// Bakes the lake shelf (W-77, #88): rays from the lake centre across the shelf's arc find the shore, smoothed
+        /// into one lip line; the long fall is a tier every 14 m along it.
+        /// </summary>
+        static BlobAssetReference<GrandFallsBlob> BuildShelf(in TerrainSource source, Allocator allocator)
+        {
+            var src = source;
+            var c = IslandV3.LakeCentre;
+            var g0 = src.SampleGround(c);
+            // W-77b (#88): the v3 central lake sits at sea level, so only ask for open water over the bed here.
+            if (!g0.HasWater || g0.WaterSurface < g0.Height + 0.5f)
+            {
+                LastLog += "; shelf none: no lake at the centre";
+                return default;
+            }
+            var lake = g0.WaterSurface;
+            // W-81 (#88): rays all round the lake find the shore and the ground behind it. Each stretch is scored by how
+            // far its middle sits back from the chord between its ends (a bay) and by the height of the land behind it
+            // (the mountain side), with a small seeded nudge; the shelf fills the best bay's back.
+            const int rays = 144; // every 2.5 degrees
+            var shoreR = new float[rays]; var behindH = new float[rays]; var rayDir = new float2[rays];
+            int open = 0;
+            for (int k = 0; k < rays; k++)
+            {
+                var ang = math.radians(k * 360f / rays);
+                var d = new float2(math.cos(ang), math.sin(ang));
+                rayDir[k] = d; shoreR[k] = -1f;
+                for (int j = 1; j <= 500; j++)
+                {
+                    var g = src.SampleGround(c + d * (4f * j));
+                    if (!g.HasWater || g.WaterSurface < g.Height + 0.3f || math.abs(g.WaterSurface - lake) > 1f) { shoreR[k] = 4f * j; break; }
+                }
+                if (shoreR[k] < 0f) { open++; continue; }
+                // The land behind: mean ground height 30-90 m past the shore.
+                float sum = 0f;
+                for (int j = 0; j < 4; j++) sum += src.SampleGround(c + d * (shoreR[k] + 30f + 20f * j)).Height;
+                behindH[k] = sum * 0.25f - lake;
+            }
+            const int half = ShelfHalfSteps;
+            var rng = new Unity.Mathematics.Random(math.max(1u, source.World.Seed * 747796405u + 2891336453u));
+            int bestK = -1; float bestScore = float.MinValue, bestBay = 0f, bestBehind = 0f;
+            for (int k = 0; k < rays; k++)
+            {
+                var nudge = rng.NextFloat(0f, 0.08f);
+                bool ok = true; float minBehind = float.MaxValue;
+                for (int s = -half; s <= half && ok; s++)
+                {
+                    var kk = (k + s + rays) % rays;
+                    if (shoreR[kk] < 0f) ok = false; else minBehind = math.min(minBehind, behindH[kk]);
+                }
+                // Only real high ground behind the whole stretch: a low saddle or an inlet to other water is no bay for it.
+                if (!ok || minBehind < 12f) continue;
+                int ka = (k - half + rays) % rays, kb = (k + half) % rays;
+                var a = c + rayDir[ka] * shoreR[ka]; var b = c + rayDir[kb] * shoreR[kb]; var m = c + rayDir[k] * shoreR[k];
+                // How far the middle sits behind the chord, away from the lake centre (positive = a bay).
+                var chordN = math.normalizesafe(new float2(b.y - a.y, a.x - b.x));
+                if (math.dot(chordN, m - c) < 0f) chordN = -chordN;
+                var bay = math.dot(m - a, chordN);
+                var chord = math.max(math.distance(a, b), 1f);
+                var score = math.clamp(bay / chord, -0.4f, 0.4f) * 1.5f + math.saturate(minBehind / 80f) * 1.5f + nudge;
+                if (score > bestScore) { bestScore = score; bestK = k; bestBay = bay; bestBehind = minBehind; }
+            }
+            if (bestK < 0)
+            {
+                LastLog += $"; shelf none: no closed shore stretch ({open} open rays)";
+                return default;
+            }
+            // Flush with the land behind: the shelf takes the lowest of the stretch's ground behind, kept between 10 and 40 m.
+            var rise = math.clamp(bestBehind, 10f, 40f);
+            var level = lake + rise;
+            // The lip: the bay's back (its middle two thirds), shore smoothed once so the joints follow its curve.
+            var radii = new List<float>(); var dirs = new List<float2>();
+            int lipHalf = half * 2 / 3;
+            for (int s = -lipHalf; s <= lipHalf; s++) { var kk = (bestK + s + rays) % rays; radii.Add(shoreR[kk]); dirs.Add(rayDir[kk]); }
+            {
+                var sm = new List<float>(radii);
+                for (int i = 1; i + 1 < radii.Count; i++) sm[i] = 0.25f * radii[i - 1] + 0.5f * radii[i] + 0.25f * radii[i + 1];
+                radii = sm;
+            }
+            var pts = new List<float2>();
+            for (int i = 0; i < radii.Count; i++) pts.Add(c + dirs[i] * radii[i]);
+            // Each lip point faces out along the edge's own normal (the mean of its two segments'), towards the lake.
+            var lip = new List<float4>();
+            for (int i = 0; i < pts.Count; i++)
+            {
+                var tan = math.normalizesafe(pts[math.min(i + 1, pts.Count - 1)] - pts[math.max(i - 1, 0)]);
+                var o = new float2(tan.y, -tan.x);
+                if (math.dot(o, c - pts[i]) < 0f) o = -o;
+                lip.Add(new float4(pts[i], o));
+            }
+            // The falls: one sheet per chord of the lip resampled every ~10 m, each facing its own chord's normal and
+            // exactly as wide as it, so neighbouring sheets meet at the joints with no gap or overlap at the lip.
+            var tiers = new List<GrandFallTier>();
+            float length = 0f;
+            var cum = new List<float> { 0f };
+            for (int i = 0; i + 1 < lip.Count; i++) { length += math.distance(lip[i].xy, lip[i + 1].xy); cum.Add(length); }
+            int sheets = math.max(1, (int)math.round(length / 10f));
+            float2 At(float s)
+            {
+                int i = 0;
+                while (i + 2 < cum.Count && cum[i + 1] < s) i++;
+                var t = math.saturate((s - cum[i]) / math.max(cum[i + 1] - cum[i], 1e-3f));
+                return math.lerp(lip[i].xy, lip[i + 1].xy, t);
+            }
+            for (int q = 0; q < sheets; q++)
+            {
+                var p0 = At(length * q / sheets); var p1 = At(length * (q + 1) / sheets);
+                var p = 0.5f * (p0 + p1);
+                var tan = math.normalizesafe(p1 - p0);
+                var o = new float2(tan.y, -tan.x);
+                if (math.dot(o, c - p) < 0f) o = -o;
+                tiers.Add(new GrandFallTier
+                {
+                    Lip = new float3(p.x, level, p.y), Out = o, Drop = rise, Width = math.distance(p0, p1) + 0.2f,
+                    Pool = new float3(p.x + o.x * 8f, lake, p.y + o.y * 8f), PoolRadius = 8f, Along = length * (q + 0.5f) / sheets, Shelf = true
+                });
+            }
+            var bearing = (bestK * 360f / rays);
+            var builder = new BlobBuilder(Allocator.Temp);
+            ref var root = ref builder.ConstructRoot<GrandFallsBlob>();
+            var lipArr = builder.Allocate(ref root.ShelfLip, lip.Count);
+            float2 lo = float.MaxValue, hi = float.MinValue;
+            for (int i = 0; i < lip.Count; i++) { lipArr[i] = lip[i]; lo = math.min(lo, lip[i].xy); hi = math.max(hi, lip[i].xy); }
+            var tierArr = builder.Allocate(ref root.Tiers, tiers.Count);
+            for (int i = 0; i < tiers.Count; i++) tierArr[i] = tiers[i];
+            root.ShelfLevel = level; root.ShelfLake = lake; root.ShelfWidth = ShelfDepth;
+            var grow = ShelfDepth + 6f + 10f + 0.5f * 60f;
+            root.ShelfBounds = new float4(lo - grow, hi + grow);
+            root.Bounds = root.ShelfBounds;
+            var blob = builder.CreateBlobAssetReference<GrandFallsBlob>(allocator);
+            builder.Dispose();
+            LastLog += $"; lake shelf bay at bearing {bearing:F0} (score {bestScore:F2}, bay {bestBay:F0} m behind its chord, land behind {bestBehind:F0} m over the lake)";
+            LastLog += $"; lake shelf at {level:F1} m over the lake at {lake:F1} m: lip {length:F0} m from ({lip[0].x:F0},{lip[0].y:F0}) to ({lip[lip.Count - 1].x:F0},{lip[lip.Count - 1].y:F0}), {tiers.Count} fall stretches";
+            return blob;
+        }
+
+        /// <summary>
+        /// The lake shelf: behind the lip a flat basin held at the shelf level (its bed carved or raised to it), a rim
+        /// beyond that which only ever raises the ground, and at the lip a sheer face down into the lake. The basin is
+        /// widest in the middle and closes at both ends, so the shelf reads as one long terrace.
+        /// </summary>
+        static float ShapeShelf(ref GrandFallsBlob set, float2 xz, float h, out float water, out float2 flow, out float rapids, out float mask)
+        {
+            water = GroundSample.NoWater; flow = float2.zero; rapids = 0f; mask = 0f;
+            int n = set.ShelfLip.Length;
+            float best = float.MaxValue, u = 0f;
+            float2 near = 0f, outDir = 0f;
+            for (int i = 0; i + 1 < n; i++)
+            {
+                var a = set.ShelfLip[i]; var b = set.ShelfLip[i + 1];
+                var ab = b.xy - a.xy; var l2 = math.max(math.lengthsq(ab), 1e-4f);
+                var t = math.saturate(math.dot(xz - a.xy, ab) / l2);
+                var q = a.xy + ab * t;
+                var d = math.distancesq(xz, q);
+                if (d < best) { best = d; near = q; u = (i + t) / (n - 1); outDir = math.normalizesafe(math.lerp(a.zw, b.zw, t)); }
+            }
+            var off = xz - near;
+            var front = math.dot(off, outDir);            // metres towards the lake from the lip
+            var lateral = math.length(off - outDir * front); // past either end of the lip
+            var level = set.ShelfLevel;
+            // Half an ellipse: full width in the middle, closing to nothing at the ends.
+            var c = 2f * u - 1f;
+            var width = set.ShelfWidth * math.sqrt(math.max(0f, 1f - c * c)) + 6f;
+            var behind = -front;
+            if (front > 0f && lateral >= 1f)
+                return h; // the lake beside the ends stays as it is
+            if (front > 0f)
+            {
+                // The face: the lip's edge drops sheer into the lake within a few metres.
+                var k = math.smoothstep(0f, 3f, front);
+                mask = 1f - k;
+                return math.min(h, math.lerp(level - 0.3f, h, k));
+            }
+            // Distance out of the basin (landwards past its width, or sideways past an end).
+            var outside = math.max(behind - width, lateral);
+            if (outside <= 0f)
+            {
+                // The basin: bed 2.5 m under the shelf level, rising to the lip and to the back wall.
+                var bed = level - 2.5f * math.saturate(behind / 5f) * math.saturate((width - behind) / 6f);
+                mask = 1f;
+                water = level;
+                var toLip = math.saturate(1f - behind / math.max(width, 1f));
+                flow = outDir * (0.3f + 1.7f * toLip * toLip);
+                rapids = math.saturate(1f - behind / 6f);
+                return bed;
+            }
+            // The rim: at least 1.5 m above the water, easing back into the ground; never lowers a hill behind it.
+            var rim = level + 1.5f * math.smoothstep(0f, 3f, outside);
+            var bank = 10f + 0.5f * math.abs(h - rim);
+            var weight = 1f - math.smoothstep(0f, bank, outside);
+            mask = weight * 0.5f;
+            return math.lerp(h, math.max(h, rim), weight);
+        }
+
         /// <summary>The levelled height at distance d from a channel (or pool) of half width hw and water level w, and how strongly it replaces the ground.</summary>
         static float Level(float d, float hw, float w, float depth, float h, out float weight)
         {
@@ -115,7 +333,7 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Bakes the falls from the ground as it is now (call it before setting <see cref="TerrainSource.GrandFalls"/>).</summary>
-        public static BlobAssetReference<GrandFallsBlob> Build(in TerrainSource source, Allocator allocator)
+        public static BlobAssetReference<GrandFallsBlob> Build(in TerrainSource source, Allocator allocator, bool shelf = false)
         {
             var src = source;
             // The path, sampled every 4 m, run on past the last site node until it is in the lake.
@@ -138,7 +356,7 @@ namespace Punchy.Terrain
             if (lake == float.MinValue || top < lake + 100f)
             {
                 LastLog = $"[grand falls] none: lake {(lake == float.MinValue ? "not found" : lake.ToString("F1"))}, top {top:F1}";
-                return default;
+                return shelf ? BuildShelf(source, allocator) : default;
             }
             int count = pts.Count;
             var along = new float[count];

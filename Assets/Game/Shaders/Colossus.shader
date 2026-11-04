@@ -1,9 +1,21 @@
 Shader "Punchy/Colossus"
 {
     // Flat-shaded, vertex-coloured solid for the Dunes colossus (DunesColossus builds its meshes in code).
+    // _BaseColor tints the vertex colour (W-77: the salt tower and the sunken temple draw with it so they fade into
+    // the haze like the terrain, instead of URP Lit's plain fog).
+    Properties
+    {
+        _BaseColor ("Tint", Color) = (1, 1, 1, 1)
+    }
     SubShader
     {
         Tags { "RenderType" = "Opaque" "Queue" = "Geometry" "RenderPipeline" = "UniversalPipeline" }
+        HLSLINCLUDE
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+        CBUFFER_START(UnityPerMaterial)
+        half4 _BaseColor;
+        CBUFFER_END
+        ENDHLSL
 
         Pass
         {
@@ -43,7 +55,7 @@ Shader "Punchy/Colossus"
                 o.positionWS = TransformObjectToWorld(input.positionOS.xyz);
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.normalWS = TransformObjectToWorldNormal(input.normalOS);
-                o.albedo = input.color.rgb;
+                o.albedo = input.color.rgb * _BaseColor.rgb;
                 return o;
             }
 

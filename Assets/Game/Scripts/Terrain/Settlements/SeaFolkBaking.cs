@@ -50,6 +50,16 @@ namespace Punchy.Terrain
 
             // Connected lake cells (as RiverSampling: LakeDepth > 0.3); the biggest lake at least MinDepth deep wins,
             // its lowest cell index breaking ties, so the choice is fixed.
+            // W-76: the bed under every lake cell first, in parallel rows (sampling only reads blobs); the fill reads it.
+            var bed = new float[res * res];
+            var src = source;
+            System.Threading.Tasks.Parallel.For(0, res, row =>
+            {
+                ref var rv = ref src.Rivers.Value;
+                for (int c = row * res; c < (row + 1) * res; c++)
+                    if (rv.LakeDepth[c] > 0.3f)
+                        bed[c] = src.SampleHeight(Centre(ref rv, c));
+            });
             var label = new int[res * res];
             var stack = new Stack<int>();
             int best = 0, bestCells = 0, bestFirst = 0, next = 0;
@@ -63,7 +73,7 @@ namespace Punchy.Terrain
                 {
                     var c = stack.Pop();
                     cells++;
-                    deep = math.max(deep, m.LakeLevel[c] - source.SampleHeight(Centre(ref m, c)));
+                    deep = math.max(deep, m.LakeLevel[c] - bed[c]);
                     int cx = c % res, cy = c / res;
                     for (int q = 0; q < 4; q++)
                     {
