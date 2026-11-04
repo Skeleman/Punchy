@@ -416,31 +416,79 @@ namespace Punchy.Terrain
                 {
                     var sp = Spines[q.Spine]; float reach = 1.6f * sp.HalfWidth, saddle = s.SampleHeight(new float2(q.At.x, q.At.y));
                     var tan = new Vector2(q.Across.y, -q.Across.x);
-                    float best = float.MaxValue, bestField = 0f; int bestWet = 0;
+                    float best = float.MaxValue, bestField = 0f; int bestWet = 0; string bestWhy = "";
                     for (int line = -3; line <= 3; line++)
                     {
-                        float dry = 0f, fieldMax = 0f, prev = float.NaN, prevF = 0f; int wet = 0;
+                        float dry = 0f, fieldMax = 0f, prev = float.NaN, prevF = 0f, prevB = 0f; int wet = 0; string why = "";
                         for (float t = -reach; t <= reach; t += 4f)
                         {
                             var p = q.At + q.Across * t + tan * (line * 30f); var xz = new float2(p.x, p.y);
                             var gs = s.SampleGround(xz); float f = s.Island.IsCreated ? s.Island.Value.Sample(xz) : 0f;
+                            float bh = s.BaseHeight(xz);   // biome shape + range field, before rivers and places
                             bool water = gs.HasWater && gs.WaterSurface > gs.Height - 0.05f || gs.River > 0.3f;
                             if (!float.IsNaN(prev))
                             {
-                                if (water) wet++; else dry = Mathf.Max(dry, Mathf.Abs(gs.Height - prev) / 4f);
+                                float st = Mathf.Abs(gs.Height - prev) / 4f;
+                                if (water) wet++;
+                                else if (st > dry)
+                                {
+                                    // W-70b: what the steepest step is made of (metres per 4 m): biome shape relief,
+                                    // range field, and rivers/landmarks/ponds on top.
+                                    dry = st;
+                                    why = $"at ({p.x:F0},{p.y:F0}) shape {(bh - f) - (prevB - prevF):F1} field {f - prevF:F1} carve {(gs.Height - bh) - (prev - prevB):F1} river {gs.River:F2}";
+                                }
                                 fieldMax = Mathf.Max(fieldMax, Mathf.Abs(f - prevF) / 4f);
                             }
-                            prev = gs.Height; prevF = f;
+                            prev = gs.Height; prevF = f; prevB = bh;
                         }
-                        if (dry < best) { best = dry; bestField = fieldMax; bestWet = wet; }
+                        if (dry < best) { best = dry; bestField = fieldMax; bestWet = wet; bestWhy = why; }
                     }
                     worst = Mathf.Max(worst, best); worstField = Mathf.Max(worstField, bestField);
                     var b = Borders.Find(bb => bb.Spine == q.Spine);
-                    sb.Append($" {b?.Name}@({q.At.x:F0},{q.At.y:F0}) {Mathf.Atan(best) * Mathf.Rad2Deg:F0}/{Mathf.Atan(bestField) * Mathf.Rad2Deg:F0} deg w{bestWet} h{saddle:F0};");
+                    sb.Append($" {b?.Name}@({q.At.x:F0},{q.At.y:F0}) {Mathf.Atan(best) * Mathf.Rad2Deg:F0}/{Mathf.Atan(bestField) * Mathf.Rad2Deg:F0} deg w{bestWet} h{saddle:F0} wall {WallRun(s, q, reach, tan):F0} m [{bestWhy}];");
                 }
-                sb.Append($" worst pass {Mathf.Atan(worst) * Mathf.Rad2Deg:F0} deg (range field {Mathf.Atan(worstField) * Mathf.Rad2Deg:F0})");
+                sb.Append($" worst pass {Mathf.Atan(worst) * Mathf.Rad2Deg:F0} deg (range field {Mathf.Atan(worstField) * Mathf.Rad2Deg:F0}); wall = longest run of dry cells over 60 deg in the pass (8 m cells, largest connected patch, its longest side)");
             }
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// W-70b: how long the longest wall in a pass is: 8 m cells over the pass box (the crossing out to reach, the
+        /// pass width along the spine), the cells over 60 deg on dry ground, the largest connected patch of them, and
+        /// the longer side of its box in metres. A wall is fine in a pass; a long unbroken one reads as a barrier.
+        /// </summary>
+        static float WallRun(in TerrainSource s, RangePass q, float reach, Vector2 tan)
+        {
+            const float c = 8f; int na = Mathf.CeilToInt(2f * reach / c), nb = Mathf.CeilToInt(2f * q.Width / c);
+            var steep = new bool[na * nb]; float lim = Mathf.Tan(60f * Mathf.Deg2Rad);
+            for (int j = 0; j < nb; j++)
+                for (int i = 0; i < na; i++)
+                {
+                    var p = q.At + q.Across * (-reach + (i + 0.5f) * c) + tan * (-q.Width + (j + 0.5f) * c); var xz = new float2(p.x, p.y);
+                    var gs = s.SampleGround(xz); if (gs.HasWater && gs.WaterSurface > gs.Height - 0.05f || gs.River > 0.3f) continue;
+                    float gx = (s.SampleHeight(xz + new float2(2f, 0f)) - s.SampleHeight(xz - new float2(2f, 0f))) / 4f;
+                    float gz = (s.SampleHeight(xz + new float2(0f, 2f)) - s.SampleHeight(xz - new float2(0f, 2f))) / 4f;
+                    steep[j * na + i] = gx * gx + gz * gz > lim * lim;
+                }
+            var seen = new bool[steep.Length]; var stack = new Stack<int>(); float longest = 0f; int bestCells = 0;
+            for (int k = 0; k < steep.Length; k++)
+            {
+                if (!steep[k] || seen[k]) continue;
+                int minI = int.MaxValue, maxI = -1, minJ = int.MaxValue, maxJ = -1, cells = 0; seen[k] = true; stack.Push(k);
+                while (stack.Count > 0)
+                {
+                    int e = stack.Pop(), i = e % na, j = e / na; cells++;
+                    minI = Mathf.Min(minI, i); maxI = Mathf.Max(maxI, i); minJ = Mathf.Min(minJ, j); maxJ = Mathf.Max(maxJ, j);
+                    for (int dj = -1; dj <= 1; dj++)
+                        for (int di = -1; di <= 1; di++)
+                        {
+                            int ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= na || jj >= nb) continue;
+                            int n = jj * na + ii; if (steep[n] && !seen[n]) { seen[n] = true; stack.Push(n); }
+                        }
+                }
+                if (cells > bestCells) { bestCells = cells; longest = c * Mathf.Max(maxI - minI + 1, maxJ - minJ + 1); }
+            }
+            return longest;
         }
 
         /// <summary>Top-down height map of any island to a PNG (north up): height colours with hillshade; v3 passes in red, the massif ring in white.</summary>
