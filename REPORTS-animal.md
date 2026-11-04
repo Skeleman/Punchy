@@ -1710,10 +1710,10 @@ Left: a framed #64 shot (spawn a herd next to the player, or launch with v2 and 
 
 ## A-59 (2026-11-04): need cues for clients, needs split; shot and client test not finished
 
-Commits on animal-behaviours (pushed): merge of origin/main 7bca6b7, a49e354 (#64 cue byte + #58 needs move). Stopped over the call ceiling.
+Commits on animal-behaviours (pushed): merge of origin/main 9a6f896, a49e354 (#64 cue byte + #58 needs move). Stopped over the call ceiling.
 
 - Setup: PlayerPrefs body was Goblin (left by A-58b); deleted the body key and the per-class colouring keys, so the default body is back.
-- Row 1 (#64): cause not proven. The camera is not inside the ground or water: during the `-watch Deer -watchfrom 1.8,4.5` hold it sat 1.8 m above the ground (36.3 over 34.5) on dry land, with fog ExponentialSquared at density 0.0013. A retake with the same setup (a59-try1.png) is not grey haze: it shows a deer, but the camera is low, the foreground ground is blurred, the sky is overcast even with `-weather Clear` on the first line, and no cue is readable. a59-probe.png is a stray frame, not usable. Likely cause of the A-58b haze: the shot dir was missing (the editor clears Temp at startup), so those frames came from a different point in the run. Not checked.
+- Row 1 (#64): cause not proven. The camera is not inside the ground or water: during the deer watch hold it sat 1.8 m above the ground (36.3 over 34.5) on dry land, with fog ExponentialSquared at density 0.0013. A retake with the same setup (a59-try1.png) is not grey haze: it shows a deer, but the camera is low, the foreground ground is blurred, the sky is overcast, and no cue is readable. a59-probe.png is a stray frame, not usable. Likely cause of the A-58b haze: the shot dir was missing (the editor clears Temp at startup), so those frames came from a different point in the run. Not checked.
 - Row 2 (#64): network change: CreatureNet (the creature ghost) gets one new `[GhostField] byte Cue`. CreatureState.Cue (NeedCue: None/Tired/Hungry/Thirsty/Lonely, the strongest need past 0.6, none while asleep or held) is set by the brain in Needs, written by CreatureNetWriteSystem and copied back by CreatureReplicaSystem. The renderer draws state.Cue, so host, solo and client use the same path. **The host+client compare is not done**: the probe eval failed and I stopped at the ceiling. Fingerprint 51E641E9 after (host editor run, 0 game exceptions).
 - Row 3 (#58): moved by reader (no before/after us/creature, not measured):
 
