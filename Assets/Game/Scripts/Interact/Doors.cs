@@ -184,7 +184,8 @@ namespace Punchy.Interact
                 }
             }
             FindFacing(ref terrain.Anchors.Value);
-            if (facing >= 0 && UseKey.WasPressed())
+            // (P-13: an open door whose house has a room takes the player inside: Interiors.)
+            if (facing >= 0 && UseKey.WasPressed() && !(open.Contains(facing) && Interiors.Enter(facing)))
                 Use(facing);
             if (useDoorArg >= 0)
             {
@@ -255,7 +256,8 @@ namespace Punchy.Interact
             if (facing >= 0 && FacingDistance >= Punchy.Items.Items.TargetDistance)
                 facing = -1;
             if (facing >= 0)
-                prompt = $"{UseKey.Name}  {(open.Contains(facing) ? "close" : "open")} door";
+                prompt = open.Contains(facing) && Interiors.CanEnter(facing) ? $"{UseKey.Name}  go inside"
+                       : $"{UseKey.Name}  {(open.Contains(facing) ? "close" : "open")} door";
         }
 
         /// <summary>The player used a door: solo or host decide now; a client asks the host.</summary>
