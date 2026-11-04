@@ -26,6 +26,12 @@ namespace Punchy.CameraRig
         public float MinDistance = 3f;
         public float MaxDistance = 30f;
         public float TargetHeight = 1.6f;
+        /// <summary>
+        /// #85 (P-7): the point the camera looks at, above the player's feet: TargetHeight for a human, scaled by the
+        /// body's size (PlayerBody.Size) so a small body (a rabbit) stays in frame looking up underground; never under 0.3 m.
+        /// </summary>
+        public float PivotHeight => Mathf.Max(TargetHeight * bodySize, 0.3f);
+        float bodySize = 1f;
         public float MouseSensitivity = 0.15f;
         public float StickSensitivity = 180f;
         public float ZoomSensitivity = 0.01f;
@@ -55,6 +61,7 @@ namespace Punchy.CameraRig
         EntityQuery playerQuery;
         EntityQuery terrainQuery;
         EntityQuery supportQuery;
+        EntityQuery bodyQuery;
         // The world the queries belong to; joining or hosting replaces the worlds, so they are rebuilt then.
         World queryWorld;
         bool menuWasOpen;
@@ -72,7 +79,7 @@ namespace Punchy.CameraRig
                 return;
             if (WatchTarget.HasValue)
             {
-                playerPosition = WatchTarget.Value - Vector3.up * TargetHeight;
+                playerPosition = WatchTarget.Value - Vector3.up * PivotHeight;
                 yaw += Time.deltaTime * WatchSpin;
                 pitch = Mathf.MoveTowards(pitch, WatchPitch, Time.deltaTime * 30f);
                 Distance = Mathf.MoveTowards(Distance, WatchDistance, Time.deltaTime * 4f);
@@ -94,8 +101,18 @@ namespace Punchy.CameraRig
             // #85: back above ground, a look from the wider underground range eases into the normal one.
             if (!underground)
                 pitch = Mathf.MoveTowards(pitch, Mathf.Clamp(pitch, MinPitch, MaxPitch), Time.deltaTime * 90f);
-            var target = playerPosition + Vector3.up * TargetHeight;
-            var rotation = Quaternion.Euler(pitch, yaw, 0f);
+            var target = playerPosition + Vector3.up * PivotHeight;
+            // #85 (P-7): a small body looking up underground. Circling the camera under a low pivot puts it on the floor
+            // beside the body, which then drops out of the bottom of the frame; instead the camera circles no lower
+            // than SmallLookOrbit and tilts its view up for the rest, at most until the body reaches the frame's edge.
+            var orbitPitch = pitch;
+            var lookUp = 0f;
+            if (underground && bodySize < 0.75f && pitch < SmallLookOrbit)
+            {
+                orbitPitch = SmallLookOrbit;
+                lookUp = Mathf.Min(SmallLookOrbit - pitch, (cam != null ? cam.fieldOfView : 60f) * 0.5f - 8f);
+            }
+            var rotation = Quaternion.Euler(orbitPitch, yaw, 0f);
             var position = target - rotation * Vector3.forward * Distance;
 
             // Don't let the camera dip under hills or water; if it has to rise, keep looking at the player.
@@ -163,7 +180,7 @@ namespace Punchy.CameraRig
                 var lens = new Unity.Mathematics.float3(position.x, position.y, position.z);
                 if (terrain.CaveDistance(lens) < 0f || underground && (terrain.TempleAir(lens) || position.y < terrain.SampleHeight(lens.xz)))
                 {
-                    transform.SetPositionAndRotation(position, rotation);
+                    transform.SetPositionAndRotation(position, rotation * Quaternion.Euler(-lookUp, 0f, 0f));
                     return;
                 }
                 var ground = terrain.SampleGround(new Unity.Mathematics.float2(position.x, position.z));
@@ -201,8 +218,11 @@ namespace Punchy.CameraRig
                 }
             }
 
-            transform.SetPositionAndRotation(position, rotation);
+            transform.SetPositionAndRotation(position, rotation * Quaternion.Euler(-lookUp, 0f, 0f));
         }
+
+        /// <summary>#85: the lowest a small body's camera circles underground (deg); looking further up tilts the view instead.</summary>
+        const float SmallLookOrbit = -10f;
 
         /// <summary>Testing (-oldcave): the cave arm's pivot drop and sphere trace in managed code (CaveArm), as before the Burst ArmProbe (#54).</summary>
         public static bool OldProbe;
@@ -312,6 +332,7 @@ namespace Punchy.CameraRig
                 playerQuery = entityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
                 terrainQuery = entityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
                 supportQuery = entityManager.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Flora.SupportGrids>(), ComponentType.ReadOnly<Punchy.Flora.FloraSupport>());
+                bodyQuery = entityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerBody>());
                 queryWorld = world;
             }
 
@@ -320,6 +341,8 @@ namespace Punchy.CameraRig
                 return false;
 
             position = player.Position;
+            // (The body's size: PlayerBody is a singleton set by FaunaDirector; 0 reads as a human.)
+            bodySize = bodyQuery.TryGetSingleton<PlayerBody>(out var body) && body.Size > 0f ? body.Size : 1f;
             return true;
         }
 
